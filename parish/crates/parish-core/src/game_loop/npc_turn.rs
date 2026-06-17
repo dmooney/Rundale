@@ -172,6 +172,7 @@ pub async fn run_npc_turn(
         dialogue_polish_guard_enabled,
         post_guard_ui_replace_enabled,
         relationship_tone_hints,
+        speaker_context,
     ) = {
         let mut world = ctx.world.lock().await;
         let mut npc_manager = ctx.npc_manager.lock().await;
@@ -236,6 +237,14 @@ pub async fn run_npc_turn(
             &npc_cfg,
         );
         let relationship_tone_hints = npc_manager.relationship_tone_hints(speaker_id);
+        let speaker_context =
+            npc_manager
+                .get(speaker_id)
+                .map(|npc| crate::npc::DialogueSpeakerContext {
+                    name: npc.name.clone(),
+                    occupation: npc.occupation.clone(),
+                    mood: npc.mood.clone(),
+                });
         let time_of_day = world.clock.time_of_day();
         (
             setup,
@@ -254,6 +263,7 @@ pub async fn run_npc_turn(
             dialogue_polish_guard,
             ui_replace,
             relationship_tone_hints,
+            speaker_context,
         )
     };
     let setup = setup?;
@@ -535,12 +545,13 @@ pub async fn run_npc_turn(
     if false_denial_guard_enabled && !parsed.dialogue.trim().is_empty() {
         // both_guards_seed is always Some here (guard enabled + dialogue non-empty).
         let guard_seed = both_guards_seed.unwrap_or(0);
-        let guarded = crate::npc::guard_false_denial_of_roster_person(
+        let guarded = crate::npc::guard_false_denial_of_roster_person_with_speaker(
             &parsed.dialogue,
             prompt_input,
             &setup.known_person_names,
             setup.player_name.as_deref(),
             guard_seed,
+            speaker_context.as_ref(),
         );
         if guarded != parsed.dialogue {
             parsed.dialogue = guarded;
@@ -587,10 +598,11 @@ pub async fn run_npc_turn(
     // false-denial corrections win before generic polish.
     if dialogue_polish_guard_enabled && !parsed.dialogue.trim().is_empty() {
         let guard_seed = both_guards_seed.unwrap_or(0);
-        let guarded = crate::npc::guard_stock_nonrecognition_decline(
+        let guarded = crate::npc::guard_stock_nonrecognition_decline_with_speaker(
             &parsed.dialogue,
             prompt_input,
             guard_seed,
+            speaker_context.as_ref(),
         );
         if guarded != parsed.dialogue {
             parsed.dialogue = guarded;

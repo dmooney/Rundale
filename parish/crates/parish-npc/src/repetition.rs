@@ -411,6 +411,48 @@ fn non_recognition_decline(seed: u64) -> &'static str {
     DECLINES[(seed as usize) % DECLINES.len()]
 }
 
+/// Minimal speaker context used by deterministic dialogue polish guards.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DialogueSpeakerContext {
+    /// Speaker's display/roster name.
+    pub name: String,
+    /// Speaker's current occupation or role.
+    pub occupation: String,
+    /// Speaker's current mood label.
+    pub mood: String,
+}
+
+impl DialogueSpeakerContext {
+    fn is_shopkeeper(&self) -> bool {
+        self.occupation.to_lowercase().contains("shopkeeper")
+    }
+}
+
+fn shopkeeper_non_recognition_decline(seed: u64) -> &'static str {
+    const DECLINES: &[&str] = &[
+        "I keep a sharp account at this counter, and that is not a name I can place.",
+        "No account in this shop comes to mind for that name.",
+        "I know the names that cross my counter, and that one has not passed it.",
+        "If that name trades in this parish, it has not crossed my counter.",
+        "No order, debt, or bag of goods brings that name to mind.",
+    ];
+    DECLINES[(seed as usize) % DECLINES.len()]
+}
+
+fn non_recognition_decline_for_speaker(
+    seed: u64,
+    speaker: Option<&DialogueSpeakerContext>,
+) -> &'static str {
+    if speaker
+        .map(DialogueSpeakerContext::is_shopkeeper)
+        .unwrap_or(false)
+    {
+        return shopkeeper_non_recognition_decline(seed);
+    }
+
+    non_recognition_decline(seed)
+}
+
 /// Denial markers used by both the affirmation check and the pronoun-referent
 /// check. If any of these appear in the dialogue the NPC is already declining —
 /// the guard must not fire.
@@ -3133,6 +3175,30 @@ pub fn guard_false_denial_of_roster_person(
     player_name: Option<&str>,
     seed: u64,
 ) -> String {
+    guard_false_denial_of_roster_person_with_speaker(
+        dialogue,
+        player_input,
+        known_person_names,
+        player_name,
+        seed,
+        None,
+    )
+}
+
+/// Speaker-aware variant of [`guard_false_denial_of_roster_person`].
+///
+/// In command text like `talk to Roisin Connolly about Martin`, the addressed
+/// NPC's own full name is present in the input but is not the subject being
+/// denied. This variant ignores that addressed-speaker candidate when an
+/// explicit `about ...` topic names someone else.
+pub fn guard_false_denial_of_roster_person_with_speaker(
+    dialogue: &str,
+    player_input: &str,
+    known_person_names: &[String],
+    player_name: Option<&str>,
+    seed: u64,
+    speaker: Option<&DialogueSpeakerContext>,
+) -> String {
     if dialogue.trim().is_empty() {
         return dialogue.to_string();
     }
@@ -3152,6 +3218,14 @@ pub fn guard_false_denial_of_roster_person(
     for candidate in &candidates {
         // Only fire for full names (multi-word) that ARE in the roster.
         if candidate.split_whitespace().count() < 2 {
+            continue;
+        }
+        if speaker
+            .map(|speaker| {
+                addressed_speaker_candidate_is_not_topic(candidate, player_input, speaker)
+            })
+            .unwrap_or(false)
+        {
             continue;
         }
         if !name_in_roster(candidate, known_person_names, player_name) {
@@ -3180,6 +3254,27 @@ pub fn guard_false_denial_of_roster_person(
     }
 
     dialogue.to_string()
+}
+
+fn addressed_speaker_candidate_is_not_topic(
+    candidate: &str,
+    player_input: &str,
+    speaker: &DialogueSpeakerContext,
+) -> bool {
+    let candidate_norm = normalize_for_repetition(candidate);
+    let speaker_norm = normalize_for_repetition(&speaker.name);
+    if candidate_norm.is_empty() || candidate_norm != speaker_norm {
+        return false;
+    }
+
+    let input = normalize_for_repetition(player_input);
+    let Some((address, topic)) = input.split_once(" about ") else {
+        return false;
+    };
+
+    let addressed = address.contains(&speaker_norm);
+    let topic_mentions_speaker = topic.contains(&speaker_norm);
+    addressed && !topic.trim().is_empty() && !topic_mentions_speaker
 }
 
 // ── #1530 — invented place confirmation guard ──────────────────────────────────
@@ -3234,6 +3329,7 @@ fn non_recognition_place_decline(seed: u64) -> &'static str {
 }
 
 const STOCK_NONRECOGNITION_TEMPLATES: &[&str] = &[
+    "that name is not known to me hereabouts",
     "i know no one by that name in these parts",
     "mayhap ye have the wrong parish entirely",
 ];
@@ -3241,6 +3337,16 @@ const STOCK_NONRECOGNITION_TEMPLATES: &[&str] = &[
 /// Replaces old stock non-recognition templates with the same deterministic
 /// fallback families used by the grounding guards (#1564).
 pub fn guard_stock_nonrecognition_decline(dialogue: &str, player_input: &str, seed: u64) -> String {
+    guard_stock_nonrecognition_decline_with_speaker(dialogue, player_input, seed, None)
+}
+
+/// Speaker-aware variant of [`guard_stock_nonrecognition_decline`].
+pub fn guard_stock_nonrecognition_decline_with_speaker(
+    dialogue: &str,
+    player_input: &str,
+    seed: u64,
+    speaker: Option<&DialogueSpeakerContext>,
+) -> String {
     if dialogue.trim().is_empty() {
         return dialogue.to_string();
     }
@@ -3263,7 +3369,7 @@ pub fn guard_stock_nonrecognition_decline(dialogue: &str, player_input: &str, se
     }
 
     tracing::warn!("dialogue polish guard fired: replacing stock person non-recognition (#1564)");
-    non_recognition_decline(prompt_seed).to_string()
+    non_recognition_decline_for_speaker(prompt_seed, speaker).to_string()
 }
 
 fn normalized_alpha_words(text: &str) -> Vec<String> {
@@ -6078,6 +6184,56 @@ mod tests {
     }
 
     #[test]
+    fn false_denial_guard_ignores_addressed_speaker_when_topic_differs() {
+        let known = make_names(&["Roisin Connolly", "Peig Hannigan"]);
+        let speaker = DialogueSpeakerContext {
+            name: "Roisin Connolly".to_string(),
+            occupation: "Shopkeeper".to_string(),
+            mood: "alert".to_string(),
+        };
+        let dialogue = "That name is not known to me hereabouts.";
+        let result = guard_false_denial_of_roster_person_with_speaker(
+            dialogue,
+            "talk to Roisin Connolly about Martin",
+            &known,
+            None,
+            0,
+            Some(&speaker),
+        );
+        assert_eq!(
+            result, dialogue,
+            "speaker addressee must not be mistaken for the denied topic"
+        );
+    }
+
+    #[test]
+    fn false_denial_guard_still_fires_for_known_topic_with_speaker_context() {
+        let known = make_names(&["Roisin Connolly", "Peig Hannigan"]);
+        let speaker = DialogueSpeakerContext {
+            name: "Roisin Connolly".to_string(),
+            occupation: "Shopkeeper".to_string(),
+            mood: "alert".to_string(),
+        };
+        let dialogue = "That name is not known to me hereabouts.";
+        let result = guard_false_denial_of_roster_person_with_speaker(
+            dialogue,
+            "talk to Roisin Connolly about Peig Hannigan",
+            &known,
+            None,
+            0,
+            Some(&speaker),
+        );
+        assert_ne!(
+            result, dialogue,
+            "known topic must still be corrected even when the speaker is addressed"
+        );
+        assert!(
+            result.to_lowercase().contains("known") || result.to_lowercase().contains("parish"),
+            "known-person acknowledgement should survive: {result:?}"
+        );
+    }
+
+    #[test]
     fn stock_nonrecognition_polish_replaces_old_person_template() {
         let dialogue = "I know no one by that name in these parts.";
         let result = guard_stock_nonrecognition_decline(
@@ -6091,6 +6247,33 @@ mod tests {
                 .to_lowercase()
                 .contains("i know no one by that name in these parts"),
             "replacement must not reuse the stale template: {result:?}"
+        );
+    }
+
+    #[test]
+    fn stock_nonrecognition_polish_uses_shopkeeper_voice_when_available() {
+        let speaker = DialogueSpeakerContext {
+            name: "Roisin Connolly".to_string(),
+            occupation: "Shopkeeper".to_string(),
+            mood: "alert".to_string(),
+        };
+        let dialogue = "That name is not known to me hereabouts.";
+        let result = guard_stock_nonrecognition_decline_with_speaker(
+            dialogue,
+            "talk to Roisin Connolly about Martin",
+            0,
+            Some(&speaker),
+        );
+        let lower = result.to_lowercase();
+
+        assert_ne!(result, dialogue, "reported stock phrase must be replaced");
+        assert!(
+            lower.contains("counter")
+                || lower.contains("shop")
+                || lower.contains("account")
+                || lower.contains("goods")
+                || lower.contains("trade"),
+            "replacement should sound like a shopkeeper: {result:?}"
         );
     }
 

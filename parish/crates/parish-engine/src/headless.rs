@@ -817,6 +817,14 @@ fn apply_npc_response(
     // so we pass &[] — the pronoun follow-up guard is conservative and will
     // only fire when prior_player_inputs is non-empty.
     let cfg = parish_core::config::NpcConfig::default();
+    let speaker_context =
+        app.npc_manager
+            .get(npc_id)
+            .map(|npc| crate::npc::DialogueSpeakerContext {
+                name: npc.name.clone(),
+                occupation: npc.occupation.clone(),
+                mood: npc.mood.clone(),
+            });
     if cfg.person_confirmation_guard_enabled && !parsed.dialogue.trim().is_empty() {
         let seed = npc_id.0 as u64 ^ (game_time.timestamp() as u64);
         let guarded = crate::npc::guard_fabricated_person_confirmation_with_locations(
@@ -836,12 +844,13 @@ fn apply_npc_response(
         && !parsed.dialogue.trim().is_empty()
     {
         let seed = npc_id.0 as u64 ^ (game_time.timestamp() as u64);
-        let guarded = crate::npc::guard_false_denial_of_roster_person(
+        let guarded = crate::npc::guard_false_denial_of_roster_person_with_speaker(
             &parsed.dialogue,
             player_input,
             known_person_names,
             player_name,
             seed,
+            speaker_context.as_ref(),
         );
         if guarded != parsed.dialogue {
             parsed.dialogue = guarded;
@@ -876,8 +885,12 @@ fn apply_npc_response(
         && !parsed.dialogue.trim().is_empty()
     {
         let seed = npc_id.0 as u64 ^ (game_time.timestamp() as u64);
-        let guarded =
-            crate::npc::guard_stock_nonrecognition_decline(&parsed.dialogue, player_input, seed);
+        let guarded = crate::npc::guard_stock_nonrecognition_decline_with_speaker(
+            &parsed.dialogue,
+            player_input,
+            seed,
+            speaker_context.as_ref(),
+        );
         if guarded != parsed.dialogue {
             parsed.dialogue = guarded;
         }
