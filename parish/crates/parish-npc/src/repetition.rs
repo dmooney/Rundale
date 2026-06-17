@@ -3300,6 +3300,9 @@ fn dialogue_already_carries_cool_tone(dialogue: &str) -> bool {
         "little warmth",
         "keep my distance",
         "keeps my distance",
+        "keeps his distance",
+        "keeps her distance",
+        "keeps their distance",
         "no friend",
         "not a friend",
         "not one i trust",
@@ -3338,6 +3341,7 @@ fn dialogue_has_neutral_warm_rival_pattern(dialogue: &str) -> bool {
         "grand soul",
         "no harm in him",
         "no harm in her",
+        "no harm in them",
         "she keeps an eye on things",
         "he keeps an eye on things",
     ];
@@ -6110,6 +6114,22 @@ mod tests {
             guard_rival_target_neutral_tone(dialogue, "Tell me about Mick Flanagan", &rels),
             dialogue,
             "already cool wording should pass through unchanged",
+        );
+    }
+
+    #[test]
+    fn rival_tone_guard_leaves_third_person_distance_line_alone() {
+        let dialogue = "Mick Flanagan, aye. He's a good man, but he keeps his distance.";
+        let rels = vec![RelationshipToneHint {
+            target_name: "Mick Flanagan".to_string(),
+            kind: RelationshipKind::Rival,
+            strength: -0.2,
+        }];
+
+        assert_eq!(
+            guard_rival_target_neutral_tone(dialogue, "Tell me about Mick Flanagan", &rels),
+            dialogue,
+            "existing third-person distance cue should pass through unchanged",
         );
     }
 
