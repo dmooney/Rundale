@@ -628,6 +628,12 @@ pub async fn run_npc_turn(
             parsed.dialogue = guarded;
         }
 
+        let guarded =
+            crate::npc::guard_repeated_speaker_name(&parsed.dialogue, speaker_context.as_ref());
+        if guarded != parsed.dialogue {
+            parsed.dialogue = guarded;
+        }
+
         let guarded = crate::npc::guard_rival_target_neutral_tone(
             &parsed.dialogue,
             prompt_input,

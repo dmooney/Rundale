@@ -629,6 +629,7 @@ impl GameTestHarness {
                 &known_person_names,
                 speaker_context.as_ref(),
             );
+            guarded = crate::npc::guard_repeated_speaker_name(&guarded, speaker_context.as_ref());
             let relationship_tone_hints = self.app.npc_manager.relationship_tone_hints(npc_id);
             guarded = crate::npc::guard_rival_target_neutral_tone(
                 &guarded,
@@ -2309,6 +2310,31 @@ mod tests {
         assert!(
             !lower.contains("how do ye find him so far"),
             "presupposing question must not surface unchanged: {dialogue:?}"
+        );
+    }
+
+    #[test]
+    fn canned_npc_response_removes_repeated_speaker_name() {
+        let mut h = GameTestHarness::new();
+        h.add_canned_response(
+            "Peig Hannigan",
+            "Ye can call me Peig Hannigan. As for yer question, it's Peig Hannigan ye're speaking to.",
+        );
+        let result = h.execute("talk to Peig Hannigan about your name");
+        let ActionResult::NpcResponse { npc, dialogue, .. } = result else {
+            panic!("expected Peig to answer through the canned NPC path, got {result:?}");
+        };
+        let lower = dialogue.to_lowercase();
+
+        assert_eq!(npc, "Peig Hannigan");
+        assert_eq!(
+            lower.matches("peig hannigan").count(),
+            1,
+            "speaker full name should appear once: {dialogue:?}"
+        );
+        assert!(
+            !lower.contains("it's peig hannigan ye're speaking to"),
+            "redundant self-reference phrase must not surface unchanged: {dialogue:?}"
         );
     }
 

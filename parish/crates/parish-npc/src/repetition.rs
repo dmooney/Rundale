@@ -3627,6 +3627,83 @@ pub fn guard_presumed_prior_acquaintance(
     prior_acquaintance_checkin(target)
 }
 
+fn count_word_sequence(text: &str, phrase: &str) -> usize {
+    let haystack = normalized_alpha_words(text);
+    let needle = normalized_alpha_words(phrase);
+    if needle.is_empty() || needle.len() > haystack.len() {
+        return 0;
+    }
+    haystack
+        .windows(needle.len())
+        .filter(|window| *window == needle.as_slice())
+        .count()
+}
+
+fn sentence_has_redundant_self_name_reference(sentence: &str, speaker_name: &str) -> bool {
+    if !text_contains_word_sequence(sentence, speaker_name) {
+        return false;
+    }
+    let normalized_sentence =
+        normalize_for_repetition(&sentence.replace('\u{2019}', "'")).replace(',', "");
+    let normalized_name = normalize_for_repetition(speaker_name).replace(',', "");
+    [
+        format!("it's {normalized_name} ye're speaking to"),
+        format!("it's {normalized_name} you're speaking to"),
+        format!("it is {normalized_name} ye're speaking to"),
+        format!("it is {normalized_name} you're speaking to"),
+        format!("ye're speaking to {normalized_name}"),
+        format!("you're speaking to {normalized_name}"),
+    ]
+    .iter()
+    .any(|pattern| normalized_sentence.contains(pattern))
+}
+
+/// Removes redundant repeated self-name references within a single reply
+/// (#1508).
+///
+/// Conservative: only fires when the speaker's full name appears more than
+/// once and a later sentence is a clear self-identity formula such as
+/// "it's Peig Hannigan ye're speaking to." The first self-introduction is
+/// preserved.
+pub fn guard_repeated_speaker_name(
+    dialogue: &str,
+    speaker: Option<&DialogueSpeakerContext>,
+) -> String {
+    let Some(speaker) = speaker else {
+        return dialogue.to_string();
+    };
+    if dialogue.trim().is_empty() || count_word_sequence(dialogue, &speaker.name) <= 1 {
+        return dialogue.to_string();
+    }
+
+    let mut saw_speaker_name = false;
+    let mut changed = false;
+    let mut kept = Vec::new();
+    for sentence in split_sentences(dialogue) {
+        let has_speaker_name = text_contains_word_sequence(&sentence, &speaker.name);
+        if saw_speaker_name
+            && has_speaker_name
+            && sentence_has_redundant_self_name_reference(&sentence, &speaker.name)
+        {
+            changed = true;
+            continue;
+        }
+        if has_speaker_name {
+            saw_speaker_name = true;
+        }
+        kept.push(sentence.trim().to_string());
+    }
+
+    if !changed {
+        return dialogue.to_string();
+    }
+    tracing::warn!(
+        speaker = %speaker.name,
+        "dialogue polish guard fired: removing repeated speaker name (#1508)"
+    );
+    kept.join(" ")
+}
+
 fn rival_tone_fallback(target_name: &str) -> String {
     format!(
         "{target_name}, aye. I'll grant the facts, but there is little warmth between us, so I keep my distance."
@@ -6463,6 +6540,73 @@ mod tests {
             ),
             dialogue,
             "extra honorific tokens must not hide current-turn meeting evidence"
+        );
+    }
+
+    #[test]
+    fn repeated_speaker_name_guard_removes_second_self_reference() {
+        let speaker = DialogueSpeakerContext {
+            name: "Peig Hannigan".to_string(),
+            occupation: "Widow".to_string(),
+            mood: "sharp".to_string(),
+        };
+        let dialogue = "Ye can call me Peig Hannigan. As for yer question, it's Peig Hannigan ye're speaking to.";
+        let result = guard_repeated_speaker_name(dialogue, Some(&speaker));
+
+        assert_ne!(
+            result, dialogue,
+            "redundant second self-reference must be removed"
+        );
+        assert_eq!(
+            count_word_sequence(&result, "Peig Hannigan"),
+            1,
+            "speaker full name should appear exactly once: {result:?}"
+        );
+        assert!(
+            !result
+                .to_lowercase()
+                .contains("it's peig hannigan ye're speaking to"),
+            "redundant self-reference phrase must not survive: {result:?}"
+        );
+    }
+
+    #[test]
+    fn repeated_speaker_name_guard_handles_comma_in_self_reference() {
+        let speaker = DialogueSpeakerContext {
+            name: "Peig Hannigan".to_string(),
+            occupation: "Widow".to_string(),
+            mood: "sharp".to_string(),
+        };
+        let dialogue = "Ye can call me Peig Hannigan. As for yer question, it's Peig Hannigan, ye're speaking to.";
+        let result = guard_repeated_speaker_name(dialogue, Some(&speaker));
+
+        assert_eq!(
+            count_word_sequence(&result, "Peig Hannigan"),
+            1,
+            "comma variant should still remove the redundant self-reference: {result:?}"
+        );
+        assert!(
+            !result
+                .to_lowercase()
+                .contains("it's peig hannigan, ye're speaking to"),
+            "comma variant must not surface unchanged: {result:?}"
+        );
+    }
+
+    #[test]
+    fn repeated_speaker_name_guard_leaves_substantive_second_mention() {
+        let speaker = DialogueSpeakerContext {
+            name: "Peig Hannigan".to_string(),
+            occupation: "Widow".to_string(),
+            mood: "sharp".to_string(),
+        };
+        let dialogue =
+            "Ye can call me Peig Hannigan. My mother gave Peig Hannigan that name after her aunt.";
+
+        assert_eq!(
+            guard_repeated_speaker_name(dialogue, Some(&speaker)),
+            dialogue,
+            "non-formulaic second mentions should stay conservative"
         );
     }
 
