@@ -476,6 +476,26 @@ impl App {
         self.debug_log.push_back(msg);
     }
 
+    /// Records scene-loader diagnostics once the active mod, world graph, and
+    /// NPC roster have all been loaded.
+    pub fn record_scene_load_diagnostics(&mut self) {
+        let Some(game_mod) = self.game_mod.as_ref() else {
+            return;
+        };
+        let summary = game_mod.scene_load_summary();
+        let warnings = game_mod.scene_validation_warnings(&self.world.graph, &self.npc_manager);
+
+        if let Some(summary) = summary {
+            tracing::info!("{summary}");
+            self.debug_event(summary);
+        }
+
+        for warning in warnings {
+            tracing::warn!(warning = %warning, "scene-diorama validation warning");
+            self.debug_event(format!("[scene warning] {warning}"));
+        }
+    }
+
     /// Creates a [`GameConfig`] snapshot from this App's flat config fields.
     ///
     /// Used to pass config state to the shared [`parish_core::ipc::handle_command`]

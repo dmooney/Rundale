@@ -34,6 +34,7 @@ pub fn handle_debug(sub: Option<&str>, app: &App) -> Vec<String> {
                 "gossip" => debug_gossip(app, arg),
                 "language" | "lang" => debug_language(app),
                 "reactions" => debug_reactions(app),
+                "scenes" => debug_scenes(app),
                 "help" => debug_help(),
                 _ => vec![format!("Unknown debug command: {}. Try /debug help", cmd)],
             }
@@ -409,7 +410,22 @@ fn debug_help() -> Vec<String> {
         "  /debug language         — Active language settings from the loaded mod".to_string(),
         "  /debug reactions        — Per-session NPC reaction emoji buffer + monoculture sensor"
             .to_string(),
+        "  /debug scenes           — Loaded scene-diorama index summary".to_string(),
     ]
+}
+
+/// Loaded scene-diorama index summary.
+fn debug_scenes(app: &App) -> Vec<String> {
+    let mut lines = vec!["[DEBUG SCENES]".to_string()];
+    let Some(game_mod) = app.game_mod.as_ref() else {
+        lines.push("  No game mod loaded.".to_string());
+        return lines;
+    };
+    match game_mod.scene_load_summary() {
+        Some(summary) => lines.push(format!("  {summary}")),
+        None => lines.push("  No scenes index loaded.".to_string()),
+    }
+    lines
 }
 
 /// Per-session NPC reaction emoji ring buffer + monoculture sensor state.
