@@ -34,6 +34,7 @@ pub use manifest::*;
 pub use types::*;
 
 // Re-export scene-diorama schema and validation helpers.
+pub use assets::{canonical_mod_asset_path, canonical_scene_asset_path};
 pub use scenes::*;
 
 // Re-export world bridge

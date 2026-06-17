@@ -17,7 +17,7 @@ pub(crate) fn validate_optional_asset_ref(
     }
 }
 
-pub(crate) fn canonical_mod_asset_path(mod_dir: &Path, rel: &str) -> Result<PathBuf, String> {
+pub fn canonical_mod_asset_path(mod_dir: &Path, rel: &str) -> Result<PathBuf, String> {
     let mod_dir = mod_dir
         .canonicalize()
         .map_err(|e| format!("failed to resolve mod directory {}: {e}", mod_dir.display()))?;
@@ -43,4 +43,14 @@ pub(crate) fn canonical_mod_asset_path(mod_dir: &Path, rel: &str) -> Result<Path
         return Err(format!("asset path {rel} escapes mod directory"));
     }
     Ok(canonical)
+}
+
+pub fn canonical_scene_asset_path(mod_dir: &Path, rel: &str) -> Result<PathBuf, String> {
+    let rel_path = Path::new(rel);
+    if !rel_path.starts_with(Path::new("assets").join("scenes")) {
+        return Err(format!(
+            "scene asset path {rel} must live under assets/scenes/"
+        ));
+    }
+    canonical_mod_asset_path(mod_dir, rel)
 }
