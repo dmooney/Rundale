@@ -420,8 +420,21 @@ fn test_npc_not_present_at_empty_location() {
     // Navigate to hurling green — no NPCs start there
     h.execute("go to crossroads");
     h.execute("go to hurling green");
+    let before = h.app.world.clock.now();
     let r = h.execute("hello");
-    assert_eq!(r, ActionResult::UnknownInput);
+    let after = h.app.world.clock.now();
+    let ActionResult::SystemCommand { response } = r else {
+        panic!("expected empty-location dialogue feedback, got {r:?}");
+    };
+    assert!(
+        response.to_lowercase().contains("no one answers")
+            || response.to_lowercase().contains("empty"),
+        "empty-location response should explain that no one answers: {response:?}"
+    );
+    assert_eq!(
+        after, before,
+        "empty-location dialogue must not advance time"
+    );
 }
 
 #[test]
