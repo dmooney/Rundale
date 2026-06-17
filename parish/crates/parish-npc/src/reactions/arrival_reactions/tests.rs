@@ -273,6 +273,103 @@ fn test_unintroduced_npc_casual_introduction() {
 }
 
 #[test]
+fn test_calculating_workplace_introduction_has_appraising_edge() {
+    let mut npc = test_npc(12, "Cormac Duffy", "Miller", Some(LocationId(18)));
+    npc.mood = "calculating".to_string();
+    npc.personality =
+        "Shrewd, cunning with weights and measures, and always looking to turn a profit."
+            .to_string();
+    let loc = test_location(18, true);
+    let introduced: HashSet<NpcId> = HashSet::new();
+    let templates = ReactionTemplates::default();
+    let config = ReactionConfig::default();
+    let dice = fixed_n(&[0.0, 0.1]);
+
+    let ctx = ArrivalContext {
+        location: &loc,
+        time_of_day: TimeOfDay::Morning,
+        weather: "clear",
+        templates: &templates,
+        config: &config,
+    };
+    let reactions = generate_arrival_reactions(&[&npc], &introduced, &ctx, &dice);
+
+    assert_eq!(reactions.len(), 1);
+    assert_eq!(reactions[0].kind, ReactionKind::Introduction);
+    assert!(reactions[0].introduces);
+    assert!(reactions[0].use_llm);
+    let text = reactions[0].canned_text.to_lowercase();
+    assert!(
+        ["measure", "weigh", "business", "terms", "price"]
+            .iter()
+            .any(|cue| text.contains(cue)),
+        "calculating introduction must carry appraising/business tone: {text}"
+    );
+    assert!(
+        !text.contains("warmly") && !text.contains("friendly"),
+        "calculating first contact must not collapse to generic warmth: {text}"
+    );
+}
+
+#[test]
+fn test_negated_cunning_does_not_make_workplace_intro_calculating() {
+    let mut npc = test_npc(14, "Brendan Duffy", "Miller's Son", Some(LocationId(18)));
+    npc.mood = "dutiful".to_string();
+    npc.personality =
+        "Honest and hardworking, but lacks his father's cunning. He speaks little.".to_string();
+    let loc = test_location(18, true);
+    let introduced: HashSet<NpcId> = HashSet::new();
+    let templates = ReactionTemplates::default();
+    let config = ReactionConfig::default();
+    let dice = fixed_n(&[0.0, 0.1]);
+
+    let ctx = ArrivalContext {
+        location: &loc,
+        time_of_day: TimeOfDay::Morning,
+        weather: "clear",
+        templates: &templates,
+        config: &config,
+    };
+    let reactions = generate_arrival_reactions(&[&npc], &introduced, &ctx, &dice);
+
+    assert_eq!(reactions.len(), 1);
+    let text = reactions[0].canned_text.to_lowercase();
+    assert!(
+        !["measure", "weighing", "business", "terms", "price"]
+            .iter()
+            .any(|cue| text.contains(cue)),
+        "negated cunning must not select calculating intro: {text}"
+    );
+}
+
+#[test]
+fn test_calculating_intro_does_not_duplicate_mononymous_name() {
+    let mut npc = test_npc(21, "Aoife", "Trader", Some(LocationId(4)));
+    npc.mood = "calculating".to_string();
+    let loc = test_location(4, true);
+    let introduced: HashSet<NpcId> = HashSet::new();
+    let templates = ReactionTemplates::default();
+    let config = ReactionConfig::default();
+    let dice = fixed_n(&[0.0, 0.4]);
+
+    let ctx = ArrivalContext {
+        location: &loc,
+        time_of_day: TimeOfDay::Morning,
+        weather: "clear",
+        templates: &templates,
+        config: &config,
+    };
+    let reactions = generate_arrival_reactions(&[&npc], &introduced, &ctx, &dice);
+
+    assert_eq!(reactions.len(), 1);
+    assert!(
+        !reactions[0].canned_text.contains("Aoife Aoife"),
+        "mononymous names must not render twice: {}",
+        reactions[0].canned_text
+    );
+}
+
+#[test]
 fn test_max_reactions_cap() {
     let npc1 = test_npc(1, "Aoife", "Farmer", None);
     let npc2 = test_npc(2, "Brigid", "Farmer", None);
@@ -360,6 +457,7 @@ fn test_reaction_templates_default_has_content() {
     assert!(t.welcomes.priest.len() >= 8);
     assert!(t.introductions.workplace.len() >= 8);
     assert!(t.introductions.casual.len() >= 8);
+    assert!(t.introductions.calculating.len() >= 4);
     assert!(t.occupation_greetings.priest.len() >= 8);
 }
 
@@ -470,6 +568,38 @@ fn test_arrival_greeting_prompt_addresses_newcomer_not_self() {
     assert!(
         system2.contains("Address the newcomer directly") || system2.contains("speak TO them"),
         "system prompt must instruct outward address (non-workplace), got: {system2}"
+    );
+}
+
+#[test]
+fn test_arrival_greeting_prompt_calculating_mood_overrides_warm_default() {
+    let mut npc = test_npc(12, "Cormac Duffy", "Miller", Some(LocationId(18)));
+    npc.mood = "calculating".to_string();
+    npc.personality = "A shrewd miller who is hard in his dealings.".to_string();
+    let lang = LanguageSettings::english_only();
+    let (system, context) = build_reaction_prompt(
+        &npc,
+        "The Mill",
+        TimeOfDay::Morning,
+        "clear",
+        /*is_introduced=*/ false,
+        /*at_workplace=*/ true,
+        &lang,
+    );
+
+    assert!(
+        system.contains("calculating mood must override"),
+        "prompt must make calculating mood stronger than the warm default:\n{system}"
+    );
+    assert!(
+        system.contains("measured")
+            && system.contains("appraising")
+            && system.contains("business-minded"),
+        "prompt must name the desired calculating register:\n{system}"
+    );
+    assert!(
+        context.contains("A newcomer has just arrived at The Mill"),
+        "context should still describe the arrival target:\n{context}"
     );
 }
 
