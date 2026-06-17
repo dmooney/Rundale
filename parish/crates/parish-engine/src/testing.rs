@@ -607,6 +607,12 @@ impl GameTestHarness {
             guarded = crate::npc::guard_stock_nonrecognition_decline(&guarded, player_input, seed);
             guarded =
                 crate::npc::guard_time_of_day_phrase(&guarded, self.app.world.clock.time_of_day());
+            let relationship_tone_hints = self.app.npc_manager.relationship_tone_hints(npc_id);
+            guarded = crate::npc::guard_rival_target_neutral_tone(
+                &guarded,
+                player_input,
+                &relationship_tone_hints,
+            );
         }
 
         if cfg.verbosity_guard_enabled {
@@ -2196,6 +2202,40 @@ mod tests {
         assert_ne!(
             person_dialogue, place_dialogue,
             "different unknown-entity prompts should not collapse to one reply"
+        );
+    }
+
+    #[test]
+    fn canned_npc_response_cools_neutral_rival_target_tone() {
+        let mut h = GameTestHarness::new();
+        let moved = h.execute("go to Connolly's Shop");
+        assert!(matches!(moved, ActionResult::Moved { .. }), "{moved:?}");
+
+        h.add_canned_response(
+            "Roisin Connolly",
+            "Mick Flanagan, aye. He's retired now but still keeps an eye on things.",
+        );
+
+        let result = h.execute("talk to Roisin Connolly about What do you think of Mick Flanagan?");
+        let ActionResult::NpcResponse { npc, dialogue, .. } = result else {
+            panic!("expected Roisin to answer through the canned NPC path, got {result:?}");
+        };
+
+        assert_eq!(npc, "Roisin Connolly");
+        assert!(
+            !dialogue
+                .to_lowercase()
+                .contains("still keeps an eye on things"),
+            "neutral-warm rival line must not surface unchanged: {dialogue:?}"
+        );
+        assert!(
+            dialogue.contains("Mick Flanagan"),
+            "target name should survive the cooled fallback: {dialogue:?}"
+        );
+        assert!(
+            dialogue.to_lowercase().contains("little warmth")
+                || dialogue.to_lowercase().contains("keep my distance"),
+            "cooled fallback should carry a visible rival cue: {dialogue:?}"
         );
     }
 
