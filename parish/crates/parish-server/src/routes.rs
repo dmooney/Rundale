@@ -11,6 +11,7 @@
 //! - [`admin`]         — admin guard, branch-name validation, addressed_to validation
 //! - [`demo`]          — demo/screenshot stubs (desktop-only, returns 501)
 //! - [`mods`]          — mod listing and switching
+//! - [`scene`]         — diorama scene-state and checked scene asset serving
 //! - [`session_token`] — WS session-token issuance
 
 pub mod admin;
@@ -19,6 +20,7 @@ pub mod input;
 pub mod mods;
 pub mod reactions;
 pub mod saves;
+pub mod scene;
 pub mod session_token;
 pub mod world;
 
@@ -31,6 +33,9 @@ pub use world::{
     get_theme, get_ui_config, get_world_snapshot, redact_call_log, serve_mod_icon,
     submit_bug_report,
 };
+
+// scene
+pub use scene::{get_scene_asset, get_scene_state};
 
 // input
 pub use input::{

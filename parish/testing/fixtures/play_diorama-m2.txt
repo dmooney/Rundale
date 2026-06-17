@@ -1,0 +1,24 @@
+# Diorama M2 — backend scene-state and asset serving smoke test
+# =============================================================
+# Expected after implementation:
+# - `/scene` reports no active scene while the `diorama` flag is disabled
+# - enabling the flag exposes scene-state for Darcy's Pub and The Crossroads
+
+/status
+/scene
+
+/flag enable diorama
+/flags
+
+go to The Crossroads
+/scene
+
+go to Darcy's Pub
+/scene
+/debug here
+/npcs
+
+/flag disable diorama
+/scene
+
+/quit

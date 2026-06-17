@@ -171,6 +171,7 @@ mod tests {
         assert!(names.contains(&"tauri_invoke"));
         assert!(names.contains(&"parish_world_snapshot"));
         assert!(names.contains(&"parish_submit_input"));
+        assert!(names.contains(&"parish_scene_state"));
     }
 
     #[tokio::test]
