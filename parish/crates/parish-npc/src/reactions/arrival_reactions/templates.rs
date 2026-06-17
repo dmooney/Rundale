@@ -285,7 +285,7 @@ pub(crate) fn default_introductions() -> IntroductionTemplates {
 pub(crate) fn default_calculating_introductions() -> Vec<String> {
     vec![
         "\"{name}, the {occupation},\" they say, taking your measure before the welcome. \"What business brings you?\"".into(),
-        "\"{first_name} {last_name},\" they say, eyes weighing you like a sack on the scale. \"State your business plainly.\"".into(),
+        "\"{name},\" they say, eyes weighing you like a sack on the scale. \"State your business plainly.\"".into(),
         "\"I'm {name},\" they say, appraising you from boots to brow. \"We'll see what terms bring you here.\"".into(),
         "\"{first_name},\" they say, measuring the morning and your face together. \"What price is your errand worth?\"".into(),
     ]

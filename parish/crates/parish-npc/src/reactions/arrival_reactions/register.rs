@@ -9,6 +9,8 @@ const CALCULATING_REGISTER_CUES: &[&str] = &[
     "keen eye for opportunity",
     "turn a profit",
     "hard in his dealings",
+    "hard in her dealings",
+    "hard in their dealings",
     "weights and measures",
 ];
 

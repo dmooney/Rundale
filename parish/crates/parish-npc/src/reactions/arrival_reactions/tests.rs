@@ -343,6 +343,33 @@ fn test_negated_cunning_does_not_make_workplace_intro_calculating() {
 }
 
 #[test]
+fn test_calculating_intro_does_not_duplicate_mononymous_name() {
+    let mut npc = test_npc(21, "Aoife", "Trader", Some(LocationId(4)));
+    npc.mood = "calculating".to_string();
+    let loc = test_location(4, true);
+    let introduced: HashSet<NpcId> = HashSet::new();
+    let templates = ReactionTemplates::default();
+    let config = ReactionConfig::default();
+    let dice = fixed_n(&[0.0, 0.4]);
+
+    let ctx = ArrivalContext {
+        location: &loc,
+        time_of_day: TimeOfDay::Morning,
+        weather: "clear",
+        templates: &templates,
+        config: &config,
+    };
+    let reactions = generate_arrival_reactions(&[&npc], &introduced, &ctx, &dice);
+
+    assert_eq!(reactions.len(), 1);
+    assert!(
+        !reactions[0].canned_text.contains("Aoife Aoife"),
+        "mononymous names must not render twice: {}",
+        reactions[0].canned_text
+    );
+}
+
+#[test]
 fn test_max_reactions_cap() {
     let npc1 = test_npc(1, "Aoife", "Farmer", None);
     let npc2 = test_npc(2, "Brigid", "Farmer", None);
