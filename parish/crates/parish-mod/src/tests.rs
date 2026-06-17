@@ -221,12 +221,80 @@ fn test_load_mod_from_directory() {
     assert_eq!(gm.anachronisms.terms.len(), 1);
     assert_eq!(gm.festivals.len(), 2);
     assert_eq!(gm.loading.spinner_frames.len(), 4);
+    assert!(gm.scenes.is_none());
     // No pronunciations file referenced → empty vec
     assert!(gm.pronunciations.is_empty());
     // No transport.toml in test mod — should default to walking
     assert_eq!(gm.transport.default, "walking");
     assert_eq!(gm.transport.modes.len(), 1);
     assert_eq!(gm.transport.default_mode().id, "walking");
+}
+
+fn create_test_mod_with_scenes() -> TempDir {
+    let tmp = create_test_mod();
+    let root = tmp.path();
+    fs::create_dir_all(root.join("assets/scenes/test-location")).unwrap();
+    fs::create_dir_all(root.join("assets/scenes/sprites")).unwrap();
+    fs::write(root.join("assets/scenes/test-location/plate.png"), b"plate").unwrap();
+    fs::write(
+        root.join("assets/scenes/sprites/generic-villager.png"),
+        b"sprite",
+    )
+    .unwrap();
+    fs::write(
+        root.join("scenes.json"),
+        r#"{
+            "scenes": [
+                {
+                    "location_id": 15,
+                    "slug": "test-location",
+                    "plate": "assets/scenes/test-location/plate.png",
+                    "hotspots": [
+                        {
+                            "id": "lane",
+                            "shape": { "rect": [10.0, 20.0, 30.0, 40.0] },
+                            "label": "A lane",
+                            "action": { "travel_to": 1 }
+                        }
+                    ],
+                    "slots": [
+                        { "id": "visitor", "x": 50.0, "y": 70.0 }
+                    ]
+                }
+            ],
+            "fallback_sprites": {
+                "default": "assets/scenes/sprites/generic-villager.png"
+            }
+        }"#,
+    )
+    .unwrap();
+
+    let manifest = fs::read_to_string(root.join("mod.toml")).unwrap();
+    fs::write(
+        root.join("mod.toml"),
+        manifest.replace(
+            "ui = \"ui.toml\"",
+            "ui = \"ui.toml\"\nscenes = \"scenes.json\"",
+        ),
+    )
+    .unwrap();
+
+    tmp
+}
+
+#[test]
+fn test_load_mod_with_optional_scenes() {
+    let tmp = create_test_mod_with_scenes();
+    let gm = GameMod::load(tmp.path()).expect("should load mod with scenes");
+    let scenes = gm.scenes.as_ref().expect("scenes index should load");
+
+    assert_eq!(scenes.scenes.len(), 1);
+    assert_eq!(scenes.sprite_asset_count(), 1);
+    assert!(scenes.scene_for(parish_types::LocationId(15)).is_some());
+    assert_eq!(
+        gm.scene_load_summary().as_deref(),
+        Some("scenes.json loaded: 1 scenes, 1 sprites")
+    );
 }
 
 #[test]

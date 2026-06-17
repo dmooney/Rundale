@@ -1,0 +1,24 @@
+# Diorama M1 — scene schema and loader smoke test
+# =================================================
+# Expected after implementation:
+# - startup/log output includes: scenes.json loaded: 2 scenes, 1 sprites
+# - standard commands still work at scene-covered locations
+
+/status
+/debug scenes
+/debug here
+look
+/npcs
+
+go to The Crossroads
+look
+/debug here
+/npcs
+
+go to Darcy's Pub
+look
+/debug here
+/npcs
+
+/status
+/quit
