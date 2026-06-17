@@ -623,6 +623,12 @@ impl GameTestHarness {
             guarded =
                 crate::npc::guard_time_of_day_phrase(&guarded, self.app.world.clock.time_of_day());
             guarded = crate::npc::guard_priest_tenure_drift(&guarded, player_input);
+            guarded = crate::npc::guard_presumed_prior_acquaintance(
+                &guarded,
+                player_input,
+                &known_person_names,
+                speaker_context.as_ref(),
+            );
             let relationship_tone_hints = self.app.npc_manager.relationship_tone_hints(npc_id);
             guarded = crate::npc::guard_rival_target_neutral_tone(
                 &guarded,
@@ -2276,6 +2282,33 @@ mod tests {
         assert!(
             !lower.contains("that name is not known to me hereabouts"),
             "reported generic stock phrase must not surface unchanged: {dialogue:?}"
+        );
+    }
+
+    #[test]
+    fn canned_npc_response_rewrites_presumed_prior_acquaintance() {
+        let mut h = GameTestHarness::new();
+        let moved = h.execute("go to Connolly's Shop");
+        assert!(matches!(moved, ActionResult::Moved { .. }), "{moved:?}");
+
+        h.add_canned_response(
+            "Roisin Connolly",
+            "Colm Gallagher, aye, he's a bright lad at the forge. How do ye find him so far?",
+        );
+        let result = h.execute("talk to Roisin Connolly about Colm Gallagher");
+        let ActionResult::NpcResponse { npc, dialogue, .. } = result else {
+            panic!("expected Roisin to answer through the canned NPC path, got {result:?}");
+        };
+        let lower = dialogue.to_lowercase();
+
+        assert_eq!(npc, "Roisin Connolly");
+        assert!(
+            lower.contains("have ye met colm gallagher yet"),
+            "guard should ask whether the player has met the target: {dialogue:?}"
+        );
+        assert!(
+            !lower.contains("how do ye find him so far"),
+            "presupposing question must not surface unchanged: {dialogue:?}"
         );
     }
 

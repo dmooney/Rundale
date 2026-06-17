@@ -1,0 +1,8 @@
+# fix-1509-presumed-prior-acquaintance
+# Repro: an NPC who knows Colm asks the player to evaluate him as if they
+# already met. The polish layer should keep the topic but ask whether the
+# player has met Colm yet.
+
+go to Connolly's Shop
+/stub Roisin Connolly: Colm Gallagher, aye, he's a bright lad at the forge. How do ye find him so far?
+talk to Roisin Connolly about Colm Gallagher
