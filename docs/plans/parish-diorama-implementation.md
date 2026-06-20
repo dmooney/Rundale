@@ -2,10 +2,51 @@
 
 > Parent design: [Interactive Parish Diorama](../design/ideas/parish-diorama.md) | [Docs Index](../index.md)
 >
-> **Status: Proposed**
+> **Status: Active on `graphic` — next work is compositor migration**
 >
-> **Depends on:** nothing in flight — all engine seams it builds on are shipped
-> **Depended on by:** future interior-node content work; design-doc graduation to `docs/design/`
+> **Branch:** `graphic` (`1e563297` merged the prior plate-based stack from
+> `codex/diorama-scene-ui`) — `main` intentionally does not contain this work yet
+>
+> **Depends on:** the plate-based diorama bridge already landed on `graphic`
+>
+> **Depended on by:** future interior-node content work; design-doc graduation
+> to `docs/design/`; eventual `graphic` -> `main` merge when the whole graphics
+> track is working
+
+## Current Status
+
+As of 2026-06-20, `graphic` contains a working **bridge/prototype** stack, not
+the compositor described below:
+
+- `mods/rundale/scenes.json` declares two plate-based scenes: The Crossroads
+  and Darcy's Pub.
+- `parish-mod` loads the current scene schema: `plate`, optional `variants`,
+  hotspots, NPC slots, NPC sprites, and fallback sprites.
+- `parish-core`, `parish-server`, `parish-tauri`, headless CLI, and
+  `parish-mcp` expose shared scene-state and scene-asset access.
+- `parish/apps/ui` has a flag-gated Svelte diorama view for that scene-state.
+- `parish/apps/visual` is a separate graphics-first browser client with scene
+  rendering, NPC sprite rendering, quick actions, local transcript, responsive
+  layout, status/error states, and a hardened local dev proxy.
+- Prior proof IDs already used on the old stack: `diorama-m1`,
+  `diorama-m2`, `diorama-m3`, and `visual-client-m1` through
+  `visual-client-m7`.
+- Draft PR #1592 was closed after its stack was merged into `graphic`; do not
+  merge it to `main`.
+- Last local gate on `graphic`: `rtk just check` passed after merge commit
+  `1e563297`.
+
+The plan below is the **forward plan from this baseline**. Its first job is to
+migrate the current plate-based scene model into the runtime compositor /
+asset-atom model, while preserving the working endpoints and visual-client
+surface that now exist on `graphic`.
+
+## Next Session Entry Point
+
+Start at **M1 / T1.0** with `/task-start graphic-compositor-m1`. Treat the
+existing plate-based schema and `parish/apps/visual` client as compatibility
+surfaces to migrate, not as code to discard. Keep all integration work on
+`graphic`.
 
 ## Goal
 
@@ -22,16 +63,22 @@ assets are small, replaceable visual atoms.
 
 ## Orchestration Rules
 
-1. **One PR per milestone**, branched from the previous milestone's merge.
+1. **Integrate into `graphic`, not `main`.** Open PRs against `graphic` or
+   merge focused branches into `graphic`; merge `graphic` to `main` only when
+   the whole graphics track is ready.
 2. **AC-first (AGENTS rule 13):** each milestone starts with `/task-start
-diorama-m<N>` producing `.proofs/diorama-m<N>/acceptance-criteria.md` and
-   `parish/testing/fixtures/play_diorama-m<N>.txt` before implementation.
+graphic-compositor-m<N>` producing
+   `.proofs/graphic-compositor-m<N>/acceptance-criteria.md` and
+   `parish/testing/fixtures/play_graphic-compositor-m<N>.txt` before
+   implementation. Do not reuse the already-consumed `diorama-m<N>` proof IDs.
 3. **Proof (AGENTS rule 10):** milestones touching runtime paths need a
-   live-proof bundle in the PR body. M4 is tool-only but still needs a transcript
-   or fixture proving the tool behavior claimed.
+   live-proof bundle in the PR body or, for direct integration-branch commits,
+   in a matching `.proofs/graphic-compositor-m<N>/` directory before push. M4
+   is tool-only but still needs a transcript or fixture proving the tool
+   behavior claimed.
 4. Subagents run focused tests before reporting done; the milestone orchestrator
    runs the full gate (`just check`, `just ui-test`/`ui-e2e` where relevant,
-   `just agent-check`) before the PR.
+   `just agent-check`) before merging or pushing to `graphic`.
 5. Tasks marked ∥ may run in parallel on non-overlapping files.
 
 ```text
@@ -45,7 +92,7 @@ M1 ──► M2 ──► M3 ──► M5 ──► M6
 
 | #    | Task                                                                                                                                                                                                                                                                                                                                                                                  | Model    | Effort | Depends   |
 | ---- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- | ------ | --------- |
-| T1.0 | `/task-start diorama-m1`: AC + fixture. Criteria: `scenes.json` parses; invalid asset path rejected; unknown location/NPC/asset ids warn without failing when optional; mods without `scenes` load unchanged; headless load log reports scene/layer/asset counts.                                                                                                                     | `opus`   | low    | —         |
+| T1.0 | `/task-start graphic-compositor-m1`: AC + fixture. Criteria: `scenes.json` parses; invalid asset path rejected; unknown location/NPC/asset ids warn without failing when optional; mods without `scenes` load unchanged; headless load log reports scene/layer/asset counts.                                                                                                      | `opus`   | low    | —         |
 | T1.1 | **Compositor schema.** Create `parish/crates/parish-mod/src/scenes.rs`: `SceneIndex`, `SceneDef`, `SceneLayer`, `SceneLayerLabel`, `SceneAsset`, `Hotspot`, `HotspotAction`, `NpcSlot`, `SpriteDef`, `FallbackSprites`; percentage coords; integer z-order; optional `underlay`; reserved polygon shape; `kind = "wayfinding_sign"` support.                                          | `sonnet` | high   | T1.0      |
 | T1.2 | **Asset validation.** `SceneIndex::load(mod_dir, rel)` validates every referenced asset through `assets::canonical_mod_asset_path`; export `asset_for`/`scene_for`/`sprite_for`; validate asset anchors, opacity, scale, duplicate ids, label anchors, label text budget, and draw-order sanity.                                                                                      | `sonnet` | medium | T1.1      |
 | T1.3 | **Mod wiring.** Add `FileRefs.scenes: Option<String>` and `GameMod.scenes: Option<SceneIndex>`; cross-validation `validate_scenes(&SceneIndex, &WorldGraph, &NpcManager) -> Vec<String>` checks location ids, travel targets, prefer_npc, coord ranges, missing asset ids, wayfinding labels against known location names, and covered-location connection coverage where configured. | `sonnet` | medium | T1.1      |
@@ -65,7 +112,7 @@ load unchanged.
 
 | #    | Task                                                                                                                                                                                                                                                                                                                                                                                                                                                    | Model    | Effort | Depends   |
 | ---- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- | ------ | --------- |
-| T2.0 | `/task-start diorama-m2`: AC + fixture. Criteria: flag off -> empty scene-state; flag on -> native size + layer list + hotspots + seated NPCs; traversal on asset route rejected; `/scene` parity output in headless; `parish_scene_state` returns the same view model over MCP.                                                                                                                                                                        | `opus`   | low    | M1 merged |
+| T2.0 | `/task-start graphic-compositor-m2`: AC + fixture. Criteria: flag off -> empty scene-state; flag on -> native size + layer list + hotspots + seated NPCs; traversal on asset route rejected; `/scene` parity output in headless; `parish_scene_state` returns the same view model over MCP.                                                                                                                                                         | `opus`   | low    | M1 merged |
 | T2.1 | **Shared handler (rule 12 seam).** Create `parish-core/src/ipc/scene.rs`: `SceneState`, `SceneLayerView`, `SceneLayerLabelView`, `SceneNpcView`, `SceneHotspotView`; `build_scene_state(world, npcs, scenes, flags, asset_url)` handles flag gate, optional underlay, asset URL resolution, z-order sorting, wayfinding labels, deterministic slot assignment, introduction semantics, overflow NPCs, variant overlays, and indoor weather suppression. | `opus`   | high   | T2.0      |
 | T2.2 | ∥ **Server routes.** `parish-server/src/routes/scene.rs`: `GET /api/scene-state`, `GET /api/scene-asset/{*rel}`. Promote `canonical_mod_asset_path` to `pub`, restrict to `assets/scenes/`, serve immutable PNG/WebP assets with `?v=<mtime>` cache busting.                                                                                                                                                                                            | `sonnet` | medium | T2.1      |
 | T2.3 | ∥ **Tauri command.** `parish-tauri/src/commands/scene.rs`: `get_scene_state` maps assets to data URLs through the existing mod-asset data URL helper; register in the command registry.                                                                                                                                                                                                                                                                 | `sonnet` | medium | T2.1      |
@@ -85,7 +132,7 @@ type, immutable cache header, and flag-off null body.
 
 | #    | Task                                                                                                                                                                                                                                                                                                                                                                                            | Model    | Effort | Depends   |
 | ---- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- | ------ | --------- |
-| T3.0 | `/task-start diorama-m3`: AC + fixture. Criteria: flag on -> composed scene visible; layers draw in z-order; hotspot click travels; sprite click addresses NPC; flag off -> existing layout pixel-stable; unplated location falls back; unintroduced NPC tooltip shows brief description only; `travel-start` dims the scene until arrival.                                                     | `opus`   | low    | M2 merged |
+| T3.0 | `/task-start graphic-compositor-m3`: AC + fixture. Criteria: flag on -> composed scene visible; layers draw in z-order; hotspot click travels; sprite click addresses NPC; flag off -> existing layout pixel-stable; unplated location falls back; unintroduced NPC tooltip shows brief description only; `travel-start` dims the scene until arrival.                              | `opus`   | low    | M2 merged |
 | T3.1 | **State + IPC wiring.** `src/stores/scene.ts`, `src/lib/ipc/scene.ts`, `SceneState` types in `src/lib/types.ts`; fetch at mount + every `world-update`; cache Tauri data URLs by asset path + mtime/hash where available.                                                                                                                                                                       | `sonnet` | medium | T3.0      |
 | T3.2 | ∥ **Component tree.** `components/diorama/`: `DioramaView`, `SceneUnderlay`, `SceneLayerStack`, `HotspotLayer`, `NpcSpriteLayer`, `SceneOverlay`; one aspect-ratio wrapper; absolutely-positioned asset instances; `z-index` derived from scene z-order; runtime black hand-painted wayfinding labels on white sign assets; debug mode shows layer boxes, z labels, slot anchors, and hotspots. | `sonnet` | high   | T3.1      |
 | T3.3 | ∥ **Action mapping.** `src/lib/scene-actions.ts`: `travel_to` -> existing map-click `submitInput("go to <name>")` path; `talk_to` / sprite click -> focus input with `addressed_to`; `inspect` -> local system entry; unknown ids are no-ops with debug warning.                                                                                                                                | `sonnet` | medium | T3.1      |
@@ -104,7 +151,7 @@ activation, unintroduced tooltip privacy, travel dim/clear behavior.
 
 | #    | Task                                                                                                                                                                                                                                                                                                                                                                                                      | Model    | Effort | Depends   |
 | ---- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- | ------ | --------- |
-| T4.0 | `/task-start diorama-m4`: AC. Criteria: every subcommand has observable behavior; dry-run works without image-provider keys; manifest invariants hold; compose-preview can render a nonblank mock scene.                                                                                                                                                                                                  | `opus`   | low    | M2 merged |
+| T4.0 | `/task-start graphic-compositor-m4`: AC. Criteria: every subcommand has observable behavior; dry-run works without image-provider keys; manifest invariants hold; compose-preview can render a nonblank mock scene.                                                                                                                                                                                   | `opus`   | low    | M2 merged |
 | T4.1 | **Crate skeleton + manifest.** `parish/crates/parish-art-tool/` workspace member; clap commands `init`, `gen-reference`, `gen-prop`, `gen-sprite`, `compose-preview`, `list`, `review`, `accept`, `reject`; `ArtManifest` records assets, references, status transitions, and atomic save.                                                                                                                | `sonnet` | medium | T4.0      |
 | T4.2 | **Style bible.** `art/style-bible.md` captures the approved ChatGPT sample as reference-only, records target fidelity/material culture/perspective/palette, and states negative rules: no baked UI labels, no invented readable signs, no fantasy drift, no impossible water/buildings, no baked NPCs in scene props. Wayfinding signs are white-painted timber boards with black hand-painted lettering. | `opus`   | medium | T4.1      |
 | T4.3 | ∥ **Prompt builder.** `prompt.rs` builds prop/sprite prompts from `LocationData`, NPC fields, asset kind, and the style bible. Golden prompts cover cottage, stream segment, blank white wayfinding signboard, pub hearth, and Padraig Darcy sprite.                                                                                                                                                      | `opus`   | medium | T4.1      |
@@ -127,7 +174,7 @@ a human accepts every visible asset.
 
 | #    | Task                                                                                                                                                                                                                                                                                               | Model    | Effort | Depends        |
 | ---- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- | ------ | -------------- |
-| T5.0 | `/task-start diorama-m5`: AC. Criteria: 3 scenes render in-game; all covered-location connections are clickable; initial NPC sprites render or fall back; style resembles the accepted sample; no full-scene AI plate is required for correctness.                                                 | `opus`   | low    | M3 + M4 merged |
+| T5.0 | `/task-start graphic-compositor-m5`: AC. Criteria: 3 scenes render in-game; all covered-location connections are clickable; initial NPC sprites render or fall back; style resembles the accepted sample; no full-scene AI plate is required for correctness.                                  | `opus`   | low    | M3 + M4 merged |
 | T5.1 | **Anchor asset round.** Generate/curate a small reference set: cottage, wall segment, stream bend, muddy path tile/patch, white wayfinding signboard, cart, pub hearth/interior prop, generic villager, Padraig Darcy. Mark accepted anchors in manifest.                                          | `opus`   | high   | T5.0           |
 | T5.2 | ∥ **Exterior scenes.** Author Kilteevan Main Lane and The Crossroads layouts from accepted atoms; compose stream/bridge/path/walls/cottages/wayfinding signs/props with deterministic z-order; use runtime black sign lettering from validated destination names rather than baked generated text. | `sonnet` | high   | T5.1           |
 | T5.3 | ∥ **Interior scene.** Author Darcy's Pub layout with bar/hearth/tables/door hotspots and slots for Padraig/Niamh/visitors.                                                                                                                                                                         | `sonnet` | medium | T5.1           |
@@ -144,7 +191,7 @@ scope or improve tooling/authoring first.
 
 | #    | Task                                                                                                                                                                                                                               | Model    | Effort | Depends   |
 | ---- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- | ------ | --------- |
-| T6.0 | `/task-start diorama-m6`: AC. Criteria: default-on behavior, kill-switch works, transition smoothness, visual quality checklist for the 3-scene slice, and deliberate baseline regeneration.                                       | `opus`   | low    | M5 merged |
+| T6.0 | `/task-start graphic-compositor-m6`: AC. Criteria: default-on behavior, kill-switch works, transition smoothness, visual quality checklist for the 3-scene slice, and deliberate baseline regeneration.                        | `opus`   | low    | M5 merged |
 | T6.1 | ∥ **Visual polish.** Palette-tint strength, CSS rain/fog/smoke overlays gated by indoor/outdoor, travel fade, focus styles for hotspots, mobile layout polish.                                                                     | `sonnet` | medium | T6.0      |
 | T6.2 | ∥ **Expansion plan.** Document asset/layout strategy for the next 5 locations: St. Brigid's Church, The Forge, The Holy Well, Murphy's Farm, The Bog Road. Add TODO-backed content checklist rather than silently expanding scope. | `opus`   | low    | T6.0      |
 | T6.3 | **Flag flip.** `build_scene_state` gate -> default-on kill-switch (`!flags.is_disabled("diorama")`); regenerate Playwright baselines intentionally and document the churn.                                                         | `sonnet` | medium | T6.1      |
@@ -190,7 +237,8 @@ unintroduced NPCs.
 
 ### 4. Script-Harness Fixtures
 
-`parish/testing/fixtures/play_diorama-m<N>.txt` written at `/task-start` time.
+`parish/testing/fixtures/play_graphic-compositor-m<N>.txt` written at
+`/task-start` time.
 Runs assert the load line (M1), `/flag enable diorama` + `/scene` output
 (M2+), clickable route parity where practical, and the 3-scene walk (M5).
 MCP-driven QA asserts `parish_scene_state` against `parish_engine_state` at
