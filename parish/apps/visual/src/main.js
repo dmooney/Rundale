@@ -1,5 +1,11 @@
 import { fetchSceneState, normalizeBackendUrl, postCommand } from './scene-client.js';
-import { buildSceneDisplayModel, renderSceneCanvas } from './renderer.js';
+import {
+    buildSceneDisplayModel,
+    canvasPointToStage,
+    findHotspotAtStagePoint,
+    hotspotCommand,
+    renderSceneModel,
+} from './renderer.js';
 
 const storageKey = 'parish.visual.backendUrl';
 
@@ -22,6 +28,12 @@ const hotspotList = document.querySelector('#hotspot-list');
 const peopleList = document.querySelector('#people-list');
 
 let currentBackendUrl = normalizeBackendUrl(localStorage.getItem(storageKey) || '');
+let currentSceneModel = buildSceneDisplayModel(null);
+let currentPlateImage = null;
+let hoveredHotspotId = null;
+let selectedHotspotId = null;
+const plateCache = new Map();
+
 backendInput.value = currentBackendUrl;
 
 function setList(list, items, renderItem) {
@@ -54,7 +66,9 @@ function updateInspector(model) {
 
 function renderError(error) {
     const model = buildSceneDisplayModel(null);
-    renderSceneCanvas(canvas, null);
+    currentSceneModel = model;
+    currentPlateImage = null;
+    renderCurrentScene();
     title.textContent = 'Scene unavailable';
     subtitle.textContent = error instanceof Error ? error.message : String(error);
     metricLocation.textContent = '-';
@@ -65,6 +79,39 @@ function renderError(error) {
     setList(hotspotList, [], () => '');
     setList(peopleList, [], () => '');
     return model;
+}
+
+function renderCurrentScene() {
+    renderSceneModel(canvas, currentSceneModel, {
+        plateImage: currentPlateImage,
+        activeHotspotId: hoveredHotspotId || selectedHotspotId,
+    });
+}
+
+function resolvePlateUrl(url) {
+    if (!url || /^https?:\/\//i.test(url) || url.startsWith('data:')) {
+        return url;
+    }
+    return url.startsWith('/') ? url : `/${url}`;
+}
+
+function loadImage(url) {
+    if (!url) {
+        return Promise.resolve(null);
+    }
+    const resolved = resolvePlateUrl(url);
+    if (plateCache.has(resolved)) {
+        return plateCache.get(resolved);
+    }
+
+    const promise = new Promise((resolve) => {
+        const image = new Image();
+        image.onload = () => resolve(image);
+        image.onerror = () => resolve(null);
+        image.src = resolved;
+    });
+    plateCache.set(resolved, promise);
+    return promise;
 }
 
 function setCommandLog(response) {
@@ -78,8 +125,20 @@ async function refreshScene() {
     subtitle.textContent = 'Loading scene state';
     try {
         const scene = await fetchSceneState({ backendUrl: currentBackendUrl });
-        const model = renderSceneCanvas(canvas, scene);
+        const model = buildSceneDisplayModel(scene);
+        currentSceneModel = model;
+        currentPlateImage = null;
+        hoveredHotspotId = null;
+        selectedHotspotId = null;
+        renderCurrentScene();
         updateInspector(model);
+        if (model.kind === 'scene') {
+            const image = await loadImage(model.plate);
+            if (currentSceneModel === model) {
+                currentPlateImage = image;
+                renderCurrentScene();
+            }
+        }
     } catch (error) {
         renderError(error);
     } finally {
@@ -99,6 +158,30 @@ async function submitCommand(text) {
         await refreshScene();
     } catch (error) {
         commandLog.textContent = error instanceof Error ? error.message : String(error);
+    }
+}
+
+function hotspotFromEvent(event) {
+    const point = canvasPointToStage(canvas, event.clientX, event.clientY);
+    return findHotspotAtStagePoint(currentSceneModel, point);
+}
+
+async function activateHotspot(hotspot) {
+    if (!hotspot) {
+        return;
+    }
+    selectedHotspotId = hotspot.id;
+    renderCurrentScene();
+
+    const action = hotspotCommand(hotspot);
+    if (action.kind === 'inspect') {
+        commandLog.textContent = action.text;
+        return;
+    }
+
+    if (action.command) {
+        commandInput.value = action.command;
+        await submitCommand(action.command);
     }
 }
 
@@ -123,8 +206,29 @@ crossroadsButton.addEventListener('click', () => {
     submitCommand(commandInput.value);
 });
 
+canvas.addEventListener('mousemove', (event) => {
+    const hotspot = hotspotFromEvent(event);
+    const nextHotspotId = hotspot?.id || null;
+    if (hoveredHotspotId !== nextHotspotId) {
+        hoveredHotspotId = nextHotspotId;
+        canvas.style.cursor = hotspot ? 'pointer' : 'default';
+        renderCurrentScene();
+    }
+});
+
+canvas.addEventListener('mouseleave', () => {
+    hoveredHotspotId = null;
+    canvas.style.cursor = 'default';
+    renderCurrentScene();
+});
+
+canvas.addEventListener('click', (event) => {
+    const hotspot = hotspotFromEvent(event);
+    activateHotspot(hotspot);
+});
+
 window.addEventListener('resize', () => {
-    refreshScene();
+    renderCurrentScene();
 });
 
 refreshScene();
