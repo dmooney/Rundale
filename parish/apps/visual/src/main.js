@@ -1,4 +1,5 @@
 import { fetchSceneState, normalizeBackendUrl, postCommand } from './scene-client.js';
+import { hotspotActionLabel, npcActionLabel } from './action-list.js';
 import { appendTurnEntry, createTurnEntry, responseSummary } from './turn-log.js';
 import {
     buildSceneDisplayModel,
@@ -59,6 +60,48 @@ function setList(list, items, renderItem) {
     }
 }
 
+function setActionList(list, items, { renderItem, onActivate, datasetName, onPreview }) {
+    list.replaceChildren();
+    if (items.length === 0) {
+        const item = document.createElement('li');
+        item.className = 'muted';
+        item.textContent = 'None';
+        list.append(item);
+        return;
+    }
+    for (const value of items) {
+        const item = document.createElement('li');
+        const button = document.createElement('button');
+        button.className = 'action-button';
+        button.type = 'button';
+        button.textContent = renderItem(value);
+        button.dataset[datasetName] = String(value.id);
+        button.addEventListener('click', () => {
+            onActivate(value);
+        });
+        if (onPreview) {
+            button.addEventListener('mouseenter', () => onPreview(value));
+            button.addEventListener('mouseleave', () => onPreview(null));
+            button.addEventListener('focus', () => onPreview(value));
+            button.addEventListener('blur', () => onPreview(null));
+        }
+        item.append(button);
+        list.append(item);
+    }
+}
+
+function previewHotspot(hotspot) {
+    hoveredHotspotId = hotspot?.id || null;
+    hoveredNpcId = null;
+    renderCurrentScene();
+}
+
+function previewNpc(npc) {
+    hoveredNpcId = npc?.id || null;
+    hoveredHotspotId = null;
+    renderCurrentScene();
+}
+
 function updateInspector(model) {
     title.textContent = model.title;
     subtitle.textContent = model.subtitle;
@@ -67,8 +110,18 @@ function updateInspector(model) {
     metricPlate.textContent = model.plate || '-';
     metricHotspots.textContent = String(model.hotspots.length);
     metricPeople.textContent = String(model.npcs.length + model.overflow.length);
-    setList(hotspotList, model.hotspots, (hotspot) => `${hotspot.label} (${hotspot.action})`);
-    setList(peopleList, model.npcs, (npc) => `${npc.label} at ${npc.slotId}`);
+    setActionList(hotspotList, model.hotspots, {
+        renderItem: hotspotActionLabel,
+        onActivate: activateHotspot,
+        datasetName: 'hotspotId',
+        onPreview: previewHotspot,
+    });
+    setActionList(peopleList, model.npcs, {
+        renderItem: npcActionLabel,
+        onActivate: activateNpc,
+        datasetName: 'npcId',
+        onPreview: previewNpc,
+    });
 }
 
 function renderTurnLog() {

@@ -29,4 +29,6 @@ NPC sprites render from scene-state `sprite_url` values; clicking a sprite
 prepares a `talk to ...` command without submitting dialogue automatically.
 The Recent panel keeps a bounded local transcript of commands, world responses,
 inspections, and sprite selections so the app can be played without losing
-context after each action.
+context after each action. The Hotspots and People side panels expose the same
+actions as buttons, so the graphics client can be played even when a precise
+Canvas click is awkward.
