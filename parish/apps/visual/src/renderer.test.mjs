@@ -5,7 +5,10 @@ import {
     buildSceneDisplayModel,
     canvasPointToStage,
     findHotspotAtStagePoint,
+    findNpcAtStagePoint,
+    findSceneTargetAtStagePoint,
     hotspotCommand,
+    npcCommand,
 } from './renderer.js';
 
 const scene = {
@@ -82,6 +85,16 @@ test('maps backend scene-state into graphics display geometry', () => {
     });
     assert.equal(model.slots[0].id, 'roadside-left');
     assert.equal(model.npcs[0].label, 'A farmer');
+    assert.equal(
+        model.npcs[0].spriteUrl,
+        '/api/scene-asset/assets/scenes/sprites/generic-villager.png?v=1',
+    );
+    assert.deepEqual(model.npcs[0].bounds, {
+        x: 347.2,
+        y: 367.2,
+        width: 48,
+        height: 72,
+    });
 });
 
 test('hit-tests hotspots in authored stage coordinates', () => {
@@ -115,5 +128,37 @@ test('derives travel and inspect commands from hotspot actions', () => {
         kind: 'inspect',
         text: 'The wall is dark with rain.',
         label: 'Weathered stone wall',
+    });
+});
+
+test('hit-tests NPC sprites in authored stage coordinates', () => {
+    const model = buildSceneDisplayModel(scene);
+    assert.equal(findNpcAtStagePoint(model, { x: 371.2, y: 400 })?.id, 4);
+    assert.equal(findNpcAtStagePoint(model, { x: 371.2, y: 450 }), null);
+});
+
+test('prefers NPC sprite hits over hotspot hits', () => {
+    const overlappingScene = {
+        ...scene,
+        npcs: [
+            {
+                ...scene.npcs[0],
+                x: 75,
+                y: 50,
+            },
+        ],
+    };
+    const model = buildSceneDisplayModel(overlappingScene);
+    const target = findSceneTargetAtStagePoint(model, { x: 960, y: 350 });
+    assert.equal(target.kind, 'npc');
+    assert.equal(target.value.id, 4);
+});
+
+test('derives talk commands from NPC sprite clicks', () => {
+    const model = buildSceneDisplayModel(scene);
+    assert.deepEqual(npcCommand(model.npcs[0]), {
+        kind: 'talk',
+        command: 'talk to A farmer',
+        label: 'A farmer',
     });
 });
