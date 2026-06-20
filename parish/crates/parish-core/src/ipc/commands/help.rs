@@ -29,6 +29,7 @@ const HELP_ENTRIES: &[(&str, &str)] = &[
     ("/pause", "Hold time still"),
     ("/resume", "Let time flow again"),
     ("/save", "Save the game"),
+    ("/scene", "Show current diorama scene state"),
     ("/session", "Listen to the music session at the pub"),
     (
         "/speed [slow|normal|fast|fastest|ludicrous]",

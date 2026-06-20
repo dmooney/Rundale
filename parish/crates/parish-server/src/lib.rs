@@ -524,6 +524,7 @@ fn build_router(
         .route("/api/map", get(routes::get_map))
         .route("/api/npcs-here", get(routes::get_npcs_here))
         .route("/api/engine-state", get(routes::get_engine_state))
+        .route("/api/scene-state", get(routes::get_scene_state))
         .route("/api/theme", get(routes::get_theme))
         .route(
             "/api/list-available-providers",
@@ -532,6 +533,7 @@ fn build_router(
         .route("/api/ui-config", get(routes::get_ui_config))
         .route("/api/app-icon.png", get(routes::get_app_icon))
         .route("/api/favicon.png", get(routes::get_favicon))
+        .route("/api/scene-asset/{*rel}", get(routes::get_scene_asset))
         .route("/api/debug-snapshot", get(routes::get_debug_snapshot))
         .route("/api/submit-input", post(routes::submit_input))
         .route("/api/react-to-message", post(routes::react_to_message))

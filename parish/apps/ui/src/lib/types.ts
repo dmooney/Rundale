@@ -217,6 +217,70 @@ export interface LoadingPayload {
 	color?: [number, number, number];
 }
 
+// ── Diorama scene-state ────────────────────────────────────────────────────
+
+export type SceneHotspotShape =
+	| { rect: [number, number, number, number] }
+	| { polygon: Array<[number, number]> };
+
+export type SceneHotspotAction =
+	| { travel_to: number }
+	| { inspect: string }
+	| { talk_to: number };
+
+export interface SceneHotspotView {
+	id: string;
+	label: string;
+	shape: SceneHotspotShape;
+	action: SceneHotspotAction;
+}
+
+export interface SceneSlotView {
+	id: string;
+	x: number;
+	y: number;
+	scale: number;
+	prefer_npc: number | null;
+	occupied_npc_id: number | null;
+}
+
+export interface SceneNpcView {
+	npc_id: number;
+	slot_id: string;
+	display_name: string;
+	real_name: string | null;
+	introduced: boolean;
+	mood: string;
+	mood_emoji: string;
+	sprite_url: string | null;
+	x: number;
+	y: number;
+	scale: number;
+	flip: boolean;
+}
+
+export interface SceneOverflowNpc {
+	npc_id: number;
+	display_name: string;
+	real_name: string | null;
+	introduced: boolean;
+}
+
+export interface SceneState {
+	schema_version: number;
+	location_id: number;
+	location_name: string;
+	indoor: boolean;
+	slug: string;
+	plate_url: string;
+	variant: string;
+	weather_overlay: string | null;
+	hotspots: SceneHotspotView[];
+	slots: SceneSlotView[];
+	npcs: SceneNpcView[];
+	overflow_npcs: SceneOverflowNpc[];
+}
+
 // ── Debug types ─────────────────────────────────────────────────────────────
 
 export interface DebugSnapshot {

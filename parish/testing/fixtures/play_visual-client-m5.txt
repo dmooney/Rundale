@@ -1,0 +1,19 @@
+# Visual Client M5 -- quick-action contract fixture
+# =================================================
+# Expected after implementation:
+# - `/scene` remains empty while the `diorama` flag is disabled.
+# - enabling the flag exposes the Crossroads scene used for hotspot actions.
+# - moving to Darcy's Pub exposes sprite-backed NPCs used for people actions.
+
+/status
+/scene
+
+/flag enable diorama
+go to The Crossroads
+/scene
+
+go to Darcy's Pub
+/scene
+/npcs
+
+/quit

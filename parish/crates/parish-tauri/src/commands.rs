@@ -15,6 +15,7 @@
 //! - `admin`     — debug snapshot builder, inference rebuild, inactivity tick, bug report
 //! - `screenshot`— screenshot capture, storage, and round-trip callbacks
 //! - `reactions` — emoji reactions and background NPC reaction emission
+//! - `scene`     — diorama scene-state command and asset data-URL helpers
 //! - `demo`      — demo/auto-player commands and prompt helpers
 //! - `cmd_tests` — shared test helpers (test-only, cfg(test))
 
@@ -24,6 +25,7 @@ pub mod demo;
 pub mod input;
 pub mod reactions;
 pub mod saves;
+pub mod scene;
 pub mod screenshot;
 pub mod setup;
 pub mod snapshot;
@@ -63,6 +65,9 @@ pub use screenshot::{
     notify_screenshot_error, save_screenshot, take_screenshot, write_screenshot_to_disk,
 };
 pub(crate) use screenshot::{do_get_latest_screenshot, do_take_screenshot};
+
+// ── Re-exports: scene ────────────────────────────────────────────────────────
+pub use scene::get_scene_state;
 
 // ── Re-exports: reactions ─────────────────────────────────────────────────────
 pub use reactions::{is_snippet_injection_char, react_to_message};

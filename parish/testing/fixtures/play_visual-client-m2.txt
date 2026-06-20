@@ -1,0 +1,19 @@
+# Visual Client M2 — scene plate and hotspot contract fixture
+# ===========================================================
+# Expected after implementation:
+# - `/scene` remains empty while the `diorama` flag is disabled.
+# - enabling the flag exposes the Crossroads plate and hotspots.
+# - moving to Darcy's Pub exposes a second plate and hotspot set.
+
+/status
+/scene
+
+/flag enable diorama
+go to The Crossroads
+/scene
+
+go to Darcy's Pub
+/scene
+/npcs
+
+/quit

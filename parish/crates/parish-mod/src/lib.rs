@@ -18,6 +18,7 @@ mod assets;
 pub(crate) mod discovery;
 
 pub mod manifest;
+pub mod scenes;
 
 #[cfg(test)]
 mod tests;
@@ -31,6 +32,10 @@ pub use manifest::*;
 
 // Re-export runtime data types — all public
 pub use types::*;
+
+// Re-export scene-diorama schema and validation helpers.
+pub use assets::{canonical_mod_asset_path, canonical_scene_asset_path};
+pub use scenes::*;
 
 // Re-export world bridge
 pub use world::world_state_from_mod;
@@ -76,6 +81,8 @@ pub struct GameMod {
     pub transport: TransportConfig,
     /// NPC arrival reaction templates (loaded from JSON or hardcoded defaults).
     pub reactions: parish_npc::reactions::ReactionTemplates,
+    /// Optional scene-diorama index.
+    pub scenes: Option<SceneIndex>,
 }
 
 /// Shared resolver for the per-user data folder name used by saves + tile cache.
@@ -248,6 +255,15 @@ impl GameMod {
             parish_npc::reactions::ReactionTemplates::default()
         };
 
+        // -- scene diorama index (optional) ------------------------------------
+        let scenes = if let Some(ref scenes_file) = manifest.files.scenes {
+            let index = SceneIndex::load(&mod_dir, scenes_file)?;
+            tracing::info!("{}", index.load_summary(scenes_file));
+            Some(index)
+        } else {
+            None
+        };
+
         Ok(Self {
             manifest,
             mod_dir,
@@ -260,6 +276,7 @@ impl GameMod {
             pronunciations,
             transport,
             reactions,
+            scenes,
         })
     }
 
@@ -291,6 +308,24 @@ impl GameMod {
 
     fn resolve_asset_path(&self, rel: Option<&str>) -> Option<PathBuf> {
         rel.and_then(|path| assets::canonical_mod_asset_path(&self.mod_dir, path).ok())
+    }
+
+    /// Human-readable summary of the optional scene index, if one is loaded.
+    pub fn scene_load_summary(&self) -> Option<String> {
+        let rel = self.manifest.files.scenes.as_deref()?;
+        self.scenes.as_ref().map(|scenes| scenes.load_summary(rel))
+    }
+
+    /// Cross-validates loaded scenes against the world graph and NPC roster.
+    pub fn scene_validation_warnings(
+        &self,
+        world: &parish_world::graph::WorldGraph,
+        npcs: &parish_npc::manager::NpcManager,
+    ) -> Vec<String> {
+        self.scenes
+            .as_ref()
+            .map(|scenes| scenes::validate_scenes(scenes, world, npcs))
+            .unwrap_or_default()
     }
 
     /// ISO 8601 start date string from the manifest.

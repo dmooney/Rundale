@@ -1375,6 +1375,7 @@ pub fn run() {
             commands::snapshot::get_map,
             commands::snapshot::get_npcs_here,
             commands::snapshot::get_engine_state,
+            commands::scene::get_scene_state,
             commands::snapshot::get_theme,
             commands::snapshot::get_ui_config,
             commands::snapshot::get_debug_snapshot,

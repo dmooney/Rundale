@@ -14,6 +14,7 @@ pub const EXPECTED_COMMANDS: &[&str] = &[
     "get_map",
     "get_npcs_here",
     "get_engine_state",
+    "get_scene_state",
     "get_theme",
     "get_ui_config",
     "get_debug_snapshot",

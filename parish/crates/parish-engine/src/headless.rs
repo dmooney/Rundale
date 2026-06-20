@@ -406,6 +406,7 @@ pub async fn run_headless(
             }
         }
     }
+    app.record_scene_load_diagnostics();
 
     // Initial tier assignment
     app.npc_manager.assign_tiers(&app.world, &[]);

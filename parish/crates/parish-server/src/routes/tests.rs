@@ -79,7 +79,26 @@ pub fn test_app_state() -> Arc<crate::state::AppState> {
         std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../mods/rundale");
     let world =
         WorldState::from_parish_file(&data_dir.join("world.json"), DEFAULT_START_LOCATION).unwrap();
-    let npc_manager = NpcManager::new();
+    build_test_app_state(data_dir, world, NpcManager::new(), None)
+}
+
+fn test_scene_app_state() -> Arc<crate::state::AppState> {
+    let data_dir =
+        std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../mods/rundale");
+    let game_mod = parish_core::game_mod::GameMod::load(&data_dir).unwrap();
+    let mut world =
+        WorldState::from_parish_file(&data_dir.join("world.json"), DEFAULT_START_LOCATION).unwrap();
+    world.player_location = LocationId(2);
+    let npc_manager = NpcManager::load_from_file(&game_mod.npcs_path()).unwrap();
+    build_test_app_state(data_dir, world, npc_manager, Some(game_mod))
+}
+
+fn build_test_app_state(
+    data_dir: std::path::PathBuf,
+    world: WorldState,
+    npc_manager: NpcManager,
+    game_mod: Option<parish_core::game_mod::GameMod>,
+) -> Arc<crate::state::AppState> {
     let transport = TransportConfig::default();
     let ui_config = crate::state::UiConfigSnapshot {
         hints_label: "test".to_string(),
@@ -134,7 +153,7 @@ pub fn test_app_state() -> Arc<crate::state::AppState> {
         theme_palette,
         saves_dir,
         data_dir: data_dir.clone(),
-        game_mod: None,
+        game_mod,
         flags_path: data_dir.join("parish-flags.json"),
         inference_config: parish_core::config::InferenceConfig::default(),
         session_store,
@@ -1524,6 +1543,89 @@ async fn serve_mod_icon_uses_async_read_and_extension_mime_type() {
     );
     let body = axum::body::to_bytes(resp.into_body(), 4096).await.unwrap();
     assert_eq!(&body[..], b"not really a jpeg, but enough for route bytes");
+}
+
+// ── Diorama M2: scene-state + scene-asset routes ──────────────────────────
+
+#[tokio::test]
+async fn scene_state_route_returns_null_when_diorama_flag_is_off() {
+    let state = test_scene_app_state();
+    let Json(scene) = super::get_scene_state(axum::extract::Extension(Arc::clone(&state))).await;
+    assert_eq!(scene, None);
+}
+
+#[tokio::test]
+async fn scene_state_route_returns_scene_when_diorama_flag_is_on() {
+    let state = test_scene_app_state();
+    state.config.lock().await.flags.enable("diorama");
+
+    let Json(scene) = super::get_scene_state(axum::extract::Extension(Arc::clone(&state))).await;
+    let scene = scene.expect("scene should exist at Darcy's Pub with diorama enabled");
+
+    assert_eq!(scene.location_id, 2);
+    assert_eq!(scene.slug, "darcys-pub");
+    assert_eq!(scene.variant, "day");
+    assert!(
+        scene
+            .plate_url
+            .starts_with("/api/scene-asset/assets/scenes/darcys-pub/plate.png?v="),
+        "unexpected plate URL: {}",
+        scene.plate_url
+    );
+    assert!(
+        scene
+            .hotspots
+            .iter()
+            .any(|hotspot| hotspot.id == "front-door")
+    );
+    assert!(scene.slots.iter().any(|slot| slot.id == "behind-bar"));
+}
+
+#[tokio::test]
+async fn scene_asset_serves_png_with_immutable_cache() {
+    let state = test_scene_app_state();
+    let resp = super::get_scene_asset(
+        axum::extract::Path("assets/scenes/darcys-pub/plate.png".to_string()),
+        axum::extract::Extension(Arc::clone(&state)),
+    )
+    .await;
+
+    assert_eq!(resp.status(), axum::http::StatusCode::OK);
+    assert_eq!(
+        resp.headers()
+            .get(axum::http::header::CONTENT_TYPE)
+            .unwrap(),
+        "image/png"
+    );
+    assert_eq!(
+        resp.headers()
+            .get(axum::http::header::CACHE_CONTROL)
+            .unwrap(),
+        "public, max-age=31536000, immutable"
+    );
+    let body = axum::body::to_bytes(resp.into_body(), 4096).await.unwrap();
+    assert!(body.starts_with(b"\x89PNG\r\n\x1a\n"));
+}
+
+#[tokio::test]
+async fn scene_asset_rejects_traversal_encoded_traversal_and_non_scene_assets() {
+    let state = test_scene_app_state();
+    for rel in [
+        "../world.json",
+        "assets/scenes/%2e%2e/world.json",
+        "assets/app-icon.png",
+    ] {
+        let resp = super::get_scene_asset(
+            axum::extract::Path(rel.to_string()),
+            axum::extract::Extension(Arc::clone(&state)),
+        )
+        .await;
+        assert!(
+            resp.status().is_client_error(),
+            "{rel} should be rejected, got {}",
+            resp.status()
+        );
+    }
 }
 
 // ── TD-035: AppState::mods_root ───────────────────────────────────────────
