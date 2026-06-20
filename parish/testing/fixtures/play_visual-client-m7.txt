@@ -1,0 +1,19 @@
+# Visual Client M7 -- status layer contract fixture
+# =================================================
+# Expected after implementation:
+# - `/scene` remains empty while the `diorama` flag is disabled.
+# - enabling the flag exposes the Crossroads scene used for ready-state proof.
+# - moving to Darcy's Pub exposes sprite-backed NPCs and quick actions.
+
+/status
+/scene
+
+/flag enable diorama
+go to The Crossroads
+/scene
+
+go to Darcy's Pub
+/scene
+/npcs
+
+/quit
