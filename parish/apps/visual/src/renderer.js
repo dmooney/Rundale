@@ -1,5 +1,5 @@
-const STAGE_WIDTH = 1280;
-const STAGE_HEIGHT = 720;
+export const STAGE_WIDTH = 1280;
+export const STAGE_HEIGHT = 720;
 
 function numberOr(value, fallback) {
     return Number.isFinite(value) ? value : fallback;
@@ -23,6 +23,41 @@ function actionLabel(action) {
         return 'inspect';
     }
     return 'action';
+}
+
+function destinationFromLabel(label) {
+    const normalized = String(label || '').trim();
+    const match = normalized.match(/\b(?:to|toward|towards)\s+(.+)$/i);
+    return (match?.[1] || normalized).replace(/^the\s+/i, 'The ');
+}
+
+export function hotspotCommand(hotspot) {
+    const action = hotspot?.rawAction;
+    if (!action || typeof action !== 'object') {
+        return { kind: 'inspect', text: hotspot?.label || 'Inspect' };
+    }
+    if ('travel_to' in action) {
+        return {
+            kind: 'travel',
+            command: `go to ${destinationFromLabel(hotspot.label)}`,
+            label: hotspot.label,
+        };
+    }
+    if ('inspect' in action) {
+        return {
+            kind: 'inspect',
+            text: String(action.inspect || hotspot.label || 'Nothing to inspect.'),
+            label: hotspot.label,
+        };
+    }
+    if ('talk_to' in action) {
+        return {
+            kind: 'talk',
+            command: `talk to ${hotspot.label}`,
+            label: hotspot.label,
+        };
+    }
+    return { kind: 'inspect', text: hotspot.label || 'Inspect' };
 }
 
 function rectBounds(shape) {
@@ -58,6 +93,7 @@ export function buildSceneDisplayModel(scene) {
         id: hotspot.id,
         label: hotspot.label || hotspot.id,
         action: actionLabel(hotspot.action),
+        rawAction: hotspot.action || null,
         bounds: rectBounds(hotspot.shape),
     }));
     const slots = (scene.slots || []).map((slot) => ({
@@ -92,6 +128,37 @@ export function buildSceneDisplayModel(scene) {
     };
 }
 
+export function findHotspotAtStagePoint(model, point) {
+    if (!model || model.kind !== 'scene') {
+        return null;
+    }
+    for (const hotspot of [...model.hotspots].reverse()) {
+        const bounds = hotspot.bounds;
+        if (!bounds) {
+            continue;
+        }
+        if (
+            point.x >= bounds.x &&
+            point.x <= bounds.x + bounds.width &&
+            point.y >= bounds.y &&
+            point.y <= bounds.y + bounds.height
+        ) {
+            return hotspot;
+        }
+    }
+    return null;
+}
+
+export function canvasPointToStage(canvas, clientX, clientY) {
+    const rect = canvas.getBoundingClientRect();
+    const width = rect.width || STAGE_WIDTH;
+    const height = rect.height || STAGE_HEIGHT;
+    return {
+        x: ((clientX - rect.left) / width) * STAGE_WIDTH,
+        y: ((clientY - rect.top) / height) * STAGE_HEIGHT,
+    };
+}
+
 function syncCanvasPixels(canvas) {
     const ratio = Math.min(globalThis.devicePixelRatio || 1, 2);
     const width = Math.max(1, Math.floor(canvas.clientWidth || STAGE_WIDTH));
@@ -107,7 +174,7 @@ function syncCanvasPixels(canvas) {
     return { ctx, width, height };
 }
 
-function drawBackground(ctx, width, height) {
+function drawFallbackPlate(ctx, width, height) {
     ctx.fillStyle = '#17211b';
     ctx.fillRect(0, 0, width, height);
     ctx.fillStyle = '#26442e';
@@ -119,7 +186,7 @@ function drawBackground(ctx, width, height) {
 }
 
 function drawEmpty(ctx, width, height, model) {
-    drawBackground(ctx, width, height);
+    drawFallbackPlate(ctx, width, height);
     ctx.fillStyle = '#f4f1e6';
     ctx.font = '600 28px system-ui, sans-serif';
     ctx.textAlign = 'center';
@@ -138,7 +205,21 @@ function scaleBounds(bounds, width, height) {
     };
 }
 
-function drawHotspots(ctx, model, width, height) {
+function drawPlate(ctx, model, width, height, plateImage) {
+    if (plateImage?.complete && plateImage.naturalWidth > 0) {
+        ctx.drawImage(plateImage, 0, 0, width, height);
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.12)';
+        ctx.fillRect(0, 0, width, height);
+        return;
+    }
+    drawFallbackPlate(ctx, width, height);
+    ctx.font = '14px ui-monospace, monospace';
+    ctx.fillStyle = '#d8e5d7';
+    ctx.textAlign = 'left';
+    ctx.fillText(model.plate || 'Loading plate image', width * 0.12, height * 0.27);
+}
+
+function drawHotspots(ctx, model, width, height, activeHotspotId) {
     ctx.lineWidth = 2;
     ctx.font = '600 13px system-ui, sans-serif';
     ctx.textAlign = 'left';
@@ -147,9 +228,11 @@ function drawHotspots(ctx, model, width, height) {
             continue;
         }
         const bounds = scaleBounds(hotspot.bounds, width, height);
-        ctx.fillStyle = 'rgba(230, 187, 93, 0.18)';
-        ctx.strokeStyle = '#e6bb5d';
+        const active = hotspot.id === activeHotspotId;
+        ctx.fillStyle = active ? 'rgba(245, 223, 131, 0.32)' : 'rgba(230, 187, 93, 0.18)';
+        ctx.strokeStyle = active ? '#fff3a6' : '#e6bb5d';
         ctx.fillRect(bounds.x, bounds.y, bounds.width, bounds.height);
+        ctx.lineWidth = active ? 3 : 2;
         ctx.strokeRect(bounds.x, bounds.y, bounds.width, bounds.height);
         ctx.fillStyle = '#fff7d6';
         ctx.fillText(hotspot.label, bounds.x + 8, bounds.y + 20);
@@ -187,28 +270,27 @@ function drawNpcs(ctx, model, width, height) {
     }
 }
 
-function drawScene(ctx, width, height, model) {
-    drawBackground(ctx, width, height);
+export function renderSceneModel(canvas, model, options = {}) {
+    const { ctx, width, height } = syncCanvasPixels(canvas);
+    ctx.clearRect(0, 0, width, height);
+
+    if (model.kind === 'empty') {
+        drawEmpty(ctx, width, height, model);
+        return model;
+    }
+
+    drawPlate(ctx, model, width, height, options.plateImage);
     ctx.fillStyle = '#f4f1e6';
     ctx.font = '700 26px system-ui, sans-serif';
     ctx.textAlign = 'left';
     ctx.fillText(model.title, width * 0.12, height * 0.22);
-    ctx.font = '14px ui-monospace, monospace';
-    ctx.fillStyle = '#d8e5d7';
-    ctx.fillText(model.plate || 'No plate URL', width * 0.12, height * 0.27);
-    drawHotspots(ctx, model, width, height);
+    drawHotspots(ctx, model, width, height, options.activeHotspotId);
     drawSlots(ctx, model, width, height);
     drawNpcs(ctx, model, width, height);
+    return model;
 }
 
-export function renderSceneCanvas(canvas, scene) {
+export function renderSceneCanvas(canvas, scene, options = {}) {
     const model = buildSceneDisplayModel(scene);
-    const { ctx, width, height } = syncCanvasPixels(canvas);
-    ctx.clearRect(0, 0, width, height);
-    if (model.kind === 'empty') {
-        drawEmpty(ctx, width, height, model);
-    } else {
-        drawScene(ctx, width, height, model);
-    }
-    return model;
+    return renderSceneModel(canvas, model, options);
 }

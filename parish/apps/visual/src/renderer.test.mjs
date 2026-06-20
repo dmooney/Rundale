@@ -1,7 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { buildSceneDisplayModel } from './renderer.js';
+import {
+    buildSceneDisplayModel,
+    canvasPointToStage,
+    findHotspotAtStagePoint,
+    hotspotCommand,
+} from './renderer.js';
 
 const scene = {
     schema_version: 1,
@@ -18,6 +23,12 @@ const scene = {
             label: "Lane to Darcy's Pub",
             shape: { rect: [70, 36, 18, 32] },
             action: { travel_to: 2 },
+        },
+        {
+            id: 'stone-wall',
+            label: 'Weathered stone wall',
+            shape: { rect: [7, 42, 22, 24] },
+            action: { inspect: 'The wall is dark with rain.' },
         },
     ],
     slots: [
@@ -62,6 +73,7 @@ test('maps backend scene-state into graphics display geometry', () => {
     assert.equal(model.title, 'The Crossroads');
     assert.equal(model.hotspots[0].label, "Lane to Darcy's Pub");
     assert.equal(model.hotspots[0].action, 'travel:2');
+    assert.deepEqual(model.hotspots[0].rawAction, { travel_to: 2 });
     assert.deepEqual(model.hotspots[0].bounds, {
         x: 896,
         y: 259.2,
@@ -70,4 +82,38 @@ test('maps backend scene-state into graphics display geometry', () => {
     });
     assert.equal(model.slots[0].id, 'roadside-left');
     assert.equal(model.npcs[0].label, 'A farmer');
+});
+
+test('hit-tests hotspots in authored stage coordinates', () => {
+    const model = buildSceneDisplayModel(scene);
+    assert.equal(
+        findHotspotAtStagePoint(model, { x: 900, y: 300 })?.id,
+        'pub-lane',
+    );
+    assert.equal(
+        findHotspotAtStagePoint(model, { x: 120, y: 330 })?.id,
+        'stone-wall',
+    );
+    assert.equal(findHotspotAtStagePoint(model, { x: 640, y: 360 }), null);
+});
+
+test('converts canvas client coordinates to the stage coordinate system', () => {
+    const canvas = {
+        getBoundingClientRect: () => ({ left: 10, top: 20, width: 640, height: 360 }),
+    };
+    assert.deepEqual(canvasPointToStage(canvas, 330, 200), { x: 640, y: 360 });
+});
+
+test('derives travel and inspect commands from hotspot actions', () => {
+    const model = buildSceneDisplayModel(scene);
+    assert.deepEqual(hotspotCommand(model.hotspots[0]), {
+        kind: 'travel',
+        command: "go to Darcy's Pub",
+        label: "Lane to Darcy's Pub",
+    });
+    assert.deepEqual(hotspotCommand(model.hotspots[1]), {
+        kind: 'inspect',
+        text: 'The wall is dark with rain.',
+        label: 'Weathered stone wall',
+    });
 });

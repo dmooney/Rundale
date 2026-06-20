@@ -23,3 +23,5 @@ This milestone uses plain browser Canvas 2D and zero runtime dependencies. It
 draws placeholder geometry from `/api/scene-state`; it is not the final sprite
 or animation engine. The small command form posts to `/api/command` so the
 visual client owns its browser session and can move to an authored scene.
+Canvas hotspots are interactive: travel hotspots submit movement commands,
+while inspect hotspots show their authored inspection text in the command log.

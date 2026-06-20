@@ -34,7 +34,7 @@ No new engine data model is required. The new app consumes the existing
 
 The app owns a small client-side view model for loading, error, disabled, and
 scene-present states. It also posts movement text to `POST /api/command`, then
-refreshes `/api/scene-state` for the same browser session. Future milestones can
+refreshes `/api/scene-state` for the same browser session. Later milestones can
 replace the Canvas 2D renderer with PixiJS, Phaser, Three.js, or another engine
 without changing the server contract.
 
