@@ -202,6 +202,12 @@ ul {
     list-style: none;
 }
 
+ol {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
 li {
     border: 1px solid rgba(244, 241, 230, 0.12);
     border-radius: 6px;
@@ -209,6 +215,51 @@ li {
     background: rgba(17, 23, 18, 0.54);
     color: #f4f1e6;
     font-size: 13px;
+}
+
+.turn-log {
+    display: grid;
+    max-height: 230px;
+    gap: 6px;
+    overflow: auto;
+}
+
+.turn-log li {
+    display: grid;
+    gap: 4px;
+    border-left-width: 4px;
+}
+
+.turn-log .entry-label {
+    color: #e6bb5d;
+    font-size: 11px;
+    font-weight: 800;
+    text-transform: uppercase;
+}
+
+.turn-log .entry-text {
+    color: #f4f1e6;
+    line-height: 1.35;
+}
+
+.turn-log .kind-player {
+    border-left-color: #7aa7ff;
+}
+
+.turn-log .kind-world {
+    border-left-color: #8ed081;
+}
+
+.turn-log .kind-inspect {
+    border-left-color: #e6bb5d;
+}
+
+.turn-log .kind-selection {
+    border-left-color: #d99275;
+}
+
+.turn-log .kind-system {
+    border-left-color: #aebcaf;
 }
 
 .muted {

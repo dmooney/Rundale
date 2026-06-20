@@ -27,3 +27,6 @@ Canvas hotspots are interactive: travel hotspots submit movement commands,
 while inspect hotspots show their authored inspection text in the command log.
 NPC sprites render from scene-state `sprite_url` values; clicking a sprite
 prepares a `talk to ...` command without submitting dialogue automatically.
+The Recent panel keeps a bounded local transcript of commands, world responses,
+inspections, and sprite selections so the app can be played without losing
+context after each action.
