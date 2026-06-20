@@ -42,12 +42,14 @@ Rundale (on Parish engine)/
 │   ├── crates/                 # 23 workspace members (see table above)
 │   │
 │   ├── apps/
-│   │   └── ui/                 # Svelte 5 + TypeScript frontend (SvelteKit static adapter)
-│   │       └── src/
-│   │           ├── lib/                # types, ipc, map projection, label collision
-│   │           ├── stores/             # game, theme, debug
-│   │           └── components/         # StatusBar, ChatPanel, MapPanel, FullMapOverlay,
-│   │                                   # Sidebar, InputField, SavePicker, DebugPanel
+│   │   ├── ui/                 # Svelte 5 + TypeScript frontend (SvelteKit static adapter)
+│   │   │   └── src/
+│   │   │       ├── lib/                # types, ipc, map projection, label collision
+│   │   │       ├── stores/             # game, theme, debug
+│   │   │       └── components/         # StatusBar, ChatPanel, MapPanel, FullMapOverlay,
+│   │   │                               # Sidebar, InputField, SavePicker, DebugPanel
+│   │   └── visual/             # Standalone graphics-first browser client
+│   │       └── src/            # Canvas scene renderer + scene-state client
 │   │
 │   ├── testing/
 │   │   └── fixtures/           # Plaintext script-mode fixtures (test_*.txt, play_*.txt)

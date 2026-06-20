@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <title>Parish Visual</title>
+        <link rel="stylesheet" href="/src/styles.css" />
+        <script type="module" src="/src/main.js"></script>
+    </head>
+    <body>
+        <main class="visual-shell">
+            <section class="stage" aria-label="Visual scene stage">
+                <canvas
+                    id="scene-canvas"
+                    width="1280"
+                    height="720"
+                    aria-label="Current Parish scene"
+                ></canvas>
+            </section>
+
+            <aside class="inspector" aria-label="Scene inspector">
+                <header class="scene-heading">
+                    <p class="eyebrow">Parish Visual</p>
+                    <h1 id="scene-title">Scene Renderer</h1>
+                    <p id="scene-subtitle" aria-live="polite">Waiting for backend</p>
+                </header>
+
+                <form id="settings-form" class="settings">
+                    <label for="backend-url">Server</label>
+                    <div class="settings-row">
+                        <input
+                            id="backend-url"
+                            name="backendUrl"
+                            type="url"
+                            placeholder="same origin"
+                            autocomplete="off"
+                        />
+                        <button type="submit">Connect</button>
+                    </div>
+                    <button id="refresh-button" type="button">Refresh</button>
+                </form>
+
+                <form id="command-form" class="command-form">
+                    <label for="command-input">Command</label>
+                    <div class="settings-row">
+                        <input
+                            id="command-input"
+                            name="command"
+                            type="text"
+                            value="go to The Crossroads"
+                            autocomplete="off"
+                        />
+                        <button type="submit">Send</button>
+                    </div>
+                    <button id="crossroads-button" type="button">Crossroads</button>
+                    <div id="command-log" class="command-log" aria-live="polite"></div>
+                </form>
+
+                <dl class="metrics">
+                    <div>
+                        <dt>Location</dt>
+                        <dd id="metric-location">-</dd>
+                    </div>
+                    <div>
+                        <dt>Variant</dt>
+                        <dd id="metric-variant">-</dd>
+                    </div>
+                    <div>
+                        <dt>Plate</dt>
+                        <dd id="metric-plate">-</dd>
+                    </div>
+                    <div>
+                        <dt>Hotspots</dt>
+                        <dd id="metric-hotspots">0</dd>
+                    </div>
+                    <div>
+                        <dt>People</dt>
+                        <dd id="metric-people">0</dd>
+                    </div>
+                </dl>
+
+                <section class="list-section" aria-labelledby="hotspots-heading">
+                    <h2 id="hotspots-heading">Hotspots</h2>
+                    <ul id="hotspot-list"></ul>
+                </section>
+
+                <section class="list-section" aria-labelledby="people-heading">
+                    <h2 id="people-heading">People</h2>
+                    <ul id="people-list"></ul>
+                </section>
+            </aside>
+        </main>
+    </body>
+</html>
