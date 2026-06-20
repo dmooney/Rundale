@@ -1,4 +1,5 @@
 import { fetchSceneState, normalizeBackendUrl, postCommand } from './scene-client.js';
+import { appendTurnEntry, createTurnEntry, responseSummary } from './turn-log.js';
 import {
     buildSceneDisplayModel,
     canvasPointToStage,
@@ -27,6 +28,7 @@ const metricHotspots = document.querySelector('#metric-hotspots');
 const metricPeople = document.querySelector('#metric-people');
 const hotspotList = document.querySelector('#hotspot-list');
 const peopleList = document.querySelector('#people-list');
+const turnLog = document.querySelector('#turn-log');
 
 let currentBackendUrl = normalizeBackendUrl(localStorage.getItem(storageKey) || '');
 let currentSceneModel = buildSceneDisplayModel(null);
@@ -36,6 +38,7 @@ let hoveredHotspotId = null;
 let selectedHotspotId = null;
 let hoveredNpcId = null;
 let selectedNpcId = null;
+let turnEntries = [];
 const plateCache = new Map();
 
 backendInput.value = currentBackendUrl;
@@ -68,6 +71,35 @@ function updateInspector(model) {
     setList(peopleList, model.npcs, (npc) => `${npc.label} at ${npc.slotId}`);
 }
 
+function renderTurnLog() {
+    turnLog.replaceChildren();
+    if (turnEntries.length === 0) {
+        const item = document.createElement('li');
+        item.className = 'muted kind-system';
+        item.textContent = 'No turns yet';
+        turnLog.append(item);
+        return;
+    }
+    for (const entry of turnEntries) {
+        const item = document.createElement('li');
+        item.className = `kind-${entry.kind}`;
+        const label = document.createElement('span');
+        label.className = 'entry-label';
+        label.textContent = entry.label;
+        const text = document.createElement('span');
+        text.className = 'entry-text';
+        text.textContent = entry.text;
+        item.append(label, text);
+        turnLog.append(item);
+    }
+    turnLog.scrollTop = turnLog.scrollHeight;
+}
+
+function appendTurn(kind, label, text) {
+    turnEntries = appendTurnEntry(turnEntries, createTurnEntry(kind, label, text));
+    renderTurnLog();
+}
+
 function renderError(error) {
     const model = buildSceneDisplayModel(null);
     currentSceneModel = model;
@@ -83,6 +115,7 @@ function renderError(error) {
     metricPeople.textContent = '0';
     setList(hotspotList, [], () => '');
     setList(peopleList, [], () => '');
+    appendTurn('system', 'System', subtitle.textContent);
     return model;
 }
 
@@ -132,9 +165,7 @@ async function loadSpriteImages(model) {
 }
 
 function setCommandLog(response) {
-    const lines = Array.isArray(response?.lines) ? response.lines : [];
-    const last = lines.at(-1);
-    commandLog.textContent = last?.text || response?.outcome || 'Done';
+    commandLog.textContent = responseSummary(response);
 }
 
 async function refreshScene() {
@@ -176,12 +207,15 @@ async function submitCommand(text) {
         return;
     }
     commandLog.textContent = 'Sending';
+    appendTurn('player', 'You', trimmed);
     try {
         const response = await postCommand({ text: trimmed, backendUrl: currentBackendUrl });
         setCommandLog(response);
+        appendTurn('world', 'World', responseSummary(response));
         await refreshScene();
     } catch (error) {
         commandLog.textContent = error instanceof Error ? error.message : String(error);
+        appendTurn('system', 'System', commandLog.textContent);
     }
 }
 
@@ -201,6 +235,7 @@ async function activateHotspot(hotspot) {
     const action = hotspotCommand(hotspot);
     if (action.kind === 'inspect') {
         commandLog.textContent = action.text;
+        appendTurn('inspect', 'Inspect', action.text);
         return;
     }
 
@@ -219,6 +254,7 @@ function activateNpc(npc) {
     const action = npcCommand(npc);
     commandInput.value = action.command;
     commandLog.textContent = `Ready to talk to ${action.label}.`;
+    appendTurn('selection', 'Selected', `Ready to talk to ${action.label}.`);
     renderCurrentScene();
 }
 
@@ -275,4 +311,5 @@ window.addEventListener('resize', () => {
     renderCurrentScene();
 });
 
+renderTurnLog();
 refreshScene();
