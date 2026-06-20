@@ -61,6 +61,13 @@ cd parish/apps/ui && npx playwright test    # e2e (auto-starts axum server)
 just ui-test
 just ui-e2e
 just screenshots                 # regenerate docs/screenshots/*.png
+
+npm --prefix parish/apps/visual run check    # graphics client syntax check
+npm --prefix parish/apps/visual run test     # graphics client unit tests
+npm --prefix parish/apps/visual run build    # static graphics client build
+just visual-check
+just visual-test
+just visual-build
 ```
 
 To update Playwright baselines after intentional UI changes:
@@ -78,6 +85,16 @@ cargo run -p parish-server -- --port 8080
 ```
 
 Then open `http://localhost:3001`.
+
+The standalone graphics client lives in `parish/apps/visual`. Start a Parish
+backend first, then run:
+
+```sh
+PARISH_BACKEND_URL=http://127.0.0.1:3030 npm --prefix parish/apps/visual run dev
+```
+
+Then open `http://127.0.0.1:4174`. The visual dev server proxies `/api/*` to
+the Parish backend.
 
 ## Tauri desktop
 

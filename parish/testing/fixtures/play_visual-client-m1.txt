@@ -1,0 +1,16 @@
+# Visual Client M1 — backend scene-state contract fixture
+# =======================================================
+# Expected after implementation:
+# - `/scene` remains empty while the `diorama` flag is disabled.
+# - enabling the flag exposes scene-state that the standalone visual app fetches.
+# - the Crossroads scene includes a plate and hotspots for the graphics client.
+
+/status
+/scene
+
+/flag enable diorama
+go to The Crossroads
+/scene
+/npcs
+
+/quit
