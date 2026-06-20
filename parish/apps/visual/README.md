@@ -31,4 +31,6 @@ The Recent panel keeps a bounded local transcript of commands, world responses,
 inspections, and sprite selections so the app can be played without losing
 context after each action. The Hotspots and People side panels expose the same
 actions as buttons, so the graphics client can be played even when a precise
-Canvas click is awkward.
+Canvas click is awkward. On desktop, the stage stays fixed to the viewport while
+the inspector scrolls independently; on narrow screens the page stacks into a
+normal scrolling document.
