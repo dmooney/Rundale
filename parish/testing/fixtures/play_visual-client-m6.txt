@@ -1,0 +1,20 @@
+# Visual Client M6 -- layout stability contract fixture
+# =====================================================
+# Expected after implementation:
+# - `/scene` remains empty while the `diorama` flag is disabled.
+# - enabling the flag exposes the Crossroads scene used for stage proof.
+# - moving to Darcy's Pub exposes enough inspector content to prove sidebar
+#   scrolling without moving the stage.
+
+/status
+/scene
+
+/flag enable diorama
+go to The Crossroads
+/scene
+
+go to Darcy's Pub
+/scene
+/npcs
+
+/quit
