@@ -153,4 +153,8 @@ Use `just run-headless --script` for deterministic, fast harness-level testing.
 
 - Conventional commits: `feat:`, `fix:`, `refactor:`, `docs:`, `test:`, `chore:`.
 - One logical change per commit.
+- PR titles must also start with a conventional prefix accepted by CI (`feat:`,
+  `fix:`, `refactor:`, `docs:`, `test:`, `chore:`, `security:`, `perf:`,
+  `ci:`, `build:`, `revert:`, or `bug:`); do not put `[codex]` or other
+  decoration before the type.
 - PRs should explain behavior changes, link issues, list commands run, and include screenshots / updated Playwright baselines for visible UI changes.

@@ -14,8 +14,8 @@ PARISH_BACKEND_URL=http://127.0.0.1:3030 npm --prefix parish/apps/visual run dev
 ```
 
 The dev server listens on `VISUAL_CLIENT_PORT` or `4174` by default. Requests
-under `/api/*` are proxied to `PARISH_BACKEND_URL`, which defaults to
-`http://127.0.0.1:3030`.
+under `/api/*` are proxied only to loopback Parish backends on ports `3030` or
+`3001`; `PARISH_BACKEND_URL` defaults to `http://127.0.0.1:3030`.
 
 ## Scope
 

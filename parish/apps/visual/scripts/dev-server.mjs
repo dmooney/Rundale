@@ -4,10 +4,11 @@ import { createReadStream } from 'node:fs';
 import path from 'node:path';
 import { Readable } from 'node:stream';
 import { fileURLToPath } from 'node:url';
+import { backendOriginFromEnv, proxyTargetUrl } from './backend-origin.mjs';
 
 const appDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const port = Number.parseInt(process.env.VISUAL_CLIENT_PORT || process.env.PORT || '4174', 10);
-const backendUrl = process.env.PARISH_BACKEND_URL || 'http://127.0.0.1:3030';
+const backendOrigin = backendOriginFromEnv();
 
 const contentTypes = new Map([
     ['.css', 'text/css; charset=utf-8'],
@@ -59,7 +60,7 @@ async function serveStatic(req, res, url) {
 }
 
 async function proxyApi(req, res) {
-    const target = new URL(req.url || '/', backendUrl);
+    const target = proxyTargetUrl(req.url, backendOrigin);
     const headers = new Headers(req.headers);
     headers.delete('host');
 
@@ -93,5 +94,5 @@ const server = createServer(async (req, res) => {
 
 server.listen(port, '127.0.0.1', () => {
     console.log(`Parish Visual: http://127.0.0.1:${port}`);
-    console.log(`Proxying /api/* to ${backendUrl}`);
+    console.log(`Proxying /api/* to ${backendOrigin}`);
 });

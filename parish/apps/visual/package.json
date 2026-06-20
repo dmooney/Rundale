@@ -8,6 +8,6 @@
     "dev": "node scripts/dev-server.mjs",
     "build": "node scripts/build.mjs",
     "check": "node scripts/check.mjs",
-    "test": "node --test src/*.test.mjs"
+    "test": "node --test src/*.test.mjs scripts/*.test.mjs"
   }
 }
