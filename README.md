@@ -51,6 +51,11 @@ flowchart LR
 
 Shared rule: **mode parity**. Every gameplay feature behaves identically across Tauri, headless, and web. Shared orchestration lives in `parish-core`; entry-point crates contain only thin wiring (see [docs/agent/architecture.md](docs/agent/architecture.md)).
 
+A separate graphics-first browser client lives in `parish/apps/visual`. It is
+not a Tauri replacement shell yet; it consumes the same `parish-server` HTTP API
+and renders `/api/scene-state` onto a Canvas stage so visual scene work has a
+home outside the text HUD.
+
 ## Features
 
 ### World simulation
@@ -127,6 +132,19 @@ A four-tier simulation that scales hundreds of NPCs at varying fidelity based on
 - **Keyboard shortcuts** — F5 saves, F12 debug, M map, Up/Down history, Tab autocomplete, Esc cancels travel.
 - **Parish Designer** — integrated GUI editor at `/editor` for authoring NPCs, locations, schedules, and mod data without touching JSON directly; see the [Parish Designer](#parish-designer-gui-editor) section below.
 - **Accessibility** — ARIA-labelled controls, visible focus rings, semantic HTML, WCAG-AA contrast across all theme variants.
+
+### Graphics-first visual client
+
+- **Standalone browser app** in `parish/apps/visual` that runs separately from
+  the Tauri/Svelte HUD and proxies `/api/*` to a running Parish backend.
+- **Canvas scene renderer** that consumes `/api/scene-state` and draws the
+  current diorama contract: scene title, plate URL, hotspot boxes, NPC slots,
+  and placeholder person markers.
+- **Command bridge** to `POST /api/command` so the visual app can move its own
+  browser session before refreshing the scene canvas.
+- **No rendering-engine commitment yet** — the milestone uses browser-native
+  Canvas 2D and zero runtime dependencies so future work can choose PixiJS,
+  Phaser, Three.js, or another graphics stack deliberately.
 
 ### Web server
 
@@ -367,6 +385,7 @@ flowchart TB
 parish/
   crates/              23 workspace members (types, config, world, npc, mod, editor, chronicle, diagnostics, etc.)
   apps/ui/             Svelte 5 + TypeScript frontend
+  apps/visual/         Standalone graphics-first browser client
   testing/fixtures/    scripted gameplay fixtures
   scripts/             Maintenance and quality gate scripts
 mods/rundale/          Rundale game content (world, NPCs, prompts, lore)

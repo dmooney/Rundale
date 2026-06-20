@@ -83,6 +83,7 @@ fn build_router(bridge: BridgeState) -> Router {
         // `/api/engine-state` — canonical deterministic engine state for the
         // MCP QA loop (#1331). Backs the `parish_engine_state` tool.
         .route("/api/engine-state", get(engine_state))
+        .route("/api/scene-state", get(scene_state))
         .route("/api/save-state", get(save_state))
         .route("/api/transcript", get(transcript))
         .route("/api/setup-snapshot", get(setup_snapshot))
@@ -225,6 +226,29 @@ async fn engine_state(
         &world,
         &npc_manager,
     )))
+}
+
+/// `GET /api/scene-state` — active diorama state for the live desktop session.
+async fn scene_state(State(b): State<BridgeState>) -> Json<Option<parish_core::ipc::SceneState>> {
+    let Some(game_mod) = b.state.game_mod.as_ref() else {
+        return Json(None);
+    };
+    let relative = {
+        let world = b.state.world.lock().await;
+        let npc_manager = b.state.npc_manager.lock().await;
+        let flags = b.state.config.lock().await.flags.clone();
+        parish_core::ipc::build_scene_state_relative(
+            &world,
+            &npc_manager,
+            game_mod.scenes.as_ref(),
+            &flags,
+        )
+    };
+    Json(relative.and_then(|scene| {
+        parish_core::ipc::map_scene_state_asset_urls(scene, &|rel| {
+            crate::commands::scene::mod_scene_asset_data_url(game_mod, rel).ok()
+        })
+    }))
 }
 
 // ── Shared response types ────────────────────────────────────────────────────
@@ -1174,6 +1198,7 @@ mod tests {
             "/api/map",
             "/api/npcs-here",
             "/api/engine-state",
+            "/api/scene-state",
             "/api/save-state",
             "/api/setup-snapshot",
             "/api/debug-snapshot",
@@ -1212,6 +1237,7 @@ mod tests {
             "get_map",
             "get_npcs_here",
             "get_engine_state",
+            "get_scene_state",
             "get_save_state",
             "get_setup_snapshot",
             "get_debug_snapshot",

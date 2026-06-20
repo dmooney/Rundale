@@ -1,0 +1,79 @@
+{
+    "scenes": [
+        {
+            "location_id": 1,
+            "slug": "the-crossroads",
+            "plate": "assets/scenes/the-crossroads/plate.png",
+            "hotspots": [
+                {
+                    "id": "pub-lane",
+                    "shape": { "rect": [70.0, 36.0, 18.0, 32.0] },
+                    "label": "Lane to Darcy's Pub",
+                    "action": { "travel_to": 2 }
+                },
+                {
+                    "id": "church-boreen",
+                    "shape": { "rect": [50.0, 8.0, 16.0, 26.0] },
+                    "label": "Boreen to St. Brigid's Church",
+                    "action": { "travel_to": 3 }
+                },
+                {
+                    "id": "kilteevan-road",
+                    "shape": { "rect": [36.0, 66.0, 22.0, 24.0] },
+                    "label": "Kilteevan road",
+                    "action": { "travel_to": 15 }
+                },
+                {
+                    "id": "stone-wall",
+                    "shape": { "rect": [7.0, 42.0, 22.0, 24.0] },
+                    "label": "Weathered stone wall",
+                    "action": {
+                        "inspect": "The wall is half-swallowed by bramble, its stones dark with rain."
+                    }
+                }
+            ],
+            "slots": [
+                { "id": "roadside-left", "x": 29.0, "y": 61.0, "scale": 1.0 },
+                { "id": "roadside-right", "x": 62.0, "y": 58.0, "scale": 1.0 },
+                { "id": "wall-gossip", "x": 18.0, "y": 53.0, "scale": 0.95 }
+            ]
+        },
+        {
+            "location_id": 2,
+            "slug": "darcys-pub",
+            "plate": "assets/scenes/darcys-pub/plate.png",
+            "hotspots": [
+                {
+                    "id": "front-door",
+                    "shape": { "rect": [82.0, 38.0, 14.0, 50.0] },
+                    "label": "Out to the Crossroads",
+                    "action": { "travel_to": 1 }
+                },
+                {
+                    "id": "hearth",
+                    "shape": { "rect": [5.0, 30.0, 18.0, 40.0] },
+                    "label": "The hearth",
+                    "action": {
+                        "inspect": "A turf fire smoulders in the wide hearth, keeping the wet air at bay."
+                    }
+                },
+                {
+                    "id": "bar",
+                    "shape": { "rect": [38.0, 34.0, 28.0, 22.0] },
+                    "label": "The bar",
+                    "action": {
+                        "inspect": "The counter is dark from years of elbows, coins, and spilled porter."
+                    }
+                }
+            ],
+            "slots": [
+                { "id": "behind-bar", "x": 50.0, "y": 52.0, "scale": 1.0, "prefer_npc": 1 },
+                { "id": "bench-left", "x": 24.0, "y": 68.0, "scale": 1.05 },
+                { "id": "bench-right", "x": 69.0, "y": 66.0, "scale": 1.0 }
+            ]
+        }
+    ],
+    "fallback_sprites": {
+        "default": "assets/scenes/sprites/generic-villager.png"
+    }
+}

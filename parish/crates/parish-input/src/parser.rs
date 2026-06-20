@@ -102,6 +102,7 @@ fn parse_zero_arg_command(keyword: &str) -> Option<Command> {
         "/resume-silent" => Some(Command::ResumeSilent),
         "/quit" | "/exit" => Some(Command::Quit),
         "/save" => Some(Command::Save),
+        "/scene" => Some(Command::Debug(Some("scene".to_string()))),
         "/branches" => Some(Command::Branches),
         "/log" => Some(Command::Log),
         "/status" | "/where" => Some(Command::Status),
@@ -220,6 +221,10 @@ mod tests {
         assert_eq!(parse_system_command("/pause"), Some(Command::Pause));
         assert_eq!(parse_system_command("/resume"), Some(Command::Resume));
         assert_eq!(parse_system_command("/save"), Some(Command::Save));
+        assert_eq!(
+            parse_system_command("/scene"),
+            Some(Command::Debug(Some("scene".to_string())))
+        );
         assert_eq!(parse_system_command("/branches"), Some(Command::Branches));
         assert_eq!(parse_system_command("/log"), Some(Command::Log));
         assert_eq!(parse_system_command("/status"), Some(Command::Status));
@@ -235,6 +240,7 @@ mod tests {
         assert_eq!(parse_system_command("/quit please"), None);
         assert_eq!(parse_system_command("/exit please"), None);
         assert_eq!(parse_system_command("/save me"), None);
+        assert_eq!(parse_system_command("/scene now"), None);
         assert_eq!(parse_system_command("/branches list"), None);
         assert_eq!(parse_system_command("/log all"), None);
         assert_eq!(parse_system_command("/status detailed"), None);

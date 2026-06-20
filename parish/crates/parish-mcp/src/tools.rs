@@ -72,6 +72,10 @@ fn translate_engine_state(_args: &Value) -> Result<(String, Value), String> {
     Ok(("get_engine_state".into(), Value::Null))
 }
 
+fn translate_scene_state(_args: &Value) -> Result<(String, Value), String> {
+    Ok(("get_scene_state".into(), Value::Null))
+}
+
 fn translate_save_state(_args: &Value) -> Result<(String, Value), String> {
     Ok(("get_save_state".into(), Value::Null))
 }
@@ -192,6 +196,7 @@ fn translate_for(name: &str) -> Option<TranslateFn> {
         "parish_map" => translate_map,
         "parish_npcs_here" => translate_npcs_here,
         "parish_engine_state" => translate_engine_state,
+        "parish_scene_state" => translate_scene_state,
         "parish_save_state" => translate_save_state,
         "parish_turn" => translate_turn,
         "parish_submit_input" => translate_submit_input,
@@ -386,6 +391,7 @@ mod tests {
                 "parish_map",
                 "parish_npcs_here",
                 "parish_engine_state",
+                "parish_scene_state",
                 "parish_save_state",
                 "parish_turn",
                 "parish_submit_input",
@@ -514,9 +520,18 @@ mod tests {
     }
 
     #[test]
+    fn scene_state_takes_no_args_and_routes_to_get() {
+        let (cmd, args) = translate_scene_state(&json!({})).unwrap();
+        assert_eq!(cmd, "get_scene_state");
+        // Null args ⇒ GET /api/scene-state.
+        assert!(args.is_null());
+    }
+
+    #[test]
     fn registry_includes_engine_state_tool() {
         let names: Vec<&str> = registry().iter().map(|t| t.name).collect();
         assert!(names.contains(&"parish_engine_state"));
+        assert!(names.contains(&"parish_scene_state"));
     }
 
     #[test]
@@ -652,6 +667,7 @@ mod tests {
             ("parish_map", json!({})),
             ("parish_npcs_here", json!({})),
             ("parish_engine_state", json!({})),
+            ("parish_scene_state", json!({})),
             ("parish_save_state", json!({})),
             ("parish_turn", json!({})),
             ("parish_new_game", json!({})),

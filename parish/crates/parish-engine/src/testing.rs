@@ -215,6 +215,7 @@ impl GameTestHarness {
             app.npc_manager.add_npc(Npc::new_test_npc());
         }
         app.game_mod = game_mod;
+        app.record_scene_load_diagnostics();
 
         // Initial tier assignment
         app.npc_manager.assign_tiers(&app.world, &[]);

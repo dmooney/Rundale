@@ -20,6 +20,7 @@ __pycache__/
 logs/
 .claude/worktrees
 parish/apps/ui/dist/
+parish/apps/visual/dist/
 test-results/
 claude/*
 .worktrees

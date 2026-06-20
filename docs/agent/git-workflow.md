@@ -26,7 +26,12 @@ After implementing any gameplay feature, run `/parish-engine prove <feature desc
 
 ## Pull requests
 
-Explain the behavior change, link related issues, list commands run (`just check`, `just verify`, UI tests), and include screenshots or updated Playwright baselines for visible UI changes.
+Use a conventional PR title prefix accepted by CI (`feat:`, `fix:`,
+`refactor:`, `docs:`, `test:`, `chore:`, `security:`, `perf:`, `ci:`,
+`build:`, `revert:`, or `bug:`); do not put decoration before the type.
+Explain the behavior change, link related issues, list commands run
+(`just check`, `just verify`, UI tests), and include screenshots or updated
+Playwright baselines for visible UI changes.
 
 ## Merge queue
 

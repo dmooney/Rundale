@@ -1,0 +1,17 @@
+# Visual Client M3 -- NPC sprite contract fixture
+# =================================================
+# Expected after implementation:
+# - `/scene` remains empty while the `diorama` flag is disabled.
+# - enabling the flag and moving to Darcy's Pub exposes sprite-backed NPCs.
+# - `/npcs` reports the same people available for sprite click-to-address.
+
+/status
+/scene
+
+/flag enable diorama
+go to The Crossroads
+go to Darcy's Pub
+/scene
+/npcs
+
+/quit
