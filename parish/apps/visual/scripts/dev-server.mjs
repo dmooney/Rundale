@@ -1,14 +1,14 @@
-import { createServer } from 'node:http';
+import { createServer, request as httpRequest } from 'node:http';
 import { stat } from 'node:fs/promises';
 import { createReadStream } from 'node:fs';
 import path from 'node:path';
-import { Readable } from 'node:stream';
 import { fileURLToPath } from 'node:url';
-import { backendOriginFromEnv, proxyTargetUrl } from './backend-origin.mjs';
+import { apiPathForRequestUrl } from './api-path.mjs';
 
 const appDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const port = Number.parseInt(process.env.VISUAL_CLIENT_PORT || process.env.PORT || '4174', 10);
-const backendOrigin = backendOriginFromEnv();
+const backendHost = '127.0.0.1';
+const backendPort = 3030;
 
 const contentTypes = new Map([
     ['.css', 'text/css; charset=utf-8'],
@@ -60,26 +60,34 @@ async function serveStatic(req, res, url) {
 }
 
 async function proxyApi(req, res) {
-    const target = proxyTargetUrl(req.url, backendOrigin);
-    const headers = new Headers(req.headers);
-    headers.delete('host');
+    const apiPath = apiPathForRequestUrl(req.url);
+    if (!apiPath) {
+        sendText(res, 404, 'Not found');
+        return;
+    }
+    const headers = { ...req.headers };
+    delete headers.host;
 
-    try {
-        const upstream = await fetch(target, {
+    const upstream = httpRequest(
+        {
+            hostname: backendHost,
+            port: backendPort,
+            path: apiPath,
             method: req.method,
             headers,
-            body: req.method === 'GET' || req.method === 'HEAD' ? undefined : req,
-            duplex: 'half',
-        });
-        const responseHeaders = Object.fromEntries(upstream.headers.entries());
-        res.writeHead(upstream.status, responseHeaders);
-        if (!upstream.body) {
-            res.end();
-            return;
-        }
-        Readable.fromWeb(upstream.body).pipe(res);
-    } catch (error) {
+        },
+        (upstreamResponse) => {
+            res.writeHead(upstreamResponse.statusCode || 502, upstreamResponse.headers);
+            upstreamResponse.pipe(res);
+        },
+    );
+    upstream.on('error', (error) => {
         sendText(res, 502, `Backend unavailable: ${error instanceof Error ? error.message : error}`);
+    });
+    if (req.method === 'GET' || req.method === 'HEAD') {
+        upstream.end();
+    } else {
+        req.pipe(upstream);
     }
 }
 
@@ -94,5 +102,5 @@ const server = createServer(async (req, res) => {
 
 server.listen(port, '127.0.0.1', () => {
     console.log(`Parish Visual: http://127.0.0.1:${port}`);
-    console.log(`Proxying /api/* to ${backendOrigin}`);
+    console.log(`Proxying /api/* to http://${backendHost}:${backendPort}`);
 });
