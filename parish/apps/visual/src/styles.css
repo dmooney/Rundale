@@ -101,6 +101,39 @@ h2 {
     font-size: 14px;
 }
 
+.scene-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    color: #cbd6cc;
+    font-size: 13px;
+    font-weight: 700;
+}
+
+.status-dot {
+    width: 9px;
+    height: 9px;
+    border-radius: 999px;
+    background: #aebcaf;
+}
+
+.scene-status[data-state="ready"] .status-dot {
+    background: #8ed081;
+}
+
+.scene-status[data-state="empty"] .status-dot {
+    background: #e6bb5d;
+}
+
+.scene-status[data-state="sending"] .status-dot,
+.scene-status[data-state="loading"] .status-dot {
+    background: #7aa7ff;
+}
+
+.scene-status[data-state="error"] .status-dot {
+    background: #d99275;
+}
+
 .settings,
 .command-form {
     display: grid;
@@ -148,6 +181,10 @@ button:focus-visible {
 button:disabled {
     cursor: progress;
     opacity: 0.6;
+}
+
+#scene-canvas.is-busy {
+    cursor: progress;
 }
 
 .command-log {

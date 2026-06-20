@@ -33,4 +33,6 @@ context after each action. The Hotspots and People side panels expose the same
 actions as buttons, so the graphics client can be played even when a precise
 Canvas click is awkward. On desktop, the stage stays fixed to the viewport while
 the inspector scrolls independently; on narrow screens the page stacks into a
-normal scrolling document.
+normal scrolling document. A compact status line reports loading, ready, empty,
+sending, and connection-error states, and controls are disabled while network
+work is in flight.

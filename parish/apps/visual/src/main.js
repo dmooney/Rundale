@@ -1,5 +1,6 @@
 import { fetchSceneState, normalizeBackendUrl, postCommand } from './scene-client.js';
 import { hotspotActionLabel, npcActionLabel } from './action-list.js';
+import { controlState, visualStatusLabel } from './client-status.js';
 import { appendTurnEntry, createTurnEntry, responseSummary } from './turn-log.js';
 import {
     buildSceneDisplayModel,
@@ -15,11 +16,15 @@ const storageKey = 'parish.visual.backendUrl';
 const canvas = document.querySelector('#scene-canvas');
 const title = document.querySelector('#scene-title');
 const subtitle = document.querySelector('#scene-subtitle');
+const sceneStatus = document.querySelector('#scene-status');
+const sceneStatusLabel = document.querySelector('#scene-status-label');
 const form = document.querySelector('#settings-form');
 const backendInput = document.querySelector('#backend-url');
+const connectButton = form.querySelector('button[type="submit"]');
 const refreshButton = document.querySelector('#refresh-button');
 const commandForm = document.querySelector('#command-form');
 const commandInput = document.querySelector('#command-input');
+const sendButton = commandForm.querySelector('button[type="submit"]');
 const crossroadsButton = document.querySelector('#crossroads-button');
 const commandLog = document.querySelector('#command-log');
 const metricLocation = document.querySelector('#metric-location');
@@ -40,9 +45,28 @@ let selectedHotspotId = null;
 let hoveredNpcId = null;
 let selectedNpcId = null;
 let turnEntries = [];
+let isRefreshing = false;
+let isSending = false;
 const plateCache = new Map();
 
 backendInput.value = currentBackendUrl;
+
+function setStatus(kind) {
+    sceneStatus.dataset.state = kind;
+    sceneStatusLabel.textContent = visualStatusLabel(kind);
+}
+
+function syncControls() {
+    const state = controlState({ isRefreshing, isSending });
+    refreshButton.disabled = state.disableRefresh;
+    connectButton.disabled = state.disableRefresh;
+    sendButton.disabled = state.disableCommand;
+    crossroadsButton.disabled = state.disableCommand;
+    for (const button of document.querySelectorAll('.action-list button')) {
+        button.disabled = state.disableActions;
+    }
+    canvas.classList.toggle('is-busy', state.busy);
+}
 
 function setList(list, items, renderItem) {
     list.replaceChildren();
@@ -74,6 +98,7 @@ function setActionList(list, items, { renderItem, onActivate, datasetName, onPre
         const button = document.createElement('button');
         button.className = 'action-button';
         button.type = 'button';
+        button.disabled = controlState({ isRefreshing, isSending }).disableActions;
         button.textContent = renderItem(value);
         button.dataset[datasetName] = String(value.id);
         button.addEventListener('click', () => {
@@ -168,6 +193,7 @@ function renderError(error) {
     metricPeople.textContent = '0';
     setList(hotspotList, [], () => '');
     setList(peopleList, [], () => '');
+    setStatus('error');
     appendTurn('system', 'System', subtitle.textContent);
     return model;
 }
@@ -222,7 +248,9 @@ function setCommandLog(response) {
 }
 
 async function refreshScene() {
-    refreshButton.disabled = true;
+    isRefreshing = true;
+    syncControls();
+    setStatus('loading');
     subtitle.textContent = 'Loading scene state';
     try {
         const scene = await fetchSceneState({ backendUrl: currentBackendUrl });
@@ -236,6 +264,7 @@ async function refreshScene() {
         selectedNpcId = null;
         renderCurrentScene();
         updateInspector(model);
+        setStatus(model.kind === 'scene' ? 'ready' : 'empty');
         if (model.kind === 'scene') {
             const [image, sprites] = await Promise.all([
                 loadImage(model.plate),
@@ -250,15 +279,22 @@ async function refreshScene() {
     } catch (error) {
         renderError(error);
     } finally {
-        refreshButton.disabled = false;
+        isRefreshing = false;
+        syncControls();
     }
 }
 
 async function submitCommand(text) {
+    if (isRefreshing || isSending) {
+        return;
+    }
     const trimmed = String(text || '').trim();
     if (!trimmed) {
         return;
     }
+    isSending = true;
+    syncControls();
+    setStatus('sending');
     commandLog.textContent = 'Sending';
     appendTurn('player', 'You', trimmed);
     try {
@@ -268,7 +304,11 @@ async function submitCommand(text) {
         await refreshScene();
     } catch (error) {
         commandLog.textContent = error instanceof Error ? error.message : String(error);
+        setStatus('error');
         appendTurn('system', 'System', commandLog.textContent);
+    } finally {
+        isSending = false;
+        syncControls();
     }
 }
 
