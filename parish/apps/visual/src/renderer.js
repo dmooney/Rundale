@@ -1,5 +1,7 @@
 export const STAGE_WIDTH = 1280;
 export const STAGE_HEIGHT = 720;
+export const SPRITE_WIDTH = 48;
+export const SPRITE_HEIGHT = 72;
 
 function numberOr(value, fallback) {
     return Number.isFinite(value) ? value : fallback;
@@ -73,6 +75,17 @@ function rectBounds(shape) {
     };
 }
 
+function npcBounds(x, y, scale) {
+    const width = SPRITE_WIDTH * scale;
+    const height = SPRITE_HEIGHT * scale;
+    return {
+        x: Math.round((x - width / 2) * 1000) / 1000,
+        y: Math.round((y - height) * 1000) / 1000,
+        width: Math.round(width * 1000) / 1000,
+        height: Math.round(height * 1000) / 1000,
+    };
+}
+
 export function buildSceneDisplayModel(scene) {
     if (!scene) {
         return {
@@ -103,16 +116,24 @@ export function buildSceneDisplayModel(scene) {
         scale: numberOr(slot.scale, 1),
         occupiedNpcId: slot.occupied_npc_id,
     }));
-    const npcs = (scene.npcs || []).map((npc) => ({
-        id: npc.npc_id,
-        slotId: npc.slot_id,
-        label: npc.display_name || `NPC ${npc.npc_id}`,
-        mood: npc.mood || 'present',
-        x: percentToPixels(npc.x, STAGE_WIDTH),
-        y: percentToPixels(npc.y, STAGE_HEIGHT),
-        scale: numberOr(npc.scale, 1),
-        spriteUrl: npc.sprite_url,
-    }));
+    const npcs = (scene.npcs || []).map((npc) => {
+        const x = percentToPixels(npc.x, STAGE_WIDTH);
+        const y = percentToPixels(npc.y, STAGE_HEIGHT);
+        const scale = numberOr(npc.scale, 1);
+        return {
+            id: npc.npc_id,
+            slotId: npc.slot_id,
+            label: npc.display_name || `NPC ${npc.npc_id}`,
+            mood: npc.mood || 'present',
+            moodEmoji: npc.mood_emoji || '',
+            x,
+            y,
+            scale,
+            flip: Boolean(npc.flip),
+            spriteUrl: npc.sprite_url,
+            bounds: npcBounds(x, y, scale),
+        };
+    });
 
     return {
         kind: 'scene',
@@ -147,6 +168,47 @@ export function findHotspotAtStagePoint(model, point) {
         }
     }
     return null;
+}
+
+export function findNpcAtStagePoint(model, point) {
+    if (!model || model.kind !== 'scene') {
+        return null;
+    }
+    for (const npc of [...model.npcs].reverse()) {
+        const bounds = npc.bounds;
+        if (!bounds) {
+            continue;
+        }
+        if (
+            point.x >= bounds.x &&
+            point.x <= bounds.x + bounds.width &&
+            point.y >= bounds.y &&
+            point.y <= bounds.y + bounds.height
+        ) {
+            return npc;
+        }
+    }
+    return null;
+}
+
+export function findSceneTargetAtStagePoint(model, point) {
+    const npc = findNpcAtStagePoint(model, point);
+    if (npc) {
+        return { kind: 'npc', value: npc };
+    }
+    const hotspot = findHotspotAtStagePoint(model, point);
+    if (hotspot) {
+        return { kind: 'hotspot', value: hotspot };
+    }
+    return null;
+}
+
+export function npcCommand(npc) {
+    return {
+        kind: 'talk',
+        command: `talk to ${npc?.label || 'them'}`,
+        label: npc?.label || 'them',
+    };
 }
 
 export function canvasPointToStage(canvas, clientX, clientY) {
@@ -254,19 +316,62 @@ function drawSlots(ctx, model, width, height) {
     }
 }
 
-function drawNpcs(ctx, model, width, height) {
+function imageForNpc(spriteImages, npc) {
+    if (spriteImages instanceof Map) {
+        return spriteImages.get(npc.id);
+    }
+    return spriteImages?.[npc.id];
+}
+
+function drawSpriteFallback(ctx, bounds, active) {
+    ctx.fillStyle = active ? '#e6bb5d' : '#d95843';
+    ctx.fillRect(
+        bounds.x + bounds.width * 0.28,
+        bounds.y + bounds.height * 0.2,
+        bounds.width * 0.44,
+        bounds.height * 0.36,
+    );
+    ctx.beginPath();
+    ctx.arc(
+        bounds.x + bounds.width / 2,
+        bounds.y + bounds.height * 0.18,
+        bounds.width * 0.22,
+        0,
+        Math.PI * 2,
+    );
+    ctx.fill();
+}
+
+function drawNpcs(ctx, model, width, height, options = {}) {
     ctx.textAlign = 'center';
     for (const npc of model.npcs) {
-        const x = (npc.x / STAGE_WIDTH) * width;
-        const y = (npc.y / STAGE_HEIGHT) * height;
-        const radius = 18 * npc.scale;
-        ctx.fillStyle = '#d95843';
-        ctx.beginPath();
-        ctx.arc(x, y - radius, radius, 0, Math.PI * 2);
-        ctx.fill();
+        const bounds = scaleBounds(npc.bounds, width, height);
+        const active = npc.id === options.activeNpcId;
+        const sprite = imageForNpc(options.spriteImages, npc);
+        if (sprite?.complete && sprite.naturalWidth > 0) {
+            ctx.save();
+            if (npc.flip) {
+                ctx.translate(bounds.x + bounds.width, bounds.y);
+                ctx.scale(-1, 1);
+                ctx.drawImage(sprite, 0, 0, bounds.width, bounds.height);
+            } else {
+                ctx.drawImage(sprite, bounds.x, bounds.y, bounds.width, bounds.height);
+            }
+            ctx.restore();
+        } else {
+            drawSpriteFallback(ctx, bounds, active);
+        }
+        if (active) {
+            ctx.strokeStyle = '#fff3a6';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(bounds.x - 4, bounds.y - 4, bounds.width + 8, bounds.height + 8);
+        }
         ctx.fillStyle = '#fffaf0';
         ctx.font = '700 13px system-ui, sans-serif';
-        ctx.fillText(npc.label, x, y - radius - 12);
+        ctx.fillText(npc.label, bounds.x + bounds.width / 2, bounds.y - 10);
+        if (npc.moodEmoji) {
+            ctx.fillText(npc.moodEmoji, bounds.x + bounds.width / 2, bounds.y + bounds.height + 16);
+        }
     }
 }
 
@@ -286,7 +391,10 @@ export function renderSceneModel(canvas, model, options = {}) {
     ctx.fillText(model.title, width * 0.12, height * 0.22);
     drawHotspots(ctx, model, width, height, options.activeHotspotId);
     drawSlots(ctx, model, width, height);
-    drawNpcs(ctx, model, width, height);
+    drawNpcs(ctx, model, width, height, {
+        activeNpcId: options.activeNpcId,
+        spriteImages: options.spriteImages,
+    });
     return model;
 }
 

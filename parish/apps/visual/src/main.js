@@ -2,8 +2,9 @@ import { fetchSceneState, normalizeBackendUrl, postCommand } from './scene-clien
 import {
     buildSceneDisplayModel,
     canvasPointToStage,
-    findHotspotAtStagePoint,
+    findSceneTargetAtStagePoint,
     hotspotCommand,
+    npcCommand,
     renderSceneModel,
 } from './renderer.js';
 
@@ -30,8 +31,11 @@ const peopleList = document.querySelector('#people-list');
 let currentBackendUrl = normalizeBackendUrl(localStorage.getItem(storageKey) || '');
 let currentSceneModel = buildSceneDisplayModel(null);
 let currentPlateImage = null;
+let currentSpriteImages = new Map();
 let hoveredHotspotId = null;
 let selectedHotspotId = null;
+let hoveredNpcId = null;
+let selectedNpcId = null;
 const plateCache = new Map();
 
 backendInput.value = currentBackendUrl;
@@ -68,6 +72,7 @@ function renderError(error) {
     const model = buildSceneDisplayModel(null);
     currentSceneModel = model;
     currentPlateImage = null;
+    currentSpriteImages = new Map();
     renderCurrentScene();
     title.textContent = 'Scene unavailable';
     subtitle.textContent = error instanceof Error ? error.message : String(error);
@@ -85,6 +90,8 @@ function renderCurrentScene() {
     renderSceneModel(canvas, currentSceneModel, {
         plateImage: currentPlateImage,
         activeHotspotId: hoveredHotspotId || selectedHotspotId,
+        activeNpcId: hoveredNpcId || selectedNpcId,
+        spriteImages: currentSpriteImages,
     });
 }
 
@@ -114,6 +121,16 @@ function loadImage(url) {
     return promise;
 }
 
+async function loadSpriteImages(model) {
+    if (model.kind !== 'scene' || model.npcs.length === 0) {
+        return new Map();
+    }
+    const entries = await Promise.all(
+        model.npcs.map(async (npc) => [npc.id, await loadImage(npc.spriteUrl)]),
+    );
+    return new Map(entries);
+}
+
 function setCommandLog(response) {
     const lines = Array.isArray(response?.lines) ? response.lines : [];
     const last = lines.at(-1);
@@ -128,14 +145,21 @@ async function refreshScene() {
         const model = buildSceneDisplayModel(scene);
         currentSceneModel = model;
         currentPlateImage = null;
+        currentSpriteImages = new Map();
         hoveredHotspotId = null;
         selectedHotspotId = null;
+        hoveredNpcId = null;
+        selectedNpcId = null;
         renderCurrentScene();
         updateInspector(model);
         if (model.kind === 'scene') {
-            const image = await loadImage(model.plate);
+            const [image, sprites] = await Promise.all([
+                loadImage(model.plate),
+                loadSpriteImages(model),
+            ]);
             if (currentSceneModel === model) {
                 currentPlateImage = image;
+                currentSpriteImages = sprites;
                 renderCurrentScene();
             }
         }
@@ -161,9 +185,9 @@ async function submitCommand(text) {
     }
 }
 
-function hotspotFromEvent(event) {
+function targetFromEvent(event) {
     const point = canvasPointToStage(canvas, event.clientX, event.clientY);
-    return findHotspotAtStagePoint(currentSceneModel, point);
+    return findSceneTargetAtStagePoint(currentSceneModel, point);
 }
 
 async function activateHotspot(hotspot) {
@@ -171,6 +195,7 @@ async function activateHotspot(hotspot) {
         return;
     }
     selectedHotspotId = hotspot.id;
+    selectedNpcId = null;
     renderCurrentScene();
 
     const action = hotspotCommand(hotspot);
@@ -183,6 +208,18 @@ async function activateHotspot(hotspot) {
         commandInput.value = action.command;
         await submitCommand(action.command);
     }
+}
+
+function activateNpc(npc) {
+    if (!npc) {
+        return;
+    }
+    selectedNpcId = npc.id;
+    selectedHotspotId = null;
+    const action = npcCommand(npc);
+    commandInput.value = action.command;
+    commandLog.textContent = `Ready to talk to ${action.label}.`;
+    renderCurrentScene();
 }
 
 form.addEventListener('submit', (event) => {
@@ -207,24 +244,31 @@ crossroadsButton.addEventListener('click', () => {
 });
 
 canvas.addEventListener('mousemove', (event) => {
-    const hotspot = hotspotFromEvent(event);
-    const nextHotspotId = hotspot?.id || null;
-    if (hoveredHotspotId !== nextHotspotId) {
+    const target = targetFromEvent(event);
+    const nextHotspotId = target?.kind === 'hotspot' ? target.value.id : null;
+    const nextNpcId = target?.kind === 'npc' ? target.value.id : null;
+    if (hoveredHotspotId !== nextHotspotId || hoveredNpcId !== nextNpcId) {
         hoveredHotspotId = nextHotspotId;
-        canvas.style.cursor = hotspot ? 'pointer' : 'default';
+        hoveredNpcId = nextNpcId;
+        canvas.style.cursor = target ? 'pointer' : 'default';
         renderCurrentScene();
     }
 });
 
 canvas.addEventListener('mouseleave', () => {
     hoveredHotspotId = null;
+    hoveredNpcId = null;
     canvas.style.cursor = 'default';
     renderCurrentScene();
 });
 
 canvas.addEventListener('click', (event) => {
-    const hotspot = hotspotFromEvent(event);
-    activateHotspot(hotspot);
+    const target = targetFromEvent(event);
+    if (target?.kind === 'npc') {
+        activateNpc(target.value);
+        return;
+    }
+    activateHotspot(target?.value);
 });
 
 window.addEventListener('resize', () => {
