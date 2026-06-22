@@ -10,8 +10,8 @@
   },
   "dependencies": {
     "@astrojs/svelte": "^7.0.0",
-    "astro": "^6.4.6",
-    "simple-icons": "^16.23.0",
+    "astro": "^6.4.8",
+    "simple-icons": "^16.24.0",
     "svelte": "^5.56.3"
   }
 }
