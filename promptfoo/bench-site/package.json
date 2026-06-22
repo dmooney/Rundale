@@ -9,7 +9,7 @@
     "preview": "astro preview"
   },
   "dependencies": {
-    "@astrojs/svelte": "^7.0.0",
+    "@astrojs/svelte": "^8.1.2",
     "astro": "^6.4.8",
     "simple-icons": "^16.24.0",
     "svelte": "^5.56.3"
