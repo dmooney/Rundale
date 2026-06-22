@@ -20,7 +20,7 @@ parish-core = { workspace = true }
 parish-palette = { workspace = true }
 axum = { version = "0.8", features = ["ws"] }
 tokio = { workspace = true }
-tower-http = { version = "0.6", features = ["fs", "set-header"] }
+tower-http = { version = "0.7", features = ["fs", "set-header"] }
 serde = { workspace = true }
 serde_json = { workspace = true }
 clap = { workspace = true, features = ["env"] }
