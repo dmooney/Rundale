@@ -1,9 +1,125 @@
 {
+    "assets": [
+        {
+            "id": "kilteevan-underlay",
+            "kind": "underlay",
+            "image": "assets/scenes/the-crossroads/plate.png",
+            "anchor": [50.0, 100.0]
+        },
+        {
+            "id": "crossroads-underlay",
+            "kind": "underlay",
+            "image": "assets/scenes/the-crossroads/plate.png",
+            "anchor": [50.0, 100.0]
+        },
+        {
+            "id": "pub-underlay",
+            "kind": "underlay",
+            "image": "assets/scenes/darcys-pub/plate.png",
+            "anchor": [50.0, 100.0]
+        },
+        {
+            "id": "placeholder-wayfinding-sign",
+            "kind": "wayfinding_sign",
+            "image": "assets/scenes/sprites/generic-villager.png",
+            "anchor": [50.0, 100.0]
+        }
+    ],
     "scenes": [
+        {
+            "location_id": 15,
+            "slug": "kilteevan-village",
+            "native_size": [1280, 720],
+            "underlay": "assets/scenes/the-crossroads/plate.png",
+            "plate": "assets/scenes/the-crossroads/plate.png",
+            "layers": [
+                {
+                    "id": "underlay",
+                    "asset": "kilteevan-underlay",
+                    "x": 50.0,
+                    "y": 50.0,
+                    "z": 0,
+                    "scale": 1.0
+                },
+                {
+                    "id": "crossroads-sign",
+                    "asset": "placeholder-wayfinding-sign",
+                    "x": 67.0,
+                    "y": 48.0,
+                    "z": 40,
+                    "scale": 0.75,
+                    "labels": [
+                        {
+                            "text": "The Crossroads",
+                            "anchor": [50.0, 48.0],
+                            "rotation": -1.0
+                        }
+                    ]
+                }
+            ],
+            "hotspots": [
+                {
+                    "id": "road-to-crossroads",
+                    "shape": { "rect": [61.0, 34.0, 22.0, 32.0] },
+                    "label": "Road to The Crossroads",
+                    "action": { "travel_to": 1 }
+                },
+                {
+                    "id": "village-well",
+                    "shape": { "rect": [12.0, 44.0, 19.0, 23.0] },
+                    "label": "The village well",
+                    "action": {
+                        "inspect": "The village well is ringed with damp stone and a scatter of boot prints."
+                    }
+                }
+            ],
+            "slots": [
+                { "id": "well-left", "x": 24.0, "y": 62.0, "scale": 1.0 },
+                { "id": "lane-center", "x": 49.0, "y": 64.0, "scale": 1.0 },
+                { "id": "cottage-door", "x": 72.0, "y": 58.0, "scale": 0.95 }
+            ]
+        },
         {
             "location_id": 1,
             "slug": "the-crossroads",
+            "native_size": [1280, 720],
+            "underlay": "assets/scenes/the-crossroads/plate.png",
             "plate": "assets/scenes/the-crossroads/plate.png",
+            "layers": [
+                {
+                    "id": "underlay",
+                    "asset": "crossroads-underlay",
+                    "x": 50.0,
+                    "y": 50.0,
+                    "z": 0,
+                    "scale": 1.0
+                },
+                {
+                    "id": "wayfinding-sign",
+                    "asset": "placeholder-wayfinding-sign",
+                    "x": 58.0,
+                    "y": 50.0,
+                    "z": 45,
+                    "scale": 0.8,
+                    "labels": [
+                        {
+                            "text": "Darcy's Pub",
+                            "anchor": [50.0, 35.0],
+                            "rotation": -2.0
+                        },
+                        {
+                            "text": "St. Brigid's Church",
+                            "anchor": [50.0, 51.0],
+                            "rotation": 1.0
+                        },
+                        {
+                            "text": "Kilteevan Village",
+                            "anchor": [50.0, 67.0],
+                            "rotation": -1.0
+                        }
+                    ]
+                }
+            ],
             "hotspots": [
                 {
                     "id": "pub-lane",
@@ -41,7 +157,34 @@
         {
             "location_id": 2,
             "slug": "darcys-pub",
+            "native_size": [1280, 720],
+            "underlay": "assets/scenes/darcys-pub/plate.png",
             "plate": "assets/scenes/darcys-pub/plate.png",
+            "layers": [
+                {
+                    "id": "underlay",
+                    "asset": "pub-underlay",
+                    "x": 50.0,
+                    "y": 50.0,
+                    "z": 0,
+                    "scale": 1.0
+                },
+                {
+                    "id": "door-sign",
+                    "asset": "placeholder-wayfinding-sign",
+                    "x": 84.0,
+                    "y": 42.0,
+                    "z": 50,
+                    "scale": 0.7,
+                    "labels": [
+                        {
+                            "text": "The Crossroads",
+                            "anchor": [50.0, 48.0],
+                            "rotation": 0.0
+                        }
+                    ]
+                }
+            ],
             "hotspots": [
                 {
                     "id": "front-door",

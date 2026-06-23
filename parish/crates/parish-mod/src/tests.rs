@@ -293,7 +293,7 @@ fn test_load_mod_with_optional_scenes() {
     assert!(scenes.scene_for(parish_types::LocationId(15)).is_some());
     assert_eq!(
         gm.scene_load_summary().as_deref(),
-        Some("scenes.json loaded: 1 scenes, 1 sprites")
+        Some("scenes.json loaded: 1 scenes, 0 layers, 0 assets, 1 sprites")
     );
 }
 

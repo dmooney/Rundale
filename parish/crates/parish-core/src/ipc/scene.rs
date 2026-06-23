@@ -12,7 +12,7 @@ use std::collections::BTreeSet;
 use serde::{Deserialize, Serialize};
 
 use crate::config::FeatureFlags;
-use crate::game_mod::{HotspotAction, HotspotShape, SceneIndex};
+use crate::game_mod::{HotspotAction, HotspotShape, SceneIndex, SceneLayer};
 use crate::npc::manager::NpcManager;
 use crate::npc::mood::mood_emoji;
 use crate::npc::{Npc, NpcId};
@@ -30,9 +30,12 @@ pub struct SceneState {
     pub location_name: String,
     pub indoor: bool,
     pub slug: String,
+    pub native_size: [u32; 2],
+    pub underlay_url: Option<String>,
     pub plate_url: String,
     pub variant: String,
     pub weather_overlay: Option<String>,
+    pub layers: Vec<SceneLayerView>,
     pub hotspots: Vec<SceneHotspotView>,
     pub slots: Vec<SceneSlotView>,
     pub npcs: Vec<SceneNpcView>,
@@ -46,6 +49,31 @@ pub struct SceneHotspotView {
     pub label: String,
     pub shape: HotspotShape,
     pub action: HotspotAction,
+}
+
+/// Runtime-composed visual layer serialized for compositor clients.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct SceneLayerView {
+    pub id: String,
+    pub asset_id: String,
+    pub kind: String,
+    pub asset_url: String,
+    pub x: f32,
+    pub y: f32,
+    pub z: i32,
+    pub scale: f32,
+    pub opacity: f32,
+    pub flip: bool,
+    pub anchor: [f32; 2],
+    pub labels: Vec<SceneLayerLabelView>,
+}
+
+/// Runtime text painted onto a scene layer.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct SceneLayerLabelView {
+    pub text: String,
+    pub anchor: [f32; 2],
+    pub rotation: f32,
 }
 
 /// Declared NPC slot, including whether an NPC was assigned to it.
@@ -202,9 +230,12 @@ pub fn build_scene_state_relative(
         location_name: loc.name.clone(),
         indoor,
         slug: scene.slug.clone(),
+        native_size: scene.native_size,
+        underlay_url: scene.underlay.clone(),
         plate_url,
         variant: variant.to_string(),
         weather_overlay,
+        layers: scene_layers(scenes, &scene.layers),
         hotspots: scene
             .hotspots
             .iter()
@@ -231,6 +262,12 @@ pub fn map_scene_state_asset_urls(
     asset_url: &dyn Fn(&str) -> Option<String>,
 ) -> Option<SceneState> {
     state.plate_url = asset_url(&state.plate_url)?;
+    if let Some(underlay) = state.underlay_url.take() {
+        state.underlay_url = asset_url(&underlay);
+    }
+    for layer in &mut state.layers {
+        layer.asset_url = asset_url(&layer.asset_url)?;
+    }
     for npc in &mut state.npcs {
         if let Some(sprite) = npc.sprite_url.take() {
             npc.sprite_url = asset_url(&sprite);
@@ -283,15 +320,54 @@ pub fn render_scene_state_text(state: Option<&SceneState>) -> String {
         format!("  location_id: {}", state.location_id),
         format!("  location_name: {}", state.location_name),
         format!("  slug: {}", state.slug),
+        format!(
+            "  native_size: {}x{}",
+            state.native_size[0], state.native_size[1]
+        ),
+        format!(
+            "  underlay_url: {}",
+            state.underlay_url.as_deref().unwrap_or("(none)")
+        ),
         format!("  variant: {}", state.variant),
         format!("  plate_url: {}", state.plate_url),
         format!(
             "  weather_overlay: {}",
             state.weather_overlay.as_deref().unwrap_or("(none)")
         ),
-        format!("  hotspots: {hotspots}"),
-        "  slots:".to_string(),
+        "  layers:".to_string(),
     ];
+
+    if state.layers.is_empty() {
+        lines.push("    (none)".to_string());
+    } else {
+        for layer in &state.layers {
+            let labels = if layer.labels.is_empty() {
+                "(none)".to_string()
+            } else {
+                layer
+                    .labels
+                    .iter()
+                    .map(|label| label.text.as_str())
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            };
+            lines.push(format!(
+                "    z={}: {} asset={} kind={} url={} at=({}, {}) scale={} opacity={} labels={}",
+                layer.z,
+                layer.id,
+                layer.asset_id,
+                layer.kind,
+                layer.asset_url,
+                layer.x,
+                layer.y,
+                layer.scale,
+                layer.opacity,
+                labels
+            ));
+        }
+    }
+
+    lines.extend([format!("  hotspots: {hotspots}"), "  slots:".to_string()]);
 
     if state.slots.is_empty() {
         lines.push("    (none)".to_string());
@@ -330,6 +406,39 @@ fn selected_variant(world: &WorldState, has_night_variant: bool) -> &'static str
     } else {
         "day"
     }
+}
+
+fn scene_layers(scenes: &SceneIndex, layers: &[SceneLayer]) -> Vec<SceneLayerView> {
+    let mut views: Vec<SceneLayerView> = layers
+        .iter()
+        .filter_map(|layer| {
+            let asset = scenes.asset_for(&layer.asset)?;
+            Some(SceneLayerView {
+                id: layer.id.clone(),
+                asset_id: layer.asset.clone(),
+                kind: asset.kind.clone(),
+                asset_url: asset.image.clone(),
+                x: layer.x,
+                y: layer.y,
+                z: layer.z,
+                scale: layer.scale,
+                opacity: layer.opacity,
+                flip: layer.flip,
+                anchor: asset.anchor,
+                labels: layer
+                    .labels
+                    .iter()
+                    .map(|label| SceneLayerLabelView {
+                        text: label.text.clone(),
+                        anchor: label.anchor,
+                        rotation: label.rotation,
+                    })
+                    .collect(),
+            })
+        })
+        .collect();
+    views.sort_by(|a, b| a.z.cmp(&b.z).then_with(|| a.id.cmp(&b.id)));
+    views
 }
 
 fn scene_npc_view(
@@ -377,7 +486,9 @@ mod tests {
     use std::path::PathBuf;
 
     use super::*;
-    use crate::game_mod::{Hotspot, NpcSlot, SceneDef, SpriteDef};
+    use crate::game_mod::{
+        Hotspot, NpcSlot, SceneAsset, SceneDef, SceneLayer, SceneLayerLabel, SpriteDef,
+    };
     use crate::npc::Npc;
     use crate::npc::types::NpcState;
     use crate::world::LocationId;
@@ -410,12 +521,62 @@ mod tests {
         );
 
         SceneIndex {
+            assets: vec![
+                SceneAsset {
+                    id: "crossroads-underlay".to_string(),
+                    kind: "underlay".to_string(),
+                    image: "assets/scenes/the-crossroads/plate.png".to_string(),
+                    anchor: [50.0, 100.0],
+                },
+                SceneAsset {
+                    id: "pub-underlay".to_string(),
+                    kind: "underlay".to_string(),
+                    image: "assets/scenes/darcys-pub/plate.png".to_string(),
+                    anchor: [50.0, 100.0],
+                },
+                SceneAsset {
+                    id: "wayfinding-sign".to_string(),
+                    kind: "wayfinding_sign".to_string(),
+                    image: "assets/scenes/sprites/generic-villager.png".to_string(),
+                    anchor: [50.0, 100.0],
+                },
+            ],
             scenes: vec![
                 SceneDef {
                     location_id: LocationId(1),
                     slug: "the-crossroads".to_string(),
+                    native_size: [1280, 720],
+                    underlay: Some("assets/scenes/the-crossroads/plate.png".to_string()),
                     plate: "assets/scenes/the-crossroads/plate.png".to_string(),
                     variants: crossroads_variants,
+                    layers: vec![
+                        SceneLayer {
+                            id: "wayfinding".to_string(),
+                            asset: "wayfinding-sign".to_string(),
+                            x: 58.0,
+                            y: 50.0,
+                            z: 40,
+                            scale: 0.8,
+                            opacity: 1.0,
+                            flip: false,
+                            labels: vec![SceneLayerLabel {
+                                text: "Darcy's Pub".to_string(),
+                                anchor: [50.0, 35.0],
+                                rotation: -1.0,
+                            }],
+                        },
+                        SceneLayer {
+                            id: "underlay".to_string(),
+                            asset: "crossroads-underlay".to_string(),
+                            x: 50.0,
+                            y: 50.0,
+                            z: 0,
+                            scale: 1.0,
+                            opacity: 1.0,
+                            flip: false,
+                            labels: vec![],
+                        },
+                    ],
                     hotspots: vec![Hotspot {
                         id: "pub-lane".to_string(),
                         shape: HotspotShape::Rect([1.0, 2.0, 3.0, 4.0]),
@@ -442,8 +603,38 @@ mod tests {
                 SceneDef {
                     location_id: LocationId(2),
                     slug: "darcys-pub".to_string(),
+                    native_size: [1280, 720],
+                    underlay: Some("assets/scenes/darcys-pub/plate.png".to_string()),
                     plate: "assets/scenes/darcys-pub/plate.png".to_string(),
                     variants: BTreeMap::new(),
+                    layers: vec![
+                        SceneLayer {
+                            id: "door-sign".to_string(),
+                            asset: "wayfinding-sign".to_string(),
+                            x: 84.0,
+                            y: 42.0,
+                            z: 50,
+                            scale: 0.7,
+                            opacity: 1.0,
+                            flip: false,
+                            labels: vec![SceneLayerLabel {
+                                text: "The Crossroads".to_string(),
+                                anchor: [50.0, 48.0],
+                                rotation: 0.0,
+                            }],
+                        },
+                        SceneLayer {
+                            id: "underlay".to_string(),
+                            asset: "pub-underlay".to_string(),
+                            x: 50.0,
+                            y: 50.0,
+                            z: 0,
+                            scale: 1.0,
+                            opacity: 1.0,
+                            flip: false,
+                            labels: vec![],
+                        },
+                    ],
                     hotspots: vec![Hotspot {
                         id: "front-door".to_string(),
                         shape: HotspotShape::Rect([0.0, 0.0, 10.0, 10.0]),
@@ -567,6 +758,32 @@ mod tests {
     }
 
     #[test]
+    fn scene_state_includes_ordered_compositor_layers() {
+        let world = world_at(2);
+        let npcs = manager_with(vec![]);
+
+        let state =
+            build_scene_state_relative(&world, &npcs, Some(&scene_index()), &flags_on()).unwrap();
+
+        assert_eq!(state.native_size, [1280, 720]);
+        assert_eq!(
+            state.underlay_url.as_deref(),
+            Some("assets/scenes/darcys-pub/plate.png")
+        );
+        assert_eq!(
+            state
+                .layers
+                .iter()
+                .map(|layer| (layer.id.as_str(), layer.z))
+                .collect::<Vec<_>>(),
+            vec![("underlay", 0), ("door-sign", 50)]
+        );
+        assert_eq!(state.layers[1].asset_id, "wayfinding-sign");
+        assert_eq!(state.layers[1].kind, "wayfinding_sign");
+        assert_eq!(state.layers[1].labels[0].text, "The Crossroads");
+    }
+
+    #[test]
     fn introduction_semantics_hide_real_name_until_introduced() {
         let world = world_at(2);
         let mut npcs = manager_with(vec![present_npc(
@@ -630,6 +847,18 @@ mod tests {
         assert_eq!(
             state.plate_url,
             "/api/scene-asset/assets/scenes/darcys-pub/plate.png?v=1"
+        );
+        assert_eq!(
+            state.underlay_url.as_deref(),
+            Some("/api/scene-asset/assets/scenes/darcys-pub/plate.png?v=1")
+        );
+        assert_eq!(
+            state.layers[0].asset_url,
+            "/api/scene-asset/assets/scenes/darcys-pub/plate.png?v=1"
+        );
+        assert_eq!(
+            state.layers[1].asset_url,
+            "/api/scene-asset/assets/scenes/sprites/generic-villager.png?v=1"
         );
         assert_eq!(
             state.npcs[0].sprite_url.as_deref(),
