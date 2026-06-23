@@ -18,9 +18,27 @@ function scene(): SceneState {
 		location_name: "Darcy's Pub",
 		indoor: true,
 		slug: 'darcys-pub',
+		native_size: [1280, 720],
+		underlay_url: '/api/scene-asset/assets/scenes/darcys-pub/plate.png?v=1',
 		plate_url: '/api/scene-asset/assets/scenes/darcys-pub/plate.png?v=1',
 		variant: 'day',
 		weather_overlay: null,
+		layers: [
+			{
+				id: 'underlay',
+				asset_id: 'pub-underlay',
+				kind: 'underlay',
+				asset_url: '/api/scene-asset/assets/scenes/darcys-pub/plate.png?v=1',
+				x: 50,
+				y: 50,
+				z: 0,
+				scale: 1,
+				opacity: 1,
+				flip: false,
+				anchor: [50, 100],
+				labels: [],
+			},
+		],
 		hotspots: [
 			{
 				id: 'front-door',

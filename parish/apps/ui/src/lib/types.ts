@@ -235,6 +235,27 @@ export interface SceneHotspotView {
 	action: SceneHotspotAction;
 }
 
+export interface SceneLayerLabelView {
+	text: string;
+	anchor: [number, number];
+	rotation: number;
+}
+
+export interface SceneLayerView {
+	id: string;
+	asset_id: string;
+	kind: string;
+	asset_url: string;
+	x: number;
+	y: number;
+	z: number;
+	scale: number;
+	opacity: number;
+	flip: boolean;
+	anchor: [number, number];
+	labels: SceneLayerLabelView[];
+}
+
 export interface SceneSlotView {
 	id: string;
 	x: number;
@@ -272,9 +293,12 @@ export interface SceneState {
 	location_name: string;
 	indoor: boolean;
 	slug: string;
+	native_size: [number, number];
+	underlay_url: string | null;
 	plate_url: string;
 	variant: string;
 	weather_overlay: string | null;
+	layers: SceneLayerView[];
 	hotspots: SceneHotspotView[];
 	slots: SceneSlotView[];
 	npcs: SceneNpcView[];

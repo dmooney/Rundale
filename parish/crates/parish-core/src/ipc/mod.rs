@@ -30,9 +30,9 @@ pub use engine_state::{ENGINE_STATE_SCHEMA_VERSION, EngineState, build_engine_st
 pub use event_emitter::{CapturingEmitter, EventEmitter};
 pub use handlers::*;
 pub use scene::{
-    SCENE_STATE_SCHEMA_VERSION, SceneHotspotView, SceneNpcView, SceneOverflowNpc, SceneSlotView,
-    SceneState, build_scene_state, build_scene_state_relative, map_scene_state_asset_urls,
-    render_scene_state_text,
+    SCENE_STATE_SCHEMA_VERSION, SceneHotspotView, SceneLayerLabelView, SceneLayerView,
+    SceneNpcView, SceneOverflowNpc, SceneSlotView, SceneState, build_scene_state,
+    build_scene_state_relative, map_scene_state_asset_urls, render_scene_state_text,
 };
 pub use state::{ConversationRuntimeState, SaveState, UiConfigSnapshot};
 pub use streaming::{TOKEN_CHANNEL_CAPACITY, stream_npc_tokens};
