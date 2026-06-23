@@ -6,7 +6,7 @@
 //! against the world graph and NPC roster are warnings because scene data is a
 //! presentation layer, not a reason to reject otherwise-playable content.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 
 use parish_npc::manager::NpcManager;
@@ -22,6 +22,9 @@ pub struct SceneIndex {
     /// Per-location scene definitions.
     #[serde(default)]
     pub scenes: Vec<SceneDef>,
+    /// Reusable visual atoms referenced by scene layers.
+    #[serde(default)]
+    pub assets: Vec<SceneAsset>,
     /// NPC-specific sprite definitions.
     #[serde(default)]
     pub sprites: Vec<SpriteDef>,
@@ -35,13 +38,57 @@ pub struct SceneIndex {
 pub struct SceneDef {
     pub location_id: LocationId,
     pub slug: String,
+    #[serde(default = "default_native_size")]
+    pub native_size: [u32; 2],
+    #[serde(default)]
+    pub underlay: Option<String>,
     pub plate: String,
     #[serde(default)]
     pub variants: BTreeMap<String, String>,
     #[serde(default)]
+    pub layers: Vec<SceneLayer>,
+    #[serde(default)]
     pub hotspots: Vec<Hotspot>,
     #[serde(default)]
     pub slots: Vec<NpcSlot>,
+}
+
+/// Reusable compositor asset declared once and placed by scene layers.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct SceneAsset {
+    pub id: String,
+    #[serde(default = "default_asset_kind")]
+    pub kind: String,
+    pub image: String,
+    #[serde(default = "default_asset_anchor")]
+    pub anchor: [f32; 2],
+}
+
+/// A visual atom placed into one scene at runtime.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct SceneLayer {
+    pub id: String,
+    pub asset: String,
+    pub x: f32,
+    pub y: f32,
+    pub z: i32,
+    #[serde(default = "default_layer_scale")]
+    pub scale: f32,
+    #[serde(default = "default_layer_opacity")]
+    pub opacity: f32,
+    #[serde(default)]
+    pub flip: bool,
+    #[serde(default)]
+    pub labels: Vec<SceneLayerLabel>,
+}
+
+/// Runtime text painted onto a compositor layer, e.g. a wayfinding sign.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct SceneLayerLabel {
+    pub text: String,
+    pub anchor: [f32; 2],
+    #[serde(default)]
+    pub rotation: f32,
 }
 
 /// Clickable region within a scene plate.
@@ -93,6 +140,29 @@ fn default_slot_scale() -> f32 {
     1.0
 }
 
+fn default_native_size() -> [u32; 2] {
+    [1280, 720]
+}
+
+fn default_asset_kind() -> String {
+    "prop".to_string()
+}
+
+fn default_asset_anchor() -> [f32; 2] {
+    [50.0, 100.0]
+}
+
+fn default_layer_scale() -> f32 {
+    1.0
+}
+
+fn default_layer_opacity() -> f32 {
+    1.0
+}
+
+const MAX_LAYER_LABEL_CHARS: usize = 32;
+const MAX_ABS_Z: i32 = 10_000;
+
 impl SceneIndex {
     /// Load a scene index relative to `mod_dir`, validating every referenced
     /// asset through the same guarded resolver used by other mod assets.
@@ -114,6 +184,11 @@ impl SceneIndex {
             .find(|scene| scene.location_id == location_id)
     }
 
+    /// Returns a compositor asset by id, if one is declared.
+    pub fn asset_for(&self, asset_id: &str) -> Option<&SceneAsset> {
+        self.assets.iter().find(|asset| asset.id == asset_id)
+    }
+
     /// Returns the sprite definition for an NPC id, if one is declared.
     pub fn sprite_for(&self, npc_id: NpcId) -> Option<&SpriteDef> {
         self.sprites.iter().find(|sprite| sprite.npc_id == npc_id)
@@ -124,28 +199,87 @@ impl SceneIndex {
         self.sprites.len() + self.fallback_sprites.len()
     }
 
+    /// Number of compositor layer instances across all scenes.
+    pub fn layer_count(&self) -> usize {
+        self.scenes.iter().map(|scene| scene.layers.len()).sum()
+    }
+
     /// Human-readable load summary used by debug/proof tooling.
     pub fn load_summary(&self, rel: &str) -> String {
         format!(
-            "{rel} loaded: {} scenes, {} sprites",
+            "{rel} loaded: {} scenes, {} layers, {} assets, {} sprites",
             self.scenes.len(),
+            self.layer_count(),
+            self.assets.len(),
             self.sprite_asset_count()
         )
     }
 
     fn validate_assets(&self, mod_dir: &Path) -> Result<(), ParishError> {
+        let mut asset_ids = BTreeSet::new();
+        for asset in &self.assets {
+            if asset.id.trim().is_empty() {
+                return Err(ParishError::Config(
+                    "scene asset id must not be empty".to_string(),
+                ));
+            }
+            if !asset_ids.insert(asset.id.as_str()) {
+                return Err(ParishError::Config(format!(
+                    "duplicate scene asset id '{}'",
+                    asset.id
+                )));
+            }
+            validate_scene_asset(
+                mod_dir,
+                &format!("asset '{}'.image", asset.id),
+                &asset.image,
+            )?;
+            validate_percent_pair(&format!("asset '{}'.anchor", asset.id), asset.anchor)?;
+        }
+
         for scene in &self.scenes {
+            validate_native_size(scene)?;
             validate_scene_asset(
                 mod_dir,
                 &format!("scene '{}'.plate", scene.slug),
                 &scene.plate,
             )?;
+            if let Some(underlay) = &scene.underlay {
+                validate_scene_asset(
+                    mod_dir,
+                    &format!("scene '{}'.underlay", scene.slug),
+                    underlay,
+                )?;
+            }
             for (variant, path) in &scene.variants {
                 validate_scene_asset(
                     mod_dir,
                     &format!("scene '{}'.variants.{variant}", scene.slug),
                     path,
                 )?;
+            }
+
+            let mut layer_ids = BTreeSet::new();
+            for layer in &scene.layers {
+                if layer.id.trim().is_empty() {
+                    return Err(ParishError::Config(format!(
+                        "scene '{}' layer id must not be empty",
+                        scene.slug
+                    )));
+                }
+                if !layer_ids.insert(layer.id.as_str()) {
+                    return Err(ParishError::Config(format!(
+                        "scene '{}' duplicate layer id '{}'",
+                        scene.slug, layer.id
+                    )));
+                }
+                if self.asset_for(&layer.asset).is_none() {
+                    return Err(ParishError::Config(format!(
+                        "scene '{}' layer '{}' references unknown asset '{}'",
+                        scene.slug, layer.id, layer.asset
+                    )));
+                }
+                validate_layer(scene, layer)?;
             }
         }
 
@@ -218,6 +352,14 @@ pub fn validate_scenes(scenes: &SceneIndex, world: &WorldGraph, npcs: &NpcManage
                 ));
             }
         }
+
+        for layer in &scene.layers {
+            if let Some(asset) = scenes.asset_for(&layer.asset)
+                && asset.kind == "wayfinding_sign"
+            {
+                validate_wayfinding_labels(scene, layer, world, &mut warnings);
+            }
+        }
     }
 
     for sprite in &scenes.sprites {
@@ -230,6 +372,66 @@ pub fn validate_scenes(scenes: &SceneIndex, world: &WorldGraph, npcs: &NpcManage
     }
 
     warnings
+}
+
+fn validate_native_size(scene: &SceneDef) -> Result<(), ParishError> {
+    if scene.native_size[0] == 0 || scene.native_size[1] == 0 {
+        return Err(ParishError::Config(format!(
+            "scene '{}' native_size must be positive",
+            scene.slug
+        )));
+    }
+    Ok(())
+}
+
+fn validate_percent_pair(field: &str, pair: [f32; 2]) -> Result<(), ParishError> {
+    if !percent(pair[0]) || !percent(pair[1]) {
+        return Err(ParishError::Config(format!(
+            "{field} has out-of-range coordinates ({}, {})",
+            pair[0], pair[1]
+        )));
+    }
+    Ok(())
+}
+
+fn validate_layer(scene: &SceneDef, layer: &SceneLayer) -> Result<(), ParishError> {
+    if !percent(layer.x) || !percent(layer.y) {
+        return Err(ParishError::Config(format!(
+            "scene '{}' layer '{}' has out-of-range coordinates ({}, {})",
+            scene.slug, layer.id, layer.x, layer.y
+        )));
+    }
+    if layer.z < -MAX_ABS_Z || layer.z > MAX_ABS_Z {
+        return Err(ParishError::Config(format!(
+            "scene '{}' layer '{}' has invalid z-order {}",
+            scene.slug, layer.id, layer.z
+        )));
+    }
+    if layer.scale <= 0.0 {
+        return Err(ParishError::Config(format!(
+            "scene '{}' layer '{}' has non-positive scale {}",
+            scene.slug, layer.id, layer.scale
+        )));
+    }
+    if !(0.0..=1.0).contains(&layer.opacity) {
+        return Err(ParishError::Config(format!(
+            "scene '{}' layer '{}' has out-of-range opacity {}",
+            scene.slug, layer.id, layer.opacity
+        )));
+    }
+    for label in &layer.labels {
+        if label.text.chars().count() > MAX_LAYER_LABEL_CHARS {
+            return Err(ParishError::Config(format!(
+                "scene '{}' layer '{}' label '{}' exceeds {} chars",
+                scene.slug, layer.id, label.text, MAX_LAYER_LABEL_CHARS
+            )));
+        }
+        validate_percent_pair(
+            &format!("scene '{}' layer '{}' label anchor", scene.slug, layer.id),
+            label.anchor,
+        )?;
+    }
+    Ok(())
 }
 
 fn canonical_mod_file_path(mod_dir: &Path, rel: &str) -> Result<PathBuf, ParishError> {
@@ -288,6 +490,27 @@ fn validate_shape_coords(scene: &SceneDef, hotspot: &Hotspot, warnings: &mut Vec
     }
 }
 
+fn validate_wayfinding_labels(
+    scene: &SceneDef,
+    layer: &SceneLayer,
+    world: &WorldGraph,
+    warnings: &mut Vec<String>,
+) {
+    for label in &layer.labels {
+        let known = world
+            .location_ids()
+            .into_iter()
+            .filter_map(|id| world.get(id))
+            .any(|loc| loc.name.eq_ignore_ascii_case(label.text.trim()));
+        if !known {
+            warnings.push(format!(
+                "scene '{}' layer '{}' wayfinding label '{}' does not match a known location",
+                scene.slug, layer.id, label.text
+            ));
+        }
+    }
+}
+
 fn percent(value: f32) -> bool {
     (0.0..=100.0).contains(&value)
 }
@@ -313,12 +536,50 @@ mod tests {
 
     fn valid_scene_json() -> &'static str {
         r#"{
+            "assets": [
+                {
+                    "id": "pub-underlay",
+                    "kind": "underlay",
+                    "image": "assets/scenes/darcys-pub/plate.png",
+                    "anchor": [50.0, 100.0]
+                },
+                {
+                    "id": "pub-sign",
+                    "kind": "wayfinding_sign",
+                    "image": "assets/scenes/darcys-pub/plate_night.png",
+                    "anchor": [50.0, 88.0]
+                }
+            ],
             "scenes": [
                 {
                     "location_id": 2,
                     "slug": "darcys-pub",
+                    "native_size": [1280, 720],
+                    "underlay": "assets/scenes/darcys-pub/plate.png",
                     "plate": "assets/scenes/darcys-pub/plate.png",
                     "variants": { "night": "assets/scenes/darcys-pub/plate_night.png" },
+                    "layers": [
+                        {
+                            "id": "underlay",
+                            "asset": "pub-underlay",
+                            "x": 50.0,
+                            "y": 50.0,
+                            "z": 0,
+                            "scale": 1.0
+                        },
+                        {
+                            "id": "sign",
+                            "asset": "pub-sign",
+                            "x": 84.0,
+                            "y": 42.0,
+                            "z": 40,
+                            "scale": 0.75,
+                            "opacity": 1.0,
+                            "labels": [
+                                { "text": "The Crossroads", "anchor": [50.0, 48.0], "rotation": -1.0 }
+                            ]
+                        }
+                    ],
                     "hotspots": [
                         {
                             "id": "door",
@@ -366,14 +627,21 @@ mod tests {
         let index = SceneIndex::load(tmp.path(), "scenes.json").unwrap();
 
         assert_eq!(index.scenes.len(), 1);
+        assert_eq!(index.assets.len(), 2);
+        assert_eq!(index.layer_count(), 2);
         assert_eq!(index.sprites.len(), 1);
         assert_eq!(index.sprite_asset_count(), 2);
         assert_eq!(
             index.load_summary("scenes.json"),
-            "scenes.json loaded: 1 scenes, 2 sprites"
+            "scenes.json loaded: 1 scenes, 2 layers, 2 assets, 2 sprites"
         );
         assert!(index.scene_for(LocationId(2)).is_some());
         assert!(index.scene_for(LocationId(99)).is_none());
+        assert_eq!(
+            index.asset_for("pub-sign").map(|asset| asset.kind.as_str()),
+            Some("wayfinding_sign")
+        );
+        assert!(index.asset_for("missing").is_none());
         assert_eq!(
             index
                 .sprite_for(NpcId(1))
@@ -402,6 +670,34 @@ mod tests {
             decoded.scenes[0].hotspots[1].action,
             HotspotAction::Inspect("A turf fire smoulders.".to_string())
         );
+        assert_eq!(decoded.scenes[0].native_size, [1280, 720]);
+        assert_eq!(
+            decoded.scenes[0].underlay.as_deref(),
+            Some("assets/scenes/darcys-pub/plate.png")
+        );
+        assert_eq!(decoded.scenes[0].layers[1].z, 40);
+        assert_eq!(decoded.scenes[0].layers[1].labels[0].text, "The Crossroads");
+    }
+
+    #[test]
+    fn legacy_plate_only_scene_defaults_compositor_fields() {
+        let index: SceneIndex = serde_json::from_str(
+            r#"{
+                "scenes": [
+                    {
+                        "location_id": 2,
+                        "slug": "legacy-pub",
+                        "plate": "assets/scenes/darcys-pub/plate.png"
+                    }
+                ]
+            }"#,
+        )
+        .unwrap();
+
+        assert!(index.assets.is_empty());
+        assert_eq!(index.scenes[0].native_size, [1280, 720]);
+        assert_eq!(index.scenes[0].underlay, None);
+        assert!(index.scenes[0].layers.is_empty());
     }
 
     #[test]
@@ -437,14 +733,108 @@ mod tests {
     }
 
     #[test]
+    fn compositor_required_data_rejects_invalid_assets_layers_and_labels() {
+        for (case, needle, replacement, expected) in [
+            (
+                "duplicate-asset",
+                "\"id\": \"pub-underlay\"",
+                "\"id\": \"pub-underlay\"",
+                "duplicate scene asset id 'pub-underlay'",
+            ),
+            (
+                "bad-asset-path",
+                "\"image\": \"assets/scenes/darcys-pub/plate.png\"",
+                "\"image\": \"../escape.png\"",
+                "must live under assets/",
+            ),
+            (
+                "unknown-layer-asset",
+                "\"asset\": \"pub-underlay\"",
+                "\"asset\": \"missing-asset\"",
+                "references unknown asset 'missing-asset'",
+            ),
+            (
+                "duplicate-layer",
+                "\"id\": \"sign\"",
+                "\"id\": \"underlay\"",
+                "duplicate layer id 'underlay'",
+            ),
+            ("bad-z", "\"z\": 40", "\"z\": 10001", "invalid z-order"),
+            (
+                "bad-negative-z",
+                "\"z\": 40",
+                "\"z\": -10001",
+                "invalid z-order",
+            ),
+            (
+                "bad-x",
+                "\"x\": 84.0",
+                "\"x\": 101.0",
+                "out-of-range coordinates",
+            ),
+            (
+                "bad-opacity",
+                "\"opacity\": 1.0",
+                "\"opacity\": 2.0",
+                "out-of-range opacity",
+            ),
+            (
+                "bad-scale",
+                "\"scale\": 0.75",
+                "\"scale\": 0.0",
+                "non-positive scale",
+            ),
+            (
+                "long-label",
+                "\"text\": \"The Crossroads\"",
+                "\"text\": \"This wayfinding label is intentionally far too long\"",
+                "exceeds 32 chars",
+            ),
+        ] {
+            let tmp = scene_mod();
+            let mut body = valid_scene_json().to_string();
+            if case == "duplicate-asset" {
+                body = body.replacen("\"id\": \"pub-sign\"", "\"id\": \"pub-underlay\"", 1);
+            } else {
+                body = body.replacen(needle, replacement, 1);
+            }
+            write_scene_index(tmp.path(), &body);
+
+            let err = SceneIndex::load(tmp.path(), "scenes.json")
+                .expect_err("invalid compositor data should reject")
+                .to_string();
+            assert!(err.contains(expected), "expected {expected:?}, got {err}");
+        }
+    }
+
+    #[test]
     fn cross_validation_warns_without_rejecting_unknown_ids_and_bad_coords() {
         let index: SceneIndex = serde_json::from_str(
             r#"{
+                "assets": [
+                    {
+                        "id": "bad-sign-asset",
+                        "kind": "wayfinding_sign",
+                        "image": "assets/scenes/sprites/missing-person.png"
+                    }
+                ],
                 "scenes": [
                     {
                         "location_id": 99,
                         "slug": "bad-scene",
                         "plate": "assets/scenes/bad/plate.png",
+                        "layers": [
+                            {
+                                "id": "bad-sign",
+                                "asset": "bad-sign-asset",
+                                "x": 20.0,
+                                "y": 20.0,
+                                "z": 5,
+                                "labels": [
+                                    { "text": "Nowhere Road", "anchor": [50.0, 50.0] }
+                                ]
+                            }
+                        ],
                         "hotspots": [
                             {
                                 "id": "bad-exit",
@@ -519,6 +909,12 @@ mod tests {
         );
         assert!(
             warnings.iter().any(|w| w.contains("unknown NPC id 95")),
+            "{warnings:?}"
+        );
+        assert!(
+            warnings
+                .iter()
+                .any(|w| w.contains("wayfinding label 'Nowhere Road'")),
             "{warnings:?}"
         );
     }
