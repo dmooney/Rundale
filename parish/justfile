@@ -508,27 +508,30 @@ notices:
 act-list:
     act -l
 
-# Run ci.yml with act's default event. Use act-pr for the PR fast lane; full
-# Rust/UI/harness jobs run on merge_group / push / schedule / manual events.
+# Run the sub-minute CI fast lane (`ci.yml`) with act's default event.
 act-ci:
     act -W ../.github/workflows/ci.yml
 
+# Run the preserved full-suite workflow (`full-ci.yml`).
+act-full-ci:
+    act -W ../.github/workflows/full-ci.yml
+
 # Run just the fmt/clippy/tests job — fastest signal on a Rust change
 act-fmt:
-    act -W ../.github/workflows/ci.yml -j rust-quality-gate
+    act -W ../.github/workflows/full-ci.yml -j rust-quality-gate
 
 # Run the full game harness fixture sweep
 act-harness:
-    act -W ../.github/workflows/ci.yml -j game-harness
+    act -W ../.github/workflows/full-ci.yml -j game-harness
 
 # Run UI unit tests (svelte-check + vitest + build)
 act-ui:
-    act -W ../.github/workflows/ci.yml -j ui-quality
+    act -W ../.github/workflows/full-ci.yml -j ui-quality
 
 # Run Playwright e2e job — slowest, uploads playwright-report as an artifact
 # to /tmp/act-artifacts after the run.
 act-e2e:
-    act -W ../.github/workflows/ci.yml -j ui-e2e
+    act -W ../.github/workflows/full-ci.yml -j ui-e2e
 
 # Run security audit workflow — cheapest, good for smoke-testing that act
 # itself is configured correctly.
