@@ -1,5 +1,5 @@
 import * as PIXI from '/vendor/pixi.mjs';
-import { buildWorldDrawList, computeLayerAnimationFrame } from './renderer.js';
+import { buildWorldDrawList, computeLayerAnimationFrame, pointInPolygon } from './renderer.js';
 
 const BASE_NPC_WIDTH = 48;
 const BASE_NPC_HEIGHT = 72;
@@ -50,6 +50,12 @@ async function loadTexture(url) {
         return preparePixelTexture(await PIXI.Assets.load(resolved));
     } catch (_error) {
         return null;
+    }
+}
+
+function clearContainer(container) {
+    for (const child of container.removeChildren()) {
+        child.destroy({ children: true });
     }
 }
 
@@ -251,9 +257,9 @@ export class PixiSceneRenderer {
         this.activeNpcId = options.activeNpcId || null;
         this.selectedNpcId = options.selectedNpcId || null;
         this.compositorTelemetry = this.createCompositorTelemetry(model);
-        this.worldContainer.removeChildren();
-        this.hotspotContainer.removeChildren();
-        this.overlayContainer.removeChildren();
+        clearContainer(this.worldContainer);
+        clearContainer(this.hotspotContainer);
+        clearContainer(this.overlayContainer);
         this.transition.clear();
         this.npcContainers.clear();
         this.animatedLayers = [];
@@ -493,7 +499,7 @@ export class PixiSceneRenderer {
     }
 
     drawHotspots() {
-        this.hotspotContainer.removeChildren();
+        clearContainer(this.hotspotContainer);
         this.compositorTelemetry.hotspotCues = [];
         if (!this.model || this.model.kind !== 'scene') {
             return;
@@ -648,21 +654,4 @@ export class PixiSceneRenderer {
         }
         return null;
     }
-}
-
-function pointInPolygon(point, polygon) {
-    let inside = false;
-    for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
-        const xi = polygon[i].x;
-        const yi = polygon[i].y;
-        const xj = polygon[j].x;
-        const yj = polygon[j].y;
-        const intersects =
-            yi > point.y !== yj > point.y &&
-            point.x < ((xj - xi) * (point.y - yi)) / (yj - yi || 1) + xi;
-        if (intersects) {
-            inside = !inside;
-        }
-    }
-    return inside;
 }

@@ -329,7 +329,7 @@ export function findHotspotAtStagePoint(model, point) {
     return null;
 }
 
-function pointInPolygon(point, polygon) {
+export function pointInPolygon(point, polygon) {
     let inside = false;
     for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
         const xi = polygon[i].x;
