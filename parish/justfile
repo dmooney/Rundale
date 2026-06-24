@@ -544,7 +544,7 @@ act-job JOB:
 
 # Simulate the pull_request fast lane (sub-minute PR feedback)
 act-pr:
-    act pull_request
+    act -W ../.github/workflows/ci.yml pull_request
 
 # Force-refresh third-party actions (drops --action-offline-mode). Use after
 # bumping an action version in a workflow.
