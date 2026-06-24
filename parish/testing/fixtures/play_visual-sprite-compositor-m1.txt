@@ -1,0 +1,23 @@
+# Visual sprite compositor M1 - Kilteevan raster atom stack
+# ========================================================
+# Expected after implementation:
+# - Kilteevan Village has many transparent PNG atom layers, not a single live
+#   SVG or baked-plate layer.
+# - Travel and inspect activation hints still work from the composed scene.
+# - The three-scene route still reaches The Crossroads and Darcy's Pub.
+
+/status
+/debug scenes
+/scene
+
+go to The Crossroads
+/scene
+
+go to Darcy's Pub
+/scene
+
+go to The Crossroads
+go to Kilteevan Village
+/scene
+
+/quit

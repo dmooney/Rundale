@@ -78,8 +78,35 @@ pub struct SceneLayer {
     pub opacity: f32,
     #[serde(default)]
     pub flip: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub animation: Option<SceneLayerAnimation>,
     #[serde(default)]
     pub labels: Vec<SceneLayerLabel>,
+}
+
+/// Optional ambient animation applied to a single compositor layer.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct SceneLayerAnimation {
+    pub mode: SceneLayerAnimationMode,
+    #[serde(default)]
+    pub amplitude_x: f32,
+    #[serde(default)]
+    pub amplitude_y: f32,
+    #[serde(default)]
+    pub alpha: f32,
+    #[serde(default = "default_animation_period_ms")]
+    pub period_ms: u32,
+    #[serde(default)]
+    pub phase: f32,
+}
+
+/// Ambient animation style for a raster scene atom.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SceneLayerAnimationMode {
+    Drift,
+    Shimmer,
+    Flicker,
 }
 
 /// Runtime text painted onto a compositor layer, e.g. a wayfinding sign.
@@ -160,8 +187,16 @@ fn default_layer_opacity() -> f32 {
     1.0
 }
 
+fn default_animation_period_ms() -> u32 {
+    4000
+}
+
 const MAX_LAYER_LABEL_CHARS: usize = 32;
 const MAX_ABS_Z: i32 = 10_000;
+const MIN_ANIMATION_PERIOD_MS: u32 = 250;
+const MAX_ANIMATION_PERIOD_MS: u32 = 60_000;
+const MAX_ANIMATION_AMPLITUDE_PX: f32 = 24.0;
+const MAX_ANIMATION_ALPHA: f32 = 0.5;
 
 impl SceneIndex {
     /// Load a scene index relative to `mod_dir`, validating every referenced
@@ -237,7 +272,26 @@ impl SceneIndex {
             validate_percent_pair(&format!("asset '{}'.anchor", asset.id), asset.anchor)?;
         }
 
+        let mut scene_location_ids = BTreeSet::new();
+        let mut scene_slugs = BTreeSet::new();
         for scene in &self.scenes {
+            if !scene_location_ids.insert(scene.location_id) {
+                return Err(ParishError::Config(format!(
+                    "duplicate scene location id {}",
+                    scene.location_id.0
+                )));
+            }
+            if scene.slug.trim().is_empty() {
+                return Err(ParishError::Config(
+                    "scene slug must not be empty".to_string(),
+                ));
+            }
+            if !scene_slugs.insert(scene.slug.as_str()) {
+                return Err(ParishError::Config(format!(
+                    "duplicate scene slug '{}'",
+                    scene.slug
+                )));
+            }
             validate_native_size(scene)?;
             validate_scene_asset(
                 mod_dir,
@@ -260,6 +314,8 @@ impl SceneIndex {
             }
 
             let mut layer_ids = BTreeSet::new();
+            let mut hotspot_ids = BTreeSet::new();
+            let mut slot_ids = BTreeSet::new();
             for layer in &scene.layers {
                 if layer.id.trim().is_empty() {
                     return Err(ParishError::Config(format!(
@@ -281,9 +337,44 @@ impl SceneIndex {
                 }
                 validate_layer(scene, layer)?;
             }
+            for hotspot in &scene.hotspots {
+                if hotspot.id.trim().is_empty() {
+                    return Err(ParishError::Config(format!(
+                        "scene '{}' hotspot id must not be empty",
+                        scene.slug
+                    )));
+                }
+                if !hotspot_ids.insert(hotspot.id.as_str()) {
+                    return Err(ParishError::Config(format!(
+                        "scene '{}' duplicate hotspot id '{}'",
+                        scene.slug, hotspot.id
+                    )));
+                }
+            }
+            for slot in &scene.slots {
+                if slot.id.trim().is_empty() {
+                    return Err(ParishError::Config(format!(
+                        "scene '{}' slot id must not be empty",
+                        scene.slug
+                    )));
+                }
+                if !slot_ids.insert(slot.id.as_str()) {
+                    return Err(ParishError::Config(format!(
+                        "scene '{}' duplicate slot id '{}'",
+                        scene.slug, slot.id
+                    )));
+                }
+            }
         }
 
+        let mut sprite_ids = BTreeSet::new();
         for sprite in &self.sprites {
+            if !sprite_ids.insert(sprite.npc_id) {
+                return Err(ParishError::Config(format!(
+                    "duplicate scene sprite npc id {}",
+                    sprite.npc_id.0
+                )));
+            }
             validate_scene_asset(
                 mod_dir,
                 &format!("sprite npc {}", sprite.npc_id.0),
@@ -419,6 +510,9 @@ fn validate_layer(scene: &SceneDef, layer: &SceneLayer) -> Result<(), ParishErro
             scene.slug, layer.id, layer.opacity
         )));
     }
+    if let Some(animation) = &layer.animation {
+        validate_animation(scene, layer, animation)?;
+    }
     for label in &layer.labels {
         if label.text.chars().count() > MAX_LAYER_LABEL_CHARS {
             return Err(ParishError::Config(format!(
@@ -430,6 +524,45 @@ fn validate_layer(scene: &SceneDef, layer: &SceneLayer) -> Result<(), ParishErro
             &format!("scene '{}' layer '{}' label anchor", scene.slug, layer.id),
             label.anchor,
         )?;
+    }
+    Ok(())
+}
+
+fn validate_animation(
+    scene: &SceneDef,
+    layer: &SceneLayer,
+    animation: &SceneLayerAnimation,
+) -> Result<(), ParishError> {
+    if animation.period_ms < MIN_ANIMATION_PERIOD_MS
+        || animation.period_ms > MAX_ANIMATION_PERIOD_MS
+    {
+        return Err(ParishError::Config(format!(
+            "scene '{}' layer '{}' has out-of-range animation period {}ms",
+            scene.slug, layer.id, animation.period_ms
+        )));
+    }
+    for (field, value) in [
+        ("amplitude_x", animation.amplitude_x),
+        ("amplitude_y", animation.amplitude_y),
+    ] {
+        if !value.is_finite() || value.abs() > MAX_ANIMATION_AMPLITUDE_PX {
+            return Err(ParishError::Config(format!(
+                "scene '{}' layer '{}' has out-of-range animation {field} {}",
+                scene.slug, layer.id, value
+            )));
+        }
+    }
+    if !animation.alpha.is_finite() || !(0.0..=MAX_ANIMATION_ALPHA).contains(&animation.alpha) {
+        return Err(ParishError::Config(format!(
+            "scene '{}' layer '{}' has out-of-range animation alpha {}",
+            scene.slug, layer.id, animation.alpha
+        )));
+    }
+    if !animation.phase.is_finite() || !(0.0..=1.0).contains(&animation.phase) {
+        return Err(ParishError::Config(format!(
+            "scene '{}' layer '{}' has out-of-range animation phase {}",
+            scene.slug, layer.id, animation.phase
+        )));
     }
     Ok(())
 }
@@ -575,6 +708,12 @@ mod tests {
                             "z": 40,
                             "scale": 0.75,
                             "opacity": 1.0,
+                            "animation": {
+                                "mode": "flicker",
+                                "alpha": 0.08,
+                                "period_ms": 1400,
+                                "phase": 0.25
+                            },
                             "labels": [
                                 { "text": "The Crossroads", "anchor": [50.0, 48.0], "rotation": -1.0 }
                             ]
@@ -676,6 +815,11 @@ mod tests {
             Some("assets/scenes/darcys-pub/plate.png")
         );
         assert_eq!(decoded.scenes[0].layers[1].z, 40);
+        let animation = decoded.scenes[0].layers[1].animation.as_ref().unwrap();
+        assert_eq!(animation.mode, SceneLayerAnimationMode::Flicker);
+        assert_eq!(animation.alpha, 0.08);
+        assert_eq!(animation.period_ms, 1400);
+        assert_eq!(animation.phase, 0.25);
         assert_eq!(decoded.scenes[0].layers[1].labels[0].text, "The Crossroads");
     }
 
@@ -701,6 +845,40 @@ mod tests {
     }
 
     #[test]
+    fn scene_layer_animation_validation_rejects_out_of_bounds_values() {
+        for (field, value, expected) in [
+            (
+                "period_ms",
+                serde_json::json!(249),
+                "animation period 249ms",
+            ),
+            (
+                "amplitude_x",
+                serde_json::json!(25.0),
+                "animation amplitude_x 25",
+            ),
+            (
+                "amplitude_y",
+                serde_json::json!(-25.0),
+                "animation amplitude_y -25",
+            ),
+            ("alpha", serde_json::json!(0.75), "animation alpha 0.75"),
+            ("phase", serde_json::json!(1.25), "animation phase 1.25"),
+        ] {
+            let tmp = scene_mod();
+            let mut value_json: serde_json::Value =
+                serde_json::from_str(valid_scene_json()).unwrap();
+            value_json["scenes"][0]["layers"][1]["animation"][field] = value;
+            write_scene_index(tmp.path(), &serde_json::to_string(&value_json).unwrap());
+
+            let err = SceneIndex::load(tmp.path(), "scenes.json")
+                .expect_err("invalid animation should reject")
+                .to_string();
+            assert!(err.contains(expected), "expected {expected:?}, got {err}");
+        }
+    }
+
+    #[test]
     fn scene_assets_reject_traversal_absolute_non_assets_and_missing_files() {
         for (asset, expected) in [
             ("../escape.png", "must live under assets/"),
@@ -717,6 +895,61 @@ mod tests {
                 .to_string();
             assert!(err.contains(expected), "expected {expected:?}, got {err}");
         }
+    }
+
+    #[test]
+    fn scene_schema_rejects_duplicate_authoring_ids() {
+        fn assert_duplicate(case: &str, edit: impl FnOnce(&mut serde_json::Value), expected: &str) {
+            let tmp = scene_mod();
+            let mut value: serde_json::Value = serde_json::from_str(valid_scene_json()).unwrap();
+            edit(&mut value);
+            write_scene_index(tmp.path(), &serde_json::to_string(&value).unwrap());
+
+            let err = SceneIndex::load(tmp.path(), "scenes.json")
+                .expect_err(&format!("{case} should reject duplicate ids"))
+                .to_string();
+            assert!(err.contains(expected), "expected {expected:?}, got {err}");
+        }
+
+        assert_duplicate(
+            "scene-location",
+            |value| {
+                let first = value["scenes"][0].clone();
+                value["scenes"].as_array_mut().unwrap().push(first);
+            },
+            "duplicate scene location id 2",
+        );
+        assert_duplicate(
+            "scene-slug",
+            |value| {
+                let mut second = value["scenes"][0].clone();
+                second["location_id"] = serde_json::json!(3);
+                value["scenes"].as_array_mut().unwrap().push(second);
+            },
+            "duplicate scene slug 'darcys-pub'",
+        );
+        assert_duplicate(
+            "hotspot",
+            |value| {
+                value["scenes"][0]["hotspots"][1]["id"] = serde_json::json!("door");
+            },
+            "duplicate hotspot id 'door'",
+        );
+        assert_duplicate(
+            "slot",
+            |value| {
+                value["scenes"][0]["slots"][1]["id"] = serde_json::json!("behind-bar");
+            },
+            "duplicate slot id 'behind-bar'",
+        );
+        assert_duplicate(
+            "sprite",
+            |value| {
+                let first = value["sprites"][0].clone();
+                value["sprites"].as_array_mut().unwrap().push(first);
+            },
+            "duplicate scene sprite npc id 1",
+        );
     }
 
     #[test]
@@ -953,5 +1186,229 @@ mod tests {
         let warnings = validate_scenes(&index, &world, &npcs);
 
         assert!(warnings.is_empty(), "{warnings:?}");
+    }
+
+    #[test]
+    fn real_rundale_kilteevan_uses_layered_png_atoms() {
+        let rundale_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../mods/rundale");
+        let scenes = SceneIndex::load(&rundale_dir, "scenes.json").unwrap();
+        let scene = scenes
+            .scene_for(LocationId(15))
+            .expect("Kilteevan scene should be declared");
+
+        assert_eq!(scene.slug, "kilteevan-village");
+        assert!(
+            scene.layers.len() >= 8,
+            "Kilteevan should be a layered compositor scene, got {} layer(s)",
+            scene.layers.len()
+        );
+
+        let atom_layers = scene
+            .layers
+            .iter()
+            .filter_map(|layer| scenes.asset_for(&layer.asset).map(|asset| (layer, asset)))
+            .filter(|(_, asset)| asset.image != scene.plate)
+            .filter(|(_, asset)| asset.image.contains("/kilteevan-village/atoms/"))
+            .collect::<Vec<_>>();
+
+        assert!(
+            atom_layers.len() >= 8,
+            "expected multiple non-plate Kilteevan atom layers, got {atom_layers:?}"
+        );
+        assert!(
+            atom_layers.iter().all(|(_, asset)| {
+                asset
+                    .image
+                    .starts_with("assets/scenes/kilteevan-village/atoms/")
+                    && asset.image.ends_with(".png")
+                    && !asset.image.ends_with(".svg")
+            }),
+            "Kilteevan atom layers should all be PNG assets: {atom_layers:?}"
+        );
+        assert!(
+            atom_layers
+                .iter()
+                .any(|(layer, asset)| layer.id == "contact-shadows"
+                    && asset.image.ends_with("contact-shadows.png")
+                    && asset.kind == "shadow"),
+            "Kilteevan should include a transparent contact-shadow atom"
+        );
+        assert!(
+            atom_layers
+                .iter()
+                .any(|(layer, asset)| layer.id == "well-ground-patch"
+                    && asset.image.ends_with("ground-patch.png")
+                    && asset.kind == "terrain_patch"),
+            "Kilteevan terrain patches must stay non-ground atoms so Pixi does not stretch them"
+        );
+    }
+
+    #[test]
+    fn real_rundale_crossroads_and_pub_use_layered_png_atoms() {
+        let rundale_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../mods/rundale");
+        let scenes = SceneIndex::load(&rundale_dir, "scenes.json").unwrap();
+
+        for (location_id, slug, min_layers, expected_hotspots, expected_slots) in [
+            (
+                LocationId(1),
+                "the-crossroads",
+                14,
+                [
+                    "pub-lane",
+                    "church-boreen",
+                    "kilteevan-road",
+                    "stone-wall",
+                    "crossroads-signpost",
+                ]
+                .as_slice(),
+                ["roadside-left", "roadside-right", "wall-gossip"].as_slice(),
+            ),
+            (
+                LocationId(2),
+                "darcys-pub",
+                8,
+                ["front-door", "hearth", "bar", "settle-bench"].as_slice(),
+                ["behind-bar", "bench-left", "bench-right"].as_slice(),
+            ),
+        ] {
+            let scene = scenes
+                .scene_for(location_id)
+                .unwrap_or_else(|| panic!("{slug} scene should be declared"));
+            assert_eq!(scene.slug, slug);
+            assert!(
+                scene.layers.len() >= min_layers,
+                "{slug} should be a layered compositor scene, got {} layer(s)",
+                scene.layers.len()
+            );
+            assert!(
+                scene.layers.iter().all(|layer| layer.id != "pixel-plate"),
+                "{slug} should not use a live pixel-plate layer"
+            );
+
+            let atom_layers = scene
+                .layers
+                .iter()
+                .filter_map(|layer| scenes.asset_for(&layer.asset).map(|asset| (layer, asset)))
+                .collect::<Vec<_>>();
+
+            assert!(
+                atom_layers.iter().all(|(_, asset)| {
+                    asset
+                        .image
+                        .starts_with(&format!("assets/scenes/{slug}/atoms/"))
+                        && asset.image.ends_with(".png")
+                        && !asset.image.ends_with(".svg")
+                        && !asset.image.contains("pixel-plate")
+                }),
+                "{slug} live layers should all be PNG atom assets: {atom_layers:?}"
+            );
+            assert!(
+                expected_hotspots
+                    .iter()
+                    .all(|id| scene.hotspots.iter().any(|hotspot| hotspot.id == *id)),
+                "{slug} lost expected hotspots: {:?}",
+                scene
+                    .hotspots
+                    .iter()
+                    .map(|hotspot| hotspot.id.as_str())
+                    .collect::<Vec<_>>()
+            );
+            assert!(
+                expected_slots
+                    .iter()
+                    .all(|id| scene.slots.iter().any(|slot| slot.id == *id)),
+                "{slug} lost expected slots: {:?}",
+                scene
+                    .slots
+                    .iter()
+                    .map(|slot| slot.id.as_str())
+                    .collect::<Vec<_>>()
+            );
+        }
+    }
+
+    #[test]
+    fn real_rundale_crossroads_reuses_small_sprite_kit_atoms() {
+        let rundale_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../mods/rundale");
+        let scenes = SceneIndex::load(&rundale_dir, "scenes.json").unwrap();
+        let scene = scenes
+            .scene_for(LocationId(1))
+            .expect("Crossroads scene should be declared");
+        let mut usage_by_asset: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
+        let mut kit_layer_count = 0;
+
+        for layer in &scene.layers {
+            let Some(asset) = scenes.asset_for(&layer.asset) else {
+                continue;
+            };
+            if !asset
+                .image
+                .starts_with("assets/scenes/the-crossroads/atoms/kit/")
+            {
+                continue;
+            }
+
+            let bytes = std::fs::read(rundale_dir.join(&asset.image)).unwrap_or_else(|err| {
+                panic!(
+                    "failed to read Crossroads kit atom '{}': {err}",
+                    asset.image
+                )
+            });
+            assert_eq!(&bytes[1..4], b"PNG", "{} should be a PNG", asset.image);
+            let width = u32::from_be_bytes(bytes[16..20].try_into().unwrap());
+            let height = u32::from_be_bytes(bytes[20..24].try_into().unwrap());
+
+            assert_ne!([layer.x, layer.y], [50.0, 50.0], "{}", layer.id);
+            assert!(
+                width < 360 && height < 240,
+                "{} should be a small reusable atom, got {width}x{height}",
+                asset.image
+            );
+            usage_by_asset
+                .entry(layer.asset.clone())
+                .or_default()
+                .insert(format!("{:.3},{:.3}", layer.x, layer.y));
+            kit_layer_count += 1;
+        }
+
+        assert!(
+            kit_layer_count >= 4,
+            "Crossroads should include several small kit atom layers"
+        );
+        assert!(
+            usage_by_asset
+                .values()
+                .any(|distinct_positions| distinct_positions.len() >= 3),
+            "at least one Crossroads kit atom should be reused in three positions: {usage_by_asset:?}"
+        );
+    }
+
+    #[test]
+    fn real_rundale_declares_named_png_npc_sprites() {
+        let rundale_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../mods/rundale");
+        let scenes = SceneIndex::load(&rundale_dir, "scenes.json").unwrap();
+
+        assert_eq!(scenes.sprite_asset_count(), 4);
+        for (npc_id, image) in [
+            (NpcId(1), "assets/scenes/sprites/padraig-darcy.png"),
+            (NpcId(8), "assets/scenes/sprites/niamh-darcy.png"),
+            (NpcId(22), "assets/scenes/sprites/peig-hannigan.png"),
+        ] {
+            assert_eq!(
+                scenes
+                    .sprite_for(npc_id)
+                    .map(|sprite| sprite.image.as_str()),
+                Some(image)
+            );
+        }
+        assert_eq!(
+            scenes.fallback_sprites.get("default").map(String::as_str),
+            Some("assets/scenes/sprites/generic-villager.png")
+        );
+        assert!(scenes.sprites.iter().all(|sprite| {
+            sprite.image.starts_with("assets/scenes/sprites/")
+                && sprite.image.ends_with(".png")
+                && !sprite.image.ends_with(".svg")
+        }));
     }
 }

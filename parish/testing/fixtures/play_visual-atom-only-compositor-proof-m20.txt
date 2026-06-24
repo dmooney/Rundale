@@ -1,0 +1,7 @@
+/status
+/scene
+go to The Crossroads
+/scene
+go to Darcy's Pub
+/scene
+/quit

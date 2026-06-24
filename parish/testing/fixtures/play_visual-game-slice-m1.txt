@@ -1,0 +1,41 @@
+# Visual game slice M1 - shared scene contract and playable route
+# ===============================================================
+# Expected after implementation:
+# - Default `/scene` serves the graphical Kilteevan scene.
+# - Explicit flag-off `/scene` remains empty.
+# - Kilteevan Village exposes distinct non-Crossroads visual atoms.
+# - Travel hotspots expose deterministic commands for visual clicks.
+# - The Crossroads and Darcy's Pub expose compositor layers, hotspots, slots,
+#   NPC sprite assignment data, and deterministic travel commands.
+
+/status
+/debug scenes
+/scene
+
+/flag disable diorama
+/flags
+/scene
+
+/flag enable diorama
+/scene
+
+go to The Crossroads
+/scene
+/npcs
+
+go to Darcy's Pub
+/scene
+/npcs
+
+look
+
+go to The Crossroads
+/scene
+
+go to Kilteevan Village
+/scene
+
+/flag disable diorama
+/scene
+
+/quit

@@ -3,101 +3,72 @@
     <head>
         <meta charset="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
-        <title>Parish Visual</title>
+        <title>Rundale Visual</title>
         <link rel="stylesheet" href="/src/styles.css" />
         <script type="module" src="/src/main.js"></script>
     </head>
     <body>
-        <main class="visual-shell">
-            <section class="stage" aria-label="Visual scene stage">
-                <canvas
-                    id="scene-canvas"
-                    width="1280"
-                    height="720"
-                    aria-label="Current Parish scene"
-                ></canvas>
-            </section>
+        <main class="game-shell" aria-label="Rundale visual game">
+            <section id="game-stage" class="game-stage" aria-label="Scene"></section>
 
-            <aside class="inspector" aria-label="Scene inspector">
-                <header class="scene-heading">
-                    <p class="eyebrow">Parish Visual</p>
-                    <h1 id="scene-title">Scene Renderer</h1>
-                    <p id="scene-subtitle" aria-live="polite">Waiting for backend</p>
-                    <p id="scene-status" class="scene-status" data-state="loading" aria-live="polite">
-                        <span class="status-dot" aria-hidden="true"></span>
-                        <span id="scene-status-label">Loading scene</span>
-                    </p>
-                </header>
+            <header class="top-hud" aria-label="Scene status">
+                <p id="location-label">Rundale</p>
+                <p id="status-label" aria-live="polite">Loading</p>
+            </header>
 
-                <form id="settings-form" class="settings">
-                    <label for="backend-url">Server</label>
-                    <div class="settings-row">
-                        <input
-                            id="backend-url"
-                            name="backendUrl"
-                            type="url"
-                            placeholder="same origin"
-                            autocomplete="off"
-                        />
-                        <button type="submit">Connect</button>
-                    </div>
-                    <button id="refresh-button" type="button">Refresh</button>
-                </form>
-
-                <form id="command-form" class="command-form">
-                    <label for="command-input">Command</label>
-                    <div class="settings-row">
+            <section class="bottom-hud" aria-label="Game text">
+                <p id="caption" class="caption" aria-live="polite">Loading scene</p>
+                <div id="action-prompt" class="action-prompt" hidden>
+                    <button id="action-button" type="button"></button>
+                    <span id="action-label"></span>
+                </div>
+                <details id="command-panel" class="command-panel">
+                    <summary aria-label="Command fallback" title="Command fallback"></summary>
+                    <form id="command-form" class="command-form">
                         <input
                             id="command-input"
                             name="command"
                             type="text"
-                            value="go to The Crossroads"
+                            placeholder="Type a command"
                             autocomplete="off"
                         />
                         <button type="submit">Send</button>
-                    </div>
-                    <button id="crossroads-button" type="button">Crossroads</button>
-                    <div id="command-log" class="command-log" aria-live="polite"></div>
-                </form>
-
-                <section class="list-section" aria-labelledby="turn-log-heading">
-                    <h2 id="turn-log-heading">Recent</h2>
+                    </form>
+                </details>
+                <details class="log-panel">
+                    <summary aria-label="Story log" title="Story log"></summary>
                     <ol id="turn-log" class="turn-log" aria-live="polite"></ol>
-                </section>
+                </details>
+            </section>
 
-                <dl class="metrics">
-                    <div>
-                        <dt>Location</dt>
-                        <dd id="metric-location">-</dd>
+            <details class="settings-panel">
+                <summary aria-label="Connection settings" title="Connection settings"></summary>
+                <form id="settings-form" class="settings-form">
+                    <input
+                        id="backend-url"
+                        name="backendUrl"
+                        type="url"
+                        aria-label="Backend server URL"
+                        placeholder="same origin"
+                        autocomplete="off"
+                    />
+                    <div class="settings-actions">
+                        <button
+                            class="icon-button connect-button"
+                            type="submit"
+                            aria-label="Connect to backend"
+                            title="Connect to backend"
+                        ></button>
+                        <button
+                            id="refresh-button"
+                            class="icon-button refresh-button"
+                            type="button"
+                            aria-label="Refresh scene"
+                            title="Refresh scene"
+                        ></button>
                     </div>
-                    <div>
-                        <dt>Variant</dt>
-                        <dd id="metric-variant">-</dd>
-                    </div>
-                    <div>
-                        <dt>Plate</dt>
-                        <dd id="metric-plate">-</dd>
-                    </div>
-                    <div>
-                        <dt>Hotspots</dt>
-                        <dd id="metric-hotspots">0</dd>
-                    </div>
-                    <div>
-                        <dt>People</dt>
-                        <dd id="metric-people">0</dd>
-                    </div>
-                </dl>
-
-                <section class="list-section" aria-labelledby="hotspots-heading">
-                    <h2 id="hotspots-heading">Hotspots</h2>
-                    <ul id="hotspot-list" class="action-list"></ul>
-                </section>
-
-                <section class="list-section" aria-labelledby="people-heading">
-                    <h2 id="people-heading">People</h2>
-                    <ul id="people-list" class="action-list"></ul>
-                </section>
-            </aside>
+                </form>
+            </details>
         </main>
     </body>
 </html>

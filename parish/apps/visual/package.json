@@ -8,6 +8,10 @@
     "dev": "node scripts/dev-server.mjs",
     "build": "node scripts/build.mjs",
     "check": "node scripts/check.mjs",
+    "audit:atoms": "node scripts/audit-scene-atoms.mjs",
     "test": "node --test src/*.test.mjs scripts/*.test.mjs"
+  },
+  "dependencies": {
+    "pixi.js": "^8.19.0"
   }
 }

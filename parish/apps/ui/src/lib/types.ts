@@ -228,17 +228,44 @@ export type SceneHotspotAction =
 	| { inspect: string }
 	| { talk_to: number };
 
+export type SceneHotspotActivationView =
+	| {
+			kind: 'travel';
+			target_location_id: number;
+			target_label: string;
+			command: string;
+	  }
+	| { kind: 'inspect'; text: string }
+	| {
+			kind: 'talk';
+			target_npc_id: number;
+			target_label: string;
+			command: string;
+	  };
+
 export interface SceneHotspotView {
 	id: string;
 	label: string;
 	shape: SceneHotspotShape;
 	action: SceneHotspotAction;
+	activation: SceneHotspotActivationView;
 }
 
 export interface SceneLayerLabelView {
 	text: string;
 	anchor: [number, number];
 	rotation: number;
+}
+
+export type SceneLayerAnimationMode = 'drift' | 'shimmer' | 'flicker';
+
+export interface SceneLayerAnimationView {
+	mode: SceneLayerAnimationMode;
+	amplitude_x: number;
+	amplitude_y: number;
+	alpha: number;
+	period_ms: number;
+	phase: number;
 }
 
 export interface SceneLayerView {
@@ -253,6 +280,7 @@ export interface SceneLayerView {
 	opacity: number;
 	flip: boolean;
 	anchor: [number, number];
+	animation?: SceneLayerAnimationView | null;
 	labels: SceneLayerLabelView[];
 }
 

@@ -12,7 +12,10 @@ use std::collections::BTreeSet;
 use serde::{Deserialize, Serialize};
 
 use crate::config::FeatureFlags;
-use crate::game_mod::{HotspotAction, HotspotShape, SceneIndex, SceneLayer};
+use crate::game_mod::{
+    HotspotAction, HotspotShape, SceneIndex, SceneLayer, SceneLayerAnimation,
+    SceneLayerAnimationMode,
+};
 use crate::npc::manager::NpcManager;
 use crate::npc::mood::mood_emoji;
 use crate::npc::{Npc, NpcId};
@@ -49,6 +52,26 @@ pub struct SceneHotspotView {
     pub label: String,
     pub shape: HotspotShape,
     pub action: HotspotAction,
+    pub activation: SceneHotspotActivationView,
+}
+
+/// Deterministic client action for a hotspot.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum SceneHotspotActivationView {
+    Travel {
+        target_location_id: u32,
+        target_label: String,
+        command: String,
+    },
+    Inspect {
+        text: String,
+    },
+    Talk {
+        target_npc_id: u32,
+        target_label: String,
+        command: String,
+    },
 }
 
 /// Runtime-composed visual layer serialized for compositor clients.
@@ -65,7 +88,29 @@ pub struct SceneLayerView {
     pub opacity: f32,
     pub flip: bool,
     pub anchor: [f32; 2],
+    #[serde(default)]
+    pub animation: Option<SceneLayerAnimationView>,
     pub labels: Vec<SceneLayerLabelView>,
+}
+
+/// Optional ambient animation for one compositor layer.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct SceneLayerAnimationView {
+    pub mode: SceneLayerAnimationModeView,
+    pub amplitude_x: f32,
+    pub amplitude_y: f32,
+    pub alpha: f32,
+    pub period_ms: u32,
+    pub phase: f32,
+}
+
+/// Ambient animation style for raster scene atoms.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum SceneLayerAnimationModeView {
+    Drift,
+    Shimmer,
+    Flicker,
 }
 
 /// Runtime text painted onto a scene layer.
@@ -125,7 +170,7 @@ pub fn build_scene_state_relative(
     scenes: Option<&SceneIndex>,
     flags: &FeatureFlags,
 ) -> Option<SceneState> {
-    if !flags.is_enabled("diorama") {
+    if flags.is_disabled("diorama") {
         return None;
     }
 
@@ -244,6 +289,7 @@ pub fn build_scene_state_relative(
                 label: hotspot.label.clone(),
                 shape: hotspot.shape.clone(),
                 action: hotspot.action.clone(),
+                activation: hotspot_activation(world, npc_manager, &hotspot.action),
             })
             .collect(),
         slots,
@@ -294,16 +340,6 @@ pub fn render_scene_state_text(state: Option<&SceneState>) -> String {
         return "No active diorama scene.".to_string();
     };
 
-    let hotspots = if state.hotspots.is_empty() {
-        "(none)".to_string()
-    } else {
-        state
-            .hotspots
-            .iter()
-            .map(|hotspot| hotspot.id.as_str())
-            .collect::<Vec<_>>()
-            .join(", ")
-    };
     let overflow = if state.overflow_npcs.is_empty() {
         "(none)".to_string()
     } else {
@@ -351,8 +387,23 @@ pub fn render_scene_state_text(state: Option<&SceneState>) -> String {
                     .collect::<Vec<_>>()
                     .join(", ")
             };
+            let animation = layer.animation.as_ref().map_or_else(
+                || "(none)".to_string(),
+                |animation| {
+                    format!(
+                        "{:?} period={}ms amp=({}, {}) alpha={} phase={}",
+                        animation.mode,
+                        animation.period_ms,
+                        animation.amplitude_x,
+                        animation.amplitude_y,
+                        animation.alpha,
+                        animation.phase
+                    )
+                    .to_lowercase()
+                },
+            );
             lines.push(format!(
-                "    z={}: {} asset={} kind={} url={} at=({}, {}) scale={} opacity={} labels={}",
+                "    z={}: {} asset={} kind={} url={} at=({}, {}) scale={} opacity={} animation={} labels={}",
                 layer.z,
                 layer.id,
                 layer.asset_id,
@@ -362,12 +413,26 @@ pub fn render_scene_state_text(state: Option<&SceneState>) -> String {
                 layer.y,
                 layer.scale,
                 layer.opacity,
+                animation,
                 labels
             ));
         }
     }
 
-    lines.extend([format!("  hotspots: {hotspots}"), "  slots:".to_string()]);
+    lines.push("  hotspots:".to_string());
+    if state.hotspots.is_empty() {
+        lines.push("    (none)".to_string());
+    } else {
+        for hotspot in &state.hotspots {
+            lines.push(format!(
+                "    {}: {} ({})",
+                hotspot.id,
+                hotspot.label,
+                hotspot_activation_text(&hotspot.activation)
+            ));
+        }
+    }
+    lines.push("  slots:".to_string());
 
     if state.slots.is_empty() {
         lines.push("    (none)".to_string());
@@ -425,6 +490,7 @@ fn scene_layers(scenes: &SceneIndex, layers: &[SceneLayer]) -> Vec<SceneLayerVie
                 opacity: layer.opacity,
                 flip: layer.flip,
                 anchor: asset.anchor,
+                animation: layer.animation.as_ref().map(scene_layer_animation_view),
                 labels: layer
                     .labels
                     .iter()
@@ -439,6 +505,77 @@ fn scene_layers(scenes: &SceneIndex, layers: &[SceneLayer]) -> Vec<SceneLayerVie
         .collect();
     views.sort_by(|a, b| a.z.cmp(&b.z).then_with(|| a.id.cmp(&b.id)));
     views
+}
+
+fn scene_layer_animation_view(animation: &SceneLayerAnimation) -> SceneLayerAnimationView {
+    SceneLayerAnimationView {
+        mode: match animation.mode {
+            SceneLayerAnimationMode::Drift => SceneLayerAnimationModeView::Drift,
+            SceneLayerAnimationMode::Shimmer => SceneLayerAnimationModeView::Shimmer,
+            SceneLayerAnimationMode::Flicker => SceneLayerAnimationModeView::Flicker,
+        },
+        amplitude_x: animation.amplitude_x,
+        amplitude_y: animation.amplitude_y,
+        alpha: animation.alpha,
+        period_ms: animation.period_ms,
+        phase: animation.phase,
+    }
+}
+
+fn hotspot_activation(
+    world: &WorldState,
+    npc_manager: &NpcManager,
+    action: &HotspotAction,
+) -> SceneHotspotActivationView {
+    match action {
+        HotspotAction::TravelTo(target) => {
+            let target_label = world
+                .graph
+                .get(*target)
+                .map(|location| location.name.clone())
+                .or_else(|| {
+                    world
+                        .locations
+                        .get(target)
+                        .map(|location| location.name.clone())
+                })
+                .unwrap_or_else(|| format!("location {}", target.0));
+            SceneHotspotActivationView::Travel {
+                target_location_id: target.0,
+                command: format!("go to {target_label}"),
+                target_label,
+            }
+        }
+        HotspotAction::Inspect(text) => SceneHotspotActivationView::Inspect { text: text.clone() },
+        HotspotAction::TalkTo(target) => {
+            let target_label = npc_manager
+                .npcs()
+                .get(target)
+                .map(|npc| npc_manager.display_name(npc).to_string())
+                .unwrap_or_else(|| format!("NPC {}", target.0));
+            SceneHotspotActivationView::Talk {
+                target_npc_id: target.0,
+                command: format!("talk to {target_label}"),
+                target_label,
+            }
+        }
+    }
+}
+
+fn hotspot_activation_text(activation: &SceneHotspotActivationView) -> String {
+    match activation {
+        SceneHotspotActivationView::Travel {
+            target_location_id,
+            target_label,
+            command,
+        } => format!("travel_to: {target_location_id}, target: {target_label}, command: {command}"),
+        SceneHotspotActivationView::Inspect { text } => format!("inspect: {text}"),
+        SceneHotspotActivationView::Talk {
+            target_npc_id,
+            target_label,
+            command,
+        } => format!("talk_to: {target_npc_id}, target: {target_label}, command: {command}"),
+    }
 }
 
 fn scene_npc_view(
@@ -487,7 +624,8 @@ mod tests {
 
     use super::*;
     use crate::game_mod::{
-        Hotspot, NpcSlot, SceneAsset, SceneDef, SceneLayer, SceneLayerLabel, SpriteDef,
+        Hotspot, NpcSlot, SceneAsset, SceneDef, SceneLayer, SceneLayerAnimation,
+        SceneLayerAnimationMode, SceneLayerLabel, SpriteDef,
     };
     use crate::npc::Npc;
     use crate::npc::types::NpcState;
@@ -559,6 +697,7 @@ mod tests {
                             scale: 0.8,
                             opacity: 1.0,
                             flip: false,
+                            animation: None,
                             labels: vec![SceneLayerLabel {
                                 text: "Darcy's Pub".to_string(),
                                 anchor: [50.0, 35.0],
@@ -574,6 +713,7 @@ mod tests {
                             scale: 1.0,
                             opacity: 1.0,
                             flip: false,
+                            animation: None,
                             labels: vec![],
                         },
                     ],
@@ -617,6 +757,14 @@ mod tests {
                             scale: 0.7,
                             opacity: 1.0,
                             flip: false,
+                            animation: Some(SceneLayerAnimation {
+                                mode: SceneLayerAnimationMode::Flicker,
+                                amplitude_x: 0.0,
+                                amplitude_y: 0.0,
+                                alpha: 0.08,
+                                period_ms: 1400,
+                                phase: 0.25,
+                            }),
                             labels: vec![SceneLayerLabel {
                                 text: "The Crossroads".to_string(),
                                 anchor: [50.0, 48.0],
@@ -632,6 +780,7 @@ mod tests {
                             scale: 1.0,
                             opacity: 1.0,
                             flip: false,
+                            animation: None,
                             labels: vec![],
                         },
                     ],
@@ -709,8 +858,11 @@ mod tests {
                 Some(&scene_index()),
                 &FeatureFlags::default()
             )
-            .is_none()
+            .is_some()
         );
+        let mut flags = FeatureFlags::default();
+        flags.disable("diorama");
+        assert!(build_scene_state_relative(&world, &npcs, Some(&scene_index()), &flags).is_none());
     }
 
     #[test]
@@ -758,6 +910,74 @@ mod tests {
     }
 
     #[test]
+    fn scene_state_prefers_named_sprite_before_default_fallback() {
+        let mut index = scene_index();
+        index.sprites = vec![
+            SpriteDef {
+                npc_id: NpcId(1),
+                image: "assets/scenes/sprites/padraig-darcy.png".to_string(),
+            },
+            SpriteDef {
+                npc_id: NpcId(8),
+                image: "assets/scenes/sprites/niamh-darcy.png".to_string(),
+            },
+            SpriteDef {
+                npc_id: NpcId(22),
+                image: "assets/scenes/sprites/peig-hannigan.png".to_string(),
+            },
+        ];
+        let pub_scene = index
+            .scenes
+            .iter_mut()
+            .find(|scene| scene.location_id == LocationId(2))
+            .unwrap();
+        pub_scene.slots.push(NpcSlot {
+            id: "doorway".to_string(),
+            x: 82.0,
+            y: 62.0,
+            scale: 1.0,
+            prefer_npc: None,
+        });
+
+        let world = world_at(2);
+        let npcs = manager_with(vec![
+            present_npc(1, "Padraig Darcy", "an older man behind the bar", 2),
+            present_npc(8, "Niamh Darcy", "a young woman", 2),
+            present_npc(22, "Peig Hannigan", "a sharp-eyed old woman", 2),
+            present_npc(99, "Una", "a passer-by", 2),
+        ]);
+
+        let state = build_scene_state_relative(&world, &npcs, Some(&index), &flags_on()).unwrap();
+        let sprite_for = |npc_id| {
+            state
+                .npcs
+                .iter()
+                .find(|npc| npc.npc_id == npc_id)
+                .and_then(|npc| npc.sprite_url.as_deref())
+        };
+
+        assert_eq!(
+            sprite_for(1),
+            Some("assets/scenes/sprites/padraig-darcy.png")
+        );
+        assert_eq!(sprite_for(8), Some("assets/scenes/sprites/niamh-darcy.png"));
+        assert_eq!(
+            sprite_for(22),
+            Some("assets/scenes/sprites/peig-hannigan.png")
+        );
+        assert_eq!(
+            sprite_for(99),
+            Some("assets/scenes/sprites/generic-villager.png")
+        );
+        for npc_id in [1, 8, 22] {
+            let sprite = sprite_for(npc_id).unwrap();
+            assert!(sprite.ends_with(".png"));
+            assert!(!sprite.contains("generic-villager"));
+            assert!(!sprite.ends_with(".svg"));
+        }
+    }
+
+    #[test]
     fn scene_state_includes_ordered_compositor_layers() {
         let world = world_at(2);
         let npcs = manager_with(vec![]);
@@ -780,7 +1000,43 @@ mod tests {
         );
         assert_eq!(state.layers[1].asset_id, "wayfinding-sign");
         assert_eq!(state.layers[1].kind, "wayfinding_sign");
+        assert_eq!(
+            state.layers[1].animation.as_ref().map(|animation| {
+                (
+                    animation.mode,
+                    animation.alpha,
+                    animation.period_ms,
+                    animation.phase,
+                )
+            }),
+            Some((SceneLayerAnimationModeView::Flicker, 0.08, 1400, 0.25))
+        );
         assert_eq!(state.layers[1].labels[0].text, "The Crossroads");
+        assert!(render_scene_state_text(Some(&state)).contains("animation=flicker"));
+    }
+
+    #[test]
+    fn scene_hotspots_include_deterministic_activation_commands() {
+        let world = world_at(2);
+        let npcs = manager_with(vec![present_npc(
+            1,
+            "Padraig Darcy",
+            "an older man behind the bar",
+            2,
+        )]);
+
+        let state =
+            build_scene_state_relative(&world, &npcs, Some(&scene_index()), &flags_on()).unwrap();
+
+        assert_eq!(
+            state.hotspots[0].activation,
+            SceneHotspotActivationView::Travel {
+                target_location_id: 1,
+                target_label: "The Crossroads".to_string(),
+                command: "go to The Crossroads".to_string(),
+            }
+        );
+        assert!(render_scene_state_text(Some(&state)).contains("command: go to The Crossroads"));
     }
 
     #[test]
