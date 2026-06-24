@@ -1,6 +1,6 @@
 # .github/workflows — agent scope
 
-CI/CD pipeline definitions: Rust quality gates, UI builds, e2e tests, inference evals, security scanning, releases, and housekeeping. `ci.yml` enforces the proof-evidence gate (root AGENTS.md rule #10). See [`docs/agent/act-local.md`](../../docs/agent/act-local.md) for running workflows locally with `act`.
+CI/CD pipeline definitions: fast PR/push gates, preserved full-suite Rust/UI/harness gates, inference evals, security scanning, releases, and housekeeping. `ci.yml` enforces the proof-evidence gate (root AGENTS.md rule #10). See [`docs/agent/act-local.md`](../../docs/agent/act-local.md) for running workflows locally with `act`.
 
 ## Scoped commands
 
@@ -11,21 +11,23 @@ just verify         # check + harness walkthrough
 
 # act-local — run CI workflows in Docker (see docs/agent/act-local.md)
 just act-list       # enumerate all jobs (no Docker execution)
-just act-ci         # full ci.yml — matches what PRs see
+just act-ci         # sub-minute ci.yml fast lane
+just act-full-ci    # preserved full-suite workflow
 just act-audit      # audit.yml cargo-audit job — fastest smoke test
-just act-fmt        # ci.yml rust-quality-gate (fmt + clippy + tests)
-just act-harness    # ci.yml game-harness fixture sweep
-just act-ui         # ci.yml ui-quality (svelte-check + vitest + build)
-just act-e2e        # ci.yml ui-e2e (Playwright)
-just act-pr         # simulate the pull_request event
+just act-fmt        # full-ci.yml rust-quality-gate (fmt + clippy + tests)
+just act-harness    # full-ci.yml game-harness fixture sweep
+just act-ui         # full-ci.yml ui-quality (svelte-check + vitest + build)
+just act-e2e        # full-ci.yml ui-e2e (Playwright)
+just act-pr         # simulate the pull_request fast lane
 ```
 
 ## Local gotchas
 
+- **`ci.yml` is the fast lane.** It keeps pull-request and main/develop push CI under a minute by running proof/docs/script/data checks there. Expensive Rust, coverage, harness, and UI runtime jobs live in `full-ci.yml`, which runs on `merge_group`, main/develop pushes, nightly schedule, and manual dispatch.
 - **Agent-check runs on PRs only (non-dependabot).** Push events to `main`/`develop` skip the gate — it already ran on the PR. Dependabot bumps are exempt (root AGENTS.md rule #10).
 - **CI-only edits skip the proof gate (root rule #10).** `.github/**` changes with no source diff do not require a proof bundle.
 - **Linux native deps are inlined in every Rust job** (`libgtk-3-dev`, `libwebkit2gtk-4.1-dev`, `libappindicator3-dev`, `librsvg2-dev`). Update every workflow that contains the apt install block when the dep list changes.
-- **Rust toolchain is pinned to 1.95.0** in `ci.yml` and `release.yml`. Bump in a dedicated PR alongside any lint fixes.
+- **Rust toolchain is pinned to 1.95.0** in `full-ci.yml` and `release.yml`. Bump in a dedicated PR alongside any lint fixes.
 - **No YAML anchors** — setup steps (checkout, toolchain, cache, native deps) are inlined per job.
 - **`concurrency: cancel-in-progress: true`** on most workflows; `release.yml` sets `cancel-in-progress: false` (releases must not be cancelled).
 - **Secrets:** `GITHUB_TOKEN` (all), `GEMINI_API_KEY`/`GOOGLE_API_KEY`/`APP_PRIVATE_KEY` (Gemini review), `OPENROUTER_API_KEY` (inference eval, via `secrets: inherit`). Add new secrets to repo-level GitHub secrets and the consuming job's `env:` block.
@@ -34,12 +36,18 @@ just act-pr         # simulate the pull_request event
 
 ## Workflow index
 
-### `ci.yml` — Main CI pipeline
+### `ci.yml` — Fast CI pipeline
 
 - **Triggers:** `pull_request`, `push` to `main`/`develop`, `workflow_dispatch`.
-- **Jobs:** agent-check, rust-quality-gate (fmt+clippy+tests), rust-coverage-ratchet (tarpaulin, floor 60.8%), rust-multi-channel (stable+beta), docs-consistency, game-harness (fixture sweep), ui-quality (svelte-check+build+vitest), ui-e2e (Playwright).
+- **Jobs:** changes, agent-check, docs-consistency, format-quality, python-quality, shell-quality, toml-quality, and the aggregate `ci-gate`.
 - **agent-check** runs `bash parish/scripts/agent-check.sh --source=pr "$PR_NUMBER"`. Skipped for dependabot.
 - **Concurrency:** `ci-${{ github.workflow }}-${{ github.ref }}`, cancel-in-progress.
+
+### `full-ci.yml` — Preserved full-suite pipeline
+
+- **Triggers:** `push` to `main`/`develop`, `merge_group`, nightly `schedule`, `workflow_dispatch`.
+- **Jobs:** rust-quality-gate (fmt+clippy+tests), rust-coverage-ratchet (cargo-llvm-cov floor 60.8%), rust-multi-channel (stable+beta), game-harness (fixture sweep + parish-client smoke), ui-quality (svelte-check+lint+format+build+vitest), ui-e2e (Playwright), and `Full CI gate`.
+- **Concurrency:** `full-ci-${{ github.workflow }}-${{ github.ref }}`, cancel-in-progress.
 
 ### `gemini-dispatch.yml` — Gemini review dispatch
 
