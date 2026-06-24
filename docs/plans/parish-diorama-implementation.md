@@ -61,6 +61,68 @@ the user-approved ChatGPT sample style, but full generated plates are no longer
 the source of truth for gameplay-visible geometry. The engine owns layout;
 assets are small, replaceable visual atoms.
 
+## Graphics-First Reset
+
+The next implementation pass should be judged as a **game client**, not as a
+more decorative version of the current chat UI. A player who launches graphical
+mode should immediately recognize a playable graphical adventure: the world
+fills the screen, places and people are visible in the scene, and text supports
+the action instead of dominating it.
+
+The current integration base for this work is `graphic`. Treat
+`codex/graphic-compositor-m1` as the compositor contract foundation, not as the
+visual-quality milestone. Its useful job is to add semantic scene data,
+runtime-safe asset references, scene-state output, and proof hooks. Its next PR
+should target `graphic`, with schema hardening for duplicate scene
+`location_id`/`slug`, hotspot ids, slot ids, and sprite `npc_id`s before the
+contract is relied on by a renderer.
+
+### Player-Facing Bar
+
+A successful graphical slice must show:
+
+1. A full-screen illustrated scene as the primary surface.
+2. Clickable exits and inspectable objects embedded in the world.
+3. NPCs visibly placed in authored scene slots.
+4. Short captions, dialogue, and input as a bottom/edge overlay rather than the
+   dominant interface.
+5. Clear hover, focus, click, and movement-transition feedback.
+6. Coherent art direction: matching perspective, lighting, scale, palette, and
+   UI treatment.
+7. No debug, map-dashboard, or authoring controls in the first read.
+
+### Revised Path To A Recognizable Game
+
+1. **Land the compositor contract on `graphic`.** Keep this narrow: scene
+   schema, validation, `/scene`/scene-state output, runtime asset mapping, and a
+   structural proof. Do not present placeholder plates as the game look.
+2. **Build the standalone visual client as the real game surface.** Use a 2D
+   renderer such as PixiJS or an equivalent canvas/WebGL layer in
+   `parish/apps/visual`; render `SceneState.layers`, hotspots, slots, and NPCs
+   full-screen. The existing Tauri/Svelte HUD can remain a compatibility/debug
+   client while the visual client proves the game feel.
+3. **Make one location look final-ish.** Start with Kilteevan Village. Replace
+   placeholder/crossroads art with a coherent scene built from curated atoms:
+   cottages, road, bridge/stream/well, smoke, walls, signs, ground plane, and
+   scale-correct NPC references. This milestone is screenshot-driven: if the
+   first viewport does not look like a game a person would want to click into,
+   it is not done.
+4. **Ship a three-scene playable slice.** Kilteevan Village -> The Crossroads
+   -> Darcy's Pub should support clickable travel, inspect hotspots, NPC
+   sprites, captions/log text, and the existing text input as a secondary
+   control.
+5. **Scale only after the slice works visually.** Authoring tools, asset
+   generation, validation expansion, and broader location coverage should follow
+   the accepted three-scene slice, not precede the proof that the game is
+   visually compelling.
+
+### Screenshot Gate
+
+Every visual milestone after the compositor contract needs desktop and mobile
+screenshots in the proof bundle. The acceptance question is deliberately
+simple: does the first viewport read as a full-screen graphical game, or as a
+debug UI with an illustration inside it?
+
 ## Orchestration Rules
 
 1. **Integrate into `graphic`, not `main`.** Open PRs against `graphic` or
