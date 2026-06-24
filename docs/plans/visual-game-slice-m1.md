@@ -1,6 +1,7 @@
 # Visual Game Slice M1 Plan
 
-> Status: Approved for implementation. Parent branch: `graphic`.
+> Status: Implemented and verified on `codex/visual-game-slice-m1`. Parent
+> branch: `graphic`.
 
 ## Summary
 
@@ -36,3 +37,10 @@ Build a proof-quality, full-screen graphical slice on top of
 - `npm --prefix parish/apps/visual run build`
 - `cargo run --manifest-path parish/Cargo.toml -p parish-engine -- --script parish/testing/fixtures/play_visual-game-slice-m1.txt`
 - Live browser screenshots at 1440x900 and mobile widths.
+
+## Completion Note
+
+The implementation completed the planned M1 scope and then added additional
+proof hardening through the follow-up visual milestones M2-M22. The branch was
+validated with the visual client checks, atom audit, live browser proof bundles,
+and full `just verify` before opening the PR to `graphic`.
