@@ -30,7 +30,8 @@ pub use engine_state::{ENGINE_STATE_SCHEMA_VERSION, EngineState, build_engine_st
 pub use event_emitter::{CapturingEmitter, EventEmitter};
 pub use handlers::*;
 pub use scene::{
-    SCENE_STATE_SCHEMA_VERSION, SceneHotspotView, SceneLayerLabelView, SceneLayerView,
+    SCENE_STATE_SCHEMA_VERSION, SceneHotspotActivationView, SceneHotspotView,
+    SceneLayerAnimationModeView, SceneLayerAnimationView, SceneLayerLabelView, SceneLayerView,
     SceneNpcView, SceneOverflowNpc, SceneSlotView, SceneState, build_scene_state,
     build_scene_state_relative, map_scene_state_asset_urls, render_scene_state_text,
 };

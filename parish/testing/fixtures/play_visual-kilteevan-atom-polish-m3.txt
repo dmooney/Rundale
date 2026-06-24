@@ -1,0 +1,11 @@
+/status
+/debug scenes
+/scene
+go to The Crossroads
+/scene
+go to Darcy's Pub
+/scene
+go to The Crossroads
+go to Kilteevan Village
+/scene
+/quit

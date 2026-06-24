@@ -58,7 +58,7 @@
       "name": "parish_engine_state"
     },
     {
-      "description": "Reads the active diorama scene-state for the player's current location. Returns null when the default-off `diorama` flag is disabled or the location has no scene. When present, the response includes the selected plate URL, variant, hotspots, declared slots, assigned NPC sprites, overflow NPCs, and introduction-safe NPC display names.",
+      "description": "Reads the active diorama scene-state for the player's current location. Returns null when the `diorama` kill switch is disabled or the location has no scene. When present, the response includes the selected plate URL, variant, hotspots, declared slots, assigned NPC sprites, overflow NPCs, and introduction-safe NPC display names.",
       "inputSchema": {
         "additionalProperties": false,
         "properties": {},

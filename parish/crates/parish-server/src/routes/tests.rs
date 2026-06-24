@@ -29,6 +29,8 @@ use parish_core::ipc::ConversationLine;
 #[cfg(test)]
 use parish_core::npc::NpcId;
 #[cfg(test)]
+use parish_core::npc::types::NpcState;
+#[cfg(test)]
 use tokio::sync::mpsc;
 
 #[test]
@@ -83,14 +85,75 @@ pub fn test_app_state() -> Arc<crate::state::AppState> {
 }
 
 fn test_scene_app_state() -> Arc<crate::state::AppState> {
+    test_scene_app_state_at(LocationId(2))
+}
+
+fn test_scene_app_state_at(location_id: LocationId) -> Arc<crate::state::AppState> {
     let data_dir =
         std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../mods/rundale");
     let game_mod = parish_core::game_mod::GameMod::load(&data_dir).unwrap();
     let mut world =
         WorldState::from_parish_file(&data_dir.join("world.json"), DEFAULT_START_LOCATION).unwrap();
-    world.player_location = LocationId(2);
+    world.player_location = location_id;
     let npc_manager = NpcManager::load_from_file(&game_mod.npcs_path()).unwrap();
     build_test_app_state(data_dir, world, npc_manager, Some(game_mod))
+}
+
+fn hotspot_activation_command(hotspot: &parish_core::ipc::SceneHotspotView) -> Option<&str> {
+    match &hotspot.activation {
+        parish_core::ipc::SceneHotspotActivationView::Travel { command, .. }
+        | parish_core::ipc::SceneHotspotActivationView::Talk { command, .. } => {
+            Some(command.as_str())
+        }
+        parish_core::ipc::SceneHotspotActivationView::Inspect { .. } => None,
+    }
+}
+
+fn sprite_url_for(scene: &parish_core::ipc::SceneState, npc_id: u32) -> Option<&str> {
+    scene
+        .npcs
+        .iter()
+        .find(|npc| npc.npc_id == npc_id)
+        .and_then(|npc| npc.sprite_url.as_deref())
+}
+
+fn assert_png_atom_scene(scene: &parish_core::ipc::SceneState, slug: &str, min_layers: usize) {
+    assert!(
+        scene.layers.len() >= min_layers,
+        "{slug} should expose a multi-atom compositor stack, got {:?}",
+        scene
+            .layers
+            .iter()
+            .map(|layer| (&layer.id, &layer.asset_id, &layer.kind, &layer.asset_url))
+            .collect::<Vec<_>>()
+    );
+    assert!(
+        scene.layers.iter().all(|layer| layer.id != "pixel-plate"),
+        "{slug} should not expose a live pixel-plate layer"
+    );
+    assert!(
+        scene.layers.iter().all(|layer| {
+            layer
+                .asset_url
+                .starts_with(&format!("/api/scene-asset/assets/scenes/{slug}/atoms/"))
+                && layer.asset_url.contains(".png?v=")
+                && !layer.asset_url.contains(".svg")
+                && !layer.asset_url.contains("pixel-plate")
+        }),
+        "{slug} live layers should all be cache-busted PNG atom URLs: {:?}",
+        scene
+            .layers
+            .iter()
+            .map(|layer| (&layer.id, &layer.asset_url))
+            .collect::<Vec<_>>()
+    );
+    assert!(
+        scene
+            .layers
+            .windows(2)
+            .all(|pair| (pair[0].z, pair[0].id.as_str()) <= (pair[1].z, pair[1].id.as_str())),
+        "{slug} layers should be sorted by z then id"
+    );
 }
 
 fn build_test_app_state(
@@ -1550,6 +1613,7 @@ async fn serve_mod_icon_uses_async_read_and_extension_mime_type() {
 #[tokio::test]
 async fn scene_state_route_returns_null_when_diorama_flag_is_off() {
     let state = test_scene_app_state();
+    state.config.lock().await.flags.disable("diorama");
     let Json(scene) = super::get_scene_state(axum::extract::Extension(Arc::clone(&state))).await;
     assert_eq!(scene, None);
 }
@@ -1557,10 +1621,9 @@ async fn scene_state_route_returns_null_when_diorama_flag_is_off() {
 #[tokio::test]
 async fn scene_state_route_returns_scene_when_diorama_flag_is_on() {
     let state = test_scene_app_state();
-    state.config.lock().await.flags.enable("diorama");
 
     let Json(scene) = super::get_scene_state(axum::extract::Extension(Arc::clone(&state))).await;
-    let scene = scene.expect("scene should exist at Darcy's Pub with diorama enabled");
+    let scene = scene.expect("scene should exist at Darcy's Pub by default");
 
     assert_eq!(scene.location_id, 2);
     assert_eq!(scene.slug, "darcys-pub");
@@ -1568,10 +1631,11 @@ async fn scene_state_route_returns_scene_when_diorama_flag_is_on() {
     assert!(
         scene
             .plate_url
-            .starts_with("/api/scene-asset/assets/scenes/darcys-pub/plate.png?v="),
+            .starts_with("/api/scene-asset/assets/scenes/darcys-pub/pixel-plate.png?v="),
         "unexpected plate URL: {}",
         scene.plate_url
     );
+    assert_png_atom_scene(&scene, "darcys-pub", 8);
     assert!(
         scene
             .hotspots
@@ -1582,29 +1646,223 @@ async fn scene_state_route_returns_scene_when_diorama_flag_is_on() {
 }
 
 #[tokio::test]
+async fn scene_state_route_exposes_named_png_npc_sprites() {
+    let state = test_scene_app_state_at(LocationId(2));
+    let Json(pub_scene) =
+        super::get_scene_state(axum::extract::Extension(Arc::clone(&state))).await;
+    let pub_scene = pub_scene.expect("Darcy's Pub scene should exist");
+
+    for (npc_id, path) in [
+        (1, "assets/scenes/sprites/padraig-darcy.png"),
+        (8, "assets/scenes/sprites/niamh-darcy.png"),
+    ] {
+        let url = sprite_url_for(&pub_scene, npc_id).expect("expected named pub NPC sprite");
+        assert!(
+            url.starts_with(&format!("/api/scene-asset/{path}?v="))
+                && !url.contains("generic-villager")
+                && !url.contains(".svg"),
+            "NPC {npc_id} should use named PNG sprite {path}, got {url}"
+        );
+    }
+
+    let state = test_scene_app_state_at(LocationId(15));
+    {
+        let mut npc_manager = state.npc_manager.lock().await;
+        for (id, npc) in npc_manager.npcs_mut() {
+            if *id == NpcId(22) {
+                npc.location = LocationId(15);
+                npc.state = NpcState::Present;
+            } else if npc.location == LocationId(15) {
+                npc.location = LocationId(999);
+            }
+        }
+    }
+    let Json(village_scene) =
+        super::get_scene_state(axum::extract::Extension(Arc::clone(&state))).await;
+    let village_scene = village_scene.expect("Kilteevan Village scene should exist");
+    let url = sprite_url_for(&village_scene, 22).expect("expected Peig sprite");
+    assert!(
+        url.starts_with("/api/scene-asset/assets/scenes/sprites/peig-hannigan.png?v=")
+            && !url.contains("generic-villager")
+            && !url.contains(".svg"),
+        "Peig should use her named PNG sprite, got {url}"
+    );
+}
+
+#[tokio::test]
+async fn scene_state_route_exposes_kilteevan_png_compositor_layers() {
+    let state = test_scene_app_state_at(LocationId(15));
+
+    let Json(scene) = super::get_scene_state(axum::extract::Extension(Arc::clone(&state))).await;
+    let scene = scene.expect("Kilteevan scene should exist");
+
+    assert_eq!(scene.location_id, 15);
+    assert_eq!(scene.slug, "kilteevan-village");
+    assert!(
+        scene.layers.len() >= 8,
+        "Kilteevan should expose a multi-atom compositor stack, got {:?}",
+        scene
+            .layers
+            .iter()
+            .map(|layer| (&layer.id, &layer.asset_id, &layer.kind, &layer.asset_url))
+            .collect::<Vec<_>>()
+    );
+
+    let atom_layers = scene
+        .layers
+        .iter()
+        .filter(|layer| layer.asset_url.contains("/kilteevan-village/atoms/"))
+        .collect::<Vec<_>>();
+    assert!(
+        atom_layers.len() >= 8,
+        "expected multiple Kilteevan atom layers, got {atom_layers:?}"
+    );
+    assert!(
+        atom_layers.iter().all(|layer| {
+            layer
+                .asset_url
+                .starts_with("/api/scene-asset/assets/scenes/kilteevan-village/atoms/")
+                && layer.asset_url.contains(".png?v=")
+                && !layer.asset_url.contains(".svg")
+        }),
+        "atom layers should be served as PNG scene assets: {atom_layers:?}"
+    );
+    assert!(
+        scene.layers.iter().any(|layer| layer.id == "ground-base")
+            && scene.layers.iter().any(|layer| layer.id == "well")
+            && scene.layers.iter().any(|layer| layer.id == "damp-vignette")
+            && scene
+                .layers
+                .iter()
+                .any(|layer| layer.id == "contact-shadows"
+                    && layer.kind == "shadow"
+                    && layer.asset_url.contains("contact-shadows.png?v="))
+            && scene
+                .layers
+                .iter()
+                .any(|layer| layer.id == "well-ground-patch"
+                    && layer.kind == "terrain_patch"
+                    && layer.asset_url.contains("ground-patch.png?v="))
+    );
+    assert!(
+        scene
+            .hotspots
+            .iter()
+            .any(|hotspot| hotspot.id == "road-to-crossroads"
+                && hotspot_activation_command(hotspot) == Some("go to The Crossroads"))
+    );
+}
+
+#[tokio::test]
+async fn scene_state_route_exposes_crossroads_png_compositor_layers() {
+    let state = test_scene_app_state_at(LocationId(1));
+
+    let Json(scene) = super::get_scene_state(axum::extract::Extension(Arc::clone(&state))).await;
+    let scene = scene.expect("The Crossroads scene should exist");
+
+    assert_eq!(scene.location_id, 1);
+    assert_eq!(scene.slug, "the-crossroads");
+    assert_png_atom_scene(&scene, "the-crossroads", 8);
+    assert!(
+        scene
+            .layers
+            .iter()
+            .any(|layer| layer.id == "ground-base" && layer.kind == "ground")
+            && scene.layers.iter().any(|layer| layer.id == "pub-building")
+            && scene.layers.iter().any(|layer| layer.id == "church-rise")
+            && scene
+                .layers
+                .iter()
+                .any(|layer| layer.id == "crooked-signpost")
+            && scene.layers.iter().any(|layer| layer.id == "road-wetness")
+            && scene
+                .layers
+                .iter()
+                .any(|layer| layer.id == "damp-vignette" && layer.kind == "lighting")
+    );
+    assert!(scene.hotspots.iter().any(|hotspot| hotspot.id == "pub-lane"
+        && hotspot_activation_command(hotspot) == Some("go to Darcy's Pub")));
+    assert!(
+        scene
+            .hotspots
+            .iter()
+            .any(|hotspot| hotspot.id == "kilteevan-road"
+                && hotspot_activation_command(hotspot) == Some("go to Kilteevan Village"))
+    );
+}
+
+#[tokio::test]
+async fn scene_state_route_exposes_darcys_pub_png_compositor_layers() {
+    let state = test_scene_app_state_at(LocationId(2));
+
+    let Json(scene) = super::get_scene_state(axum::extract::Extension(Arc::clone(&state))).await;
+    let scene = scene.expect("Darcy's Pub scene should exist");
+
+    assert_eq!(scene.location_id, 2);
+    assert_eq!(scene.slug, "darcys-pub");
+    assert_png_atom_scene(&scene, "darcys-pub", 8);
+    assert!(
+        scene
+            .layers
+            .iter()
+            .any(|layer| layer.id == "room-base" && layer.kind == "ground")
+            && scene.layers.iter().any(|layer| layer.id == "hearth")
+            && scene.layers.iter().any(|layer| layer.id == "bar-counter")
+            && scene.layers.iter().any(|layer| layer.id == "door-window")
+            && scene
+                .layers
+                .iter()
+                .any(|layer| layer.id == "hearth-glow" && layer.kind == "lighting")
+            && scene
+                .layers
+                .iter()
+                .any(|layer| layer.id == "warm-vignette" && layer.kind == "lighting")
+    );
+    assert!(
+        scene
+            .hotspots
+            .iter()
+            .any(|hotspot| hotspot.id == "front-door"
+                && hotspot_activation_command(hotspot) == Some("go to The Crossroads"))
+    );
+}
+
+#[tokio::test]
 async fn scene_asset_serves_png_with_immutable_cache() {
     let state = test_scene_app_state();
-    let resp = super::get_scene_asset(
-        axum::extract::Path("assets/scenes/darcys-pub/plate.png".to_string()),
-        axum::extract::Extension(Arc::clone(&state)),
-    )
-    .await;
+    for rel in [
+        "assets/scenes/darcys-pub/plate.png",
+        "assets/scenes/sprites/padraig-darcy.png",
+        "assets/scenes/sprites/niamh-darcy.png",
+        "assets/scenes/sprites/peig-hannigan.png",
+    ] {
+        let resp = super::get_scene_asset(
+            axum::extract::Path(rel.to_string()),
+            axum::extract::Extension(Arc::clone(&state)),
+        )
+        .await;
 
-    assert_eq!(resp.status(), axum::http::StatusCode::OK);
-    assert_eq!(
-        resp.headers()
-            .get(axum::http::header::CONTENT_TYPE)
-            .unwrap(),
-        "image/png"
-    );
-    assert_eq!(
-        resp.headers()
-            .get(axum::http::header::CACHE_CONTROL)
-            .unwrap(),
-        "public, max-age=31536000, immutable"
-    );
-    let body = axum::body::to_bytes(resp.into_body(), 4096).await.unwrap();
-    assert!(body.starts_with(b"\x89PNG\r\n\x1a\n"));
+        assert_eq!(resp.status(), axum::http::StatusCode::OK, "{rel}");
+        assert_eq!(
+            resp.headers()
+                .get(axum::http::header::CONTENT_TYPE)
+                .unwrap(),
+            "image/png",
+            "{rel}"
+        );
+        assert_eq!(
+            resp.headers()
+                .get(axum::http::header::CACHE_CONTROL)
+                .unwrap(),
+            "public, max-age=31536000, immutable",
+            "{rel}"
+        );
+        let body = axum::body::to_bytes(resp.into_body(), 2_000_000)
+            .await
+            .unwrap();
+        assert!(body.starts_with(b"\x89PNG\r\n\x1a\n"), "{rel}");
+        assert!(body.len() > 100, "{rel} should not be an empty PNG shell");
+    }
 }
 
 #[tokio::test]

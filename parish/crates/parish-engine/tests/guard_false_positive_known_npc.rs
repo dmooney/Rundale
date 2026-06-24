@@ -126,16 +126,26 @@ fn harness_with_single_npc() -> (GameTestHarness, parish_core::npc::NpcId, Strin
 ///
 /// Returns `None` if there are no multi-token names (should not happen in
 /// Rundale, where all NPCs have First + Last names).
-fn find_roster_full_name(
+fn find_grounded_topic_full_name(
     h: &GameTestHarness,
     exclude_id: parish_core::npc::NpcId,
 ) -> Option<String> {
-    h.app
+    let mut names: Vec<String> = h
+        .app
         .npc_manager
         .all_npcs()
-        .filter(|n| n.id != exclude_id)
-        .find(|n| n.name.split_whitespace().count() >= 2)
+        .filter(|n| {
+            n.id != exclude_id && n.name.split_whitespace().count() >= 2 && !n.name.contains('.')
+        })
         .map(|n| n.name.clone())
+        .collect();
+    names.sort();
+
+    names
+        .iter()
+        .find(|name| name.as_str() == "Una Malone")
+        .cloned()
+        .or_else(|| names.into_iter().next())
 }
 
 // ── Test 1: false-positive prevention ────────────────────────────────────────
@@ -153,7 +163,7 @@ fn guard_does_not_fire_on_grounded_person_name_topic_continuity() {
     let (mut h, npc_id, npc_name) = harness_with_single_npc();
 
     // Find a full name from the roster to use as the grounding anchor.
-    let roster_name = match find_roster_full_name(&h, npc_id) {
+    let roster_name = match find_grounded_topic_full_name(&h, npc_id) {
         Some(n) => n,
         None => {
             // No multi-token roster name available — skip silently.

@@ -10,8 +10,8 @@ use parish_core::ipc::{SceneState, build_scene_state_relative, map_scene_state_a
 
 use crate::AppState;
 
-/// Returns the active diorama scene state, or `None` when the default-off
-/// `diorama` flag is disabled or the current location has no scene.
+/// Returns the active diorama scene state, or `None` when the `diorama`
+/// kill switch is disabled or the current location has no scene.
 #[tauri::command]
 pub async fn get_scene_state(
     state: tauri::State<'_, Arc<AppState>>,
@@ -56,6 +56,7 @@ fn mime_for_path(path: &Path) -> &'static str {
     {
         Some("png") => "image/png",
         Some("jpg" | "jpeg") => "image/jpeg",
+        Some("svg") => "image/svg+xml",
         Some("webp") => "image/webp",
         _ => "application/octet-stream",
     }
@@ -91,5 +92,17 @@ mod tests {
 
         let err = scene_asset_data_url(dir.path(), "assets/icon.png").unwrap_err();
         assert!(err.contains("assets/scenes"), "unexpected error: {err}");
+    }
+
+    #[test]
+    fn scene_asset_data_url_uses_svg_mime() {
+        let dir = tempfile::tempdir().unwrap();
+        let asset_dir = dir.path().join("assets/scenes/example");
+        std::fs::create_dir_all(&asset_dir).unwrap();
+        std::fs::write(asset_dir.join("atom.svg"), b"<svg></svg>").unwrap();
+
+        let url = scene_asset_data_url(dir.path(), "assets/scenes/example/atom.svg").unwrap();
+
+        assert!(url.starts_with("data:image/svg+xml;base64,"), "got: {url}");
     }
 }
