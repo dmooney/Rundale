@@ -45,12 +45,22 @@ function scene(): SceneState {
 				label: 'Out to the Crossroads',
 				shape: { rect: [82, 38, 14, 50] },
 				action: { travel_to: 1 },
+				activation: {
+					kind: 'travel',
+					target_location_id: 1,
+					target_label: 'The Crossroads',
+					command: 'go to The Crossroads',
+				},
 			},
 			{
 				id: 'hearth',
 				label: 'The hearth',
 				shape: { rect: [5, 30, 18, 40] },
 				action: { inspect: 'A turf fire smoulders in the wide hearth.' },
+				activation: {
+					kind: 'inspect',
+					text: 'A turf fire smoulders in the wide hearth.',
+				},
 			},
 		],
 		slots: [

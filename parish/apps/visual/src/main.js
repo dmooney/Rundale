@@ -1,163 +1,149 @@
 import { fetchSceneState, normalizeBackendUrl, postCommand } from './scene-client.js';
-import { hotspotActionLabel, npcActionLabel } from './action-list.js';
-import { controlState, visualStatusLabel } from './client-status.js';
+import { buildSceneDisplayModel, hotspotCommand, npcCommand } from './renderer.js';
+import { PixiSceneRenderer } from './pixi-renderer.js';
 import { appendTurnEntry, createTurnEntry, responseSummary } from './turn-log.js';
-import {
-    buildSceneDisplayModel,
-    canvasPointToStage,
-    findSceneTargetAtStagePoint,
-    hotspotCommand,
-    npcCommand,
-    renderSceneModel,
-} from './renderer.js';
 
 const storageKey = 'parish.visual.backendUrl';
+const queryParams = new URLSearchParams(window.location.search);
+const proofAtomOnly =
+    queryParams.get('visualProofMode') === 'atom-only' || queryParams.get('compositor') === 'atom-only';
+const INTERACTION_TELEMETRY_KEY = '__rundaleVisualInteraction';
 
-const canvas = document.querySelector('#scene-canvas');
-const title = document.querySelector('#scene-title');
-const subtitle = document.querySelector('#scene-subtitle');
-const sceneStatus = document.querySelector('#scene-status');
-const sceneStatusLabel = document.querySelector('#scene-status-label');
-const form = document.querySelector('#settings-form');
-const backendInput = document.querySelector('#backend-url');
-const connectButton = form.querySelector('button[type="submit"]');
-const refreshButton = document.querySelector('#refresh-button');
+const stageHost = document.querySelector('#game-stage');
+const caption = document.querySelector('#caption');
+const statusLabel = document.querySelector('#status-label');
+const locationLabel = document.querySelector('#location-label');
+const actionPrompt = document.querySelector('#action-prompt');
+const actionButton = document.querySelector('#action-button');
+const actionLabel = document.querySelector('#action-label');
+const commandPanel = document.querySelector('#command-panel');
 const commandForm = document.querySelector('#command-form');
 const commandInput = document.querySelector('#command-input');
-const sendButton = commandForm.querySelector('button[type="submit"]');
-const crossroadsButton = document.querySelector('#crossroads-button');
-const commandLog = document.querySelector('#command-log');
-const metricLocation = document.querySelector('#metric-location');
-const metricVariant = document.querySelector('#metric-variant');
-const metricPlate = document.querySelector('#metric-plate');
-const metricHotspots = document.querySelector('#metric-hotspots');
-const metricPeople = document.querySelector('#metric-people');
-const hotspotList = document.querySelector('#hotspot-list');
-const peopleList = document.querySelector('#people-list');
+const commandButton = commandForm.querySelector('button[type="submit"]');
+const settingsForm = document.querySelector('#settings-form');
+const backendInput = document.querySelector('#backend-url');
+const refreshButton = document.querySelector('#refresh-button');
 const turnLog = document.querySelector('#turn-log');
 
 let currentBackendUrl = normalizeBackendUrl(localStorage.getItem(storageKey) || '');
 let currentSceneModel = buildSceneDisplayModel(null);
-let currentPlateImage = null;
-let currentSpriteImages = new Map();
 let hoveredHotspotId = null;
 let selectedHotspotId = null;
 let hoveredNpcId = null;
 let selectedNpcId = null;
+let hoveredTarget = null;
+let selectedTarget = null;
+let promptTarget = null;
 let turnEntries = [];
 let isRefreshing = false;
 let isSending = false;
-const plateCache = new Map();
+let renderer = null;
+let hoverTelemetryKey = '';
+let interactionEventSeq = 0;
+const submittedCommands = [];
+const interactionEvents = [];
 
 backendInput.value = currentBackendUrl;
 
-function setStatus(kind) {
-    sceneStatus.dataset.state = kind;
-    sceneStatusLabel.textContent = visualStatusLabel(kind);
+function delay(ms) {
+    return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-function syncControls() {
-    const state = controlState({ isRefreshing, isSending });
-    refreshButton.disabled = state.disableRefresh;
-    connectButton.disabled = state.disableRefresh;
-    sendButton.disabled = state.disableCommand;
-    crossroadsButton.disabled = state.disableCommand;
-    for (const button of document.querySelectorAll('.action-list button')) {
-        button.disabled = state.disableActions;
+function targetTelemetry(target) {
+    if (!target) {
+        return null;
     }
-    canvas.classList.toggle('is-busy', state.busy);
-}
-
-function setList(list, items, renderItem) {
-    list.replaceChildren();
-    if (items.length === 0) {
-        const item = document.createElement('li');
-        item.className = 'muted';
-        item.textContent = 'None';
-        list.append(item);
-        return;
+    if (target.kind === 'hotspot') {
+        const action = hotspotCommand(target.value);
+        return {
+            kind: 'hotspot',
+            id: target.value.id,
+            label: target.value.label,
+            actionKind: action.kind,
+            command: action.command || '',
+            text: action.text || '',
+            targetLabel: target.value.activation?.target_label || '',
+        };
     }
-    for (const value of items) {
-        const item = document.createElement('li');
-        item.textContent = renderItem(value);
-        list.append(item);
+    if (target.kind === 'npc') {
+        const action = npcCommand(target.value);
+        return {
+            kind: 'npc',
+            id: target.value.id,
+            label: action.label,
+            command: action.command,
+            slotId: target.value.slotId || '',
+        };
     }
+    return null;
 }
 
-function setActionList(list, items, { renderItem, onActivate, datasetName, onPreview }) {
-    list.replaceChildren();
-    if (items.length === 0) {
-        const item = document.createElement('li');
-        item.className = 'muted';
-        item.textContent = 'None';
-        list.append(item);
-        return;
+function promptTelemetry() {
+    if (actionPrompt.hidden || !promptTarget) {
+        return null;
     }
-    for (const value of items) {
-        const item = document.createElement('li');
-        const button = document.createElement('button');
-        button.className = 'action-button';
-        button.type = 'button';
-        button.disabled = controlState({ isRefreshing, isSending }).disableActions;
-        button.textContent = renderItem(value);
-        button.dataset[datasetName] = String(value.id);
-        button.addEventListener('click', () => {
-            onActivate(value);
-        });
-        if (onPreview) {
-            button.addEventListener('mouseenter', () => onPreview(value));
-            button.addEventListener('mouseleave', () => onPreview(null));
-            button.addEventListener('focus', () => onPreview(value));
-            button.addEventListener('blur', () => onPreview(null));
-        }
-        item.append(button);
-        list.append(item);
-    }
+    return {
+        verb: actionButton.textContent,
+        label: actionLabel.textContent,
+        target: targetTelemetry(promptTarget),
+    };
 }
 
-function previewHotspot(hotspot) {
-    hoveredHotspotId = hotspot?.id || null;
-    hoveredNpcId = null;
-    renderCurrentScene();
+function publishInteractionTelemetry() {
+    globalThis[INTERACTION_TELEMETRY_KEY] = {
+        location: locationLabel.textContent,
+        caption: caption.textContent,
+        status: statusLabel.textContent,
+        hoveredTarget: targetTelemetry(hoveredTarget),
+        selectedTarget: targetTelemetry(selectedTarget),
+        prompt: promptTelemetry(),
+        submittedCommands: [...submittedCommands],
+        events: [...interactionEvents],
+        busy: {
+            refreshing: isRefreshing,
+            sending: isSending,
+        },
+    };
 }
 
-function previewNpc(npc) {
-    hoveredNpcId = npc?.id || null;
-    hoveredHotspotId = null;
-    renderCurrentScene();
-}
-
-function updateInspector(model) {
-    title.textContent = model.title;
-    subtitle.textContent = model.subtitle;
-    metricLocation.textContent = model.location;
-    metricVariant.textContent = model.variant;
-    metricPlate.textContent = model.plate || '-';
-    metricHotspots.textContent = String(model.hotspots.length);
-    metricPeople.textContent = String(model.npcs.length + model.overflow.length);
-    setActionList(hotspotList, model.hotspots, {
-        renderItem: hotspotActionLabel,
-        onActivate: activateHotspot,
-        datasetName: 'hotspotId',
-        onPreview: previewHotspot,
+function recordInteractionEvent(type, detail = {}) {
+    interactionEventSeq += 1;
+    interactionEvents.push({
+        seq: interactionEventSeq,
+        type,
+        ...detail,
     });
-    setActionList(peopleList, model.npcs, {
-        renderItem: npcActionLabel,
-        onActivate: activateNpc,
-        datasetName: 'npcId',
-        onPreview: previewNpc,
-    });
+    while (interactionEvents.length > 80) {
+        interactionEvents.shift();
+    }
+    publishInteractionTelemetry();
+}
+
+function setCaption(text) {
+    caption.textContent = text || 'Click into the world.';
+    publishInteractionTelemetry();
+}
+
+function setStatus(text) {
+    statusLabel.textContent = text;
+    publishInteractionTelemetry();
+}
+
+function setBusy(busy) {
+    commandButton.disabled = busy;
+    actionButton.disabled = busy || !promptTarget;
+    refreshButton.disabled = busy;
+    commandInput.disabled = busy;
+    stageHost.classList.toggle('is-busy', busy);
+    publishInteractionTelemetry();
+}
+
+function sceneCaption(model) {
+    return model.kind === 'scene' ? `${model.location}.` : model.subtitle;
 }
 
 function renderTurnLog() {
     turnLog.replaceChildren();
-    if (turnEntries.length === 0) {
-        const item = document.createElement('li');
-        item.className = 'muted kind-system';
-        item.textContent = 'No turns yet';
-        turnLog.append(item);
-        return;
-    }
     for (const entry of turnEntries) {
         const item = document.createElement('li');
         item.className = `kind-${entry.kind}`;
@@ -178,143 +164,157 @@ function appendTurn(kind, label, text) {
     renderTurnLog();
 }
 
-function renderError(error) {
-    const model = buildSceneDisplayModel(null);
+function syncInteractionState() {
+    stageHost.classList.toggle('is-interactive', Boolean(hoveredHotspotId || hoveredNpcId));
+    renderer?.setInteractionState({
+        activeHotspotId: hoveredHotspotId,
+        selectedHotspotId,
+        activeNpcId: hoveredNpcId,
+        selectedNpcId,
+    });
+}
+
+function promptForTarget(target) {
+    if (target?.kind === 'npc') {
+        const action = npcCommand(target.value);
+        return {
+            verb: 'Talk',
+            label: action.label,
+            command: action.command,
+            target,
+        };
+    }
+    if (target?.kind !== 'hotspot') {
+        return null;
+    }
+
+    const action = hotspotCommand(target.value);
+    if (action.kind === 'travel') {
+        return {
+            verb: 'Go',
+            label: target.value.activation?.target_label || action.label,
+            command: action.command,
+            target,
+        };
+    }
+    if (action.kind === 'talk') {
+        return {
+            verb: 'Talk',
+            label: action.label,
+            command: action.command,
+            target,
+        };
+    }
+    return {
+        verb: 'Look',
+        label: action.label || target.value.label,
+        text: action.text,
+        target,
+    };
+}
+
+function showActionPrompt(target) {
+    const prompt = promptForTarget(target);
+    promptTarget = prompt?.target || null;
+    if (!prompt) {
+        actionPrompt.hidden = true;
+        actionButton.textContent = '';
+        actionLabel.textContent = '';
+        actionButton.disabled = true;
+        publishInteractionTelemetry();
+        return;
+    }
+    actionPrompt.hidden = false;
+    actionPrompt.dataset.kind = prompt.verb.toLowerCase();
+    actionButton.textContent = prompt.verb;
+    actionLabel.textContent = prompt.label;
+    actionButton.disabled = isRefreshing || isSending;
+    publishInteractionTelemetry();
+}
+
+async function showModel(model) {
     currentSceneModel = model;
-    currentPlateImage = null;
-    currentSpriteImages = new Map();
-    renderCurrentScene();
-    title.textContent = 'Scene unavailable';
-    subtitle.textContent = error instanceof Error ? error.message : String(error);
-    metricLocation.textContent = '-';
-    metricVariant.textContent = '-';
-    metricPlate.textContent = '-';
-    metricHotspots.textContent = '0';
-    metricPeople.textContent = '0';
-    setList(hotspotList, [], () => '');
-    setList(peopleList, [], () => '');
-    setStatus('error');
-    appendTurn('system', 'System', subtitle.textContent);
-    return model;
-}
-
-function renderCurrentScene() {
-    renderSceneModel(canvas, currentSceneModel, {
-        plateImage: currentPlateImage,
-        activeHotspotId: hoveredHotspotId || selectedHotspotId,
-        activeNpcId: hoveredNpcId || selectedNpcId,
-        spriteImages: currentSpriteImages,
+    hoveredHotspotId = null;
+    hoveredNpcId = null;
+    selectedHotspotId = null;
+    selectedNpcId = null;
+    hoveredTarget = null;
+    selectedTarget = null;
+    showActionPrompt(null);
+    locationLabel.textContent = model.kind === 'scene' ? model.location : 'No scene';
+    setCaption(sceneCaption(model));
+    await renderer.setScene(model, {
+        activeHotspotId: hoveredHotspotId,
+        selectedHotspotId,
+        activeNpcId: hoveredNpcId,
+        selectedNpcId,
     });
-}
-
-function resolvePlateUrl(url) {
-    if (!url || /^https?:\/\//i.test(url) || url.startsWith('data:')) {
-        return url;
-    }
-    return url.startsWith('/') ? url : `/${url}`;
-}
-
-function loadImage(url) {
-    if (!url) {
-        return Promise.resolve(null);
-    }
-    const resolved = resolvePlateUrl(url);
-    if (plateCache.has(resolved)) {
-        return plateCache.get(resolved);
-    }
-
-    const promise = new Promise((resolve) => {
-        const image = new Image();
-        image.onload = () => resolve(image);
-        image.onerror = () => resolve(null);
-        image.src = resolved;
+    syncInteractionState();
+    recordInteractionEvent('scene-shown', {
+        slug: model.slug || '',
+        location: model.kind === 'scene' ? model.location : 'No scene',
     });
-    plateCache.set(resolved, promise);
-    return promise;
-}
-
-async function loadSpriteImages(model) {
-    if (model.kind !== 'scene' || model.npcs.length === 0) {
-        return new Map();
-    }
-    const entries = await Promise.all(
-        model.npcs.map(async (npc) => [npc.id, await loadImage(npc.spriteUrl)]),
-    );
-    return new Map(entries);
-}
-
-function setCommandLog(response) {
-    commandLog.textContent = responseSummary(response);
 }
 
 async function refreshScene() {
+    if (isRefreshing) {
+        return false;
+    }
     isRefreshing = true;
-    syncControls();
-    setStatus('loading');
-    subtitle.textContent = 'Loading scene state';
+    setBusy(true);
+    setStatus('Loading');
     try {
         const scene = await fetchSceneState({ backendUrl: currentBackendUrl });
         const model = buildSceneDisplayModel(scene);
-        currentSceneModel = model;
-        currentPlateImage = null;
-        currentSpriteImages = new Map();
-        hoveredHotspotId = null;
-        selectedHotspotId = null;
-        hoveredNpcId = null;
-        selectedNpcId = null;
-        renderCurrentScene();
-        updateInspector(model);
-        setStatus(model.kind === 'scene' ? 'ready' : 'empty');
-        if (model.kind === 'scene') {
-            const [image, sprites] = await Promise.all([
-                loadImage(model.plate),
-                loadSpriteImages(model),
-            ]);
-            if (currentSceneModel === model) {
-                currentPlateImage = image;
-                currentSpriteImages = sprites;
-                renderCurrentScene();
-            }
-        }
+        setStatus(model.kind === 'scene' ? 'Ready' : 'No scene');
+        await showModel(model);
+        return true;
     } catch (error) {
-        renderError(error);
+        const message = error instanceof Error ? error.message : String(error);
+        await showModel(buildSceneDisplayModel(null));
+        setStatus('Offline');
+        setCaption(message);
+        appendTurn('system', 'System', message);
+        return false;
     } finally {
         isRefreshing = false;
-        syncControls();
+        setBusy(isSending);
     }
 }
 
 async function submitCommand(text) {
-    if (isRefreshing || isSending) {
-        return;
-    }
     const trimmed = String(text || '').trim();
-    if (!trimmed) {
+    if (!trimmed || isSending || isRefreshing) {
         return;
     }
     isSending = true;
-    syncControls();
-    setStatus('sending');
-    commandLog.textContent = 'Sending';
+    setBusy(true);
+    setStatus('Sending');
+    setCaption(trimmed);
+    submittedCommands.push(trimmed);
+    while (submittedCommands.length > 20) {
+        submittedCommands.shift();
+    }
+    recordInteractionEvent('submit-command', { command: trimmed });
     appendTurn('player', 'You', trimmed);
     try {
         const response = await postCommand({ text: trimmed, backendUrl: currentBackendUrl });
-        setCommandLog(response);
-        appendTurn('world', 'World', responseSummary(response));
-        await refreshScene();
+        const summary = responseSummary(response);
+        appendTurn('world', 'World', summary);
+        setCaption(summary);
+        const refreshed = await refreshScene();
+        if (refreshed) {
+            setStatus('Ready');
+        }
     } catch (error) {
-        commandLog.textContent = error instanceof Error ? error.message : String(error);
-        setStatus('error');
-        appendTurn('system', 'System', commandLog.textContent);
+        const message = error instanceof Error ? error.message : String(error);
+        appendTurn('system', 'System', message);
+        setCaption(message);
+        setStatus('Error');
     } finally {
         isSending = false;
-        syncControls();
+        setBusy(false);
     }
-}
-
-function targetFromEvent(event) {
-    const point = canvasPointToStage(canvas, event.clientX, event.clientY);
-    return findSceneTargetAtStagePoint(currentSceneModel, point);
 }
 
 async function activateHotspot(hotspot) {
@@ -323,17 +323,33 @@ async function activateHotspot(hotspot) {
     }
     selectedHotspotId = hotspot.id;
     selectedNpcId = null;
-    renderCurrentScene();
-
+    selectedTarget = { kind: 'hotspot', value: hotspot };
+    showActionPrompt(selectedTarget);
+    syncInteractionState();
     const action = hotspotCommand(hotspot);
+    recordInteractionEvent('activate-hotspot', {
+        target: targetTelemetry(selectedTarget),
+    });
     if (action.kind === 'inspect') {
-        commandLog.textContent = action.text;
+        setCaption(action.text);
         appendTurn('inspect', 'Inspect', action.text);
+        recordInteractionEvent('inspect-hotspot', {
+            target: targetTelemetry(selectedTarget),
+            text: action.text,
+        });
         return;
     }
-
     if (action.command) {
         commandInput.value = action.command;
+        if (action.kind === 'travel') {
+            setStatus('Moving');
+            renderer?.startTransition();
+            recordInteractionEvent('transition-start', {
+                target: targetTelemetry(selectedTarget),
+                command: action.command,
+            });
+            await delay(260);
+        }
         await submitCommand(action.command);
     }
 }
@@ -344,14 +360,59 @@ function activateNpc(npc) {
     }
     selectedNpcId = npc.id;
     selectedHotspotId = null;
+    selectedTarget = { kind: 'npc', value: npc };
+    showActionPrompt(selectedTarget);
+    syncInteractionState();
     const action = npcCommand(npc);
     commandInput.value = action.command;
-    commandLog.textContent = `Ready to talk to ${action.label}.`;
+    setCaption(`Ready to talk to ${action.label}.`);
     appendTurn('selection', 'Selected', `Ready to talk to ${action.label}.`);
-    renderCurrentScene();
+    recordInteractionEvent('select-npc', {
+        target: targetTelemetry(selectedTarget),
+    });
 }
 
-form.addEventListener('submit', (event) => {
+function handlePointerTarget(target) {
+    hoveredTarget = target || null;
+    hoveredHotspotId = target?.kind === 'hotspot' ? target.value.id : null;
+    hoveredNpcId = target?.kind === 'npc' ? target.value.id : null;
+    syncInteractionState();
+    const nextHoverTelemetryKey = target
+        ? `${target.kind}:${target.value.id ?? target.value.label ?? ''}`
+        : '';
+    if (nextHoverTelemetryKey !== hoverTelemetryKey) {
+        hoverTelemetryKey = nextHoverTelemetryKey;
+        recordInteractionEvent('hover', {
+            target: targetTelemetry(target),
+        });
+    }
+    if (target?.kind === 'hotspot') {
+        showActionPrompt(target);
+        setCaption(target.value.label);
+    } else if (target?.kind === 'npc') {
+        showActionPrompt(target);
+        setCaption(target.value.label);
+    } else if (currentSceneModel.kind === 'scene') {
+        if (selectedTarget) {
+            showActionPrompt(selectedTarget);
+        }
+        setCaption(sceneCaption(currentSceneModel));
+    }
+}
+
+function handleActivate(target) {
+    if (target?.kind === 'npc') {
+        activateNpc(target.value);
+    } else if (target?.kind === 'hotspot') {
+        activateHotspot(target.value);
+    }
+}
+
+function activatePromptTarget() {
+    handleActivate(promptTarget || hoveredTarget || selectedTarget);
+}
+
+settingsForm.addEventListener('submit', (event) => {
     event.preventDefault();
     currentBackendUrl = normalizeBackendUrl(backendInput.value);
     localStorage.setItem(storageKey, currentBackendUrl);
@@ -367,42 +428,33 @@ commandForm.addEventListener('submit', (event) => {
     submitCommand(commandInput.value);
 });
 
-crossroadsButton.addEventListener('click', () => {
-    commandInput.value = 'go to The Crossroads';
-    submitCommand(commandInput.value);
-});
-
-canvas.addEventListener('mousemove', (event) => {
-    const target = targetFromEvent(event);
-    const nextHotspotId = target?.kind === 'hotspot' ? target.value.id : null;
-    const nextNpcId = target?.kind === 'npc' ? target.value.id : null;
-    if (hoveredHotspotId !== nextHotspotId || hoveredNpcId !== nextNpcId) {
-        hoveredHotspotId = nextHotspotId;
-        hoveredNpcId = nextNpcId;
-        canvas.style.cursor = target ? 'pointer' : 'default';
-        renderCurrentScene();
+commandPanel.addEventListener('toggle', () => {
+    if (commandPanel.open) {
+        commandInput.focus();
     }
 });
 
-canvas.addEventListener('mouseleave', () => {
-    hoveredHotspotId = null;
-    hoveredNpcId = null;
-    canvas.style.cursor = 'default';
-    renderCurrentScene();
+actionButton.addEventListener('click', () => {
+    activatePromptTarget();
 });
 
-canvas.addEventListener('click', (event) => {
-    const target = targetFromEvent(event);
-    if (target?.kind === 'npc') {
-        activateNpc(target.value);
-        return;
-    }
-    activateHotspot(target?.value);
+async function boot() {
+    renderer = new PixiSceneRenderer({
+        host: stageHost,
+        onPointerTarget: handlePointerTarget,
+        onActivate: handleActivate,
+        proofAtomOnly,
+    });
+    await renderer.init();
+    renderTurnLog();
+    await refreshScene();
+}
+
+boot().catch((error) => {
+    const message = error instanceof Error ? error.message : String(error);
+    setStatus('Error');
+    setCaption(message);
+    appendTurn('system', 'System', message);
 });
 
-window.addEventListener('resize', () => {
-    renderCurrentScene();
-});
-
-renderTurnLog();
-refreshScene();
+publishInteractionTelemetry();

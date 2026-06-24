@@ -4,16 +4,19 @@ import { createReadStream } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { apiPathForRequestUrl } from './api-path.mjs';
+import { createProxySessionStore } from './proxy-session.mjs';
 
 const appDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const port = Number.parseInt(process.env.VISUAL_CLIENT_PORT || process.env.PORT || '4174', 10);
 const backendHost = '127.0.0.1';
 const backendPort = 3030;
+const proxySessions = createProxySessionStore();
 
 const contentTypes = new Map([
     ['.css', 'text/css; charset=utf-8'],
     ['.html', 'text/html; charset=utf-8'],
     ['.js', 'text/javascript; charset=utf-8'],
+    ['.mjs', 'text/javascript; charset=utf-8'],
     ['.json', 'application/json; charset=utf-8'],
     ['.png', 'image/png'],
     ['.svg', 'image/svg+xml'],
@@ -35,6 +38,13 @@ function staticPathFor(url) {
 }
 
 async function serveStatic(req, res, url) {
+    if (url.pathname === '/vendor/pixi.mjs') {
+        const pixiPath = path.join(appDir, 'node_modules/pixi.js/dist/pixi.mjs');
+        res.writeHead(200, { 'content-type': 'text/javascript; charset=utf-8' });
+        createReadStream(pixiPath).pipe(res);
+        return;
+    }
+
     const filePath = staticPathFor(url);
     if (!filePath) {
         sendText(res, 403, 'Forbidden');
@@ -65,8 +75,15 @@ async function proxyApi(req, res) {
         sendText(res, 404, 'Not found');
         return;
     }
+    const session = proxySessions.sessionForRequest(req.headers.cookie);
     const headers = { ...req.headers };
     delete headers.host;
+    const backendCookie = proxySessions.backendCookieFor(session.id);
+    if (backendCookie) {
+        headers.cookie = backendCookie;
+    } else {
+        delete headers.cookie;
+    }
 
     const upstream = httpRequest(
         {
@@ -77,7 +94,13 @@ async function proxyApi(req, res) {
             headers,
         },
         (upstreamResponse) => {
-            res.writeHead(upstreamResponse.statusCode || 502, upstreamResponse.headers);
+            proxySessions.rememberBackendCookie(session.id, upstreamResponse.headers['set-cookie']);
+            const responseHeaders = { ...upstreamResponse.headers };
+            delete responseHeaders['set-cookie'];
+            if (session.created) {
+                responseHeaders['set-cookie'] = proxySessions.clientSetCookie(session.id);
+            }
+            res.writeHead(upstreamResponse.statusCode || 502, responseHeaders);
             upstreamResponse.pipe(res);
         },
     );

@@ -1,28 +1,388 @@
 {
     "assets": [
         {
-            "id": "kilteevan-underlay",
-            "kind": "underlay",
-            "image": "assets/scenes/the-crossroads/plate.png",
+            "id": "kilteevan-ground-base",
+            "kind": "ground",
+            "image": "assets/scenes/kilteevan-village/atoms/ground-base.png",
+            "anchor": [50.0, 50.0]
+        },
+        {
+            "id": "kilteevan-ground-patch",
+            "kind": "terrain_patch",
+            "image": "assets/scenes/kilteevan-village/atoms/ground-patch.png",
+            "anchor": [50.0, 50.0]
+        },
+        {
+            "id": "kilteevan-contact-shadows",
+            "kind": "shadow",
+            "image": "assets/scenes/kilteevan-village/atoms/contact-shadows.png",
+            "anchor": [50.0, 50.0]
+        },
+        {
+            "id": "kilteevan-muddy-lane",
+            "kind": "road",
+            "image": "assets/scenes/kilteevan-village/atoms/muddy-lane.png",
+            "anchor": [50.0, 50.0]
+        },
+        {
+            "id": "kilteevan-stream",
+            "kind": "water",
+            "image": "assets/scenes/kilteevan-village/atoms/stream-strip.png",
+            "anchor": [50.0, 50.0]
+        },
+        {
+            "id": "kilteevan-bridge",
+            "kind": "bridge",
+            "image": "assets/scenes/kilteevan-village/atoms/wooden-bridge.png",
+            "anchor": [50.0, 50.0]
+        },
+        {
+            "id": "kilteevan-left-cottage",
+            "kind": "cottage",
+            "image": "assets/scenes/kilteevan-village/atoms/left-cottage.png",
             "anchor": [50.0, 100.0]
+        },
+        {
+            "id": "kilteevan-right-cottage",
+            "kind": "cottage",
+            "image": "assets/scenes/kilteevan-village/atoms/right-cottage.png",
+            "anchor": [50.0, 100.0]
+        },
+        {
+            "id": "kilteevan-well",
+            "kind": "prop",
+            "image": "assets/scenes/kilteevan-village/atoms/village-well.png",
+            "anchor": [50.0, 100.0]
+        },
+        {
+            "id": "kilteevan-wall",
+            "kind": "wall",
+            "image": "assets/scenes/kilteevan-village/atoms/stone-wall.png",
+            "anchor": [50.0, 100.0]
+        },
+        {
+            "id": "kilteevan-signpost",
+            "kind": "wayfinding_sign",
+            "image": "assets/scenes/kilteevan-village/atoms/signpost.png",
+            "anchor": [50.0, 100.0]
+        },
+        {
+            "id": "kilteevan-cart",
+            "kind": "prop",
+            "image": "assets/scenes/kilteevan-village/atoms/wooden-cart.png",
+            "anchor": [50.0, 100.0]
+        },
+        {
+            "id": "kilteevan-hedgerow",
+            "kind": "foliage",
+            "image": "assets/scenes/kilteevan-village/atoms/hedgerow.png",
+            "anchor": [50.0, 100.0]
+        },
+        {
+            "id": "kilteevan-smoke",
+            "kind": "smoke",
+            "image": "assets/scenes/kilteevan-village/atoms/smoke-plume.png",
+            "anchor": [50.0, 100.0]
+        },
+        {
+            "id": "kilteevan-damp-vignette",
+            "kind": "lighting",
+            "image": "assets/scenes/kilteevan-village/atoms/damp-vignette.png",
+            "anchor": [50.0, 50.0]
+        },
+        {
+            "id": "kilteevan-kit-wall-stones-a",
+            "kind": "wall",
+            "image": "assets/scenes/kilteevan-village/atoms/kit/wall-stones-a.png",
+            "anchor": [50.0, 50.0]
+        },
+        {
+            "id": "kilteevan-kit-wall-stones-b",
+            "kind": "wall",
+            "image": "assets/scenes/kilteevan-village/atoms/kit/wall-stones-b.png",
+            "anchor": [50.0, 50.0]
+        },
+        {
+            "id": "kilteevan-kit-wall-stones-c",
+            "kind": "wall",
+            "image": "assets/scenes/kilteevan-village/atoms/kit/wall-stones-c.png",
+            "anchor": [50.0, 50.0]
+        },
+        {
+            "id": "kilteevan-kit-flower-bramble-a",
+            "kind": "foliage",
+            "image": "assets/scenes/kilteevan-village/atoms/kit/flower-bramble-a.png",
+            "anchor": [50.0, 50.0]
+        },
+        {
+            "id": "kilteevan-kit-flower-bramble-b",
+            "kind": "foliage",
+            "image": "assets/scenes/kilteevan-village/atoms/kit/flower-bramble-b.png",
+            "anchor": [50.0, 50.0]
+        },
+        {
+            "id": "kilteevan-kit-mud-edge-a",
+            "kind": "terrain_patch",
+            "image": "assets/scenes/kilteevan-village/atoms/kit/mud-edge-a.png",
+            "anchor": [50.0, 50.0]
+        },
+        {
+            "id": "kilteevan-kit-mud-edge-b",
+            "kind": "terrain_patch",
+            "image": "assets/scenes/kilteevan-village/atoms/kit/mud-edge-b.png",
+            "anchor": [50.0, 50.0]
         },
         {
             "id": "crossroads-underlay",
             "kind": "underlay",
-            "image": "assets/scenes/the-crossroads/plate.png",
+            "image": "assets/scenes/the-crossroads/pixel-plate-16x9.png",
             "anchor": [50.0, 100.0]
+        },
+        {
+            "id": "crossroads-ground-base",
+            "kind": "ground",
+            "image": "assets/scenes/the-crossroads/atoms/ground-base.png",
+            "anchor": [50.0, 50.0]
+        },
+        {
+            "id": "crossroads-road-wetness",
+            "kind": "water",
+            "image": "assets/scenes/the-crossroads/atoms/local/road-wetness.png",
+            "anchor": [50.0, 50.0]
+        },
+        {
+            "id": "crossroads-kit-puddle-sheen-a",
+            "kind": "water",
+            "image": "assets/scenes/the-crossroads/atoms/kit/puddle-sheen-a.png",
+            "anchor": [50.0, 50.0]
+        },
+        {
+            "id": "crossroads-kit-puddle-sheen-b",
+            "kind": "water",
+            "image": "assets/scenes/the-crossroads/atoms/kit/puddle-sheen-b.png",
+            "anchor": [50.0, 50.0]
+        },
+        {
+            "id": "crossroads-kit-mud-rut-glint-a",
+            "kind": "water",
+            "image": "assets/scenes/the-crossroads/atoms/kit/mud-rut-glint-a.png",
+            "anchor": [50.0, 50.0]
+        },
+        {
+            "id": "crossroads-kit-small-puddle-chip-a",
+            "kind": "water",
+            "image": "assets/scenes/the-crossroads/atoms/kit/small-puddle-chip-a.png",
+            "anchor": [50.0, 50.0]
+        },
+        {
+            "id": "crossroads-kit-wall-stones-a",
+            "kind": "wall",
+            "image": "assets/scenes/the-crossroads/atoms/kit/wall-stones-a.png",
+            "anchor": [50.0, 50.0]
+        },
+        {
+            "id": "crossroads-kit-wall-stones-b",
+            "kind": "wall",
+            "image": "assets/scenes/the-crossroads/atoms/kit/wall-stones-b.png",
+            "anchor": [50.0, 50.0]
+        },
+        {
+            "id": "crossroads-kit-wall-stones-c",
+            "kind": "wall",
+            "image": "assets/scenes/the-crossroads/atoms/kit/wall-stones-c.png",
+            "anchor": [50.0, 50.0]
+        },
+        {
+            "id": "crossroads-kit-bramble-clump-a",
+            "kind": "foliage",
+            "image": "assets/scenes/the-crossroads/atoms/kit/bramble-clump-a.png",
+            "anchor": [50.0, 50.0]
+        },
+        {
+            "id": "crossroads-kit-bramble-clump-b",
+            "kind": "foliage",
+            "image": "assets/scenes/the-crossroads/atoms/kit/bramble-clump-b.png",
+            "anchor": [50.0, 50.0]
+        },
+        {
+            "id": "crossroads-kit-bramble-tuft-a",
+            "kind": "foliage",
+            "image": "assets/scenes/the-crossroads/atoms/kit/bramble-tuft-a.png",
+            "anchor": [50.0, 50.0]
+        },
+        {
+            "id": "crossroads-contact-shadows",
+            "kind": "shadow",
+            "image": "assets/scenes/the-crossroads/atoms/contact-shadows.png",
+            "anchor": [50.0, 50.0]
+        },
+        {
+            "id": "crossroads-pub-building",
+            "kind": "building",
+            "image": "assets/scenes/the-crossroads/atoms/local/pub-building.png",
+            "anchor": [50.0, 50.0]
+        },
+        {
+            "id": "crossroads-church-rise",
+            "kind": "landmark",
+            "image": "assets/scenes/the-crossroads/atoms/local/church-rise.png",
+            "anchor": [50.0, 50.0]
+        },
+        {
+            "id": "crossroads-crooked-signpost",
+            "kind": "wayfinding_sign",
+            "image": "assets/scenes/the-crossroads/atoms/local/crooked-signpost.png",
+            "anchor": [50.0, 50.0]
+        },
+        {
+            "id": "crossroads-stone-walls",
+            "kind": "wall",
+            "image": "assets/scenes/the-crossroads/atoms/local/stone-walls.png",
+            "anchor": [50.0, 50.0]
+        },
+        {
+            "id": "crossroads-foreground-brambles",
+            "kind": "foliage",
+            "image": "assets/scenes/the-crossroads/atoms/local/foreground-brambles.png",
+            "anchor": [50.0, 50.0]
+        },
+        {
+            "id": "crossroads-damp-vignette",
+            "kind": "lighting",
+            "image": "assets/scenes/the-crossroads/atoms/damp-vignette.png",
+            "anchor": [50.0, 50.0]
         },
         {
             "id": "pub-underlay",
             "kind": "underlay",
-            "image": "assets/scenes/darcys-pub/plate.png",
-            "anchor": [50.0, 100.0]
+            "image": "assets/scenes/darcys-pub/pixel-plate.png",
+            "anchor": [50.0, 50.0]
         },
         {
-            "id": "placeholder-wayfinding-sign",
-            "kind": "wayfinding_sign",
-            "image": "assets/scenes/sprites/generic-villager.png",
-            "anchor": [50.0, 100.0]
+            "id": "pub-room-base",
+            "kind": "ground",
+            "image": "assets/scenes/darcys-pub/atoms/room-base.png",
+            "anchor": [50.0, 50.0]
+        },
+        {
+            "id": "pub-contact-shadows",
+            "kind": "shadow",
+            "image": "assets/scenes/darcys-pub/atoms/contact-shadows.png",
+            "anchor": [50.0, 50.0]
+        },
+        {
+            "id": "pub-hearth",
+            "kind": "hearth",
+            "image": "assets/scenes/darcys-pub/atoms/hearth.png",
+            "anchor": [50.0, 50.0]
+        },
+        {
+            "id": "pub-back-shelves",
+            "kind": "furniture",
+            "image": "assets/scenes/darcys-pub/atoms/back-shelves.png",
+            "anchor": [50.0, 50.0]
+        },
+        {
+            "id": "pub-bar-counter",
+            "kind": "furniture",
+            "image": "assets/scenes/darcys-pub/atoms/bar-counter.png",
+            "anchor": [50.0, 50.0]
+        },
+        {
+            "id": "pub-door-window",
+            "kind": "door_window",
+            "image": "assets/scenes/darcys-pub/atoms/door-window.png",
+            "anchor": [50.0, 50.0]
+        },
+        {
+            "id": "pub-foreground-furniture",
+            "kind": "furniture",
+            "image": "assets/scenes/darcys-pub/atoms/foreground-furniture.png",
+            "anchor": [50.0, 50.0]
+        },
+        {
+            "id": "pub-hearth-glow",
+            "kind": "lighting",
+            "image": "assets/scenes/darcys-pub/atoms/hearth-glow.png",
+            "anchor": [50.0, 50.0]
+        },
+        {
+            "id": "pub-door-cool-light",
+            "kind": "lighting",
+            "image": "assets/scenes/darcys-pub/atoms/door-cool-light.png",
+            "anchor": [50.0, 50.0]
+        },
+        {
+            "id": "pub-warm-vignette",
+            "kind": "lighting",
+            "image": "assets/scenes/darcys-pub/atoms/warm-vignette.png",
+            "anchor": [50.0, 50.0]
+        },
+        {
+            "id": "pub-kit-vessel-cluster-a",
+            "kind": "vessel",
+            "image": "assets/scenes/darcys-pub/atoms/kit/vessel-cluster-a.png",
+            "anchor": [50.0, 50.0]
+        },
+        {
+            "id": "pub-kit-vessel-cluster-b",
+            "kind": "vessel",
+            "image": "assets/scenes/darcys-pub/atoms/kit/vessel-cluster-b.png",
+            "anchor": [50.0, 50.0]
+        },
+        {
+            "id": "pub-kit-vessel-table-a",
+            "kind": "vessel",
+            "image": "assets/scenes/darcys-pub/atoms/kit/vessel-table-a.png",
+            "anchor": [50.0, 50.0]
+        },
+        {
+            "id": "pub-kit-cool-window-vessels-a",
+            "kind": "vessel",
+            "image": "assets/scenes/darcys-pub/atoms/kit/cool-window-vessels-a.png",
+            "anchor": [50.0, 50.0]
+        },
+        {
+            "id": "pub-kit-wood-barrel-a",
+            "kind": "wood",
+            "image": "assets/scenes/darcys-pub/atoms/kit/wood-barrel-a.png",
+            "anchor": [50.0, 50.0]
+        },
+        {
+            "id": "pub-kit-wood-table-edge-a",
+            "kind": "wood",
+            "image": "assets/scenes/darcys-pub/atoms/kit/wood-table-edge-a.png",
+            "anchor": [50.0, 50.0]
+        },
+        {
+            "id": "pub-kit-wood-counter-face-a",
+            "kind": "wood",
+            "image": "assets/scenes/darcys-pub/atoms/kit/wood-counter-face-a.png",
+            "anchor": [50.0, 50.0]
+        },
+        {
+            "id": "pub-kit-warm-embers-a",
+            "kind": "lighting",
+            "image": "assets/scenes/darcys-pub/atoms/kit/warm-embers-a.png",
+            "anchor": [50.0, 50.0]
+        },
+        {
+            "id": "pub-kit-warm-fire-iron-a",
+            "kind": "lighting",
+            "image": "assets/scenes/darcys-pub/atoms/kit/warm-fire-iron-a.png",
+            "anchor": [50.0, 50.0]
+        },
+        {
+            "id": "pub-kit-warm-hearth-stones-a",
+            "kind": "lighting",
+            "image": "assets/scenes/darcys-pub/atoms/kit/warm-hearth-stones-a.png",
+            "anchor": [50.0, 50.0]
+        },
+        {
+            "id": "pub-kit-warm-lantern-a",
+            "kind": "lighting",
+            "image": "assets/scenes/darcys-pub/atoms/kit/warm-lantern-a.png",
+            "anchor": [50.0, 50.0]
         }
     ],
     "scenes": [
@@ -30,43 +390,358 @@
             "location_id": 15,
             "slug": "kilteevan-village",
             "native_size": [1280, 720],
-            "underlay": "assets/scenes/the-crossroads/plate.png",
-            "plate": "assets/scenes/the-crossroads/plate.png",
+            "underlay": "assets/scenes/kilteevan-village/pixel-plate-16x9.png",
+            "plate": "assets/scenes/kilteevan-village/pixel-plate-16x9.png",
             "layers": [
                 {
-                    "id": "underlay",
-                    "asset": "kilteevan-underlay",
+                    "id": "ground-base",
+                    "asset": "kilteevan-ground-base",
                     "x": 50.0,
                     "y": 50.0,
-                    "z": 0,
+                    "z": -100,
                     "scale": 1.0
                 },
                 {
-                    "id": "crossroads-sign",
-                    "asset": "placeholder-wayfinding-sign",
-                    "x": 67.0,
-                    "y": 48.0,
-                    "z": 40,
-                    "scale": 0.75,
-                    "labels": [
-                        {
-                            "text": "The Crossroads",
-                            "anchor": [50.0, 48.0],
-                            "rotation": -1.0
-                        }
-                    ]
+                    "id": "stream",
+                    "asset": "kilteevan-stream",
+                    "x": 18.0,
+                    "y": 72.0,
+                    "z": -60,
+                    "scale": 1.15,
+                    "opacity": 0.42
+                },
+                {
+                    "id": "bridge",
+                    "asset": "kilteevan-bridge",
+                    "x": 29.0,
+                    "y": 80.0,
+                    "z": -48,
+                    "scale": 1.02
+                },
+                {
+                    "id": "lane-upper",
+                    "asset": "kilteevan-muddy-lane",
+                    "x": 54.0,
+                    "y": 24.0,
+                    "z": -44,
+                    "scale": 0.9,
+                    "opacity": 0.28
+                },
+                {
+                    "id": "lane-middle",
+                    "asset": "kilteevan-muddy-lane",
+                    "x": 51.0,
+                    "y": 44.0,
+                    "z": -43,
+                    "scale": 1.08,
+                    "opacity": 0.24
+                },
+                {
+                    "id": "lane-lower",
+                    "asset": "kilteevan-muddy-lane",
+                    "x": 53.0,
+                    "y": 66.0,
+                    "z": -42,
+                    "scale": 1.24,
+                    "opacity": 0.22
+                },
+                {
+                    "id": "stream-bank-patch",
+                    "asset": "kilteevan-ground-patch",
+                    "x": 24.0,
+                    "y": 64.0,
+                    "z": -40,
+                    "scale": 0.84,
+                    "opacity": 0.32
+                },
+                {
+                    "id": "road-shoulder-patch",
+                    "asset": "kilteevan-ground-patch",
+                    "x": 45.0,
+                    "y": 60.0,
+                    "z": -39,
+                    "scale": 0.7,
+                    "opacity": 0.24
+                },
+                {
+                    "id": "well-ground-patch",
+                    "asset": "kilteevan-ground-patch",
+                    "x": 74.0,
+                    "y": 78.0,
+                    "z": -38,
+                    "scale": 0.62,
+                    "opacity": 0.28
+                },
+                {
+                    "id": "mud-kit-upper-rut",
+                    "asset": "kilteevan-kit-mud-edge-b",
+                    "x": 58.2,
+                    "y": 37.6,
+                    "z": -37,
+                    "scale": 0.5,
+                    "opacity": 0.18
+                },
+                {
+                    "id": "mud-kit-center-rut",
+                    "asset": "kilteevan-kit-mud-edge-b",
+                    "x": 53.2,
+                    "y": 55.2,
+                    "z": -36,
+                    "scale": 0.7,
+                    "opacity": 0.22
+                },
+                {
+                    "id": "mud-kit-lower-rut",
+                    "asset": "kilteevan-kit-mud-edge-b",
+                    "x": 46.4,
+                    "y": 78.5,
+                    "z": -35,
+                    "scale": 0.82,
+                    "opacity": 0.2,
+                    "flip": true
+                },
+                {
+                    "id": "mud-kit-stream-bank",
+                    "asset": "kilteevan-kit-mud-edge-a",
+                    "x": 25.8,
+                    "y": 73.8,
+                    "z": -34,
+                    "scale": 0.66,
+                    "opacity": 0.2
+                },
+                {
+                    "id": "contact-shadows",
+                    "asset": "kilteevan-contact-shadows",
+                    "x": 50.0,
+                    "y": 50.0,
+                    "z": -30,
+                    "scale": 1.0,
+                    "opacity": 0.84
+                },
+                {
+                    "id": "left-cottage",
+                    "asset": "kilteevan-left-cottage",
+                    "x": 20.5,
+                    "y": 47.0,
+                    "z": 10,
+                    "scale": 1.02
+                },
+                {
+                    "id": "right-cottage",
+                    "asset": "kilteevan-right-cottage",
+                    "x": 78.0,
+                    "y": 51.0,
+                    "z": 18,
+                    "scale": 1.08
+                },
+                {
+                    "id": "wall-left",
+                    "asset": "kilteevan-wall",
+                    "x": 31.0,
+                    "y": 56.0,
+                    "z": 24,
+                    "scale": 0.72,
+                    "opacity": 0.92
+                },
+                {
+                    "id": "wall-kit-left-capstones",
+                    "asset": "kilteevan-kit-wall-stones-a",
+                    "x": 35.2,
+                    "y": 52.4,
+                    "z": 25,
+                    "scale": 0.46,
+                    "opacity": 0.3
+                },
+                {
+                    "id": "wall-right",
+                    "asset": "kilteevan-wall",
+                    "x": 70.0,
+                    "y": 58.0,
+                    "z": 28,
+                    "scale": 0.78,
+                    "flip": true,
+                    "opacity": 0.9
+                },
+                {
+                    "id": "wall-kit-right-capstones",
+                    "asset": "kilteevan-kit-wall-stones-a",
+                    "x": 68.6,
+                    "y": 56.2,
+                    "z": 29,
+                    "scale": 0.42,
+                    "opacity": 0.28,
+                    "flip": true
+                },
+                {
+                    "id": "wall-kit-well-stones",
+                    "asset": "kilteevan-kit-wall-stones-c",
+                    "x": 76.2,
+                    "y": 82.8,
+                    "z": 45,
+                    "scale": 0.48,
+                    "opacity": 0.28
+                },
+                {
+                    "id": "cart",
+                    "asset": "kilteevan-cart",
+                    "x": 27.5,
+                    "y": 67.0,
+                    "z": 34,
+                    "scale": 0.78
+                },
+                {
+                    "id": "signpost",
+                    "asset": "kilteevan-signpost",
+                    "x": 41.0,
+                    "y": 69.0,
+                    "z": 38,
+                    "scale": 0.62
+                },
+                {
+                    "id": "well",
+                    "asset": "kilteevan-well",
+                    "x": 73.0,
+                    "y": 75.0,
+                    "z": 46,
+                    "scale": 0.68
+                },
+                {
+                    "id": "hedgerow-left",
+                    "asset": "kilteevan-hedgerow",
+                    "x": 16.0,
+                    "y": 58.0,
+                    "z": 50,
+                    "scale": 0.78,
+                    "opacity": 0.92
+                },
+                {
+                    "id": "bramble-kit-left-flowers",
+                    "asset": "kilteevan-kit-flower-bramble-a",
+                    "x": 20.2,
+                    "y": 58.6,
+                    "z": 51,
+                    "scale": 0.42,
+                    "opacity": 0.34
+                },
+                {
+                    "id": "bramble-kit-stream-bank",
+                    "asset": "kilteevan-kit-flower-bramble-a",
+                    "x": 25.8,
+                    "y": 67.4,
+                    "z": 52,
+                    "scale": 0.36,
+                    "opacity": 0.24,
+                    "flip": true
+                },
+                {
+                    "id": "hedgerow-right",
+                    "asset": "kilteevan-hedgerow",
+                    "x": 88.0,
+                    "y": 83.0,
+                    "z": 62,
+                    "scale": 0.92,
+                    "opacity": 0.9
+                },
+                {
+                    "id": "bramble-kit-right-cottage",
+                    "asset": "kilteevan-kit-flower-bramble-a",
+                    "x": 84.8,
+                    "y": 74.2,
+                    "z": 63,
+                    "scale": 0.4,
+                    "opacity": 0.26
+                },
+                {
+                    "id": "bramble-kit-well-flowers",
+                    "asset": "kilteevan-kit-flower-bramble-b",
+                    "x": 71.6,
+                    "y": 83.6,
+                    "z": 64,
+                    "scale": 0.44,
+                    "opacity": 0.26
+                },
+                {
+                    "id": "foreground-wall",
+                    "asset": "kilteevan-wall",
+                    "x": 72.0,
+                    "y": 88.0,
+                    "z": 70,
+                    "scale": 0.86,
+                    "opacity": 0.88
+                },
+                {
+                    "id": "wall-kit-foreground-stones",
+                    "asset": "kilteevan-kit-wall-stones-a",
+                    "x": 72.6,
+                    "y": 87.4,
+                    "z": 71,
+                    "scale": 0.5,
+                    "opacity": 0.26
+                },
+                {
+                    "id": "wall-kit-bridge-stones",
+                    "asset": "kilteevan-kit-wall-stones-b",
+                    "x": 19.8,
+                    "y": 84.5,
+                    "z": 72,
+                    "scale": 0.42,
+                    "opacity": 0.24,
+                    "flip": true
+                },
+                {
+                    "id": "smoke-left",
+                    "asset": "kilteevan-smoke",
+                    "x": 27.0,
+                    "y": 18.0,
+                    "z": 84,
+                    "scale": 0.72,
+                    "opacity": 0.72,
+                    "animation": {
+                        "mode": "drift",
+                        "amplitude_x": 1.0,
+                        "amplitude_y": -2.4,
+                        "alpha": 0.06,
+                        "period_ms": 6200,
+                        "phase": 0.1
+                    }
+                },
+                {
+                    "id": "smoke-right",
+                    "asset": "kilteevan-smoke",
+                    "x": 82.0,
+                    "y": 20.0,
+                    "z": 85,
+                    "scale": 0.78,
+                    "opacity": 0.68,
+                    "animation": {
+                        "mode": "drift",
+                        "amplitude_x": -0.8,
+                        "amplitude_y": -2.0,
+                        "alpha": 0.05,
+                        "period_ms": 7000,
+                        "phase": 0.52
+                    }
+                },
+                {
+                    "id": "damp-vignette",
+                    "asset": "kilteevan-damp-vignette",
+                    "x": 50.0,
+                    "y": 50.0,
+                    "z": 1000,
+                    "scale": 1.0,
+                    "opacity": 0.82
                 }
             ],
             "hotspots": [
                 {
                     "id": "road-to-crossroads",
-                    "shape": { "rect": [61.0, 34.0, 22.0, 32.0] },
+                    "shape": { "rect": [42.0, 14.0, 23.0, 58.0] },
                     "label": "Road to The Crossroads",
                     "action": { "travel_to": 1 }
                 },
                 {
                     "id": "village-well",
-                    "shape": { "rect": [12.0, 44.0, 19.0, 23.0] },
+                    "shape": { "rect": [66.0, 53.0, 19.0, 24.0] },
                     "label": "The village well",
                     "action": {
                         "inspect": "The village well is ringed with damp stone and a scatter of boot prints."
@@ -74,62 +749,293 @@
                 }
             ],
             "slots": [
-                { "id": "well-left", "x": 24.0, "y": 62.0, "scale": 1.0 },
-                { "id": "lane-center", "x": 49.0, "y": 64.0, "scale": 1.0 },
-                { "id": "cottage-door", "x": 72.0, "y": 58.0, "scale": 0.95 }
+                { "id": "well-left", "x": 76.0, "y": 63.0, "scale": 1.0 },
+                { "id": "lane-center", "x": 49.0, "y": 59.0, "scale": 1.0 },
+                { "id": "cottage-door", "x": 21.0, "y": 49.0, "scale": 0.95 }
             ]
         },
         {
             "location_id": 1,
             "slug": "the-crossroads",
             "native_size": [1280, 720],
-            "underlay": "assets/scenes/the-crossroads/plate.png",
-            "plate": "assets/scenes/the-crossroads/plate.png",
+            "underlay": "assets/scenes/the-crossroads/pixel-plate-16x9.png",
+            "plate": "assets/scenes/the-crossroads/pixel-plate-16x9.png",
             "layers": [
                 {
-                    "id": "underlay",
-                    "asset": "crossroads-underlay",
+                    "id": "ground-base",
+                    "asset": "crossroads-ground-base",
                     "x": 50.0,
                     "y": 50.0,
-                    "z": 0,
+                    "z": -100,
                     "scale": 1.0
                 },
                 {
-                    "id": "wayfinding-sign",
-                    "asset": "placeholder-wayfinding-sign",
-                    "x": 58.0,
+                    "id": "contact-shadows",
+                    "asset": "crossroads-contact-shadows",
+                    "x": 50.0,
                     "y": 50.0,
-                    "z": 45,
-                    "scale": 0.8,
-                    "labels": [
-                        {
-                            "text": "Darcy's Pub",
-                            "anchor": [50.0, 35.0],
-                            "rotation": -2.0
-                        },
-                        {
-                            "text": "St. Brigid's Church",
-                            "anchor": [50.0, 51.0],
-                            "rotation": 1.0
-                        },
-                        {
-                            "text": "Kilteevan Village",
-                            "anchor": [50.0, 67.0],
-                            "rotation": -1.0
-                        }
-                    ]
+                    "z": -60,
+                    "scale": 1.0,
+                    "opacity": 0.78
+                },
+                {
+                    "id": "road-wetness",
+                    "asset": "crossroads-road-wetness",
+                    "x": 41.953,
+                    "y": 45.139,
+                    "z": -50,
+                    "scale": 1.0,
+                    "opacity": 0.62,
+                    "animation": {
+                        "mode": "shimmer",
+                        "amplitude_x": 0.5,
+                        "amplitude_y": 0.0,
+                        "alpha": 0.04,
+                        "period_ms": 3600,
+                        "phase": 0.18
+                    }
+                },
+                {
+                    "id": "road-puddle-center-a",
+                    "asset": "crossroads-kit-puddle-sheen-a",
+                    "x": 53.75,
+                    "y": 54.3,
+                    "z": -49,
+                    "scale": 1.0,
+                    "opacity": 0.34,
+                    "animation": {
+                        "mode": "shimmer",
+                        "amplitude_x": 1.0,
+                        "amplitude_y": 0.4,
+                        "alpha": 0.08,
+                        "period_ms": 2400,
+                        "phase": 0.0
+                    }
+                },
+                {
+                    "id": "road-puddle-lower-a",
+                    "asset": "crossroads-kit-puddle-sheen-a",
+                    "x": 50.8,
+                    "y": 66.8,
+                    "z": -48,
+                    "scale": 0.78,
+                    "opacity": 0.2,
+                    "flip": true,
+                    "animation": {
+                        "mode": "shimmer",
+                        "amplitude_x": -0.8,
+                        "amplitude_y": 0.3,
+                        "alpha": 0.06,
+                        "period_ms": 2800,
+                        "phase": 0.34
+                    }
+                },
+                {
+                    "id": "road-puddle-right-lane-a",
+                    "asset": "crossroads-kit-puddle-sheen-a",
+                    "x": 81.0,
+                    "y": 57.8,
+                    "z": -47,
+                    "scale": 0.62,
+                    "opacity": 0.18
+                },
+                {
+                    "id": "road-puddle-mid-b",
+                    "asset": "crossroads-kit-puddle-sheen-b",
+                    "x": 50.8,
+                    "y": 46.7,
+                    "z": -46,
+                    "scale": 1.0,
+                    "opacity": 0.28,
+                    "animation": {
+                        "mode": "shimmer",
+                        "amplitude_x": 0.7,
+                        "amplitude_y": 0.2,
+                        "alpha": 0.07,
+                        "period_ms": 3100,
+                        "phase": 0.62
+                    }
+                },
+                {
+                    "id": "road-rut-glint-mid",
+                    "asset": "crossroads-kit-mud-rut-glint-a",
+                    "x": 44.6,
+                    "y": 42.6,
+                    "z": -45,
+                    "scale": 1.0,
+                    "opacity": 0.24,
+                    "animation": {
+                        "mode": "shimmer",
+                        "amplitude_x": 0.6,
+                        "amplitude_y": 0.0,
+                        "alpha": 0.05,
+                        "period_ms": 3300,
+                        "phase": 0.78
+                    }
+                },
+                {
+                    "id": "road-chip-left",
+                    "asset": "crossroads-kit-small-puddle-chip-a",
+                    "x": 16.7,
+                    "y": 42.0,
+                    "z": -44,
+                    "scale": 1.0,
+                    "opacity": 0.22
+                },
+                {
+                    "id": "church-rise",
+                    "asset": "crossroads-church-rise",
+                    "x": 33.633,
+                    "y": 15.625,
+                    "z": 10,
+                    "scale": 1.0
+                },
+                {
+                    "id": "stone-walls",
+                    "asset": "crossroads-stone-walls",
+                    "x": 41.992,
+                    "y": 48.264,
+                    "z": 20,
+                    "scale": 1.0,
+                    "opacity": 0.88
+                },
+                {
+                    "id": "wall-kit-left-upper-a",
+                    "asset": "crossroads-kit-wall-stones-a",
+                    "x": 23.2,
+                    "y": 29.0,
+                    "z": 21,
+                    "scale": 1.0,
+                    "opacity": 0.34
+                },
+                {
+                    "id": "wall-kit-right-upper-a",
+                    "asset": "crossroads-kit-wall-stones-a",
+                    "x": 60.8,
+                    "y": 31.4,
+                    "z": 22,
+                    "scale": 0.72,
+                    "opacity": 0.22,
+                    "flip": true
+                },
+                {
+                    "id": "wall-kit-foreground-a",
+                    "asset": "crossroads-kit-wall-stones-a",
+                    "x": 15.4,
+                    "y": 74.6,
+                    "z": 23,
+                    "scale": 0.76,
+                    "opacity": 0.2
+                },
+                {
+                    "id": "wall-kit-foreground-b",
+                    "asset": "crossroads-kit-wall-stones-b",
+                    "x": 14.6,
+                    "y": 74.5,
+                    "z": 24,
+                    "scale": 0.88,
+                    "opacity": 0.32
+                },
+                {
+                    "id": "wall-kit-signpost-c",
+                    "asset": "crossroads-kit-wall-stones-c",
+                    "x": 58.2,
+                    "y": 33.0,
+                    "z": 25,
+                    "scale": 0.86,
+                    "opacity": 0.32
+                },
+                {
+                    "id": "pub-building",
+                    "asset": "crossroads-pub-building",
+                    "x": 67.656,
+                    "y": 23.333,
+                    "z": 30,
+                    "scale": 1.0
+                },
+                {
+                    "id": "crooked-signpost",
+                    "asset": "crossroads-crooked-signpost",
+                    "x": 42.305,
+                    "y": 47.431,
+                    "z": 42,
+                    "scale": 1.0
+                },
+                {
+                    "id": "foreground-brambles",
+                    "asset": "crossroads-foreground-brambles",
+                    "x": 42.188,
+                    "y": 57.778,
+                    "z": 72,
+                    "scale": 1.0,
+                    "opacity": 0.9
+                },
+                {
+                    "id": "bramble-kit-left-a",
+                    "asset": "crossroads-kit-bramble-clump-b",
+                    "x": 7.0,
+                    "y": 52.2,
+                    "z": 73,
+                    "scale": 1.0,
+                    "opacity": 0.32
+                },
+                {
+                    "id": "bramble-kit-wall-a",
+                    "asset": "crossroads-kit-bramble-clump-b",
+                    "x": 30.5,
+                    "y": 31.4,
+                    "z": 74,
+                    "scale": 0.46,
+                    "opacity": 0.18,
+                    "flip": true
+                },
+                {
+                    "id": "bramble-kit-pub-a",
+                    "asset": "crossroads-kit-bramble-clump-b",
+                    "x": 65.2,
+                    "y": 34.0,
+                    "z": 75,
+                    "scale": 0.42,
+                    "opacity": 0.16
+                },
+                {
+                    "id": "bramble-kit-foreground-a",
+                    "asset": "crossroads-kit-bramble-clump-a",
+                    "x": 8.2,
+                    "y": 80.2,
+                    "z": 76,
+                    "scale": 0.68,
+                    "opacity": 0.22
+                },
+                {
+                    "id": "bramble-kit-foreground-tuft",
+                    "asset": "crossroads-kit-bramble-tuft-a",
+                    "x": 26.8,
+                    "y": 75.5,
+                    "z": 77,
+                    "scale": 0.92,
+                    "opacity": 0.26
+                },
+                {
+                    "id": "damp-vignette",
+                    "asset": "crossroads-damp-vignette",
+                    "x": 50.0,
+                    "y": 50.0,
+                    "z": 1000,
+                    "scale": 1.0,
+                    "opacity": 0.82
                 }
             ],
             "hotspots": [
                 {
                     "id": "pub-lane",
-                    "shape": { "rect": [70.0, 36.0, 18.0, 32.0] },
+                    "shape": { "rect": [72.0, 27.0, 18.0, 29.0] },
                     "label": "Lane to Darcy's Pub",
                     "action": { "travel_to": 2 }
                 },
                 {
                     "id": "church-boreen",
-                    "shape": { "rect": [50.0, 8.0, 16.0, 26.0] },
+                    "shape": { "rect": [49.0, 13.0, 15.0, 25.0] },
                     "label": "Boreen to St. Brigid's Church",
                     "action": { "travel_to": 3 }
                 },
@@ -146,55 +1052,340 @@
                     "action": {
                         "inspect": "The wall is half-swallowed by bramble, its stones dark with rain."
                     }
+                },
+                {
+                    "id": "crossroads-signpost",
+                    "shape": { "rect": [52.0, 36.0, 13.0, 27.0] },
+                    "label": "The crooked signpost",
+                    "action": {
+                        "inspect": "Three damp boards point toward Darcy's Pub, St. Brigid's Church, and Kilteevan Village."
+                    }
                 }
             ],
             "slots": [
-                { "id": "roadside-left", "x": 29.0, "y": 61.0, "scale": 1.0 },
-                { "id": "roadside-right", "x": 62.0, "y": 58.0, "scale": 1.0 },
-                { "id": "wall-gossip", "x": 18.0, "y": 53.0, "scale": 0.95 }
+                { "id": "roadside-left", "x": 31.0, "y": 65.0, "scale": 1.0 },
+                { "id": "roadside-right", "x": 66.0, "y": 64.0, "scale": 1.0 },
+                { "id": "wall-gossip", "x": 21.0, "y": 60.0, "scale": 0.95 }
             ]
         },
         {
             "location_id": 2,
             "slug": "darcys-pub",
             "native_size": [1280, 720],
-            "underlay": "assets/scenes/darcys-pub/plate.png",
-            "plate": "assets/scenes/darcys-pub/plate.png",
+            "underlay": "assets/scenes/darcys-pub/pixel-plate.png",
+            "plate": "assets/scenes/darcys-pub/pixel-plate.png",
             "layers": [
                 {
-                    "id": "underlay",
-                    "asset": "pub-underlay",
+                    "id": "room-base",
+                    "asset": "pub-room-base",
                     "x": 50.0,
                     "y": 50.0,
-                    "z": 0,
+                    "z": -100,
                     "scale": 1.0
                 },
                 {
-                    "id": "door-sign",
-                    "asset": "placeholder-wayfinding-sign",
-                    "x": 84.0,
-                    "y": 42.0,
-                    "z": 50,
+                    "id": "contact-shadows",
+                    "asset": "pub-contact-shadows",
+                    "x": 50.0,
+                    "y": 50.0,
+                    "z": -60,
+                    "scale": 1.0,
+                    "opacity": 0.72
+                },
+                {
+                    "id": "hearth",
+                    "asset": "pub-hearth",
+                    "x": 50.0,
+                    "y": 50.0,
+                    "z": 10,
+                    "scale": 1.0
+                },
+                {
+                    "id": "warm-kit-hearth-embers",
+                    "asset": "pub-kit-warm-embers-a",
+                    "x": 14.8,
+                    "y": 49.2,
+                    "z": 11,
+                    "scale": 0.6,
+                    "opacity": 0.32,
+                    "animation": {
+                        "mode": "flicker",
+                        "alpha": 0.1,
+                        "period_ms": 1100,
+                        "phase": 0.15
+                    }
+                },
+                {
+                    "id": "warm-kit-hearth-iron",
+                    "asset": "pub-kit-warm-fire-iron-a",
+                    "x": 13.7,
+                    "y": 47.8,
+                    "z": 12,
+                    "scale": 0.58,
+                    "opacity": 0.3
+                },
+                {
+                    "id": "warm-kit-fire-stones",
+                    "asset": "pub-kit-warm-hearth-stones-a",
+                    "x": 16.6,
+                    "y": 48.6,
+                    "z": 13,
+                    "scale": 0.54,
+                    "opacity": 0.22
+                },
+                {
+                    "id": "warm-kit-lantern",
+                    "asset": "pub-kit-warm-lantern-a",
+                    "x": 5.3,
+                    "y": 22.5,
+                    "z": 14,
+                    "scale": 0.56,
+                    "opacity": 0.28,
+                    "animation": {
+                        "mode": "flicker",
+                        "alpha": 0.06,
+                        "period_ms": 1800,
+                        "phase": 0.42
+                    }
+                },
+                {
+                    "id": "warm-kit-door-lantern",
+                    "asset": "pub-kit-warm-lantern-a",
+                    "x": 79.0,
+                    "y": 26.0,
+                    "z": 15,
+                    "scale": 0.42,
+                    "opacity": 0.16,
+                    "flip": true,
+                    "animation": {
+                        "mode": "flicker",
+                        "alpha": 0.05,
+                        "period_ms": 2100,
+                        "phase": 0.7
+                    }
+                },
+                {
+                    "id": "warm-kit-shelf-lantern",
+                    "asset": "pub-kit-warm-lantern-a",
+                    "x": 39.2,
+                    "y": 21.5,
+                    "z": 16,
+                    "scale": 0.34,
+                    "opacity": 0.12
+                },
+                {
+                    "id": "back-shelves",
+                    "asset": "pub-back-shelves",
+                    "x": 50.0,
+                    "y": 50.0,
+                    "z": 20,
+                    "scale": 1.0
+                },
+                {
+                    "id": "vessel-kit-shelf-left",
+                    "asset": "pub-kit-vessel-cluster-b",
+                    "x": 42.5,
+                    "y": 29.2,
+                    "z": 21,
+                    "scale": 0.44,
+                    "opacity": 0.34
+                },
+                {
+                    "id": "vessel-kit-shelf-right",
+                    "asset": "pub-kit-vessel-cluster-b",
+                    "x": 53.4,
+                    "y": 31.7,
+                    "z": 22,
+                    "scale": 0.38,
+                    "opacity": 0.25,
+                    "flip": true
+                },
+                {
+                    "id": "wood-kit-shelf-barrel",
+                    "asset": "pub-kit-wood-barrel-a",
+                    "x": 58.4,
+                    "y": 29.7,
+                    "z": 23,
+                    "scale": 0.46,
+                    "opacity": 0.24
+                },
+                {
+                    "id": "bar-counter",
+                    "asset": "pub-bar-counter",
+                    "x": 50.0,
+                    "y": 50.0,
+                    "z": 30,
+                    "scale": 1.0
+                },
+                {
+                    "id": "wood-kit-counter-face-a",
+                    "asset": "pub-kit-wood-counter-face-a",
+                    "x": 44.7,
+                    "y": 43.8,
+                    "z": 31,
+                    "scale": 0.62,
+                    "opacity": 0.22
+                },
+                {
+                    "id": "wood-kit-counter-face-b",
+                    "asset": "pub-kit-wood-counter-face-a",
+                    "x": 56.8,
+                    "y": 45.0,
+                    "z": 32,
+                    "scale": 0.54,
+                    "opacity": 0.16,
+                    "flip": true
+                },
+                {
+                    "id": "vessel-kit-bar-top-a",
+                    "asset": "pub-kit-vessel-cluster-a",
+                    "x": 43.4,
+                    "y": 41.8,
+                    "z": 33,
+                    "scale": 0.52,
+                    "opacity": 0.28
+                },
+                {
+                    "id": "vessel-kit-bar-top-b",
+                    "asset": "pub-kit-vessel-cluster-a",
+                    "x": 53.2,
+                    "y": 42.8,
+                    "z": 34,
+                    "scale": 0.46,
+                    "opacity": 0.22,
+                    "flip": true
+                },
+                {
+                    "id": "door-window",
+                    "asset": "pub-door-window",
+                    "x": 50.0,
+                    "y": 50.0,
+                    "z": 36,
+                    "scale": 1.0
+                },
+                {
+                    "id": "wood-kit-window-barrel",
+                    "asset": "pub-kit-wood-barrel-a",
+                    "x": 75.6,
+                    "y": 38.4,
+                    "z": 37,
+                    "scale": 0.56,
+                    "opacity": 0.2,
+                    "flip": true
+                },
+                {
+                    "id": "vessel-kit-window-sill",
+                    "asset": "pub-kit-cool-window-vessels-a",
+                    "x": 62.8,
+                    "y": 39.7,
+                    "z": 38,
+                    "scale": 0.42,
+                    "opacity": 0.22
+                },
+                {
+                    "id": "hearth-glow",
+                    "asset": "pub-hearth-glow",
+                    "x": 50.0,
+                    "y": 50.0,
+                    "z": 55,
+                    "scale": 1.0,
+                    "opacity": 0.68,
+                    "animation": {
+                        "mode": "flicker",
+                        "alpha": 0.08,
+                        "period_ms": 1300,
+                        "phase": 0.3
+                    }
+                },
+                {
+                    "id": "door-cool-light",
+                    "asset": "pub-door-cool-light",
+                    "x": 50.0,
+                    "y": 50.0,
+                    "z": 56,
+                    "scale": 1.0,
+                    "opacity": 0.54
+                },
+                {
+                    "id": "foreground-furniture",
+                    "asset": "pub-foreground-furniture",
+                    "x": 50.0,
+                    "y": 50.0,
+                    "z": 80,
+                    "scale": 1.0
+                },
+                {
+                    "id": "wood-kit-left-table-edge",
+                    "asset": "pub-kit-wood-table-edge-a",
+                    "x": 20.4,
+                    "y": 69.2,
+                    "z": 81,
                     "scale": 0.7,
-                    "labels": [
-                        {
-                            "text": "The Crossroads",
-                            "anchor": [50.0, 48.0],
-                            "rotation": 0.0
-                        }
-                    ]
+                    "opacity": 0.2
+                },
+                {
+                    "id": "wood-kit-right-table-edge",
+                    "asset": "pub-kit-wood-table-edge-a",
+                    "x": 69.6,
+                    "y": 66.8,
+                    "z": 82,
+                    "scale": 0.62,
+                    "opacity": 0.18,
+                    "flip": true
+                },
+                {
+                    "id": "wood-kit-bench-rail",
+                    "asset": "pub-kit-wood-table-edge-a",
+                    "x": 52.4,
+                    "y": 72.8,
+                    "z": 83,
+                    "scale": 0.5,
+                    "opacity": 0.13
+                },
+                {
+                    "id": "vessel-kit-left-table",
+                    "asset": "pub-kit-vessel-cluster-a",
+                    "x": 18.2,
+                    "y": 65.7,
+                    "z": 84,
+                    "scale": 0.44,
+                    "opacity": 0.2
+                },
+                {
+                    "id": "vessel-kit-right-table",
+                    "asset": "pub-kit-vessel-table-a",
+                    "x": 69.2,
+                    "y": 64.7,
+                    "z": 85,
+                    "scale": 0.68,
+                    "opacity": 0.3
+                },
+                {
+                    "id": "warm-vignette",
+                    "asset": "pub-warm-vignette",
+                    "x": 50.0,
+                    "y": 50.0,
+                    "z": 1000,
+                    "scale": 1.0,
+                    "opacity": 0.86,
+                    "animation": {
+                        "mode": "flicker",
+                        "alpha": 0.04,
+                        "period_ms": 2600,
+                        "phase": 0.55
+                    }
                 }
             ],
             "hotspots": [
                 {
                     "id": "front-door",
-                    "shape": { "rect": [82.0, 38.0, 14.0, 50.0] },
+                    "shape": { "rect": [75.0, 20.0, 14.0, 45.0] },
                     "label": "Out to the Crossroads",
                     "action": { "travel_to": 1 }
                 },
                 {
                     "id": "hearth",
-                    "shape": { "rect": [5.0, 30.0, 18.0, 40.0] },
+                    "shape": { "rect": [4.0, 32.0, 22.0, 43.0] },
                     "label": "The hearth",
                     "action": {
                         "inspect": "A turf fire smoulders in the wide hearth, keeping the wet air at bay."
@@ -202,18 +1393,40 @@
                 },
                 {
                     "id": "bar",
-                    "shape": { "rect": [38.0, 34.0, 28.0, 22.0] },
+                    "shape": { "rect": [33.0, 20.0, 38.0, 42.0] },
                     "label": "The bar",
                     "action": {
                         "inspect": "The counter is dark from years of elbows, coins, and spilled porter."
                     }
+                },
+                {
+                    "id": "settle-bench",
+                    "shape": { "rect": [18.0, 62.0, 54.0, 24.0] },
+                    "label": "Settles by the room",
+                    "action": {
+                        "inspect": "The benches are scarred by wet boots and old knives, turned toward the hearth for warmth."
+                    }
                 }
             ],
             "slots": [
-                { "id": "behind-bar", "x": 50.0, "y": 52.0, "scale": 1.0, "prefer_npc": 1 },
-                { "id": "bench-left", "x": 24.0, "y": 68.0, "scale": 1.05 },
-                { "id": "bench-right", "x": 69.0, "y": 66.0, "scale": 1.0 }
+                { "id": "behind-bar", "x": 52.0, "y": 49.0, "scale": 0.96, "prefer_npc": 1 },
+                { "id": "bench-left", "x": 76.0, "y": 64.0, "scale": 0.98 },
+                { "id": "bench-right", "x": 61.0, "y": 66.0, "scale": 0.95 }
             ]
+        }
+    ],
+    "sprites": [
+        {
+            "npc_id": 1,
+            "image": "assets/scenes/sprites/padraig-darcy.png"
+        },
+        {
+            "npc_id": 8,
+            "image": "assets/scenes/sprites/niamh-darcy.png"
+        },
+        {
+            "npc_id": 22,
+            "image": "assets/scenes/sprites/peig-hannigan.png"
         }
     ],
     "fallback_sprites": {

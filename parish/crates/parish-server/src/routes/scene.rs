@@ -21,7 +21,7 @@ use crate::state::AppState;
 const IMMUTABLE_CACHE_CONTROL: &str = "public, max-age=31536000, immutable";
 
 /// `GET /api/scene-state` — active diorama scene state, or null when disabled
-/// by the default-off `diorama` flag or absent for the current location.
+/// by the `diorama` kill switch or absent for the current location.
 pub async fn get_scene_state(
     Extension(state): Extension<Arc<AppState>>,
 ) -> Json<Option<SceneState>> {
