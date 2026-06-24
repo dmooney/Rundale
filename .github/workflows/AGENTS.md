@@ -11,17 +11,18 @@ just verify         # check + harness walkthrough
 
 # act-local — run CI workflows in Docker (see docs/agent/act-local.md)
 just act-list       # enumerate all jobs (no Docker execution)
-just act-ci         # full ci.yml — matches what PRs see
+just act-ci         # default-event ci.yml run
 just act-audit      # audit.yml cargo-audit job — fastest smoke test
 just act-fmt        # ci.yml rust-quality-gate (fmt + clippy + tests)
 just act-harness    # ci.yml game-harness fixture sweep
 just act-ui         # ci.yml ui-quality (svelte-check + vitest + build)
 just act-e2e        # ci.yml ui-e2e (Playwright)
-just act-pr         # simulate the pull_request event
+just act-pr         # simulate the pull_request fast lane
 ```
 
 ## Local gotchas
 
+- **Pull-request CI is the fast lane.** `ci.yml` keeps PR runs under a minute by running proof/docs/script/data checks there and deferring expensive Rust, coverage, harness, and UI runtime jobs to `merge_group`, `push`, `schedule`, and `workflow_dispatch`.
 - **Agent-check runs on PRs only (non-dependabot).** Push events to `main`/`develop` skip the gate — it already ran on the PR. Dependabot bumps are exempt (root AGENTS.md rule #10).
 - **CI-only edits skip the proof gate (root rule #10).** `.github/**` changes with no source diff do not require a proof bundle.
 - **Linux native deps are inlined in every Rust job** (`libgtk-3-dev`, `libwebkit2gtk-4.1-dev`, `libappindicator3-dev`, `librsvg2-dev`). Update every workflow that contains the apt install block when the dep list changes.
@@ -36,8 +37,9 @@ just act-pr         # simulate the pull_request event
 
 ### `ci.yml` — Main CI pipeline
 
-- **Triggers:** `pull_request`, `push` to `main`/`develop`, `workflow_dispatch`.
-- **Jobs:** agent-check, rust-quality-gate (fmt+clippy+tests), rust-coverage-ratchet (tarpaulin, floor 60.8%), rust-multi-channel (stable+beta), docs-consistency, game-harness (fixture sweep), ui-quality (svelte-check+build+vitest), ui-e2e (Playwright).
+- **Triggers:** `pull_request`, `push` to `main`/`develop`, `merge_group`, nightly `schedule`, `workflow_dispatch`.
+- **PR fast lane:** changes, agent-check, docs-consistency, format-quality, python-quality, shell-quality, toml-quality, and the aggregate `ci-gate`.
+- **Full-suite events:** rust-quality-gate (fmt+clippy+tests), rust-coverage-ratchet (cargo-llvm-cov floor 60.8%), rust-multi-channel (stable+beta), game-harness (fixture sweep + parish-client smoke), ui-quality (svelte-check+lint+format+build+vitest), ui-e2e (Playwright).
 - **agent-check** runs `bash parish/scripts/agent-check.sh --source=pr "$PR_NUMBER"`. Skipped for dependabot.
 - **Concurrency:** `ci-${{ github.workflow }}-${{ github.ref }}`, cancel-in-progress.
 

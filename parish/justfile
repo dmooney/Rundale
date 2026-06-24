@@ -508,7 +508,8 @@ notices:
 act-list:
     act -l
 
-# Run the full CI workflow (ci.yml) — all five jobs, matches what PRs see
+# Run ci.yml with act's default event. Use act-pr for the PR fast lane; full
+# Rust/UI/harness jobs run on merge_group / push / schedule / manual events.
 act-ci:
     act -W ../.github/workflows/ci.yml
 
@@ -538,7 +539,7 @@ act-audit:
 act-job JOB:
     act -j {{JOB}}
 
-# Simulate the pull_request event (some jobs gate on event type)
+# Simulate the pull_request fast lane (sub-minute PR feedback)
 act-pr:
     act pull_request
 

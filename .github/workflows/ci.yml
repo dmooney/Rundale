@@ -38,10 +38,11 @@ permissions:
   contents: read
 
 jobs:
-  # Detect which areas a PR changed so doc/chore/CI-agent PRs can skip the
-  # heavy Rust/UI jobs (E1). The filter runs ONLY on pull_request; on
-  # push / merge_group / schedule the outputs default to 'true' so nothing is
-  # skipped at the merge gate or on the nightly run.
+  # Detect which areas a PR changed. Pull-request CI is intentionally a fast
+  # lane: it runs proof/docs/script/data checks and leaves expensive Rust,
+  # coverage, harness, and UI runtime jobs to the merge queue, main/develop
+  # pushes, nightly schedule, and workflow_dispatch. The filter runs ONLY on
+  # pull_request; on non-PR full-suite events the outputs default to 'true'.
   changes:
     name: Detect changed areas
     runs-on: ubuntu-latest
@@ -108,8 +109,9 @@ jobs:
   rust-quality-gate:
     name: Rust quality gate (fmt, clippy, tests)
     needs: changes
-    # Run on code PRs (rust changed) and always on push / merge_group / schedule.
-    if: ${{ needs.changes.outputs.rust == 'true' || github.event_name != 'pull_request' }}
+    # Full-suite event only. Pull requests stay below one minute by deferring
+    # this expensive gate to merge_group / push / schedule / workflow_dispatch.
+    if: ${{ github.event_name != 'pull_request' }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -208,9 +210,9 @@ jobs:
   rust-coverage-ratchet:
     name: Rust coverage ratchet
     needs: changes
-    # Skipped on doc/chore PRs (E2); runs on code PRs and on
-    # push / merge_group / nightly schedule so the 60.8 floor still gates main.
-    if: ${{ needs.changes.outputs.rust == 'true' || github.event_name != 'pull_request' }}
+    # Full-suite event only. The 60.8 floor still gates merge_group and main,
+    # while pull_request runs keep their sub-minute feedback target.
+    if: ${{ github.event_name != 'pull_request' }}
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
@@ -266,7 +268,7 @@ jobs:
   rust-multi-channel:
     name: Rust channel matrix
     needs: changes
-    if: ${{ needs.changes.outputs.rust == 'true' || github.event_name != 'pull_request' }}
+    if: ${{ github.event_name != 'pull_request' }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     # rust-toolchain.toml would otherwise pin every cargo command to the repo
@@ -402,10 +404,14 @@ jobs:
           chmod +x /usr/local/bin/shfmt
 
       - name: ShellCheck
-        run: shellcheck -S warning $(git ls-files '*.sh')
+        run: |
+          mapfile -t shell_files < <(git ls-files '*.sh')
+          shellcheck -S warning "${shell_files[@]}"
 
       - name: shfmt (diff = fail)
-        run: shfmt -i 4 -ci -bn -d $(git ls-files '*.sh')
+        run: |
+          mapfile -t shell_files < <(git ls-files '*.sh')
+          shfmt -i 4 -ci -bn -d "${shell_files[@]}"
 
       - name: Proof-tooling unit tests
         run: |
@@ -440,7 +446,7 @@ jobs:
   game-harness:
     name: Full game harness fixture sweep
     needs: changes
-    if: ${{ needs.changes.outputs.rust == 'true' || github.event_name != 'pull_request' }}
+    if: ${{ github.event_name != 'pull_request' }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -478,16 +484,20 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          export bin="$PWD/target/debug/parish-engine"
-          ls testing/fixtures/*.txt | xargs -P "$(nproc)" -I{} bash -c '
+          runner="$(mktemp)"
+          cat > "$runner" <<'EOF'
+          set -euo pipefail
             f="$1"
-            if ! out=$("$bin" --script "$f" 2>&1); then
+            if ! out="$("$BIN" --script "$f" 2>&1)"; then
               echo "=== FAIL: $f ==="
               printf "%s\n" "$out" | tail -n 20
               exit 1
             fi
             echo "ok: $f"
-          ' _ {}
+          EOF
+          export BIN="$PWD/target/debug/parish-engine"
+          find testing/fixtures -maxdepth 1 -name '*.txt' -print0 \
+            | xargs -0 -P "$(nproc)" -I{} bash "$runner" {}
 
       # parish-client smoke (#1366 §5): the thin HTTP client gets one live
       # round-trip against a real server per CI run — `parish "look"` must
@@ -513,7 +523,7 @@ jobs:
   ui-quality:
     name: UI quality (build, check, unit)
     needs: changes
-    if: ${{ needs.changes.outputs.ui == 'true' || github.event_name != 'pull_request' }}
+    if: ${{ github.event_name != 'pull_request' }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     defaults:
@@ -553,7 +563,7 @@ jobs:
   ui-e2e:
     name: UI Playwright e2e
     needs: changes
-    if: ${{ needs.changes.outputs.ui == 'true' || github.event_name != 'pull_request' }}
+    if: ${{ github.event_name != 'pull_request' }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     defaults:
@@ -618,21 +628,29 @@ jobs:
           if-no-files-found: ignore
 
   # ── Aggregate required-checks gate ─────────────────────────────────────────
-  # Branch protection requires THIS single job, not the individual Rust matrix
-  # leaves. The Rust jobs above are path-gated (skipped on doc / CI / script-only
-  # PRs via the `changes` filter). A *required matrix leaf* that is skipped never
-  # reports a status, so such PRs got stuck on "Expected — Waiting for status to
-  # be reported" forever. This job always runs and passes when every gated job
-  # either succeeded or was legitimately skipped — non-Rust PRs go green instead
-  # of hanging, while a real Rust failure still blocks the merge.
+  # Branch protection requires THIS single job, not the individual matrix
+  # leaves. On pull_request, expensive full-suite jobs are intentionally skipped
+  # so the CI workflow finishes in under a minute; on merge_group / push /
+  # schedule / workflow_dispatch they run and this job blocks on their results.
+  # A required matrix leaf that is skipped never reports a status, so this
+  # always-running aggregate reports one stable required status instead.
   ci-gate:
     name: CI gate
     needs:
       [
+        changes,
+        agent-check,
         rust-quality-gate,
         rust-coverage-ratchet,
         rust-multi-channel,
+        docs-consistency,
+        format-quality,
+        python-quality,
+        shell-quality,
+        toml-quality,
         game-harness,
+        ui-quality,
+        ui-e2e,
       ]
     if: always()
     runs-on: ubuntu-latest

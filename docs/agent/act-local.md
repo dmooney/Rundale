@@ -53,9 +53,9 @@ All of these are defined in `justfile`:
 | `just act-harness`      | `ci.yml` game-harness fixture sweep                 |
 | `just act-ui`           | `ci.yml` ui-quality (svelte-check + vitest + build) |
 | `just act-e2e`          | `ci.yml` ui-e2e (Playwright)                        |
-| `just act-ci`           | All of `ci.yml` — matches what PRs see              |
+| `just act-ci`           | `ci.yml` with act's default event                   |
 | `just act-job JOB=<id>` | Run a specific job by id from `act-list`            |
-| `just act-pr`           | Simulate the `pull_request` event                   |
+| `just act-pr`           | Simulate the `pull_request` fast lane               |
 | `just act-refresh`      | Re-fetch third-party actions after a version bump   |
 | `just act-clean`        | Tear down cached containers + artifact output       |
 
@@ -86,7 +86,13 @@ Edit `.actrc` if you need to deviate; per-command overrides also work
 builds inside the container start cold — `Swatinem/rust-cache` caches
 to `~/.cache` inside the container, and `--reuse` keeps that around,
 but the very first `cargo build` in the `ui-e2e` job will take several
-minutes. Budget 30–60 minutes for the first full `just act-ci`.
+minutes. Budget 30–60 minutes for the first full-suite job run.
+
+**PR lane vs. full suite.** `ci.yml` keeps `pull_request` runs short by
+skipping the expensive Rust, coverage, harness, and UI runtime jobs. Those
+jobs still run on `merge_group`, pushes to `main`/`develop`, the nightly
+schedule, and manual dispatch. Use `just act-pr` when reproducing PR timing;
+use `just act-job JOB=<id>` for a specific full-suite job.
 
 **Runs at native arm64 speed.** With CI moved to a self-hosted arm64
 runner, act pulls the arm64 catthehacker variant and runs without
