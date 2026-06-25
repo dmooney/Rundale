@@ -1,0 +1,5 @@
+look
+go to The Crossroads
+look
+go to Kilteevan Village
+inspect the village well

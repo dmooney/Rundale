@@ -1,18 +1,21 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { access, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { access, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { auditSceneAtoms } from './audit-scene-atoms.mjs';
+import { auditSceneAtoms, parsePng, visibleContentSummary } from './audit-scene-atoms.mjs';
 import {
+    assertGeneratedPack,
     generateVillageLayoutPack,
+    generateVillageLayoutPackWithRasters,
     loadVillageLayoutInputs,
     sceneSignature,
     terrainSignature,
     topologySignature,
     validateOutdoorLayout,
+    writeTerrainRasterAssets,
 } from './generate-village-layouts.mjs';
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
@@ -231,6 +234,83 @@ test('outdoor village terrain profiles reject samey or dominant-base generation'
         () => generateVillageLayoutPack({ sceneIndex: inputs.sceneIndex, recipe: missingProfile }),
         /missing terrain profile/,
     );
+});
+
+test('outdoor village raster generation writes deterministic full-stage terrain assets', async () => {
+    const inputs = await loadVillageLayoutInputs();
+    const first = generateVillageLayoutPackWithRasters(inputs, { terrainRasterBasePath: 'generated-assets' });
+    const second = generateVillageLayoutPackWithRasters(inputs, { terrainRasterBasePath: 'generated-assets' });
+    const { pack, terrainRasters } = first;
+    const assetIds = new Set(pack.assets.map((asset) => asset.id));
+    const tempDir = await mkdtemp(path.join(os.tmpdir(), 'rundale-village-rasters-'));
+    const assetOutPath = path.join(tempDir, 'generated-assets');
+
+    try {
+        const writeResult = await writeTerrainRasterAssets(terrainRasters, assetOutPath);
+        assert.equal(writeResult.count, 10);
+        assert.equal(terrainRasters.length, 10);
+        assert.equal(second.terrainRasters.length, terrainRasters.length);
+        assert.equal(pack.summary.layout_count, 10);
+        assert.equal(pack.assets.filter((asset) => asset.generated).length, 10);
+
+        const rasterSignatures = new Set();
+        for (const [index, raster] of terrainRasters.entries()) {
+            const again = second.terrainRasters[index];
+            const layoutSummary = pack.summary.layouts[index];
+            const scene = pack.scenes[index];
+            const filePath = path.join(assetOutPath, raster.fileName);
+            const fileBuffer = await readFile(filePath);
+            const image = parsePng(fileBuffer);
+            const content = visibleContentSummary(image);
+
+            assert.equal(raster.fileName, again.fileName, `${layoutSummary.slug} stable raster file name`);
+            assert.equal(raster.pixelHash, again.pixelHash, `${layoutSummary.slug} stable raster hash`);
+            assert.equal(raster.png.equals(again.png), true, `${layoutSummary.slug} stable raster bytes`);
+            assert.equal(fileBuffer.equals(raster.png), true, `${layoutSummary.slug} writes expected PNG bytes`);
+            assert.equal(assetIds.has(raster.asset.id), true, `${layoutSummary.slug} raster asset is in pack`);
+            assert.equal(raster.asset.generated, true, `${layoutSummary.slug} marks raster asset as generated`);
+            assert.match(raster.asset.image, /^generated-assets\/[a-z0-9-]+\.png$/, `${layoutSummary.slug} raster image is relative`);
+            assert.equal(scene.layers[0].id, 'terrain-raster', `${layoutSummary.slug} uses raster as the first floor layer`);
+            assert.equal(scene.layers[0].asset, raster.asset.id, `${layoutSummary.slug} first layer references generated raster`);
+            assert.equal(scene.layers.some((layer) => layer.id === 'terrain-ground-calibration'), false);
+
+            assert.equal(layoutSummary.terrain_raster_asset, raster.asset.id);
+            assert.equal(layoutSummary.terrain_raster_layer_count, 1);
+            assert.equal(layoutSummary.terrain_underpaint_layer_count, 0);
+            assert.equal(layoutSummary.repeated_terrain_atom_count, 0);
+            assert.equal(layoutSummary.shared_ground_base_opacity, 0);
+            assert.equal(layoutSummary.shared_ground_base_layer_count, 0);
+            assert.deepEqual(layoutSummary.terrain_raster_size, [1280, 720]);
+            assert.equal(layoutSummary.terrain_pixel_hash, raster.pixelHash);
+            assert.ok(layoutSummary.raster_path_pixel_count > 0, `${layoutSummary.slug} paints path pixels`);
+            assert.ok(layoutSummary.raster_bank_pixel_count >= 0, `${layoutSummary.slug} reports bank pixels`);
+            assert.ok(layoutSummary.raster_vegetation_pixel_count > 0, `${layoutSummary.slug} paints vegetation speckles`);
+            assert.equal(layoutSummary.raster_path_coverage_cells, layoutSummary.topology.grid.road_cell_count);
+            assert.equal(layoutSummary.raster_water_coverage_cells, layoutSummary.topology.grid.water_cell_count);
+            if (layoutSummary.topology.waterway_count > 0) {
+                assert.ok(layoutSummary.raster_water_pixel_count > 0, `${layoutSummary.slug} paints water pixels`);
+            } else {
+                assert.equal(layoutSummary.raster_water_pixel_count, 0, `${layoutSummary.slug} stays dry`);
+            }
+            assert.equal(image.width, 1280);
+            assert.equal(image.height, 720);
+            assert.equal(content.alphaCoverage, 1, `${layoutSummary.slug} raster is a complete floor image`);
+            assert.deepEqual(content.bbox, { x: 0, y: 0, width: 1280, height: 720 });
+            assert.equal(rasterSignatures.has(layoutSummary.terrain_raster_signature), false);
+            rasterSignatures.add(layoutSummary.terrain_raster_signature);
+        }
+    } finally {
+        await rm(tempDir, { recursive: true, force: true });
+    }
+
+    const missingAsset = clone(pack);
+    missingAsset.assets = missingAsset.assets.filter((asset) => asset.id !== pack.summary.layouts[0].terrain_raster_asset);
+    assert.throws(() => assertGeneratedPack(missingAsset), /missing .*asset/);
+
+    const duplicateRasterSignature = clone(pack);
+    duplicateRasterSignature.summary.layouts[1].terrain_raster_signature =
+        duplicateRasterSignature.summary.layouts[0].terrain_raster_signature;
+    assert.throws(() => assertGeneratedPack(duplicateRasterSignature), /duplicate terrain raster signature/);
 });
 
 test('outdoor village layout validator rejects impossible village topology', async () => {
