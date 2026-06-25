@@ -89,10 +89,14 @@ jobs:
           clean: true
           fetch-depth: 0
 
+      - name: Fetch PR base
+        run: git fetch origin "${{ github.event.pull_request.base.ref }}:refs/remotes/origin/${{ github.event.pull_request.base.ref }}"
+
       - name: Validate proof evidence (PR comment)
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
+          AGENT_CHECK_BASE_REF: origin/${{ github.event.pull_request.base.ref }}
         run: bash parish/scripts/agent-check.sh --source=pr "$PR_NUMBER"
 
   docs-consistency:
