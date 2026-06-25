@@ -1,0 +1,27 @@
+# Village scene generator M1 - live base scene compatibility
+# ==========================================================
+# Expected after implementation:
+# - The generator can emit ten Kilteevan variants from config.
+# - The live base scene remains compatible with /scene and movement.
+# - Kilteevan, The Crossroads, and Darcy's Pub remain reachable.
+
+/status
+/debug scenes
+/scene
+
+look at the signpost
+look at the well
+
+go to The Crossroads
+/scene
+
+go to Darcy's Pub
+/scene
+/npcs
+
+go to The Crossroads
+go to Kilteevan Village
+/scene
+/npcs
+
+/quit
