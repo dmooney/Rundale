@@ -1,0 +1,27 @@
+# Visual sprite library M2 - high 3/4 reusable Kilteevan atoms
+# ============================================================
+# Expected after implementation:
+# - Kilteevan Village exposes repeated reusable PNG kit atoms.
+# - Kilteevan layers follow the high 3/4 isometric/oblique camera contract.
+# - No live layer URL uses SVG.
+# - Travel, inspect, NPC slots, and three-scene movement remain deterministic.
+
+/status
+/debug scenes
+/scene
+
+look at the signpost
+
+go to The Crossroads
+/scene
+
+go to Darcy's Pub
+/scene
+/npcs
+
+go to The Crossroads
+go to Kilteevan Village
+/scene
+/npcs
+
+/quit
