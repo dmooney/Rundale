@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { deflateSync } from 'node:zlib';
 
 const scriptPath = fileURLToPath(import.meta.url);
 const appDir = path.resolve(path.dirname(scriptPath), '..');
@@ -177,12 +178,203 @@ function hashHex(value) {
     return createHash('sha256').update(JSON.stringify(value)).digest('hex');
 }
 
+function hashBufferHex(buffer) {
+    return createHash('sha256').update(buffer).digest('hex');
+}
+
 function hashByte(seed, index = 0) {
     return createHash('sha256').update(`${seed}:${index}`).digest()[0];
 }
 
 function unitFromSeed(seed, index) {
     return hashByte(seed, index) / 255;
+}
+
+const crcTable = new Uint32Array(256).map((_, index) => {
+    let value = index;
+    for (let bit = 0; bit < 8; bit += 1) {
+        value = value & 1 ? 0xedb88320 ^ (value >>> 1) : value >>> 1;
+    }
+    return value >>> 0;
+});
+
+function crc32(buffer) {
+    let crc = 0xffffffff;
+    for (const byte of buffer) {
+        crc = crcTable[(crc ^ byte) & 0xff] ^ (crc >>> 8);
+    }
+    return (crc ^ 0xffffffff) >>> 0;
+}
+
+function pngChunk(type, data) {
+    const typeBuffer = Buffer.from(type, 'ascii');
+    const body = Buffer.concat([typeBuffer, data]);
+    const out = Buffer.alloc(12 + data.length);
+    out.writeUInt32BE(data.length, 0);
+    typeBuffer.copy(out, 4);
+    data.copy(out, 8);
+    out.writeUInt32BE(crc32(body), 8 + data.length);
+    return out;
+}
+
+function encodeRgbaPng(width, height, pixels) {
+    const ihdr = Buffer.alloc(13);
+    ihdr.writeUInt32BE(width, 0);
+    ihdr.writeUInt32BE(height, 4);
+    ihdr[8] = 8;
+    ihdr[9] = 6;
+    ihdr[10] = 0;
+    ihdr[11] = 0;
+    ihdr[12] = 0;
+
+    const scanlines = Buffer.alloc(height * (1 + width * 4));
+    for (let y = 0; y < height; y += 1) {
+        const sourceStart = y * width * 4;
+        const targetStart = y * (1 + width * 4);
+        scanlines[targetStart] = 0;
+        pixels.copy(scanlines, targetStart + 1, sourceStart, sourceStart + width * 4);
+    }
+
+    return Buffer.concat([
+        Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+        pngChunk('IHDR', ihdr),
+        pngChunk('IDAT', deflateSync(scanlines)),
+        pngChunk('IEND', Buffer.alloc(0)),
+    ]);
+}
+
+function mixColor(a, b, t) {
+    const amount = clamp(t, 0, 1);
+    return [
+        Math.round(a[0] + (b[0] - a[0]) * amount),
+        Math.round(a[1] + (b[1] - a[1]) * amount),
+        Math.round(a[2] + (b[2] - a[2]) * amount),
+        Math.round(a[3] + ((b[3] ?? 255) - (a[3] ?? 255)) * amount),
+    ];
+}
+
+function seededNoiseInt(x, y, seed = 0) {
+    let value = Math.imul(x + 374761393, 668265263) ^ Math.imul(y + 1442695041, 2246822519) ^ seed;
+    value = Math.imul(value ^ (value >>> 13), 1274126177);
+    return ((value ^ (value >>> 16)) >>> 0) / 4294967295;
+}
+
+function percentToPixel(nativeSize, candidate) {
+    const [width, height] = nativeSize;
+    return {
+        x: (candidate.x / 100) * width,
+        y: (candidate.y / 100) * height,
+    };
+}
+
+function segmentDistancePixels(px, py, segment) {
+    const dx = segment.b.x - segment.a.x;
+    const dy = segment.b.y - segment.a.y;
+    const lengthSquared = dx * dx + dy * dy;
+    if (lengthSquared === 0) {
+        return Math.hypot(px - segment.a.x, py - segment.a.y);
+    }
+    const t = clamp(((px - segment.a.x) * dx + (py - segment.a.y) * dy) / lengthSquared, 0, 1);
+    return Math.hypot(px - (segment.a.x + dx * t), py - (segment.a.y + dy * t));
+}
+
+function smoothstep(edge0, edge1, value) {
+    const t = clamp((value - edge0) / Math.max(0.000001, edge1 - edge0), 0, 1);
+    return t * t * (3 - 2 * t);
+}
+
+function blendPixel(pixels, width, classes, x, y, color, alpha, classId = 0) {
+    const ix = Math.trunc(x);
+    const iy = Math.trunc(y);
+    const pixelIndex = iy * width + ix;
+    const offset = pixelIndex * 4;
+    const amount = clamp(alpha, 0, 1);
+    pixels[offset] = Math.round(pixels[offset] + (color[0] - pixels[offset]) * amount);
+    pixels[offset + 1] = Math.round(pixels[offset + 1] + (color[1] - pixels[offset + 1]) * amount);
+    pixels[offset + 2] = Math.round(pixels[offset + 2] + (color[2] - pixels[offset + 2]) * amount);
+    pixels[offset + 3] = 255;
+    if (classId) {
+        classes[pixelIndex] = classId;
+    }
+}
+
+function colorWithNoise(color, noise, strength = 18) {
+    const offset = (noise - 0.5) * strength;
+    return [
+        clamp(Math.round(color[0] + offset), 0, 255),
+        clamp(Math.round(color[1] + offset), 0, 255),
+        clamp(Math.round(color[2] + offset), 0, 255),
+        color[3] ?? 255,
+    ];
+}
+
+function cellCenterPixels(grid, key, nativeSize) {
+    return percentToPixel(nativeSize, cellCenter(grid, cellFromKey(key)));
+}
+
+function terrainCellRadii(grid, nativeSize) {
+    const [width, height] = nativeSize;
+    const [percentWidth, percentHeight] = grid.percent_size;
+    return {
+        x: Math.max(18, (width * (percentWidth / 100)) / Math.max(1, grid.cols - 1) * 0.78),
+        y: Math.max(12, (height * (percentHeight / 100)) / Math.max(1, grid.rows - 1) * 0.62),
+    };
+}
+
+function paintDiamond(pixels, width, height, classes, center, radiusX, radiusY, color, alpha, seed, classId) {
+    const left = Math.max(0, Math.floor(center.x - radiusX));
+    const right = Math.min(width - 1, Math.ceil(center.x + radiusX));
+    const top = Math.max(0, Math.floor(center.y - radiusY));
+    const bottom = Math.min(height - 1, Math.ceil(center.y + radiusY));
+    for (let y = top; y <= bottom; y += 1) {
+        for (let x = left; x <= right; x += 1) {
+            const dx = Math.abs((x - center.x) / Math.max(1, radiusX));
+            const dy = Math.abs((y - center.y) / Math.max(1, radiusY));
+            const diamond = dx + dy;
+            if (diamond > 1) {
+                continue;
+            }
+            const edge = 1 - smoothstep(0.68, 1, diamond);
+            const noise = seededNoiseInt(Math.floor(x / 4), Math.floor(y / 4), seed);
+            blendPixel(pixels, width, classes, x, y, colorWithNoise(color, noise, 13), alpha * (0.42 + edge * 0.58), classId);
+        }
+    }
+}
+
+function paintSegmentRibbon(pixels, width, height, classes, segment, halfWidth, color, alpha, seed, classId, skip = () => false) {
+    const left = Math.max(0, Math.floor(Math.min(segment.a.x, segment.b.x) - halfWidth - 2));
+    const right = Math.min(width - 1, Math.ceil(Math.max(segment.a.x, segment.b.x) + halfWidth + 2));
+    const top = Math.max(0, Math.floor(Math.min(segment.a.y, segment.b.y) - halfWidth - 2));
+    const bottom = Math.min(height - 1, Math.ceil(Math.max(segment.a.y, segment.b.y) + halfWidth + 2));
+    for (let y = top; y <= bottom; y += 1) {
+        for (let x = left; x <= right; x += 1) {
+            if (skip(x, y)) {
+                continue;
+            }
+            const distancePx = segmentDistancePixels(x, y, segment);
+            if (distancePx > halfWidth) {
+                continue;
+            }
+            const center = 1 - distancePx / Math.max(1, halfWidth);
+            const noise = seededNoiseInt(Math.floor(x / 5), Math.floor(y / 6), seed);
+            blendPixel(
+                pixels,
+                width,
+                classes,
+                x,
+                y,
+                colorWithNoise(color, noise, 17),
+                alpha * (0.35 + smoothstep(0, 0.82, center) * 0.65),
+                classId,
+            );
+        }
+    }
+}
+
+function paintCellSet(pixels, width, height, classes, cells, grid, nativeSize, radii, color, alpha, seed, classId) {
+    for (const key of cells) {
+        paintDiamond(pixels, width, height, classes, cellCenterPixels(grid, key, nativeSize), radii.x, radii.y, color, alpha, seed + key.length, classId);
+    }
 }
 
 function point(value, context) {
@@ -704,6 +896,199 @@ export function terrainSignature(layout, profile) {
     return hashHex(payload).slice(0, 20);
 }
 
+function terrainRasterAssetId(sceneSlug) {
+    return `generated-terrain-${sceneSlug}`;
+}
+
+function terrainRasterFileName(layout, index) {
+    return `${String(index + 1).padStart(2, '0')}-${slugify(layout.id)}-terrain.png`;
+}
+
+function terrainPalette(profile) {
+    const wetness = clamp(profile.puddle_density ?? 0.25, 0, 1);
+    const gradeShift = profile.grade === 'north-ridge' || profile.grade === 'central-green' ? 1 : 0;
+    return {
+        groundDark: [24 + gradeShift * 4, 30 + gradeShift * 4, 21, 255],
+        ground: [42 + gradeShift * 5, 54 + gradeShift * 5, 31, 255],
+        grass: [55 + gradeShift * 6, 75 + gradeShift * 6, 37, 255],
+        mud: [74 - wetness * 8, 58 - wetness * 5, 40, 255],
+        mudLight: [104, 82, 55, 255],
+        water: [38 - wetness * 4, 58 - wetness * 4, 59 + wetness * 18, 255],
+        waterLight: [76, 96, 91 + wetness * 14, 255],
+        bank: [60, 68, 42, 255],
+        flower: [103, 104, 64, 255],
+    };
+}
+
+function rasterSegmentsForLayout(layout, nativeSize) {
+    const paths = (layout.paths || []).map((pathDef) => ({
+        id: pathDef.id,
+        a: percentToPixel(nativeSize, nodePoint(layout, pathDef.from)),
+        b: percentToPixel(nativeSize, nodePoint(layout, pathDef.to)),
+    }));
+    const waterways = (layout.waterways || []).flatMap((waterway) =>
+        waterwaySegments(waterway).map((segment) => ({
+            id: segment.id,
+            kind: waterway.kind || 'water',
+            width: waterway.width || 6,
+            a: percentToPixel(nativeSize, segment.a),
+            b: percentToPixel(nativeSize, segment.b),
+        })),
+    );
+    return { paths, waterways };
+}
+
+function nearestSegmentDistance(px, py, segments) {
+    if (!segments.length) {
+        return Number.POSITIVE_INFINITY;
+    }
+    let best = Number.POSITIVE_INFINITY;
+    for (const segment of segments) {
+        const candidate = segmentDistancePixels(px, py, segment);
+        if (candidate < best) {
+            best = candidate;
+        }
+    }
+    return best;
+}
+
+function rasterCoverageCells(layout, grid) {
+    const terrainModel = buildGridTerrainModel(layout, { grid });
+    return {
+        path: terrainModel.summary.road_cell_count,
+        water: terrainModel.summary.water_cell_count,
+    };
+}
+
+export function generateTerrainRaster({ layout, profile, index, nativeSize, grid }) {
+    const [width, height] = nativeSize;
+    const palette = terrainPalette(profile);
+    const pixels = Buffer.alloc(width * height * 4);
+    const classes = new Uint8Array(width * height);
+    const { paths, waterways } = rasterSegmentsForLayout(layout, nativeSize);
+    const terrainModel = buildGridTerrainModel(layout, { grid });
+    const waterCellSet = new Set(terrainModel.cells.water);
+    const dryRoadCells = terrainModel.cells.road.filter((key) => !waterCellSet.has(key));
+    const seed = hashByte(`${layout.id}:${profile.id}:terrain-raster`, index);
+    const pathWidthPx = (8 + profile.path_width_scale * 7) * (width / 1280);
+    const waterWidthScale = width / 1280;
+    const cellRadii = terrainCellRadii(grid, nativeSize);
+
+    for (let y = 0; y < height; y += 1) {
+        for (let x = 0; x < width; x += 1) {
+            const offset = (y * width + x) * 4;
+            const lowNoise = seededNoiseInt(Math.floor(x / 9), Math.floor(y / 9), seed);
+            const fineNoise = seededNoiseInt(x, y, seed + 37);
+            const grade = y / Math.max(1, height - 1);
+            let color = mixColor(palette.groundDark, palette.ground, 0.35 + grade * 0.38 + lowNoise * 0.2);
+            if (fineNoise > 0.975) {
+                color = mixColor(color, palette.grass, 0.18);
+            }
+
+            const vignetteX = Math.abs(x / width - 0.5);
+            const vignetteY = Math.abs(y / height - 0.5);
+            const shade = clamp((vignetteX + vignetteY) * 0.28, 0, 0.22);
+            color = mixColor(color, [10, 12, 9, 255], shade);
+
+            pixels[offset] = color[0];
+            pixels[offset + 1] = color[1];
+            pixels[offset + 2] = color[2];
+            pixels[offset + 3] = 255;
+        }
+    }
+
+    const bankRadii = { x: cellRadii.x * 1.18, y: cellRadii.y * 1.06 };
+    const waterRadii = { x: cellRadii.x * 0.9, y: cellRadii.y * 0.72 };
+    const roadRadii = { x: cellRadii.x * 0.78, y: cellRadii.y * 0.58 };
+    paintCellSet(pixels, width, height, classes, terrainModel.cells.renderedWater, grid, nativeSize, bankRadii, palette.bank, 0.14, seed + 151, 1);
+    paintCellSet(pixels, width, height, classes, terrainModel.cells.water, grid, nativeSize, waterRadii, palette.water, 0.16, seed + 211, 2);
+    for (const segment of waterways) {
+        const waterHalfWidth = Math.max(7, segment.width * 2.15 * profile.water_bank_width * waterWidthScale);
+        paintSegmentRibbon(pixels, width, height, classes, segment, waterHalfWidth * 1.8, palette.bank, 0.34, seed + 271, 1);
+        paintSegmentRibbon(pixels, width, height, classes, segment, waterHalfWidth, palette.waterLight, 0.78, seed + 313, 2);
+    }
+
+    const waterSkip = (x, y) =>
+        waterways.some((segment) => {
+            const waterHalfWidth = Math.max(7, segment.width * 2.15 * profile.water_bank_width * waterWidthScale);
+            return segmentDistancePixels(x, y, segment) <= waterHalfWidth * 0.88;
+        });
+    paintCellSet(pixels, width, height, classes, dryRoadCells, grid, nativeSize, roadRadii, palette.mud, 0.14, seed + 401, 3);
+    for (const segment of paths) {
+        paintSegmentRibbon(
+            pixels,
+            width,
+            height,
+            classes,
+            segment,
+            pathWidthPx,
+            mixColor(palette.mud, palette.mudLight, 0.18),
+            0.72,
+            seed + 443,
+            3,
+            waterSkip,
+        );
+    }
+
+    for (let y = 0; y < height; y += 1) {
+        for (let x = 0; x < width; x += 1) {
+            const pixelIndex = y * width + x;
+            if (classes[pixelIndex] !== 0) {
+                continue;
+            }
+            const noise = seededNoiseInt(Math.floor(x / 7), Math.floor(y / 7), seed + 509);
+            if (noise <= 0.994) {
+                continue;
+            }
+            const color = noise > 0.996 ? palette.flower : palette.grass;
+            blendPixel(pixels, width, classes, x, y, color, 0.26, 4);
+        }
+    }
+
+    const classCounts = { path: 0, water: 0, bank: 0, vegetation: 0 };
+    for (const classId of classes) {
+        if (classId === 1) {
+            classCounts.bank += 1;
+        } else if (classId === 2) {
+            classCounts.water += 1;
+        } else if (classId === 3) {
+            classCounts.path += 1;
+        } else if (classId === 4) {
+            classCounts.vegetation += 1;
+        }
+    }
+
+    const png = encodeRgbaPng(width, height, pixels);
+    const pixelHash = hashBufferHex(png);
+    const coverage = rasterCoverageCells(layout, grid);
+    return {
+        png,
+        pixelHash: pixelHash.slice(0, 32),
+        signature: hashHex({
+            terrain: terrainSignature(layout, profile),
+            pixel_hash: pixelHash,
+            path_pixels: classCounts.path,
+            water_pixels: classCounts.water,
+            bank_pixels: classCounts.bank,
+            vegetation_pixels: classCounts.vegetation,
+            coverage,
+        }).slice(0, 20),
+        metrics: {
+            terrain_raster_size: [width, height],
+            terrain_raster_layer_count: 1,
+            terrain_pixel_hash: pixelHash.slice(0, 32),
+            raster_path_pixel_count: classCounts.path,
+            raster_water_pixel_count: classCounts.water,
+            raster_bank_pixel_count: classCounts.bank,
+            raster_vegetation_pixel_count: classCounts.vegetation,
+            raster_path_coverage_cells: coverage.path,
+            raster_water_coverage_cells: coverage.water,
+            raster_grid_painted_cell_count:
+                terrainModel.cells.road.length + terrainModel.cells.water.length + terrainModel.cells.renderedWater.length,
+        },
+    };
+}
+
 function validatePrefabCatalog(catalog) {
     const errors = [];
     for (const [id, prefab] of Object.entries(catalog || {})) {
@@ -919,6 +1304,12 @@ function buildGridTerrainModel(layout, { grid = defaultIsoGrid, visualWaterExclu
 
     return {
         errors,
+        cells: {
+            road: [...roadCells].sort(),
+            water: [...waterCells].sort(),
+            renderedWater: [...renderedWaterCells].sort(),
+            bridge: [...bridgeCells].sort(),
+        },
         summary: {
             grid_cols: grid.cols,
             grid_rows: grid.rows,
@@ -2107,12 +2498,55 @@ function generatedSlots(layout) {
     });
 }
 
-function generateLayoutScene({ sourceScene, recipe, layout, index, grid }) {
+function generateLayoutScene({ sourceScene, recipe, layout, index, grid, includeTerrainRaster = false, terrainRasterBasePath = 'generated-assets' }) {
     const builder = createLayerBuilder();
     const terrainProfile = terrainProfileForLayout(recipe, layout);
-    const terrainMetrics = addGeneratedTerrainBackground(builder, layout, terrainProfile, grid);
-    addWaterways(builder, layout);
-    addPaths(builder, layout);
+    const nativeSize = clone(sourceScene.native_size || [1280, 720]);
+    const slug = makeLayoutSlug(recipe, layout, index);
+    let terrainRaster = null;
+    let terrainMetrics;
+    if (includeTerrainRaster) {
+        const raster = generateTerrainRaster({ layout, profile: terrainProfile, index, nativeSize, grid });
+        const fileName = terrainRasterFileName(layout, index);
+        const assetId = terrainRasterAssetId(slug);
+        terrainRaster = {
+            asset: {
+                id: assetId,
+                kind: 'ground',
+                image: `${terrainRasterBasePath.replace(/\/+$/, '')}/${fileName}`,
+                anchor: [50, 50],
+                generated: true,
+            },
+            fileName,
+            png: raster.png,
+            pixelHash: raster.pixelHash,
+        };
+        builder.add({
+            id: 'terrain-raster',
+            asset: assetId,
+            x: 50,
+            y: 50,
+            zGroup: 'ground',
+            scale: 1,
+        });
+        terrainMetrics = {
+            terrain_underpaint_layer_count: 0,
+            generated_ground_patch_count: 0,
+            generated_path_underpaint_count: 0,
+            generated_bank_patch_count: 0,
+            generated_vegetation_patch_count: 0,
+            generated_mud_patch_count: 0,
+            shared_ground_base_opacity: 0,
+            repeated_terrain_atom_count: 0,
+            terrain_raster_asset: assetId,
+            terrain_raster_signature: raster.signature,
+            ...raster.metrics,
+        };
+    } else {
+        terrainMetrics = addGeneratedTerrainBackground(builder, layout, terrainProfile, grid);
+        addWaterways(builder, layout);
+        addPaths(builder, layout);
+    }
     addBridges(builder, layout);
     addFinalOverlays(builder);
     addCottages(builder, layout);
@@ -2123,10 +2557,11 @@ function generateLayoutScene({ sourceScene, recipe, layout, index, grid }) {
     return {
         terrainProfile,
         terrainMetrics,
+        terrainRaster,
         scene: {
             location_id: (recipe.location_id_base || 15100) + index,
-            slug: makeLayoutSlug(recipe, layout, index),
-            native_size: clone(sourceScene.native_size || [1280, 720]),
+            slug,
+            native_size: nativeSize,
             underlay: sourceScene.underlay,
             plate: sourceScene.plate,
             layers: builder.layers,
@@ -2207,13 +2642,17 @@ function activationHints(layout) {
     ];
 }
 
-function assertGeneratedPack(pack) {
+export function assertGeneratedPack(pack) {
+    const assetIds = new Set((pack.assets || []).map((asset) => asset.id));
+    const assetsById = new Map((pack.assets || []).map((asset) => [asset.id, asset]));
+    const scenesBySlug = new Map((pack.scenes || []).map((scene) => [scene.slug, scene]));
     const slugs = new Set();
     const locationIds = new Set();
     const signatures = new Set();
     const topologySignatures = new Set();
     const terrainProfiles = new Set();
     const terrainSignatures = new Set();
+    const terrainRasterSignatures = new Set();
     for (const layout of pack.summary.layouts) {
         if (slugs.has(layout.slug)) {
             throw new Error(`duplicate generated slug '${layout.slug}'`);
@@ -2233,6 +2672,44 @@ function assertGeneratedPack(pack) {
         if (terrainSignatures.has(layout.terrain_signature)) {
             throw new Error(`duplicate terrain signature '${layout.terrain_signature}'`);
         }
+        if (layout.terrain_raster_signature) {
+            if (terrainRasterSignatures.has(layout.terrain_raster_signature)) {
+                throw new Error(`duplicate terrain raster signature '${layout.terrain_raster_signature}'`);
+            }
+            terrainRasterSignatures.add(layout.terrain_raster_signature);
+        }
+        if (layout.terrain_raster_asset && !assetIds.has(layout.terrain_raster_asset)) {
+            throw new Error(`${layout.slug} references missing terrain raster asset '${layout.terrain_raster_asset}'`);
+        }
+        if (layout.terrain_raster_asset) {
+            const scene = scenesBySlug.get(layout.slug);
+            const rasterLayer = scene?.layers?.find((layer) => layer.id === 'terrain-raster');
+            const rasterAsset = assetsById.get(layout.terrain_raster_asset);
+            if (!scene) {
+                throw new Error(`${layout.slug} summary has no matching generated scene`);
+            }
+            if (!rasterLayer) {
+                throw new Error(`${layout.slug} is missing terrain-raster layer`);
+            }
+            if (scene.layers[0]?.id !== 'terrain-raster') {
+                throw new Error(`${layout.slug} terrain-raster layer must be the first scene layer`);
+            }
+            if (rasterLayer.asset !== layout.terrain_raster_asset) {
+                throw new Error(`${layout.slug} terrain-raster layer does not reference '${layout.terrain_raster_asset}'`);
+            }
+            if (rasterAsset?.kind !== 'ground' || rasterAsset?.generated !== true) {
+                throw new Error(`${layout.slug} terrain raster asset must be a generated ground asset`);
+            }
+            if (!rasterAsset.image?.endsWith('.png')) {
+                throw new Error(`${layout.slug} terrain raster asset must point to a PNG`);
+            }
+            if (JSON.stringify(rasterAsset.anchor) !== JSON.stringify([50, 50])) {
+                throw new Error(`${layout.slug} terrain raster asset must use [50,50] anchor`);
+            }
+            if (layout.terrain_raster_layer_count !== 1) {
+                throw new Error(`${layout.slug} must report exactly one terrain raster layer`);
+            }
+        }
         slugs.add(layout.slug);
         locationIds.add(layout.location_id);
         signatures.add(layout.scene_signature);
@@ -2244,6 +2721,9 @@ function assertGeneratedPack(pack) {
         const layerIds = new Set();
         const zValues = new Set();
         for (const layer of scene.layers) {
+            if (!assetIds.has(layer.asset)) {
+                throw new Error(`${scene.slug}/${layer.id} references missing asset '${layer.asset}'`);
+            }
             if (layerIds.has(layer.id)) {
                 throw new Error(`${scene.slug} has duplicate layer id '${layer.id}'`);
             }
@@ -2270,19 +2750,36 @@ function assertGeneratedPack(pack) {
     }
 }
 
-export function generateVillageLayoutPack({
+function generateVillageLayoutPackInternal({
     sceneIndex,
     recipe,
     sceneIndexPath = defaultSceneIndexPath,
     recipePath = defaultRecipePath,
+    includeTerrainRasters = false,
+    terrainRasterBasePath = 'generated-assets',
 } = {}) {
     validateRecipe(recipe, sceneIndex);
     const sourceScene = findSourceScene(sceneIndex, recipe.source_slug);
-    const assetsById = new Map(sceneIndex.assets.map((asset) => [asset.id, asset]));
     const grid = validateGridSpec(recipe.grid || defaultIsoGrid);
     const visualWaterExclusions = recipe.visual_water_exclusions || [];
     const prefabCatalog = prefabCatalogForRecipe(recipe);
-    const generated = recipe.layouts.map((layout, index) => generateLayoutScene({ sourceScene, recipe, layout, index, grid }));
+    const generated = recipe.layouts.map((layout, index) =>
+        generateLayoutScene({
+            sourceScene,
+            recipe,
+            layout,
+            index,
+            grid,
+            includeTerrainRaster: includeTerrainRasters,
+            terrainRasterBasePath,
+        }),
+    );
+    const terrainRasters = generated.map((entry) => entry.terrainRaster).filter(Boolean);
+    const assets = [
+        ...clone(sceneIndex.assets),
+        ...terrainRasters.map((raster) => raster.asset),
+    ];
+    const assetsById = new Map(assets.map((asset) => [asset.id, asset]));
     const scenes = generated.map((entry) => entry.scene);
     const summaryLayouts = generated.map(({ scene, terrainProfile, terrainMetrics }, index) => {
         const layout = recipe.layouts[index];
@@ -2316,7 +2813,7 @@ export function generateVillageLayoutPack({
             source_slug: sourceScene.slug,
             source_location_id: sourceScene.location_id,
         },
-        assets: clone(sceneIndex.assets),
+        assets,
         sprites: clone(sceneIndex.sprites || []),
         fallback_sprites: clone(sceneIndex.fallback_sprites || {}),
         scenes,
@@ -2332,7 +2829,30 @@ export function generateVillageLayoutPack({
         },
     };
     assertGeneratedPack(pack);
-    return pack;
+    return { pack, terrainRasters };
+}
+
+export function generateVillageLayoutPack(inputs = {}) {
+    return generateVillageLayoutPackInternal(inputs).pack;
+}
+
+export function generateVillageLayoutPackWithRasters(inputs = {}, { terrainRasterBasePath = 'generated-assets' } = {}) {
+    return generateVillageLayoutPackInternal({
+        ...inputs,
+        includeTerrainRasters: true,
+        terrainRasterBasePath,
+    });
+}
+
+export async function writeTerrainRasterAssets(terrainRasters, assetOutPath) {
+    if (!assetOutPath) {
+        throw new Error('assetOutPath is required to write terrain raster assets');
+    }
+    await mkdir(assetOutPath, { recursive: true });
+    for (const raster of terrainRasters || []) {
+        await writeFile(path.join(assetOutPath, raster.fileName), raster.png);
+    }
+    return { count: terrainRasters?.length || 0, assetOutPath };
 }
 
 export async function loadVillageLayoutInputs({
@@ -2349,6 +2869,7 @@ function parseArgs(argv) {
         recipePath: defaultRecipePath,
         outPath: null,
         summaryOutPath: null,
+        assetOutPath: null,
         summary: false,
     };
     for (let index = 0; index < argv.length; index += 1) {
@@ -2365,6 +2886,9 @@ function parseArgs(argv) {
             index += 1;
         } else if (arg === '--summary-out') {
             args.summaryOutPath = resolveRepoPath(next, arg);
+            index += 1;
+        } else if (arg === '--asset-out') {
+            args.assetOutPath = resolveRepoPath(next, arg);
             index += 1;
         } else if (arg === '--summary') {
             args.summary = true;
@@ -2383,12 +2907,13 @@ async function writeJson(filePath, value) {
 function printSummary(summary) {
     console.log(`Generated ${summary.layout_count} topology-aware village layout(s).`);
     for (const layout of summary.layouts) {
+        const raster = layout.terrain_raster_asset ? ` raster=${layout.terrain_raster_asset}` : '';
         console.log(
             `${String(layout.index).padStart(2, '0')}. ${layout.slug} ` +
                 `layers=${layout.layer_count} kit=${layout.kit_layer_count} ` +
                 `terrain=${layout.terrain_profile} underpaint=${layout.terrain_underpaint_layer_count} ` +
                 `paths=${layout.topology.path_count} water=${layout.topology.waterway_count} ` +
-                `bridges=${layout.topology.bridge_count} topology=${layout.topology_signature}`,
+                `bridges=${layout.topology.bridge_count} topology=${layout.topology_signature}${raster}`,
         );
     }
 }
@@ -2396,7 +2921,16 @@ function printSummary(summary) {
 async function main() {
     const args = parseArgs(process.argv.slice(2));
     const inputs = await loadVillageLayoutInputs(args);
-    const pack = generateVillageLayoutPack(inputs);
+    let pack;
+    let terrainRasters = [];
+    if (args.assetOutPath) {
+        ({ pack, terrainRasters } = generateVillageLayoutPackWithRasters(inputs, {
+            terrainRasterBasePath: path.basename(args.assetOutPath),
+        }));
+        await writeTerrainRasterAssets(terrainRasters, args.assetOutPath);
+    } else {
+        pack = generateVillageLayoutPack(inputs);
+    }
     if (args.outPath) {
         await writeJson(args.outPath, pack);
     }
@@ -2405,6 +2939,9 @@ async function main() {
     }
     if (args.summary || (!args.outPath && !args.summaryOutPath)) {
         printSummary(pack.summary);
+        if (terrainRasters.length) {
+            console.log(`Wrote ${terrainRasters.length} terrain raster asset(s) to ${relativePath(args.assetOutPath)}.`);
+        }
     }
 }
 
