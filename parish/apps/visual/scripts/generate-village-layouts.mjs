@@ -155,6 +155,26 @@ const builtinPrefabCatalog = {
         requires: ['adjacent_path'],
         forbids: ['water'],
     },
+    'gate-node': {
+        requires: ['adjacent_path'],
+        forbids: ['water'],
+    },
+    'peat-stack-node': {
+        requires: ['adjacent_path'],
+        forbids: ['water'],
+    },
+    'wash-line-node': {
+        requires: ['adjacent_path'],
+        forbids: ['water'],
+    },
+    'barrel-cluster-node': {
+        requires: ['adjacent_path'],
+        forbids: ['water'],
+    },
+    'garden-plot-node': {
+        requires: ['adjacent_path'],
+        forbids: ['water'],
+    },
     'npc-standing-slot': {
         requires: ['adjacent_path'],
         forbids: ['water'],
@@ -967,6 +987,180 @@ function terrainProfileForLayout(recipe, layout) {
     return { id: layout.terrain_profile, ...defaultTerrainProfile, ...profile };
 }
 
+function propFamilyForKind(kind) {
+    const families = {
+        well: 'well',
+        cart: 'cart',
+        signpost: 'signpost',
+        market: 'market planks',
+        gate: 'gate',
+        peat_stack: 'peat stack',
+        wash_line: 'wash line',
+        barrel_cluster: 'barrel cluster',
+        garden_plot: 'garden plot',
+    };
+    return families[kind] || kind;
+}
+
+function sortedUnique(values) {
+    return [...new Set((values || []).filter(Boolean))].sort((a, b) => String(a).localeCompare(String(b)));
+}
+
+function countValues(values) {
+    const counts = {};
+    for (const value of values || []) {
+        counts[value] = (counts[value] || 0) + 1;
+    }
+    return Object.fromEntries(Object.entries(counts).sort(([a], [b]) => a.localeCompare(b)));
+}
+
+function actualCompositionRoles(layout, composition = layout.composition || {}) {
+    const siteFamilies = sortedUnique((layout.cottage_sites || []).map((site) => site.family || site.structure_family));
+    return {
+        structure_families: siteFamilies.length ? siteFamilies : sortedUnique(composition.structure_families || []),
+        prop_roles: sortedUnique([
+            ...((layout.bridges || []).length ? ['bridge span'] : []),
+            ...((layout.walls || []).length ? ['stone wall run'] : []),
+            ...(layout.props || []).map((prop) => propFamilyForKind(prop.kind)),
+        ]),
+        npc_slot_roles: sortedUnique(composition.npc_slot_roles || []),
+    };
+}
+
+export function compositionSignature(layout) {
+    const composition = layout.composition || {};
+    const roles = actualCompositionRoles(layout, composition);
+    return hashHex({
+        archetype: composition.archetype,
+        focal_role: composition.focal_role,
+        structure_families: roles.structure_families,
+        prop_roles: roles.prop_roles,
+        npc_slot_roles: roles.npc_slot_roles,
+        density_tags: sortedUnique(composition.density_tags || []),
+    }).slice(0, 20);
+}
+
+function compositionMetricsForLayout(recipe, layout) {
+    const composition = layout.composition || {};
+    const roles = actualCompositionRoles(layout, composition);
+    const commonRoles = ['well', 'signpost', 'cart'];
+    return {
+        composition: clone(composition),
+        composition_signature: compositionSignature(layout),
+        composition_archetype: composition.archetype,
+        composition_focal_role: composition.focal_role,
+        composition_structure_families: roles.structure_families,
+        composition_prop_roles: roles.prop_roles,
+        composition_npc_slot_roles: roles.npc_slot_roles,
+        composition_density_tags: sortedUnique(composition.density_tags || []),
+        composition_common_trio_present_count: commonRoles.filter((role) => roles.prop_roles.includes(role)).length,
+        composition_catalog_covered: roles.structure_families.every((family) =>
+            (recipe.ai_asset_strategy?.cottage_families || []).includes(family),
+        )
+            ? roles.prop_roles.every((role) => (recipe.ai_asset_strategy?.prop_families || []).includes(role))
+            : false,
+    };
+}
+
+function compositionSummaryForLayouts(recipe, layouts) {
+    const metrics = layouts.map((layout) => compositionMetricsForLayout(recipe, layout));
+    const signatureCounts = countValues(metrics.map((metric) => metric.composition_signature));
+    const maxRepeatedSignatureCount = Math.max(0, ...Object.values(signatureCounts));
+    return {
+        composition_signature_count: Object.keys(signatureCounts).length,
+        composition_signature_counts: signatureCounts,
+        composition_max_repeated_signature_count: maxRepeatedSignatureCount,
+        archetype_count: new Set(metrics.map((metric) => metric.composition_archetype)).size,
+        archetype_counts: countValues(metrics.map((metric) => metric.composition_archetype)),
+        cottage_family_count: new Set(metrics.flatMap((metric) => metric.composition_structure_families)).size,
+        cottage_family_counts: countValues(metrics.flatMap((metric) => metric.composition_structure_families)),
+        focal_role_count: new Set(metrics.map((metric) => metric.composition_focal_role)).size,
+        focal_role_counts: countValues(metrics.map((metric) => metric.composition_focal_role)),
+        prop_role_count: new Set(metrics.flatMap((metric) => metric.composition_prop_roles)).size,
+        prop_role_counts: countValues(metrics.flatMap((metric) => metric.composition_prop_roles)),
+        common_trio_replaced_layout_count: metrics.filter((metric) => metric.composition_common_trio_present_count < 3).length,
+    };
+}
+
+function validateComposition(layout, recipe) {
+    const errors = [];
+    const composition = layout.composition;
+    if (!composition || typeof composition !== 'object' || Array.isArray(composition)) {
+        throw new Error(`layout '${layout.id}' is missing composition block`);
+    }
+    const requiredFields = ['archetype', 'focal_role', 'structure_families', 'prop_roles', 'npc_slot_roles', 'density_tags'];
+    for (const field of requiredFields) {
+        if (composition[field] === undefined) {
+            errors.push(`composition is missing ${field}`);
+        }
+    }
+    const structureFamilies = Array.isArray(composition.structure_families) ? composition.structure_families : [];
+    const propRoles = Array.isArray(composition.prop_roles) ? composition.prop_roles : [];
+    const npcSlotRoles = Array.isArray(composition.npc_slot_roles) ? composition.npc_slot_roles : [];
+    const densityTags = Array.isArray(composition.density_tags) ? composition.density_tags : [];
+    for (const [field, values] of [
+        ['structure_families', structureFamilies],
+        ['prop_roles', propRoles],
+        ['npc_slot_roles', npcSlotRoles],
+        ['density_tags', densityTags],
+    ]) {
+        if (!Array.isArray(composition[field]) || values.length === 0) {
+            errors.push(`composition ${field} must be a non-empty array`);
+        }
+    }
+    if (!composition.archetype) {
+        errors.push('composition archetype is required');
+    }
+    if (!composition.focal_role) {
+        errors.push('composition focal_role is required');
+    }
+    const cottageFamilies = new Set(recipe.ai_asset_strategy?.cottage_families || []);
+    const propFamilies = new Set(recipe.ai_asset_strategy?.prop_families || []);
+    for (const site of layout.cottage_sites || []) {
+        const family = site.family || site.structure_family;
+        if (family && !cottageFamilies.has(family)) {
+            errors.push(`cottage '${site.id}' family '${family}' is not covered by ai_asset_strategy.cottage_families`);
+        }
+    }
+    for (const family of structureFamilies) {
+        if (!cottageFamilies.has(family)) {
+            errors.push(`composition structure family '${family}' is not covered by ai_asset_strategy.cottage_families`);
+        }
+    }
+    for (const role of propRoles) {
+        if (!propFamilies.has(role)) {
+            errors.push(`composition prop role '${role}' is not covered by ai_asset_strategy.prop_families`);
+        }
+    }
+    const actualRoles = actualCompositionRoles(layout, composition);
+    for (const role of propRoles) {
+        if (!actualRoles.prop_roles.includes(role)) {
+            errors.push(`composition prop role '${role}' is not present in layout geometry`);
+        }
+    }
+    for (const family of structureFamilies) {
+        if (!actualRoles.structure_families.includes(family)) {
+            errors.push(`composition structure family '${family}' is not present in layout geometry`);
+        }
+    }
+    if (![...actualRoles.prop_roles, ...actualRoles.structure_families].includes(composition.focal_role)) {
+        errors.push(`composition focal_role '${composition.focal_role}' is not present in the scene`);
+    }
+    if (npcSlotRoles.length !== (layout.npc_slots || []).length) {
+        errors.push(`composition npc_slot_roles count ${npcSlotRoles.length} must match npc_slots count ${(layout.npc_slots || []).length}`);
+    }
+    if (new Set(npcSlotRoles).size !== npcSlotRoles.length) {
+        errors.push('composition npc_slot_roles must be unique');
+    }
+    if (new Set(densityTags).size !== densityTags.length) {
+        errors.push('composition density_tags must be unique');
+    }
+    if (errors.length) {
+        throw new Error(`layout '${layout.id}' composition invalid: ${errors.join('; ')}`);
+    }
+    return compositionMetricsForLayout(recipe, layout);
+}
+
 function validateTerrainProfiles(profiles) {
     const errors = [];
     if (!profiles || typeof profiles !== 'object' || Array.isArray(profiles)) {
@@ -1496,19 +1690,18 @@ function prefabForProp(prop) {
     if (prop.prefab) {
         return prop.prefab;
     }
-    if (prop.kind === 'cart') {
-        return 'cart-pullout';
-    }
-    if (prop.kind === 'well') {
-        return 'well-node';
-    }
-    if (prop.kind === 'signpost') {
-        return 'signpost-node';
-    }
-    if (prop.kind === 'market') {
-        return 'market-node';
-    }
-    return null;
+    const prefabByKind = {
+        cart: 'cart-pullout',
+        well: 'well-node',
+        signpost: 'signpost-node',
+        market: 'market-node',
+        gate: 'gate-node',
+        peat_stack: 'peat-stack-node',
+        wash_line: 'wash-line-node',
+        barrel_cluster: 'barrel-cluster-node',
+        garden_plot: 'garden-plot-node',
+    };
+    return prefabByKind[prop.kind] || null;
 }
 
 function placementRecords(layout) {
@@ -2686,10 +2879,30 @@ export function assertAiAssetCatalog(catalog, { grammar = defaultTerrainChunkGra
 }
 
 function assetFootprintPoints(kind, anchor, scale = 1, flip = false) {
-    if (kind !== 'cart') {
-        return [anchor];
-    }
     const baseScale = scale || 0.74;
+    if (kind !== 'cart') {
+        const boxes = {
+            well: { xs: [-2.5, 0, 2.5], ys: [-2, 1.5] },
+            signpost: { xs: [-1.5, 0, 1.5], ys: [-1.5, 1.5] },
+            market: { xs: [-6, 0, 6], ys: [-3, 1.5] },
+            gate: { xs: [-7, 0, 7], ys: [-2, 2] },
+            peat_stack: { xs: [-5, 0, 5], ys: [-3.5, 0, 3] },
+            wash_line: { xs: [-8, 0, 8], ys: [-2, 2] },
+            barrel_cluster: { xs: [-4, 0, 4], ys: [-3, 1.5] },
+            garden_plot: { xs: [-7, 0, 7], ys: [-5, 0, 4] },
+        };
+        const box = boxes[kind];
+        if (!box) {
+            return [anchor];
+        }
+        const samples = [];
+        for (const x of box.xs) {
+            for (const y of box.ys) {
+                samples.push({ x: anchor.x + x * baseScale, y: anchor.y + y * baseScale });
+            }
+        }
+        return samples;
+    }
     const xs = [-11.5, -8, -4, 0, 4, 8, 11.5].map((offset) => offset * baseScale);
     const ys = [-34, -27, -20, -13, -6, -1].map((offset) => offset * baseScale);
     const samples = [];
@@ -3070,6 +3283,7 @@ function validateRecipe(recipe, sceneIndex) {
             throw new Error(`layout recipe has duplicate id '${layout.id}'`);
         }
         layoutIds.add(layout.id);
+        validateComposition(layout, recipe);
         const terrainProfile = terrainProfileForLayout(recipe, layout);
         if (assignedTerrainProfiles.has(terrainProfile.id)) {
             throw new Error(`layout recipe has duplicate terrain profile '${terrainProfile.id}'`);
@@ -3085,6 +3299,31 @@ function validateRecipe(recipe, sceneIndex) {
             throw new Error(`layout recipe has duplicate topology signature '${validation.topology_signature}'`);
         }
         topologySignatures.add(validation.topology_signature);
+    }
+    const compositionSummary = compositionSummaryForLayouts(recipe, recipe.layouts);
+    if (compositionSummary.composition_signature_count < Math.min(requiredLayoutCount, 8)) {
+        throw new Error(
+            `village layout recipe is too compositionally samey: ${compositionSummary.composition_signature_count} unique composition signatures`,
+        );
+    }
+    if (compositionSummary.composition_max_repeated_signature_count > 2) {
+        throw new Error(
+            `village layout recipe repeats a composition signature ${compositionSummary.composition_max_repeated_signature_count} times`,
+        );
+    }
+    if (compositionSummary.cottage_family_count < 5) {
+        throw new Error(`village layout recipe must cover at least 5 cottage/structure families, got ${compositionSummary.cottage_family_count}`);
+    }
+    if (compositionSummary.focal_role_count < 4) {
+        throw new Error(`village layout recipe must cover at least 4 focal roles, got ${compositionSummary.focal_role_count}`);
+    }
+    if (compositionSummary.prop_role_count < 6) {
+        throw new Error(`village layout recipe must cover at least 6 prop roles, got ${compositionSummary.prop_role_count}`);
+    }
+    if (compositionSummary.common_trio_replaced_layout_count < 4) {
+        throw new Error(
+            `village layout recipe must replace at least one well/signpost/cart trio member in 4 layouts, got ${compositionSummary.common_trio_replaced_layout_count}`,
+        );
     }
 }
 
@@ -3732,8 +3971,127 @@ function addProps(builder, layout) {
                 scale: 0.16,
                 opacity: 0.44,
             });
+        } else if (prop.kind === 'gate') {
+            builder.add({
+                id: `${prop.id}-gate-crossbar`,
+                asset: 'kilteevan-kit-m2-wood-planks-a',
+                x: at.x,
+                y: at.y,
+                zGroup: 'prop',
+                scale: 0.3,
+                opacity: 0.72,
+                flip: prop.flip ?? false,
+            });
+            builder.add({
+                id: `${prop.id}-gate-stones`,
+                asset: 'kilteevan-kit-wall-stones-a',
+                x: at.x + 2,
+                y: at.y + 1.8,
+                zGroup: 'prop',
+                scale: 0.24,
+                opacity: 0.5,
+            });
+        } else if (prop.kind === 'peat_stack') {
+            builder.add({
+                id: `${prop.id}-peat-base`,
+                asset: 'kilteevan-kit-m2-mud-chip-a',
+                x: at.x,
+                y: at.y,
+                zGroup: 'prop',
+                scale: 0.28,
+                opacity: 0.82,
+            });
+            builder.add({
+                id: `${prop.id}-peat-stones`,
+                asset: 'kilteevan-kit-wall-stones-a',
+                x: at.x + 1.8,
+                y: at.y - 0.6,
+                zGroup: 'prop',
+                scale: 0.26,
+                opacity: 0.44,
+                flip: true,
+            });
+        } else if (prop.kind === 'wash_line') {
+            builder.add({
+                id: `${prop.id}-wash-line-post-a`,
+                asset: 'kilteevan-kit-m2-signpost-a',
+                x: at.x - 3.6,
+                y: at.y + 0.4,
+                zGroup: 'prop',
+                scale: 0.17,
+                opacity: 0.58,
+            });
+            builder.add({
+                id: `${prop.id}-wash-line-post-b`,
+                asset: 'kilteevan-kit-m2-signpost-a',
+                x: at.x + 3.6,
+                y: at.y + 0.4,
+                zGroup: 'prop',
+                scale: 0.17,
+                opacity: 0.58,
+                flip: true,
+            });
+            builder.add({
+                id: `${prop.id}-wash-line-cloth`,
+                asset: 'kilteevan-kit-m2-wood-planks-a',
+                x: at.x,
+                y: at.y - 1.2,
+                zGroup: 'prop',
+                scale: 0.22,
+                opacity: 0.5,
+            });
+        } else if (prop.kind === 'barrel_cluster') {
+            for (let index = 0; index < 3; index += 1) {
+                builder.add({
+                    id: `${prop.id}-barrel-${index}`,
+                    asset: 'kilteevan-kit-m2-cart-wheel-a',
+                    x: at.x + (index - 1) * 2.1,
+                    y: at.y + (index % 2) * 1.3,
+                    zGroup: 'prop',
+                    scale: 0.16,
+                    opacity: 0.54,
+                    flip: index % 2 === 1,
+                });
+            }
+        } else if (prop.kind === 'garden_plot') {
+            builder.add({
+                id: `${prop.id}-garden-earth`,
+                asset: 'kilteevan-kit-m2-mud-chip-a',
+                x: at.x,
+                y: at.y,
+                zGroup: 'prop',
+                scale: 0.3,
+                opacity: 0.46,
+            });
+            for (let index = 0; index < 4; index += 1) {
+                builder.add({
+                    id: `${prop.id}-garden-sprig-${index}`,
+                    asset: index % 2 === 0 ? 'kilteevan-kit-m2-flower-bush-a' : 'kilteevan-kit-m2-grass-tuft-a',
+                    x: at.x + (unitFromSeed(prop.id, index) - 0.5) * 7,
+                    y: at.y + (unitFromSeed(prop.id, index + 10) - 0.5) * 5,
+                    zGroup: 'prop',
+                    scale: 0.12 + unitFromSeed(prop.id, index + 20) * 0.08,
+                    opacity: 0.58,
+                    flip: index % 2 === 1,
+                });
+            }
         }
     }
+}
+
+function propHotspotLabel(kind) {
+    const labels = {
+        signpost: 'The signpost',
+        cart: 'The cart',
+        market: 'The market planks',
+        gate: 'The gate',
+        peat_stack: 'The peat stack',
+        wash_line: 'The wash line',
+        barrel_cluster: 'The barrels',
+        garden_plot: 'The garden plot',
+        well: 'The village well',
+    };
+    return labels[kind] || `The ${kind.replaceAll('_', ' ')}`;
 }
 
 function addWalls(builder, layout) {
@@ -3842,7 +4200,7 @@ function generatedHotspots(layout) {
         hotspots.push({
             id: prop.id,
             shape: { rect: rectAround(at, size[0], size[1]) },
-            label: prop.kind === 'signpost' ? 'The signpost' : prop.kind === 'cart' ? 'The cart' : prop.kind === 'market' ? 'The market planks' : 'The village well',
+            label: propHotspotLabel(prop.kind),
             action: { inspect: prop.inspect },
         });
     }
@@ -4059,6 +4417,7 @@ export function assertGeneratedPack(pack) {
     const terrainRasterSignatures = new Set();
     const terrainChunkSpriteSignatures = new Set();
     const terrainGroundFillSignatures = new Set();
+    const compositionSignatures = new Set();
     for (const layout of pack.summary.layouts) {
         if (slugs.has(layout.slug)) {
             throw new Error(`duplicate generated slug '${layout.slug}'`);
@@ -4078,6 +4437,13 @@ export function assertGeneratedPack(pack) {
         if (terrainSignatures.has(layout.terrain_signature)) {
             throw new Error(`duplicate terrain signature '${layout.terrain_signature}'`);
         }
+        if (!layout.composition_signature) {
+            throw new Error(`${layout.slug} is missing composition signature`);
+        }
+        if (layout.composition_catalog_covered !== true) {
+            throw new Error(`${layout.slug} composition roles are not covered by the AI asset strategy`);
+        }
+        compositionSignatures.add(layout.composition_signature);
         if (layout.terrain_raster_signature) {
             if (terrainRasterSignatures.has(layout.terrain_raster_signature)) {
                 throw new Error(`duplicate terrain raster signature '${layout.terrain_raster_signature}'`);
@@ -4204,6 +4570,31 @@ export function assertGeneratedPack(pack) {
         topologySignatures.add(layout.topology_signature);
         terrainProfiles.add(layout.terrain_profile);
         terrainSignatures.add(layout.terrain_signature);
+    }
+    const composition = pack.summary.composition;
+    if (!composition) {
+        throw new Error('generated pack summary is missing composition metrics');
+    }
+    if (composition.composition_signature_count !== compositionSignatures.size) {
+        throw new Error('generated pack composition signature count mismatch');
+    }
+    if (composition.composition_signature_count < Math.min(pack.summary.layout_count || 0, 8)) {
+        throw new Error(`generated pack has too few composition signatures: ${composition.composition_signature_count}`);
+    }
+    if ((composition.composition_max_repeated_signature_count || 0) > 2) {
+        throw new Error(`generated pack repeats a composition signature ${composition.composition_max_repeated_signature_count} times`);
+    }
+    if ((composition.cottage_family_count || 0) < 5) {
+        throw new Error(`generated pack covers too few cottage families: ${composition.cottage_family_count}`);
+    }
+    if ((composition.focal_role_count || 0) < 4) {
+        throw new Error(`generated pack covers too few focal roles: ${composition.focal_role_count}`);
+    }
+    if ((composition.prop_role_count || 0) < 6) {
+        throw new Error(`generated pack covers too few prop roles: ${composition.prop_role_count}`);
+    }
+    if ((composition.common_trio_replaced_layout_count || 0) < 4) {
+        throw new Error(`generated pack keeps the well/signpost/cart trio too often: ${composition.common_trio_replaced_layout_count}`);
     }
     for (const scene of pack.scenes) {
         const layerIds = new Set();
@@ -4346,6 +4737,7 @@ function generateVillageLayoutPackInternal({
             ...chunkSpriteMetrics,
             topology_signature: validation.topology_signature,
             topology: validation,
+            ...compositionMetricsForLayout(recipe, layout),
             hotspot_count: scene.hotspots.length,
             slot_count: scene.slots.length,
             activation_hints: activationHints(layout),
@@ -4372,6 +4764,7 @@ function generateVillageLayoutPackInternal({
             prefab_catalog_ids: Object.keys(prefabCatalog).sort(),
             visual_water_exclusion_count: visualWaterExclusions.length,
             ai_asset_strategy: recipe.ai_asset_strategy,
+            composition: compositionSummaryForLayouts(recipe, recipe.layouts),
             layouts: summaryLayouts,
         },
     };
