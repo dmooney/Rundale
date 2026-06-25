@@ -40,11 +40,17 @@ local:  just agent-check      # proof evidence + judge verdict + fast debt scan
         just baselines        # only after intentional gameplay output changes (UPDATE_BASELINES=1)
         just harness-audit    # read-only coverage report
 
-CI:     agent-check           # proof evidence + judge verdict + fast debt scan
-        rust-quality-gate     # fmt + clippy + test (the architecture-fitness tests run here)
-        rust-multi-channel    # cargo check on stable + beta
+CI fast lane (`ci.yml`):
+        agent-check           # proof evidence + judge verdict + fast debt scan
         docs-consistency      # check-doc-paths
-        game-harness          # every fixture in testing/fixtures/
+        format/python/shell/toml quality
+        ci-gate               # stable required status; target < 60s
+
+CI full suite (`full-ci.yml`, merge_group / main push / nightly / manual):
+        rust-quality-gate     # fmt + clippy + test (the architecture-fitness tests run here)
+        rust-coverage-ratchet # cargo-llvm-cov line floor
+        rust-multi-channel    # cargo check on stable + beta
+        game-harness          # every fixture in testing/fixtures/ + parish-client smoke
         ui-quality + ui-e2e   # frontend
 ```
 
