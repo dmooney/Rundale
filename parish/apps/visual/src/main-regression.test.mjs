@@ -283,3 +283,60 @@ test('Crossroads repeats small kit atoms as reusable sprite layers', async () =>
         'expected one kit atom asset to be reused three or more times',
     );
 });
+
+test('Kilteevan M2 uses high three-quarter reusable sprite library atoms', async () => {
+    const scenes = JSON.parse(
+        await readFile(new URL('../../../../mods/rundale/scenes.json', import.meta.url), 'utf8'),
+    );
+    const assetsById = new Map(scenes.assets.map((asset) => [asset.id, asset]));
+    const kilteevan = scenes.scenes.find((scene) => scene.slug === 'kilteevan-village');
+    const m2KitLayers = kilteevan.layers
+        .map((layer) => ({ layer, asset: assetsById.get(layer.asset) }))
+        .filter(({ asset }) =>
+            asset?.image?.startsWith('assets/scenes/kilteevan-village/atoms/kit/m2-'),
+        );
+    const usageByAsset = new Map();
+    const reusableFamilies = new Set();
+
+    for (const { layer, asset } of m2KitLayers) {
+        const dims = pngDimensions(
+            await readFile(new URL(`../../../../mods/rundale/${asset.image}`, import.meta.url)),
+        );
+        const existing = usageByAsset.get(layer.asset) || [];
+        existing.push(layer);
+        usageByAsset.set(layer.asset, existing);
+
+        assert.notDeepEqual([layer.x, layer.y], [50, 50], layer.id);
+        assert.equal(asset.image.endsWith('.png'), true, layer.id);
+        assert.equal(asset.image.endsWith('.svg'), false, layer.id);
+        assert.ok(dims.width < 360, `${layer.id} should stay below faux-plate width`);
+        assert.ok(dims.height < 240, `${layer.id} should stay below faux-plate height`);
+    }
+
+    for (const [assetId, layers] of usageByAsset.entries()) {
+        const distinctPositions = new Set(layers.map((layer) => `${layer.x},${layer.y}`));
+        if (layers.length >= 3 && distinctPositions.size >= 3) {
+            reusableFamilies.add(assetsById.get(assetId).kind);
+        }
+    }
+    const layerIdByZ = new Map();
+    for (const layer of kilteevan.layers) {
+        assert.equal(
+            layerIdByZ.has(layer.z),
+            false,
+            `${layer.id} shares z=${layer.z} with ${layerIdByZ.get(layer.z)}`,
+        );
+        layerIdByZ.set(layer.z, layer.id);
+    }
+
+    assert.ok(m2KitLayers.length >= 40, 'expected Kilteevan to be mostly kit-composited');
+    assert.ok(reusableFamilies.has('water'), 'expected reused water puddle sprites');
+    assert.ok(reusableFamilies.has('wall'), 'expected reused wall sprites');
+    assert.ok(reusableFamilies.has('foliage'), 'expected reused foliage sprites');
+    assert.ok(reusableFamilies.has('terrain_patch'), 'expected reused terrain patch sprites');
+    assert.equal(
+        m2KitLayers.some(({ layer }) => layer.id.includes('roof-topface')),
+        true,
+        'expected top-face cottage sprite details for a high three-quarter view',
+    );
+});
