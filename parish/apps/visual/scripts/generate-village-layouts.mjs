@@ -53,6 +53,9 @@ const requiredAssetIds = new Set([
     'kilteevan-kit-m2-wood-planks-a',
     'kilteevan-kit-m2-smoke-wisp-a',
     'kilteevan-kit-m2-mud-chip-a',
+    'kilteevan-kit-mud-edge-a',
+    'kilteevan-kit-mud-edge-b',
+    'kilteevan-kit-wall-stones-a',
 ]);
 
 const waterAtoms = [
@@ -68,6 +71,31 @@ const foliageAtoms = [
     'kilteevan-kit-flower-bramble-a',
     'kilteevan-kit-flower-bramble-b',
 ];
+const terrainAtoms = [
+    'kilteevan-kit-m2-grass-tuft-a',
+    'kilteevan-kit-m2-flower-bush-a',
+    'kilteevan-kit-m2-bramble-hedge-a',
+    'kilteevan-kit-m2-purple-flower-a',
+];
+const mudAtoms = ['kilteevan-kit-m2-mud-chip-a'];
+
+const defaultTerrainProfile = {
+    name: 'Generated terrain',
+    grade: 'level',
+    ground: 'wet green',
+    path: 'mud lane',
+    water: 'none',
+    vegetation: 'rough grass',
+    lighting: 'overcast',
+    base_opacity: 0.14,
+    ground_patch_count: 32,
+    vegetation_patch_count: 18,
+    mud_patch_count: 10,
+    bank_patch_count: 6,
+    path_width_scale: 1,
+    water_bank_width: 1,
+    puddle_density: 0.25,
+};
 
 const defaultIsoGrid = {
     cols: 24,
@@ -583,6 +611,97 @@ function waterwayProgressAtPoint(candidate, waterway) {
 
 function prefabCatalogForRecipe(recipe = {}) {
     return { ...builtinPrefabCatalog, ...(recipe.prefab_catalog || {}) };
+}
+
+function terrainProfilesForRecipe(recipe = {}) {
+    return recipe.terrain_profiles || {};
+}
+
+function sortedPlainObject(value) {
+    return Object.fromEntries(Object.entries(value || {}).sort(([a], [b]) => a.localeCompare(b)));
+}
+
+function terrainProfileForLayout(recipe, layout) {
+    const profiles = terrainProfilesForRecipe(recipe);
+    if (!layout.terrain_profile) {
+        throw new Error(`layout '${layout.id}' is missing terrain_profile`);
+    }
+    const profile = profiles[layout.terrain_profile];
+    if (!profile) {
+        throw new Error(`layout '${layout.id}' references missing terrain profile '${layout.terrain_profile}'`);
+    }
+    return { id: layout.terrain_profile, ...defaultTerrainProfile, ...profile };
+}
+
+function validateTerrainProfiles(profiles) {
+    const errors = [];
+    if (!profiles || typeof profiles !== 'object' || Array.isArray(profiles)) {
+        throw new Error('terrain_profiles must be an object');
+    }
+    if (Object.keys(profiles).length === 0) {
+        throw new Error('terrain_profiles must declare at least one profile');
+    }
+    const numericRanges = {
+        base_opacity: [0.05, 0.28],
+        ground_patch_count: [8, 80],
+        vegetation_patch_count: [0, 80],
+        mud_patch_count: [0, 80],
+        bank_patch_count: [0, 80],
+        path_width_scale: [0.5, 1.8],
+        water_bank_width: [0.5, 1.8],
+        puddle_density: [0, 1],
+    };
+    for (const [id, rawProfile] of Object.entries(profiles)) {
+        if (!id) {
+            errors.push('terrain profile contains an empty id');
+            continue;
+        }
+        if (!rawProfile || typeof rawProfile !== 'object' || Array.isArray(rawProfile)) {
+            errors.push(`terrain profile '${id}' must be an object`);
+            continue;
+        }
+        for (const field of ['name', 'grade', 'ground', 'path', 'vegetation', 'lighting']) {
+            if (!rawProfile[field]) {
+                errors.push(`terrain profile '${id}' is missing ${field}`);
+            }
+        }
+        for (const [field, [min, max]] of Object.entries(numericRanges)) {
+            const value = rawProfile[field] ?? defaultTerrainProfile[field];
+            if (!Number.isFinite(value) || value < min || value > max) {
+                errors.push(`terrain profile '${id}' ${field} must be ${min}..${max}`);
+            }
+        }
+    }
+    if (errors.length) {
+        throw new Error(`terrain profiles invalid: ${errors.join('; ')}`);
+    }
+}
+
+function terrainProfileConfigSignature(profile) {
+    return hashHex(sortedPlainObject(profile)).slice(0, 20);
+}
+
+export function terrainSignature(layout, profile) {
+    const payload = {
+        profile: terrainProfileConfigSignature(profile),
+        grade: profile.grade,
+        ground: profile.ground,
+        path: profile.path,
+        water: profile.water,
+        vegetation: profile.vegetation,
+        paths: (layout.paths || []).map((pathDef) => [
+            pathDef.id,
+            layout.nodes?.[pathDef.from]?.map((value) => round(value, 1)),
+            layout.nodes?.[pathDef.to]?.map((value) => round(value, 1)),
+        ]),
+        waterway_silhouette: (layout.waterways || []).map((waterway) => [
+            waterway.kind || 'water',
+            waterway.width || 6,
+            waterway.points.map((raw) => raw.map((value) => round(value, 1))),
+        ]),
+        bridges: (layout.bridges || []).map((bridge) => [bridge.path, bridge.waterway, bridge.node]),
+    };
+    return hashHex(payload).slice(0, 20);
 }
 
 function validatePrefabCatalog(catalog) {
@@ -1178,9 +1297,11 @@ function validateRecipe(recipe, sceneIndex) {
     }
     const visualWaterExclusions = recipe.visual_water_exclusions || [];
     const prefabCatalog = prefabCatalogForRecipe(recipe);
+    const terrainProfiles = terrainProfilesForRecipe(recipe);
     const grid = validateGridSpec(recipe.grid || defaultIsoGrid);
     validateVisualWaterExclusions(visualWaterExclusions);
     validatePrefabCatalog(prefabCatalog);
+    validateTerrainProfiles(terrainProfiles);
     const requiredLayoutCount = recipe.required_layout_count || 10;
     if (recipe.layouts.length !== requiredLayoutCount) {
         throw new Error(`village layout recipe must declare exactly ${requiredLayoutCount} layouts, got ${recipe.layouts.length}`);
@@ -1193,11 +1314,23 @@ function validateRecipe(recipe, sceneIndex) {
     }
     const layoutIds = new Set();
     const topologySignatures = new Set();
+    const assignedTerrainProfiles = new Set();
+    const terrainProfileSignatures = new Set();
     for (const layout of recipe.layouts) {
         if (layoutIds.has(layout.id)) {
             throw new Error(`layout recipe has duplicate id '${layout.id}'`);
         }
         layoutIds.add(layout.id);
+        const terrainProfile = terrainProfileForLayout(recipe, layout);
+        if (assignedTerrainProfiles.has(terrainProfile.id)) {
+            throw new Error(`layout recipe has duplicate terrain profile '${terrainProfile.id}'`);
+        }
+        assignedTerrainProfiles.add(terrainProfile.id);
+        const profileSignature = terrainProfileConfigSignature(terrainProfile);
+        if (terrainProfileSignatures.has(profileSignature)) {
+            throw new Error(`layout recipe has duplicate terrain profile signature '${profileSignature}'`);
+        }
+        terrainProfileSignatures.add(profileSignature);
         const validation = validateOutdoorLayout(layout, { grid, visualWaterExclusions, prefabCatalog });
         if (topologySignatures.has(validation.topology_signature)) {
             throw new Error(`layout recipe has duplicate topology signature '${validation.topology_signature}'`);
@@ -1216,12 +1349,14 @@ function createLayerBuilder() {
     const ids = new Set();
     const usedZ = new Set();
     const zCursors = {
-        ground: -100,
-        water: -90,
-        terrain: -78,
-        road: -66,
-        bridge: -48,
-        contact: -30,
+        calibration: -1000,
+        ground: -900,
+        terrain_underpaint: -700,
+        water: -500,
+        terrain: -350,
+        road: -220,
+        bridge: -120,
+        contact: -60,
         building: 10,
         wall: 24,
         prop: 34,
@@ -1277,8 +1412,238 @@ function createLayerBuilder() {
     return { layers, add };
 }
 
-function addTerrainBase(builder) {
-    builder.add({ id: 'ground-base', asset: 'kilteevan-ground-base', x: 50, y: 50, zGroup: 'ground', scale: 1 });
+function distanceToNearestWater(layout, candidate) {
+    const waterways = layout.waterways || [];
+    if (!waterways.length) {
+        return Number.POSITIVE_INFINITY;
+    }
+    return Math.min(...waterways.map((waterway) => distanceToWaterway(candidate, waterway)));
+}
+
+function rankedGridSamples(grid, layout, profile, salt, predicate) {
+    const samples = [];
+    for (let col = 0; col < grid.cols; col += 1) {
+        for (let row = 0; row < grid.rows; row += 1) {
+            const center = cellCenter(grid, { col, row });
+            if (predicate && !predicate(center, { col, row })) {
+                continue;
+            }
+            samples.push({
+                center,
+                cell: { col, row },
+                score: unitFromSeed(`${layout.id}:${profile.id}:${salt}:${col}:${row}`, 0),
+            });
+        }
+    }
+    return samples.sort((a, b) => b.score - a.score);
+}
+
+function jitterPoint(candidate, seed, index, amountX = 2.4, amountY = 1.8) {
+    return {
+        x: candidate.x + (unitFromSeed(seed, index * 2) - 0.5) * amountX,
+        y: candidate.y + (unitFromSeed(seed, index * 2 + 1) - 0.5) * amountY,
+    };
+}
+
+function terrainAtomScale(asset, seed, index, base = 1) {
+    if (asset === 'kilteevan-ground-patch') {
+        return base * (0.46 + unitFromSeed(seed, index + 33) * 0.24);
+    }
+    if (asset.includes('grass') || asset.includes('flower') || asset.includes('bramble')) {
+        return base * (0.16 + unitFromSeed(seed, index + 33) * 0.18);
+    }
+    return base * (0.24 + unitFromSeed(seed, index + 33) * 0.18);
+}
+
+function addGeneratedTerrainBackground(builder, layout, profile, grid) {
+    const metrics = {
+        terrain_underpaint_layer_count: 0,
+        generated_ground_patch_count: 0,
+        generated_path_underpaint_count: 0,
+        generated_bank_patch_count: 0,
+        generated_vegetation_patch_count: 0,
+        generated_mud_patch_count: 0,
+        shared_ground_base_opacity: round(profile.base_opacity, 3),
+    };
+    const addTerrain = (layer, counter) => {
+        builder.add(layer);
+        metrics.terrain_underpaint_layer_count += 1;
+        if (counter) {
+            metrics[counter] += 1;
+        }
+    };
+
+    builder.add({
+        id: 'terrain-ground-calibration',
+        asset: 'kilteevan-ground-base',
+        x: 50,
+        y: 50,
+        zGroup: 'calibration',
+        scale: 1,
+        opacity: profile.base_opacity,
+    });
+
+    const groundSamples = rankedGridSamples(
+        grid,
+        layout,
+        profile,
+        'ground',
+        (candidate) => distanceToNearestWater(layout, candidate) > 3.5 && nearestPathDistance(layout, candidate) > 2.2,
+    ).slice(0, profile.ground_patch_count);
+    for (const [index, sample] of groundSamples.entries()) {
+        const asset = terrainAtoms[(index + hashByte(profile.id, index)) % terrainAtoms.length];
+        const at = jitterPoint(sample.center, `${profile.id}:ground`, index, 3.2, 2.2);
+        addTerrain(
+            {
+                id: `terrain-ground-${index}`,
+                asset,
+                x: at.x,
+                y: at.y,
+                zGroup: 'ground',
+                scale: terrainAtomScale(asset, profile.id, index, 1.15),
+                opacity: asset === 'kilteevan-ground-patch' ? 0.54 : 0.36,
+                flip: index % 2 === 1,
+            },
+            'generated_ground_patch_count',
+        );
+    }
+
+    for (const [pathIndex, pathDef] of (layout.paths || []).entries()) {
+        const segment = pathSegment(layout, pathDef.id);
+        const len = segmentLength(segment);
+        const sampleCount = Math.max(2, Math.ceil(len / 12));
+        for (let sampleIndex = 1; sampleIndex < sampleCount; sampleIndex += 1) {
+            const t = sampleIndex / sampleCount;
+            const sample = lerp(segment.a, segment.b, t);
+            const asset = mudAtoms[(pathIndex + sampleIndex) % mudAtoms.length];
+            const at = jitterPoint(sample, `${profile.id}:${pathDef.id}:path`, sampleIndex, 2.4, 1.6);
+            addTerrain(
+                {
+                    id: `terrain-path-${pathDef.id}-${sampleIndex}`,
+                    asset,
+                    x: at.x,
+                    y: at.y,
+                    zGroup: 'terrain_underpaint',
+                    scale: clamp((len / 74) * profile.path_width_scale, 0.24, 0.58),
+                    opacity: 0.22 + profile.puddle_density * 0.18,
+                    flip: pathIndex % 2 === 1,
+                },
+                'generated_path_underpaint_count',
+            );
+            if (unitFromSeed(`${profile.id}:${pathDef.id}:puddle`, sampleIndex) < profile.puddle_density) {
+                addTerrain(
+                    {
+                        id: `terrain-puddle-${pathDef.id}-${sampleIndex}`,
+                        asset: waterAtoms[(pathIndex + sampleIndex) % waterAtoms.length],
+                        x: at.x + 0.7,
+                        y: at.y + 0.3,
+                        zGroup: 'terrain_underpaint',
+                        scale: clamp((len / 180) * profile.path_width_scale, 0.12, 0.28),
+                        opacity: 0.2 + profile.puddle_density * 0.22,
+                        flip: sampleIndex % 2 === 0,
+                    },
+                    'generated_mud_patch_count',
+                );
+            }
+        }
+    }
+
+    for (const [waterwayIndex, waterway] of (layout.waterways || []).entries()) {
+        for (const [segmentIndex, segment] of waterwaySegments(waterway).entries()) {
+            const len = segmentLength(segment);
+            const sampleCount = Math.max(2, Math.ceil(len / 16));
+            const dx = segment.b.x - segment.a.x;
+            const dy = segment.b.y - segment.a.y;
+            const segmentLen = Math.max(0.0001, len);
+            const normal = { x: -dy / segmentLen, y: dx / segmentLen };
+            for (let sampleIndex = 1; sampleIndex < sampleCount; sampleIndex += 1) {
+                const t = sampleIndex / sampleCount;
+                const sample = lerp(segment.a, segment.b, t);
+                for (const side of [-1, 1]) {
+                    if (metrics.generated_bank_patch_count >= profile.bank_patch_count) {
+                        continue;
+                    }
+                    const bankOffset = (waterway.width || 6) * 0.35 * profile.water_bank_width * side;
+                    const at = jitterPoint(
+                        {
+                            x: sample.x + normal.x * bankOffset,
+                            y: sample.y + normal.y * bankOffset,
+                        },
+                        `${profile.id}:${waterway.id}:bank:${side}`,
+                        segmentIndex * 11 + sampleIndex,
+                        1.8,
+                        1.2,
+                    );
+                    const asset = side < 0 ? 'kilteevan-kit-m2-mud-chip-a' : 'kilteevan-kit-m2-grass-tuft-a';
+                    addTerrain(
+                        {
+                            id: `terrain-bank-${waterway.id}-${segmentIndex}-${sampleIndex}-${side < 0 ? 'a' : 'b'}`,
+                            asset,
+                            x: at.x,
+                            y: at.y,
+                            zGroup: 'terrain',
+                            scale: clamp(((waterway.width || 6) / 30) * profile.water_bank_width, 0.12, 0.32),
+                            opacity: side < 0 ? 0.24 : 0.28,
+                            flip: side > 0,
+                        },
+                        'generated_bank_patch_count',
+                    );
+                }
+            }
+        }
+    }
+
+    const vegetationSamples = rankedGridSamples(
+        grid,
+        layout,
+        profile,
+        'vegetation',
+        (candidate) => distanceToNearestWater(layout, candidate) > 2.4 && nearestPathDistance(layout, candidate) > 5.4,
+    ).slice(0, profile.vegetation_patch_count);
+    for (const [index, sample] of vegetationSamples.entries()) {
+        const asset = foliageAtoms[(index + hashByte(profile.id, index + 41)) % foliageAtoms.length];
+        const at = jitterPoint(sample.center, `${profile.id}:vegetation`, index, 3.8, 2.5);
+        addTerrain(
+            {
+                id: `terrain-vegetation-${index}`,
+                asset,
+                x: at.x,
+                y: at.y,
+                zGroup: 'terrain',
+                scale: terrainAtomScale(asset, profile.id, index, 1.05),
+                opacity: 0.34 + unitFromSeed(profile.id, index + 55) * 0.2,
+                flip: index % 2 === 0,
+            },
+            'generated_vegetation_patch_count',
+        );
+    }
+
+    const mudSamples = rankedGridSamples(
+        grid,
+        layout,
+        profile,
+        'mud',
+        (candidate) => distanceToNearestWater(layout, candidate) > 2 && nearestPathDistance(layout, candidate) <= 8,
+    ).slice(0, profile.mud_patch_count);
+    for (const [index, sample] of mudSamples.entries()) {
+        const asset = mudAtoms[index % mudAtoms.length];
+        const at = jitterPoint(sample.center, `${profile.id}:mud`, index, 3.1, 1.8);
+        addTerrain(
+            {
+                id: `terrain-mud-${index}`,
+                asset,
+                x: at.x,
+                y: at.y,
+                zGroup: 'terrain_underpaint',
+                scale: terrainAtomScale(asset, profile.id, index, profile.path_width_scale),
+                opacity: 0.24 + profile.puddle_density * 0.18,
+                flip: index % 2 === 1,
+            },
+            'generated_mud_patch_count',
+        );
+    }
+
+    return metrics;
 }
 
 function addWaterways(builder, layout) {
@@ -1338,12 +1703,12 @@ function addWaterways(builder, layout) {
             });
             builder.add({
                 id: `${waterway.id}-mud-bank-${index}`,
-                asset: 'kilteevan-kit-mud-edge-a',
+                asset: 'kilteevan-kit-m2-mud-chip-a',
                 x: mid.x + (unitFromSeed(waterway.id, index + 11) - 0.5) * 4,
                 y: mid.y + 3 + (unitFromSeed(waterway.id, index + 13) - 0.5) * 2,
                 zGroup: 'terrain',
-                scale: clamp((waterway.width || 6) / 18, 0.26, 0.58),
-                opacity: 0.22,
+                scale: clamp((waterway.width || 6) / 34, 0.12, 0.3),
+                opacity: 0.18,
                 flip: index % 2 === 0,
             });
         }
@@ -1387,12 +1752,12 @@ function addPaths(builder, layout) {
             const sample = lerp(segment.a, segment.b, t);
             builder.add({
                 id: `${pathDef.id}-mud-chip-${sampleIndex}`,
-                asset: sampleIndex % 2 === 0 ? 'kilteevan-kit-m2-mud-chip-a' : 'kilteevan-kit-mud-edge-b',
+                asset: 'kilteevan-kit-m2-mud-chip-a',
                 x: sample.x + (unitFromSeed(pathDef.id, sampleIndex + 3) - 0.5) * 3,
                 y: sample.y + (unitFromSeed(pathDef.id, sampleIndex + 5) - 0.5) * 2,
                 zGroup: 'terrain',
-                scale: clamp(len / 120, 0.22, 0.5),
-                opacity: 0.26,
+                scale: clamp(len / 180, 0.12, 0.28),
+                opacity: 0.2,
                 flip: sampleIndex % 2 === 1,
             });
         }
@@ -1690,7 +2055,7 @@ function addFinalOverlays(builder) {
         y: 50,
         zGroup: 'contact',
         scale: 1,
-        opacity: 0.82,
+        opacity: 0.32,
     });
     builder.add({
         id: 'damp-vignette',
@@ -1699,7 +2064,7 @@ function addFinalOverlays(builder) {
         y: 50,
         zGroup: 'overlay',
         scale: 1,
-        opacity: 0.82,
+        opacity: 0.22,
     });
 }
 
@@ -1742,9 +2107,10 @@ function generatedSlots(layout) {
     });
 }
 
-function generateLayoutScene({ sourceScene, recipe, layout, index }) {
+function generateLayoutScene({ sourceScene, recipe, layout, index, grid }) {
     const builder = createLayerBuilder();
-    addTerrainBase(builder);
+    const terrainProfile = terrainProfileForLayout(recipe, layout);
+    const terrainMetrics = addGeneratedTerrainBackground(builder, layout, terrainProfile, grid);
     addWaterways(builder, layout);
     addPaths(builder, layout);
     addBridges(builder, layout);
@@ -1755,14 +2121,18 @@ function generateLayoutScene({ sourceScene, recipe, layout, index }) {
     addFoliage(builder, layout);
 
     return {
-        location_id: (recipe.location_id_base || 15100) + index,
-        slug: makeLayoutSlug(recipe, layout, index),
-        native_size: clone(sourceScene.native_size || [1280, 720]),
-        underlay: sourceScene.underlay,
-        plate: sourceScene.plate,
-        layers: builder.layers,
-        hotspots: generatedHotspots(layout),
-        slots: generatedSlots(layout),
+        terrainProfile,
+        terrainMetrics,
+        scene: {
+            location_id: (recipe.location_id_base || 15100) + index,
+            slug: makeLayoutSlug(recipe, layout, index),
+            native_size: clone(sourceScene.native_size || [1280, 720]),
+            underlay: sourceScene.underlay,
+            plate: sourceScene.plate,
+            layers: builder.layers,
+            hotspots: generatedHotspots(layout),
+            slots: generatedSlots(layout),
+        },
     };
 }
 
@@ -1787,10 +2157,18 @@ function layerStats(scene, assetsById) {
     const kinds = new Set();
     let kitLayerCount = 0;
     let m2KitLayerCount = 0;
+    let terrainLayerCount = 0;
+    let groundBaseLayerCount = 0;
     for (const layer of scene.layers) {
         const asset = assetsById.get(layer.asset);
         if (asset?.kind) {
             kinds.add(asset.kind);
+        }
+        if (layer.asset === 'kilteevan-ground-base') {
+            groundBaseLayerCount += 1;
+        }
+        if (layer.id.startsWith('terrain-') || (asset && ['ground', 'terrain_patch', 'road', 'water'].includes(asset.kind))) {
+            terrainLayerCount += 1;
         }
         if (asset?.image?.includes('/atoms/kit/')) {
             kitLayerCount += 1;
@@ -1803,6 +2181,8 @@ function layerStats(scene, assetsById) {
         layer_count: scene.layers.length,
         kit_layer_count: kitLayerCount,
         m2_kit_layer_count: m2KitLayerCount,
+        terrain_layer_count: terrainLayerCount,
+        shared_ground_base_layer_count: groundBaseLayerCount,
         layer_kinds: [...kinds].sort(),
     };
 }
@@ -1832,6 +2212,8 @@ function assertGeneratedPack(pack) {
     const locationIds = new Set();
     const signatures = new Set();
     const topologySignatures = new Set();
+    const terrainProfiles = new Set();
+    const terrainSignatures = new Set();
     for (const layout of pack.summary.layouts) {
         if (slugs.has(layout.slug)) {
             throw new Error(`duplicate generated slug '${layout.slug}'`);
@@ -1845,10 +2227,18 @@ function assertGeneratedPack(pack) {
         if (topologySignatures.has(layout.topology_signature)) {
             throw new Error(`duplicate topology signature '${layout.topology_signature}'`);
         }
+        if (terrainProfiles.has(layout.terrain_profile)) {
+            throw new Error(`duplicate terrain profile '${layout.terrain_profile}'`);
+        }
+        if (terrainSignatures.has(layout.terrain_signature)) {
+            throw new Error(`duplicate terrain signature '${layout.terrain_signature}'`);
+        }
         slugs.add(layout.slug);
         locationIds.add(layout.location_id);
         signatures.add(layout.scene_signature);
         topologySignatures.add(layout.topology_signature);
+        terrainProfiles.add(layout.terrain_profile);
+        terrainSignatures.add(layout.terrain_signature);
     }
     for (const scene of pack.scenes) {
         const layerIds = new Set();
@@ -1892,8 +2282,9 @@ export function generateVillageLayoutPack({
     const grid = validateGridSpec(recipe.grid || defaultIsoGrid);
     const visualWaterExclusions = recipe.visual_water_exclusions || [];
     const prefabCatalog = prefabCatalogForRecipe(recipe);
-    const scenes = recipe.layouts.map((layout, index) => generateLayoutScene({ sourceScene, recipe, layout, index }));
-    const summaryLayouts = scenes.map((scene, index) => {
+    const generated = recipe.layouts.map((layout, index) => generateLayoutScene({ sourceScene, recipe, layout, index, grid }));
+    const scenes = generated.map((entry) => entry.scene);
+    const summaryLayouts = generated.map(({ scene, terrainProfile, terrainMetrics }, index) => {
         const layout = recipe.layouts[index];
         const validation = validateOutdoorLayout(layout, { grid, visualWaterExclusions, prefabCatalog });
         return {
@@ -1904,6 +2295,11 @@ export function generateVillageLayoutPack({
             location_id: scene.location_id,
             description: layout.description,
             scene_signature: sceneSignature(scene),
+            terrain_profile: terrainProfile.id,
+            terrain_profile_name: terrainProfile.name,
+            terrain_signature: terrainSignature(layout, terrainProfile),
+            terrain_profile_signature: terrainProfileConfigSignature(terrainProfile),
+            ...terrainMetrics,
             topology_signature: validation.topology_signature,
             topology: validation,
             hotspot_count: scene.hotspots.length,
@@ -1928,6 +2324,7 @@ export function generateVillageLayoutPack({
             layout_count: scenes.length,
             art_direction: recipe.art_direction,
             grid,
+            terrain_profile_count: Object.keys(recipe.terrain_profiles || {}).length,
             prefab_catalog_ids: Object.keys(prefabCatalog).sort(),
             visual_water_exclusion_count: visualWaterExclusions.length,
             ai_asset_strategy: recipe.ai_asset_strategy,
@@ -1989,6 +2386,7 @@ function printSummary(summary) {
         console.log(
             `${String(layout.index).padStart(2, '0')}. ${layout.slug} ` +
                 `layers=${layout.layer_count} kit=${layout.kit_layer_count} ` +
+                `terrain=${layout.terrain_profile} underpaint=${layout.terrain_underpaint_layer_count} ` +
                 `paths=${layout.topology.path_count} water=${layout.topology.waterway_count} ` +
                 `bridges=${layout.topology.bridge_count} topology=${layout.topology_signature}`,
         );

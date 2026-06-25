@@ -10,6 +10,7 @@ import {
     generateVillageLayoutPack,
     loadVillageLayoutInputs,
     sceneSignature,
+    terrainSignature,
     topologySignature,
     validateOutdoorLayout,
 } from './generate-village-layouts.mjs';
@@ -70,6 +71,7 @@ test('outdoor village layout recipe generates ten physically coherent compositor
 
     assert.equal(inputs.recipe.layouts.length, 10);
     assert.equal(pack.summary.layout_count, 10);
+    assert.equal(pack.summary.terrain_profile_count, 10);
     assert.equal(pack.scenes.length, 10);
     assert.equal(pack.source.source_slug, 'kilteevan-village');
     assert.equal(pack.source.source_location_id, 15);
@@ -85,18 +87,38 @@ test('outdoor village layout recipe generates ten physically coherent compositor
     const locationIds = new Set();
     const sceneSignatures = new Set();
     const topologySignatures = new Set();
+    const terrainProfiles = new Set();
+    const terrainSignatures = new Set();
     for (const [index, scene] of pack.scenes.entries()) {
         const layoutSummary = pack.summary.layouts[index];
         slugs.add(scene.slug);
         locationIds.add(scene.location_id);
         sceneSignatures.add(sceneSignature(scene));
         topologySignatures.add(layoutSummary.topology_signature);
+        terrainProfiles.add(layoutSummary.terrain_profile);
+        terrainSignatures.add(layoutSummary.terrain_signature);
 
         assert.deepEqual(scene.native_size, [1280, 720], scene.slug);
         assert.equal(scene.plate, sourceScene.plate, `${scene.slug} keeps legacy plate`);
         assert.equal(scene.underlay, sourceScene.underlay, `${scene.slug} keeps legacy underlay`);
-        assert.ok(scene.layers.length >= 75, `${scene.slug} has enough layers to be a compositor scene`);
+        assert.ok(scene.layers.length >= 115, `${scene.slug} has enough layers to be a terrain compositor scene`);
         assert.ok(layoutSummary.kit_layer_count >= 60, `${scene.slug} uses many kit atoms`);
+        assert.ok(layoutSummary.terrain_layer_count >= 70, `${scene.slug} has generated terrain layers`);
+        assert.ok(
+            layoutSummary.terrain_underpaint_layer_count >= 45,
+            `${scene.slug} has enough generated terrain underpaint layers`,
+        );
+        assert.ok(layoutSummary.terrain_profile, `${scene.slug} has a terrain profile`);
+        assert.ok(layoutSummary.terrain_profile_name, `${scene.slug} has a terrain profile name`);
+        assert.equal(layoutSummary.terrain_signature, terrainSignature(inputs.recipe.layouts[index], {
+            id: layoutSummary.terrain_profile,
+            ...inputs.recipe.terrain_profiles[layoutSummary.terrain_profile],
+        }));
+        assert.ok(
+            layoutSummary.shared_ground_base_opacity <= 0.16,
+            `${scene.slug} demotes the shared ground base below visual dominance`,
+        );
+        assert.equal(layoutSummary.shared_ground_base_layer_count, 1, `${scene.slug} keeps at most one calibration ground base`);
         assert.equal(layoutSummary.topology.ok, true, `${scene.slug} topology validates`);
         assert.equal(layoutSummary.topology_signature, topologySignature(inputs.recipe.layouts[index]));
         assert.ok(layoutSummary.activation_hints.some((hint) => hint.kind === 'travel' && hint.command), `${scene.slug} has travel command hints`);
@@ -120,6 +142,12 @@ test('outdoor village layout recipe generates ten physically coherent compositor
         assert.ok(layoutSummary.topology.grid.prefab_port_connections > 0, `${scene.slug} records prefab port connections`);
 
         const zValues = new Set();
+        const calibrationBase = scene.layers.find((layer) => layer.asset === 'kilteevan-ground-base');
+        assert.ok(calibrationBase, `${scene.slug} keeps a low-opacity calibration base`);
+        assert.equal(calibrationBase.id, 'terrain-ground-calibration', `${scene.slug} names the base as calibration`);
+        assert.ok((calibrationBase.opacity ?? 1) <= 0.16, `${scene.slug} calibration base opacity is low`);
+        assert.ok(scene.layers.some((layer) => layer.id.startsWith('terrain-ground-')), `${scene.slug} has ground underpaint`);
+        assert.ok(scene.layers.some((layer) => layer.id.startsWith('terrain-path-')), `${scene.slug} has path underpaint`);
         for (const layer of scene.layers) {
             assert.equal(zValues.has(layer.z), false, `${scene.slug}/${layer.id} duplicate z=${layer.z}`);
             zValues.add(layer.z);
@@ -174,8 +202,35 @@ test('outdoor village layout recipe generates ten physically coherent compositor
     assert.equal(locationIds.size, 10, 'generated location ids are unique');
     assert.equal(sceneSignatures.size, 10, 'generated scene signatures are unique');
     assert.equal(topologySignatures.size, 10, 'generated topology signatures are unique');
+    assert.equal(terrainProfiles.size, 10, 'generated terrain profiles are unique');
+    assert.equal(terrainSignatures.size, 10, 'generated terrain signatures are unique');
     assert.ok(pack.summary.layouts.some((layout) => layout.topology.bridge_count === 0), 'some layouts are dry villages');
     assert.ok(pack.summary.layouts.some((layout) => layout.topology.bridge_count > 0), 'some layouts require bridges');
+});
+
+test('outdoor village terrain profiles reject samey or dominant-base generation', async () => {
+    const inputs = await loadVillageLayoutInputs();
+
+    const duplicateProfile = clone(inputs.recipe);
+    duplicateProfile.layouts[1].terrain_profile = duplicateProfile.layouts[0].terrain_profile;
+    assert.throws(
+        () => generateVillageLayoutPack({ sceneIndex: inputs.sceneIndex, recipe: duplicateProfile }),
+        /duplicate terrain profile/,
+    );
+
+    const dominantBase = clone(inputs.recipe);
+    dominantBase.terrain_profiles[dominantBase.layouts[0].terrain_profile].base_opacity = 0.42;
+    assert.throws(
+        () => generateVillageLayoutPack({ sceneIndex: inputs.sceneIndex, recipe: dominantBase }),
+        /base_opacity must be 0.05..0.28/,
+    );
+
+    const missingProfile = clone(inputs.recipe);
+    missingProfile.layouts[0].terrain_profile = 'missing-terrain-profile';
+    assert.throws(
+        () => generateVillageLayoutPack({ sceneIndex: inputs.sceneIndex, recipe: missingProfile }),
+        /missing terrain profile/,
+    );
 });
 
 test('outdoor village layout validator rejects impossible village topology', async () => {
