@@ -10,6 +10,7 @@ import {
     assertAiAssetCatalog,
     assertGeneratedPack,
     assertTerrainChunkMap,
+    compositionSignature,
     generateAiAssetCatalog,
     generateTerrainChunkMap,
     generateVillageLayoutPack,
@@ -100,14 +101,29 @@ test('outdoor village layout recipe generates ten physically coherent compositor
     const topologySignatures = new Set();
     const terrainProfiles = new Set();
     const terrainSignatures = new Set();
+    const compositionSignatures = new Set();
+    const compositionArchetypes = new Set();
+    const compositionFocalRoles = new Set();
+    const compositionStructureFamilies = new Set();
+    const compositionPropRoles = new Set();
     for (const [index, scene] of pack.scenes.entries()) {
         const layoutSummary = pack.summary.layouts[index];
+        const layout = inputs.recipe.layouts[index];
         slugs.add(scene.slug);
         locationIds.add(scene.location_id);
         sceneSignatures.add(sceneSignature(scene));
         topologySignatures.add(layoutSummary.topology_signature);
         terrainProfiles.add(layoutSummary.terrain_profile);
         terrainSignatures.add(layoutSummary.terrain_signature);
+        compositionSignatures.add(layoutSummary.composition_signature);
+        compositionArchetypes.add(layoutSummary.composition_archetype);
+        compositionFocalRoles.add(layoutSummary.composition_focal_role);
+        for (const family of layoutSummary.composition_structure_families) {
+            compositionStructureFamilies.add(family);
+        }
+        for (const role of layoutSummary.composition_prop_roles) {
+            compositionPropRoles.add(role);
+        }
 
         assert.deepEqual(scene.native_size, [1280, 720], scene.slug);
         assert.equal(scene.plate, sourceScene.plate, `${scene.slug} keeps legacy plate`);
@@ -125,6 +141,24 @@ test('outdoor village layout recipe generates ten physically coherent compositor
             id: layoutSummary.terrain_profile,
             ...inputs.recipe.terrain_profiles[layoutSummary.terrain_profile],
         }));
+        assert.deepEqual(layoutSummary.composition, layout.composition, `${scene.slug} reports source composition`);
+        assert.equal(layoutSummary.composition_signature, compositionSignature(layout), `${scene.slug} has deterministic composition signature`);
+        assert.equal(layoutSummary.composition_catalog_covered, true, `${scene.slug} composition roles are asset-catalog covered`);
+        assert.ok(layoutSummary.composition_archetype, `${scene.slug} has composition archetype`);
+        assert.ok(layoutSummary.composition_focal_role, `${scene.slug} has composition focal role`);
+        assert.ok(layoutSummary.composition_structure_families.length > 0, `${scene.slug} has structure families`);
+        assert.ok(layoutSummary.composition_prop_roles.length > 0, `${scene.slug} has prop roles`);
+        assert.ok(layoutSummary.composition_density_tags.length > 0, `${scene.slug} has density tags`);
+        assert.equal(
+            layoutSummary.composition_npc_slot_roles.length,
+            scene.slots.length,
+            `${scene.slug} has one NPC role per visual slot`,
+        );
+        assert.equal(
+            new Set(layoutSummary.composition_npc_slot_roles).size,
+            layoutSummary.composition_npc_slot_roles.length,
+            `${scene.slug} NPC slot roles are unique`,
+        );
         assert.ok(
             layoutSummary.shared_ground_base_opacity <= 0.16,
             `${scene.slug} demotes the shared ground base below visual dominance`,
@@ -190,7 +224,6 @@ test('outdoor village layout recipe generates ten physically coherent compositor
         assert.ok(families.has('foliage'), `${scene.slug} reuses foliage atoms`);
         assert.ok(families.has('terrain_patch'), `${scene.slug} reuses terrain atoms`);
 
-        const layout = inputs.recipe.layouts[index];
         for (const waterway of layout.waterways || []) {
             for (let segmentIndex = 0; segmentIndex < waterway.points.length - 1; segmentIndex += 1) {
                 assert.ok(
@@ -215,6 +248,18 @@ test('outdoor village layout recipe generates ten physically coherent compositor
     assert.equal(topologySignatures.size, 10, 'generated topology signatures are unique');
     assert.equal(terrainProfiles.size, 10, 'generated terrain profiles are unique');
     assert.equal(terrainSignatures.size, 10, 'generated terrain signatures are unique');
+    assert.equal(pack.summary.composition.composition_signature_count, compositionSignatures.size);
+    assert.ok(pack.summary.composition.composition_signature_count >= 8, 'generated layouts have enough composition signatures');
+    assert.ok(pack.summary.composition.composition_max_repeated_signature_count <= 2, 'composition signatures do not repeat heavily');
+    assert.equal(pack.summary.composition.archetype_count, compositionArchetypes.size, 'composition archetype count matches summaries');
+    assert.ok(pack.summary.composition.archetype_count >= 8, 'generated layouts cover many composition archetypes');
+    assert.equal(pack.summary.composition.focal_role_count, compositionFocalRoles.size, 'composition focal role count matches summaries');
+    assert.ok(pack.summary.composition.focal_role_count >= 4, 'generated layouts cover multiple focal roles');
+    assert.equal(pack.summary.composition.cottage_family_count, compositionStructureFamilies.size, 'cottage family count matches summaries');
+    assert.ok(pack.summary.composition.cottage_family_count >= 5, 'generated layouts cover all required cottage families');
+    assert.equal(pack.summary.composition.prop_role_count, compositionPropRoles.size, 'prop role count matches summaries');
+    assert.ok(pack.summary.composition.prop_role_count >= 6, 'generated layouts cover multiple prop roles');
+    assert.ok(pack.summary.composition.common_trio_replaced_layout_count >= 4, 'several layouts replace the well/sign/cart trio');
     assert.ok(pack.summary.layouts.some((layout) => layout.topology.bridge_count === 0), 'some layouts are dry villages');
     assert.ok(pack.summary.layouts.some((layout) => layout.topology.bridge_count > 0), 'some layouts require bridges');
 });
@@ -241,6 +286,47 @@ test('outdoor village terrain profiles reject samey or dominant-base generation'
     assert.throws(
         () => generateVillageLayoutPack({ sceneIndex: inputs.sceneIndex, recipe: missingProfile }),
         /missing terrain profile/,
+    );
+});
+
+test('outdoor village composition grammar rejects samey or contradictory scene recipes', async () => {
+    const inputs = await loadVillageLayoutInputs();
+
+    const missingComposition = clone(inputs.recipe);
+    delete missingComposition.layouts[0].composition;
+    assert.throws(
+        () => generateVillageLayoutPack({ sceneIndex: inputs.sceneIndex, recipe: missingComposition }),
+        /missing composition block/,
+    );
+
+    const catalogMismatch = clone(inputs.recipe);
+    catalogMismatch.layouts[0].composition.prop_roles.push('smithy anvil');
+    assert.throws(
+        () => generateVillageLayoutPack({ sceneIndex: inputs.sceneIndex, recipe: catalogMismatch }),
+        /not covered by ai_asset_strategy/,
+    );
+
+    const geometryMismatch = clone(inputs.recipe);
+    geometryMismatch.layouts[1].composition.prop_roles.push('gate');
+    assert.throws(
+        () => generateVillageLayoutPack({ sceneIndex: inputs.sceneIndex, recipe: geometryMismatch }),
+        /not present in layout geometry/,
+    );
+
+    const duplicateNpcRole = clone(inputs.recipe);
+    duplicateNpcRole.layouts[0].composition.npc_slot_roles[1] = duplicateNpcRole.layouts[0].composition.npc_slot_roles[0];
+    assert.throws(
+        () => generateVillageLayoutPack({ sceneIndex: inputs.sceneIndex, recipe: duplicateNpcRole }),
+        /npc_slot_roles must be unique/,
+    );
+
+    const sameFocalRole = clone(inputs.recipe);
+    for (const layout of sameFocalRole.layouts) {
+        layout.composition.focal_role = 'stone wall run';
+    }
+    assert.throws(
+        () => generateVillageLayoutPack({ sceneIndex: inputs.sceneIndex, recipe: sameFocalRole }),
+        /must cover at least 4 focal roles/,
     );
 });
 
