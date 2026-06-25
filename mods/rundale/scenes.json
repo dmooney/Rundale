@@ -383,6 +383,156 @@
             "kind": "lighting",
             "image": "assets/scenes/darcys-pub/atoms/kit/warm-lantern-a.png",
             "anchor": [50.0, 50.0]
+        },
+        {
+            "id": "kilteevan-kit-m2-road-bend-a",
+            "kind": "road",
+            "image": "assets/scenes/kilteevan-village/atoms/kit/m2-road-bend-a.png",
+            "anchor": [50.0, 50.0]
+        },
+        {
+            "id": "kilteevan-kit-m2-road-straight-a",
+            "kind": "road",
+            "image": "assets/scenes/kilteevan-village/atoms/kit/m2-road-straight-a.png",
+            "anchor": [50.0, 50.0]
+        },
+        {
+            "id": "kilteevan-kit-m2-road-fork-a",
+            "kind": "road",
+            "image": "assets/scenes/kilteevan-village/atoms/kit/m2-road-fork-a.png",
+            "anchor": [50.0, 50.0]
+        },
+        {
+            "id": "kilteevan-kit-m2-road-stub-a",
+            "kind": "road",
+            "image": "assets/scenes/kilteevan-village/atoms/kit/m2-road-stub-a.png",
+            "anchor": [50.0, 50.0]
+        },
+        {
+            "id": "kilteevan-kit-m2-puddle-chip-a",
+            "kind": "water",
+            "image": "assets/scenes/kilteevan-village/atoms/kit/m2-puddle-chip-a.png",
+            "anchor": [50.0, 50.0]
+        },
+        {
+            "id": "kilteevan-kit-m2-puddle-wide-a",
+            "kind": "water",
+            "image": "assets/scenes/kilteevan-village/atoms/kit/m2-puddle-wide-a.png",
+            "anchor": [50.0, 50.0]
+        },
+        {
+            "id": "kilteevan-kit-m2-puddle-cluster-a",
+            "kind": "water",
+            "image": "assets/scenes/kilteevan-village/atoms/kit/m2-puddle-cluster-a.png",
+            "anchor": [50.0, 50.0]
+        },
+        {
+            "id": "kilteevan-kit-m2-wall-straight-a",
+            "kind": "wall",
+            "image": "assets/scenes/kilteevan-village/atoms/kit/m2-wall-straight-a.png",
+            "anchor": [50.0, 100.0]
+        },
+        {
+            "id": "kilteevan-kit-m2-wall-corner-a",
+            "kind": "wall",
+            "image": "assets/scenes/kilteevan-village/atoms/kit/m2-wall-corner-a.png",
+            "anchor": [50.0, 100.0]
+        },
+        {
+            "id": "kilteevan-kit-m2-wall-curve-a",
+            "kind": "wall",
+            "image": "assets/scenes/kilteevan-village/atoms/kit/m2-wall-curve-a.png",
+            "anchor": [50.0, 100.0]
+        },
+        {
+            "id": "kilteevan-kit-m2-bramble-hedge-a",
+            "kind": "foliage",
+            "image": "assets/scenes/kilteevan-village/atoms/kit/m2-bramble-hedge-a.png",
+            "anchor": [50.0, 100.0]
+        },
+        {
+            "id": "kilteevan-kit-m2-flower-bush-a",
+            "kind": "foliage",
+            "image": "assets/scenes/kilteevan-village/atoms/kit/m2-flower-bush-a.png",
+            "anchor": [50.0, 100.0]
+        },
+        {
+            "id": "kilteevan-kit-m2-grass-tuft-a",
+            "kind": "foliage",
+            "image": "assets/scenes/kilteevan-village/atoms/kit/m2-grass-tuft-a.png",
+            "anchor": [50.0, 100.0]
+        },
+        {
+            "id": "kilteevan-kit-m2-purple-flower-a",
+            "kind": "foliage",
+            "image": "assets/scenes/kilteevan-village/atoms/kit/m2-purple-flower-a.png",
+            "anchor": [50.0, 100.0]
+        },
+        {
+            "id": "kilteevan-kit-m2-roof-corner-a",
+            "kind": "building_detail",
+            "image": "assets/scenes/kilteevan-village/atoms/kit/m2-roof-corner-a.png",
+            "anchor": [50.0, 100.0]
+        },
+        {
+            "id": "kilteevan-kit-m2-cottage-window-a",
+            "kind": "building_detail",
+            "image": "assets/scenes/kilteevan-village/atoms/kit/m2-cottage-window-a.png",
+            "anchor": [50.0, 100.0]
+        },
+        {
+            "id": "kilteevan-kit-m2-cottage-door-a",
+            "kind": "building_detail",
+            "image": "assets/scenes/kilteevan-village/atoms/kit/m2-cottage-door-a.png",
+            "anchor": [50.0, 100.0]
+        },
+        {
+            "id": "kilteevan-kit-m2-roof-cottage-a",
+            "kind": "building_detail",
+            "image": "assets/scenes/kilteevan-village/atoms/kit/m2-roof-cottage-a.png",
+            "anchor": [50.0, 100.0]
+        },
+        {
+            "id": "kilteevan-kit-m2-chimney-a",
+            "kind": "building_detail",
+            "image": "assets/scenes/kilteevan-village/atoms/kit/m2-chimney-a.png",
+            "anchor": [50.0, 100.0]
+        },
+        {
+            "id": "kilteevan-kit-m2-signpost-a",
+            "kind": "wayfinding_sign",
+            "image": "assets/scenes/kilteevan-village/atoms/kit/m2-signpost-a.png",
+            "anchor": [50.0, 100.0]
+        },
+        {
+            "id": "kilteevan-kit-m2-well-rim-a",
+            "kind": "prop",
+            "image": "assets/scenes/kilteevan-village/atoms/kit/m2-well-rim-a.png",
+            "anchor": [50.0, 100.0]
+        },
+        {
+            "id": "kilteevan-kit-m2-cart-wheel-a",
+            "kind": "prop",
+            "image": "assets/scenes/kilteevan-village/atoms/kit/m2-cart-wheel-a.png",
+            "anchor": [50.0, 100.0]
+        },
+        {
+            "id": "kilteevan-kit-m2-wood-planks-a",
+            "kind": "wood",
+            "image": "assets/scenes/kilteevan-village/atoms/kit/m2-wood-planks-a.png",
+            "anchor": [50.0, 100.0]
+        },
+        {
+            "id": "kilteevan-kit-m2-smoke-wisp-a",
+            "kind": "smoke",
+            "image": "assets/scenes/kilteevan-village/atoms/kit/m2-smoke-wisp-a.png",
+            "anchor": [50.0, 100.0]
+        },
+        {
+            "id": "kilteevan-kit-m2-mud-chip-a",
+            "kind": "terrain_patch",
+            "image": "assets/scenes/kilteevan-village/atoms/kit/m2-mud-chip-a.png",
+            "anchor": [50.0, 50.0]
         }
     ],
     "scenes": [
@@ -510,6 +660,33 @@
                     "opacity": 0.2
                 },
                 {
+                    "id": "m2-road-upper-straight",
+                    "asset": "kilteevan-kit-m2-road-straight-a",
+                    "x": 54.5,
+                    "y": 27.5,
+                    "z": -33,
+                    "scale": 0.42,
+                    "opacity": 0.46
+                },
+                {
+                    "id": "m2-road-village-fork",
+                    "asset": "kilteevan-kit-m2-road-fork-a",
+                    "x": 52.0,
+                    "y": 43.5,
+                    "z": -32,
+                    "scale": 0.46,
+                    "opacity": 0.5
+                },
+                {
+                    "id": "m2-road-center-bend",
+                    "asset": "kilteevan-kit-m2-road-bend-a",
+                    "x": 50.0,
+                    "y": 58.0,
+                    "z": -31,
+                    "scale": 0.48,
+                    "opacity": 0.48
+                },
+                {
                     "id": "contact-shadows",
                     "asset": "kilteevan-contact-shadows",
                     "x": 50.0,
@@ -517,6 +694,110 @@
                     "z": -30,
                     "scale": 1.0,
                     "opacity": 0.84
+                },
+                {
+                    "id": "m2-road-lower-straight",
+                    "asset": "kilteevan-kit-m2-road-straight-a",
+                    "x": 47.5,
+                    "y": 73.0,
+                    "z": -29,
+                    "scale": 0.52,
+                    "opacity": 0.42,
+                    "flip": true
+                },
+                {
+                    "id": "m2-road-bridge-stub",
+                    "asset": "kilteevan-kit-m2-road-stub-a",
+                    "x": 34.0,
+                    "y": 78.0,
+                    "z": -28,
+                    "scale": 0.44,
+                    "opacity": 0.38,
+                    "flip": true
+                },
+                {
+                    "id": "m2-road-cottage-stub",
+                    "asset": "kilteevan-kit-m2-road-stub-a",
+                    "x": 64.0,
+                    "y": 35.5,
+                    "z": -27,
+                    "scale": 0.38,
+                    "opacity": 0.34
+                },
+                {
+                    "id": "m2-mud-chip-upper-left",
+                    "asset": "kilteevan-kit-m2-mud-chip-a",
+                    "x": 44.0,
+                    "y": 36.5,
+                    "z": -26,
+                    "scale": 0.32,
+                    "opacity": 0.32
+                },
+                {
+                    "id": "m2-mud-chip-center",
+                    "asset": "kilteevan-kit-m2-mud-chip-a",
+                    "x": 55.0,
+                    "y": 53.0,
+                    "z": -25,
+                    "scale": 0.36,
+                    "opacity": 0.34,
+                    "flip": true
+                },
+                {
+                    "id": "m2-mud-chip-lower",
+                    "asset": "kilteevan-kit-m2-mud-chip-a",
+                    "x": 44.0,
+                    "y": 83.0,
+                    "z": -24,
+                    "scale": 0.4,
+                    "opacity": 0.3
+                },
+                {
+                    "id": "m2-puddle-upper",
+                    "asset": "kilteevan-kit-m2-puddle-chip-a",
+                    "x": 56.0,
+                    "y": 37.0,
+                    "z": -23,
+                    "scale": 0.25,
+                    "opacity": 0.42
+                },
+                {
+                    "id": "m2-puddle-center",
+                    "asset": "kilteevan-kit-m2-puddle-chip-a",
+                    "x": 53.0,
+                    "y": 55.0,
+                    "z": -22,
+                    "scale": 0.3,
+                    "opacity": 0.46,
+                    "flip": true
+                },
+                {
+                    "id": "m2-puddle-lower",
+                    "asset": "kilteevan-kit-m2-puddle-chip-a",
+                    "x": 47.0,
+                    "y": 73.0,
+                    "z": -21,
+                    "scale": 0.28,
+                    "opacity": 0.42
+                },
+                {
+                    "id": "m2-puddle-bridge",
+                    "asset": "kilteevan-kit-m2-puddle-cluster-a",
+                    "x": 31.0,
+                    "y": 80.0,
+                    "z": -20,
+                    "scale": 0.22,
+                    "opacity": 0.34,
+                    "flip": true
+                },
+                {
+                    "id": "m2-puddle-well",
+                    "asset": "kilteevan-kit-m2-puddle-wide-a",
+                    "x": 69.0,
+                    "y": 74.0,
+                    "z": -19,
+                    "scale": 0.18,
+                    "opacity": 0.26
                 },
                 {
                     "id": "left-cottage",
@@ -527,12 +808,49 @@
                     "scale": 1.02
                 },
                 {
+                    "id": "m2-left-roof-topface",
+                    "asset": "kilteevan-kit-m2-roof-corner-a",
+                    "x": 19.0,
+                    "y": 34.0,
+                    "z": 12,
+                    "scale": 0.36,
+                    "opacity": 0.46
+                },
+                {
+                    "id": "m2-left-window-detail",
+                    "asset": "kilteevan-kit-m2-cottage-window-a",
+                    "x": 16.0,
+                    "y": 50.5,
+                    "z": 13,
+                    "scale": 0.2,
+                    "opacity": 0.42
+                },
+                {
                     "id": "right-cottage",
                     "asset": "kilteevan-right-cottage",
                     "x": 78.0,
                     "y": 51.0,
                     "z": 18,
                     "scale": 1.08
+                },
+                {
+                    "id": "m2-right-roof-topface",
+                    "asset": "kilteevan-kit-m2-roof-cottage-a",
+                    "x": 80.5,
+                    "y": 35.5,
+                    "z": 20,
+                    "scale": 0.38,
+                    "opacity": 0.44,
+                    "flip": true
+                },
+                {
+                    "id": "m2-right-door-detail",
+                    "asset": "kilteevan-kit-m2-cottage-door-a",
+                    "x": 79.0,
+                    "y": 54.0,
+                    "z": 21,
+                    "scale": 0.2,
+                    "opacity": 0.44
                 },
                 {
                     "id": "wall-left",
@@ -551,6 +869,24 @@
                     "z": 25,
                     "scale": 0.46,
                     "opacity": 0.3
+                },
+                {
+                    "id": "m2-wall-left-a",
+                    "asset": "kilteevan-kit-m2-wall-straight-a",
+                    "x": 28.0,
+                    "y": 58.0,
+                    "z": 26,
+                    "scale": 0.28,
+                    "opacity": 0.72
+                },
+                {
+                    "id": "m2-wall-left-b",
+                    "asset": "kilteevan-kit-m2-wall-straight-a",
+                    "x": 35.0,
+                    "y": 54.0,
+                    "z": 27,
+                    "scale": 0.26,
+                    "opacity": 0.66
                 },
                 {
                     "id": "wall-right",
@@ -573,13 +909,24 @@
                     "flip": true
                 },
                 {
-                    "id": "wall-kit-well-stones",
-                    "asset": "kilteevan-kit-wall-stones-c",
-                    "x": 76.2,
-                    "y": 82.8,
-                    "z": 45,
-                    "scale": 0.48,
-                    "opacity": 0.28
+                    "id": "m2-wall-right-a",
+                    "asset": "kilteevan-kit-m2-wall-straight-a",
+                    "x": 67.0,
+                    "y": 58.0,
+                    "z": 30,
+                    "scale": 0.28,
+                    "opacity": 0.68,
+                    "flip": true
+                },
+                {
+                    "id": "m2-wall-right-corner",
+                    "asset": "kilteevan-kit-m2-wall-corner-a",
+                    "x": 73.5,
+                    "y": 63.0,
+                    "z": 31,
+                    "scale": 0.24,
+                    "opacity": 0.64,
+                    "flip": true
                 },
                 {
                     "id": "cart",
@@ -590,6 +937,24 @@
                     "scale": 0.78
                 },
                 {
+                    "id": "m2-cart-wheel-detail-a",
+                    "asset": "kilteevan-kit-m2-cart-wheel-a",
+                    "x": 25.0,
+                    "y": 68.5,
+                    "z": 35,
+                    "scale": 0.22,
+                    "opacity": 0.62
+                },
+                {
+                    "id": "m2-cart-wheel-detail-b",
+                    "asset": "kilteevan-kit-m2-cart-wheel-a",
+                    "x": 29.5,
+                    "y": 69.5,
+                    "z": 36,
+                    "scale": 0.2,
+                    "opacity": 0.52
+                },
+                {
                     "id": "signpost",
                     "asset": "kilteevan-signpost",
                     "x": 41.0,
@@ -598,12 +963,39 @@
                     "scale": 0.62
                 },
                 {
+                    "id": "m2-signpost-detail",
+                    "asset": "kilteevan-kit-m2-signpost-a",
+                    "x": 41.2,
+                    "y": 70.5,
+                    "z": 39,
+                    "scale": 0.3,
+                    "opacity": 0.72
+                },
+                {
+                    "id": "wall-kit-well-stones",
+                    "asset": "kilteevan-kit-wall-stones-c",
+                    "x": 76.2,
+                    "y": 82.8,
+                    "z": 45,
+                    "scale": 0.48,
+                    "opacity": 0.28
+                },
+                {
                     "id": "well",
                     "asset": "kilteevan-well",
                     "x": 73.0,
                     "y": 75.0,
                     "z": 46,
                     "scale": 0.68
+                },
+                {
+                    "id": "m2-well-rim-detail",
+                    "asset": "kilteevan-kit-m2-well-rim-a",
+                    "x": 73.0,
+                    "y": 76.0,
+                    "z": 47,
+                    "scale": 0.26,
+                    "opacity": 0.68
                 },
                 {
                     "id": "hedgerow-left",
@@ -634,6 +1026,53 @@
                     "flip": true
                 },
                 {
+                    "id": "m2-flower-left-cottage",
+                    "asset": "kilteevan-kit-m2-flower-bush-a",
+                    "x": 18.5,
+                    "y": 58.0,
+                    "z": 53,
+                    "scale": 0.28,
+                    "opacity": 0.7
+                },
+                {
+                    "id": "m2-flower-stream-bank",
+                    "asset": "kilteevan-kit-m2-flower-bush-a",
+                    "x": 27.0,
+                    "y": 68.5,
+                    "z": 54,
+                    "scale": 0.22,
+                    "opacity": 0.56,
+                    "flip": true
+                },
+                {
+                    "id": "m2-bramble-left-fence",
+                    "asset": "kilteevan-kit-m2-bramble-hedge-a",
+                    "x": 12.5,
+                    "y": 63.5,
+                    "z": 55,
+                    "scale": 0.32,
+                    "opacity": 0.64
+                },
+                {
+                    "id": "m2-grass-roadside-a",
+                    "asset": "kilteevan-kit-m2-grass-tuft-a",
+                    "x": 58.0,
+                    "y": 63.0,
+                    "z": 56,
+                    "scale": 0.16,
+                    "opacity": 0.44,
+                    "flip": true
+                },
+                {
+                    "id": "m2-purple-wall-left",
+                    "asset": "kilteevan-kit-m2-purple-flower-a",
+                    "x": 30.5,
+                    "y": 57.5,
+                    "z": 57,
+                    "scale": 0.16,
+                    "opacity": 0.5
+                },
+                {
                     "id": "hedgerow-right",
                     "asset": "kilteevan-hedgerow",
                     "x": 88.0,
@@ -661,6 +1100,44 @@
                     "opacity": 0.26
                 },
                 {
+                    "id": "m2-flower-well",
+                    "asset": "kilteevan-kit-m2-flower-bush-a",
+                    "x": 70.5,
+                    "y": 84.0,
+                    "z": 65,
+                    "scale": 0.22,
+                    "opacity": 0.54
+                },
+                {
+                    "id": "m2-bramble-right-cottage",
+                    "asset": "kilteevan-kit-m2-bramble-hedge-a",
+                    "x": 85.5,
+                    "y": 74.0,
+                    "z": 66,
+                    "scale": 0.28,
+                    "opacity": 0.56,
+                    "flip": true
+                },
+                {
+                    "id": "m2-grass-signpost",
+                    "asset": "kilteevan-kit-m2-grass-tuft-a",
+                    "x": 41.0,
+                    "y": 72.0,
+                    "z": 67,
+                    "scale": 0.18,
+                    "opacity": 0.62
+                },
+                {
+                    "id": "m2-purple-wall-right",
+                    "asset": "kilteevan-kit-m2-purple-flower-a",
+                    "x": 78.5,
+                    "y": 63.5,
+                    "z": 68,
+                    "scale": 0.15,
+                    "opacity": 0.46,
+                    "flip": true
+                },
+                {
                     "id": "foreground-wall",
                     "asset": "kilteevan-wall",
                     "x": 72.0,
@@ -686,6 +1163,35 @@
                     "z": 72,
                     "scale": 0.42,
                     "opacity": 0.24,
+                    "flip": true
+                },
+                {
+                    "id": "m2-wall-foreground-a",
+                    "asset": "kilteevan-kit-m2-wall-curve-a",
+                    "x": 74.5,
+                    "y": 88.0,
+                    "z": 73,
+                    "scale": 0.3,
+                    "opacity": 0.7
+                },
+                {
+                    "id": "m2-wall-bridge-a",
+                    "asset": "kilteevan-kit-m2-wall-straight-a",
+                    "x": 20.0,
+                    "y": 84.0,
+                    "z": 74,
+                    "scale": 0.22,
+                    "opacity": 0.56,
+                    "flip": true
+                },
+                {
+                    "id": "m2-wood-planks-bridge-detail",
+                    "asset": "kilteevan-kit-m2-wood-planks-a",
+                    "x": 29.0,
+                    "y": 80.5,
+                    "z": 75,
+                    "scale": 0.26,
+                    "opacity": 0.52,
                     "flip": true
                 },
                 {
@@ -723,6 +1229,50 @@
                     }
                 },
                 {
+                    "id": "m2-chimney-left-detail",
+                    "asset": "kilteevan-kit-m2-chimney-a",
+                    "x": 26.0,
+                    "y": 26.0,
+                    "z": 86,
+                    "scale": 0.28,
+                    "opacity": 0.58
+                },
+                {
+                    "id": "m2-smoke-left-wisp",
+                    "asset": "kilteevan-kit-m2-smoke-wisp-a",
+                    "x": 27.0,
+                    "y": 17.5,
+                    "z": 88,
+                    "scale": 0.34,
+                    "opacity": 0.54,
+                    "animation": {
+                        "mode": "drift",
+                        "amplitude_x": 0.6,
+                        "amplitude_y": -1.4,
+                        "alpha": 0.04,
+                        "period_ms": 5900,
+                        "phase": 0.16
+                    }
+                },
+                {
+                    "id": "m2-smoke-right-wisp",
+                    "asset": "kilteevan-kit-m2-smoke-wisp-a",
+                    "x": 82.0,
+                    "y": 18.5,
+                    "z": 89,
+                    "scale": 0.32,
+                    "opacity": 0.5,
+                    "flip": true,
+                    "animation": {
+                        "mode": "drift",
+                        "amplitude_x": -0.6,
+                        "amplitude_y": -1.4,
+                        "alpha": 0.04,
+                        "period_ms": 6400,
+                        "phase": 0.38
+                    }
+                },
+                {
                     "id": "damp-vignette",
                     "asset": "kilteevan-damp-vignette",
                     "x": 50.0,
@@ -737,7 +1287,9 @@
                     "id": "road-to-crossroads",
                     "shape": { "rect": [42.0, 14.0, 23.0, 58.0] },
                     "label": "Road to The Crossroads",
-                    "action": { "travel_to": 1 }
+                    "action": {
+                        "travel_to": 1
+                    }
                 },
                 {
                     "id": "village-well",
@@ -749,9 +1301,24 @@
                 }
             ],
             "slots": [
-                { "id": "well-left", "x": 76.0, "y": 63.0, "scale": 1.0 },
-                { "id": "lane-center", "x": 49.0, "y": 59.0, "scale": 1.0 },
-                { "id": "cottage-door", "x": 21.0, "y": 49.0, "scale": 0.95 }
+                {
+                    "id": "well-left",
+                    "x": 76.0,
+                    "y": 63.0,
+                    "scale": 1.0
+                },
+                {
+                    "id": "lane-center",
+                    "x": 49.0,
+                    "y": 59.0,
+                    "scale": 1.0
+                },
+                {
+                    "id": "cottage-door",
+                    "x": 21.0,
+                    "y": 49.0,
+                    "scale": 0.95
+                }
             ]
         },
         {
@@ -1031,19 +1598,25 @@
                     "id": "pub-lane",
                     "shape": { "rect": [72.0, 27.0, 18.0, 29.0] },
                     "label": "Lane to Darcy's Pub",
-                    "action": { "travel_to": 2 }
+                    "action": {
+                        "travel_to": 2
+                    }
                 },
                 {
                     "id": "church-boreen",
                     "shape": { "rect": [49.0, 13.0, 15.0, 25.0] },
                     "label": "Boreen to St. Brigid's Church",
-                    "action": { "travel_to": 3 }
+                    "action": {
+                        "travel_to": 3
+                    }
                 },
                 {
                     "id": "kilteevan-road",
                     "shape": { "rect": [36.0, 66.0, 22.0, 24.0] },
                     "label": "Kilteevan road",
-                    "action": { "travel_to": 15 }
+                    "action": {
+                        "travel_to": 15
+                    }
                 },
                 {
                     "id": "stone-wall",
@@ -1063,9 +1636,24 @@
                 }
             ],
             "slots": [
-                { "id": "roadside-left", "x": 31.0, "y": 65.0, "scale": 1.0 },
-                { "id": "roadside-right", "x": 66.0, "y": 64.0, "scale": 1.0 },
-                { "id": "wall-gossip", "x": 21.0, "y": 60.0, "scale": 0.95 }
+                {
+                    "id": "roadside-left",
+                    "x": 31.0,
+                    "y": 65.0,
+                    "scale": 1.0
+                },
+                {
+                    "id": "roadside-right",
+                    "x": 66.0,
+                    "y": 64.0,
+                    "scale": 1.0
+                },
+                {
+                    "id": "wall-gossip",
+                    "x": 21.0,
+                    "y": 60.0,
+                    "scale": 0.95
+                }
             ]
         },
         {
@@ -1381,7 +1969,9 @@
                     "id": "front-door",
                     "shape": { "rect": [75.0, 20.0, 14.0, 45.0] },
                     "label": "Out to the Crossroads",
-                    "action": { "travel_to": 1 }
+                    "action": {
+                        "travel_to": 1
+                    }
                 },
                 {
                     "id": "hearth",
@@ -1409,9 +1999,25 @@
                 }
             ],
             "slots": [
-                { "id": "behind-bar", "x": 52.0, "y": 49.0, "scale": 0.96, "prefer_npc": 1 },
-                { "id": "bench-left", "x": 76.0, "y": 64.0, "scale": 0.98 },
-                { "id": "bench-right", "x": 61.0, "y": 66.0, "scale": 0.95 }
+                {
+                    "id": "behind-bar",
+                    "x": 52.0,
+                    "y": 49.0,
+                    "scale": 0.96,
+                    "prefer_npc": 1
+                },
+                {
+                    "id": "bench-left",
+                    "x": 76.0,
+                    "y": 64.0,
+                    "scale": 0.98
+                },
+                {
+                    "id": "bench-right",
+                    "x": 61.0,
+                    "y": 66.0,
+                    "scale": 0.95
+                }
             ]
         }
     ],

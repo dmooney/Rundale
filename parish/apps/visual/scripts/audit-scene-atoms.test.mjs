@@ -252,18 +252,18 @@ test('Crossroads compositor atoms pass the local audit', async () => {
 test('Kilteevan compositor atoms pass the local audit', async () => {
     const result = await auditSceneAtoms({
         slug: 'kilteevan-village',
-        requiredReusableKitKinds: ['wall', 'foliage', 'terrain_patch'],
-        minKitLayers: 8,
-        minReusedKitAssets: 1,
+        requiredReusableKitKinds: ['water', 'wall', 'foliage', 'terrain_patch'],
+        minKitLayers: 32,
+        minReusedKitAssets: 4,
     });
 
     assert.deepEqual(result.failures, []);
     assert.equal(result.ok, true);
     assert.equal(result.summary.slug, 'kilteevan-village');
     assert.ok(result.summary.layers >= 30);
-    assert.ok(result.summary.kitLayers >= 8);
-    assert.ok(result.summary.reusedKitAssets >= 1);
-    assert.ok(result.summary.reusableKitFamilies >= 3);
+    assert.ok(result.summary.kitLayers >= 32);
+    assert.ok(result.summary.reusedKitAssets >= 4);
+    assert.ok(result.summary.reusableKitFamilies >= 4);
     assert.equal(result.summary.meaningfulAtoms, result.summary.layers);
     assert.deepEqual(result.summary.blankAtoms, []);
     assert.deepEqual(result.summary.suspiciousFullStageAtoms, []);
