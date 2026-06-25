@@ -2254,6 +2254,437 @@ function addTerrainChunkSpriteLayers(builder, layout, profile, chunkMap) {
     return metrics;
 }
 
+function promptSentence(parts) {
+    return parts.filter(Boolean).join(', ');
+}
+
+function assetCatalogStyle(recipe, grammar) {
+    return {
+        art_direction: recipe.art_direction,
+        style_lock: recipe.ai_asset_strategy?.style_lock || recipe.art_direction,
+        style_tags: [...(grammar?.style_tags || defaultTerrainChunkGrammar.style_tags)],
+        camera: 'high 3/4 isometric pixel art',
+        setting: 'damp 1820s rural Westmeath, Ireland',
+        palette: 'muted wet earth, moss green, peat water, whitewashed stone, thatch, weathered timber',
+        alpha_contract: 'transparent background for sprites, clean feathered alpha edges, no rectangular matte',
+        forbidden: [
+            'modern objects',
+            'text baked into sprites',
+            'low side-on perspective',
+            'photorealistic rendering',
+            'UI frame',
+            'hard rectangular shadow seams',
+        ],
+    };
+}
+
+function defaultNegativePrompt(style) {
+    return [
+        'no modern clothing or objects',
+        'no signage text',
+        'no UI overlay',
+        'no photorealism',
+        'no side-scroller perspective',
+        'no top-down flat icon view',
+        'no hard rectangular background',
+        'no mismatched lighting',
+        ...(style?.forbidden || []),
+    ].join('; ');
+}
+
+function catalogOutputPath(kind, id) {
+    return `assets/generated/village/${kind}/${slugify(id)}.png`;
+}
+
+function terrainCatalogPrompt({ style, request }) {
+    const portText = request.ports.length ? `with open connection ports ${request.ports.join(', ')}` : 'with no connection ports';
+    return promptSentence([
+        `${style.camera} transparent PNG terrain chunk`,
+        `${request.class} surface`,
+        `template ${request.template}`,
+        portText,
+        style.setting,
+        style.palette,
+        'consistent pixel density with 1280x720 adventure-game scene',
+        'soft contact shadow baked only inside visible sprite alpha',
+        'clean alpha edge',
+    ]);
+}
+
+function classCounts(items, field = 'class') {
+    const counts = {};
+    for (const item of items || []) {
+        const key = item[field] || 'unknown';
+        counts[key] = (counts[key] || 0) + 1;
+    }
+    return Object.fromEntries(Object.entries(counts).sort(([a], [b]) => a.localeCompare(b)));
+}
+
+function terrainRequestFamilyKey(request) {
+    return `${request.class || 'unknown'}:${request.template || 'unknown'}`;
+}
+
+function terrainRequestVariantKey(request) {
+    return `${terrainRequestFamilyKey(request)}:${terrainChunkPortKey(request.ports || [])}`;
+}
+
+function countBy(items, keyFor) {
+    const counts = {};
+    for (const item of items || []) {
+        const key = keyFor(item);
+        counts[key] = (counts[key] || 0) + 1;
+    }
+    return Object.fromEntries(Object.entries(counts).sort(([a], [b]) => a.localeCompare(b)));
+}
+
+function buildTerrainCatalogRequests({ recipe, grammar, pack, terrainChunkSprites }) {
+    const style = assetCatalogStyle(recipe, grammar);
+    const visibleLayerCounts = new Map();
+    const chunkIdsByAsset = new Map();
+    for (const scene of pack?.scenes || []) {
+        for (const layer of scene.layers || []) {
+            if (!layer.terrain_chunk_id) {
+                continue;
+            }
+            visibleLayerCounts.set(layer.asset, (visibleLayerCounts.get(layer.asset) || 0) + 1);
+            const ids = chunkIdsByAsset.get(layer.asset) || new Set();
+            ids.add(layer.terrain_chunk_id);
+            chunkIdsByAsset.set(layer.asset, ids);
+        }
+    }
+
+    return (terrainChunkSprites || []).map((sprite) => {
+        const asset = sprite.asset;
+        const request = {
+            id: asset.id.replace(/^generated-/, ''),
+            kind: 'terrain_chunk',
+            asset_id: asset.id,
+            class: sprite.class,
+            template: sprite.template,
+            ports: [...sprite.ports],
+            mask: clone(asset.terrain_chunk_mask),
+            anchor: clone(asset.anchor),
+            target: {
+                width: terrainChunkSpriteSize.width,
+                height: terrainChunkSpriteSize.height,
+                transparent: true,
+                pixel_art: true,
+            },
+            variant: sprite.variant,
+            variant_seed: hashHex({ asset: asset.id, class: sprite.class, template: sprite.template, ports: sprite.ports }).slice(0, 16),
+            style_tags: [...style.style_tags],
+            output_path: catalogOutputPath('terrain', asset.id),
+            usage: {
+                visible_layer_count: visibleLayerCounts.get(asset.id) || 0,
+                source_chunk_ids: [...(chunkIdsByAsset.get(asset.id) || [])].sort().slice(0, 24),
+            },
+            compatibility_tags: [
+                `terrain:${sprite.class}`,
+                `template:${sprite.template}`,
+                ...sprite.ports.map((port) => `port:${port}`),
+                asset.terrain_chunk_mask?.water ? 'mask:water' : 'mask:dry',
+                asset.terrain_chunk_mask?.walkable ? 'mask:walkable' : 'mask:not-walkable',
+            ],
+        };
+        request.prompt = terrainCatalogPrompt({ style, request });
+        request.negative_prompt = defaultNegativePrompt(style);
+        return request;
+    });
+}
+
+function familyRequest({ family, kind, index, style, target, anchor, footprint, compatibilityTags, maskNotes }) {
+    const id = `${kind}.${slugify(family)}.v${String(index).padStart(2, '0')}`;
+    return {
+        id,
+        kind,
+        family,
+        variant: index,
+        variant_seed: hashHex({ kind, family, index, style: style.style_lock }).slice(0, 16),
+        target: { ...target, transparent: true, pixel_art: true },
+        anchor: clone(anchor),
+        footprint: clone(footprint),
+        style_tags: [...style.style_tags],
+        output_path: catalogOutputPath(kind, id),
+        compatibility_tags: [...compatibilityTags],
+        mask: {
+            water: false,
+            walkable: false,
+            blocks_objects: kind !== 'npc_atom',
+            notes: maskNotes,
+        },
+        prompt: promptSentence([
+            `${style.camera} transparent PNG ${kind.replaceAll('_', ' ')}`,
+            family,
+            style.setting,
+            style.palette,
+            'consistent scale and lighting with Kilteevan village scene',
+            'clean alpha edge and soft contact shadow',
+        ]),
+        negative_prompt: defaultNegativePrompt(style),
+    };
+}
+
+function buildObjectCatalogRequests(recipe, grammar) {
+    const style = assetCatalogStyle(recipe, grammar);
+    const strategy = recipe.ai_asset_strategy || {};
+    const cottageRequests = (strategy.cottage_families || []).map((family, index) =>
+        familyRequest({
+            family,
+            kind: 'cottage',
+            index,
+            style,
+            target: { width: 320, height: 260 },
+            anchor: [50, 92],
+            footprint: { width: 26, height: 16, anchor: [50, 92], blocks: ['objects'], requires: ['dry', 'door-path'] },
+            compatibilityTags: ['object:cottage', 'socket:door_path', 'socket:roof_chimney', 'forbid:water'],
+            maskNotes: 'building footprint blocks object placement; door socket must face walkable path',
+        }),
+    );
+    const propRequests = (strategy.prop_families || []).map((family, index) =>
+        familyRequest({
+            family,
+            kind: 'prop',
+            index,
+            style,
+            target: { width: 180, height: 150 },
+            anchor: [50, 92],
+            footprint: { width: 10, height: 8, anchor: [50, 92], blocks: ['objects'], requires: ['dry'] },
+            compatibilityTags: ['object:prop', `family:${slugify(family)}`, 'forbid:water'],
+            maskNotes: 'prop footprint must declare dry placement and occlusion shape before entering catalog',
+        }),
+    );
+    return { cottageRequests, propRequests };
+}
+
+const npcAtomLayerOrder = [
+    'body stance',
+    'boots',
+    'trousers',
+    'skirt',
+    'coat',
+    'apron',
+    'shawl',
+    'head',
+    'hair',
+    'hat',
+    'held tool',
+    'basket',
+];
+
+function buildNpcAtomCatalog(recipe, grammar) {
+    const style = assetCatalogStyle(recipe, grammar);
+    const families = recipe.ai_asset_strategy?.npc_atom_families || [];
+    const requests = families.map((family, index) => {
+        const id = `npc-atom.${slugify(family)}.v${String(index).padStart(2, '0')}`;
+        const layerOrder = npcAtomLayerOrder.includes(family) ? npcAtomLayerOrder.indexOf(family) : 100 + index;
+        return {
+            id,
+            kind: 'npc_atom',
+            family,
+            layer_order: layerOrder,
+            variant: index,
+            variant_seed: hashHex({ family, index, style: style.style_lock }).slice(0, 16),
+            target: { width: 96, height: 144, transparent: true, pixel_art: true },
+            anchor: [50, 100],
+            style_tags: [...style.style_tags],
+            output_path: catalogOutputPath('npc-atoms', id),
+            compatibility_tags: ['npc:adult', 'view:front-three-quarter', `atom:${slugify(family)}`],
+            mask: {
+                water: false,
+                walkable: false,
+                blocks_objects: false,
+                notes: 'NPC atom overlays inside a 96x144 character frame; feet align to bottom-center anchor',
+            },
+            prompt: promptSentence([
+                `${style.camera} transparent PNG NPC atom`,
+                family,
+                'adult rural Irish villager, 1820s',
+                style.palette,
+                'same stance and pixel density as other NPC atoms',
+                'clean alpha edge',
+            ]),
+            negative_prompt: defaultNegativePrompt(style),
+        };
+    });
+
+    const requestByFamily = new Map(requests.map((request) => [request.family, request]));
+    const assemblySeeds = [
+        {
+            id: 'npc-assembly.market-woman',
+            label: 'Market woman with shawl and basket',
+            required: ['body stance', 'head', 'hair', 'shawl', 'apron', 'skirt', 'boots', 'basket'],
+        },
+        {
+            id: 'npc-assembly.farm-labourer',
+            label: 'Farm labourer with hat and held tool',
+            required: ['body stance', 'head', 'hair', 'hat', 'coat', 'trousers', 'boots', 'held tool'],
+        },
+        {
+            id: 'npc-assembly.pub-keeper',
+            label: 'Village publican with coat and apron',
+            required: ['body stance', 'head', 'hair', 'coat', 'apron', 'trousers', 'boots'],
+        },
+    ];
+    const assemblies = assemblySeeds.map((assembly, index) => ({
+        id: assembly.id,
+        label: assembly.label,
+        variant_seed: hashHex({ assembly: assembly.id, index }).slice(0, 16),
+        anchor: [50, 100],
+        target: { width: 96, height: 144, transparent: true, pixel_art: true },
+        layer_order: assembly.required.map((family) => requestByFamily.get(family)?.id).filter(Boolean),
+        required_atom_families: [...assembly.required],
+        compatibility_tags: ['npc:adult', 'view:front-three-quarter', 'setting:rural-westmeath-1820s'],
+    }));
+
+    return { requests, assemblies };
+}
+
+export function generateAiAssetCatalog({ recipe, pack, chunkMaps = [], chunkGrammar = terrainChunkGrammarForRecipeInternal(recipe), terrainChunkSprites = [] }) {
+    const grammar = validateTerrainChunkGrammar(chunkGrammar);
+    const style = assetCatalogStyle(recipe, grammar);
+    const terrainRequests = buildTerrainCatalogRequests({ recipe, grammar, pack, terrainChunkSprites });
+    const { cottageRequests, propRequests } = buildObjectCatalogRequests(recipe, grammar);
+    const npc = buildNpcAtomCatalog(recipe, grammar);
+    const visibleChunkLayerCount = (pack?.scenes || []).reduce(
+        (sum, scene) => sum + (scene.layers || []).filter((layer) => layer.terrain_chunk_id).length,
+        0,
+    );
+    const catalog = {
+        schema_version: 1,
+        source: clone(pack?.source || {}),
+        style,
+        summary: {
+            terrain_request_count: terrainRequests.length,
+            terrain_request_class_counts: classCounts(terrainRequests),
+            terrain_request_family_counts: countBy(terrainRequests, terrainRequestFamilyKey),
+            terrain_request_variant_counts: countBy(terrainRequests, terrainRequestVariantKey),
+            visible_chunk_layer_count: visibleChunkLayerCount,
+            terrain_request_visible_coverage_count: terrainRequests.filter((request) => request.usage.visible_layer_count > 0).length,
+            terrain_chunk_map_count: chunkMaps.length,
+            cottage_request_count: cottageRequests.length,
+            prop_request_count: propRequests.length,
+            npc_atom_request_count: npc.requests.length,
+            npc_assembly_count: npc.assemblies.length,
+            npc_atom_families: [...(recipe.ai_asset_strategy?.npc_atom_families || [])],
+        },
+        terrain_requests: terrainRequests,
+        cottage_requests: cottageRequests,
+        prop_requests: propRequests,
+        npc_atom_requests: npc.requests,
+        npc_assemblies: npc.assemblies,
+    };
+    catalog.catalog_signature = hashHex({
+        style: catalog.style,
+        terrain: terrainRequests.map((request) => [request.id, request.class, request.template, request.ports, request.output_path]),
+        cottages: cottageRequests.map((request) => [request.id, request.family, request.output_path]),
+        props: propRequests.map((request) => [request.id, request.family, request.output_path]),
+        npc_atoms: npc.requests.map((request) => [request.id, request.family, request.layer_order]),
+        assemblies: npc.assemblies.map((assembly) => [assembly.id, assembly.layer_order]),
+    }).slice(0, 20);
+    assertAiAssetCatalog(catalog, { grammar, pack });
+    return catalog;
+}
+
+export function assertAiAssetCatalog(catalog, { grammar = defaultTerrainChunkGrammar, pack = null } = {}) {
+    const resolvedGrammar = validateTerrainChunkGrammar(grammar);
+    const errors = [];
+    const ids = new Set();
+    const allRequests = [
+        ...(catalog.terrain_requests || []),
+        ...(catalog.cottage_requests || []),
+        ...(catalog.prop_requests || []),
+        ...(catalog.npc_atom_requests || []),
+    ];
+    for (const request of allRequests) {
+        if (!request.id) {
+            errors.push('asset catalog request missing id');
+        } else if (ids.has(request.id)) {
+            errors.push(`duplicate asset catalog request id '${request.id}'`);
+        }
+        ids.add(request.id);
+        if (!request.prompt) {
+            errors.push(`${request.id || '<missing>'} is missing prompt`);
+        }
+        if (!request.negative_prompt) {
+            errors.push(`${request.id || '<missing>'} is missing negative prompt`);
+        }
+        if (!Array.isArray(request.style_tags) || request.style_tags.length === 0) {
+            errors.push(`${request.id || '<missing>'} is missing style tags`);
+        }
+        if (!request.output_path || !request.output_path.endsWith('.png')) {
+            errors.push(`${request.id || '<missing>'} is missing PNG output path`);
+        }
+        if (!request.target?.transparent) {
+            errors.push(`${request.id || '<missing>'} must require transparent output`);
+        }
+        if (!Array.isArray(request.anchor) || request.anchor.length !== 2) {
+            errors.push(`${request.id || '<missing>'} is missing anchor`);
+        }
+        if (!request.mask || typeof request.mask !== 'object') {
+            errors.push(`${request.id || '<missing>'} is missing mask`);
+        }
+        if ((request.kind === 'cottage' || request.kind === 'prop') && !request.footprint) {
+            errors.push(`${request.id || '<missing>'} is missing footprint`);
+        }
+    }
+
+    const visibleLayerAssets = new Set();
+    for (const scene of pack?.scenes || []) {
+        for (const layer of scene.layers || []) {
+            if (layer.terrain_chunk_id) {
+                visibleLayerAssets.add(layer.asset);
+            }
+        }
+    }
+    const terrainAssetIds = new Set();
+    for (const request of catalog.terrain_requests || []) {
+        terrainAssetIds.add(request.asset_id);
+        if (!resolvedGrammar.templates[request.template]) {
+            errors.push(`${request.id} references missing terrain template '${request.template}'`);
+        }
+        if (!Array.isArray(request.ports)) {
+            errors.push(`${request.id} is missing terrain ports`);
+        }
+        if (request.kind !== 'terrain_chunk') {
+            errors.push(`${request.id} must have kind terrain_chunk`);
+        }
+    }
+    for (const assetId of visibleLayerAssets) {
+        if (!terrainAssetIds.has(assetId)) {
+            errors.push(`visible terrain chunk asset '${assetId}' has no AI asset request`);
+        }
+    }
+
+    const atomFamilies = new Set((catalog.npc_atom_requests || []).map((request) => request.family));
+    const requiredAssemblyFamilies = ['body stance', 'head', 'boots'];
+    for (const assembly of catalog.npc_assemblies || []) {
+        for (const family of requiredAssemblyFamilies) {
+            if (!assembly.required_atom_families?.includes(family)) {
+                errors.push(`${assembly.id} is missing required NPC atom family '${family}'`);
+            }
+        }
+        if (!assembly.required_atom_families?.some((family) => ['coat', 'shawl', 'apron'].includes(family))) {
+            errors.push(`${assembly.id} needs at least one outer/clothing atom`);
+        }
+        for (const family of assembly.required_atom_families || []) {
+            if (!atomFamilies.has(family)) {
+                errors.push(`${assembly.id} references missing NPC atom family '${family}'`);
+            }
+        }
+        if (!Array.isArray(assembly.layer_order) || assembly.layer_order.length < 5) {
+            errors.push(`${assembly.id} has incomplete NPC layer order`);
+        }
+    }
+
+    const expectedTerrainCount = catalog.summary?.terrain_request_count;
+    if (expectedTerrainCount !== undefined && expectedTerrainCount !== (catalog.terrain_requests || []).length) {
+        errors.push(`terrain request summary mismatch: ${expectedTerrainCount}`);
+    }
+    if (errors.length) {
+        throw new Error(`AI asset catalog invalid: ${errors.join('; ')}`);
+    }
+}
+
 function assetFootprintPoints(kind, anchor, scale = 1, flip = false) {
     if (kind !== 'cart') {
         return [anchor];
@@ -4023,6 +4454,7 @@ function parseArgs(argv) {
         summaryOutPath: null,
         assetOutPath: null,
         chunkMapOutPath: null,
+        assetCatalogOutPath: null,
         chunkRenderMode: 'none',
         summary: false,
     };
@@ -4046,6 +4478,9 @@ function parseArgs(argv) {
             index += 1;
         } else if (arg === '--chunk-map-out') {
             args.chunkMapOutPath = resolveRepoPath(next, arg);
+            index += 1;
+        } else if (arg === '--asset-catalog-out') {
+            args.assetCatalogOutPath = resolveRepoPath(next, arg);
             index += 1;
         } else if (arg === '--chunk-render-mode') {
             if (!['none', 'sprites'].includes(next)) {
@@ -4092,6 +4527,10 @@ async function main() {
     let chunkMaps = [];
     let chunkGrammar = null;
     let terrainChunkSprites = [];
+    let assetCatalog = null;
+    if (args.assetCatalogOutPath && args.chunkRenderMode !== 'sprites') {
+        throw new Error('--asset-catalog-out requires --chunk-render-mode sprites so visible chunk sprite coverage can be proven');
+    }
     const includeTerrainChunks = Boolean(args.chunkMapOutPath) || args.chunkRenderMode === 'sprites';
     if (args.assetOutPath && args.chunkRenderMode === 'sprites') {
         ({ pack, terrainGroundFills, chunkMaps, chunkGrammar, terrainChunkSprites } = generateVillageLayoutPackWithChunkSprites(inputs, {
@@ -4125,6 +4564,16 @@ async function main() {
             layouts: chunkMaps,
         });
     }
+    if (args.assetCatalogOutPath) {
+        assetCatalog = generateAiAssetCatalog({
+            recipe: inputs.recipe,
+            pack,
+            chunkMaps,
+            chunkGrammar,
+            terrainChunkSprites,
+        });
+        await writeJson(args.assetCatalogOutPath, assetCatalog);
+    }
     if (args.summary || (!args.outPath && !args.summaryOutPath)) {
         printSummary(pack.summary);
         if (terrainRasters.length) {
@@ -4138,6 +4587,13 @@ async function main() {
         }
         if (terrainGroundFills.length) {
             console.log(`Wrote ${terrainGroundFills.length} terrain ground fill asset(s) to ${relativePath(args.assetOutPath)}.`);
+        }
+        if (assetCatalog) {
+            console.log(
+                `Wrote AI asset catalog ${assetCatalog.catalog_signature} with ` +
+                    `${assetCatalog.summary.terrain_request_count} terrain request(s), ` +
+                    `${assetCatalog.summary.npc_atom_request_count} NPC atom request(s) to ${relativePath(args.assetCatalogOutPath)}.`,
+            );
         }
     }
 }

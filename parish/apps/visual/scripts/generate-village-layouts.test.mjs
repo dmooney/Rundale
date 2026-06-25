@@ -7,8 +7,10 @@ import { fileURLToPath } from 'node:url';
 
 import { auditSceneAtoms, parsePng, visibleContentSummary } from './audit-scene-atoms.mjs';
 import {
+    assertAiAssetCatalog,
     assertGeneratedPack,
     assertTerrainChunkMap,
+    generateAiAssetCatalog,
     generateTerrainChunkMap,
     generateVillageLayoutPack,
     generateVillageLayoutPackWithChunkSprites,
@@ -510,6 +512,147 @@ test('outdoor village chunk sprite renderer writes deterministic reusable terrai
     const brokenCoverage = clone(pack);
     brokenCoverage.summary.layouts[0].terrain_chunk_sprite_path_coverage_cells += 1;
     assert.throws(() => assertGeneratedPack(brokenCoverage), /chunk sprite path coverage mismatch/);
+});
+
+test('outdoor village AI asset catalog emits deterministic prompt-ready asset specs', async () => {
+    const inputs = await loadVillageLayoutInputs();
+    const first = generateVillageLayoutPackWithChunkSprites(inputs, { terrainAssetBasePath: 'generated-assets' });
+    const second = generateVillageLayoutPackWithChunkSprites(inputs, { terrainAssetBasePath: 'generated-assets' });
+    const catalog = generateAiAssetCatalog({
+        recipe: inputs.recipe,
+        pack: first.pack,
+        chunkMaps: first.chunkMaps,
+        chunkGrammar: first.chunkGrammar,
+        terrainChunkSprites: first.terrainChunkSprites,
+    });
+    const catalogAgain = generateAiAssetCatalog({
+        recipe: inputs.recipe,
+        pack: second.pack,
+        chunkMaps: second.chunkMaps,
+        chunkGrammar: second.chunkGrammar,
+        terrainChunkSprites: second.terrainChunkSprites,
+    });
+    const visibleChunkAssetIds = new Set(
+        first.pack.scenes.flatMap((scene) => scene.layers.filter((layer) => layer.terrain_chunk_id).map((layer) => layer.asset)),
+    );
+    const terrainRequestsByAsset = new Map(catalog.terrain_requests.map((request) => [request.asset_id, request]));
+
+    assert.deepEqual(catalog, catalogAgain);
+    assertAiAssetCatalog(catalog, { grammar: first.chunkGrammar, pack: first.pack });
+    assert.equal(catalog.terrain_requests.length, first.terrainChunkSprites.length);
+    assert.equal(catalog.summary.terrain_request_count, first.terrainChunkSprites.length);
+    assert.equal(
+        Object.values(catalog.summary.terrain_request_family_counts).reduce((sum, count) => sum + count, 0),
+        first.terrainChunkSprites.length,
+    );
+    assert.equal(
+        Object.values(catalog.summary.terrain_request_variant_counts).reduce((sum, count) => sum + count, 0),
+        first.terrainChunkSprites.length,
+    );
+    assert.ok(catalog.summary.terrain_request_family_counts['path:path-straight'] > 0);
+    assert.ok(Object.keys(catalog.summary.terrain_request_variant_counts).some((key) => key.startsWith('water:') && !key.endsWith(':none')));
+    assert.equal(catalog.summary.terrain_chunk_map_count, first.chunkMaps.length);
+    assert.equal(catalog.summary.visible_chunk_layer_count, first.pack.summary.layouts.reduce((sum, layout) => sum + layout.terrain_chunk_sprite_layer_count, 0));
+    assert.equal(catalog.summary.cottage_request_count, inputs.recipe.ai_asset_strategy.cottage_families.length);
+    assert.equal(catalog.summary.prop_request_count, inputs.recipe.ai_asset_strategy.prop_families.length);
+    assert.equal(catalog.summary.npc_atom_request_count, inputs.recipe.ai_asset_strategy.npc_atom_families.length);
+    assert.equal(catalog.summary.npc_assembly_count, 3);
+    assert.match(catalog.style.style_lock, /same high 3\/4 camera/);
+    assert.ok(catalog.style.style_tags.includes('pixel-art'));
+
+    for (const sprite of first.terrainChunkSprites) {
+        const request = terrainRequestsByAsset.get(sprite.asset.id);
+        assert.ok(request, `${sprite.asset.id} has AI asset request`);
+        assert.equal(request.kind, 'terrain_chunk');
+        assert.equal(request.class, sprite.class);
+        assert.equal(request.template, sprite.template);
+        assert.deepEqual(request.ports, sprite.ports);
+        assert.deepEqual(request.anchor, [50, 50]);
+        assert.deepEqual(request.mask, sprite.asset.terrain_chunk_mask);
+        assert.deepEqual(request.target, { width: 78, height: 54, transparent: true, pixel_art: true });
+        assert.match(request.variant_seed, /^[a-f0-9]{16}$/);
+        assert.match(request.output_path, /^assets\/generated\/village\/terrain\/[a-z0-9-]+\.png$/);
+        assert.match(request.prompt, /high 3\/4 isometric pixel art/);
+        assert.match(request.prompt, new RegExp(request.class));
+        assert.match(request.prompt, new RegExp(request.template));
+        assert.match(request.prompt, /transparent PNG terrain chunk/);
+        assert.match(request.prompt, /clean alpha edge/);
+        assert.match(request.negative_prompt, /no modern/);
+        assert.match(request.negative_prompt, /no signage text/);
+        assert.ok(request.style_tags.includes('stardew-factorio-readable'));
+    }
+
+    for (const assetId of visibleChunkAssetIds) {
+        assert.ok(terrainRequestsByAsset.has(assetId), `${assetId} visible chunk has catalog request`);
+        assert.ok((terrainRequestsByAsset.get(assetId).usage.visible_layer_count || 0) > 0);
+    }
+
+    const cottageFamilies = new Set(catalog.cottage_requests.map((request) => request.family));
+    const propFamilies = new Set(catalog.prop_requests.map((request) => request.family));
+    const npcAtomFamilies = new Set(catalog.npc_atom_requests.map((request) => request.family));
+    for (const family of inputs.recipe.ai_asset_strategy.cottage_families) {
+        assert.ok(cottageFamilies.has(family), `cottage family '${family}' has request`);
+    }
+    for (const request of catalog.cottage_requests) {
+        assert.deepEqual(request.footprint.requires, ['dry', 'door-path']);
+        assert.ok(request.compatibility_tags.includes('socket:door_path'));
+        assert.match(request.mask.notes, /door socket/);
+    }
+    for (const family of inputs.recipe.ai_asset_strategy.prop_families) {
+        assert.ok(propFamilies.has(family), `prop family '${family}' has request`);
+    }
+    for (const request of catalog.prop_requests) {
+        assert.deepEqual(request.footprint.requires, ['dry']);
+        assert.ok(request.compatibility_tags.includes('forbid:water'));
+        assert.match(request.mask.notes, /occlusion shape/);
+    }
+    for (const family of inputs.recipe.ai_asset_strategy.npc_atom_families) {
+        assert.ok(npcAtomFamilies.has(family), `NPC atom family '${family}' has request`);
+    }
+    for (const assembly of catalog.npc_assemblies) {
+        assert.ok(assembly.required_atom_families.includes('body stance'));
+        assert.ok(assembly.required_atom_families.includes('head'));
+        assert.ok(assembly.required_atom_families.includes('boots'));
+        assert.ok(assembly.layer_order.length >= 7);
+        assert.match(assembly.variant_seed, /^[a-f0-9]{16}$/);
+    }
+
+    const duplicateId = clone(catalog);
+    duplicateId.terrain_requests[1].id = duplicateId.terrain_requests[0].id;
+    assert.throws(() => assertAiAssetCatalog(duplicateId, { grammar: first.chunkGrammar, pack: first.pack }), /duplicate asset catalog request id/);
+
+    const missingPrompt = clone(catalog);
+    missingPrompt.terrain_requests[0].prompt = '';
+    assert.throws(() => assertAiAssetCatalog(missingPrompt, { grammar: first.chunkGrammar, pack: first.pack }), /missing prompt/);
+
+    const missingStyle = clone(catalog);
+    missingStyle.terrain_requests[0].style_tags = [];
+    assert.throws(() => assertAiAssetCatalog(missingStyle, { grammar: first.chunkGrammar, pack: first.pack }), /missing style tags/);
+
+    const missingOutput = clone(catalog);
+    missingOutput.cottage_requests[0].output_path = '';
+    assert.throws(() => assertAiAssetCatalog(missingOutput, { grammar: first.chunkGrammar, pack: first.pack }), /missing PNG output path/);
+
+    const missingAnchor = clone(catalog);
+    missingAnchor.prop_requests[0].anchor = null;
+    assert.throws(() => assertAiAssetCatalog(missingAnchor, { grammar: first.chunkGrammar, pack: first.pack }), /missing anchor/);
+
+    const missingMask = clone(catalog);
+    delete missingMask.npc_atom_requests[0].mask;
+    assert.throws(() => assertAiAssetCatalog(missingMask, { grammar: first.chunkGrammar, pack: first.pack }), /missing mask/);
+
+    const missingFootprint = clone(catalog);
+    delete missingFootprint.prop_requests[0].footprint;
+    assert.throws(() => assertAiAssetCatalog(missingFootprint, { grammar: first.chunkGrammar, pack: first.pack }), /missing footprint/);
+
+    const badTemplate = clone(catalog);
+    badTemplate.terrain_requests[0].template = 'missing-template';
+    assert.throws(() => assertAiAssetCatalog(badTemplate, { grammar: first.chunkGrammar, pack: first.pack }), /missing terrain template/);
+
+    const incompleteAssembly = clone(catalog);
+    incompleteAssembly.npc_assemblies[0].required_atom_families = ['body stance', 'head'];
+    incompleteAssembly.npc_assemblies[0].layer_order = incompleteAssembly.npc_assemblies[0].layer_order.slice(0, 2);
+    assert.throws(() => assertAiAssetCatalog(incompleteAssembly, { grammar: first.chunkGrammar, pack: first.pack }), /missing required NPC atom family|incomplete NPC layer order/);
 });
 
 test('outdoor village terrain chunk validator rejects broken chunk contracts', async () => {
