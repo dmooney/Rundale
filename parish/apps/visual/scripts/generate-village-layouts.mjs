@@ -106,6 +106,30 @@ const defaultIsoGrid = {
     rendered_water_margin_cells: 1,
 };
 
+const defaultTerrainChunkGrammar = {
+    version: 1,
+    style_tags: ['high-3-4', 'pixel-art', 'damp-1820s-westmeath', 'muted-wet-earth', 'stardew-factorio-readable'],
+    templates: {
+        'ground-fill': { class: 'ground', mask: { water: false, walkable: false, blocks_objects: false } },
+        'path-end': { class: 'path', mask: { water: false, walkable: true, blocks_objects: false } },
+        'path-straight': { class: 'path', mask: { water: false, walkable: true, blocks_objects: false } },
+        'path-bend': { class: 'path', mask: { water: false, walkable: true, blocks_objects: false } },
+        'path-fork': { class: 'path', mask: { water: false, walkable: true, blocks_objects: false } },
+        'path-cross': { class: 'path', mask: { water: false, walkable: true, blocks_objects: false } },
+        'water-end': { class: 'water', mask: { water: true, walkable: false, blocks_objects: true } },
+        'water-straight': { class: 'water', mask: { water: true, walkable: false, blocks_objects: true } },
+        'water-bend': { class: 'water', mask: { water: true, walkable: false, blocks_objects: true } },
+        'water-fork': { class: 'water', mask: { water: true, walkable: false, blocks_objects: true } },
+        'bank-edge': { class: 'bank', mask: { water: false, walkable: false, blocks_objects: false } },
+        'bank-corner': { class: 'bank', mask: { water: false, walkable: false, blocks_objects: false } },
+        'bridge-crossing': {
+            class: 'bridge',
+            mask: { water: false, walkable: true, blocks_objects: false, water_under_span: true },
+        },
+        'detail-grass': { class: 'detail', mask: { water: false, walkable: false, blocks_objects: false } },
+    },
+};
+
 const builtinPrefabCatalog = {
     'bridge-crossing': {
         requires: ['path_crosses_water', 'continuous_water_under_span'],
@@ -375,6 +399,124 @@ function paintCellSet(pixels, width, height, classes, cells, grid, nativeSize, r
     for (const key of cells) {
         paintDiamond(pixels, width, height, classes, cellCenterPixels(grid, key, nativeSize), radii.x, radii.y, color, alpha, seed + key.length, classId);
     }
+}
+
+const chunkDirections = [
+    { name: 'n', dc: 0, dr: -1 },
+    { name: 'ne', dc: 1, dr: -1 },
+    { name: 'e', dc: 1, dr: 0 },
+    { name: 'se', dc: 1, dr: 1 },
+    { name: 's', dc: 0, dr: 1 },
+    { name: 'sw', dc: -1, dr: 1 },
+    { name: 'w', dc: -1, dr: 0 },
+    { name: 'nw', dc: -1, dr: -1 },
+];
+
+const chunkDirectionByName = new Map(chunkDirections.map((direction) => [direction.name, direction]));
+
+function neighborCellKey(key, direction) {
+    const cell = cellFromKey(key);
+    return cellKey({ col: cell.col + direction.dc, row: cell.row + direction.dr });
+}
+
+function portsForCellKey(key, connectedCells) {
+    return chunkDirections
+        .filter((direction) => connectedCells.has(neighborCellKey(key, direction)))
+        .map((direction) => direction.name);
+}
+
+function oppositePort(first, second) {
+    const a = chunkDirectionByName.get(first);
+    const b = chunkDirectionByName.get(second);
+    return Boolean(a && b && a.dc + b.dc === 0 && a.dr + b.dr === 0);
+}
+
+function portShape(ports) {
+    if (ports.length <= 1) {
+        return 'end';
+    }
+    if (ports.length === 2) {
+        return oppositePort(ports[0], ports[1]) ? 'straight' : 'bend';
+    }
+    if (ports.length === 3) {
+        return 'fork';
+    }
+    return 'cross';
+}
+
+function templateForChunkClass(chunkClass, ports) {
+    if (chunkClass === 'ground') {
+        return 'ground-fill';
+    }
+    if (chunkClass === 'bank') {
+        return ports.length >= 2 ? 'bank-corner' : 'bank-edge';
+    }
+    if (chunkClass === 'bridge') {
+        return 'bridge-crossing';
+    }
+    if (chunkClass === 'detail') {
+        return 'detail-grass';
+    }
+    if (chunkClass === 'path') {
+        return `path-${portShape(ports)}`;
+    }
+    if (chunkClass === 'water') {
+        const shape = portShape(ports);
+        return `water-${shape === 'cross' ? 'fork' : shape}`;
+    }
+    throw new Error(`unknown terrain chunk class '${chunkClass}'`);
+}
+
+function cellsByIdObject(cellMap) {
+    return Object.fromEntries([...cellMap.entries()].map(([id, cells]) => [id, [...cells].sort()]));
+}
+
+function terrainChunkGrammarForRecipeInternal(recipe = {}) {
+    const raw = recipe.terrain_chunk_grammar || {};
+    return {
+        version: raw.version || defaultTerrainChunkGrammar.version,
+        style_tags: [...(raw.style_tags || defaultTerrainChunkGrammar.style_tags)],
+        templates: {
+            ...clone(defaultTerrainChunkGrammar.templates),
+            ...(raw.templates || {}),
+        },
+    };
+}
+
+export function terrainChunkGrammarForRecipe(recipe = {}) {
+    return terrainChunkGrammarForRecipeInternal(recipe);
+}
+
+function validateTerrainChunkGrammar(grammar) {
+    const errors = [];
+    if (!grammar || typeof grammar !== 'object' || Array.isArray(grammar)) {
+        throw new Error('terrain chunk grammar must be an object');
+    }
+    if (!Number.isFinite(grammar.version)) {
+        errors.push('terrain chunk grammar version must be numeric');
+    }
+    if (!Array.isArray(grammar.style_tags) || grammar.style_tags.length === 0) {
+        errors.push('terrain chunk grammar needs style_tags');
+    }
+    if (!grammar.templates || typeof grammar.templates !== 'object' || Array.isArray(grammar.templates)) {
+        errors.push('terrain chunk grammar needs templates');
+    }
+    for (const [id, template] of Object.entries(grammar.templates || {})) {
+        if (!template || typeof template !== 'object' || Array.isArray(template)) {
+            errors.push(`terrain chunk template '${id}' must be an object`);
+            continue;
+        }
+        if (!template.class) {
+            errors.push(`terrain chunk template '${id}' is missing class`);
+        }
+        if (!template.mask || typeof template.mask !== 'object' || Array.isArray(template.mask)) {
+            errors.push(`terrain chunk template '${id}' is missing mask`);
+        }
+    }
+    if (errors.length) {
+        throw new Error(`terrain chunk grammar invalid: ${errors.join('; ')}`);
+    }
+    return grammar;
 }
 
 function point(value, context) {
@@ -1203,19 +1345,34 @@ function buildGridTerrainModel(layout, { grid = defaultIsoGrid, visualWaterExclu
     const renderedWaterCells = unionCells(...renderedWaterCellsById.values(), visualWaterExclusionCells(grid, visualWaterExclusions));
 
     const bridgeCells = new Set();
+    const bridgeCellsById = new Map();
+    const bridgeUnderSpanCellsById = new Map();
     for (const bridge of layout.bridges || []) {
+        const localBridgeCells = new Set();
+        const localUnderSpanCells = new Set();
+        const addBridgeCell = (key) => {
+            bridgeCells.add(key);
+            localBridgeCells.add(key);
+        };
         const center = pointToCell(grid, nodePoint(layout, bridge.node));
         for (const key of expandedCells(new Set([cellKey(center)]), grid, 1)) {
-            bridgeCells.add(key);
+            addBridgeCell(key);
         }
         const pathCells = pathCellsById.get(bridge.path);
         const renderedCells = renderedWaterCellsById.get(bridge.waterway);
         if (pathCells && renderedCells) {
             const crossingCells = new Set([...pathCells].filter((key) => renderedCells.has(key)));
+            const waterCoreCells = waterCellsById.get(bridge.waterway) || new Set();
+            const underSpanCells = new Set([...pathCells].filter((key) => waterCoreCells.has(key)));
             for (const key of expandedCells(crossingCells, grid, 1)) {
-                bridgeCells.add(key);
+                addBridgeCell(key);
+            }
+            for (const key of underSpanCells) {
+                localUnderSpanCells.add(key);
             }
         }
+        bridgeCellsById.set(bridge.id, localBridgeCells);
+        bridgeUnderSpanCellsById.set(bridge.id, localUnderSpanCells);
     }
 
     const walkableCells = unionCells(roadCells, bridgeCells);
@@ -1310,6 +1467,13 @@ function buildGridTerrainModel(layout, { grid = defaultIsoGrid, visualWaterExclu
             renderedWater: [...renderedWaterCells].sort(),
             bridge: [...bridgeCells].sort(),
         },
+        cellsById: {
+            paths: cellsByIdObject(pathCellsById),
+            waterways: cellsByIdObject(waterCellsById),
+            renderedWaterways: cellsByIdObject(renderedWaterCellsById),
+            bridges: cellsByIdObject(bridgeCellsById),
+            bridgeUnderSpans: cellsByIdObject(bridgeUnderSpanCellsById),
+        },
         summary: {
             grid_cols: grid.cols,
             grid_rows: grid.rows,
@@ -1325,6 +1489,372 @@ function buildGridTerrainModel(layout, { grid = defaultIsoGrid, visualWaterExclu
             rendered_water_collision_failures: renderedWaterCollisionFailures.length,
         },
     };
+}
+
+function sourceIdsForCell(key, sourcesById) {
+    return Object.entries(sourcesById || {})
+        .filter(([, cells]) => cells.includes(key))
+        .map(([id]) => id)
+        .sort();
+}
+
+function chunkVariantSeed(layout, chunkClass, key, template, sourceIds, index) {
+    return hashHex({
+        layout: layout.id,
+        chunkClass,
+        key,
+        template,
+        sourceIds,
+        index,
+    }).slice(0, 16);
+}
+
+function makeTerrainChunk({ layout, key, chunkClass, connectedCells, sourceIds = [], index, grammar }) {
+    const cell = cellFromKey(key);
+    const ports = portsForCellKey(key, connectedCells);
+    const template = templateForChunkClass(chunkClass, ports);
+    const templateDef = grammar.templates[template];
+    if (!templateDef) {
+        throw new Error(`missing terrain chunk template '${template}'`);
+    }
+    return {
+        id: `${layout.id}-${chunkClass}-${cell.col}-${cell.row}`,
+        cell: [cell.col, cell.row],
+        class: chunkClass,
+        template,
+        ports,
+        mask: clone(templateDef.mask),
+        source_ids: sourceIds,
+        variant_seed: chunkVariantSeed(layout, chunkClass, key, template, sourceIds, index),
+    };
+}
+
+function chunkSet(chunks, chunkClass) {
+    return new Set(
+        chunks
+            .filter((chunk) => chunk.class === chunkClass)
+            .map((chunk) => cellKey({ col: chunk.cell[0], row: chunk.cell[1] })),
+    );
+}
+
+function terrainChunkCollisionSummary(layout, grid, chunks) {
+    const water = chunkSet(chunks, 'water');
+    const propCollisions = [];
+    for (const prop of layout.props || []) {
+        if (!layout.nodes?.[prop.node]) {
+            continue;
+        }
+        const footprint = propFootprintCells(layout, prop, grid);
+        const blockedCell = [...footprint].find((key) => water.has(key));
+        if (blockedCell) {
+            propCollisions.push({ id: prop.id, cell: blockedCell });
+        }
+    }
+
+    const npcCollisions = [];
+    for (const slot of layout.npc_slots || []) {
+        if (!layout.nodes?.[slot.node]) {
+            continue;
+        }
+        const key = cellKey(pointToCell(grid, nodePoint(layout, slot.node)));
+        if (water.has(key)) {
+            npcCollisions.push({ id: slot.id, cell: key });
+        }
+    }
+
+    const cottageCollisions = [];
+    for (const site of layout.cottage_sites || []) {
+        const probes = [
+            ['door', site.door ? nodePoint(layout, site.door) : null],
+            ['body', Array.isArray(site.body_at) ? point(site.body_at, `cottage '${site.id}' body_at`) : null],
+            ['chimney', Array.isArray(site.chimney_opening) ? point(site.chimney_opening, `cottage '${site.id}' chimney_opening`) : null],
+        ];
+        for (const [probe, candidate] of probes) {
+            if (!candidate) {
+                continue;
+            }
+            const key = cellKey(pointToCell(grid, candidate));
+            if (water.has(key)) {
+                cottageCollisions.push({ id: site.id, probe, cell: key });
+            }
+        }
+    }
+
+    return {
+        prop_collisions: propCollisions,
+        npc_collisions: npcCollisions,
+        cottage_collisions: cottageCollisions,
+        total: propCollisions.length + npcCollisions.length + cottageCollisions.length,
+    };
+}
+
+function classCountsForChunks(chunks) {
+    const counts = {};
+    for (const chunk of chunks) {
+        counts[chunk.class] = (counts[chunk.class] || 0) + 1;
+    }
+    return Object.fromEntries(Object.entries(counts).sort(([a], [b]) => a.localeCompare(b)));
+}
+
+function templateCountsForChunks(chunks) {
+    const counts = {};
+    for (const chunk of chunks) {
+        counts[chunk.template] = (counts[chunk.template] || 0) + 1;
+    }
+    return Object.fromEntries(Object.entries(counts).sort(([a], [b]) => a.localeCompare(b)));
+}
+
+function chunkMapSignature(chunkMap) {
+    return hashHex({
+        layout_id: chunkMap.layout_id,
+        grammar: chunkMap.grammar_signature,
+        chunks: chunkMap.chunks.map((chunk) => [
+            chunk.id,
+            chunk.cell,
+            chunk.class,
+            chunk.template,
+            chunk.ports,
+            chunk.source_ids,
+            chunk.variant_seed,
+        ]),
+        bridge_records: chunkMap.bridge_records,
+    }).slice(0, 20);
+}
+
+export function generateTerrainChunkMap({
+    layout,
+    recipe = {},
+    profile = null,
+    index = 0,
+    grid = defaultIsoGrid,
+    visualWaterExclusions = [],
+    prefabCatalog = builtinPrefabCatalog,
+    grammar = terrainChunkGrammarForRecipeInternal(recipe),
+} = {}) {
+    const resolvedGrid = validateGridSpec(layout.grid || grid);
+    const resolvedGrammar = validateTerrainChunkGrammar(grammar);
+    const terrainModel = buildGridTerrainModel(layout, {
+        grid: resolvedGrid,
+        visualWaterExclusions,
+        prefabCatalog,
+    });
+    if (terrainModel.errors.length) {
+        throw new Error(`layout '${layout.id}' chunk map invalid: ${terrainModel.errors.join('; ')}`);
+    }
+
+    const chunks = [];
+    const roadCells = new Set(terrainModel.cells.road);
+    const waterCells = new Set(terrainModel.cells.water);
+    const renderedWaterCells = new Set(terrainModel.cells.renderedWater);
+    const bridgeCells = new Set(terrainModel.cells.bridge);
+    const dryRoadCells = new Set([...roadCells].filter((key) => !waterCells.has(key)));
+    const bankCells = new Set([...renderedWaterCells].filter((key) => !waterCells.has(key)));
+    const allGridCells = [];
+    for (let col = 0; col < resolvedGrid.cols; col += 1) {
+        for (let row = 0; row < resolvedGrid.rows; row += 1) {
+            allGridCells.push(cellKey({ col, row }));
+        }
+    }
+
+    for (const key of allGridCells) {
+        chunks.push(makeTerrainChunk({ layout, key, chunkClass: 'ground', connectedCells: new Set(allGridCells), index, grammar: resolvedGrammar }));
+    }
+    for (const key of [...bankCells].sort()) {
+        chunks.push(
+            makeTerrainChunk({
+                layout,
+                key,
+                chunkClass: 'bank',
+                connectedCells: bankCells,
+                sourceIds: sourceIdsForCell(key, terrainModel.cellsById.renderedWaterways),
+                index,
+                grammar: resolvedGrammar,
+            }),
+        );
+    }
+    for (const key of [...waterCells].sort()) {
+        chunks.push(
+            makeTerrainChunk({
+                layout,
+                key,
+                chunkClass: 'water',
+                connectedCells: waterCells,
+                sourceIds: sourceIdsForCell(key, terrainModel.cellsById.waterways),
+                index,
+                grammar: resolvedGrammar,
+            }),
+        );
+    }
+    for (const key of [...dryRoadCells].sort()) {
+        chunks.push(
+            makeTerrainChunk({
+                layout,
+                key,
+                chunkClass: 'path',
+                connectedCells: dryRoadCells,
+                sourceIds: sourceIdsForCell(key, terrainModel.cellsById.paths),
+                index,
+                grammar: resolvedGrammar,
+            }),
+        );
+    }
+    for (const key of [...bridgeCells].sort()) {
+        chunks.push(
+            makeTerrainChunk({
+                layout,
+                key,
+                chunkClass: 'bridge',
+                connectedCells: unionCells(dryRoadCells, bridgeCells),
+                sourceIds: sourceIdsForCell(key, terrainModel.cellsById.bridges),
+                index,
+                grammar: resolvedGrammar,
+            }),
+        );
+    }
+    const occupied = unionCells(renderedWaterCells, roadCells, bridgeCells);
+    for (const key of allGridCells) {
+        if (occupied.has(key)) {
+            continue;
+        }
+        if (unitFromSeed(`${layout.id}:terrain-detail:${key}`, index) > 0.92) {
+            chunks.push(
+                makeTerrainChunk({
+                    layout,
+                    key,
+                    chunkClass: 'detail',
+                    connectedCells: new Set([key]),
+                    index,
+                    grammar: resolvedGrammar,
+                }),
+            );
+        }
+    }
+
+    const collisionSummary = terrainChunkCollisionSummary(layout, resolvedGrid, chunks);
+    const bridgeRecords = (layout.bridges || []).map((bridge) => {
+        const underSpanCells = terrainModel.cellsById.bridgeUnderSpans[bridge.id] || [];
+        const bridgeChunkIds = chunks
+            .filter((chunk) => chunk.class === 'bridge' && chunk.source_ids.includes(bridge.id))
+            .map((chunk) => chunk.id)
+            .sort();
+        return {
+            id: bridge.id,
+            path: bridge.path,
+            waterway: bridge.waterway,
+            node: bridge.node,
+            center_cell: Object.values(pointToCell(resolvedGrid, nodePoint(layout, bridge.node))),
+            chunk_ids: bridgeChunkIds,
+            under_span_cells: underSpanCells,
+            water_ports: [...new Set(underSpanCells.flatMap((key) => portsForCellKey(key, waterCells)))].sort(),
+            path_ports: [...new Set(bridgeChunkIds.flatMap((chunkId) => chunks.find((chunk) => chunk.id === chunkId)?.ports || []))].sort(),
+        };
+    });
+
+    const walkableCells = unionCells(chunkSet(chunks, 'path'), chunkSet(chunks, 'bridge'));
+    const waterChunkCells = chunkSet(chunks, 'water');
+    const chunkMap = {
+        schema_version: 1,
+        layout_id: layout.id,
+        terrain_profile: profile?.id || layout.terrain_profile || null,
+        grammar_signature: hashHex({
+            version: resolvedGrammar.version,
+            style_tags: resolvedGrammar.style_tags,
+            templates: sortedPlainObject(resolvedGrammar.templates),
+        }).slice(0, 20),
+        grid: clone(resolvedGrid),
+        expected: {
+            path_cell_count: terrainModel.summary.road_cell_count,
+            water_cell_count: terrainModel.summary.water_cell_count,
+            rendered_water_cell_count: terrainModel.summary.rendered_water_cell_count,
+            bridge_cell_count: terrainModel.summary.bridge_cell_count,
+            waterway_count: (layout.waterways || []).length,
+            bridge_count: (layout.bridges || []).length,
+        },
+        chunks,
+        bridge_records: bridgeRecords,
+        collision_summary: collisionSummary,
+        summary: {
+            chunk_count: chunks.length,
+            class_counts: classCountsForChunks(chunks),
+            template_counts: templateCountsForChunks(chunks),
+            path_port_components: walkableCells.size ? connectedComponents(walkableCells, resolvedGrid).length : 0,
+            water_port_components: waterChunkCells.size ? connectedComponents(waterChunkCells, resolvedGrid).length : 0,
+            bridge_under_span_cell_count: bridgeRecords.reduce((sum, record) => sum + record.under_span_cells.length, 0),
+            collision_count: collisionSummary.total,
+        },
+    };
+    chunkMap.chunk_map_signature = chunkMapSignature(chunkMap);
+    assertTerrainChunkMap(chunkMap, { grammar: resolvedGrammar });
+    return chunkMap;
+}
+
+export function assertTerrainChunkMap(chunkMap, { grammar = defaultTerrainChunkGrammar } = {}) {
+    const resolvedGrammar = validateTerrainChunkGrammar(grammar);
+    const errors = [];
+    const ids = new Set();
+    const chunks = chunkMap.chunks || [];
+    for (const chunk of chunks) {
+        if (!chunk.id) {
+            errors.push('terrain chunk contains missing id');
+        } else if (ids.has(chunk.id)) {
+            errors.push(`duplicate terrain chunk id '${chunk.id}'`);
+        }
+        ids.add(chunk.id);
+        const template = resolvedGrammar.templates[chunk.template];
+        if (!template) {
+            errors.push(`missing terrain chunk template '${chunk.template}'`);
+        } else if (template.class !== chunk.class) {
+            errors.push(`terrain chunk '${chunk.id}' template '${chunk.template}' class mismatch`);
+        }
+    }
+
+    const grid = validateGridSpec(chunkMap.grid || defaultIsoGrid);
+    for (const chunkClass of ['path', 'water', 'bank', 'bridge']) {
+        const cells = chunkSet(chunks, chunkClass);
+        for (const chunk of chunks.filter((candidate) => candidate.class === chunkClass)) {
+            const key = cellKey({ col: chunk.cell[0], row: chunk.cell[1] });
+            const expectedPorts = portsForCellKey(key, chunkClass === 'bridge' ? unionCells(chunkSet(chunks, 'path'), cells) : cells);
+            if (JSON.stringify(chunk.ports || []) !== JSON.stringify(expectedPorts)) {
+                errors.push(`terrain chunk '${chunk.id}' port mismatch`);
+            }
+        }
+    }
+
+    const walkableCells = unionCells(chunkSet(chunks, 'path'), chunkSet(chunks, 'bridge'));
+    const waterCells = chunkSet(chunks, 'water');
+    const pathComponents = walkableCells.size ? connectedComponents(walkableCells, grid).length : 0;
+    const waterComponents = waterCells.size ? connectedComponents(waterCells, grid).length : 0;
+    if (pathComponents !== (chunkMap.summary?.path_port_components ?? pathComponents)) {
+        errors.push(`chunk path component summary mismatch: ${pathComponents}`);
+    }
+    if (pathComponents !== 1) {
+        errors.push(`chunk walkable ports split into ${pathComponents} components`);
+    }
+    if (waterComponents !== (chunkMap.expected?.waterway_count || 0)) {
+        errors.push(`chunk water ports split into ${waterComponents} components`);
+    }
+    if (waterComponents !== (chunkMap.summary?.water_port_components ?? waterComponents)) {
+        errors.push(`chunk water component summary mismatch: ${waterComponents}`);
+    }
+
+    for (const bridge of chunkMap.bridge_records || []) {
+        if (!bridge.chunk_ids?.length) {
+            errors.push(`bridge '${bridge.id}' has no bridge chunks`);
+        }
+        if (!bridge.under_span_cells?.length) {
+            errors.push(`bridge '${bridge.id}' has no water under-span cells`);
+        }
+        const missingWater = (bridge.under_span_cells || []).filter((key) => !waterCells.has(key));
+        if (missingWater.length) {
+            errors.push(`bridge '${bridge.id}' under-span cells are missing water chunks`);
+        }
+    }
+    if ((chunkMap.collision_summary?.total || 0) !== 0 || (chunkMap.summary?.collision_count || 0) !== 0) {
+        errors.push(`terrain chunk masks report object/NPC/cottage collisions ${JSON.stringify(chunkMap.collision_summary)}`);
+    }
+    if (errors.length) {
+        throw new Error(`terrain chunk map invalid: ${errors.join('; ')}`);
+    }
 }
 
 function assetFootprintPoints(kind, anchor, scale = 1, flip = false) {
@@ -2756,6 +3286,7 @@ function generateVillageLayoutPackInternal({
     sceneIndexPath = defaultSceneIndexPath,
     recipePath = defaultRecipePath,
     includeTerrainRasters = false,
+    includeTerrainChunks = false,
     terrainRasterBasePath = 'generated-assets',
 } = {}) {
     validateRecipe(recipe, sceneIndex);
@@ -2763,6 +3294,7 @@ function generateVillageLayoutPackInternal({
     const grid = validateGridSpec(recipe.grid || defaultIsoGrid);
     const visualWaterExclusions = recipe.visual_water_exclusions || [];
     const prefabCatalog = prefabCatalogForRecipe(recipe);
+    const chunkGrammar = terrainChunkGrammarForRecipeInternal(recipe);
     const generated = recipe.layouts.map((layout, index) =>
         generateLayoutScene({
             sourceScene,
@@ -2774,6 +3306,20 @@ function generateVillageLayoutPackInternal({
             terrainRasterBasePath,
         }),
     );
+    const chunkMaps = includeTerrainChunks
+        ? recipe.layouts.map((layout, index) =>
+              generateTerrainChunkMap({
+                  layout,
+                  recipe,
+                  profile: terrainProfileForLayout(recipe, layout),
+                  index,
+                  grid,
+                  visualWaterExclusions,
+                  prefabCatalog,
+                  grammar: chunkGrammar,
+              }),
+          )
+        : [];
     const terrainRasters = generated.map((entry) => entry.terrainRaster).filter(Boolean);
     const assets = [
         ...clone(sceneIndex.assets),
@@ -2784,6 +3330,20 @@ function generateVillageLayoutPackInternal({
     const summaryLayouts = generated.map(({ scene, terrainProfile, terrainMetrics }, index) => {
         const layout = recipe.layouts[index];
         const validation = validateOutdoorLayout(layout, { grid, visualWaterExclusions, prefabCatalog });
+        const chunkMap = chunkMaps[index];
+        const chunkMetrics = chunkMap
+            ? {
+                  terrain_chunk_map_signature: chunkMap.chunk_map_signature,
+                  terrain_chunk_count: chunkMap.summary.chunk_count,
+                  terrain_chunk_class_counts: chunkMap.summary.class_counts,
+                  terrain_chunk_template_counts: chunkMap.summary.template_counts,
+                  terrain_chunk_path_components: chunkMap.summary.path_port_components,
+                  terrain_chunk_water_components: chunkMap.summary.water_port_components,
+                  terrain_chunk_bridge_under_span_cell_count: chunkMap.summary.bridge_under_span_cell_count,
+                  terrain_chunk_collision_count: chunkMap.summary.collision_count,
+                  terrain_chunk_grammar_signature: chunkMap.grammar_signature,
+              }
+            : {};
         return {
             index: index + 1,
             id: layout.id,
@@ -2797,6 +3357,7 @@ function generateVillageLayoutPackInternal({
             terrain_signature: terrainSignature(layout, terrainProfile),
             terrain_profile_signature: terrainProfileConfigSignature(terrainProfile),
             ...terrainMetrics,
+            ...chunkMetrics,
             topology_signature: validation.topology_signature,
             topology: validation,
             hotspot_count: scene.hotspots.length,
@@ -2829,18 +3390,31 @@ function generateVillageLayoutPackInternal({
         },
     };
     assertGeneratedPack(pack);
-    return { pack, terrainRasters };
+    return { pack, terrainRasters, chunkMaps, chunkGrammar };
 }
 
 export function generateVillageLayoutPack(inputs = {}) {
     return generateVillageLayoutPackInternal(inputs).pack;
 }
 
-export function generateVillageLayoutPackWithRasters(inputs = {}, { terrainRasterBasePath = 'generated-assets' } = {}) {
+export function generateVillageLayoutPackWithRasters(
+    inputs = {},
+    { terrainRasterBasePath = 'generated-assets', includeTerrainChunks = false } = {},
+) {
     return generateVillageLayoutPackInternal({
         ...inputs,
         includeTerrainRasters: true,
+        includeTerrainChunks,
         terrainRasterBasePath,
+    });
+}
+
+export function generateVillageLayoutPackWithTerrainChunks(inputs = {}, options = {}) {
+    return generateVillageLayoutPackInternal({
+        ...inputs,
+        includeTerrainChunks: true,
+        includeTerrainRasters: Boolean(options.includeTerrainRasters),
+        terrainRasterBasePath: options.terrainRasterBasePath || 'generated-assets',
     });
 }
 
@@ -2870,6 +3444,7 @@ function parseArgs(argv) {
         outPath: null,
         summaryOutPath: null,
         assetOutPath: null,
+        chunkMapOutPath: null,
         summary: false,
     };
     for (let index = 0; index < argv.length; index += 1) {
@@ -2890,6 +3465,9 @@ function parseArgs(argv) {
         } else if (arg === '--asset-out') {
             args.assetOutPath = resolveRepoPath(next, arg);
             index += 1;
+        } else if (arg === '--chunk-map-out') {
+            args.chunkMapOutPath = resolveRepoPath(next, arg);
+            index += 1;
         } else if (arg === '--summary') {
             args.summary = true;
         } else {
@@ -2908,12 +3486,13 @@ function printSummary(summary) {
     console.log(`Generated ${summary.layout_count} topology-aware village layout(s).`);
     for (const layout of summary.layouts) {
         const raster = layout.terrain_raster_asset ? ` raster=${layout.terrain_raster_asset}` : '';
+        const chunks = layout.terrain_chunk_count ? ` chunks=${layout.terrain_chunk_count}` : '';
         console.log(
             `${String(layout.index).padStart(2, '0')}. ${layout.slug} ` +
                 `layers=${layout.layer_count} kit=${layout.kit_layer_count} ` +
                 `terrain=${layout.terrain_profile} underpaint=${layout.terrain_underpaint_layer_count} ` +
                 `paths=${layout.topology.path_count} water=${layout.topology.waterway_count} ` +
-                `bridges=${layout.topology.bridge_count} topology=${layout.topology_signature}${raster}`,
+                `bridges=${layout.topology.bridge_count} topology=${layout.topology_signature}${raster}${chunks}`,
         );
     }
 }
@@ -2923,11 +3502,17 @@ async function main() {
     const inputs = await loadVillageLayoutInputs(args);
     let pack;
     let terrainRasters = [];
+    let chunkMaps = [];
+    let chunkGrammar = null;
+    const includeTerrainChunks = Boolean(args.chunkMapOutPath);
     if (args.assetOutPath) {
-        ({ pack, terrainRasters } = generateVillageLayoutPackWithRasters(inputs, {
+        ({ pack, terrainRasters, chunkMaps, chunkGrammar } = generateVillageLayoutPackWithRasters(inputs, {
             terrainRasterBasePath: path.basename(args.assetOutPath),
+            includeTerrainChunks,
         }));
         await writeTerrainRasterAssets(terrainRasters, args.assetOutPath);
+    } else if (includeTerrainChunks) {
+        ({ pack, chunkMaps, chunkGrammar } = generateVillageLayoutPackWithTerrainChunks(inputs));
     } else {
         pack = generateVillageLayoutPack(inputs);
     }
@@ -2937,10 +3522,21 @@ async function main() {
     if (args.summaryOutPath) {
         await writeJson(args.summaryOutPath, pack.summary);
     }
+    if (args.chunkMapOutPath) {
+        await writeJson(args.chunkMapOutPath, {
+            schema_version: 1,
+            source: pack.source,
+            grammar: chunkGrammar,
+            layouts: chunkMaps,
+        });
+    }
     if (args.summary || (!args.outPath && !args.summaryOutPath)) {
         printSummary(pack.summary);
         if (terrainRasters.length) {
             console.log(`Wrote ${terrainRasters.length} terrain raster asset(s) to ${relativePath(args.assetOutPath)}.`);
+        }
+        if (chunkMaps.length) {
+            console.log(`Wrote ${chunkMaps.length} terrain chunk map(s) to ${relativePath(args.chunkMapOutPath)}.`);
         }
     }
 }

@@ -8,10 +8,14 @@ import { fileURLToPath } from 'node:url';
 import { auditSceneAtoms, parsePng, visibleContentSummary } from './audit-scene-atoms.mjs';
 import {
     assertGeneratedPack,
+    assertTerrainChunkMap,
+    generateTerrainChunkMap,
     generateVillageLayoutPack,
+    generateVillageLayoutPackWithTerrainChunks,
     generateVillageLayoutPackWithRasters,
     loadVillageLayoutInputs,
     sceneSignature,
+    terrainChunkGrammarForRecipe,
     terrainSignature,
     topologySignature,
     validateOutdoorLayout,
@@ -311,6 +315,105 @@ test('outdoor village raster generation writes deterministic full-stage terrain 
     duplicateRasterSignature.summary.layouts[1].terrain_raster_signature =
         duplicateRasterSignature.summary.layouts[0].terrain_raster_signature;
     assert.throws(() => assertGeneratedPack(duplicateRasterSignature), /duplicate terrain raster signature/);
+});
+
+test('outdoor village terrain chunk grammar emits deterministic connected chunk maps', async () => {
+    const inputs = await loadVillageLayoutInputs();
+    const first = generateVillageLayoutPackWithTerrainChunks(inputs);
+    const second = generateVillageLayoutPackWithTerrainChunks(inputs);
+    const grammar = terrainChunkGrammarForRecipe(inputs.recipe);
+    const chunkSignatures = new Set();
+
+    assert.equal(first.chunkMaps.length, 10);
+    assert.deepEqual(first.chunkMaps, second.chunkMaps);
+    assert.deepEqual(first.chunkGrammar, grammar);
+
+    for (const [index, chunkMap] of first.chunkMaps.entries()) {
+        const layoutSummary = first.pack.summary.layouts[index];
+        const classCounts = chunkMap.summary.class_counts;
+
+        assertTerrainChunkMap(chunkMap, { grammar });
+        assert.equal(chunkMap.layout_id, inputs.recipe.layouts[index].id);
+        assert.equal(chunkMap.grid.cols, 24);
+        assert.equal(chunkMap.grid.rows, 18);
+        assert.equal(classCounts.ground, chunkMap.grid.cols * chunkMap.grid.rows, `${chunkMap.layout_id} covers every ground cell`);
+        assert.equal(classCounts.water || 0, layoutSummary.topology.grid.water_cell_count, `${chunkMap.layout_id} water chunk coverage`);
+        assert.ok((classCounts.path || 0) > 0, `${chunkMap.layout_id} has path chunks`);
+        assert.equal(chunkMap.summary.path_port_components, 1, `${chunkMap.layout_id} walkable chunks connect`);
+        assert.equal(
+            chunkMap.summary.water_port_components,
+            layoutSummary.topology.waterway_count,
+            `${chunkMap.layout_id} water chunks connect per waterway`,
+        );
+        assert.equal(chunkMap.summary.collision_count, 0, `${chunkMap.layout_id} chunk masks have no collisions`);
+        assert.equal(layoutSummary.terrain_chunk_count, chunkMap.summary.chunk_count);
+        assert.equal(layoutSummary.terrain_chunk_map_signature, chunkMap.chunk_map_signature);
+        assert.equal(layoutSummary.terrain_chunk_grammar_signature, chunkMap.grammar_signature);
+        assert.equal(layoutSummary.terrain_chunk_collision_count, 0);
+        assert.equal(chunkSignatures.has(chunkMap.chunk_map_signature), false, `${chunkMap.layout_id} chunk signature is unique`);
+        chunkSignatures.add(chunkMap.chunk_map_signature);
+
+        if (layoutSummary.topology.bridge_count > 0) {
+            assert.ok((classCounts.bridge || 0) > 0, `${chunkMap.layout_id} bridge layouts declare bridge chunks`);
+            assert.ok(
+                chunkMap.summary.bridge_under_span_cell_count >= layoutSummary.topology.bridge_count,
+                `${chunkMap.layout_id} bridge records include water under-span cells`,
+            );
+        } else {
+            assert.equal(classCounts.bridge || 0, 0, `${chunkMap.layout_id} dry layouts have no bridge chunks`);
+        }
+
+        for (const chunk of chunkMap.chunks) {
+            assert.ok(chunk.id, `${chunkMap.layout_id} chunk has id`);
+            assert.ok(chunk.template, `${chunkMap.layout_id}/${chunk.id} has template`);
+            assert.ok(grammar.templates[chunk.template], `${chunkMap.layout_id}/${chunk.id} template exists`);
+            assert.equal(Array.isArray(chunk.ports), true, `${chunkMap.layout_id}/${chunk.id} has ports`);
+            assert.equal(typeof chunk.mask.water, 'boolean', `${chunkMap.layout_id}/${chunk.id} has water mask`);
+            assert.equal(typeof chunk.mask.walkable, 'boolean', `${chunkMap.layout_id}/${chunk.id} has walkable mask`);
+            assert.equal(typeof chunk.mask.blocks_objects, 'boolean', `${chunkMap.layout_id}/${chunk.id} has object mask`);
+            assert.match(chunk.variant_seed, /^[a-f0-9]{16}$/);
+        }
+    }
+});
+
+test('outdoor village terrain chunk validator rejects broken chunk contracts', async () => {
+    const inputs = await loadVillageLayoutInputs();
+    const grammar = terrainChunkGrammarForRecipe(inputs.recipe);
+    const { chunkMaps } = generateVillageLayoutPackWithTerrainChunks(inputs);
+    const validMap = chunkMaps.find((map) => map.bridge_records.length > 0);
+    assert.ok(validMap, 'fixture has a bridge chunk map');
+
+    const duplicateChunk = clone(validMap);
+    duplicateChunk.chunks[1].id = duplicateChunk.chunks[0].id;
+    assert.throws(() => assertTerrainChunkMap(duplicateChunk, { grammar }), /duplicate terrain chunk id/);
+
+    const missingTemplateGrammar = clone(grammar);
+    const usedTemplate = validMap.chunks.find((chunk) => chunk.class === 'path').template;
+    delete missingTemplateGrammar.templates[usedTemplate];
+    assert.throws(() => assertTerrainChunkMap(validMap, { grammar: missingTemplateGrammar }), /missing terrain chunk template/);
+
+    const brokenPorts = clone(validMap);
+    const portedChunk = brokenPorts.chunks.find((chunk) => chunk.class === 'water' && chunk.ports.length > 0);
+    portedChunk.ports = [];
+    assert.throws(() => assertTerrainChunkMap(brokenPorts, { grammar }), /port mismatch/);
+
+    const brokenBridge = clone(validMap);
+    brokenBridge.bridge_records[0].under_span_cells = [];
+    assert.throws(() => assertTerrainChunkMap(brokenBridge, { grammar }), /water under-span/);
+
+    const wetCartFootprint = clone(inputs.recipe.layouts.find((layout) => layout.id === 'bridge-hamlet'));
+    wetCartFootprint.nodes.cart = [24, 74];
+    wetCartFootprint.props = [{ id: 'cart', kind: 'cart', node: 'cart', flip: false }];
+    assert.throws(
+        () =>
+            generateTerrainChunkMap({
+                layout: wetCartFootprint,
+                recipe: inputs.recipe,
+                grid: inputs.recipe.grid,
+                visualWaterExclusions: inputs.recipe.visual_water_exclusions,
+            }),
+        /grid footprint intersects rendered water|footprint is in water/,
+    );
 });
 
 test('outdoor village layout validator rejects impossible village topology', async () => {

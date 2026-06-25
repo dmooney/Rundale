@@ -144,7 +144,7 @@
       "props": [{ "id": "well", "kind": "well", "node": "well", "inspect": "The well stands on the green just south of the fork." }, { "id": "sign", "kind": "signpost", "node": "sign", "inspect": "The fork sign is close enough to read from either path." }],
       "walls": [{ "id": "west-bank-wall", "points": [[18,68],[30,66],[43,65]] }, { "id": "east-yard-wall", "points": [[66,64],[78,67],[90,69]] }],
       "foliage": [{ "id": "stream-left", "at": [22,62], "count": 6 }, { "id": "green-center", "at": [53,70], "count": 6 }, { "id": "east-yard", "at": [84,67], "count": 4 }],
-      "npc_slots": [{ "id": "fork-center", "node": "fork", "scale": 1.0 }, { "id": "well-left", "node": "well", "scale": 0.98 }, { "id": "west-bank", "node": "west-bank", "scale": 0.94 }]
+      "npc_slots": [{ "id": "fork-center", "node": "fork", "scale": 1.0 }, { "id": "well-left", "node": "well", "scale": 0.98 }, { "id": "west-bank", "node": "west-door", "scale": 0.94 }]
     },
     {
       "id": "riverbend",
