@@ -1046,6 +1046,33 @@ function terrainRasterFileName(layout, index) {
     return `${String(index + 1).padStart(2, '0')}-${slugify(layout.id)}-terrain.png`;
 }
 
+function terrainGroundFillAssetId(sceneSlug) {
+    return `generated-terrain-ground-fill-${sceneSlug}`;
+}
+
+function terrainGroundFillFileName(layout, index) {
+    return `ground/${String(index + 1).padStart(2, '0')}-${slugify(layout.id)}-ground-fill.png`;
+}
+
+const terrainChunkSpriteVariantCount = 4;
+const terrainChunkSpriteSize = { width: 78, height: 54 };
+
+function terrainChunkPortKey(ports = []) {
+    return [...ports].sort().join('-') || 'none';
+}
+
+function terrainChunkSpriteVariant(chunk) {
+    return hashByte(chunk.variant_seed || chunk.id, 0) % terrainChunkSpriteVariantCount;
+}
+
+function terrainChunkSpriteAssetId(chunk) {
+    return `generated-terrain-chunk-${chunk.class}-${slugify(chunk.template)}-${terrainChunkPortKey(chunk.ports)}-v${terrainChunkSpriteVariant(chunk)}`;
+}
+
+function terrainChunkSpriteFileName(assetId) {
+    return `chunks/${assetId}.png`;
+}
+
 function terrainPalette(profile) {
     const wetness = clamp(profile.puddle_density ?? 0.25, 0, 1);
     const gradeShift = profile.grade === 'north-ridge' || profile.grade === 'central-green' ? 1 : 0;
@@ -1059,6 +1086,221 @@ function terrainPalette(profile) {
         waterLight: [76, 96, 91 + wetness * 14, 255],
         bank: [60, 68, 42, 255],
         flower: [103, 104, 64, 255],
+    };
+}
+
+function portVector(port, radiusX, radiusY) {
+    const direction = chunkDirectionByName.get(port);
+    if (!direction) {
+        return { x: 0, y: 0 };
+    }
+    return {
+        x: direction.dc * radiusX * 0.9,
+        y: direction.dr * radiusY * 0.9,
+    };
+}
+
+function localSegmentDistance(px, py, ax, ay, bx, by) {
+    const dx = bx - ax;
+    const dy = by - ay;
+    const lengthSquared = dx * dx + dy * dy;
+    if (lengthSquared === 0) {
+        return Math.hypot(px - ax, py - ay);
+    }
+    const t = clamp(((px - ax) * dx + (py - ay) * dy) / lengthSquared, 0, 1);
+    return Math.hypot(px - (ax + dx * t), py - (ay + dy * t));
+}
+
+function chunkSpritePalette(chunkClass, variant) {
+    const shift = (variant - 1.5) * 4;
+    const palettes = {
+        path: {
+            base: [92 + shift, 70 + shift * 0.4, 45, 255],
+            light: [126 + shift, 98 + shift * 0.3, 64, 255],
+            dark: [53, 43, 31, 255],
+        },
+        water: {
+            base: [33, 67 + shift, 75 + shift, 255],
+            light: [78, 112 + shift, 116 + shift, 255],
+            dark: [17, 36, 42, 255],
+        },
+        bank: {
+            base: [70 + shift, 62 + shift * 0.4, 38, 255],
+            light: [93 + shift, 84 + shift * 0.4, 50, 255],
+            dark: [43, 38, 27, 255],
+        },
+        bridge: {
+            base: [101 + shift, 74 + shift * 0.4, 46, 255],
+            light: [148 + shift, 109 + shift * 0.3, 67, 255],
+            dark: [48, 33, 23, 255],
+        },
+        detail: {
+            base: [59 + shift, 85 + shift, 42, 255],
+            light: [112 + shift, 120 + shift, 62, 255],
+            dark: [31, 45, 25, 255],
+        },
+        ground: {
+            base: [45 + shift, 58 + shift, 35, 255],
+            light: [69 + shift, 80 + shift, 45, 255],
+            dark: [25, 33, 22, 255],
+        },
+    };
+    return palettes[chunkClass] || palettes.ground;
+}
+
+function chunkSpriteFeatureDistance(chunk, x, y, centerX, centerY, radiusX, radiusY) {
+    if (chunk.class === 'detail') {
+        return Math.min(
+            Math.hypot(x - centerX, y - centerY),
+            Math.hypot(x - (centerX - radiusX * 0.22), y - (centerY + radiusY * 0.08)),
+            Math.hypot(x - (centerX + radiusX * 0.18), y - (centerY + radiusY * 0.02)),
+        );
+    }
+    if (chunk.class === 'bank') {
+        const ports = chunk.ports?.length ? chunk.ports : ['e', 'w'];
+        let best = Math.hypot((x - centerX) * 0.82, (y - centerY) * 1.25);
+        for (const port of ports) {
+            const vector = portVector(port, radiusX, radiusY);
+            best = Math.min(best, localSegmentDistance(x, y, centerX, centerY, centerX + vector.x, centerY + vector.y));
+        }
+        return best;
+    }
+    const ports = chunk.ports?.length ? chunk.ports : ['n', 's'];
+    let best = Math.hypot(x - centerX, y - centerY);
+    for (const port of ports) {
+        const vector = portVector(port, radiusX, radiusY);
+        best = Math.min(best, localSegmentDistance(x, y, centerX, centerY, centerX + vector.x, centerY + vector.y));
+    }
+    return best;
+}
+
+function drawChunkSprite(chunk) {
+    const { width, height } = terrainChunkSpriteSize;
+    const pixels = Buffer.alloc(width * height * 4);
+    const variant = terrainChunkSpriteVariant(chunk);
+    const palette = chunkSpritePalette(chunk.class, variant);
+    const centerX = width / 2;
+    const centerY = height / 2;
+    const radiusX = width * 0.46;
+    const radiusY = height * 0.42;
+    const baseWidth = {
+        path: 9.5,
+        water: 11.5,
+        bank: 8.5,
+        bridge: 12.5,
+        detail: 5.2,
+        ground: 18,
+    }[chunk.class] || 8;
+    const seed = hashByte(`${chunk.template}:${terrainChunkPortKey(chunk.ports)}:${variant}`, 0);
+
+    for (let y = 0; y < height; y += 1) {
+        for (let x = 0; x < width; x += 1) {
+            const diamond = Math.abs((x - centerX) / radiusX) + Math.abs((y - centerY) / radiusY);
+            if (diamond > 1.05) {
+                continue;
+            }
+            const featureDistance = chunkSpriteFeatureDistance(chunk, x, y, centerX, centerY, radiusX, radiusY);
+            if (featureDistance > baseWidth && chunk.class !== 'ground') {
+                continue;
+            }
+            const edge = 1 - smoothstep(baseWidth * 0.72, baseWidth, featureDistance);
+            const diamondFade = 1 - smoothstep(0.82, 1.05, diamond);
+            const noise = seededNoiseInt(Math.floor(x / 3), Math.floor(y / 3), seed);
+            const highlight = chunk.class === 'water' ? smoothstep(0.56, 0.95, noise) * 0.32 : smoothstep(0.64, 0.98, noise) * 0.22;
+            let color = mixColor(palette.base, palette.light, highlight);
+            if ((chunk.class === 'path' || chunk.class === 'bridge') && (x + y + seed) % 11 < 2) {
+                color = mixColor(color, palette.dark, 0.24);
+            }
+            if (chunk.class === 'water' && Math.abs(y - centerY) < 1.8 && noise > 0.56) {
+                color = mixColor(color, palette.light, 0.38);
+            }
+            const alpha = Math.round(255 * clamp((0.42 + edge * 0.58) * diamondFade, 0, 1));
+            const offset = (y * width + x) * 4;
+            pixels[offset] = color[0];
+            pixels[offset + 1] = color[1];
+            pixels[offset + 2] = color[2];
+            pixels[offset + 3] = alpha;
+        }
+    }
+
+    if (chunk.class === 'bridge') {
+        for (let stripe = -2; stripe <= 2; stripe += 1) {
+            const stripeY = Math.round(centerY + stripe * 4);
+            for (let x = Math.round(centerX - radiusX * 0.62); x <= Math.round(centerX + radiusX * 0.62); x += 1) {
+                const y = stripeY + Math.round((x - centerX) * 0.08);
+                if (x < 0 || x >= width || y < 0 || y >= height) {
+                    continue;
+                }
+                const offset = (y * width + x) * 4;
+                pixels[offset] = palette.light[0];
+                pixels[offset + 1] = palette.light[1];
+                pixels[offset + 2] = palette.light[2];
+                pixels[offset + 3] = Math.max(pixels[offset + 3], 210);
+            }
+        }
+    }
+
+    const png = encodeRgbaPng(width, height, pixels);
+    return {
+        png,
+        pixelHash: hashBufferHex(png).slice(0, 20),
+        signature: hashHex({
+            class: chunk.class,
+            template: chunk.template,
+            ports: chunk.ports,
+            variant,
+            size: [width, height],
+            pixelHash: hashBufferHex(png),
+        }).slice(0, 20),
+    };
+}
+
+export function generateTerrainGroundFillRaster({ layout, profile, index, nativeSize }) {
+    const [width, height] = nativeSize;
+    const palette = terrainPalette(profile);
+    const pixels = Buffer.alloc(width * height * 4);
+    const seed = hashByte(`${layout.id}:${profile.id}:terrain-ground-fill`, index);
+
+    for (let y = 0; y < height; y += 1) {
+        for (let x = 0; x < width; x += 1) {
+            const offset = (y * width + x) * 4;
+            const lowNoise = seededNoiseInt(Math.floor(x / 10), Math.floor(y / 10), seed);
+            const fineNoise = seededNoiseInt(Math.floor(x / 3), Math.floor(y / 3), seed + 41);
+            const grade = y / Math.max(1, height - 1);
+            let color = mixColor(palette.groundDark, palette.ground, 0.42 + grade * 0.32 + lowNoise * 0.18);
+            if (fineNoise > 0.88) {
+                color = mixColor(color, palette.grass, 0.16);
+            }
+            if (fineNoise < 0.08) {
+                color = mixColor(color, palette.mud, 0.08);
+            }
+            const vignetteX = Math.abs(x / width - 0.5);
+            const vignetteY = Math.abs(y / height - 0.5);
+            const shade = clamp((vignetteX + vignetteY) * 0.22, 0, 0.18);
+            color = mixColor(color, [9, 12, 8, 255], shade);
+            pixels[offset] = color[0];
+            pixels[offset + 1] = color[1];
+            pixels[offset + 2] = color[2];
+            pixels[offset + 3] = 255;
+        }
+    }
+
+    const png = encodeRgbaPng(width, height, pixels);
+    const pixelHash = hashBufferHex(png).slice(0, 20);
+    return {
+        png,
+        pixelHash,
+        signature: hashHex({
+            layout: layout.id,
+            profile: profile.id,
+            kind: 'terrain-ground-fill',
+            size: nativeSize,
+            pixelHash,
+        }).slice(0, 20),
+        metrics: {
+            terrain_ground_fill_size: [width, height],
+            terrain_ground_fill_pixel_hash: pixelHash,
+        },
     };
 }
 
@@ -1857,6 +2099,161 @@ export function assertTerrainChunkMap(chunkMap, { grammar = defaultTerrainChunkG
     }
 }
 
+export function generateTerrainChunkSpriteAssets({
+    chunkMaps = [],
+    grammar = defaultTerrainChunkGrammar,
+    terrainAssetBasePath = 'generated-assets',
+} = {}) {
+    validateTerrainChunkGrammar(grammar);
+    const assetsById = new Map();
+    const basePath = terrainAssetBasePath.replace(/\/+$/, '');
+    for (const chunkMap of chunkMaps) {
+        assertTerrainChunkMap(chunkMap, { grammar });
+        for (const chunk of chunkMap.chunks || []) {
+            if (chunk.class === 'ground') {
+                continue;
+            }
+            const assetId = terrainChunkSpriteAssetId(chunk);
+            if (assetsById.has(assetId)) {
+                continue;
+            }
+            const rendered = drawChunkSprite(chunk);
+            const fileName = terrainChunkSpriteFileName(assetId);
+            const variant = terrainChunkSpriteVariant(chunk);
+            assetsById.set(assetId, {
+                asset: {
+                    id: assetId,
+                    kind: `terrain_chunk_${chunk.class}`,
+                    image: `${basePath}/${fileName}`,
+                    anchor: [50, 50],
+                    generated: true,
+                    terrain_chunk_class: chunk.class,
+                    terrain_chunk_template: chunk.template,
+                    terrain_chunk_ports: [...(chunk.ports || [])],
+                    terrain_chunk_variant: variant,
+                    terrain_chunk_mask: clone(chunk.mask),
+                },
+                fileName,
+                png: rendered.png,
+                pixelHash: rendered.pixelHash,
+                signature: rendered.signature,
+                class: chunk.class,
+                template: chunk.template,
+                ports: [...(chunk.ports || [])],
+                variant,
+            });
+        }
+    }
+    return [...assetsById.values()].sort((a, b) => a.asset.id.localeCompare(b.asset.id));
+}
+
+function terrainChunkZGroup(chunkClass) {
+    return {
+        bank: 'terrain_underpaint',
+        water: 'water',
+        path: 'road',
+        bridge: 'bridge',
+        detail: 'terrain',
+    }[chunkClass] || 'terrain';
+}
+
+function terrainChunkLayerScale(chunkClass) {
+    return {
+        bank: 1.04,
+        water: 1.04,
+        path: 1.0,
+        bridge: 0.96,
+        detail: 0.82,
+    }[chunkClass] || 1;
+}
+
+function compareTerrainChunksForDraw(a, b) {
+    const order = { bank: 0, water: 1, path: 2, detail: 3, bridge: 4 };
+    const classDiff = (order[a.class] ?? 9) - (order[b.class] ?? 9);
+    if (classDiff !== 0) {
+        return classDiff;
+    }
+    const rowDiff = a.cell[1] - b.cell[1];
+    if (rowDiff !== 0) {
+        return rowDiff;
+    }
+    return a.cell[0] - b.cell[0];
+}
+
+function addTerrainChunkSpriteLayers(builder, layout, profile, chunkMap) {
+    if (!chunkMap) {
+        throw new Error(`layout '${layout.id}' chunk sprite render mode requires a terrain chunk map`);
+    }
+    const metrics = {
+        terrain_chunk_render_mode: 'sprites',
+        terrain_ground_fill_layer_count: 1,
+        terrain_underpaint_layer_count: 0,
+        generated_ground_patch_count: 0,
+        generated_path_underpaint_count: 0,
+        generated_bank_patch_count: 0,
+        generated_vegetation_patch_count: 0,
+        generated_mud_patch_count: 0,
+        shared_ground_base_opacity: 0,
+        repeated_terrain_atom_count: 0,
+        terrain_raster_layer_count: 0,
+        terrain_chunk_sprite_layer_count: 0,
+        terrain_chunk_sprite_class_counts: {},
+        terrain_chunk_sprite_path_coverage_cells: 0,
+        terrain_chunk_sprite_water_coverage_cells: 0,
+        terrain_chunk_sprite_bridge_under_span_cell_count: chunkMap.summary.bridge_under_span_cell_count,
+        terrain_chunk_sprite_collision_count: chunkMap.summary.collision_count,
+    };
+
+    const waterwayIds = new Set((layout.waterways || []).map((waterway) => waterway.id));
+    const chunks = (chunkMap.chunks || [])
+        .filter((chunk) => chunk.class !== 'ground')
+        .filter((chunk) => chunk.class !== 'bank' || chunk.source_ids.some((id) => waterwayIds.has(id)))
+        .sort(compareTerrainChunksForDraw);
+    for (const chunk of chunks) {
+        const [col, row] = chunk.cell;
+        const at = cellCenter(chunkMap.grid, { col, row });
+        const assetId = terrainChunkSpriteAssetId(chunk);
+        builder.add({
+            id: `terrain-chunk-${chunk.class}-${col}-${row}-${slugify(chunk.template)}`,
+            asset: assetId,
+            x: at.x,
+            y: at.y,
+            zGroup: terrainChunkZGroup(chunk.class),
+            scale: terrainChunkLayerScale(chunk.class),
+            opacity: chunk.class === 'bank' ? 0.5 : chunk.class === 'detail' ? 0.72 : 0.9,
+            flip: unitFromSeed(chunk.variant_seed, 2) > 0.5,
+            terrain_chunk_id: chunk.id,
+            terrain_chunk_class: chunk.class,
+            terrain_chunk_template: chunk.template,
+            terrain_chunk_ports: [...(chunk.ports || [])],
+            terrain_chunk_variant_seed: chunk.variant_seed,
+            terrain_chunk_mask: clone(chunk.mask),
+        });
+        metrics.terrain_chunk_sprite_layer_count += 1;
+        metrics.terrain_chunk_sprite_class_counts[chunk.class] = (metrics.terrain_chunk_sprite_class_counts[chunk.class] || 0) + 1;
+    }
+
+    metrics.terrain_chunk_sprite_class_counts = Object.fromEntries(
+        Object.entries(metrics.terrain_chunk_sprite_class_counts).sort(([a], [b]) => a.localeCompare(b)),
+    );
+    metrics.terrain_chunk_sprite_path_coverage_cells = metrics.terrain_chunk_sprite_class_counts.path || 0;
+    metrics.terrain_chunk_sprite_water_coverage_cells = metrics.terrain_chunk_sprite_class_counts.water || 0;
+    metrics.terrain_chunk_sprite_signature = hashHex({
+        layout: layout.id,
+        profile: profile.id,
+        chunk_map: chunkMap.chunk_map_signature,
+        layers: chunks.map((chunk) => [
+            chunk.id,
+            chunk.class,
+            chunk.template,
+            terrainChunkPortKey(chunk.ports),
+            terrainChunkSpriteAssetId(chunk),
+            chunk.variant_seed,
+        ]),
+    }).slice(0, 20);
+    return metrics;
+}
+
 function assetFootprintPoints(kind, anchor, scale = 1, flip = false) {
     if (kind !== 'cart') {
         return [anchor];
@@ -2306,7 +2703,7 @@ function createLayerBuilder() {
         ids.add(candidate);
         return candidate;
     }
-    function add({ id, asset, x, y, zGroup = 'prop', scale = 1, opacity = 1, flip = false, animation, labels }) {
+    function add({ id, asset, x, y, zGroup = 'prop', scale = 1, opacity = 1, flip = false, animation, labels, ...metadata }) {
         const layer = {
             id: uniqueId(id),
             asset,
@@ -2326,6 +2723,11 @@ function createLayerBuilder() {
         }
         if (labels?.length) {
             layer.labels = labels;
+        }
+        for (const [key, value] of Object.entries(metadata)) {
+            if (value !== undefined) {
+                layer[key] = clone(value);
+            }
         }
         layers.push(layer);
         return layer;
@@ -3028,14 +3430,54 @@ function generatedSlots(layout) {
     });
 }
 
-function generateLayoutScene({ sourceScene, recipe, layout, index, grid, includeTerrainRaster = false, terrainRasterBasePath = 'generated-assets' }) {
+function generateLayoutScene({
+    sourceScene,
+    recipe,
+    layout,
+    index,
+    grid,
+    includeTerrainRaster = false,
+    terrainRasterBasePath = 'generated-assets',
+    chunkRenderMode = 'none',
+    chunkMap = null,
+}) {
     const builder = createLayerBuilder();
     const terrainProfile = terrainProfileForLayout(recipe, layout);
     const nativeSize = clone(sourceScene.native_size || [1280, 720]);
     const slug = makeLayoutSlug(recipe, layout, index);
     let terrainRaster = null;
+    let terrainGroundFill = null;
     let terrainMetrics;
-    if (includeTerrainRaster) {
+    if (chunkRenderMode === 'sprites') {
+        const groundFill = generateTerrainGroundFillRaster({ layout, profile: terrainProfile, index, nativeSize });
+        const fileName = terrainGroundFillFileName(layout, index);
+        const assetId = terrainGroundFillAssetId(slug);
+        terrainGroundFill = {
+            asset: {
+                id: assetId,
+                kind: 'ground',
+                image: `${terrainRasterBasePath.replace(/\/+$/, '')}/${fileName}`,
+                anchor: [50, 50],
+                generated: true,
+                terrain_ground_fill: true,
+            },
+            fileName,
+            png: groundFill.png,
+            pixelHash: groundFill.pixelHash,
+        };
+        builder.add({
+            id: 'terrain-ground-fill',
+            asset: assetId,
+            x: 50,
+            y: 50,
+            zGroup: 'ground',
+            scale: 1,
+        });
+        terrainMetrics = addTerrainChunkSpriteLayers(builder, layout, terrainProfile, chunkMap);
+        terrainMetrics.terrain_ground_fill_asset = assetId;
+        terrainMetrics.terrain_ground_fill_signature = groundFill.signature;
+        Object.assign(terrainMetrics, groundFill.metrics);
+    } else if (includeTerrainRaster) {
         const raster = generateTerrainRaster({ layout, profile: terrainProfile, index, nativeSize, grid });
         const fileName = terrainRasterFileName(layout, index);
         const assetId = terrainRasterAssetId(slug);
@@ -3088,6 +3530,7 @@ function generateLayoutScene({ sourceScene, recipe, layout, index, grid, include
         terrainProfile,
         terrainMetrics,
         terrainRaster,
+        terrainGroundFill,
         scene: {
             location_id: (recipe.location_id_base || 15100) + index,
             slug,
@@ -3183,6 +3626,8 @@ export function assertGeneratedPack(pack) {
     const terrainProfiles = new Set();
     const terrainSignatures = new Set();
     const terrainRasterSignatures = new Set();
+    const terrainChunkSpriteSignatures = new Set();
+    const terrainGroundFillSignatures = new Set();
     for (const layout of pack.summary.layouts) {
         if (slugs.has(layout.slug)) {
             throw new Error(`duplicate generated slug '${layout.slug}'`);
@@ -3240,6 +3685,88 @@ export function assertGeneratedPack(pack) {
                 throw new Error(`${layout.slug} must report exactly one terrain raster layer`);
             }
         }
+        if (layout.terrain_chunk_render_mode === 'sprites') {
+            const scene = scenesBySlug.get(layout.slug);
+            if (!scene) {
+                throw new Error(`${layout.slug} summary has no matching generated scene`);
+            }
+            if (scene.layers.some((layer) => layer.id === 'terrain-raster')) {
+                throw new Error(`${layout.slug} chunk sprite mode must not include terrain-raster layer`);
+            }
+            const groundFillLayer = scene.layers.find((layer) => layer.id === 'terrain-ground-fill');
+            const groundFillAsset = assetsById.get(layout.terrain_ground_fill_asset);
+            if (!groundFillLayer) {
+                throw new Error(`${layout.slug} chunk sprite mode is missing terrain-ground-fill layer`);
+            }
+            if (scene.layers[0]?.id !== 'terrain-ground-fill') {
+                throw new Error(`${layout.slug} terrain-ground-fill layer must be the first scene layer`);
+            }
+            if (groundFillLayer.asset !== layout.terrain_ground_fill_asset) {
+                throw new Error(`${layout.slug} terrain-ground-fill layer does not reference '${layout.terrain_ground_fill_asset}'`);
+            }
+            if (!groundFillAsset || groundFillAsset.kind !== 'ground' || groundFillAsset.generated !== true) {
+                throw new Error(`${layout.slug} terrain ground fill asset must be a generated ground asset`);
+            }
+            if (!groundFillAsset.image?.endsWith('.png')) {
+                throw new Error(`${layout.slug} terrain ground fill asset must point to a PNG`);
+            }
+            if (terrainGroundFillSignatures.has(layout.terrain_ground_fill_signature)) {
+                throw new Error(`duplicate terrain ground fill signature '${layout.terrain_ground_fill_signature}'`);
+            }
+            terrainGroundFillSignatures.add(layout.terrain_ground_fill_signature);
+            if (terrainChunkSpriteSignatures.has(layout.terrain_chunk_sprite_signature)) {
+                throw new Error(`duplicate terrain chunk sprite signature '${layout.terrain_chunk_sprite_signature}'`);
+            }
+            terrainChunkSpriteSignatures.add(layout.terrain_chunk_sprite_signature);
+            const chunkLayers = scene.layers.filter((layer) => layer.terrain_chunk_id);
+            if (chunkLayers.length !== layout.terrain_chunk_sprite_layer_count) {
+                throw new Error(`${layout.slug} chunk sprite layer count mismatch`);
+            }
+            if (chunkLayers.length <= 0) {
+                throw new Error(`${layout.slug} chunk sprite mode has no chunk layers`);
+            }
+            if ((layout.terrain_chunk_sprite_missing_assets || 0) !== 0) {
+                throw new Error(`${layout.slug} reports missing terrain chunk sprite assets`);
+            }
+            const chunkLayerSources = new Set();
+            for (const layer of chunkLayers) {
+                if (chunkLayerSources.has(layer.terrain_chunk_id)) {
+                    throw new Error(`${layout.slug} has duplicate terrain chunk layer source '${layer.terrain_chunk_id}'`);
+                }
+                chunkLayerSources.add(layer.terrain_chunk_id);
+                const asset = assetsById.get(layer.asset);
+                if (!asset) {
+                    throw new Error(`${layout.slug}/${layer.id} references missing terrain chunk sprite asset '${layer.asset}'`);
+                }
+                if (asset.generated !== true) {
+                    throw new Error(`${layout.slug}/${layer.id} terrain chunk sprite asset must be generated`);
+                }
+                if (asset.kind !== `terrain_chunk_${layer.terrain_chunk_class}`) {
+                    throw new Error(`${layout.slug}/${layer.id} terrain chunk sprite asset kind mismatch`);
+                }
+                if (asset.terrain_chunk_template !== layer.terrain_chunk_template) {
+                    throw new Error(`${layout.slug}/${layer.id} terrain chunk sprite template mismatch`);
+                }
+                if (!asset.image?.endsWith('.png')) {
+                    throw new Error(`${layout.slug}/${layer.id} terrain chunk sprite asset must point to a PNG`);
+                }
+                if (JSON.stringify(asset.anchor) !== JSON.stringify([50, 50])) {
+                    throw new Error(`${layout.slug}/${layer.id} terrain chunk sprite asset must use [50,50] anchor`);
+                }
+                if (!layer.terrain_chunk_mask || typeof layer.terrain_chunk_mask.water !== 'boolean') {
+                    throw new Error(`${layout.slug}/${layer.id} terrain chunk layer is missing mask metadata`);
+                }
+            }
+            if ((layout.terrain_chunk_sprite_class_counts?.path || 0) !== layout.terrain_chunk_sprite_path_coverage_cells) {
+                throw new Error(`${layout.slug} chunk sprite path coverage mismatch`);
+            }
+            if ((layout.terrain_chunk_sprite_class_counts?.water || 0) !== layout.terrain_chunk_sprite_water_coverage_cells) {
+                throw new Error(`${layout.slug} chunk sprite water coverage mismatch`);
+            }
+            if ((layout.terrain_chunk_sprite_collision_count || 0) !== 0) {
+                throw new Error(`${layout.slug} terrain chunk sprite collision count must be zero`);
+            }
+        }
         slugs.add(layout.slug);
         locationIds.add(layout.location_id);
         signatures.add(layout.scene_signature);
@@ -3288,25 +3815,19 @@ function generateVillageLayoutPackInternal({
     includeTerrainRasters = false,
     includeTerrainChunks = false,
     terrainRasterBasePath = 'generated-assets',
+    chunkRenderMode = 'none',
 } = {}) {
+    if (!['none', 'sprites'].includes(chunkRenderMode)) {
+        throw new Error(`unknown chunk render mode '${chunkRenderMode}'`);
+    }
     validateRecipe(recipe, sceneIndex);
     const sourceScene = findSourceScene(sceneIndex, recipe.source_slug);
     const grid = validateGridSpec(recipe.grid || defaultIsoGrid);
     const visualWaterExclusions = recipe.visual_water_exclusions || [];
     const prefabCatalog = prefabCatalogForRecipe(recipe);
     const chunkGrammar = terrainChunkGrammarForRecipeInternal(recipe);
-    const generated = recipe.layouts.map((layout, index) =>
-        generateLayoutScene({
-            sourceScene,
-            recipe,
-            layout,
-            index,
-            grid,
-            includeTerrainRaster: includeTerrainRasters,
-            terrainRasterBasePath,
-        }),
-    );
-    const chunkMaps = includeTerrainChunks
+    const shouldBuildChunkMaps = includeTerrainChunks || chunkRenderMode === 'sprites';
+    const chunkMaps = shouldBuildChunkMaps
         ? recipe.layouts.map((layout, index) =>
               generateTerrainChunkMap({
                   layout,
@@ -3320,10 +3841,34 @@ function generateVillageLayoutPackInternal({
               }),
           )
         : [];
+    const generated = recipe.layouts.map((layout, index) =>
+        generateLayoutScene({
+            sourceScene,
+            recipe,
+            layout,
+            index,
+            grid,
+            includeTerrainRaster: includeTerrainRasters,
+            terrainRasterBasePath,
+            chunkRenderMode,
+            chunkMap: chunkMaps[index],
+        }),
+    );
     const terrainRasters = generated.map((entry) => entry.terrainRaster).filter(Boolean);
+    const terrainGroundFills = generated.map((entry) => entry.terrainGroundFill).filter(Boolean);
+    const terrainChunkSprites =
+        chunkRenderMode === 'sprites'
+            ? generateTerrainChunkSpriteAssets({
+                  chunkMaps,
+                  grammar: chunkGrammar,
+                  terrainAssetBasePath: terrainRasterBasePath,
+              })
+            : [];
     const assets = [
         ...clone(sceneIndex.assets),
         ...terrainRasters.map((raster) => raster.asset),
+        ...terrainGroundFills.map((raster) => raster.asset),
+        ...terrainChunkSprites.map((sprite) => sprite.asset),
     ];
     const assetsById = new Map(assets.map((asset) => [asset.id, asset]));
     const scenes = generated.map((entry) => entry.scene);
@@ -3344,6 +3889,15 @@ function generateVillageLayoutPackInternal({
                   terrain_chunk_grammar_signature: chunkMap.grammar_signature,
               }
             : {};
+        const chunkSpriteMetrics =
+            chunkRenderMode === 'sprites'
+                ? {
+                      terrain_chunk_sprite_asset_count: terrainChunkSprites.length,
+                      terrain_chunk_sprite_missing_assets: scene.layers.filter(
+                          (layer) => layer.terrain_chunk_id && !assetsById.has(layer.asset),
+                      ).length,
+                  }
+                : {};
         return {
             index: index + 1,
             id: layout.id,
@@ -3358,6 +3912,7 @@ function generateVillageLayoutPackInternal({
             terrain_profile_signature: terrainProfileConfigSignature(terrainProfile),
             ...terrainMetrics,
             ...chunkMetrics,
+            ...chunkSpriteMetrics,
             topology_signature: validation.topology_signature,
             topology: validation,
             hotspot_count: scene.hotspots.length,
@@ -3390,7 +3945,7 @@ function generateVillageLayoutPackInternal({
         },
     };
     assertGeneratedPack(pack);
-    return { pack, terrainRasters, chunkMaps, chunkGrammar };
+    return { pack, terrainRasters, terrainGroundFills, chunkMaps, chunkGrammar, terrainChunkSprites };
 }
 
 export function generateVillageLayoutPack(inputs = {}) {
@@ -3418,6 +3973,16 @@ export function generateVillageLayoutPackWithTerrainChunks(inputs = {}, options 
     });
 }
 
+export function generateVillageLayoutPackWithChunkSprites(inputs = {}, options = {}) {
+    return generateVillageLayoutPackInternal({
+        ...inputs,
+        includeTerrainChunks: true,
+        includeTerrainRasters: false,
+        terrainRasterBasePath: options.terrainAssetBasePath || options.terrainRasterBasePath || 'generated-assets',
+        chunkRenderMode: 'sprites',
+    });
+}
+
 export async function writeTerrainRasterAssets(terrainRasters, assetOutPath) {
     if (!assetOutPath) {
         throw new Error('assetOutPath is required to write terrain raster assets');
@@ -3427,6 +3992,19 @@ export async function writeTerrainRasterAssets(terrainRasters, assetOutPath) {
         await writeFile(path.join(assetOutPath, raster.fileName), raster.png);
     }
     return { count: terrainRasters?.length || 0, assetOutPath };
+}
+
+export async function writeTerrainChunkSpriteAssets(terrainChunkSprites, assetOutPath) {
+    if (!assetOutPath) {
+        throw new Error('assetOutPath is required to write terrain chunk sprite assets');
+    }
+    await mkdir(assetOutPath, { recursive: true });
+    for (const sprite of terrainChunkSprites || []) {
+        const filePath = path.join(assetOutPath, sprite.fileName);
+        await mkdir(path.dirname(filePath), { recursive: true });
+        await writeFile(filePath, sprite.png);
+    }
+    return { count: terrainChunkSprites?.length || 0, assetOutPath };
 }
 
 export async function loadVillageLayoutInputs({
@@ -3445,6 +4023,7 @@ function parseArgs(argv) {
         summaryOutPath: null,
         assetOutPath: null,
         chunkMapOutPath: null,
+        chunkRenderMode: 'none',
         summary: false,
     };
     for (let index = 0; index < argv.length; index += 1) {
@@ -3468,6 +4047,12 @@ function parseArgs(argv) {
         } else if (arg === '--chunk-map-out') {
             args.chunkMapOutPath = resolveRepoPath(next, arg);
             index += 1;
+        } else if (arg === '--chunk-render-mode') {
+            if (!['none', 'sprites'].includes(next)) {
+                throw new Error("--chunk-render-mode must be 'none' or 'sprites'");
+            }
+            args.chunkRenderMode = next;
+            index += 1;
         } else if (arg === '--summary') {
             args.summary = true;
         } else {
@@ -3487,12 +4072,13 @@ function printSummary(summary) {
     for (const layout of summary.layouts) {
         const raster = layout.terrain_raster_asset ? ` raster=${layout.terrain_raster_asset}` : '';
         const chunks = layout.terrain_chunk_count ? ` chunks=${layout.terrain_chunk_count}` : '';
+        const chunkSprites = layout.terrain_chunk_sprite_layer_count ? ` chunkSprites=${layout.terrain_chunk_sprite_layer_count}` : '';
         console.log(
             `${String(layout.index).padStart(2, '0')}. ${layout.slug} ` +
                 `layers=${layout.layer_count} kit=${layout.kit_layer_count} ` +
                 `terrain=${layout.terrain_profile} underpaint=${layout.terrain_underpaint_layer_count} ` +
                 `paths=${layout.topology.path_count} water=${layout.topology.waterway_count} ` +
-                `bridges=${layout.topology.bridge_count} topology=${layout.topology_signature}${raster}${chunks}`,
+                `bridges=${layout.topology.bridge_count} topology=${layout.topology_signature}${raster}${chunks}${chunkSprites}`,
         );
     }
 }
@@ -3502,15 +4088,24 @@ async function main() {
     const inputs = await loadVillageLayoutInputs(args);
     let pack;
     let terrainRasters = [];
+    let terrainGroundFills = [];
     let chunkMaps = [];
     let chunkGrammar = null;
-    const includeTerrainChunks = Boolean(args.chunkMapOutPath);
-    if (args.assetOutPath) {
+    let terrainChunkSprites = [];
+    const includeTerrainChunks = Boolean(args.chunkMapOutPath) || args.chunkRenderMode === 'sprites';
+    if (args.assetOutPath && args.chunkRenderMode === 'sprites') {
+        ({ pack, terrainGroundFills, chunkMaps, chunkGrammar, terrainChunkSprites } = generateVillageLayoutPackWithChunkSprites(inputs, {
+            terrainAssetBasePath: path.basename(args.assetOutPath),
+        }));
+        await writeTerrainChunkSpriteAssets([...terrainGroundFills, ...terrainChunkSprites], args.assetOutPath);
+    } else if (args.assetOutPath) {
         ({ pack, terrainRasters, chunkMaps, chunkGrammar } = generateVillageLayoutPackWithRasters(inputs, {
             terrainRasterBasePath: path.basename(args.assetOutPath),
             includeTerrainChunks,
         }));
         await writeTerrainRasterAssets(terrainRasters, args.assetOutPath);
+    } else if (args.chunkRenderMode === 'sprites') {
+        throw new Error('--chunk-render-mode sprites requires --asset-out so generated chunk PNGs can be written');
     } else if (includeTerrainChunks) {
         ({ pack, chunkMaps, chunkGrammar } = generateVillageLayoutPackWithTerrainChunks(inputs));
     } else {
@@ -3535,8 +4130,14 @@ async function main() {
         if (terrainRasters.length) {
             console.log(`Wrote ${terrainRasters.length} terrain raster asset(s) to ${relativePath(args.assetOutPath)}.`);
         }
-        if (chunkMaps.length) {
+        if (chunkMaps.length && args.chunkMapOutPath) {
             console.log(`Wrote ${chunkMaps.length} terrain chunk map(s) to ${relativePath(args.chunkMapOutPath)}.`);
+        }
+        if (terrainChunkSprites.length) {
+            console.log(`Wrote ${terrainChunkSprites.length} terrain chunk sprite asset(s) to ${relativePath(args.assetOutPath)}.`);
+        }
+        if (terrainGroundFills.length) {
+            console.log(`Wrote ${terrainGroundFills.length} terrain ground fill asset(s) to ${relativePath(args.assetOutPath)}.`);
         }
     }
 }
