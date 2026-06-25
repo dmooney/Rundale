@@ -1,0 +1,268 @@
+{
+    "version": 1,
+    "source_slug": "kilteevan-village",
+    "output_slug_prefix": "kilteevan-village-variant",
+    "location_id_base": 15000,
+    "art_direction": "High 3/4 pixel-art rural Ireland, damp 1820s Westmeath, reusable sprite atoms with readable ground planes, foot anchors, and y-depth ordering.",
+    "variants": [
+        {
+            "id": "rain-rutted-lane",
+            "name": "Rain-Rutted Lane",
+            "description": "A wet morning pass with puddles and muddy ruts pulled into the main footpath.",
+            "family_transforms": {
+                "road": { "dx": -1.4, "dy": 1.1, "scale": 1.03 },
+                "terrain_patch": { "dx": -0.8, "dy": 0.5, "scale": 1.08 },
+                "water": { "dx": 0.6, "dy": 0.3, "scale": 1.14, "opacity": 1.25 },
+                "foliage": { "dx": -0.4, "dy": 0.2, "scale": 0.98 },
+                "smoke": { "dx": 0.5, "dy": -0.4, "opacity": 1.2 }
+            },
+            "layer_transforms": {
+                "m2-puddle-center": { "dx": 1.8, "dy": 0.7, "scale": 1.18 },
+                "m2-puddle-lower": { "dx": -1.6, "dy": 1.2, "scale": 1.16 },
+                "m2-puddle-well": { "dx": 1.1, "dy": -0.3, "scale": 1.08 }
+            },
+            "hotspot_offsets": {
+                "road-to-crossroads": { "dx": -1.0, "dy": 0.7 },
+                "village-well": { "dx": 0.8, "dy": 0.2 }
+            },
+            "slot_offsets": {
+                "lane-center": { "dx": -0.8, "dy": 0.9 },
+                "well-left": { "dx": 0.5, "dy": 0.3 }
+            }
+        },
+        {
+            "id": "market-morning",
+            "name": "Market Morning",
+            "description": "The cart, signpost, and cottage edges become the visual draw for a busier village morning.",
+            "family_transforms": {
+                "prop": { "dx": -1.2, "dy": -0.3, "scale": 1.08 },
+                "wayfinding_sign": { "dx": 1.4, "dy": -0.8, "scale": 1.12 },
+                "wood": { "dx": -0.7, "dy": -0.2, "scale": 1.1 },
+                "foliage": { "dx": 0.3, "dy": 0.4, "scale": 1.02 },
+                "building_detail": { "dx": 0.2, "dy": -0.5, "scale": 1.03 }
+            },
+            "layer_transforms": {
+                "cart": { "dx": -2.4, "dy": -0.2, "scale": 1.08 },
+                "m2-cart-wheel-detail-a": { "dx": -2.6, "dy": -0.2, "scale": 1.1 },
+                "m2-cart-wheel-detail-b": { "dx": -2.1, "dy": -0.1, "scale": 1.1 }
+            },
+            "hotspot_offsets": {
+                "road-to-crossroads": { "dx": 0.6, "dy": -0.4 },
+                "village-well": { "dx": -0.4, "dy": 0.3 }
+            },
+            "slot_offsets": {
+                "lane-center": { "dx": -1.2, "dy": -0.2 },
+                "cottage-door": { "dx": 0.6, "dy": -0.4 }
+            }
+        },
+        {
+            "id": "well-gathering",
+            "name": "Well Gathering",
+            "description": "The well garden becomes the scene anchor, with stones, flowers, and NPC space drawn inward.",
+            "family_transforms": {
+                "prop": { "dx": 1.1, "dy": 0.4, "scale": 1.06 },
+                "wall": { "dx": 0.6, "dy": 0.2, "scale": 1.03 },
+                "foliage": { "dx": 0.9, "dy": -0.3, "scale": 1.08 },
+                "water": { "dx": 0.4, "dy": 0.1, "scale": 1.04 },
+                "terrain_patch": { "dx": 0.7, "dy": 0.2, "scale": 1.03 }
+            },
+            "layer_transforms": {
+                "well": { "dx": 2.6, "dy": -0.4, "scale": 1.06 },
+                "m2-well-rim-detail": { "dx": 2.7, "dy": -0.3, "scale": 1.1 },
+                "bramble-kit-well-flowers": { "dx": 2.3, "dy": -0.9, "scale": 1.15 },
+                "m2-flower-well": { "dx": 2.0, "dy": -0.8, "scale": 1.14 }
+            },
+            "hotspot_offsets": {
+                "road-to-crossroads": { "dx": 0.2, "dy": 0.0 },
+                "village-well": { "dx": 2.2, "dy": -0.7 }
+            },
+            "slot_offsets": {
+                "well-left": { "dx": 2.1, "dy": -0.5 },
+                "lane-center": { "dx": 0.8, "dy": 0.2 }
+            }
+        },
+        {
+            "id": "bridge-stream-bank",
+            "name": "Bridge Stream Bank",
+            "description": "The foreground bridge and stream bank are emphasized for a wetter route into the lane.",
+            "family_transforms": {
+                "bridge": { "dx": -1.3, "dy": 0.8, "scale": 1.09 },
+                "wood": { "dx": -1.1, "dy": 0.7, "scale": 1.12 },
+                "water": { "dx": -1.8, "dy": 0.9, "scale": 1.1, "opacity": 1.18 },
+                "wall": { "dx": -0.9, "dy": 0.5, "scale": 1.02 },
+                "foliage": { "dx": -1.0, "dy": 0.6, "scale": 1.04 }
+            },
+            "layer_transforms": {
+                "bridge": { "dx": -2.8, "dy": 1.4, "scale": 1.08 },
+                "m2-wall-bridge-a": { "dx": -2.1, "dy": 1.1, "scale": 1.12 },
+                "m2-wood-planks-bridge-detail": { "dx": -2.6, "dy": 1.1, "scale": 1.15 },
+                "bramble-kit-stream-bank": { "dx": -2.0, "dy": 1.0, "scale": 1.13 }
+            },
+            "hotspot_offsets": {
+                "road-to-crossroads": { "dx": -0.8, "dy": 0.9 },
+                "village-well": { "dx": -0.5, "dy": 0.3 }
+            },
+            "slot_offsets": {
+                "lane-center": { "dx": -1.0, "dy": 0.8 },
+                "well-left": { "dx": -0.4, "dy": 0.3 }
+            }
+        },
+        {
+            "id": "cottage-gardens",
+            "name": "Cottage Gardens",
+            "description": "Cottage faces, thatch detail, and flower beds become more prominent while the lane relaxes.",
+            "family_transforms": {
+                "cottage": { "dx": 0.2, "dy": -0.8, "scale": 1.04 },
+                "building_detail": { "dx": 0.4, "dy": -1.0, "scale": 1.08 },
+                "foliage": { "dx": 0.5, "dy": -0.7, "scale": 1.12 },
+                "road": { "dx": 0.3, "dy": 0.6, "scale": 0.98 },
+                "terrain_patch": { "dx": 0.4, "dy": 0.5, "scale": 0.98 }
+            },
+            "layer_transforms": {
+                "left-cottage": { "dx": -0.8, "dy": -1.4, "scale": 1.03 },
+                "right-cottage": { "dx": 1.1, "dy": -1.1, "scale": 1.03 },
+                "m2-left-roof-topface": { "dx": -1.1, "dy": -1.5, "scale": 1.1 },
+                "m2-right-roof-topface": { "dx": 1.2, "dy": -1.4, "scale": 1.1 }
+            },
+            "hotspot_offsets": {
+                "road-to-crossroads": { "dx": 0.4, "dy": 0.4 },
+                "village-well": { "dx": 0.6, "dy": -0.4 }
+            },
+            "slot_offsets": {
+                "cottage-door": { "dx": -0.6, "dy": -0.8 },
+                "well-left": { "dx": 0.5, "dy": -0.3 }
+            }
+        },
+        {
+            "id": "signpost-crossroads-pull",
+            "name": "Signpost Crossroads Pull",
+            "description": "The upper road and signpost line pull the eye toward the Crossroads exit.",
+            "family_transforms": {
+                "road": { "dx": 1.0, "dy": -1.2, "scale": 1.05 },
+                "wayfinding_sign": { "dx": 2.3, "dy": -1.5, "scale": 1.16 },
+                "terrain_patch": { "dx": 0.6, "dy": -0.7, "scale": 1.02 },
+                "wall": { "dx": 0.4, "dy": -0.3, "scale": 1.0 },
+                "foliage": { "dx": 0.3, "dy": -0.3, "scale": 0.99 }
+            },
+            "layer_transforms": {
+                "lane-upper": { "dx": 1.6, "dy": -1.8, "scale": 1.06 },
+                "m2-road-upper-straight": { "dx": 1.8, "dy": -1.9, "scale": 1.11 },
+                "signpost": { "dx": 2.8, "dy": -1.6, "scale": 1.1 },
+                "m2-signpost-detail": { "dx": 2.9, "dy": -1.7, "scale": 1.16 }
+            },
+            "hotspot_offsets": {
+                "road-to-crossroads": { "dx": 1.4, "dy": -1.2 },
+                "village-well": { "dx": 0.1, "dy": -0.2 }
+            },
+            "slot_offsets": {
+                "lane-center": { "dx": 1.1, "dy": -1.0 },
+                "cottage-door": { "dx": 0.3, "dy": -0.4 }
+            }
+        },
+        {
+            "id": "cart-and-stone",
+            "name": "Cart And Stone",
+            "description": "Stone walls, cart wood, and foreground masonry make the lane feel heavier and more work-worn.",
+            "family_transforms": {
+                "wall": { "dx": -0.9, "dy": 0.8, "scale": 1.09 },
+                "wood": { "dx": -1.5, "dy": 0.4, "scale": 1.14 },
+                "prop": { "dx": -1.4, "dy": 0.5, "scale": 1.07 },
+                "terrain_patch": { "dx": -0.4, "dy": 0.5, "scale": 1.03 },
+                "foliage": { "dx": -0.3, "dy": 0.5, "scale": 0.98 }
+            },
+            "layer_transforms": {
+                "foreground-wall": { "dx": -1.8, "dy": 1.2, "scale": 1.08 },
+                "wall-kit-foreground-stones": { "dx": -1.8, "dy": 1.2, "scale": 1.12 },
+                "cart": { "dx": -2.0, "dy": 0.7, "scale": 1.1 },
+                "m2-wall-foreground-a": { "dx": -1.9, "dy": 1.2, "scale": 1.12 }
+            },
+            "hotspot_offsets": {
+                "road-to-crossroads": { "dx": -0.8, "dy": 0.5 },
+                "village-well": { "dx": -0.3, "dy": 0.5 }
+            },
+            "slot_offsets": {
+                "lane-center": { "dx": -1.0, "dy": 0.5 },
+                "cottage-door": { "dx": -0.4, "dy": 0.2 }
+            }
+        },
+        {
+            "id": "smoke-at-dusk",
+            "name": "Smoke At Dusk",
+            "description": "Chimney smoke and damp overlays pull the cottages into a quieter evening read.",
+            "family_transforms": {
+                "smoke": { "dx": 1.1, "dy": -1.5, "scale": 1.18, "opacity": 1.35 },
+                "building_detail": { "dx": 0.3, "dy": -0.6, "scale": 1.04 },
+                "cottage": { "dx": 0.2, "dy": -0.4, "scale": 1.02 },
+                "road": { "dx": -0.2, "dy": 0.2, "scale": 0.99 },
+                "water": { "dx": -0.2, "dy": 0.2, "opacity": 0.85 }
+            },
+            "layer_transforms": {
+                "smoke-left": { "dx": 1.4, "dy": -1.8, "scale": 1.2, "opacity": 1.4 },
+                "smoke-right": { "dx": 1.8, "dy": -1.6, "scale": 1.18, "opacity": 1.35 },
+                "m2-smoke-left-wisp": { "dx": 1.5, "dy": -2.0, "scale": 1.24, "opacity": 1.45 },
+                "m2-smoke-right-wisp": { "dx": 1.8, "dy": -1.9, "scale": 1.22, "opacity": 1.45 }
+            },
+            "hotspot_offsets": {
+                "road-to-crossroads": { "dx": -0.1, "dy": 0.2 },
+                "village-well": { "dx": 0.1, "dy": 0.2 }
+            },
+            "slot_offsets": {
+                "lane-center": { "dx": -0.2, "dy": 0.2 },
+                "well-left": { "dx": 0.2, "dy": 0.1 }
+            }
+        },
+        {
+            "id": "spring-hedgerows",
+            "name": "Spring Hedgerows",
+            "description": "Bramble, flowers, and hedges crowd the walls while keeping the road legible.",
+            "family_transforms": {
+                "foliage": { "dx": 0.8, "dy": 0.2, "scale": 1.16 },
+                "wall": { "dx": 0.4, "dy": 0.3, "scale": 1.02 },
+                "terrain_patch": { "dx": 0.3, "dy": 0.4, "scale": 1.02 },
+                "road": { "dx": 0.1, "dy": 0.2, "scale": 0.98 },
+                "water": { "dx": 0.1, "dy": 0.0, "scale": 0.96 }
+            },
+            "layer_transforms": {
+                "m2-flower-left-cottage": { "dx": 1.5, "dy": -0.5, "scale": 1.24 },
+                "m2-flower-stream-bank": { "dx": 1.0, "dy": 0.4, "scale": 1.2 },
+                "m2-flower-well": { "dx": 1.6, "dy": -0.4, "scale": 1.24 },
+                "m2-purple-wall-left": { "dx": 1.2, "dy": 0.2, "scale": 1.2 },
+                "m2-purple-wall-right": { "dx": 1.2, "dy": 0.1, "scale": 1.2 }
+            },
+            "hotspot_offsets": {
+                "road-to-crossroads": { "dx": 0.2, "dy": 0.1 },
+                "village-well": { "dx": 1.0, "dy": -0.2 }
+            },
+            "slot_offsets": {
+                "well-left": { "dx": 0.9, "dy": -0.2 },
+                "cottage-door": { "dx": 0.7, "dy": -0.3 }
+            }
+        },
+        {
+            "id": "wind-bent-west",
+            "name": "Wind-Bent West",
+            "description": "A wind-swept pass shifts smoke, hedges, and lane texture toward the western stream edge.",
+            "family_transforms": {
+                "foliage": { "dx": -1.2, "dy": -0.2, "scale": 1.07 },
+                "smoke": { "dx": -1.7, "dy": -1.2, "scale": 1.12, "opacity": 1.15 },
+                "road": { "dx": -0.8, "dy": 0.0, "scale": 1.01 },
+                "water": { "dx": -0.9, "dy": 0.4, "scale": 1.05 },
+                "wall": { "dx": -0.6, "dy": 0.1, "scale": 1.01 }
+            },
+            "layer_transforms": {
+                "hedgerow-left": { "dx": -1.8, "dy": -0.3, "scale": 1.08 },
+                "m2-bramble-left-fence": { "dx": -1.8, "dy": -0.2, "scale": 1.12 },
+                "m2-smoke-left-wisp": { "dx": -2.4, "dy": -1.3, "scale": 1.16 },
+                "m2-smoke-right-wisp": { "dx": -2.2, "dy": -1.2, "scale": 1.14 }
+            },
+            "hotspot_offsets": {
+                "road-to-crossroads": { "dx": -0.8, "dy": 0.0 },
+                "village-well": { "dx": -0.4, "dy": 0.1 }
+            },
+            "slot_offsets": {
+                "lane-center": { "dx": -0.7, "dy": 0.0 },
+                "well-left": { "dx": -0.4, "dy": 0.1 }
+            }
+        }
+    ]
+}
