@@ -11,6 +11,7 @@ import {
     assertTerrainChunkMap,
     generateTerrainChunkMap,
     generateVillageLayoutPack,
+    generateVillageLayoutPackWithChunkSprites,
     generateVillageLayoutPackWithTerrainChunks,
     generateVillageLayoutPackWithRasters,
     loadVillageLayoutInputs,
@@ -19,6 +20,7 @@ import {
     terrainSignature,
     topologySignature,
     validateOutdoorLayout,
+    writeTerrainChunkSpriteAssets,
     writeTerrainRasterAssets,
 } from './generate-village-layouts.mjs';
 
@@ -374,6 +376,140 @@ test('outdoor village terrain chunk grammar emits deterministic connected chunk 
             assert.match(chunk.variant_seed, /^[a-f0-9]{16}$/);
         }
     }
+});
+
+test('outdoor village chunk sprite renderer writes deterministic reusable terrain assets', async () => {
+    const inputs = await loadVillageLayoutInputs();
+    const first = generateVillageLayoutPackWithChunkSprites(inputs, { terrainAssetBasePath: 'generated-assets' });
+    const second = generateVillageLayoutPackWithChunkSprites(inputs, { terrainAssetBasePath: 'generated-assets' });
+    const { pack, terrainGroundFills, chunkMaps, terrainChunkSprites } = first;
+    const tempDir = await mkdtemp(path.join(os.tmpdir(), 'rundale-village-chunk-sprites-'));
+    const assetOutPath = path.join(tempDir, 'generated-assets');
+    const assetIds = new Set(pack.assets.map((asset) => asset.id));
+    const totalChunkSpriteLayers = pack.summary.layouts.reduce((sum, layout) => sum + layout.terrain_chunk_sprite_layer_count, 0);
+
+    try {
+        const writeResult = await writeTerrainChunkSpriteAssets([...terrainGroundFills, ...terrainChunkSprites], assetOutPath);
+        assert.equal(writeResult.count, terrainChunkSprites.length + terrainGroundFills.length);
+        assert.equal(chunkMaps.length, 10);
+        assert.equal(second.terrainChunkSprites.length, terrainChunkSprites.length);
+        assert.equal(second.terrainGroundFills.length, terrainGroundFills.length);
+        assert.equal(pack.summary.layout_count, 10);
+        assert.equal(terrainGroundFills.length, 10);
+        assert.ok(terrainChunkSprites.length > 20, 'chunk sprite catalog has many reusable assets');
+        assert.ok(
+            terrainChunkSprites.length < totalChunkSpriteLayers,
+            'chunk sprite catalog is reused across more layers than assets',
+        );
+        assert.equal(pack.assets.filter((asset) => asset.generated).length, terrainChunkSprites.length + terrainGroundFills.length);
+
+        const groundFillSignatures = new Set();
+        for (const [index, fill] of terrainGroundFills.entries()) {
+            const again = second.terrainGroundFills[index];
+            const filePath = path.join(assetOutPath, fill.fileName);
+            const fileBuffer = await readFile(filePath);
+            const image = parsePng(fileBuffer);
+            const content = visibleContentSummary(image);
+
+            assert.equal(fill.asset.id, again.asset.id, `${fill.asset.id} has stable id`);
+            assert.equal(fill.pixelHash, again.pixelHash, `${fill.asset.id} has stable hash`);
+            assert.equal(fill.png.equals(again.png), true, `${fill.asset.id} has stable bytes`);
+            assert.equal(fileBuffer.equals(fill.png), true, `${fill.asset.id} writes expected PNG bytes`);
+            assert.equal(fill.asset.kind, 'ground');
+            assert.equal(fill.asset.generated, true);
+            assert.equal(fill.asset.terrain_ground_fill, true);
+            assert.match(fill.asset.image, /^generated-assets\/ground\/[a-z0-9-]+\.png$/);
+            assert.equal(image.width, 1280);
+            assert.equal(image.height, 720);
+            assert.equal(content.alphaCoverage, 1, `${fill.asset.id} is a complete floor image`);
+            assert.equal(groundFillSignatures.has(fill.pixelHash), false, `${fill.asset.id} has unique ground fill hash`);
+            groundFillSignatures.add(fill.pixelHash);
+        }
+
+        const spriteHashes = new Set();
+        for (const [index, sprite] of terrainChunkSprites.entries()) {
+            const again = second.terrainChunkSprites[index];
+            const filePath = path.join(assetOutPath, sprite.fileName);
+            const fileBuffer = await readFile(filePath);
+            const image = parsePng(fileBuffer);
+            const content = visibleContentSummary(image);
+
+            assert.equal(sprite.asset.id, again.asset.id, `${sprite.asset.id} has stable id`);
+            assert.equal(sprite.pixelHash, again.pixelHash, `${sprite.asset.id} has stable hash`);
+            assert.equal(sprite.png.equals(again.png), true, `${sprite.asset.id} has stable bytes`);
+            assert.equal(fileBuffer.equals(sprite.png), true, `${sprite.asset.id} writes expected PNG bytes`);
+            assert.equal(assetIds.has(sprite.asset.id), true, `${sprite.asset.id} is in pack`);
+            assert.equal(sprite.asset.generated, true, `${sprite.asset.id} marks asset as generated`);
+            assert.match(sprite.asset.image, /^generated-assets\/chunks\/generated-terrain-chunk-[a-z0-9-]+\.png$/);
+            assert.match(sprite.asset.kind, /^terrain_chunk_(bank|bridge|detail|path|water)$/);
+            assert.deepEqual(sprite.asset.anchor, [50, 50]);
+            assert.equal(image.width, 78);
+            assert.equal(image.height, 54);
+            assert.ok(content.alphaCoverage > 0.02, `${sprite.asset.id} has visible pixels`);
+            spriteHashes.add(sprite.pixelHash);
+        }
+        assert.ok(spriteHashes.size > 20, 'chunk sprite catalog has many visually distinct PNGs');
+
+        for (const [index, scene] of pack.scenes.entries()) {
+            const layoutSummary = pack.summary.layouts[index];
+            const chunkMap = chunkMaps[index];
+            const chunkLayers = scene.layers.filter((layer) => layer.terrain_chunk_id);
+            const chunkIds = new Set(chunkLayers.map((layer) => layer.terrain_chunk_id));
+
+            assert.equal(layoutSummary.terrain_chunk_render_mode, 'sprites');
+            assert.equal(scene.layers[0].id, 'terrain-ground-fill', `${scene.slug} starts with generated ground fill`);
+            assert.equal(layoutSummary.terrain_ground_fill_layer_count, 1);
+            assert.ok(layoutSummary.terrain_ground_fill_asset, `${scene.slug} records ground fill asset`);
+            assert.ok(layoutSummary.terrain_ground_fill_signature, `${scene.slug} records ground fill signature`);
+            assert.equal(scene.layers.some((layer) => layer.id === 'terrain-raster'), false, `${scene.slug} has no raster layer`);
+            assert.equal(layoutSummary.terrain_raster_asset, undefined);
+            assert.equal(layoutSummary.terrain_raster_layer_count, 0);
+            assert.equal(layoutSummary.terrain_chunk_sprite_missing_assets, 0);
+            assert.equal(chunkLayers.length, layoutSummary.terrain_chunk_sprite_layer_count);
+            assert.ok(chunkLayers.length >= 45, `${scene.slug} has many visible chunk sprite layers`);
+            assert.ok(
+                chunkLayers.length < chunkMap.summary.chunk_count,
+                `${scene.slug} does not render every ground-fill chunk as a sprite`,
+            );
+            assert.equal(chunkIds.size, chunkLayers.length, `${scene.slug} has one visible layer per non-ground chunk`);
+            assert.equal(layoutSummary.terrain_chunk_sprite_path_coverage_cells, layoutSummary.terrain_chunk_class_counts.path || 0);
+            assert.equal(layoutSummary.terrain_chunk_sprite_water_coverage_cells, layoutSummary.terrain_chunk_class_counts.water || 0);
+            assert.equal(layoutSummary.terrain_chunk_sprite_collision_count, 0);
+            assert.equal(layoutSummary.terrain_chunk_sprite_bridge_under_span_cell_count, layoutSummary.terrain_chunk_bridge_under_span_cell_count);
+            assert.ok(layoutSummary.terrain_chunk_sprite_signature, `${scene.slug} has chunk sprite signature`);
+            assert.equal(layoutSummary.terrain_chunk_map_signature, chunkMap.chunk_map_signature);
+
+            const classCounts = {};
+            for (const layer of chunkLayers) {
+                classCounts[layer.terrain_chunk_class] = (classCounts[layer.terrain_chunk_class] || 0) + 1;
+                const asset = pack.assets.find((candidate) => candidate.id === layer.asset);
+                assert.ok(asset, `${scene.slug}/${layer.id} has generated chunk asset`);
+                assert.equal(asset.kind, `terrain_chunk_${layer.terrain_chunk_class}`);
+                assert.equal(asset.terrain_chunk_template, layer.terrain_chunk_template);
+                assert.deepEqual(asset.terrain_chunk_ports, layer.terrain_chunk_ports);
+                assert.equal(typeof layer.terrain_chunk_mask.water, 'boolean');
+                assert.match(layer.terrain_chunk_variant_seed, /^[a-f0-9]{16}$/);
+            }
+            assert.deepEqual(classCounts, layoutSummary.terrain_chunk_sprite_class_counts);
+        }
+    } finally {
+        await rm(tempDir, { recursive: true, force: true });
+    }
+
+    const missingChunkAsset = clone(pack);
+    const firstChunkLayer = missingChunkAsset.scenes[0].layers.find((layer) => layer.terrain_chunk_id);
+    missingChunkAsset.assets = missingChunkAsset.assets.filter((asset) => asset.id !== firstChunkLayer.asset);
+    missingChunkAsset.summary.layouts[0].terrain_chunk_sprite_missing_assets = 1;
+    assert.throws(() => assertGeneratedPack(missingChunkAsset), /missing terrain chunk sprite assets|references missing/);
+
+    const duplicateChunkLayerSource = clone(pack);
+    const duplicateLayers = duplicateChunkLayerSource.scenes[0].layers.filter((layer) => layer.terrain_chunk_id);
+    duplicateLayers[1].terrain_chunk_id = duplicateLayers[0].terrain_chunk_id;
+    assert.throws(() => assertGeneratedPack(duplicateChunkLayerSource), /duplicate terrain chunk layer source/);
+
+    const brokenCoverage = clone(pack);
+    brokenCoverage.summary.layouts[0].terrain_chunk_sprite_path_coverage_cells += 1;
+    assert.throws(() => assertGeneratedPack(brokenCoverage), /chunk sprite path coverage mismatch/);
 });
 
 test('outdoor village terrain chunk validator rejects broken chunk contracts', async () => {
