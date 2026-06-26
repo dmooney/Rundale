@@ -1,0 +1,7 @@
+look
+/scene
+go to The Crossroads
+go to Kilteevan Village
+inspect the village well
+inspect the wayfinding signpost
+inspect the wooden bridge

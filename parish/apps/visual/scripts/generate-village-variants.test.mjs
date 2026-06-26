@@ -28,27 +28,6 @@ function rectInBounds(rect) {
     assert.ok(y + height <= 100, `rect bottom ${y + height} is in bounds`);
 }
 
-function reusableKitFamilies(scene, assetsById) {
-    const usageByAsset = new Map();
-    for (const layer of scene.layers) {
-        const asset = assetsById.get(layer.asset);
-        if (!asset?.image?.includes('/atoms/kit/')) {
-            continue;
-        }
-        const usage = usageByAsset.get(layer.asset) || [];
-        usage.push(layer);
-        usageByAsset.set(layer.asset, usage);
-    }
-    const families = new Set();
-    for (const [assetId, layers] of usageByAsset.entries()) {
-        const positions = new Set(layers.map((layer) => `${layer.x},${layer.y}`));
-        if (layers.length >= 3 && positions.size >= 3) {
-            families.add(assetsById.get(assetId).kind);
-        }
-    }
-    return families;
-}
-
 async function writeTempPack(pack) {
     const dir = await mkdtemp(path.join(os.tmpdir(), 'rundale-village-variants-'));
     const scenesPath = path.join(dir, 'generated-scenes.json');
@@ -56,7 +35,7 @@ async function writeTempPack(pack) {
     return { dir, scenesPath };
 }
 
-test('village variant recipe generates ten compositor-compatible scenes', async () => {
+test('village variant recipe generates ten generated-plate-compatible scenes', async () => {
     const inputs = await loadVillageVariantInputs();
     const pack = generateVillageVariantPack(inputs);
     const sourceScene = inputs.sceneIndex.scenes.find((scene) => scene.slug === inputs.recipe.source_slug);
@@ -77,14 +56,13 @@ test('village variant recipe generates ten compositor-compatible scenes', async 
         signatures.add(variantSignature(scene));
 
         assert.deepEqual(scene.native_size, [1280, 720], scene.slug);
-        assert.equal(scene.plate, sourceScene.plate, `${scene.slug} keeps legacy plate`);
+        assert.equal(scene.plate, sourceScene.plate, `${scene.slug} keeps generated plate`);
         assert.equal(scene.underlay, sourceScene.underlay, `${scene.slug} keeps legacy underlay`);
         assert.equal(scene.layers.length, sourceScene.layers.length, `${scene.slug} keeps layer count`);
         assert.equal(scene.hotspots.length, sourceScene.hotspots.length, `${scene.slug} keeps hotspot count`);
         assert.equal(scene.slots.length, sourceScene.slots.length, `${scene.slug} keeps slot count`);
 
         const zValues = new Map();
-        let m2KitLayers = 0;
         for (const layer of scene.layers) {
             assert.equal(zValues.has(layer.z), false, `${scene.slug}/${layer.id} duplicate z=${layer.z}`);
             zValues.set(layer.z, layer.id);
@@ -93,13 +71,11 @@ test('village variant recipe generates ten compositor-compatible scenes', async 
             assert.ok(asset, `${scene.slug}/${layer.id} has asset ${layer.asset}`);
             assert.equal(asset.image.endsWith('.png'), true, `${scene.slug}/${layer.id} is PNG`);
             assert.equal(asset.image.endsWith('.svg'), false, `${scene.slug}/${layer.id} is not SVG`);
-            assert.match(asset.image, /^assets\/scenes\/kilteevan-village\/atoms\//);
+            assert.equal(asset.kind, 'plate');
+            assert.match(asset.image, /^assets\/scenes\/kilteevan-village\/generated\/m9-full-scene-base\.png$/);
             await access(path.join(modDir, asset.image));
-            if (asset.image.includes('/atoms/kit/m2-')) {
-                m2KitLayers += 1;
-            }
         }
-        assert.ok(m2KitLayers >= 40, `${scene.slug} has at least forty M2 kit layers`);
+        assert.equal(scene.layers[0].id, 'generated-base', `${scene.slug} keeps generated base layer`);
 
         for (const hotspot of scene.hotspots) {
             rectInBounds(hotspot.shape?.rect);
@@ -115,19 +91,14 @@ test('village variant recipe generates ten compositor-compatible scenes', async 
             assert.ok((slot.scale ?? 1) > 0, `${scene.slug}/${slot.id} scale positive`);
         }
 
-        const families = reusableKitFamilies(scene, assetsById);
-        assert.ok(families.has('water'), `${scene.slug} keeps reused water family`);
-        assert.ok(families.has('wall'), `${scene.slug} keeps reused wall family`);
-        assert.ok(families.has('foliage'), `${scene.slug} keeps reused foliage family`);
-        assert.ok(families.has('terrain_patch'), `${scene.slug} keeps reused terrain family`);
     }
 
     assert.equal(slugs.size, 10, 'generated slugs are unique');
     assert.equal(locationIds.size, 10, 'generated location ids are unique');
     assert.equal(signatures.size, 10, 'generated composition signatures are unique');
     assert.ok(
-        pack.summary.variants.every((variant) => variant.changed_layer_count >= 12),
-        'each variant changes a meaningful number of compositor layers',
+        pack.summary.variants.every((variant) => variant.changed_layer_count === 0),
+        'generated plate variants keep the full-scene base locked',
     );
 });
 
@@ -141,9 +112,9 @@ test('generated village variants pass the scene atom audit hook', async () => {
                 slug: variant.slug,
                 scenesPath,
                 modDir,
-                requiredReusableKitKinds: ['water', 'wall', 'foliage', 'terrain_patch'],
-                minKitLayers: 32,
-                minReusedKitAssets: 4,
+                requiredReusableKitKinds: [],
+                minKitLayers: 0,
+                minReusedKitAssets: 0,
             });
             assert.equal(result.ok, true, `${variant.slug}: ${result.failures?.join('; ')}`);
             assert.equal(result.summary.blankAtoms.length, 0, `${variant.slug} has no blank atoms`);

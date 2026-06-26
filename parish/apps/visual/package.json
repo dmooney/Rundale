@@ -9,6 +9,7 @@
     "build": "node scripts/build.mjs",
     "check": "node scripts/check.mjs",
     "audit:atoms": "node scripts/audit-scene-atoms.mjs",
+    "generate:kilteevan-plate-manifest": "node scripts/generate-kilteevan-plate-manifest.mjs",
     "generate:village-variants": "node scripts/generate-village-variants.mjs",
     "generate:village-layouts": "node scripts/generate-village-layouts.mjs",
     "test": "node --test src/*.test.mjs scripts/*.test.mjs"

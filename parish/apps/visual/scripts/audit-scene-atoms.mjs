@@ -277,9 +277,9 @@ function shouldCheckEdgeAlpha(asset) {
 const defaultSceneAuditConfigs = [
     {
         slug: 'kilteevan-village',
-        requiredReusableKitKinds: ['water', 'wall', 'foliage', 'terrain_patch'],
-        minKitLayers: 32,
-        minReusedKitAssets: 4,
+        requiredReusableKitKinds: [],
+        minKitLayers: 0,
+        minReusedKitAssets: 0,
     },
     {
         slug: 'the-crossroads',

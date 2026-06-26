@@ -249,24 +249,27 @@ test('Crossroads compositor atoms pass the local audit', async () => {
     assert.deepEqual(result.summary.suspiciousFullStageAtoms, []);
 });
 
-test('Kilteevan compositor atoms pass the local audit', async () => {
+test('Kilteevan generated full-scene plate passes the local audit', async () => {
     const result = await auditSceneAtoms({
         slug: 'kilteevan-village',
-        requiredReusableKitKinds: ['water', 'wall', 'foliage', 'terrain_patch'],
-        minKitLayers: 32,
-        minReusedKitAssets: 4,
+        requiredReusableKitKinds: [],
+        minKitLayers: 0,
+        minReusedKitAssets: 0,
     });
 
     assert.deepEqual(result.failures, []);
     assert.equal(result.ok, true);
     assert.equal(result.summary.slug, 'kilteevan-village');
-    assert.ok(result.summary.layers >= 30);
-    assert.ok(result.summary.kitLayers >= 32);
-    assert.ok(result.summary.reusedKitAssets >= 4);
-    assert.ok(result.summary.reusableKitFamilies >= 4);
+    assert.equal(result.summary.layers, 1);
+    assert.equal(result.summary.kitLayers, 0);
+    assert.equal(result.summary.reusedKitAssets, 0);
+    assert.equal(result.summary.reusableKitFamilies, 0);
     assert.equal(result.summary.meaningfulAtoms, result.summary.layers);
     assert.deepEqual(result.summary.blankAtoms, []);
     assert.deepEqual(result.summary.suspiciousFullStageAtoms, []);
+    assert.equal(result.summary.atoms[0].assetId, 'kilteevan-m9-full-scene-base');
+    assert.equal(result.summary.atoms[0].kind, 'plate');
+    assert.deepEqual([result.summary.atoms[0].width, result.summary.atoms[0].height], [1280, 720]);
 });
 
 test("Darcy's Pub compositor atoms pass the local audit", async () => {
@@ -311,7 +314,11 @@ test('configured atom audit covers all three playable slice scenes', async () =>
         assert.deepEqual(summary.blankAtoms, []);
         assert.deepEqual(summary.suspiciousFullStageAtoms, []);
         assert.equal(summary.atoms.length, summary.checkedPngs);
-        assert.ok(summary.fullStageEffectOverlays.length >= 2);
+        if (summary.slug === 'kilteevan-village') {
+            assert.equal(summary.fullStageEffectOverlays.length, 0);
+        } else {
+            assert.ok(summary.fullStageEffectOverlays.length >= 2);
+        }
         for (const atom of summary.atoms) {
             assert.equal(typeof atom.visiblePixels, 'number');
             assert.equal(typeof atom.alphaCoverage, 'number');

@@ -1690,7 +1690,7 @@ async fn scene_state_route_exposes_named_png_npc_sprites() {
 }
 
 #[tokio::test]
-async fn scene_state_route_exposes_kilteevan_png_compositor_layers() {
+async fn scene_state_route_exposes_kilteevan_generated_plate_layer() {
     let state = test_scene_app_state_at(LocationId(15));
 
     let Json(scene) = super::get_scene_state(axum::extract::Extension(Arc::clone(&state))).await;
@@ -1699,50 +1699,31 @@ async fn scene_state_route_exposes_kilteevan_png_compositor_layers() {
     assert_eq!(scene.location_id, 15);
     assert_eq!(scene.slug, "kilteevan-village");
     assert!(
-        scene.layers.len() >= 8,
-        "Kilteevan should expose a multi-atom compositor stack, got {:?}",
         scene
-            .layers
-            .iter()
-            .map(|layer| (&layer.id, &layer.asset_id, &layer.kind, &layer.asset_url))
-            .collect::<Vec<_>>()
-    );
-
-    let atom_layers = scene
-        .layers
-        .iter()
-        .filter(|layer| layer.asset_url.contains("/kilteevan-village/atoms/"))
-        .collect::<Vec<_>>();
-    assert!(
-        atom_layers.len() >= 8,
-        "expected multiple Kilteevan atom layers, got {atom_layers:?}"
+            .plate_url
+            .starts_with("/api/scene-asset/assets/scenes/kilteevan-village/generated/m9-full-scene-base.png?v="),
+        "Kilteevan plate should be the generated scene PNG, got {}",
+        scene.plate_url
     );
     assert!(
-        atom_layers.iter().all(|layer| {
-            layer
-                .asset_url
-                .starts_with("/api/scene-asset/assets/scenes/kilteevan-village/atoms/")
-                && layer.asset_url.contains(".png?v=")
-                && !layer.asset_url.contains(".svg")
-        }),
-        "atom layers should be served as PNG scene assets: {atom_layers:?}"
+        scene
+            .underlay_url
+            .as_deref()
+            .unwrap_or_default()
+            .starts_with("/api/scene-asset/assets/scenes/kilteevan-village/pixel-plate-16x9.png?v=")
     );
+    assert_eq!(scene.layers.len(), 1, "Kilteevan should expose one generated base layer");
+    let layer = &scene.layers[0];
+    assert_eq!(layer.id, "generated-base");
+    assert_eq!(layer.asset_id, "kilteevan-m9-full-scene-base");
+    assert_eq!(layer.kind, "plate");
+    assert_eq!(layer.z, -1000);
+    assert_eq!(layer.opacity, 1.0);
     assert!(
-        scene.layers.iter().any(|layer| layer.id == "ground-base")
-            && scene.layers.iter().any(|layer| layer.id == "well")
-            && scene.layers.iter().any(|layer| layer.id == "damp-vignette")
-            && scene
-                .layers
-                .iter()
-                .any(|layer| layer.id == "contact-shadows"
-                    && layer.kind == "shadow"
-                    && layer.asset_url.contains("contact-shadows.png?v="))
-            && scene
-                .layers
-                .iter()
-                .any(|layer| layer.id == "well-ground-patch"
-                    && layer.kind == "terrain_patch"
-                    && layer.asset_url.contains("ground-patch.png?v="))
+        layer
+            .asset_url
+            .starts_with("/api/scene-asset/assets/scenes/kilteevan-village/generated/m9-full-scene-base.png?v=")
+            && !layer.asset_url.contains(".svg")
     );
     assert!(
         scene
@@ -1751,6 +1732,8 @@ async fn scene_state_route_exposes_kilteevan_png_compositor_layers() {
             .any(|hotspot| hotspot.id == "road-to-crossroads"
                 && hotspot_activation_command(hotspot) == Some("go to The Crossroads"))
     );
+    assert!(scene.hotspots.iter().any(|hotspot| hotspot.id == "village-signpost"));
+    assert!(scene.hotspots.iter().any(|hotspot| hotspot.id == "wooden-bridge"));
 }
 
 #[tokio::test]

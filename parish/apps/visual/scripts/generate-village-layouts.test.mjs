@@ -126,7 +126,7 @@ test('outdoor village layout recipe generates ten physically coherent compositor
         }
 
         assert.deepEqual(scene.native_size, [1280, 720], scene.slug);
-        assert.equal(scene.plate, sourceScene.plate, `${scene.slug} keeps legacy plate`);
+        assert.equal(scene.plate, sourceScene.plate, `${scene.slug} keeps source plate`);
         assert.equal(scene.underlay, sourceScene.underlay, `${scene.slug} keeps legacy underlay`);
         assert.ok(scene.layers.length >= 115, `${scene.slug} has enough layers to be a terrain compositor scene`);
         assert.ok(layoutSummary.kit_layer_count >= 60, `${scene.slug} uses many kit atoms`);

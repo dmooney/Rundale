@@ -1,0 +1,130 @@
+{
+    "id": "visual-generated-kilteevan-plate-m9",
+    "scene_slug": "kilteevan-village",
+    "location_id": 15,
+    "native_size": [1280, 720],
+    "asset": {
+        "id": "kilteevan-m9-full-scene-base",
+        "kind": "plate",
+        "image": "assets/scenes/kilteevan-village/generated/m9-full-scene-base.png",
+        "source_tool": "built-in image_gen",
+        "source_image_basename": "ig_0e72bfef2a2d773c016a3ddedaec588196bca6335a0befb3b0.png"
+    },
+    "camera": {
+        "projection": "orthographic high 3/4 isometric",
+        "influences": ["Stardew-readable", "Factorio-readable"],
+        "avoid": ["low cinematic perspective", "horizon-led composition"]
+    },
+    "art_direction": {
+        "period": "rural Ireland, 12 May 1812",
+        "finish": "finished pixel-art game background plate",
+        "palette": ["wet earth", "moss green", "weathered limestone", "straw thatch", "overcast grey-blue"],
+        "lighting": "damp overcast daylight",
+        "style_terms": [
+            "high 3/4 isometric pixel art",
+            "coherent scale",
+            "consistent pixel density",
+            "muted natural palette",
+            "playable adventure-game scene"
+        ]
+    },
+    "layout": {
+        "roads": {
+            "nodes": [
+                { "id": "bridge_south", "percent": [35.0, 78.0] },
+                { "id": "lane_fork", "percent": [48.0, 56.0] },
+                { "id": "north_exit", "percent": [53.0, 6.0] },
+                { "id": "left_cottage_door", "percent": [25.0, 41.0] },
+                { "id": "right_cottage_door", "percent": [78.0, 42.0] },
+                { "id": "well_node", "percent": [70.0, 52.0] },
+                { "id": "signpost_node", "percent": [44.0, 61.0] },
+                { "id": "cart_pullout", "percent": [30.0, 60.0] }
+            ],
+            "edges": [
+                ["bridge_south", "lane_fork"],
+                ["lane_fork", "north_exit"],
+                ["lane_fork", "left_cottage_door"],
+                ["lane_fork", "right_cottage_door"],
+                ["lane_fork", "well_node"],
+                ["lane_fork", "signpost_node"],
+                ["lane_fork", "cart_pullout"]
+            ]
+        },
+        "stream": {
+            "id": "lower_stream",
+            "polyline_percent": [[0.0, 61.0], [17.0, 63.0], [34.0, 74.0], [50.0, 82.0], [72.0, 93.0], [100.0, 99.0]],
+            "enters_edge": "west",
+            "exits_edge": "east_or_south",
+            "continuity_required": true
+        },
+        "bridge": {
+            "id": "wooden_footbridge",
+            "center_percent": [36.0, 77.0],
+            "spans_stream": "lower_stream",
+            "connects_road_nodes": ["bridge_south", "lane_fork"],
+            "must_be_directly_over_water": true
+        },
+        "cottage_pads": [
+            {
+                "id": "left_cottage",
+                "door_node": "left_cottage_door",
+                "chimney_socket_percent": [29.0, 13.0],
+                "forbids": ["water"]
+            },
+            {
+                "id": "right_cottage",
+                "door_node": "right_cottage_door",
+                "chimney_socket_percent": [84.0, 15.0],
+                "forbids": ["water"]
+            }
+        ],
+        "props": [
+            { "id": "village_well", "node": "well_node", "forbids": ["water"], "requires": ["adjacent_path"] },
+            { "id": "wayfinding_signpost", "node": "signpost_node", "forbids": ["water"], "requires": ["adjacent_path"] },
+            { "id": "wooden_cart", "node": "cart_pullout", "forbids": ["water"], "requires": ["adjacent_path"] }
+        ],
+        "npc_sockets": [
+            { "id": "lane-center", "node": "lane_fork", "forbids": ["water"] },
+            { "id": "well-left", "node": "well_node", "forbids": ["water"] },
+            { "id": "roadside-right", "node": "right_cottage_door", "forbids": ["water"] }
+        ],
+        "smoke": [
+            { "id": "left_chimney_smoke", "origin": "left_cottage.chimney_socket_percent" },
+            { "id": "right_chimney_smoke", "origin": "right_cottage.chimney_socket_percent" }
+        ],
+        "hotspots": [
+            { "id": "road-to-crossroads", "target": "The Crossroads", "kind": "travel", "node": "north_exit" },
+            { "id": "village-well", "kind": "inspect", "node": "well_node" },
+            { "id": "village-signpost", "kind": "inspect", "node": "signpost_node" },
+            { "id": "wooden-bridge", "kind": "inspect", "node": "bridge_south" }
+        ]
+    },
+    "prompt_requirements": [
+        "full-screen game background plate",
+        "empty environment base plate with dynamic NPC sprites overlaid later",
+        "high 3/4 isometric pixel art",
+        "continuous stream entering and exiting the frame",
+        "bridge directly over the stream",
+        "roads connect bridge, cottages, well, signpost, and north exit",
+        "cart fully on dry ground",
+        "smoke emerges from chimney openings",
+        "prominent wooden wayfinding signpost with no readable text"
+    ],
+    "negative_constraints": [
+        "no UI panel",
+        "no baked people or NPCs",
+        "no animals",
+        "no date plaque",
+        "no labels",
+        "no debug shapes",
+        "no arrows or chevrons",
+        "no low cinematic perspective",
+        "no disconnected river",
+        "no bridge beside the river",
+        "no props over water",
+        "no smoke beside chimneys",
+        "no modern objects",
+        "no vector or SVG look",
+        "no rectangular shadow seams"
+    ]
+}
