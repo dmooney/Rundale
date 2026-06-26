@@ -1189,7 +1189,7 @@ mod tests {
     }
 
     #[test]
-    fn real_rundale_kilteevan_uses_layered_png_atoms() {
+    fn real_rundale_kilteevan_uses_generated_full_scene_plate() {
         let rundale_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../mods/rundale");
         let scenes = SceneIndex::load(&rundale_dir, "scenes.json").unwrap();
         let scene = scenes
@@ -1197,50 +1197,40 @@ mod tests {
             .expect("Kilteevan scene should be declared");
 
         assert_eq!(scene.slug, "kilteevan-village");
-        assert!(
-            scene.layers.len() >= 8,
-            "Kilteevan should be a layered compositor scene, got {} layer(s)",
-            scene.layers.len()
+        assert_eq!(scene.native_size, [1280, 720]);
+        assert_eq!(
+            scene.underlay.as_deref(),
+            Some("assets/scenes/kilteevan-village/pixel-plate-16x9.png")
+        );
+        assert_eq!(
+            scene.plate,
+            "assets/scenes/kilteevan-village/generated/m9-full-scene-base.png"
+        );
+        assert_eq!(
+            scene.layers.len(),
+            1,
+            "Kilteevan should render one generated full-scene plate layer"
         );
 
-        let atom_layers = scene
-            .layers
-            .iter()
-            .filter_map(|layer| scenes.asset_for(&layer.asset).map(|asset| (layer, asset)))
-            .filter(|(_, asset)| asset.image != scene.plate)
-            .filter(|(_, asset)| asset.image.contains("/kilteevan-village/atoms/"))
-            .collect::<Vec<_>>();
+        let layer = &scene.layers[0];
+        assert_eq!(layer.id, "generated-base");
+        assert_eq!(layer.asset, "kilteevan-m9-full-scene-base");
+        assert_eq!(layer.x, 50.0);
+        assert_eq!(layer.y, 50.0);
+        assert_eq!(layer.z, -1000);
+        assert_eq!(layer.opacity, 1.0);
 
-        assert!(
-            atom_layers.len() >= 8,
-            "expected multiple non-plate Kilteevan atom layers, got {atom_layers:?}"
-        );
-        assert!(
-            atom_layers.iter().all(|(_, asset)| {
-                asset
-                    .image
-                    .starts_with("assets/scenes/kilteevan-village/atoms/")
-                    && asset.image.ends_with(".png")
-                    && !asset.image.ends_with(".svg")
-            }),
-            "Kilteevan atom layers should all be PNG assets: {atom_layers:?}"
-        );
-        assert!(
-            atom_layers
-                .iter()
-                .any(|(layer, asset)| layer.id == "contact-shadows"
-                    && asset.image.ends_with("contact-shadows.png")
-                    && asset.kind == "shadow"),
-            "Kilteevan should include a transparent contact-shadow atom"
-        );
-        assert!(
-            atom_layers
-                .iter()
-                .any(|(layer, asset)| layer.id == "well-ground-patch"
-                    && asset.image.ends_with("ground-patch.png")
-                    && asset.kind == "terrain_patch"),
-            "Kilteevan terrain patches must stay non-ground atoms so Pixi does not stretch them"
-        );
+        let asset = scenes.asset_for(&layer.asset).unwrap();
+        assert_eq!(asset.kind, "plate");
+        assert_eq!(asset.image, scene.plate);
+        assert!(asset.image.ends_with(".png"));
+        assert!(!asset.image.ends_with(".svg"));
+        assert!(scene.hotspots.iter().any(|hotspot| hotspot.id == "road-to-crossroads"));
+        assert!(scene.hotspots.iter().any(|hotspot| hotspot.id == "village-well"));
+        assert!(scene.hotspots.iter().any(|hotspot| hotspot.id == "village-signpost"));
+        assert!(scene.hotspots.iter().any(|hotspot| hotspot.id == "wooden-bridge"));
+        assert!(scene.slots.iter().any(|slot| slot.id == "lane-center"));
+        assert!(scene.slots.iter().any(|slot| slot.id == "well-left"));
     }
 
     #[test]

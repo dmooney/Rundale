@@ -152,13 +152,13 @@ test('visual client exposes invisible world-interaction proof telemetry', async 
     assert.equal(/rundaleVisualInteraction|Interaction Telemetry|Hover Target|Selected Target/i.test(html), false);
 });
 
-test('three-scene slice can render from PNG atom stacks without legacy plates', async () => {
+test('three-scene slice can render Kilteevan generated plate plus PNG atom stacks elsewhere', async () => {
     const scenes = JSON.parse(
         await readFile(new URL('../../../../mods/rundale/scenes.json', import.meta.url), 'utf8'),
     );
     const assetsById = new Map(scenes.assets.map((asset) => [asset.id, asset]));
     const expectations = [
-        ['kilteevan-village', 30, ['ground-base', 'left-cottage', 'right-cottage', 'well', 'damp-vignette']],
+        ['kilteevan-village', 1, ['generated-base']],
         ['the-crossroads', 20, ['ground-base', 'church-rise', 'pub-building', 'damp-vignette']],
         ['darcys-pub', 25, ['room-base', 'hearth', 'bar-counter', 'warm-vignette']],
     ];
@@ -175,17 +175,25 @@ test('three-scene slice can render from PNG atom stacks without legacy plates', 
             const asset = assetsById.get(layer.asset);
             assert.ok(asset, `${slug}/${layer.id} has an asset`);
             assert.equal(asset.image.endsWith('.png'), true, `${slug}/${layer.id} is PNG`);
-            assert.match(asset.image, /assets\/scenes\/.+\/atoms\//, `${slug}/${layer.id} is an atom`);
+            if (slug === 'kilteevan-village') {
+                assert.equal(asset.kind, 'plate');
+                assert.match(
+                    asset.image,
+                    /^assets\/scenes\/kilteevan-village\/generated\/m9-full-scene-base\.png$/,
+                    `${slug}/${layer.id} is the generated plate`,
+                );
+            } else {
+                assert.match(asset.image, /assets\/scenes\/.+\/atoms\//, `${slug}/${layer.id} is an atom`);
+            }
         }
     }
 });
 
-test('three-scene slice declares ambient PNG layer animations', async () => {
+test('hand-composited scenes declare ambient PNG layer animations', async () => {
     const scenes = JSON.parse(
         await readFile(new URL('../../../../mods/rundale/scenes.json', import.meta.url), 'utf8'),
     );
     const expectations = [
-        ['kilteevan-village', 'drift'],
         ['the-crossroads', 'shimmer'],
         ['darcys-pub', 'flicker'],
     ];
@@ -284,59 +292,33 @@ test('Crossroads repeats small kit atoms as reusable sprite layers', async () =>
     );
 });
 
-test('Kilteevan M2 uses high three-quarter reusable sprite library atoms', async () => {
+test('Kilteevan M9 uses a generated high three-quarter full-scene plate', async () => {
     const scenes = JSON.parse(
         await readFile(new URL('../../../../mods/rundale/scenes.json', import.meta.url), 'utf8'),
     );
     const assetsById = new Map(scenes.assets.map((asset) => [asset.id, asset]));
     const kilteevan = scenes.scenes.find((scene) => scene.slug === 'kilteevan-village');
-    const m2KitLayers = kilteevan.layers
-        .map((layer) => ({ layer, asset: assetsById.get(layer.asset) }))
-        .filter(({ asset }) =>
-            asset?.image?.startsWith('assets/scenes/kilteevan-village/atoms/kit/m2-'),
-        );
-    const usageByAsset = new Map();
-    const reusableFamilies = new Set();
-
-    for (const { layer, asset } of m2KitLayers) {
-        const dims = pngDimensions(
-            await readFile(new URL(`../../../../mods/rundale/${asset.image}`, import.meta.url)),
-        );
-        const existing = usageByAsset.get(layer.asset) || [];
-        existing.push(layer);
-        usageByAsset.set(layer.asset, existing);
-
-        assert.notDeepEqual([layer.x, layer.y], [50, 50], layer.id);
-        assert.equal(asset.image.endsWith('.png'), true, layer.id);
-        assert.equal(asset.image.endsWith('.svg'), false, layer.id);
-        assert.ok(dims.width < 360, `${layer.id} should stay below faux-plate width`);
-        assert.ok(dims.height < 240, `${layer.id} should stay below faux-plate height`);
-    }
-
-    for (const [assetId, layers] of usageByAsset.entries()) {
-        const distinctPositions = new Set(layers.map((layer) => `${layer.x},${layer.y}`));
-        if (layers.length >= 3 && distinctPositions.size >= 3) {
-            reusableFamilies.add(assetsById.get(assetId).kind);
-        }
-    }
-    const layerIdByZ = new Map();
-    for (const layer of kilteevan.layers) {
-        assert.equal(
-            layerIdByZ.has(layer.z),
-            false,
-            `${layer.id} shares z=${layer.z} with ${layerIdByZ.get(layer.z)}`,
-        );
-        layerIdByZ.set(layer.z, layer.id);
-    }
-
-    assert.ok(m2KitLayers.length >= 40, 'expected Kilteevan to be mostly kit-composited');
-    assert.ok(reusableFamilies.has('water'), 'expected reused water puddle sprites');
-    assert.ok(reusableFamilies.has('wall'), 'expected reused wall sprites');
-    assert.ok(reusableFamilies.has('foliage'), 'expected reused foliage sprites');
-    assert.ok(reusableFamilies.has('terrain_patch'), 'expected reused terrain patch sprites');
-    assert.equal(
-        m2KitLayers.some(({ layer }) => layer.id.includes('roof-topface')),
-        true,
-        'expected top-face cottage sprite details for a high three-quarter view',
+    const generatedLayer = kilteevan.layers.find((layer) => layer.id === 'generated-base');
+    const generatedAsset = assetsById.get(generatedLayer?.asset);
+    const dims = pngDimensions(
+        await readFile(new URL(`../../../../mods/rundale/${generatedAsset.image}`, import.meta.url)),
     );
+
+    assert.equal(kilteevan.plate, 'assets/scenes/kilteevan-village/generated/m9-full-scene-base.png');
+    assert.equal(kilteevan.underlay, 'assets/scenes/kilteevan-village/pixel-plate-16x9.png');
+    assert.equal(kilteevan.layers.length, 1);
+    assert.equal(generatedLayer.asset, 'kilteevan-m9-full-scene-base');
+    assert.equal(generatedLayer.z, -1000);
+    assert.equal(generatedAsset.kind, 'plate');
+    assert.equal(generatedAsset.image.endsWith('.png'), true);
+    assert.equal(generatedAsset.image.endsWith('.svg'), false);
+    assert.deepEqual([dims.width, dims.height], [1280, 720]);
+    assert.equal(
+        kilteevan.hotspots.some((hotspot) => hotspot.id === 'road-to-crossroads'),
+        true,
+        'expected travel hotspot to remain interactive',
+    );
+    assert.equal(kilteevan.hotspots.some((hotspot) => hotspot.id === 'village-signpost'), true);
+    assert.equal(kilteevan.hotspots.some((hotspot) => hotspot.id === 'wooden-bridge'), true);
+    assert.equal(kilteevan.slots.some((slot) => slot.id === 'lane-center'), true);
 });
