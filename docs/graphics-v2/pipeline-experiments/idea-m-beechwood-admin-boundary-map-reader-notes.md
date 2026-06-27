@@ -1,0 +1,41 @@
+# Data-Derived Map Reader Notes
+
+## Scope
+These notes are derived only from the attached historic map crop using the generic rubric. The image top is treated as north, printed labels/large letters/survey numbers/paper texture are ignored as in-world objects, and uncertain marks are described with confidence rather than converted into hard constraints.
+
+## Orientation And Major Corridors
+- **Main diagonal road or lane, high confidence:** A broad pale corridor with parallel edges enters from the northwest edge, runs diagonally through the center-left, passes directly beside the main building group, and continues toward the south-southeast/lower-right edge. Its width and paired edges support reading it as a road/lane rather than a thin boundary.
+- **Roadside yard frontage, medium-high confidence:** The building group sits tightly against the main corridor around the central and south-central crop, suggesting a road-facing yard or service edge. Some dark structures directly touch or nearly touch the lane edge.
+- **Thin single-line field or plot boundaries, medium confidence:** Several single thin lines curve or angle through the southwest, south, and east portions of the crop. By rubric these are more likely walls, hedges, ditches, or plot boundaries than paths; the exact material is uncertain.
+- **Prominent dotted/pecked line in the northeast and east, high confidence as administrative/survey or ambiguous non-physical boundary:** A dot-chain line curves from the north edge down the eastern side, cutting across open parcel areas without corroborating tree symbols, road edges, wall hatching, ditch marks, or gate/yard relationships. It should not be rendered as a continuous hedge, wall, fence, road, path, ditch, or tree row.
+- **Faint dashed/pecked line near center-left to south-center, medium confidence as ambiguous/non-physical:** A faint broken line appears to cross open ground near the building group and lower central crop. Because it lacks independent physical cues, it should be treated as administrative/survey/ambiguous rather than drawn as an in-world continuous feature.
+
+## Building Inventory
+| ID | Relative position | Shape/footprint | Map evidence | Probable function | Confidence | Notes for renderer |
+| --- | --- | --- | --- | --- | --- | --- |
+| B1 | Center-left, immediately east/southeast of the main diagonal lane | Dark hatched rectilinear block, roughly L-shaped or range-like, with a pale inner/open area adjacent to the road | Dark roof hatching and solid rectilinear outline integrated with road frontage and the central enclosed grounds | Primary house, farmhouse, or main roadside building | Medium-high | Render as the largest roofed building in the group, aligned with the lane; allow a small attached/open yard or court where the pale gap appears. |
+| B2 | South-central, just below the large central enclosed planted rectangle and close to the lane | Small dark rectangular block, detached or lightly attached to the enclosure/yard edge | Dark solid/hatched footprint near the main yard | Shed, stable, byre, small barn, or service outbuilding | Medium | Render as a small auxiliary roofed structure, lower and simpler than B1. |
+| B3 | Lower center-left/south-central, on the opposite side of the lane from the large enclosed planted area | Compact cluster of dark hatched rectilinear pieces forming an irregular small compound | Multiple dark roof-like marks grouped around a small yard/plot near the road | Farm outbuildings, barn/stable/byre range, or service yard | Medium | Render as a modest outbuilding cluster rather than a single grand house; individual pieces may be connected or very close together. |
+| B4 | Center-right/southeast of the large enclosed planted rectangle, beside or just off the lane | Very small dark rectangular block | Small dark solid footprint separated from the main cluster | Minor shed, privy, small store, or other outbuilding | Low-medium | Render only as a small secondary structure if the scene needs it; keep it subordinate and uncertain. |
+
+## Enclosures, Planting, And Boundaries
+- **Large central enclosed planted area, high confidence:** A large pale rectangle occupies the center to center-right, outlined by a thin boundary and filled with regular repeated internal marks. It reads more like a garden, planted yard, nursery, orchard, or formal ground than a roofed building.
+- **Small regular northern enclosures, medium confidence:** Two small outlined rectangles north of B1 and northwest of the large central planted rectangle may be garden beds, yard compartments, small pens, or non-roofed enclosures. They are not strongly marked as roofed buildings.
+- **Northwest and center-left tree/scrub mass, high confidence:** Dense clusters of round and small tree symbols occupy much of the northwest quadrant and center-left west of the road, suggesting woodland edge, scrub, orchard-like planting, or thick hedgerow planting.
+- **Southern small tree/scrub clusters, medium-high confidence:** Smaller clusters of tree symbols appear around the lower central building group and near the southeast edge, suggesting planted edges, orchard fragments, scrub, or hedgerow vegetation.
+- **Open field or parcel areas, medium confidence:** Pale open areas with thin boundary lines occupy the southwest, east, and northeast portions. The printed stipple/paper texture is not treated as vegetation; only explicit tree or planting symbols are rendered as plantings.
+- **Curving southwest/south boundary, medium confidence:** A thin curving line along the southwest and lower portions likely marks a plot, field, wall, hedge, or ditch edge. Material is uncertain and should remain visually modest.
+- **Eastern dotted/pecked boundary, high confidence non-physical/ambiguous:** The curving dot-chain boundary on the east lacks physical support and should be omitted as a continuous terrain object. It may be useful only as invisible source-map context.
+- **Faint broken center-left boundary, medium confidence non-physical/ambiguous:** The faint dashed/pecked line near the lower center-left has insufficient physical cues. If represented at all, it should be treated as uncertain survey information, not as a hedge, path, ditch, or fence.
+
+## Explicit Negative Evidence
+- **Church:** No clear church, churchyard, cross, graveyard enclosure, ecclesiastical footprint, or church label evidence appears in the crop.
+- **Shop:** No clear commercial label, shop symbol, storefront pattern, or strong map evidence supports classifying any structure as a shop.
+- **Water:** No clear stream, river, pond, water hachure, marsh/water edge, or watercourse evidence appears.
+- **Bridge:** No bridge or water-crossing evidence appears.
+- **Text and survey marks:** Printed place labels, large letters, parcel/survey numbers, and paper texture are present but are not in-world objects.
+- **Modern UI or overlay:** No in-world UI, modern overlay object, smoke plume, vehicles, people, or animals are evidenced by the crop.
+- **Administrative boundary rendering:** The dotted/pecked and faint dashed lines should not be converted into continuous bushes, hedges, walls, fences, paths, roads, ditches, or tree rows unless later independent evidence supports a physical feature.
+
+## Prompt Insert
+The crop shows a broad pale lane running diagonally from the northwest toward the south-southeast, passing a compact roadside group of dark hatched buildings. The most substantial roofed block sits near the center-left with several smaller probable outbuildings around the south-central yard, while a large outlined rectangular area to the center-right appears more likely to be enclosed planted ground or formal garden than a building. Dense tree or scrub symbols occupy the northwest and smaller planting clusters appear near the lower buildings and southeast edge. Thin single lines suggest field or plot boundaries with uncertain material, and a prominent dotted/pecked curving line on the east appears administrative, survey, or otherwise non-physical rather than a drawable hedge, wall, fence, road, path, or ditch. There is no clear evidence of a church, shop, watercourse, pond, or bridge.
