@@ -53,6 +53,12 @@ runtime assets.
 - `two-step-topdown-isomorphic-cycle-l.md` — experiment testing a top-down
   cleaned control plate followed by an isomorphic conversion; promising for
   stronger source topology, with native 16:9 framing still needing work.
+- `lower-angle-notebook-style-cycle-p.md` — current best attempt to recover the
+  original illustrated parish notebook look and lower playable 3/4 camera while
+  preserving Cycle M's map accuracy.
+- `camera-refinement-cycle-q.md` — current best overall candidate: refines the
+  Cycle P notebook-style plates with the previous plate, Cycle M control, and a
+  deterministic oblique camera-pitch cue.
 - `grove-cleanroom-test-notes.md` — Grove experiment log and map-reading case
   study. Do not treat it as a reusable prompt; keep the reusable prompt generic.
 - `style-crops/` — manually cropped style references from approved illustrated
@@ -109,3 +115,9 @@ runtime assets.
   original map crop and map-reader note still outrank the cleaned plate. Before
   making Cycle L the default final-render path, solve native 16:9 framing
   without edge-extension artifacts.
+- Use Cycle Q as the current final-render style/camera reference after the
+  Cycle M topology path. Cycle P is still the best direct render prompt; Cycle Q
+  improves camera consistency by using the successful prior plate plus the
+  Cycle M control and an oblique warp as a pitch cue. The rough automatic
+  extruded blockouts from `prototype_map_controls.py` are not ready to guide
+  content because they over-detect texture as buildings.

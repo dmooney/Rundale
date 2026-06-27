@@ -27,6 +27,10 @@ landmark hints.
 | K | `idea-k-grove-map-reader-guided.png`, `idea-k-beechwood-map-reader-guided.png` | `idea-k-*.prompt.md` | `idea-k-*.report.md` | Current best for building interpretation |
 | L | `idea-l-*-topdown-cleaned.png`, `idea-l-*-two-step-isomorphic.png` | `idea-l-*.prompt.md` | `idea-l-*.report.md` | Promising; stronger central topology, needs native 16:9 discipline |
 | M | `idea-m-*-admin-topdown-cleaned.png`, `idea-m-*-admin-two-step-isomorphic.png` | `idea-m-*.prompt.md` | `idea-m-*.report.md` | Current best two-step path; suppresses non-physical admin boundaries |
+| N | `idea-n-*-notebook-style-isomorphic.png` | `idea-n-*.prompt.md` | `idea-n-*.report.md` | Restores rough notebook art style, camera still high |
+| O | `idea-o-grove-lower-camera-notebook-style.png` | `idea-o-grove-lower-camera-notebook-style.prompt.md` | `idea-o-grove-lower-camera-notebook-style.report.md` | Grove camera improvement pass |
+| P | `idea-p-*-lower-angle-notebook-style.png` | `idea-p-*.prompt.md` | `idea-p-*.report.md` | Current best style/camera candidate |
+| Q | `idea-q-*-camera-refinement-notebook-style.png` | `idea-q-*-camera-refinement-notebook-style.prompt.md` | `idea-q-*-camera-refinement-notebook-style.report.md` | Current best overall candidate |
 
 See `beechwood-church-leak-analysis.md` for the likely cause of Cycle G's
 unsupported church/churchyard: semantic leakage from the full-scene style
@@ -72,3 +76,20 @@ linework. It also tests a wider Grove source crop. Beechwood's prominent
 eastern dotted boundary no longer becomes a fake hedge or wall, and both final
 M2 plates were saved as returned without synthetic edge extension. Exact native
 16:9 is still unresolved. See `../two-step-admin-boundary-cycle-m.md`.
+
+Cycle N adds the original illustrated parish notebook scene as a style-only
+reference. It improves the rough hand-inked watercolor look but keeps a
+survey-like camera. Cycle P is the current best final-render candidate: it keeps
+Cycle M's topology/control path while using a lower 3/4 orthographic camera
+block, stronger facade-height targets, and the notebook style reference. Grove
+is the strongest camera result; Beechwood generalizes the style and topology but
+still reads somewhat high in the planted enclosure. See
+`../lower-angle-notebook-style-cycle-p.md`.
+
+Cycle Q refines the Cycle P plates by using the successful prior plate as the
+style/topology target, the Cycle M top-down control as the topology authority,
+and a deterministic oblique warp only as a camera-pitch cue. It is the current
+best overall candidate for the notebook-style + Cycle M accuracy objective.
+The rough connected-component blockouts generated during Cycle Q are not yet
+recommended; they over-detect texture as buildings. See
+`../camera-refinement-cycle-q.md`.
