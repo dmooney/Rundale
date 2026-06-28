@@ -31,6 +31,39 @@ landmark hints.
 | O | `idea-o-grove-lower-camera-notebook-style.png` | `idea-o-grove-lower-camera-notebook-style.prompt.md` | `idea-o-grove-lower-camera-notebook-style.report.md` | Grove camera improvement pass |
 | P | `idea-p-*-lower-angle-notebook-style.png` | `idea-p-*.prompt.md` | `idea-p-*.report.md` | Current best style/camera candidate |
 | Q | `idea-q-*-camera-refinement-notebook-style.png` | `idea-q-*-camera-refinement-notebook-style.prompt.md` | `idea-q-*-camera-refinement-notebook-style.report.md` | Current best overall candidate |
+| R | `idea-r-*-close-crop-notebook-style.png` | `idea-r-*.prompt.md` | `idea-r-*.report.md` | Close playable crop; best scale/detail pass |
+| S | `idea-s-*-lower-rough-close-crop-notebook-style.png` | `idea-s-*.prompt.md` | `idea-s-*.report.md` | Marginal roughness refinement |
+| T/U | `idea-t-grove-*`, `idea-u-*-tight-thatched-door-clean-style.png` | `idea-t-*`, `idea-u-*` | `idea-t-*`, `idea-u-*` | Best tight art/camera/material branch; topology control caveat |
+| V/W/X | `idea-v-*`, `idea-w-*`, `idea-x-beechwood-compound-focused-low-camera.png` | `idea-v-*`, `idea-w-*`, `idea-x-*` | `idea-v-*`, `idea-w-*`, `idea-x-*` | Best Beechwood topology-control + notebook-scale branch |
+| X/Y | `idea-x-beechwood-*`, `idea-y-grove-cluster-focused-low-camera.png` | `idea-x-*`, `idea-y-*` | `idea-x-*`, `idea-y-*` | Current paired crop-scale evidence |
+| Z | `idea-z-beechwood-x-door-roughness-refine.png`, `idea-z-grove-y-lower-camera-refine.png` | `idea-z-*` | `idea-z-*` | Current best repaired pair |
+| AA | `idea-aa-*-direct-control-low-camera.png` | `idea-aa-*` | `idea-aa-*` | Direct-control pass, style/camera regression |
+| AC | `idea-ac-*-direct-control-clean-style.png` | `idea-ac-*` | `idea-ac-*` | Best direct-control branch so far |
+| AD | `idea-ad-*-ac-bounded-notebook-refine.png` | `idea-ad-*` | `idea-ad-*` | Best visual repair pair from AC |
+| AE | `idea-ae-*-core-direct-clean-style.png` | `idea-ae-*` | `idea-ae-*` | Best direct crop-scale branch; chimney-nub caveat |
+| AF | `idea-af-*-ae-roof-nub-cleanup.png` | `idea-af-*` | `idea-af-*` | Roof-nub cleanup; Beechwood fails foreground door audit |
+| AG | `idea-ag-beechwood-af-door-threshold-repair.png` | `idea-ag-*` | `idea-ag-*` | Beechwood foreground door repair; bounded edit, not recipe evidence |
+| AH | `idea-ah-kilteevan-third-topology-direct.png` | `idea-ah-*` | `idea-ah-*` | Third-topology direct test; good topology signal, boundary/chimney failures |
+| AI | `idea-ai-*-kilteevan-*.png` | `idea-ai-*` | `idea-ai-*` | Roof/door/style improved; admin-boundary no-trace still fails |
+| AK | `idea-ak-beechwood-door-audit-repair.png` | `idea-ak-*` | `idea-ak-*` | Corrects missed lower-right foreground cottage door; bounded repair |
+| AL | `idea-al-beechwood-thatched-no-chimney.png` | `idea-al-*` | `idea-al-*` | Thatched/no-chimney material variant from repaired AK plate |
+| AM | `idea-am-kilteevan-aj2-cleaned-control-direct.png` | `idea-am-*` | `idea-am-*` | Cleaned no-admin control improves deleted-diagonal behavior; walls still too emphatic |
+| AN | `idea-an-kilteevan-boundary-hierarchy-direct.png` | `idea-an-*` | `idea-an-*` | Better notebook style/facades; field boundaries still too wall-like |
+| AO | `idea-ao-kilteevan-open-fields-direct.png` | `idea-ao-*` | `idea-ao-*` | Best open-field softness/topology signal; chimney artifacts fail clean target |
+| AP/AP2/AP3 | `idea-ap*-kilteevan-*.png` | `idea-ap*` | `idea-ap*` | Bounded cleanup attempts; AP fails, AP2 improves, AP3 is best visual cleanup with repaint caveat |
+| AQ | `idea-aq-kilteevan-direct-open-fields-no-chimneys.png` | `idea-aq-*` | `idea-aq-*` | Stronger notebook/no-chimney fresh render; weaker control fidelity |
+| AR | `idea-ar-kilteevan-tight-control-no-scenic-crossroads.png` | `idea-ar-*` | `idea-ar-*` | Tighter crop fresh render; better than AQ, roads still scenic-centered |
+| AS/AS2 | `idea-as*-kilteevan-playable-roadcue-*` | n/a | `idea-as*-*control-report.md` | Failed deterministic road-cue masks; too noisy for imagegen authority |
+| AT/AU | `idea-at-kilteevan-tight-*.png`, `idea-au-kilteevan-at2-wall-door-repair.png` | `idea-at-*`, `idea-au-*` | `idea-at-*`, `idea-au-*` | Tight two-step improves camera/doors/no-chimneys; AU repair best visual target, not recipe proof |
+| AV | `idea-av-kilteevan-symbolic-*.png` | `idea-av-*` | `idea-av-*` | Symbolic top-down retry; visually strong but not better than AU/AT |
+| AW/AX | `idea-aw-kilteevan-literal-control-isomorphic.png`, `idea-ax-kilteevan-door-repair.png` | `idea-aw-*`, `idea-ax-*` | `idea-aw-*`, `idea-ax-*` | Literal control gets strong style/doors but poor topology; AX is door repair only |
+| AY/AZ | `idea-ay-kilteevan-au-notebook-style-refine.png`, `idea-az-kilteevan-ay-low-camera-refine.png` | `idea-ay-*`, `idea-az-*` | `idea-ay-*`, `idea-az-*` | Bounded AU visual refinements; AZ best visual target, not recipe proof |
+| BA/BB | `idea-ba-kilteevan-fresh-map-control-notebook.png`, `idea-bb-kilteevan-ba-boundary-soften.png` | `idea-ba-*`, `idea-bb-*` | `idea-ba-*`, `idea-bb-*` | Best fresh no-prior-render notebook recipe attempt plus boundary-softened repair |
+| BC | `idea-bc-kilteevan-boundary-material-*.png` | `idea-bc-*` | `idea-bc-*` | Boundary-material control test; negative result, outlines still become walls and roof nub returns |
+| BD | `idea-bd-kilteevan-soft-planting-*.png` | `idea-bd-*` | `idea-bd-*` | Soft-planting edge suppression; doors/roofs improve, roads/gardens still over-regularize |
+| BE | `idea-be-kilteevan-raw-map-notebook-no-topdown.png` | `idea-be-*` | `idea-be-*` | Raw/cleaned-map-only retry; still scenic-crossroads drift |
+| BF/BG/BH | `idea-bf-grove-a-topology-notebook-refine.png`, `idea-bg-grove-a-structure-preserving-notebook-refine.png`, `idea-bh-grove-bg-upper-structure-repair.png` | `idea-bf-*`, `idea-bg-*`, `idea-bh-*` | `idea-bf-*`, `idea-bg-*`, `idea-bh-*` | Best current visual target branch: Cycle A topology repaint plus local repair; edit evidence only |
+| BJ/BK/BL | `idea-bj-beechwood-q-notebook-repaint.png` | `idea-bj-*`, `idea-bk-*`, `idea-bl-*` | `idea-bj-*`, `idea-bk-*`, `idea-bl-*` | Beechwood Q/M bounded repaint; BJ improves notebook style while preserving topology, BL is the preferred queued soft-garden pass |
 
 See `beechwood-church-leak-analysis.md` for the likely cause of Cycle G's
 unsupported church/churchyard: semantic leakage from the full-scene style
@@ -93,3 +126,228 @@ best overall candidate for the notebook-style + Cycle M accuracy objective.
 The rough connected-component blockouts generated during Cycle Q are not yet
 recommended; they over-detect texture as buildings. See
 `../camera-refinement-cycle-q.md`.
+
+Cycle R keeps the Cycle Q evidence stack but changes the composition: same
+pixel frame, much smaller playable world area. Both Grove and Beechwood spend
+more pixels on the central building cluster, immediate yard/courtyard, nearby
+garden/enclosure edge, gates, walls, and road exits. This is the strongest
+scale/detail pass so far and confirms that the original notebook sample's
+richness depends partly on crop scale, not only on style language. See
+`../close-crop-notebook-style-cycle-r.md`.
+
+Cycle S directly refines Cycle R with stronger lower-camera and roughness
+language. It improves surface texture only marginally and mostly preserves
+Cycle R's polished isometric regularity. Treat it as a useful negative signal:
+the next attempt needs a stronger isolated notebook style/camera reference, not
+just more forceful wording against the generated R plate. See
+`../lower-rough-close-crop-cycle-s.md`.
+
+Cycles T/U zoom in further and introduce cleaned low-camera door/threshold
+style references, including a single-house thatch/no-chimney crop. Grove U is
+the best art/material/camera result so far. Beechwood U shows the same style
+direction can generalize, but also exposes the key remaining pipeline risk:
+prompt-only tight cropping can dissolve complex connected footprints into a
+looser farmstead cluster. See `../tight-low-camera-thatched-cycle-t-u.md`.
+
+Cycles V/W/X answer the Beechwood topology caveat with a tighter topology crop.
+Cycle V preserves the connected compound but still reads like a high controlled
+plate; Cycle W fixes a weak edge-building doorway and softens the style; Cycle X
+uses a smaller compound-focused crop and is the best Beechwood notebook-scale
+candidate so far. The main lesson is to choose the desired playable scale before
+rendering and let distant map context crop off-frame rather than forcing the
+whole garden into one survey view. See `../tight-control-cycle-v-w-x.md`.
+
+Cycle Y repeats the Cycle X crop-scale method on Grove using a Grove-specific
+tight control crop but the same generic prompt structure. It preserves Grove's
+separate yard buildings instead of copying Beechwood's connected-compound
+layout, which is the first useful paired signal that the method can generalize
+across distinct local topologies. See
+`../grove-beechwood-compound-crop-cycle-x-y.md`.
+
+Cycle Z performs one conservative repair/refinement pass on the X/Y pair.
+Beechwood Z keeps the connected compound and clarifies the ambiguous side
+doorway; Grove Z keeps the separate yard buildings and nudges the camera/style
+closer to the Beechwood/notebook target. Treat Z as the current best visual
+reference pair, but still not a full production recipe until the method passes
+additional unrelated topology crops. See `../paired-repair-cycle-z.md`.
+
+Cycle AA tests a cleaner production-shaped route: render directly from local
+topology control, oblique pitch cue, source map, original notebook sample, and
+style crops, without using prior rendered plates. It preserves the tested
+topologies but regresses toward clean/high survey-board imagery. See
+`../direct-control-cycle-aa.md`.
+
+Cycle AC keeps AA's direct-control route but replaces the leaky slate style crop
+with the cleaned single-building slate crop and pushes harder on close playable
+crop scale, lower facades, notebook watercolor texture, and anti-regularity.
+It is the strongest production-shaped direct-control branch so far: Beechwood's
+connected compound and Grove's separate-building yard both survive without prior
+rendered plates. The remaining weakness is visual regularity in gardens, walls,
+and roof planes compared with the original notebook sample. See
+`../direct-control-clean-style-cycle-ac.md`.
+
+Cycle AD performs one bounded style/camera repair pass on AC. It keeps the
+tested topology and improves rough ink, watercolor grain, mud, facade
+readability, and irregular field/garden texture. It is the best current visual
+pair, but it is diagnostic rather than a one-shot candidate because it uses AC
+as a previous rendered edit target. The remaining gap is lower human-scale
+camera/facade feel. See `../ac-bounded-notebook-refine-cycle-ad.md`.
+
+Cycle AE attacks the same camera/facade gap from the direct-control side by
+cropping the topology controls tighter around the core local buildings and
+yards. The hypothesis is that smaller ground coverage will naturally spend more
+pixels on facades, thresholds, mud, walls, and hand-painted texture. The
+hypothesis held: AE is the strongest direct-control camera/scale branch so far,
+but both plates need a tiny roof-nub/chimney cleanup. See
+`../core-crop-direct-cycle-ae.md`.
+
+Cycle AF is that tiny roof-nub cleanup pass on AE. It removed the chimney-like
+roof nubs while preserving the AE topology/style/crop, but Beechwood AF fails a
+stricter door/threshold audit: the lower-right foreground thatched cottage has
+no readable entrance. AE remains the direct-control recipe evidence because it
+does not use a previous rendered plate. See
+`../ae-roof-nub-cleanup-cycle-af.md`.
+
+Cycle AG repairs the Beechwood AF doorway failure. The lower-right foreground
+thatched cottage now has a readable dark doorway and threshold while preserving
+the Beechwood topology, crop, roads, walls, gates, garden plots, and notebook
+style. Treat Beechwood AG plus Grove AF as the current cleaned visual reference
+pair, and treat AE as the direct-control recipe evidence. See
+`../door-threshold-repair-cycle-ag.md`.
+
+Cycle AH adds a third topology test using a data-derived NLS z17 crop around a
+stored world coordinate, a clean-context map-reader note, and the direct
+map/control prompt family. It preserves the broad village topology surprisingly
+well, but fails the clean-plate bar by converting at least one likely
+administrative/survey line into stone walling and adding a chimney-like stack.
+Treat it as useful generalization evidence and a boundary/chimney negative
+signal, not a visual target. See `../third-topology-kilteevan-cycle-ah.md`.
+
+Cycle AI reruns the same third crop with stronger no-trace boundary language
+and zero-tolerance roof-protrusion language. AI-A keeps the full notebook scene
+style reference; AI-B uses only cleaned style crops/material swatches. Both fix
+the chimney/roof problem and preserve the major topology, but both still turn
+too much ambiguous linework into physical stone walls. The next step should be
+an upstream cleaned physical-linework control that suppresses admin/survey
+boundaries before imagegen. See `../boundary-roof-retry-cycle-ai.md`.
+
+Cycle AK fixes a concrete visual-audit miss: the lower-right foreground cottage
+in the Beechwood cleaned plate still lacked a readable doorway. AK adds a dark
+door and threshold while preserving the repaired layout. Cycle AL then tests a
+thatched/no-chimney roof-material variant from AK. Both are bounded visual
+edits, not fresh direct-control recipe evidence.
+
+Cycle AM uses AJ2's cleaned no-admin map crop as a physical-linework control
+while keeping the original crop as layout authority. It improves the specific
+failure from AH/AI: the bold deleted diagonal dot-chain is not plainly restored
+as one continuous wall or hedge. The plate still over-materializes many thin
+plot lines as stone walls, so the next iteration should focus on a boundary
+material hierarchy rather than only dot-chain deletion. See
+`../cleaned-boundary-control-cycle-aj-am.md`.
+
+Cycle AN adds that hierarchy and reintroduces the full illustrated notebook
+sample as style-only. It improves the original-notebook feel and building
+readability without obvious semantic leakage, while preserving the major
+Kilteevan topology. The remaining failure is still wall restraint: many field
+and enclosure edges become continuous stone walls. See
+`../boundary-hierarchy-cycle-an.md`.
+
+Cycle AO tightens AN's open-field rule. It is the best direct-control signal so
+far for avoiding a stone-wall network while preserving the Kilteevan road,
+building, garden, and tree topology. It is not a clean visual target because it
+reintroduces small chimneys/roof-stack artifacts. Treat AO as recipe evidence
+for boundary hierarchy, with any roof cleanup kept as a separate bounded edit.
+See `../open-field-boundary-cycle-ao.md`.
+
+Cycle AP/AP2/AP3 are those bounded roof/stub cleanup attempts. AP still left
+obvious roof artifacts; AP2 removed the lower-left chimney and preserved major
+doors/topology, but still had a questionable upper-compound roof mark and some
+global repaint softness. AP3 removes that remaining obvious upper-compound roof
+nub and passes the inspected door/threshold crops, but it is still a
+whole-plate edit rather than a strictly pixel-local repair. Treat AP3 as visual
+target evidence with caveats, not as one-shot recipe proof. See
+`../ao-roof-stub-cleanup-cycle-ap.md`.
+
+Cycle AQ is a fresh direct-control retry that keeps AO's evidence stack but adds
+stronger conflict rules and absolute no-chimney roof language. It improves
+notebook feel and mostly avoids roof protrusions without a cleanup edit, but it
+loses control fidelity by inventing a more composed rural crossroads and adding
+more wall/boundary fragments. Treat AQ as useful roof/style prompt evidence,
+not a replacement for AO/AP3. See
+`../direct-open-fields-no-chimneys-cycle-aq.md`.
+
+Cycle AR keeps AQ's roof/conflict language but uses a tighter playable
+map/control crop and matching oblique cue. It is the better fresh one-shot
+direction after AQ: crop scale, notebook feel, open fields, and no-chimney
+discipline improve. It still regularizes roads into a centered scenic
+Y/crossroads, so prompt/crop control alone is not enough. The next attempt needs
+a stronger deterministic road/topology cue. See
+`../tight-control-no-scenic-crossroads-cycle-ar.md`.
+
+Cycle AS/AS2 tries to make that deterministic road/topology cue with a generic
+pale-corridor detector in `prototype_map_controls.py`. The result is too noisy
+and should not be used as an imagegen authority: it highlights tree/symbol
+clusters and generic pale gaps along with roads. See
+`../road-topology-cue-cycle-as.md`.
+
+Cycle AT returns to the earlier top-down-cleaned-to-isomorphic path using the
+tighter AR playable crop. AT1 is a clean top-down control but still turns a
+cleaned admin/erasure scar into a physical-looking boundary. AT2 improves the
+low 3/4 camera, doors, road continuity, notebook texture, and no-chimney
+discipline, but it over-materializes continuous stone/wall boundaries around
+roads, fields, and the garden. Cycle AU is a bounded repair from AT2 that
+softens those walls and clarifies shed doors; it is the best visual target from
+this crop, but not one-shot recipe evidence. See
+`../tight-two-step-wall-door-cycle-at-au.md`.
+
+Cycle AV tries to solve AT's wall problem by making the top-down control more
+symbolic and minimal-boundary. AV1 reduces some hard walling but expands and
+regularizes the scene into a prettier plan; AV2 is attractive but still trends
+toward a scenic crossroads, continuous garden/compound outlines, and marginal
+small-shed doors. Treat AV as negative evidence for freehand generated
+top-down controls. The next recipe needs a more deterministic/literal
+paint-by-numbers control that preserves crop extent and feature uncertainty
+before imagegen. See `../symbolic-topdown-control-cycle-av.md`.
+
+Cycle AW tests that deterministic/literal paint control. It is a gorgeous
+negative result: door, roof, thatch/slate, and notebook texture are strong, but
+the final plate still regularizes into a picturesque walled crossroads with
+worse topology than AT/AU. Cycle AX repairs the foreground-house door on that
+branch, but the branch remains topology-poor. See
+`../literal-paint-control-cycle-aw.md`.
+
+Cycle AY/AZ returns to AU, the stronger topology-preserving visual target, and
+uses bounded edits to recover more notebook texture, facade weight, and
+doors-on-openings clarity. AZ is now the best visual target for this tight
+Kilteevan crop, but it is not one-shot recipe evidence because it edits prior
+rendered plates and slightly emphasizes garden fencing. See
+`../au-notebook-refinement-cycle-ay-az.md`.
+
+Cycle BA asks whether the AZ/notebook direction can be reached without using a
+previous isomorphic render. It is the best fresh no-prior-render attempt so far:
+topology is much better than AW/AX and the notebook style is strong. The same
+failure remains in a sharper form: garden/internal control lines become too
+wall-like and the road junction still becomes a little composed. Cycle BB shows
+a bounded de-wall/de-diagram repair can soften BA while preserving the scene,
+but it also washes out some crisp ink/facade density. See
+`../fresh-map-control-notebook-cycle-ba-bb.md`.
+
+Cycle BC adds a deterministic boundary-material control to make garden/orchard
+texture read as soft planting rather than wallable edges. It is a useful
+negative result: the final render is fresh and notebook-like, but the visible
+outlines in the control still become hard garden boundaries, vegetation becomes
+too regular, and a main-roof chimney/nub returns. The next control should blur
+or suppress garden perimeters rather than merely tint dense planting. See
+`../boundary-material-control-cycle-bc.md`.
+
+Cycle BJ returns to the strongest Beechwood Q/M evidence stack and uses a
+bounded repaint rather than a fresh render. It preserves the connected
+compound, diagonal road, attached garden, lower building group, tree mass, and
+open-field layout while moving the art toward heavier sepia ink, mottled
+watercolor, better facade/door readability, and no-chimney roof discipline.
+The remaining gap is garden regularity: the rows and enclosure edges still read
+too survey-like. Focused BJ audit crops make that failure more concrete, so
+Cycle BL is the preferred queued follow-up over the older BK prompt. BL should
+soften garden rows and lower the facade feel without adding walls or changing
+topology. It was not rendered because the imagegen usage limit was reached. See
+`../beechwood-qm-notebook-refine-cycle-bj-bk.md`.
