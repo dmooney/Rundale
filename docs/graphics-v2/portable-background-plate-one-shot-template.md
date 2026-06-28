@@ -19,6 +19,27 @@ context. Attach only:
 Do not attach previous failed/generated plates when testing one-shot behavior.
 Do not attach hand-authored per-location interpretation notes.
 
+Generated control images are aids, not truth. If a deterministic or generated
+preprocessing/control image contains a continuous wall, hedge, road, path,
+seam, crop row, or vegetation chain that is absent from the raw map crop or
+aligns with a cleaned/suppressed administrative boundary, the raw/cleaned map
+must veto it. Treat top-down control boundaries as symbolic unless corroborated
+by the original map.
+
+When possible, prefer deterministic/literal controls over freehand generated
+top-down plan controls. A useful control should preserve crop extent and feature
+uncertainty: roads, building marks, planted regions, tree masses, open fields,
+and suppressed-admin/no-data areas. It should not beautify the scene, choose a
+prettier crossroads composition, complete uncertain enclosures, or redraw
+ordinary parcel lines as confident walls.
+
+Style-reference hygiene is part of the recipe. If a style reference is used, it
+must be an approved crop with no labels, UI, people, animals, smoke, churches,
+bridges, water, carts, loose props, chimneys, or partial doorless buildings.
+Prefer exactly-one-building references where the whole visible walkable building
+has a readable doorway and threshold. Reject crops that only fix the main house
+while leaving a foreground/background building fragment without a door.
+
 ## Prompt Template
 
 ```text
