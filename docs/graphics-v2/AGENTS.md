@@ -193,13 +193,14 @@ runtime assets.
   landmarks, bridges, UI, props, and whole-scene layouts into unrelated map
   crops.
 - For low-camera building style references, prefer
-  `style-crops/illustrated-style-low-camera-slate-single-house-door-clean.png`
+  `style-crops/illustrated-style-low-camera-slate-single-house-door-fixed.png`
   and
-  `style-crops/illustrated-style-low-camera-thatched-single-house-door-clean.png`.
+  `style-crops/illustrated-style-low-camera-thatched-single-house-door-fixed.png`.
   Avoid `style-crops/illustrated-style-low-camera-building-door-clean.png` and
   `style-crops/illustrated-style-low-camera-thatched-door-clean.png` as general
-  references; both leave partial foreground/background building fragments that
-  can teach the model that visible doorless houses are acceptable.
+  references; both were superseded by door-fixed variants after the old crops
+  were found to teach dark doorway voids instead of fitted plank doors. See
+  `style-crops/door-fix-cycle-2026-06-28.md`.
 - Prefer Cycle K for building-heavy plates: run the reproducible map-reader
   stage first, then pass the map crop, map-reader note, and cleaned style
   swatches into the render prompt. The map remains the source of truth; the note
