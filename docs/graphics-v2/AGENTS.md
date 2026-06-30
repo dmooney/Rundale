@@ -145,6 +145,42 @@ runtime assets.
 - `handover-2026-06-28-notebook-qm.md` — current handover for the BJ/BL
   notebook Q/M branch. Read this first when resuming the active background-plate
   work.
+- `isomorphic-transform-calibration-cycle-bm.md` — bounded six-render matrix
+  that makes the top-down/control -> lower isomorphic transform explicit. The
+  useful baseline is 55% playable crop plus `y_squash ~= 0.40`; camera/zoom
+  improves strongly, while path/wall/garden semantics still need upstream
+  material controls.
+- `incremental-low-camera-cycle-bn.md` — north-extended low-camera follow-up
+  to BM. BN E2 proves the camera can drop roughly 50% lower when the overhead
+  source extends far north, but the lower angle makes garden/wall/path
+  semantics more expensive.
+- `orthographic-rectification-cycle-bo.md` — final-step test that turns BN E2's
+  content-rich low-camera draft into a straighter low oblique orthographic
+  plate. BO E2 is the preferred candidate; BO E1 proves the geometry but
+  overbuilds fences/walls.
+- `art-last-grid-check-cycle-bp.md` — order-of-operations test after BO:
+  perspective/grid first, art last. BP E2 is the preferred visual target, with
+  BP E1 retained as the stricter geometry baseline.
+- `scale-lock-orthographic-cycle-bq.md` — correction to the BP grid definition:
+  an isomorphic plate must preserve both parallel projection and constant
+  object/sprite scale from foreground to top/north edge.
+- `close-concept-relaxed-scale-cycle-br.md` — alternative concept-art branch:
+  tiny Beechwood crop, slightly raised camera, relaxed isomorphic constraint,
+  door-fixed references, and audit symbols added after generation.
+- `door-height-calibration-cycle-bs.md` — BR follow-up using the original
+  notebook's door height as the zoom/camera standard. BS E1 zooms out from BR
+  while keeping fitted plank doors on visible openings.
+- `concept-realism-weathering-cycle-bt.md` — BS E2 follow-up testing surface
+  weathering, lived-in clutter, and irregular garden/wall prompts. Best prompt
+  direction is sparse practical clutter plus capped irregular geometry.
+- `concept-realism-convergence-cycle-bu.md` — BT follow-up and current relaxed
+  concept-art visual target. BU E2 is the stop point for the BS/BT branch:
+  warm, worn, handmade, fitted-door, no-UI Beechwood compound art.
+- `map-to-bu-style-reproducible-pipeline.md` — reusable source/control/camera
+  recipe distilled from BU, with Grove BV as the first validation.
+- `reproducible-pipeline-grove-cycle-bv.md` — Grove validation of the BU-style
+  pipeline. BV E1 is direct recipe evidence; BV E2 is the preferred one-edit
+  visual output.
 - `grove-cleanroom-test-notes.md` — Grove experiment log and map-reading case
   study. Do not treat it as a reusable prompt; keep the reusable prompt generic.
 - `style-crops/` — manually cropped or cleaned style references from approved
@@ -355,3 +391,47 @@ runtime assets.
   `handover-2026-06-28-notebook-qm.md` before generating or editing another
   plate. BL is the preferred next clean-context imagegen run; BK remains saved
   only as an older queued prompt.
+- Cycle BM confirms the top-down/control -> isomorphic transform should be an
+  explicit deterministic step. A 55% crop around the playable core plus a
+  `y_squash ~= 0.40` oblique pitch cue gives the best camera/zoom signal so far
+  and generalizes to Beechwood/Grove, but walls/paths/garden rows still need
+  upstream semantic/material controls rather than more camera wording.
+- Cycle BN confirms the user's lower-camera diagnosis: the overhead source must
+  extend far to the north before a 10-12 degree / roughly 50%-lower camera can
+  keep the background source-backed. BN E2 is the new camera target proof, not a
+  final recipe, because the lower angle hardens garden edges, fences, and
+  boundary marks.
+- Cycle BO confirms that camera lowering and orthographic rectification can be
+  split into two imagegen steps. Use a low-camera, source-backed BN-style draft
+  first, then a conservative "barrel correction only" pass. BO E2 is the best
+  current final-step candidate; avoid BO E1's broad rectification wording
+  because it adds too much fence/wall hardness.
+- Cycle BP confirms BO's style breakdown was partly an ordering problem. Use a
+  hard low-oblique isomorphic grid/check to hold projection first, then spend
+  the final imagegen pass on notebook watercolor/ink style. BP E2 is the
+  current visual target; BP E1 is the stricter geometry reference. This still
+  does not solve garden/wall/planting semantics.
+- Cycle BQ corrects the grid audit. Parallel lines are not sufficient: top/far
+  trees must not shrink relative to near trees, or runtime sprites need
+  y-dependent scaling. Use constant-size marker overlays as a required audit.
+  BQ E1 partially fixes scale drift but hardens vegetation/garden material, so
+  keep the audit and do not treat the render as final.
+- Cycle BR is the current relaxed-scale concept-art branch. Shrinking the
+  playable area and raising the camera slightly lets the model recover more of
+  the original notebook warmth/detail. Door-fixed crops are mandatory here:
+  older close Beechwood targets still teach black doorway voids.
+- Cycle BS gates that branch by the original notebook's door height. BS E2 is
+  the better scale target because it zooms out 20% from BS E1 while preserving
+  readable fitted plank doors.
+- Cycle BT shows concept realism needs use, not just dirt. Sparse practical
+  clutter from BT E2 plus capped irregularity from BT E3 is the useful prompt
+  direction; uncapped irregularity darkens and busies the plate too much.
+- Cycle BU is the current relaxed concept-art visual target. BU E2 is close
+  enough to stop this polish loop: warm paper, rough ink, muddy worn surfaces,
+  fewer repeated props, readable fitted doors, and the BS E2 zoom/topology. It
+  is still edit-target evidence, not a clean one-shot recipe.
+- Cycle BV is the first reproducible-pipeline validation of BU on another
+  location. The prompt shape works on Grove: E1 transfers style while preserving
+  separate-building topology and doors, and E2 is the preferred one bounded
+  correction. Before batch use, make control generation more explicit and test
+  one unrelated third location.

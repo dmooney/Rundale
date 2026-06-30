@@ -64,6 +64,16 @@ landmark hints.
 | BE | `idea-be-kilteevan-raw-map-notebook-no-topdown.png` | `idea-be-*` | `idea-be-*` | Raw/cleaned-map-only retry; still scenic-crossroads drift |
 | BF/BG/BH | `idea-bf-grove-a-topology-notebook-refine.png`, `idea-bg-grove-a-structure-preserving-notebook-refine.png`, `idea-bh-grove-bg-upper-structure-repair.png` | `idea-bf-*`, `idea-bg-*`, `idea-bh-*` | `idea-bf-*`, `idea-bg-*`, `idea-bh-*` | Best current visual target branch: Cycle A topology repaint plus local repair; edit evidence only |
 | BJ/BK/BL | `idea-bj-beechwood-q-notebook-repaint.png` | `idea-bj-*`, `idea-bk-*`, `idea-bl-*` | `idea-bj-*`, `idea-bk-*`, `idea-bl-*` | Beechwood Q/M bounded repaint; BJ improves notebook style while preserving topology, BL is the preferred queued soft-garden pass |
+| BM | `idea-bm-e1-*` through `idea-bm-e6-*` | `idea-bm-e*.prompt.md` | `idea-bm-e*.report.md` | Isomorphic transform calibration; 55% crop + `y_squash ~= 0.40` fixes camera/zoom most, path/wall/garden semantics remain |
+| BN | `idea-bn-e1-*`, `idea-bn-e2-*` | `idea-bn-e*.prompt.md` | `idea-bn-e*.report.md` | North-extended incremental low-camera test; E2 proves the 10-12 degree camera target, but boundary/garden semantics harden |
+| BO | `idea-bo-e1-*`, `idea-bo-e2-*` | `idea-bo*.prompt.md` | `idea-bo*.report.md` | Final-step orthographic rectification from BN E2; E2 is best, E1 overbuilds fences/walls |
+| BP | `idea-bp-e1-*`, `idea-bp-e2-*` | `idea-bp-e*.prompt.md` | `idea-bp-e*.report.md` | Art-last repaint with hard isomorphic grid check; E2 is preferred style target, E1 is stricter geometry baseline |
+| BQ | `idea-bq-*` | `idea-bq-e1-*.prompt.md` | `idea-bq-*.report.md` | Adds constant-scale marker audit; E1 partially fixes far-tree miniaturization but hardens vegetation/gardens |
+| BR | `idea-br-*` | `idea-br-e1-*.prompt.md` | `idea-br-*.report.md` | Close Beechwood concept-art branch; relaxes strict isomorphic scale, zooms closer, raises camera, restores doors |
+| BS | `idea-bs-e1-*`, `idea-bs-e2-*` | `idea-bs-e*.prompt.md` | `idea-bs-e*.report.md` | Door-height calibration from BR; E2 zooms out 20% more while keeping fitted doors |
+| BT | `idea-bt-e1-*` through `idea-bt-e3-*` | `idea-bt-e*.prompt.md` | `idea-bt-e*.report.md` | Weathering/clutter prompt matrix for BS E2; E2 best single image, E2+E3 hybrid recommended |
+| BU | `idea-bu-e1-*`, `idea-bu-e2-*` | `idea-bu-e*.prompt.md` | `idea-bu-e*.report.md` | Concept-realism convergence pass from BT; E2 is the accepted visual target |
+| BV | `idea-bv-e1-*`, `idea-bv-e2-*` | `idea-bv-e*.prompt.md` | `idea-bv-e*.report.md` | Grove reproducible pipeline validation; E1 proves transfer, E2 is preferred visual output |
 
 See `beechwood-church-leak-analysis.md` for the likely cause of Cycle G's
 unsupported church/churchyard: semantic leakage from the full-scene style
@@ -351,3 +361,73 @@ Cycle BL is the preferred queued follow-up over the older BK prompt. BL should
 soften garden rows and lower the facade feel without adding walls or changing
 topology. It was not rendered because the imagegen usage limit was reached. See
 `../beechwood-qm-notebook-refine-cycle-bj-bk.md`.
+
+Cycle BM makes the isomorphic transform explicit. The useful baseline is a 55%
+playable-core crop plus a deterministic `y_squash ~= 0.40` lower-pitch cue
+before final imagegen. That improves camera/zoom substantially on Kilteevan and
+generalizes to Beechwood and Grove, but the remaining weakness is feature
+semantics: paths, walls, garden rows, and soft boundaries still need better
+upstream material controls. See
+`../isomorphic-transform-calibration-cycle-bm.md`.
+
+Cycle BN follows the user's lower-camera note by extending the Kilteevan source
+far to the north before asking for a lower camera. E1 at 20 degrees is useful
+but still high. E2 at 10-12 degrees is the first convincing roughly 50%-lower
+camera result, with much larger facades/doors and source-backed far-north
+background. The tradeoff is that lower tilt hardens garden edges and
+wall/fence/boundary marks, so BN E2 should be treated as camera target proof
+rather than recipe proof. See `../incremental-low-camera-cycle-bn.md`.
+
+Cycle BO tests a final rectification step from BN E2. The useful decomposition
+is to let the model create a low-camera, source-backed draft first, then ask
+for a conservative orthographic/barrel-correction pass. BO E1 proves the
+geometry works but overbuilds fences and walls. BO E2 is the preferred result:
+less fisheye than BN E2, less fence/wall hardness than BO E1, and the low
+camera mostly survives. See `../orthographic-rectification-cycle-bo.md`.
+
+Cycle BP tests whether the BO style breakdown is an ordering problem. It is:
+using BO E2 as the perspective/content base, a hard isomorphic grid as a
+projection law, and the notebook look as the final pass gives better style
+without losing the rectified low-oblique geometry. BP E2 is the preferred
+visual candidate; BP E1 remains the stricter geometry reference. The remaining
+failure is still garden/wall/planting semantics, not the art-last order. See
+`../art-last-grid-check-cycle-bp.md`.
+
+Cycle BQ tightens the definition of grid correctness. BP checked parallel
+linework, but the user caught a more important gameplay failure: distant/top
+trees were smaller than near trees, so sprites would need unknown y-dependent
+scaling. BQ adds equal-size tree/sprite marker overlays as a constant-scale
+audit. BQ E1 partially fixes the far-tree miniaturization, but hardens
+vegetation and garden boundaries, so treat the audit as the durable result and
+the render as a partial pass. See `../scale-lock-orthographic-cycle-bq.md`.
+
+Cycle BR follows the relaxed-scale concept-art direction. It chooses Beechwood,
+shrinks the playable area hard, raises the camera slightly, and uses door-fixed
+style crops so close facades get fitted plank doors instead of black voids. BR
+E1 is the current pass for this alternative branch: it better matches the
+original notebook warmth/detail than the strict-grid repairs, but should not be
+treated as runtime-safe strict isomorphic evidence. See
+`../close-concept-relaxed-scale-cycle-br.md`.
+
+Cycle BS uses the original notebook's door height as the camera/scale gate for
+the relaxed concept-art branch. BS E2 is the better zoom target: it pulls back
+20% from BS E1 while keeping readable fitted plank doors. See
+`../door-height-calibration-cycle-bs.md`.
+
+Cycle BT tests how to make BS E2 feel more like a used rural place rather than
+a clean estate plan. The best direction is not surface dirt alone: sparse
+practical clutter from BT E2 plus capped handmade irregularity from BT E3 is
+the useful prompt recipe. See `../concept-realism-weathering-cycle-bt.md`.
+
+Cycle BU runs that hybrid and one final tightening pass. BU E2 is the accepted
+relaxed concept-art visual target for this branch: warm, worn, handmade, sparse
+but lived-in, with fitted doors and the BS E2 scale preserved. It is edit-target
+evidence rather than fresh one-shot recipe proof, so future pipeline work should
+copy its prompt lessons without depending on prior rendered plates. See
+`../concept-realism-convergence-cycle-bu.md`.
+
+Cycle BV turns the BU result into a reusable Grove validation pipeline. BV E1
+uses source map + local topology control + oblique cue + BU E2 style target
+without a previous Grove render as edit target, and passes the separate-building
+topology/door check. BV E2 is the one bounded correction and the preferred
+visual output. See `../reproducible-pipeline-grove-cycle-bv.md`.
