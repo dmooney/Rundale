@@ -16,6 +16,7 @@ render of the same location as an edit target. It may use reusable artifacts:
 - reproducible local topology/control crop,
 - deterministic oblique camera cue,
 - generic door-fixed style references,
+- regional Irish field-boundary and dry-stone wall reference rules,
 - BU E2 as the current material/style target.
 
 ## Steps
@@ -44,15 +45,30 @@ render of the same location as an edit target. It may use reusable artifacts:
    visible person-sized opening on a walkable facade needs a fitted plank door
    and threshold; black voids fail.
 
-6. Apply BU E2 realism last.
+6. Apply the regional field-boundary prior before final style.
+   For County Roscommon, ordinary field/garden divisions should default toward
+   hedgerows, banks, ditches, remnant hedges, and stone-earthen banks, not a
+   continuous stone-wall grid. Source-supported stone walls must be mortarless,
+   dry fit, irregular, locally gathered fieldstone or slabby limestone, with
+   gaps, mixed stone sizes, uneven coping, moss/lichen/weeds, and broken
+   hand-built silhouettes. Reject uniform rectangular blocks, brick-like
+   courses, ashlar masonry, identical stone beads, and perfect cobblestone
+   chains.
+
+7. Apply BU E2 realism last.
    Use warm worn paper, rough ink, muddy scumbled roads, stained limewash,
    handmade walls/gardens, weeds, moss, sparse practical clutter, and no
    repeated bucket/barrel pattern.
 
-7. Stop after one bounded correction.
+8. Stop after one bounded correction.
    If the first render is close but has one concrete failure, make one targeted
    edit. If topology or doors broadly fail, revise the pipeline inputs rather
    than entering an open-ended polish loop.
+
+Reference:
+
+- `irish-dry-stone-wall-reference.md`
+- `web-references/irish-dry-stone-walls/irish-dry-stone-wall-reference-sheet.png`
 
 ## Grove BV Validation
 
@@ -85,6 +101,12 @@ Results:
 - The final plate does not copy Beechwood's connected compound layout.
 - Major road/yard/garden relationships remain auditable against the map/control.
 - Every visible walkable building has a fitted plank door and threshold.
+- Prominent walls read as authentic Irish dry-stone field walls: mortarless,
+  irregular, gap-rich, locally varied, and hand-built rather than uniform
+  rectangular blockwork.
+- Ordinary Roscommon field boundaries are not over-promoted into a continuous
+  stone-wall grid; hedges, banks, ditches, remnants, and stone-earthen banks
+  remain available boundary materials.
 - The style reads as BU E2 concept-realism: warm, worn, handmade, muddy,
   readable, and sparse rather than over-cluttered.
 - No UI, labels, people, animals, smoke, water, bridge, church, graveyard,
@@ -96,4 +118,6 @@ Passed on Grove with one bounded correction. BV E1 is the direct pipeline
 evidence; BV E2 is the better final plate. Before batch use, validate the same
 prompt shape on at least one unrelated third location and make the topology
 control-generation step more explicit than reusing an earlier generated AE
-control.
+control. The next render should also use `irish-dry-stone-wall-reference.md`
+as a hard material gate; BV E2's walls are acceptable as a topology/style proof
+but still too regular in places for a final wall-authenticity pass.

@@ -98,3 +98,13 @@ Cycle BV Grove reproducible-pipeline comparison:
 - `bv-grove-reproducible-pipeline-comparison.png` — Grove map, Grove core
   control, BU E2 style target, BV E1 direct pipeline render, and BV E2 bounded
   tighten with full and detail crops.
+
+Cycle BW Grove dry-stone wall comparison:
+
+- `bw-grove-dry-stone-wall-comparison.png` — BV E2 baseline beside BW E1 and
+  BW E2/BW E3, with full images and wall-detail crops for auditing the
+  rectangular blockwork / bead-chain failure mode.
+- `bw-e4-real-reference-boundary-comparison.png` — real dry-stone wall
+  reference beside BV E2, BW E4, and BW E3; shows that the web reference helps
+  material language only slightly unless the prompt also uses a regional
+  hedgerow/bank/ditch prior.

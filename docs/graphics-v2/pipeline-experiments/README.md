@@ -74,6 +74,7 @@ landmark hints.
 | BT | `idea-bt-e1-*` through `idea-bt-e3-*` | `idea-bt-e*.prompt.md` | `idea-bt-e*.report.md` | Weathering/clutter prompt matrix for BS E2; E2 best single image, E2+E3 hybrid recommended |
 | BU | `idea-bu-e1-*`, `idea-bu-e2-*` | `idea-bu-e*.prompt.md` | `idea-bu-e*.report.md` | Concept-realism convergence pass from BT; E2 is the accepted visual target |
 | BV | `idea-bv-e1-*`, `idea-bv-e2-*` | `idea-bv-e*.prompt.md` | `idea-bv-e*.report.md` | Grove reproducible pipeline validation; E1 proves transfer, E2 is preferred visual output |
+| BW | `idea-bw-e1-*` through `idea-bw-e4-*` | `idea-bw-e*.prompt.md` | `idea-bw-e*.report.md` | Grove dry-stone/regional-boundary pass; E4 shows real-wall reference alone is insufficient |
 
 See `beechwood-church-leak-analysis.md` for the likely cause of Cycle G's
 unsupported church/churchyard: semantic leakage from the full-scene style

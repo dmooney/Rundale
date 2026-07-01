@@ -53,6 +53,9 @@ building group does not collapse into a connected courtyard compound.
 
 - BV E2 has a tiny roof-nub/vent-like mark on the taller east/right building.
   It is small enough to document rather than spend another imagegen pass.
+- BV E2's wall material is improved over earlier clean controls, but some walls
+  still read too much like tidy blockwork. Future renders should apply
+  `irish-dry-stone-wall-reference.md` as a hard material gate.
 - The garden is still more organized than the original concept-art sample, but
   loosening it further risks losing source readability.
 - The topology control itself is not a raw deterministic vector map; it is a

@@ -181,6 +181,17 @@ runtime assets.
 - `reproducible-pipeline-grove-cycle-bv.md` — Grove validation of the BU-style
   pipeline. BV E1 is direct recipe evidence; BV E2 is the preferred one-edit
   visual output.
+- `irish-dry-stone-wall-reference.md` — source-backed visual/audit rules for
+  authentic Irish dry-stone walls. Use this before any future wall-material
+  prompt, because uniform rectangular blockwork is wrong for historic field
+  boundaries.
+- `web-references/irish-dry-stone-walls/` — local copies of real-world
+  Wikimedia Commons dry-stone wall references plus a two-image prompt sheet.
+- `dry-stone-wall-authenticity-cycle-bw.md` — Grove material pass applying the
+  dry-stone wall rules to BV. BW E3 is the first visibly different boundary
+  pass, while BW E4 proves that a real wall reference alone is insufficient
+  unless the prompt also stops over-promoting ordinary Roscommon boundaries into
+  full stone walls.
 - `grove-cleanroom-test-notes.md` — Grove experiment log and map-reading case
   study. Do not treat it as a reusable prompt; keep the reusable prompt generic.
 - `style-crops/` — manually cropped or cleaned style references from approved
@@ -220,6 +231,12 @@ runtime assets.
   overgrown walls, not extra footpaths. If more precision is needed, run the
   reproducible map-reader stage or another repeatable control process rather
   than writing hand-authored per-location notes.
+- If a boundary becomes a stone wall, it must pass the Irish dry-stone wall
+  rule: mortarless, irregular fieldstone or slabby local limestone, mixed
+  shapes/sizes, visible gaps/chinks, uneven coping, moss/lichen/weeds, and a
+  broken hand-built silhouette. Reject uniform rectangular block courses,
+  castle/estate ashlar, tidy cobblestone chains, and identical gray beads. See
+  `irish-dry-stone-wall-reference.md`.
 - Treat base plates as static art layers. Avoid visible smoke/fog/weather in
   the plate; those belong in later runtime/composited layers.
 - Avoid committing generated-image cache paths. Copy selected renders into this
