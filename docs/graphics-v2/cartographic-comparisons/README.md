@@ -108,3 +108,31 @@ Cycle BW Grove dry-stone wall comparison:
   reference beside BV E2, BW E4, and BW E3; shows that the web reference helps
   material language only slightly unless the prompt also uses a regional
   hedgerow/bank/ditch prior.
+
+Cycle BX Murphy's Farm pipeline steps:
+
+- `bx-murphy-farm-pipeline-steps.png` — source map crop, deterministic
+  soft-planting control, oblique camera cue, BU E2 style target, door-fixed
+  references, boundary reference, direct E1 Murphy render, and preferred E2
+  bounded roof/boundary fix. The source west-side texture is labeled as a peat
+  bog candidate.
+
+Cycle BY Murphy's Farm geometry-match comparisons:
+
+- `by-murphy-e2d-geometry-match-comparison.png` — source map, accepted E1g
+  overhead control, and deterministic E2d low 3/4 geometry target.
+- `by-murphy-e2e-geometry-render-comparison.png` — source map, E1g, E2d, and
+  first actual E2e geometry render.
+- `by-murphy-e2f-shape-lock-comparison.png` — source map, E1g, E2d, E2e, and
+  E2f shape-lock refinement. E2f is the geometry-preferred render.
+- `by-murphy-e3-style-accuracy-comparison.png` — source map, E2d, E2f, BU E2
+  style target, E3a, E3b, E3c, and the E3c door audit crop. E3c is the current
+  preferred Murphy accuracy+style render.
+
+Cycle BZ Grove subagent-gated proof comparison:
+
+- `bz-grove-subagent-pipeline-proof-comparison.png` — Grove source crop,
+  literal topology control, camera-only oblique cue, BU E2 style target, and
+  the single render-subagent output. The independent audit verdict is PASS WITH
+  CAVEATS: major geometry, doors, style, and camera pass, but ambiguous
+  boundaries become too much continuous stone walling.

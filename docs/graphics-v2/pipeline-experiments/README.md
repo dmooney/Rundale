@@ -75,6 +75,9 @@ landmark hints.
 | BU | `idea-bu-e1-*`, `idea-bu-e2-*` | `idea-bu-e*.prompt.md` | `idea-bu-e*.report.md` | Concept-realism convergence pass from BT; E2 is the accepted visual target |
 | BV | `idea-bv-e1-*`, `idea-bv-e2-*` | `idea-bv-e*.prompt.md` | `idea-bv-e*.report.md` | Grove reproducible pipeline validation; E1 proves transfer, E2 is preferred visual output |
 | BW | `idea-bw-e1-*` through `idea-bw-e4-*` | `idea-bw-e*.prompt.md` | `idea-bw-e*.report.md` | Grove dry-stone/regional-boundary pass; E4 shows real-wall reference alone is insufficient |
+| BX | `idea-bx-e1-*`, `idea-bx-e2-*` | `idea-bx-e*.prompt.md` | `idea-bx-e*.report.md` | Murphy's Farm BU-style pipeline pass; E1 is direct recipe evidence, E2 is preferred bounded roof/boundary fix |
+| BY | `idea-by-e1*`, `idea-by-e2*`, `idea-by-e3*` | `idea-by-*.prompt.md` | `idea-by-*.report.md` | Murphy's Farm geometry-match and style-last recovery; E2d is the hard geometry target, E2f is the geometry render, and E3c is the preferred accuracy+style candidate |
+| BZ | `idea-bz-grove-subagent-*` | `idea-bz-grove-subagent-bu-style.prompt.md` | `idea-bz-grove-subagent-bu-style.*report.md` | First fully subagent-gated Grove proof; PASS WITH CAVEATS, geometry/doors/style pass but ambiguous boundaries over-promote into continuous stone walls |
 
 See `beechwood-church-leak-analysis.md` for the likely cause of Cycle G's
 unsupported church/churchyard: semantic leakage from the full-scene style
@@ -432,3 +435,12 @@ uses source map + local topology control + oblique cue + BU E2 style target
 without a previous Grove render as edit target, and passes the separate-building
 topology/door check. BV E2 is the one bounded correction and the preferred
 visual output. See `../reproducible-pipeline-grove-cycle-bv.md`.
+
+Cycle BZ reruns Grove through the stricter subagent-gated pipeline: clean
+map-reader, deterministic control-builder, prompt-builder, render subagent with
+one imagegen call, and independent audit. The audit verdict is PASS WITH
+CAVEATS. The run proves the chain can preserve Grove's major geometry, doors,
+camera, and BU concept-realism style, but it still over-materializes ambiguous
+enclosure/field edges as continuous blocky stone walls. Treat BZ as proof that
+the pipeline executes and preserves topology for Grove, not production batch
+readiness. See `../reproducible-pipeline-grove-cycle-bz.md`.

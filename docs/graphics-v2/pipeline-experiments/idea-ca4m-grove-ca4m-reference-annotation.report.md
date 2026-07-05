@@ -1,0 +1,22 @@
+# Grove CA4M Reference Annotation Report
+
+Output PNG: `docs/graphics-v2/pipeline-experiments/idea-ca4m-grove-ca4m-reference-annotation.png`
+
+Inputs used: the supplied OS 6-inch map-key reference sheet and the supplied Grove map crop only. The annotations are symbol-class readings, not location-specific reconstruction. Repeated dots mark representative visible instances; roofed structures are marked individually where likely.
+
+| Marker | Class | Confidence | Uncertainty / notes |
+| --- | --- | --- | --- |
+| 1 | Roofed structures | Medium-high | Six likely dark/hatched rectangular footprints are marked. The lower cluster has adjacent yard/enclosure linework, so a few small attached marks remain somewhat ambiguous. |
+| 2 | Road plus dotted overlay | Medium-high | The northwest diagonal corridor has paired road-like edges with a dotted/survey overlay, matching the reference class where a physical corridor and dotted administrative line coincide. |
+| 3 | Unfenced path/track candidate | Low-medium | Marked only on faint broken/paired route-like traces west/southwest of the settlement. These could be track/path hints, but the map also has nearby tree and boundary marks, so the class is deliberately tentative. |
+| 4 | Dotted administrative/survey boundary | High for dotted linework; medium for function | Bold single dot chains are visible horizontally and vertically in the lower-left/lower-center crop, plus a dotted diagonal at the northwest corridor. Read as admin/survey unless paired with physical corridor evidence. |
+| 5 | Single solid enclosure/field boundary | High | Thin continuous solid lines enclose fields/gardens and ordinary parcels. These are marked on representative segments, not every visible field edge. |
+| 6 | Double solid road/lane corridor | Medium-high | Paired solid corridor geometry is visible on the central/right lane and upper-right route. Some adjacent trees and field boundaries cross near the route, but the paired-edge form is clear enough to classify. |
+| 7 | Deciduous tree symbols | High | Puffy round tree symbols are sampled across the crop: along corridors, near the settlement, and in open field edges. |
+| 8 | Coniferous tree symbols | High | Tight triangular evergreen symbols are sampled along the lower-left row and lower central/right line. |
+| 9 | Planted/mixed enclosure | Medium-high | The enclosed plot northwest of the buildings has regular enclosure lines, internal texture, and tree marks. It is tinted tightly as a planted/mixed enclosure rather than generalized woodland. |
+| 10 | Rough vegetation / ditch / scrub block | Medium-low | The irregular dense texture inside the same enclosed plot resembles rough vegetation/ditch/scrub examples, but it overlaps the planted enclosure texture and is therefore uncertain. |
+| 11 | Printed map text | High | The printed `Grove` place-name is marked as map text only, not as a physical sign or feature. |
+| 12 | Open fields / ordinary ground | High | Representative unmarked/stippled background areas are identified as ordinary open ground. This is an absence-of-special-symbol class rather than a discrete symbol. |
+
+Absence notes: no clear bridge, well/spring, railway, contour, or watercourse symbol is visible in this crop, so none is marked.

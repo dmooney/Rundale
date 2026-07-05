@@ -178,9 +178,19 @@ runtime assets.
   warm, worn, handmade, fitted-door, no-UI Beechwood compound art.
 - `map-to-bu-style-reproducible-pipeline.md` — reusable source/control/camera
   recipe distilled from BU, with Grove BV as the first validation.
+- `kilteevan-exterior-pipeline-run-template.md` — per-location checklist for
+  running the subagent-gated Kilteevan exterior pipeline and saving all
+  reproducibility artifacts.
+- `runtime-layers-and-independent-variables.md` — production-facing layer model
+  for turning neutral generated plates into playable scenes with time,
+  weather, season, actors, props, masks, sockets, and runtime overlays.
 - `reproducible-pipeline-grove-cycle-bv.md` — Grove validation of the BU-style
   pipeline. BV E1 is direct recipe evidence; BV E2 is the preferred one-edit
   visual output.
+- `reproducible-pipeline-grove-cycle-bz.md` — first fully subagent-gated Grove
+  proof run. BZ passes with caveats: the staged chain preserves major geometry,
+  doors, camera, and BU-style realism, but ambiguous boundaries still become too
+  much continuous stone walling for batch readiness.
 - `irish-dry-stone-wall-reference.md` — source-backed visual/audit rules for
   authentic Irish dry-stone walls. Use this before any future wall-material
   prompt, because uniform rectangular blockwork is wrong for historic field
@@ -192,6 +202,10 @@ runtime assets.
   pass, while BW E4 proves that a real wall reference alone is insufficient
   unless the prompt also stops over-promoting ordinary Roscommon boundaries into
   full stone walls.
+- `murphy-farm-background-plate-cycle-bx.md` — Murphy's Farm application of the
+  BU-style reproducible pipeline. E1 is direct recipe evidence; E2 is the
+  preferred one-edit base plate. The west-side source texture is treated as peat
+  bog / bog-edge terrain per user review.
 - `grove-cleanroom-test-notes.md` — Grove experiment log and map-reading case
   study. Do not treat it as a reusable prompt; keep the reusable prompt generic.
 - `style-crops/` — manually cropped or cleaned style references from approved
@@ -210,9 +224,14 @@ runtime assets.
 - Keep prompts self-contained when they are intended for cross-model testing.
   Do not rely on hidden context or previous chat images unless the file clearly
   says it is reference-dependent.
-- For one-shot tests, prefer fresh subagents or fresh model sessions with only
-  the target map crop plus the intended reference images. Do not evaluate a
-  prompt using a context that has already seen failed renders.
+- For reproducible pipeline evidence, use clean-context subagents or fresh model
+  sessions for map-reading, control/topology interpretation, prompt assembly,
+  rendering, and independent audit. Prefer a render subagent that calls image
+  generation with only the declared inputs. If the coordinator must call
+  imagegen because of tool limitations, record that exception and treat the
+  result as weaker recipe evidence. Each subagent should receive only its
+  declared inputs. Do not count a prompt evaluated in a context that has already
+  seen failed renders as recipe proof.
 - Do not create location-specific reusable prompts or hand-authored per-location
   hint notes. It is acceptable to create location-specific map-reader notes only
   when they are generated from the map crop by the same reproducible
@@ -258,6 +277,11 @@ runtime assets.
   stage first, then pass the map crop, map-reader note, and cleaned style
   swatches into the render prompt. The map remains the source of truth; the note
   is soft disambiguation with confidence.
+- For active Kilteevan parish exterior work, follow
+  `map-to-bu-style-reproducible-pipeline.md`. It is the current stricter
+  subagent-gated pipeline: source crop, clean map-reader, reproducible
+  topology/control, prompt-builder, fresh render, independent audit, and at most
+  one bounded correction.
 - Use Cycle L-style top-down cleaned plates when topology is hard to read. They
   are promising as an accuracy path, but do not treat them as source truth; the
   original map crop and map-reader note still outrank the cleaned plate. Before

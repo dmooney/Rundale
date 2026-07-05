@@ -1,7 +1,10 @@
 # Map To Background Plate Pipeline
 
-This note sketches the preferred production path for turning historic map crops
+This note sketches the broader preferred path for turning historic map crops
 into consistent Rundale background plates without per-location prompt hints.
+For the active Kilteevan parish exterior workflow, use
+`map-to-bu-style-reproducible-pipeline.md`; it is the stricter
+subagent-gated version of this pipeline.
 
 ## Principle
 
@@ -16,11 +19,15 @@ The pipeline should be:
 
 ```text
 historic map crop + generic legend/characteristic sheet
-  -> clean-context reproducible map-reader note
-  -> optional top-down cleaned control plate
-  -> illustrated background plate
-  -> topology/style/source-fidelity checks
+  -> clean-context map-reader subagent note
+  -> clean-context topology/control subagent artifacts
+  -> clean-context prompt-builder subagent prompt
+  -> clean-context render subagent imagegen call
+  -> independent audit subagent checks
 ```
+
+For recipe evidence, every stage must save its output. A good-looking plate from
+one long exploratory context is a candidate, not a reproducible pipeline proof.
 
 ## Why A Simple Image Transform Is Not Enough
 
@@ -111,6 +118,14 @@ It does not receive:
 - human guesses about walls, rivers, buildings, or exits,
 - map-reader notes produced by a different rubric or contaminated context,
 - previous failed/generated plates.
+
+The render runner should be a clean-context render subagent that calls image
+generation with only the declared inputs. If tool limitations force the
+coordinator to call imagegen, record that as an exception and treat the result
+as weaker recipe evidence. The independent auditor should be a separate
+subagent that did not build the prompt. Use at most one bounded correction for a
+concrete audit failure; keep direct recipe evidence separate from edited
+visual-target evidence.
 
 ## Automated Checks
 

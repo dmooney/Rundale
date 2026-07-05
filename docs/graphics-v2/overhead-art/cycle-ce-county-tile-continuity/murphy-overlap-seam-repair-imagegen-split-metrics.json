@@ -1,0 +1,20 @@
+{
+  "input": "docs/graphics-v2/overhead-art/cycle-ce-county-tile-continuity/murphy-overlap-seam-repair-imagegen.png",
+  "original_size": [
+    1402,
+    1122
+  ],
+  "normalized_size": [
+    1024,
+    1280
+  ],
+  "grid": "4x5",
+  "tile_size": 256,
+  "tile_count": 20,
+  "seam": {
+    "seam_mean_abs_luma_jump": 14.056843212672643,
+    "nearby_control_mean_abs_luma_jump": 13.95079973765782,
+    "seam_to_control_ratio": 1.007601247025902
+  },
+  "max_abs_reassembly_error": 0
+}
