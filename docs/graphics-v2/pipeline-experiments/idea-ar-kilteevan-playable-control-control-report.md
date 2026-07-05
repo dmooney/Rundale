@@ -11,6 +11,7 @@ to produce control images for clean-context image-generation experiments
 without hand-authored per-location interpretation.
 
 Outputs:
+
 - `idea-ar-kilteevan-playable-control-ink-mask.png`
 - `idea-ar-kilteevan-playable-control-semantic-mask.png`
 - `idea-ar-kilteevan-playable-control-oblique-raw-warp.png`

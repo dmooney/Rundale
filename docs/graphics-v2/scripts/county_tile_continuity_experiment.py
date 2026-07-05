@@ -17,18 +17,33 @@ from __future__ import annotations
 import argparse
 import json
 import math
-import sys
 import urllib.error
 import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
+from typing import TypedDict
 
 import numpy as np
 from PIL import Image, ImageDraw, ImageEnhance, ImageFilter, ImageFont, ImageOps
 
-
 NLS_ROSCOMMON_URL = "https://mapseries-tilesets.s3.amazonaws.com/os/roscommon1/{z}/{x}/{y}.png"
 TILE_SIZE = 256
+
+
+class SeamMetrics(TypedDict):
+    seam_mean_abs_luma_jump: float
+    nearby_control_mean_abs_luma_jump: float
+    seam_to_control_ratio: float
+
+
+class ContinuityMetrics(TypedDict):
+    source: SeamMetrics
+    independent_tiles: SeamMetrics
+    mosaic_first: SeamMetrics
+    max_abs_reassembly_error: int
+    tile_count: int
+    tile_size: int
+    grid: str
 
 
 @dataclass(frozen=True)
@@ -57,7 +72,9 @@ def fetch_tile(tile: TileRef, cache_dir: Path, url_template: str) -> Path:
 
     out.parent.mkdir(parents=True, exist_ok=True)
     url = url_template.format(z=tile.z, x=tile.x, y=tile.y)
-    req = urllib.request.Request(url, headers={"User-Agent": "rundale-graphics-v2/continuity-proof"})
+    req = urllib.request.Request(
+        url, headers={"User-Agent": "rundale-graphics-v2/continuity-proof"}
+    )
     try:
         with urllib.request.urlopen(req, timeout=30) as response:
             body = response.read()
@@ -74,7 +91,9 @@ def load_tile(path: Path) -> Image.Image:
     return Image.open(path).convert("RGB")
 
 
-def assemble_mosaic(center: TileRef, radius: int, cache_dir: Path, url_template: str) -> tuple[Image.Image, list[TileRef]]:
+def assemble_mosaic(
+    center: TileRef, radius: int, cache_dir: Path, url_template: str
+) -> tuple[Image.Image, list[TileRef]]:
     refs: list[TileRef] = []
     size = radius * 2 + 1
     mosaic = Image.new("RGB", (size * TILE_SIZE, size * TILE_SIZE), "white")
@@ -150,7 +169,9 @@ def stylize_independent_tiles(mosaic: Image.Image, grid: int) -> Image.Image:
     return out
 
 
-def export_runtime_tiles(img: Image.Image, refs: list[TileRef], grid: int, out_dir: Path) -> list[Path]:
+def export_runtime_tiles(
+    img: Image.Image, refs: list[TileRef], grid: int, out_dir: Path
+) -> list[Path]:
     out_dir.mkdir(parents=True, exist_ok=True)
     paths: list[Path] = []
     idx = 0
@@ -191,7 +212,7 @@ def luminance(img: Image.Image) -> np.ndarray:
     return arr[..., 0] * 0.299 + arr[..., 1] * 0.587 + arr[..., 2] * 0.114
 
 
-def seam_energy(img: Image.Image, grid: int) -> dict[str, float]:
+def seam_energy(img: Image.Image, grid: int) -> SeamMetrics:
     lum = luminance(img)
     h, w = lum.shape
     vertical: list[float] = []
@@ -222,7 +243,9 @@ def seam_energy(img: Image.Image, grid: int) -> dict[str, float]:
     }
 
 
-def draw_grid(img: Image.Image, grid: int, color: tuple[int, int, int], width: int = 3) -> Image.Image:
+def draw_grid(
+    img: Image.Image, grid: int, color: tuple[int, int, int], width: int = 3
+) -> Image.Image:
     out = img.copy()
     draw = ImageDraw.Draw(out)
     for i in range(1, grid):
@@ -246,10 +269,17 @@ def label_panel(img: Image.Image, title: str, subtitle: str = "") -> Image.Image
     return out
 
 
-def make_contact_sheet(source: Image.Image, independent: Image.Image, mosaic_first: Image.Image, metrics: dict[str, object]) -> Image.Image:
+def make_contact_sheet(
+    source: Image.Image,
+    independent: Image.Image,
+    mosaic_first: Image.Image,
+    metrics: ContinuityMetrics,
+) -> Image.Image:
     target_w = 520
 
-    def prep(img: Image.Image, title: str, subtitle: str, grid_color: tuple[int, int, int]) -> Image.Image:
+    def prep(
+        img: Image.Image, title: str, subtitle: str, grid_color: tuple[int, int, int]
+    ) -> Image.Image:
         scale = target_w / img.width
         resized = img.resize((target_w, int(img.height * scale)), Image.Resampling.LANCZOS)
         # Grid is drawn after resize, so derive scaled grid spacing.
@@ -267,9 +297,24 @@ def make_contact_sheet(source: Image.Image, independent: Image.Image, mosaic_fir
     ind_ratio = metrics["independent_tiles"]["seam_to_control_ratio"]
     mos_ratio = metrics["mosaic_first"]["seam_to_control_ratio"]
     panels = [
-        prep(source, "A. Raw NLS source mosaic", f"baseline seam ratio {src_ratio:.2f}", (40, 78, 140)),
-        prep(independent, "B. Per-runtime-tile stylized", f"seam ratio {ind_ratio:.2f}; visible tile normalization risk", (170, 40, 35)),
-        prep(mosaic_first, "C. Mosaic-first stylized, then split", f"seam ratio {mos_ratio:.2f}; runtime reassembly error 0", (32, 120, 66)),
+        prep(
+            source,
+            "A. Raw NLS source mosaic",
+            f"baseline seam ratio {src_ratio:.2f}",
+            (40, 78, 140),
+        ),
+        prep(
+            independent,
+            "B. Per-runtime-tile stylized",
+            f"seam ratio {ind_ratio:.2f}; visible tile normalization risk",
+            (170, 40, 35),
+        ),
+        prep(
+            mosaic_first,
+            "C. Mosaic-first stylized, then split",
+            f"seam ratio {mos_ratio:.2f}; runtime reassembly error 0",
+            (32, 120, 66),
+        ),
     ]
     gap = 22
     w = sum(p.width for p in panels) + gap * (len(panels) + 1)
@@ -282,7 +327,13 @@ def make_contact_sheet(source: Image.Image, independent: Image.Image, mosaic_fir
     return sheet
 
 
-def write_report(path: Path, args: argparse.Namespace, center: TileRef, refs: list[TileRef], metrics: dict[str, object]) -> None:
+def write_report(
+    path: Path,
+    args: argparse.Namespace,
+    center: TileRef,
+    refs: list[TileRef],
+    metrics: ContinuityMetrics,
+) -> None:
     path.write_text(
         "\n".join(
             [
@@ -348,7 +399,9 @@ def main() -> int:
     parser.add_argument("--zoom", type=int, default=17)
     parser.add_argument("--radius", type=int, default=2)
     parser.add_argument("--out-dir", type=Path, required=True)
-    parser.add_argument("--cache-dir", type=Path, default=Path("/private/tmp/rundale-nls-tile-cache"))
+    parser.add_argument(
+        "--cache-dir", type=Path, default=Path("/private/tmp/rundale-nls-tile-cache")
+    )
     parser.add_argument("--url-template", default=NLS_ROSCOMMON_URL)
     args = parser.parse_args()
 
@@ -371,7 +424,7 @@ def main() -> int:
     reassembled = reassemble_from_tiles(tile_paths, grid)
     reassembled.save(args.out_dir / "murphy-z17-mosaic-first-runtime-reassembled.png")
 
-    metrics: dict[str, object] = {
+    metrics: ContinuityMetrics = {
         "source": seam_energy(source, grid),
         "independent_tiles": seam_energy(independent, grid),
         "mosaic_first": seam_energy(mosaic_first, grid),
@@ -386,8 +439,12 @@ def main() -> int:
     contact = make_contact_sheet(source, independent, mosaic_first, metrics)
     contact.save(args.out_dir / "murphy-z17-continuity-contact-sheet.png")
 
-    draw_grid(mosaic_first, grid, (30, 115, 66), width=3).save(args.out_dir / "murphy-z17-mosaic-first-grid-overlay.png")
-    draw_grid(independent, grid, (175, 40, 35), width=3).save(args.out_dir / "murphy-z17-independent-grid-overlay.png")
+    draw_grid(mosaic_first, grid, (30, 115, 66), width=3).save(
+        args.out_dir / "murphy-z17-mosaic-first-grid-overlay.png"
+    )
+    draw_grid(independent, grid, (175, 40, 35), width=3).save(
+        args.out_dir / "murphy-z17-independent-grid-overlay.png"
+    )
 
     write_report(args.out_dir / "README.md", args, center, refs, metrics)
     print(json.dumps({"out_dir": str(args.out_dir), "metrics": metrics}, indent=2))

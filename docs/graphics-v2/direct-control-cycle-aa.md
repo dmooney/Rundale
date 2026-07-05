@@ -15,10 +15,10 @@ local map/control input plus a reusable prompt/reference stack.
 
 ## Outputs
 
-| Site | Output | Prompt | Report | Result |
-| --- | --- | --- | --- | --- |
+| Site         | Output                                                                 | Prompt                                                                       | Report                                                                       | Result                                       |
+| ------------ | ---------------------------------------------------------------------- | ---------------------------------------------------------------------------- | ---------------------------------------------------------------------------- | -------------------------------------------- |
 | Beechwood AA | `pipeline-experiments/idea-aa-beechwood-direct-control-low-camera.png` | `pipeline-experiments/idea-aa-beechwood-direct-control-low-camera.prompt.md` | `pipeline-experiments/idea-aa-beechwood-direct-control-low-camera.report.md` | Direct-control pass, style/camera regression |
-| Grove AA | `pipeline-experiments/idea-aa-grove-direct-control-low-camera.png` | `pipeline-experiments/idea-aa-grove-direct-control-low-camera.prompt.md` | `pipeline-experiments/idea-aa-grove-direct-control-low-camera.report.md` | Direct-control pass, style/camera regression |
+| Grove AA     | `pipeline-experiments/idea-aa-grove-direct-control-low-camera.png`     | `pipeline-experiments/idea-aa-grove-direct-control-low-camera.prompt.md`     | `pipeline-experiments/idea-aa-grove-direct-control-low-camera.report.md`     | Direct-control pass, style/camera regression |
 
 ## Audit Questions
 

@@ -33,4 +33,3 @@ Post-generation correction:
 - The generated subtitle incorrectly described the Grove source crop as coming
   from the Scoilnet factsheet. That line was locally patched to say the Grove
   crop is the source and Scoilnet is the OS key reference.
-

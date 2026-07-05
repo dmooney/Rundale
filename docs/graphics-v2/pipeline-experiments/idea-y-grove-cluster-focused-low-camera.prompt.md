@@ -16,6 +16,7 @@ Primary request:
 Create a closer background plate focused on the building cluster, yard, garden edge, roads, and walls from Image 1. The output should cover the smaller local area shown in Image 1, not the full wider map. The goal is to test the Beechwood Cycle X crop-scale method on another target location: recover the original illustrated parish notebook's human-scale density while preserving the map-derived topology.
 
 Hard topology and crop rules:
+
 - Preserve Image 1's building footprint relationships. If buildings are separate in Image 1, keep them separate; if buildings touch or overlap, keep that relationship visible. Do not merge detached buildings into one compound, and do not split attached buildings apart.
 - Preserve the yard/open working area, garden plot boundaries, road edges, wall lines, tree masses, and exits in their same north-up relationships.
 - It is acceptable for distant roads, fields, or plot edges to be cropped off-frame if outside the smaller plate area. Do not shrink the whole wider map into frame.

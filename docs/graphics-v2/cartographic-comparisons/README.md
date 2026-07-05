@@ -25,11 +25,11 @@ The source map remains the highest authority for feature existence and
 orientation. The middle image is an intermediate topology aid or target, not
 source truth.
 
-| Plate | Source map | Topology/control step | Final render |
-| --- | --- | --- | --- |
-| `beechwood-bj-source-control-render.png` | `../pipeline-experiments/map-crop-control-02.png` | `../pipeline-experiments/idea-m-beechwood-admin-topdown-cleaned.png` | `../pipeline-experiments/idea-bj-beechwood-q-notebook-repaint.png` |
-| `grove-bh-source-target-render.png` | `../grove-map-target-site-crop.png` | `../pipeline-experiments/idea-a-map-only.png` | `../pipeline-experiments/idea-bh-grove-bg-upper-structure-repair.png` |
-| `kilteevan-az-source-control-render.png` | `../pipeline-experiments/idea-ar-kilteevan-playable-map-crop.png` | `../pipeline-experiments/idea-at-kilteevan-tight-topdown-cleaned.png` | `../pipeline-experiments/idea-az-kilteevan-ay-low-camera-refine.png` |
+| Plate                                    | Source map                                                        | Topology/control step                                                 | Final render                                                               |
+| ---------------------------------------- | ----------------------------------------------------------------- | --------------------------------------------------------------------- | -------------------------------------------------------------------------- |
+| `beechwood-bj-source-control-render.png` | `../pipeline-experiments/map-crop-control-02.png`                 | `../pipeline-experiments/idea-m-beechwood-admin-topdown-cleaned.png`  | `../pipeline-experiments/idea-bj-beechwood-q-notebook-repaint.png`         |
+| `grove-bh-source-target-render.png`      | `../grove-map-target-site-crop.png`                               | `../pipeline-experiments/idea-a-map-only.png`                         | `../pipeline-experiments/idea-bh-grove-bg-upper-structure-repair.png`      |
+| `kilteevan-az-source-control-render.png` | `../pipeline-experiments/idea-ar-kilteevan-playable-map-crop.png` | `../pipeline-experiments/idea-at-kilteevan-tight-topdown-cleaned.png` | `../pipeline-experiments/idea-az-kilteevan-ay-low-camera-refine.png`       |
 | `kilteevan-ba-source-control-render.png` | `../pipeline-experiments/idea-ar-kilteevan-playable-map-crop.png` | `../pipeline-experiments/idea-at-kilteevan-tight-topdown-cleaned.png` | `../pipeline-experiments/idea-ba-kilteevan-fresh-map-control-notebook.png` |
 
 `latest-map-accuracy-contact-sheet.png` contains all four rows in one image.

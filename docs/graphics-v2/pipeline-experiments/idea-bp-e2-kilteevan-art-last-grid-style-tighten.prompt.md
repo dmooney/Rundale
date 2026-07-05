@@ -15,6 +15,7 @@ Image 7: cleaned field/wall material crop. Soft field/hedge/wall material refere
 Image 8: cleaned roof/wall material crop. Surface texture reference only.
 
 Local paths:
+
 - /Users/dmooney/.codex/worktrees/a718/Rundale/docs/graphics-v2/pipeline-experiments/idea-bp-e1-kilteevan-art-last-grid-locked.png
 - /Users/dmooney/.codex/worktrees/a718/Rundale/docs/graphics-v2/pipeline-experiments/idea-bp-e1-hard-isomorphic-grid-check.png
 - /Users/dmooney/.codex/worktrees/a718/Rundale/docs/graphics-v2/pipeline-experiments/idea-bp-hard-isomorphic-grid-reference.png
@@ -26,6 +27,7 @@ Local paths:
 
 Style correction:
 BP E1 is still too sepia, too even, and too diagrammatic. Move it toward the original notebook:
+
 - more varied green/gray/brown watercolor washes,
 - warmer parchment paper showing through,
 - looser hand-inked outlines,
@@ -37,6 +39,7 @@ BP E1 is still too sepia, too even, and too diagrammatic. Move it toward the ori
 
 Hard isomorphic check:
 Do not sacrifice projection. The final image must still pass the low oblique orthographic/isomorphic grid:
+
 - no fisheye, no barrel distortion, no bowed roads, no curved garden rows,
 - no vanishing point, no convergence, no horizon, no sky,
 - roof ridges, wall edges, road edges, and garden rows remain in shallow parallel-projection families,
@@ -44,6 +47,7 @@ Do not sacrifice projection. The final image must still pass the low oblique ort
 
 Topology/content invariants:
 Do not move, resize, add, remove, merge, or recompose:
+
 - the main lower building,
 - the foreground sheds/outbuildings,
 - the upper building group,

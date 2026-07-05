@@ -7,6 +7,7 @@ Edit taxonomy: precise-object-edit
 Asset type: bounded precise-object edit of a 16:9 illustrated isomorphic game background plate
 
 Input images and roles:
+
 - Image 1: full edit target, Cycle AP2 Kilteevan AO roof-stub cleanup retry plate. Edit this full plate only; keep the same 1672 x 941 crop, composition, camera, north-up ground plan, and illustrated notebook style.
 - Image 2: zoom/reference crop of the upper-compound slate-roof building. Use it only to identify the tiny remaining dark ridge/edge mark on the larger slate-roof house that could read as a chimney, roof nub, vent, cap, or stack.
 

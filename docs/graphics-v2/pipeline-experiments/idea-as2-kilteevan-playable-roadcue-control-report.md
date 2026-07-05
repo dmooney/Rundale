@@ -11,6 +11,7 @@ to produce control images for clean-context image-generation experiments
 without hand-authored per-location interpretation.
 
 Outputs:
+
 - `idea-as2-kilteevan-playable-roadcue-ink-mask.png`
 - `idea-as2-kilteevan-playable-roadcue-semantic-mask.png`
 - `idea-as2-kilteevan-playable-roadcue-oblique-raw-warp.png`

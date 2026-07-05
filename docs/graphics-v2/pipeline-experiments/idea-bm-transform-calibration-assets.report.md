@@ -3,15 +3,18 @@
 Purpose: deterministic camera/crop/source-resolution controls for the isomorphic-transform experiment matrix.
 
 Crop centers:
+
 - Kilteevan center: (0.5, 0.54)
 - Beechwood center: (0.51, 0.49)
 - Grove center: (0.5, 0.55)
 
 Pitch cues:
+
 - Baseline y-squash: 0.58
 - Lower-camera candidates: 0.48 and 0.40
 
 Kilteevan z18 tile fetch:
+
 - MISSING 125171/84621: HTTPError
 - MISSING 125172/84621: HTTPError
 - MISSING 125173/84621: HTTPError
@@ -23,6 +26,7 @@ Kilteevan z18 tile fetch:
 - MISSING 125173/84623: HTTPError
 
 Generated outputs:
+
 - `idea-bm-kilteevan-playable-70-map-crop.png`
 - `idea-bm-kilteevan-playable-70-no-admin-crop.png`
 - `idea-bm-kilteevan-topdown-70-control.png`

@@ -18,6 +18,7 @@ Image 7: fixed thatched single-house reference. Style/material only: rough thatc
 Image 8: tree/field watercolor reference. Style/material only: soft open fields, uneven grass, hedges, scrub, field texture, watercolor vegetation.
 
 Local paths for the input images:
+
 - /Users/dmooney/.codex/worktrees/a718/Rundale/docs/graphics-v2/pipeline-experiments/idea-bm-kilteevan-topdown-55-control-1672.png
 - /Users/dmooney/.codex/worktrees/a718/Rundale/docs/graphics-v2/pipeline-experiments/idea-bm-kilteevan-playable-55-map-crop.png
 - /Users/dmooney/.codex/worktrees/a718/Rundale/docs/graphics-v2/pipeline-experiments/idea-bm-kilteevan-playable-55-no-admin-crop.png

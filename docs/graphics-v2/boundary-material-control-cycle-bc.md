@@ -55,14 +55,14 @@ No hand-authored location-specific notes were used.
 
 ## Outputs
 
-| Artifact | Path |
-| --- | --- |
-| Control report | `pipeline-experiments/idea-bc-kilteevan-boundary-material-control-report.md` |
+| Artifact                  | Path                                                                                     |
+| ------------------------- | ---------------------------------------------------------------------------------------- |
+| Control report            | `pipeline-experiments/idea-bc-kilteevan-boundary-material-control-report.md`             |
 | Boundary-material control | `pipeline-experiments/idea-bc-kilteevan-boundary-material-boundary-material-control.png` |
 | Boundary-material oblique | `pipeline-experiments/idea-bc-kilteevan-boundary-material-boundary-material-oblique.png` |
-| Fresh render | `pipeline-experiments/idea-bc-kilteevan-boundary-material-fresh-notebook.png` |
-| Fresh prompt | `pipeline-experiments/idea-bc-kilteevan-boundary-material-fresh-notebook.prompt.md` |
-| Fresh report | `pipeline-experiments/idea-bc-kilteevan-boundary-material-fresh-notebook.report.md` |
+| Fresh render              | `pipeline-experiments/idea-bc-kilteevan-boundary-material-fresh-notebook.png`            |
+| Fresh prompt              | `pipeline-experiments/idea-bc-kilteevan-boundary-material-fresh-notebook.prompt.md`      |
+| Fresh report              | `pipeline-experiments/idea-bc-kilteevan-boundary-material-fresh-notebook.report.md`      |
 
 ## Result
 

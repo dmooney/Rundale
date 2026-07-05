@@ -30,11 +30,11 @@ fragments.
 
 ## Outputs
 
-| Cycle | Output | Prompt | Report | Result |
-| --- | --- | --- | --- | --- |
-| V | `pipeline-experiments/idea-v-beechwood-tight-control-thatched-render.png` | `pipeline-experiments/idea-v-beechwood-tight-control-thatched-render.prompt.md` | `pipeline-experiments/idea-v-beechwood-tight-control-thatched-render.report.md` | Structure pass, style/camera partial |
-| W | `pipeline-experiments/idea-w-beechwood-v-structure-lower-notebook-refine.png` | `pipeline-experiments/idea-w-beechwood-v-structure-lower-notebook-refine.prompt.md` | `pipeline-experiments/idea-w-beechwood-v-structure-lower-notebook-refine.report.md` | Topology + doorway pass, still elevated |
-| X | `pipeline-experiments/idea-x-beechwood-compound-focused-low-camera.png` | `pipeline-experiments/idea-x-beechwood-compound-focused-low-camera.prompt.md` | `pipeline-experiments/idea-x-beechwood-compound-focused-low-camera.report.md` | Best Beechwood notebook-scale pass so far |
+| Cycle | Output                                                                        | Prompt                                                                              | Report                                                                              | Result                                    |
+| ----- | ----------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- | ----------------------------------------- |
+| V     | `pipeline-experiments/idea-v-beechwood-tight-control-thatched-render.png`     | `pipeline-experiments/idea-v-beechwood-tight-control-thatched-render.prompt.md`     | `pipeline-experiments/idea-v-beechwood-tight-control-thatched-render.report.md`     | Structure pass, style/camera partial      |
+| W     | `pipeline-experiments/idea-w-beechwood-v-structure-lower-notebook-refine.png` | `pipeline-experiments/idea-w-beechwood-v-structure-lower-notebook-refine.prompt.md` | `pipeline-experiments/idea-w-beechwood-v-structure-lower-notebook-refine.report.md` | Topology + doorway pass, still elevated   |
+| X     | `pipeline-experiments/idea-x-beechwood-compound-focused-low-camera.png`       | `pipeline-experiments/idea-x-beechwood-compound-focused-low-camera.prompt.md`       | `pipeline-experiments/idea-x-beechwood-compound-focused-low-camera.report.md`       | Best Beechwood notebook-scale pass so far |
 
 Control artifacts added for Cycle X:
 

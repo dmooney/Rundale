@@ -25,9 +25,9 @@ landmarks.
 
 ## Outputs
 
-| Site | Output | Prompt | Report | Result |
-| --- | --- | --- | --- | --- |
-| Grove | `pipeline-experiments/idea-p-grove-lower-angle-notebook-style.png` | `pipeline-experiments/idea-p-grove-lower-angle-notebook-style.prompt.md` | `pipeline-experiments/idea-p-grove-lower-angle-notebook-style.report.md` | Best camera/style pass so far |
+| Site      | Output                                                                 | Prompt                                                                       | Report                                                                       | Result                                  |
+| --------- | ---------------------------------------------------------------------- | ---------------------------------------------------------------------------- | ---------------------------------------------------------------------------- | --------------------------------------- |
+| Grove     | `pipeline-experiments/idea-p-grove-lower-angle-notebook-style.png`     | `pipeline-experiments/idea-p-grove-lower-angle-notebook-style.prompt.md`     | `pipeline-experiments/idea-p-grove-lower-angle-notebook-style.report.md`     | Best camera/style pass so far           |
 | Beechwood | `pipeline-experiments/idea-p-beechwood-lower-angle-notebook-style.png` | `pipeline-experiments/idea-p-beechwood-lower-angle-notebook-style.prompt.md` | `pipeline-experiments/idea-p-beechwood-lower-angle-notebook-style.report.md` | Generalizes to second crop with caveats |
 
 Both returned `1672 x 941` PNGs. This is near 16:9, but still not mathematically

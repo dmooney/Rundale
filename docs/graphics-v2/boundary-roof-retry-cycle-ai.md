@@ -10,10 +10,10 @@ AI tests whether prompt/reference changes alone can fix those failures.
 
 ## Variants
 
-| Variant | Output | Prompt | Report | Reference stack | Result |
-| --- | --- | --- | --- | --- | --- |
-| AI-A | `pipeline-experiments/idea-ai-a-kilteevan-boundary-roof-direct.png` | `pipeline-experiments/idea-ai-a-kilteevan-boundary-roof-direct.prompt.md` | `pipeline-experiments/idea-ai-a-kilteevan-boundary-roof-direct.report.md` | Full notebook scene plus cleaned style crops | Roof pass, boundary fail |
-| AI-B | `pipeline-experiments/idea-ai-b-kilteevan-cleanrefs-only-direct.png` | `pipeline-experiments/idea-ai-b-kilteevan-cleanrefs-only-direct.prompt.md` | `pipeline-experiments/idea-ai-b-kilteevan-cleanrefs-only-direct.report.md` | Cleaned style crops only, no full-scene style reference | Roof/door pass, boundary fail |
+| Variant | Output                                                               | Prompt                                                                     | Report                                                                     | Reference stack                                         | Result                        |
+| ------- | -------------------------------------------------------------------- | -------------------------------------------------------------------------- | -------------------------------------------------------------------------- | ------------------------------------------------------- | ----------------------------- |
+| AI-A    | `pipeline-experiments/idea-ai-a-kilteevan-boundary-roof-direct.png`  | `pipeline-experiments/idea-ai-a-kilteevan-boundary-roof-direct.prompt.md`  | `pipeline-experiments/idea-ai-a-kilteevan-boundary-roof-direct.report.md`  | Full notebook scene plus cleaned style crops            | Roof pass, boundary fail      |
+| AI-B    | `pipeline-experiments/idea-ai-b-kilteevan-cleanrefs-only-direct.png` | `pipeline-experiments/idea-ai-b-kilteevan-cleanrefs-only-direct.prompt.md` | `pipeline-experiments/idea-ai-b-kilteevan-cleanrefs-only-direct.report.md` | Cleaned style crops only, no full-scene style reference | Roof/door pass, boundary fail |
 
 ## What Improved
 

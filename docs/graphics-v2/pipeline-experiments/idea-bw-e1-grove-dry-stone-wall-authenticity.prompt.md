@@ -8,6 +8,7 @@ and BU-style finish, but corrects the stone walls so they look like authentic
 historic Irish dry-stone field walls instead of uniform rectangular blockwork.
 
 Input images and roles:
+
 - Image 1 / edit target: BV E2 Grove render. Preserve its Grove-specific
   separate-building yard topology, camera, scale, roads, garden block, gates,
   fitted doors, no-UI format, and overall warm worn watercolor style.
@@ -26,6 +27,7 @@ locations, approximate height, gates, openings, and walkable route clearances.
 Do not add new walls and do not remove source-supported boundaries.
 
 Irish dry-stone wall authenticity:
+
 - Walls are mortarless, dry fit, and hand-built.
 - Stones are locally gathered and placed as found, with mixed sizes, mixed
   shapes, varied angles, wedges, slabs, rounded stones, angular stones, and
@@ -39,6 +41,7 @@ Irish dry-stone wall authenticity:
   wall ends should be rough piled fieldstone, not cut masonry piers.
 
 Hard negatives:
+
 - No uniform rectangular stone blocks.
 - No brick-like courses.
 - No castle/estate ashlar masonry.
@@ -49,6 +52,7 @@ Hard negatives:
 - No continuous fortress walls around every garden line.
 
 Preservation constraints:
+
 - Preserve Grove's separate buildings. Do not merge them into Beechwood's
   connected compound.
 - Preserve the lower long building range, left/west small building, central

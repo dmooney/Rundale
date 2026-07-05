@@ -19,6 +19,7 @@ import argparse
 import math
 import sys
 from collections import defaultdict
+from itertools import pairwise
 from pathlib import Path
 
 SCRIPT_DIR = Path(__file__).resolve().parent
@@ -102,7 +103,7 @@ def detect_chain_members(
         span = ts[-1] - ts[0]
         if span < min_span:
             continue
-        gaps = [b - a for a, b in zip(ts, ts[1:]) if b - a > 1.0]
+        gaps = [b - a for a, b in pairwise(ts) if b - a > 1.0]
         if not gaps:
             continue
         median_gap = sorted(gaps)[len(gaps) // 2]
@@ -260,7 +261,9 @@ def main() -> None:
         min_span=args.min_chain_span,
         max_median_gap=args.max_median_gap,
     )
-    suppress_mask = dilate_component_mask(width, height, candidates, marked_ids, dilation=args.dilation)
+    suppress_mask = dilate_component_mask(
+        width, height, candidates, marked_ids, dilation=args.dilation
+    )
     suppress_mask = add_chain_corridors(
         width,
         height,

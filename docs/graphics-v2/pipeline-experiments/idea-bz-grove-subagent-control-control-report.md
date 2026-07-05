@@ -17,6 +17,7 @@ to produce control images for clean-context image-generation experiments
 without hand-authored per-location interpretation.
 
 Outputs:
+
 - `idea-bz-grove-subagent-control-ink-mask.png`
 - `idea-bz-grove-subagent-control-semantic-mask.png`
 - `idea-bz-grove-subagent-control-literal-paint-control.png`

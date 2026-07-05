@@ -16,11 +16,11 @@ prompt directions:
 
 ## Outputs
 
-| ID | Image | Prompt | Report | Result |
-| --- | --- | --- | --- | --- |
-| E1 | `pipeline-experiments/idea-bt-e1-bs-e2-surface-weathering.png` | `pipeline-experiments/idea-bt-e1-bs-e2-surface-weathering.prompt.md` | `pipeline-experiments/idea-bt-e1-bs-e2-surface-weathering.report.md` | Safe but too conservative |
-| E2 | `pipeline-experiments/idea-bt-e2-bs-e2-lived-in-yard-clutter.png` | `pipeline-experiments/idea-bt-e2-bs-e2-lived-in-yard-clutter.prompt.md` | `pipeline-experiments/idea-bt-e2-bs-e2-lived-in-yard-clutter.report.md` | Best single tested realism direction |
-| E3 | `pipeline-experiments/idea-bt-e3-bs-e2-irregular-garden-walls.png` | `pipeline-experiments/idea-bt-e3-bs-e2-irregular-garden-walls.prompt.md` | `pipeline-experiments/idea-bt-e3-bs-e2-irregular-garden-walls.report.md` | Best regularity fix, but too dark/heavy |
+| ID  | Image                                                              | Prompt                                                                   | Report                                                                   | Result                                  |
+| --- | ------------------------------------------------------------------ | ------------------------------------------------------------------------ | ------------------------------------------------------------------------ | --------------------------------------- |
+| E1  | `pipeline-experiments/idea-bt-e1-bs-e2-surface-weathering.png`     | `pipeline-experiments/idea-bt-e1-bs-e2-surface-weathering.prompt.md`     | `pipeline-experiments/idea-bt-e1-bs-e2-surface-weathering.report.md`     | Safe but too conservative               |
+| E2  | `pipeline-experiments/idea-bt-e2-bs-e2-lived-in-yard-clutter.png`  | `pipeline-experiments/idea-bt-e2-bs-e2-lived-in-yard-clutter.prompt.md`  | `pipeline-experiments/idea-bt-e2-bs-e2-lived-in-yard-clutter.report.md`  | Best single tested realism direction    |
+| E3  | `pipeline-experiments/idea-bt-e3-bs-e2-irregular-garden-walls.png` | `pipeline-experiments/idea-bt-e3-bs-e2-irregular-garden-walls.prompt.md` | `pipeline-experiments/idea-bt-e3-bs-e2-irregular-garden-walls.report.md` | Best regularity fix, but too dark/heavy |
 
 Comparison plate:
 

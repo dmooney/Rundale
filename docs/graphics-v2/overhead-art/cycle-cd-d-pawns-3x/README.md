@@ -12,10 +12,10 @@ and `3x map-scale token mockup`.
 
 ## Outputs
 
-| File | Notes |
-| --- | --- |
+| File                                | Notes                                                                                                                                                                       |
+| ----------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `idea-cd-a-d-pawns-rich-3x-map.png` | Richer D-style pawns with strong charm and readable clothing silhouettes. Better art-direction reference, but buildings become more architectural and less map-symbol flat. |
-| `idea-cd-b-d-pawns-flat-map-3x.png` | Flatter, cleaner 3x map surface with D-like readable pawns. Better gameplay-base candidate because roof footprints, roads, and gardens stay more map-like. |
+| `idea-cd-b-d-pawns-flat-map-3x.png` | Flatter, cleaner 3x map surface with D-like readable pawns. Better gameplay-base candidate because roof footprints, roads, and gardens stay more map-like.                  |
 
 ## Quick Read
 

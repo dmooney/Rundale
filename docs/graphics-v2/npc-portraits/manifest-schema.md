@@ -10,9 +10,7 @@ Use a separate manifest during the experiment phase. Do not edit
   "generatedAt": "2026-07-03T00:00:00Z",
   "source": {
     "npcFile": "mods/rundale/npcs.json",
-    "styleReferences": [
-      "docs/graphics-v2/illustrated-parish-notebook.png"
-    ]
+    "styleReferences": ["docs/graphics-v2/illustrated-parish-notebook.png"]
   },
   "portraits": [
     {

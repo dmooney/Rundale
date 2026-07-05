@@ -11,6 +11,7 @@ to produce control images for clean-context image-generation experiments
 without hand-authored per-location interpretation.
 
 Outputs:
+
 - `idea-q-grove-m-control-low-angle-ink-mask.png`
 - `idea-q-grove-m-control-low-angle-semantic-mask.png`
 - `idea-q-grove-m-control-low-angle-oblique-raw-warp.png`

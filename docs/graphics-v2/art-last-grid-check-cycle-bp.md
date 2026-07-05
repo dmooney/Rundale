@@ -38,10 +38,10 @@ plates. It is an ordering experiment.
 
 ## Outputs
 
-| ID | Image | Prompt | Report | Result |
-| --- | --- | --- | --- | --- |
-| E1 | `pipeline-experiments/idea-bp-e1-kilteevan-art-last-grid-locked.png` | `pipeline-experiments/idea-bp-e1-kilteevan-art-last-grid-locked.prompt.md` | `pipeline-experiments/idea-bp-e1-kilteevan-art-last-grid-locked.report.md` | Strong geometry/order proof; still too sepia and diagrammatic |
-| E2 | `pipeline-experiments/idea-bp-e2-kilteevan-art-last-grid-style-tighten.png` | `pipeline-experiments/idea-bp-e2-kilteevan-art-last-grid-style-tighten.prompt.md` | `pipeline-experiments/idea-bp-e2-kilteevan-art-last-grid-style-tighten.report.md` | Preferred BP visual target; stronger notebook wash while grid check still passes |
+| ID  | Image                                                                       | Prompt                                                                            | Report                                                                            | Result                                                                           |
+| --- | --------------------------------------------------------------------------- | --------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| E1  | `pipeline-experiments/idea-bp-e1-kilteevan-art-last-grid-locked.png`        | `pipeline-experiments/idea-bp-e1-kilteevan-art-last-grid-locked.prompt.md`        | `pipeline-experiments/idea-bp-e1-kilteevan-art-last-grid-locked.report.md`        | Strong geometry/order proof; still too sepia and diagrammatic                    |
+| E2  | `pipeline-experiments/idea-bp-e2-kilteevan-art-last-grid-style-tighten.png` | `pipeline-experiments/idea-bp-e2-kilteevan-art-last-grid-style-tighten.prompt.md` | `pipeline-experiments/idea-bp-e2-kilteevan-art-last-grid-style-tighten.report.md` | Preferred BP visual target; stronger notebook wash while grid check still passes |
 
 Comparison plate:
 

@@ -10,12 +10,14 @@ Image 2: BS E1/E2 concept-art comparison. Diagnosis/reference only: BS E2 is too
 Image 3: original illustrated parish notebook. Art realism target only: use its muddy roads, stained limewash, uneven vegetation, rough ink, paper tooth, scumbled shadows, and small surface irregularities. Do not copy UI, people, labels, church, shop sign, bridge, river, animals, smoke, or named content.
 
 Local paths:
+
 - /Users/dmooney/.codex/worktrees/a718/Rundale/docs/graphics-v2/pipeline-experiments/idea-bs-e2-beechwood-door-height-20pct-zoomout.png
 - /Users/dmooney/.codex/worktrees/a718/Rundale/docs/graphics-v2/cartographic-comparisons/bs-e1-e2-concept-art-comparison.png
 - /Users/dmooney/.codex/worktrees/a718/Rundale/docs/graphics-v2/illustrated-parish-notebook.png
 
 Experiment focus:
 Surface weathering only. Do not add new props or new structures. Make existing surfaces less clean:
+
 - muddy ruts and puddle stains in the road,
 - scuffed thresholds and damp dirt around doors,
 - soot-free but rain-stained limewash,
@@ -25,6 +27,7 @@ Surface weathering only. Do not add new props or new structures. Make existing s
 - broken ink edges, watercolor blooms, paper grain, and local value variation.
 
 Critical invariants:
+
 - Keep BS E2's 20% zoomed-out frame.
 - Keep the connected Beechwood compound topology.
 - Keep every visible person-sized opening fitted with a readable wooden plank door and a threshold/step.

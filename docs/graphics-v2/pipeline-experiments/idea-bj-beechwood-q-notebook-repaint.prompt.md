@@ -1,6 +1,7 @@
 Use case: style-transfer
 Asset type: historical isomorphic game background plate refinement, 16:9 desktop background plate
 Input images:
+
 - Image 1 is the edit target and primary topology/style target: the Beechwood Cycle Q plate. Preserve its ground plan, road positions, compound footprint, garden enclosure, building count, building placement, field boundaries, tree masses, crop, and north-up orientation.
 - Image 2 is the topology authority: the Beechwood Cycle M cleaned top-down control. Use it only to veto topology drift. Do not copy its high top-down camera or clean board-game finish.
 - Image 3 is the original illustrated parish notebook sample. Use it only for art direction: loose ink, watercolor density, low 3/4 orthographic camera feel, rough stone, muddy roads, varied vegetation, paper grain, and readable facades. Do not copy its UI, people, church, graveyard, river, bridge, signs, shop, labels, carts, animals, smoke, or whole-scene layout.
@@ -15,6 +16,7 @@ Keep north up. Keep the ground plan unrotated. Use a low 3/4 orthographic/isomor
 
 Topology preservation:
 Preserve the exact Beechwood layout from Image 1, checked against Image 2:
+
 - The diagonal road remains in the same position and exits the frame in the same places.
 - The connected L/U-shaped compound remains connected, with the same courtyard relationship to the road and garden.
 - The lower/foreground building group remains where it is, with the same relationship to the road and small enclosure.
@@ -25,6 +27,7 @@ Preserve the exact Beechwood layout from Image 1, checked against Image 2:
 
 Style target:
 Move away from the clean regular board-game look of Image 1. Move toward Image 3's notebook illustration:
+
 - heavier but broken sepia/brown ink outlines,
 - loose watercolor washes with visible paper grain,
 - muddy scumbled roads with stones, ruts, and uneven edges,

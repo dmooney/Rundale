@@ -30,11 +30,11 @@ houses are acceptable.
 
 ## Outputs
 
-| Site | Output | Prompt | Report | Result |
-| --- | --- | --- | --- | --- |
-| Grove T | `pipeline-experiments/idea-t-grove-tight-low-camera-clean-style-crop.png` | `pipeline-experiments/idea-t-grove-tight-low-camera-clean-style-crop.prompt.md` | `pipeline-experiments/idea-t-grove-tight-low-camera-clean-style-crop.report.md` | Strong tight-crop camera/scale pass |
-| Grove U | `pipeline-experiments/idea-u-grove-tight-thatched-door-clean-style.png` | `pipeline-experiments/idea-u-grove-tight-thatched-door-clean-style.prompt.md` | `pipeline-experiments/idea-u-grove-tight-thatched-door-clean-style.report.md` | Best Grove art/material pass so far |
-| Beechwood U | `pipeline-experiments/idea-u-beechwood-tight-thatched-door-clean-style.png` | `pipeline-experiments/idea-u-beechwood-tight-thatched-door-clean-style.prompt.md` | `pipeline-experiments/idea-u-beechwood-tight-thatched-door-clean-style.report.md` | Style/scale pass, topology caveat |
+| Site        | Output                                                                      | Prompt                                                                            | Report                                                                            | Result                              |
+| ----------- | --------------------------------------------------------------------------- | --------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- | ----------------------------------- |
+| Grove T     | `pipeline-experiments/idea-t-grove-tight-low-camera-clean-style-crop.png`   | `pipeline-experiments/idea-t-grove-tight-low-camera-clean-style-crop.prompt.md`   | `pipeline-experiments/idea-t-grove-tight-low-camera-clean-style-crop.report.md`   | Strong tight-crop camera/scale pass |
+| Grove U     | `pipeline-experiments/idea-u-grove-tight-thatched-door-clean-style.png`     | `pipeline-experiments/idea-u-grove-tight-thatched-door-clean-style.prompt.md`     | `pipeline-experiments/idea-u-grove-tight-thatched-door-clean-style.report.md`     | Best Grove art/material pass so far |
+| Beechwood U | `pipeline-experiments/idea-u-beechwood-tight-thatched-door-clean-style.png` | `pipeline-experiments/idea-u-beechwood-tight-thatched-door-clean-style.prompt.md` | `pipeline-experiments/idea-u-beechwood-tight-thatched-door-clean-style.report.md` | Style/scale pass, topology caveat   |
 
 All returned `1672 x 941` PNGs.
 

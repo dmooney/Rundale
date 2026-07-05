@@ -6,6 +6,7 @@ behind npc-arrival-greetings flag (default off)`.
 ## Steps
 
 1. **Gate `apply_arrival_reactions`** (`parish-core/src/game_session.rs:689`).
+
    - Add a flag check at the top: if
      `!config.flags.is_enabled("npc-arrival-greetings")`, return `Vec::new()`
      immediately (before NPC lookup / generation / logging). `ReactionConfig` is
@@ -26,6 +27,7 @@ behind npc-arrival-greetings flag (default off)`.
 
 3. **Tests** (`parish-core/src/game_session.rs` test module — there are already
    `apply_arrival_reactions_*` unit tests):
+
    - Add `arrival_reactions_muted_when_flag_off`: default flags → returns empty,
      `world.text_log` gains no greeting line.
    - Add `arrival_reactions_emitted_when_flag_enabled`: flags with

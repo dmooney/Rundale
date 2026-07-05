@@ -31,10 +31,10 @@ images provide the location evidence.
 
 ## Outputs
 
-| Site | Output | Prompt | Report | Result |
-| --- | --- | --- | --- | --- |
-| Grove | `pipeline-experiments/idea-r-grove-close-crop-notebook-style.png` | `pipeline-experiments/idea-r-grove-close-crop-notebook-style.prompt.md` | `pipeline-experiments/idea-r-grove-close-crop-notebook-style.report.md` | Strong close-crop scale/detail pass |
-| Beechwood | `pipeline-experiments/idea-r-beechwood-close-crop-notebook-style.png` | `pipeline-experiments/idea-r-beechwood-close-crop-notebook-style.prompt.md` | `pipeline-experiments/idea-r-beechwood-close-crop-notebook-style.report.md` | Generalizes the close-crop method |
+| Site      | Output                                                                | Prompt                                                                      | Report                                                                      | Result                              |
+| --------- | --------------------------------------------------------------------- | --------------------------------------------------------------------------- | --------------------------------------------------------------------------- | ----------------------------------- |
+| Grove     | `pipeline-experiments/idea-r-grove-close-crop-notebook-style.png`     | `pipeline-experiments/idea-r-grove-close-crop-notebook-style.prompt.md`     | `pipeline-experiments/idea-r-grove-close-crop-notebook-style.report.md`     | Strong close-crop scale/detail pass |
+| Beechwood | `pipeline-experiments/idea-r-beechwood-close-crop-notebook-style.png` | `pipeline-experiments/idea-r-beechwood-close-crop-notebook-style.prompt.md` | `pipeline-experiments/idea-r-beechwood-close-crop-notebook-style.report.md` | Generalizes the close-crop method   |
 
 Both returned `1672 x 941` PNGs.
 

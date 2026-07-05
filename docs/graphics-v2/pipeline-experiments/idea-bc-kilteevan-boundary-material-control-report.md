@@ -14,6 +14,7 @@ to produce control images for clean-context image-generation experiments
 without hand-authored per-location interpretation.
 
 Outputs:
+
 - `idea-bc-kilteevan-boundary-material-ink-mask.png`
 - `idea-bc-kilteevan-boundary-material-semantic-mask.png`
 - `idea-bc-kilteevan-boundary-material-literal-paint-control.png`

@@ -15,6 +15,7 @@ Image 7: fixed thatched single-house reference. Style/material only.
 Image 8: tree/field watercolor reference. Style/material only.
 
 Local paths:
+
 - /Users/dmooney/.codex/worktrees/a718/Rundale/docs/graphics-v2/pipeline-experiments/idea-bh-grove-bg-upper-structure-repair.png
 - /Users/dmooney/.codex/worktrees/a718/Rundale/docs/graphics-v2/pipeline-experiments/idea-bm-grove-55-map-crop.png
 - /Users/dmooney/.codex/worktrees/a718/Rundale/docs/graphics-v2/pipeline-experiments/idea-bm-grove-topology-55-target.png

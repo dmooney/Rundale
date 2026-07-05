@@ -13,10 +13,10 @@ paired outputs without losing the topology wins that made X/Y useful.
 
 ## Outputs
 
-| Site | Output | Prompt | Report | Result |
-| --- | --- | --- | --- | --- |
-| Beechwood Z | `pipeline-experiments/idea-z-beechwood-x-door-roughness-refine.png` | `pipeline-experiments/idea-z-beechwood-x-door-roughness-refine.prompt.md` | `pipeline-experiments/idea-z-beechwood-x-door-roughness-refine.report.md` | Conservative repair pass |
-| Grove Z | `pipeline-experiments/idea-z-grove-y-lower-camera-refine.png` | `pipeline-experiments/idea-z-grove-y-lower-camera-refine.prompt.md` | `pipeline-experiments/idea-z-grove-y-lower-camera-refine.report.md` | Conservative camera/style pass |
+| Site        | Output                                                              | Prompt                                                                    | Report                                                                    | Result                         |
+| ----------- | ------------------------------------------------------------------- | ------------------------------------------------------------------------- | ------------------------------------------------------------------------- | ------------------------------ |
+| Beechwood Z | `pipeline-experiments/idea-z-beechwood-x-door-roughness-refine.png` | `pipeline-experiments/idea-z-beechwood-x-door-roughness-refine.prompt.md` | `pipeline-experiments/idea-z-beechwood-x-door-roughness-refine.report.md` | Conservative repair pass       |
+| Grove Z     | `pipeline-experiments/idea-z-grove-y-lower-camera-refine.png`       | `pipeline-experiments/idea-z-grove-y-lower-camera-refine.prompt.md`       | `pipeline-experiments/idea-z-grove-y-lower-camera-refine.report.md`       | Conservative camera/style pass |
 
 ## Audit Questions
 

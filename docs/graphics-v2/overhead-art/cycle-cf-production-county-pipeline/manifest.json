@@ -53,12 +53,7 @@
         "y": 42304,
         "source_ref": "z17-x62589-y42304",
         "parent_artifact": "county-base-supertile.png",
-        "pixel_box_in_parent": [
-          0,
-          0,
-          256,
-          256
-        ],
+        "pixel_box_in_parent": [0, 0, 256, 256],
         "path": "runtime-tiles/17/62589/42304.png"
       },
       {
@@ -68,12 +63,7 @@
         "y": 42304,
         "source_ref": "z17-x62590-y42304",
         "parent_artifact": "county-base-supertile.png",
-        "pixel_box_in_parent": [
-          256,
-          0,
-          512,
-          256
-        ],
+        "pixel_box_in_parent": [256, 0, 512, 256],
         "path": "runtime-tiles/17/62590/42304.png"
       },
       {
@@ -83,12 +73,7 @@
         "y": 42304,
         "source_ref": "z17-x62591-y42304",
         "parent_artifact": "county-base-supertile.png",
-        "pixel_box_in_parent": [
-          512,
-          0,
-          768,
-          256
-        ],
+        "pixel_box_in_parent": [512, 0, 768, 256],
         "path": "runtime-tiles/17/62591/42304.png"
       },
       {
@@ -98,12 +83,7 @@
         "y": 42304,
         "source_ref": "z17-x62592-y42304",
         "parent_artifact": "county-base-supertile.png",
-        "pixel_box_in_parent": [
-          768,
-          0,
-          1024,
-          256
-        ],
+        "pixel_box_in_parent": [768, 0, 1024, 256],
         "path": "runtime-tiles/17/62592/42304.png"
       },
       {
@@ -113,12 +93,7 @@
         "y": 42304,
         "source_ref": "z17-x62593-y42304",
         "parent_artifact": "county-base-supertile.png",
-        "pixel_box_in_parent": [
-          1024,
-          0,
-          1280,
-          256
-        ],
+        "pixel_box_in_parent": [1024, 0, 1280, 256],
         "path": "runtime-tiles/17/62593/42304.png"
       },
       {
@@ -128,12 +103,7 @@
         "y": 42304,
         "source_ref": "z17-x62594-y42304",
         "parent_artifact": "county-base-supertile.png",
-        "pixel_box_in_parent": [
-          1280,
-          0,
-          1536,
-          256
-        ],
+        "pixel_box_in_parent": [1280, 0, 1536, 256],
         "path": "runtime-tiles/17/62594/42304.png"
       },
       {
@@ -143,12 +113,7 @@
         "y": 42304,
         "source_ref": "z17-x62595-y42304",
         "parent_artifact": "county-base-supertile.png",
-        "pixel_box_in_parent": [
-          1536,
-          0,
-          1792,
-          256
-        ],
+        "pixel_box_in_parent": [1536, 0, 1792, 256],
         "path": "runtime-tiles/17/62595/42304.png"
       },
       {
@@ -158,12 +123,7 @@
         "y": 42304,
         "source_ref": "z17-x62596-y42304",
         "parent_artifact": "county-base-supertile.png",
-        "pixel_box_in_parent": [
-          1792,
-          0,
-          2048,
-          256
-        ],
+        "pixel_box_in_parent": [1792, 0, 2048, 256],
         "path": "runtime-tiles/17/62596/42304.png"
       },
       {
@@ -173,12 +133,7 @@
         "y": 42304,
         "source_ref": "z17-x62597-y42304",
         "parent_artifact": "county-base-supertile.png",
-        "pixel_box_in_parent": [
-          2048,
-          0,
-          2304,
-          256
-        ],
+        "pixel_box_in_parent": [2048, 0, 2304, 256],
         "path": "runtime-tiles/17/62597/42304.png"
       },
       {
@@ -188,12 +143,7 @@
         "y": 42304,
         "source_ref": "z17-x62598-y42304",
         "parent_artifact": "county-base-supertile.png",
-        "pixel_box_in_parent": [
-          2304,
-          0,
-          2560,
-          256
-        ],
+        "pixel_box_in_parent": [2304, 0, 2560, 256],
         "path": "runtime-tiles/17/62598/42304.png"
       },
       {
@@ -203,12 +153,7 @@
         "y": 42305,
         "source_ref": "z17-x62589-y42305",
         "parent_artifact": "county-base-supertile.png",
-        "pixel_box_in_parent": [
-          0,
-          256,
-          256,
-          512
-        ],
+        "pixel_box_in_parent": [0, 256, 256, 512],
         "path": "runtime-tiles/17/62589/42305.png"
       },
       {
@@ -218,12 +163,7 @@
         "y": 42305,
         "source_ref": "z17-x62590-y42305",
         "parent_artifact": "county-base-supertile.png",
-        "pixel_box_in_parent": [
-          256,
-          256,
-          512,
-          512
-        ],
+        "pixel_box_in_parent": [256, 256, 512, 512],
         "path": "runtime-tiles/17/62590/42305.png"
       },
       {
@@ -233,12 +173,7 @@
         "y": 42305,
         "source_ref": "z17-x62591-y42305",
         "parent_artifact": "county-base-supertile.png",
-        "pixel_box_in_parent": [
-          512,
-          256,
-          768,
-          512
-        ],
+        "pixel_box_in_parent": [512, 256, 768, 512],
         "path": "runtime-tiles/17/62591/42305.png"
       },
       {
@@ -248,12 +183,7 @@
         "y": 42305,
         "source_ref": "z17-x62592-y42305",
         "parent_artifact": "county-base-supertile.png",
-        "pixel_box_in_parent": [
-          768,
-          256,
-          1024,
-          512
-        ],
+        "pixel_box_in_parent": [768, 256, 1024, 512],
         "path": "runtime-tiles/17/62592/42305.png"
       },
       {
@@ -263,12 +193,7 @@
         "y": 42305,
         "source_ref": "z17-x62593-y42305",
         "parent_artifact": "county-base-supertile.png",
-        "pixel_box_in_parent": [
-          1024,
-          256,
-          1280,
-          512
-        ],
+        "pixel_box_in_parent": [1024, 256, 1280, 512],
         "path": "runtime-tiles/17/62593/42305.png"
       },
       {
@@ -278,12 +203,7 @@
         "y": 42305,
         "source_ref": "z17-x62594-y42305",
         "parent_artifact": "county-base-supertile.png",
-        "pixel_box_in_parent": [
-          1280,
-          256,
-          1536,
-          512
-        ],
+        "pixel_box_in_parent": [1280, 256, 1536, 512],
         "path": "runtime-tiles/17/62594/42305.png"
       },
       {
@@ -293,12 +213,7 @@
         "y": 42305,
         "source_ref": "z17-x62595-y42305",
         "parent_artifact": "county-base-supertile.png",
-        "pixel_box_in_parent": [
-          1536,
-          256,
-          1792,
-          512
-        ],
+        "pixel_box_in_parent": [1536, 256, 1792, 512],
         "path": "runtime-tiles/17/62595/42305.png"
       },
       {
@@ -308,12 +223,7 @@
         "y": 42305,
         "source_ref": "z17-x62596-y42305",
         "parent_artifact": "county-base-supertile.png",
-        "pixel_box_in_parent": [
-          1792,
-          256,
-          2048,
-          512
-        ],
+        "pixel_box_in_parent": [1792, 256, 2048, 512],
         "path": "runtime-tiles/17/62596/42305.png"
       },
       {
@@ -323,12 +233,7 @@
         "y": 42305,
         "source_ref": "z17-x62597-y42305",
         "parent_artifact": "county-base-supertile.png",
-        "pixel_box_in_parent": [
-          2048,
-          256,
-          2304,
-          512
-        ],
+        "pixel_box_in_parent": [2048, 256, 2304, 512],
         "path": "runtime-tiles/17/62597/42305.png"
       },
       {
@@ -338,12 +243,7 @@
         "y": 42305,
         "source_ref": "z17-x62598-y42305",
         "parent_artifact": "county-base-supertile.png",
-        "pixel_box_in_parent": [
-          2304,
-          256,
-          2560,
-          512
-        ],
+        "pixel_box_in_parent": [2304, 256, 2560, 512],
         "path": "runtime-tiles/17/62598/42305.png"
       },
       {
@@ -353,12 +253,7 @@
         "y": 42306,
         "source_ref": "z17-x62589-y42306",
         "parent_artifact": "county-base-supertile.png",
-        "pixel_box_in_parent": [
-          0,
-          512,
-          256,
-          768
-        ],
+        "pixel_box_in_parent": [0, 512, 256, 768],
         "path": "runtime-tiles/17/62589/42306.png"
       },
       {
@@ -368,12 +263,7 @@
         "y": 42306,
         "source_ref": "z17-x62590-y42306",
         "parent_artifact": "county-base-supertile.png",
-        "pixel_box_in_parent": [
-          256,
-          512,
-          512,
-          768
-        ],
+        "pixel_box_in_parent": [256, 512, 512, 768],
         "path": "runtime-tiles/17/62590/42306.png"
       },
       {
@@ -383,12 +273,7 @@
         "y": 42306,
         "source_ref": "z17-x62591-y42306",
         "parent_artifact": "county-base-supertile.png",
-        "pixel_box_in_parent": [
-          512,
-          512,
-          768,
-          768
-        ],
+        "pixel_box_in_parent": [512, 512, 768, 768],
         "path": "runtime-tiles/17/62591/42306.png"
       },
       {
@@ -398,12 +283,7 @@
         "y": 42306,
         "source_ref": "z17-x62592-y42306",
         "parent_artifact": "county-base-supertile.png",
-        "pixel_box_in_parent": [
-          768,
-          512,
-          1024,
-          768
-        ],
+        "pixel_box_in_parent": [768, 512, 1024, 768],
         "path": "runtime-tiles/17/62592/42306.png"
       },
       {
@@ -413,12 +293,7 @@
         "y": 42306,
         "source_ref": "z17-x62593-y42306",
         "parent_artifact": "county-base-supertile.png",
-        "pixel_box_in_parent": [
-          1024,
-          512,
-          1280,
-          768
-        ],
+        "pixel_box_in_parent": [1024, 512, 1280, 768],
         "path": "runtime-tiles/17/62593/42306.png"
       },
       {
@@ -428,12 +303,7 @@
         "y": 42306,
         "source_ref": "z17-x62594-y42306",
         "parent_artifact": "county-base-supertile.png",
-        "pixel_box_in_parent": [
-          1280,
-          512,
-          1536,
-          768
-        ],
+        "pixel_box_in_parent": [1280, 512, 1536, 768],
         "path": "runtime-tiles/17/62594/42306.png"
       },
       {
@@ -443,12 +313,7 @@
         "y": 42306,
         "source_ref": "z17-x62595-y42306",
         "parent_artifact": "county-base-supertile.png",
-        "pixel_box_in_parent": [
-          1536,
-          512,
-          1792,
-          768
-        ],
+        "pixel_box_in_parent": [1536, 512, 1792, 768],
         "path": "runtime-tiles/17/62595/42306.png"
       },
       {
@@ -458,12 +323,7 @@
         "y": 42306,
         "source_ref": "z17-x62596-y42306",
         "parent_artifact": "county-base-supertile.png",
-        "pixel_box_in_parent": [
-          1792,
-          512,
-          2048,
-          768
-        ],
+        "pixel_box_in_parent": [1792, 512, 2048, 768],
         "path": "runtime-tiles/17/62596/42306.png"
       },
       {
@@ -473,12 +333,7 @@
         "y": 42306,
         "source_ref": "z17-x62597-y42306",
         "parent_artifact": "county-base-supertile.png",
-        "pixel_box_in_parent": [
-          2048,
-          512,
-          2304,
-          768
-        ],
+        "pixel_box_in_parent": [2048, 512, 2304, 768],
         "path": "runtime-tiles/17/62597/42306.png"
       },
       {
@@ -488,12 +343,7 @@
         "y": 42306,
         "source_ref": "z17-x62598-y42306",
         "parent_artifact": "county-base-supertile.png",
-        "pixel_box_in_parent": [
-          2304,
-          512,
-          2560,
-          768
-        ],
+        "pixel_box_in_parent": [2304, 512, 2560, 768],
         "path": "runtime-tiles/17/62598/42306.png"
       },
       {
@@ -503,12 +353,7 @@
         "y": 42307,
         "source_ref": "z17-x62589-y42307",
         "parent_artifact": "county-base-supertile.png",
-        "pixel_box_in_parent": [
-          0,
-          768,
-          256,
-          1024
-        ],
+        "pixel_box_in_parent": [0, 768, 256, 1024],
         "path": "runtime-tiles/17/62589/42307.png"
       },
       {
@@ -518,12 +363,7 @@
         "y": 42307,
         "source_ref": "z17-x62590-y42307",
         "parent_artifact": "county-base-supertile.png",
-        "pixel_box_in_parent": [
-          256,
-          768,
-          512,
-          1024
-        ],
+        "pixel_box_in_parent": [256, 768, 512, 1024],
         "path": "runtime-tiles/17/62590/42307.png"
       },
       {
@@ -533,12 +373,7 @@
         "y": 42307,
         "source_ref": "z17-x62591-y42307",
         "parent_artifact": "county-base-supertile.png",
-        "pixel_box_in_parent": [
-          512,
-          768,
-          768,
-          1024
-        ],
+        "pixel_box_in_parent": [512, 768, 768, 1024],
         "path": "runtime-tiles/17/62591/42307.png"
       },
       {
@@ -548,12 +383,7 @@
         "y": 42307,
         "source_ref": "z17-x62592-y42307",
         "parent_artifact": "county-base-supertile.png",
-        "pixel_box_in_parent": [
-          768,
-          768,
-          1024,
-          1024
-        ],
+        "pixel_box_in_parent": [768, 768, 1024, 1024],
         "path": "runtime-tiles/17/62592/42307.png"
       },
       {
@@ -563,12 +393,7 @@
         "y": 42307,
         "source_ref": "z17-x62593-y42307",
         "parent_artifact": "county-base-supertile.png",
-        "pixel_box_in_parent": [
-          1024,
-          768,
-          1280,
-          1024
-        ],
+        "pixel_box_in_parent": [1024, 768, 1280, 1024],
         "path": "runtime-tiles/17/62593/42307.png"
       },
       {
@@ -578,12 +403,7 @@
         "y": 42307,
         "source_ref": "z17-x62594-y42307",
         "parent_artifact": "county-base-supertile.png",
-        "pixel_box_in_parent": [
-          1280,
-          768,
-          1536,
-          1024
-        ],
+        "pixel_box_in_parent": [1280, 768, 1536, 1024],
         "path": "runtime-tiles/17/62594/42307.png"
       },
       {
@@ -593,12 +413,7 @@
         "y": 42307,
         "source_ref": "z17-x62595-y42307",
         "parent_artifact": "county-base-supertile.png",
-        "pixel_box_in_parent": [
-          1536,
-          768,
-          1792,
-          1024
-        ],
+        "pixel_box_in_parent": [1536, 768, 1792, 1024],
         "path": "runtime-tiles/17/62595/42307.png"
       },
       {
@@ -608,12 +423,7 @@
         "y": 42307,
         "source_ref": "z17-x62596-y42307",
         "parent_artifact": "county-base-supertile.png",
-        "pixel_box_in_parent": [
-          1792,
-          768,
-          2048,
-          1024
-        ],
+        "pixel_box_in_parent": [1792, 768, 2048, 1024],
         "path": "runtime-tiles/17/62596/42307.png"
       },
       {
@@ -623,12 +433,7 @@
         "y": 42307,
         "source_ref": "z17-x62597-y42307",
         "parent_artifact": "county-base-supertile.png",
-        "pixel_box_in_parent": [
-          2048,
-          768,
-          2304,
-          1024
-        ],
+        "pixel_box_in_parent": [2048, 768, 2304, 1024],
         "path": "runtime-tiles/17/62597/42307.png"
       },
       {
@@ -638,12 +443,7 @@
         "y": 42307,
         "source_ref": "z17-x62598-y42307",
         "parent_artifact": "county-base-supertile.png",
-        "pixel_box_in_parent": [
-          2304,
-          768,
-          2560,
-          1024
-        ],
+        "pixel_box_in_parent": [2304, 768, 2560, 1024],
         "path": "runtime-tiles/17/62598/42307.png"
       },
       {
@@ -653,12 +453,7 @@
         "y": 42308,
         "source_ref": "z17-x62589-y42308",
         "parent_artifact": "county-base-supertile.png",
-        "pixel_box_in_parent": [
-          0,
-          1024,
-          256,
-          1280
-        ],
+        "pixel_box_in_parent": [0, 1024, 256, 1280],
         "path": "runtime-tiles/17/62589/42308.png"
       },
       {
@@ -668,12 +463,7 @@
         "y": 42308,
         "source_ref": "z17-x62590-y42308",
         "parent_artifact": "county-base-supertile.png",
-        "pixel_box_in_parent": [
-          256,
-          1024,
-          512,
-          1280
-        ],
+        "pixel_box_in_parent": [256, 1024, 512, 1280],
         "path": "runtime-tiles/17/62590/42308.png"
       },
       {
@@ -683,12 +473,7 @@
         "y": 42308,
         "source_ref": "z17-x62591-y42308",
         "parent_artifact": "county-base-supertile.png",
-        "pixel_box_in_parent": [
-          512,
-          1024,
-          768,
-          1280
-        ],
+        "pixel_box_in_parent": [512, 1024, 768, 1280],
         "path": "runtime-tiles/17/62591/42308.png"
       },
       {
@@ -698,12 +483,7 @@
         "y": 42308,
         "source_ref": "z17-x62592-y42308",
         "parent_artifact": "county-base-supertile.png",
-        "pixel_box_in_parent": [
-          768,
-          1024,
-          1024,
-          1280
-        ],
+        "pixel_box_in_parent": [768, 1024, 1024, 1280],
         "path": "runtime-tiles/17/62592/42308.png"
       },
       {
@@ -713,12 +493,7 @@
         "y": 42308,
         "source_ref": "z17-x62593-y42308",
         "parent_artifact": "county-base-supertile.png",
-        "pixel_box_in_parent": [
-          1024,
-          1024,
-          1280,
-          1280
-        ],
+        "pixel_box_in_parent": [1024, 1024, 1280, 1280],
         "path": "runtime-tiles/17/62593/42308.png"
       },
       {
@@ -728,12 +503,7 @@
         "y": 42308,
         "source_ref": "z17-x62594-y42308",
         "parent_artifact": "county-base-supertile.png",
-        "pixel_box_in_parent": [
-          1280,
-          1024,
-          1536,
-          1280
-        ],
+        "pixel_box_in_parent": [1280, 1024, 1536, 1280],
         "path": "runtime-tiles/17/62594/42308.png"
       },
       {
@@ -743,12 +513,7 @@
         "y": 42308,
         "source_ref": "z17-x62595-y42308",
         "parent_artifact": "county-base-supertile.png",
-        "pixel_box_in_parent": [
-          1536,
-          1024,
-          1792,
-          1280
-        ],
+        "pixel_box_in_parent": [1536, 1024, 1792, 1280],
         "path": "runtime-tiles/17/62595/42308.png"
       },
       {
@@ -758,12 +523,7 @@
         "y": 42308,
         "source_ref": "z17-x62596-y42308",
         "parent_artifact": "county-base-supertile.png",
-        "pixel_box_in_parent": [
-          1792,
-          1024,
-          2048,
-          1280
-        ],
+        "pixel_box_in_parent": [1792, 1024, 2048, 1280],
         "path": "runtime-tiles/17/62596/42308.png"
       },
       {
@@ -773,12 +533,7 @@
         "y": 42308,
         "source_ref": "z17-x62597-y42308",
         "parent_artifact": "county-base-supertile.png",
-        "pixel_box_in_parent": [
-          2048,
-          1024,
-          2304,
-          1280
-        ],
+        "pixel_box_in_parent": [2048, 1024, 2304, 1280],
         "path": "runtime-tiles/17/62597/42308.png"
       },
       {
@@ -788,12 +543,7 @@
         "y": 42308,
         "source_ref": "z17-x62598-y42308",
         "parent_artifact": "county-base-supertile.png",
-        "pixel_box_in_parent": [
-          2304,
-          1024,
-          2560,
-          1280
-        ],
+        "pixel_box_in_parent": [2304, 1024, 2560, 1280],
         "path": "runtime-tiles/17/62598/42308.png"
       },
       {
@@ -803,12 +553,7 @@
         "y": 42309,
         "source_ref": "z17-x62589-y42309",
         "parent_artifact": "county-base-supertile.png",
-        "pixel_box_in_parent": [
-          0,
-          1280,
-          256,
-          1536
-        ],
+        "pixel_box_in_parent": [0, 1280, 256, 1536],
         "path": "runtime-tiles/17/62589/42309.png"
       },
       {
@@ -818,12 +563,7 @@
         "y": 42309,
         "source_ref": "z17-x62590-y42309",
         "parent_artifact": "county-base-supertile.png",
-        "pixel_box_in_parent": [
-          256,
-          1280,
-          512,
-          1536
-        ],
+        "pixel_box_in_parent": [256, 1280, 512, 1536],
         "path": "runtime-tiles/17/62590/42309.png"
       },
       {
@@ -833,12 +573,7 @@
         "y": 42309,
         "source_ref": "z17-x62591-y42309",
         "parent_artifact": "county-base-supertile.png",
-        "pixel_box_in_parent": [
-          512,
-          1280,
-          768,
-          1536
-        ],
+        "pixel_box_in_parent": [512, 1280, 768, 1536],
         "path": "runtime-tiles/17/62591/42309.png"
       },
       {
@@ -848,12 +583,7 @@
         "y": 42309,
         "source_ref": "z17-x62592-y42309",
         "parent_artifact": "county-base-supertile.png",
-        "pixel_box_in_parent": [
-          768,
-          1280,
-          1024,
-          1536
-        ],
+        "pixel_box_in_parent": [768, 1280, 1024, 1536],
         "path": "runtime-tiles/17/62592/42309.png"
       },
       {
@@ -863,12 +593,7 @@
         "y": 42309,
         "source_ref": "z17-x62593-y42309",
         "parent_artifact": "county-base-supertile.png",
-        "pixel_box_in_parent": [
-          1024,
-          1280,
-          1280,
-          1536
-        ],
+        "pixel_box_in_parent": [1024, 1280, 1280, 1536],
         "path": "runtime-tiles/17/62593/42309.png"
       },
       {
@@ -878,12 +603,7 @@
         "y": 42309,
         "source_ref": "z17-x62594-y42309",
         "parent_artifact": "county-base-supertile.png",
-        "pixel_box_in_parent": [
-          1280,
-          1280,
-          1536,
-          1536
-        ],
+        "pixel_box_in_parent": [1280, 1280, 1536, 1536],
         "path": "runtime-tiles/17/62594/42309.png"
       },
       {
@@ -893,12 +613,7 @@
         "y": 42309,
         "source_ref": "z17-x62595-y42309",
         "parent_artifact": "county-base-supertile.png",
-        "pixel_box_in_parent": [
-          1536,
-          1280,
-          1792,
-          1536
-        ],
+        "pixel_box_in_parent": [1536, 1280, 1792, 1536],
         "path": "runtime-tiles/17/62595/42309.png"
       },
       {
@@ -908,12 +623,7 @@
         "y": 42309,
         "source_ref": "z17-x62596-y42309",
         "parent_artifact": "county-base-supertile.png",
-        "pixel_box_in_parent": [
-          1792,
-          1280,
-          2048,
-          1536
-        ],
+        "pixel_box_in_parent": [1792, 1280, 2048, 1536],
         "path": "runtime-tiles/17/62596/42309.png"
       },
       {
@@ -923,12 +633,7 @@
         "y": 42309,
         "source_ref": "z17-x62597-y42309",
         "parent_artifact": "county-base-supertile.png",
-        "pixel_box_in_parent": [
-          2048,
-          1280,
-          2304,
-          1536
-        ],
+        "pixel_box_in_parent": [2048, 1280, 2304, 1536],
         "path": "runtime-tiles/17/62597/42309.png"
       },
       {
@@ -938,12 +643,7 @@
         "y": 42309,
         "source_ref": "z17-x62598-y42309",
         "parent_artifact": "county-base-supertile.png",
-        "pixel_box_in_parent": [
-          2304,
-          1280,
-          2560,
-          1536
-        ],
+        "pixel_box_in_parent": [2304, 1280, 2560, 1536],
         "path": "runtime-tiles/17/62598/42309.png"
       },
       {
@@ -953,12 +653,7 @@
         "y": 42310,
         "source_ref": "z17-x62589-y42310",
         "parent_artifact": "county-base-supertile.png",
-        "pixel_box_in_parent": [
-          0,
-          1536,
-          256,
-          1792
-        ],
+        "pixel_box_in_parent": [0, 1536, 256, 1792],
         "path": "runtime-tiles/17/62589/42310.png"
       },
       {
@@ -968,12 +663,7 @@
         "y": 42310,
         "source_ref": "z17-x62590-y42310",
         "parent_artifact": "county-base-supertile.png",
-        "pixel_box_in_parent": [
-          256,
-          1536,
-          512,
-          1792
-        ],
+        "pixel_box_in_parent": [256, 1536, 512, 1792],
         "path": "runtime-tiles/17/62590/42310.png"
       },
       {
@@ -983,12 +673,7 @@
         "y": 42310,
         "source_ref": "z17-x62591-y42310",
         "parent_artifact": "county-base-supertile.png",
-        "pixel_box_in_parent": [
-          512,
-          1536,
-          768,
-          1792
-        ],
+        "pixel_box_in_parent": [512, 1536, 768, 1792],
         "path": "runtime-tiles/17/62591/42310.png"
       },
       {
@@ -998,12 +683,7 @@
         "y": 42310,
         "source_ref": "z17-x62592-y42310",
         "parent_artifact": "county-base-supertile.png",
-        "pixel_box_in_parent": [
-          768,
-          1536,
-          1024,
-          1792
-        ],
+        "pixel_box_in_parent": [768, 1536, 1024, 1792],
         "path": "runtime-tiles/17/62592/42310.png"
       },
       {
@@ -1013,12 +693,7 @@
         "y": 42310,
         "source_ref": "z17-x62593-y42310",
         "parent_artifact": "county-base-supertile.png",
-        "pixel_box_in_parent": [
-          1024,
-          1536,
-          1280,
-          1792
-        ],
+        "pixel_box_in_parent": [1024, 1536, 1280, 1792],
         "path": "runtime-tiles/17/62593/42310.png"
       },
       {
@@ -1028,12 +703,7 @@
         "y": 42310,
         "source_ref": "z17-x62594-y42310",
         "parent_artifact": "county-base-supertile.png",
-        "pixel_box_in_parent": [
-          1280,
-          1536,
-          1536,
-          1792
-        ],
+        "pixel_box_in_parent": [1280, 1536, 1536, 1792],
         "path": "runtime-tiles/17/62594/42310.png"
       },
       {
@@ -1043,12 +713,7 @@
         "y": 42310,
         "source_ref": "z17-x62595-y42310",
         "parent_artifact": "county-base-supertile.png",
-        "pixel_box_in_parent": [
-          1536,
-          1536,
-          1792,
-          1792
-        ],
+        "pixel_box_in_parent": [1536, 1536, 1792, 1792],
         "path": "runtime-tiles/17/62595/42310.png"
       },
       {
@@ -1058,12 +723,7 @@
         "y": 42310,
         "source_ref": "z17-x62596-y42310",
         "parent_artifact": "county-base-supertile.png",
-        "pixel_box_in_parent": [
-          1792,
-          1536,
-          2048,
-          1792
-        ],
+        "pixel_box_in_parent": [1792, 1536, 2048, 1792],
         "path": "runtime-tiles/17/62596/42310.png"
       },
       {
@@ -1073,12 +733,7 @@
         "y": 42310,
         "source_ref": "z17-x62597-y42310",
         "parent_artifact": "county-base-supertile.png",
-        "pixel_box_in_parent": [
-          2048,
-          1536,
-          2304,
-          1792
-        ],
+        "pixel_box_in_parent": [2048, 1536, 2304, 1792],
         "path": "runtime-tiles/17/62597/42310.png"
       },
       {
@@ -1088,12 +743,7 @@
         "y": 42310,
         "source_ref": "z17-x62598-y42310",
         "parent_artifact": "county-base-supertile.png",
-        "pixel_box_in_parent": [
-          2304,
-          1536,
-          2560,
-          1792
-        ],
+        "pixel_box_in_parent": [2304, 1536, 2560, 1792],
         "path": "runtime-tiles/17/62598/42310.png"
       },
       {
@@ -1103,12 +753,7 @@
         "y": 42311,
         "source_ref": "z17-x62589-y42311",
         "parent_artifact": "county-base-supertile.png",
-        "pixel_box_in_parent": [
-          0,
-          1792,
-          256,
-          2048
-        ],
+        "pixel_box_in_parent": [0, 1792, 256, 2048],
         "path": "runtime-tiles/17/62589/42311.png"
       },
       {
@@ -1118,12 +763,7 @@
         "y": 42311,
         "source_ref": "z17-x62590-y42311",
         "parent_artifact": "county-base-supertile.png",
-        "pixel_box_in_parent": [
-          256,
-          1792,
-          512,
-          2048
-        ],
+        "pixel_box_in_parent": [256, 1792, 512, 2048],
         "path": "runtime-tiles/17/62590/42311.png"
       },
       {
@@ -1133,12 +773,7 @@
         "y": 42311,
         "source_ref": "z17-x62591-y42311",
         "parent_artifact": "county-base-supertile.png",
-        "pixel_box_in_parent": [
-          512,
-          1792,
-          768,
-          2048
-        ],
+        "pixel_box_in_parent": [512, 1792, 768, 2048],
         "path": "runtime-tiles/17/62591/42311.png"
       },
       {
@@ -1148,12 +783,7 @@
         "y": 42311,
         "source_ref": "z17-x62592-y42311",
         "parent_artifact": "county-base-supertile.png",
-        "pixel_box_in_parent": [
-          768,
-          1792,
-          1024,
-          2048
-        ],
+        "pixel_box_in_parent": [768, 1792, 1024, 2048],
         "path": "runtime-tiles/17/62592/42311.png"
       },
       {
@@ -1163,12 +793,7 @@
         "y": 42311,
         "source_ref": "z17-x62593-y42311",
         "parent_artifact": "county-base-supertile.png",
-        "pixel_box_in_parent": [
-          1024,
-          1792,
-          1280,
-          2048
-        ],
+        "pixel_box_in_parent": [1024, 1792, 1280, 2048],
         "path": "runtime-tiles/17/62593/42311.png"
       },
       {
@@ -1178,12 +803,7 @@
         "y": 42311,
         "source_ref": "z17-x62594-y42311",
         "parent_artifact": "county-base-supertile.png",
-        "pixel_box_in_parent": [
-          1280,
-          1792,
-          1536,
-          2048
-        ],
+        "pixel_box_in_parent": [1280, 1792, 1536, 2048],
         "path": "runtime-tiles/17/62594/42311.png"
       },
       {
@@ -1193,12 +813,7 @@
         "y": 42311,
         "source_ref": "z17-x62595-y42311",
         "parent_artifact": "county-base-supertile.png",
-        "pixel_box_in_parent": [
-          1536,
-          1792,
-          1792,
-          2048
-        ],
+        "pixel_box_in_parent": [1536, 1792, 1792, 2048],
         "path": "runtime-tiles/17/62595/42311.png"
       },
       {
@@ -1208,12 +823,7 @@
         "y": 42311,
         "source_ref": "z17-x62596-y42311",
         "parent_artifact": "county-base-supertile.png",
-        "pixel_box_in_parent": [
-          1792,
-          1792,
-          2048,
-          2048
-        ],
+        "pixel_box_in_parent": [1792, 1792, 2048, 2048],
         "path": "runtime-tiles/17/62596/42311.png"
       },
       {
@@ -1223,12 +833,7 @@
         "y": 42311,
         "source_ref": "z17-x62597-y42311",
         "parent_artifact": "county-base-supertile.png",
-        "pixel_box_in_parent": [
-          2048,
-          1792,
-          2304,
-          2048
-        ],
+        "pixel_box_in_parent": [2048, 1792, 2304, 2048],
         "path": "runtime-tiles/17/62597/42311.png"
       },
       {
@@ -1238,12 +843,7 @@
         "y": 42311,
         "source_ref": "z17-x62598-y42311",
         "parent_artifact": "county-base-supertile.png",
-        "pixel_box_in_parent": [
-          2304,
-          1792,
-          2560,
-          2048
-        ],
+        "pixel_box_in_parent": [2304, 1792, 2560, 2048],
         "path": "runtime-tiles/17/62598/42311.png"
       },
       {
@@ -1253,12 +853,7 @@
         "y": 42312,
         "source_ref": "z17-x62589-y42312",
         "parent_artifact": "county-base-supertile.png",
-        "pixel_box_in_parent": [
-          0,
-          2048,
-          256,
-          2304
-        ],
+        "pixel_box_in_parent": [0, 2048, 256, 2304],
         "path": "runtime-tiles/17/62589/42312.png"
       },
       {
@@ -1268,12 +863,7 @@
         "y": 42312,
         "source_ref": "z17-x62590-y42312",
         "parent_artifact": "county-base-supertile.png",
-        "pixel_box_in_parent": [
-          256,
-          2048,
-          512,
-          2304
-        ],
+        "pixel_box_in_parent": [256, 2048, 512, 2304],
         "path": "runtime-tiles/17/62590/42312.png"
       },
       {
@@ -1283,12 +873,7 @@
         "y": 42312,
         "source_ref": "z17-x62591-y42312",
         "parent_artifact": "county-base-supertile.png",
-        "pixel_box_in_parent": [
-          512,
-          2048,
-          768,
-          2304
-        ],
+        "pixel_box_in_parent": [512, 2048, 768, 2304],
         "path": "runtime-tiles/17/62591/42312.png"
       },
       {
@@ -1298,12 +883,7 @@
         "y": 42312,
         "source_ref": "z17-x62592-y42312",
         "parent_artifact": "county-base-supertile.png",
-        "pixel_box_in_parent": [
-          768,
-          2048,
-          1024,
-          2304
-        ],
+        "pixel_box_in_parent": [768, 2048, 1024, 2304],
         "path": "runtime-tiles/17/62592/42312.png"
       },
       {
@@ -1313,12 +893,7 @@
         "y": 42312,
         "source_ref": "z17-x62593-y42312",
         "parent_artifact": "county-base-supertile.png",
-        "pixel_box_in_parent": [
-          1024,
-          2048,
-          1280,
-          2304
-        ],
+        "pixel_box_in_parent": [1024, 2048, 1280, 2304],
         "path": "runtime-tiles/17/62593/42312.png"
       },
       {
@@ -1328,12 +903,7 @@
         "y": 42312,
         "source_ref": "z17-x62594-y42312",
         "parent_artifact": "county-base-supertile.png",
-        "pixel_box_in_parent": [
-          1280,
-          2048,
-          1536,
-          2304
-        ],
+        "pixel_box_in_parent": [1280, 2048, 1536, 2304],
         "path": "runtime-tiles/17/62594/42312.png"
       },
       {
@@ -1343,12 +913,7 @@
         "y": 42312,
         "source_ref": "z17-x62595-y42312",
         "parent_artifact": "county-base-supertile.png",
-        "pixel_box_in_parent": [
-          1536,
-          2048,
-          1792,
-          2304
-        ],
+        "pixel_box_in_parent": [1536, 2048, 1792, 2304],
         "path": "runtime-tiles/17/62595/42312.png"
       },
       {
@@ -1358,12 +923,7 @@
         "y": 42312,
         "source_ref": "z17-x62596-y42312",
         "parent_artifact": "county-base-supertile.png",
-        "pixel_box_in_parent": [
-          1792,
-          2048,
-          2048,
-          2304
-        ],
+        "pixel_box_in_parent": [1792, 2048, 2048, 2304],
         "path": "runtime-tiles/17/62596/42312.png"
       },
       {
@@ -1373,12 +933,7 @@
         "y": 42312,
         "source_ref": "z17-x62597-y42312",
         "parent_artifact": "county-base-supertile.png",
-        "pixel_box_in_parent": [
-          2048,
-          2048,
-          2304,
-          2304
-        ],
+        "pixel_box_in_parent": [2048, 2048, 2304, 2304],
         "path": "runtime-tiles/17/62597/42312.png"
       },
       {
@@ -1388,12 +943,7 @@
         "y": 42312,
         "source_ref": "z17-x62598-y42312",
         "parent_artifact": "county-base-supertile.png",
-        "pixel_box_in_parent": [
-          2304,
-          2048,
-          2560,
-          2304
-        ],
+        "pixel_box_in_parent": [2304, 2048, 2560, 2304],
         "path": "runtime-tiles/17/62598/42312.png"
       },
       {
@@ -1403,12 +953,7 @@
         "y": 42313,
         "source_ref": "z17-x62589-y42313",
         "parent_artifact": "county-base-supertile.png",
-        "pixel_box_in_parent": [
-          0,
-          2304,
-          256,
-          2560
-        ],
+        "pixel_box_in_parent": [0, 2304, 256, 2560],
         "path": "runtime-tiles/17/62589/42313.png"
       },
       {
@@ -1418,12 +963,7 @@
         "y": 42313,
         "source_ref": "z17-x62590-y42313",
         "parent_artifact": "county-base-supertile.png",
-        "pixel_box_in_parent": [
-          256,
-          2304,
-          512,
-          2560
-        ],
+        "pixel_box_in_parent": [256, 2304, 512, 2560],
         "path": "runtime-tiles/17/62590/42313.png"
       },
       {
@@ -1433,12 +973,7 @@
         "y": 42313,
         "source_ref": "z17-x62591-y42313",
         "parent_artifact": "county-base-supertile.png",
-        "pixel_box_in_parent": [
-          512,
-          2304,
-          768,
-          2560
-        ],
+        "pixel_box_in_parent": [512, 2304, 768, 2560],
         "path": "runtime-tiles/17/62591/42313.png"
       },
       {
@@ -1448,12 +983,7 @@
         "y": 42313,
         "source_ref": "z17-x62592-y42313",
         "parent_artifact": "county-base-supertile.png",
-        "pixel_box_in_parent": [
-          768,
-          2304,
-          1024,
-          2560
-        ],
+        "pixel_box_in_parent": [768, 2304, 1024, 2560],
         "path": "runtime-tiles/17/62592/42313.png"
       },
       {
@@ -1463,12 +993,7 @@
         "y": 42313,
         "source_ref": "z17-x62593-y42313",
         "parent_artifact": "county-base-supertile.png",
-        "pixel_box_in_parent": [
-          1024,
-          2304,
-          1280,
-          2560
-        ],
+        "pixel_box_in_parent": [1024, 2304, 1280, 2560],
         "path": "runtime-tiles/17/62593/42313.png"
       },
       {
@@ -1478,12 +1003,7 @@
         "y": 42313,
         "source_ref": "z17-x62594-y42313",
         "parent_artifact": "county-base-supertile.png",
-        "pixel_box_in_parent": [
-          1280,
-          2304,
-          1536,
-          2560
-        ],
+        "pixel_box_in_parent": [1280, 2304, 1536, 2560],
         "path": "runtime-tiles/17/62594/42313.png"
       },
       {
@@ -1493,12 +1013,7 @@
         "y": 42313,
         "source_ref": "z17-x62595-y42313",
         "parent_artifact": "county-base-supertile.png",
-        "pixel_box_in_parent": [
-          1536,
-          2304,
-          1792,
-          2560
-        ],
+        "pixel_box_in_parent": [1536, 2304, 1792, 2560],
         "path": "runtime-tiles/17/62595/42313.png"
       },
       {
@@ -1508,12 +1023,7 @@
         "y": 42313,
         "source_ref": "z17-x62596-y42313",
         "parent_artifact": "county-base-supertile.png",
-        "pixel_box_in_parent": [
-          1792,
-          2304,
-          2048,
-          2560
-        ],
+        "pixel_box_in_parent": [1792, 2304, 2048, 2560],
         "path": "runtime-tiles/17/62596/42313.png"
       },
       {
@@ -1523,12 +1033,7 @@
         "y": 42313,
         "source_ref": "z17-x62597-y42313",
         "parent_artifact": "county-base-supertile.png",
-        "pixel_box_in_parent": [
-          2048,
-          2304,
-          2304,
-          2560
-        ],
+        "pixel_box_in_parent": [2048, 2304, 2304, 2560],
         "path": "runtime-tiles/17/62597/42313.png"
       },
       {
@@ -1538,12 +1043,7 @@
         "y": 42313,
         "source_ref": "z17-x62598-y42313",
         "parent_artifact": "county-base-supertile.png",
-        "pixel_box_in_parent": [
-          2304,
-          2304,
-          2560,
-          2560
-        ],
+        "pixel_box_in_parent": [2304, 2304, 2560, 2560],
         "path": "runtime-tiles/17/62598/42313.png"
       }
     ]
@@ -1553,10 +1053,7 @@
       {
         "orientation": "vertical",
         "x_px": 256,
-        "between_cols": [
-          0,
-          1
-        ],
+        "between_cols": [0, 1],
         "mean_abs_luma_jump": 4.62288236618042,
         "nearby_control_mean_abs_luma_jump": 4.378909349441528,
         "seam_to_control_ratio": 1.0557154755373064
@@ -1564,10 +1061,7 @@
       {
         "orientation": "vertical",
         "x_px": 512,
-        "between_cols": [
-          1,
-          2
-        ],
+        "between_cols": [1, 2],
         "mean_abs_luma_jump": 4.3000807762146,
         "nearby_control_mean_abs_luma_jump": 4.5838096141815186,
         "seam_to_control_ratio": 0.9381019584475955
@@ -1575,10 +1069,7 @@
       {
         "orientation": "vertical",
         "x_px": 768,
-        "between_cols": [
-          2,
-          3
-        ],
+        "between_cols": [2, 3],
         "mean_abs_luma_jump": 4.524956703186035,
         "nearby_control_mean_abs_luma_jump": 4.16544234752655,
         "seam_to_control_ratio": 1.0863088060438444
@@ -1586,10 +1077,7 @@
       {
         "orientation": "vertical",
         "x_px": 1024,
-        "between_cols": [
-          3,
-          4
-        ],
+        "between_cols": [3, 4],
         "mean_abs_luma_jump": 4.68048095703125,
         "nearby_control_mean_abs_luma_jump": 4.640967607498169,
         "seam_to_control_ratio": 1.008514032605882
@@ -1597,10 +1085,7 @@
       {
         "orientation": "vertical",
         "x_px": 1280,
-        "between_cols": [
-          4,
-          5
-        ],
+        "between_cols": [4, 5],
         "mean_abs_luma_jump": 4.855849266052246,
         "nearby_control_mean_abs_luma_jump": 4.588292956352234,
         "seam_to_control_ratio": 1.0583128218370614
@@ -1608,10 +1093,7 @@
       {
         "orientation": "vertical",
         "x_px": 1536,
-        "between_cols": [
-          5,
-          6
-        ],
+        "between_cols": [5, 6],
         "mean_abs_luma_jump": 4.54111385345459,
         "nearby_control_mean_abs_luma_jump": 4.516627788543701,
         "seam_to_control_ratio": 1.0054213156490328
@@ -1619,10 +1101,7 @@
       {
         "orientation": "vertical",
         "x_px": 1792,
-        "between_cols": [
-          6,
-          7
-        ],
+        "between_cols": [6, 7],
         "mean_abs_luma_jump": 4.535578727722168,
         "nearby_control_mean_abs_luma_jump": 4.453360915184021,
         "seam_to_control_ratio": 1.0184619693090269
@@ -1630,10 +1109,7 @@
       {
         "orientation": "vertical",
         "x_px": 2048,
-        "between_cols": [
-          7,
-          8
-        ],
+        "between_cols": [7, 8],
         "mean_abs_luma_jump": 4.6762213706970215,
         "nearby_control_mean_abs_luma_jump": 4.643545627593994,
         "seam_to_control_ratio": 1.0070368088791577
@@ -1641,10 +1117,7 @@
       {
         "orientation": "vertical",
         "x_px": 2304,
-        "between_cols": [
-          8,
-          9
-        ],
+        "between_cols": [8, 9],
         "mean_abs_luma_jump": 4.282288551330566,
         "nearby_control_mean_abs_luma_jump": 4.40055513381958,
         "seam_to_control_ratio": 0.9731246220323205
@@ -1652,10 +1125,7 @@
       {
         "orientation": "horizontal",
         "y_px": 256,
-        "between_rows": [
-          0,
-          1
-        ],
+        "between_rows": [0, 1],
         "mean_abs_luma_jump": 5.102211952209473,
         "nearby_control_mean_abs_luma_jump": 5.555959582328796,
         "seam_to_control_ratio": 0.9183313659151685
@@ -1663,10 +1133,7 @@
       {
         "orientation": "horizontal",
         "y_px": 512,
-        "between_rows": [
-          1,
-          2
-        ],
+        "between_rows": [1, 2],
         "mean_abs_luma_jump": 4.74373197555542,
         "nearby_control_mean_abs_luma_jump": 4.749638199806213,
         "seam_to_control_ratio": 0.9987564896519835
@@ -1674,10 +1141,7 @@
       {
         "orientation": "horizontal",
         "y_px": 768,
-        "between_rows": [
-          2,
-          3
-        ],
+        "between_rows": [2, 3],
         "mean_abs_luma_jump": 4.976553440093994,
         "nearby_control_mean_abs_luma_jump": 5.27791154384613,
         "seam_to_control_ratio": 0.9429020169723175
@@ -1685,10 +1149,7 @@
       {
         "orientation": "horizontal",
         "y_px": 1024,
-        "between_rows": [
-          3,
-          4
-        ],
+        "between_rows": [3, 4],
         "mean_abs_luma_jump": 4.76964807510376,
         "nearby_control_mean_abs_luma_jump": 4.901432275772095,
         "seam_to_control_ratio": 0.9731131242351858
@@ -1696,10 +1157,7 @@
       {
         "orientation": "horizontal",
         "y_px": 1280,
-        "between_rows": [
-          4,
-          5
-        ],
+        "between_rows": [4, 5],
         "mean_abs_luma_jump": 4.613995552062988,
         "nearby_control_mean_abs_luma_jump": 4.475309133529663,
         "seam_to_control_ratio": 1.0309892377029928
@@ -1707,10 +1165,7 @@
       {
         "orientation": "horizontal",
         "y_px": 1536,
-        "between_rows": [
-          5,
-          6
-        ],
+        "between_rows": [5, 6],
         "mean_abs_luma_jump": 4.50407600402832,
         "nearby_control_mean_abs_luma_jump": 4.35522186756134,
         "seam_to_control_ratio": 1.034178313067281
@@ -1718,10 +1173,7 @@
       {
         "orientation": "horizontal",
         "y_px": 1792,
-        "between_rows": [
-          6,
-          7
-        ],
+        "between_rows": [6, 7],
         "mean_abs_luma_jump": 4.18587589263916,
         "nearby_control_mean_abs_luma_jump": 4.488756418228149,
         "seam_to_control_ratio": 0.9325246243349187
@@ -1729,10 +1181,7 @@
       {
         "orientation": "horizontal",
         "y_px": 2048,
-        "between_rows": [
-          7,
-          8
-        ],
+        "between_rows": [7, 8],
         "mean_abs_luma_jump": 4.775005340576172,
         "nearby_control_mean_abs_luma_jump": 4.573271036148071,
         "seam_to_control_ratio": 1.0441116003913942
@@ -1740,10 +1189,7 @@
       {
         "orientation": "horizontal",
         "y_px": 2304,
-        "between_rows": [
-          8,
-          9
-        ],
+        "between_rows": [8, 9],
         "mean_abs_luma_jump": 4.713523864746094,
         "nearby_control_mean_abs_luma_jump": 4.4905173778533936,
         "seam_to_control_ratio": 1.0496616465604915

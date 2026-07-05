@@ -9,6 +9,7 @@ western peat bog, building count, building placement, and BU E2 notebook-realism
 finish. This is a bounded correction, not a new composition.
 
 Required corrections:
+
 - Remove the small square chimney / roof nub / roof stack on the main thatched
   roof. Leave the roof as uninterrupted thatch. Do not add smoke.
 - Keep every visible person-sized opening fitted with a wooden plank door and a
@@ -23,6 +24,7 @@ Required corrections:
   but no extra roads, walls, ponds, or open water bodies.
 
 Do not change:
+
 - Do not move, rotate, zoom, or redesign the farmstead.
 - Do not add people, animals, carts, smoke, labels, signs, UI, church, graveyard,
   bridge, shop, or landmark buildings.

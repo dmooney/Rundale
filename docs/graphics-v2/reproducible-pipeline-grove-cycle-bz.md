@@ -59,4 +59,3 @@ It does **not** prove production batch readiness. The next proof run must add a
 stricter boundary-material gate: ambiguous boundaries should default to hedges,
 banks, ditches, intermittent trees, wood fencing, or very short broken
 dry-stone remnants, not continuous stone wall grids.
-

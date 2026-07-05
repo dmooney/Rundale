@@ -26,4 +26,3 @@ Saved files:
 Use this as a symbol-interpretation reference, not as style. The generated game
 plate should still use the source crop as geometry authority and BU/concept
 art as visual style authority.
-

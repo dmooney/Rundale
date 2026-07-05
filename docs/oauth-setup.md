@@ -24,6 +24,7 @@ Relevant code:
 1. **Create or select a project** at https://console.cloud.google.com/. Click the project dropdown at the top → "New Project" → name it (e.g. "Parish") → Create.
 
 2. **Configure the OAuth consent screen:**
+
    - Navigation menu → "APIs & Services" → "OAuth consent screen"
    - User type: **External** (unless you have a Google Workspace org and want internal-only)
    - Fill in app name, user support email, and developer contact email
@@ -31,6 +32,7 @@ Relevant code:
    - Add your own Google account as a **test user** — while the app is in "Testing" status, only listed test users can log in
 
 3. **Create OAuth credentials:**
+
    - "APIs & Services" → "Credentials" → "Create Credentials" → **"OAuth client ID"**
    - Application type: **Web application**
    - Name: anything (e.g. "Parish Web Server")

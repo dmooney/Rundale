@@ -70,17 +70,17 @@ zoom is z17. A spot probe around Murphy's Farm returned z17 tiles and returned
 
 Approximate full County Roscommon scale:
 
-| Scope | Source z17 tiles | Source PNGs | 3x generated max layer | 3x plus lower pyramid |
-| --- | ---: | ---: | ---: | ---: |
-| Clipped county | ~77,715 | ~2.7 GB | ~65.7 GB | ~87 GB |
-| Rectangular county bbox | ~205,288 | ~7.0 GB | ~173.6 GB | ~231 GB |
+| Scope                   | Source z17 tiles | Source PNGs | 3x generated max layer | 3x plus lower pyramid |
+| ----------------------- | ---------------: | ----------: | ---------------------: | --------------------: |
+| Clipped county          |          ~77,715 |     ~2.7 GB |               ~65.7 GB |                ~87 GB |
+| Rectangular county bbox |         ~205,288 |     ~7.0 GB |              ~173.6 GB |               ~231 GB |
 
 Approximate Kilteevan Civil Parish scale:
 
-| Scope | Source z17 tiles | Source PNGs | 3x generated max layer | 3x plus lower pyramid |
-| --- | ---: | ---: | ---: | ---: |
-| Clipped parish | ~1,158 | ~40 MB | ~1.0 GB | ~1.3 GB |
-| Rectangular parish bbox | ~2,295 | ~80 MB | ~1.9 GB | ~2.6 GB |
+| Scope                   | Source z17 tiles | Source PNGs | 3x generated max layer | 3x plus lower pyramid |
+| ----------------------- | ---------------: | ----------: | ---------------------: | --------------------: |
+| Clipped parish          |           ~1,158 |      ~40 MB |                ~1.0 GB |               ~1.3 GB |
+| Rectangular parish bbox |           ~2,295 |      ~80 MB |                ~1.9 GB |               ~2.6 GB |
 
 Kilteevan Civil Parish boundary reference:
 
@@ -124,14 +124,14 @@ Direct Google:
 
 OpenRouter tests:
 
-| Model | Observed cost | Result |
-| --- | ---: | --- |
-| `black-forest-labs/flux.2-klein-4b` | `$0.015` | Not usable; too soft/small for 3x runtime tiles. |
-| `google/gemini-3.1-flash-lite-image` | `$0.03393425` | Best cheap geometry tradeoff, still not production-usable. |
-| `google/gemini-3.1-flash-image` | `$0.0678685` | Not usable; recenters/invents roads and compound layout. |
-| `openai/gpt-image-1-mini` | `$0.0094855` | Not usable; invents a regular field grid. |
-| `openai/gpt-image-1` | `$0.04639` | Best-looking art, but still not usable as authoritative map geometry. |
-| `sourceful/riverflow-v2.5-fast` | `$0.084868` | Attractive but invents too much enclosure/detail. |
+| Model                                | Observed cost | Result                                                                |
+| ------------------------------------ | ------------: | --------------------------------------------------------------------- |
+| `black-forest-labs/flux.2-klein-4b`  |      `$0.015` | Not usable; too soft/small for 3x runtime tiles.                      |
+| `google/gemini-3.1-flash-lite-image` | `$0.03393425` | Best cheap geometry tradeoff, still not production-usable.            |
+| `google/gemini-3.1-flash-image`      |  `$0.0678685` | Not usable; recenters/invents roads and compound layout.              |
+| `openai/gpt-image-1-mini`            |  `$0.0094855` | Not usable; invents a regular field grid.                             |
+| `openai/gpt-image-1`                 |    `$0.04639` | Best-looking art, but still not usable as authoritative map geometry. |
+| `sourceful/riverflow-v2.5-fast`      |   `$0.084868` | Attractive but invents too much enclosure/detail.                     |
 
 The key contact sheets are:
 

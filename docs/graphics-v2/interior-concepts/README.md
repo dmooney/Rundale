@@ -42,14 +42,14 @@ Test a default interior grammar for Rundale:
 
 ## Candidates
 
-| File | Location | Read |
-| --- | --- | --- |
-| `murphy-farm-hearth-cutaway-a.png` | Murphy's Farm | Strongly readable cutaway and furniture layout; a little too polished and stone-floored. |
-| `murphy-farm-hearth-cutaway-b.png` | Murphy's Farm | Best default grammar: closer, rougher, playable, with hearth/dresser/settlebed/door scale working well. |
-| `connolly-shop-cutaway-a.png` | Connolly's Shop | Clearest shop function and counter/shelf affordances; somewhat too formal and stocked for an 1820 rural cottage shop. |
-| `connolly-shop-cutaway-b.png` | Connolly's Shop | Best style/scale match for Connolly's: more modest domestic-shop hybrid, though the perspective is slightly closer to side elevation than Murphy B. |
-| `murphy-farm-hearth-cutaway-c.png` | Murphy's Farm | Gameplay-fit revision: wider scale, second sleeping cue, work/eating/sleeping capacity for Siobhan, Liam, and farm labour/visitors. |
-| `connolly-shop-cutaway-c.png` | Connolly's Shop | Gameplay-fit revision: wider scale, clear stairs to rooms above shop, shop floor/customer capacity, behind-counter work affordances. |
+| File                               | Location        | Read                                                                                                                                                |
+| ---------------------------------- | --------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `murphy-farm-hearth-cutaway-a.png` | Murphy's Farm   | Strongly readable cutaway and furniture layout; a little too polished and stone-floored.                                                            |
+| `murphy-farm-hearth-cutaway-b.png` | Murphy's Farm   | Best default grammar: closer, rougher, playable, with hearth/dresser/settlebed/door scale working well.                                             |
+| `connolly-shop-cutaway-a.png`      | Connolly's Shop | Clearest shop function and counter/shelf affordances; somewhat too formal and stocked for an 1820 rural cottage shop.                               |
+| `connolly-shop-cutaway-b.png`      | Connolly's Shop | Best style/scale match for Connolly's: more modest domestic-shop hybrid, though the perspective is slightly closer to side elevation than Murphy B. |
+| `murphy-farm-hearth-cutaway-c.png` | Murphy's Farm   | Gameplay-fit revision: wider scale, second sleeping cue, work/eating/sleeping capacity for Siobhan, Liam, and farm labour/visitors.                 |
+| `connolly-shop-cutaway-c.png`      | Connolly's Shop | Gameplay-fit revision: wider scale, clear stairs to rooms above shop, shop floor/customer capacity, behind-counter work affordances.                |
 
 Contact sheet:
 

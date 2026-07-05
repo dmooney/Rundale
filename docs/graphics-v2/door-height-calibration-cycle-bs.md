@@ -34,10 +34,10 @@ fitted wooden plank door and a threshold/step.
 
 ## Outputs
 
-| ID | Image | Prompt | Report | Result |
-| --- | --- | --- | --- | --- |
-| E1 | `pipeline-experiments/idea-bs-e1-beechwood-door-height-calibrated-concept.png` | `pipeline-experiments/idea-bs-e1-beechwood-door-height-calibrated-concept.prompt.md` | `pipeline-experiments/idea-bs-e1-beechwood-door-height-calibrated-concept.report.md` | Door-height pass with caveats |
-| E2 | `pipeline-experiments/idea-bs-e2-beechwood-door-height-20pct-zoomout.png` | `pipeline-experiments/idea-bs-e2-beechwood-door-height-20pct-zoomout.prompt.md` | `pipeline-experiments/idea-bs-e2-beechwood-door-height-20pct-zoomout.report.md` | 20% wider view; scale improves, concept-art messiness softens |
+| ID  | Image                                                                          | Prompt                                                                               | Report                                                                               | Result                                                        |
+| --- | ------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------ | ------------------------------------------------------------- |
+| E1  | `pipeline-experiments/idea-bs-e1-beechwood-door-height-calibrated-concept.png` | `pipeline-experiments/idea-bs-e1-beechwood-door-height-calibrated-concept.prompt.md` | `pipeline-experiments/idea-bs-e1-beechwood-door-height-calibrated-concept.report.md` | Door-height pass with caveats                                 |
+| E2  | `pipeline-experiments/idea-bs-e2-beechwood-door-height-20pct-zoomout.png`      | `pipeline-experiments/idea-bs-e2-beechwood-door-height-20pct-zoomout.prompt.md`      | `pipeline-experiments/idea-bs-e2-beechwood-door-height-20pct-zoomout.report.md`      | 20% wider view; scale improves, concept-art messiness softens |
 
 Comparison plate:
 

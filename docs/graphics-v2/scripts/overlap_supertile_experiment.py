@@ -12,7 +12,6 @@ from pathlib import Path
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont
 
-
 NLS_ROSCOMMON_URL = "https://mapseries-tilesets.s3.amazonaws.com/os/roscommon1/{z}/{x}/{y}.png"
 TILE_SIZE = 256
 
@@ -40,7 +39,9 @@ def fetch_tile(ref: TileRef, cache_dir: Path, url_template: str) -> Path:
     return out
 
 
-def assemble_rect(z: int, x0: int, y0: int, cols: int, rows: int, cache_dir: Path, url_template: str) -> tuple[Image.Image, list[TileRef]]:
+def assemble_rect(
+    z: int, x0: int, y0: int, cols: int, rows: int, cache_dir: Path, url_template: str
+) -> tuple[Image.Image, list[TileRef]]:
     img = Image.new("RGB", (cols * TILE_SIZE, rows * TILE_SIZE), "white")
     refs: list[TileRef] = []
     for row in range(rows):
@@ -74,7 +75,9 @@ def boundary_jump(img: Image.Image, x: int) -> dict[str, float]:
     }
 
 
-def draw_grid(img: Image.Image, cols: int, rows: int, tile_size: int, join_x: int | None = None) -> Image.Image:
+def draw_grid(
+    img: Image.Image, cols: int, rows: int, tile_size: int, join_x: int | None = None
+) -> Image.Image:
     out = img.copy()
     draw = ImageDraw.Draw(out)
     for col in range(1, cols):
@@ -131,15 +134,25 @@ def prepare(args: argparse.Namespace) -> int:
         "join_between_source_cols": [2, 3],
         "tile_refs": [ref.name for ref in refs],
     }
-    (args.out_dir / "murphy-overlap-manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
+    (args.out_dir / "murphy-overlap-manifest.json").write_text(
+        json.dumps(manifest, indent=2) + "\n"
+    )
     print(json.dumps(manifest, indent=2))
     return 0
 
 
 def stitch(args: argparse.Namespace) -> int:
     args.out_dir.mkdir(parents=True, exist_ok=True)
-    west = Image.open(args.west_art).convert("RGB").resize((4 * TILE_SIZE, args.rows * TILE_SIZE), Image.Resampling.LANCZOS)
-    east = Image.open(args.east_art).convert("RGB").resize((4 * TILE_SIZE, args.rows * TILE_SIZE), Image.Resampling.LANCZOS)
+    west = (
+        Image.open(args.west_art)
+        .convert("RGB")
+        .resize((4 * TILE_SIZE, args.rows * TILE_SIZE), Image.Resampling.LANCZOS)
+    )
+    east = (
+        Image.open(args.east_art)
+        .convert("RGB")
+        .resize((4 * TILE_SIZE, args.rows * TILE_SIZE), Image.Resampling.LANCZOS)
+    )
     west.save(args.out_dir / "murphy-overlap-west-art-normalized.png")
     east.save(args.out_dir / "murphy-overlap-east-art-normalized.png")
 
@@ -164,12 +177,16 @@ def stitch(args: argparse.Namespace) -> int:
         "join_x": 2 * TILE_SIZE,
         "join": boundary_jump(stitched, 2 * TILE_SIZE),
     }
-    (args.out_dir / "murphy-overlap-independent-imagegen-stitch-metrics.json").write_text(json.dumps(metrics, indent=2) + "\n")
+    (args.out_dir / "murphy-overlap-independent-imagegen-stitch-metrics.json").write_text(
+        json.dumps(metrics, indent=2) + "\n"
+    )
 
     overlay = draw_grid(stitched, 4, args.rows, TILE_SIZE, join_x=2 * TILE_SIZE)
     overlay.save(args.out_dir / "murphy-overlap-independent-imagegen-stitch-grid-overlay.png")
 
-    scaled = overlay.resize((720, int(720 * overlay.height / overlay.width)), Image.Resampling.LANCZOS)
+    scaled = overlay.resize(
+        (720, int(720 * overlay.height / overlay.width)), Image.Resampling.LANCZOS
+    )
     contact = label_panel(
         scaled,
         "Overlapping independent imagegen supertiles: safe-center stitch",

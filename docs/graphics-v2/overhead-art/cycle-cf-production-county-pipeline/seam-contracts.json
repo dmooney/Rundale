@@ -12,14 +12,8 @@
     {
       "orientation": "vertical",
       "x_px": 256,
-      "between_tile_cols": [
-        0,
-        1
-      ],
-      "world_between_x": [
-        62589,
-        62590
-      ],
+      "between_tile_cols": [0, 1],
+      "world_between_x": [62589, 62590],
       "features": [
         {
           "class": "pale_open_ground_or_road_candidate",
@@ -410,14 +404,8 @@
     {
       "orientation": "vertical",
       "x_px": 512,
-      "between_tile_cols": [
-        1,
-        2
-      ],
-      "world_between_x": [
-        62590,
-        62591
-      ],
+      "between_tile_cols": [1, 2],
+      "world_between_x": [62590, 62591],
       "features": [
         {
           "class": "pale_open_ground_or_road_candidate",
@@ -760,14 +748,8 @@
     {
       "orientation": "vertical",
       "x_px": 768,
-      "between_tile_cols": [
-        2,
-        3
-      ],
-      "world_between_x": [
-        62591,
-        62592
-      ],
+      "between_tile_cols": [2, 3],
+      "world_between_x": [62591, 62592],
       "features": [
         {
           "class": "pale_open_ground_or_road_candidate",
@@ -1164,14 +1146,8 @@
     {
       "orientation": "vertical",
       "x_px": 1024,
-      "between_tile_cols": [
-        3,
-        4
-      ],
-      "world_between_x": [
-        62592,
-        62593
-      ],
+      "between_tile_cols": [3, 4],
+      "world_between_x": [62592, 62593],
       "features": [
         {
           "class": "pale_open_ground_or_road_candidate",
@@ -1586,14 +1562,8 @@
     {
       "orientation": "vertical",
       "x_px": 1280,
-      "between_tile_cols": [
-        4,
-        5
-      ],
-      "world_between_x": [
-        62593,
-        62594
-      ],
+      "between_tile_cols": [4, 5],
+      "world_between_x": [62593, 62594],
       "features": [
         {
           "class": "pale_open_ground_or_road_candidate",
@@ -2056,14 +2026,8 @@
     {
       "orientation": "vertical",
       "x_px": 1536,
-      "between_tile_cols": [
-        5,
-        6
-      ],
-      "world_between_x": [
-        62594,
-        62595
-      ],
+      "between_tile_cols": [5, 6],
+      "world_between_x": [62594, 62595],
       "features": [
         {
           "class": "pale_open_ground_or_road_candidate",
@@ -2502,14 +2466,8 @@
     {
       "orientation": "vertical",
       "x_px": 1792,
-      "between_tile_cols": [
-        6,
-        7
-      ],
-      "world_between_x": [
-        62595,
-        62596
-      ],
+      "between_tile_cols": [6, 7],
+      "world_between_x": [62595, 62596],
       "features": [
         {
           "class": "pale_open_ground_or_road_candidate",
@@ -2984,14 +2942,8 @@
     {
       "orientation": "vertical",
       "x_px": 2048,
-      "between_tile_cols": [
-        7,
-        8
-      ],
-      "world_between_x": [
-        62596,
-        62597
-      ],
+      "between_tile_cols": [7, 8],
+      "world_between_x": [62596, 62597],
       "features": [
         {
           "class": "pale_open_ground_or_road_candidate",
@@ -3466,14 +3418,8 @@
     {
       "orientation": "vertical",
       "x_px": 2304,
-      "between_tile_cols": [
-        8,
-        9
-      ],
-      "world_between_x": [
-        62597,
-        62598
-      ],
+      "between_tile_cols": [8, 9],
+      "world_between_x": [62597, 62598],
       "features": [
         {
           "class": "pale_open_ground_or_road_candidate",
@@ -3846,14 +3792,8 @@
     {
       "orientation": "horizontal",
       "y_px": 256,
-      "between_tile_rows": [
-        0,
-        1
-      ],
-      "world_between_y": [
-        42304,
-        42305
-      ],
+      "between_tile_rows": [0, 1],
+      "world_between_y": [42304, 42305],
       "features": [
         {
           "class": "pale_open_ground_or_road_candidate",
@@ -4286,14 +4226,8 @@
     {
       "orientation": "horizontal",
       "y_px": 512,
-      "between_tile_rows": [
-        1,
-        2
-      ],
-      "world_between_y": [
-        42305,
-        42306
-      ],
+      "between_tile_rows": [1, 2],
+      "world_between_y": [42305, 42306],
       "features": [
         {
           "class": "pale_open_ground_or_road_candidate",
@@ -4594,14 +4528,8 @@
     {
       "orientation": "horizontal",
       "y_px": 768,
-      "between_tile_rows": [
-        2,
-        3
-      ],
-      "world_between_y": [
-        42306,
-        42307
-      ],
+      "between_tile_rows": [2, 3],
+      "world_between_y": [42306, 42307],
       "features": [
         {
           "class": "pale_open_ground_or_road_candidate",
@@ -4968,14 +4896,8 @@
     {
       "orientation": "horizontal",
       "y_px": 1024,
-      "between_tile_rows": [
-        3,
-        4
-      ],
-      "world_between_y": [
-        42307,
-        42308
-      ],
+      "between_tile_rows": [3, 4],
+      "world_between_y": [42307, 42308],
       "features": [
         {
           "class": "pale_open_ground_or_road_candidate",
@@ -5312,14 +5234,8 @@
     {
       "orientation": "horizontal",
       "y_px": 1280,
-      "between_tile_rows": [
-        4,
-        5
-      ],
-      "world_between_y": [
-        42308,
-        42309
-      ],
+      "between_tile_rows": [4, 5],
+      "world_between_y": [42308, 42309],
       "features": [
         {
           "class": "pale_open_ground_or_road_candidate",
@@ -5698,14 +5614,8 @@
     {
       "orientation": "horizontal",
       "y_px": 1536,
-      "between_tile_rows": [
-        5,
-        6
-      ],
-      "world_between_y": [
-        42309,
-        42310
-      ],
+      "between_tile_rows": [5, 6],
+      "world_between_y": [42309, 42310],
       "features": [
         {
           "class": "pale_open_ground_or_road_candidate",
@@ -6246,14 +6156,8 @@
     {
       "orientation": "horizontal",
       "y_px": 1792,
-      "between_tile_rows": [
-        6,
-        7
-      ],
-      "world_between_y": [
-        42310,
-        42311
-      ],
+      "between_tile_rows": [6, 7],
+      "world_between_y": [42310, 42311],
       "features": [
         {
           "class": "pale_open_ground_or_road_candidate",
@@ -6488,14 +6392,8 @@
     {
       "orientation": "horizontal",
       "y_px": 2048,
-      "between_tile_rows": [
-        7,
-        8
-      ],
-      "world_between_y": [
-        42311,
-        42312
-      ],
+      "between_tile_rows": [7, 8],
+      "world_between_y": [42311, 42312],
       "features": [
         {
           "class": "pale_open_ground_or_road_candidate",
@@ -6868,14 +6766,8 @@
     {
       "orientation": "horizontal",
       "y_px": 2304,
-      "between_tile_rows": [
-        8,
-        9
-      ],
-      "world_between_y": [
-        42312,
-        42313
-      ],
+      "between_tile_rows": [8, 9],
+      "world_between_y": [42312, 42313],
       "features": [
         {
           "class": "pale_open_ground_or_road_candidate",

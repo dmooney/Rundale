@@ -18,6 +18,7 @@ Keep Image 1's road centerlines, road widths, road exits, lane/yard continuity, 
 If a style improvement would require moving roads, buildings, garden edges, or wall lines, do not do that improvement.
 
 Allowed changes:
+
 - Increase the original parish notebook feel: rougher sepia/brown-black ink, looser watercolor washes, paper tooth, scratchy field hatching, dirty limewash, muddy scumbled roads, irregular grass strokes, mottled olive fields, dry-brush stone texture, and imperfect hand-painted edges.
 - Make facades, doors, thresholds, walls, gates, muddy road edges, and vegetation slightly more readable.
 - Remove or paint out nonessential props such as carts, barrels, tubs, crates, freestanding objects, and clutter that are not required for topology.

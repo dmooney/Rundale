@@ -21,10 +21,10 @@ BV E2 is the one bounded correction allowed by the pipeline.
 
 ## Outputs
 
-| ID | Image | Prompt | Report | Result |
-| --- | --- | --- | --- | --- |
-| E1 | `pipeline-experiments/idea-bv-e1-grove-reproducible-bu-style.png` | `pipeline-experiments/idea-bv-e1-grove-reproducible-bu-style.prompt.md` | `pipeline-experiments/idea-bv-e1-grove-reproducible-bu-style.report.md` | Direct pipeline pass; topology/doors pass, style slightly clean/high |
-| E2 | `pipeline-experiments/idea-bv-e2-grove-bv-e1-bu-style-tighten.png` | `pipeline-experiments/idea-bv-e2-grove-bv-e1-bu-style-tighten.prompt.md` | `pipeline-experiments/idea-bv-e2-grove-bv-e1-bu-style-tighten.report.md` | Preferred Grove result; one bounded style/scale correction |
+| ID  | Image                                                              | Prompt                                                                   | Report                                                                   | Result                                                               |
+| --- | ------------------------------------------------------------------ | ------------------------------------------------------------------------ | ------------------------------------------------------------------------ | -------------------------------------------------------------------- |
+| E1  | `pipeline-experiments/idea-bv-e1-grove-reproducible-bu-style.png`  | `pipeline-experiments/idea-bv-e1-grove-reproducible-bu-style.prompt.md`  | `pipeline-experiments/idea-bv-e1-grove-reproducible-bu-style.report.md`  | Direct pipeline pass; topology/doors pass, style slightly clean/high |
+| E2  | `pipeline-experiments/idea-bv-e2-grove-bv-e1-bu-style-tighten.png` | `pipeline-experiments/idea-bv-e2-grove-bv-e1-bu-style-tighten.prompt.md` | `pipeline-experiments/idea-bv-e2-grove-bv-e1-bu-style-tighten.report.md` | Preferred Grove result; one bounded style/scale correction           |
 
 Comparison plate:
 

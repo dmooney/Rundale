@@ -17,6 +17,7 @@ to produce control images for clean-context image-generation experiments
 without hand-authored per-location interpretation.
 
 Outputs:
+
 - `idea-bd-kilteevan-soft-planting-ink-mask.png`
 - `idea-bd-kilteevan-soft-planting-semantic-mask.png`
 - `idea-bd-kilteevan-soft-planting-literal-paint-control.png`

@@ -20,16 +20,16 @@ CA4M supersedes CA4L by expanding the two repeated failure modes:
   symbols and a southern boundary/ditch strip; negative examples show ordinary
   yard clutter and regular planted-enclosure texture.
 
-| # | Hint | Example source |
-|---|---|---|
-| 1 | Deciduous trees | Grove crop `(690, 145, 850, 365)` |
-| 2 | Coniferous trees | Grove crop `(0, 455, 260, 525)` |
-| 3 | Planted / mixed enclosure | Grove crop `(280, 155, 560, 405)` |
-| 4 | Unfenced path / track candidate | OS key `(1260, 650, 1585, 720)`, Grove crop `(0, 405, 475, 525)`, negative Grove crops `(0, 540, 430, 625)` and `(690, 330, 785, 650)` |
-| 5 | Dotted administrative / survey boundary | Grove crop `(0, 545, 405, 630)` and `(300, 525, 380, 820)` |
-| 6 | Road plus administrative boundary | Grove crop `(0, 0, 310, 185)` |
-| 7 | Single solid boundaries | Grove crop `(890, 600, 1198, 815)` |
-| 8 | Double solid corridor | Grove crop `(705, 0, 895, 245)` |
-| 9 | Rough vegetation / ditch block | OS key `(65, 470, 805, 735)`, Grove crop `(570, 655, 930, 820)`, negative Grove crops `(260, 390, 585, 535)` and `(280, 155, 560, 405)` |
-| 10 | Roofed structures | Grove crop `(485, 285, 675, 455)` |
-| 11 | Map text | Grove crop `(410, 465, 640, 585)` |
+| #   | Hint                                    | Example source                                                                                                                          |
+| --- | --------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | Deciduous trees                         | Grove crop `(690, 145, 850, 365)`                                                                                                       |
+| 2   | Coniferous trees                        | Grove crop `(0, 455, 260, 525)`                                                                                                         |
+| 3   | Planted / mixed enclosure               | Grove crop `(280, 155, 560, 405)`                                                                                                       |
+| 4   | Unfenced path / track candidate         | OS key `(1260, 650, 1585, 720)`, Grove crop `(0, 405, 475, 525)`, negative Grove crops `(0, 540, 430, 625)` and `(690, 330, 785, 650)`  |
+| 5   | Dotted administrative / survey boundary | Grove crop `(0, 545, 405, 630)` and `(300, 525, 380, 820)`                                                                              |
+| 6   | Road plus administrative boundary       | Grove crop `(0, 0, 310, 185)`                                                                                                           |
+| 7   | Single solid boundaries                 | Grove crop `(890, 600, 1198, 815)`                                                                                                      |
+| 8   | Double solid corridor                   | Grove crop `(705, 0, 895, 245)`                                                                                                         |
+| 9   | Rough vegetation / ditch block          | OS key `(65, 470, 805, 735)`, Grove crop `(570, 655, 930, 820)`, negative Grove crops `(260, 390, 585, 535)` and `(280, 155, 560, 405)` |
+| 10  | Roofed structures                       | Grove crop `(485, 285, 675, 455)`                                                                                                       |
+| 11  | Map text                                | Grove crop `(410, 465, 640, 585)`                                                                                                       |

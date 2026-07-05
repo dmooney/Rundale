@@ -33,11 +33,12 @@ from typing import Any
 import numpy as np
 from PIL import Image, ImageDraw, ImageEnhance, ImageFilter, ImageFont, ImageOps
 
-
 SCRIPT_VERSION = "county-tile-pipeline-v1"
 NLS_ROSCOMMON_URL = "https://mapseries-tilesets.s3.amazonaws.com/os/roscommon1/{z}/{x}/{y}.png"
 NLS_ATTRIBUTION = 'Historic 6" OS Ireland (1829-1842), via National Library of Scotland'
-NLS_LICENSE_NOTE = "NLS historic tiles are documented in Rundale notices as CC-BY / permission of NLS."
+NLS_LICENSE_NOTE = (
+    "NLS historic tiles are documented in Rundale notices as CC-BY / permission of NLS."
+)
 TILE_SIZE = 256
 DEFAULT_THRESHOLD = 1.15
 
@@ -122,7 +123,9 @@ def fetch_tile(ref: TileRef, cache_dir: Path, url_template: str) -> Path:
         return out
     out.parent.mkdir(parents=True, exist_ok=True)
     url = url_template.format(z=ref.z, x=ref.x, y=ref.y)
-    req = urllib.request.Request(url, headers={"User-Agent": "rundale-graphics-v2/county-tile-pipeline"})
+    req = urllib.request.Request(
+        url, headers={"User-Agent": "rundale-graphics-v2/county-tile-pipeline"}
+    )
     try:
         with urllib.request.urlopen(req, timeout=30) as response:
             out.write_bytes(response.read())
@@ -146,7 +149,9 @@ def assemble_source_mosaic(extent: SourceExtent, cache_dir: Path, url_template: 
     return mosaic
 
 
-def world_stable_texture(size: tuple[int, int], world_x0: int, world_y0: int, seed: int) -> Image.Image:
+def world_stable_texture(
+    size: tuple[int, int], world_x0: int, world_y0: int, seed: int
+) -> Image.Image:
     """Create stable paper texture keyed to source tile coordinates.
 
     Texture must not reset at runtime tile edges. For proof runs we generate one
@@ -249,7 +254,9 @@ def semantic_layers(source: Image.Image) -> tuple[np.ndarray, Image.Image, dict[
     return labels, overlay, meta
 
 
-def contiguous_segments(values: np.ndarray, class_id: int, min_len: int = 3) -> list[dict[str, int]]:
+def contiguous_segments(
+    values: np.ndarray, class_id: int, min_len: int = 3
+) -> list[dict[str, int]]:
     mask = values == class_id
     segments: list[dict[str, int]] = []
     start: int | None = None
@@ -261,7 +268,9 @@ def contiguous_segments(values: np.ndarray, class_id: int, min_len: int = 3) -> 
                 segments.append({"start_px": start, "end_px": i - 1, "length_px": i - start})
             start = None
     if start is not None and len(mask) - start >= min_len:
-        segments.append({"start_px": start, "end_px": len(mask) - 1, "length_px": len(mask) - start})
+        segments.append(
+            {"start_px": start, "end_px": len(mask) - 1, "length_px": len(mask) - start}
+        )
     return segments
 
 
@@ -295,7 +304,10 @@ def seam_contracts(labels: np.ndarray, extent: SourceExtent) -> dict[str, Any]:
     for row in range(1, extent.rows):
         y = row * TILE_SIZE
         band = labels[max(0, y - 1) : min(labels.shape[0], y + 2), :]
-        values = np.array([np.bincount(band[:, x], minlength=4).argmax() for x in range(band.shape[1])], dtype=np.uint8)
+        values = np.array(
+            [np.bincount(band[:, x], minlength=4).argmax() for x in range(band.shape[1])],
+            dtype=np.uint8,
+        )
         features = []
         for class_id, name in class_names.items():
             for seg in contiguous_segments(values, class_id):
@@ -323,7 +335,9 @@ def luminance(img: Image.Image) -> np.ndarray:
     return arr[..., 0] * 0.299 + arr[..., 1] * 0.587 + arr[..., 2] * 0.114
 
 
-def seam_metrics(img: Image.Image, cols: int, rows: int, tile_size: int = TILE_SIZE) -> dict[str, Any]:
+def seam_metrics(
+    img: Image.Image, cols: int, rows: int, tile_size: int = TILE_SIZE
+) -> dict[str, Any]:
     lum = luminance(img)
     seam_records: list[dict[str, Any]] = []
 
@@ -382,7 +396,9 @@ def seam_metrics(img: Image.Image, cols: int, rows: int, tile_size: int = TILE_S
     }
 
 
-def export_runtime_tiles(img: Image.Image, extent: SourceExtent, out_dir: Path, parent_artifact: str) -> list[dict[str, Any]]:
+def export_runtime_tiles(
+    img: Image.Image, extent: SourceExtent, out_dir: Path, parent_artifact: str
+) -> list[dict[str, Any]]:
     out_dir.mkdir(parents=True, exist_ok=True)
     records: list[dict[str, Any]] = []
     for row in range(extent.rows):
@@ -413,7 +429,9 @@ def export_runtime_tiles(img: Image.Image, extent: SourceExtent, out_dir: Path, 
     return records
 
 
-def reassemble_tiles(tile_records: list[dict[str, Any]], run_dir: Path, extent: SourceExtent) -> Image.Image:
+def reassemble_tiles(
+    tile_records: list[dict[str, Any]], run_dir: Path, extent: SourceExtent
+) -> Image.Image:
     out = Image.new("RGB", extent.size_px, "white")
     by_id = {record["tile_id"]: record for record in tile_records}
     for row in range(extent.rows):
@@ -431,7 +449,12 @@ def max_abs_error(a: Image.Image, b: Image.Image) -> int:
     return int(np.abs(arr_a - arr_b).max())
 
 
-def draw_grid(img: Image.Image, extent: SourceExtent, color: tuple[int, int, int] = (31, 121, 69), width: int = 3) -> Image.Image:
+def draw_grid(
+    img: Image.Image,
+    extent: SourceExtent,
+    color: tuple[int, int, int] = (31, 121, 69),
+    width: int = 3,
+) -> Image.Image:
     out = img.copy()
     draw = ImageDraw.Draw(out)
     for col in range(1, extent.cols):
@@ -477,12 +500,29 @@ def scaled_panel(img: Image.Image, width: int, title: str, subtitle: str = "") -
     return label_panel(scaled, title, subtitle)
 
 
-def make_contact_sheet(run_dir: Path, source: Image.Image, styled: Image.Image, semantic: Image.Image, heatmap: Image.Image, metrics: dict[str, Any]) -> Path:
+def make_contact_sheet(
+    run_dir: Path,
+    source: Image.Image,
+    styled: Image.Image,
+    semantic: Image.Image,
+    heatmap: Image.Image,
+    metrics: dict[str, Any],
+) -> Path:
     panel_w = 520
     panels = [
         scaled_panel(source, panel_w, "A. Raw NLS source mosaic", "10x10 real Roscommon z17 tiles"),
-        scaled_panel(styled, panel_w, "B. Continuous county-base supertile", "rendered once, then split mechanically"),
-        scaled_panel(semantic, panel_w, "C. Deterministic semantic proof layer", "coarse classes for seam contracts"),
+        scaled_panel(
+            styled,
+            panel_w,
+            "B. Continuous county-base supertile",
+            "rendered once, then split mechanically",
+        ),
+        scaled_panel(
+            semantic,
+            panel_w,
+            "C. Deterministic semantic proof layer",
+            "coarse classes for seam contracts",
+        ),
         scaled_panel(
             heatmap,
             panel_w,
@@ -492,17 +532,26 @@ def make_contact_sheet(run_dir: Path, source: Image.Image, styled: Image.Image, 
     ]
     gap = 24
     width = gap * 3 + panel_w * 2
-    height = gap * 3 + max(panels[0].height, panels[1].height) + max(panels[2].height, panels[3].height)
+    height = (
+        gap * 3 + max(panels[0].height, panels[1].height) + max(panels[2].height, panels[3].height)
+    )
     sheet = Image.new("RGB", (width, height), (244, 241, 232))
-    positions = [(gap, gap), (gap * 2 + panel_w, gap), (gap, gap * 2 + max(panels[0].height, panels[1].height)), (gap * 2 + panel_w, gap * 2 + max(panels[0].height, panels[1].height))]
-    for panel, pos in zip(panels, positions):
+    positions = [
+        (gap, gap),
+        (gap * 2 + panel_w, gap),
+        (gap, gap * 2 + max(panels[0].height, panels[1].height)),
+        (gap * 2 + panel_w, gap * 2 + max(panels[0].height, panels[1].height)),
+    ]
+    for panel, pos in zip(panels, positions, strict=True):
         sheet.paste(panel, pos)
     out = run_dir / "county-pipeline-proof-contact-sheet.png"
     sheet.save(out)
     return out
 
 
-def write_repair_package(run_dir: Path, extent: SourceExtent, styled: Image.Image) -> dict[str, Any]:
+def write_repair_package(
+    run_dir: Path, extent: SourceExtent, styled: Image.Image
+) -> dict[str, Any]:
     """Write a masked seam-repair template for future imagegen/local repair.
 
     The county base export does not require repair. This package documents the
@@ -521,7 +570,9 @@ def write_repair_package(run_dir: Path, extent: SourceExtent, styled: Image.Imag
 
     overlay = styled.copy()
     draw = ImageDraw.Draw(overlay)
-    draw.rectangle((join_x - band_px, 0, join_x + band_px, styled.height), outline=(196, 44, 38), width=6)
+    draw.rectangle(
+        (join_x - band_px, 0, join_x + band_px, styled.height), outline=(196, 44, 38), width=6
+    )
     draw.line([(join_x, 0), (join_x, styled.height)], fill=(196, 44, 38), width=3)
     overlay.save(repair_dir / "seam-contract-overlay.png")
 
@@ -560,7 +611,9 @@ def vertical_join_metric(img: Image.Image, join_x: int) -> dict[str, float]:
     }
 
 
-def repair_vertical_seam(img: Image.Image, join_x: int, band_half_width: int) -> tuple[Image.Image, Image.Image]:
+def repair_vertical_seam(
+    img: Image.Image, join_x: int, band_half_width: int
+) -> tuple[Image.Image, Image.Image]:
     """Bounded deterministic seam repair.
 
     This is deliberately conservative: it harmonizes color/texture inside a
@@ -574,7 +627,6 @@ def repair_vertical_seam(img: Image.Image, join_x: int, band_half_width: int) ->
     x0 = max(0, join_x - band_half_width)
     x1 = min(img.width, join_x + band_half_width)
     arr = np.asarray(img.convert("RGB"), dtype=np.float32).copy()
-    band = arr[:, x0:x1, :]
     left = arr[:, x0:join_x, :]
     right = arr[:, join_x:x1, :]
     if left.size == 0 or right.size == 0:
@@ -597,7 +649,9 @@ def repair_vertical_seam(img: Image.Image, join_x: int, band_half_width: int) ->
     repaired = Image.fromarray(np.clip(arr, 0, 255).astype(np.uint8), mode="RGB")
 
     # Feather the exact join very narrowly to prevent a one-pixel hard cut.
-    narrow = repaired.crop((max(0, join_x - 6), 0, min(repaired.width, join_x + 6), repaired.height))
+    narrow = repaired.crop(
+        (max(0, join_x - 6), 0, min(repaired.width, join_x + 6), repaired.height)
+    )
     narrow_blur = narrow.filter(ImageFilter.GaussianBlur(1.15))
     repaired.paste(narrow_blur, (max(0, join_x - 6), 0))
 
@@ -623,16 +677,30 @@ def repair_seam(args: argparse.Namespace) -> int:
     overlay = repaired.copy()
     draw = ImageDraw.Draw(overlay)
     draw.rectangle(
-        (max(0, join_x - args.band_half_width), 0, min(overlay.width, join_x + args.band_half_width), overlay.height),
+        (
+            max(0, join_x - args.band_half_width),
+            0,
+            min(overlay.width, join_x + args.band_half_width),
+            overlay.height,
+        ),
         outline=(196, 44, 38),
         width=5,
     )
     draw.line([(join_x, 0), (join_x, overlay.height)], fill=(196, 44, 38), width=3)
     overlay.save(out_dir / "repair-after-overlay.png")
 
-    scaled_before = scaled_panel(original, 520, "Before masked seam repair", f"join ratio {before['join_to_control_ratio']:.2f}")
-    scaled_after = scaled_panel(overlay, 520, "After masked seam repair", f"join ratio {after['join_to_control_ratio']:.2f}")
-    sheet = Image.new("RGB", (520 * 2 + 72, max(scaled_before.height, scaled_after.height) + 48), (244, 241, 232))
+    scaled_before = scaled_panel(
+        original,
+        520,
+        "Before masked seam repair",
+        f"join ratio {before['join_to_control_ratio']:.2f}",
+    )
+    scaled_after = scaled_panel(
+        overlay, 520, "After masked seam repair", f"join ratio {after['join_to_control_ratio']:.2f}"
+    )
+    sheet = Image.new(
+        "RGB", (520 * 2 + 72, max(scaled_before.height, scaled_after.height) + 48), (244, 241, 232)
+    )
     sheet.paste(scaled_before, (24, 24))
     sheet.paste(scaled_after, (520 + 48, 24))
     sheet.save(out_dir / "repair-contact-sheet.png")
@@ -667,7 +735,9 @@ def repair_seam(args: argparse.Namespace) -> int:
     return 0 if report["status"].startswith("pass") else 1
 
 
-def write_run_readme(run_dir: Path, manifest: dict[str, Any], validation: dict[str, Any] | None = None) -> None:
+def write_run_readme(
+    run_dir: Path, manifest: dict[str, Any], validation: dict[str, Any] | None = None
+) -> None:
     source = manifest["source"]
     metrics = manifest.get("metrics", {})
     lines = [
@@ -755,7 +825,9 @@ def run_proof(args: argparse.Namespace) -> int:
     contracts_path = run_dir / "seam-contracts.json"
     contracts_path.write_text(json.dumps(contracts, indent=2) + "\n")
 
-    tile_records = export_runtime_tiles(styled, extent, run_dir / "runtime-tiles", "county-base-supertile.png")
+    tile_records = export_runtime_tiles(
+        styled, extent, run_dir / "runtime-tiles", "county-base-supertile.png"
+    )
     reassembled = reassemble_tiles(tile_records, run_dir, extent)
     reassembled_path = run_dir / "runtime-reassembled.png"
     reassembled.save(reassembled_path)
@@ -792,7 +864,12 @@ def run_proof(args: argparse.Namespace) -> int:
         "source": {
             "center_lat": args.lat,
             "center_lon": args.lon,
-            "extent": {**asdict(extent), "x1": extent.x1, "y1": extent.y1, "tile_count": extent.tile_count},
+            "extent": {
+                **asdict(extent),
+                "x1": extent.x1,
+                "y1": extent.y1,
+                "tile_count": extent.tile_count,
+            },
             "url_template": args.url_template,
             "attribution": NLS_ATTRIBUTION,
             "license_note": NLS_LICENSE_NOTE,
@@ -860,7 +937,9 @@ def validate_run_dir(run_dir: Path, write_files: bool = True) -> dict[str, Any]:
     if tile_count < 100:
         errors.append(f"tile_count {tile_count} < 100")
     if int(metrics.get("max_abs_reassembly_error", -1)) != 0:
-        errors.append(f"max_abs_reassembly_error is {metrics.get('max_abs_reassembly_error')}, expected 0")
+        errors.append(
+            f"max_abs_reassembly_error is {metrics.get('max_abs_reassembly_error')}, expected 0"
+        )
     if float(metrics.get("max_seam_to_control_ratio", 999.0)) > threshold:
         errors.append(
             f"max_seam_to_control_ratio {metrics.get('max_seam_to_control_ratio')} exceeds threshold {threshold}"
@@ -875,7 +954,10 @@ def validate_run_dir(run_dir: Path, write_files: bool = True) -> dict[str, Any]:
         errors.append("manifest missing source attribution")
     if not contracts.get("contracts"):
         errors.append("seam contracts are empty")
-    if manifest.get("imagegen_policy", {}).get("cycle_ce_independent_join_status") != "fail_requires_repair":
+    if (
+        manifest.get("imagegen_policy", {}).get("cycle_ce_independent_join_status")
+        != "fail_requires_repair"
+    ):
         errors.append("imagegen independent join policy is not marked fail_requires_repair")
 
     repair_proof_path = run_dir / "masked-seam-repair-proof" / "repair-report.json"
@@ -893,8 +975,12 @@ def validate_run_dir(run_dir: Path, write_files: bool = True) -> dict[str, Any]:
             "status": repair_status,
             "report": str(repair_proof_path.relative_to(run_dir)),
             "contact_sheet": "masked-seam-repair-proof/repair-contact-sheet.png",
-            "before_join_to_control_ratio": repair_report.get("before", {}).get("join_to_control_ratio"),
-            "after_join_to_control_ratio": repair_report.get("after", {}).get("join_to_control_ratio"),
+            "before_join_to_control_ratio": repair_report.get("before", {}).get(
+                "join_to_control_ratio"
+            ),
+            "after_join_to_control_ratio": repair_report.get("after", {}).get(
+                "join_to_control_ratio"
+            ),
             "topology_review_required": repair_status.startswith("pass_metrics"),
         }
 
@@ -922,7 +1008,9 @@ def validate_run_dir(run_dir: Path, write_files: bool = True) -> dict[str, Any]:
         "max_seam_to_control_ratio": metrics.get("max_seam_to_control_ratio"),
         "threshold": threshold,
         "seam_contract_count": len(contracts.get("contracts", [])),
-        "imagegen_independent_join_status": manifest.get("imagegen_policy", {}).get("cycle_ce_independent_join_status"),
+        "imagegen_independent_join_status": manifest.get("imagegen_policy", {}).get(
+            "cycle_ce_independent_join_status"
+        ),
         "masked_seam_repair_proof": repair_proof,
         "errors": errors,
         "warnings": warnings,
@@ -977,7 +1065,13 @@ def prepare_repair(args: argparse.Namespace) -> int:
     img = Image.open(args.input).convert("RGB")
     run_dir = args.out_dir
     run_dir.mkdir(parents=True, exist_ok=True)
-    extent = SourceExtent(z=args.zoom, x0=0, y0=0, cols=max(1, img.width // TILE_SIZE), rows=max(1, img.height // TILE_SIZE))
+    extent = SourceExtent(
+        z=args.zoom,
+        x0=0,
+        y0=0,
+        cols=max(1, img.width // TILE_SIZE),
+        rows=max(1, img.height // TILE_SIZE),
+    )
     manifest = write_repair_package(run_dir, extent, img)
     print(json.dumps(manifest, indent=2))
     return 0
@@ -994,9 +1088,13 @@ def build_parser() -> argparse.ArgumentParser:
     sub = parser.add_subparsers(dest="cmd", required=True)
 
     proof = sub.add_parser("run-proof", help="run the Murphy/Roscommon production proof pipeline")
-    proof.add_argument("--preset", default="murphy-production-proof", choices=["murphy-production-proof"])
+    proof.add_argument(
+        "--preset", default="murphy-production-proof", choices=["murphy-production-proof"]
+    )
     proof.add_argument("--out-dir", type=Path, required=True)
-    proof.add_argument("--cache-dir", type=Path, default=Path("/private/tmp/rundale-nls-tile-cache"))
+    proof.add_argument(
+        "--cache-dir", type=Path, default=Path("/private/tmp/rundale-nls-tile-cache")
+    )
     proof.add_argument("--url-template", default=NLS_ROSCOMMON_URL)
     proof.add_argument("--lat", type=float, default=53.63579941155877)
     proof.add_argument("--lon", type=float, default=-8.079662971357214)
@@ -1007,17 +1105,23 @@ def build_parser() -> argparse.ArgumentParser:
     proof.add_argument("--min-tile-count", type=int, default=100)
     proof.set_defaults(func=run_proof)
 
-    validate = sub.add_parser("validate", help="validate an existing county tile pipeline run directory")
+    validate = sub.add_parser(
+        "validate", help="validate an existing county tile pipeline run directory"
+    )
     validate.add_argument("--run-dir", type=Path, required=True)
     validate.set_defaults(func=validate_command)
 
-    repair = sub.add_parser("prepare-repair", help="write a masked seam repair template for a stitched panel")
+    repair = sub.add_parser(
+        "prepare-repair", help="write a masked seam repair template for a stitched panel"
+    )
     repair.add_argument("--input", type=Path, required=True)
     repair.add_argument("--out-dir", type=Path, required=True)
     repair.add_argument("--zoom", type=int, default=17)
     repair.set_defaults(func=prepare_repair)
 
-    repair_run = sub.add_parser("repair-seam", help="run a bounded deterministic vertical seam repair")
+    repair_run = sub.add_parser(
+        "repair-seam", help="run a bounded deterministic vertical seam repair"
+    )
     repair_run.add_argument("--input", type=Path, required=True)
     repair_run.add_argument("--out-dir", type=Path, required=True)
     repair_run.add_argument("--join-x", type=int, default=None)

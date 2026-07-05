@@ -9,6 +9,7 @@ a playable low 3/4 orthographic illustrated game background, not a UI screen
 and not a survey-map render.
 
 Input images and roles, in the order shown immediately before generation:
+
 - Image 1 / source map: Murphy's Farm z17 historic OS crop. Highest authority
   for the local road/field/boundary context and north-up orientation. Ignore
   printed labels, survey numbers, and paper artifacts as in-world objects.
@@ -40,6 +41,7 @@ the source map has dense texture. Cattle should not be visible in the base
 plate; they belong in runtime animal layers.
 
 Map and topology constraints:
+
 - Keep geographic north at the top of the final image; do not rotate the
   ground plan for a prettier diagonal.
 - Use the small farmstead/yard mark near the source crop's center-left as the
@@ -56,6 +58,7 @@ Map and topology constraints:
   smoke, labels, signs, UI, or extra landmark buildings.
 
 Camera/scale:
+
 - Low 3/4 orthographic game camera, closer playable crop around the farmstead,
   road/lane, yard, and immediate fields.
 - Show readable facades and thresholds. Main doors should be roughly in the
@@ -65,12 +68,14 @@ Camera/scale:
   time/weather/season filters.
 
 Door and roof discipline:
+
 - Every visible person-sized opening on a walkable facade must contain a fitted
   wooden plank door and a threshold/step. No black doorway voids.
 - Avoid decorative chimneys, roof nubs, roof posts, smoke, ridge stacks, and
   vertical masonry protrusions. The base plate should have no active smoke.
 
 Regional Roscommon boundary treatment:
+
 - Do not turn every boundary into a stone wall.
 - Ordinary field and garden divisions should usually be hedges, hedgebanks,
   banks, ditches, remnant hedges, or stone-earthen banks.

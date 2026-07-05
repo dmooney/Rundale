@@ -27,7 +27,6 @@ from collections import deque
 from dataclasses import dataclass
 from pathlib import Path
 
-
 RGBA = tuple[int, int, int, int]
 
 
@@ -123,7 +122,12 @@ def write_png(path: Path, width: int, height: int, rgba: bytearray) -> None:
         )
 
     ihdr = struct.pack(">IIBBBBB", width, height, 8, 6, 0, 0, 0)
-    png = b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", ihdr) + chunk(b"IDAT", zlib.compress(bytes(rows), 6)) + chunk(b"IEND", b"")
+    png = (
+        b"\x89PNG\r\n\x1a\n"
+        + chunk(b"IHDR", ihdr)
+        + chunk(b"IDAT", zlib.compress(bytes(rows), 6))
+        + chunk(b"IEND", b"")
+    )
     path.write_bytes(png)
 
 
@@ -142,7 +146,9 @@ def put_px(img: bytearray, width: int, height: int, x: int, y: int, color: RGBA)
         img[i : i + 4] = bytes(color)
 
 
-def blend_px(img: bytearray, width: int, height: int, x: int, y: int, color: RGBA, alpha: float) -> None:
+def blend_px(
+    img: bytearray, width: int, height: int, x: int, y: int, color: RGBA, alpha: float
+) -> None:
     if 0 <= x < width and 0 <= y < height:
         i = (y * width + x) * 4
         inv = 1.0 - alpha
@@ -152,7 +158,17 @@ def blend_px(img: bytearray, width: int, height: int, x: int, y: int, color: RGB
         img[i + 3] = 255
 
 
-def draw_line(img: bytearray, width: int, height: int, x0: int, y0: int, x1: int, y1: int, color: RGBA, thick: int = 1) -> None:
+def draw_line(
+    img: bytearray,
+    width: int,
+    height: int,
+    x0: int,
+    y0: int,
+    x1: int,
+    y1: int,
+    color: RGBA,
+    thick: int = 1,
+) -> None:
     dx = abs(x1 - x0)
     dy = -abs(y1 - y0)
     sx = 1 if x0 < x1 else -1
@@ -173,7 +189,9 @@ def draw_line(img: bytearray, width: int, height: int, x0: int, y0: int, x1: int
             y0 += sy
 
 
-def fill_rect(img: bytearray, width: int, height: int, x0: int, y0: int, x1: int, y1: int, color: RGBA) -> None:
+def fill_rect(
+    img: bytearray, width: int, height: int, x0: int, y0: int, x1: int, y1: int, color: RGBA
+) -> None:
     x0, x1 = sorted((max(0, x0), min(width - 1, x1)))
     y0, y1 = sorted((max(0, y0), min(height - 1, y1)))
     for y in range(y0, y1 + 1):
@@ -183,8 +201,10 @@ def fill_rect(img: bytearray, width: int, height: int, x0: int, y0: int, x1: int
             off += 4
 
 
-def draw_poly_outline(img: bytearray, width: int, height: int, pts: list[tuple[int, int]], color: RGBA, thick: int = 1) -> None:
-    for a, b in zip(pts, pts[1:] + pts[:1]):
+def draw_poly_outline(
+    img: bytearray, width: int, height: int, pts: list[tuple[int, int]], color: RGBA, thick: int = 1
+) -> None:
+    for a, b in zip(pts, pts[1:] + pts[:1], strict=True):
         draw_line(img, width, height, a[0], a[1], b[0], b[1], color, thick)
 
 
@@ -209,7 +229,9 @@ class Component:
         return self.area / max(1, self.width * self.height)
 
 
-def connected_components(mask: bytearray, width: int, height: int, max_components: int = 20000) -> list[Component]:
+def connected_components(
+    mask: bytearray, width: int, height: int, max_components: int = 20000
+) -> list[Component]:
     seen = bytearray(width * height)
     comps: list[Component] = []
     neighbors = ((1, 0), (-1, 0), (0, 1), (0, -1))
@@ -293,7 +315,9 @@ def dilate_mask(mask: bytearray, width: int, height: int, radius: int) -> bytear
     return out
 
 
-def erode_mask(mask: bytearray, width: int, height: int, radius: int, min_fraction: float = 0.72) -> bytearray:
+def erode_mask(
+    mask: bytearray, width: int, height: int, radius: int, min_fraction: float = 0.72
+) -> bytearray:
     out = bytearray(width * height)
     full = (radius * 2 + 1) * (radius * 2 + 1)
     threshold = max(1, int(full * min_fraction))
@@ -320,14 +344,21 @@ def classify_buildings(components: list[Component]) -> list[Component]:
     return buildings
 
 
-def classify_small_symbols(components: list[Component], buildings: list[Component]) -> list[Component]:
+def classify_small_symbols(
+    components: list[Component], buildings: list[Component]
+) -> list[Component]:
     building_ids = {id(c) for c in buildings}
     out: list[Component] = []
     for c in components:
         if id(c) in building_ids:
             continue
         aspect = c.width / max(1, c.height)
-        if 3 <= c.width <= 34 and 3 <= c.height <= 34 and 5 <= c.area <= 450 and 0.12 <= aspect <= 4.5:
+        if (
+            3 <= c.width <= 34
+            and 3 <= c.height <= 34
+            and 5 <= c.area <= 450
+            and 0.12 <= aspect <= 4.5
+        ):
             out.append(c)
     return out
 
@@ -345,7 +376,9 @@ def project(x: float, y: float, scale: float, off_x: float, off_y: float) -> tup
     return int(round(off_x + x * scale)), int(round(off_y + y * scale * 0.58))
 
 
-def make_ink_mask(width: int, height: int, rgba: bytearray) -> tuple[bytearray, bytearray, bytearray]:
+def make_ink_mask(
+    width: int, height: int, rgba: bytearray
+) -> tuple[bytearray, bytearray, bytearray]:
     light_mask = bytearray(width * height)
     dark_mask = bytearray(width * height)
     ink = blank(width, height, (246, 238, 218, 255))
@@ -363,7 +396,9 @@ def make_ink_mask(width: int, height: int, rgba: bytearray) -> tuple[bytearray, 
     return light_mask, dark_mask, ink
 
 
-def make_semantic(width: int, height: int, light: bytearray, buildings: list[Component], symbols: list[Component]) -> bytearray:
+def make_semantic(
+    width: int, height: int, light: bytearray, buildings: list[Component], symbols: list[Component]
+) -> bytearray:
     img = blank(width, height, (245, 237, 219, 255))
     for y in range(height):
         for x in range(width):
@@ -407,7 +442,15 @@ def make_oblique_raw(src_w: int, src_h: int, rgba: bytearray, dst_w: int, dst_h:
     return out
 
 
-def make_blockout(src_w: int, src_h: int, light: bytearray, buildings: list[Component], symbols: list[Component], dst_w: int, dst_h: int) -> bytearray:
+def make_blockout(
+    src_w: int,
+    src_h: int,
+    light: bytearray,
+    buildings: list[Component],
+    symbols: list[Component],
+    dst_w: int,
+    dst_h: int,
+) -> bytearray:
     out = blank(dst_w, dst_h, (225, 218, 194, 255))
     scale, off_x, off_y = ground_transform(src_w, src_h, dst_w, dst_h)
 
@@ -443,7 +486,16 @@ def make_blockout(src_w: int, src_h: int, light: bytearray, buildings: list[Comp
         # Wall body.
         fill_rect(out, dst_w, dst_h, x0, y0 - height_px, x1, y1, (211, 199, 171, 255))
         # Roof slab.
-        fill_rect(out, dst_w, dst_h, x0 - 2, y0 - height_px - 7, x1 + 2, y0 - height_px + 4, (113, 95, 68, 255))
+        fill_rect(
+            out,
+            dst_w,
+            dst_h,
+            x0 - 2,
+            y0 - height_px - 7,
+            x1 + 2,
+            y0 - height_px + 4,
+            (113, 95, 68, 255),
+        )
         # Facade linework.
         draw_poly_outline(
             out,
@@ -460,7 +512,9 @@ def make_blockout(src_w: int, src_h: int, light: bytearray, buildings: list[Comp
     return out
 
 
-def make_linework_control(src_w: int, src_h: int, light: bytearray, symbols: list[Component], dst_w: int, dst_h: int) -> bytearray:
+def make_linework_control(
+    src_w: int, src_h: int, light: bytearray, symbols: list[Component], dst_w: int, dst_h: int
+) -> bytearray:
     out = blank(dst_w, dst_h, (225, 218, 194, 255))
     scale, off_x, off_y = ground_transform(src_w, src_h, dst_w, dst_h)
 
@@ -483,7 +537,14 @@ def make_linework_control(src_w: int, src_h: int, light: bytearray, symbols: lis
     return out
 
 
-def make_road_topology_control(src_w: int, src_h: int, rgba: bytearray, light: bytearray, dark: bytearray, symbols: list[Component]) -> bytearray:
+def make_road_topology_control(
+    src_w: int,
+    src_h: int,
+    rgba: bytearray,
+    light: bytearray,
+    dark: bytearray,
+    symbols: list[Component],
+) -> bytearray:
     """Build a generic soft road cue from broad pale corridors near source ink."""
     out = blank(src_w, src_h, (225, 218, 194, 255))
     dist = distance_to_mask(dark, src_w, src_h, 18)
@@ -501,16 +562,17 @@ def make_road_topology_control(src_w: int, src_h: int, rgba: bytearray, light: b
             # label/letter counters have too much ink immediately nearby.
             near_dark = local_count(dark, src_w, src_h, x, y, 4)
             surrounding_dark = local_count(dark, src_w, src_h, x, y, 18)
-            if 190 <= g and 5 <= dist[pi] <= 28 and near_dark <= 4 and 10 <= surrounding_dark <= 120:
+            if (
+                g >= 190
+                and 5 <= dist[pi] <= 28
+                and near_dark <= 4
+                and 10 <= surrounding_dark <= 120
+            ):
                 candidate[pi] = 1
 
     comps = connected_components(candidate, src_w, src_h)
     road_like = [
-        c
-        for c in comps
-        if c.area >= 90
-        and (c.width >= 28 or c.height >= 28)
-        and c.density >= 0.08
+        c for c in comps if c.area >= 90 and (c.width >= 28 or c.height >= 28) and c.density >= 0.08
     ]
 
     # Faint source linework remains visible for orientation, but the tan bands
@@ -539,7 +601,9 @@ def make_road_topology_control(src_w: int, src_h: int, rgba: bytearray, light: b
     return out
 
 
-def make_diff_mask(width: int, height: int, current: bytearray, original: bytearray | None) -> bytearray:
+def make_diff_mask(
+    width: int, height: int, current: bytearray, original: bytearray | None
+) -> bytearray:
     diff = bytearray(width * height)
     if original is None:
         return diff
@@ -698,7 +762,11 @@ def make_boundary_material_control(
         radius = max(2, min(7, max(c.width, c.height) // 2))
         for yy in range(cy - radius, cy + radius + 1):
             for xx in range(cx - radius, cx + radius + 1):
-                if 0 <= xx < width and 0 <= yy < height and (xx - cx) * (xx - cx) + (yy - cy) * (yy - cy) <= radius * radius:
+                if (
+                    0 <= xx < width
+                    and 0 <= yy < height
+                    and (xx - cx) * (xx - cx) + (yy - cy) * (yy - cy) <= radius * radius
+                ):
                     planting_seed[yy * width + xx] = 1
 
     planting = dilate_mask(planting_seed, width, height, 3)
@@ -794,7 +862,11 @@ def make_soft_planting_control(
         radius = max(1, min(5, max(c.width, c.height) // 3))
         for yy in range(cy - radius, cy + radius + 1):
             for xx in range(cx - radius, cx + radius + 1):
-                if 0 <= xx < width and 0 <= yy < height and (xx - cx) * (xx - cx) + (yy - cy) * (yy - cy) <= radius * radius:
+                if (
+                    0 <= xx < width
+                    and 0 <= yy < height
+                    and (xx - cx) * (xx - cx) + (yy - cy) * (yy - cy) <= radius * radius
+                ):
                     planting_seed[yy * width + xx] = 1
 
     planting = dilate_mask(planting_seed, width, height, 4)
@@ -881,25 +953,83 @@ def main() -> None:
     args.out_dir.mkdir(parents=True, exist_ok=True)
     diff = make_diff_mask(src_w, src_h, rgba, original_rgba)
     literal_paint = make_literal_paint_control(src_w, src_h, rgba, light, dark, symbols, diff)
-    boundary_material, planting_pixels = make_boundary_material_control(src_w, src_h, rgba, light, dark, symbols, diff)
-    soft_planting, soft_planting_pixels, soft_planting_core_pixels, soft_planting_edge_pixels = make_soft_planting_control(
+    boundary_material, planting_pixels = make_boundary_material_control(
         src_w, src_h, rgba, light, dark, symbols, diff
+    )
+    soft_planting, soft_planting_pixels, soft_planting_core_pixels, soft_planting_edge_pixels = (
+        make_soft_planting_control(src_w, src_h, rgba, light, dark, symbols, diff)
     )
     road_topology = make_road_topology_control(src_w, src_h, rgba, light, dark, symbols)
     write_png(args.out_dir / f"{args.prefix}-ink-mask.png", src_w, src_h, ink)
-    write_png(args.out_dir / f"{args.prefix}-semantic-mask.png", src_w, src_h, make_semantic(src_w, src_h, light, buildings, symbols))
-    write_png(args.out_dir / f"{args.prefix}-literal-paint-control.png", src_w, src_h, literal_paint)
-    write_png(args.out_dir / f"{args.prefix}-literal-paint-oblique.png", args.width, args.height, make_oblique_raw(src_w, src_h, literal_paint, args.width, args.height))
-    write_png(args.out_dir / f"{args.prefix}-boundary-material-control.png", src_w, src_h, boundary_material)
-    write_png(args.out_dir / f"{args.prefix}-boundary-material-oblique.png", args.width, args.height, make_oblique_raw(src_w, src_h, boundary_material, args.width, args.height))
-    write_png(args.out_dir / f"{args.prefix}-soft-planting-control.png", src_w, src_h, soft_planting)
-    write_png(args.out_dir / f"{args.prefix}-soft-planting-oblique.png", args.width, args.height, make_oblique_raw(src_w, src_h, soft_planting, args.width, args.height))
-    write_png(args.out_dir / f"{args.prefix}-oblique-raw-warp.png", args.width, args.height, make_oblique_raw(src_w, src_h, rgba, args.width, args.height))
-    write_png(args.out_dir / f"{args.prefix}-oblique-ink-warp.png", args.width, args.height, make_oblique_raw(src_w, src_h, ink, args.width, args.height))
-    write_png(args.out_dir / f"{args.prefix}-linework-control.png", args.width, args.height, make_linework_control(src_w, src_h, light, symbols, args.width, args.height))
-    write_png(args.out_dir / f"{args.prefix}-road-topology-control.png", src_w, src_h, road_topology)
-    write_png(args.out_dir / f"{args.prefix}-road-topology-oblique.png", args.width, args.height, make_oblique_raw(src_w, src_h, road_topology, args.width, args.height))
-    write_png(args.out_dir / f"{args.prefix}-extruded-blockout.png", args.width, args.height, make_blockout(src_w, src_h, light, buildings, symbols, args.width, args.height))
+    write_png(
+        args.out_dir / f"{args.prefix}-semantic-mask.png",
+        src_w,
+        src_h,
+        make_semantic(src_w, src_h, light, buildings, symbols),
+    )
+    write_png(
+        args.out_dir / f"{args.prefix}-literal-paint-control.png", src_w, src_h, literal_paint
+    )
+    write_png(
+        args.out_dir / f"{args.prefix}-literal-paint-oblique.png",
+        args.width,
+        args.height,
+        make_oblique_raw(src_w, src_h, literal_paint, args.width, args.height),
+    )
+    write_png(
+        args.out_dir / f"{args.prefix}-boundary-material-control.png",
+        src_w,
+        src_h,
+        boundary_material,
+    )
+    write_png(
+        args.out_dir / f"{args.prefix}-boundary-material-oblique.png",
+        args.width,
+        args.height,
+        make_oblique_raw(src_w, src_h, boundary_material, args.width, args.height),
+    )
+    write_png(
+        args.out_dir / f"{args.prefix}-soft-planting-control.png", src_w, src_h, soft_planting
+    )
+    write_png(
+        args.out_dir / f"{args.prefix}-soft-planting-oblique.png",
+        args.width,
+        args.height,
+        make_oblique_raw(src_w, src_h, soft_planting, args.width, args.height),
+    )
+    write_png(
+        args.out_dir / f"{args.prefix}-oblique-raw-warp.png",
+        args.width,
+        args.height,
+        make_oblique_raw(src_w, src_h, rgba, args.width, args.height),
+    )
+    write_png(
+        args.out_dir / f"{args.prefix}-oblique-ink-warp.png",
+        args.width,
+        args.height,
+        make_oblique_raw(src_w, src_h, ink, args.width, args.height),
+    )
+    write_png(
+        args.out_dir / f"{args.prefix}-linework-control.png",
+        args.width,
+        args.height,
+        make_linework_control(src_w, src_h, light, symbols, args.width, args.height),
+    )
+    write_png(
+        args.out_dir / f"{args.prefix}-road-topology-control.png", src_w, src_h, road_topology
+    )
+    write_png(
+        args.out_dir / f"{args.prefix}-road-topology-oblique.png",
+        args.width,
+        args.height,
+        make_oblique_raw(src_w, src_h, road_topology, args.width, args.height),
+    )
+    write_png(
+        args.out_dir / f"{args.prefix}-extruded-blockout.png",
+        args.width,
+        args.height,
+        make_blockout(src_w, src_h, light, buildings, symbols, args.width, args.height),
+    )
 
     report = [
         "# Prototype Map Control Report",

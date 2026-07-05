@@ -40,10 +40,10 @@ were used.
 
 ## Outputs
 
-| Cycle | Image | Prompt | Report | Result |
-| --- | --- | --- | --- | --- |
-| BA | `pipeline-experiments/idea-ba-kilteevan-fresh-map-control-notebook.png` | `pipeline-experiments/idea-ba-kilteevan-fresh-map-control-notebook.prompt.md` | `pipeline-experiments/idea-ba-kilteevan-fresh-map-control-notebook.report.md` | Best fresh no-prior-render attempt at the AZ/notebook direction; garden too walled |
-| BB | `pipeline-experiments/idea-bb-kilteevan-ba-boundary-soften.png` | `pipeline-experiments/idea-bb-kilteevan-ba-boundary-soften.prompt.md` | `pipeline-experiments/idea-bb-kilteevan-ba-boundary-soften.report.md` | Useful boundary-softened repair; loses some crisp ink/facade density |
+| Cycle | Image                                                                   | Prompt                                                                        | Report                                                                        | Result                                                                             |
+| ----- | ----------------------------------------------------------------------- | ----------------------------------------------------------------------------- | ----------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| BA    | `pipeline-experiments/idea-ba-kilteevan-fresh-map-control-notebook.png` | `pipeline-experiments/idea-ba-kilteevan-fresh-map-control-notebook.prompt.md` | `pipeline-experiments/idea-ba-kilteevan-fresh-map-control-notebook.report.md` | Best fresh no-prior-render attempt at the AZ/notebook direction; garden too walled |
+| BB    | `pipeline-experiments/idea-bb-kilteevan-ba-boundary-soften.png`         | `pipeline-experiments/idea-bb-kilteevan-ba-boundary-soften.prompt.md`         | `pipeline-experiments/idea-bb-kilteevan-ba-boundary-soften.report.md`         | Useful boundary-softened repair; loses some crisp ink/facade density               |
 
 ## BA Result
 

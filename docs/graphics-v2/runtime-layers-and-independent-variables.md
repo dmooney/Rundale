@@ -34,18 +34,18 @@ large parts of the world.
 
 These are fixed for a location unless the location itself changes.
 
-| Layer / Data | Purpose |
-| --- | --- |
-| `base_neutral_day_plate` | The canonical illustrated background plate. |
-| `source_map_crop` | Historic map source for audit/provenance. |
-| `topology_control` | Building/road/garden/boundary control or equivalent. |
-| `camera_metadata` | Projection, north-up orientation, sprite scale, plate extent. |
-| `regional_boundary_prior` | Hedge/bank/ditch/stone-wall material policy for the area. |
-| `building_facade_map` | Building faces, door walls, windows, roofs. |
-| `road_path_semantic_mask` | Roads, lanes, paths, yard surfaces, thresholds. |
-| `boundary_semantic_mask` | Hedge, ditch, bank, stone-earthen bank, wall, fence, uncertain. |
-| `vegetation_semantic_mask` | Trees, shrubs, hedges, garden rows, grass, scrub. |
-| `water_semantic_mask` | Streams, ponds, wells, boggy/wet areas, if present. |
+| Layer / Data               | Purpose                                                         |
+| -------------------------- | --------------------------------------------------------------- |
+| `base_neutral_day_plate`   | The canonical illustrated background plate.                     |
+| `source_map_crop`          | Historic map source for audit/provenance.                       |
+| `topology_control`         | Building/road/garden/boundary control or equivalent.            |
+| `camera_metadata`          | Projection, north-up orientation, sprite scale, plate extent.   |
+| `regional_boundary_prior`  | Hedge/bank/ditch/stone-wall material policy for the area.       |
+| `building_facade_map`      | Building faces, door walls, windows, roofs.                     |
+| `road_path_semantic_mask`  | Roads, lanes, paths, yard surfaces, thresholds.                 |
+| `boundary_semantic_mask`   | Hedge, ditch, bank, stone-earthen bank, wall, fence, uncertain. |
+| `vegetation_semantic_mask` | Trees, shrubs, hedges, garden rows, grass, scrub.               |
+| `water_semantic_mask`      | Streams, ponds, wells, boggy/wet areas, if present.             |
 
 The base plate should be treated as a location's visual geometry. It should not
 contain momentary activity.
@@ -54,18 +54,18 @@ contain momentary activity.
 
 These layers make the plate playable.
 
-| Layer / Data | Purpose |
-| --- | --- |
-| `walkable_mask` | Surfaces a sprite may stand or move on. |
-| `blocked_mask` | Buildings, walls, dense hedges, water, tree trunks, impassable edges. |
-| `soft_blocked_mask` | Slow/avoid zones such as mud, high grass, shallow puddles, clutter. |
-| `occlusion_mask` | Foreground pixels that can cover sprites. |
-| `occlusion_height_map` | Relative occlusion priority for roofs, trees, walls, hedges. |
-| `depth_sort_map` | Stable y/depth sorting for sprites and props. |
-| `interaction_zones` | Doors, gates, wells, signs, carts, named object hotspots. |
-| `interior_transition_zones` | Door thresholds that transition to interiors. |
-| `camera_safe_bounds` | Crop-safe playable area and UI-safe margins. |
-| `audit_markers` | Optional debug layer for doors, gates, roads, walls, anchors. |
+| Layer / Data                | Purpose                                                               |
+| --------------------------- | --------------------------------------------------------------------- |
+| `walkable_mask`             | Surfaces a sprite may stand or move on.                               |
+| `blocked_mask`              | Buildings, walls, dense hedges, water, tree trunks, impassable edges. |
+| `soft_blocked_mask`         | Slow/avoid zones such as mud, high grass, shallow puddles, clutter.   |
+| `occlusion_mask`            | Foreground pixels that can cover sprites.                             |
+| `occlusion_height_map`      | Relative occlusion priority for roofs, trees, walls, hedges.          |
+| `depth_sort_map`            | Stable y/depth sorting for sprites and props.                         |
+| `interaction_zones`         | Doors, gates, wells, signs, carts, named object hotspots.             |
+| `interior_transition_zones` | Door thresholds that transition to interiors.                         |
+| `camera_safe_bounds`        | Crop-safe playable area and UI-safe margins.                          |
+| `audit_markers`             | Optional debug layer for doors, gates, roads, walls, anchors.         |
 
 These masks should align to the canonical plate. They should not change with
 ordinary time/weather filters.
@@ -75,20 +75,20 @@ ordinary time/weather filters.
 Sockets are stable anchors where runtime systems can attach visual effects,
 props, or state.
 
-| Socket / Emitter | Examples |
-| --- | --- |
-| `door_sockets` | Open/closed door overlays, threshold highlights, interior transitions. |
-| `window_sockets` | Night light, candle flicker, shutters open/closed. |
-| `chimney_sockets` | Smoke emitters, soot decals, seasonal hearth activity. |
-| `hearth_sockets` | Interior glow spilling through door/window openings. |
-| `lamp_sockets` | Lanterns, candles, chapel/pub doorway lights. |
-| `gate_sockets` | Open/closed gate variants, latch interactions. |
-| `well_sockets` | Bucket/rope/water interaction overlays. |
-| `prop_anchor_points` | Buckets, tools, barrels, baskets, turf stacks, hay. |
-| `npc_spawn_points` | Socially plausible standing/walking anchors. |
-| `animal_spawn_points` | Livestock yard, roadside, pasture, hen-yard anchors. |
-| `particle_emitters` | Smoke, dust, rain splash, leaf flutter, mist pockets. |
-| `audio_region_tags` | Road, yard, trees, water, animals, pub, churchyard, interior edge. |
+| Socket / Emitter      | Examples                                                               |
+| --------------------- | ---------------------------------------------------------------------- |
+| `door_sockets`        | Open/closed door overlays, threshold highlights, interior transitions. |
+| `window_sockets`      | Night light, candle flicker, shutters open/closed.                     |
+| `chimney_sockets`     | Smoke emitters, soot decals, seasonal hearth activity.                 |
+| `hearth_sockets`      | Interior glow spilling through door/window openings.                   |
+| `lamp_sockets`        | Lanterns, candles, chapel/pub doorway lights.                          |
+| `gate_sockets`        | Open/closed gate variants, latch interactions.                         |
+| `well_sockets`        | Bucket/rope/water interaction overlays.                                |
+| `prop_anchor_points`  | Buckets, tools, barrels, baskets, turf stacks, hay.                    |
+| `npc_spawn_points`    | Socially plausible standing/walking anchors.                           |
+| `animal_spawn_points` | Livestock yard, roadside, pasture, hen-yard anchors.                   |
+| `particle_emitters`   | Smoke, dust, rain splash, leaf flutter, mist pockets.                  |
+| `audio_region_tags`   | Road, yard, trees, water, animals, pub, churchyard, interior edge.     |
 
 Sockets should be named and typed. A chimney socket should know its pixel
 position, depth sort value, smoke direction bias, and whether it is active for a
@@ -101,48 +101,48 @@ same base plate.
 
 ### Time Of Day
 
-| Variable | Visual Treatment |
-| --- | --- |
-| Dawn | Cool shadows, pale warm highlights, low saturation. |
-| Morning | Neutral warm daylight, clean readability. |
-| Midday | Neutral daylight, highest clarity. |
-| Afternoon | Slightly warmer, mild contrast. |
-| Dusk | Amber/rose highlights, blue-green shadows, lowered brightness. |
-| Night | Blue desaturation, lowered exposure, localized window/lantern light. |
-| Midnight | Deeper blue/gray, reduced color, stronger local light contrast. |
-| Moonlight | Optional cool rim/edge light, low saturation, high readability. |
+| Variable  | Visual Treatment                                                     |
+| --------- | -------------------------------------------------------------------- |
+| Dawn      | Cool shadows, pale warm highlights, low saturation.                  |
+| Morning   | Neutral warm daylight, clean readability.                            |
+| Midday    | Neutral daylight, highest clarity.                                   |
+| Afternoon | Slightly warmer, mild contrast.                                      |
+| Dusk      | Amber/rose highlights, blue-green shadows, lowered brightness.       |
+| Night     | Blue desaturation, lowered exposure, localized window/lantern light. |
+| Midnight  | Deeper blue/gray, reduced color, stronger local light contrast.      |
+| Moonlight | Optional cool rim/edge light, low saturation, high readability.      |
 
 The base plate should be authored so all of these remain legible.
 
 ### Weather
 
-| Variable | Likely Runtime Layer |
-| --- | --- |
-| Clear | No overlay, neutral color grade. |
-| Overcast | Softer contrast, cooler tint, lower highlights. |
-| Drizzle | Subtle rain streaks, wet-road sheen, desaturation. |
-| Heavy rain | Rain particles, splash decals, darker roads, sound layer. |
-| Mist/fog | Soft depth fog overlay, reduced contrast, localized low clouds. |
-| Storm | Dark grade, wind motion, heavier rain, occasional lightning flash. |
-| Frost | Pale grass/roof edge decals, cooler grade, crisp contrast. |
-| Snowfall | Falling snow particles, subtle accumulation if light. |
-| Wet after rain | Puddle decals, road darkening, reflective mud patches. |
-| Wind | Smoke lean, leaf/grass animation, tree/hedge motion. |
+| Variable       | Likely Runtime Layer                                               |
+| -------------- | ------------------------------------------------------------------ |
+| Clear          | No overlay, neutral color grade.                                   |
+| Overcast       | Softer contrast, cooler tint, lower highlights.                    |
+| Drizzle        | Subtle rain streaks, wet-road sheen, desaturation.                 |
+| Heavy rain     | Rain particles, splash decals, darker roads, sound layer.          |
+| Mist/fog       | Soft depth fog overlay, reduced contrast, localized low clouds.    |
+| Storm          | Dark grade, wind motion, heavier rain, occasional lightning flash. |
+| Frost          | Pale grass/roof edge decals, cooler grade, crisp contrast.         |
+| Snowfall       | Falling snow particles, subtle accumulation if light.              |
+| Wet after rain | Puddle decals, road darkening, reflective mud patches.             |
+| Wind           | Smoke lean, leaf/grass animation, tree/hedge motion.               |
 
 Rain, fog, snow, and wind should be dynamic overlays. Avoid baking them into
 the plate except for rare full-state variants.
 
 ### Season
 
-| Variable | Likely Runtime Layer |
-| --- | --- |
-| Spring | Fresh greens, blossom decals, wet ground, early garden growth. |
-| Summer | Dense hedges, fuller trees, flowers, stronger garden growth. |
-| Autumn | Muted grass, yellow/brown leaves, harvest clutter, muddy fields. |
-| Winter | Bare hedges/trees, dull grass, frost, lower saturation. |
-| Snow cover | Alternate accumulation layer or generated variant. |
-| Crop stage | Garden/crop decals: bare rows, sprouts, full growth, harvest. |
-| Leaf state | Leaf-on / leaf-off tree and hedge overlays. |
+| Variable   | Likely Runtime Layer                                             |
+| ---------- | ---------------------------------------------------------------- |
+| Spring     | Fresh greens, blossom decals, wet ground, early garden growth.   |
+| Summer     | Dense hedges, fuller trees, flowers, stronger garden growth.     |
+| Autumn     | Muted grass, yellow/brown leaves, harvest clutter, muddy fields. |
+| Winter     | Bare hedges/trees, dull grass, frost, lower saturation.          |
+| Snow cover | Alternate accumulation layer or generated variant.               |
+| Crop stage | Garden/crop decals: bare rows, sprouts, full growth, harvest.    |
+| Leaf state | Leaf-on / leaf-off tree and hedge overlays.                      |
 
 Season can be partly filter-based, but trees, hedges, crops, snow cover, and
 harvest clutter likely need decal or alternate overlay layers.
@@ -208,15 +208,15 @@ and occlusion behavior.
 Reusable placeable assets should be separate from the base plate when they can
 appear/disappear or vary by season, event, or household.
 
-| Prop / Decal Family | Notes |
-| --- | --- |
-| Domestic | Buckets, churns, baskets, benches, stools, laundry. |
-| Farm | Tools, hay, straw, turf, sacks, barrels, carts, harness. |
-| Road | Ruts, puddles, stones, mud patches, fallen branches. |
-| Garden | Crop-stage rows, cabbages, herbs, weeds, flowering plants. |
-| Boundary | Hedge gaps, broken gate pieces, fallen stones, ditch wetness. |
-| Ritual/social | Well offerings, fair ribbons, chapel event markers, wake signs. |
-| Damage | Scorch, broken roof patch, collapsed wall, boarded window. |
+| Prop / Decal Family | Notes                                                           |
+| ------------------- | --------------------------------------------------------------- |
+| Domestic            | Buckets, churns, baskets, benches, stools, laundry.             |
+| Farm                | Tools, hay, straw, turf, sacks, barrels, carts, harness.        |
+| Road                | Ruts, puddles, stones, mud patches, fallen branches.            |
+| Garden              | Crop-stage rows, cabbages, herbs, weeds, flowering plants.      |
+| Boundary            | Hedge gaps, broken gate pieces, fallen stones, ditch wetness.   |
+| Ritual/social       | Well offerings, fair ribbons, chapel event markers, wake signs. |
+| Damage              | Scorch, broken roof patch, collapsed wall, boarded window.      |
 
 Props should have collision/occlusion metadata if they affect movement.
 

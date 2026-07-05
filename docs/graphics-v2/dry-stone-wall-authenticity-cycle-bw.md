@@ -11,12 +11,12 @@ This is a bounded material pass, not a new map-to-image recipe test.
 
 ## Outputs
 
-| ID | Image | Prompt | Report | Result |
-| --- | --- | --- | --- | --- |
-| E1 | `pipeline-experiments/idea-bw-e1-grove-dry-stone-wall-authenticity.png` | `pipeline-experiments/idea-bw-e1-grove-dry-stone-wall-authenticity.prompt.md` | `pipeline-experiments/idea-bw-e1-grove-dry-stone-wall-authenticity.report.md` | Topology safe, wall material still bead-chain |
-| E2 | `pipeline-experiments/idea-bw-e2-grove-dry-stone-bead-chain-breakup.png` | `pipeline-experiments/idea-bw-e2-grove-dry-stone-bead-chain-breakup.prompt.md` | `pipeline-experiments/idea-bw-e2-grove-dry-stone-bead-chain-breakup.report.md` | Conservative intermediate; too subtle at normal zoom |
-| E3 | `pipeline-experiments/idea-bw-e3-grove-hedgebank-dry-stone-breakup.png` | `pipeline-experiments/idea-bw-e3-grove-hedgebank-dry-stone-breakup.prompt.md` | `pipeline-experiments/idea-bw-e3-grove-hedgebank-dry-stone-breakup.report.md` | First visibly different boundary pass; darker/busier caveat |
-| E4 | `pipeline-experiments/idea-bw-e4-grove-web-reference-dry-stone.png` | `pipeline-experiments/idea-bw-e4-grove-web-reference-dry-stone.prompt.md` | `pipeline-experiments/idea-bw-e4-grove-web-reference-dry-stone.report.md` | Real wall reference pass; preserves style but still over-walls Roscommon boundaries |
+| ID  | Image                                                                    | Prompt                                                                         | Report                                                                         | Result                                                                              |
+| --- | ------------------------------------------------------------------------ | ------------------------------------------------------------------------------ | ------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------- |
+| E1  | `pipeline-experiments/idea-bw-e1-grove-dry-stone-wall-authenticity.png`  | `pipeline-experiments/idea-bw-e1-grove-dry-stone-wall-authenticity.prompt.md`  | `pipeline-experiments/idea-bw-e1-grove-dry-stone-wall-authenticity.report.md`  | Topology safe, wall material still bead-chain                                       |
+| E2  | `pipeline-experiments/idea-bw-e2-grove-dry-stone-bead-chain-breakup.png` | `pipeline-experiments/idea-bw-e2-grove-dry-stone-bead-chain-breakup.prompt.md` | `pipeline-experiments/idea-bw-e2-grove-dry-stone-bead-chain-breakup.report.md` | Conservative intermediate; too subtle at normal zoom                                |
+| E3  | `pipeline-experiments/idea-bw-e3-grove-hedgebank-dry-stone-breakup.png`  | `pipeline-experiments/idea-bw-e3-grove-hedgebank-dry-stone-breakup.prompt.md`  | `pipeline-experiments/idea-bw-e3-grove-hedgebank-dry-stone-breakup.report.md`  | First visibly different boundary pass; darker/busier caveat                         |
+| E4  | `pipeline-experiments/idea-bw-e4-grove-web-reference-dry-stone.png`      | `pipeline-experiments/idea-bw-e4-grove-web-reference-dry-stone.prompt.md`      | `pipeline-experiments/idea-bw-e4-grove-web-reference-dry-stone.report.md`      | Real wall reference pass; preserves style but still over-walls Roscommon boundaries |
 
 Comparison plate:
 

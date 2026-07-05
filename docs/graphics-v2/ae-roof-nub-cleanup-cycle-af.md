@@ -16,10 +16,10 @@ cleanup, not as a clean final target.
 
 ## Outputs
 
-| Site | Output | Prompt | Report | Result |
-| --- | --- | --- | --- | --- |
+| Site         | Output                                                           | Prompt                                                                 | Report                                                                 | Result                                                 |
+| ------------ | ---------------------------------------------------------------- | ---------------------------------------------------------------------- | ---------------------------------------------------------------------- | ------------------------------------------------------ |
 | Beechwood AF | `pipeline-experiments/idea-af-beechwood-ae-roof-nub-cleanup.png` | `pipeline-experiments/idea-af-beechwood-ae-roof-nub-cleanup.prompt.md` | `pipeline-experiments/idea-af-beechwood-ae-roof-nub-cleanup.report.md` | Roof cleanup pass; fails foreground cottage door audit |
-| Grove AF | `pipeline-experiments/idea-af-grove-ae-roof-nub-cleanup.png` | `pipeline-experiments/idea-af-grove-ae-roof-nub-cleanup.prompt.md` | `pipeline-experiments/idea-af-grove-ae-roof-nub-cleanup.report.md` | Surgical cleanup pass |
+| Grove AF     | `pipeline-experiments/idea-af-grove-ae-roof-nub-cleanup.png`     | `pipeline-experiments/idea-af-grove-ae-roof-nub-cleanup.prompt.md`     | `pipeline-experiments/idea-af-grove-ae-roof-nub-cleanup.report.md`     | Surgical cleanup pass                                  |
 
 ## Audit Questions
 

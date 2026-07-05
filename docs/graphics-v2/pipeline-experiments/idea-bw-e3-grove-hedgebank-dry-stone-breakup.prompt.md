@@ -16,11 +16,13 @@ language of minor boundaries while keeping roads, gates, yards, and door
 thresholds open.
 
 Input image role:
+
 - Image 1 / edit target: BW E2 Grove render. Preserve its buildings, camera,
   road curve, open yard, garden block, gates, fitted plank doors, warm paper,
   stained limewash, slate roofs, muddy road scumble, trees, and no-UI format.
 
 Targeted boundary edit:
+
 - Keep only the major road-edge and gate-adjacent boundaries as recognizable
   dry-stone field walls.
 - Convert many minor garden/internal boundary lines into low grassed banks,
@@ -36,6 +38,7 @@ Targeted boundary edit:
   stones placed in a line.
 
 Hard negatives:
+
 - No subtle edit.
 - No identical gray beads.
 - No bead-like top rows.
@@ -49,6 +52,7 @@ Hard negatives:
   water, bridge, church, graveyard, shop, or extra props.
 
 Preservation constraints:
+
 - Preserve Grove's separate buildings: lower long range, west/left small
   building, central yard building, and taller east/right building.
 - Preserve every fitted wooden plank door and threshold/step. No black doorway

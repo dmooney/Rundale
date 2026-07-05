@@ -3,6 +3,7 @@ Asset type: bounded repair of an illustrated low 3/4 isomorphic game environment
 
 Primary request:
 Edit Image 1 only. Preserve the scene layout, camera, north-up orientation, road positions, building positions, garden position, tree masses, open fields, crop, and illustrated notebook style. Make only two bounded repairs:
+
 1. Reduce the overconfident continuous stone-wall/field-outline look, especially around open fields, road edges, and the planted garden enclosure.
 2. Add or clarify readable dark timber doors with small thresholds on any small visible shed/outbuilding that currently reads enterable but lacks a clear door, especially the lower foreground shed cluster.
 

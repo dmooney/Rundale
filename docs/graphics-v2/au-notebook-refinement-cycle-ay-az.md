@@ -31,10 +31,10 @@ location-specific road, building, boundary, or landmark notes were used.
 
 ## Outputs
 
-| Cycle | Image | Prompt | Report | Result |
-| --- | --- | --- | --- | --- |
-| AY | `pipeline-experiments/idea-ay-kilteevan-au-notebook-style-refine.png` | `pipeline-experiments/idea-ay-kilteevan-au-notebook-style-refine.prompt.md` | `pipeline-experiments/idea-ay-kilteevan-au-notebook-style-refine.report.md` | Better notebook texture and doors, topology broadly preserved |
-| AZ | `pipeline-experiments/idea-az-kilteevan-ay-low-camera-refine.png` | `pipeline-experiments/idea-az-kilteevan-ay-low-camera-refine.prompt.md` | `pipeline-experiments/idea-az-kilteevan-ay-low-camera-refine.report.md` | Strongest visual target from this Kilteevan branch, still not recipe proof |
+| Cycle | Image                                                                 | Prompt                                                                      | Report                                                                      | Result                                                                     |
+| ----- | --------------------------------------------------------------------- | --------------------------------------------------------------------------- | --------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
+| AY    | `pipeline-experiments/idea-ay-kilteevan-au-notebook-style-refine.png` | `pipeline-experiments/idea-ay-kilteevan-au-notebook-style-refine.prompt.md` | `pipeline-experiments/idea-ay-kilteevan-au-notebook-style-refine.report.md` | Better notebook texture and doors, topology broadly preserved              |
+| AZ    | `pipeline-experiments/idea-az-kilteevan-ay-low-camera-refine.png`     | `pipeline-experiments/idea-az-kilteevan-ay-low-camera-refine.prompt.md`     | `pipeline-experiments/idea-az-kilteevan-ay-low-camera-refine.report.md`     | Strongest visual target from this Kilteevan branch, still not recipe proof |
 
 ## Result
 

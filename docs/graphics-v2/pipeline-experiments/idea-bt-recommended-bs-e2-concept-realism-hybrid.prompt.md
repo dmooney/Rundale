@@ -8,12 +8,14 @@ garden, and vegetation edges. Preserve BS E2's zoom, camera, connected compound
 topology, road exits, garden placement, walls, trees, and every fitted door.
 
 Reference lessons from BT:
+
 - BT E1 was safe but too conservative: surface weathering alone is not enough.
 - BT E2 was the best single direction: small inert yard clutter makes the place
   feel used.
 - BT E3 fixed regularity best, but went too dark/heavy.
 
 Prompt emphasis:
+
 - Add a few small inert rural objects near thresholds, wall bases, and the yard:
   2-4 total buckets/barrels/baskets/crates/tools, not repeated everywhere.
 - Add muddy footpaths and wheel ruts between doors, gates, road, and garden.
@@ -29,6 +31,7 @@ Prompt emphasis:
   uniformly dark or grimy.
 
 Critical invariants:
+
 - Keep BS E2's 20% zoomed-out frame and camera.
 - Keep the connected Beechwood compound topology.
 - Keep every visible person-sized opening fitted with a readable wooden plank

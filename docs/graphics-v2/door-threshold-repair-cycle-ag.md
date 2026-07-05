@@ -12,8 +12,8 @@ walls, roads, gates, gardens, and watercolor/ink style.
 
 ## Output
 
-| Site | Output | Prompt | Report | Result |
-| --- | --- | --- | --- | --- |
+| Site         | Output                                                                | Prompt                                                                      | Report                                                                      | Result                     |
+| ------------ | --------------------------------------------------------------------- | --------------------------------------------------------------------------- | --------------------------------------------------------------------------- | -------------------------- |
 | Beechwood AG | `pipeline-experiments/idea-ag-beechwood-af-door-threshold-repair.png` | `pipeline-experiments/idea-ag-beechwood-af-door-threshold-repair.prompt.md` | `pipeline-experiments/idea-ag-beechwood-af-door-threshold-repair.report.md` | Door/threshold repair pass |
 
 ## Audit Questions

@@ -21,10 +21,10 @@ prior rendered plate.
 
 ## Outputs
 
-| Site | Output | Prompt | Report | Result |
-| --- | --- | --- | --- | --- |
+| Site         | Output                                                                  | Prompt                                                                        | Report                                                                        | Result                               |
+| ------------ | ----------------------------------------------------------------------- | ----------------------------------------------------------------------------- | ----------------------------------------------------------------------------- | ------------------------------------ |
 | Beechwood AC | `pipeline-experiments/idea-ac-beechwood-direct-control-clean-style.png` | `pipeline-experiments/idea-ac-beechwood-direct-control-clean-style.prompt.md` | `pipeline-experiments/idea-ac-beechwood-direct-control-clean-style.report.md` | Best direct-control Beechwood so far |
-| Grove AC | `pipeline-experiments/idea-ac-grove-direct-control-clean-style.png` | `pipeline-experiments/idea-ac-grove-direct-control-clean-style.prompt.md` | `pipeline-experiments/idea-ac-grove-direct-control-clean-style.report.md` | Best direct-control Grove so far |
+| Grove AC     | `pipeline-experiments/idea-ac-grove-direct-control-clean-style.png`     | `pipeline-experiments/idea-ac-grove-direct-control-clean-style.prompt.md`     | `pipeline-experiments/idea-ac-grove-direct-control-clean-style.report.md`     | Best direct-control Grove so far     |
 
 ## Audit Questions
 

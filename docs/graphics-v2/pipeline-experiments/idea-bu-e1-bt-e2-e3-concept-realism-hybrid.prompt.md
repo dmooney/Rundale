@@ -25,6 +25,7 @@ BT E2 has the right lived-in direction, BT E3 has useful irregularity but is
 too dark/busy.
 
 Prompt emphasis:
+
 - Keep the lighter readable value range of BT E2; do not darken the whole plate.
 - Keep only sparse practical clutter: 2-4 total visible buckets/barrels/baskets
   or crates, not rows of repeated containers.
@@ -41,6 +42,7 @@ Prompt emphasis:
   edges.
 
 Critical invariants:
+
 - Keep BS E2/BT E2's 20% zoomed-out frame and camera.
 - Keep the connected Beechwood compound topology and building count.
 - Keep every visible person-sized opening fitted with a readable wooden plank

@@ -71,12 +71,12 @@ visible join until repaired.
 
 The pipeline has to preserve four different kinds of continuity:
 
-| Continuity | Requirement |
-| --- | --- |
-| Geometry | Roads, paths, rivers, drains, building footprints, and boundaries cross tile edges in the same position and width. |
-| Material | A hedge, bog, road, tree belt, field, or dry-stone/bank boundary should not change material at a seam unless the source layer says it changes. |
-| Style | Palette, paper texture, ink weight, watercolor granularity, and detail density remain stable across the county. |
-| Runtime | Walkability, collision, sprite scale, actor anchors, and tile LODs line up exactly when the player crosses an edge. |
+| Continuity | Requirement                                                                                                                                    |
+| ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| Geometry   | Roads, paths, rivers, drains, building footprints, and boundaries cross tile edges in the same position and width.                             |
+| Material   | A hedge, bog, road, tree belt, field, or dry-stone/bank boundary should not change material at a seam unless the source layer says it changes. |
+| Style      | Palette, paper texture, ink weight, watercolor granularity, and detail density remain stable across the county.                                |
+| Runtime    | Walkability, collision, sprite scale, actor anchors, and tile LODs line up exactly when the player crosses an edge.                            |
 
 Geometry and runtime continuity must be deterministic. Material and style can be
 imagegen-assisted but should be audited.
@@ -111,17 +111,17 @@ Recommended production grid:
 
 Every generated art panel should be derived from the same master layers:
 
-| Layer | Source / Use |
-| --- | --- |
-| `source_historic_mosaic` | Highest available historic map raster, georeferenced and stitched before art generation. |
-| `label_suppressed_source` | Same raster with labels/letters softened or removed so text does not become scenery. |
-| `road_path_layer` | Roads, lanes, unfenced paths, yards, bridges, fords, and exits. |
-| `building_layer` | Building roof footprints and significant ruins/structures. |
-| `boundary_layer` | Hedges, ditches, banks, walls, fences, administrative/non-physical boundaries, and uncertainty. |
-| `vegetation_layer` | Deciduous trees, conifers, mixed woods, orchards, rough pasture, scrub, crops, gardens. |
-| `water_wetland_layer` | Rivers, drains, ponds, wells, marsh, bog, wet ditches. |
+| Layer                     | Source / Use                                                                                                |
+| ------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| `source_historic_mosaic`  | Highest available historic map raster, georeferenced and stitched before art generation.                    |
+| `label_suppressed_source` | Same raster with labels/letters softened or removed so text does not become scenery.                        |
+| `road_path_layer`         | Roads, lanes, unfenced paths, yards, bridges, fords, and exits.                                             |
+| `building_layer`          | Building roof footprints and significant ruins/structures.                                                  |
+| `boundary_layer`          | Hedges, ditches, banks, walls, fences, administrative/non-physical boundaries, and uncertainty.             |
+| `vegetation_layer`        | Deciduous trees, conifers, mixed woods, orchards, rough pasture, scrub, crops, gardens.                     |
+| `water_wetland_layer`     | Rivers, drains, ponds, wells, marsh, bog, wet ditches.                                                      |
 | `regional_material_prior` | Roscommon defaults: hedges/banks/ditches first, stone as low irregular dry fieldstone only where supported. |
-| `walkability_layer` | Runtime roads/yards/paths/open fields versus blocked/slow surfaces. |
+| `walkability_layer`       | Runtime roads/yards/paths/open fields versus blocked/slow surfaces.                                         |
 
 The source raster remains audit authority. The semantic layers are geometry
 authority for tile seams and runtime masks.
@@ -290,10 +290,10 @@ band.
 
 County scale needs more than one level of detail.
 
-| LOD | Use | Generation |
-| --- | --- | --- |
-| County overview | Travel map, far zoom, orientation. | Mostly deterministic watercolor render from vector/raster layers; avoid per-field detail. |
-| Parish/local | Player walking between nearby exterior nodes. | Imagegen supertiles with semantic controls and overlap. |
+| LOD                | Use                                                             | Generation                                                                                         |
+| ------------------ | --------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| County overview    | Travel map, far zoom, orientation.                              | Mostly deterministic watercolor render from vector/raster layers; avoid per-field detail.          |
+| Parish/local       | Player walking between nearby exterior nodes.                   | Imagegen supertiles with semantic controls and overlap.                                            |
 | Named-site closeup | Dense interaction areas such as farms, chapel, pub, crossroads. | Separate high-detail local art or enlarged overhead plates, using the same coordinate/mask system. |
 
 The county overview should not be made from thousands of independent imagegen

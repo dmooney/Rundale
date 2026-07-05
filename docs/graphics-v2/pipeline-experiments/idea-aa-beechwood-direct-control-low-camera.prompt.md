@@ -14,6 +14,7 @@ Primary request:
 Create one background plate directly from the local topology control and source map. Do not rely on any previous rendered plate. The output should look like an illustrated parish notebook game background while preserving Image 1's local map-derived topology.
 
 Hard topology rules:
+
 - Preserve Image 1's building footprint relationships. If buildings are separate in Image 1, keep them separate. If buildings touch or form a compound in Image 1, keep them visibly connected. Do not merge detached buildings, split attached buildings, or invent new buildings.
 - Preserve the local yard/courtyard/open working area, garden/enclosure boundaries, roads, walls, hedges, tree masses, gates, and exits in the same north-up relationships.
 - It is acceptable for distant roads, fields, or plot edges outside Image 1's local plate area to remain off-frame. Do not shrink a wider map into frame.

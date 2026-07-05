@@ -1,18 +1,22 @@
 # Cycle AR Report - Kilteevan Tight Control No Scenic Crossroads
 
 Generated artifact:
+
 - `docs/graphics-v2/pipeline-experiments/idea-ar-kilteevan-tight-control-no-scenic-crossroads.png`
 
 Prompt artifact:
+
 - `docs/graphics-v2/pipeline-experiments/idea-ar-kilteevan-tight-control-no-scenic-crossroads.prompt.md`
 
 Mode:
+
 - Built-in `image_gen` fresh generation path.
 - This was not an edit. No previous generated plate was used as an input, edit target, style target, layout reference, or composition reference.
 - Source cache file copied from `/Users/dmooney/.codex/generated_images/019f0e55-43ed-72d2-8cfe-fa0f6c265551/ig_061fd6940e759108016a411c2984d48194ae6db2988a67055b.png`.
 - No manual image patching, retouching, resizing, or pixel edits were applied after generation.
 
 Inspection performed:
+
 - Checked final PNG envelope with `file`: `1672 x 941`, RGB PNG, effectively 16:9.
 - Viewed the full generated plate after copying it into the workspace.
 - Reviewed the existing AO, AP3, and AQ reports for comparison.

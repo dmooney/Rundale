@@ -18,6 +18,7 @@ Image 7: original illustrated parish notebook sample. Style and low-camera feel 
 Image 8: fixed slate-roof and thatched single-house door references. Style/material only for facades, thresholds, fitted doors, and no-chimney roofs.
 
 Local paths:
+
 - /Users/dmooney/.codex/worktrees/a718/Rundale/docs/graphics-v2/pipeline-experiments/idea-bn-e1-kilteevan-north-20deg-incremental.png
 - /Users/dmooney/.codex/worktrees/a718/Rundale/docs/graphics-v2/pipeline-experiments/idea-bm-e4-kilteevan-z17-55-y040-path-wall-isomorphic.png
 - /Users/dmooney/.codex/worktrees/a718/Rundale/docs/graphics-v2/pipeline-experiments/idea-bm-kilteevan-topdown-55-control-1672.png

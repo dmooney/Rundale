@@ -176,6 +176,7 @@ iteration. The next step is to derive masks/sockets:
 Previous recommendation, now satisfied by C:
 
 1. Murphy's Farm C:
+
    - based on `murphy-farm-hearth-cutaway-b.png`,
    - 20-30% wider scale,
    - two sleeping provisions or clear loft/side-room sleeping cue,

@@ -15,6 +15,7 @@ Primary request:
 Create a closer background plate focused on the connected building compound and immediate playable surroundings from Image 1. The output should cover the smaller local area shown in Image 1/Image 3, not the full wider estate/garden view. The goal is to recover the original illustrated parish notebook's human-scale density while preserving Cycle V/W topology.
 
 Hard topology and crop rules:
+
 - Preserve the connected/attached compound footprint from Image 1/Image 3. It must remain one visibly connected compound around an inner courtyard, not detached cottages.
 - Preserve the inner courtyard, road edge along the compound, immediate wall lines, nearby garden/enclosure boundaries, and tree masses in their same north-up relationships.
 - It is acceptable for distant upper/right garden plots or lower edge outbuildings to be cropped off-frame if they are outside the tighter plate area. Do not shrink the whole wider estate into frame.

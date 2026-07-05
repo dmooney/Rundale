@@ -9,13 +9,16 @@ Image 1: BN E2 full-frame render, edit target and content authority. Preserve th
 Image 2 if present: BO E1 rectified render, projection reference only. Use it only to understand "less fisheye, straighter parallel projection." Do not copy its extra fences, extra wall regularity, harder garden enclosure, cleaner 3D-like finish, or any topology changes.
 
 Local edit-target path:
+
 - /Users/dmooney/.codex/worktrees/a718/Rundale/docs/graphics-v2/pipeline-experiments/idea-bn-e2-kilteevan-north-10deg-incremental.png
 
 Local projection-reference path:
+
 - /Users/dmooney/.codex/worktrees/a718/Rundale/docs/graphics-v2/pipeline-experiments/idea-bo-e1-kilteevan-bn-e2-orthographic-rectify.png
 
 Core edit:
 Apply a subtle orthographic/barrel-correction pass to BN E2. Straighten the broad projection so the final plate reads as a low oblique orthographic/isomorphic game background:
+
 - reduce outward/inward bowing in roads, garden rows, fence traces, and building alignments,
 - keep building roof ridges and wall edges visually parallel rather than lens-curved,
 - remove wide-angle/fisheye feeling,
@@ -29,6 +32,7 @@ Keep BN E2's successful low-camera scale and close playable zoom. The main foreg
 
 Topology/content invariants:
 Preserve BN E2 as the source of truth:
+
 - same main lower building,
 - same foreground sheds/outbuildings,
 - same upper building group,

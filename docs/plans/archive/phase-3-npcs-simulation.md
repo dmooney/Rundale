@@ -16,16 +16,19 @@ Populate the parish with 5-10 NPCs that follow daily schedules, maintain relatio
 ## Tasks
 
 1. **Extend `Npc` struct in `src/npc/mod.rs`**
+
    - Add fields: `home: LocationId`, `workplace: Option<LocationId>`, `schedule: DailySchedule`, `relationships: HashMap<NpcId, Relationship>`, `memory: ShortTermMemory`, `knowledge: Vec<String>`
    - `DailySchedule` struct: `weekday: Vec<ScheduleEntry>`, `weekend: Vec<ScheduleEntry>`, `overrides: HashMap<Season, Vec<ScheduleEntry>>`
    - `ScheduleEntry` struct: `start_hour: u8`, `end_hour: u8`, `location: LocationId`, `activity: String`
 
 2. **Implement `Relationship` struct in `src/npc/mod.rs`**
+
    - Fields: `target: NpcId`, `kind: RelationshipKind`, `strength: f32` (-1.0 to 1.0), `history: Vec<RelationshipEvent>`
    - `RelationshipKind` enum: `Family`, `Friend`, `Neighbor`, `Rival`, `Enemy`, `Romantic`, `Professional`
    - `RelationshipEvent` struct: `timestamp: DateTime<Utc>`, `description: String`, `delta: f32`
 
 3. **Implement `ShortTermMemory` in `src/npc/mod.rs`**
+
    - Ring buffer of last 20 `MemoryEntry` items
    - `MemoryEntry` struct: `timestamp: DateTime<Utc>`, `content: String`, `participants: Vec<NpcId>`, `location: LocationId`
    - `fn add(&mut self, entry: MemoryEntry)` — push, evict oldest if full
@@ -33,6 +36,7 @@ Populate the parish with 5-10 NPCs that follow daily schedules, maintain relatio
    - `fn context_string(&self) -> String` — format memories as prompt context
 
 4. **Implement `NpcManager` in `src/npc/mod.rs`**
+
    - `NpcManager` struct: `npcs: HashMap<NpcId, Npc>`, `tier_assignments: HashMap<NpcId, CogTier>`
    - `CogTier` enum: `Tier1`, `Tier2`, `Tier3`, `Tier4`
    - `fn assign_tiers(&mut self, player_location: LocationId, graph: &WorldGraph)` — Tier1: same location, Tier2: 1-2 edges away, Tier3: 3+ edges, Tier4: far away
@@ -40,24 +44,28 @@ Populate the parish with 5-10 NPCs that follow daily schedules, maintain relatio
    - `fn get_mut(&mut self, id: NpcId) -> Option<&mut Npc>`
 
 5. **Implement Tier 1 tick in `src/npc/mod.rs`**
+
    - `async fn tick_tier1(npc: &mut Npc, world: &WorldState, player_input: Option<&str>, queue: &InferenceQueue) -> Result<NpcAction>`
    - Build full context: system prompt (personality, backstory, mood) + world context (location, time, weather, who else is here) + memory context + player action
    - Send inference request, await `NpcAction` structured JSON response
    - Apply action: update `npc.mood`, add to memory, generate dialogue text for TUI
 
 6. **Implement Tier 2 tick in `src/npc/mod.rs`**
+
    - `async fn tick_tier2(npcs: &mut [&mut Npc], world: &WorldState, queue: &InferenceQueue) -> Result<Vec<Tier2Event>>`
    - Group NPCs by location; for each group, build a lighter prompt: "These people are together at {location}. Briefly describe what happens."
    - `Tier2Event` struct: `location: LocationId`, `participants: Vec<NpcId>`, `summary: String`, `relationship_changes: Vec<(NpcId, NpcId, f32)>`
    - Tick rate: every 5 game-minutes
 
 7. **Implement NPC schedule following**
+
    - `fn desired_location(npc: &Npc, clock: &GameClock) -> LocationId` — check schedule for current time/day, return target location
    - In world tick: for each NPC, if `npc.location != desired_location`, move NPC (update `npc.location`)
    - NPCs don't teleport: calculate traversal time, mark NPC as `in_transit` during movement
    - `NpcState` enum: `Present(LocationId)`, `InTransit { from: LocationId, to: LocationId, arrives_at: DateTime<Utc> }`
 
 8. **Create initial NPC data file: `data/npcs.json`**
+
    - 8 NPCs with distinct personalities:
      - Padraig Darcy (publican, 58, gregarious, knows everyone's business)
      - Siobhan Murphy (farmer, 45, practical, sharp wit)
@@ -70,11 +78,13 @@ Populate the parish with 5-10 NPCs that follow daily schedules, maintain relatio
    - Each with schedule, home, workplace, initial relationships to 3+ other NPCs
 
 9. **Implement "overhear" mechanic**
+
    - When Tier 2 events resolve at a location 1 edge from the player, store the summary
    - `fn check_overhear(events: &[Tier2Event], player_location: LocationId, graph: &WorldGraph) -> Vec<String>`
    - Surface overheard snippets in the TUI: "You catch a few words drifting from the direction of the pub..."
 
 10. **Integrate NPC ticks into main game loop**
+
     - After each player action, run `assign_tiers`, then `tick_tier1` for immediate NPCs, `tick_tier2` for nearby NPCs
     - Tier 2 ticks run on a timer (every 5 game-minutes), not per player action
     - Display NPC dialogue/actions in text log

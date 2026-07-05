@@ -15,6 +15,7 @@ Image 7: fixed thatched single-house reference. Style/material only.
 Image 8: tree/field watercolor reference. Style/material only.
 
 Local paths:
+
 - /Users/dmooney/.codex/worktrees/a718/Rundale/docs/graphics-v2/pipeline-experiments/idea-bm-kilteevan-topdown-55-control-1672.png
 - /Users/dmooney/.codex/worktrees/a718/Rundale/docs/graphics-v2/pipeline-experiments/idea-bm-kilteevan-z17-native-55-map-crop.png
 - /Users/dmooney/.codex/worktrees/a718/Rundale/docs/graphics-v2/pipeline-experiments/idea-bm-kilteevan-playable-55-no-admin-crop.png

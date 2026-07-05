@@ -1,6 +1,7 @@
 Use case: precise-object-edit
 Asset type: historical isomorphic game background plate repair
 Input images:
+
 - Image 1 is the edit target. Preserve its camera, layout, roads, walls, buildings, fields, vegetation, crop, color palette, ink/watercolor texture, and all map-derived topology.
 
 Primary request:

@@ -18,6 +18,7 @@ Image 7: fixed slate-roof single-house crop. Door/facade/no-chimney style only.
 Image 8: fixed thatched single-house crop. Door/facade/no-chimney style only.
 
 Local paths:
+
 - /Users/dmooney/.codex/worktrees/a718/Rundale/docs/graphics-v2/pipeline-experiments/idea-bm-e4-kilteevan-z17-55-y040-path-wall-isomorphic.png
 - /Users/dmooney/.codex/worktrees/a718/Rundale/docs/graphics-v2/pipeline-experiments/idea-bm-kilteevan-topdown-55-control-1672.png
 - /Users/dmooney/.codex/worktrees/a718/Rundale/docs/graphics-v2/pipeline-experiments/idea-bn-kilteevan-z17-north-20deg-source-window.png

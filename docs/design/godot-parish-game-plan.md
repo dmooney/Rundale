@@ -199,6 +199,7 @@ The Godot client needs stable, game-shaped messages.
 ### Scene Data Queries
 
 - `GET /visual/location/{location_id}`
+
   - Parish location metadata
   - connected exits
   - current NPCs

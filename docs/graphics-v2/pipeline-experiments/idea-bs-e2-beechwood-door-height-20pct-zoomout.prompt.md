@@ -12,6 +12,7 @@ Image 4: fixed thatched single-house door crop. Door/facade material authority o
 Image 5: fixed slate single-house door crop. Secondary door/facade material authority only.
 
 Local paths:
+
 - /Users/dmooney/.codex/worktrees/a718/Rundale/docs/graphics-v2/pipeline-experiments/idea-bs-e1-beechwood-door-height-calibrated-concept.png
 - /Users/dmooney/.codex/worktrees/a718/Rundale/docs/graphics-v2/illustrated-parish-notebook.png
 - /Users/dmooney/.codex/worktrees/a718/Rundale/docs/graphics-v2/cartographic-comparisons/bs-door-height-calibration-comparison.png
@@ -26,6 +27,7 @@ Every visible person-sized opening on every walkable facade must contain a fitte
 
 Composition:
 Preserve the BS E1 orientation and 16:9 crop. Keep the connected thatched compound in the central frame, but make it breathe more:
+
 - more muddy road visible at left and lower-left,
 - a bit more tree/hedge mass around the outside,
 - a little more garden/orchard and wall context on the right/top,
@@ -35,6 +37,7 @@ Style:
 Keep the original parish notebook concept-art feel: loose sepia ink, mottled watercolor, parchment warmth, rough thatch, uneven limewashed walls, muddy road scumble, hand-painted garden texture, visible paper tooth, and dense but imperfect rural detail.
 
 Keep:
+
 - connected Beechwood compound topology,
 - thatched roofs, limewashed walls, walled yard, muddy road, garden/orchard edge,
 - no UI, no labels, no map lettering, no survey numbers,

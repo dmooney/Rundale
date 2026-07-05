@@ -11,6 +11,7 @@ Image 3: pure isomorphic scale-lock reference. Projection/scale law only. It sho
 Image 4: original illustrated parish notebook. Style target only. Use its loose watercolor/ink/paper material, not its UI, people, labels, bridges, river, shop, church, signs, animals, or scene content.
 
 Local paths:
+
 - /Users/dmooney/.codex/worktrees/a718/Rundale/docs/graphics-v2/pipeline-experiments/idea-bp-e2-kilteevan-art-last-grid-style-tighten.png
 - /Users/dmooney/.codex/worktrees/a718/Rundale/docs/graphics-v2/pipeline-experiments/idea-bq-bp-e2-scale-audit-overlay.png
 - /Users/dmooney/.codex/worktrees/a718/Rundale/docs/graphics-v2/pipeline-experiments/idea-bq-isomorphic-scale-lock-reference.png
@@ -26,6 +27,7 @@ Make the plate truly orthographic/isomorphic, not perspective. The camera may st
 - Do not fade the top/north content into a scenic backdrop. It remains playable map ground in the same orthographic scale as the foreground.
 
 Keep from BP E2:
+
 - exact 16:9 crop and low camera angle,
 - main lower building and foreground outbuildings,
 - upper building group,
@@ -37,11 +39,13 @@ Keep from BP E2:
 - no visible grid, no colored marker rings, no sprite rulers.
 
 Allowed changes:
+
 - Enlarge/repaint only the visually miniaturized top/far tree crowns, branches, stones, road texture, and field texture so they match the near/mid object scale.
 - Slightly simplify or crop top tree clusters if needed to avoid crowding after scale correction.
 - Preserve the existing notebook wash and looseness; do not make the plate cleaner or more diagrammatic.
 
 Forbidden changes:
+
 - Do not move, add, remove, merge, or recompose roads, buildings, garden blocks, exits, or tree masses.
 - Do not add extra roads, fences, walls, paths, buildings, water, people, animals, carts, barrels, signs, labels, UI, smoke, fog, sky, horizon, chimneys, roof nubs, churches, chapels, graveyards, shops, bridges, rivers, streams, ponds, or decorative scenic balancing.
 - Do not make the top edge smaller, blurrier, paler, or more distant-looking than the bottom edge.

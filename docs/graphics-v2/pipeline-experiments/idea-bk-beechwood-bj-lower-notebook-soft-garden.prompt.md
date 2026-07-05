@@ -1,6 +1,7 @@
 Use case: precise-object-edit
 Asset type: historical isomorphic game background plate refinement, 16:9 desktop background plate
 Input images:
+
 - Image 1 is the edit target: the Beechwood Cycle BJ repaint. Preserve its Beechwood topology, crop, road exits, connected compound, garden, lower building group, field zones, tree zones, doors, and roof discipline.
 - Image 2 is the topology veto: Beechwood Cycle M cleaned top-down control. Use it only to reject layout drift, not as style.
 - Image 3 is the original illustrated parish notebook sample. Use it only for art direction: lower readable facades, rougher ink, looser watercolor, paper grain, scumbled roads, irregular vegetation, and hand-painted density. Do not copy its UI, people, church, graveyard, river, bridge, signs, shop, labels, animals, carts, smoke, chimneys, or whole-scene layout.
@@ -10,6 +11,7 @@ Primary request:
 Make a very conservative refinement of Image 1 that moves it closer to the original illustrated parish notebook look while preserving Beechwood topology. The specific visual goal is: lower-feeling facades, rougher ink-and-watercolor surface, less tidy garden-grid/survey-board regularity, and more hand-painted texture. This is not a fresh render and not a re-layout.
 
 What to improve:
+
 - Make the camera feel slightly lower and more human-scale by strengthening existing visible wall faces, eaves, damp stone bases, thresholds, and door/window proportions. Do this without moving buildings or changing the ground plan.
 - Make roads and yards more like the original notebook sample: muddy, scumbled, rutted, uneven-edged, stone-speckled, and hand-painted, while keeping the same road widths and exits.
 - Make garden beds less like crisp plan-view rectangles. Keep the same garden footprint and internal path/row organization, but repaint rows as uneven soil, soft planting, low brush, rough stakes, varied plant blobs, and patchy watercolor. Do not add new paths or new walls.
@@ -18,13 +20,14 @@ What to improve:
 
 Hard topology constraints:
 Preserve Image 1's layout and check against Image 2:
+
 - same diagonal road position and road exits,
 - same connected L/U-shaped compound footprint and courtyard,
 - same lower/foreground building group and small enclosure,
 - same attached rectangular garden footprint and broad internal structure,
 - same tree mass zones and open-field zones,
 - same crop, north-up orientation, and low 3/4 orthographic/isomorphic projection.
-Do not add scenic crossroads, extra roads, extra lanes, extra paths, extra buildings, extra garden compartments, bridges, water, church/graveyard features, shops, signs, UI, labels, people, animals, carts, barrels, tubs, loose props, or text.
+  Do not add scenic crossroads, extra roads, extra lanes, extra paths, extra buildings, extra garden compartments, bridges, water, church/graveyard features, shops, signs, UI, labels, people, animals, carts, barrels, tubs, loose props, or text.
 
 Do not increase walling:
 Do not turn texture into new walls. Do not convert thin garden rows, field mottling, brush strokes, or administrative/survey-like traces into stone walls. Do not make existing garden edges taller, cleaner, or more fortress-like. Do not add wall caps around every planting bed. A softer garden is the desired direction.

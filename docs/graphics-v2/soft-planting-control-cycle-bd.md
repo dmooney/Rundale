@@ -74,14 +74,14 @@ doorless.
 
 ## Outputs
 
-| Artifact | Path |
-| --- | --- |
-| Control report | `pipeline-experiments/idea-bd-kilteevan-soft-planting-control-report.md` |
+| Artifact              | Path                                                                             |
+| --------------------- | -------------------------------------------------------------------------------- |
+| Control report        | `pipeline-experiments/idea-bd-kilteevan-soft-planting-control-report.md`         |
 | Soft-planting control | `pipeline-experiments/idea-bd-kilteevan-soft-planting-soft-planting-control.png` |
 | Soft-planting oblique | `pipeline-experiments/idea-bd-kilteevan-soft-planting-soft-planting-oblique.png` |
-| Fresh render | `pipeline-experiments/idea-bd-kilteevan-soft-planting-fresh-notebook.png` |
-| Fresh prompt | `pipeline-experiments/idea-bd-kilteevan-soft-planting-fresh-notebook.prompt.md` |
-| Fresh report | `pipeline-experiments/idea-bd-kilteevan-soft-planting-fresh-notebook.report.md` |
+| Fresh render          | `pipeline-experiments/idea-bd-kilteevan-soft-planting-fresh-notebook.png`        |
+| Fresh prompt          | `pipeline-experiments/idea-bd-kilteevan-soft-planting-fresh-notebook.prompt.md`  |
+| Fresh report          | `pipeline-experiments/idea-bd-kilteevan-soft-planting-fresh-notebook.report.md`  |
 
 ## Result
 

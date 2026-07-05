@@ -30,10 +30,10 @@ BP mostly checked the first part. BQ adds the second.
 
 ## Outputs
 
-| ID | Image | Prompt | Report | Result |
-| --- | --- | --- | --- | --- |
-| Assets | `pipeline-experiments/idea-bq-isomorphic-scale-lock-reference.png`, `pipeline-experiments/idea-bq-bp-e2-scale-audit-overlay.png` | n/a | `pipeline-experiments/idea-bq-scale-lock-assets.report.md` | Defines the new constant-scale audit |
-| E1 | `pipeline-experiments/idea-bq-e1-kilteevan-scale-lock-orthographic.png` | `pipeline-experiments/idea-bq-e1-kilteevan-scale-lock-orthographic.prompt.md` | `pipeline-experiments/idea-bq-e1-kilteevan-scale-lock-orthographic.report.md` | Partial pass: fixes much of the tree miniaturization, but hardens vegetation/garden material |
+| ID     | Image                                                                                                                            | Prompt                                                                        | Report                                                                        | Result                                                                                       |
+| ------ | -------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- | ----------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| Assets | `pipeline-experiments/idea-bq-isomorphic-scale-lock-reference.png`, `pipeline-experiments/idea-bq-bp-e2-scale-audit-overlay.png` | n/a                                                                           | `pipeline-experiments/idea-bq-scale-lock-assets.report.md`                    | Defines the new constant-scale audit                                                         |
+| E1     | `pipeline-experiments/idea-bq-e1-kilteevan-scale-lock-orthographic.png`                                                          | `pipeline-experiments/idea-bq-e1-kilteevan-scale-lock-orthographic.prompt.md` | `pipeline-experiments/idea-bq-e1-kilteevan-scale-lock-orthographic.report.md` | Partial pass: fixes much of the tree miniaturization, but hardens vegetation/garden material |
 
 Comparison plate:
 

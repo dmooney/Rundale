@@ -17,19 +17,19 @@ generic rubric.
 
 ## Source And Control Artifacts
 
-| Artifact | Path | Notes |
-| --- | --- | --- |
-| Source crop report | `pipeline-experiments/idea-ah-kilteevan-z17-map-crop.report.md` | Documents tile source, zoom, tile neighborhood, crop center, and crop origin. |
-| Source mosaic | `pipeline-experiments/idea-ah-kilteevan-z17-mosaic.png` | 3x3 fetched NLS tile mosaic at z17. |
-| Source crop | `pipeline-experiments/idea-ah-kilteevan-z17-map-crop.png` | North-up 16:9 crop used as the layout authority. |
-| Map-reader notes | `pipeline-experiments/idea-ah-kilteevan-map-reader-notes.md` | Clean-context, generic-rubric, confidence-graded observations. |
-| Oblique pitch cue | `pipeline-experiments/idea-ah-kilteevan-third-control-oblique-raw-warp.png` | Camera cue only, not source truth. |
-| Linework control | `pipeline-experiments/idea-ah-kilteevan-third-control-linework-control.png` | Useful for rough line placement only. |
-| Semantic mask | `pipeline-experiments/idea-ah-kilteevan-third-control-semantic-mask.png` | Not recommended as content authority; over-detects symbols and misses building footprints. |
-| Control report | `pipeline-experiments/idea-ah-kilteevan-third-control-control-report.md` | Notes the heuristic detector found zero building-like components. |
-| Direct render | `pipeline-experiments/idea-ah-kilteevan-third-topology-direct.png` | First third-topology render using source crop, map-reader notes, oblique cue, and cleaned style references. |
-| Direct render prompt | `pipeline-experiments/idea-ah-kilteevan-third-topology-direct.prompt.md` | Exact prompt used by the clean-context imagegen worker. |
-| Direct render audit | `pipeline-experiments/idea-ah-kilteevan-third-topology-direct.report.md` | Worker audit of topology, admin-boundary handling, doors, style, and hard negatives. |
+| Artifact             | Path                                                                        | Notes                                                                                                       |
+| -------------------- | --------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| Source crop report   | `pipeline-experiments/idea-ah-kilteevan-z17-map-crop.report.md`             | Documents tile source, zoom, tile neighborhood, crop center, and crop origin.                               |
+| Source mosaic        | `pipeline-experiments/idea-ah-kilteevan-z17-mosaic.png`                     | 3x3 fetched NLS tile mosaic at z17.                                                                         |
+| Source crop          | `pipeline-experiments/idea-ah-kilteevan-z17-map-crop.png`                   | North-up 16:9 crop used as the layout authority.                                                            |
+| Map-reader notes     | `pipeline-experiments/idea-ah-kilteevan-map-reader-notes.md`                | Clean-context, generic-rubric, confidence-graded observations.                                              |
+| Oblique pitch cue    | `pipeline-experiments/idea-ah-kilteevan-third-control-oblique-raw-warp.png` | Camera cue only, not source truth.                                                                          |
+| Linework control     | `pipeline-experiments/idea-ah-kilteevan-third-control-linework-control.png` | Useful for rough line placement only.                                                                       |
+| Semantic mask        | `pipeline-experiments/idea-ah-kilteevan-third-control-semantic-mask.png`    | Not recommended as content authority; over-detects symbols and misses building footprints.                  |
+| Control report       | `pipeline-experiments/idea-ah-kilteevan-third-control-control-report.md`    | Notes the heuristic detector found zero building-like components.                                           |
+| Direct render        | `pipeline-experiments/idea-ah-kilteevan-third-topology-direct.png`          | First third-topology render using source crop, map-reader notes, oblique cue, and cleaned style references. |
+| Direct render prompt | `pipeline-experiments/idea-ah-kilteevan-third-topology-direct.prompt.md`    | Exact prompt used by the clean-context imagegen worker.                                                     |
+| Direct render audit  | `pipeline-experiments/idea-ah-kilteevan-third-topology-direct.report.md`    | Worker audit of topology, admin-boundary handling, doors, style, and hard negatives.                        |
 
 ## Important Control Caveat
 

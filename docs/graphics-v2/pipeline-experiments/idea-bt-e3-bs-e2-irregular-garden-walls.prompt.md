@@ -10,12 +10,14 @@ Image 2: BS E1/E2 concept-art comparison. Diagnosis/reference only: BS E2 is too
 Image 3: original illustrated parish notebook. Art realism target only: use its broken vegetation, varied wall/fence texture, muddy road edges, and imperfect hand-drawn density. Do not copy UI, people, labels, church, shop sign, bridge, river, animals, smoke, or named content.
 
 Local paths:
+
 - /Users/dmooney/.codex/worktrees/a718/Rundale/docs/graphics-v2/pipeline-experiments/idea-bs-e2-beechwood-door-height-20pct-zoomout.png
 - /Users/dmooney/.codex/worktrees/a718/Rundale/docs/graphics-v2/cartographic-comparisons/bs-e1-e2-concept-art-comparison.png
 - /Users/dmooney/.codex/worktrees/a718/Rundale/docs/graphics-v2/illustrated-parish-notebook.png
 
 Experiment focus:
 Break the clean geometry without changing the underlying layout:
+
 - soften perfect garden rows into slightly uneven vegetable beds with missing plants, weeds, gaps, and varied sizes,
 - make stone walls irregular, patched, mossy, locally broken, and partly overgrown instead of tidy bead-like borders,
 - make road edges muddy, rutted, scumbled, and asymmetrical instead of clean lanes,
@@ -23,6 +25,7 @@ Break the clean geometry without changing the underlying layout:
 - make yard paving and dirt irregular with stains, straw, stones, grass tufts, and broken ink marks.
 
 Critical invariants:
+
 - Keep BS E2's 20% zoomed-out frame.
 - Keep the connected Beechwood compound topology.
 - Keep every visible person-sized opening fitted with a readable wooden plank door and a threshold/step.

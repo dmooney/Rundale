@@ -34,10 +34,10 @@ were used.
 
 ## Outputs
 
-| Cycle | Image | Prompt | Report | Result |
-| --- | --- | --- | --- | --- |
-| AV1 | `pipeline-experiments/idea-av-kilteevan-symbolic-topdown-control.png` | `pipeline-experiments/idea-av-kilteevan-symbolic-topdown-control.prompt.md` | `pipeline-experiments/idea-av-kilteevan-symbolic-topdown-control.report.md` | Less hard walling, but wider/scenic and still bounded |
-| AV2 | `pipeline-experiments/idea-av-kilteevan-symbolic-two-step-isomorphic.png` | `pipeline-experiments/idea-av-kilteevan-symbolic-two-step-isomorphic.prompt.md` | `pipeline-experiments/idea-av-kilteevan-symbolic-two-step-isomorphic.report.md` | Strong style, but not a recipe success |
+| Cycle | Image                                                                     | Prompt                                                                          | Report                                                                          | Result                                                |
+| ----- | ------------------------------------------------------------------------- | ------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- | ----------------------------------------------------- |
+| AV1   | `pipeline-experiments/idea-av-kilteevan-symbolic-topdown-control.png`     | `pipeline-experiments/idea-av-kilteevan-symbolic-topdown-control.prompt.md`     | `pipeline-experiments/idea-av-kilteevan-symbolic-topdown-control.report.md`     | Less hard walling, but wider/scenic and still bounded |
+| AV2   | `pipeline-experiments/idea-av-kilteevan-symbolic-two-step-isomorphic.png` | `pipeline-experiments/idea-av-kilteevan-symbolic-two-step-isomorphic.prompt.md` | `pipeline-experiments/idea-av-kilteevan-symbolic-two-step-isomorphic.report.md` | Strong style, but not a recipe success                |
 
 ## Result
 

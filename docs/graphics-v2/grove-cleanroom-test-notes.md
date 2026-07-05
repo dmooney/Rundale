@@ -33,30 +33,35 @@ Best current recipe:
 ## Test Outputs
 
 - `grove-cleanroom-subagent-maponly-a.png`
+
   - Inputs: Grove map crop only.
   - Strengths: no visible smoke, no invented water, no freestanding
     roof-stack/masonry artifacts, coherent roads.
   - Weaknesses: too map-like / bird's-eye; weak illustrated notebook aesthetic.
 
 - `grove-cleanroom-subagent-maponly-b.png`
+
   - Inputs: Grove map crop only.
   - Strengths: same artifact fixes as A; coherent plate.
   - Weaknesses: too survey-map-like and simplified; not enough 3/4 playable hub
     feel.
 
 - `grove-cleanroom-subagent-style-ref-a.png`
+
   - Inputs: Grove map crop + full `illustrated-parish-notebook.png`.
   - Strengths: stronger style and facade readability.
   - Weaknesses: copied some composition habits from the full reference; church
     became too prominent.
 
 - `grove-cleanroom-subagent-style-ref-b.png`
+
   - Inputs: Grove map crop + full `illustrated-parish-notebook.png`, after
     stronger "style not composition" wording.
   - Strengths: good illustrated style and no artifact regressions.
   - Weaknesses: still too high/zoomed-out; church remains too prominent.
 
 - `grove-cleanroom-subagent-style-swatch-a.png`
+
   - Inputs: Grove map crop + small style crops.
   - Strengths: better style than map-only, fewer composition-copying issues than
     full reference.
@@ -64,6 +69,7 @@ Best current recipe:
     slightly high.
 
 - `grove-cleanroom-subagent-style-swatch-b.png`
+
   - Inputs: Grove map crop + small style crops, after prop-copying and
     secondary-landmark wording.
   - Strengths: no visible smoke, no invented water, no freestanding
@@ -72,6 +78,7 @@ Best current recipe:
     visually strong.
 
 - `grove-cleanroom-subagent-style-swatch-c.png`
+
   - Inputs: Grove map crop + small style crops, after stronger camera/framing
     language.
   - Strengths: Grove is visually dominant; no smoke, invented water, labels,
@@ -79,24 +86,28 @@ Best current recipe:
   - Weaknesses: still reads too aerial; church remains a strong secondary anchor.
 
 - `grove-cleanroom-subagent-style-swatch-d.png`
+
   - Inputs: Grove map crop + small style crops, same prompt as C.
   - Strengths: clean artifact control and no major landmark copying.
   - Weaknesses: still a survey-like high camera; fields/roads take too much
     frame weight.
 
 - `grove-cleanroom-subagent-full-style-ref-c.png`
+
   - Inputs: Grove map crop + full `illustrated-parish-notebook.png`.
   - Strengths: good illustrated style, Grove readable, route continuity mostly
     coherent.
   - Weaknesses: camera too aerial; church became a major focal element.
 
 - `grove-cleanroom-subagent-full-style-ref-d.png`
+
   - Inputs: Grove map crop + full `illustrated-parish-notebook.png`, with
     stronger target-site framing.
   - Strengths: Grove central, church edge-biased, no major artifact regressions.
   - Weaknesses: still higher than ideal.
 
 - `grove-cleanroom-subagent-full-style-ref-e-target-extraction.png`
+
   - Inputs: Grove map crop + full style reference after allowing distant
     landmarks to be omitted.
   - Strengths: first strong target-site plate; no church; Grove dominant; good
@@ -104,12 +115,14 @@ Best current recipe:
   - Weaknesses: camera still slightly high.
 
 - `grove-cleanroom-subagent-full-style-ref-f-target-extraction.png`
+
   - Inputs: same as E.
   - Strengths: no church dominance, Grove central, artifact control good.
   - Weaknesses: still includes more field/road context than ideal and reads a
     little high.
 
 - `grove-cleanroom-subagent-full-style-ref-g-sprite-calibrated.png`
+
   - Inputs: Grove map crop + full style reference after sprite/door/facade
     calibration.
   - Strengths: Grove dominant, no church, gates/roads usable.
@@ -117,18 +130,21 @@ Best current recipe:
     small for sprites.
 
 - `grove-cleanroom-subagent-full-style-ref-h-sprite-calibrated.png`
+
   - Inputs: same as G.
   - Strengths: clean, readable Grove plate; doors and facades pass with caveats;
     no smoke, invented water, UI, labels, or route breakage.
   - Weaknesses: still mildly higher than the ideal low 3/4 camera.
 
 - `grove-map-target-site-crop.png`
+
   - Inputs: derived from the supplied wide Grove map crop with
     `ffmpeg crop=1200:820:560:220`.
   - Purpose: remove arbitrary district context while keeping Grove,
     orchard/garden, local roads, field boundaries, and exits.
 
 - `grove-cleanroom-subagent-target-map-crop-a.png`
+
   - Inputs: `grove-map-target-site-crop.png` + full
     `illustrated-parish-notebook.png`.
   - Strengths: practical pass on camera, sprite-scale doors, Grove dominance,

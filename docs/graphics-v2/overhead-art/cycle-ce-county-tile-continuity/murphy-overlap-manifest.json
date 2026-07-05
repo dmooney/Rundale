@@ -5,30 +5,11 @@
     "x0": 62591,
     "y0": 42307
   },
-  "west_input_source_cols": [
-    0,
-    1,
-    2,
-    3
-  ],
-  "east_input_source_cols": [
-    2,
-    3,
-    4,
-    5
-  ],
-  "west_safe_center_source_cols": [
-    1,
-    2
-  ],
-  "east_safe_center_source_cols": [
-    3,
-    4
-  ],
-  "join_between_source_cols": [
-    2,
-    3
-  ],
+  "west_input_source_cols": [0, 1, 2, 3],
+  "east_input_source_cols": [2, 3, 4, 5],
+  "west_safe_center_source_cols": [1, 2],
+  "east_safe_center_source_cols": [3, 4],
+  "join_between_source_cols": [2, 3],
   "tile_refs": [
     "z17-x62591-y42307",
     "z17-x62592-y42307",

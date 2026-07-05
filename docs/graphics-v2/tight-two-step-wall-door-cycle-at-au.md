@@ -36,11 +36,11 @@ were used.
 
 ## Outputs
 
-| Cycle | Image | Prompt | Report | Result |
-| --- | --- | --- | --- | --- |
-| AT1 | `pipeline-experiments/idea-at-kilteevan-tight-topdown-cleaned.png` | `pipeline-experiments/idea-at-kilteevan-tight-topdown-cleaned.prompt.md` | `pipeline-experiments/idea-at-kilteevan-tight-topdown-cleaned.report.md` | Clean top-down plate; admin seam risk |
-| AT2 | `pipeline-experiments/idea-at-kilteevan-tight-two-step-isomorphic.png` | `pipeline-experiments/idea-at-kilteevan-tight-two-step-isomorphic.prompt.md` | `pipeline-experiments/idea-at-kilteevan-tight-two-step-isomorphic.report.md` | Strong camera/doors/no-chimneys; over-walled |
-| AU | `pipeline-experiments/idea-au-kilteevan-at2-wall-door-repair.png` | `pipeline-experiments/idea-au-kilteevan-at2-wall-door-repair.prompt.md` | `pipeline-experiments/idea-au-kilteevan-at2-wall-door-repair.report.md` | Best visual target from this crop; bounded repair |
+| Cycle | Image                                                                  | Prompt                                                                       | Report                                                                       | Result                                            |
+| ----- | ---------------------------------------------------------------------- | ---------------------------------------------------------------------------- | ---------------------------------------------------------------------------- | ------------------------------------------------- |
+| AT1   | `pipeline-experiments/idea-at-kilteevan-tight-topdown-cleaned.png`     | `pipeline-experiments/idea-at-kilteevan-tight-topdown-cleaned.prompt.md`     | `pipeline-experiments/idea-at-kilteevan-tight-topdown-cleaned.report.md`     | Clean top-down plate; admin seam risk             |
+| AT2   | `pipeline-experiments/idea-at-kilteevan-tight-two-step-isomorphic.png` | `pipeline-experiments/idea-at-kilteevan-tight-two-step-isomorphic.prompt.md` | `pipeline-experiments/idea-at-kilteevan-tight-two-step-isomorphic.report.md` | Strong camera/doors/no-chimneys; over-walled      |
+| AU    | `pipeline-experiments/idea-au-kilteevan-at2-wall-door-repair.png`      | `pipeline-experiments/idea-au-kilteevan-at2-wall-door-repair.prompt.md`      | `pipeline-experiments/idea-au-kilteevan-at2-wall-door-repair.report.md`      | Best visual target from this crop; bounded repair |
 
 ## Result
 

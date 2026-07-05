@@ -10,5 +10,6 @@ Output: `idea-ad-grove-ac-bounded-notebook-refine.png`
 - Hard negatives check: no visible UI, labels, people, animals, carts, shops/signage, church/graveyard cues, water/bridges, smoke, or obvious chimneys.
 
 Residual notes:
+
 - Some lower boundary wall stones still read slightly bead-like, though less clean than Image 1.
 - The camera is more human-scale than Image 1 but still retains a fairly high orthographic gameplay read rather than fully matching Image 4's lower notebook feel.

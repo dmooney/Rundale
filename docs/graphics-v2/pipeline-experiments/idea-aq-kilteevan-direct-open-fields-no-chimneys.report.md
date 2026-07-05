@@ -1,18 +1,22 @@
 # Cycle AQ Report - Kilteevan Direct Open Fields No Chimneys
 
 Generated artifact:
+
 - `docs/graphics-v2/pipeline-experiments/idea-aq-kilteevan-direct-open-fields-no-chimneys.png`
 
 Prompt artifact:
+
 - `docs/graphics-v2/pipeline-experiments/idea-aq-kilteevan-direct-open-fields-no-chimneys.prompt.md`
 
 Mode:
+
 - Built-in `image_gen` fresh generation path.
 - This was not an edit. No previous generated plate was used as an input, edit target, or layout reference.
 - Source cache file copied from `/Users/dmooney/.codex/generated_images/019f0e3c-04ec-7261-aa4a-91b2a2fa3a17/ig_0a29b5bae06b0406016a4115c24c14819585dc286c6fd08277.png`.
 - No manual image patching, retouching, resizing, or pixel edits were applied after generation.
 
 Inspection performed:
+
 - Checked final PNG envelope with `file`: `1672 x 941`, RGB PNG, effectively 16:9.
 - Viewed the full generated plate.
 - Compared visually against `idea-ao-kilteevan-open-fields-direct.png` and `idea-ap3-kilteevan-ap2-upper-roof-nub-cleanup.png`.

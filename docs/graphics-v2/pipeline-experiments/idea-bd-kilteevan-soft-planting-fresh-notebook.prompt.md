@@ -14,16 +14,17 @@ Image 1: tight original historic Ordnance Survey-style map crop. Highest authori
 Image 2: matching tight cleaned no-admin crop. Highest veto authority for suppressed dotted/pecked/dashed administrative/survey linework. Soft gray erased seams, pale diagonal smears, and faint scars are deletion artifacts, not terrain.
 Image 3: generated top-down cleaned control plate for this same tight map crop. Use it only as broad organization for approximate roads, buildings, planted/garden area, trees/scrub, yards, and open fields. Treat it as fallible because generated controls can over-regularize walls, crop rows, seams, and boundaries.
 Image 4: deterministic soft-planting control generated from Image 2 and original-vs-cleaned comparison. This is a material and suppression cue, not a scene and not a route graph. Interpret it as:
+
 - pale/medium green base = ordinary open field or grass context,
 - muted olive/dark green areas = soft planting, garden/orchard texture, scrub, hedgerow fragments, or vegetation masses; not hard walls,
 - extremely faint brown/gray linework = weak source-map evidence only, not automatically physical boundaries,
 - gray-green scars or diagonal swaths = suppressed/no-data/admin-deletion zones; render ordinary open grass or field wash there, never roads, walls, paths, hedges, ridges, seams, shadows, or features,
 - any weak tan/beige traces = soft material transition only; not paths, not walls, not roads unless the raw/cleaned maps independently show a broad road.
-Image 5: deterministic oblique warp of the cleaned no-admin crop. Camera/pitch cue only. It shows how a north-up ground plane compresses under a low 3/4 camera. Do not copy beige margins, strip composition, scan texture, text fragments, line artifacts, or erased seams.
-Image 6: original illustrated parish notebook sample. Style and low playable camera feel only: sepia ink, watercolor wash, paper grain, muddy roads, readable facades, dense hand detail, rough vegetation, and notebook atmosphere. Do not copy UI, labels, people, church, graveyard, river, bridge, shop, signposts, carts, animals, named places, chimneys, smoke, composition, or landmarks.
-Image 7: cleaned slate-roof single-house style reference. Use only for limewashed rural facade, timber plank door, threshold, hand ink, slate roof texture, building scale, and no-chimney discipline.
-Image 8: cleaned thatched/no-chimney single-house style reference. Use only for possible thatch, rough eaves, timber plank door, threshold, and no-chimney discipline.
-Image 9: tree/field watercolor style reference. Use only for soft open fields, uneven grass, hedges, scrub, field texture, and watercolor vegetation.
+  Image 5: deterministic oblique warp of the cleaned no-admin crop. Camera/pitch cue only. It shows how a north-up ground plane compresses under a low 3/4 camera. Do not copy beige margins, strip composition, scan texture, text fragments, line artifacts, or erased seams.
+  Image 6: original illustrated parish notebook sample. Style and low playable camera feel only: sepia ink, watercolor wash, paper grain, muddy roads, readable facades, dense hand detail, rough vegetation, and notebook atmosphere. Do not copy UI, labels, people, church, graveyard, river, bridge, shop, signposts, carts, animals, named places, chimneys, smoke, composition, or landmarks.
+  Image 7: cleaned slate-roof single-house style reference. Use only for limewashed rural facade, timber plank door, threshold, hand ink, slate roof texture, building scale, and no-chimney discipline.
+  Image 8: cleaned thatched/no-chimney single-house style reference. Use only for possible thatch, rough eaves, timber plank door, threshold, and no-chimney discipline.
+  Image 9: tree/field watercolor style reference. Use only for soft open fields, uneven grass, hedges, scrub, field texture, and watercolor vegetation.
 
 Core success definition:
 The output should feel like a UI-free version of the original illustrated parish notebook scene, but the layout must still read as the supplied historic map/control crop rather than a generic picturesque crossroads. If style and topology conflict, preserve topology first. If topology and boundary material conflict, raw/cleaned map evidence wins for existence while Image 4 wins for material interpretation: soft planting zones should not become walls, roads, or extra paths.
@@ -38,6 +39,7 @@ Roads and lanes should continue naturally off-frame instead of being rearranged 
 
 Soft-planting and boundary-material interpretation:
 Image 4 is designed to prevent the BA/BC failure where garden/internal lines became hard walls. Use it aggressively for material meaning:
+
 - Olive/green dense areas should render as planted texture, shrubs, orchard/garden growth, broken hedge clumps, scrub, or watercolor vegetation.
 - Do not trace the edges of olive/green planting areas as stone walls.
 - Do not turn garden/internal lines into walls, paths, or fences unless Images 1-2 clearly show a physical domestic/garden edge.

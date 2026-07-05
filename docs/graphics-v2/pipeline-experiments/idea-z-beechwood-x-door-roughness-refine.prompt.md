@@ -14,6 +14,7 @@ Primary request:
 Refine Image 1 without redesigning it. Keep the Beechwood Cycle X composition and topology, but repair the one ambiguous right-side exterior opening so it reads as a clear dark doorway/threshold if that side face remains visible. Slightly roughen the garden rows and stone walls so the plate feels more hand-painted and less grid-regular. This is a controlled repair pass, not a new scene generation.
 
 Hard preservation rules:
+
 - Keep the main connected/attached compound connected around its inner courtyard. Do not split it into detached cottages.
 - Keep the courtyard, road edge, wall lines, nearby garden/enclosure boundaries, tree masses, gates, and exits in the same north-up relationships as Image 1.
 - Keep close playable scale and native 16:9 composition.
@@ -21,6 +22,7 @@ Hard preservation rules:
 - Do not change the compound into a formal estate or town building.
 
 Repair goals:
+
 - Clarify the far/right exterior side opening as a readable simple dark doorway with a worn threshold if visible and potentially playable.
 - Keep all existing readable doors and thresholds on road-facing, yard-facing, and courtyard-facing facades.
 - Reduce perfect garden/stone-wall regularity while preserving the same boundaries and planted areas: hand-planted rows, irregular stones, patchy weeds, watercolor variation, muddy scumbled edges.

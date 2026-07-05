@@ -13,6 +13,7 @@ Image 5: fixed thatched single-house door crop. Door/facade material reference o
 Image 6: fixed slate single-house door crop. Secondary door/facade material reference only.
 
 Local paths:
+
 - /Users/dmooney/.codex/worktrees/a718/Rundale/docs/graphics-v2/pipeline-experiments/idea-br-e1-beechwood-close-raised-camera-door-fixed-concept.png
 - /Users/dmooney/.codex/worktrees/a718/Rundale/docs/graphics-v2/illustrated-parish-notebook.png
 - /Users/dmooney/.codex/worktrees/a718/Rundale/docs/graphics-v2/pipeline-experiments/idea-br-beechwood-close-control.png
@@ -33,6 +34,7 @@ Style:
 Match the original parish notebook concept art: loose sepia ink, mottled watercolor, parchment warmth, rough thatch, uneven limewashed walls, muddy road scumble, hand-painted garden texture, visible paper tooth, and dense but imperfect rural detail.
 
 Keep:
+
 - connected Beechwood compound topology,
 - thatched roofs, limewashed walls, walled yard, muddy road, garden/orchard edge,
 - no UI, no labels, no map lettering, no survey numbers,

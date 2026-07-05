@@ -2,6 +2,7 @@ Use case: precise-object-edit
 Asset type: historical isomorphic game background plate refinement, 16:9 desktop background plate
 
 Input images:
+
 - Image 1 is the full edit target: `idea-bj-beechwood-q-notebook-repaint.png`. Preserve its Beechwood topology, crop, road exits, connected compound, garden, lower building group, field zones, tree zones, doors, and roof discipline.
 - Image 2 is the full topology veto: `idea-m-beechwood-admin-topdown-cleaned.png`. Use it only to reject layout drift, not as style.
 - Image 3 is the BJ garden audit crop: `idea-bj-audit-garden-regular-bj.png`. This shows the exact visual problem to improve: garden compartments and rows are too crisp, rectangular, repeated, and survey-like.
@@ -28,6 +29,7 @@ and rough internal organization, but reduce the feeling of a CAD grid or raised
 stone-bed diagram.
 
 What to improve:
+
 - Soften garden rows and beds. Keep their broad positions, but break their
   mechanical repetition with varied plant spacing, missing patches, soil
   stains, weeds, and hand-painted irregularity.
@@ -45,6 +47,7 @@ What to improve:
 
 Hard topology constraints:
 Preserve Image 1's layout and check against Images 2 and 5:
+
 - same diagonal road position and road exits,
 - same connected L/U-shaped compound footprint and courtyard,
 - same lower/foreground building group and small enclosure,

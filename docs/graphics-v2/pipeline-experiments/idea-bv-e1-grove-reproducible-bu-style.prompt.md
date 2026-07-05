@@ -9,6 +9,7 @@ map/control inputs and generic style targets. Do not use any previous Grove
 render as an edit target.
 
 Input images and roles:
+
 - Grove core topology control:
   `idea-ae-grove-core-control.png`. Primary plate-area and layout authority.
   It defines the intended crop: separate buildings around a working yard,
@@ -35,6 +36,7 @@ Input images and roles:
   and no-black-void doorway discipline. Do not copy their layouts.
 
 Pipeline being tested:
+
 1. Choose the playable crop/control before rendering.
 2. Use the historic map as feature-existence veto.
 3. Use the oblique cue for low 3/4 orthographic camera only.
@@ -43,6 +45,7 @@ Pipeline being tested:
    used as an edit target.
 
 Grove topology invariants:
+
 - Preserve Grove's separate-building yard topology. Do not merge the buildings
   into a Beechwood-like connected courtyard compound.
 - Preserve the long lower/southern building range, the left/west small building,
@@ -88,6 +91,7 @@ Survey dots, map paper texture, printed labels, and administrative dotted
 boundaries leave no physical trace unless corroborated by real features.
 
 Failure conditions:
+
 - Any visible walkable building has only a black doorway void or no door.
 - The separate Grove buildings merge into one connected compound.
 - The image copies Beechwood's layout instead of Grove's.

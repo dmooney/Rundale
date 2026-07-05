@@ -22,10 +22,10 @@ Each site uses:
 
 ## Outputs
 
-| Site | Output | Prompt | Report | Result |
-| --- | --- | --- | --- | --- |
+| Site         | Output                                                                  | Prompt                                                                        | Report                                                                        | Result                               |
+| ------------ | ----------------------------------------------------------------------- | ----------------------------------------------------------------------------- | ----------------------------------------------------------------------------- | ------------------------------------ |
 | Beechwood AD | `pipeline-experiments/idea-ad-beechwood-ac-bounded-notebook-refine.png` | `pipeline-experiments/idea-ad-beechwood-ac-bounded-notebook-refine.prompt.md` | `pipeline-experiments/idea-ad-beechwood-ac-bounded-notebook-refine.report.md` | Best Beechwood visual so far from AC |
-| Grove AD | `pipeline-experiments/idea-ad-grove-ac-bounded-notebook-refine.png` | `pipeline-experiments/idea-ad-grove-ac-bounded-notebook-refine.prompt.md` | `pipeline-experiments/idea-ad-grove-ac-bounded-notebook-refine.report.md` | Best Grove visual so far from AC |
+| Grove AD     | `pipeline-experiments/idea-ad-grove-ac-bounded-notebook-refine.png`     | `pipeline-experiments/idea-ad-grove-ac-bounded-notebook-refine.prompt.md`     | `pipeline-experiments/idea-ad-grove-ac-bounded-notebook-refine.report.md`     | Best Grove visual so far from AC     |
 
 ## Audit Questions
 

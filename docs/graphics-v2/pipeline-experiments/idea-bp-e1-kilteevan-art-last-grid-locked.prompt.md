@@ -15,6 +15,7 @@ Image 7: cleaned field/wall material crop. Soft field/hedge/wall material refere
 Image 8: cleaned roof/wall or yard material crop. Surface texture reference only, not layout.
 
 Local paths:
+
 - /Users/dmooney/.codex/worktrees/a718/Rundale/docs/graphics-v2/pipeline-experiments/idea-bo-e2-kilteevan-bn-e2-soft-orthographic-rectify.png
 - /Users/dmooney/.codex/worktrees/a718/Rundale/docs/graphics-v2/pipeline-experiments/idea-bp-bo-e2-hard-isomorphic-grid-check.png
 - /Users/dmooney/.codex/worktrees/a718/Rundale/docs/graphics-v2/pipeline-experiments/idea-bp-hard-isomorphic-grid-reference.png
@@ -26,6 +27,7 @@ Local paths:
 
 Hard isomorphic check:
 The final image must read as a low oblique orthographic/isomorphic game plate:
+
 - no fisheye, no barrel distortion, no bowed roads, no curved garden rows,
 - no vanishing point, no perspective convergence, no horizon, no sky,
 - roof ridges, wall edges, garden rows, road edges, and field boundaries align to shallow parallel projection families like Images 2-3,
@@ -36,6 +38,7 @@ The grid is an invisible check, not output content. Do not draw any grid lines, 
 
 Art-last style target:
 Repaint the BO E2 scene into the original illustrated parish notebook look:
+
 - warm parchment ground and sepia ink,
 - loose hand-drawn linework, not clean digital contouring,
 - watercolor wash with visible paper grain,
@@ -49,6 +52,7 @@ Repaint the BO E2 scene into the original illustrated parish notebook look:
 
 Content and topology invariants:
 BO E2 remains the source of truth for what exists and where it is:
+
 - same main lower building,
 - same foreground sheds/outbuildings,
 - same upper building group,

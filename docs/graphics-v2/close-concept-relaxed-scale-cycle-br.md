@@ -25,10 +25,10 @@ BR deliberately avoids the earlier wide-map failure mode:
 
 ## Outputs
 
-| ID | Image | Prompt | Report | Result |
-| --- | --- | --- | --- | --- |
-| Assets | `pipeline-experiments/idea-br-beechwood-close-*.png` | n/a | `pipeline-experiments/idea-br-close-beechwood-assets.report.md` | Tight Beechwood controls plus symbol references |
-| E1 | `pipeline-experiments/idea-br-e1-beechwood-close-raised-camera-door-fixed-concept.png` | `pipeline-experiments/idea-br-e1-beechwood-close-raised-camera-door-fixed-concept.prompt.md` | `pipeline-experiments/idea-br-e1-beechwood-close-raised-camera-door-fixed-concept.report.md` | Current BR pass: closer, warmer, doors restored, relaxed scale |
+| ID     | Image                                                                                  | Prompt                                                                                       | Report                                                                                       | Result                                                         |
+| ------ | -------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- | -------------------------------------------------------------- |
+| Assets | `pipeline-experiments/idea-br-beechwood-close-*.png`                                   | n/a                                                                                          | `pipeline-experiments/idea-br-close-beechwood-assets.report.md`                              | Tight Beechwood controls plus symbol references                |
+| E1     | `pipeline-experiments/idea-br-e1-beechwood-close-raised-camera-door-fixed-concept.png` | `pipeline-experiments/idea-br-e1-beechwood-close-raised-camera-door-fixed-concept.prompt.md` | `pipeline-experiments/idea-br-e1-beechwood-close-raised-camera-door-fixed-concept.report.md` | Current BR pass: closer, warmer, doors restored, relaxed scale |
 
 Comparison plate:
 

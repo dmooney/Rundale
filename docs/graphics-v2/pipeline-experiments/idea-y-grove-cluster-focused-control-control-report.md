@@ -11,6 +11,7 @@ to produce control images for clean-context image-generation experiments
 without hand-authored per-location interpretation.
 
 Outputs:
+
 - `idea-y-grove-cluster-focused-control-ink-mask.png`
 - `idea-y-grove-cluster-focused-control-semantic-mask.png`
 - `idea-y-grove-cluster-focused-control-oblique-raw-warp.png`

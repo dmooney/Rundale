@@ -22,6 +22,7 @@ unmasked map texture. No location name, road graph, or hand-authored
 feature hints are used.
 
 Outputs:
+
 - `idea-aj4-kilteevan-dot-suppressed-mainchains-no-admin-map-crop.png`
 - `idea-aj4-kilteevan-dot-suppressed-mainchains-suppression-overlay.png`
 - `idea-aj4-kilteevan-dot-suppressed-mainchains-no-admin-oblique-raw-warp.png`

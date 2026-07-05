@@ -10,12 +10,14 @@ Image 2: BS E1/E2 concept-art comparison. Diagnosis/reference only: concept art 
 Image 3: original illustrated parish notebook. Art realism target only: use its density, scuffed yard surfaces, rural clutter, rough ink, and watercolor texture. Do not copy UI, people, labels, church, shop sign, bridge, river, animals, smoke, or named content.
 
 Local paths:
+
 - /Users/dmooney/.codex/worktrees/a718/Rundale/docs/graphics-v2/pipeline-experiments/idea-bs-e2-beechwood-door-height-20pct-zoomout.png
 - /Users/dmooney/.codex/worktrees/a718/Rundale/docs/graphics-v2/cartographic-comparisons/bs-e1-e2-concept-art-comparison.png
 - /Users/dmooney/.codex/worktrees/a718/Rundale/docs/graphics-v2/illustrated-parish-notebook.png
 
 Experiment focus:
 Sparse lived-in clutter plus weathering. Add only small inert rural objects that make sense in an 1820 Irish farmyard, without changing topology:
+
 - a few barrels, buckets, baskets, sacks, chopped wood, stone piles, hand tools, or low crates near walls/doors,
 - muddy footprints and wheel ruts in the road and yard,
 - scattered stones and straw near thresholds,
@@ -25,6 +27,7 @@ Sparse lived-in clutter plus weathering. Add only small inert rural objects that
 Keep clutter subordinate. It should be small, embedded, and hand-painted, like the concept art's incidental detail, not a staged prop display.
 
 Critical invariants:
+
 - Keep BS E2's 20% zoomed-out frame.
 - Keep the connected Beechwood compound topology.
 - Keep every visible person-sized opening fitted with a readable wooden plank door and a threshold/step.

@@ -15,6 +15,7 @@ Primary request:
 Refine Image 1 into a slightly lower-camera, less roof-dominant Grove plate while preserving its topology. Do not redesign the scene. Do not merge the separate buildings into a Beechwood-like compound. Keep Grove's separate yard buildings and open working yard.
 
 Hard preservation rules:
+
 - Preserve Image 1/Image 2 building relationships: separate buildings remain separate; attached/overlapping buildings remain attached only where the control shows them.
 - Preserve the yard/open working area, garden plot boundaries, road exits, wall lines, tree masses, and north-up layout.
 - Keep close playable scale and native 16:9 composition.
@@ -22,6 +23,7 @@ Hard preservation rules:
 - Do not copy Beechwood Cycle X's connected compound, courtyard, or building arrangement.
 
 Refinement goals:
+
 - Lower the camera feel a little toward Beechwood X and the original notebook sample: larger facades and thresholds, less roof dominance, more visible wall side faces and muddy yard surfaces.
 - Keep every visible playable facade facing road, yard, lane, or garden entry with a clear dark doorway or threshold.
 - Roughen planted plots and stone walls without changing their topology: uneven hand-planted rows, irregular stones, patchy weeds, watercolor variation.

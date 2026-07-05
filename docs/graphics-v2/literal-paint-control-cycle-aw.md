@@ -55,14 +55,14 @@ were used.
 
 ## Outputs
 
-| Artifact | Path |
-| --- | --- |
-| Literal control report | `pipeline-experiments/idea-aw2-kilteevan-literal-paint-control-report.md` |
-| Literal paint control | `pipeline-experiments/idea-aw2-kilteevan-literal-paint-literal-paint-control.png` |
-| Literal paint oblique | `pipeline-experiments/idea-aw2-kilteevan-literal-paint-literal-paint-oblique.png` |
-| Final image | `pipeline-experiments/idea-aw-kilteevan-literal-control-isomorphic.png` |
-| Final prompt | `pipeline-experiments/idea-aw-kilteevan-literal-control-isomorphic.prompt.md` |
-| Final report | `pipeline-experiments/idea-aw-kilteevan-literal-control-isomorphic.report.md` |
+| Artifact               | Path                                                                              |
+| ---------------------- | --------------------------------------------------------------------------------- |
+| Literal control report | `pipeline-experiments/idea-aw2-kilteevan-literal-paint-control-report.md`         |
+| Literal paint control  | `pipeline-experiments/idea-aw2-kilteevan-literal-paint-literal-paint-control.png` |
+| Literal paint oblique  | `pipeline-experiments/idea-aw2-kilteevan-literal-paint-literal-paint-oblique.png` |
+| Final image            | `pipeline-experiments/idea-aw-kilteevan-literal-control-isomorphic.png`           |
+| Final prompt           | `pipeline-experiments/idea-aw-kilteevan-literal-control-isomorphic.prompt.md`     |
+| Final report           | `pipeline-experiments/idea-aw-kilteevan-literal-control-isomorphic.report.md`     |
 
 ## Result
 

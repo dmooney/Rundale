@@ -20,6 +20,7 @@ Every roofed structure or roof-like built structure visible in Image 1 must rema
 Remove only clearly movable nonessential props: carts, barrels, tubs, crates, table-like objects, loose clutter, freestanding objects not attached to a building. When in doubt, preserve the object as a small outbuilding/roofed structure rather than deleting it.
 
 Allowed changes:
+
 - Increase the original parish notebook feel: rougher sepia/brown-black ink, looser watercolor washes, paper tooth, scratchy field hatching, dirty limewash, muddy scumbled roads, irregular grass strokes, mottled olive fields, dry-brush stone texture, and imperfect hand-painted edges.
 - Make existing facades, doors, thresholds, walls, gates, muddy road edges, garden beds, and vegetation slightly more readable.
 - Remove or paint out only clearly movable props and clutter.

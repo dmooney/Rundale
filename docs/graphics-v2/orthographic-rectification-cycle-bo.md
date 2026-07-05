@@ -24,10 +24,10 @@ north-extended low-camera content render
 
 ## Outputs
 
-| ID | Image | Prompt | Report | Result |
-| --- | --- | --- | --- | --- |
-| E1 | `pipeline-experiments/idea-bo-e1-kilteevan-bn-e2-orthographic-rectify.png` | `pipeline-experiments/idea-bo-kilteevan-bn-e2-orthographic-rectify.prompt.md` | `pipeline-experiments/idea-bo-e1-kilteevan-bn-e2-orthographic-rectify.report.md` | Strong geometry proof; over-cleans and adds fence/wall hardness |
-| E2 | `pipeline-experiments/idea-bo-e2-kilteevan-bn-e2-soft-orthographic-rectify.png` | `pipeline-experiments/idea-bo-e2-kilteevan-bn-e2-soft-orthographic-rectify.prompt.md` | `pipeline-experiments/idea-bo-e2-kilteevan-bn-e2-soft-orthographic-rectify.report.md` | Best BO candidate; softer rectification, lower distortion, less overbuild |
+| ID  | Image                                                                           | Prompt                                                                                | Report                                                                                | Result                                                                    |
+| --- | ------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
+| E1  | `pipeline-experiments/idea-bo-e1-kilteevan-bn-e2-orthographic-rectify.png`      | `pipeline-experiments/idea-bo-kilteevan-bn-e2-orthographic-rectify.prompt.md`         | `pipeline-experiments/idea-bo-e1-kilteevan-bn-e2-orthographic-rectify.report.md`      | Strong geometry proof; over-cleans and adds fence/wall hardness           |
+| E2  | `pipeline-experiments/idea-bo-e2-kilteevan-bn-e2-soft-orthographic-rectify.png` | `pipeline-experiments/idea-bo-e2-kilteevan-bn-e2-soft-orthographic-rectify.prompt.md` | `pipeline-experiments/idea-bo-e2-kilteevan-bn-e2-soft-orthographic-rectify.report.md` | Best BO candidate; softer rectification, lower distortion, less overbuild |
 
 Comparison plate:
 

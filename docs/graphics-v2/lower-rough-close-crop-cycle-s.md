@@ -24,9 +24,9 @@ and building edges.
 
 ## Outputs
 
-| Site | Output | Prompt | Report | Result |
-| --- | --- | --- | --- | --- |
-| Grove | `pipeline-experiments/idea-s-grove-lower-rough-close-crop-notebook-style.png` | `pipeline-experiments/idea-s-grove-lower-rough-close-crop-notebook-style.prompt.md` | `pipeline-experiments/idea-s-grove-lower-rough-close-crop-notebook-style.report.md` | Marginal roughness improvement |
+| Site      | Output                                                                            | Prompt                                                                                  | Report                                                                                  | Result                         |
+| --------- | --------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- | ------------------------------ |
+| Grove     | `pipeline-experiments/idea-s-grove-lower-rough-close-crop-notebook-style.png`     | `pipeline-experiments/idea-s-grove-lower-rough-close-crop-notebook-style.prompt.md`     | `pipeline-experiments/idea-s-grove-lower-rough-close-crop-notebook-style.report.md`     | Marginal roughness improvement |
 | Beechwood | `pipeline-experiments/idea-s-beechwood-lower-rough-close-crop-notebook-style.png` | `pipeline-experiments/idea-s-beechwood-lower-rough-close-crop-notebook-style.prompt.md` | `pipeline-experiments/idea-s-beechwood-lower-rough-close-crop-notebook-style.report.md` | Marginal roughness improvement |
 
 Both returned `1672 x 941` PNGs.

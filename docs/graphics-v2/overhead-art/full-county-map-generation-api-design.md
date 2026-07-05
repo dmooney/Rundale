@@ -15,13 +15,13 @@ repairs, not as the default way to repaint every county tile.
 If we deliberately use the Image API to generate the entire clipped county at
 3x gameplay scale, current output-only cost is roughly:
 
-| Scope | Panel-equivalent outputs | GPT Image 2 medium output | GPT Image 2 high output |
-| --- | ---: | ---: | ---: |
-| Clipped county, no overlap | ~29,144 | ~$1,195 | ~$4,809 |
-| Clipped county, 1.5x overlap/retry budget | ~43,716 | ~$1,792 | ~$7,213 |
-| Clipped county, 2.0x conservative budget | ~58,288 | ~$2,390 | ~$9,618 |
-| Rectangular bbox, no clipping | ~76,983 | ~$3,156 | ~$12,702 |
-| Rectangular bbox, 2.0x conservative budget | ~153,966 | ~$6,313 | ~$25,404 |
+| Scope                                      | Panel-equivalent outputs | GPT Image 2 medium output | GPT Image 2 high output |
+| ------------------------------------------ | -----------------------: | ------------------------: | ----------------------: |
+| Clipped county, no overlap                 |                  ~29,144 |                   ~$1,195 |                 ~$4,809 |
+| Clipped county, 1.5x overlap/retry budget  |                  ~43,716 |                   ~$1,792 |                 ~$7,213 |
+| Clipped county, 2.0x conservative budget   |                  ~58,288 |                   ~$2,390 |                 ~$9,618 |
+| Rectangular bbox, no clipping              |                  ~76,983 |                   ~$3,156 |                ~$12,702 |
+| Rectangular bbox, 2.0x conservative budget |                 ~153,966 |                   ~$6,313 |                ~$25,404 |
 
 Those rows are output image cost only. Edit/reference-image workflows also pay
 image input token costs. For a full clipped county run, a realistic all-in
@@ -54,14 +54,14 @@ before buying a full-county API run.
 
 ## Data Volume
 
-| Asset set | Clipped county | Rectangular working bbox |
-| --- | ---: | ---: |
-| z17 source tiles | ~77,715 | ~205,288 |
-| Source compressed PNG | ~2.7 GB | ~7.0 GB |
-| Source raw RGB working data | ~15 GB | ~40 GB |
-| 3x generated max layer | ~65.7 GB | ~173.6 GB |
-| 3x generated max layer plus lower pyramid | ~87 GB | ~231 GB |
-| 3x raw RGB working data | ~138 GB | ~363 GB |
+| Asset set                                 | Clipped county | Rectangular working bbox |
+| ----------------------------------------- | -------------: | -----------------------: |
+| z17 source tiles                          |        ~77,715 |                 ~205,288 |
+| Source compressed PNG                     |        ~2.7 GB |                  ~7.0 GB |
+| Source raw RGB working data               |         ~15 GB |                   ~40 GB |
+| 3x generated max layer                    |       ~65.7 GB |                ~173.6 GB |
+| 3x generated max layer plus lower pyramid |         ~87 GB |                  ~231 GB |
+| 3x raw RGB working data                   |        ~138 GB |                  ~363 GB |
 
 The full county map is feasible, but it should not be one giant raster and it
 should not be committed to Git. Process it in chunks, store immutable assets in
@@ -254,7 +254,7 @@ Each job row should include:
   "job_id": "roscommon-z17-c0032-r0048",
   "kind": "base | local_override | seam_repair | full_api_panel",
   "status": "planned | inputs_ready | submitted | complete | validated | rejected | promoted",
-  "source_tile_range": {"z": 17, "x0": 0, "x1": 0, "y0": 0, "y1": 0},
+  "source_tile_range": { "z": 17, "x0": 0, "x1": 0, "y0": 0, "y1": 0 },
   "output_size": "1536x1024",
   "quality": "medium",
   "model": "gpt-image-2",
@@ -307,22 +307,22 @@ Full clipped county, 3x gameplay scale:
 
 Output-only cost:
 
-| Multiplier | Panel equivalents | Low | Medium | High |
-| ---: | ---: | ---: | ---: | ---: |
-| 1.0 | 29,144 | $146 | $1,195 | $4,809 |
-| 1.25 | 36,430 | $182 | $1,494 | $6,011 |
-| 1.5 | 43,716 | $219 | $1,792 | $7,213 |
-| 2.0 | 58,288 | $291 | $2,390 | $9,618 |
+| Multiplier | Panel equivalents |  Low | Medium |   High |
+| ---------: | ----------------: | ---: | -----: | -----: |
+|        1.0 |            29,144 | $146 | $1,195 | $4,809 |
+|       1.25 |            36,430 | $182 | $1,494 | $6,011 |
+|        1.5 |            43,716 | $219 | $1,792 | $7,213 |
+|        2.0 |            58,288 | $291 | $2,390 | $9,618 |
 
 Input token cost is the main uncertainty. If each request uses source/control
 images equivalent to `2k-12k` image input tokens, then standard GPT Image 2
 input cost adds approximately:
 
-| Panel count | 2k input tokens/request | 4k | 8k | 12k |
-| ---: | ---: | ---: | ---: | ---: |
-| 29,144 | $466 | $933 | $1,865 | $2,798 |
-| 43,716 | $699 | $1,399 | $2,798 | $4,197 |
-| 58,288 | $933 | $1,865 | $3,730 | $5,596 |
+| Panel count | 2k input tokens/request |     4k |     8k |    12k |
+| ----------: | ----------------------: | -----: | -----: | -----: |
+|      29,144 |                    $466 |   $933 | $1,865 | $2,798 |
+|      43,716 |                    $699 | $1,399 | $2,798 | $4,197 |
+|      58,288 |                    $933 | $1,865 | $3,730 | $5,596 |
 
 Batch pricing can halve those token costs if the request shape fits Batch and
 the run can tolerate asynchronous 24-hour processing.

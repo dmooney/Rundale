@@ -11,6 +11,7 @@ to produce control images for clean-context image-generation experiments
 without hand-authored per-location interpretation.
 
 Outputs:
+
 - `idea-v-beechwood-tight-control-ink-mask.png`
 - `idea-v-beechwood-tight-control-semantic-mask.png`
 - `idea-v-beechwood-tight-control-oblique-raw-warp.png`

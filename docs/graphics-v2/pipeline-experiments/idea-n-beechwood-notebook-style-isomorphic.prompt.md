@@ -9,12 +9,15 @@ Image 4: tiny style/material swatch only; use only for texture/color/line/materi
 Image 5: tiny style/material swatch only; use only for texture/color/line/material treatment.
 
 Inserted map-reader notes:
+
 # Data-Derived Map Reader Notes
 
 ## Scope
+
 These notes are derived only from the attached historic map crop using the generic rubric. The image top is treated as north, printed labels/large letters/survey numbers/paper texture are ignored as in-world objects, and uncertain marks are described with confidence rather than converted into hard constraints.
 
 ## Orientation And Major Corridors
+
 - Main diagonal road or lane, high confidence: A broad pale corridor with parallel edges enters from the northwest edge, runs diagonally through the center-left, passes directly beside the main building group, and continues toward the south-southeast/lower-right edge. Its width and paired edges support reading it as a road/lane rather than a thin boundary.
 - Roadside yard frontage, medium-high confidence: The building group sits tightly against the main corridor around the central and south-central crop, suggesting a road-facing yard or service edge. Some dark structures directly touch or nearly touch the lane edge.
 - Thin single-line field or plot boundaries, medium confidence: Several single thin lines curve or angle through the southwest, south, and east portions of the crop. By rubric these are more likely walls, hedges, ditches, or plot boundaries than paths; the exact material is uncertain.
@@ -22,12 +25,14 @@ These notes are derived only from the attached historic map crop using the gener
 - Faint dashed/pecked line near center-left to south-center, medium confidence as ambiguous/non-physical: A faint broken line appears to cross open ground near the building group and lower central crop. Because it lacks independent physical cues, it should be treated as administrative/survey/ambiguous rather than drawn as an in-world continuous feature.
 
 ## Building Inventory
+
 B1: Center-left, immediately east/southeast of the main diagonal lane. Dark hatched rectilinear block, roughly L-shaped or range-like, with a pale inner/open area adjacent to the road. Primary house, farmhouse, or main roadside building. Medium-high confidence. Render as the largest roofed building in the group, aligned with the lane; allow a small attached/open yard or court where the pale gap appears.
 B2: South-central, just below the large central enclosed planted rectangle and close to the lane. Small dark rectangular block, detached or lightly attached to the enclosure/yard edge. Shed, stable, byre, small barn, or service outbuilding. Medium confidence. Render as a small auxiliary roofed structure, lower and simpler than B1.
 B3: Lower center-left/south-central, on the opposite side of the lane from the large enclosed planted area. Compact cluster of dark hatched rectilinear pieces forming an irregular small compound. Farm outbuildings, barn/stable/byre range, or service yard. Medium confidence. Render as a modest outbuilding cluster rather than a single grand house; individual pieces may be connected or very close together.
 B4: Center-right/southeast of the large enclosed planted rectangle, beside or just off the lane. Very small dark rectangular block. Minor shed, privy, small store, or other outbuilding. Low-medium confidence. Render only as a small secondary structure if needed; keep it subordinate and uncertain.
 
 ## Enclosures, Planting, And Boundaries
+
 - Large central enclosed planted area, high confidence: A large pale rectangle occupies the center to center-right, outlined by a thin boundary and filled with regular repeated internal marks. It reads more like a garden, planted yard, nursery, orchard, or formal ground than a roofed building.
 - Small regular northern enclosures, medium confidence: Two small outlined rectangles north of B1 and northwest of the large central planted rectangle may be garden beds, yard compartments, small pens, or non-roofed enclosures. They are not strongly marked as roofed buildings.
 - Northwest and center-left tree/scrub mass, high confidence: Dense clusters of round and small tree symbols occupy much of the northwest quadrant and center-left west of the road, suggesting woodland edge, scrub, orchard-like planting, or thick hedgerow planting.
@@ -38,6 +43,7 @@ B4: Center-right/southeast of the large enclosed planted rectangle, beside or ju
 - Faint broken center-left boundary, medium confidence non-physical/ambiguous: The faint dashed/pecked line near the lower center-left has insufficient physical cues. If represented at all, it should be treated as uncertain survey information, not as a hedge, path, ditch, or fence.
 
 ## Explicit Negative Evidence
+
 No church, churchyard, cross, graveyard enclosure, ecclesiastical footprint, or church label evidence appears in the crop. No shop evidence. No clear watercourse, pond, bridge, marsh/water edge, or water hachure appears. Printed labels, large letters, parcel/survey numbers, and paper texture are not in-world objects. No in-world UI, modern overlay object, smoke plume, vehicles, people, or animals are evidenced by the crop. Dotted/pecked and faint dashed lines should not be converted into bushes, hedges, walls, fences, paths, roads, ditches, or tree rows.
 
 Primary request:

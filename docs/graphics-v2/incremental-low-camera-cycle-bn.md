@@ -34,10 +34,10 @@ been lower-value.
 
 ## Outputs
 
-| ID | Image | Prompt | Report | Result |
-| --- | --- | --- | --- | --- |
-| E1 | `pipeline-experiments/idea-bn-e1-kilteevan-north-20deg-incremental.png` | `pipeline-experiments/idea-bn-e1-kilteevan-north-20deg-incremental.prompt.md` | `pipeline-experiments/idea-bn-e1-kilteevan-north-20deg-incremental.report.md` | Adds north-backed background, but still reads too high |
-| E2 | `pipeline-experiments/idea-bn-e2-kilteevan-north-10deg-incremental.png` | `pipeline-experiments/idea-bn-e2-kilteevan-north-10deg-incremental.prompt.md` | `pipeline-experiments/idea-bn-e2-kilteevan-north-10deg-incremental.report.md` | First strong 50%-lower camera signal; topology/semantics caveat |
+| ID  | Image                                                                   | Prompt                                                                        | Report                                                                        | Result                                                          |
+| --- | ----------------------------------------------------------------------- | ----------------------------------------------------------------------------- | ----------------------------------------------------------------------------- | --------------------------------------------------------------- |
+| E1  | `pipeline-experiments/idea-bn-e1-kilteevan-north-20deg-incremental.png` | `pipeline-experiments/idea-bn-e1-kilteevan-north-20deg-incremental.prompt.md` | `pipeline-experiments/idea-bn-e1-kilteevan-north-20deg-incremental.report.md` | Adds north-backed background, but still reads too high          |
+| E2  | `pipeline-experiments/idea-bn-e2-kilteevan-north-10deg-incremental.png` | `pipeline-experiments/idea-bn-e2-kilteevan-north-10deg-incremental.prompt.md` | `pipeline-experiments/idea-bn-e2-kilteevan-north-10deg-incremental.report.md` | First strong 50%-lower camera signal; topology/semantics caveat |
 
 Comparison plates live in `docs/graphics-v2/cartographic-comparisons/`:
 

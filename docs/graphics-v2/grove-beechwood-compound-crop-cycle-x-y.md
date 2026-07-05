@@ -11,10 +11,10 @@ building, yard, road, wall, garden, and tree relationships.
 
 ## Outputs
 
-| Site | Output | Prompt | Report | Result |
-| --- | --- | --- | --- | --- |
+| Site        | Output                                                                  | Prompt                                                                        | Report                                                                        | Result                                    |
+| ----------- | ----------------------------------------------------------------------- | ----------------------------------------------------------------------------- | ----------------------------------------------------------------------------- | ----------------------------------------- |
 | Beechwood X | `pipeline-experiments/idea-x-beechwood-compound-focused-low-camera.png` | `pipeline-experiments/idea-x-beechwood-compound-focused-low-camera.prompt.md` | `pipeline-experiments/idea-x-beechwood-compound-focused-low-camera.report.md` | Best Beechwood notebook-scale pass so far |
-| Grove Y | `pipeline-experiments/idea-y-grove-cluster-focused-low-camera.png` | `pipeline-experiments/idea-y-grove-cluster-focused-low-camera.prompt.md` | `pipeline-experiments/idea-y-grove-cluster-focused-low-camera.report.md` | Paired pass with caveats |
+| Grove Y     | `pipeline-experiments/idea-y-grove-cluster-focused-low-camera.png`      | `pipeline-experiments/idea-y-grove-cluster-focused-low-camera.prompt.md`      | `pipeline-experiments/idea-y-grove-cluster-focused-low-camera.report.md`      | Paired pass with caveats                  |
 
 ## Control Artifacts
 

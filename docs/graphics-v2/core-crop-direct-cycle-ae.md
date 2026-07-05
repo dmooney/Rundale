@@ -11,10 +11,10 @@ core top-down crop and its matching oblique cue.
 
 ## New Control Artifacts
 
-| Site | Core control | Oblique cue | Notes |
-| --- | --- | --- | --- |
+| Site      | Core control                                                 | Oblique cue                                                                   | Notes                                                                                                                             |
+| --------- | ------------------------------------------------------------ | ----------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
 | Beechwood | `pipeline-experiments/idea-ae-beechwood-core-control-v2.png` | `pipeline-experiments/idea-ae-beechwood-core-control-v2-oblique-raw-warp.png` | Wider replacement for the first too-tight crop; the compound remains readable but an outer edge is still intentionally off-frame. |
-| Grove | `pipeline-experiments/idea-ae-grove-core-control.png` | `pipeline-experiments/idea-ae-grove-core-control-oblique-raw-warp.png` | Smaller crop around buildings, yard, road curve, and nearby garden/enclosure context. |
+| Grove     | `pipeline-experiments/idea-ae-grove-core-control.png`        | `pipeline-experiments/idea-ae-grove-core-control-oblique-raw-warp.png`        | Smaller crop around buildings, yard, road curve, and nearby garden/enclosure context.                                             |
 
 Earlier discarded Beechwood crop-scale artifacts:
 
@@ -26,10 +26,10 @@ only as a cautionary artifact, not as the preferred AE input.
 
 ## Outputs
 
-| Site | Output | Prompt | Report | Result |
-| --- | --- | --- | --- | --- |
+| Site         | Output                                                               | Prompt                                                                     | Report                                                                     | Result                                          |
+| ------------ | -------------------------------------------------------------------- | -------------------------------------------------------------------------- | -------------------------------------------------------------------------- | ----------------------------------------------- |
 | Beechwood AE | `pipeline-experiments/idea-ae-beechwood-core-direct-clean-style.png` | `pipeline-experiments/idea-ae-beechwood-core-direct-clean-style.prompt.md` | `pipeline-experiments/idea-ae-beechwood-core-direct-clean-style.report.md` | Strong crop-scale pass, chimney-like nub caveat |
-| Grove AE | `pipeline-experiments/idea-ae-grove-core-direct-clean-style.png` | `pipeline-experiments/idea-ae-grove-core-direct-clean-style.prompt.md` | `pipeline-experiments/idea-ae-grove-core-direct-clean-style.report.md` | Strong crop-scale pass, tiny roof-nub caveat |
+| Grove AE     | `pipeline-experiments/idea-ae-grove-core-direct-clean-style.png`     | `pipeline-experiments/idea-ae-grove-core-direct-clean-style.prompt.md`     | `pipeline-experiments/idea-ae-grove-core-direct-clean-style.report.md`     | Strong crop-scale pass, tiny roof-nub caveat    |
 
 ## Audit Questions
 

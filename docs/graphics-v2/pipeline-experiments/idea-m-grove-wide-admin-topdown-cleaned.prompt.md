@@ -1,6 +1,7 @@
 Use only the three attached images in this current message and the inserted map-reader notes below. Do not use previous generated images, prior experiment prompts, or any previous conversation context.
 
 Input image paths for record:
+
 - Image 1 target historic map crop: /Users/dmooney/Rundale/docs/graphics-v2/pipeline-experiments/map-crop-grove-wide-admin-boundary-test.png
 - Image 2 style/material swatch only: /Users/dmooney/Rundale/docs/graphics-v2/style-crops/illustrated-style-field-wall-no-animals.png
 - Image 3 style/material swatch only: /Users/dmooney/Rundale/docs/graphics-v2/style-crops/illustrated-style-wall-roof-no-props.png
@@ -48,12 +49,15 @@ Hard constraints:
 No UI, no labels, no signs, no map pins, no visible text, no copied survey numbers, no copied style-reference objects, no people, no animals, no carts, no smoke, no fog, no invented water unless the map and notes clearly show water, no bridges unless the map and notes clearly show a water crossing, no churches or graveyards unless the map and notes clearly show church/churchyard evidence, no decorative chimneys, no freestanding random chimneys, no chimneys embedded in walls, no facades, no cast 3D building shadows. Base cleaned control layer only.
 
 INSERTED MAP-READER NOTES:
+
 # Data-Derived Map Reader Notes
 
 ## Scope
+
 These notes are derived only from the attached historic map crop using the generic rubric. The image top is treated as north, printed labels and paper texture are ignored, and uncertain marks are described as probabilities rather than fixed facts.
 
 ## Orientation And Major Corridors
+
 - West and northwest curving corridor: broad pale lane or road entering from the west edge, bending through the northwest quadrant, and continuing toward the north edge. Parallel/open edges and roadside planting make this a high-confidence road or lane.
 - South-west to center-left corridor: broad pale lane or road running along the lower-left edge toward the central building group. It is lined with frequent tree symbols and has enough width to read as a physical route, high confidence.
 - Northeast to center-right corridor: broad pale diagonal lane or road descending from the upper center/right toward the central-right area, with parallel/open edges and tree symbols along portions of it. High confidence as a road or lane.
@@ -62,18 +66,20 @@ These notes are derived only from the attached historic map crop using the gener
 - Dotted or pecked lines that cut across open ground, especially the north-south dotted line near the lower center, are ambiguous and may be administrative or survey boundaries. Low confidence as physical features; they should not be treated as continuous roads, hedges, walls, fences, ditches, or planted rows without separate corroborating marks.
 
 ## Building Inventory
-| ID | Relative position | Shape/footprint | Map evidence | Probable function | Confidence | Notes for renderer |
-| --- | --- | --- | --- | --- | --- | --- |
-| B1 | West edge, upper-left | Partial narrow horizontal rectangle | Dark hatched rectangle clipped by the crop edge | Building fragment or small outbuilding | Medium-low | Only the visible portion should be represented; footprint continues beyond crop or is incomplete. |
-| B2 | West edge, center-left beside the curving road | Partial angled or compact roofed footprint | Dark hatched form close to the road edge, partly clipped | Small roadside building or outbuilding | Medium-low | Keep small and partial; relationship to any unseen structure outside the crop is uncertain. |
-| B3 | Northwest quadrant beside the curving lane | Irregular angled/L-like footprint | Dark hatched roof shape integrated with road frontage | House, farm building, or roadside outbuilding | Medium | Larger and more complex than nearby small marks, but partly softened by scan blur. |
-| B4 | Just north of the central planted enclosure | Small narrow horizontal rectangle | Small dark detached rectangle aligned near the enclosure edge | Shed, small barn, privy, or minor outbuilding | Medium | Detached and secondary; scale should remain modest. |
-| B5 | Center-left at the south edge of the planted enclosure | Compact irregular block near the yard entrance | Dark roofed marks clustered at enclosure/yard frontage | Outbuilding or ancillary farm structure | Medium | It sits within a busy yard edge; avoid over-enlarging because adjacent marks may include walls, trees, or gates. |
-| B6 | Center-south, along the main yard/frontage | Long horizontal hatched rectangle | Clear dark roofed rectangle integrated with yard and planted enclosure | Probable primary house or main farm building | High | Treat as one of the principal roofed structures in the cluster. |
-| B7 | Center-south/east, just east of B6 | Shorter horizontal hatched rectangle | Separate dark roofed rectangle near yard frontage | Barn, stable, byre, or secondary domestic/farm building | High | Distinct from B6; leave a small yard gap or connection depending on final composition. |
-| B8 | Center-right beside the diagonal lane | Tall narrow north-south rectangle | Clear rectangular roofed/outlined form adjacent to lane and yard | Barn, stable, cart shed, or larger outbuilding | High | Oriented north-south; should read as a substantial secondary structure rather than a boundary. |
+
+| ID  | Relative position                                      | Shape/footprint                                | Map evidence                                                           | Probable function                                       | Confidence | Notes for renderer                                                                                               |
+| --- | ------------------------------------------------------ | ---------------------------------------------- | ---------------------------------------------------------------------- | ------------------------------------------------------- | ---------- | ---------------------------------------------------------------------------------------------------------------- |
+| B1  | West edge, upper-left                                  | Partial narrow horizontal rectangle            | Dark hatched rectangle clipped by the crop edge                        | Building fragment or small outbuilding                  | Medium-low | Only the visible portion should be represented; footprint continues beyond crop or is incomplete.                |
+| B2  | West edge, center-left beside the curving road         | Partial angled or compact roofed footprint     | Dark hatched form close to the road edge, partly clipped               | Small roadside building or outbuilding                  | Medium-low | Keep small and partial; relationship to any unseen structure outside the crop is uncertain.                      |
+| B3  | Northwest quadrant beside the curving lane             | Irregular angled/L-like footprint              | Dark hatched roof shape integrated with road frontage                  | House, farm building, or roadside outbuilding           | Medium     | Larger and more complex than nearby small marks, but partly softened by scan blur.                               |
+| B4  | Just north of the central planted enclosure            | Small narrow horizontal rectangle              | Small dark detached rectangle aligned near the enclosure edge          | Shed, small barn, privy, or minor outbuilding           | Medium     | Detached and secondary; scale should remain modest.                                                              |
+| B5  | Center-left at the south edge of the planted enclosure | Compact irregular block near the yard entrance | Dark roofed marks clustered at enclosure/yard frontage                 | Outbuilding or ancillary farm structure                 | Medium     | It sits within a busy yard edge; avoid over-enlarging because adjacent marks may include walls, trees, or gates. |
+| B6  | Center-south, along the main yard/frontage             | Long horizontal hatched rectangle              | Clear dark roofed rectangle integrated with yard and planted enclosure | Probable primary house or main farm building            | High       | Treat as one of the principal roofed structures in the cluster.                                                  |
+| B7  | Center-south/east, just east of B6                     | Shorter horizontal hatched rectangle           | Separate dark roofed rectangle near yard frontage                      | Barn, stable, byre, or secondary domestic/farm building | High       | Distinct from B6; leave a small yard gap or connection depending on final composition.                           |
+| B8  | Center-right beside the diagonal lane                  | Tall narrow north-south rectangle              | Clear rectangular roofed/outlined form adjacent to lane and yard       | Barn, stable, cart shed, or larger outbuilding          | High       | Oriented north-south; should read as a substantial secondary structure rather than a boundary.                   |
 
 ## Enclosures, Planting, And Boundaries
+
 - Central planted enclosure: a rectangular enclosed area in the center-left/center, subdivided into regular beds and filled with repeated planting marks. High confidence as a garden, orchard, nursery, or formal planted yard.
 - Central yard: open pale space south and east of the planted enclosure, bounded by buildings, trees, and lane edges. Medium-high confidence as a working yard or forecourt.
 - Tree clusters around the lower-left lane: many repeated round and conifer-like symbols line both sides of the road. High confidence as roadside trees or mixed hedgerow planting; individual symbols can be read as trees rather than a continuous wall.
@@ -84,6 +90,7 @@ These notes are derived only from the attached historic map crop using the gener
 - Other isolated dotted or pecked marks should be treated cautiously. Where dots coincide with a broad lane edge and roadside trees, they may support a road-edge or planted boundary reading; where they stand alone, they remain non-physical or ambiguous.
 
 ## Explicit Negative Evidence
+
 - No church evidence: there is no clear church footprint, churchyard, cross, graveyard-like enclosure, or ecclesiastical symbol in the crop.
 - No shop evidence: there is no commercial label, shop symbol, or other strong map evidence for a shop.
 - No water evidence: there is no clear stream, river, pond, water hachure, bridge, or water-crossing mark.
@@ -94,4 +101,5 @@ These notes are derived only from the attached historic map crop using the gener
 - Administrative or survey boundary rendering should be avoided for dotted/pecked/dashed lines that lack independent physical cues; such lines should not become continuous bushes, hedges, walls, fences, ditches, roads, paths, or tree rows.
 
 ## Prompt Insert
+
 The crop suggests a rural building cluster around a planted rectangular enclosure, with one or two probable primary roofed structures, several smaller outbuildings, an open yard, and broad lanes approaching from the west, northwest, and northeast. Tree symbols appear along the lanes and some field edges, while thin parcel lines define surrounding fields. Several dotted or pecked lines appear ambiguous or administrative and do not reliably indicate physical hedges, paths, walls, or fences; uncertain marks remain secondary and approximate rather than definitive.

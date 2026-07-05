@@ -13,6 +13,7 @@ to produce control images for clean-context image-generation experiments
 without hand-authored per-location interpretation.
 
 Outputs:
+
 - `idea-aw-kilteevan-literal-paint-ink-mask.png`
 - `idea-aw-kilteevan-literal-paint-semantic-mask.png`
 - `idea-aw-kilteevan-literal-paint-literal-paint-control.png`

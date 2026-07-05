@@ -35,6 +35,7 @@ For a feature (not a small fix), break the goal into reviewable artifacts before
 caught now costs a few short markdown files; caught after coding it costs a feature.
 
 4. **Design note** — `docs/design/$TASK_ID.md`
+
    - Restate the feature in one paragraph: what does the player experience?
    - List affected subsystems by crate (`parish-world`, `parish-npc`, `parish-inference`,
      `parish-persistence`, `parish-config`, etc.).

@@ -8,6 +8,7 @@ preserving Grove's layout. This is the single bounded correction allowed by the
 reproducible pipeline after the first direct Grove render.
 
 Input images and roles:
+
 - BV E1 Grove render: edit target and layout base. Preserve its Grove-specific
   separate-building topology, road exits, garden block, yard, trees, walls,
   gates, fitted doors, and no-UI plate format.
@@ -22,6 +23,7 @@ Input images and roles:
 - Door-fixed single-building crops: door/threshold discipline only.
 
 Targeted corrections:
+
 - Make BV E1 feel less like a clean survey/control plate and more like BU E2's
   final background art.
 - Pull the view slightly closer, about 10-15%, only if all Grove buildings,
@@ -38,6 +40,7 @@ Targeted corrections:
   preserving the garden block and source-supported boundaries.
 
 Critical invariants:
+
 - Preserve Grove's separate buildings. Do not merge them into Beechwood's
   connected compound.
 - Preserve the lower long building range, left/west small building, central

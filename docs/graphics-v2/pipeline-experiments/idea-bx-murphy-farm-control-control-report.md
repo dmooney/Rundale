@@ -17,6 +17,7 @@ to produce control images for clean-context image-generation experiments
 without hand-authored per-location interpretation.
 
 Outputs:
+
 - `idea-bx-murphy-farm-control-ink-mask.png`
 - `idea-bx-murphy-farm-control-semantic-mask.png`
 - `idea-bx-murphy-farm-control-literal-paint-control.png`

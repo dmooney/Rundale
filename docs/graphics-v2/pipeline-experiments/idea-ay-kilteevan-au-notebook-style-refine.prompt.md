@@ -24,6 +24,7 @@ Historical/material constraints: rural Ireland around 1820; humble plaster/limew
 Hard avoid: no UI, no text, no labels, no signs, no people, no animals, no carts, no church, no graveyard, no river, no bridge, no shopfront, no modern items, no fantasy props, no extra landmarks, no copied objects from style references, no image border, no caption, no decorative frame, no new scenic crossroads composition.
 
 Success criteria:
+
 1. At first glance the layout is still the same as Image 1.
 2. Roads, gardens, buildings, open fields, tree masses, and yard relationships have not moved or multiplied.
 3. The style is visibly closer to the original parish notebook: richer ink, watercolor variation, rougher vegetation, muddy road texture, and less clean regularity.

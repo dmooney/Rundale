@@ -55,7 +55,9 @@ def max_abs_error(a: Image.Image, b: Image.Image) -> int:
     return int(np.abs(arr_a - arr_b).max())
 
 
-def draw_grid(img: Image.Image, cols: int, rows: int, tile_size: int, color: tuple[int, int, int]) -> Image.Image:
+def draw_grid(
+    img: Image.Image, cols: int, rows: int, tile_size: int, color: tuple[int, int, int]
+) -> Image.Image:
     out = img.copy()
     draw = ImageDraw.Draw(out)
     for col in range(1, cols):
@@ -92,7 +94,9 @@ def main() -> int:
     img = Image.open(args.input).convert("RGB")
     target_size = (args.cols * args.tile_size, args.rows * args.tile_size)
     normalized = img.resize(target_size, Image.Resampling.LANCZOS)
-    normalized_path = args.out_dir / f"{args.prefix}-normalized-{target_size[0]}x{target_size[1]}.png"
+    normalized_path = (
+        args.out_dir / f"{args.prefix}-normalized-{target_size[0]}x{target_size[1]}.png"
+    )
     normalized.save(normalized_path)
 
     tiles_dir = args.out_dir / f"{args.prefix}-runtime-tiles"
@@ -114,7 +118,10 @@ def main() -> int:
     i = 0
     for row in range(args.rows):
         for col in range(args.cols):
-            reassembled.paste(Image.open(tile_paths[i]).convert("RGB"), (col * args.tile_size, row * args.tile_size))
+            reassembled.paste(
+                Image.open(tile_paths[i]).convert("RGB"),
+                (col * args.tile_size, row * args.tile_size),
+            )
             i += 1
     reassembled_path = args.out_dir / f"{args.prefix}-runtime-reassembled.png"
     reassembled.save(reassembled_path)
@@ -129,13 +136,17 @@ def main() -> int:
         "seam": seam_energy(normalized, args.cols, args.rows, args.tile_size),
         "max_abs_reassembly_error": max_abs_error(normalized, reassembled),
     }
-    (args.out_dir / f"{args.prefix}-split-metrics.json").write_text(json.dumps(metrics, indent=2) + "\n")
+    (args.out_dir / f"{args.prefix}-split-metrics.json").write_text(
+        json.dumps(metrics, indent=2) + "\n"
+    )
 
     grid_overlay = draw_grid(normalized, args.cols, args.rows, args.tile_size, (35, 120, 68))
     grid_overlay_path = args.out_dir / f"{args.prefix}-grid-overlay.png"
     grid_overlay.save(grid_overlay_path)
 
-    scaled = grid_overlay.resize((720, int(720 * grid_overlay.height / grid_overlay.width)), Image.Resampling.LANCZOS)
+    scaled = grid_overlay.resize(
+        (720, int(720 * grid_overlay.height / grid_overlay.width)), Image.Resampling.LANCZOS
+    )
     contact = label_panel(
         scaled,
         "Imagegen continuous supertile split test",

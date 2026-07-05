@@ -4,9 +4,11 @@ Use case: precise-object-edit
 Asset type: Murphy's Farm Graphics V2 no-UI background plate correction.
 
 Edit target:
+
 - Full `idea-by-e3b-murphy-farm-e3a-linework-soften.png` plate.
 
 Reference:
+
 - `idea-by-e3b-murphy-farm-e3a-linework-soften-farmstead-audit-crop.png` is
   an audit crop only, showing the doorway issue at larger scale.
 - Door-fixed style crops are door/threshold material references only.

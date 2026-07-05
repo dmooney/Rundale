@@ -12,6 +12,7 @@ Image 4: fixed slate single-house door crop. Door/facade material reference only
 Image 5: fixed thatched single-house door crop. Thatch/facade/door reference only. This is the main door authority for the Beechwood compound.
 
 Local paths:
+
 - /Users/dmooney/.codex/worktrees/a718/Rundale/docs/graphics-v2/pipeline-experiments/idea-br-beechwood-close-control.png
 - /Users/dmooney/.codex/worktrees/a718/Rundale/docs/graphics-v2/pipeline-experiments/idea-br-beechwood-close-map-source.png
 - /Users/dmooney/.codex/worktrees/a718/Rundale/docs/graphics-v2/illustrated-parish-notebook.png
@@ -20,6 +21,7 @@ Local paths:
 
 Composition:
 Zoom closer than the earlier Beechwood compound render. Show only a compact local playable area:
+
 - connected thatched house/yard compound filling most of the left and center,
 - immediate muddy road/track along the near-left edge,
 - a small adjacent kitchen garden/orchard edge on the right,
@@ -34,6 +36,7 @@ Every visible person-sized opening on every walkable facade must contain a fitte
 
 Style:
 Match the original notebook concept art more closely than the previous Beechwood control:
+
 - looser hand-inked outlines,
 - mottled watercolor washes,
 - parchment warmth showing through,
@@ -43,6 +46,7 @@ Match the original notebook concept art more closely than the previous Beechwood
 - less clean/board-game regularity than the top-down control.
 
 Keep:
+
 - Beechwood connected compound topology,
 - thatched roofs, limewashed walls, walled yard, muddy road, and garden/orchard edge,
 - no UI, no labels, no map lettering, no survey numbers,

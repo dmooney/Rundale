@@ -22,10 +22,10 @@ the local map crop. The procedure is not allowed to be location-specific.
 
 ## Validation Outputs
 
-| Control crop | Map-reader notes | Output | Report | Result |
-| --- | --- | --- | --- | --- |
-| Grove | `pipeline-experiments/idea-k-grove-map-reader-notes.md` | `pipeline-experiments/idea-k-grove-map-reader-guided.png` | `pipeline-experiments/idea-k-grove-map-reader-guided.report.md` | Pass, better building interpretation |
-| Beechwood | `pipeline-experiments/idea-k-beechwood-map-reader-notes.md` | `pipeline-experiments/idea-k-beechwood-map-reader-guided.png` | `pipeline-experiments/idea-k-beechwood-map-reader-guided.report.md` | Pass, better building interpretation |
+| Control crop | Map-reader notes                                            | Output                                                        | Report                                                              | Result                               |
+| ------------ | ----------------------------------------------------------- | ------------------------------------------------------------- | ------------------------------------------------------------------- | ------------------------------------ |
+| Grove        | `pipeline-experiments/idea-k-grove-map-reader-notes.md`     | `pipeline-experiments/idea-k-grove-map-reader-guided.png`     | `pipeline-experiments/idea-k-grove-map-reader-guided.report.md`     | Pass, better building interpretation |
+| Beechwood    | `pipeline-experiments/idea-k-beechwood-map-reader-notes.md` | `pipeline-experiments/idea-k-beechwood-map-reader-guided.png` | `pipeline-experiments/idea-k-beechwood-map-reader-guided.report.md` | Pass, better building interpretation |
 
 ## Result Summary
 

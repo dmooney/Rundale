@@ -30,7 +30,7 @@ wait for generated exterior art and does not redesign backend gameplay data.
 4. Feed the page from the selected NPC or place fallback.
 5. Make action stamps focus the input with starters:
    - Talk -> `talk to <name>`
-   - Ask -> `ask <name> `
+   - Ask -> `ask <name>`
    - Help -> `offer help to <name>`
    - Observe -> `observe <name>`
    - Leave / Map -> open map or focus movement intent.

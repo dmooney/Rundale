@@ -23,6 +23,7 @@ hybrid direction, but avoid BT E2's repeated buckets and BT E3's dark/heavy
 overall value.
 
 Targeted corrections:
+
 - Reduce repeated bucket/barrel pattern. Keep at most 2-3 small varied inert
   objects total; replace excess repeated round containers with weeds, stones,
   straw, wood scraps, or empty dirt.
@@ -37,6 +38,7 @@ Targeted corrections:
 - Add no new major objects. This is a refinement pass, not more clutter.
 
 Critical invariants:
+
 - Preserve BU E1's frame, camera, and playable zoom.
 - Preserve the connected Beechwood compound topology and building count.
 - Preserve every visible fitted wooden plank door and threshold/step.

@@ -11,6 +11,7 @@ to produce control images for clean-context image-generation experiments
 without hand-authored per-location interpretation.
 
 Outputs:
+
 - `idea-ah-kilteevan-third-control-ink-mask.png`
 - `idea-ah-kilteevan-third-control-semantic-mask.png`
 - `idea-ah-kilteevan-third-control-oblique-raw-warp.png`

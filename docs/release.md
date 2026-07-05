@@ -54,6 +54,7 @@ verify the **bump** or the **build/publish pipeline**:
    Trigger `release.yml` manually via the GitHub Actions UI →
    "Release" workflow → "Run workflow" → set `version=0.2.0`,
    leave `dry_run=true` (default).
+
    - `validate-tag` is skipped on `workflow_dispatch` (it only enforces
      against real tag pushes), so dispatch-mode dry-runs work even if the
      bump hasn't landed.

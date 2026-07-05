@@ -8,10 +8,12 @@ Input images and roles:
 Image 1: BN E2 full-frame render, edit target. Preserve its content, camera height, crop, style, buildings, roads, garden/orchard region, doors, foreground sheds, upper buildings, right-side road, north/background field/tree/road evidence, and no-chimney behavior.
 
 Local edit-target path:
+
 - /Users/dmooney/.codex/worktrees/a718/Rundale/docs/graphics-v2/pipeline-experiments/idea-bn-e2-kilteevan-north-10deg-incremental.png
 
 Core edit:
 Rectify the projection. Remove the subtle fisheye effect where the ground plane, roads, fences, garden rows, and building alignments feel bowed or lens-warped. Straighten the scene into a very low oblique orthographic/isomorphic game plate:
+
 - parallel features stay parallel,
 - building roof ridges and wall edges do not converge,
 - roads and garden rows do not bow outward or inward as if viewed through a lens,
@@ -24,6 +26,7 @@ Keep the successful BN E2 low-camera scale. The main foreground building should 
 
 Topology/content invariants:
 Preserve BN E2's map-derived scene exactly as much as possible:
+
 - same main lower building,
 - same foreground sheds/outbuildings,
 - same upper building group,

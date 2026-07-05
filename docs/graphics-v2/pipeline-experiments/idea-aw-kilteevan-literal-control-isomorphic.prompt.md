@@ -13,17 +13,18 @@ Input images and authority order:
 Image 1: tight original historic Ordnance Survey-style map crop. Highest authority for feature existence, orientation, broad road corridors, dark roof/building marks, planted areas, tree/scrub symbols, garden texture, and source topology. Top of this image is north.
 Image 2: matching tight cleaned no-admin crop. Highest veto authority for suppressed dotted/pecked/dashed administrative/survey linework. Soft gray erased seams, pale diagonal smears, and faint scars are deletion artifacts, not terrain.
 Image 3: deterministic literal paint-by-numbers control generated from Image 2 and an original-vs-cleaned comparison. It preserves the exact crop geometry and muted linework. Use it only as class guidance:
+
 - muted green = ordinary open field/grass context,
 - soft tan = weak road/yard candidate hint only, not an authoritative road mask,
 - dark gray/brown linework = source map evidence, not automatically walls,
 - green dots/blobs = likely tree/scrub/vegetation symbols,
 - muted gray-green scars/swaths = suppressed/no-data/admin-deletion zones; render these as ordinary open grass or field texture, never as roads, walls, water, paths, hedges, ridges, seams, shadows, or features.
-Image 4: deterministic oblique warp of the literal paint control. Camera/pitch cue and class cue only. Do not copy its beige margins, strip composition, pixelation, or gray no-data swaths as features.
-Image 5: deterministic oblique warp of the cleaned no-admin map crop. Camera/pitch cue only. Do not copy its beige margins, strip composition, scan texture, text fragments, or erased seams.
-Image 6: original illustrated parish notebook sample. Style and low playable camera feel only: sepia ink, watercolor wash, paper grain, muddy roads, readable facades, dense hand detail. Do not copy UI, labels, people, church, graveyard, river, bridge, shop, signposts, carts, animals, named places, chimneys, smoke, composition, or landmarks.
-Image 7: cleaned slate-roof single-house style reference. Use for limewashed rural facade, dark timber doorway, threshold, hand ink, slate roof texture, building scale, and no-chimney discipline.
-Image 8: cleaned thatched/no-chimney single-house style reference. Use for possible thatch, rough eaves, dark timber doorway, threshold, and no-chimney discipline.
-Image 9: tree/field watercolor style reference. Use for soft open fields, uneven grass, hedges, scrub, field texture, and watercolor vegetation only.
+  Image 4: deterministic oblique warp of the literal paint control. Camera/pitch cue and class cue only. Do not copy its beige margins, strip composition, pixelation, or gray no-data swaths as features.
+  Image 5: deterministic oblique warp of the cleaned no-admin map crop. Camera/pitch cue only. Do not copy its beige margins, strip composition, scan texture, text fragments, or erased seams.
+  Image 6: original illustrated parish notebook sample. Style and low playable camera feel only: sepia ink, watercolor wash, paper grain, muddy roads, readable facades, dense hand detail. Do not copy UI, labels, people, church, graveyard, river, bridge, shop, signposts, carts, animals, named places, chimneys, smoke, composition, or landmarks.
+  Image 7: cleaned slate-roof single-house style reference. Use for limewashed rural facade, dark timber doorway, threshold, hand ink, slate roof texture, building scale, and no-chimney discipline.
+  Image 8: cleaned thatched/no-chimney single-house style reference. Use for possible thatch, rough eaves, dark timber doorway, threshold, and no-chimney discipline.
+  Image 9: tree/field watercolor style reference. Use for soft open fields, uneven grass, hedges, scrub, field texture, and watercolor vegetation only.
 
 Absolute camera target:
 Strict low 3/4 orthographic/isomorphic game camera around 30-35 degrees above the ground plane. This is not top-down and not a high survey plate. Show rooftops plus unmistakable vertical facades, doors, thresholds, wall side faces only where physical walls truly exist, gate posts, dark lower tree masses, and playable road/yard surfaces. Keep all walkable surfaces on one stable ground plane. Parallel map edges remain parallel; no vanishing point.

@@ -7,11 +7,13 @@ North-extended mosaic size: 768x1792
 Core 55% anchor in north mosaic: left=173, top=1287, bottom=1525, size=422x238
 
 Cue windows:
+
 - 20deg: 2x previous 55% north/south extent, anchored to same southern core.
 - 15deg: 3x previous 55% north/south extent, anchored to same southern core.
 - 10deg: 4x previous 55% north/south extent, anchored to same southern core.
 
 Generated outputs:
+
 - `idea-bn-kilteevan-z17-north-extended-mosaic.png`
 - `idea-bn-kilteevan-z17-north-20deg-source-window.png`
 - `idea-bn-kilteevan-z17-north-20deg-compressed-cue.png`
@@ -25,6 +27,7 @@ Generated outputs:
 - `idea-bn-north-extension-cue-contact-sheet.png`
 
 Tile fetch status:
+
 - OK 62585/42306
 - OK 62586/42306
 - OK 62587/42306

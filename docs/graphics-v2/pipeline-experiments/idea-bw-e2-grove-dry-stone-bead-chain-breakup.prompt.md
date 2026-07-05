@@ -9,6 +9,7 @@ same-sized round gray stones. Preserve the Grove scene, layout, buildings,
 doors, roads, garden, gates, and warm BU-style finish.
 
 Targeted wall correction:
+
 - Break up the repeated round-stone / bead-chain look.
 - Replace repeated same-sized stones with mixed fieldstone: small, medium, and
   large stones; angular stones; wedge stones; flat slab fragments; rough
@@ -22,6 +23,7 @@ Targeted wall correction:
 - Preserve gate openings and road crossings as open, rough, practical breaks.
 
 Hard negatives:
+
 - No chains of identical round gray stones.
 - No bead-like top rows.
 - No uniform rectangular blocks.
@@ -32,6 +34,7 @@ Hard negatives:
 - No new walls and no blocked roads, yards, gates, or door thresholds.
 
 Preservation constraints:
+
 - Keep Grove's separate buildings and all fitted plank doors.
 - Keep the lower long building, left/west small building, central yard building,
   taller east/right building, open yard, garden block, road curve, gates, and

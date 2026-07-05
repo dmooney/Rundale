@@ -4,9 +4,11 @@ Use case: precise-object-edit
 Asset type: Murphy's Farm Graphics V2 no-UI background plate correction.
 
 Edit target:
+
 - `idea-by-e3a-murphy-farm-e2f-bu-style-accuracy.png`.
 
 Reference authorities:
+
 - E2f/E2d remain the geometry authority.
 - The Murphy source map remains the feature-existence veto.
 - BU E2 and door-fixed crops remain style-only references.

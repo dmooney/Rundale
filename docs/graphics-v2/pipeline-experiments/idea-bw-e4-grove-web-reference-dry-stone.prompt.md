@@ -10,6 +10,7 @@ visible walls read like the most recently shown Irish dry-stone wall reference
 sheet.
 
 Input images and roles:
+
 - Image 1 / edit target: the Grove illustrated render. It is the authority for
   composition, topology, camera, art style, buildings, roads, garden, gates,
   trees, and fitted plank doors.
@@ -19,6 +20,7 @@ Input images and roles:
   lighting, field layout, perspective, or color palette.
 
 Material change:
+
 - Replace the generated Grove wall stones with miniature versions of the
   reference wall construction.
 - The close foreground and road-edge walls should clearly show flat slab
@@ -33,6 +35,7 @@ Material change:
   the same slabby/gapped construction where stone is visible.
 
 Hard negatives:
+
 - No uniform rectangular blocks.
 - No tidy brick courses.
 - No smooth cut masonry.
@@ -46,6 +49,7 @@ Hard negatives:
   sheet.
 
 Preservation constraints:
+
 - Preserve Grove's separate buildings: lower long range, west/left small
   building, central yard building, and taller east/right building.
 - Preserve every fitted wooden plank door and threshold/step. No black doorway

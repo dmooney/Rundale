@@ -4,21 +4,21 @@ Output plate: `docs/graphics-v2/pipeline-experiments/idea-ca4n-grove-ca4n-refere
 
 Scope: clean-context symbol annotation from the supplied OS 6-inch map-key reference, the supplied symbol examples/contrast sheet, and the supplied Grove crop only. Marker numbers are class IDs; repeated markers show repeated visible instances of the same class.
 
-| Marker | Class | Confidence | Uncertainty |
-| --- | --- | --- | --- |
-| 1 | Roofed structures / built footprints | High for dark or hatched rectangular footprints; medium for the smallest yard marks. | Some very small rectangular marks may be yard features rather than roofed structures. |
-| 2 | Roads / lanes with paired solid edges | High | Linework supports a physical corridor; surface type is not specified by the crop. |
-| 13 | Road plus dotted admin-boundary overlap | Medium-high | Physical corridor is supported by solid edges; the dotted component is map/survey information, not a separate fence by itself. |
-| 3 | Unfenced path / track candidate | Medium-low | Only marked where faint paired route edges appear; could instead be boundary/track-adjacent linework. |
-| 4 | Dotted admin / survey boundary | High | Interpreted as administrative/survey linework unless corroborated by physical edges or symbols. |
-| 5 | Single solid enclosure / field boundary | High | The symbol marks a boundary/enclosure line, not necessarily a wall, hedge, ditch, or road. |
-| 6 | Double solid corridor / paired edge | Medium | Could be a minor lane, bank, hedge, ditch pair, or yard edge depending on local context. |
-| 7 | Deciduous tree symbols | High | Individual tree marks are representative; not every visible deciduous symbol is numbered. |
-| 8 | Coniferous tree symbols | High | Fir-shaped marks are clear; nearby puffy tree marks remain class 7. |
-| 9 | Planted / mixed enclosure | High | Internal texture and trees support planted enclosure/orchard/garden, not a built courtyard. |
-| 10 | Rough vegetation / ditch / scrub block | Medium | Irregular southern strip could include yard clutter or ditch vegetation; marked only where texture is clustered. |
-| 11 | Printed map text | High | Place-name printing only; not evidence of an in-world sign. |
-| 12 | Open fields / ordinary ground | High | Open stippled background has no special symbol beyond ordinary field/ground in the marked spots. |
+| Marker | Class                                   | Confidence                                                                           | Uncertainty                                                                                                                    |
+| ------ | --------------------------------------- | ------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------ |
+| 1      | Roofed structures / built footprints    | High for dark or hatched rectangular footprints; medium for the smallest yard marks. | Some very small rectangular marks may be yard features rather than roofed structures.                                          |
+| 2      | Roads / lanes with paired solid edges   | High                                                                                 | Linework supports a physical corridor; surface type is not specified by the crop.                                              |
+| 13     | Road plus dotted admin-boundary overlap | Medium-high                                                                          | Physical corridor is supported by solid edges; the dotted component is map/survey information, not a separate fence by itself. |
+| 3      | Unfenced path / track candidate         | Medium-low                                                                           | Only marked where faint paired route edges appear; could instead be boundary/track-adjacent linework.                          |
+| 4      | Dotted admin / survey boundary          | High                                                                                 | Interpreted as administrative/survey linework unless corroborated by physical edges or symbols.                                |
+| 5      | Single solid enclosure / field boundary | High                                                                                 | The symbol marks a boundary/enclosure line, not necessarily a wall, hedge, ditch, or road.                                     |
+| 6      | Double solid corridor / paired edge     | Medium                                                                               | Could be a minor lane, bank, hedge, ditch pair, or yard edge depending on local context.                                       |
+| 7      | Deciduous tree symbols                  | High                                                                                 | Individual tree marks are representative; not every visible deciduous symbol is numbered.                                      |
+| 8      | Coniferous tree symbols                 | High                                                                                 | Fir-shaped marks are clear; nearby puffy tree marks remain class 7.                                                            |
+| 9      | Planted / mixed enclosure               | High                                                                                 | Internal texture and trees support planted enclosure/orchard/garden, not a built courtyard.                                    |
+| 10     | Rough vegetation / ditch / scrub block  | Medium                                                                               | Irregular southern strip could include yard clutter or ditch vegetation; marked only where texture is clustered.               |
+| 11     | Printed map text                        | High                                                                                 | Place-name printing only; not evidence of an in-world sign.                                                                    |
+| 12     | Open fields / ordinary ground           | High                                                                                 | Open stippled background has no special symbol beyond ordinary field/ground in the marked spots.                               |
 
 ## Placement Notes
 

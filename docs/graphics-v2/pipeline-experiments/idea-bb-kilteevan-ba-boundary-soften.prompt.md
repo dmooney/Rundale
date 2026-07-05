@@ -13,6 +13,7 @@ Edit scope: bounded de-wall/de-diagram repair only. Preserve Image 1's crop, nor
 
 Main repair:
 The garden/orchard area on the right currently reads too much like a hard walled diagram. Reduce that impression while keeping the garden in the same place. Convert excessive continuous stone-wall-looking garden outlines, hard enclosure rings, and overly clean internal dividers into lower, softer, broken, irregular features:
+
 - rough planting edges,
 - low overgrown earth banks,
 - sparse hedge clumps,
@@ -20,7 +21,7 @@ The garden/orchard area on the right currently reads too much like a hard walled
 - soil/planting rows,
 - watercolor tone changes,
 - scrub and grass texture.
-Do not erase the garden/orchard. Do not move it. Keep its internal planted-bed feeling, but make it handmade and organic instead of mechanically gridded or fortified.
+  Do not erase the garden/orchard. Do not move it. Keep its internal planted-bed feeling, but make it handmade and organic instead of mechanically gridded or fortified.
 
 Boundary rule:
 Open fields should read open at first glance. Do not strengthen field or road boundaries. Do not add continuous stone walls along roads, around fields, or around the garden. Existing walls/fences may be softened, broken, lowered, made irregular, or replaced by vegetation/earth-bank texture when map support is uncertain. Keep only clearly supported domestic/garden/yard boundaries, and make them low, broken, and overgrown.
@@ -41,6 +42,7 @@ Absolute hard avoid:
 No chimneys, no chimney-like roof nubs, no vents, no pipes, no smoke holes, no smoke, no UI, no text, no labels, no signs, no people, no animals, no carts, no churches, no graveyards, no rivers, no bridges, no shops, no modern objects, no copied objects from references, no image border, no new scenic crossroads, no extra buildings, no extra roads, no extra walls.
 
 Success criteria:
+
 1. The output still looks like the same location and layout as Image 1.
 2. The garden/orchard remains, but no longer reads as a hard walled diagram or fortress garden.
 3. Open fields remain open and are not outlined with continuous walls.

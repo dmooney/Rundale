@@ -21,7 +21,6 @@ from typing import Any
 
 from PIL import Image, ImageDraw, ImageFont
 
-
 GOOGLE_INTERACTIONS_URL = "https://generativelanguage.googleapis.com/v1beta/interactions"
 OPENROUTER_IMAGES_URL = "https://openrouter.ai/api/v1/images"
 
@@ -192,7 +191,9 @@ def extract_output_mime_type(response: dict[str, Any]) -> str:
     return "image/jpeg"
 
 
-def google_interaction(spec: ModelSpec, source: Path, out_dir: Path, timeout_s: int) -> dict[str, Any]:
+def google_interaction(
+    spec: ModelSpec, source: Path, out_dir: Path, timeout_s: int
+) -> dict[str, Any]:
     api_key = os.environ.get("GOOGLE_API_KEY") or os.environ.get("GEMINI_API_KEY")
     if not api_key:
         return {"status": "skipped", "error": "missing GOOGLE_API_KEY/GEMINI_API_KEY"}
@@ -264,11 +265,15 @@ def google_interaction(spec: ModelSpec, source: Path, out_dir: Path, timeout_s: 
             "listed_output_cost_usd_1k": spec.output_cost_usd_1k,
             "note": spec.note,
         }
-    (out_dir / f"{safe_slug(spec.provider + '-' + spec.model)}.report.json").write_text(json.dumps(report, indent=2) + "\n")
+    (out_dir / f"{safe_slug(spec.provider + '-' + spec.model)}.report.json").write_text(
+        json.dumps(report, indent=2) + "\n"
+    )
     return report
 
 
-def openrouter_image(spec: ModelSpec, source: Path, out_dir: Path, timeout_s: int) -> dict[str, Any]:
+def openrouter_image(
+    spec: ModelSpec, source: Path, out_dir: Path, timeout_s: int
+) -> dict[str, Any]:
     api_key = os.environ.get("OPENROUTER_API_KEY")
     if not api_key:
         return {"status": "skipped", "error": "missing OPENROUTER_API_KEY"}
@@ -316,7 +321,13 @@ def openrouter_image(spec: ModelSpec, source: Path, out_dir: Path, timeout_s: in
         image_record = decoded["data"][0]
         output_bytes = base64.b64decode(image_record["b64_json"])
         media_type = image_record.get("media_type") or "image/png"
-        suffix = ".jpg" if media_type == "image/jpeg" else ".svg" if media_type == "image/svg+xml" else ".png"
+        suffix = (
+            ".jpg"
+            if media_type == "image/jpeg"
+            else ".svg"
+            if media_type == "image/svg+xml"
+            else ".png"
+        )
         output_path = out_dir / f"{safe_slug(spec.provider + '-' + spec.model)}{suffix}"
         output_path.write_bytes(output_bytes)
         safe_meta = safe_response_metadata(decoded)
@@ -352,7 +363,9 @@ def openrouter_image(spec: ModelSpec, source: Path, out_dir: Path, timeout_s: in
             "listed_output_cost_usd_1k": spec.output_cost_usd_1k,
             "note": spec.note,
         }
-    (out_dir / f"{safe_slug(spec.provider + '-' + spec.model)}.report.json").write_text(json.dumps(report, indent=2) + "\n")
+    (out_dir / f"{safe_slug(spec.provider + '-' + spec.model)}.report.json").write_text(
+        json.dumps(report, indent=2) + "\n"
+    )
     return report
 
 
@@ -376,7 +389,9 @@ def make_contact_sheet(source: Path, reports: list[dict[str, Any]], out_dir: Pat
     ]
     nearest = out_dir / f"{source.stem}-3x-nearest.png"
     if nearest.exists():
-        panels.append(label_panel(Image.open(nearest), "3x nearest reference", "not art, scale reference"))
+        panels.append(
+            label_panel(Image.open(nearest), "3x nearest reference", "not art, scale reference")
+        )
     for report in reports:
         if report.get("status") == "ok":
             title = f"{report['provider']}: {report['model']}"
@@ -384,14 +399,18 @@ def make_contact_sheet(source: Path, reports: list[dict[str, Any]], out_dir: Pat
             panels.append(label_panel(Image.open(out_dir / report["output"]), title, subtitle))
         else:
             blank = Image.new("RGB", (384, 384), (230, 218, 198))
-            panels.append(label_panel(blank, report["model"], f"error: {report.get('http_status', '')}"))
+            panels.append(
+                label_panel(blank, report["model"], f"error: {report.get('http_status', '')}")
+            )
 
     cols = 2
     gap = 20
     rows = (len(panels) + cols - 1) // cols
     cell_w = max(panel.width for panel in panels)
     cell_h = max(panel.height for panel in panels)
-    sheet = Image.new("RGB", (cols * cell_w + (cols + 1) * gap, rows * cell_h + (rows + 1) * gap), (244, 241, 232))
+    sheet = Image.new(
+        "RGB", (cols * cell_w + (cols + 1) * gap, rows * cell_h + (rows + 1) * gap), (244, 241, 232)
+    )
     for index, panel in enumerate(panels):
         x = gap + (index % cols) * (cell_w + gap)
         y = gap + (index // cols) * (cell_h + gap)
@@ -459,7 +478,8 @@ def main() -> int:
     specs = [
         spec
         for spec in MODEL_SPECS
-        if spec.provider in wanted_providers and (wanted_models is None or spec.model in wanted_models)
+        if spec.provider in wanted_providers
+        and (wanted_models is None or spec.model in wanted_models)
     ]
     for spec in specs:
         if spec.provider == "google":

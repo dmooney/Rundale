@@ -18,6 +18,7 @@ pipeline and not the darker `concept-7a` painted-card style.
 ## Pipeline
 
 1. **Roster Brief**
+
    - Read `mods/rundale/npcs.json`.
    - For each NPC, write a compact art brief from stable identity fields:
      `id`, `name`, `age`, `pronouns`, `occupation`, `brief_description`,
@@ -26,6 +27,7 @@ pipeline and not the darker `concept-7a` painted-card style.
      private knowledge, secrets, or plot facts in the portrait prompt.
 
 2. **Wardrobe Pass**
+
    - Add period clothing/class cues from `docs/research/clothing-textiles.md`.
    - Prefer visual social markers: frieze coat, linen shirt, shawl, kerchief,
      red petticoat, apron, cloak, homespun wool, brogues, bare feet when visible.
@@ -34,6 +36,7 @@ pipeline and not the darker `concept-7a` painted-card style.
      fantasy costume.
 
 3. **Prompt Build**
+
    - Use `prompt-template.md`.
    - Build one prompt track only: `illustrated-notebook-head-v1`.
    - The portrait should look like it belongs in a notebook margin: spare line,
@@ -41,6 +44,7 @@ pipeline and not the darker `concept-7a` painted-card style.
    - Save every prompt beside the generated image.
 
 4. **Pilot Render**
+
    - Start with 6 NPCs that cover the range of age, gender, role, and status:
      Roisin Connolly, Padraig Darcy, Siobhan Murphy, Fr. Declan Tierney,
      Colm Gallagher, and Brigid Ni Fhatharta.
@@ -49,6 +53,7 @@ pipeline and not the darker `concept-7a` painted-card style.
      UI size before generating the remaining roster.
 
 5. **Clean-Context Audit**
+
    - Use a separate audit subagent from the render context.
    - Judge each candidate against:
      - recognizability from the NPC brief,
@@ -61,12 +66,14 @@ pipeline and not the darker `concept-7a` painted-card style.
    - The renderer never approves its own output.
 
 6. **Human Pick**
+
    - Save a contact sheet and short audit report.
    - Human selects one approved neutral portrait per NPC.
    - Rejected images stay in experiments; approved images move to the approved
      asset folder only after review.
 
 7. **Approved Assets**
+
    - Keep an archival master and deterministic UI derivatives:
      - `master.png` — 1024x1024 or native generation size.
      - `portrait-72x82.png` — native illustrated-notebook people-list portrait.

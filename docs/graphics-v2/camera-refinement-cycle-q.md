@@ -27,9 +27,9 @@ texture artifacts, and exact crop.
 
 ## Outputs
 
-| Site | Output | Prompt | Report | Result |
-| --- | --- | --- | --- | --- |
-| Grove | `pipeline-experiments/idea-q-grove-camera-refinement-notebook-style.png` | `pipeline-experiments/idea-q-grove-camera-refinement-notebook-style.prompt.md` | `pipeline-experiments/idea-q-grove-camera-refinement-notebook-style.report.md` | Best Grove camera/style pass so far |
+| Site      | Output                                                                       | Prompt                                                                             | Report                                                                             | Result                                  |
+| --------- | ---------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- | --------------------------------------- |
+| Grove     | `pipeline-experiments/idea-q-grove-camera-refinement-notebook-style.png`     | `pipeline-experiments/idea-q-grove-camera-refinement-notebook-style.prompt.md`     | `pipeline-experiments/idea-q-grove-camera-refinement-notebook-style.report.md`     | Best Grove camera/style pass so far     |
 | Beechwood | `pipeline-experiments/idea-q-beechwood-camera-refinement-notebook-style.png` | `pipeline-experiments/idea-q-beechwood-camera-refinement-notebook-style.prompt.md` | `pipeline-experiments/idea-q-beechwood-camera-refinement-notebook-style.report.md` | Best Beechwood camera/style pass so far |
 
 Both returned `1672 x 941` PNGs. Exact native 16:9 remains unresolved.
