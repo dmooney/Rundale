@@ -56,10 +56,10 @@ No UI, no labels, no signs, no map pins, no visible text, no copied survey numbe
 
 ## Validation Outputs
 
-| Control crop | Output | Report | Result |
-| --- | --- | --- | --- |
-| Grove | `pipeline-experiments/idea-j-grove-clean-style-swatches.png` | `pipeline-experiments/idea-j-grove-clean-style-swatches.report.md` | Pass |
-| Beechwood | `pipeline-experiments/idea-j-beechwood-clean-style-swatches.png` | `pipeline-experiments/idea-j-beechwood-clean-style-swatches.report.md` | Pass |
+| Control crop | Output                                                           | Report                                                                 | Result |
+| ------------ | ---------------------------------------------------------------- | ---------------------------------------------------------------------- | ------ |
+| Grove        | `pipeline-experiments/idea-j-grove-clean-style-swatches.png`     | `pipeline-experiments/idea-j-grove-clean-style-swatches.report.md`     | Pass   |
+| Beechwood    | `pipeline-experiments/idea-j-beechwood-clean-style-swatches.png` | `pipeline-experiments/idea-j-beechwood-clean-style-swatches.report.md` | Pass   |
 
 The Beechwood result is the important negative control: the previous full-scene
 style-reference run invented a church/churchyard and water. Cycle J did not.

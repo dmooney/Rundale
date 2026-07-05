@@ -1,0 +1,34 @@
+{
+  "status": "ok",
+  "provider": "openrouter",
+  "model": "openai/gpt-image-1-mini",
+  "output": "openrouter-openai-gpt-image-1-mini.png",
+  "output_mime_type": "image/png",
+  "elapsed_seconds": 24.4813034159597,
+  "listed_output_cost_usd_1k": 0.052,
+  "observed_usage_cost_usd": 0.0094855,
+  "note": "OpenRouter route to GPT Image 1 Mini; cheaper OpenAI image baseline.",
+  "response_metadata": {
+    "created": 1783216364,
+    "data": "<redacted 2623838 chars>",
+    "usage": {
+      "prompt_tokens": 415,
+      "completion_tokens": 1056,
+      "total_tokens": 1471,
+      "cost": 0.0094855,
+      "is_byok": false,
+      "prompt_tokens_details": {
+        "cached_tokens": 0
+      },
+      "cost_details": {
+        "upstream_inference_cost": 0.0094855,
+        "upstream_inference_prompt_cost": 0.0010375,
+        "upstream_inference_completions_cost": 0.008448
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 0,
+        "image_tokens": 1056
+      }
+    }
+  }
+}

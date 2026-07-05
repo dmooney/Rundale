@@ -1,0 +1,37 @@
+{
+  "status": "ok",
+  "provider": "openrouter",
+  "model": "google/gemini-3.1-flash-image",
+  "output": "openrouter-google-gemini-3.1-flash-image.png",
+  "output_mime_type": "image/png",
+  "elapsed_seconds": 11.223974625114352,
+  "listed_output_cost_usd_1k": 0.067,
+  "observed_usage_cost_usd": 0.0678685,
+  "note": "OpenRouter route to Google Nano Banana 2; higher cost than Lite.",
+  "response_metadata": {
+    "created": 0,
+    "data": "<redacted 2296106 chars>",
+    "usage": {
+      "prompt_tokens": 1337,
+      "completion_tokens": 1120,
+      "total_tokens": 2457,
+      "cost": 0.0678685,
+      "is_byok": false,
+      "prompt_tokens_details": {
+        "cached_tokens": 0,
+        "cache_write_tokens": 0,
+        "audio_tokens": 0,
+        "video_tokens": 0
+      },
+      "cost_details": {
+        "upstream_inference_cost": 0.0678685,
+        "upstream_inference_prompt_cost": 0.0006685,
+        "upstream_inference_completions_cost": 0.0672
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 0,
+        "image_tokens": 1120
+      }
+    }
+  }
+}

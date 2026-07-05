@@ -32,10 +32,10 @@ the same crop.
 
 ## Outputs
 
-| Site | Map-reader note | M1 top-down control | M2 isomorphic output | Result |
-| --- | --- | --- | --- | --- |
-| Grove | `pipeline-experiments/idea-m-grove-wide-map-reader-notes.md` | `pipeline-experiments/idea-m-grove-wide-admin-topdown-cleaned.png` | `pipeline-experiments/idea-m-grove-wide-admin-two-step-isomorphic.png` | Strong topology; final near-16:9 |
-| Beechwood | `pipeline-experiments/idea-m-beechwood-admin-boundary-map-reader-notes.md` | `pipeline-experiments/idea-m-beechwood-admin-topdown-cleaned.png` | `pipeline-experiments/idea-m-beechwood-admin-two-step-isomorphic.png` | Strong admin-boundary suppression; final near-16:9 |
+| Site      | Map-reader note                                                            | M1 top-down control                                                | M2 isomorphic output                                                   | Result                                             |
+| --------- | -------------------------------------------------------------------------- | ------------------------------------------------------------------ | ---------------------------------------------------------------------- | -------------------------------------------------- |
+| Grove     | `pipeline-experiments/idea-m-grove-wide-map-reader-notes.md`               | `pipeline-experiments/idea-m-grove-wide-admin-topdown-cleaned.png` | `pipeline-experiments/idea-m-grove-wide-admin-two-step-isomorphic.png` | Strong topology; final near-16:9                   |
+| Beechwood | `pipeline-experiments/idea-m-beechwood-admin-boundary-map-reader-notes.md` | `pipeline-experiments/idea-m-beechwood-admin-topdown-cleaned.png`  | `pipeline-experiments/idea-m-beechwood-admin-two-step-isomorphic.png`  | Strong admin-boundary suppression; final near-16:9 |
 
 Each generated image has a `.prompt.md` sidecar and `.report.md` QA note in
 `pipeline-experiments/`.

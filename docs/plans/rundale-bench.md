@@ -56,6 +56,7 @@ Out of scope for v1: agent-loop benchmarks (multi-turn dialogue with memory), la
 2. **Holdout split.** 20% reserved as `<slice>.holdout.jsonl`. Sealed: encrypted-at-rest in repo (age key in CI secret) or hosted externally. Never decrypted in interactive sessions; only the `rundale_bench.py` CI runner sees the plaintext. Hashes of holdout prompts checked in alongside ciphertext so contamination can be audited.
 
 3. **Graders.** `rundale-bench/grade.py`:
+
    - `grade_intent(pred, gold)` — exact-match label + Jaccard on optional fields, returns 0.0-1.0
    - `grade_schema(pred, schema)` — JSON-Schema validation, returns boolean
    - `grade_dialogue(pred, rubric, judge)` — calls pinned judge model with frozen rubric prompt, returns the 5-axis scores + overall
@@ -73,6 +74,7 @@ Out of scope for v1: agent-loop benchmarks (multi-turn dialogue with memory), la
 5. **Pinned judge.** `judge_v1` snapshot: model id + base_url + temperature + seed + rubric prompt hash. Captured in `docs/agent/rundale-bench-v1.md` and verified at runtime (`grade.py` aborts if the judge response signature deviates from the pinned hash).
 
 6. **Spec doc.** `docs/agent/rundale-bench-v1.md`:
+
    - task definitions (one section per slice with prompt template + grading rule)
    - dataset cards (size, sourcing, annotator notes, known biases)
    - grading rules + judge pin

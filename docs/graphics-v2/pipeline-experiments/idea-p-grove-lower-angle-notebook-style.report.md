@@ -1,0 +1,6 @@
+# Cycle P Grove Lower-Angle Notebook Style Report
+
+- Camera angle: reads as a lower 3/4 orthographic oblique view than Cycle O, with strong south-facing building facades, wall side faces, visible doors, gate posts, and tree lower masses. It still keeps the north-up plan orientation and avoids horizon/sky/perspective.
+- Style match: close match to the rough notebook target: sepia ink contours, dark broken roof hatching, stained limewash, mottled olive fields, muddy road scumbling, watercolor paper texture, and cool overcast shadows.
+- Topology accuracy: strong overall. The central planted rectangular enclosure, open working yard, west/northwest road, lower-left/southwest lane, northeast/right lane, right-side north-south outbuilding, south frontage building, smaller sheds, tree clusters, and physical walls remain legible and mostly continuous. No obvious nonphysical dotted/admin boundaries were promoted.
+- Obvious failures: the lower camera makes some far/top roads and field walls feel slightly flattened and map-like, and the right lane/wall edges are visually heavier than the control. No obvious UI, labels, people, animals, carts, water, bridges, churches, graveyards, shops, smoke, or random chimney leaks are visible.

@@ -23,11 +23,12 @@ Primary request:
 Convert the top-down cleaned control plate into a finished north-up 3/4 orthographic isomorphic game background plate, while cross-checking against the original map crop and map-reader notes. Preserve roads, lanes, yards, gates, gardens, building groups, tree clusters, boundaries, and open fields from the cleaned plate and original map. Extrude/paint buildings into low rural volumes with roofs and readable facades only where the map/notes support roofed structures.
 
 Control hierarchy:
+
 1. Original map crop controls true layout/content.
 2. Map-reader notes clarify building footprints, likely functions, uncertainty, and negative evidence.
 3. Top-down cleaned plate controls cleaned visual topology and should guide continuity.
 4. Style swatches control texture/color/ink only.
-If the top-down cleaned plate conflicts with the original map or notes, prefer the original map plus notes.
+   If the top-down cleaned plate conflicts with the original map or notes, prefer the original map plus notes.
 
 Camera:
 Fixed 3/4 orthographic isometric/isomorphic game camera, low oblique pitch around 20-30 degrees downward from horizontal. North stays up: source-map top remains final-image top, east right, south bottom, west left. Do not rotate the ground plan for a prettier diagonal composition. Show rooftops plus readable vertical facades, doors, thresholds, yards, gates, and walls. No horizon, no sky, no vanishing point, no drone/survey view.
@@ -52,7 +53,8 @@ Hard constraints:
 No UI, no labels, no signs, no map pins, no visible text, no copied survey numbers, no copied style-reference objects, no people, no animals, no carts, no smoke, no fog, no invented water unless the original map and notes clearly show water, no bridges unless the original map and notes clearly show a water crossing, no churches or graveyards unless the original map and notes clearly show church/churchyard evidence, no freestanding random chimneys, no chimneys embedded in walls, no decorative roof stacks unless coherent on a rendered roof. Base environment layer only.
 
 MAP-READER NOTES:
-# Data-Derived Map Reader Notes
+
+## Data-Derived Map Reader Notes
 
 ## Scope
 
@@ -68,15 +70,15 @@ These notes are derived only from the attached historic map crop using the gener
 
 ## Building Inventory
 
-| ID | Relative position | Shape/footprint | Map evidence | Probable function | Confidence | Notes for renderer |
-| --- | --- | --- | --- | --- | --- | --- |
-| B1 | Center-left, just north of the lower road-frontage space | Low horizontal dark rectangle, slightly hatched or filled | Dark roof-like mark integrated with yard/garden frontage and adjacent planted enclosure | Probable primary house or substantial roadside building | Medium-high | Render as a modest rectangular roofed structure facing or close to the lane; exact doorway/orientation is uncertain. |
-| B2 | Center-left, immediately west or southwest of B1 | Small pale rectangular block with darker outline | Detached small rectangle beside the main yard cluster | Probable small outbuilding, shed, byre, privy, or yard structure | Medium | Keep smaller and secondary to B1; function should remain generic. |
-| B3 | Center, south of the planted enclosure and east of B1 | Narrow dark horizontal rectangle | Dark solid/hatched footprint along the yard edge | Probable outbuilding or secondary roofed structure | Medium | Render as a small detached rectangular farm or service building near the lane. |
-| B4 | Center, immediately east of B3 | Small dark rectangular extension or adjoining block | Separate or joined dark mark adjacent to B3 | Probable attached shed, extension, or second small outbuilding | Medium-low | Could be read as part of B3; renderer may combine with B3 if a simpler building group is needed. |
-| B5 | Center-right, east of the planted enclosure and north of the lane bend | Tall north-south rectangle with dark/hatched edges and lighter interior | Large rectilinear footprint within or beside a yard, larger than nearby sheds | Probable barn, stable, byre, walled yard with roofed side, or secondary service building | Medium | Treat as a substantial ancillary structure; the light interior leaves open whether it is fully roofed or partly open. |
-| B6 | North-center-left, on or just above the north edge of the planted enclosure | Tiny dark horizontal rectangle | Small detached dark block near garden/orchard enclosure | Probable small shed, hut, or garden/service outbuilding | Medium-low | Render as a minor structure only if small details are being included; it should not dominate the scene. |
-| B7 | North edge, slightly left of center, partly cropped | Small clipped dark hatched shape | Dark rectilinear mark cut off by the crop edge near a corridor | Possible building fragment or non-building map mark | Low | Include only if representing crop-edge context; keep ambiguous and partial. |
+| ID  | Relative position                                                           | Shape/footprint                                                         | Map evidence                                                                            | Probable function                                                                        | Confidence  | Notes for renderer                                                                                                    |
+| --- | --------------------------------------------------------------------------- | ----------------------------------------------------------------------- | --------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- | ----------- | --------------------------------------------------------------------------------------------------------------------- |
+| B1  | Center-left, just north of the lower road-frontage space                    | Low horizontal dark rectangle, slightly hatched or filled               | Dark roof-like mark integrated with yard/garden frontage and adjacent planted enclosure | Probable primary house or substantial roadside building                                  | Medium-high | Render as a modest rectangular roofed structure facing or close to the lane; exact doorway/orientation is uncertain.  |
+| B2  | Center-left, immediately west or southwest of B1                            | Small pale rectangular block with darker outline                        | Detached small rectangle beside the main yard cluster                                   | Probable small outbuilding, shed, byre, privy, or yard structure                         | Medium      | Keep smaller and secondary to B1; function should remain generic.                                                     |
+| B3  | Center, south of the planted enclosure and east of B1                       | Narrow dark horizontal rectangle                                        | Dark solid/hatched footprint along the yard edge                                        | Probable outbuilding or secondary roofed structure                                       | Medium      | Render as a small detached rectangular farm or service building near the lane.                                        |
+| B4  | Center, immediately east of B3                                              | Small dark rectangular extension or adjoining block                     | Separate or joined dark mark adjacent to B3                                             | Probable attached shed, extension, or second small outbuilding                           | Medium-low  | Could be read as part of B3; renderer may combine with B3 if a simpler building group is needed.                      |
+| B5  | Center-right, east of the planted enclosure and north of the lane bend      | Tall north-south rectangle with dark/hatched edges and lighter interior | Large rectilinear footprint within or beside a yard, larger than nearby sheds           | Probable barn, stable, byre, walled yard with roofed side, or secondary service building | Medium      | Treat as a substantial ancillary structure; the light interior leaves open whether it is fully roofed or partly open. |
+| B6  | North-center-left, on or just above the north edge of the planted enclosure | Tiny dark horizontal rectangle                                          | Small detached dark block near garden/orchard enclosure                                 | Probable small shed, hut, or garden/service outbuilding                                  | Medium-low  | Render as a minor structure only if small details are being included; it should not dominate the scene.               |
+| B7  | North edge, slightly left of center, partly cropped                         | Small clipped dark hatched shape                                        | Dark rectilinear mark cut off by the crop edge near a corridor                          | Possible building fragment or non-building map mark                                      | Low         | Include only if representing crop-edge context; keep ambiguous and partial.                                           |
 
 ## Enclosures, Planting, And Boundaries
 

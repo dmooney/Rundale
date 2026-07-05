@@ -26,6 +26,7 @@ Set `TARGET` from the argument (or `.`), then resolve:
 Run this cycle repeatedly until exit criteria are met.
 
 1. **Load or initialize debt list**
+
    - Look for `TODO.md` under `ROOT`.
    - If missing, create one with sections:
      - `## Open`
@@ -34,6 +35,7 @@ Run this cycle repeatedly until exit criteria are met.
    - Keep entries concise and actionable, with stable IDs (`TD-001`, `TD-002`, ...), owner, and status.
 
 2. **Choose work source**
+
    - If `## Open` has items, pick the highest-impact small batch (1–3 items).
    - If no open items exist (or everything is done), spawn discovery agents to scan `SCOPE` for technical debt:
      - dead/unreachable code
@@ -44,6 +46,7 @@ Run this cycle repeatedly until exit criteria are met.
    - Add each validated finding to `## Open` before fixing.
 
 3. **Dispatch fix agents**
+
    - Spawn parallel agents when tasks are independent; otherwise run serially.
    - Give each agent exactly one debt item ID and acceptance criteria.
    - Require each fix agent to:
@@ -53,6 +56,7 @@ Run this cycle repeatedly until exit criteria are met.
      - report file list + commands run + residual risks
 
 4. **Reconcile and update `TODO.md`**
+
    - Move started items to `## In Progress`, then to `## Done` only after checks pass.
    - For partially fixed work, keep item open with a narrowed remaining scope.
    - Remove duplicates; merge equivalent debt items under the earliest ID.

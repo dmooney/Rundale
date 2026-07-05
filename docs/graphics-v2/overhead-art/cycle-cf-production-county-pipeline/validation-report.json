@@ -1,0 +1,20 @@
+{
+  "status": "pass",
+  "run_dir": "docs/graphics-v2/overhead-art/cycle-cf-production-county-pipeline",
+  "tile_count": 100,
+  "max_abs_reassembly_error": 0,
+  "max_seam_to_control_ratio": 1.0863088060438444,
+  "threshold": 1.15,
+  "seam_contract_count": 18,
+  "imagegen_independent_join_status": "fail_requires_repair",
+  "masked_seam_repair_proof": {
+    "status": "pass_metrics_requires_visual_topology_review",
+    "report": "masked-seam-repair-proof/repair-report.json",
+    "contact_sheet": "masked-seam-repair-proof/repair-contact-sheet.png",
+    "before_join_to_control_ratio": 2.933157159189815,
+    "after_join_to_control_ratio": 0.7641509792052803,
+    "topology_review_required": true
+  },
+  "errors": [],
+  "warnings": []
+}
