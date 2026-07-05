@@ -18,6 +18,12 @@ tiles without the isometric/2.5D background-plate pipeline.
   runtime tiles, seam contracts, provenance manifest, masked seam-repair
   template, bounded repair proof on a known failed adjacent-imagegen stitch,
   contact sheets, and passing validation.
+- `cycle-cg-single-tile-provider-tests/` — one-tile API comparison for cheaper
+  image models via OpenRouter/Google routes; none preserved geometry well
+  enough to scale past reviewed local overrides.
+- `research-consolidation.md` — rollup of the overhead-map findings: proven
+  pipeline, county/parish scale, API costs, provider tests, Lore storage, and
+  current recommendation.
 - `county-tile-continuity-plan.md` — proposed county-scale overhead tile
   pipeline with deterministic seam contracts, padded supertiles, semantic
   master layers, and validation gates.

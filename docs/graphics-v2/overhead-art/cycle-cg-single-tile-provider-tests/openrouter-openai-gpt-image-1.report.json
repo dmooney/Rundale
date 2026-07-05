@@ -1,0 +1,34 @@
+{
+  "status": "ok",
+  "provider": "openrouter",
+  "model": "openai/gpt-image-1",
+  "output": "openrouter-openai-gpt-image-1.png",
+  "output_mime_type": "image/png",
+  "elapsed_seconds": 15.82630120893009,
+  "listed_output_cost_usd_1k": 0.2,
+  "observed_usage_cost_usd": 0.04639,
+  "note": "OpenRouter route to GPT Image 1; higher-cost OpenAI image baseline.",
+  "response_metadata": {
+    "created": 1783216380,
+    "data": "<redacted 2473090 chars>",
+    "usage": {
+      "prompt_tokens": 415,
+      "completion_tokens": 1056,
+      "total_tokens": 1471,
+      "cost": 0.04639,
+      "is_byok": false,
+      "prompt_tokens_details": {
+        "cached_tokens": 0
+      },
+      "cost_details": {
+        "upstream_inference_cost": 0.04639,
+        "upstream_inference_prompt_cost": 0.00415,
+        "upstream_inference_completions_cost": 0.04224
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 0,
+        "image_tokens": 1056
+      }
+    }
+  }
+}

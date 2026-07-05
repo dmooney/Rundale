@@ -23,6 +23,7 @@ from PIL import Image, ImageDraw, ImageFont
 
 
 GOOGLE_INTERACTIONS_URL = "https://generativelanguage.googleapis.com/v1beta/interactions"
+OPENROUTER_IMAGES_URL = "https://openrouter.ai/api/v1/images"
 
 
 PROMPT = """Use the input image as strict geography/layout authority.
@@ -59,6 +60,42 @@ class ModelSpec:
 
 MODEL_SPECS = [
     ModelSpec(
+        provider="openrouter",
+        model="google/gemini-3.1-flash-lite-image",
+        output_cost_usd_1k=0.0336,
+        note="OpenRouter route to Google Nano Banana 2 Lite; cheap image-to-image baseline.",
+    ),
+    ModelSpec(
+        provider="openrouter",
+        model="sourceful/riverflow-v2.5-fast",
+        output_cost_usd_1k=0.019,
+        note="OpenRouter route to Sourceful Riverflow fast image-to-image.",
+    ),
+    ModelSpec(
+        provider="openrouter",
+        model="black-forest-labs/flux.2-klein-4b",
+        output_cost_usd_1k=0.014,
+        note="OpenRouter route to FLUX.2 Klein 4B; listed per-megapixel output cost.",
+    ),
+    ModelSpec(
+        provider="openrouter",
+        model="google/gemini-3.1-flash-image",
+        output_cost_usd_1k=0.067,
+        note="OpenRouter route to Google Nano Banana 2; higher cost than Lite.",
+    ),
+    ModelSpec(
+        provider="openrouter",
+        model="openai/gpt-image-1-mini",
+        output_cost_usd_1k=0.052,
+        note="OpenRouter route to GPT Image 1 Mini; cheaper OpenAI image baseline.",
+    ),
+    ModelSpec(
+        provider="openrouter",
+        model="openai/gpt-image-1",
+        output_cost_usd_1k=0.20,
+        note="OpenRouter route to GPT Image 1; higher-cost OpenAI image baseline.",
+    ),
+    ModelSpec(
         provider="google",
         model="gemini-3.1-flash-lite-image",
         output_cost_usd_1k=0.0336,
@@ -77,6 +114,10 @@ MODEL_SPECS = [
         note="Legacy Nano Banana image model; included as a backward-compatibility baseline.",
     ),
 ]
+
+
+def safe_slug(text: str) -> str:
+    return "".join(ch if ch.isalnum() or ch in "._-" else "-" for ch in text).strip("-")
 
 
 def load_env(path: Path) -> None:
@@ -189,7 +230,7 @@ def google_interaction(spec: ModelSpec, source: Path, out_dir: Path, timeout_s: 
         output_bytes = extract_output_image(decoded)
         mime_type = extract_output_mime_type(decoded)
         suffix = ".jpg" if mime_type == "image/jpeg" else ".png"
-        output_path = out_dir / f"{spec.model}{suffix}"
+        output_path = out_dir / f"{safe_slug(spec.provider + '-' + spec.model)}{suffix}"
         output_path.write_bytes(output_bytes)
         safe_meta = safe_response_metadata(decoded)
         report = {
@@ -223,7 +264,95 @@ def google_interaction(spec: ModelSpec, source: Path, out_dir: Path, timeout_s: 
             "listed_output_cost_usd_1k": spec.output_cost_usd_1k,
             "note": spec.note,
         }
-    (out_dir / f"{spec.model}.report.json").write_text(json.dumps(report, indent=2) + "\n")
+    (out_dir / f"{safe_slug(spec.provider + '-' + spec.model)}.report.json").write_text(json.dumps(report, indent=2) + "\n")
+    return report
+
+
+def openrouter_image(spec: ModelSpec, source: Path, out_dir: Path, timeout_s: int) -> dict[str, Any]:
+    api_key = os.environ.get("OPENROUTER_API_KEY")
+    if not api_key:
+        return {"status": "skipped", "error": "missing OPENROUTER_API_KEY"}
+
+    image_b64 = base64.b64encode(source.read_bytes()).decode("utf-8")
+    payload: dict[str, Any] = {
+        "model": spec.model,
+        "prompt": PROMPT,
+        "input_references": [
+            {
+                "type": "image_url",
+                "image_url": {"url": f"data:image/png;base64,{image_b64}"},
+            }
+        ],
+        "n": 1,
+    }
+    if spec.model.startswith("google/"):
+        payload["resolution"] = "1K"
+        payload["aspect_ratio"] = "1:1"
+    elif spec.model.startswith("openai/"):
+        payload["quality"] = "medium"
+        payload["background"] = "opaque"
+    elif spec.model.startswith("sourceful/"):
+        payload["resolution"] = "1K"
+        payload["output_format"] = "jpeg"
+    elif spec.model.startswith("black-forest-labs/"):
+        payload["output_format"] = "png"
+
+    request = urllib.request.Request(
+        OPENROUTER_IMAGES_URL,
+        data=json.dumps(payload).encode("utf-8"),
+        headers={
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+            "User-Agent": "rundale-graphics-v2-single-tile-tests",
+        },
+        method="POST",
+    )
+    started = time.monotonic()
+    try:
+        with urllib.request.urlopen(request, timeout=timeout_s) as response:
+            body = response.read()
+        elapsed = time.monotonic() - started
+        decoded = json.loads(body)
+        image_record = decoded["data"][0]
+        output_bytes = base64.b64decode(image_record["b64_json"])
+        media_type = image_record.get("media_type") or "image/png"
+        suffix = ".jpg" if media_type == "image/jpeg" else ".svg" if media_type == "image/svg+xml" else ".png"
+        output_path = out_dir / f"{safe_slug(spec.provider + '-' + spec.model)}{suffix}"
+        output_path.write_bytes(output_bytes)
+        safe_meta = safe_response_metadata(decoded)
+        report = {
+            "status": "ok",
+            "provider": spec.provider,
+            "model": spec.model,
+            "output": output_path.name,
+            "output_mime_type": media_type,
+            "elapsed_seconds": elapsed,
+            "listed_output_cost_usd_1k": spec.output_cost_usd_1k,
+            "observed_usage_cost_usd": decoded.get("usage", {}).get("cost"),
+            "note": spec.note,
+            "response_metadata": safe_meta,
+        }
+    except urllib.error.HTTPError as exc:
+        error_body = exc.read().decode("utf-8", "replace")
+        report = {
+            "status": "error",
+            "provider": spec.provider,
+            "model": spec.model,
+            "http_status": exc.code,
+            "error": error_body[:2000],
+            "listed_output_cost_usd_1k": spec.output_cost_usd_1k,
+            "note": spec.note,
+        }
+    except Exception as exc:  # noqa: BLE001
+        report = {
+            "status": "error",
+            "provider": spec.provider,
+            "model": spec.model,
+            "error": repr(exc),
+            "listed_output_cost_usd_1k": spec.output_cost_usd_1k,
+            "note": spec.note,
+        }
+    (out_dir / f"{safe_slug(spec.provider + '-' + spec.model)}.report.json").write_text(json.dumps(report, indent=2) + "\n")
     return report
 
 
@@ -250,7 +379,7 @@ def make_contact_sheet(source: Path, reports: list[dict[str, Any]], out_dir: Pat
         panels.append(label_panel(Image.open(nearest), "3x nearest reference", "not art, scale reference"))
     for report in reports:
         if report.get("status") == "ok":
-            title = report["model"]
+            title = f"{report['provider']}: {report['model']}"
             subtitle = f"${report['listed_output_cost_usd_1k']:.4f} listed 1K output"
             panels.append(label_panel(Image.open(out_dir / report["output"]), title, subtitle))
         else:
@@ -318,16 +447,25 @@ def main() -> int:
     parser.add_argument("--out-dir", type=Path, required=True)
     parser.add_argument("--env-file", type=Path, default=Path("/Users/dmooney/Rundale/.env"))
     parser.add_argument("--timeout-s", type=int, default=180)
-    parser.add_argument("--models", nargs="*", default=[spec.model for spec in MODEL_SPECS])
+    parser.add_argument("--models", nargs="*", default=None)
+    parser.add_argument("--providers", nargs="*", default=["openrouter"])
     args = parser.parse_args()
 
     load_env(args.env_file)
     args.out_dir.mkdir(parents=True, exist_ok=True)
     reports: list[dict[str, Any]] = []
-    specs = [spec for spec in MODEL_SPECS if spec.model in set(args.models)]
+    wanted_models = set(args.models) if args.models else None
+    wanted_providers = set(args.providers)
+    specs = [
+        spec
+        for spec in MODEL_SPECS
+        if spec.provider in wanted_providers and (wanted_models is None or spec.model in wanted_models)
+    ]
     for spec in specs:
         if spec.provider == "google":
             reports.append(google_interaction(spec, args.source, args.out_dir, args.timeout_s))
+        elif spec.provider == "openrouter":
+            reports.append(openrouter_image(spec, args.source, args.out_dir, args.timeout_s))
         else:
             reports.append({"status": "skipped", "provider": spec.provider, "model": spec.model})
     make_contact_sheet(args.source, reports, args.out_dir)
