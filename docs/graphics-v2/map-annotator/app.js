@@ -291,6 +291,9 @@ function loadImage(src, name, options = {}) {
     updateSidebar();
   };
   img.onerror = () => {
+    if (options.revokeUrl) {
+      URL.revokeObjectURL(options.revokeUrl);
+    }
     alert(`Could not load image: ${name}`);
   };
   img.src = src;
@@ -503,7 +506,11 @@ function drawAnnotationLabel(ctx, annotation, points, index, category) {
 
 function onPointerDown(event) {
   if (!state.image) return;
-  els.canvas.setPointerCapture(event.pointerId);
+  try {
+    els.canvas.setPointerCapture(event.pointerId);
+  } catch {
+    // Pointer capture can fail for synthetic or already-ended events.
+  }
   const canvasPoint = canvasPointFromEvent(event);
   const imagePoint = canvasToImage(canvasPoint);
   const normalizedPoint = toNormalized(imagePoint);
@@ -603,7 +610,7 @@ function onPointerMove(event) {
 function onPointerUp(event) {
   if (state.interaction?.type === "draw-box" && state.draft?.type === "box") {
     const [a, b] = state.draft.points;
-    if (distanceNorm(a, b) > 0.004) {
+    if (distance(a, b) > 0.004) {
       const annotation = makeAnnotation("box", state.draft.points);
       state.annotations.push(annotation);
       state.draft = null;
@@ -790,6 +797,9 @@ function importJson(file) {
       alert(`Could not import JSON: ${error.message}`);
     }
   };
+  reader.onerror = () => {
+    alert(`Could not read JSON file: ${reader.error?.message || file.name}`);
+  };
   reader.readAsText(file);
 }
 
@@ -843,6 +853,11 @@ function sanitizeAnnotation(raw) {
   if (!raw || !Array.isArray(raw.points)) return null;
   const type = ["point", "line", "polygon", "box"].includes(raw.type) ? raw.type : "point";
   const category = CATEGORIES.some(item => item.id === raw.category) ? raw.category : "uncertain";
+  const points = normalizeImportedPoints(type, raw.points.map(point => clampNormalized({
+    x: Number(point.x),
+    y: Number(point.y),
+  })).filter(point => Number.isFinite(point.x) && Number.isFinite(point.y)));
+  if (points.length < minPointsForType(type)) return null;
   return {
     id: String(raw.id || `a-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`),
     type,
@@ -850,11 +865,20 @@ function sanitizeAnnotation(raw) {
     label: String(raw.label || categoryFor(category).label),
     confidence: ["high", "medium", "low"].includes(raw.confidence) ? raw.confidence : "medium",
     notes: String(raw.notes || ""),
-    points: raw.points.map(point => clampNormalized({
-      x: Number(point.x),
-      y: Number(point.y),
-    })).filter(point => Number.isFinite(point.x) && Number.isFinite(point.y)),
+    points,
   };
+}
+
+function minPointsForType(type) {
+  if (type === "point") return 1;
+  if (type === "polygon") return 3;
+  return 2;
+}
+
+function normalizeImportedPoints(type, points) {
+  if (type === "point") return points.slice(0, 1);
+  if (type === "box") return points.slice(0, 2);
+  return points;
 }
 
 function annotationById(id) {
@@ -1000,10 +1024,6 @@ function normalizeBox(points) {
 }
 
 function distance(a, b) {
-  return Math.hypot(a.x - b.x, a.y - b.y);
-}
-
-function distanceNorm(a, b) {
   return Math.hypot(a.x - b.x, a.y - b.y);
 }
 
