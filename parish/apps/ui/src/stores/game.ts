@@ -81,6 +81,17 @@ export const focailOpen = writable<boolean>(false);
  *  when this changes, regardless of current scroll position (#1431 item 4). */
 export const playerSubmittedCount = writable<number>(0);
 
+/** Draft text requested by outer UI chrome.
+ *
+ * Used by the Parish Notebook action stamps to seed the shared input field
+ * without bypassing the existing submit/history/autocomplete pipeline.
+ */
+export const intentDraft = writable<string | null>(null);
+
+export function requestIntentDraft(text: string): void {
+	intentDraft.set(text);
+}
+
 /**
  * True while the game is being driven externally (by the quality harness or
  * any MCP/bridge client) rather than by the local player.

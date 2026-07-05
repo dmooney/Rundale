@@ -22,17 +22,20 @@ It should not be the only system deciding topology.
 ## Pipeline Shape
 
 1. Source crop preparation.
+
    - Start from a north-up historic OS map crop.
    - Normalize crop size from desired plate scale, not arbitrary map zoom.
    - Deskew, deblur lightly, remove modern map-app overlays if present.
    - Save source pixel-to-world metadata where possible.
 
 2. Map cleanup and ignore masks.
+
    - Separate paper/stipple/noise from printed ink.
    - Mask text labels, numbers, survey marks, benchmark symbols, and app pins.
    - Keep the raw map as evidence, but stop text/symbols from becoming houses.
 
 3. Feature extraction.
+
    - Buildings: connected components, rectangularity, hatch/fill detection,
      orientation, footprint grouping.
    - Roads/lanes: paired-line corridors, consistent width, continuity, edge
@@ -45,6 +48,7 @@ It should not be the only system deciding topology.
      patterns, planted enclosures.
 
 4. Semantic vector layout.
+
    - Emit GeoJSON-like vectors with class, confidence, and source pixels.
    - Keep uncertain features as uncertain; do not silently promote them to
      roads.
@@ -52,6 +56,7 @@ It should not be the only system deciding topology.
      pass human-written graph notes to the image model.
 
 5. Deterministic control render.
+
    - Render a fixed north-up 3/4 orthographic scaffold from the vectors.
    - Use one pixels-per-meter value and one camera transform across all tiles.
    - Draw roads as walkable corridors, boundaries as raised lines, buildings as
@@ -61,6 +66,7 @@ It should not be the only system deciding topology.
      map, occlusion mask, and optional navmesh overlay.
 
 6. Image generation.
+
    - Inputs: raw map crop, generic legend, deterministic control render/masks,
      approved style reference, generic prompt.
    - The model paints period material, texture, vegetation, readable facades,
@@ -68,6 +74,7 @@ It should not be the only system deciding topology.
    - It receives no per-location written interpretation.
 
 7. Automated verification.
+
    - Compare generated plate to vectors/control masks.
    - Fail if roads disappear, extra walkable-looking paths appear, buildings
      move too far, gates vanish, text/labels appear, smoke appears, water is
@@ -83,30 +90,36 @@ It should not be the only system deciding topology.
 ## Ideas To Test
 
 - A. Raw map + generic prompt + style reference.
+
   - Lowest engineering cost.
   - Likely fails camera consistency and linework interpretation.
 
 - B. Raw map plus a fixed oblique warp.
+
   - Tests whether a simple geometric transform anchors north-up camera/scale.
   - Risk: the model copies map text/noise and still lacks building volumes.
 
 - C. Raw map plus semantic mask.
+
   - Tests whether rough class colors help the model separate buildings, trees,
     and linework.
   - Risk: weak extraction creates false buildings or false paths.
 
 - D. Raw map plus extruded blockout.
+
   - Tests whether building/facade proportions and ground-plane scale become
     stable when the model sees a precompiled 2.5D scaffold.
   - Risk: bad detections become persuasive bad geometry.
 
 - E. Procedural plate first, model paint second.
+
   - Render the entire scene as a simple game board with correct topology, then
     use image generation as style transfer/paintover.
   - This is likely the most production-friendly path if control fidelity is
     supported by the image model.
 
 - F. Segmentation model first.
+
   - Train or fine-tune a small model on labelled historical OS crops to output
     roads, walls, buildings, water, trees, text, and ignore masks.
   - Higher setup cost, probably necessary for 100+ locations.
@@ -146,15 +159,15 @@ classification before the control render is trusted.
 All experiments used fresh subagents, no thread history, no per-location hints,
 one image-generation call each, and saved the exact prompt beside the output.
 
-| ID | Control Inputs | Output | Result | Notes |
-| --- | --- | --- | --- | --- |
-| A | raw map + full style reference | `pipeline-experiments/idea-a-map-only.png` | Best source fidelity; pass with caveat | Most accurate result by far against the source map crop. The raw generator output contained a bottom-edge stream-like artifact that was excluded by crop, so this still needs automated artifact checks. |
-| B | raw map + oblique raw-map warp + full style reference | `pipeline-experiments/idea-b-oblique-warp.png` | Fail | Invented water/bridge and chapel/churchyard cues. A raw geometric warp alone anchors perspective poorly and preserves tempting map/text artifacts. |
-| C | raw map + semantic mask + full style reference | `pipeline-experiments/idea-c-semantic-mask.png` | Pass | Good balance. The mask seems to reduce wild inventions without forcing every bad detection into a building volume. Needs better extraction. |
-| D | raw map + extruded blockout + full style reference | `pipeline-experiments/idea-d-extruded-blockout.png` | Pass with caveat | Good scale/facade control, but false building detections were persuasive. A bad blockout becomes bad geometry in the plate. |
-| E | raw map + oblique cleaned-ink warp + full style reference | `pipeline-experiments/idea-e-oblique-ink-warp.png` | Fail | Imported chapel/cemetery motifs from the full style reference. Style references should avoid distinctive landmarks. |
-| F | raw map + linework-only control + full style reference | `pipeline-experiments/idea-f-linework-control.png` | Control-path pass, lower source fidelity | Useful for stabilizing north-up geometry and avoiding church/water inventions, but less faithful than Cycle A. It over-rendered thin lines as substantial walls and changed the site read too much. |
-| G | second raw map crop + full style reference | `pipeline-experiments/idea-g-raw-map-control-02.png` | Fail | Repeated the Cycle A method on another crop. Produced an unsupported church/churchyard and water. Likely cause: full-scene style-reference semantic leakage amplified by ambiguous estate/building/enclosure geometry. |
+| ID  | Control Inputs                                            | Output                                               | Result                                   | Notes                                                                                                                                                                                                                  |
+| --- | --------------------------------------------------------- | ---------------------------------------------------- | ---------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| A   | raw map + full style reference                            | `pipeline-experiments/idea-a-map-only.png`           | Best source fidelity; pass with caveat   | Most accurate result by far against the source map crop. The raw generator output contained a bottom-edge stream-like artifact that was excluded by crop, so this still needs automated artifact checks.               |
+| B   | raw map + oblique raw-map warp + full style reference     | `pipeline-experiments/idea-b-oblique-warp.png`       | Fail                                     | Invented water/bridge and chapel/churchyard cues. A raw geometric warp alone anchors perspective poorly and preserves tempting map/text artifacts.                                                                     |
+| C   | raw map + semantic mask + full style reference            | `pipeline-experiments/idea-c-semantic-mask.png`      | Pass                                     | Good balance. The mask seems to reduce wild inventions without forcing every bad detection into a building volume. Needs better extraction.                                                                            |
+| D   | raw map + extruded blockout + full style reference        | `pipeline-experiments/idea-d-extruded-blockout.png`  | Pass with caveat                         | Good scale/facade control, but false building detections were persuasive. A bad blockout becomes bad geometry in the plate.                                                                                            |
+| E   | raw map + oblique cleaned-ink warp + full style reference | `pipeline-experiments/idea-e-oblique-ink-warp.png`   | Fail                                     | Imported chapel/cemetery motifs from the full style reference. Style references should avoid distinctive landmarks.                                                                                                    |
+| F   | raw map + linework-only control + full style reference    | `pipeline-experiments/idea-f-linework-control.png`   | Control-path pass, lower source fidelity | Useful for stabilizing north-up geometry and avoiding church/water inventions, but less faithful than Cycle A. It over-rendered thin lines as substantial walls and changed the site read too much.                    |
+| G   | second raw map crop + full style reference                | `pipeline-experiments/idea-g-raw-map-control-02.png` | Fail                                     | Repeated the Cycle A method on another crop. Produced an unsupported church/churchyard and water. Likely cause: full-scene style-reference semantic leakage amplified by ambiguous estate/building/enclosure geometry. |
 
 ## Current Read
 

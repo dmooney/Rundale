@@ -11,6 +11,7 @@ Repo: `dmooney/Rundale`. Default merge: `--squash --delete-branch`. Project gate
 ## Steps
 
 1. **Resolve target PR.**
+
    - If `$ARGUMENTS` set → `PR=$ARGUMENTS`.
    - Else → `PR=$(gh pr view --json number --jq .number)` from current branch. If none, stop and ask.
    - Fetch state in one call:
@@ -31,12 +32,14 @@ Repo: `dmooney/Rundale`. Default merge: `--squash --delete-branch`. Project gate
      ```
 
 2. **Pre-flight gates.**
+
    - `state == OPEN` and `isDraft == false`. If draft, ask the user before marking ready.
    - `baseRefName == main` (or whatever the user expects).
    - Title prefix is conventional (`feat:`/`fix:`/`refactor:`/`docs:`/`test:`/`chore:`/`security:`/`perf:`). If not, fix the title via `gh pr edit $PR --title "<new>"` — required by branch protection convention.
    - PR body has `Fixes #N` / `Closes #N` for any issue it claims to resolve, so squash-merge auto-closes them.
 
 3. **Rebase if DIRTY/BEHIND.** When `mergeStateStatus` is `DIRTY` or `BEHIND`:
+
    - Check out the PR branch in a clean worktree:
 
      ```sh
@@ -54,6 +57,7 @@ Repo: `dmooney/Rundale`. Default merge: `--squash --delete-branch`. Project gate
    - `git push` (no force; merges advance the branch fast-forward; relies on `gh pr checkout`'s tracking config so fork PRs work too).
 
 4. **Address unaddressed bot review threads.**
+
    - Inline threads:
 
      ```sh
@@ -79,6 +83,7 @@ Repo: `dmooney/Rundale`. Default merge: `--squash --delete-branch`. Project gate
      ```
 
    - For each unaddressed thread/review:
+
      - Read the cited path/line. Decide: **act** (legitimate bug/nit) or **dismiss** (false positive, out-of-scope, intentional).
      - Acting: edit code. Re-run `just check`. Commit (`fix: address <bot> review on <path>`). Push.
      - Resolve the thread once the fix lands:
@@ -92,6 +97,7 @@ Repo: `dmooney/Rundale`. Default merge: `--squash --delete-branch`. Project gate
    - **Bots COMMENT but never APPROVE.** Don't gate on `reviewDecision == APPROVED`; gate on threads-resolved + CI green.
 
 5. **Fix CI.** Refetch `statusCheckRollup`. For every check that isn't `SUCCESS` or `NEUTRAL`:
+
    - Pull logs:
 
      ```sh
@@ -107,6 +113,7 @@ Repo: `dmooney/Rundale`. Default merge: `--squash --delete-branch`. Project gate
    - Loop until all `Rust*` / `UI*` / `Full*` checks are SUCCESS.
 
 6. **Final merge gate.** All of:
+
    - `state == OPEN`, not draft.
    - `mergeStateStatus == CLEAN` (or `HAS_HOOKS` — both mergeable).
    - All required checks SUCCESS.

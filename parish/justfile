@@ -388,6 +388,7 @@ witness-scan:
     echo "Scanning ${count} changed file(s) for placeholder markers..."
     found=0
     while IFS= read -r f; do
+      grep -Iq . "$f" || continue
       rg -n \
         -e '//\s*unchanged' \
         -e '//\s*existing' \
