@@ -12,8 +12,12 @@ const BANNED_SOURCE_TERMS: &[&str] = &[
     "map reference",
 ];
 
-const BANNED_PROJECTION_TERMS: &[&str] =
-    &["strict isometric", "strict isomorphic", "isometric", "isomorphic"];
+const BANNED_PROJECTION_TERMS: &[&str] = &[
+    "strict isometric",
+    "strict isomorphic",
+    "isometric",
+    "isomorphic",
+];
 
 #[test]
 fn runtime_visual_scene_metadata_uses_written_description_source_only() {
