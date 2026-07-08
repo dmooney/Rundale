@@ -150,7 +150,7 @@ the default viewport.
 ## Observable Signals
 
 - `cargo run -p parish-engine -- --script
-  testing/fixtures/play_illustrated-notebook-real.txt` proves the backend
+testing/fixtures/play_illustrated-notebook-real.txt` proves the backend
   behavior path still returns status, scene, NPCs, map, time, natural-language
   command handling, and movement.
 - Unit tests prove marker sorting/scaling and command input submit behavior.

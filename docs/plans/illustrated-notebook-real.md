@@ -92,7 +92,7 @@ Status: Pre-implementation plan
 6. Run the relevant `parish-world` visual-scene tests.
 7. Run the backend fixture:
    `cd parish && cargo run -p parish-engine -- --script
-   testing/fixtures/play_illustrated-notebook-real.txt`.
+testing/fixtures/play_illustrated-notebook-real.txt`.
 8. Start the built app against Rundale, capture:
    `.proofs/illustrated-notebook-real/desktop.png` at 1440x900 and
    `.proofs/illustrated-notebook-real/mobile.png` at 390x844.
