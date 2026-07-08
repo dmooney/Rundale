@@ -88,7 +88,7 @@ describe('illustrated notebook interactions', () => {
 		expect(cb.onSend).not.toHaveBeenCalled();
 	});
 
-	it('sorts focus targets by explicit notebook order and skips disabled targets', () => {
+	it('sorts focus targets by explicit notebook order and preserves disabled targets', () => {
 		const targets: NotebookHitTarget[] = [
 			{
 				id: 'send',
@@ -119,6 +119,6 @@ describe('illustrated notebook interactions', () => {
 
 		expect(
 			sortNotebookHitTargetsForFocus(targets).map((target) => target.id),
-		).toEqual(['nearby:roisin', 'action:ask']);
+		).toEqual(['nearby:roisin', 'action:ask', 'send']);
 	});
 });

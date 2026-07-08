@@ -46,9 +46,9 @@ export function notebookHitTarget(
 export function sortNotebookHitTargetsForFocus(
 	targets: NotebookHitTarget[],
 ): NotebookHitTarget[] {
-	return [...targets]
-		.filter((target) => !target.disabled)
-		.sort((a, b) => a.order - b.order || a.id.localeCompare(b.id));
+	return [...targets].sort(
+		(a, b) => a.order - b.order || a.id.localeCompare(b.id),
+	);
 }
 
 export function activateNotebookTarget(

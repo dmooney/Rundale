@@ -272,6 +272,7 @@
 			<button
 				type="button"
 				class="notebook-accessibility-target"
+				disabled={target.disabled}
 				style={`left:${target.rect.x}px;top:${target.rect.y}px;width:${target.rect.width}px;height:${target.rect.height}px;`}
 				aria-label={target.label}
 				onfocus={() => focusHitTarget(target.id)}
