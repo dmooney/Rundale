@@ -62,8 +62,10 @@ export interface NotebookLayout {
 export interface RenderCallbacks {
 	onAction: (action: NotebookAction) => void;
 	onFocusInput: () => void;
+	onOpenActiveIntents: () => void;
 	onOpenMap: () => void;
 	onOpenTab: (tab: NotebookTab) => void;
+	onOpenTime: () => void;
 	onSelectNpc: (realName: string) => void;
 	onSend: () => void;
 }
