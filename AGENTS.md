@@ -17,7 +17,7 @@ Start with the detailed agent docs in [docs/agent/README.md](docs/agent/README.m
 - [gotchas.md](docs/agent/gotchas.md) — Tokio, SQLite, Ollama, mode parity pitfalls
 - [git-workflow.md](docs/agent/git-workflow.md) — commits, tests, and PR standards
 - [agent-check.md](docs/agent/agent-check.md) — proof evidence and judge verdict gate
-- [skills.md](docs/agent/skills.md) — `/check`, `/parish-engine`, `/task-start`, `/backlog`, etc.
+- [skills.md](docs/agent/skills.md) — `/check`, `/parish-engine`, `/backlog`, etc.
 - [harness.md](docs/agent/harness.md) — one-page map of every sensor, skill, and gate (start here when something fails)
 - [codebase-map.md](docs/agent/codebase-map.md) — top-level directory index with per-area `CLAUDE.md` pointers
 

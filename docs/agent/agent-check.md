@@ -12,9 +12,7 @@ Run it locally with `just agent-check`. It is also part of `just check` and `jus
 ## Lifecycle of a bundle
 
 ```text
-/task-start <id>          → write .proofs/<id>/acceptance-criteria.md +
-                            parish/testing/fixtures/play_<id>.txt
-                          → stop, get human approval
+write .proofs/<id>/acceptance-criteria.md
 implement
 run game                  → capture .proofs/<id>/transcript.txt
 write .proofs/<id>/evidence.md   → 'Evidence type: live gameplay transcript'
@@ -56,7 +54,7 @@ Technical debt: clear
 Acceptance criteria: met
 ```
 
-`Acceptance criteria: met` is required when the bundle has an `acceptance-criteria.md` (see rule 13 in AGENTS.md).
+`Acceptance criteria: met` is required when the bundle has an `acceptance-criteria.md`.
 
 ## What Counts As Proof-Relevant
 
@@ -81,7 +79,7 @@ The Stop hook (`.claude/hooks/Stop--proof-required.sh`) blocks session-end with 
 
 ## Acceptance Criteria Requirement
 
-Every new proof bundle must include `.proofs/<task-id>/acceptance-criteria.md`. This file is written **before any code**, using `/task-start <task-id>`, and lists observable criteria with the game commands that prove each one. The judge then verifies each criterion individually against the transcript.
+Every new proof bundle must include `.proofs/<task-id>/acceptance-criteria.md`. This file lists observable criteria with the game commands or screenshots that prove each one. The judge then verifies each criterion individually against the transcript or visual artifact.
 
 ## Posting from a no-gh sandbox
 
