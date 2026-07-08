@@ -10,7 +10,7 @@
 	import SetupOverlay from '../components/SetupOverlay.svelte';
 	import ModSelectorOverlay from '../components/ModSelectorOverlay.svelte';
 	import ShortcutsOverlay from '../components/ShortcutsOverlay.svelte';
-	import NotebookShell from '../components/notebook/NotebookShell.svelte';
+	import IllustratedNotebookGame from '../components/illustrated-notebook/IllustratedNotebookGame.svelte';
 
 	import { uiConfig, fullMapOpen } from '../stores/game';
 	import { demoVisible, demoEnabled } from '../stores/demo';
@@ -184,7 +184,7 @@
 	class:debug-open-bottom={$debugVisible && !$debugDockLeft}
 	class:debug-open-left={$debugVisible && $debugDockLeft}
 >
-	<NotebookShell />
+	<IllustratedNotebookGame />
 
 	{#if $fullMapOpen}
 		<FullMapOverlay onclose={() => fullMapOpen.set(false)} />
