@@ -88,19 +88,29 @@
 	onMount(() => {
 		let cancelled = false;
 		void (async () => {
-			const next = new IllustratedNotebookRenderer(hostEl);
-			await next.init();
-			if (cancelled) {
-				next.destroy();
-				return;
+			let next: IllustratedNotebookRenderer | null = null;
+			try {
+				next = new IllustratedNotebookRenderer(hostEl);
+				await next.init();
+				if (cancelled) {
+					next.destroy();
+					return;
+				}
+				renderer = next;
+				if (typeof ResizeObserver !== 'undefined') {
+					resizeObserver = new ResizeObserver(() => renderer?.resize());
+					resizeObserver.observe(hostEl);
+				}
+				renderer.resize();
+				focusInput();
+			} catch (err) {
+				next?.destroy();
+				if (!cancelled) {
+					pushErrorLog(
+						`Failed to initialize notebook renderer: ${formatIpcError(err)}`,
+					);
+				}
 			}
-			renderer = next;
-			if (typeof ResizeObserver !== 'undefined') {
-				resizeObserver = new ResizeObserver(() => renderer?.resize());
-				resizeObserver.observe(hostEl);
-			}
-			renderer.resize();
-			focusInput();
 		})();
 		return () => {
 			cancelled = true;

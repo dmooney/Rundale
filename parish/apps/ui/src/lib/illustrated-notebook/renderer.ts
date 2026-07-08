@@ -80,12 +80,14 @@ export class IllustratedNotebookRenderer {
 	private readonly textures = new Map<string, Texture>();
 	private scene: VisualScene = FALLBACK_SCENE;
 	private lastState: NotebookRenderState | null = null;
+	private lastLayout: NotebookLayout | null = null;
 	private readonly layers = {
 		background: new Container(),
 		wash: new Container(),
 		exits: new Container(),
 		markers: new Container(),
 		ui: new Container(),
+		intent: new Container(),
 	};
 
 	constructor(private readonly host: HTMLElement) {}
@@ -108,6 +110,7 @@ export class IllustratedNotebookRenderer {
 			this.layers.exits,
 			this.layers.markers,
 			this.layers.ui,
+			this.layers.intent,
 		);
 		await this.loadAssets();
 	}
@@ -119,7 +122,6 @@ export class IllustratedNotebookRenderer {
 	}
 
 	render(state: NotebookRenderState): void {
-		this.lastState = state;
 		if (!this.app) return;
 		const width = Math.max(1, this.host.clientWidth || this.app.renderer.width);
 		const height = Math.max(
@@ -127,6 +129,13 @@ export class IllustratedNotebookRenderer {
 			this.host.clientHeight || this.app.renderer.height,
 		);
 		const layout = computeNotebookLayout(width, height);
+		if (this.canPatchIntentStrip(state, layout)) {
+			this.lastState = state;
+			this.drawIntentStrip(layout, state);
+			return;
+		}
+		this.lastState = state;
+		this.lastLayout = layout;
 		this.clearAll();
 		this.drawBackground(width, height);
 		this.drawSceneWash(width, height);
@@ -142,6 +151,25 @@ export class IllustratedNotebookRenderer {
 
 	resize(): void {
 		if (this.lastState) this.render(this.lastState);
+	}
+
+	private canPatchIntentStrip(
+		state: NotebookRenderState,
+		layout: NotebookLayout,
+	): boolean {
+		const previous = this.lastState;
+		const previousLayout = this.lastLayout;
+		if (!previous || !previousLayout) return false;
+		return (
+			previousLayout.width === layout.width &&
+			previousLayout.height === layout.height &&
+			previousLayout.mode === layout.mode &&
+			previous.world === state.world &&
+			previous.map === state.map &&
+			previous.npcs === state.npcs &&
+			previous.selectedNpc === state.selectedNpc &&
+			previous.selectedRealName === state.selectedRealName
+		);
 	}
 
 	private async loadAssets(): Promise<void> {
@@ -318,11 +346,14 @@ export class IllustratedNotebookRenderer {
 				ring.scale.set(scale);
 				this.layers.markers.addChild(ring);
 			}
+			const npcIndex = actor.actor.npc
+				? state.npcs.indexOf(actor.actor.npc)
+				: -1;
+			const safeNpcIndex = npcIndex >= 0 ? npcIndex : 0;
 			const markerUrl = isPlayer
 				? NOTEBOOK_ASSETS.playerMarker
 				: NOTEBOOK_ASSETS.npcMarkers[
-						state.npcs.indexOf(actor.actor.npc!) %
-							NOTEBOOK_ASSETS.npcMarkers.length
+						safeNpcIndex % NOTEBOOK_ASSETS.npcMarkers.length
 					];
 			const marker = this.sprite(markerUrl);
 			marker.anchor.set(0.5, 1);
@@ -763,14 +794,15 @@ export class IllustratedNotebookRenderer {
 		layout: NotebookLayout,
 		state: NotebookRenderState,
 	): void {
+		this.clear(this.layers.intent);
 		const strip = this.sprite(
 			NOTEBOOK_ASSETS.intentParchmentStrip,
 			layout.intentStrip,
 		);
 		this.makeButton(strip, () => state.callbacks.onFocusInput());
-		this.layers.ui.addChild(strip);
+		this.layers.intent.addChild(strip);
 		this.addText(
-			this.layers.ui,
+			this.layers.intent,
 			'Intent',
 			layout.intentStrip.x + layout.intentStrip.width * 0.06,
 			layout.intentStrip.y + layout.intentStrip.height * 0.34,
@@ -782,7 +814,7 @@ export class IllustratedNotebookRenderer {
 		const lineX = layout.intentStrip.x + layout.intentStrip.width * 0.22;
 		const lineY = layout.intentStrip.y + layout.intentStrip.height * 0.43;
 		const lineW = layout.intentStrip.width * 0.58;
-		this.layers.ui.addChild(
+		this.layers.intent.addChild(
 			this.sprite(NOTEBOOK_ASSETS.handwrittenInputLine, {
 				x: lineX,
 				y: lineY + 13,
@@ -793,8 +825,8 @@ export class IllustratedNotebookRenderer {
 		const displayText =
 			state.intentText ||
 			(state.busy ? 'waiting on the parish...' : 'ask Roisin what she saw');
-		this.addText(
-			this.layers.ui,
+		const inputText = this.addText(
+			this.layers.intent,
 			displayText,
 			lineX + 14,
 			lineY,
@@ -807,16 +839,15 @@ export class IllustratedNotebookRenderer {
 		);
 		if (state.inputFocused && !state.busy) {
 			const caret = new Graphics();
+			const typedWidth = state.intentText ? inputText.width : 0;
 			const caretX = Math.min(
 				lineX + lineW - 18,
-				lineX +
-					18 +
-					state.intentText.length * (layout.mode === 'mobile' ? 7.2 : 9.2),
+				lineX + 16 + Math.min(typedWidth, lineW - 34),
 			);
 			caret
 				.rect(caretX, lineY + 2, 2, layout.mode === 'mobile' ? 19 : 25)
 				.fill({ color: INK, alpha: 0.75 });
-			this.layers.ui.addChild(caret);
+			this.layers.intent.addChild(caret);
 		}
 		const sendSize = layout.mode === 'mobile' ? 52 : 68;
 		const send = this.sprite(NOTEBOOK_ASSETS.inkStampSend, {
@@ -827,7 +858,7 @@ export class IllustratedNotebookRenderer {
 		});
 		send.alpha = state.busy || !state.intentText.trim() ? 0.48 : 1;
 		this.makeButton(send, () => state.callbacks.onSend());
-		this.layers.ui.addChild(send);
+		this.layers.intent.addChild(send);
 	}
 
 	private drawLowerCards(

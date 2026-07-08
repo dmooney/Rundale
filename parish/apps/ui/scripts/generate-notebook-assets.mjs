@@ -162,7 +162,7 @@ class Bitmap {
 				}
 			}
 			xs.sort((a, b) => a - b);
-			for (let i = 0; i < xs.length; i += 2) {
+			for (let i = 0; i < xs.length - 1; i += 2) {
 				for (let x = Math.floor(xs[i]); x <= Math.ceil(xs[i + 1]); x += 1) {
 					this.blendPixel(x, y, color);
 				}
