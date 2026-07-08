@@ -24,6 +24,10 @@
 		draftForNotebookAction,
 		submitNotebookCommand,
 	} from '$lib/illustrated-notebook/command';
+	import {
+		sortNotebookHitTargetsForFocus,
+		type NotebookHitTarget,
+	} from '$lib/illustrated-notebook/interactions';
 	import { IllustratedNotebookRenderer } from '$lib/illustrated-notebook/renderer';
 	import type { NotebookTab } from '$lib/illustrated-notebook/types';
 
@@ -35,12 +39,17 @@
 	let intentText = $state('');
 	let inputFocused = $state(false);
 	let isSubmitting = $state(false);
-	let drawer = $state<NotebookTab | 'tools' | null>(null);
+	let drawer = $state<NotebookTab | 'tools' | 'time' | 'intents' | null>(null);
+	let hitTargets = $state<NotebookHitTarget[]>([]);
+	let focusedHitTargetId = $state<string | null>(null);
 
 	const selectedNpc = $derived<NpcInfo | null>(
 		$npcsHere.find((npc) => npc.real_name === selectedRealName) ??
 			$npcsHere[0] ??
 			null,
+	);
+	const focusableHitTargets = $derived(
+		sortNotebookHitTargetsForFocus(hitTargets),
 	);
 
 	$effect(() => {
@@ -77,8 +86,10 @@
 			callbacks: {
 				onAction: seedAction,
 				onFocusInput: focusInput,
+				onOpenActiveIntents: () => (drawer = 'intents'),
 				onOpenMap: () => fullMapOpen.set(true),
 				onOpenTab: openTab,
+				onOpenTime: () => (drawer = 'time'),
 				onSelectNpc: selectNpc,
 				onSend: () => void submitCurrent(),
 			},
@@ -90,7 +101,11 @@
 		void (async () => {
 			let next: IllustratedNotebookRenderer | null = null;
 			try {
-				next = new IllustratedNotebookRenderer(hostEl);
+				next = new IllustratedNotebookRenderer(hostEl, {
+					onHitTargetsChanged: (targets) => {
+						hitTargets = targets;
+					},
+				});
 				await next.init();
 				if (cancelled) {
 					next.destroy();
@@ -122,12 +137,14 @@
 		resizeObserver = null;
 		renderer?.destroy();
 		renderer = null;
+		hitTargets = [];
+		focusedHitTargetId = null;
 	});
 
 	function focusInput() {
-		queueMicrotask(() => {
+		window.setTimeout(() => {
 			inputEl?.focus({ preventScroll: true });
-		});
+		}, 0);
 	}
 
 	function selectNpc(realName: string) {
@@ -145,6 +162,21 @@
 			return;
 		}
 		drawer = tab;
+	}
+
+	function focusHitTarget(id: string) {
+		focusedHitTargetId = id;
+		renderer?.setFocusedTarget(id);
+	}
+
+	function blurHitTarget(id: string) {
+		if (focusedHitTargetId !== id) return;
+		focusedHitTargetId = null;
+		renderer?.setFocusedTarget(null);
+	}
+
+	function activateHitTarget(id: string) {
+		renderer?.activateTarget(id);
 	}
 
 	function handleKeydown(e: KeyboardEvent) {
@@ -235,6 +267,21 @@
 		onkeydown={handleKeydown}
 	/>
 
+	<div class="notebook-accessibility-targets" aria-label="Notebook controls">
+		{#each focusableHitTargets as target (target.id)}
+			<button
+				type="button"
+				class="notebook-accessibility-target"
+				disabled={target.disabled}
+				style={`left:${target.rect.x}px;top:${target.rect.y}px;width:${target.rect.width}px;height:${target.rect.height}px;`}
+				aria-label={target.label}
+				onfocus={() => focusHitTarget(target.id)}
+				onblur={() => blurHitTarget(target.id)}
+				onclick={() => activateHitTarget(target.id)}
+			></button>
+		{/each}
+	</div>
+
 	<button
 		class="tools-hotspot"
 		type="button"
@@ -279,6 +326,27 @@
 				</div>
 			{:else if drawer === 'rumours'}
 				<p>The parish has no pinned rumours in this notebook margin yet.</p>
+			{:else if drawer === 'time'}
+				<div class="journal-lines">
+					<p>
+						<strong>Clock</strong>:
+						{String($worldState?.hour ?? 0).padStart(2, '0')}:{String(
+							$worldState?.minute ?? 0,
+						).padStart(2, '0')}
+						{$worldState?.time_label ?? ''}
+					</p>
+					<p><strong>Weather</strong>: {$worldState?.weather ?? 'unknown'}</p>
+					<p><strong>Season</strong>: {$worldState?.season ?? 'unknown'}</p>
+				</div>
+			{:else if drawer === 'intents'}
+				<div class="journal-lines">
+					<p><strong>Current line</strong>: {intentText || '(none)'}</p>
+					<p>
+						<strong>Parish reply</strong>: {$streamingActive
+							? 'pending'
+							: 'idle'}
+					</p>
+				</div>
 			{:else if drawer === 'tools'}
 				<div class="tool-grid">
 					<button type="button" onclick={() => openTools('save')}
@@ -329,6 +397,22 @@
 		padding: 0;
 		border: 0;
 		opacity: 0;
+		pointer-events: none;
+	}
+
+	.notebook-accessibility-targets {
+		position: absolute;
+		inset: 0;
+		z-index: 4;
+		pointer-events: none;
+	}
+
+	.notebook-accessibility-target {
+		position: absolute;
+		padding: 0;
+		border: 0;
+		opacity: 0;
+		background: transparent;
 		pointer-events: none;
 	}
 

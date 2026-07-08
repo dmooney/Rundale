@@ -4,14 +4,21 @@ import {
 	Assets,
 	Container,
 	Graphics,
+	Rectangle,
 	Sprite,
 	Text,
 	Texture,
-	type FederatedPointerEvent,
 	type TextStyleOptions,
 } from 'pixi.js';
 import type { NotebookAction } from '$lib/notebook/actions';
 import { NOTEBOOK_ASSET_URLS, NOTEBOOK_ASSETS } from './assets';
+import {
+	activateNotebookTarget,
+	notebookHitTarget,
+	type NotebookHitTarget,
+	type NotebookHitTargetKind,
+	type NotebookTargetActivation,
+} from './interactions';
 import {
 	computeNotebookLayout,
 	NOTEBOOK_ACTIONS,
@@ -46,6 +53,11 @@ const ACTION_LABELS: Record<NotebookAction, string> = {
 	observe: 'Observe',
 	leave: 'Leave',
 };
+const FOCUS_INK = 0x5f2f24;
+
+export interface IllustratedNotebookRendererOptions {
+	onHitTargetsChanged?: (targets: NotebookHitTarget[]) => void;
+}
 
 const FALLBACK_SCENE: VisualScene = {
 	location_ids: [1, 15],
@@ -80,7 +92,10 @@ export class IllustratedNotebookRenderer {
 	private readonly textures = new Map<string, Texture>();
 	private scene: VisualScene = FALLBACK_SCENE;
 	private lastState: NotebookRenderState | null = null;
-	private lastLayout: NotebookLayout | null = null;
+	private hitTargets: NotebookHitTarget[] = [];
+	private hoveredTargetId: string | null = null;
+	private focusedTargetId: string | null = null;
+	private hoverRenderFrame: number | null = null;
 	private readonly layers = {
 		background: new Container(),
 		wash: new Container(),
@@ -88,9 +103,13 @@ export class IllustratedNotebookRenderer {
 		markers: new Container(),
 		ui: new Container(),
 		intent: new Container(),
+		treatment: new Container(),
 	};
 
-	constructor(private readonly host: HTMLElement) {}
+	constructor(
+		private readonly host: HTMLElement,
+		private readonly options: IllustratedNotebookRendererOptions = {},
+	) {}
 
 	async init(): Promise<void> {
 		const app = new Application();
@@ -111,11 +130,16 @@ export class IllustratedNotebookRenderer {
 			this.layers.markers,
 			this.layers.ui,
 			this.layers.intent,
+			this.layers.treatment,
 		);
 		await this.loadAssets();
 	}
 
 	destroy(): void {
+		if (this.hoverRenderFrame !== null) {
+			window.cancelAnimationFrame(this.hoverRenderFrame);
+			this.hoverRenderFrame = null;
+		}
 		this.clearAll();
 		this.app?.destroy(true);
 		this.app = null;
@@ -129,14 +153,9 @@ export class IllustratedNotebookRenderer {
 			this.host.clientHeight || this.app.renderer.height,
 		);
 		const layout = computeNotebookLayout(width, height);
-		if (this.canPatchIntentStrip(state, layout)) {
-			this.lastState = state;
-			this.drawIntentStrip(layout, state);
-			return;
-		}
 		this.lastState = state;
-		this.lastLayout = layout;
 		this.clearAll();
+		this.beginHitTargetPass();
 		this.drawBackground(width, height);
 		this.drawSceneWash(width, height);
 		this.drawExitLabels(layout, state);
@@ -147,28 +166,25 @@ export class IllustratedNotebookRenderer {
 		this.drawActionStamps(layout, state);
 		this.drawIntentStrip(layout, state);
 		this.drawLowerCards(layout, state);
+		this.emitHitTargetsChanged();
 	}
 
 	resize(): void {
 		if (this.lastState) this.render(this.lastState);
 	}
 
-	private canPatchIntentStrip(
-		state: NotebookRenderState,
-		layout: NotebookLayout,
-	): boolean {
-		const previous = this.lastState;
-		const previousLayout = this.lastLayout;
-		if (!previous || !previousLayout) return false;
-		return (
-			previousLayout.width === layout.width &&
-			previousLayout.height === layout.height &&
-			previousLayout.mode === layout.mode &&
-			previous.world === state.world &&
-			previous.map === state.map &&
-			previous.npcs === state.npcs &&
-			previous.selectedNpc === state.selectedNpc &&
-			previous.selectedRealName === state.selectedRealName
+	setFocusedTarget(id: string | null): void {
+		if (this.focusedTargetId === id) return;
+		this.focusedTargetId = id;
+		this.renderTargetTreatments();
+	}
+
+	activateTarget(id: string): boolean {
+		const callbacks = this.lastState?.callbacks;
+		if (!callbacks) return false;
+		return activateNotebookTarget(
+			this.hitTargets.find((target) => target.id === id),
+			callbacks,
 		);
 	}
 
@@ -219,14 +235,126 @@ export class IllustratedNotebookRenderer {
 		sprite.height = rect.height;
 	}
 
-	private makeButton<T extends Container | Sprite | Graphics>(
+	private beginHitTargetPass(): void {
+		this.hitTargets = [];
+	}
+
+	private emitHitTargetsChanged(): void {
+		this.options.onHitTargetsChanged?.(
+			this.hitTargets.map((target) => ({
+				...target,
+				rect: { ...target.rect },
+				activation: { ...target.activation } as NotebookTargetActivation,
+			})),
+		);
+	}
+
+	private target(
+		id: string,
+		kind: NotebookHitTargetKind,
+		label: string,
+		rect: NotebookRect,
+		activation: NotebookTargetActivation,
+		order: number,
+		disabled = false,
+	): NotebookHitTarget {
+		return notebookHitTarget({
+			id,
+			kind,
+			label,
+			rect,
+			activation,
+			order,
+			disabled,
+		});
+	}
+
+	private registerHitTarget(target: NotebookHitTarget): void {
+		if (this.hitTargets.some((existing) => existing.id === target.id)) return;
+		this.hitTargets.push(target);
+	}
+
+	private bindTarget<T extends Container | Sprite | Graphics>(
 		display: T,
-		callback: (event: FederatedPointerEvent) => void,
+		target: NotebookHitTarget,
+		hitArea?: Rectangle,
 	): T {
+		this.registerHitTarget(target);
 		display.eventMode = 'static';
-		display.cursor = 'pointer';
-		display.on('pointertap', callback);
+		display.cursor = target.disabled ? 'default' : 'pointer';
+		if (hitArea) display.hitArea = hitArea;
+		display.on('pointerdown', () => {
+			this.activateTarget(target.id);
+		});
+		display.on('pointerover', () => {
+			this.setHoveredTarget(target.id);
+		});
+		display.on('pointerout', () => {
+			if (this.hoveredTargetId === target.id) this.setHoveredTarget(null);
+		});
 		return display;
+	}
+
+	private setHoveredTarget(id: string | null): void {
+		if (this.hoveredTargetId === id) return;
+		this.hoveredTargetId = id;
+		if (this.hoverRenderFrame !== null) {
+			window.cancelAnimationFrame(this.hoverRenderFrame);
+		}
+		this.hoverRenderFrame = window.requestAnimationFrame(() => {
+			this.hoverRenderFrame = null;
+			this.renderTargetTreatments();
+		});
+	}
+
+	private renderTargetTreatments(): void {
+		if (!this.app) return;
+		this.clear(this.layers.treatment);
+		for (const target of this.hitTargets) {
+			this.drawTargetTreatment(target);
+		}
+	}
+
+	private treatmentRadius(target: NotebookHitTarget): number {
+		switch (target.kind) {
+			case 'send':
+				return 26;
+			case 'npc-marker':
+			case 'action-stamp':
+			case 'intent-strip':
+			case 'active-intents-card':
+				return 18;
+			case 'nearby-portrait':
+			case 'map-card':
+			case 'time-card':
+				return 16;
+			case 'tab':
+				return 12;
+		}
+	}
+
+	private drawTargetTreatment(target: NotebookHitTarget): void {
+		const focused = this.focusedTargetId === target.id;
+		const hovered = this.hoveredTargetId === target.id;
+		if (!focused && !hovered) return;
+		const rect = target.rect;
+		const pad = focused ? 5 : 3;
+		const radius = this.treatmentRadius(target);
+		const g = new Graphics();
+		g.roundRect(
+			rect.x - pad,
+			rect.y - pad,
+			rect.width + pad * 2,
+			rect.height + pad * 2,
+			radius,
+		)
+			.fill({ color: PAPER_LIGHT, alpha: focused ? 0.16 : 0.1 })
+			.stroke({
+				color: focused ? FOCUS_INK : INK,
+				width: focused ? 3 : 2,
+				alpha: focused ? 0.92 : 0.58,
+			});
+		this.layers.treatment.addChild(g);
 	}
 
 	private addText(
@@ -360,12 +488,28 @@ export class IllustratedNotebookRenderer {
 			marker.x = p.x;
 			marker.y = p.y + 10;
 			marker.scale.set(scale);
-			this.layers.markers.addChild(marker);
 			if (actor.actor.npc) {
-				this.makeButton(marker, () =>
-					state.callbacks.onSelectNpc(actor.actor.npc!.real_name),
+				const targetRect = {
+					x: marker.x - marker.width / 2 - 8,
+					y: marker.y - marker.height - 8,
+					width: marker.width + 16,
+					height: marker.height + 18,
+				};
+				const target = this.target(
+					`marker:${targetIdPart(actor.actor.npc.real_name)}`,
+					'npc-marker',
+					`Select marker for ${actor.actor.npc.name}`,
+					targetRect,
+					{
+						type: 'select-npc',
+						realName: actor.actor.npc.real_name,
+					},
+					100 + safeNpcIndex,
 				);
+				this.drawTargetTreatment(target);
+				this.bindTarget(marker, target);
 			}
+			this.layers.markers.addChild(marker);
 			if (selected && actor.actor.npc && layout.mode === 'desktop') {
 				const label = this.sprite(NOTEBOOK_ASSETS.paperExitLabel, {
 					x: p.x + 10,
@@ -521,14 +665,27 @@ export class IllustratedNotebookRenderer {
 		index: number,
 	): void {
 		const selected = npc.real_name === state.selectedRealName;
-		const frame = this.sprite(NOTEBOOK_ASSETS.nearbyPortraitCardFrame, {
+		const frameRect = {
 			x: x - size * 0.55,
 			y: y - size * 0.25,
 			width: size * 1.12,
 			height: size * 1.18,
-		});
+		};
+		const target = this.target(
+			`nearby:${targetIdPart(npc.real_name)}`,
+			'nearby-portrait',
+			`Select nearby person ${npc.name}`,
+			frameRect,
+			{ type: 'select-npc', realName: npc.real_name },
+			200 + index,
+		);
+		this.drawTargetTreatment(target);
+		const frame = this.sprite(
+			NOTEBOOK_ASSETS.nearbyPortraitCardFrame,
+			frameRect,
+		);
 		frame.alpha = selected ? 1 : 0.86;
-		this.makeButton(frame, () => state.callbacks.onSelectNpc(npc.real_name));
+		this.bindTarget(frame, target);
 		this.layers.ui.addChild(frame);
 		const portrait = this.sprite(
 			NOTEBOOK_ASSETS.portraits[index % NOTEBOOK_ASSETS.portraits.length],
@@ -539,7 +696,7 @@ export class IllustratedNotebookRenderer {
 				height: size * 0.72,
 			},
 		);
-		this.makeButton(portrait, () => state.callbacks.onSelectNpc(npc.real_name));
+		this.bindTarget(portrait, target);
 		this.layers.ui.addChild(portrait);
 		if (layout.mode === 'desktop') {
 			this.addText(
@@ -576,13 +733,23 @@ export class IllustratedNotebookRenderer {
 			this.layers.ui.addChild(rings);
 		}
 		layout.tabs.forEach((tabRect, i) => {
+			const tabName = TAB_LABELS[i];
+			const target = this.target(
+				`tab:${tabName}`,
+				'tab',
+				`Open ${titleCase(tabName)} notebook tab`,
+				tabRect,
+				{ type: 'open-tab', tab: tabName },
+				300 + i,
+			);
+			this.drawTargetTreatment(target);
 			const tab = this.sprite(NOTEBOOK_ASSETS.sideTabs[i], tabRect);
-			this.makeButton(tab, () => state.callbacks.onOpenTab(TAB_LABELS[i]));
+			this.bindTarget(tab, target);
 			this.layers.ui.addChild(tab);
 			if (layout.mode === 'desktop') {
 				this.addText(
 					this.layers.ui,
-					titleCase(TAB_LABELS[i]),
+					titleCase(tabName),
 					tabRect.x + 18,
 					tabRect.y + 19,
 					13,
@@ -748,10 +915,23 @@ export class IllustratedNotebookRenderer {
 	): void {
 		NOTEBOOK_ACTIONS.forEach((action, i) => {
 			const rect = layout.actionStamps[i];
+			const target = this.target(
+				`action:${action}`,
+				'action-stamp',
+				`${ACTION_LABELS[action]} action stamp`,
+				rect,
+				{ type: 'action', action },
+				400 + i,
+			);
+			this.drawTargetTreatment(target);
 			const group = new Container();
 			group.x = rect.x;
 			group.y = rect.y;
-			this.makeButton(group, () => state.callbacks.onAction(action));
+			this.bindTarget(
+				group,
+				target,
+				new Rectangle(0, 0, rect.width, rect.height),
+			);
 			this.layers.ui.addChild(group);
 			const frame = this.sprite(
 				NOTEBOOK_ASSETS.actionStampFrames[
@@ -764,6 +944,7 @@ export class IllustratedNotebookRenderer {
 					height: rect.height,
 				},
 			);
+			this.bindTarget(frame, target);
 			group.addChild(frame);
 			const iconSize = rect.width * 0.38;
 			group.addChild(
@@ -799,7 +980,16 @@ export class IllustratedNotebookRenderer {
 			NOTEBOOK_ASSETS.intentParchmentStrip,
 			layout.intentStrip,
 		);
-		this.makeButton(strip, () => state.callbacks.onFocusInput());
+		const inputTarget = this.target(
+			'intent-strip',
+			'intent-strip',
+			'Focus handwritten intent line',
+			layout.intentStrip,
+			{ type: 'focus-input' },
+			500,
+		);
+		this.drawTargetTreatment(inputTarget);
+		this.bindTarget(strip, inputTarget);
 		this.layers.intent.addChild(strip);
 		this.addText(
 			this.layers.intent,
@@ -856,8 +1046,24 @@ export class IllustratedNotebookRenderer {
 			width: sendSize,
 			height: sendSize,
 		});
-		send.alpha = state.busy || !state.intentText.trim() ? 0.48 : 1;
-		this.makeButton(send, () => state.callbacks.onSend());
+		const sendDisabled = state.busy || !state.intentText.trim();
+		const sendTarget = this.target(
+			'send',
+			'send',
+			'Send intent',
+			{
+				x: send.x,
+				y: send.y,
+				width: send.width,
+				height: send.height,
+			},
+			{ type: 'send' },
+			510,
+			sendDisabled,
+		);
+		send.alpha = sendDisabled ? 0.48 : 1;
+		this.drawTargetTreatment(sendTarget);
+		this.bindTarget(send, sendTarget);
 		this.layers.intent.addChild(send);
 	}
 
@@ -866,8 +1072,17 @@ export class IllustratedNotebookRenderer {
 		state: NotebookRenderState,
 	): void {
 		if (layout.mapCard) {
+			const target = this.target(
+				'map-card',
+				'map-card',
+				'Open parish map',
+				layout.mapCard,
+				{ type: 'open-map' },
+				600,
+			);
+			this.drawTargetTreatment(target);
 			const map = this.sprite(NOTEBOOK_ASSETS.mapCard, layout.mapCard);
-			this.makeButton(map, () => state.callbacks.onOpenMap());
+			this.bindTarget(map, target);
 			this.layers.ui.addChild(map);
 			this.layers.ui.addChild(
 				this.sprite(NOTEBOOK_ASSETS.mapIcon, {
@@ -887,9 +1102,18 @@ export class IllustratedNotebookRenderer {
 			);
 		}
 		if (layout.timeCard) {
-			this.layers.ui.addChild(
-				this.sprite(NOTEBOOK_ASSETS.timeCard, layout.timeCard),
+			const target = this.target(
+				'time-card',
+				'time-card',
+				'Open time details',
+				layout.timeCard,
+				{ type: 'open-time' },
+				610,
 			);
+			this.drawTargetTreatment(target);
+			const time = this.sprite(NOTEBOOK_ASSETS.timeCard, layout.timeCard);
+			this.bindTarget(time, target);
+			this.layers.ui.addChild(time);
 			this.layers.ui.addChild(
 				this.sprite(NOTEBOOK_ASSETS.timeIcon, {
 					x: layout.timeCard.x + 31,
@@ -919,12 +1143,21 @@ export class IllustratedNotebookRenderer {
 			);
 		}
 		if (layout.activeIntentsCard) {
-			this.layers.ui.addChild(
-				this.sprite(
-					NOTEBOOK_ASSETS.activeIntentsCard,
-					layout.activeIntentsCard,
-				),
+			const target = this.target(
+				'active-intents-card',
+				'active-intents-card',
+				'Open active intents',
+				layout.activeIntentsCard,
+				{ type: 'open-active-intents' },
+				620,
 			);
+			this.drawTargetTreatment(target);
+			const active = this.sprite(
+				NOTEBOOK_ASSETS.activeIntentsCard,
+				layout.activeIntentsCard,
+			);
+			this.bindTarget(active, target);
+			this.layers.ui.addChild(active);
 			this.addText(
 				this.layers.ui,
 				'Active Intents',
@@ -941,14 +1174,14 @@ export class IllustratedNotebookRenderer {
 				13,
 				{ fill: INK },
 			);
-			this.layers.ui.addChild(
-				this.sprite(NOTEBOOK_ASSETS.inkStampSend, {
-					x: layout.activeIntentsCard.x + layout.activeIntentsCard.width - 68,
-					y: layout.activeIntentsCard.y + 35,
-					width: 42,
-					height: 42,
-				}),
-			);
+			const stamp = this.sprite(NOTEBOOK_ASSETS.inkStampSend, {
+				x: layout.activeIntentsCard.x + layout.activeIntentsCard.width - 68,
+				y: layout.activeIntentsCard.y + 35,
+				width: 42,
+				height: 42,
+			});
+			this.bindTarget(stamp, target);
+			this.layers.ui.addChild(stamp);
 		}
 	}
 }
@@ -974,4 +1207,8 @@ function shortNpcName(name: string, max: number): string {
 		return shortText(words.slice(0, 3).join(' '), max);
 	}
 	return shortText(cleaned, max);
+}
+
+function targetIdPart(value: string): string {
+	return encodeURIComponent(value.trim().toLowerCase().replace(/\s+/g, '-'));
 }
