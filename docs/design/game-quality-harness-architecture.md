@@ -285,8 +285,8 @@ the new SHA shows the axis recover on the trend chart.
   output (mirror `reject_blank_capture`).
 - **Scaling seams (#11):** the run loop touches identity lookups / inference config / request
   tracing only via existing public IPC — review against `docs/agent/scaling-rules.md`.
-- **AC-first + proof (#10, #13):** start with `/task-start <task-id>` →
-  `.proofs/<task-id>/acceptance-criteria.md` **before code**. The natural proof bundle _is_ a
+- **Acceptance criteria + proof (#10):** write
+  `.proofs/<task-id>/acceptance-criteria.md` for the proof bundle. The natural proof bundle _is_ a
   live `parish-harness run` against a booted Tauri app (live gameplay transcript + screenshots
   - judge verdict) — satisfies the live-proof tier (drives `cargo run -p parish-tauri`). Map
     each criterion to a transcript line or DB row; `judge.md` with the three required lines;
@@ -326,7 +326,7 @@ shared `judge_bundle.py` queue-file protocol (that _is_ the Claude-Code drain me
 
 ## Verification (end-to-end)
 
-1. `/task-start game-quality-harness` → write `acceptance-criteria.md` (criteria: boots
+1. Write `acceptance-criteria.md` (criteria: boots
    Tauri; plays 100 turns; gates on injected hard-fail; produces 7 axis scores + ≥1 finding
    on a seeded-bad config; persists run+turns+artifacts; files a deduped issue in dry-run;
    dashboard lists the run + renders radviz + streams an in-progress run; timeline correlates

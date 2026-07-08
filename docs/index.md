@@ -264,7 +264,6 @@ Custom slash commands for common development workflows.
 | ----------------------- | ---------------------------------------------------------------------------------------------------------------- |
 | `/check`                | Quality gates — `just check` (pre-commit) and `just verify` (pre-push)                                           |
 | `/parish-engine [mode]` | Run the engine to observe behaviour — script harness, `prove`, `play`, `rubric`, `demo`, `browser`, `screenshot` |
-| `/task-start <task-id>` | Acceptance criteria + verification fixture before any code (mandatory first step)                                |
 | `/backlog <mode>`       | GitHub issue lifecycle — `triage`, `fix-one <issue#>`, or `drain`                                                |
 | `/techdebt [path]`      | Technical-debt loop; `crate-audit` mode for crate-layout refactors                                               |
 
