@@ -39,6 +39,6 @@ The `Weather` enum in `crates/parish-types/src/ids.rs` defines seven conditions:
 
 ## Source Modules
 
-- [`crates/parish-types/src/ids.rs`](../../crates/parish-types/src/ids.rs) — `Weather` enum definition
-- [`crates/parish-palette/src/lib.rs`](../../crates/parish-palette/src/lib.rs) — Time-of-day palette interpolation (no weather input)
-- [`crates/parish-npc/`](../../crates/parish-npc/) — Weather-aware NPC behavior
+- [`parish-types/src/ids.rs`](../../parish/crates/parish-types/src/ids.rs) — `Weather` enum definition
+- [`parish-palette/src/lib.rs`](../../parish/crates/parish-palette/src/lib.rs) — Time-of-day palette interpolation (no weather input)
+- [`parish-npc`](../../parish/crates/parish-npc/) — Weather-aware NPC behavior
