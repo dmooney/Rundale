@@ -28,6 +28,186 @@ fn assert_validation_failed(result: Result<()>) {
     );
 }
 
+// ── notebook person-art inputs ──────────────────────────────────────────
+
+fn minimal_art_direction(npcs: &str) -> String {
+    format!(
+        r#"{{
+    "schema_version": 1,
+    "global_style": {{
+        "style_reference": "illustrated notebook concept art only",
+        "source_assets": {{
+            "portrait_source": ["1024x1024 transparent-background PNG source"],
+            "marker_source": ["1024x1024 flat #ff00ff chroma-key PNG source"],
+            "runtime_derivatives": ["downsample transparent portrait and marker PNGs from approved source art"],
+            "sheet_policy": ["pack approved runtime assets into a shared atlas only after review"]
+        }},
+        "medium": ["ink-and-wash", "paper-native"],
+        "setting": ["County Roscommon", "Ireland", "1820"],
+        "palette": ["sepia ink", "muted watercolor"],
+        "common_constraints": ["no modern clothing", "no text labels"]
+    }},
+    "fallback": {{
+        "portrait_identity": {{
+            "apparent_age": "ambiguous adult",
+            "face_and_hair": "plain face, hair hidden under cap or shawl",
+            "clothing": "plain homespun outer layer",
+            "pose_expression": "neutral parish-neighbour expression",
+            "props": ["none"],
+            "palette_notes": ["muted browns"]
+        }},
+        "marker_identity": {{
+            "silhouette": "ordinary villager",
+            "pose": "standing",
+            "readable_props": ["cap or shawl"],
+            "tiny_readability_notes": ["do not imply a named NPC"]
+        }},
+        "avoid": ["distinctive props"],
+        "authoring_notes": ["fallback only"]
+    }},
+    "npcs": [{}]
+}}"#,
+        npcs
+    )
+}
+
+fn minimal_npc_art_direction(id: u32) -> String {
+    format!(
+        r#"{{
+        "npc_id": {},
+        "portrait_identity": {{
+            "apparent_age": "middle-aged",
+            "face_and_hair": "weathered face, dark hair under a kerchief",
+            "clothing": "plain wool coat and linen shirt",
+            "pose_expression": "steady, direct look",
+            "props": ["work tool"],
+            "palette_notes": ["earth browns"]
+        }},
+        "marker_identity": {{
+            "silhouette": "compact working villager",
+            "pose": "standing with work tool",
+            "readable_props": ["work tool"],
+            "tiny_readability_notes": ["large readable prop"]
+        }},
+        "avoid": ["modern clothing"],
+        "authoring_notes": ["test fixture"]
+    }}"#,
+        id
+    )
+}
+
+fn write_test_file(dir: &std::path::Path, name: &str, body: &str) -> std::path::PathBuf {
+    let path = dir.join(name);
+    std::fs::write(&path, body).expect("write fixture");
+    path
+}
+
+#[test]
+fn art_inputs_export_writes_one_input_per_npc() {
+    let tmp = tempfile::tempdir().unwrap();
+    let npcs = write_test_file(
+        tmp.path(),
+        "npcs.json",
+        r#"{"npcs":[
+            {"id":1,"name":"Bridget","brief_description":"a farmer with muddy boots","age":40,"occupation":"Farmer","personality":"A practical farmer.","home":10,"workplace":10,"mood":"busy","relationships":[],"knowledge":[]}
+        ]}"#,
+    );
+    let world = write_test_file(
+        tmp.path(),
+        "world.json",
+        r#"{"locations":[{"id":10,"name":"Murphy's Farm","description_template":"A working farm."}]}"#,
+    );
+    let art = write_test_file(
+        tmp.path(),
+        "art.json",
+        &minimal_art_direction(&minimal_npc_art_direction(1)),
+    );
+    let out = tmp.path().join("out.json");
+
+    let count = export_art_inputs(&npcs, &world, &art, &out).expect("export art inputs");
+    assert_eq!(count, 1);
+
+    let value: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string(out).unwrap()).unwrap();
+    assert_eq!(value["npcs"].as_array().unwrap().len(), 1);
+    assert_eq!(value["npcs"][0]["name"], "Bridget");
+    assert!(
+        value["npcs"][0]["portrait_prompt"]
+            .as_str()
+            .unwrap()
+            .contains("Murphy's Farm"),
+        "portrait prompt should include merged world context"
+    );
+    assert!(
+        value["npcs"][0]["portrait_prompt"]
+            .as_str()
+            .unwrap()
+            .contains("transparent-background PNG source"),
+        "portrait prompt should include source canvas constraints"
+    );
+}
+
+#[test]
+fn art_inputs_export_requires_art_direction_for_every_npc() {
+    let tmp = tempfile::tempdir().unwrap();
+    let npcs = write_test_file(
+        tmp.path(),
+        "npcs.json",
+        r#"{"npcs":[
+            {"id":1,"name":"Bridget","age":40,"occupation":"Farmer","personality":"A practical farmer.","home":10,"mood":"busy","relationships":[],"knowledge":[]},
+            {"id":2,"name":"Cormac","age":50,"occupation":"Miller","personality":"A calculating miller.","home":10,"mood":"guarded","relationships":[],"knowledge":[]}
+        ]}"#,
+    );
+    let world = write_test_file(
+        tmp.path(),
+        "world.json",
+        r#"{"locations":[{"id":10,"name":"The Mill","description_template":"A sturdy mill."}]}"#,
+    );
+    let art = write_test_file(
+        tmp.path(),
+        "art.json",
+        &minimal_art_direction(&minimal_npc_art_direction(1)),
+    );
+
+    let err = export_art_inputs(&npcs, &world, &art, &tmp.path().join("out.json"))
+        .expect_err("missing NPC art direction must fail");
+    assert!(
+        err.to_string()
+            .contains("missing art direction for NPC id(s): 2"),
+        "{err}"
+    );
+}
+
+#[test]
+fn art_inputs_export_rejects_unknown_art_direction_id() {
+    let tmp = tempfile::tempdir().unwrap();
+    let npcs = write_test_file(
+        tmp.path(),
+        "npcs.json",
+        r#"{"npcs":[
+            {"id":1,"name":"Bridget","age":40,"occupation":"Farmer","personality":"A practical farmer.","home":10,"mood":"busy","relationships":[],"knowledge":[]}
+        ]}"#,
+    );
+    let world = write_test_file(
+        tmp.path(),
+        "world.json",
+        r#"{"locations":[{"id":10,"name":"Murphy's Farm","description_template":"A working farm."}]}"#,
+    );
+    let art = write_test_file(
+        tmp.path(),
+        "art.json",
+        &minimal_art_direction(&minimal_npc_art_direction(99)),
+    );
+
+    let err = export_art_inputs(&npcs, &world, &art, &tmp.path().join("out.json"))
+        .expect_err("unknown NPC art direction must fail");
+    assert!(
+        err.to_string()
+            .contains("art direction references unknown NPC id 99"),
+        "{err}"
+    );
+}
+
 // ── weighted_occupation (TD-019) ─────────────────────────────────────────
 
 #[test]

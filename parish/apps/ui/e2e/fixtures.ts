@@ -48,16 +48,20 @@ export async function installTauriMock(
 	timeOfDay: string = 'morning',
 	options?: {
 		debugSnapshot?: unknown;
+		mapData?: unknown;
+		npcs?: unknown;
 		saveFiles?: unknown;
 		saveState?: unknown;
+		snapshot?: unknown;
+		uiConfig?: unknown;
 	},
 ): Promise<void> {
 	await installTileRouteMock(page);
-	const snapshot = SNAPSHOTS[timeOfDay];
+	const snapshot = options?.snapshot ?? SNAPSHOTS[timeOfDay];
 	const palette = PALETTES.default;
-	const mapData = MAP_DATA;
-	const npcs = NPCS;
-	const uiConfig = UI_CONFIG;
+	const mapData = options?.mapData ?? MAP_DATA;
+	const npcs = options?.npcs ?? NPCS;
+	const uiConfig = options?.uiConfig ?? UI_CONFIG;
 	const debugSnapshot = options?.debugSnapshot ?? DEBUG_SNAPSHOT;
 	const saveFiles = options?.saveFiles ?? SAVE_FILES;
 	const saveState = options?.saveState ?? SAVE_STATE;

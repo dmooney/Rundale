@@ -1,5 +1,50 @@
 export const NOTEBOOK_ASSET_BASE = '/rundale/notebook-ui/';
 
+export interface NotebookPersonArtManifestEntry {
+	real_name?: string;
+	display_name: string;
+	npc_id?: number;
+	portrait: string;
+	marker: string;
+	approval_status: string;
+	source_config?: string;
+	review_notes?: string;
+}
+
+export interface NotebookPersonArtManifest {
+	source_config: string;
+	portrait_prompt: string;
+	marker_prompt: string;
+	contact_sheet: string;
+	contact_sheet_html: string;
+	fallback: NotebookPersonArtManifestEntry;
+	people: NotebookPersonArtManifestEntry[];
+}
+
+export interface NotebookAssetManifest {
+	name: string;
+	version: number;
+	source: string;
+	assets: {
+		personArt?: NotebookPersonArtManifest;
+		portraits?: string[];
+		npcMarkers?: string[];
+	};
+}
+
+export interface ResolvedNotebookPersonArt {
+	displayName: string;
+	portrait: string;
+	marker: string;
+	fallback: boolean;
+}
+
+export interface LoadedNotebookPersonArt {
+	byName: Map<string, ResolvedNotebookPersonArt>;
+	fallback: ResolvedNotebookPersonArt;
+	assetUrls: string[];
+}
+
 export const NOTEBOOK_ASSETS = {
 	manifest: `${NOTEBOOK_ASSET_BASE}asset-manifest.json`,
 	visualScenes: `${NOTEBOOK_ASSET_BASE}visual-scenes.json`,
@@ -76,3 +121,72 @@ export const NOTEBOOK_ASSET_URLS = [
 	NOTEBOOK_ASSETS.playerMarker,
 	...NOTEBOOK_ASSETS.npcMarkers,
 ];
+
+export function notebookAssetUrl(path: string): string {
+	if (/^(?:https?:)?\/\//.test(path) || path.startsWith('/')) return path;
+	return `${NOTEBOOK_ASSET_BASE}${path}`;
+}
+
+export function normalizeNotebookPersonName(value: string): string {
+	return value
+		.normalize('NFKD')
+		.replace(/[\u0300-\u036f]/g, '')
+		.trim()
+		.toLowerCase()
+		.replace(/\s+/g, ' ');
+}
+
+function approved(
+	entry: NotebookPersonArtManifestEntry | undefined,
+): entry is NotebookPersonArtManifestEntry {
+	return entry?.approval_status === 'approved';
+}
+
+function resolvedEntry(
+	entry: NotebookPersonArtManifestEntry,
+	fallback: boolean,
+): ResolvedNotebookPersonArt {
+	return {
+		displayName: entry.display_name,
+		portrait: notebookAssetUrl(entry.portrait),
+		marker: notebookAssetUrl(entry.marker),
+		fallback,
+	};
+}
+
+export function loadNotebookPersonArt(
+	manifest: NotebookAssetManifest | null | undefined,
+): LoadedNotebookPersonArt {
+	const personArt = manifest?.assets.personArt;
+	const fallback = approved(personArt?.fallback)
+		? resolvedEntry(personArt.fallback, true)
+		: {
+				displayName: 'Unknown parish neighbour',
+				portrait: NOTEBOOK_ASSETS.portraits[0],
+				marker: NOTEBOOK_ASSETS.npcMarkers[0],
+				fallback: true,
+			};
+	const byName = new Map<string, ResolvedNotebookPersonArt>();
+	const assetUrls = new Set([fallback.portrait, fallback.marker]);
+	for (const entry of personArt?.people ?? []) {
+		if (!approved(entry) || !entry.real_name) continue;
+		const resolved = resolvedEntry(entry, false);
+		byName.set(normalizeNotebookPersonName(entry.real_name), resolved);
+		assetUrls.add(resolved.portrait);
+		assetUrls.add(resolved.marker);
+	}
+	return { byName, fallback, assetUrls: [...assetUrls] };
+}
+
+export function resolveNotebookPersonArt(
+	personArt: LoadedNotebookPersonArt | null | undefined,
+	realName: string | null | undefined,
+): ResolvedNotebookPersonArt {
+	if (!personArt || !realName) {
+		return loadNotebookPersonArt(null).fallback;
+	}
+	return (
+		personArt.byName.get(normalizeNotebookPersonName(realName)) ??
+		personArt.fallback
+	);
+}

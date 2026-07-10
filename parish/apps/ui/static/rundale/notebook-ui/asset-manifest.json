@@ -1,7 +1,7 @@
 {
 	"name": "rundale-illustrated-notebook-ui",
-	"version": 1,
-	"source": "Generated/coded bitmap runtime kit. Concept art is visual reference only.",
+	"version": 2,
+	"source": "Generated bitmap runtime kit plus approved notebook person art. Concept art is visual reference only.",
 	"assets": {
 		"scenePlate": "scene-crossroads.png",
 		"topRibbon": "top-ribbon.png",
@@ -32,10 +32,14 @@
 		"nearbyPortraitStrip": "nearby-portrait-strip.png",
 		"nearbyPortraitCardFrame": "nearby-portrait-card-frame.png",
 		"portraits": [
-			"portrait-placeholder-1.png",
-			"portrait-placeholder-2.png",
-			"portrait-placeholder-3.png",
-			"portrait-placeholder-4.png"
+			"people/portrait-brigid-ni-fhatharta.png",
+			"people/portrait-sean-ruadh-kelly.png",
+			"people/portrait-peig-hannigan.png",
+			"people/portrait-roisin-connolly.png",
+			"people/portrait-aoife-brennan.png",
+			"people/portrait-mick-flanagan.png",
+			"people/portrait-niamh-darcy.png",
+			"people/portrait-unknown-neighbour.png"
 		],
 		"activeIntentsCard": "active-intents-card.png",
 		"mapCard": "map-card.png",
@@ -45,6 +49,101 @@
 		"paperExitLabel": "paper-exit-label.png",
 		"npcSelectionRing": "npc-selection-ring.png",
 		"playerMarker": "player-marker.png",
-		"npcMarkers": ["npc-marker-1.png", "npc-marker-2.png", "npc-marker-3.png"]
+		"npcMarkers": [
+			"people/marker-brigid-ni-fhatharta.png",
+			"people/marker-sean-ruadh-kelly.png",
+			"people/marker-peig-hannigan.png",
+			"people/marker-roisin-connolly.png",
+			"people/marker-aoife-brennan.png",
+			"people/marker-mick-flanagan.png",
+			"people/marker-niamh-darcy.png",
+			"people/marker-unknown-neighbour.png"
+		],
+		"personArt": {
+			"source_config": "parish/apps/ui/art/notebook-person-art/approved-cast-v1.json",
+			"portrait_prompt": "parish/apps/ui/art/notebook-person-art/prompts/portraits-v1.md",
+			"marker_prompt": "parish/apps/ui/art/notebook-person-art/prompts/markers-v1.md",
+			"contact_sheet": "person-art-contact-sheet.png",
+			"contact_sheet_html": "person-art-contact-sheet.html",
+			"fallback": {
+				"display_name": "Unknown parish neighbour",
+				"portrait": "people/portrait-unknown-neighbour.png",
+				"marker": "people/marker-unknown-neighbour.png",
+				"approval_status": "approved",
+				"review_notes": "Fallback art is intentionally identity-ambiguous but production quality; used only when an NPC has no approved entry."
+			},
+			"people": [
+				{
+					"real_name": "Brigid Ni Fhatharta",
+					"display_name": "Brigid Ni Fhatharta",
+					"npc_id": 19,
+					"portrait": "people/portrait-brigid-ni-fhatharta.png",
+					"marker": "people/marker-brigid-ni-fhatharta.png",
+					"approval_status": "approved",
+					"source_config": "parish/apps/ui/art/notebook-person-art/approved-cast-v1.json",
+					"review_notes": "Sharp-eyed older healer with linen cap, dark shawl, and herb cue."
+				},
+				{
+					"real_name": "Sean Ruadh Kelly",
+					"display_name": "Sean Ruadh Kelly",
+					"npc_id": 21,
+					"portrait": "people/portrait-sean-ruadh-kelly.png",
+					"marker": "people/marker-sean-ruadh-kelly.png",
+					"approval_status": "approved",
+					"source_config": "parish/apps/ui/art/notebook-person-art/approved-cast-v1.json",
+					"review_notes": "Lean red-haired labourer with worn coat and tense stance."
+				},
+				{
+					"real_name": "Peig Hannigan",
+					"display_name": "Peig Hannigan",
+					"npc_id": 22,
+					"portrait": "people/portrait-peig-hannigan.png",
+					"marker": "people/marker-peig-hannigan.png",
+					"approval_status": "approved",
+					"source_config": "parish/apps/ui/art/notebook-person-art/approved-cast-v1.json",
+					"review_notes": "Small sharp-eyed older widow wrapped in a dark shawl."
+				},
+				{
+					"real_name": "Roisin Connolly",
+					"display_name": "Roisin Connolly",
+					"npc_id": 4,
+					"portrait": "people/portrait-roisin-connolly.png",
+					"marker": "people/marker-roisin-connolly.png",
+					"approval_status": "approved",
+					"source_config": "parish/apps/ui/art/notebook-person-art/approved-cast-v1.json",
+					"review_notes": "Composed shopkeeper with neat hair and practical dark dress."
+				},
+				{
+					"real_name": "Aoife Brennan",
+					"display_name": "Aoife Brennan",
+					"npc_id": 6,
+					"portrait": "people/portrait-aoife-brennan.png",
+					"marker": "people/marker-aoife-brennan.png",
+					"approval_status": "approved",
+					"source_config": "parish/apps/ui/art/notebook-person-art/approved-cast-v1.json",
+					"review_notes": "Young teacher with alert posture and period shawl."
+				},
+				{
+					"real_name": "Mick Flanagan",
+					"display_name": "Mick Flanagan",
+					"npc_id": 7,
+					"portrait": "people/portrait-mick-flanagan.png",
+					"marker": "people/marker-mick-flanagan.png",
+					"approval_status": "approved",
+					"source_config": "parish/apps/ui/art/notebook-person-art/approved-cast-v1.json",
+					"review_notes": "Grey-haired older man in plain coat, watchful without uniform insignia."
+				},
+				{
+					"real_name": "Niamh Darcy",
+					"display_name": "Niamh Darcy",
+					"npc_id": 8,
+					"portrait": "people/portrait-niamh-darcy.png",
+					"marker": "people/marker-niamh-darcy.png",
+					"approval_status": "approved",
+					"source_config": "parish/apps/ui/art/notebook-person-art/approved-cast-v1.json",
+					"review_notes": "Young publican's daughter in apron, bright and restless."
+				}
+			]
+		}
 	}
 }

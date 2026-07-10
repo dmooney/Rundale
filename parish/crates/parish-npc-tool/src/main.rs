@@ -1,3 +1,4 @@
+mod art_inputs;
 mod catalog;
 mod db;
 mod generate;
@@ -9,6 +10,7 @@ mod validate;
 // Bring the split command implementations into the crate root so `main()`
 // and the `#[cfg(test)] mod tests` (via `use super::*`) keep their existing
 // unqualified call sites after the TD-028 module split.
+use art_inputs::export_art_inputs;
 use db::{open_db, resolve_default_db};
 use generate::{elaborate_parish, generate_parish, generate_world};
 use import_export::{export_npcs, import_npcs};
@@ -133,6 +135,23 @@ enum Command {
         #[arg(long)]
         input: PathBuf,
     },
+    /// Export generator-ready notebook person-art inputs by merging NPC data,
+    /// world/location context, and a reviewed art-direction supplement.
+    /// This command operates on JSON files and ignores `--db`.
+    ArtInputs {
+        /// Path to the source `npcs.json` catalogue.
+        #[arg(long)]
+        npcs: PathBuf,
+        /// Path to the source `world.json` file.
+        #[arg(long)]
+        world: PathBuf,
+        /// Path to the reviewed NPC art-direction supplement.
+        #[arg(long)]
+        art_direction: PathBuf,
+        /// Path to write the merged art-input dataset.
+        #[arg(long)]
+        output: PathBuf,
+    },
 }
 
 #[derive(Debug, Clone, Copy, ValueEnum)]
@@ -209,6 +228,16 @@ fn main() -> Result<()> {
             println!("ok: {} NPCs, no integrity errors", file.npcs.len());
             return Ok(());
         }
+        Command::ArtInputs {
+            npcs,
+            world,
+            art_direction,
+            output,
+        } => {
+            let n = export_art_inputs(npcs, world, art_direction, output)?;
+            println!("wrote {} NPC art inputs to {}", n, output.display());
+            return Ok(());
+        }
         _ => {}
     }
 
@@ -242,7 +271,8 @@ fn main() -> Result<()> {
         // Handled before the DB was opened (early `return` above).
         Command::SplitCatalog { .. }
         | Command::JoinCatalog { .. }
-        | Command::ValidateCatalog { .. } => unreachable!("catalogue commands dispatched earlier"),
+        | Command::ValidateCatalog { .. }
+        | Command::ArtInputs { .. } => unreachable!("file commands dispatched earlier"),
     }
 }
 

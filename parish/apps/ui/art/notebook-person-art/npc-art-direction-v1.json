@@ -1,0 +1,791 @@
+{
+	"schema_version": 1,
+	"global_style": {
+		"style_reference": "Illustrated Parish Notebook concept art only. Definitive surface split: the actual world/scene layer is the painted watercolor surface; UI portraits, notebook tabs, notes, icons, and other UI furniture are uncolored pen-and-ink line art on paper with minimal value shading. In-world NPC markers may use restrained watercolor because they live on the painted world surface. Do not use prior experimental portrait sheets, marker concept sheets, procedural busts, or unrelated graphics cycles as authority.",
+		"source_assets": {
+			"portrait_source": [
+				"1024x1024 transparent-background PNG source",
+				"portrait line art occupies roughly 45 percent of source height",
+				"centered head-and-shoulders drawing with generous transparent padding on all sides",
+				"top of hair/head covering and shoulders fully visible",
+				"no baked parchment, paper texture, wash, card, border, label, or UI furniture"
+			],
+			"marker_source": [
+				"1024x1024 flat #ff00ff chroma-key PNG source",
+				"full-body figure occupies roughly 45 percent of source height",
+				"centered figure with feet fully visible and generous flat background margins",
+				"one single static in-world marker pose per NPC for this slice",
+				"no ground shadow, floor plane, label, border, or extra figure"
+			],
+			"runtime_derivatives": [
+				"approved portrait sources are converted to transparent PNGs and composited over UI-controlled parchment",
+				"selected-person portrait target is approximately 99x112 px on desktop and 58x66 px on mobile",
+				"nearby-rail portrait target is approximately 51x57 px on desktop and 36x41 px on mobile",
+				"approved marker sources are chroma-keyed to transparent PNGs and depth-scaled by the notebook renderer"
+			],
+			"sheet_policy": [
+				"do not require a per-character animation sprite sheet for the current marker slice",
+				"pack approved static runtime portraits and markers into a shared runtime atlas only after review if renderer performance needs it",
+				"add per-NPC pose or facing sheets only when gameplay explicitly needs animated movement, directional facing, or state-specific work poses"
+			]
+		},
+		"medium": [
+			"tiny uncolored pen-and-ink notebook portrait",
+			"hand-drawn watercolor in-world game marker",
+			"sepia or graphite linework with minimal value shading for UI art",
+			"transparent portrait line art composited over UI-controlled paper",
+			"paper-native texture supplied by the UI, not baked into portrait art"
+		],
+		"setting": [
+			"Rundale",
+			"rural County Roscommon",
+			"Ireland",
+			"1820",
+			"ordinary parish life",
+			"period-appropriate work clothing"
+		],
+		"palette": [
+			"concept palette anchor: parchment #deccae, #d7c6a7, #c7b393",
+			"concept palette anchor: sepia/graphite ink #36362e, #454339, #5c5747",
+			"concept palette anchor: olive-grey and weathered tan #6e634e, #807661, #9e8e75, #b5a285",
+			"concept palette anchor: umber/shadow #4c4c40, #766c56",
+			"UI portraits: transparent background plus sepia or graphite ink only",
+			"UI portraits: no colored wash or color fill",
+			"UI portraits: minimal monochrome value shading only",
+			"world/marker art: restrained watercolor only where the asset sits in the painted world",
+			"world/marker art: muted wool grey, bog green, dull brick red, peat brown, faded indigo only as subordinate accents",
+			"avoid saturated primaries; #ff00ff is allowed only as marker chroma key"
+		],
+		"common_constraints": [
+			"identity-specific named NPC, not a generic color variant",
+			"readable at Nearby rail portrait size and tiny in-scene marker size",
+			"NPC UI portraits must be uncolored pen-and-ink line art with minimal shading; no colored wash, no color fill, no painted clothing blocks",
+			"NPC UI portraits must be transparent-background assets so the notebook UI controls the paper surface",
+			"no modern clothing",
+			"no Victorian bustle, top hat, bowler, police uniform, photography-era styling, fantasy costume, weapon focus, text, labels, icons, decorative border, watermark, or abstract placeholder bust",
+			"show dignity, warmth, and specificity without caricature"
+		]
+	},
+	"fallback": {
+		"portrait_identity": {
+			"apparent_age": "ambiguous adult",
+			"face_and_hair": "plain parish-neighbour face, hair mostly hidden by a soft cap or simple shawl, no strong likeness cues",
+			"clothing": "plain homespun outer layer, linen at the neck, muted cap or shawl",
+			"pose_expression": "neutral, approachable, unspecific",
+			"props": ["none, or one indistinct small bundle"],
+			"palette_notes": [
+				"describe clothing with ink texture and line weight only",
+				"use paper tone plus sepia/graphite value",
+				"no colored wash"
+			]
+		},
+		"marker_identity": {
+			"silhouette": "ordinary villager silhouette with cap or shawl and no distinctive trade prop",
+			"pose": "small standing figure, slightly turned, hands near body",
+			"readable_props": ["cap or shawl"],
+			"tiny_readability_notes": [
+				"must read as a production villager, but must not be confusable with any named NPC",
+				"avoid strong age, occupation, or family cues"
+			]
+		},
+		"avoid": [
+			"distinctive named-NPC props",
+			"blank mannequin",
+			"coded placeholder face",
+			"single-color cloak variant"
+		],
+		"authoring_notes": [
+			"Fallback exists only for NPCs without approved art at runtime; named NPCs still require their own art direction."
+		]
+	},
+	"npcs": [
+		{
+			"npc_id": 1,
+			"npc_name": "Padraig Darcy",
+			"portrait_identity": {
+				"apparent_age": "late fifties",
+				"face_and_hair": "weathered broad face, heavy brows, greying sideburns, short rough beard shadow or trimmed grey whiskers",
+				"clothing": "rolled linen sleeves, dark worn waistcoat, plain neckcloth, publican's apron hinted low in frame",
+				"pose_expression": "gruff but warm, looking up from work as if ready with dry advice",
+				"props": ["bar rag", "small pewter cup", "key ring"],
+				"palette_notes": ["dark waistcoat", "warm pub umber", "turf-smoke grey"]
+			},
+			"marker_identity": {
+				"silhouette": "stocky older publican with squared shoulders and waistcoat",
+				"pose": "one hand at bar-rag or cup, grounded behind-the-bar stance",
+				"readable_props": ["small cup", "bar rag", "key ring"],
+				"tiny_readability_notes": [
+					"stocky shape plus cup/rag should distinguish him from other older men",
+					"do not rely on facial detail alone"
+				]
+			},
+			"avoid": [
+				"modern bartender",
+				"stage-Irish drunk caricature",
+				"large foaming beer stein",
+				"top hat"
+			],
+			"authoring_notes": [
+				"Canonical data gives age, publican role, pub location, and behind-the-bar cue, but not stable hair, clothing, or marker silhouette."
+			]
+		},
+		{
+			"npc_id": 2,
+			"npc_name": "Siobhan Murphy",
+			"portrait_identity": {
+				"apparent_age": "mid forties",
+				"face_and_hair": "sun-browned practical face, steady eyes, hair tucked under a dark kerchief",
+				"clothing": "plain wool dress or bodice, sturdy apron, muddy hem, work shawl pinned tight",
+				"pose_expression": "determined and no-nonsense, slightly forward posture",
+				"props": [
+					"small farm ledger",
+					"milk pail handle",
+					"folded field cloth"
+				],
+				"palette_notes": [
+					"field brown",
+					"dark kerchief",
+					"muted green-grey shawl"
+				]
+			},
+			"marker_identity": {
+				"silhouette": "sturdy farm woman with kerchief, apron, and broad practical stance",
+				"pose": "standing with one hand on hip and one near a pail or farm tool",
+				"readable_props": ["pail", "muddy apron"],
+				"tiny_readability_notes": [
+					"kerchief and pail must read at rail size",
+					"avoid making her only a generic middle-aged woman"
+				]
+			},
+			"avoid": [
+				"glamour portrait",
+				"modern rubber boots",
+				"cartoon farmer stereotype"
+			],
+			"authoring_notes": [
+				"Canonical data is weak visually: it says middle-aged farmer, schedules and farm context add work cues, but appearance needs supplement."
+			]
+		},
+		{
+			"npc_id": 3,
+			"npc_name": "Fr. Declan Tierney",
+			"portrait_identity": {
+				"apparent_age": "early sixties",
+				"face_and_hair": "kind lined face, silver hair receding at the temples, calm thoughtful eyes",
+				"clothing": "plain black priest's coat or cassock-like dark clerical dress, simple white collar or neckcloth",
+				"pose_expression": "contemplative, gentle, slightly stooped from walking the parish",
+				"props": ["small worn prayer book", "plain rosary tucked in hand"],
+				"palette_notes": ["soft black", "linen white", "quiet sepia shadows"]
+			},
+			"marker_identity": {
+				"silhouette": "slender elderly priest in dark long coat",
+				"pose": "walking or standing with prayer book held close",
+				"readable_props": ["small dark book", "white collar mark"],
+				"tiny_readability_notes": [
+					"dark long coat plus book should identify priest without ornate vestments"
+				]
+			},
+			"avoid": [
+				"bishop mitre",
+				"ornate vestments outside Mass",
+				"Victorian clerical costume",
+				"saint iconography"
+			],
+			"authoring_notes": [
+				"Canonical data says priest and church schedule but only brief_description 'a priest'; production identity needs clothing and marker details."
+			]
+		},
+		{
+			"npc_id": 4,
+			"npc_name": "Roisin Connolly",
+			"portrait_identity": {
+				"apparent_age": "late thirties",
+				"face_and_hair": "sharp attentive face, dark hair pinned neatly back, alert eyes that miss little",
+				"clothing": "respectable practical dark dress, tidy shawl at shoulders, shop apron hinted at the lower edge",
+				"pose_expression": "composed and watchful behind the counter",
+				"props": [
+					"small ledger",
+					"pencil stub",
+					"folded cloth or candle packet"
+				],
+				"palette_notes": ["dark dress", "shop ochre", "muted red-brown accent"]
+			},
+			"marker_identity": {
+				"silhouette": "neat shopkeeper with upright posture and ledger held close",
+				"pose": "one hand on ledger, slight turn as if tracking customers",
+				"readable_props": ["ledger", "counter packet"],
+				"tiny_readability_notes": [
+					"ledger block and neat pinned-hair shape should read clearly"
+				]
+			},
+			"avoid": [
+				"modern retail clerk",
+				"cash register",
+				"polished Victorian shop fashion"
+			],
+			"authoring_notes": [
+				"Canonical data gives shopkeeper role and counter cue, but the usable portrait/marker identity is supplied here."
+			]
+		},
+		{
+			"npc_id": 5,
+			"npc_name": "Tommy O'Brien",
+			"portrait_identity": {
+				"apparent_age": "around seventy",
+				"face_and_hair": "deeply lined storyteller's face, white stubble or thin white whiskers, bright amused eyes under a battered cap",
+				"clothing": "old wool coat, patched waistcoat, soft cap, weathered scarf",
+				"pose_expression": "reflective and lively, about to start a story",
+				"props": ["walking stick", "clay pipe unlit or tucked away"],
+				"palette_notes": ["old wool grey", "peat brown", "cap shadow"]
+			},
+			"marker_identity": {
+				"silhouette": "stooped elderly man with cap and walking stick",
+				"pose": "leaning on stick, one hand raised as if telling a tale",
+				"readable_props": ["walking stick", "battered cap"],
+				"tiny_readability_notes": [
+					"stick plus storyteller hand gesture distinguishes him from Padraig and Mick"
+				]
+			},
+			"avoid": ["wizard-like old man", "fantasy cloak", "comic drunk elder"],
+			"authoring_notes": [
+				"Canonical data gives age, storyteller role, and retired farmer context; art supplement fixes stable silhouette."
+			]
+		},
+		{
+			"npc_id": 6,
+			"npc_name": "Aoife Brennan",
+			"portrait_identity": {
+				"apparent_age": "late twenties",
+				"face_and_hair": "thoughtful young face, dark hair pinned loosely with a few escaping strands, intent eyes",
+				"clothing": "plain modest dress, practical shawl or short jacket, linen collar",
+				"pose_expression": "passionate and attentive, as if about to explain a lesson",
+				"props": ["small slate", "chalk", "thin school book"],
+				"palette_notes": [
+					"slate grey",
+					"soft blue-grey shawl",
+					"warm parchment"
+				]
+			},
+			"marker_identity": {
+				"silhouette": "young teacher with small slate held against chest",
+				"pose": "upright, gesturing with chalk or slate",
+				"readable_props": ["slate", "chalk"],
+				"tiny_readability_notes": ["slate rectangle is the key marker cue"]
+			},
+			"avoid": [
+				"modern schoolteacher",
+				"secret-school outlaw styling",
+				"large open book hiding body"
+			],
+			"authoring_notes": [
+				"World prompt clarifies hedge schools are open in 1820; do not show secretive outlaw education cues."
+			]
+		},
+		{
+			"npc_id": 7,
+			"npc_name": "Mick Flanagan",
+			"portrait_identity": {
+				"apparent_age": "mid sixties",
+				"face_and_hair": "square watchful face, grey moustache, close-cropped grey hair, wary eyes",
+				"clothing": "old dark civilian coat, worn waistcoat, plain shirt, no uniform",
+				"pose_expression": "watchful retired constable, measuring the room",
+				"props": ["walking cane", "small folded notebook"],
+				"palette_notes": [
+					"faded dark coat",
+					"cool grey moustache",
+					"muted brown cane"
+				]
+			},
+			"marker_identity": {
+				"silhouette": "older upright man with cane and watchful square stance",
+				"pose": "standing still, cane vertical, head slightly turned",
+				"readable_props": ["cane", "folded notebook"],
+				"tiny_readability_notes": [
+					"cane and rigid posture distinguish him from Tommy's stooped storyteller pose"
+				]
+			},
+			"avoid": [
+				"police uniform",
+				"badge emphasis",
+				"weapon focus",
+				"modern constable"
+			],
+			"authoring_notes": [
+				"The role is retired constable; production art should imply habit and bearing, not official uniform."
+			]
+		},
+		{
+			"npc_id": 8,
+			"npc_name": "Niamh Darcy",
+			"portrait_identity": {
+				"apparent_age": "early twenties",
+				"face_and_hair": "bright restless face, auburn-brown hair partly pinned and partly loose, lively eyes",
+				"clothing": "simple dress with working apron, rolled sleeves, small shawl loose at shoulders",
+				"pose_expression": "restless and alert, half turned toward the door",
+				"props": ["serving tray", "small cup"],
+				"palette_notes": ["apron linen", "warm brown hair", "pub amber wash"]
+			},
+			"marker_identity": {
+				"silhouette": "young publican's daughter with apron and serving tray",
+				"pose": "mid-step or half-turn with tray",
+				"readable_props": ["tray", "apron"],
+				"tiny_readability_notes": [
+					"movement line and tray should convey restlessness"
+				]
+			},
+			"avoid": [
+				"barmaid glamour",
+				"modern server outfit",
+				"generic young woman without pub cue"
+			],
+			"authoring_notes": [
+				"Canonical data gives age, family, pub work, and restlessness; supplement makes the portrait identity stable."
+			]
+		},
+		{
+			"npc_id": 9,
+			"npc_name": "Seamus Gallagher",
+			"portrait_identity": {
+				"apparent_age": "early forties",
+				"face_and_hair": "broad soot-smudged face, dark beard or stubble, strong jaw, focused cheerful eyes",
+				"clothing": "rolled linen sleeves, heavy leather apron, dark work trousers",
+				"pose_expression": "cheerful strength, relaxed after work at the anvil",
+				"props": ["blacksmith hammer", "tongs", "soot marks"],
+				"palette_notes": [
+					"charcoal black",
+					"leather brown",
+					"forge orange kept subtle"
+				]
+			},
+			"marker_identity": {
+				"silhouette": "broad-shouldered blacksmith with leather apron",
+				"pose": "standing with hammer low, weight planted",
+				"readable_props": ["hammer", "leather apron"],
+				"tiny_readability_notes": [
+					"large shoulders and apron should read even if face is tiny"
+				]
+			},
+			"avoid": [
+				"fantasy dwarf blacksmith",
+				"oversized weapon hammer",
+				"modern welding gear"
+			],
+			"authoring_notes": [
+				"Canonical brief is visually strong; supplement locks clothing, prop scale, and non-fantasy constraints."
+			]
+		},
+		{
+			"npc_id": 10,
+			"npc_name": "Maire Gallagher",
+			"portrait_identity": {
+				"apparent_age": "late thirties",
+				"face_and_hair": "capable warm face, hair tucked under a linen cap or kerchief, flour at the cheek",
+				"clothing": "clean but work-worn apron over plain dress, sleeves rolled for household work",
+				"pose_expression": "busy and capable, kind but not idle",
+				"props": ["flour on hands", "small bowl", "folded cloth"],
+				"palette_notes": ["flour white", "soft brown dress", "linen cap"]
+			},
+			"marker_identity": {
+				"silhouette": "capable woman in apron with flour-white hands",
+				"pose": "holding bowl or cloth close, ready to move",
+				"readable_props": ["white apron", "bowl"],
+				"tiny_readability_notes": [
+					"white apron and bowl distinguish her from Siobhan's farm pail"
+				]
+			},
+			"avoid": [
+				"generic housewife stereotype",
+				"bakery shop uniform",
+				"modern kitchen tools"
+			],
+			"authoring_notes": [
+				"Brief description gives flour hands; supplement sets the full visual identity."
+			]
+		},
+		{
+			"npc_id": 11,
+			"npc_name": "Colm Gallagher",
+			"portrait_identity": {
+				"apparent_age": "mid teens",
+				"face_and_hair": "lanky red-haired lad, soot on cheeks, earnest eager eyes",
+				"clothing": "too-large leather apron, rolled sleeves, patched shirt",
+				"pose_expression": "eager apprentice trying to look capable",
+				"props": ["small hammer", "tongs too large for him"],
+				"palette_notes": ["red hair", "soot grey", "worn leather"]
+			},
+			"marker_identity": {
+				"silhouette": "lanky teenage apprentice in oversized apron",
+				"pose": "leaning forward with small hammer",
+				"readable_props": ["small hammer", "oversized apron"],
+				"tiny_readability_notes": [
+					"youthful lanky shape must not read as adult Seamus"
+				]
+			},
+			"avoid": [
+				"adult blacksmith build",
+				"modern teenage clothing",
+				"comic soot gag"
+			],
+			"authoring_notes": [
+				"Canonical brief is visually strong; supplement ensures age and scale are preserved."
+			]
+		},
+		{
+			"npc_id": 12,
+			"npc_name": "Cormac Duffy",
+			"portrait_identity": {
+				"apparent_age": "around fifty",
+				"face_and_hair": "well-fed face dusted with flour, neat hair, calculating narrowed eyes",
+				"clothing": "respectable miller's waistcoat, clean apron with flour dust, good shirt",
+				"pose_expression": "controlled half-smile, weighing profit and reputation",
+				"props": [
+					"flour sack sample",
+					"small account slip",
+					"dusting of flour"
+				],
+				"palette_notes": [
+					"flour white",
+					"miller stone grey",
+					"respectable dark waistcoat"
+				]
+			},
+			"marker_identity": {
+				"silhouette": "well-fed miller with apron and account slip",
+				"pose": "standing with one hand near flour sack or account paper",
+				"readable_props": ["flour sack", "account slip"],
+				"tiny_readability_notes": [
+					"rounder body shape plus flour-white cue distinguishes him from other tradesmen"
+				]
+			},
+			"avoid": ["villain caricature", "top hat", "modern banker look"],
+			"authoring_notes": [
+				"Canonical brief gives useful flour cue; supplement defines exact posture and class signal."
+			]
+		},
+		{
+			"npc_id": 13,
+			"npc_name": "Nora Duffy",
+			"portrait_identity": {
+				"apparent_age": "mid forties",
+				"face_and_hair": "thin anxious face, tidy hair hidden under a clean linen cap, worried eyes",
+				"clothing": "very clean apron over plain dark dress, neat shawl held close",
+				"pose_expression": "anxious and devout, hands held together",
+				"props": ["small rosary or prayer book", "clean apron edge"],
+				"palette_notes": [
+					"clean linen white",
+					"subdued dark dress",
+					"pale flour dust"
+				]
+			},
+			"marker_identity": {
+				"silhouette": "thin woman in clean apron with hands clasped",
+				"pose": "clasped hands, shoulders drawn inward",
+				"readable_props": ["clean apron", "small prayer book"],
+				"tiny_readability_notes": [
+					"anxious clasped pose should be visible without exaggeration"
+				]
+			},
+			"avoid": ["melodramatic fear", "nun habit", "generic pale ghost look"],
+			"authoring_notes": [
+				"Canonical data provides thin, anxious, clean apron; supplement turns it into stable production cues."
+			]
+		},
+		{
+			"npc_id": 14,
+			"npc_name": "Brendan Duffy",
+			"portrait_identity": {
+				"apparent_age": "late teens",
+				"face_and_hair": "strong young face, flour in hair, quiet guarded eyes",
+				"clothing": "rolled sleeves, plain work shirt, floury apron or sackcloth shoulder pad",
+				"pose_expression": "quiet restless strength, not boastful",
+				"props": ["grain sack over one shoulder", "flour dust"],
+				"palette_notes": ["flour white", "plain linen", "muted mill brown"]
+			},
+			"marker_identity": {
+				"silhouette": "strong young miller's son carrying a grain sack",
+				"pose": "sack over shoulder, head slightly lowered",
+				"readable_props": ["grain sack", "flour-dusted hair"],
+				"tiny_readability_notes": ["sack silhouette is the primary marker cue"]
+			},
+			"avoid": ["adult strongman", "heroic warrior pose", "modern workwear"],
+			"authoring_notes": [
+				"Canonical brief has strong visual seeds; supplement fixes age and marker prop."
+			]
+		},
+		{
+			"npc_id": 15,
+			"npc_name": "Eamon Walsh",
+			"portrait_identity": {
+				"apparent_age": "mid thirties",
+				"face_and_hair": "wiry weathered face, wind-reddened cheeks, distant wary eyes, dark hair under a knit cap or hood",
+				"clothing": "patched dark coat, rough wool cap, rolled sleeves or cuffs damp from water work",
+				"pose_expression": "quiet and careful, listening toward the shore",
+				"props": ["coiled rope", "short oar", "net cord"],
+				"palette_notes": ["lake blue-grey", "rope tan", "weathered coat brown"]
+			},
+			"marker_identity": {
+				"silhouette": "lean boatman with rope coil or oar",
+				"pose": "slightly angled as if balancing near water",
+				"readable_props": ["rope coil", "short oar"],
+				"tiny_readability_notes": [
+					"rope coil must be larger and clearer than facial details"
+				]
+			},
+			"avoid": ["modern sailor stripes", "naval uniform", "pirate styling"],
+			"authoring_notes": [
+				"Canonical data gives weathered hands and boat work; supplement sets period clothing and marker shape."
+			]
+		},
+		{
+			"npc_id": 16,
+			"npc_name": "Kathleen Walsh",
+			"portrait_identity": {
+				"apparent_age": "around thirty",
+				"face_and_hair": "warm practical young face, hair tucked under shawl, tired but kind eyes",
+				"clothing": "plain dress, shawl wrapped for wind, working apron",
+				"pose_expression": "steady and protective, baby balanced naturally at hip",
+				"props": ["baby bundle on hip", "small fish basket or net edge"],
+				"palette_notes": ["shore grey", "soft shawl brown", "linen baby wrap"]
+			},
+			"marker_identity": {
+				"silhouette": "young woman with baby bundle on hip",
+				"pose": "one arm around baby, other near basket",
+				"readable_props": ["baby bundle", "small basket"],
+				"tiny_readability_notes": [
+					"baby should read as a compact wrapped bundle, not a second full character"
+				]
+			},
+			"avoid": [
+				"sentimental Madonna iconography",
+				"modern pram",
+				"glamour mother portrait"
+			],
+			"authoring_notes": [
+				"Brief description gives baby cue; supplement defines readable tiny-marker treatment."
+			]
+		},
+		{
+			"npc_id": 17,
+			"npc_name": "Ciaran Walsh",
+			"portrait_identity": {
+				"apparent_age": "about eight",
+				"face_and_hair": "small bright-eyed boy, tousled hair, sun and wind on cheeks",
+				"clothing": "ragged linen shirt, patched short breeches, bare feet",
+				"pose_expression": "curious and ready to bolt toward the shore",
+				"props": ["reed", "small fishing line", "pebble or shell"],
+				"palette_notes": [
+					"bare-foot earth tones",
+					"shore grey",
+					"soft child-size wash"
+				]
+			},
+			"marker_identity": {
+				"silhouette": "small barefoot child with lively posture",
+				"pose": "crouched or leaning forward with reed/fishing line",
+				"readable_props": ["bare feet", "reed or fishing line"],
+				"tiny_readability_notes": [
+					"must be visibly child-sized relative to adult NPC markers"
+				]
+			},
+			"avoid": ["adult proportions", "modern shorts", "urchin caricature"],
+			"authoring_notes": [
+				"Canonical brief is visually useful; supplement preserves child scale and shoreline cue."
+			]
+		},
+		{
+			"npc_id": 18,
+			"npc_name": "Liam Murphy",
+			"portrait_identity": {
+				"apparent_age": "mid teens",
+				"face_and_hair": "quiet teenage face, brown hair under a worn cap, guarded eyes",
+				"clothing": "patched farm coat or vest, muddy boots, plain shirt",
+				"pose_expression": "reserved and hard-working, shoulders slightly hunched",
+				"props": ["hay fork handle", "rope halter", "muddy boots"],
+				"palette_notes": ["mud brown", "worn cap grey", "field green wash"]
+			},
+			"marker_identity": {
+				"silhouette": "quiet farm boy with cap and muddy boots",
+				"pose": "standing slightly apart, holding rope or fork handle low",
+				"readable_props": ["muddy boots", "rope halter"],
+				"tiny_readability_notes": [
+					"teenage proportions and lowered posture distinguish him from adult farmers"
+				]
+			},
+			"avoid": [
+				"adult farmer build",
+				"modern work boots",
+				"overly heroic farm tool pose"
+			],
+			"authoring_notes": [
+				"Canonical data gives farm boy and muddy boots; supplement completes face, clothing, and marker identity."
+			]
+		},
+		{
+			"npc_id": 19,
+			"npc_name": "Brigid Ni Fhatharta",
+			"portrait_identity": {
+				"apparent_age": "mid fifties",
+				"face_and_hair": "older sharp-eyed woman, fine lines around eyes, grey hair under linen cap or kerchief",
+				"clothing": "dark practical shawl, plain dress, herb-stained fingers visible",
+				"pose_expression": "watchful and quietly authoritative, hands near herbs",
+				"props": [
+					"small herb bundle",
+					"mortar or stoppered bottle",
+					"stained fingertips"
+				],
+				"palette_notes": ["dark shawl", "herb green", "linen cap white"]
+			},
+			"marker_identity": {
+				"silhouette": "older midwife-healer in dark shawl with herb bundle",
+				"pose": "slight forward lean, one hand holding herbs",
+				"readable_props": ["herb bundle", "dark shawl", "linen cap"],
+				"tiny_readability_notes": [
+					"herb bundle and shawl must remain readable at marker size"
+				]
+			},
+			"avoid": [
+				"witch caricature",
+				"fantasy magic glow",
+				"doctor costume",
+				"stage crone"
+			],
+			"authoring_notes": [
+				"Canonical brief is strong, but production art needs explicit anti-caricature and marker constraints."
+			]
+		},
+		{
+			"npc_id": 20,
+			"npc_name": "Una Malone",
+			"portrait_identity": {
+				"apparent_age": "late forties",
+				"face_and_hair": "quiet focused face, hair tucked under simple cap, thoughtful eyes",
+				"clothing": "plain dress with woven shawl, apron with thread flecks",
+				"pose_expression": "content and absorbed in fine work",
+				"props": [
+					"weaving shuttle",
+					"colored wool skeins",
+					"thread across fingers"
+				],
+				"palette_notes": [
+					"dyed wool greens",
+					"deep red thread",
+					"warm cottage brown"
+				]
+			},
+			"marker_identity": {
+				"silhouette": "weaver with shuttle and small skein cluster",
+				"pose": "hands close together as if measuring thread",
+				"readable_props": ["shuttle", "colored thread skeins"],
+				"tiny_readability_notes": [
+					"thread/skein color accent can be slightly stronger than normal palette for readability"
+				]
+			},
+			"avoid": [
+				"modern textile studio",
+				"large loom filling the marker",
+				"fashion-model shawl"
+			],
+			"authoring_notes": [
+				"Canonical data gives loom, thread, and cultural craft detail; supplement converts it into compact portrait/marker cues."
+			]
+		},
+		{
+			"npc_id": 21,
+			"npc_name": "Sean Ruadh Kelly",
+			"portrait_identity": {
+				"apparent_age": "mid twenties",
+				"face_and_hair": "lean young face, red hair, hard tired eyes, sharp cheekbones",
+				"clothing": "patched coat, rough shirt, worn trousers, frayed scarf or neckcloth",
+				"pose_expression": "bitter and guarded, weight held ready but not violent",
+				"props": ["spade handle", "small cloth bundle"],
+				"palette_notes": ["red hair", "patched brown coat", "cold grey shadow"]
+			},
+			"marker_identity": {
+				"silhouette": "lean red-haired labourer with patched coat and spade handle",
+				"pose": "standing narrow and tense, spade handle low",
+				"readable_props": ["red hair", "spade handle", "patched coat"],
+				"tiny_readability_notes": [
+					"red hair is a named identity cue but should remain natural and muted"
+				]
+			},
+			"avoid": [
+				"criminal caricature",
+				"weaponized spade",
+				"revolutionary uniform",
+				"stage-villain scowl"
+			],
+			"authoring_notes": [
+				"Canonical brief supplies lean red-haired hard-eyed cue; supplement prevents caricature and locks marker prop."
+			]
+		},
+		{
+			"npc_id": 22,
+			"npc_name": "Peig Hannigan",
+			"portrait_identity": {
+				"apparent_age": "late sixties",
+				"face_and_hair": "small sharp-eyed old woman, lively lined face, grey hair hidden beneath shawl",
+				"clothing": "dark shawl wrapped close, plain old dress, small bonnet or kerchief under shawl",
+				"pose_expression": "sharp, alert, and amused by what she knows",
+				"props": [
+					"small basket",
+					"walking stick",
+					"shawl edge near mouth as if about to share news"
+				],
+				"palette_notes": ["dark shawl", "old linen", "muted berry-brown accent"]
+			},
+			"marker_identity": {
+				"silhouette": "small old widow wrapped in shawl with basket or stick",
+				"pose": "leaning slightly forward, head tilted, shawl close",
+				"readable_props": ["dark shawl", "small basket", "walking stick"],
+				"tiny_readability_notes": [
+					"small scale and shawl shape distinguish her from Brigid's healer silhouette"
+				]
+			},
+			"avoid": [
+				"witch or crone caricature",
+				"comic gossip stereotype",
+				"fantasy hood"
+			],
+			"authoring_notes": [
+				"Canonical brief is strong; supplement separates Peig from Brigid using basket/stick and livelier gossip posture."
+			]
+		},
+		{
+			"npc_id": 23,
+			"npc_name": "Martin Concannon",
+			"portrait_identity": {
+				"apparent_age": "early thirties",
+				"face_and_hair": "neatly kept young face, trimmed dark hair, guarded eyes, composed mouth",
+				"clothing": "better-quality dark coat, waistcoat, clean cravat or neckcloth, polished but practical shoes",
+				"pose_expression": "guarded and administrative, holding himself apart from field labour",
+				"props": [
+					"ledger under arm",
+					"quill or folded letter",
+					"small leather document case"
+				],
+				"palette_notes": [
+					"dark clerk coat",
+					"ledger brown",
+					"clean linen accent"
+				]
+			},
+			"marker_identity": {
+				"silhouette": "neatly dressed land agent's clerk with ledger under arm",
+				"pose": "upright, one arm clamping ledger, head slightly turned",
+				"readable_props": ["ledger", "clean cravat", "document case"],
+				"tiny_readability_notes": [
+					"ledger and neat coat must distinguish him from Roisin's shop ledger; use more formal posture"
+				]
+			},
+			"avoid": [
+				"English aristocrat costume",
+				"top hat",
+				"modern office clerk",
+				"villain moustache"
+			],
+			"authoring_notes": [
+				"Canonical brief gives neat dress and ledger; supplement sets class signal without caricature."
+			]
+		}
+	]
+}

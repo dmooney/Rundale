@@ -11,7 +11,14 @@ import {
 	type TextStyleOptions,
 } from 'pixi.js';
 import type { NotebookAction } from '$lib/notebook/actions';
-import { NOTEBOOK_ASSET_URLS, NOTEBOOK_ASSETS } from './assets';
+import {
+	loadNotebookPersonArt,
+	NOTEBOOK_ASSET_URLS,
+	NOTEBOOK_ASSETS,
+	resolveNotebookPersonArt,
+	type LoadedNotebookPersonArt,
+	type NotebookAssetManifest,
+} from './assets';
 import {
 	activateNotebookTarget,
 	notebookHitTarget,
@@ -91,6 +98,7 @@ export class IllustratedNotebookRenderer {
 	private app: Application | null = null;
 	private readonly textures = new Map<string, Texture>();
 	private scene: VisualScene = FALLBACK_SCENE;
+	private personArt: LoadedNotebookPersonArt = loadNotebookPersonArt(null);
 	private lastState: NotebookRenderState | null = null;
 	private hitTargets: NotebookHitTarget[] = [];
 	private hoveredTargetId: string | null = null;
@@ -189,8 +197,13 @@ export class IllustratedNotebookRenderer {
 	}
 
 	private async loadAssets(): Promise<void> {
-		const loaded = await Assets.load(NOTEBOOK_ASSET_URLS);
-		for (const url of NOTEBOOK_ASSET_URLS) {
+		const manifest = await this.fetchAssetManifest();
+		this.personArt = loadNotebookPersonArt(manifest);
+		const assetUrls = [
+			...new Set([...NOTEBOOK_ASSET_URLS, ...this.personArt.assetUrls]),
+		];
+		const loaded = await Assets.load(assetUrls);
+		for (const url of assetUrls) {
 			this.textures.set(url, loaded[url] ?? Texture.from(url));
 		}
 		try {
@@ -201,6 +214,16 @@ export class IllustratedNotebookRenderer {
 			}
 		} catch {
 			this.scene = FALLBACK_SCENE;
+		}
+	}
+
+	private async fetchAssetManifest(): Promise<NotebookAssetManifest | null> {
+		try {
+			const response = await fetch(NOTEBOOK_ASSETS.manifest);
+			if (!response.ok) return null;
+			return (await response.json()) as NotebookAssetManifest;
+		} catch {
+			return null;
 		}
 	}
 
@@ -480,9 +503,8 @@ export class IllustratedNotebookRenderer {
 			const safeNpcIndex = npcIndex >= 0 ? npcIndex : 0;
 			const markerUrl = isPlayer
 				? NOTEBOOK_ASSETS.playerMarker
-				: NOTEBOOK_ASSETS.npcMarkers[
-						safeNpcIndex % NOTEBOOK_ASSETS.npcMarkers.length
-					];
+				: resolveNotebookPersonArt(this.personArt, actor.actor.npc?.real_name)
+						.marker;
 			const marker = this.sprite(markerUrl);
 			marker.anchor.set(0.5, 1);
 			marker.x = p.x;
@@ -687,15 +709,13 @@ export class IllustratedNotebookRenderer {
 		frame.alpha = selected ? 1 : 0.86;
 		this.bindTarget(frame, target);
 		this.layers.ui.addChild(frame);
-		const portrait = this.sprite(
-			NOTEBOOK_ASSETS.portraits[index % NOTEBOOK_ASSETS.portraits.length],
-			{
-				x: x - size * 0.34,
-				y,
-				width: size * 0.68,
-				height: size * 0.72,
-			},
-		);
+		const personArt = resolveNotebookPersonArt(this.personArt, npc.real_name);
+		const portrait = this.sprite(personArt.portrait, {
+			x: x - size * 0.31,
+			y: y - size * 0.02,
+			width: size * 0.62,
+			height: size * 0.7,
+		});
 		this.bindTarget(portrait, target);
 		this.layers.ui.addChild(portrait);
 		if (layout.mode === 'desktop') {
@@ -782,11 +802,12 @@ export class IllustratedNotebookRenderer {
 		);
 		if (npc) {
 			const portraitSize = layout.mode === 'mobile' ? 66 : 112;
+			const personArt = resolveNotebookPersonArt(this.personArt, npc.real_name);
 			this.layers.ui.addChild(
-				this.sprite(NOTEBOOK_ASSETS.portraits[0], {
+				this.sprite(personArt.portrait, {
 					x: page.x + inset + 6,
 					y: page.y + (layout.mode === 'mobile' ? 82 : 108),
-					width: portraitSize,
+					width: portraitSize * 0.88,
 					height: portraitSize,
 				}),
 			);
