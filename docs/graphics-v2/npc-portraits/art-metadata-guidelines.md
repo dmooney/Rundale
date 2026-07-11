@@ -31,6 +31,14 @@ alpha plus sepia or graphite line and sparse monochrome shading only. Do not add
 colored wash, color fill, painted clothing blocks, baked parchment, paper
 texture, background wash, or portrait-card treatment.
 
+The portrait is diegetic: it is a quick observational sketch the player
+character made in their working parish notebook after meeting the NPC. Author
+and generate it as sparse, irregular, economical linework with open shapes and
+only a few short hatch marks. Most of the face, hair, clothing, and canvas must
+remain unfilled so the UI paper shows through. A polished editorial portrait,
+formal study, smoothly modeled face, filled garment, or dense cross-hatching is
+a style failure even when the identity and period clothing are correct.
+
 In-world NPC markers may use restrained watercolor because they sit on the
 painted world surface. Keep marker color muted and subordinate to the scene.
 
@@ -39,9 +47,16 @@ painted world surface. Keep marker color muted and subordinate to the scene.
 Generate high-resolution canonical sources, then derive runtime assets from
 approved sources. Do not ask the model for final tiny runtime pixels.
 
-- Portrait source: `1024x1024` transparent-background PNG. The drawing occupies
-  about 45% of source height, centered with generous transparent padding. Hair,
-  head covering, and shoulders must be fully visible.
+- Production generation request: one identity-locked `2048x1024` provider
+  response per NPC. The left `1024x1024` cell is the portrait and the right
+  `1024x1024` cell is the marker. Both derive from the same metadata record and
+  must preserve the same apparent age, face structure, hairline, hairstyle,
+  and expression cues. Split only at the deterministic 1024-pixel boundary.
+- Portrait delivery source: `1024x1024` transparent-background PNG. The drawing
+  occupies about 45% of source height, centered with generous transparent
+  padding. Hair, head covering, and shoulders must be fully visible. A provider
+  that cannot emit alpha may return a flat `#ff00ff` raw candidate only when the
+  automated pipeline removes that key and validates the transparent derivative.
 - Marker source: `1024x1024` PNG on a perfectly flat `#ff00ff` chroma-key
   background. The full-body figure occupies about 45% of source height, centered
   with feet visible and generous flat margins.
@@ -50,6 +65,9 @@ approved sources. Do not ask the model for final tiny runtime pixels.
   `36x41` px mobile nearby rail.
 - Runtime markers are chroma-keyed to transparent PNG and depth-scaled by the
   notebook renderer.
+- Approve or reject both children and their cross-asset identity together. If
+  either fails, rerender the pair in one new provider call. Never assemble an
+  approved identity pair from unrelated stochastic calls.
 - Do not require a full per-character animation sprite sheet for this current
   slice. Generate one static marker per NPC. Pack reviewed runtime portraits and
   markers into a shared atlas only if renderer performance requires it. Add
@@ -69,8 +87,8 @@ hard anchor, not generic "earth tones":
 - marker watercolor accents: muted wool grey, bog green, dull brick red, peat
   brown, and faded indigo as subordinate accents only
 
-Avoid saturated primaries. `#ff00ff` is allowed only as marker chroma key and
-must not appear in the subject.
+Avoid saturated primaries. `#ff00ff` is allowed only as a removable provider
+background key and must never appear in a portrait or marker subject.
 
 ## Minimum Per-NPC Contract
 
@@ -96,6 +114,8 @@ as a game marker if the silhouette and large readable prop are undefined.
 
 - Start from canonical NPC/world facts, then add missing visual facts in the art
   supplement. Do not hide visual identity in one-off provider prompts.
+- Generate the portrait and marker together from one shared `pair_prompt` so
+  the model can carry one face and hair identity across both rendering modes.
 - Use the illustrated notebook concept art as the only style authority for this
   slice. Do not use prior portrait experiments, marker sheets, procedural busts,
   or unrelated graphics cycles as substitutes.

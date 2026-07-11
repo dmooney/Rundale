@@ -1,0 +1,48 @@
+{
+	"schema_version": 1,
+	"template_type": "notebook-person-art-human-review",
+	"candidate_receipt_path": "parish/apps/ui/art/notebook-person-art/candidates/objects/82/8293eab62e1e5f582d2548fc66ef5c576a2af38b6cbd1b7f8397a6a6ea28eab8/receipt.json",
+	"candidate_receipt_sha256": "243f525e5aac1b0f12b23746c286dd52a6d3de29c34b3cbe97c9c59c0b62f49c",
+	"candidate_sha256": "d713ee7b003f97c2a3df313f94930fd00ffc59df745402070a094a800bf7078f",
+	"raw_sha256": "cb603412c8440e8a963857e4d178ba01d8fa6ef00e554bbd4afc51e744aa0d38",
+	"subject": {
+		"kind": "npc",
+		"npc_id": 4,
+		"name": "Roisin Connolly",
+		"input_record_sha256": "63cd3766ae04995ba047ea4c09e6943dcb15d36a76c4e8debc5d2e707f2f552b"
+	},
+	"asset": {
+		"kind": "pair",
+		"candidate_index": 1,
+		"children": [
+			"portrait",
+			"marker"
+		]
+	},
+	"decision": "approved",
+	"reviewer": "dmooney",
+	"notes": "Approved by the user in the Codex conversation on 2026-07-10: That looks awesome. Approved.",
+	"checklist": {
+		"identity_specific": true,
+		"concept_style_match": true,
+		"period_appropriate": true,
+		"no_prohibited_content": true,
+		"key_removal_clean": true,
+		"production_quality": true,
+		"diegetic_player_sketch": true,
+		"uncolored_pen_and_ink": true,
+		"sparse_open_linework": true,
+		"no_baked_background": true,
+		"framing_complete": true,
+		"selected_size_readable": true,
+		"nearby_size_readable": true,
+		"restrained_world_color": true,
+		"full_body_complete": true,
+		"silhouette_readable": true,
+		"no_ground_plane": true,
+		"scene_size_readable": true,
+		"cross_asset_identity": true,
+		"correct_surface_split": true,
+		"atomic_rerender_understood": true
+	}
+}

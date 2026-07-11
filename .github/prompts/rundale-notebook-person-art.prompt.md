@@ -1,5 +1,5 @@
 ---
-description: Generate production Rundale illustrated-notebook NPC portrait and marker prompts from an NPC art-input record.
+description: Generate one production Rundale illustrated-notebook NPC portrait-and-marker pair prompt from an NPC art-input record.
 agent: 'agent'
 tools: ['search/codebase']
 argument-hint: 'npc_record=<one npcs[] JSON object from npc-art-inputs-v1.json>'
@@ -8,8 +8,9 @@ argument-hint: 'npc_record=<one npcs[] JSON object from npc-art-inputs-v1.json>'
 # Rundale Notebook Person Art Prompt
 
 Use this prompt file to turn one NPC record from
-`parish/apps/ui/art/notebook-person-art/npc-art-inputs-v1.json` into image-model
-prompts for one tiny notebook portrait and one tiny in-scene marker.
+`parish/apps/ui/art/notebook-person-art/npc-art-inputs-v1.json` into one
+identity-locked image-model request for a tiny notebook portrait and tiny
+in-scene marker generated together.
 
 The visual authority is `docs/graphics-v2/illustrated-parish-notebook.png`.
 Do not use prior experimental portrait sheets, marker concept sheets,
@@ -20,6 +21,12 @@ surface. The rest of the UI is uncolored pen-and-ink line art on paper with
 minimal value shading. NPC portraits are UI art, so portraits must not be
 colored in and must not bake in parchment or paper texture. In-world NPC markers
 may use restrained watercolor because they sit on the painted world surface.
+
+Definitive portrait lore: each NPC portrait is a quick observational sketch the
+player character made by hand in the margin of their working parish notebook
+after meeting that person. It must read as lived-in notebook evidence, not as a
+commissioned illustration, formal portrait study, character card, or polished
+concept painting.
 
 ## Input
 
@@ -40,11 +47,10 @@ Required fields:
 
 ## Output
 
-Return exactly three sections:
+Return exactly two sections:
 
-1. `PORTRAIT_PROMPT`
-2. `MARKER_PROMPT`
-3. `REVIEW_CHECKLIST`
+1. `PAIR_PROMPT`
+2. `ATOMIC_REVIEW_CHECKLIST`
 
 Do not invent new biography facts. Use canonical NPC/world facts and the
 reviewed art-direction fields. Add only composition and production constraints
@@ -56,10 +62,13 @@ Use the Illustrated Parish Notebook concept-art style:
 
 - painted watercolor only for actual world/scene assets and in-world markers
 - uncolored pen-and-ink for UI portraits, tabs, icons, notes, and UI furniture
-- transparent-background portrait line art composited over UI-controlled paper
+- transparent delivery portrait line art composited over UI-controlled paper
 - sepia or graphite ink outlines
+- sparse irregular contours and open, unfilled interior shapes for portraits
+- only a few short loose hatch marks where structurally necessary
 - restrained muted wash only where explicitly allowed for world/marker art
-- clean transparent portrait source or clean chroma-key marker source as specified
+- clean transparent delivery source, using a removable provider key when alpha
+  output is unavailable
 - compact game-readable people
 - sparse handmade line economy
 - rural County Roscommon, Ireland, 1820
@@ -68,18 +77,31 @@ Use the Illustrated Parish Notebook concept-art style:
 
 ## Source Asset Contract
 
-- Portrait source: 1024x1024 transparent-background PNG. The drawing occupies
-  roughly 45 percent of source height, centered with generous transparent
-  padding, with the top of hair/head covering and shoulders fully visible.
+- Production provider response: one `2048x1024` PNG generated in one request.
+  The left `1024x1024` cell is the portrait and the right `1024x1024` cell is
+  the marker. Both cells must depict the same person with matching apparent
+  age, facial proportions, eyes, nose, jaw, hairline, hairstyle, and expression
+  cues. The pipeline splits the response at the fixed 1024-pixel boundary.
+- Portrait delivery source: 1024x1024 transparent-background PNG. The drawing
+  occupies roughly 45 percent of source height, centered with generous
+  transparent padding, with the top of hair/head covering and shoulders fully
+  visible. If the configured provider cannot emit alpha, its raw response may
+  use perfectly flat #ff00ff only when the automated pipeline removes the key.
 - Portrait background: true alpha/transparent. Do not generate parchment,
   paper texture, colored wash, portrait card, frame, border, label, shadowed
   backdrop, or other UI furniture in the portrait source.
+- Portrait ink contract: leave most of the face, hair, clothing, and canvas
+  unfilled so the notebook paper can show through. Do not underpaint skin,
+  clothing, hair, or props with white, cream, parchment, gray, or skin tone.
 - Marker source: 1024x1024 PNG on perfectly flat #ff00ff chroma-key background.
   The full-body figure occupies roughly 45 percent of source height, centered
   with feet visible and generous flat margins.
 - Runtime derivatives: approved portrait sources are converted to transparent
   PNGs and composited over the UI paper; approved marker sources are chroma-keyed
   to transparent PNGs and depth-scaled by the notebook renderer.
+- Pair review policy: portrait, marker, and cross-asset identity are approved or
+  rejected together. If either child or their shared identity fails, regenerate
+  both in one new request rather than mixing children from different calls.
 - Sheet policy: do not require per-character animation sprite sheets for this
   slice. Generate one static marker per NPC; pack reviewed runtime assets into a
   shared atlas later only if renderer performance requires it.
@@ -94,7 +116,8 @@ Use the palette from `docs/graphics-v2/illustrated-parish-notebook.png`.
 - umber/shadow anchors: #4c4c40, #766c56
 - marker watercolor accents: muted wool grey, bog green, dull brick red, peat
   brown, faded indigo only as subordinate accents
-- avoid saturated primaries; #ff00ff is allowed only as marker chroma key
+- avoid saturated primaries; #ff00ff is allowed only as a removable provider
+  background key and never in the subject
 
 Hard avoid-list:
 
@@ -108,48 +131,42 @@ Hard avoid-list:
 - text, labels, watermark, UI frame, border
 - extra characters unless explicitly requested
 
-## Portrait Prompt Template
+## Pair Prompt Template
 
 ```text
-Use case: historical-scene
-Asset type: production source for one tiny Rundale notebook NPC portrait
-Primary request: Create one tiny notebook-margin head-and-shoulders portrait for <NAME>, <AGE>-year-old <OCCUPATION> in rural County Roscommon, Ireland, 1820.
-Canvas/output: 1024x1024 transparent-background PNG source. The portrait drawing should occupy only about 45 percent of the image height, centered with generous transparent padding, like a small Nearby rail portrait asset rather than a finished portrait study.
-Subject identity: <PORTRAIT_IDENTITY.face_and_hair>; <PORTRAIT_IDENTITY.clothing>; <PORTRAIT_IDENTITY.pose_expression>; include only these subtle props if they fit a head-and-shoulders sketch: <PORTRAIT_IDENTITY.props>.
-Style/medium: uncolored pen-and-ink notebook doodle in the Illustrated Parish Notebook UI style; sparse sepia or graphite line from the concept palette, minimal monochrome value shading only, transparent background, incomplete shoulders fading into alpha, tiny UI readability.
-Composition/framing: one head-and-shoulders portrait only, no frame, no card, no border, no text, no label, no decorative background. Keep the top of hair/head covering and shoulders fully visible, with padding on all sides.
-Color/value: transparent alpha plus sepia or graphite ink only. Treat <PORTRAIT_IDENTITY.palette_notes> as value/texture cues, not hue instructions. No parchment background, no paper texture, no colored wash, no color fill, no painted clothing blocks.
-Constraints: tiny notebook portrait readability, period-appropriate 1820 rural Irish clothing, no modern clothing, no Victorian fashion, no glamour, no formal bust portrait, no dark card background, no watercolor fill, no color, no photorealism, no fantasy, no text, no watermark. Also avoid: <ART_DIRECTION.avoid>.
-```
-
-## Marker Prompt Template
-
-```text
-Use case: historical-scene
-Asset type: production source for one tiny Rundale notebook NPC marker sprite, chroma-key source
-Primary request: Create one tiny full-body in-scene game marker for <NAME>, <AGE>-year-old <OCCUPATION> in rural County Roscommon, Ireland, 1820.
-Canvas/output: 1024x1024 PNG source. The figure must occupy only 45 percent of the image height, centered with very large flat background margins. It must look like a small map/scene marker asset, not a full character illustration.
-Subject identity: <MARKER_IDENTITY.silhouette>; <MARKER_IDENTITY.pose>; readable props: <MARKER_IDENTITY.readable_props>; tie the figure to this canonical cue: <BRIEF_DESCRIPTION>.
-Style/medium: loose hand-inked watercolor miniature in the Illustrated Parish Notebook concept-art style; sparse sepia line, restrained muted wash, simple readable silhouette, no detailed portrait face.
-Composition/framing: one single full-body figure only, front three-quarter view, feet fully visible, generous padding on all sides, no cropping, no ground shadow, no floor plane, no extra props beyond the listed readable props.
-Background: perfectly flat solid #ff00ff chroma-key background for removal. The background must be one uniform color with no texture, no shadows, no gradients, no border, no lighting variation. Do not use #ff00ff anywhere in the subject.
-Color palette: concept palette only: sepia/graphite ink, olive-grey, weathered tan, umber, muted wool grey, bog green, dull brick red, peat brown, faded indigo as subordinate accents, <PORTRAIT_IDENTITY.palette_notes>.
-Surface rule: this marker sits on the actual world/scene layer, so restrained watercolor is allowed. Keep the wash muted and subordinate to the scene.
-Constraints: tiny game-marker readability, silhouette first, one or two large props, period-appropriate 1820 rural Irish clothing, no modern clothing, no Victorian bustle, no top hat, no cash register, no fantasy, no polished portrait-card treatment, no text, no label, no watermark, no extra figures. Also avoid: <ART_DIRECTION.avoid>.
+Production task: Generate one identity-locked portrait-and-marker pair for <NAME>, age <AGE>, <OCCUPATION>, in rural County Roscommon, Ireland, 1820. Return exactly one 2048x1024 PNG on a perfectly flat #ff00ff background. The left 1024x1024 cell contains only the notebook portrait; the right 1024x1024 cell contains only the painted-world marker.
+Shared identity invariant: Both renderings unmistakably depict the same person. Preserve the same apparent age, facial proportions, eye shape, nose, jaw, hairline, hairstyle, and characteristic expression across cells. Identity facts: <PORTRAIT_IDENTITY.face_and_hair>; <PORTRAIT_IDENTITY.clothing>; <PORTRAIT_IDENTITY.pose_expression>; canonical cue: <BRIEF_DESCRIPTION>.
+Left portrait artifact/lore: A quick observational head-and-shoulders sketch the player character drew by hand in the margin of their working notebook after meeting <NAME>. It is diegetic notebook evidence, not a commissioned illustration, formal portrait study, character card, or polished concept painting.
+Left portrait style: Sparse uncolored sepia/graphite contours, economical irregular lines, open shapes, and only a few short hatch marks. Keep the complete ink drawing between 40 and 60 percent of the left-cell height with generous key-visible padding. Every pixel that is not a dark ink stroke must remain flat #ff00ff, including uninked regions inside the face, hair, neck, clothing, and optional simply outlined props <PORTRAIT_IDENTITY.props>. No white, cream, parchment, skin-tone, gray, watercolor, wash, or other fill. Keep hair/head covering and shoulders fully visible.
+Right marker role: One tiny static full-body figure inside the painted parish world. Use <MARKER_IDENTITY.silhouette>; pose <MARKER_IDENTITY.pose>; at most these one or two large readable props: <MARKER_IDENTITY.readable_props>. Keep the complete figure roughly 45 percent of the right-cell height, acceptable range 40 to 60 percent, centered with complete feet and generous key-visible margins. No ground plane or shadow.
+Right marker style: Loose sepia/graphite contours with restrained translucent watercolor. Use only olive-grey, weathered tan, umber, muted wool grey, bog green, dull brick red, peat brown, and faded indigo as subordinate accents. Keep the face simple but preserve the shared identity cues.
+Reference roles: Use the attached accepted portrait derivative only for left-cell sparse line economy and open unfilled shapes. Use the attached accepted marker derivative only for right-cell scale, line/wash balance, concept palette, complete feet, and lack of ground plane. Do not copy either reference person's identity or clothing.
+Sheet constraints: Exactly two depictions of one character, one per assigned cell. Keep the center boundary flat key. No labels, dividers, panels, frames, cards, duplicate poses, shared props, extra people, sprite-sheet poses, modern or fantasy elements, text, watermark, or <ART_DIRECTION.avoid>.
+Final invariant: Portrait, marker, and cross-asset identity form one atomic candidate. If either cell fails, regenerate the pair together.
 ```
 
 ## Review Checklist
 
 - Portrait reads as a tiny notebook-margin asset, not a finished character card.
+- Portrait reads as a quick sketch made by the player character in their working
+  notebook, not professional character illustration.
 - Portrait is uncolored pen-and-ink only, with minimal monochrome shading.
-- Portrait is a transparent-background PNG source with no baked paper/parchment.
+- Most of the face, hair, clothing, and canvas remain open and unfilled; there
+  is no underpainting, tonal modeling, or dense cross-hatching.
+- Portrait delivery candidate has transparent alpha with no baked paper/parchment;
+  any keyed provider raw file is retained separately as provenance.
 - Portrait has padding above hair/head covering and does not crop shoulders.
 - Portrait source is 1024x1024 and the drawing uses roughly 45 percent of height.
 - Marker is full-body, feet visible, and centered on a flat #ff00ff background.
 - Marker source is 1024x1024.
 - Marker occupies roughly 45 percent of image height and can be trimmed later.
 - Marker uses the concept palette, with #ff00ff only as background key color.
-- Identity comes from silhouette, posture, and one large prop, not facial detail.
+- Portrait and marker unmistakably depict the same person, including apparent
+  age, face proportions, hairline, hairstyle, and expression cues.
+- Marker identity remains readable from silhouette, posture, and one large prop
+  at runtime size rather than relying on facial detail alone.
 - Clothing is plausible for rural County Roscommon in 1820.
 - No text, label, border, watermark, UI chrome, modern object, fantasy cue, or
   extra character appears.
+- The decision applies atomically to both assets. A failed child or identity
+  match requires a new joint request; children from separate calls are not mixed.

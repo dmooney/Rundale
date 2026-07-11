@@ -145,6 +145,57 @@ fn art_inputs_export_writes_one_input_per_npc() {
             .contains("transparent-background PNG source"),
         "portrait prompt should include source canvas constraints"
     );
+    let portrait_prompt = value["npcs"][0]["portrait_prompt"].as_str().unwrap();
+    assert!(
+        portrait_prompt.contains("player character drew by hand"),
+        "portrait prompt should establish the diegetic notebook-sketch lore"
+    );
+    assert!(
+        portrait_prompt.contains("Leave most of the face, hair, clothing, and canvas unfilled"),
+        "portrait prompt should make sparse line economy explicit"
+    );
+    assert!(
+        !portrait_prompt.contains("muted watercolor")
+            && !portrait_prompt.contains("runtime derivatives")
+            && !portrait_prompt.contains("sheet policy"),
+        "portrait prompt must not inherit marker medium or pipeline metadata"
+    );
+    assert!(
+        portrait_prompt.len() < 3_500,
+        "portrait provider prompt should stay concise enough for its dominant constraints to remain clear"
+    );
+    let marker_prompt = value["npcs"][0]["marker_prompt"].as_str().unwrap();
+    assert!(
+        marker_prompt.contains("inside Rundale's painted world surface")
+            && marker_prompt.contains("complete feet"),
+        "marker prompt should establish its world-surface role and full-body contract"
+    );
+    assert!(
+        marker_prompt.matches("portrait").count() <= 1
+            && !marker_prompt.contains("runtime derivatives")
+            && !marker_prompt.contains("sheet policy")
+            && !marker_prompt.contains("transparent portrait"),
+        "marker prompt must not inherit portrait or downstream pipeline metadata"
+    );
+    assert!(
+        marker_prompt.len() < 3_000,
+        "marker provider prompt should keep its visual contract dominant"
+    );
+    let pair_prompt = value["npcs"][0]["pair_prompt"].as_str().unwrap();
+    assert!(
+        pair_prompt.contains("identity-locked portrait-and-marker pair")
+            && pair_prompt.contains("must unmistakably be the same person")
+            && pair_prompt.contains("Left asset, notebook portrait")
+            && pair_prompt.contains("Right asset, painted-world marker")
+            && pair_prompt.contains("every uninked interior region must remain provider key")
+            && pair_prompt.contains("roughly 45 percent of the right cell height")
+            && pair_prompt.contains("muted wool gray, bog green"),
+        "paired prompt should lock identity and define both output roles"
+    );
+    assert!(
+        pair_prompt.len() < 3_500,
+        "paired provider prompt should remain concise despite defining both assets"
+    );
 }
 
 #[test]

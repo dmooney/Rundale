@@ -5,7 +5,7 @@ regenerate after dependency changes.
 
 ## Overview
 
-- [MIT License](#MIT) — 636 crates
+- [MIT License](#MIT) — 637 crates
 - [Apache License 2.0](#Apache-2.0) — 24 crates
 - [Unicode License v3](#Unicode-3.0) — 19 crates
 - [BSD 3-Clause &quot;New&quot; or &quot;Revised&quot; License](#BSD-3-Clause) — 9 crates
@@ -3113,8 +3113,8 @@ DEALINGS IN THE SOFTWARE.
 - [num-iter 0.1.45](https://github.com/rust-num/num-iter)
 - [num-traits 0.2.19](https://github.com/rust-num/num-traits)
 - [regex-automata 0.4.14](https://github.com/rust-lang/regex)
-- [regex-syntax 0.8.10](https://github.com/rust-lang/regex)
-- [regex 1.12.3](https://github.com/rust-lang/regex)
+- [regex-syntax 0.8.11](https://github.com/rust-lang/regex)
+- [regex 1.12.4](https://github.com/rust-lang/regex)
 
 ```
 Copyright (c) 2014 The Rust Project Developers
@@ -3148,7 +3148,7 @@ DEALINGS IN THE SOFTWARE.
 
 **Used by:**
 
-- [uuid 1.23.2](https://github.com/uuid-rs/uuid)
+- [uuid 1.23.4](https://github.com/uuid-rs/uuid)
 
 ```
 Copyright (c) 2014 The Rust Project Developers
@@ -5892,6 +5892,7 @@ DEALINGS IN THE SOFTWARE.
 **Used by:**
 
 - [tower-http 0.6.11](https://github.com/tower-rs/tower-http)
+- [tower-http 0.7.0](https://github.com/tower-rs/tower-http)
 
 ```
 Copyright (c) 2019-2021 Tower Contributors
@@ -6606,7 +6607,7 @@ DEALINGS IN THE SOFTWARE.
 
 **Used by:**
 
-- [cmov 0.5.3](https://github.com/RustCrypto/utils)
+- [cmov 0.5.4](https://github.com/RustCrypto/utils)
 - [hybrid-array 0.4.12](https://github.com/RustCrypto/hybrid-array)
 
 ```
@@ -7139,7 +7140,7 @@ THE SOFTWARE IS PROVIDED &quot;AS IS&quot;, WITHOUT WARRANTY OF ANY KIND, EXPRES
 
 **Used by:**
 
-- [rand 0.10.1](https://github.com/rust-random/rand)
+- [rand 0.10.2](https://github.com/rust-random/rand)
 - [rand 0.8.6](https://github.com/rust-random/rand)
 - [rand 0.9.4](https://github.com/rust-random/rand)
 - [rand_chacha 0.3.1](https://github.com/rust-random/rand)
@@ -8549,13 +8550,13 @@ SOFTWARE.
 - [r-efi 6.0.0](https://github.com/r-efi/r-efi)
 - [siphasher 1.0.3](https://github.com/jedisct1/rust-siphash)
 - [tao-macros 0.1.3](https://github.com/tauri-apps/tao)
-- [tauri-build 2.6.2](https://github.com/tauri-apps/tauri)
-- [tauri-codegen 2.6.2](https://github.com/tauri-apps/tauri)
-- [tauri-macros 2.6.2](https://github.com/tauri-apps/tauri)
-- [tauri-runtime-wry 2.11.2](https://github.com/tauri-apps/tauri)
-- [tauri-runtime 2.11.2](https://github.com/tauri-apps/tauri)
-- [tauri-utils 2.9.2](https://github.com/tauri-apps/tauri)
-- [tauri 2.11.2](https://github.com/tauri-apps/tauri)
+- [tauri-build 2.6.3](https://github.com/tauri-apps/tauri)
+- [tauri-codegen 2.6.3](https://github.com/tauri-apps/tauri)
+- [tauri-macros 2.6.3](https://github.com/tauri-apps/tauri)
+- [tauri-runtime-wry 2.11.4](https://github.com/tauri-apps/tauri)
+- [tauri-runtime 2.11.3](https://github.com/tauri-apps/tauri)
+- [tauri-utils 2.9.3](https://github.com/tauri-apps/tauri)
+- [tauri 2.11.5](https://github.com/tauri-apps/tauri)
 - [tower-sessions-core 0.15.0](https://github.com/maxcountryman/tower-sessions)
 - [tower-sessions-memory-store 0.15.0](https://github.com/maxcountryman/tower-sessions)
 - [unic-char-property 0.9.0](https://github.com/open-i18n/rust-unic/)
@@ -8841,7 +8842,7 @@ DEALINGS IN THE SOFTWARE.
 **Used by:**
 
 - [adler2 2.0.1](https://github.com/oyvindln/adler2)
-- [anyhow 1.0.102](https://github.com/dtolnay/anyhow)
+- [anyhow 1.0.103](https://github.com/dtolnay/anyhow)
 - [async-channel 2.5.0](https://github.com/smol-rs/async-channel)
 - [async-executor 1.14.0](https://github.com/smol-rs/async-executor)
 - [async-io 2.6.0](https://github.com/smol-rs/async-io)
@@ -9064,7 +9065,7 @@ SOFTWARE
 - [glib-sys 0.18.1](https://github.com/gtk-rs/gtk-rs-core)
 - [glib-sys 0.22.6](https://github.com/gtk-rs/gtk-rs-core)
 - [glib 0.18.5](https://github.com/gtk-rs/gtk-rs-core)
-- [glib 0.22.7](https://github.com/gtk-rs/gtk-rs-core)
+- [glib 0.22.8](https://github.com/gtk-rs/gtk-rs-core)
 - [gobject-sys 0.18.0](https://github.com/gtk-rs/gtk-rs-core)
 - [gobject-sys 0.22.6](https://github.com/gtk-rs/gtk-rs-core)
 - [gtk-sys 0.18.2](https://github.com/gtk-rs/gtk3-rs)

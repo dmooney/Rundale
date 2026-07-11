@@ -124,6 +124,7 @@ struct ExistingMetadataAssessment {
 #[derive(Debug, Serialize)]
 struct GeneratedFallbackArtInput {
     art_direction: FallbackArtDirection,
+    pair_prompt: String,
     portrait_prompt: String,
     marker_prompt: String,
 }
@@ -146,6 +147,7 @@ struct GeneratedNpcArtInput {
     source_visual_cues: Vec<String>,
     source_metadata_status: SourceMetadataStatus,
     art_direction: NpcArtDirection,
+    pair_prompt: String,
     portrait_prompt: String,
     marker_prompt: String,
 }
@@ -237,13 +239,12 @@ pub(crate) fn export_art_inputs(
             brief_description: entry.brief_description.as_deref(),
             home_name: &home.name,
             workplace_name: workplace.as_ref().map(|w| w.name.as_str()),
-            personality_summary: &personality_summary,
-            schedule_cues: &schedule_cues,
         };
         let portrait_prompt_text =
             portrait_prompt(&art_direction.global_style, &prompt_context, direction);
         let marker_prompt_text =
             marker_prompt(&art_direction.global_style, &prompt_context, direction);
+        let pair_prompt_text = pair_prompt(&art_direction.global_style, &prompt_context, direction);
 
         generated.push(GeneratedNpcArtInput {
             npc_id: entry.id,
@@ -262,6 +263,7 @@ pub(crate) fn export_art_inputs(
             source_visual_cues: visual_cues,
             source_metadata_status: source_status,
             art_direction: (*direction).clone(),
+            pair_prompt: pair_prompt_text,
             portrait_prompt: portrait_prompt_text,
             marker_prompt: marker_prompt_text,
         });
@@ -285,6 +287,10 @@ pub(crate) fn export_art_inputs(
             strong_partial_count,
         },
         fallback: GeneratedFallbackArtInput {
+            pair_prompt: fallback_pair_prompt(
+                &art_direction.global_style,
+                &art_direction.fallback,
+            ),
             portrait_prompt: fallback_portrait_prompt(
                 &art_direction.global_style,
                 &art_direction.fallback,
@@ -521,8 +527,6 @@ struct PromptContext<'a> {
     brief_description: Option<&'a str>,
     home_name: &'a str,
     workplace_name: Option<&'a str>,
-    personality_summary: &'a str,
-    schedule_cues: &'a [ScheduleCue],
 }
 
 fn portrait_prompt(
@@ -530,28 +534,38 @@ fn portrait_prompt(
     context: &PromptContext<'_>,
     direction: &NpcArtDirection,
 ) -> String {
+    let prop = direction
+        .portrait_identity
+        .props
+        .first()
+        .map(String::as_str)
+        .unwrap_or("none");
     format!(
-        "{} UI portrait surface rule: uncolored pen-and-ink line art only on transparent alpha; no baked parchment, paper texture, background wash, colored watercolor wash, color fill, or painted clothing blocks. Source canvas: {}. Subject: {}, age {}, {}, {}. Existing NPC cue: {}. Home/work context: {}. Personality cue: {} Mood cue: {}. Portrait identity: apparent age {}; face/hair {}; clothing {}; pose/expression {}; props {}; value/line notes from identity palette {}. Constraints: {} Avoid: {}.",
-        style_prefix(style),
-        style.source_assets.portrait_source.join(", "),
+        "{} Subject identity: {}, age {}, {}; apparent age {}; face and hair {}; clothing {}, indicated only with contour, seam, and a few fold lines; expression and pose {}; current mood {}. Optional lower-edge identity cue: {}, at most one simply outlined prop. Canonical context: {}; {}. Hard constraints: one character, head and shoulders only, period-appropriate rural County Roscommon clothing, no text, no label, no border, no card, no UI chrome. Character-specific avoid list: {}.",
+        portrait_style_prefix(style),
         context.name,
         context.age,
         context.occupation,
-        context
-            .brief_description
-            .unwrap_or("no brief visual description"),
-        context.brief_description.unwrap_or("none"),
-        place_context(context),
-        context.personality_summary,
-        context.mood,
         direction.portrait_identity.apparent_age,
         direction.portrait_identity.face_and_hair,
         direction.portrait_identity.clothing,
         direction.portrait_identity.pose_expression,
-        direction.portrait_identity.props.join(", "),
-        direction.portrait_identity.palette_notes.join(", "),
-        style.common_constraints.join(", "),
+        context.mood,
+        prop,
+        context
+            .brief_description
+            .unwrap_or("ordinary parish neighbour"),
+        place_context(context),
         direction.avoid.join(", ")
+    )
+}
+
+fn portrait_style_prefix(style: &GlobalStyle) -> String {
+    format!(
+        "Artifact and lore: this is a quick observational sketch the player character drew by hand in the margin of their working parish notebook after meeting the subject. It is diegetic notebook ephemera, not a commissioned illustration, formal portrait study, character card, or polished concept painting. Non-negotiable drawing language: sparse, uncolored pen-and-ink line drawing under this visual authority: {} Use one irregular sepia/graphite ink line, economical contours, open shapes, and only a few short loose hatch marks where structurally necessary. Leave most of the face, hair, clothing, and canvas unfilled. No skin-tone fill, white underpainting, cream fill, solid dark garment, gray wash, watercolor, smooth tonal modeling, dense cross-hatching, photorealistic rendering, or glamour. Delivery composition: {}; keep the complete inked drawing between roughly 40 and 60 percent of canvas height with generous empty space on every side. Uninked areas are transparent in the delivery asset so the UI-controlled notebook paper shows through. Setting: {}.",
+        first_sentence(&style.style_reference),
+        style.source_assets.portrait_source.join(", "),
+        style.setting.join(", ")
     )
 }
 
@@ -561,64 +575,144 @@ fn marker_prompt(
     direction: &NpcArtDirection,
 ) -> String {
     format!(
-        "{} World marker surface rule: this asset sits on the painted world layer, so restrained watercolor is allowed; keep it muted and subordinate to the scene. Source canvas: {}. Subject marker: {}, age {}, {}, {}. Tiny game marker identity: silhouette {}; pose {}; readable props {}; schedule/action cues: {}. Tiny-readability notes: {}. Constraints: {} Avoid: {}.",
-        style_prefix(style),
-        style.source_assets.marker_source.join(", "),
+        "{} Subject identity: {}, age {}, {}; canonical cue {}. Silhouette: {}. Static pose: {}. Use at most these one or two large readable props: {}. Tiny-readability requirements: {}. Hard constraints: one character only, period-appropriate ordinary rural clothing, simplified face, complete feet, no text, no label, no border, no UI chrome. Character-specific avoid list: {}.",
+        marker_style_prefix(style),
         context.name,
         context.age,
         context.occupation,
         context
             .brief_description
-            .unwrap_or("no brief visual description"),
+            .unwrap_or("ordinary parish neighbour"),
         direction.marker_identity.silhouette,
         direction.marker_identity.pose,
-        direction.marker_identity.readable_props.join(", "),
-        short_schedule_context(context),
+        direction
+            .marker_identity
+            .readable_props
+            .iter()
+            .take(2)
+            .cloned()
+            .collect::<Vec<_>>()
+            .join(", "),
         direction.marker_identity.tiny_readability_notes.join(", "),
-        style.common_constraints.join(", "),
+        direction.avoid.join(", ")
+    )
+}
+
+fn marker_style_prefix(style: &GlobalStyle) -> String {
+    format!(
+        "Asset role: one tiny static full-body NPC marker that sits inside Rundale's painted world surface. It is not a UI portrait, paper doll, animation sheet, formal character illustration, or sprite-sheet panel. Visual language: loose hand-inked watercolor miniature under this visual authority: {} Use irregular sepia/graphite contours, a simple readable silhouette, restrained translucent washes, low facial detail, and only enough clothing folds to identify the person at scene size. Keep the treatment handmade and subordinate to the environment, never glossy, photorealistic, densely rendered, or cut out with a broad halo. Delivery composition: {}. Palette: sepia/graphite line with muted wool gray, bog green, weathered tan, dull brick red, peat brown, and faded indigo only; no saturated primary colors. Setting: {}.",
+        first_sentence(&style.style_reference),
+        style.source_assets.marker_source.join(", "),
+        style.setting.join(", ")
+    )
+}
+
+fn pair_prompt(
+    style: &GlobalStyle,
+    context: &PromptContext<'_>,
+    direction: &NpcArtDirection,
+) -> String {
+    let portrait_prop = direction
+        .portrait_identity
+        .props
+        .first()
+        .map(String::as_str)
+        .unwrap_or("none");
+    let marker_props = direction
+        .marker_identity
+        .readable_props
+        .iter()
+        .take(2)
+        .cloned()
+        .collect::<Vec<_>>()
+        .join(", ");
+    format!(
+        "Production task: create one identity-locked portrait-and-marker pair for {}, age {}, {}, in {}, under the {} visual authority. The two renderings must unmistakably be the same person: preserve the same apparent age, facial proportions, eye shape, nose, jaw, hairline, hairstyle, and characteristic expression across both. Shared identity: face and hair {}; clothing {}; composed from this canonical cue: {}; current mood {}. Left asset, notebook portrait: a quick observational head-and-shoulders sketch the player character drew in their working notebook after meeting this person. Use sparse uncolored sepia/graphite contours, open unfilled shapes, and only a few short hatch marks; optional lower-edge prop {}, simply outlined. Keep the complete ink drawing between 40 and 60 percent of the left cell height with generous empty padding; every uninked interior region must remain provider key, never white, cream, parchment, skin tone, gray, or any other fill. It must not read as a formal illustration or painted portrait. Right asset, painted-world marker: one tiny static full-body figure inside the painted parish scene, silhouette {}; pose {}; one or two large readable props {}; complete figure roughly 45 percent of the right cell height, acceptable range 40 to 60 percent, with generous key-visible margins; restrained translucent watercolor within loose sepia/graphite contours, simplified face, complete feet, no ground plane. Limit painted color to muted wool gray, bog green, weathered tan, dull brick red, peat brown, and faded indigo; no saturated primary colors. Shared constraints: one depiction in each assigned cell, ordinary 1820 rural County Roscommon clothing, no modern or fantasy elements, no text, labels, frames, extra people, contact-sheet furniture, or sprite-sheet poses. Character-specific avoid list: {}.",
+        context.name,
+        context.age,
+        context.occupation,
+        style.setting.join(", "),
+        first_sentence(&style.style_reference),
+        direction.portrait_identity.face_and_hair,
+        direction.portrait_identity.clothing,
+        context
+            .brief_description
+            .unwrap_or("ordinary parish neighbour"),
+        context.mood,
+        portrait_prop,
+        direction.marker_identity.silhouette,
+        direction.marker_identity.pose,
+        marker_props,
         direction.avoid.join(", ")
     )
 }
 
 fn fallback_portrait_prompt(style: &GlobalStyle, fallback: &FallbackArtDirection) -> String {
+    let prop = fallback
+        .portrait_identity
+        .props
+        .first()
+        .map(String::as_str)
+        .unwrap_or("none");
     format!(
-        "{} UI portrait surface rule: uncolored pen-and-ink line art only on transparent alpha; no baked parchment, paper texture, background wash, colored watercolor wash, color fill, or painted clothing blocks. Source canvas: {}. Subject: unknown Rundale parish neighbour fallback. Portrait identity: apparent age {}; face/hair {}; clothing {}; pose/expression {}; props {}; value/line notes from identity palette {}. Constraints: {} Avoid: {}.",
-        style_prefix(style),
-        style.source_assets.portrait_source.join(", "),
+        "{} Subject identity: unknown Rundale parish neighbour fallback; apparent age {}; face and hair {}; clothing {}, indicated only with contour, seam, and a few fold lines; expression and pose {}. Optional lower-edge identity cue: {}, at most one simply outlined prop. Hard constraints: one anonymous character, head and shoulders only, period-appropriate rural County Roscommon clothing, no text, no label, no border, no card, no UI chrome. Character-specific avoid list: {}.",
+        portrait_style_prefix(style),
         fallback.portrait_identity.apparent_age,
         fallback.portrait_identity.face_and_hair,
         fallback.portrait_identity.clothing,
         fallback.portrait_identity.pose_expression,
-        fallback.portrait_identity.props.join(", "),
-        fallback.portrait_identity.palette_notes.join(", "),
-        style.common_constraints.join(", "),
+        prop,
         fallback.avoid.join(", ")
     )
 }
 
 fn fallback_marker_prompt(style: &GlobalStyle, fallback: &FallbackArtDirection) -> String {
     format!(
-        "{} World marker surface rule: this asset sits on the painted world layer, so restrained watercolor is allowed; keep it muted and subordinate to the scene. Source canvas: {}. Subject marker: unknown Rundale parish neighbour fallback. Tiny game marker identity: silhouette {}; pose {}; readable props {}; tiny-readability notes {}. Constraints: {} Avoid: {}.",
-        style_prefix(style),
-        style.source_assets.marker_source.join(", "),
+        "{} Subject identity: unknown Rundale parish neighbour fallback. Silhouette: {}. Static pose: {}. Use at most these one or two large readable props: {}. Tiny-readability requirements: {}. Hard constraints: one anonymous character only, period-appropriate ordinary rural clothing, simplified face, complete feet, no text, no label, no border, no UI chrome. Character-specific avoid list: {}.",
+        marker_style_prefix(style),
         fallback.marker_identity.silhouette,
         fallback.marker_identity.pose,
-        fallback.marker_identity.readable_props.join(", "),
+        fallback
+            .marker_identity
+            .readable_props
+            .iter()
+            .take(2)
+            .cloned()
+            .collect::<Vec<_>>()
+            .join(", "),
         fallback.marker_identity.tiny_readability_notes.join(", "),
-        style.common_constraints.join(", "),
         fallback.avoid.join(", ")
     )
 }
 
-fn style_prefix(style: &GlobalStyle) -> String {
+fn fallback_pair_prompt(style: &GlobalStyle, fallback: &FallbackArtDirection) -> String {
+    let portrait_prop = fallback
+        .portrait_identity
+        .props
+        .first()
+        .map(String::as_str)
+        .unwrap_or("none");
+    let marker_props = fallback
+        .marker_identity
+        .readable_props
+        .iter()
+        .take(2)
+        .cloned()
+        .collect::<Vec<_>>()
+        .join(", ");
     format!(
-        "Asset style: {}; setting: {}; medium: {}; palette: {}; runtime derivatives: {}; sheet policy: {}.",
-        style.style_reference,
+        "Production task: create one identity-locked portrait-and-marker pair for an unknown Rundale parish neighbour in {}, under the {} visual authority. Both renderings must unmistakably depict the same anonymous person, preserving apparent age, facial proportions, hairline, hairstyle, and expression without resembling a named NPC. Shared identity: apparent age {}; face and hair {}; clothing {}; expression {}. Left asset, notebook portrait: quick sparse uncolored sepia/graphite head-and-shoulders observation drawn by the player character, open unfilled shapes, only a few hatch marks, optional simply outlined lower-edge prop {}. Keep the complete ink drawing between 40 and 60 percent of the left cell height with generous empty padding; every uninked interior region must remain provider key, never white, cream, parchment, skin tone, gray, or any other fill. Right asset, painted-world marker: one tiny static full-body figure, silhouette {}; pose {}; readable props {}; complete figure roughly 45 percent of the right cell height, acceptable range 40 to 60 percent, with generous key-visible margins; restrained translucent watercolor within loose sepia/graphite contours, simplified face, complete feet, no ground plane. Limit painted color to muted wool gray, bog green, weathered tan, dull brick red, peat brown, and faded indigo; no saturated primary colors. Shared constraints: one depiction in each assigned cell, ordinary 1820 rural County Roscommon clothing, no modern or fantasy elements, no text, labels, frames, extra people, contact-sheet furniture, or sprite-sheet poses. Character-specific avoid list: {}.",
         style.setting.join(", "),
-        style.medium.join(", "),
-        style.palette.join(", "),
-        style.source_assets.runtime_derivatives.join(", "),
-        style.source_assets.sheet_policy.join(", ")
+        first_sentence(&style.style_reference),
+        fallback.portrait_identity.apparent_age,
+        fallback.portrait_identity.face_and_hair,
+        fallback.portrait_identity.clothing,
+        fallback.portrait_identity.pose_expression,
+        portrait_prop,
+        fallback.marker_identity.silhouette,
+        fallback.marker_identity.pose,
+        marker_props,
+        fallback.avoid.join(", ")
     )
 }
 
@@ -630,17 +724,4 @@ fn place_context(context: &PromptContext<'_>) -> String {
         Some(workplace) => format!("home/workplace at {workplace}"),
         None => format!("home at {}", context.home_name),
     }
-}
-
-fn short_schedule_context(context: &PromptContext<'_>) -> String {
-    let mut activities: Vec<&str> = context
-        .schedule_cues
-        .iter()
-        .take(6)
-        .map(|cue| cue.activity.as_str())
-        .collect();
-    if activities.is_empty() {
-        activities.push("ordinary parish movement");
-    }
-    activities.join("; ")
 }
