@@ -1,6 +1,6 @@
 {
 	"schema_version": 1,
-	"pipeline_revision": "notebook-person-pairs-v1",
+	"pipeline_revision": "notebook-person-pairs-v2",
 	"generation_mode": "paired-v1",
 	"provider": {
 		"id": "openai",
@@ -38,8 +38,14 @@
 	"include_fallback": true,
 	"raw_output": {
 		"key_color": "#ff00ff",
-		"postprocess_revision": "notebook-person-key-v4",
+		"postprocess_revision": "notebook-person-key-v5",
 		"portrait_ink_color": "#36362e",
+		"framing_normalization": {
+			"enabled": true,
+			"algorithm": "premultiplied-bilinear-v1",
+			"headroom_fraction": 0.02,
+			"min_axis_pixels": 2
+		},
 		"pair_contract": "Return one 2048x1024 production sheet on a perfectly flat #ff00ff background. The left 1024x1024 cell contains only the notebook portrait; the right 1024x1024 cell contains only the painted-world marker. Keep both figures wholly inside their assigned cells and leave the center boundary as flat key. Do not add labels, dividers, panels, frames, duplicate poses, or shared props. Both cells must depict the same exact person with matching facial structure, age, hairline, hairstyle, and expression cues.",
 		"portrait_contract": "Generate sparse dark ink lines against one perfectly flat #ff00ff provider background. The #ff00ff key must remain visible through every uninked interior region, including open areas of the face, hair, neck, clothing, and prop. Do not underpaint the subject with white, cream, parchment, skin tone, gray, or any other fill. The pipeline removes only the key to produce transparent line art; do not paint paper, a card, a frame, a wash, or #ff00ff ink into the subject.",
 		"marker_contract": "Generate the marker against one perfectly flat #ff00ff provider background. The pipeline removes that key to produce the transparent candidate; do not add a ground plane, shadow, border, or #ff00ff to the subject."

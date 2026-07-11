@@ -199,6 +199,27 @@ function validateConfig(config) {
 	if (!config.raw_output.postprocess_revision) {
 		throw new PipelineError('raw_output.postprocess_revision is required');
 	}
+	const framingNormalization = config.raw_output.framing_normalization;
+	if (framingNormalization?.enabled) {
+		if (framingNormalization.algorithm !== 'premultiplied-bilinear-v1') {
+			throw new PipelineError(
+				`Unsupported framing normalization algorithm ${framingNormalization.algorithm}`,
+			);
+		}
+		if (
+			typeof framingNormalization.headroom_fraction !== 'number' ||
+			framingNormalization.headroom_fraction < 0 ||
+			framingNormalization.headroom_fraction >= 0.1
+		) {
+			throw new PipelineError(
+				'raw_output.framing_normalization.headroom_fraction must be between 0 and 0.1',
+			);
+		}
+		parsePositiveInteger(
+			framingNormalization.min_axis_pixels,
+			'raw_output.framing_normalization.min_axis_pixels',
+		);
+	}
 	parseKeyColor(config.raw_output.portrait_ink_color);
 	if (config.generation_mode === 'paired-v1') {
 		if (!config.raw_output.pair_contract) {
@@ -619,7 +640,7 @@ function expectedSizeForAsset(config, assetKind) {
 	return parseSize(config.provider.request.size);
 }
 
-function inspectRawPng(buffer, config, assetKind) {
+function inspectRawPng(buffer, config, assetKind, options = {}) {
 	let png;
 	try {
 		png = PNG.sync.read(buffer, { checkCRC: true });
@@ -645,6 +666,8 @@ function inspectRawPng(buffer, config, assetKind) {
 	let lightSubjectPixels = 0;
 	let coloredSubjectPixels = 0;
 	const coloredSubjectMask = new Uint8Array(total);
+	const subjectRows = new Uint32Array(png.height);
+	const subjectColumns = new Uint32Array(png.width);
 	let minX = png.width;
 	let minY = png.height;
 	let maxX = -1;
@@ -669,6 +692,8 @@ function inspectRawPng(buffer, config, assetKind) {
 				keyPixels += 1;
 			} else if (alpha > 16) {
 				subjectPixels += 1;
+				subjectRows[y] += 1;
+				subjectColumns[x] += 1;
 				minX = Math.min(minX, x);
 				minY = Math.min(minY, y);
 				maxX = Math.max(maxX, x);
@@ -742,14 +767,26 @@ function inspectRawPng(buffer, config, assetKind) {
 					height: inkMaxY - inkMinY + 1,
 				};
 	const inkBoundsArea = inkBounds ? inkBounds.width * inkBounds.height : 0;
+	const minAxisPixels =
+		config.raw_output.framing_normalization?.min_axis_pixels ?? 1;
+	const significantColumns = Array.from(subjectColumns.entries()).filter(
+		([, count]) => count >= minAxisPixels,
+	);
+	const significantRows = Array.from(subjectRows.entries()).filter(
+		([, count]) => count >= minAxisPixels,
+	);
+	const boundsMinX = significantColumns[0]?.[0] ?? minX;
+	const boundsMaxX = significantColumns.at(-1)?.[0] ?? maxX;
+	const boundsMinY = significantRows[0]?.[0] ?? minY;
+	const boundsMaxY = significantRows.at(-1)?.[0] ?? maxY;
 	const subjectBounds =
 		maxX < minX
 			? null
 			: {
-					x: minX,
-					y: minY,
-					width: maxX - minX + 1,
-					height: maxY - minY + 1,
+					x: boundsMinX,
+					y: boundsMinY,
+					width: boundsMaxX - boundsMinX + 1,
+					height: boundsMaxY - boundsMinY + 1,
 				};
 	const subjectMargin = subjectBounds
 		? Math.min(
@@ -772,6 +809,7 @@ function inspectRawPng(buffer, config, assetKind) {
 		subject_color_buckets: colorBuckets.size,
 		keyed_corners: keyedCorners,
 		corner_key_distance: cornerThreshold,
+		bounds_axis_min_pixels: minAxisPixels,
 		subject_bounds: subjectBounds,
 		subject_bounds_height_fraction: subjectBounds
 			? subjectBounds.height / png.height
@@ -811,6 +849,7 @@ function inspectRawPng(buffer, config, assetKind) {
 		);
 	}
 	if (
+		!options.allowOversizedFraming &&
 		validation.max_subject_bounds_height_fraction !== undefined &&
 		stats.subject_bounds_height_fraction >
 			validation.max_subject_bounds_height_fraction
@@ -820,6 +859,7 @@ function inspectRawPng(buffer, config, assetKind) {
 		);
 	}
 	if (
+		!options.allowOversizedFraming &&
 		validation.max_subject_bounds_width_fraction !== undefined &&
 		stats.subject_bounds_width_fraction >
 			validation.max_subject_bounds_width_fraction
@@ -855,6 +895,7 @@ function inspectRawPng(buffer, config, assetKind) {
 		);
 	}
 	if (
+		!options.allowOversizedFraming &&
 		validation.max_ink_bounds_height_fraction !== undefined &&
 		stats.ink_bounds_height_fraction > validation.max_ink_bounds_height_fraction
 	) {
@@ -995,6 +1036,247 @@ function chromaKeyCandidate(rawPng, config, assetKind) {
 	};
 }
 
+function alphaBounds(png, threshold = 32) {
+	let minX = png.width;
+	let minY = png.height;
+	let maxX = -1;
+	let maxY = -1;
+	for (let y = 0; y < png.height; y += 1) {
+		for (let x = 0; x < png.width; x += 1) {
+			const alpha = png.data[(y * png.width + x) * 4 + 3];
+			if (alpha <= threshold) continue;
+			minX = Math.min(minX, x);
+			minY = Math.min(minY, y);
+			maxX = Math.max(maxX, x);
+			maxY = Math.max(maxY, y);
+		}
+	}
+	if (maxX < minX) return null;
+	return {
+		x: minX,
+		y: minY,
+		width: maxX - minX + 1,
+		height: maxY - minY + 1,
+	};
+}
+
+function framingStats(png) {
+	const bounds = alphaBounds(png);
+	if (!bounds) {
+		throw new PipelineError('Transparent candidate is blank after key removal');
+	}
+	const margin =
+		Math.min(
+			bounds.x,
+			bounds.y,
+			png.width - (bounds.x + bounds.width),
+			png.height - (bounds.y + bounds.height),
+		) / Math.min(png.width, png.height);
+	return {
+		bounds,
+		height_fraction: bounds.height / png.height,
+		width_fraction: bounds.width / png.width,
+		margin_fraction: margin,
+	};
+}
+
+function bilinearPremultipliedSample(png, x, y) {
+	const x0 = Math.max(0, Math.min(png.width - 1, Math.floor(x)));
+	const y0 = Math.max(0, Math.min(png.height - 1, Math.floor(y)));
+	const x1 = Math.max(0, Math.min(png.width - 1, x0 + 1));
+	const y1 = Math.max(0, Math.min(png.height - 1, y0 + 1));
+	const tx = Math.max(0, Math.min(1, x - Math.floor(x)));
+	const ty = Math.max(0, Math.min(1, y - Math.floor(y)));
+	const samples = [
+		[x0, y0, (1 - tx) * (1 - ty)],
+		[x1, y0, tx * (1 - ty)],
+		[x0, y1, (1 - tx) * ty],
+		[x1, y1, tx * ty],
+	];
+	let alpha = 0;
+	let red = 0;
+	let green = 0;
+	let blue = 0;
+	for (const [sampleX, sampleY, weight] of samples) {
+		const offset = (sampleY * png.width + sampleX) * 4;
+		const sampleAlpha = png.data[offset + 3] / 255;
+		const weightedAlpha = sampleAlpha * weight;
+		alpha += weightedAlpha;
+		red += png.data[offset] * weightedAlpha;
+		green += png.data[offset + 1] * weightedAlpha;
+		blue += png.data[offset + 2] * weightedAlpha;
+	}
+	if (alpha <= 0) return [0, 0, 0, 0];
+	return [
+		Math.round(red / alpha),
+		Math.round(green / alpha),
+		Math.round(blue / alpha),
+		Math.round(alpha * 255),
+	];
+}
+
+function resizeCandidateSubject(png, bounds, scale) {
+	const targetWidth = Math.max(1, Math.floor(bounds.width * scale));
+	const targetHeight = Math.max(1, Math.floor(bounds.height * scale));
+	const targetX = Math.floor((png.width - targetWidth) / 2);
+	const targetY = Math.floor((png.height - targetHeight) / 2);
+	const resized = new PNG({ width: png.width, height: png.height });
+	resized.data.fill(0);
+	for (let y = 0; y < targetHeight; y += 1) {
+		const sourceY = bounds.y + ((y + 0.5) * bounds.height) / targetHeight - 0.5;
+		for (let x = 0; x < targetWidth; x += 1) {
+			const sourceX = bounds.x + ((x + 0.5) * bounds.width) / targetWidth - 0.5;
+			const pixel = bilinearPremultipliedSample(png, sourceX, sourceY);
+			const offset = ((targetY + y) * png.width + targetX + x) * 4;
+			resized.data[offset] = pixel[0];
+			resized.data[offset + 1] = pixel[1];
+			resized.data[offset + 2] = pixel[2];
+			resized.data[offset + 3] = pixel[3];
+		}
+	}
+	return resized;
+}
+
+function candidatePixelStats(png, config, assetKind) {
+	const validation = validationForAsset(config, assetKind);
+	const key = parseKeyColor(config.raw_output.key_color);
+	let transparentPixels = 0;
+	let visiblePixels = 0;
+	let residualKeySpillPixels = 0;
+	for (let offset = 0; offset < png.data.length; offset += 4) {
+		const alpha = png.data[offset + 3];
+		if (alpha < 16) transparentPixels += 1;
+		if (alpha <= 32) continue;
+		visiblePixels += 1;
+		if (
+			isMagentaKeySpill(
+				png.data[offset],
+				png.data[offset + 1],
+				png.data[offset + 2],
+				key,
+				validation,
+			)
+		) {
+			residualKeySpillPixels += 1;
+		}
+	}
+	const total = png.width * png.height;
+	const residualKeySpillFraction =
+		visiblePixels === 0 ? 0 : residualKeySpillPixels / visiblePixels;
+	if (transparentPixels / total < validation.min_key_fraction * 0.9) {
+		throw new PipelineError(
+			'Framing normalization retained too much provider background',
+		);
+	}
+	if (visiblePixels / total < validation.min_subject_fraction * 0.8) {
+		throw new PipelineError(
+			'Framing normalization removed the subject or produced a blank candidate',
+		);
+	}
+	if (
+		validation.max_residual_key_spill_fraction !== undefined &&
+		residualKeySpillFraction > validation.max_residual_key_spill_fraction
+	) {
+		throw new PipelineError(
+			`Framing normalization retained ${(residualKeySpillFraction * 100).toFixed(2)}% magenta spill among visible pixels`,
+		);
+	}
+	return {
+		transparent_fraction: transparentPixels / total,
+		visible_fraction: visiblePixels / total,
+		residual_key_spill_fraction: residualKeySpillFraction,
+		normalized_ink_color:
+			assetKind === 'portrait' ? config.raw_output.portrait_ink_color : null,
+	};
+}
+
+function framingHeightContract(validation, assetKind) {
+	if (assetKind === 'portrait') {
+		return {
+			minimum: validation.min_ink_bounds_height_fraction,
+			maximum: validation.max_ink_bounds_height_fraction,
+		};
+	}
+	return {
+		minimum: validation.min_subject_bounds_height_fraction,
+		maximum: validation.max_subject_bounds_height_fraction,
+	};
+}
+
+function validateCandidateFraming(stats, validation, assetKind) {
+	const height = framingHeightContract(validation, assetKind);
+	if (height.minimum !== undefined && stats.height_fraction < height.minimum) {
+		throw new PipelineError(
+			`Normalized ${assetKind} height ${stats.height_fraction.toFixed(3)} is below ${height.minimum}`,
+		);
+	}
+	if (height.maximum !== undefined && stats.height_fraction > height.maximum) {
+		throw new PipelineError(
+			`Normalized ${assetKind} height ${stats.height_fraction.toFixed(3)} exceeds ${height.maximum}`,
+		);
+	}
+	if (
+		validation.max_subject_bounds_width_fraction !== undefined &&
+		stats.width_fraction > validation.max_subject_bounds_width_fraction
+	) {
+		throw new PipelineError(
+			`Normalized ${assetKind} width ${stats.width_fraction.toFixed(3)} exceeds ${validation.max_subject_bounds_width_fraction}`,
+		);
+	}
+	if (
+		validation.min_subject_margin_fraction !== undefined &&
+		stats.margin_fraction < validation.min_subject_margin_fraction
+	) {
+		throw new PipelineError(
+			`Normalized ${assetKind} margin ${stats.margin_fraction.toFixed(3)} is below ${validation.min_subject_margin_fraction}`,
+		);
+	}
+}
+
+function normalizeCandidateFraming(candidate, config, assetKind) {
+	const normalization = config.raw_output.framing_normalization;
+	if (!normalization?.enabled) return candidate;
+	const validation = validationForAsset(config, assetKind);
+	const original = PNG.sync.read(candidate.buffer, { checkCRC: true });
+	const before = framingStats(original);
+	const height = framingHeightContract(validation, assetKind);
+	const headroom = normalization.headroom_fraction;
+	let scale = 1;
+	if (height.maximum !== undefined) {
+		scale = Math.min(
+			scale,
+			Math.max(0, height.maximum - headroom) / before.height_fraction,
+		);
+	}
+	if (validation.max_subject_bounds_width_fraction !== undefined) {
+		scale = Math.min(
+			scale,
+			Math.max(0, validation.max_subject_bounds_width_fraction - headroom) /
+				before.width_fraction,
+		);
+	}
+	const applied = scale < 1;
+	const output = applied
+		? resizeCandidateSubject(original, before.bounds, scale)
+		: original;
+	const after = framingStats(output);
+	validateCandidateFraming(after, validation, assetKind);
+	return {
+		buffer: PNG.sync.write(output, { colorType: 6 }),
+		stats: {
+			...candidatePixelStats(output, config, assetKind),
+			framing_normalization: {
+				algorithm: normalization.algorithm,
+				applied,
+				scale: Math.min(1, scale),
+				headroom_fraction: headroom,
+				before,
+				after,
+			},
+		},
+	};
+}
+
 function splitPairedRaw(buffer, config) {
 	let sheet;
 	try {
@@ -1044,8 +1326,16 @@ function validatePairedChildren(split, config) {
 				split.children[kind].buffer,
 				config,
 				kind,
+				{
+					allowOversizedFraming:
+						config.raw_output.framing_normalization?.enabled === true,
+				},
 			);
-			const candidate = chromaKeyCandidate(inspected.png, config, kind);
+			const candidate = normalizeCandidateFraming(
+				chromaKeyCandidate(inspected.png, config, kind),
+				config,
+				kind,
+			);
 			children[kind] = {
 				raw: split.children[kind].buffer,
 				inspected,
@@ -1577,9 +1867,13 @@ async function executeJob({
 				generated.buffer,
 				pipeline.config,
 				job.assetKind,
+				{
+					allowOversizedFraming:
+						pipeline.config.raw_output.framing_normalization?.enabled === true,
+				},
 			);
-			const candidate = chromaKeyCandidate(
-				inspected.png,
+			const candidate = normalizeCandidateFraming(
+				chromaKeyCandidate(inspected.png, pipeline.config, job.assetKind),
 				pipeline.config,
 				job.assetKind,
 			);
@@ -1703,45 +1997,64 @@ async function mapConcurrent(items, concurrency, worker) {
 	return results;
 }
 
-export async function reprocessCandidateFailure(options = {}) {
-	if (!options.failurePath) {
+async function reprocessCandidateSource(options, sourceKind) {
+	const sourceOption =
+		sourceKind === 'failure' ? options.failurePath : options.receiptPath;
+	if (!sourceOption) {
 		throw new PipelineError(
-			'--reprocess-failure requires a failure receipt path',
+			sourceKind === 'failure'
+				? '--reprocess-failure requires a failure receipt path'
+				: '--reprocess-receipt requires a candidate receipt path',
 		);
 	}
 	const pipeline = await loadPipeline(options);
-	const failurePath = resolvePath(pipeline.repoRoot, options.failurePath);
-	const failure = (await loadJsonWithHash(failurePath, 'failure receipt'))
-		.value;
+	const sourcePath = resolvePath(pipeline.repoRoot, sourceOption);
+	const source = (
+		await loadJsonWithHash(
+			sourcePath,
+			sourceKind === 'failure' ? 'failure receipt' : 'candidate receipt',
+		)
+	).value;
+	const isFailure =
+		source.receipt_type === 'notebook-person-art-generation-failure' &&
+		source.status === 'failed';
+	const isCandidate =
+		(source.receipt_type === 'notebook-person-art-pair-candidate' ||
+			source.receipt_type === 'notebook-person-art-candidate') &&
+		source.status === 'candidate';
 	if (
-		failure.receipt_type !== 'notebook-person-art-generation-failure' ||
-		failure.status !== 'failed'
+		(sourceKind === 'failure' && !isFailure) ||
+		(sourceKind === 'receipt' && !isCandidate)
 	) {
 		throw new PipelineError(
-			`${failurePath} is not a generation failure receipt`,
+			`${sourcePath} is not a ${sourceKind === 'failure' ? 'generation failure' : 'candidate'} receipt`,
 		);
 	}
-	if (!failure.artifact?.raw_persisted || !failure.artifact.raw_path) {
+	if (
+		!source.artifact?.raw_path ||
+		(sourceKind === 'failure' && !source.artifact.raw_persisted)
+	) {
 		throw new PipelineError(
-			'Failure receipt has no preserved raw provider artifact',
+			`${sourceKind === 'failure' ? 'Failure' : 'Candidate'} receipt has no preserved raw provider artifact`,
 		);
 	}
-	const rawPath = resolvePath(pipeline.repoRoot, failure.artifact.raw_path);
+	const rawPath = resolvePath(pipeline.repoRoot, source.artifact.raw_path);
 	const raw = await readFile(rawPath);
-	if (sha256(raw) !== failure.artifact.raw_sha256) {
+	if (sha256(raw) !== source.artifact.raw_sha256) {
 		throw new PipelineError(
-			'Preserved raw artifact hash does not match failure receipt',
+			'Preserved raw artifact hash does not match source receipt',
 		);
 	}
 
 	const candidateIndex = parsePositiveInteger(
-		failure.candidate_index,
-		'failure candidate_index',
+		source.candidate_index ?? source.asset?.candidate_index,
+		'source candidate_index',
 	);
+	const assetKind = source.asset_kind ?? source.asset?.kind;
 	const selection = buildJobs(pipeline, {
-		npcIds: failure.subject?.kind === 'npc' ? [failure.subject.npc_id] : [],
-		includeFallback: failure.subject?.kind === 'fallback',
-		asset: failure.asset_kind,
+		npcIds: source.subject?.kind === 'npc' ? [source.subject.npc_id] : [],
+		includeFallback: source.subject?.kind === 'fallback',
+		asset: assetKind,
 		candidateCount: candidateIndex,
 	});
 	const job = selection.jobs.find(
@@ -1749,11 +2062,11 @@ export async function reprocessCandidateFailure(options = {}) {
 	);
 	if (!job) {
 		throw new PipelineError(
-			'Failure receipt does not match a current candidate job',
+			'Source receipt does not match a current candidate job',
 		);
 	}
-	if (job.jobId !== failure.job_id) {
-		await assertProviderInputsMatchForReprocessing(pipeline, job, failure);
+	if (job.jobId !== source.job_id) {
+		await assertProviderInputsMatchForReprocessing(pipeline, job, source);
 	}
 	const configuredRoot = options.outputRoot ?? pipeline.config.storage.root;
 	const outputRoot = resolvePath(pipeline.repoRoot, configuredRoot);
@@ -1786,17 +2099,27 @@ export async function reprocessCandidateFailure(options = {}) {
 		]);
 		const generated = {
 			buffer: raw,
-			requestId: failure.provider?.request_id ?? null,
-			providerCreatedAt: failure.provider?.provider_created_at ?? null,
-			attempts: failure.provider?.attempts ?? null,
-			usage: failure.provider?.usage ?? null,
+			requestId: source.provider?.request_id ?? null,
+			providerCreatedAt: source.provider?.provider_created_at ?? null,
+			attempts: source.provider?.attempts ?? null,
+			usage: source.provider?.usage ?? null,
 		};
 		const startedAt = new Date().toISOString();
 		const reprocessing = {
-			source_failure_path: receiptPath(pipeline.repoRoot, failurePath),
-			source_job_id: failure.job_id,
+			...(sourceKind === 'failure'
+				? {
+						source_failure_path: receiptPath(pipeline.repoRoot, sourcePath),
+						source_failure_error: source.error,
+					}
+				: {
+						source_receipt_path: receiptPath(pipeline.repoRoot, sourcePath),
+						source_candidate_sha256:
+							source.artifact?.children?.portrait?.candidate_sha256 ??
+							source.artifact?.candidate_sha256 ??
+							null,
+					}),
+			source_job_id: source.job_id,
 			provider_request_reused: true,
-			source_failure_error: failure.error,
 			reprocessed_at: startedAt,
 		};
 		let receipt;
@@ -1836,13 +2159,16 @@ export async function reprocessCandidateFailure(options = {}) {
 				children,
 				childPaths,
 				startedAt,
-				provider: failure.provider,
+				provider: source.provider,
 				reprocessing,
 			});
 		} else {
-			const inspected = inspectRawPng(raw, pipeline.config, job.assetKind);
-			const candidate = chromaKeyCandidate(
-				inspected.png,
+			const inspected = inspectRawPng(raw, pipeline.config, job.assetKind, {
+				allowOversizedFraming:
+					pipeline.config.raw_output.framing_normalization?.enabled === true,
+			});
+			const candidate = normalizeCandidateFraming(
+				chromaKeyCandidate(inspected.png, pipeline.config, job.assetKind),
 				pipeline.config,
 				job.assetKind,
 			);
@@ -1859,11 +2185,11 @@ export async function reprocessCandidateFailure(options = {}) {
 				inspected,
 				candidate,
 				startedAt,
-				provider: failure.provider,
+				provider: source.provider,
 				reprocessing,
 			});
 		}
-		receipt.run_id = failure.run_id;
+		receipt.run_id = options.runId ?? source.run_id;
 		await atomicWrite(paths.receipt, prettyJson(receipt));
 		return {
 			status: 'reprocessed',
@@ -1874,6 +2200,148 @@ export async function reprocessCandidateFailure(options = {}) {
 		await lock.close();
 		await rm(paths.lock, { force: true });
 	}
+}
+
+export async function reprocessCandidateFailure(options = {}) {
+	return reprocessCandidateSource(options, 'failure');
+}
+
+export async function reprocessCandidateReceipt(options = {}) {
+	return reprocessCandidateSource(options, 'receipt');
+}
+
+export async function reprocessCandidateManifest(options = {}) {
+	if (!options.manifestPath) {
+		throw new PipelineError(
+			'--reprocess-manifest requires a generation manifest path',
+		);
+	}
+	const pipeline = await loadPipeline(options);
+	const sourceManifestPath = resolvePath(
+		pipeline.repoRoot,
+		options.manifestPath,
+	);
+	const sourceEntries = (await readFile(sourceManifestPath, 'utf8'))
+		.split('\n')
+		.map((line) => line.trim())
+		.filter(Boolean)
+		.map((line, index) => {
+			try {
+				return JSON.parse(line);
+			} catch (error) {
+				throw new PipelineError(
+					`Reprocess manifest line ${index + 1} is invalid JSON: ${error.message}`,
+				);
+			}
+		});
+	if (sourceEntries.length === 0) {
+		throw new PipelineError('Reprocess manifest contains no candidate entries');
+	}
+	for (const entry of sourceEntries) {
+		if (!entry.receipt && !entry.failure) {
+			throw new PipelineError(
+				`Reprocess manifest entry ${entry.job_id ?? 'unknown'} has neither receipt nor failure`,
+			);
+		}
+	}
+	const runId =
+		options.runId ??
+		`reprocess-${sha256(await readFile(sourceManifestPath)).slice(0, 16)}`;
+	validateRunId(runId);
+	const configuredRoot = options.outputRoot ?? pipeline.config.storage.root;
+	const outputRoot = resolvePath(pipeline.repoRoot, configuredRoot);
+	const runRoot = join(outputRoot, 'runs', runId);
+	const manifestPath = join(runRoot, 'manifest.jsonl');
+	const startedAt = new Date().toISOString();
+	await mkdir(runRoot, { recursive: true });
+	await atomicWrite(
+		join(runRoot, 'run.json'),
+		prettyJson({
+			schema_version: 1,
+			run_id: runId,
+			mode: 'local-reprocess',
+			status: 'running',
+			source_manifest: receiptPath(pipeline.repoRoot, sourceManifestPath),
+			source_entries: sourceEntries.length,
+			provider_requests: 0,
+			pipeline_revision: pipeline.config.pipeline_revision,
+			config_sha256: pipeline.configSha256,
+			started_at: startedAt,
+		}),
+	);
+	const concurrency = Math.min(
+		parsePositiveInteger(
+			options.concurrency ?? pipeline.config.rate_limit.max_concurrency,
+			'--concurrency',
+		),
+		pipeline.config.rate_limit.max_concurrency,
+	);
+	const results = await mapConcurrent(
+		sourceEntries,
+		concurrency,
+		async (entry) => {
+			const sourcePath = entry.receipt ?? entry.failure;
+			try {
+				const result = entry.failure
+					? await reprocessCandidateFailure({
+							...options,
+							failurePath: sourcePath,
+							runId,
+						})
+					: await reprocessCandidateReceipt({
+							...options,
+							receiptPath: sourcePath,
+							runId,
+						});
+				return {
+					source_job_id: entry.job_id,
+					source: sourcePath,
+					status: result.status,
+					job_id: result.receipt.job_id,
+					receipt: result.receiptPath,
+				};
+			} catch (error) {
+				return {
+					source_job_id: entry.job_id,
+					source: sourcePath,
+					status: 'failed',
+					error: safeError(error),
+				};
+			}
+		},
+	);
+	await atomicWrite(
+		manifestPath,
+		`${results.map((result) => JSON.stringify(result)).join('\n')}\n`,
+	);
+	const failed = results.filter((result) => result.status === 'failed').length;
+	const summary = {
+		schema_version: 1,
+		run_id: runId,
+		mode: 'local-reprocess',
+		status: failed === 0 ? 'completed' : 'failed',
+		source_manifest: receiptPath(pipeline.repoRoot, sourceManifestPath),
+		source_entries: sourceEntries.length,
+		provider_requests: 0,
+		pipeline_revision: pipeline.config.pipeline_revision,
+		config_sha256: pipeline.configSha256,
+		started_at: startedAt,
+		completed_at: new Date().toISOString(),
+		result_counts: {
+			reprocessed: results.filter((result) => result.status === 'reprocessed')
+				.length,
+			resume_skip: results.filter((result) => result.status === 'resume-skip')
+				.length,
+			failed,
+		},
+	};
+	await atomicWrite(join(runRoot, 'run.json'), prettyJson(summary));
+	if (failed > 0) {
+		throw new PipelineError(
+			`${failed} local reprocessing job(s) failed; see ${receiptPath(pipeline.repoRoot, manifestPath)}`,
+		);
+	}
+	return { plan: summary, results };
 }
 
 export async function runCandidateGeneration(options = {}) {
@@ -2050,6 +2518,8 @@ function cliOptions() {
 			concurrency: { type: 'string' },
 			'run-id': { type: 'string' },
 			'reprocess-failure': { type: 'string' },
+			'reprocess-receipt': { type: 'string' },
+			'reprocess-manifest': { type: 'string' },
 		},
 		strict: true,
 	});
@@ -2063,9 +2533,19 @@ function cliOptions() {
 			'--execute requires an explicit --max-requests cap',
 		);
 	}
-	if (parsed.values['reprocess-failure'] && parsed.values.execute) {
+	const reprocessModes = [
+		parsed.values['reprocess-failure'],
+		parsed.values['reprocess-receipt'],
+		parsed.values['reprocess-manifest'],
+	].filter(Boolean);
+	if (reprocessModes.length > 1) {
 		throw new PipelineError(
-			'--reprocess-failure is local-only and cannot be combined with --execute',
+			'Use only one of --reprocess-failure, --reprocess-receipt, or --reprocess-manifest',
+		);
+	}
+	if (reprocessModes.length > 0 && parsed.values.execute) {
+		throw new PipelineError(
+			'Reprocessing is local-only and cannot be combined with --execute',
 		);
 	}
 	let includeFallback;
@@ -2087,6 +2567,8 @@ function cliOptions() {
 		concurrency: parsed.values.concurrency,
 		runId: parsed.values['run-id'],
 		failurePath: parsed.values['reprocess-failure'],
+		receiptPath: parsed.values['reprocess-receipt'],
+		manifestPath: parsed.values['reprocess-manifest'],
 	};
 }
 
@@ -2101,8 +2583,15 @@ async function main() {
 			);
 		}
 	}
-	if (options.failurePath) {
-		const result = await reprocessCandidateFailure(options);
+	if (options.manifestPath) {
+		const result = await reprocessCandidateManifest(options);
+		console.log(prettyJson(result.plan).trimEnd());
+		return;
+	}
+	if (options.failurePath || options.receiptPath) {
+		const result = options.failurePath
+			? await reprocessCandidateFailure(options)
+			: await reprocessCandidateReceipt(options);
 		console.log(
 			prettyJson({
 				status: result.status,

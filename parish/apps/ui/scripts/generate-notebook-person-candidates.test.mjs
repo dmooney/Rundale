@@ -18,6 +18,8 @@ import { afterEach, test } from 'vitest';
 
 import {
 	reprocessCandidateFailure,
+	reprocessCandidateManifest,
+	reprocessCandidateReceipt,
 	runCandidateGeneration,
 } from './generate-notebook-person-candidates.mjs';
 
@@ -49,6 +51,7 @@ function imageFixture({
 	dense = false,
 	magentaFringe = false,
 	nearKeyCorner = false,
+	oversized = false,
 	touchBottom = false,
 } = {}) {
 	const png = new PNG({ width: 64, height: 64 });
@@ -59,13 +62,16 @@ function imageFixture({
 			png.data[offset + 1] = 0;
 			png.data[offset + 2] = 255;
 			png.data[offset + 3] = 255;
-			const bottom = touchBottom ? 63 : 46;
-			const inBounds = x >= 20 && x <= 43 && y >= 17 && y <= bottom;
+			const top = oversized ? 8 : 17;
+			const bottom = touchBottom ? 63 : oversized ? 55 : 46;
+			const left = oversized ? 14 : 20;
+			const right = oversized ? 49 : 43;
+			const inBounds = x >= left && x <= right && y >= top && y <= bottom;
 			const sparseInk =
 				inBounds &&
-				(x === 20 ||
-					x === 43 ||
-					y === 17 ||
+				(x === left ||
+					x === right ||
+					y === top ||
 					y === bottom ||
 					x === 30 ||
 					(y === 31 && x >= 24 && x <= 39));
@@ -184,6 +190,12 @@ async function fixtureFiles({ paired = false } = {}) {
 				key_color: '#ff00ff',
 				postprocess_revision: 'test-key-v2',
 				portrait_ink_color: '#36362e',
+				framing_normalization: {
+					enabled: true,
+					algorithm: 'premultiplied-bilinear-v1',
+					headroom_fraction: 0.02,
+					min_axis_pixels: 2,
+				},
 				pair_contract: 'left portrait and right marker, same person',
 				portrait_contract: 'flat key portrait',
 				marker_contract: 'flat key marker',
@@ -485,6 +497,47 @@ test('paired execute splits one response into identity-linked portrait and marke
 	});
 	assert.equal(resumed.plan.result_counts.resume_skip, 1);
 	assert.equal(provider.requests.length, 1);
+});
+
+test('paired execute normalizes complete oversized subjects without another provider call', async () => {
+	const fixture = await fixtureFiles({ paired: true });
+	const config = JSON.parse(await readFile(fixture.configPath, 'utf8'));
+	config.validation.asset_contracts.marker.max_subject_bounds_height_fraction = 0.65;
+	await writeFile(fixture.configPath, JSON.stringify(config));
+	const provider = await mockProvider(
+		pairedImageFixture({
+			portrait: { oversized: true },
+			marker: { oversized: true, nearKeyCorner: true },
+		}),
+	);
+	const result = await runCandidateGeneration({
+		configPath: fixture.configPath,
+		inputsPath: fixture.inputsPath,
+		outputRoot: fixture.outputRoot,
+		npcIds: ['1'],
+		includeFallback: false,
+		asset: 'pair',
+		execute: true,
+		maxRequests: 1,
+		environment: {
+			OPENAI_API_KEY: 'test-key',
+			RUNDALE_ART_OPENAI_BASE_URL: provider.baseUrl,
+		},
+	});
+	assert.equal(result.plan.result_counts.generated, 1);
+	assert.equal(provider.requests.length, 1);
+	const receipt = JSON.parse(await readFile(result.results[0].receipt, 'utf8'));
+	const portraitFraming =
+		receipt.artifact.children.portrait.candidate_validation
+			.framing_normalization;
+	const markerFraming =
+		receipt.artifact.children.marker.candidate_validation.framing_normalization;
+	assert.equal(portraitFraming.applied, true);
+	assert.equal(markerFraming.applied, true);
+	assert(portraitFraming.after.height_fraction <= 0.7);
+	assert(markerFraming.after.height_fraction <= 0.65);
+	assert(portraitFraming.after.margin_fraction > 0.1);
+	assert(markerFraming.after.margin_fraction > 0.1);
 });
 
 test('paired execute rejects and preserves a marker cropped by its cell boundary', async () => {
@@ -858,6 +911,99 @@ test('reuses preserved provider output across a local-only postprocess revision'
 		provider.requests.length,
 		1,
 		'local reprocessing must not call the provider',
+	);
+});
+
+test('reprocesses a successful candidate receipt under a new postprocess revision', async () => {
+	const fixture = await fixtureFiles({ paired: true });
+	const provider = await mockProvider(pairedImageFixture());
+	const generated = await runCandidateGeneration({
+		configPath: fixture.configPath,
+		inputsPath: fixture.inputsPath,
+		outputRoot: fixture.outputRoot,
+		npcIds: ['1'],
+		includeFallback: false,
+		asset: 'pair',
+		execute: true,
+		maxRequests: 1,
+		runId: 'source-receipt-run',
+		environment: {
+			OPENAI_API_KEY: 'test-key',
+			RUNDALE_ART_OPENAI_BASE_URL: provider.baseUrl,
+		},
+	});
+	const sourceReceiptPath = generated.results[0].receipt;
+	const sourceReceipt = JSON.parse(await readFile(sourceReceiptPath, 'utf8'));
+	const revisedConfig = JSON.parse(await readFile(fixture.configPath, 'utf8'));
+	revisedConfig.pipeline_revision = 'test-v2';
+	revisedConfig.raw_output.postprocess_revision = 'test-key-v3';
+	revisedConfig.raw_output.framing_normalization.headroom_fraction = 0.03;
+	await writeFile(fixture.configPath, JSON.stringify(revisedConfig));
+
+	const result = await reprocessCandidateReceipt({
+		configPath: fixture.configPath,
+		inputsPath: fixture.inputsPath,
+		outputRoot: fixture.outputRoot,
+		receiptPath: sourceReceiptPath,
+		runId: 'reprocessed-receipt-run',
+	});
+
+	assert.equal(result.status, 'reprocessed');
+	assert.notEqual(result.receipt.job_id, sourceReceipt.job_id);
+	assert.equal(result.receipt.reprocessing.source_job_id, sourceReceipt.job_id);
+	assert.equal(result.receipt.reprocessing.provider_request_reused, true);
+	assert.equal(result.receipt.run_id, 'reprocessed-receipt-run');
+	assert.equal(provider.requests.length, 1);
+});
+
+test('reprocesses a generation manifest locally without provider requests', async () => {
+	const fixture = await fixtureFiles({ paired: true });
+	const provider = await mockProvider(pairedImageFixture());
+	await runCandidateGeneration({
+		configPath: fixture.configPath,
+		inputsPath: fixture.inputsPath,
+		outputRoot: fixture.outputRoot,
+		includeFallback: false,
+		asset: 'pair',
+		execute: true,
+		maxRequests: 2,
+		runId: 'source-manifest-run',
+		environment: {
+			OPENAI_API_KEY: 'test-key',
+			RUNDALE_ART_OPENAI_BASE_URL: provider.baseUrl,
+		},
+	});
+	const revisedConfig = JSON.parse(await readFile(fixture.configPath, 'utf8'));
+	revisedConfig.pipeline_revision = 'test-v2';
+	revisedConfig.raw_output.postprocess_revision = 'test-key-v3';
+	await writeFile(fixture.configPath, JSON.stringify(revisedConfig));
+	const result = await reprocessCandidateManifest({
+		configPath: fixture.configPath,
+		inputsPath: fixture.inputsPath,
+		outputRoot: fixture.outputRoot,
+		manifestPath: join(
+			fixture.outputRoot,
+			'runs',
+			'source-manifest-run',
+			'manifest.jsonl',
+		),
+		runId: 'reprocessed-manifest-run',
+	});
+
+	assert.equal(result.plan.status, 'completed');
+	assert.equal(result.plan.provider_requests, 0);
+	assert.equal(result.plan.result_counts.reprocessed, 2);
+	assert.equal(provider.requests.length, 2);
+	assert(
+		await readFile(
+			join(
+				fixture.outputRoot,
+				'runs',
+				'reprocessed-manifest-run',
+				'manifest.jsonl',
+			),
+			'utf8',
+		),
 	);
 });
 

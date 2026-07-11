@@ -25,7 +25,9 @@ The export covers all 23 current Rundale NPCs. The audit is
 `generation-config-v1.json` pins the provider adapter, model snapshot, image
 settings, paired-cell layout, asset-specific visual references, keyed-output
 rules, validation thresholds, rate limit, retry policy, storage layout, and
-initial review status. The current provider is OpenAI's
+initial review status. It also pins deterministic premultiplied-alpha framing
+normalization for complete figures that exceed the runtime scale ceiling. The
+current provider is OpenAI's
 `gpt-image-2-2026-04-21` through `/v1/images/edits`. Each request attaches the
 issue-approved portrait and marker style derivatives and generates both assets
 from one shared identity prompt.
@@ -68,8 +70,10 @@ against its own visual contract. Portrait checks cover inked drawing height,
 total subject fill, dark-ink coverage, ink density, light fill, chromatic edge
 coverage, and solid colored fill; marker checks cover full-body scale, width,
 and safe margins. The runner removes the key and stores both transparent child
-candidates. It retries only transient provider failures, honors a global request
-rate, records request ID and usage, and never records credentials.
+candidates. Complete, uncropped subjects that are too large are downscaled and
+recentered locally with recorded before/after bounds; cropped or incomplete
+figures still fail. It retries only transient provider failures, honors a global
+request rate, records request ID and usage, and never records credentials.
 
 Because antialiased dark strokes inherit magenta from the opaque provider key,
 portrait postprocessing also normalizes every retained stroke to the configured
@@ -140,6 +144,23 @@ npm --prefix parish/apps/ui run notebook:art-candidates -- \
   --reprocess-failure path/to/failure.json
 ```
 
+Successful receipts can be migrated under a newer deterministic postprocess in
+the same way. A prior generation manifest can migrate a whole batch, including
+both successes and preserved failures, without provider calls:
+
+```sh
+npm --prefix parish/apps/ui run notebook:art-candidates -- \
+  --reprocess-receipt path/to/receipt.json
+
+npm --prefix parish/apps/ui run notebook:art-candidates -- \
+  --reprocess-manifest path/to/manifest.jsonl \
+  --run-id local-reprocess-batch
+```
+
+Every migrated receipt links to its source job and source receipt/failure,
+retains the original provider request ID and usage, and returns to pending human
+review. Approval never transfers implicitly across a postprocess revision.
+
 At millions of NPCs, the same job identity and receipt contracts should move to
 an object store plus queue/database index instead of one local JSON input and
 filesystem tree. The current command already supplies deterministic sharding,
@@ -186,6 +207,21 @@ pointer. A second decision is refused. Approval only makes both children
 eligible for the later promotion stage; it does not alter
 `approved-cast-v1.json` or runtime assets.
 
+## Current Named Candidate Batch
+
+The 2026-07-11 named-cast run made 22 bounded provider requests and resumed the
+existing Roisin request. Fourteen new pairs passed immediately; eight otherwise
+valid pairs exceeded a fixed portrait or marker scale ceiling. The final
+`notebook-person-pairs-v2` postprocess migrated all 23 preserved raws locally,
+downscaling only complete oversized figures and rejecting genuine edge contact.
+The final audit reports 23 resumable jobs and zero pending provider requests.
+
+Three ignored, self-contained review packets cover all 23 final receipts under
+`candidates/review-packets/named-cast-v2-batch-*-20260711/`. Every decision
+template remains pending. See
+`experiments/named-cast-v2-batch-20260711.md` for the exact run evidence and
+failure analysis.
+
 ## Approved Asset Build
 
 ```sh
@@ -216,10 +252,11 @@ to isolate that concept's sparse portrait line language. Existing unrelated
 portrait experiments, marker concept sheets, old procedural busts, and
 placeholder markers are not source artwork for this approved set.
 
-## Approved Initial Set
+## Legacy Runtime Set
 
-The first approved set covers the live starting Kilteevan cast plus the
-early/common notebook people used by the selected-person UI:
+The currently checked-in runtime pack predates the metadata-driven provider
+batch. It covers the live starting Kilteevan cast plus early/common notebook
+people, but it is not the final all-23 set required by issue #1628:
 
 - Brigid Ni Fhatharta
 - Sean Ruadh Kelly
