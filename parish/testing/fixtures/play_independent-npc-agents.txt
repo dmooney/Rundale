@@ -1,0 +1,49 @@
+# Independent NPC Agents - design-stage verification fixture
+#
+# Before implementation, `/debug agents` demonstrates the missing diagnostic
+# surface. After implementation, the same script proves independent deadlines,
+# bounded catch-up, tier-policy changes, persistence, and the legacy kill switch.
+
+/flag enable independent-npc-agents
+/status
+/time
+/debug clock
+/debug tiers
+/debug agents
+
+# A short jump should wake only NPCs whose own deadlines are due.
+/wait 30
+/debug agents
+/debug npcs
+
+# Moving the player changes cognitive fidelity without replacing agendas.
+go to The Crossroads
+look
+/npcs
+/debug tiers
+/debug agents
+
+# A large jump exercises bounded/collapsed catch-up rather than minute replay.
+/wait 480
+/status
+/debug agents
+/debug npcs
+
+# Save/load must rebuild ephemeral scheduler state without duplicating actions.
+/save
+/fork agent-future
+/wait 60
+/debug agents
+/load main
+/debug agents
+/debug npcs
+
+# The feature flag remains a real fallback during rollout.
+/flag disable independent-npc-agents
+/debug agents
+/wait 30
+/debug npcs
+/flag enable independent-npc-agents
+/debug agents
+
+/quit
