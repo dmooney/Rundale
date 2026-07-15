@@ -33,11 +33,12 @@ Commit: `feat(persistence): round-trip NPC agent agendas`
 
 Commit: `feat(core): orchestrate autonomous NPC intent commits`
 
-- Define immutable planning snapshots, typed intent envelopes, preconditions,
-  and outcomes in `parish-npc`.
+- Define immutable revision-stamped planning snapshots, typed intent envelopes,
+  localized preconditions, and outcomes in `parish-npc`.
 - Add bounded due-work collection and deterministic intent reduction in
   `parish-core::game_loop`.
-- Keep all awaits outside world/NPC locks and preserve established lock order.
+- Keep all awaits outside world/NPC locks; collect each state domain in a
+  separate lock scope so world and NPC locks are never held together.
 - Publish existing semantic `GameEvent`s; add variants only for behavior that
   cannot be represented today.
 - Test stale results, conflicting movement, cancellation, rejection reschedule,
@@ -83,7 +84,8 @@ Commit: `feat(npc): schedule nearby NPC scenes by individual deadlines`
 - Replace the single Tier 2 last-tick gate with per-NPC due deadlines.
 - Coalesce due, co-located NPCs into one scene request.
 - Preserve the solo-NPC no-LLM rule, Background priority, player-input
-  cancellation, retry/parse handling, gossip minting, and request caps.
+  cancellation, balanced-brace JSON extraction, schema validation, bounded
+  retry/defer handling, gossip minting, and request caps.
 - Apply one typed intent/outcome per participant and assign separate next
   wakes.
 - Add inference-count, scene-coherence, cancellation, and tier-transition

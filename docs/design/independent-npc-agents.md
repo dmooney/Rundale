@@ -116,8 +116,10 @@ agenda generation.
 
 The flow has three explicit phases:
 
-1. **Collect:** under the world/NPC locks, drain a bounded number of due NPCs,
-   capture immutable planning snapshots, and mark work in flight.
+1. **Collect:** drain a bounded number of due NPCs, then capture immutable
+   planning snapshots by acquiring and releasing the world and NPC locks in
+   separate scopes. Never hold both locks at once; stamp copied facts with
+   their revisions and mark work in flight.
 2. **Plan:** release all game-state locks, then run deterministic rules or LLM
    inference. The output is a typed `AgentIntent`, never a mutation callback.
 3. **Commit:** reacquire locks in the established order, validate the intent
@@ -202,6 +204,20 @@ pub struct AgentIntentEnvelope {
 Preconditions include the actor's expected state and location plus any target
 NPC/location assumptions. The reducer returns `Applied`, `Rejected`,
 `Superseded`, or `Deferred`, each with a reason and next-wake decision.
+
+`observed_world_revision` is diagnostic context, not a global compare-and-swap
+guard. Unrelated world activity will normally advance it while inference is in
+flight. Commit validation therefore checks the agenda generation and the
+localized `IntentPreconditions`; it rejects only when facts the intent actually
+depends on have changed.
+
+LLM planners must deserialize the typed intent with `serde`, then validate the
+schema and semantic bounds before commit. If a provider wraps the object in
+prose, extraction scans for the first complete JSON object with a balanced
+brace counter that understands quoted strings and escapes. It must not use a
+`find('{')`/`rfind('}')` slice, which can absorb trailing commentary or a later
+object. Missing, ambiguous, malformed, or out-of-bounds output becomes a
+bounded parse failure and retry/defer result, never a partially trusted intent.
 
 ## Wake semantics
 
@@ -295,7 +311,8 @@ reconciles with the current schedule entry rather than replaying missed stops.
 - Workers submit data back to the reducer; they cannot call `NpcManager::get_mut`
   or publish gameplay events directly.
 - Player input cancels lower-priority planning as it does today. A late result
-  with a stale generation or failed precondition is rejected.
+  with a stale generation or failed localized precondition is rejected;
+  unrelated changes to the global world revision are diagnostic only.
 - Bounded queues apply backpressure. Saturation defers NPC work in game time;
   it does not spawn more workers.
 - Task handles are owned by the session lifecycle and observe the existing
@@ -434,10 +451,10 @@ Gameplay proof:
 | Risk                               | Mitigation                                                                                                         |
 | ---------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
 | Runaway wake loops                 | Require every outcome to advance `next_wake_at`; cap wakes per pump and per NPC per game minute.                   |
-| Stale LLM decisions                | Generation tokens, world revision, typed preconditions, and commit-time validation.                                |
+| Stale LLM decisions                | Generation tokens, diagnostic revision stamps, localized typed preconditions, and commit-time validation.          |
 | Inference starvation               | Preserve priority lanes, cancel on player input, batch by scene/tier, and defer background work.                   |
 | Save/load duplication              | Persist committed agenda generation, clear in-flight work, and replay mutations from events rather than proposals. |
-| Deadlocks                          | Snapshot under established lock order, release before await, and centralize commit orchestration.                  |
+| Deadlocks                          | Snapshot each state domain in a separate lock scope, release before await, and centralize commit orchestration.    |
 | NPCs ignore schedules              | Keep schedules authoritative in the first release; deviations require typed, expiring reasons.                     |
 | Large time jumps explode work      | Collapse missed wakes and preserve only hard boundaries plus final state.                                          |
 | Agent behavior becomes invisible   | Stable debug view, per-outcome tracing, counters, and harness assertions.                                          |
