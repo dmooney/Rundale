@@ -1,12 +1,7 @@
 <script lang="ts">
 	import { onMount, onDestroy } from 'svelte';
 	import { get } from 'svelte/store';
-	import StatusBar from '../components/StatusBar.svelte';
-	import ChatPanel from '../components/ChatPanel.svelte';
-	import MapPanel from '../components/MapPanel.svelte';
 	import FullMapOverlay from '../components/FullMapOverlay.svelte';
-	import Sidebar from '../components/Sidebar.svelte';
-	import InputField from '../components/InputField.svelte';
 	import DebugPanel from '../components/DebugPanel.svelte';
 	import DemoBanner from '../components/DemoBanner.svelte';
 	import DemoPanel from '../components/DemoPanel.svelte';
@@ -15,16 +10,12 @@
 	import SetupOverlay from '../components/SetupOverlay.svelte';
 	import ModSelectorOverlay from '../components/ModSelectorOverlay.svelte';
 	import ShortcutsOverlay from '../components/ShortcutsOverlay.svelte';
+	import IllustratedNotebookGame from '../components/illustrated-notebook/IllustratedNotebookGame.svelte';
 
-	import { uiConfig, fullMapOpen, focailOpen, syncFocailOnViewportChange } from '../stores/game';
+	import { uiConfig, fullMapOpen } from '../stores/game';
 	import { demoVisible, demoEnabled } from '../stores/demo';
 	import { stopDemo } from '../lib/demo-player';
 
-	/** True on narrow viewports (<=768px). Desktop ignores focailOpen; on
-	 * mobile the chat column becomes the Focail panel when that store
-	 * is true. Fix for #355: without this gate both columns render the
-	 * same Sidebar side-by-side on desktop. */
-	let isMobile = $state(false);
 	import { debugVisible, debugSnapshot, debugDockLeft } from '../stores/debug';
 	import { savePickerVisible, modSelectorVisible } from '../stores/save';
 	import { cancelTravel } from '../stores/travel';
@@ -153,7 +144,6 @@
 	});
 
 	let mountCleanup: (() => void) | null = null;
-	let mobileMediaCleanup: (() => void) | null = null;
 	// Disposed-before-mount-resolves flag for #348. setupMount is async
 	// and onMount kicks it off in a detached IIFE, so a fast unmount
 	// (HMR, navigate-away during initial fetch) can fire onDestroy
@@ -172,28 +162,10 @@
 				mountCleanup = cleanup;
 			}
 		})();
-		// Track the narrow-viewport media query live so a user who
-		// resizes from mobile to desktop while focailOpen is true
-		// doesn't end up with two Sidebars stacked in the chat column
-		// and the right column (#355).
-		if (typeof window !== 'undefined' && typeof window.matchMedia === 'function') {
-			const mq = window.matchMedia('(max-width: 768px)');
-			isMobile = mq.matches;
-			const onChange = (e: MediaQueryListEvent) => {
-				isMobile = e.matches;
-				// When transitioning from mobile→desktop, close the focail overlay so
-				// the store doesn't stay true while the mobile Sidebar branch is hidden
-				// (the desktop right-col always renders its own Sidebar unconditionally).
-				syncFocailOnViewportChange(e.matches);
-			};
-			mq.addEventListener('change', onChange);
-			mobileMediaCleanup = () => mq.removeEventListener('change', onChange);
-		}
 	});
 	onDestroy(() => {
 		cancelled = true;
 		mountCleanup?.();
-		mobileMediaCleanup?.();
 		// Cancel any pending travel auto-clear so it doesn't fire
 		// against a destroyed tree (#349).
 		cancelTravel();
@@ -212,59 +184,11 @@
 	class:debug-open-bottom={$debugVisible && !$debugDockLeft}
 	class:debug-open-left={$debugVisible && $debugDockLeft}
 >
-	<StatusBar />
+	<IllustratedNotebookGame />
 
-	<!-- Mobile-only toggle toolbar -->
-	<div class="mobile-toolbar">
-		<button
-			type="button"
-			class="mobile-btn"
-			class:active={$fullMapOpen}
-			aria-pressed={$fullMapOpen}
-			aria-label="Toggle full map"
-			onclick={() => {
-				if ($fullMapOpen) {
-					fullMapOpen.set(false);
-				} else {
-					focailOpen.set(false);
-					fullMapOpen.set(true);
-				}
-			}}
-		>Map</button>
-		<button
-			type="button"
-			class="mobile-btn"
-			class:active={$focailOpen}
-			aria-pressed={$focailOpen}
-			aria-label="Language Hints — toggle Irish words panel"
-			onclick={() => {
-				if ($focailOpen) {
-					focailOpen.set(false);
-				} else {
-					fullMapOpen.set(false);
-					focailOpen.set(true);
-				}
-			}}
-		>Language Hints</button>
-	</div>
-
-	<div class="main-area">
-		<div class="chat-col">
-			{#if $focailOpen && isMobile}
-				<Sidebar onclose={() => focailOpen.set(false)} />
-			{:else}
-				<ChatPanel />
-				<InputField />
-			{/if}
-		</div>
-		<div class="right-col">
-			<MapPanel />
-			<Sidebar />
-		</div>
-		{#if $fullMapOpen}
-			<FullMapOverlay onclose={() => fullMapOpen.set(false)} />
-		{/if}
-	</div>
+	{#if $fullMapOpen}
+		<FullMapOverlay onclose={() => fullMapOpen.set(false)} />
+	{/if}
 
 </div>
 
@@ -302,82 +226,10 @@
 	}
 
 	@media (min-width: 1200px) {
-		.app-shell.debug-open-left {
+	.app-shell.debug-open-left {
 			margin-left: min(28rem, 36vw);
 			width: calc(100vw - min(28rem, 36vw));
 		}
-	}
-
-	.main-area {
-		flex: 1;
-		display: grid;
-		/* Right column: wide enough for a readable minimap + the Present /
-		   Language Hints panels, scaling with the viewport (was fixed 220px). */
-		grid-template-columns: 1fr clamp(240px, 22vw, 320px);
-		overflow: hidden;
-		min-height: 0;
-		position: relative;
-	}
-
-	.chat-col {
-		display: flex;
-		flex-direction: column;
-		min-height: 0;
-		overflow: hidden;
-		position: relative;
-	}
-
-	.right-col {
-		display: flex;
-		flex-direction: column;
-		overflow: hidden;
-	}
-
-	/* ── Mobile toolbar ── */
-	.mobile-toolbar {
-		display: none;
-	}
-
-	@media (max-width: 768px) {
-		.main-area {
-			grid-template-columns: 1fr;
-		}
-
-		/* Hide the desktop right column entirely on mobile */
-		.right-col {
-			display: none;
-		}
-
-		.mobile-toolbar {
-			display: flex;
-			gap: 0.5rem;
-			padding: 0.35rem 0.75rem;
-			background: var(--color-panel-bg);
-			border-bottom: 1px solid var(--color-border);
-			position: sticky;
-			top: 0;
-			z-index: 29;
-		}
-
-		.mobile-btn {
-			background: none;
-			border: 1px solid var(--color-border);
-			color: var(--color-muted);
-			font-family: var(--font-display);
-			font-size: 0.65rem;
-			letter-spacing: 0.1em;
-			padding: 0.25rem 0.6rem;
-			cursor: pointer;
-			transition: color 0.2s, border-color 0.2s;
-		}
-
-		.mobile-btn:hover,
-		.mobile-btn:focus-visible,
-		.mobile-btn.active {
-			color: var(--color-accent);
-			border-color: var(--color-accent);
-		}
-
 	}
 
 	/* ── Screenshot toast ── */

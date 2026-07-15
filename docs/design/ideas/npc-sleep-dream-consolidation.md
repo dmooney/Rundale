@@ -332,7 +332,7 @@ This fixture is the `/prove` target per CLAUDE.md rule #4.
 4. **Gameplay proof:** `/prove dreams` fixture described above. Unit tests are not sufficient.
 5. No `#[allow]` attributes without justification.
 6. Feature flags (`sleep_state_enabled`, `dreams_enabled`), default-on, documented in PR body.
-7. **Acceptance-criteria-first (rule #13):** begin with `/task-start npc-sleep-dream-mechanics` to write `.proofs/<task-id>/acceptance-criteria.md` and the verification fixture **before** any code.
+7. **Acceptance criteria:** write `.proofs/<task-id>/acceptance-criteria.md` and the verification fixture before implementation.
 
 ---
 

@@ -34,6 +34,7 @@ Run a triage pass over open issues that lack a `P*` priority or any theme label.
    already have both unless asked for a re-triage.
 
 4. **Classify.** For each remaining issue, read title + body and assign:
+
    - **Exactly one priority** (`P0`/`P1`/`P2`/`P3`) using the rubric in `triage-vocabulary.md`.
    - **At least one theme** label. Multiple is fine when an issue genuinely spans themes (e.g. `security` +
      `infra` for a workflow vuln).
@@ -124,6 +125,7 @@ number,title,labels,closedByPullRequestsReferences`. Filter to issues with `bug`
    inline-only filter misses it.
 
 4. **Merge gate.** A PR is mergeable when ALL of:
+
    - title prefix is `fix:` / `security:` / `perf:` / `bug:` / `chore(deps):` / `fix(scope):`
    - all `Rust*`/`UI*`/`Full*` checks are SUCCESS
    - `unr == 0` (zero unresolved-non-outdated bot threads)
@@ -166,6 +168,7 @@ Patterns burned-in across two long sessions on this repo. Reference, not procedu
   re-review; use judgement.
 
 - **CI transient failures (false positives, retry).**
+
   - Cache reserve race: `Failed to save: Unable to reserve cache with key v0-rust-...`
   - Playwright artifact upload 403: `Upload Playwright report ... Failed request: (403) Forbidden: job is completed`
 
@@ -176,6 +179,7 @@ Patterns burned-in across two long sessions on this repo. Reference, not procedu
 
 - **Dependabot CI doesn't auto-fire.** GitHub's dependabot branch security policy blocks workflows even
   after a non-bot commit. Workaround:
+
   1. Push an empty commit to the dependabot branch: `git commit --allow-empty -m "ci: retrigger" && git push origin <branch>`
   2. Manually dispatch via `gh workflow run ci.yml --ref <branch>`
   3. The dispatched run shows green but doesn't update the PR's check-rollup
