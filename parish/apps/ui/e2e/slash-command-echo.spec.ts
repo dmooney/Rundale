@@ -1,14 +1,12 @@
 /**
- * E2E proof for slash-command echo rendering (#1423).
+ * E2E proof for slash-command echo ordering in the illustrated notebook.
  *
- * Verifies that a text-log entry with source:"player" and subtype:"command"
- * renders as a distinct command line (`.entry.command`) above the narration
- * that follows it, NOT as a gold dialogue bubble.
- *
- * Captures a screenshot saved to `.proofs/fix-1423-slash-echo/` as the
- * live-proof artifact.
+ * The Journal replaces the retired chat-entry CSS. These checks keep command
+ * text, source attribution, and command-before-result ordering readable without
+ * adding compatibility DOM solely for the old selectors.
  */
 
+import type { Page } from '@playwright/test';
 import { test, expect, installTauriMock, emitEvent } from './fixtures';
 import * as path from 'path';
 import * as fs from 'fs';
@@ -19,8 +17,24 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // __dirname is parish/apps/ui/e2e → up four to the repo root.
 const PROOF_DIR = path.resolve(
 	__dirname,
-	'../../../../.proofs/fix-1423-slash-echo',
+	'../../../../.proofs/1712-notebook-journal-e2e',
 );
+
+async function openJournal(page: Page) {
+	const trigger = page.getByRole('button', {
+		name: 'Open Journal notebook tab',
+	});
+	await expect(trigger).toBeVisible();
+	await trigger.focus();
+	await page.keyboard.press('Enter');
+	const journal = page.getByLabel('journal drawer');
+	await expect(journal).toBeVisible();
+	return journal;
+}
+
+function journalLine(journal: ReturnType<Page['locator']>, text: string) {
+	return journal.locator('p').filter({ hasText: text });
+}
 
 test.describe('slash-command echo rendering (#1423)', () => {
 	test.beforeEach(async ({ page }) => {
@@ -29,9 +43,10 @@ test.describe('slash-command echo rendering (#1423)', () => {
 		await page.waitForLoadState('networkidle');
 	});
 
-	test('#1423 /pause shows as .entry.command, not a dialogue bubble', async ({
+	test('#1423 /pause remains readable before its Journal result', async ({
 		page,
 	}) => {
+		const journal = await openJournal(page);
 		// Emit the command echo (source:player, subtype:command)
 		await emitEvent(page, 'text-log', {
 			id: 'cmd-pause',
@@ -47,19 +62,17 @@ test.describe('slash-command echo rendering (#1423)', () => {
 			content: 'The clocks of the parish stand still. Time is now paused.',
 		});
 
-		// AC-3: command entry exists with .entry.command
-		const commandEntry = page.locator('[data-testid="command-entry"]');
-		await expect(commandEntry).toBeVisible();
-		await expect(commandEntry).toContainText('/pause');
-
-		// AC-3: NOT rendered as a player dialogue bubble
-		await expect(page.locator('.bubble-row.player')).toHaveCount(0);
-
-		// System narration follows below
-		const narration = page
-			.locator('.entry.system')
-			.filter({ hasText: 'clocks of the parish' });
-		await expect(narration).toContainText('clocks of the parish');
+		const commandEntry = journalLine(journal, '/pause');
+		const narration = journalLine(journal, 'clocks of the parish');
+		await expect(commandEntry).toHaveCount(1);
+		await expect(commandEntry).toContainText('player: /pause');
+		await expect(narration).toContainText(
+			'system: The clocks of the parish stand still. Time is now paused.',
+		);
+		const lines = await journal.locator('p').allTextContents();
+		expect(lines.findIndex((line) => line.includes('/pause'))).toBeLessThan(
+			lines.findIndex((line) => line.includes('clocks of the parish')),
+		);
 
 		// Capture proof screenshot
 		fs.mkdirSync(PROOF_DIR, { recursive: true });
@@ -72,6 +85,7 @@ test.describe('slash-command echo rendering (#1423)', () => {
 	test('#1423 /resume and /wait also render as command entries', async ({
 		page,
 	}) => {
+		const journal = await openJournal(page);
 		await emitEvent(page, 'text-log', {
 			id: 'cmd-r',
 			source: 'player',
@@ -95,11 +109,26 @@ test.describe('slash-command echo rendering (#1423)', () => {
 			content: 'Ten minutes pass quietly.',
 		});
 
-		const commandEntries = page.locator('[data-testid="command-entry"]');
-		await expect(commandEntries).toHaveCount(2);
-		await expect(commandEntries.nth(0)).toContainText('/resume');
-		await expect(commandEntries.nth(1)).toContainText('/wait 10');
-		// No player bubbles
-		await expect(page.locator('.bubble-row.player')).toHaveCount(0);
+		await expect(journalLine(journal, '/resume')).toContainText(
+			'player: /resume',
+		);
+		await expect(journalLine(journal, 'Time flows once more')).toContainText(
+			'system: Time flows once more in the parish.',
+		);
+		await expect(journalLine(journal, '/wait 10')).toContainText(
+			'player: /wait 10',
+		);
+		await expect(journalLine(journal, 'Ten minutes pass')).toContainText(
+			'system: Ten minutes pass quietly.',
+		);
+
+		const lines = await journal.locator('p').allTextContents();
+		const resume = lines.findIndex((line) => line.includes('/resume'));
+		const resumed = lines.findIndex((line) => line.includes('Time flows'));
+		const wait = lines.findIndex((line) => line.includes('/wait 10'));
+		const waited = lines.findIndex((line) => line.includes('Ten minutes'));
+		expect(resume).toBeLessThan(resumed);
+		expect(resumed).toBeLessThan(wait);
+		expect(wait).toBeLessThan(waited);
 	});
 });
