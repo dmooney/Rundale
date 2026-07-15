@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
-# Harness sensor: fail if any filesystem path cited inside a backtick-quoted
-# token in docs/agent/*.md, AGENTS.md, or CLAUDE.md doesn't exist on disk.
+# Harness sensor: fail if a stable path cited by an agent doc, or a relative
+# Markdown link in an active project document, doesn't exist on disk.
 #
 # Rationale: OpenAI's harness-engineering post recommends mechanically
 # enforcing cross-linked design docs so agents can trust the repo as their
@@ -10,13 +10,14 @@
 # for months — and every agent reading the doc starts with a wrong model.
 #
 # Scope:
-#  - Matches backtick-delimited tokens that begin with one of the known
-#    repo roots (parish/, crates/, apps/, docs/, mods/, testing/, deploy/, assets/,
-#    scripts/, .skills/).
-#  - Skips globs (*), template vars ({...}), URLs, and the ../../ relative
-#    fragments used in code snippets.
-#  - Treats trailing-slash directory refs (`parish/crates/parish-core/`) the same
-#    as file refs.
+#  - Matches backtick-delimited tokens in agent docs that begin with one of the
+#    known repo roots (parish/, crates/, apps/, docs/, mods/, testing/, deploy/,
+#    assets/, scripts/, .skills/).
+#  - Checks ordinary relative Markdown links in every tracked Markdown document
+#    except `docs/proofs/`, whose immutable evidence may cite intentionally
+#    ephemeral artifacts.
+#  - Skips globs (*), template vars ({...}), URLs, anchors, and fenced code
+#    examples. Trailing-slash directory refs work as expected.
 set -euo pipefail
 
 cd "$(git rev-parse --show-toplevel)"
@@ -72,6 +73,52 @@ for doc in "${sources[@]}"; do
     )
 done
 
+# Then validate ordinary Markdown links across active project documentation.
+# `git ls-files` keeps the scan deterministic and avoids generated local docs.
+markdown_checked=0
+while IFS= read -r doc; do
+    [[ "$doc" == docs/proofs/* ]] && continue
+
+    # Skip fenced examples: a documentation example may intentionally use a
+    # placeholder link, while prose links should always resolve in the checkout.
+    while IFS= read -r path; do
+        [[ -z "$path" ]] && continue
+        path="${path#<}"
+        path="${path%>}"
+        [[ "$path" == \#* ]] && continue
+        [[ "$path" == http:* || "$path" == https:* || "$path" == mailto:* || "$path" == tel:* || "$path" == data:* || "$path" == git+* ]] && continue
+        [[ "$path" =~ ^[0-9]+$ ]] && continue
+
+        # A local fragment points at a valid file even if this sensor does not
+        # validate its heading. Query strings are likewise irrelevant to the
+        # filesystem path.
+        path="${path%%\#*}"
+        path="${path%%\?*}"
+        [[ -z "$path" ]] && continue
+        path="${path//%20/ }"
+
+        markdown_checked=$((markdown_checked + 1))
+        if [[ ! -e "$(dirname "$doc")/$path" ]]; then
+            echo "::error file=$doc::Markdown link target does not exist: $path" >&2
+            missing=$((missing + 1))
+        fi
+    done < <(
+        awk '
+            /^```|^~~~/ { fenced = !fenced; next }
+            !fenced {
+                line = $0
+                while (match(line, /`[^`]*`/)) {
+                    line = substr(line, 1, RSTART - 1) substr(line, RSTART + RLENGTH)
+                }
+                print line
+            }
+        ' "$doc" \
+            | grep -oE '\]\((<[^>]+>|[^ )]+)' \
+            | sed -E 's/^\]\(//; s/^<//; s/>$//' \
+            || true
+    )
+done < <(git ls-files '*.md')
+
 if ((missing > 0)); then
     echo "" >&2
     echo "FAIL: $missing cited path(s) missing (checked $checked)." >&2
@@ -79,4 +126,4 @@ if ((missing > 0)); then
     exit 1
 fi
 
-echo "OK: every cited path exists ($checked checked across ${#sources[@]} file(s))."
+echo "OK: every cited agent path and active Markdown link exists ($checked agent paths; $markdown_checked Markdown links)."

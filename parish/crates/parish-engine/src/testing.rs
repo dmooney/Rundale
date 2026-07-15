@@ -2339,6 +2339,35 @@ mod tests {
     }
 
     #[test]
+    fn canned_npc_response_replaces_invented_place_soft_deflection() {
+        let mut h = GameTestHarness::new();
+        h.add_canned_response(
+            "Peig Hannigan",
+            "And Ballygostick Tower, now? Have ye a reason for asking?",
+        );
+        let result =
+            h.execute("talk to Peig Hannigan about Is there a place called Ballygostick Tower?");
+        let ActionResult::NpcResponse { npc, dialogue, .. } = result else {
+            panic!("expected Peig to answer through the canned NPC path, got {result:?}");
+        };
+        let lower = dialogue.to_lowercase();
+
+        assert_eq!(npc, "Peig Hannigan");
+        assert!(
+            lower.contains("place"),
+            "invented place should become a place non-recognition decline: {dialogue:?}"
+        );
+        assert!(
+            !lower.contains("ballygostick tower"),
+            "invented place name must not be repeated as a real referent: {dialogue:?}"
+        );
+        assert!(
+            !lower.contains("reason for asking"),
+            "soft deflection must not surface unchanged: {dialogue:?}"
+        );
+    }
+
+    #[test]
     fn canned_npc_response_cools_neutral_rival_target_tone() {
         let mut h = GameTestHarness::new();
         let moved = h.execute("go to Connolly's Shop");

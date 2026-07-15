@@ -3315,6 +3315,17 @@ const PLACE_AFFIRMATION_MARKERS: &[&str] = &[
     "is away in ",
 ];
 
+/// Soft place-validation markers: phrases that avoid an explicit denial while
+/// treating the player's invented place query as a legitimate referent (#1507).
+const PLACE_SOFT_VALIDATION_MARKERS: &[&str] = &[
+    "have ye a reason for asking",
+    "have you a reason for asking",
+    "why do ye ask",
+    "why do you ask",
+    "what brings ye to ask",
+    "what brings you to ask",
+];
+
 /// Returns a stock place-decline for an unknown named place.
 /// Cycles through a small pool to avoid repeated identical responses.
 fn non_recognition_place_decline(seed: u64) -> &'static str {
@@ -4090,11 +4101,11 @@ fn place_not_in_known_locations(candidate: &str, known_location_names: &[String]
 ///   1. Player input contains a candidate place name (extracted via
 ///      place-noun collocation or explicit directional query pattern).
 ///   2. The candidate is NOT in `known_location_names`.
-///   3. The NPC dialogue contains a place-affirmation marker.  Because
-///      candidates are only extracted from explicitly signalled place queries,
-///      an affirmation marker in the dialogue is treated as sufficient evidence
-///      that the NPC is confirming the invented place — the NPC may paraphrase
-///      or describe the location without repeating the exact name.
+///   3. The NPC dialogue contains either a place-affirmation marker or a soft
+///      validation marker. Because candidates are only extracted from explicitly
+///      signalled place queries, those markers are sufficient evidence that the
+///      NPC is treating the invented place as a real conversational referent —
+///      the NPC may paraphrase or omit the exact name.
 ///   4. The NPC dialogue does NOT contain a denial marker (already declining).
 ///
 /// Gate: `dialogue-invented-place-guard` (default-on).
@@ -4116,9 +4127,13 @@ pub fn guard_invented_place_confirmation(
         return dialogue.to_string();
     }
 
-    // Must contain a place-affirmation marker for the guard to fire.
-    let has_affirmation = PLACE_AFFIRMATION_MARKERS.iter().any(|m| lower.contains(m));
-    if !has_affirmation {
+    // Must contain a place-affirmation or soft-validation marker for the guard
+    // to fire.
+    let has_place_marker = PLACE_AFFIRMATION_MARKERS.iter().any(|m| lower.contains(m))
+        || PLACE_SOFT_VALIDATION_MARKERS
+            .iter()
+            .any(|m| lower.contains(m));
+    if !has_place_marker {
         return dialogue.to_string();
     }
 
@@ -4130,13 +4145,13 @@ pub fn guard_invented_place_confirmation(
         }
 
         // When the candidate was extracted via the conservative strategies
-        // (place-noun collocation or where-is directional), the presence of a
-        // place-affirmation marker in the dialogue is sufficient evidence that
-        // the NPC is confirming the invented place — the NPC may paraphrase
-        // the name or describe where it "is" without repeating the exact name.
+        // (place-noun collocation or where-is directional), a place-affirmation
+        // or soft-validation marker in the dialogue is sufficient evidence that
+        // the NPC is treating the invented place as real — the NPC may
+        // paraphrase, omit the name, or ask why the player is asking.
         tracing::warn!(
             candidate = %candidate,
-            "invented-place guard fired: NPC confirmed invented place (#1530)"
+            "invented-place guard fired: NPC confirmed/soft-validated invented place (#1530/#1507)"
         );
         return non_recognition_place_decline(seed).to_string();
     }
@@ -6831,6 +6846,58 @@ mod tests {
         );
     }
 
+    /// AC-1 (#1507): NPC soft-validates an invented place → replaced with
+    /// place-decline instead of suspiciously asking why the player asked.
+    #[test]
+    fn invented_place_guard_fires_for_soft_deflection() {
+        let known = make_locations(&["Kilteevan", "Roscommon", "Strokestown"]);
+        let dialogue = "And Ballygostick Tower, now? Have ye a reason for asking?";
+        let result = guard_invented_place_confirmation(
+            dialogue,
+            "Is there a place called Ballygostick Tower?",
+            &known,
+            0,
+        );
+
+        assert_ne!(
+            result, dialogue,
+            "guard must fire for invented-place soft deflection: {result:?}"
+        );
+        assert!(
+            !result.to_lowercase().contains("ballygostick"),
+            "invented place name must not be repeated: {result:?}"
+        );
+        assert!(
+            result.to_lowercase().contains("place"),
+            "replacement should be a place non-recognition decline: {result:?}"
+        );
+    }
+
+    /// AC-1 (#1507): another post-generation guard may already strip the
+    /// invented place name, leaving only the soft-deflecting question. The
+    /// place guard still has the player's original place query and should
+    /// replace the leftover deflection.
+    #[test]
+    fn invented_place_guard_fires_for_leftover_reason_question() {
+        let known = make_locations(&["Kilteevan", "Roscommon", "Strokestown"]);
+        let dialogue = "Have ye a reason for asking?";
+        let result = guard_invented_place_confirmation(
+            dialogue,
+            "Is there a place called Ballygostick Tower?",
+            &known,
+            1,
+        );
+
+        assert_ne!(
+            result, dialogue,
+            "leftover soft deflection must become a clear place decline: {result:?}"
+        );
+        assert!(
+            result.to_lowercase().contains("place"),
+            "replacement should mention place non-recognition: {result:?}"
+        );
+    }
+
     /// AC-2 (#1530): NPC confirms a real location from the known list → unchanged.
     #[test]
     fn invented_place_guard_leaves_known_location() {
@@ -6840,6 +6907,24 @@ mod tests {
         assert_eq!(
             result, dialogue,
             "known location must pass through unchanged: {result:?}"
+        );
+    }
+
+    /// AC-2 (#1507): soft questions about a real location are not rewritten as
+    /// unknown-place denials.
+    #[test]
+    fn invented_place_guard_leaves_known_location_soft_question() {
+        let known = make_locations(&["Kilteevan", "Roscommon", "Strokestown"]);
+        let dialogue = "Kilteevan, now? Have ye a reason for asking?";
+        let result = guard_invented_place_confirmation(
+            dialogue,
+            "Is there a place called Kilteevan?",
+            &known,
+            0,
+        );
+        assert_eq!(
+            result, dialogue,
+            "known location soft question must pass through unchanged: {result:?}"
         );
     }
 

@@ -130,4 +130,4 @@ The map is a **static authored data file** (JSON or SQLite). Geography never cha
 
 ## Source Modules
 
-- [`src/world/`](../../src/world/) — World state, location graph, time system
+- [`parish-world`](../../parish/crates/parish-world/src/) — World state, location graph, and time system
