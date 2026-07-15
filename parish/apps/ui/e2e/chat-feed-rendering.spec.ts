@@ -1,29 +1,41 @@
 /**
- * E2E proof for the chat-feed rendering fixes:
+ * E2E proof for readable player-log content in the illustrated notebook.
  *
- *  - #1226: a go-to / movement player echo bubble must show the FULL
- *    destination. The destination equals the current location name, so it is
- *    highlighted as a `.term-location`. On the gold player bubble that term
- *    colour (#b58900) was gold-on-gold and the destination vanished. The fix
- *    forces player-bubble term spans to the bubble's readable foreground.
- *
- *  - #1275: when several co-located NPCs react to one player message, the
- *    reaction chips must wrap cleanly and stay aligned under the (right-
- *    aligned) player bubble — not spill to the left of it.
- *
- * Uses the default cream/gold light theme (DEFAULT_THEME_PALETTE) so the
- * conditions match the original bug screenshots. Captures a screenshot used
- * as the proof bundle artifact.
+ * The current Journal deliberately replaces the retired rich-chat bubble CSS.
+ * These checks preserve the original full-destination and message-order
+ * outcomes through that surface. Rich reaction presentation remains tracked by
+ * #1630 instead of reintroducing compatibility DOM solely for old selectors.
  */
 
+import type { Page } from '@playwright/test';
 import { test, expect, installTauriMock, emitEvent } from './fixtures';
+import * as fs from 'fs';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-// Proof bundle lives at repo-root/.proofs/fix-1226-1275 (gitignored).
+// Proof bundle lives at repo-root/.proofs/1712-notebook-journal-e2e (gitignored).
 // __dirname is parish/apps/ui/e2e → up four to the repo root.
-const PROOF_DIR = path.resolve(__dirname, '../../../../.proofs/fix-1226-1275');
+const PROOF_DIR = path.resolve(
+	__dirname,
+	'../../../../.proofs/1712-notebook-journal-e2e',
+);
+
+async function openJournal(page: Page) {
+	const trigger = page.getByRole('button', {
+		name: 'Open Journal notebook tab',
+	});
+	await expect(trigger).toBeVisible();
+	await trigger.focus();
+	await page.keyboard.press('Enter');
+	const journal = page.getByLabel('journal drawer');
+	await expect(journal).toBeVisible();
+	return journal;
+}
+
+function journalLine(journal: ReturnType<Page['locator']>, text: string) {
+	return journal.locator('p').filter({ hasText: text });
+}
 
 test.describe('chat-feed rendering (#1226, #1275)', () => {
 	test.beforeEach(async ({ page }) => {
@@ -51,34 +63,26 @@ test.describe('chat-feed rendering (#1226, #1275)', () => {
 		});
 	});
 
-	test('#1226 go-to bubble shows the full destination', async ({ page }) => {
-		// Backend echoes "> go to <dest>"; the frontend strips "> ".
+	test('#1226 Journal shows the full movement destination', async ({
+		page,
+	}) => {
+		const journal = await openJournal(page);
+		// Backend echoes "> go to <dest>"; the controller strips "> ".
 		await emitEvent(page, 'text-log', {
 			id: 'p-goto',
 			source: 'player',
 			content: '> go to The Crossroads',
 		});
 
-		const playerContent = page.locator('.bubble-row.player .content');
-		await expect(playerContent).toHaveText('go to The Crossroads');
-
-		// The destination is highlighted as a location term…
-		const term = page.locator('.bubble-row.player .term-location');
-		await expect(term).toHaveText('The Crossroads');
-
-		// …and that term is legible: its colour must NOT be the page-tuned gold
-		// location colour (which equals the bubble background). The fix sets it
-		// to --color-bg (cream #fafad8 in the default theme).
-		const termColor = await term.evaluate((el) => getComputedStyle(el).color);
-		// --color-bg #fafad8 → rgb(250, 250, 216); the old (buggy) colour was
-		// --color-location #b58900 → rgb(181, 137, 0).
-		expect(termColor).toBe('rgb(250, 250, 216)');
-		expect(termColor).not.toBe('rgb(181, 137, 0)');
+		const movementLine = journalLine(journal, 'go to The Crossroads');
+		await expect(movementLine).toHaveCount(1);
+		await expect(movementLine).toContainText('player: go to The Crossroads');
 	});
 
-	test('#1275 multiple NPC reaction chips wrap cleanly and align under the bubble', async ({
+	test('#1275 reaction events preserve readable Journal content and order (#1630)', async ({
 		page,
 	}) => {
+		const journal = await openJournal(page);
 		// Player message several co-located NPCs will react to.
 		await emitEvent(page, 'text-log', {
 			id: 'p-react',
@@ -99,50 +103,35 @@ test.describe('chat-feed rendering (#1226, #1275)', () => {
 				source: r.source,
 			});
 		}
+		await emitEvent(page, 'text-log', {
+			id: 'sys-after-reactions',
+			source: 'system',
+			content: 'The parish watches in thoughtful silence.',
+		});
 
-		const bar = page.locator('.bubble-row.player [data-testid="reaction-bar"]');
-		await expect(bar).toBeVisible();
-
-		// AC1275-2: every chip is present, none dropped.
-		const badges = page.locator('.bubble-row.player .reaction-badge');
-		await expect(badges).toHaveCount(reactors.length);
-
-		// AC1275-1: the bar is right-aligned (under the right-aligned bubble).
-		await expect(bar).toHaveCSS('justify-content', 'flex-end');
-		await expect(bar).toHaveCSS('flex-wrap', 'wrap');
-
-		// AC1275-3: each chip is an intact, non-shrinking unit.
-		const firstBadge = badges.first();
-		await expect(firstBadge).toHaveCSS('white-space', 'nowrap');
-		await expect(firstBadge).toHaveCSS('flex-shrink', '0');
-
-		// AC1275-1 (alignment): the chips sit under the right-aligned player
-		// bubble. The rightmost chip's right edge aligns with the bubble's right
-		// edge, and no chip spills off the left of the chat panel.
-		const bubble = page.locator('.bubble-row.player .bubble').first();
-		const lastBadge = badges.nth(reactors.length - 1);
-		const lastBox = await lastBadge.boundingBox();
-		const bubbleBox = await bubble.boundingBox();
-		const barBox = await bar.boundingBox();
-		const panelBox = await page
-			.locator('[data-testid="chat-panel"]')
-			.boundingBox();
-		expect(lastBox).not.toBeNull();
-		expect(bubbleBox).not.toBeNull();
-		expect(barBox).not.toBeNull();
-		expect(panelBox).not.toBeNull();
-		if (lastBox && bubbleBox && barBox && panelBox) {
-			// Rightmost chip right edge aligns with the bubble's right edge.
-			const lastRight = lastBox.x + lastBox.width;
-			const bubbleRight = bubbleBox.x + bubbleBox.width;
-			expect(Math.abs(lastRight - bubbleRight)).toBeLessThanOrEqual(4);
-			// No chip spills off the left edge of the chat panel.
-			expect(barBox.x).toBeGreaterThanOrEqual(panelBox.x - 1);
-		}
+		const playerLine = journalLine(journal, 'there is not');
+		const followingLine = journalLine(
+			journal,
+			'The parish watches in thoughtful silence.',
+		);
+		await expect(playerLine).toHaveCount(1);
+		await expect(playerLine).toContainText('player: there is not');
+		await expect(followingLine).toHaveCount(1);
+		const lines = await journal.locator('p').allTextContents();
+		const playerIdx = lines.findIndex((line) => line.includes('there is not'));
+		const systemIdx = lines.findIndex((line) =>
+			line.includes('thoughtful silence'),
+		);
+		expect(playerIdx).toBeGreaterThan(-1);
+		expect(systemIdx).toBeGreaterThan(-1);
+		expect(playerIdx).toBeLessThan(systemIdx);
 	});
 
-	test('capture proof screenshot (#1226 + #1275)', async ({ page }) => {
-		// Go-to bubble with full destination (#1226).
+	test('capture current Journal proof (#1226 + #1275 migration)', async ({
+		page,
+	}) => {
+		const journal = await openJournal(page);
+		// Movement line with full destination (#1226).
 		await emitEvent(page, 'text-log', {
 			id: 'p-goto',
 			source: 'player',
@@ -167,16 +156,23 @@ test.describe('chat-feed rendering (#1226, #1275)', () => {
 				source: r.source,
 			});
 		}
+		await emitEvent(page, 'text-log', {
+			id: 'sys-after-reactions',
+			source: 'system',
+			content: 'The parish watches in thoughtful silence.',
+		});
 
-		await expect(
-			page.locator('.bubble-row.player .content').first(),
-		).toHaveText('go to The Crossroads');
-		await expect(
-			page.locator('.bubble-row.player .reaction-badge'),
-		).toHaveCount(5);
+		await expect(journalLine(journal, 'go to The Crossroads')).toContainText(
+			'player: go to The Crossroads',
+		);
+		await expect(journalLine(journal, 'there is not')).toContainText(
+			'player: there is not',
+		);
+		await expect(journalLine(journal, 'thoughtful silence')).toHaveCount(1);
 
+		fs.mkdirSync(PROOF_DIR, { recursive: true });
 		await page.screenshot({
-			path: path.join(PROOF_DIR, 'chat-feed-rendering.png'),
+			path: path.join(PROOF_DIR, 'journal-content-order.png'),
 			fullPage: false,
 		});
 	});
