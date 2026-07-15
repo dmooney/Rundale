@@ -136,9 +136,9 @@ test('Journal keeps the newest lines in its bounded current window', async ({
 	await expect(journal).toContainText('Journal message 3');
 	const journalLines = journal.locator('.journal-lines > p');
 	await expect(journalLines).toHaveCount(8);
-	await expect(
-		journalLines.filter({ hasText: /Journal message 1$/ }),
-	).toHaveCount(0);
+	await expect(journalLines).toContainText(
+		Array.from({ length: 8 }, (_, index) => `Journal message ${index + 3}`),
+	);
 
 	await page.screenshot({
 		path: path.join(PROOF_DIR, 'journal-latest-lines.png'),
