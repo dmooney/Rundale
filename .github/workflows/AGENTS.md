@@ -88,7 +88,7 @@ just act-pr         # simulate the pull_request fast lane
 ### `publish-bench-site.yml` — Publish the v2 (promptfoo) bench site
 
 - **Triggers:** `push` to `main` when `promptfoo/leaderboard/**`, `promptfoo/bench-site/**`, `promptfoo/catalog/**`, `promptfoo/v2/MANIFEST.json`, `promptfoo/config/judge.yaml`, or the workflow itself changes; `workflow_dispatch`.
-- The Astro site reads `promptfoo/leaderboard/leaderboard.jsonl` directly at build time (no Python data step). Builds `promptfoo/bench-site` with pnpm (`--frozen-lockfile`), deploys `dist/` to GitHub Pages via `actions/deploy-pages@v4`. Uses `pnpm/action-setup@v4`. (Retired v1 site lived in `rundale-bench/bench-site`.)
+- The Astro site reads `promptfoo/leaderboard/leaderboard.jsonl` directly at build time (no Python data step). Installs `promptfoo/bench-site` with pnpm (`--frozen-lockfile`), runs `pnpm check` before `pnpm build`, then deploys `dist/` to GitHub Pages via `actions/deploy-pages@v4`. Uses `pnpm/action-setup@v6`. (Retired v1 site lived in `rundale-bench/bench-site`.)
 - **Concurrency:** `pages`, cancel-in-progress.
 
 ### `release.yml` — Tag-driven release pipeline

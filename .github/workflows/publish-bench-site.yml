@@ -43,6 +43,9 @@ jobs:
       - name: Install
         working-directory: promptfoo/bench-site
         run: pnpm install --frozen-lockfile
+      - name: Check
+        working-directory: promptfoo/bench-site
+        run: pnpm check
       - name: Build
         working-directory: promptfoo/bench-site
         run: pnpm build
