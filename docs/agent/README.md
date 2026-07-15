@@ -9,6 +9,7 @@ Quick reference for AI coding agents and human contributors working in this repo
 | Code style & dependencies                                         | [code-style.md](code-style.md)                             |
 | Tokio / SQLite / Ollama gotchas                                   | [gotchas.md](gotchas.md)                                   |
 | Git workflow & engineering standards                              | [git-workflow.md](git-workflow.md)                         |
+| Event-driven portfolio and work-in-progress contract              | [improvement-drain.md](improvement-drain.md)               |
 | Witness-style completion gates                                    | [witness.md](witness.md)                                   |
 | PR proof evidence gate                                            | [agent-check.md](agent-check.md)                           |
 | Agent skills (`/check`, `/parish-engine`, ...)                    | [skills.md](skills.md)                                     |

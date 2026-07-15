@@ -1,14 +1,36 @@
-## Summary
+## Outcome
 
-## Proof Evidence
+<!-- State the observable result delivered by this PR. -->
 
-- [ ] Proof bundle prepared in `.proofs/{task-id}/` (gitignored — not committed).
-- [ ] Evidence is a gameplay transcript, screenshot, or gif; `Evidence type: live ...` header set for runtime changes.
-- [ ] `.proofs/{task-id}/judge.md` records an independent sufficiency verdict and `Acceptance criteria: met`.
-- [ ] `just agent-check` passes locally.
-- [ ] Posted to this PR with `just attach-proof {task-id}` — look for the `parish-proof-bundle:{task-id}` comment below.
+## Linked work
 
-## Checks
+- Fixes #
+- Parent initiative: #
+
+## Risk and scope
+
+- Work type: <!-- Bug | Risk | Debt | Product | Experiment -->
+- Risk: <!-- Standard | High -->
+- Runtime modes affected: <!-- Tauri | web | headless/script | UI | bench | N/A -->
+- Scaling seams reviewed: <!-- persistence, identity, inference, sessions, AppState, or N/A -->
+- Feature flag: <!-- name and default, or N/A -->
+
+## Proof evidence
+
+- [ ] Acceptance criteria and evidence are embedded in this PR body through the `parish-proof-bundle` fence when proof-relevant files change.
+- [ ] Evidence is a gameplay transcript, screenshot, GIF, or live measurement with the required `Evidence type: live ...` header for runtime changes.
+- [ ] The independent judge records `Verdict: sufficient`, `Technical debt: clear`, and `Acceptance criteria: met`.
+- [ ] Documentation/CI-only change: proof bundle is not required and the reason is stated below.
+
+Proof exemption reason, if applicable: <!-- N/A unless documentation/CI-only -->
+
+## Checks actually run
 
 - [ ] `just check`
 - [ ] `just verify` when gameplay, runtime, or UI behavior changed
+- [ ] Focused tests: <!-- list literal commands -->
+- [ ] Screenshots or visual baselines updated when visible UI changed
+
+## Residual risk
+
+<!-- Link deferred work with an exact unblock trigger, or write None. -->
