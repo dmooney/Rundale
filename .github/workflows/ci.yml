@@ -71,9 +71,10 @@ jobs:
     name: Agent proof gate
     # Proof bundles live in the PR body by default; structured comments remain
     # a legacy fallback. Push events to main/develop are post-merge, so the gate
-    # already ran on the PR that produced the commit. Dependabot bumps have no
-    # useful gameplay-proof signal.
-    if: github.event_name == 'pull_request' && github.actor != 'dependabot[bot]'
+    # already ran on the PR that produced the commit. Dependabot-authored bumps
+    # have no useful gameplay-proof signal, even when a coordinator refreshes
+    # their branch and becomes the synchronize-event actor.
+    if: github.event_name == 'pull_request' && github.event.pull_request.user.login != 'dependabot[bot]'
     runs-on: ubuntu-latest
     permissions:
       contents: read
