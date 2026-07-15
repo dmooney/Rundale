@@ -84,6 +84,7 @@ Speculative and forward-looking — not (yet) committed work.
 
 | Document                                                                                       | Status     |
 | ---------------------------------------------------------------------------------------------- | ---------- |
+| [Independent NPC Agents](design/independent-npc-agents.md)                                     | Proposed   |
 | [Interactive Parish Diorama (runtime-composed scene graphics)](design/ideas/parish-diorama.md) | Proposed   |
 | [RAG Lore Recall](design/ideas/rag-lore-recall.md)                                             | Proposed   |
 | [NPC Sleep & Dream Consolidation](design/ideas/npc-sleep-dream-consolidation.md)               | Proposed   |
