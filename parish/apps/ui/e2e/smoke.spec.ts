@@ -1,5 +1,8 @@
 import { test, expect, type Page } from '@playwright/test';
-import { installTileRouteMock } from './fixtures';
+import {
+	installTileRouteMock,
+	waitForTextureCompleteNotebookFrame,
+} from './fixtures';
 
 async function waitForNotebook(page: Page): Promise<void> {
 	await expect(page.getByTestId('illustrated-notebook-game')).toBeVisible({
@@ -27,7 +30,7 @@ async function submitIntent(page: Page, text: string): Promise<void> {
 	const input = page.getByLabel('Player intent');
 	await input.focus();
 	await expect(input).toBeFocused();
-	await page.keyboard.type(text);
+	await page.keyboard.insertText(text);
 	await expect(input).toHaveValue(text);
 	await page.keyboard.press('Enter');
 	await expect(input).toHaveValue('', { timeout: 30_000 });
@@ -144,6 +147,7 @@ test.describe('Parish Web UI', () => {
 		await waitForNotebook(page);
 
 		await expect(page.locator('.app-shell')).toBeVisible();
+		await waitForTextureCompleteNotebookFrame(page);
 		await page.screenshot({
 			path: 'e2e-results/initial-load.png',
 			fullPage: false,
@@ -154,6 +158,7 @@ test.describe('Parish Web UI', () => {
 		await expect(page.getByLabel('journal drawer')).toContainText('Location:', {
 			timeout: 30_000,
 		});
+		await waitForTextureCompleteNotebookFrame(page);
 		await page.screenshot({
 			path: 'e2e-results/after-status.png',
 			fullPage: false,

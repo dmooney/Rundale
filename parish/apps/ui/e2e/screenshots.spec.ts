@@ -6,7 +6,13 @@
  * Update baselines: npx playwright test e2e/screenshots.spec.ts --update-snapshots
  */
 
-import { test, expect, installTauriMock, applyTheme } from './fixtures';
+import {
+	test,
+	expect,
+	installTauriMock,
+	applyTheme,
+	waitForTextureCompleteNotebookFrame,
+} from './fixtures';
 import type { Page } from '@playwright/test';
 import { PALETTES, SNAPSHOTS } from './mock-data';
 import * as path from 'path';
@@ -16,75 +22,6 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const TIMES_OF_DAY = ['morning', 'midday', 'dusk', 'night'] as const;
 // Path is relative to apps/ui/e2e/screenshots.spec.ts → repo root → docs/screenshots/.
 const SCREENSHOT_DIR = path.resolve(__dirname, '../../../docs/screenshots');
-
-/**
- * Wait until Pixi has presented a texture-complete frame, not merely appended
- * its canvas and emitted accessibility hit targets. The renderer loads assets
- * asynchronously and the GPU upload/present can trail those DOM-ready signals;
- * a raw Playwright screenshot taken in that gap contains large black texture
- * rectangles. Sample the presented WebGL canvas from a requestAnimationFrame
- * callback and fail closed unless the authored scene is both predominantly
- * non-black and chromatically varied.
- */
-async function waitForTextureCompleteNotebookFrame(page: Page): Promise<void> {
-	const canvas = page
-		.getByTestId('illustrated-notebook-pixi-host')
-		.locator('canvas');
-
-	await expect
-		.poll(
-			() =>
-				canvas.evaluate(
-					(element) =>
-						new Promise<boolean>((resolve) => {
-							requestAnimationFrame(() => {
-								const source = element as HTMLCanvasElement;
-								const sample = document.createElement('canvas');
-								sample.width = 32;
-								sample.height = 20;
-								const context = sample.getContext('2d', {
-									willReadFrequently: true,
-								});
-								if (!context) {
-									resolve(false);
-									return;
-								}
-
-								context.drawImage(source, 0, 0, sample.width, sample.height);
-								const pixels = context.getImageData(
-									0,
-									0,
-									sample.width,
-									sample.height,
-								).data;
-								let nonBlack = 0;
-								const colourBuckets = new Set<number>();
-								for (let i = 0; i < pixels.length; i += 4) {
-									const red = pixels[i];
-									const green = pixels[i + 1];
-									const blue = pixels[i + 2];
-									const alpha = pixels[i + 3];
-									if (alpha > 0 && red + green + blue > 60) nonBlack += 1;
-									colourBuckets.add(
-										(red >> 4) * 256 + (green >> 4) * 16 + (blue >> 4),
-									);
-								}
-
-								const pixelCount = pixels.length / 4;
-								resolve(
-									nonBlack / pixelCount >= 0.8 && colourBuckets.size >= 20,
-								);
-							});
-						}),
-				),
-			{
-				message:
-					'Pixi notebook must present a texture-complete, non-degenerate frame',
-				timeout: 10_000,
-			},
-		)
-		.toBe(true);
-}
 
 /**
  * Shared page setup for both the screenshot-generation and visual-regression

@@ -113,7 +113,7 @@ test.describe('App layout', () => {
 		await expect(input).toHaveAttribute('aria-disabled', 'false');
 		await input.focus();
 		await expect(input).toBeFocused();
-		await page.keyboard.type('ask what happened');
+		await page.keyboard.insertText('ask what happened');
 		await expect(input).toHaveValue('ask what happened');
 	});
 
