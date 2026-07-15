@@ -6,15 +6,9 @@
  * Update baselines: npx playwright test e2e/screenshots.spec.ts --update-snapshots
  */
 
-import {
-	test,
-	expect,
-	installTauriMock,
-	applyTheme,
-	addTextLog,
-} from './fixtures';
+import { test, expect, installTauriMock, applyTheme } from './fixtures';
 import type { Page } from '@playwright/test';
-import { PALETTES, TEXT_LOG } from './mock-data';
+import { PALETTES, SNAPSHOTS } from './mock-data';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
 
@@ -24,10 +18,79 @@ const TIMES_OF_DAY = ['morning', 'midday', 'dusk', 'night'] as const;
 const SCREENSHOT_DIR = path.resolve(__dirname, '../../../docs/screenshots');
 
 /**
+ * Wait until Pixi has presented a texture-complete frame, not merely appended
+ * its canvas and emitted accessibility hit targets. The renderer loads assets
+ * asynchronously and the GPU upload/present can trail those DOM-ready signals;
+ * a raw Playwright screenshot taken in that gap contains large black texture
+ * rectangles. Sample the presented WebGL canvas from a requestAnimationFrame
+ * callback and fail closed unless the authored scene is both predominantly
+ * non-black and chromatically varied.
+ */
+async function waitForTextureCompleteNotebookFrame(page: Page): Promise<void> {
+	const canvas = page
+		.getByTestId('illustrated-notebook-pixi-host')
+		.locator('canvas');
+
+	await expect
+		.poll(
+			() =>
+				canvas.evaluate(
+					(element) =>
+						new Promise<boolean>((resolve) => {
+							requestAnimationFrame(() => {
+								const source = element as HTMLCanvasElement;
+								const sample = document.createElement('canvas');
+								sample.width = 32;
+								sample.height = 20;
+								const context = sample.getContext('2d', {
+									willReadFrequently: true,
+								});
+								if (!context) {
+									resolve(false);
+									return;
+								}
+
+								context.drawImage(source, 0, 0, sample.width, sample.height);
+								const pixels = context.getImageData(
+									0,
+									0,
+									sample.width,
+									sample.height,
+								).data;
+								let nonBlack = 0;
+								const colourBuckets = new Set<number>();
+								for (let i = 0; i < pixels.length; i += 4) {
+									const red = pixels[i];
+									const green = pixels[i + 1];
+									const blue = pixels[i + 2];
+									const alpha = pixels[i + 3];
+									if (alpha > 0 && red + green + blue > 60) nonBlack += 1;
+									colourBuckets.add(
+										(red >> 4) * 256 + (green >> 4) * 16 + (blue >> 4),
+									);
+								}
+
+								const pixelCount = pixels.length / 4;
+								resolve(
+									nonBlack / pixelCount >= 0.8 && colourBuckets.size >= 20,
+								);
+							});
+						}),
+				),
+			{
+				message:
+					'Pixi notebook must present a texture-complete, non-degenerate frame',
+				timeout: 10_000,
+			},
+		)
+		.toBe(true);
+}
+
+/**
  * Shared page setup for both the screenshot-generation and visual-regression
  * suites (TD-041): installs the Tauri mock for `time`, navigates, applies the
- * matching theme palette, seeds the chat log, and waits for the last entry to
- * render so the capture/comparison sees stable content.
+ * matching theme palette, and proves the Pixi notebook has rendered the
+ * expected clock/weather state before capture.
  */
 async function setupScreenshotPage(
 	page: Page,
@@ -38,14 +101,24 @@ async function setupScreenshotPage(
 	await page.waitForLoadState('networkidle');
 
 	await applyTheme(page, PALETTES[time]);
+	await expect(page.getByTestId('illustrated-notebook-game')).toBeVisible();
+	await expect(
+		page.getByTestId('illustrated-notebook-pixi-host').locator('canvas'),
+	).toBeVisible();
 
-	for (const entry of TEXT_LOG) {
-		await addTextLog(page, entry);
-	}
-
-	await expect(page.locator('[data-testid="chat-panel"]')).toContainText(
-		TEXT_LOG[TEXT_LOG.length - 1].content,
+	const timeControl = page.getByRole('button', { name: 'Open time details' });
+	await expect(timeControl).toHaveCount(1);
+	await timeControl.focus();
+	await page.keyboard.press('Enter');
+	const drawer = page.getByLabel('time drawer');
+	await expect(drawer).toContainText(
+		`${String(SNAPSHOTS[time].hour).padStart(2, '0')}:00`,
 	);
+	await expect(drawer).toContainText(SNAPSHOTS[time].time_label);
+	await expect(drawer).toContainText(`Weather: ${SNAPSHOTS[time].weather}`);
+	await page.getByRole('button', { name: 'Close notebook drawer' }).click();
+	await expect(drawer).toHaveCount(0);
+	await waitForTextureCompleteNotebookFrame(page);
 }
 
 test.describe('Screenshot generation', () => {
