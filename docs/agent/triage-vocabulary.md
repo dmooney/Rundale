@@ -4,6 +4,11 @@ Canonical label set for open-issue triage. The machine-readable list lives in [`
 
 ## Priority labels (exactly one per issue)
 
+Priority is **severity, not sequence**. Use the portfolio Horizon (`Now`,
+`Next`, `Later`) and queue order from [improvement-drain.md](improvement-drain.md)
+for strategic scheduling. Do not label a planned enhancement P1 merely because
+its parent initiative is important.
+
 | Label | Meaning                                                                                                |
 | ----- | ------------------------------------------------------------------------------------------------------ |
 | `P0`  | Exploitable security vuln, deadlock, data loss/corruption, or production outage path. Drop everything. |
@@ -41,6 +46,8 @@ Canonical label set for open-issue triage. The machine-readable list lives in [`
 2. `mcp__github__issue_write` _replaces_ the label set, so always pass the union of (existing labels) + (new theme labels) + (priority label).
 3. New labels are auto-created by GitHub on first use, but ship without descriptions or colors. After introducing a new label here, update its color/description manually in the GitHub UI or via `gh label create`.
 4. Don't relabel an issue that already has a `P*` label unless explicitly asked to re-triage.
+5. Apply `in-progress` only while a worker slot is committed. Active work must contain an outcome, acceptance criteria, proof method, DRI, and authoritative open closing PR.
+6. Blocked or deferred work must name a concrete unblock trigger; lack of capacity by itself is not a trigger.
 
 ## Priority rubric — concrete examples
 

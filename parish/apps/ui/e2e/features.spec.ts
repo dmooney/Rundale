@@ -15,6 +15,27 @@ async function pressKey(page: import('@playwright/test').Page, key: string) {
 	);
 }
 
+async function activateNotebookControl(
+	page: import('@playwright/test').Page,
+	name: string,
+) {
+	const control = page.getByRole('button', { name, exact: true });
+	await expect(control).toHaveCount(1);
+	await control.focus();
+	await expect(control).toBeFocused();
+	await page.keyboard.press('Enter');
+}
+
+async function openNotebookTools(page: import('@playwright/test').Page) {
+	const toggle = page.getByRole('button', { name: 'Notebook tools' });
+	await expect(toggle).toBeVisible();
+	await toggle.click();
+
+	const drawer = page.locator('aside[aria-label="tools drawer"]');
+	await expect(drawer).toBeVisible();
+	return drawer;
+}
+
 test.describe('Debug panel', () => {
 	test.beforeEach(async ({ page }) => {
 		await installTauriMock(page, 'morning');
@@ -166,74 +187,88 @@ test.describe('Save picker', () => {
 	});
 });
 
-test.describe('Sidebar toggle', () => {
+test.describe('Notebook drawers', () => {
 	test.beforeEach(async ({ page }) => {
 		await installTauriMock(page, 'morning');
 		await page.goto('/');
 		await page.waitForLoadState('networkidle');
 	});
 
-	test('sidebar details can be toggled open and closed', async ({ page }) => {
-		const sidebar = page.locator('[data-testid="sidebar"]');
-		// Two collapsible sections now (Present + language hints); exercise the first.
-		const details = sidebar.locator('details').first();
+	test('People drawer lists nearby people and returns to the notebook', async ({
+		page,
+	}) => {
+		await activateNotebookControl(page, 'Open People notebook tab');
 
-		await expect(details).toHaveAttribute('open');
+		const drawer = page.locator('aside[aria-label="people drawer"]');
+		await expect(drawer).toBeVisible();
+		await expect(drawer).toContainText('Séamas Ó Briain');
+		await expect(drawer).toContainText('Publican');
+		await expect(drawer).toContainText('Aoife Ní Cheallaigh');
+		await expect(drawer).toContainText('Scholar');
 
-		await details.locator('summary').click();
-		await expect(details).not.toHaveAttribute('open');
-
-		await details.locator('summary').click();
-		await expect(details).toHaveAttribute('open');
+		await drawer.getByRole('button', { name: /Aoife Ní Cheallaigh/ }).click();
+		await expect(drawer).not.toBeVisible();
+		await expect(
+			page.getByTestId('illustrated-notebook-pixi-host'),
+		).toBeVisible();
 	});
 
-	test('sidebar shows language hints on load', async ({ page }) => {
-		await expect(
-			page.getByTestId('sidebar').getByText('Baile Átha Cliath'),
-		).toBeVisible();
-		await expect(page.getByText('[EE-fa]')).toBeVisible();
+	test('Journal drawer shows the latest parish lines', async ({ page }) => {
+		await emitEvent(page, 'text-log', {
+			id: 'journal-proof',
+			source: 'Séamas Ó Briain',
+			content: 'The bridge road is clear before dusk.',
+		});
+		await activateNotebookControl(page, 'Open Journal notebook tab');
+
+		const drawer = page.locator('aside[aria-label="journal drawer"]');
+		await expect(drawer).toBeVisible();
+		await expect(drawer).toContainText('Séamas Ó Briain');
+		await expect(drawer).toContainText('The bridge road is clear before dusk.');
+		// Focail and rich reaction/chat parity remain product work on #1630.
 	});
 });
 
-test.describe('Reactions', () => {
+test.describe('Notebook tools', () => {
 	test.beforeEach(async ({ page }) => {
 		await installTauriMock(page, 'morning');
 		await page.goto('/');
 		await page.waitForLoadState('networkidle');
 	});
 
-	test('reaction bar appears for NPC messages with reactions', async ({
-		page,
-	}) => {
-		await emitEvent(page, 'text-log', {
-			id: 'npc-msg-1',
-			source: 'Séamas Ó Briain',
-			content: 'Welcome to the tavern!',
-		});
+	test('routes Save/Load and Map from the tools drawer', async ({ page }) => {
+		let drawer = await openNotebookTools(page);
+		await drawer.getByRole('button', { name: 'Save/Load' }).click();
+		const picker = page.getByTestId('save-picker');
+		await expect(picker).toBeVisible();
+		await picker.getByText('Close').click();
 
-		await emitEvent(page, 'npc-reaction', {
-			message_id: 'npc-msg-1',
-			emoji: '\u{1F44D}',
-			source: 'player',
-		});
-
-		const reactionBar = page.locator('[data-testid="reaction-bar"]');
-		await expect(reactionBar).toBeVisible();
-		await expect(reactionBar).toContainText('\u{1F44D}');
+		drawer = await openNotebookTools(page);
+		await drawer.getByRole('button', { name: 'Map', exact: true }).click();
+		const map = page.getByTestId('full-map');
+		await expect(map).toBeVisible();
+		await page.getByRole('button', { name: 'Close full map' }).click();
+		await expect(map).not.toBeVisible();
 	});
 
-	test('reaction picker appears on NPC message hover', async ({ page }) => {
-		await emitEvent(page, 'text-log', {
-			id: 'npc-msg-2',
-			source: 'Séamas Ó Briain',
-			content: 'Good day to you!',
-		});
+	test('routes Debug, Mod, and Bug Report from the tools drawer', async ({
+		page,
+	}) => {
+		let drawer = await openNotebookTools(page);
+		await drawer.getByRole('button', { name: 'Debug' }).click();
+		const debugPanel = page.getByTestId('debug-panel');
+		await expect(debugPanel).toBeVisible();
+		await debugPanel.locator('.debug-close').click();
 
-		const bubbleAnchor = page.locator('.bubble-anchor').first();
-		await bubbleAnchor.hover();
+		drawer = await openNotebookTools(page);
+		await drawer.getByRole('button', { name: 'Mod' }).click();
+		const modDialog = page.getByRole('dialog', { name: 'Select mod' });
+		await expect(modDialog).toBeVisible();
+		await modDialog.getByRole('button', { name: 'Close' }).click();
 
-		const picker = page.locator('[data-testid="reaction-picker"]');
-		await expect(picker).toBeVisible();
+		drawer = await openNotebookTools(page);
+		await drawer.getByRole('button', { name: 'Bug Report' }).click();
+		await expect(page.getByTestId('bug-report-modal')).toBeVisible();
 	});
 });
 
@@ -281,6 +316,13 @@ test.describe('Editor', () => {
 
 		await page.locator('.back-link').click();
 		await page.waitForLoadState('networkidle');
-		await expect(page.locator('[data-testid="status-bar"]')).toBeVisible();
+		await expect(page).toHaveURL(/\/$/);
+		await expect(page.getByTestId('illustrated-notebook-game')).toBeVisible();
+		await expect(
+			page.getByTestId('illustrated-notebook-pixi-host'),
+		).toBeVisible();
+		await expect(
+			page.getByTestId('illustrated-notebook-pixi-host').locator('canvas'),
+		).toBeVisible();
 	});
 });

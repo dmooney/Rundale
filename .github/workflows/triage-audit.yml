@@ -4,12 +4,20 @@ on:
   schedule:
     - cron: "0 9 * * MON"
   issues:
-    types: [opened, reopened]
+    types: [reopened, edited, labeled, unlabeled, closed]
   workflow_dispatch:
   pull_request:
     branches: [main]
-    paths:
-      - ".github/workflows/triage-audit.yml"
+    types:
+      - opened
+      - reopened
+      - closed
+      - edited
+      - synchronize
+      - ready_for_review
+      - converted_to_draft
+      - labeled
+      - unlabeled
 
 permissions:
   contents: read
@@ -17,27 +25,38 @@ permissions:
   pull-requests: read
 
 concurrency:
-  group: "${{ github.workflow }}"
+  group: >-
+    ${{ github.workflow }}-${{ github.event_name }}-${{
+    github.event.issue.number || github.event.pull_request.number || github.run_id }}
   cancel-in-progress: true
 
 jobs:
   audit:
-    if: github.event_name != 'issues'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
-          sparse-checkout: .github/triage-labels.json
+          sparse-checkout: |
+            .github/triage-labels.json
+            .github/portfolio-roadmap.json
+            .github/scripts/portfolio-audit.cjs
+            docs/requirements/roadmap.md
           sparse-checkout-cone-mode: false
-      - name: "Find untriaged open issues"
+      - name: "Audit issue readiness, authoritative PR linkage, and WIP"
         uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
         with:
           script: |
             const fs = require('fs');
+            const {
+              auditPortfolio,
+              auditRoadmap,
+            } = require('./.github/scripts/portfolio-audit.cjs');
             const vocab = JSON.parse(fs.readFileSync('.github/triage-labels.json', 'utf8'));
-            const PRIORITY = vocab.priorities;
-            const THEMES = vocab.themes;
+            const roadmapConfig = JSON.parse(
+              fs.readFileSync('.github/portfolio-roadmap.json', 'utf8'),
+            );
+            const roadmapText = fs.readFileSync('docs/requirements/roadmap.md', 'utf8');
 
             const allIssues = await github.paginate(github.rest.issues.listForRepo, {
               owner: context.repo.owner,
@@ -53,77 +72,121 @@ jobs:
               state: 'open',
               per_page: 100,
             });
-            const prRefs = new Set();
-            for (const pr of prs) {
-              const text = `${pr.title}\n${pr.body || ''}`;
-              for (const m of text.matchAll(/#(\d+)/g)) prRefs.add(parseInt(m[1], 10));
+
+            async function loadLinkage(items, kind) {
+              const result = new Map();
+              for (let offset = 0; offset < items.length; offset += 25) {
+                const chunk = items.slice(offset, offset + 25);
+                const fields = chunk.map(item => kind === 'issue'
+                  ? `item_${item.number}: issue(number: ${item.number}) {
+                       number
+                       closedByPullRequestsReferences(first: 20, includeClosedPrs: false) {
+                         nodes { number state }
+                       }
+                     }`
+                  : `item_${item.number}: pullRequest(number: ${item.number}) {
+                       number
+                       closingIssuesReferences(first: 20) { nodes { number state } }
+                     }`
+                ).join('\n');
+                const data = await github.graphql(
+                  `query($owner: String!, $repo: String!) {
+                     repository(owner: $owner, name: $repo) { ${fields} }
+                   }`,
+                  { owner: context.repo.owner, repo: context.repo.repo },
+                );
+                for (const node of Object.values(data.repository)) {
+                  if (!node) continue;
+                  const refs = kind === 'issue'
+                    ? node.closedByPullRequestsReferences.nodes
+                        .filter(pr => pr.state === 'OPEN')
+                        .map(pr => pr.number)
+                    : node.closingIssuesReferences.nodes
+                        .filter(issue => issue.state === 'OPEN')
+                        .map(issue => issue.number);
+                  result.set(node.number, refs);
+                }
+              }
+              return result;
             }
 
-            const lackingPr = issues.filter(i => !prRefs.has(i.number));
+            const issueLinkage = await loadLinkage(issues, 'issue');
+            const prLinkage = await loadLinkage(prs, 'pr');
+            const result = auditPortfolio({
+              issues: issues.map(issue => ({
+                ...issue,
+                openClosingPrNumbers: issueLinkage.get(issue.number) || [],
+              })),
+              pullRequests: prs.map(pr => ({
+                ...pr,
+                closingIssueNumbers: prLinkage.get(pr.number) || [],
+              })),
+              vocabulary: vocab,
+            });
 
-            const lackingPriority = [];
-            const lackingTheme = [];
-            for (const i of lackingPr) {
-              const names = i.labels.map(l => typeof l === 'string' ? l : l.name);
-              if (!names.some(n => PRIORITY.includes(n))) lackingPriority.push(i);
-              if (!names.some(n => THEMES.includes(n))) lackingTheme.push(i);
+            const issueStates = {};
+            for (const entry of roadmapConfig.entries) {
+              const { data } = await github.rest.issues.get({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: entry.issue,
+              });
+              issueStates[entry.issue] = data.state.toUpperCase();
             }
+            const roadmapFindings = auditRoadmap(
+              roadmapConfig.entries,
+              issueStates,
+              roadmapText,
+            );
+
+            const issueProblems = result.issueFindings.filter(item => item.problems.length);
+            const lackingPriority = issueProblems.filter(item =>
+              item.problems.includes('exactly one P0-P3 severity label'));
+            const lackingTheme = issueProblems.filter(item =>
+              item.problems.includes('at least one canonical theme label'));
+            const activeReadiness = issueProblems.filter(item => item.active);
 
             const fmt = (list) => list
               .sort((a, b) => a.number - b.number)
-              .map(i => `- #${i.number} — ${i.title}`)
+              .map(i => `- #${i.number} — ${i.title}${i.problems ? `: ${i.problems.join(', ')}` : ''}`)
               .join('\n') || '_none_';
 
             const repo = `${context.repo.owner}/${context.repo.repo}`;
             const filter = (q) => `https://github.com/${repo}/issues?q=${encodeURIComponent(q)}`;
 
             const summary = core.summary
-              .addHeading('Triage audit', 2)
-              .addRaw(`**${issues.length}** open issues, **${lackingPr.length}** with no open PR.\n\n`)
-              .addHeading(`${lackingPriority.length} lack a P0/P1/P2/P3 label`, 3)
+              .addHeading('Portfolio and triage audit', 2)
+              .addRaw(`**${issues.length}** open issues; **${prs.length}** open PRs.\n\n`)
+              .addHeading(`${lackingPriority.length} lack exactly one P0/P1/P2/P3 severity label`, 3)
               .addRaw(`[Filter](${filter(`is:open is:issue -label:P0 -label:P1 -label:P2 -label:P3`)})\n\n`)
               .addRaw(fmt(lackingPriority))
               .addHeading(`${lackingTheme.length} lack any theme label`, 3)
               .addRaw(fmt(lackingTheme))
-              .addRaw('\n\nRun `/backlog triage` in Claude Code to label them. Vocabulary: `docs/agent/triage-vocabulary.md`.\n');
+              .addHeading(`${activeReadiness.length} active issues fail a readiness/linkage gate`, 3)
+              .addRaw(fmt(activeReadiness))
+              .addHeading(`${issueProblems.length} total issue findings`, 3)
+              .addRaw(fmt(issueProblems))
+              .addHeading(`${result.unlinkedPullRequests.length} PRs have no authoritative closing issue`, 3)
+              .addRaw(fmt(result.unlinkedPullRequests))
+              .addHeading(`${roadmapFindings.length} roadmap/epic status mismatches`, 3)
+              .addRaw(fmt(roadmapFindings.map(item => ({
+                number: item.issue,
+                title: `${item.row}: expected ${item.expected}; found ${item.actual || 'missing'}`,
+              }))))
+              .addHeading('WIP buffers', 3)
+              .addRaw(`- Implementing: **${result.wip.implementing}/${result.wip.implementationLimit}**\n`)
+              .addRaw(`- CI/review: **${result.wip.ciReview}/${result.wip.reviewLimit}**\n`)
+              .addRaw('\nTriage with `/backlog`; portfolio contract: `docs/agent/improvement-drain.md`.\n');
 
             await summary.write();
 
-            if (lackingPriority.length > 0 || lackingTheme.length > 0) {
-              core.warning(`${lackingPriority.length} open issues lack a priority, ${lackingTheme.length} lack a theme — run /backlog triage`);
-            }
-
-  check-new-issue:
-    if: github.event_name == 'issues'
-    runs-on: ubuntu-latest
-    timeout-minutes: 2
-    steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
-        with:
-          sparse-checkout: .github/triage-labels.json
-          sparse-checkout-cone-mode: false
-      - name: "Check labels on triggering issue"
-        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
-        with:
-          script: |
-            const fs = require('fs');
-            const vocab = JSON.parse(fs.readFileSync('.github/triage-labels.json', 'utf8'));
-            const PRIORITY = vocab.priorities;
-            const THEMES = vocab.themes;
-
-            const issue = context.payload.issue;
-            const names = issue.labels.map(l => typeof l === 'string' ? l : l.name);
-            const priority = names.find(n => PRIORITY.includes(n));
-            const themes = names.filter(n => THEMES.includes(n));
-
-            await core.summary
-              .addHeading(`Issue #${issue.number} triage check`, 2)
-              .addRaw(`**${issue.title}**\n\n`)
-              .addRaw(`- Priority: ${priority || '**MISSING**'}\n`)
-              .addRaw(`- Theme: ${themes.length ? themes.join(', ') : '**MISSING**'}\n`)
-              .addRaw(`\nIf either is missing, run \`/backlog triage\` in Claude Code. Vocabulary: \`docs/agent/triage-vocabulary.md\`.\n`)
-              .write();
-
-            if (!priority || themes.length === 0) {
-              core.warning(`Issue #${issue.number} needs triage`);
+            if (issueProblems.length > 0 || result.unlinkedPullRequests.length > 0 ||
+                roadmapFindings.length > 0 ||
+                result.wip.implementationExceeded || result.wip.reviewExceeded) {
+              core.warning(
+                `${issueProblems.length} issue finding(s), ` +
+                `${result.unlinkedPullRequests.length} unlinked PR(s), ` +
+                `${roadmapFindings.length} roadmap mismatch(es), ` +
+                `WIP ${result.wip.implementing}/${result.wip.ciReview}`,
+              );
             }

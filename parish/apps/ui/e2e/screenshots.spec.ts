@@ -11,10 +11,10 @@ import {
 	expect,
 	installTauriMock,
 	applyTheme,
-	addTextLog,
+	waitForTextureCompleteNotebookFrame,
 } from './fixtures';
 import type { Page } from '@playwright/test';
-import { PALETTES, TEXT_LOG } from './mock-data';
+import { PALETTES, SNAPSHOTS } from './mock-data';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
 
@@ -26,8 +26,8 @@ const SCREENSHOT_DIR = path.resolve(__dirname, '../../../docs/screenshots');
 /**
  * Shared page setup for both the screenshot-generation and visual-regression
  * suites (TD-041): installs the Tauri mock for `time`, navigates, applies the
- * matching theme palette, seeds the chat log, and waits for the last entry to
- * render so the capture/comparison sees stable content.
+ * matching theme palette, and proves the Pixi notebook has rendered the
+ * expected clock/weather state before capture.
  */
 async function setupScreenshotPage(
 	page: Page,
@@ -38,14 +38,24 @@ async function setupScreenshotPage(
 	await page.waitForLoadState('networkidle');
 
 	await applyTheme(page, PALETTES[time]);
+	await expect(page.getByTestId('illustrated-notebook-game')).toBeVisible();
+	await expect(
+		page.getByTestId('illustrated-notebook-pixi-host').locator('canvas'),
+	).toBeVisible();
 
-	for (const entry of TEXT_LOG) {
-		await addTextLog(page, entry);
-	}
-
-	await expect(page.locator('[data-testid="chat-panel"]')).toContainText(
-		TEXT_LOG[TEXT_LOG.length - 1].content,
+	const timeControl = page.getByRole('button', { name: 'Open time details' });
+	await expect(timeControl).toHaveCount(1);
+	await timeControl.focus();
+	await page.keyboard.press('Enter');
+	const drawer = page.getByLabel('time drawer');
+	await expect(drawer).toContainText(
+		`${String(SNAPSHOTS[time].hour).padStart(2, '0')}:00`,
 	);
+	await expect(drawer).toContainText(SNAPSHOTS[time].time_label);
+	await expect(drawer).toContainText(`Weather: ${SNAPSHOTS[time].weather}`);
+	await page.getByRole('button', { name: 'Close notebook drawer' }).click();
+	await expect(drawer).toHaveCount(0);
+	await waitForTextureCompleteNotebookFrame(page);
 }
 
 test.describe('Screenshot generation', () => {
