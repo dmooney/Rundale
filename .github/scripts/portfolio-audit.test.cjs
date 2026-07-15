@@ -79,6 +79,16 @@ test("blocked and deferred work requires a substantive unblock trigger", () => {
   assert.ok(auditIssue(blocked, vocabulary).problems.includes("Unblock trigger"));
   assert.equal(hasUnblockTrigger("## Unblock trigger\n\nA live MLX runtime is available."), true);
   assert.equal(hasUnblockTrigger("## Unblock trigger\n\nNot applicable"), false);
+  assert.equal(
+    hasUnblockTrigger(
+      "## Unblock trigger\n\nNot applicable.\nA funded runtime becomes available.\n\n## Proof\nRun it.",
+    ),
+    true,
+  );
+  assert.equal(
+    hasUnblockTrigger("## Unblock trigger\n\nNot applicable.\n\n## Proof\nRun it."),
+    false,
+  );
 });
 
 test("incidental issue numbers never count as authoritative PR linkage", () => {

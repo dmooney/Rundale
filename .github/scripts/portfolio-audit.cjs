@@ -38,7 +38,9 @@ function portfolioStatus(body) {
 function hasUnblockTrigger(body) {
   const text = body || "";
   if (hasHeading(text, ["Unblock trigger"])) {
-    const section = text.match(/^#{2,3}\s+Unblock trigger\s*\n+([\s\S]*?)(?=^#{2,3}\s+|\s*$)/im);
+    const section = text.match(
+      /(?:^|\r?\n)#{2,3}\s+Unblock trigger\s*\r?\n+([\s\S]*?)(?=(?:\r?\n)#{2,3}\s+|$)/i,
+    );
     return Boolean(section && section[1].trim() && !/^not applicable\.?$/i.test(section[1].trim()));
   }
   const bullet = text.match(/^-\s*Unblock Trigger:\s*(.+)$/im);
