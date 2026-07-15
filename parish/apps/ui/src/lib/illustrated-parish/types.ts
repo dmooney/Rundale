@@ -3,6 +3,30 @@ import type { MapData, NpcInfo, WorldSnapshot } from '$lib/types';
 
 export type ParishTab = 'notes' | 'people' | 'places' | 'rumours' | 'journal';
 
+export type NotebookCommandPhase =
+	| 'idle'
+	| 'focused'
+	| 'typing'
+	| 'busy'
+	| 'disabled'
+	| 'error';
+
+export interface NotebookCommandState {
+	text: string;
+	focused: boolean;
+	busy: boolean;
+	disabled: boolean;
+	error: string | null;
+}
+
+export interface NotebookCommandPresentation {
+	phase: NotebookCommandPhase;
+	displayText: string;
+	statusText: string | null;
+	showCaret: boolean;
+	sendDisabled: boolean;
+}
+
 export type NotebookSurface =
 	| 'journal'
 	| 'people'

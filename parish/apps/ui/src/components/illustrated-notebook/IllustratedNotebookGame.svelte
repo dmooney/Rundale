@@ -9,10 +9,10 @@
 		resolveNotebookCommandPresentation,
 		submitNotebookCommand,
 	} from '$lib/illustrated-notebook/command';
-	import type { NotebookCommandState } from '$lib/illustrated-notebook/types';
 	import { sortParishTargetsForFocus } from '$lib/illustrated-parish/interactions';
 	import { IllustratedParishRenderer } from '$lib/illustrated-parish/renderer';
 	import type {
+		NotebookCommandState,
 		NotebookSurface,
 		ParishHitTarget,
 		ParishTab,

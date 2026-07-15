@@ -40,10 +40,10 @@ The fresh #1630 baseline adds:
   `src/lib/illustrated-notebook/` visual implementation.
 - A fresh asset kit under
   `parish/apps/ui/static/rundale/illustrated-notebook-v2/`: desktop/mobile parish
-  plates and the explicitly approved hand-sewn page. Runtime-drawn initial
-  cards reserve the future portrait slots; portrait art/system work remains a
-  separate slice. The kit does not import the rejected
-  `static/rundale/notebook-ui/` assets.
+  plates, concept-referenced raster parchment/ink cutouts, an empty portrait
+  frame, and the explicitly approved hand-sewn page. Runtime initials reserve
+  the future portrait slots; portrait art/system work remains a separate slice.
+  The kit does not import either rejected `notebook-ui` asset set.
 - Concept-aligned scene people and labels, Nearby rail, sewn notebook page,
   contiguous action strip, command strip, Map/Time cards, and Active Intents
   card.

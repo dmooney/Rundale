@@ -73,17 +73,24 @@ The clean runtime asset kit lives under
 - `parish-crossroads-watercolor.png` and
   `parish-crossroads-watercolor-mobile.png`: fresh desktop and vertical scene
   plates.
-- Runtime-drawn initial cards reserve the Nearby and selected-person slots.
-  Portrait art and the portrait/fallback system are explicitly outside issue
-  #1630 and belong to their separate implementation slice.
+- `parchment-*.png`: fresh transparent top-ribbon, Nearby-rail, action-strip,
+  intent-strip, tab, label, and bottom-card cutouts generated from the canonical
+  concept's paper language.
+- `icon-*.png`: fresh transparent action, map, time, and quill cutouts generated
+  from the concept's loose charcoal/sepia symbols.
+- `portrait-slot-frame.png`: an intentionally empty raster frame. Runtime
+  initials reserve the Nearby and selected-person slots; portrait art and the
+  portrait/fallback system remain outside issue #1630.
 - `sewn-notebook-page.png`: the explicitly approved hand-sewn notebook page.
+- `ui-assets.json`: dimensions, alpha contracts, provenance classes, and hashes
+  for every runtime image.
 
-Pixi draws the fine ink/parchment ribbon, tabs, cards, labels, action strip,
-selection callout, and intent affordances at runtime. There are deliberately no
-binding rings, ring holes, or paperclip. The renderer must not import the
-rejected `static/rundale/notebook-ui/` visual kit or the rejected
+Pixi preloads the raster parchment and ink cutouts, then draws dynamic text,
+trust dots, hit regions, focus treatments, and selection callouts at runtime.
+There are deliberately no binding rings, ring holes, or paperclip. The renderer
+must not import either rejected `notebook-ui` visual kit or the rejected
 `src/lib/illustrated-notebook/` implementation. The concept image is a named
-visual comparison target, never a runtime image slice.
+style/composition reference, never a runtime image slice.
 
 ## Scene Plate And Prompt Rules
 

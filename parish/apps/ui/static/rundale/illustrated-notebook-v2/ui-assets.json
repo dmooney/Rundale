@@ -1,0 +1,202 @@
+{
+	"version": 1,
+	"runtime_base": "/rundale/illustrated-notebook-v2/",
+	"generator": "OpenAI built-in image_gen",
+	"references": [
+		"docs/graphics-v2/illustrated-parish-notebook.png",
+		"parish/apps/ui/static/rundale/illustrated-notebook-v2/sewn-notebook-page.png"
+	],
+	"constraints": [
+		"The concept image is a style and composition reference, never a runtime crop.",
+		"The approved page remains hand-sewn: no rings, ring holes, spiral binding, or paperclip.",
+		"Portrait artwork is outside this asset slice; the portrait frame remains empty."
+	],
+	"provenance_classes": {
+		"scene": "Fresh built-in image generation from the written 1820 rural-Irish scene direction.",
+		"approved-retained": "User-approved hand-sewn page retained byte-for-byte.",
+		"concept-paper": "Fresh built-in image generation using the canonical concept for UI composition/style and the approved sewn page for paper/material direction; chroma-keyed and locally matted to RGBA.",
+		"concept-icon": "Fresh built-in image generation using the canonical concept for loose ink-symbol direction; chroma-keyed and locally matted to RGBA."
+	},
+	"assets": [
+		{
+			"key": "sceneDesktop",
+			"file": "parish-crossroads-watercolor.png",
+			"width": 1672,
+			"height": 941,
+			"alpha": "opaque",
+			"provenance": "scene",
+			"sha256": "f7428c96e7643d42a24f4ccd6a137aa7e9e3156ab042ebdfe1b7e44766617956"
+		},
+		{
+			"key": "sceneMobile",
+			"file": "parish-crossroads-watercolor-mobile.png",
+			"width": 941,
+			"height": 1672,
+			"alpha": "opaque",
+			"provenance": "scene",
+			"sha256": "0db0e11c467e82197dc170e82fc317161f4162065dd55d294f43ec44dcf3a380"
+		},
+		{
+			"key": "sewnPage",
+			"file": "sewn-notebook-page.png",
+			"width": 440,
+			"height": 620,
+			"alpha": "cutout",
+			"provenance": "approved-retained",
+			"sha256": "26aac148d97fdd47d7be7456ab99bb3dcc59bded4942bad34b428e3be9069445"
+		},
+		{
+			"key": "topRibbon",
+			"file": "parchment-top-ribbon.png",
+			"width": 2400,
+			"height": 164,
+			"alpha": "cutout",
+			"provenance": "concept-paper",
+			"sha256": "e059df312da58ca13304b981409ce62778c8c992939c137f9978913f24783690"
+		},
+		{
+			"key": "nearbyRail",
+			"file": "parchment-nearby-rail.png",
+			"width": 312,
+			"height": 1220,
+			"alpha": "cutout",
+			"provenance": "concept-paper",
+			"sha256": "ab84dc51e725e015bb5ba47b0562bd44fb43d4bd565b1fcbdab8c95a9ae242f0"
+		},
+		{
+			"key": "actionStrip",
+			"file": "parchment-action-strip.png",
+			"width": 1180,
+			"height": 172,
+			"alpha": "cutout",
+			"provenance": "concept-paper",
+			"sha256": "efe46b86a3c1ee2c3b04af58bbd30e15f02e0e5ae42f1b2e4994afb694fe75cf"
+		},
+		{
+			"key": "intentStrip",
+			"file": "parchment-intent-strip.png",
+			"width": 1560,
+			"height": 188,
+			"alpha": "cutout",
+			"provenance": "concept-paper",
+			"sha256": "52a6655a3a52c39b3c22d689b5ca8a1c28c2e81172ffa54e7cfd93a597a6e913"
+		},
+		{
+			"key": "smallCard",
+			"file": "parchment-small-card.png",
+			"width": 276,
+			"height": 252,
+			"alpha": "cutout",
+			"provenance": "concept-paper",
+			"sha256": "4ea8c75b0888910e15c3d54bd9e2fe13b48262cf3c1944b5db5fba2a6994ba60"
+		},
+		{
+			"key": "activeIntentsCard",
+			"file": "parchment-active-intents-card.png",
+			"width": 560,
+			"height": 252,
+			"alpha": "cutout",
+			"provenance": "concept-paper",
+			"sha256": "2a5bf1588b3dde9d0b6afdb2a2143bafa884e6c006d136ea77a2614fa4843230"
+		},
+		{
+			"key": "tab",
+			"file": "parchment-tab.png",
+			"width": 184,
+			"height": 156,
+			"alpha": "cutout",
+			"provenance": "concept-paper",
+			"sha256": "86c0201f2839bc4c96dfe7927028aa6a061de67c8f151c0ac2a2ec49241abeed"
+		},
+		{
+			"key": "label",
+			"file": "parchment-label.png",
+			"width": 420,
+			"height": 80,
+			"alpha": "cutout",
+			"provenance": "concept-paper",
+			"sha256": "fca7e1b5a883b9523f42fa4369e6310e21814f381efee0f87d67f62698822f03"
+		},
+		{
+			"key": "portraitFrame",
+			"file": "portrait-slot-frame.png",
+			"width": 184,
+			"height": 216,
+			"alpha": "cutout",
+			"provenance": "concept-paper",
+			"sha256": "fb16cf4baed2b2ff50f2b2314e9ede00706985de77b169e04c3dec05a58d2ec0"
+		},
+		{
+			"key": "actionIcons.talk",
+			"file": "icon-talk.png",
+			"width": 128,
+			"height": 128,
+			"alpha": "cutout",
+			"provenance": "concept-icon",
+			"sha256": "02fb8a70b2b44acae8918d310aca43ad602975ff7fe8d69ea4977ef0fd8ae8a0"
+		},
+		{
+			"key": "actionIcons.ask",
+			"file": "icon-ask.png",
+			"width": 128,
+			"height": 128,
+			"alpha": "cutout",
+			"provenance": "concept-icon",
+			"sha256": "b6e6778c08d48ea99810b65e9f66561fa1be1b431cd5f480ba39932b863783ba"
+		},
+		{
+			"key": "actionIcons.help",
+			"file": "icon-help.png",
+			"width": 128,
+			"height": 128,
+			"alpha": "cutout",
+			"provenance": "concept-icon",
+			"sha256": "6cd09b1835d741c21e73ce07fa7ab0aee5088348ff5b2317f8d94240cd958fcf"
+		},
+		{
+			"key": "actionIcons.observe",
+			"file": "icon-observe.png",
+			"width": 128,
+			"height": 128,
+			"alpha": "cutout",
+			"provenance": "concept-icon",
+			"sha256": "ffb6257213427111203dd691e613554e60234c145e6218d06ab33eb464fd28a0"
+		},
+		{
+			"key": "actionIcons.leave",
+			"file": "icon-leave.png",
+			"width": 128,
+			"height": 128,
+			"alpha": "cutout",
+			"provenance": "concept-icon",
+			"sha256": "ceddeb973d88531e03740e902fb9d02c06e28a6efac0345d53d2a04f1c74cbe0"
+		},
+		{
+			"key": "mapIcon",
+			"file": "icon-map.png",
+			"width": 128,
+			"height": 128,
+			"alpha": "cutout",
+			"provenance": "concept-icon",
+			"sha256": "c72489dac6ac151cdfec8132c70d620fdae60e13d899d910382b07dd75458651"
+		},
+		{
+			"key": "timeIcon",
+			"file": "icon-time.png",
+			"width": 128,
+			"height": 128,
+			"alpha": "cutout",
+			"provenance": "concept-icon",
+			"sha256": "6a08c18e772d378ac0866dff04f0d52025a260e4f33e7e4edfdd686a2b832fb5"
+		},
+		{
+			"key": "quillIcon",
+			"file": "icon-quill.png",
+			"width": 128,
+			"height": 128,
+			"alpha": "cutout",
+			"provenance": "concept-icon",
+			"sha256": "401a0a15c718f4934cecd5770fefa503c63cef06472a478af5f710dcf64530b5"
+		}
+	]
+}

@@ -214,6 +214,27 @@ export class IllustratedParishRenderer {
 		return sprite;
 	}
 
+	private contain(
+		layer: Container,
+		url: string,
+		rect: ParishRect,
+		padding = 0,
+	): Sprite {
+		const sprite = this.sprite(url);
+		const availableWidth = Math.max(1, rect.width - padding * 2);
+		const availableHeight = Math.max(1, rect.height - padding * 2);
+		const scale = Math.min(
+			availableWidth / Math.max(1, sprite.texture.width),
+			availableHeight / Math.max(1, sprite.texture.height),
+		);
+		sprite.width = sprite.texture.width * scale;
+		sprite.height = sprite.texture.height * scale;
+		sprite.x = rect.x + (rect.width - sprite.width) / 2;
+		sprite.y = rect.y + (rect.height - sprite.height) / 2;
+		layer.addChild(sprite);
+		return sprite;
+	}
+
 	private text(
 		layer: Container,
 		value: string,
@@ -328,11 +349,12 @@ export class IllustratedParishRenderer {
 		}
 		display.eventMode = 'static';
 		display.cursor = target.disabled ? 'default' : 'pointer';
+		const bounds = display.getLocalBounds();
 		display.hitArea = new Rectangle(
-			target.rect.x,
-			target.rect.y,
-			target.rect.width,
-			target.rect.height,
+			bounds.x,
+			bounds.y,
+			bounds.width,
+			bounds.height,
 		);
 		display.on('pointerdown', () => this.activateTarget(target.id));
 		display.on('pointerover', () => this.setHoveredTarget(target.id));
@@ -499,11 +521,9 @@ export class IllustratedParishRenderer {
 	}
 
 	private drawExitLabel(exit: ParishRect & { label: string }): void {
-		this.paper(this.layers.sceneInk, exit, {
-			alpha: 0.9,
-			shadow: false,
-			pale: true,
-		});
+		this.layers.sceneInk.addChild(
+			this.place(this.sprite(PARISH_ASSETS.label), exit),
+		);
 		const arrow = new Graphics();
 		arrow
 			.moveTo(exit.x + 5, exit.y + exit.height / 2)
@@ -551,7 +571,9 @@ export class IllustratedParishRenderer {
 			);
 		}
 
-		this.paper(this.layers.chrome, layout.statusRibbon, { pale: true });
+		this.layers.chrome.addChild(
+			this.place(this.sprite(PARISH_ASSETS.topRibbon), layout.statusRibbon),
+		);
 		const location = shortText(
 			state.world?.location_name ?? 'The Crossroads',
 			28,
@@ -629,7 +651,9 @@ export class IllustratedParishRenderer {
 	}
 
 	private drawNearby(layout: ParishLayout, state: ParishRenderState): void {
-		this.paper(this.layers.chrome, layout.nearbyRail, { pale: true });
+		this.layers.chrome.addChild(
+			this.place(this.sprite(PARISH_ASSETS.nearbyRail), layout.nearbyRail),
+		);
 		if (layout.mode === 'desktop') {
 			this.text(
 				this.layers.chrome,
@@ -930,10 +954,8 @@ export class IllustratedParishRenderer {
 	private drawTabs(layout: ParishLayout): void {
 		layout.tabs.forEach((rect, index) => {
 			const tab = TAB_LABELS[index];
-			const paper = this.paper(this.layers.chrome, rect, {
-				alpha: 0.94,
-				pale: true,
-			});
+			const paper = this.place(this.sprite(PARISH_ASSETS.tab), rect);
+			this.layers.chrome.addChild(paper);
 			this.bind(
 				paper,
 				this.target(
@@ -964,9 +986,11 @@ export class IllustratedParishRenderer {
 	}
 
 	private drawActions(layout: ParishLayout, state: ParishRenderState): void {
-		const paper = this.paper(this.layers.chrome, layout.actionStrip, {
-			pale: true,
-		});
+		const paper = this.place(
+			this.sprite(PARISH_ASSETS.actionStrip),
+			layout.actionStrip,
+		);
+		this.layers.chrome.addChild(paper);
 		this.bind(
 			paper,
 			this.target(
@@ -979,16 +1003,6 @@ export class IllustratedParishRenderer {
 			),
 		);
 		layout.actionCells.forEach((cell, index) => {
-			if (index > 0) {
-				this.inkLine(
-					this.layers.chrome,
-					cell.x,
-					cell.y + 4,
-					cell.x + 0.7,
-					cell.y + cell.height - 4,
-					0.36,
-				);
-			}
 			const action = PARISH_ACTIONS[index];
 			const target = this.target(
 				`action:${action}`,
@@ -1005,14 +1019,12 @@ export class IllustratedParishRenderer {
 				.fill({ color: 0xffffff, alpha: 0.001 });
 			this.layers.chrome.addChild(hit);
 			this.bind(hit, target);
-			const iconY = cell.y + cell.height * 0.38;
-			this.drawActionIcon(
-				this.layers.chrome,
-				action,
-				cell.x + cell.width / 2,
-				iconY,
-				Math.min(cell.width, cell.height) * 0.27,
-			);
+			this.contain(this.layers.chrome, PARISH_ASSETS.actionIcons[action], {
+				x: cell.x + cell.width * 0.22,
+				y: cell.y + cell.height * 0.08,
+				width: cell.width * 0.56,
+				height: cell.height * 0.52,
+			});
 			this.text(
 				this.layers.chrome,
 				ACTION_LABELS[action],
@@ -1025,9 +1037,11 @@ export class IllustratedParishRenderer {
 	}
 
 	private drawIntent(layout: ParishLayout, state: ParishRenderState): void {
-		const paper = this.paper(this.layers.intent, layout.intentStrip, {
-			pale: true,
-		});
+		const paper = this.place(
+			this.sprite(PARISH_ASSETS.intentStrip),
+			layout.intentStrip,
+		);
+		this.layers.intent.addChild(paper);
 		this.bind(
 			paper,
 			this.target(
@@ -1096,26 +1110,32 @@ export class IllustratedParishRenderer {
 				state.busy || !state.intentText.trim(),
 			),
 		);
-		this.drawQuill(
-			this.layers.intent,
-			sendRect.x + sendRect.width * 0.5,
-			sendRect.y + sendRect.height * 0.48,
-			Math.min(sendRect.width, sendRect.height) * 0.38,
-			state.busy ? 0.38 : 0.78,
-		);
+		this.contain(this.layers.intent, PARISH_ASSETS.quillIcon, {
+			x: sendRect.x + sendRect.width * 0.12,
+			y: sendRect.y + sendRect.height * 0.08,
+			width: sendRect.width * 0.76,
+			height: sendRect.height * 0.82,
+		});
+		if (state.busy) {
+			const veil = new Graphics();
+			veil
+				.rect(sendRect.x, sendRect.y, sendRect.width, sendRect.height)
+				.fill({ color: PAPER_LIGHT, alpha: 0.44 });
+			this.layers.intent.addChild(veil);
+		}
 	}
 
 	private drawBottomCards(
 		layout: ParishLayout,
 		state: ParishRenderState,
 	): void {
-		this.drawCard(layout.mapCard, 'Map', 'map', 'Open parish map', 90, () =>
-			this.drawMapIcon(
-				this.layers.chrome,
-				layout.mapCard.x + layout.mapCard.width / 2,
-				layout.mapCard.y + layout.mapCard.height * 0.63,
-				Math.min(layout.mapCard.width, layout.mapCard.height) * 0.24,
-			),
+		this.drawCard(
+			layout.mapCard,
+			'Map',
+			'map',
+			'Open parish map',
+			90,
+			PARISH_ASSETS.mapIcon,
 		);
 		this.drawCard(
 			layout.timeCard,
@@ -1123,13 +1143,7 @@ export class IllustratedParishRenderer {
 			'time',
 			'Open time and weather',
 			91,
-			() =>
-				this.drawHourglass(
-					this.layers.chrome,
-					layout.timeCard.x + layout.timeCard.width / 2,
-					layout.timeCard.y + layout.timeCard.height * 0.62,
-					Math.min(layout.timeCard.width, layout.timeCard.height) * 0.23,
-				),
+			PARISH_ASSETS.timeIcon,
 		);
 		this.text(
 			this.layers.chrome,
@@ -1139,9 +1153,11 @@ export class IllustratedParishRenderer {
 			Math.max(10, layout.timeCard.height * 0.16),
 		);
 
-		const intents = this.paper(this.layers.chrome, layout.activeIntentsCard, {
-			pale: true,
-		});
+		const intents = this.place(
+			this.sprite(PARISH_ASSETS.activeIntentsCard),
+			layout.activeIntentsCard,
+		);
+		this.layers.chrome.addChild(intents);
 		this.bind(
 			intents,
 			this.target(
@@ -1176,16 +1192,12 @@ export class IllustratedParishRenderer {
 			layout.activeIntentsCard.y + layout.activeIntentsCard.height * 0.72,
 			0.42,
 		);
-		this.drawQuill(
-			this.layers.chrome,
-			layout.activeIntentsCard.x + layout.activeIntentsCard.width * 0.87,
-			layout.activeIntentsCard.y + layout.activeIntentsCard.height * 0.55,
-			Math.min(
-				layout.activeIntentsCard.width,
-				layout.activeIntentsCard.height,
-			) * 0.22,
-			0.62,
-		);
+		this.contain(this.layers.chrome, PARISH_ASSETS.quillIcon, {
+			x: layout.activeIntentsCard.x + layout.activeIntentsCard.width * 0.77,
+			y: layout.activeIntentsCard.y + layout.activeIntentsCard.height * 0.22,
+			width: layout.activeIntentsCard.width * 0.18,
+			height: layout.activeIntentsCard.height * 0.58,
+		});
 	}
 
 	private drawCard(
@@ -1194,9 +1206,10 @@ export class IllustratedParishRenderer {
 		surface: NotebookSurface,
 		ariaLabel: string,
 		order: number,
-		drawIcon: () => void,
+		iconUrl: string,
 	): void {
-		const paper = this.paper(this.layers.chrome, rect, { pale: true });
+		const paper = this.place(this.sprite(PARISH_ASSETS.smallCard), rect);
+		this.layers.chrome.addChild(paper);
 		this.bind(
 			paper,
 			this.target(
@@ -1215,7 +1228,12 @@ export class IllustratedParishRenderer {
 			rect.y + rect.height * 0.14,
 			Math.max(11, Math.min(17, rect.height * 0.18)),
 		);
-		drawIcon();
+		this.contain(this.layers.chrome, iconUrl, {
+			x: rect.x + rect.width * 0.25,
+			y: rect.y + rect.height * 0.34,
+			width: rect.width * 0.5,
+			height: rect.height * 0.48,
+		});
 	}
 
 	private drawEye(layer: Container, x: number, y: number, scale = 1): void {
@@ -1235,12 +1253,14 @@ export class IllustratedParishRenderer {
 		name: string,
 		selected: boolean,
 	): void {
-		const card = new Graphics();
-		card
-			.roundRect(rect.x, rect.y, rect.width, rect.height, 3)
-			.fill({ color: PAPER_LIGHT, alpha: selected ? 0.96 : 0.84 })
-			.stroke({ color: INK, width: selected ? 1.5 : 1, alpha: 0.68 });
-		layer.addChild(card);
+		this.contain(layer, PARISH_ASSETS.portraitFrame, rect);
+		if (selected) {
+			const selection = new Graphics();
+			selection
+				.roundRect(rect.x - 1, rect.y - 1, rect.width + 2, rect.height + 2, 4)
+				.stroke({ color: MOOD_RED, width: 1.5, alpha: 0.7 });
+			layer.addChild(selection);
+		}
 
 		const initials = this.text(
 			layer,
@@ -1251,69 +1271,6 @@ export class IllustratedParishRenderer {
 			{ fill: INK_SOFT, fontWeight: '600' },
 		);
 		initials.anchor.set(0.5);
-	}
-
-	private drawActionIcon(
-		layer: Container,
-		action: NotebookAction,
-		x: number,
-		y: number,
-		radius: number,
-	): void {
-		const g = new Graphics();
-		switch (action) {
-			case 'talk':
-				g.ellipse(x, y, radius, radius * 0.72)
-					.moveTo(x - radius * 0.45, y + radius * 0.55)
-					.lineTo(x - radius * 0.68, y + radius)
-					.lineTo(x - radius * 0.05, y + radius * 0.66)
-					.stroke({ color: INK, width: 1.6, alpha: 0.9 });
-				[-0.45, 0, 0.45].forEach((offset) =>
-					g.circle(x + radius * offset, y, radius * 0.08).fill({ color: INK }),
-				);
-				break;
-			case 'ask':
-				g.circle(x, y, radius).stroke({ color: INK, width: 1.5, alpha: 0.9 });
-				this.text(
-					layer,
-					'?',
-					x - radius * 0.28,
-					y - radius * 0.82,
-					radius * 1.42,
-				);
-				break;
-			case 'help':
-				g.moveTo(x, y + radius)
-					.lineTo(x - radius * 0.45, y + radius * 0.2)
-					.lineTo(x - radius * 0.48, y - radius * 0.65)
-					.moveTo(x - radius * 0.2, y + radius * 0.05)
-					.lineTo(x - radius * 0.15, y - radius)
-					.moveTo(x + radius * 0.05, y + radius * 0.08)
-					.lineTo(x + radius * 0.2, y - radius * 0.86)
-					.moveTo(x + radius * 0.3, y + radius * 0.15)
-					.lineTo(x + radius * 0.55, y - radius * 0.55)
-					.stroke({ color: INK, width: 1.5, alpha: 0.9 });
-				break;
-			case 'observe':
-				g.moveTo(x - radius, y)
-					.quadraticCurveTo(x, y - radius, x + radius, y)
-					.quadraticCurveTo(x, y + radius, x - radius, y)
-					.stroke({ color: INK, width: 1.5, alpha: 0.9 })
-					.circle(x, y, radius * 0.34)
-					.fill({ color: INK, alpha: 0.8 });
-				break;
-			case 'leave':
-				g.rect(x - radius * 0.7, y - radius, radius * 0.86, radius * 1.8)
-					.stroke({ color: INK, width: 1.5, alpha: 0.9 })
-					.moveTo(x - radius * 0.1, y)
-					.lineTo(x + radius, y)
-					.moveTo(x + radius * 0.58, y - radius * 0.35)
-					.lineTo(x + radius, y)
-					.lineTo(x + radius * 0.58, y + radius * 0.35)
-					.stroke({ color: INK, width: 1.5, alpha: 0.9 });
-				break;
-		}
-		layer.addChild(g);
 	}
 
 	private drawTabIcon(
@@ -1361,74 +1318,6 @@ export class IllustratedParishRenderer {
 				alpha: 0.8,
 			});
 		}
-		layer.addChild(g);
-	}
-
-	private drawQuill(
-		layer: Container,
-		x: number,
-		y: number,
-		radius: number,
-		alpha: number,
-	): void {
-		const g = new Graphics();
-		g.moveTo(x - radius * 0.7, y + radius)
-			.quadraticCurveTo(
-				x + radius * 0.2,
-				y - radius * 0.9,
-				x + radius,
-				y - radius,
-			)
-			.quadraticCurveTo(
-				x + radius * 0.65,
-				y + radius * 0.4,
-				x - radius * 0.7,
-				y + radius,
-			)
-			.moveTo(x - radius * 0.65, y + radius * 0.95)
-			.lineTo(x + radius * 0.75, y - radius * 0.8)
-			.stroke({ color: INK, width: 1.35, alpha });
-		layer.addChild(g);
-	}
-
-	private drawMapIcon(layer: Container, x: number, y: number, r: number): void {
-		const g = new Graphics();
-		g.moveTo(x - r, y - r * 0.65)
-			.lineTo(x - r * 0.33, y - r)
-			.lineTo(x + r * 0.33, y - r * 0.65)
-			.lineTo(x + r, y - r)
-			.lineTo(x + r, y + r * 0.65)
-			.lineTo(x + r * 0.33, y + r)
-			.lineTo(x - r * 0.33, y + r * 0.65)
-			.lineTo(x - r, y + r)
-			.closePath()
-			.stroke({ color: INK, width: 1.2, alpha: 0.86 })
-			.moveTo(x - r * 0.33, y - r)
-			.lineTo(x - r * 0.33, y + r * 0.65)
-			.moveTo(x + r * 0.33, y - r * 0.65)
-			.lineTo(x + r * 0.33, y + r)
-			.stroke({ color: INK, width: 0.9, alpha: 0.65 });
-		layer.addChild(g);
-	}
-
-	private drawHourglass(
-		layer: Container,
-		x: number,
-		y: number,
-		r: number,
-	): void {
-		const g = new Graphics();
-		g.moveTo(x - r, y - r)
-			.lineTo(x + r, y - r)
-			.moveTo(x - r, y + r)
-			.lineTo(x + r, y + r)
-			.moveTo(x - r * 0.7, y - r)
-			.quadraticCurveTo(x - r * 0.55, y - r * 0.05, x, y)
-			.quadraticCurveTo(x + r * 0.55, y + r * 0.05, x + r * 0.7, y + r)
-			.moveTo(x + r * 0.7, y - r)
-			.quadraticCurveTo(x + r * 0.55, y - r * 0.05, x, y)
-			.quadraticCurveTo(x - r * 0.55, y + r * 0.05, x - r * 0.7, y + r)
-			.stroke({ color: INK, width: 1.2, alpha: 0.86 });
 		layer.addChild(g);
 	}
 

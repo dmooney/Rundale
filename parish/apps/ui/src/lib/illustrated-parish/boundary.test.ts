@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { readdirSync, readFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
@@ -26,11 +26,27 @@ const ACTIVE_VISUAL_SOURCES = [
 ];
 
 describe('fresh illustrated parish provenance boundary', () => {
+	it('does not ship the rejected asset kit or its dead renderer', () => {
+		for (const path of [
+			'static/notebook-ui',
+			'static/rundale/notebook-ui',
+			'src/components/notebook',
+			'scripts/generate-notebook-assets.mjs',
+		]) {
+			expect(existsSync(resolve(process.cwd(), path)), path).toBe(false);
+		}
+		expect(
+			readdirSync(
+				resolve(process.cwd(), 'src/lib/illustrated-notebook'),
+			).sort(),
+		).toEqual(['command.test.ts', 'command.ts']);
+	});
+
 	it('does not route through the rejected visual stack or asset kit', () => {
 		for (const source of ACTIVE_VISUAL_SOURCES) {
 			const text = readFileSync(source, 'utf8');
 			expect(text).not.toMatch(
-				/illustrated-notebook\/(?:renderer|layout|assets|types|interactions)|(?:components|\.\.)\/notebook\/|(?:\/rundale|static\/rundale)\/notebook-ui\//,
+				/illustrated-notebook\/(?:renderer|layout|assets|types|interactions)|(?:components|\.\.)\/notebook\/|(?:\/|static\/)(?:rundale\/)?notebook-ui\//,
 			);
 		}
 	});

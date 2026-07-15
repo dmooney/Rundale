@@ -21,7 +21,36 @@ but no runtime file is cut from that concept image.
 - `visual-scenes.json` records the fresh plate paths, written-source provenance,
   camera direction, and plate-normalized scene anchors validated by
   `parish-world` tests.
+- `parchment-*.png` provides the raster top ribbon, Nearby rail, five-cell
+  action strip, intent slip, bottom cards, tabs, and scene labels. Each was
+  generated independently with the built-in image generator, using the
+  canonical concept as a style/composition reference and the approved sewn
+  page as the material reference.
+- `icon-*.png` provides transparent 128×128 action, map, time, and quill
+  cutouts generated from the concept's loose charcoal/sepia symbol language.
+- `portrait-slot-frame.png` is intentionally empty. It reserves layout space
+  without introducing portrait art from the separate portrait issue.
+- `ui-assets.json` records every runtime image's role, dimensions, alpha
+  contract, provenance class, and SHA-256 hash.
 
-The renderer must not import the rejected `rundale/notebook-ui/` asset kit.
-Parchment ribbons, tabs, cards, action cells, labels, and selection ink are drawn
-at runtime in `src/lib/illustrated-parish/renderer.ts`.
+The rejected `rundale/notebook-ui/` asset kit and dead visual renderer have
+been removed. The active renderer preloads these v2 raster cutouts and overlays
+only dynamic text, hit targets, focus treatments, trust dots, and fine selection
+ink.
+
+## Regenerating UI Cutouts
+
+Use the built-in image-generation tool once per distinct asset. The shared
+prompt direction is:
+
+> Create one isolated blank rag-paper UI surface or one isolated charcoal/sepia
+> ink symbol. Match the hand-inked watercolor language of
+> `docs/graphics-v2/illustrated-parish-notebook.png`; for paper assets also
+> harmonize with `sewn-notebook-page.png`. Center the complete cutout on a
+> perfectly flat `#00ff00` chroma background. No text, portraits, scene content,
+> metal, rings, ring holes, spiral binding, paperclips, shadows, or watermark.
+
+Remove the chroma background with the installed imagegen helper using border
+auto-keying, soft matte, despill, and thresholds 12/220. Trim, fit, and center
+the result on the exact dimensions declared in `ui-assets.json`; keep all four
+corners transparent and update the stored hash only after visual inspection.

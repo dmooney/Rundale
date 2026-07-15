@@ -6,6 +6,10 @@ import type { Page } from '@playwright/test';
  * More reliable than page.keyboard.press() for Svelte <svelte:window> handlers.
  */
 async function pressKey(page: import('@playwright/test').Page, key: string) {
+	await expect(page.locator('.app-shell')).toHaveAttribute(
+		'data-controller-ready',
+		'true',
+	);
 	await page.evaluate(
 		({ key }) => {
 			window.dispatchEvent(

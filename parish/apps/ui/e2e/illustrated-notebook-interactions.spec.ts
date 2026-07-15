@@ -163,6 +163,17 @@ async function activateNotebookControl(page: Page, name: string) {
 	return control;
 }
 
+async function clickNotebookCanvasTarget(page: Page, name: string) {
+	const control = page.getByRole('button', { name, exact: true });
+	await expect(control).toHaveCount(1);
+	const bounds = await control.boundingBox();
+	if (!bounds) throw new Error(`Notebook control "${name}" has no bounds`);
+	await page.mouse.click(
+		bounds.x + bounds.width / 2,
+		bounds.y + bounds.height / 2,
+	);
+}
+
 async function expectCleanFirstViewport(page: Page): Promise<void> {
 	const game = page.getByTestId('illustrated-notebook-game');
 	await expect(game).toBeVisible();
@@ -214,6 +225,49 @@ test.describe('illustrated notebook overlays (#1630)', () => {
 		fs.mkdirSync(PROOF_DIR, { recursive: true });
 	});
 
+	test('browser decodes every documented v2 raster asset', async ({ page }) => {
+		const response = await page.request.get(
+			'/rundale/illustrated-notebook-v2/ui-assets.json',
+		);
+		expect(response.ok()).toBe(true);
+		const manifest = (await response.json()) as {
+			runtime_base: string;
+			assets: Array<{ file: string; width: number; height: number }>;
+		};
+		expect(manifest.assets.length).toBeGreaterThan(3);
+		for (const asset of manifest.assets) {
+			expect(asset.file).toMatch(/\.png$/);
+			expect(asset.file).not.toMatch(/\.svg$/);
+		}
+
+		await installTauriMock(page, 'morning');
+		await page.goto('/');
+		const decoded = await page.evaluate(
+			async ({ base, assets }) => {
+				return Promise.all(
+					assets.map(async (asset) => {
+						const image = new Image();
+						image.src = `${base}${asset.file}`;
+						await image.decode();
+						return {
+							file: asset.file,
+							width: image.naturalWidth,
+							height: image.naturalHeight,
+						};
+					}),
+				);
+			},
+			{ base: manifest.runtime_base, assets: manifest.assets },
+		);
+		expect(decoded).toEqual(
+			manifest.assets.map(({ file, width, height }) => ({
+				file,
+				width,
+				height,
+			})),
+		);
+	});
+
 	test('desktop keeps the first viewport clean and routes notebook tools without resizing Pixi', async ({
 		page,
 	}) => {
@@ -237,6 +291,20 @@ test.describe('illustrated notebook overlays (#1630)', () => {
 			path: path.join(PROOF_DIR, 'desktop-first-viewport.png'),
 			fullPage: false,
 		});
+
+		// Use the canvas itself (not the semantic companion button) to prove that
+		// a translated and scaled raster Sprite owns the correct local hit area.
+		await clickNotebookCanvasTarget(page, 'Open parish map');
+		const mapOverlay = page.getByRole('dialog', {
+			name: 'Parish Map',
+			exact: true,
+		});
+		await expect(mapOverlay).toBeVisible();
+		await page
+			.getByRole('button', { name: 'Close Parish Map', exact: true })
+			.click();
+		await expectCleanFirstViewport(page);
+		await expectCanvasBounds(page, initialBounds);
 
 		const toolsInvoker = await activateNotebookControl(
 			page,

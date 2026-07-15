@@ -18,9 +18,8 @@ asset kit, and proof artifacts are not inputs to this rebuild.
 - The approved `sewn-notebook-page.png` is the sole retained visual exception.
   Its 440×620 shape is preserved without stretching.
 - The rejected `src/lib/illustrated-notebook/` visual modules and
-  `static/rundale/notebook-ui/` assets must not be imported by the first
-  viewport. The existing pure command helpers remain shared behavior, not
-  visual provenance.
+  `static/rundale/notebook-ui/` assets were removed. The existing pure command
+  helpers remain shared behavior, not visual provenance.
 - The page is hand-sewn. Spiral binding, rings, ring holes, and paperclips are
   outside the art direction and the 1820 setting.
 - Portrait-system expansion belongs to the separate person-and-marker slice;
@@ -65,7 +64,8 @@ asset kit, and proof artifacts are not inputs to this rebuild.
 
 ### 4. Provenance and regression guards
 
-1. Document every runtime asset in the v2 asset README.
+1. Document every runtime asset in the v2 asset README and `ui-assets.json`,
+   including dimensions, alpha contract, provenance, and hash.
 2. Reject active imports from the discarded visual namespace and asset kit.
 3. Pin the approved sewn-page hash in a test.
 4. Test the canonical desktop placements, mobile composition, cover-crop
