@@ -195,6 +195,7 @@ These modules are above 89% but have specific gaps:
 1. **Extract shared game-loop logic.** `main.rs`, `headless.rs`, and
    `gui/mod.rs` all duplicate command handling, movement, and schedule event
    processing. Extracting this into a shared `game_logic.rs` module would:
+
    - Eliminate ~300 lines of duplication
    - Allow testing the logic once instead of three times
    - Make each frontend a thin I/O adapter
@@ -202,6 +203,7 @@ These modules are above 89% but have specific gaps:
 2. **Introduce trait-based mocking for inference.** The inference module is
    nearly untestable because it requires a live Ollama instance. Defining an
    `InferenceClient` trait and using `mockall` would unlock testing for:
+
    - NPC conversation flows
    - Tier 2 group events
    - Intent parsing

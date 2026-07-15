@@ -21,6 +21,7 @@ When in doubt: if logic should work in more than one mode, put it in `parish-cor
 ### Workspace layers
 
 1. **Core domain (`crates/parish-core`)**
+
    - World state and simulation
    - NPC management and cognitive tiers
    - Input classification
@@ -29,17 +30,20 @@ When in doubt: if logic should work in more than one mode, put it in `parish-cor
    - IPC data mappers shared by Tauri and web
 
 2. **Root app (`src/`)**
+
    - App startup and mode routing
    - Headless REPL/game loop
    - Config loading and override wiring
    - Test harness orchestration
 
 3. **Desktop app (`crates/parish-tauri/`)**
+
    - Tauri command handlers
    - Event emission wiring
    - Integration with core IPC payloads
 
 4. **Web server (`crates/parish-server/`)**
+
    - Axum routes and WebSocket flow
    - Browser-compatible endpoints mirroring desktop behavior
 

@@ -107,7 +107,6 @@ Restart the editor/agent session afterwards so the new binaries are picked up.
 - `/parish-engine rubric` — snapshot baselines + structural rubrics (sister to `prove`)
 - `/parish-engine harness [script]` — fixture-script harness run
 - `just agent-check` — requires proof evidence and a judge verdict for proof-relevant PRs
-- `/task-start <task-id>` — acceptance criteria + fixture (and, for features, a design note + plan) before coding
 
 ## Eval baselines
 

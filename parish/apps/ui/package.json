@@ -21,12 +21,12 @@
 	},
 	"devDependencies": {
 		"@eslint/js": "^10.0.1",
-		"@playwright/test": "^1.60.0",
+		"@playwright/test": "^1.61.0",
 		"@sveltejs/adapter-static": "^3.0.10",
-		"@sveltejs/kit": "^2.65.1",
+		"@sveltejs/kit": "^2.66.0",
 		"@sveltejs/vite-plugin-svelte": "^7.1.2",
 		"@testing-library/jest-dom": "^6.9.1",
-		"@testing-library/svelte": "^5.3.1",
+		"@testing-library/svelte": "^5.4.1",
 		"@types/node": "^25.9.3",
 		"eslint": "^10.5.0",
 		"eslint-config-prettier": "^10.1.8",
@@ -34,19 +34,20 @@
 		"globals": "^17.6.0",
 		"jsdom": "^29.1.1",
 		"prettier": "^3.8.4",
-		"prettier-plugin-svelte": "^4.1.0",
+		"prettier-plugin-svelte": "^4.1.1",
 		"svelte": "^5.56.3",
 		"svelte-check": "^4.6.0",
 		"typescript": "^6.0.3",
-		"typescript-eslint": "^8.61.0",
+		"typescript-eslint": "^8.61.1",
 		"vite": "^8.0.16",
-		"vitest": "^4.1.8"
+		"vitest": "^4.1.9"
 	},
 	"dependencies": {
-		"@tauri-apps/api": "^2.11.0",
+		"@tauri-apps/api": "^2.11.1",
 		"html-to-image": "^1.11.13",
 		"maplibre-gl": "^5.24.0",
-		"phosphor-svelte": "^3.1.0"
+		"phosphor-svelte": "^3.1.0",
+		"pixi.js": "^8.19.0"
 	},
 	"// overrides": "Force cookie>=0.7.0 transitive dep (GHSA-pxg6-pf52-xh8x / SvelteKit GHSA-7w22-3g77-7m57). Remove when @sveltejs/kit bumps its peer.",
 	"overrides": {

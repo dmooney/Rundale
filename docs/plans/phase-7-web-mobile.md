@@ -55,6 +55,7 @@ Deliver Rundale as a full game client in web browsers and on mobile devices (iOS
 ### Part A: Game Protocol & Server (Rust)
 
 1. **Define the client-server protocol in `src/protocol/mod.rs`** (new module)
+
    - `ClientMessage` enum (serde): `Connect { player_name }`, `PlayerInput { text }`, `Command { name, args }`, `Ping`
    - `ServerMessage` enum (serde): `Welcome { world_snapshot }`, `TextLog { entries: Vec<TextEntry> }`, `StreamToken { token }`, `StreamEnd`, `WorldUpdate { location, time, weather, npcs_present }`, `MapUpdate { locations, edges, player_pos }`, `Pong`, `Error { message }`
    - `TextEntry` struct: `source: TextSource`, `content: String`, `timestamp: GameTime`
@@ -62,6 +63,7 @@ Deliver Rundale as a full game client in web browsers and on mobile devices (iOS
    - Use `serde_json` for serialization over WebSocket text frames
 
 2. **Extract game engine into a reusable `GameSession` struct in `src/session.rs`**
+
    - Encapsulates: `WorldState`, `NpcManager`, `GameClock`, `InferenceClients`, `Database`
    - `async fn process_input(&mut self, input: &str) -> Vec<ServerMessage>` — runs the existing game loop pipeline (intent parse → inference → world update → response messages)
    - `fn world_snapshot(&self) -> WorldSnapshot` — serializable snapshot for `Welcome` message
@@ -69,6 +71,7 @@ Deliver Rundale as a full game client in web browsers and on mobile devices (iOS
    - This refactor separates game logic from UI, replacing the current direct coupling in `main.rs`
 
 3. **Implement the game server in `src/server/mod.rs`** (new module)
+
    - Framework: `axum` with `axum::extract::ws::WebSocket` for WebSocket support
    - `async fn main_server(config: ServerConfig)` — binds to `0.0.0.0:8080`, serves static WASM files and WebSocket endpoint
    - Route `/ws` — WebSocket upgrade, spawns per-connection `handle_session` task
@@ -77,6 +80,7 @@ Deliver Rundale as a full game client in web browsers and on mobile devices (iOS
    - `ServerConfig` struct: `port`, `cloud_provider`, `max_sessions`, `static_dir`
 
 4. **Implement per-session WebSocket handler in `src/server/session_handler.rs`**
+
    - `async fn handle_session(ws: WebSocket, engine: Arc<Mutex<GameSession>>)`
    - On `ClientMessage::Connect` → create `GameSession`, send `Welcome` + `WorldUpdate` + `MapUpdate`
    - On `ClientMessage::PlayerInput` → call `session.process_input()`, stream tokens via `StreamToken` messages, then send `StreamEnd` + `WorldUpdate`
@@ -84,6 +88,7 @@ Deliver Rundale as a full game client in web browsers and on mobile devices (iOS
    - Heartbeat: respond to `Ping` with `Pong`, disconnect on 30s timeout
 
 5. **Implement session management in `src/server/manager.rs`**
+
    - `SessionManager` struct: manages multiple concurrent game sessions
    - `fn create_session(&mut self, player_id: &str) -> SessionId`
    - `fn get_session(&self, id: SessionId) -> Option<&GameSession>`
@@ -100,12 +105,14 @@ Deliver Rundale as a full game client in web browsers and on mobile devices (iOS
 ### Part B: Web Client (egui + WASM)
 
 7. **Create web client workspace member in `web/`**
+
    - `web/Cargo.toml`: workspace member, depends on `parish` (library), `eframe` with `wasm` feature, `wasm-bindgen`, `web-sys`, `gloo-net` (WebSocket)
    - `web/src/lib.rs`: WASM entry point via `#[wasm_bindgen(start)]`
    - `web/index.html`: minimal HTML shell loading the WASM bundle
    - Build with `trunk` (Rust WASM bundler): `trunk build --release` → outputs to `web/dist/`
 
 8. **Implement `WebClient` networking layer in `web/src/net.rs`**
+
    - `WebClient` struct: wraps `gloo-net::websocket::futures::WebSocket`
    - `async fn connect(url: &str) -> Result<Self>` — connects to server WebSocket
    - `async fn send(&self, msg: ClientMessage) -> Result<()>`
@@ -113,6 +120,7 @@ Deliver Rundale as a full game client in web browsers and on mobile devices (iOS
    - Reconnection logic: exponential backoff (1s, 2s, 4s, 8s) on disconnect, resend `Connect` message
 
 9. **Adapt `GuiApp` for thin-client mode in `web/src/app.rs`**
+
    - `WebGuiApp` struct: mirrors `src/gui/mod.rs` `GuiApp` but receives state from server instead of local engine
    - Reuse `src/gui/` panel modules: `chat_panel`, `map_panel`, `sidebar`, `status_bar`, `input_field`, `theme`
    - On input submit → send `ClientMessage::PlayerInput` via WebSocket
@@ -122,6 +130,7 @@ Deliver Rundale as a full game client in web browsers and on mobile devices (iOS
    - Map click-to-move → sends `PlayerInput { text: "go to <location>" }`
 
 10. **Configure eframe for WASM target**
+
     - `eframe::WebOptions` with canvas ID matching `index.html`
     - Set `max_size_points` for responsive sizing
     - Handle browser events: window resize, tab visibility, beforeunload (save)
@@ -135,18 +144,21 @@ Deliver Rundale as a full game client in web browsers and on mobile devices (iOS
 ### Part C: Mobile Client (Tauri v2)
 
 12. **Create Tauri v2 project in `mobile/`**
+
     - `mobile/` directory with Tauri v2 project structure
     - `mobile/src-tauri/` — Rust backend (Tauri commands, app config)
     - `mobile/src/` — Frontend (loads the same egui WASM bundle from Part B)
     - `mobile/src-tauri/tauri.conf.json` — app name "Rundale", bundle ID `com.parish.app`, permissions
 
 13. **Configure Tauri for iOS and Android**
+
     - iOS: `tauri ios init` → Xcode project in `mobile/src-tauri/gen/apple/`
     - Android: `tauri android init` → Gradle project in `mobile/src-tauri/gen/android/`
     - Both targets load the egui WASM frontend in Tauri's webview
     - Deep link support: `parish://` URL scheme for save sharing (future)
 
 14. **Implement mobile-specific adaptations**
+
     - Touch-optimized input: larger tap targets on map nodes, virtual keyboard management
     - `input_field` adjustments: auto-focus on tap, keyboard dismiss on send
     - Responsive layout: stack panels vertically on narrow screens (chat above map)
@@ -154,6 +166,7 @@ Deliver Rundale as a full game client in web browsers and on mobile devices (iOS
     - Sidebar: swipe-to-reveal gesture on mobile (egui `SidePanel` with animation)
 
 15. **Mobile networking and lifecycle**
+
     - Reuse `WebClient` from Part B (same WebSocket protocol)
     - Handle app lifecycle: `on_pause` → save session ID, `on_resume` → reconnect WebSocket
     - Background: disconnect WebSocket when app is backgrounded, reconnect on foreground
@@ -167,6 +180,7 @@ Deliver Rundale as a full game client in web browsers and on mobile devices (iOS
 ### Part D: Shared Infrastructure
 
 17. **Extract GUI panels into a shared crate `parish-ui`**
+
     - Move `src/gui/theme.rs`, `chat_panel.rs`, `map_panel.rs`, `sidebar.rs`, `status_bar.rs`, `input_field.rs` to `crates/parish-ui/src/`
     - These modules render with egui and take data structs as input (not game engine references)
     - Define `UiState` trait or struct: text log, location info, map data, NPC list, time/weather
@@ -175,12 +189,14 @@ Deliver Rundale as a full game client in web browsers and on mobile devices (iOS
     - Both frontends call the same panel rendering functions
 
 18. **Authentication and session tokens**
+
     - Simple token-based auth: server generates session token on `Connect`, client stores in `localStorage` (web) or Tauri secure storage (mobile)
     - Reconnect with token to resume session without re-creating game state
     - No user accounts in Phase 7 — anonymous sessions with optional player name
     - Future: OAuth or passkey auth for persistent accounts
 
 19. **Server deployment configuration**
+
     - `Dockerfile`: multi-stage build (Rust builder → minimal runtime image with WASM assets)
     - `docker-compose.yml`: server + volume for SQLite persistence
     - Environment variables: `PARISH_CLOUD_API_KEY`, `PARISH_CLOUD_MODEL`, `PARISH_SERVER_PORT`, `PARISH_MAX_SESSIONS`
@@ -202,7 +218,7 @@ Deliver Rundale as a full game client in web browsers and on mobile devices (iOS
 | `tower-http`        | Static file serving, CORS        | Server           |
 | `tokio-tungstenite` | WebSocket protocol               | Server           |
 | `trunk`             | WASM build tool                  | Web (build-time) |
-| `wasm-bindgen`      | Rust↔JS interop                  | Web client       |
+| `wasm-bindgen`      | Rust/JS interop                  | Web client       |
 | `web-sys`           | Browser API bindings             | Web client       |
 | `gloo-net`          | WebSocket client for WASM        | Web client       |
 | `tauri` (v2)        | Mobile app framework             | Mobile           |

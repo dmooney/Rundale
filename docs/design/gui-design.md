@@ -140,7 +140,7 @@ All `/commands` work in GUI mode. The `/irish` and `/debug panel` commands toggl
 
 ## Source Modules
 
-- [`apps/ui/src/components/`](../../apps/ui/src/components/) — Svelte UI components (ChatPanel, MapPanel, FullMapOverlay, Sidebar, StatusBar)
-- [`apps/ui/src/lib/map-labels.ts`](../../apps/ui/src/lib/map-labels.ts) — Label placement algorithm
-- [`apps/ui/src/lib/map-projection.ts`](../../apps/ui/src/lib/map-projection.ts) — Mercator projection
-- [`src/world/palette.rs`](../../src/world/palette.rs) — Time-of-day palette engine
+- [`parish/apps/ui/src/components/`](../../parish/apps/ui/src/components/) — Svelte UI components (ChatPanel, MapPanel, FullMapOverlay, Sidebar, StatusBar)
+- [`MapPanel.svelte`](../../parish/apps/ui/src/components/MapPanel.svelte) — Map rendering and labels
+- [`FullMapOverlay.svelte`](../../parish/apps/ui/src/components/FullMapOverlay.svelte) — Full-map interaction
+- [`parish-palette`](../../parish/crates/parish-palette/src/) — Time-of-day palette engine

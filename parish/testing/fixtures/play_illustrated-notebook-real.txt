@@ -1,0 +1,20 @@
+# Proof fixture for the Pixi illustrated notebook play screen.
+#
+# This script does not prove pixels. It proves the presentation layer still sits
+# on the existing Parish/Rundale gameplay path: status, scene text, nearby NPCs,
+# map/exits, clock, natural-language input, and movement must all remain live.
+
+/status
+look
+/npcs
+/map
+/time
+
+inspect the old well
+
+go to The Forge
+/status
+look
+/npcs
+/map
+/time

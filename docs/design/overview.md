@@ -289,16 +289,16 @@ Run `cargo run` for a plain stdin/stdout REPL. This is the default mode. Uses id
 
 ## Source Modules
 
-- [`crates/parish-engine/src/main.rs`](../../src/main.rs) — Entry point, CLI parsing, mode routing
-- [`src/lib.rs`](../../src/lib.rs)
-- [`src/error.rs`](../../src/error.rs)
-- [`crates/parish-engine/src/app.rs`](../../src/app.rs) — Core application state (App, ScrollState)
-- [`crates/parish-engine/src/headless.rs`](../../src/headless.rs) — Headless REPL mode (default)
-- [`src/world/`](../../src/world/)
-- [`src/npc/`](../../src/npc/)
-- [`src/inference/`](../../src/inference/) — Client, queue, setup/bootstrap
-- [`src/persistence/`](../../src/persistence/)
-- [`src/input/`](../../src/input/)
+- [`parish-engine/src/main.rs`](../../parish/crates/parish-engine/src/main.rs) — Entry point, CLI parsing, and mode routing
+- [`parish-core/src/lib.rs`](../../parish/crates/parish-core/src/lib.rs) — shared composition and orchestration surface
+- [`parish-types/src/error.rs`](../../parish/crates/parish-types/src/error.rs) — shared engine errors
+- [`parish-engine/src/app.rs`](../../parish/crates/parish-engine/src/app.rs) — Core application state (App, ScrollState)
+- [`parish-engine/src/headless.rs`](../../parish/crates/parish-engine/src/headless.rs) — Headless REPL mode (default)
+- [`parish-world`](../../parish/crates/parish-world/src/)
+- [`parish-npc`](../../parish/crates/parish-npc/src/)
+- [`parish-inference`](../../parish/crates/parish-inference/src/) — Client, queue, setup/bootstrap
+- [`parish-persistence`](../../parish/crates/parish-persistence/src/)
+- [`parish-input`](../../parish/crates/parish-input/src/)
 
 ### Shared IPC Layer (`crates/parish-core/src/ipc/`)
 

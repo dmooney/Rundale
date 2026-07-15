@@ -1,0 +1,1248 @@
+{
+  "schema_version": 1,
+  "script_version": "county-tile-pipeline-v1",
+  "created_at": "2026-07-04T23:43:33+00:00",
+  "preset": "murphy-production-proof",
+  "source": {
+    "center_lat": 53.63579941155877,
+    "center_lon": -8.079662971357214,
+    "extent": {
+      "z": 17,
+      "x0": 62589,
+      "y0": 42304,
+      "cols": 10,
+      "rows": 10,
+      "x1": 62598,
+      "y1": 42313,
+      "tile_count": 100
+    },
+    "url_template": "https://mapseries-tilesets.s3.amazonaws.com/os/roscommon1/{z}/{x}/{y}.png",
+    "attribution": "Historic 6\" OS Ireland (1829-1842), via National Library of Scotland",
+    "license_note": "NLS historic tiles are documented in Rundale notices as CC-BY / permission of NLS.",
+    "cache_dir": "/private/tmp/rundale-nls-tile-cache"
+  },
+  "render": {
+    "mode": "deterministic_continuous_county_base",
+    "parent_artifact": "county-base-supertile.png",
+    "style_version": "county-tile-pipeline-v1",
+    "source_sha256": "ef6861e30c5963c4c16c68b0bd43eb20308db095384877b07d113173d29dd55c",
+    "parent_sha256": "9fbe7c715828928ba2840d784e154e7a2c761b34e24c907c9dfa5a3e46f3368a"
+  },
+  "semantic_layers": {
+    "artifact": "semantic-mask.png",
+    "metadata": {
+      "classes": {
+        "0": "paper_or_unclassified",
+        "1": "pale_open_ground_or_road_candidate",
+        "2": "vegetation_rough_pasture_or_symbol_texture",
+        "3": "ink_boundary_building_or_label_linework"
+      },
+      "method": "deterministic grayscale/edge thresholds over raw source mosaic",
+      "caveat": "coarse proof layer; production semantic layers should be corrected with the map annotator"
+    },
+    "contracts": "seam-contracts.json"
+  },
+  "runtime_tiles": {
+    "directory": "runtime-tiles",
+    "tile_count": 100,
+    "tiles": [
+      {
+        "tile_id": "z17-x62589-y42304",
+        "z": 17,
+        "x": 62589,
+        "y": 42304,
+        "source_ref": "z17-x62589-y42304",
+        "parent_artifact": "county-base-supertile.png",
+        "pixel_box_in_parent": [0, 0, 256, 256],
+        "path": "runtime-tiles/17/62589/42304.png"
+      },
+      {
+        "tile_id": "z17-x62590-y42304",
+        "z": 17,
+        "x": 62590,
+        "y": 42304,
+        "source_ref": "z17-x62590-y42304",
+        "parent_artifact": "county-base-supertile.png",
+        "pixel_box_in_parent": [256, 0, 512, 256],
+        "path": "runtime-tiles/17/62590/42304.png"
+      },
+      {
+        "tile_id": "z17-x62591-y42304",
+        "z": 17,
+        "x": 62591,
+        "y": 42304,
+        "source_ref": "z17-x62591-y42304",
+        "parent_artifact": "county-base-supertile.png",
+        "pixel_box_in_parent": [512, 0, 768, 256],
+        "path": "runtime-tiles/17/62591/42304.png"
+      },
+      {
+        "tile_id": "z17-x62592-y42304",
+        "z": 17,
+        "x": 62592,
+        "y": 42304,
+        "source_ref": "z17-x62592-y42304",
+        "parent_artifact": "county-base-supertile.png",
+        "pixel_box_in_parent": [768, 0, 1024, 256],
+        "path": "runtime-tiles/17/62592/42304.png"
+      },
+      {
+        "tile_id": "z17-x62593-y42304",
+        "z": 17,
+        "x": 62593,
+        "y": 42304,
+        "source_ref": "z17-x62593-y42304",
+        "parent_artifact": "county-base-supertile.png",
+        "pixel_box_in_parent": [1024, 0, 1280, 256],
+        "path": "runtime-tiles/17/62593/42304.png"
+      },
+      {
+        "tile_id": "z17-x62594-y42304",
+        "z": 17,
+        "x": 62594,
+        "y": 42304,
+        "source_ref": "z17-x62594-y42304",
+        "parent_artifact": "county-base-supertile.png",
+        "pixel_box_in_parent": [1280, 0, 1536, 256],
+        "path": "runtime-tiles/17/62594/42304.png"
+      },
+      {
+        "tile_id": "z17-x62595-y42304",
+        "z": 17,
+        "x": 62595,
+        "y": 42304,
+        "source_ref": "z17-x62595-y42304",
+        "parent_artifact": "county-base-supertile.png",
+        "pixel_box_in_parent": [1536, 0, 1792, 256],
+        "path": "runtime-tiles/17/62595/42304.png"
+      },
+      {
+        "tile_id": "z17-x62596-y42304",
+        "z": 17,
+        "x": 62596,
+        "y": 42304,
+        "source_ref": "z17-x62596-y42304",
+        "parent_artifact": "county-base-supertile.png",
+        "pixel_box_in_parent": [1792, 0, 2048, 256],
+        "path": "runtime-tiles/17/62596/42304.png"
+      },
+      {
+        "tile_id": "z17-x62597-y42304",
+        "z": 17,
+        "x": 62597,
+        "y": 42304,
+        "source_ref": "z17-x62597-y42304",
+        "parent_artifact": "county-base-supertile.png",
+        "pixel_box_in_parent": [2048, 0, 2304, 256],
+        "path": "runtime-tiles/17/62597/42304.png"
+      },
+      {
+        "tile_id": "z17-x62598-y42304",
+        "z": 17,
+        "x": 62598,
+        "y": 42304,
+        "source_ref": "z17-x62598-y42304",
+        "parent_artifact": "county-base-supertile.png",
+        "pixel_box_in_parent": [2304, 0, 2560, 256],
+        "path": "runtime-tiles/17/62598/42304.png"
+      },
+      {
+        "tile_id": "z17-x62589-y42305",
+        "z": 17,
+        "x": 62589,
+        "y": 42305,
+        "source_ref": "z17-x62589-y42305",
+        "parent_artifact": "county-base-supertile.png",
+        "pixel_box_in_parent": [0, 256, 256, 512],
+        "path": "runtime-tiles/17/62589/42305.png"
+      },
+      {
+        "tile_id": "z17-x62590-y42305",
+        "z": 17,
+        "x": 62590,
+        "y": 42305,
+        "source_ref": "z17-x62590-y42305",
+        "parent_artifact": "county-base-supertile.png",
+        "pixel_box_in_parent": [256, 256, 512, 512],
+        "path": "runtime-tiles/17/62590/42305.png"
+      },
+      {
+        "tile_id": "z17-x62591-y42305",
+        "z": 17,
+        "x": 62591,
+        "y": 42305,
+        "source_ref": "z17-x62591-y42305",
+        "parent_artifact": "county-base-supertile.png",
+        "pixel_box_in_parent": [512, 256, 768, 512],
+        "path": "runtime-tiles/17/62591/42305.png"
+      },
+      {
+        "tile_id": "z17-x62592-y42305",
+        "z": 17,
+        "x": 62592,
+        "y": 42305,
+        "source_ref": "z17-x62592-y42305",
+        "parent_artifact": "county-base-supertile.png",
+        "pixel_box_in_parent": [768, 256, 1024, 512],
+        "path": "runtime-tiles/17/62592/42305.png"
+      },
+      {
+        "tile_id": "z17-x62593-y42305",
+        "z": 17,
+        "x": 62593,
+        "y": 42305,
+        "source_ref": "z17-x62593-y42305",
+        "parent_artifact": "county-base-supertile.png",
+        "pixel_box_in_parent": [1024, 256, 1280, 512],
+        "path": "runtime-tiles/17/62593/42305.png"
+      },
+      {
+        "tile_id": "z17-x62594-y42305",
+        "z": 17,
+        "x": 62594,
+        "y": 42305,
+        "source_ref": "z17-x62594-y42305",
+        "parent_artifact": "county-base-supertile.png",
+        "pixel_box_in_parent": [1280, 256, 1536, 512],
+        "path": "runtime-tiles/17/62594/42305.png"
+      },
+      {
+        "tile_id": "z17-x62595-y42305",
+        "z": 17,
+        "x": 62595,
+        "y": 42305,
+        "source_ref": "z17-x62595-y42305",
+        "parent_artifact": "county-base-supertile.png",
+        "pixel_box_in_parent": [1536, 256, 1792, 512],
+        "path": "runtime-tiles/17/62595/42305.png"
+      },
+      {
+        "tile_id": "z17-x62596-y42305",
+        "z": 17,
+        "x": 62596,
+        "y": 42305,
+        "source_ref": "z17-x62596-y42305",
+        "parent_artifact": "county-base-supertile.png",
+        "pixel_box_in_parent": [1792, 256, 2048, 512],
+        "path": "runtime-tiles/17/62596/42305.png"
+      },
+      {
+        "tile_id": "z17-x62597-y42305",
+        "z": 17,
+        "x": 62597,
+        "y": 42305,
+        "source_ref": "z17-x62597-y42305",
+        "parent_artifact": "county-base-supertile.png",
+        "pixel_box_in_parent": [2048, 256, 2304, 512],
+        "path": "runtime-tiles/17/62597/42305.png"
+      },
+      {
+        "tile_id": "z17-x62598-y42305",
+        "z": 17,
+        "x": 62598,
+        "y": 42305,
+        "source_ref": "z17-x62598-y42305",
+        "parent_artifact": "county-base-supertile.png",
+        "pixel_box_in_parent": [2304, 256, 2560, 512],
+        "path": "runtime-tiles/17/62598/42305.png"
+      },
+      {
+        "tile_id": "z17-x62589-y42306",
+        "z": 17,
+        "x": 62589,
+        "y": 42306,
+        "source_ref": "z17-x62589-y42306",
+        "parent_artifact": "county-base-supertile.png",
+        "pixel_box_in_parent": [0, 512, 256, 768],
+        "path": "runtime-tiles/17/62589/42306.png"
+      },
+      {
+        "tile_id": "z17-x62590-y42306",
+        "z": 17,
+        "x": 62590,
+        "y": 42306,
+        "source_ref": "z17-x62590-y42306",
+        "parent_artifact": "county-base-supertile.png",
+        "pixel_box_in_parent": [256, 512, 512, 768],
+        "path": "runtime-tiles/17/62590/42306.png"
+      },
+      {
+        "tile_id": "z17-x62591-y42306",
+        "z": 17,
+        "x": 62591,
+        "y": 42306,
+        "source_ref": "z17-x62591-y42306",
+        "parent_artifact": "county-base-supertile.png",
+        "pixel_box_in_parent": [512, 512, 768, 768],
+        "path": "runtime-tiles/17/62591/42306.png"
+      },
+      {
+        "tile_id": "z17-x62592-y42306",
+        "z": 17,
+        "x": 62592,
+        "y": 42306,
+        "source_ref": "z17-x62592-y42306",
+        "parent_artifact": "county-base-supertile.png",
+        "pixel_box_in_parent": [768, 512, 1024, 768],
+        "path": "runtime-tiles/17/62592/42306.png"
+      },
+      {
+        "tile_id": "z17-x62593-y42306",
+        "z": 17,
+        "x": 62593,
+        "y": 42306,
+        "source_ref": "z17-x62593-y42306",
+        "parent_artifact": "county-base-supertile.png",
+        "pixel_box_in_parent": [1024, 512, 1280, 768],
+        "path": "runtime-tiles/17/62593/42306.png"
+      },
+      {
+        "tile_id": "z17-x62594-y42306",
+        "z": 17,
+        "x": 62594,
+        "y": 42306,
+        "source_ref": "z17-x62594-y42306",
+        "parent_artifact": "county-base-supertile.png",
+        "pixel_box_in_parent": [1280, 512, 1536, 768],
+        "path": "runtime-tiles/17/62594/42306.png"
+      },
+      {
+        "tile_id": "z17-x62595-y42306",
+        "z": 17,
+        "x": 62595,
+        "y": 42306,
+        "source_ref": "z17-x62595-y42306",
+        "parent_artifact": "county-base-supertile.png",
+        "pixel_box_in_parent": [1536, 512, 1792, 768],
+        "path": "runtime-tiles/17/62595/42306.png"
+      },
+      {
+        "tile_id": "z17-x62596-y42306",
+        "z": 17,
+        "x": 62596,
+        "y": 42306,
+        "source_ref": "z17-x62596-y42306",
+        "parent_artifact": "county-base-supertile.png",
+        "pixel_box_in_parent": [1792, 512, 2048, 768],
+        "path": "runtime-tiles/17/62596/42306.png"
+      },
+      {
+        "tile_id": "z17-x62597-y42306",
+        "z": 17,
+        "x": 62597,
+        "y": 42306,
+        "source_ref": "z17-x62597-y42306",
+        "parent_artifact": "county-base-supertile.png",
+        "pixel_box_in_parent": [2048, 512, 2304, 768],
+        "path": "runtime-tiles/17/62597/42306.png"
+      },
+      {
+        "tile_id": "z17-x62598-y42306",
+        "z": 17,
+        "x": 62598,
+        "y": 42306,
+        "source_ref": "z17-x62598-y42306",
+        "parent_artifact": "county-base-supertile.png",
+        "pixel_box_in_parent": [2304, 512, 2560, 768],
+        "path": "runtime-tiles/17/62598/42306.png"
+      },
+      {
+        "tile_id": "z17-x62589-y42307",
+        "z": 17,
+        "x": 62589,
+        "y": 42307,
+        "source_ref": "z17-x62589-y42307",
+        "parent_artifact": "county-base-supertile.png",
+        "pixel_box_in_parent": [0, 768, 256, 1024],
+        "path": "runtime-tiles/17/62589/42307.png"
+      },
+      {
+        "tile_id": "z17-x62590-y42307",
+        "z": 17,
+        "x": 62590,
+        "y": 42307,
+        "source_ref": "z17-x62590-y42307",
+        "parent_artifact": "county-base-supertile.png",
+        "pixel_box_in_parent": [256, 768, 512, 1024],
+        "path": "runtime-tiles/17/62590/42307.png"
+      },
+      {
+        "tile_id": "z17-x62591-y42307",
+        "z": 17,
+        "x": 62591,
+        "y": 42307,
+        "source_ref": "z17-x62591-y42307",
+        "parent_artifact": "county-base-supertile.png",
+        "pixel_box_in_parent": [512, 768, 768, 1024],
+        "path": "runtime-tiles/17/62591/42307.png"
+      },
+      {
+        "tile_id": "z17-x62592-y42307",
+        "z": 17,
+        "x": 62592,
+        "y": 42307,
+        "source_ref": "z17-x62592-y42307",
+        "parent_artifact": "county-base-supertile.png",
+        "pixel_box_in_parent": [768, 768, 1024, 1024],
+        "path": "runtime-tiles/17/62592/42307.png"
+      },
+      {
+        "tile_id": "z17-x62593-y42307",
+        "z": 17,
+        "x": 62593,
+        "y": 42307,
+        "source_ref": "z17-x62593-y42307",
+        "parent_artifact": "county-base-supertile.png",
+        "pixel_box_in_parent": [1024, 768, 1280, 1024],
+        "path": "runtime-tiles/17/62593/42307.png"
+      },
+      {
+        "tile_id": "z17-x62594-y42307",
+        "z": 17,
+        "x": 62594,
+        "y": 42307,
+        "source_ref": "z17-x62594-y42307",
+        "parent_artifact": "county-base-supertile.png",
+        "pixel_box_in_parent": [1280, 768, 1536, 1024],
+        "path": "runtime-tiles/17/62594/42307.png"
+      },
+      {
+        "tile_id": "z17-x62595-y42307",
+        "z": 17,
+        "x": 62595,
+        "y": 42307,
+        "source_ref": "z17-x62595-y42307",
+        "parent_artifact": "county-base-supertile.png",
+        "pixel_box_in_parent": [1536, 768, 1792, 1024],
+        "path": "runtime-tiles/17/62595/42307.png"
+      },
+      {
+        "tile_id": "z17-x62596-y42307",
+        "z": 17,
+        "x": 62596,
+        "y": 42307,
+        "source_ref": "z17-x62596-y42307",
+        "parent_artifact": "county-base-supertile.png",
+        "pixel_box_in_parent": [1792, 768, 2048, 1024],
+        "path": "runtime-tiles/17/62596/42307.png"
+      },
+      {
+        "tile_id": "z17-x62597-y42307",
+        "z": 17,
+        "x": 62597,
+        "y": 42307,
+        "source_ref": "z17-x62597-y42307",
+        "parent_artifact": "county-base-supertile.png",
+        "pixel_box_in_parent": [2048, 768, 2304, 1024],
+        "path": "runtime-tiles/17/62597/42307.png"
+      },
+      {
+        "tile_id": "z17-x62598-y42307",
+        "z": 17,
+        "x": 62598,
+        "y": 42307,
+        "source_ref": "z17-x62598-y42307",
+        "parent_artifact": "county-base-supertile.png",
+        "pixel_box_in_parent": [2304, 768, 2560, 1024],
+        "path": "runtime-tiles/17/62598/42307.png"
+      },
+      {
+        "tile_id": "z17-x62589-y42308",
+        "z": 17,
+        "x": 62589,
+        "y": 42308,
+        "source_ref": "z17-x62589-y42308",
+        "parent_artifact": "county-base-supertile.png",
+        "pixel_box_in_parent": [0, 1024, 256, 1280],
+        "path": "runtime-tiles/17/62589/42308.png"
+      },
+      {
+        "tile_id": "z17-x62590-y42308",
+        "z": 17,
+        "x": 62590,
+        "y": 42308,
+        "source_ref": "z17-x62590-y42308",
+        "parent_artifact": "county-base-supertile.png",
+        "pixel_box_in_parent": [256, 1024, 512, 1280],
+        "path": "runtime-tiles/17/62590/42308.png"
+      },
+      {
+        "tile_id": "z17-x62591-y42308",
+        "z": 17,
+        "x": 62591,
+        "y": 42308,
+        "source_ref": "z17-x62591-y42308",
+        "parent_artifact": "county-base-supertile.png",
+        "pixel_box_in_parent": [512, 1024, 768, 1280],
+        "path": "runtime-tiles/17/62591/42308.png"
+      },
+      {
+        "tile_id": "z17-x62592-y42308",
+        "z": 17,
+        "x": 62592,
+        "y": 42308,
+        "source_ref": "z17-x62592-y42308",
+        "parent_artifact": "county-base-supertile.png",
+        "pixel_box_in_parent": [768, 1024, 1024, 1280],
+        "path": "runtime-tiles/17/62592/42308.png"
+      },
+      {
+        "tile_id": "z17-x62593-y42308",
+        "z": 17,
+        "x": 62593,
+        "y": 42308,
+        "source_ref": "z17-x62593-y42308",
+        "parent_artifact": "county-base-supertile.png",
+        "pixel_box_in_parent": [1024, 1024, 1280, 1280],
+        "path": "runtime-tiles/17/62593/42308.png"
+      },
+      {
+        "tile_id": "z17-x62594-y42308",
+        "z": 17,
+        "x": 62594,
+        "y": 42308,
+        "source_ref": "z17-x62594-y42308",
+        "parent_artifact": "county-base-supertile.png",
+        "pixel_box_in_parent": [1280, 1024, 1536, 1280],
+        "path": "runtime-tiles/17/62594/42308.png"
+      },
+      {
+        "tile_id": "z17-x62595-y42308",
+        "z": 17,
+        "x": 62595,
+        "y": 42308,
+        "source_ref": "z17-x62595-y42308",
+        "parent_artifact": "county-base-supertile.png",
+        "pixel_box_in_parent": [1536, 1024, 1792, 1280],
+        "path": "runtime-tiles/17/62595/42308.png"
+      },
+      {
+        "tile_id": "z17-x62596-y42308",
+        "z": 17,
+        "x": 62596,
+        "y": 42308,
+        "source_ref": "z17-x62596-y42308",
+        "parent_artifact": "county-base-supertile.png",
+        "pixel_box_in_parent": [1792, 1024, 2048, 1280],
+        "path": "runtime-tiles/17/62596/42308.png"
+      },
+      {
+        "tile_id": "z17-x62597-y42308",
+        "z": 17,
+        "x": 62597,
+        "y": 42308,
+        "source_ref": "z17-x62597-y42308",
+        "parent_artifact": "county-base-supertile.png",
+        "pixel_box_in_parent": [2048, 1024, 2304, 1280],
+        "path": "runtime-tiles/17/62597/42308.png"
+      },
+      {
+        "tile_id": "z17-x62598-y42308",
+        "z": 17,
+        "x": 62598,
+        "y": 42308,
+        "source_ref": "z17-x62598-y42308",
+        "parent_artifact": "county-base-supertile.png",
+        "pixel_box_in_parent": [2304, 1024, 2560, 1280],
+        "path": "runtime-tiles/17/62598/42308.png"
+      },
+      {
+        "tile_id": "z17-x62589-y42309",
+        "z": 17,
+        "x": 62589,
+        "y": 42309,
+        "source_ref": "z17-x62589-y42309",
+        "parent_artifact": "county-base-supertile.png",
+        "pixel_box_in_parent": [0, 1280, 256, 1536],
+        "path": "runtime-tiles/17/62589/42309.png"
+      },
+      {
+        "tile_id": "z17-x62590-y42309",
+        "z": 17,
+        "x": 62590,
+        "y": 42309,
+        "source_ref": "z17-x62590-y42309",
+        "parent_artifact": "county-base-supertile.png",
+        "pixel_box_in_parent": [256, 1280, 512, 1536],
+        "path": "runtime-tiles/17/62590/42309.png"
+      },
+      {
+        "tile_id": "z17-x62591-y42309",
+        "z": 17,
+        "x": 62591,
+        "y": 42309,
+        "source_ref": "z17-x62591-y42309",
+        "parent_artifact": "county-base-supertile.png",
+        "pixel_box_in_parent": [512, 1280, 768, 1536],
+        "path": "runtime-tiles/17/62591/42309.png"
+      },
+      {
+        "tile_id": "z17-x62592-y42309",
+        "z": 17,
+        "x": 62592,
+        "y": 42309,
+        "source_ref": "z17-x62592-y42309",
+        "parent_artifact": "county-base-supertile.png",
+        "pixel_box_in_parent": [768, 1280, 1024, 1536],
+        "path": "runtime-tiles/17/62592/42309.png"
+      },
+      {
+        "tile_id": "z17-x62593-y42309",
+        "z": 17,
+        "x": 62593,
+        "y": 42309,
+        "source_ref": "z17-x62593-y42309",
+        "parent_artifact": "county-base-supertile.png",
+        "pixel_box_in_parent": [1024, 1280, 1280, 1536],
+        "path": "runtime-tiles/17/62593/42309.png"
+      },
+      {
+        "tile_id": "z17-x62594-y42309",
+        "z": 17,
+        "x": 62594,
+        "y": 42309,
+        "source_ref": "z17-x62594-y42309",
+        "parent_artifact": "county-base-supertile.png",
+        "pixel_box_in_parent": [1280, 1280, 1536, 1536],
+        "path": "runtime-tiles/17/62594/42309.png"
+      },
+      {
+        "tile_id": "z17-x62595-y42309",
+        "z": 17,
+        "x": 62595,
+        "y": 42309,
+        "source_ref": "z17-x62595-y42309",
+        "parent_artifact": "county-base-supertile.png",
+        "pixel_box_in_parent": [1536, 1280, 1792, 1536],
+        "path": "runtime-tiles/17/62595/42309.png"
+      },
+      {
+        "tile_id": "z17-x62596-y42309",
+        "z": 17,
+        "x": 62596,
+        "y": 42309,
+        "source_ref": "z17-x62596-y42309",
+        "parent_artifact": "county-base-supertile.png",
+        "pixel_box_in_parent": [1792, 1280, 2048, 1536],
+        "path": "runtime-tiles/17/62596/42309.png"
+      },
+      {
+        "tile_id": "z17-x62597-y42309",
+        "z": 17,
+        "x": 62597,
+        "y": 42309,
+        "source_ref": "z17-x62597-y42309",
+        "parent_artifact": "county-base-supertile.png",
+        "pixel_box_in_parent": [2048, 1280, 2304, 1536],
+        "path": "runtime-tiles/17/62597/42309.png"
+      },
+      {
+        "tile_id": "z17-x62598-y42309",
+        "z": 17,
+        "x": 62598,
+        "y": 42309,
+        "source_ref": "z17-x62598-y42309",
+        "parent_artifact": "county-base-supertile.png",
+        "pixel_box_in_parent": [2304, 1280, 2560, 1536],
+        "path": "runtime-tiles/17/62598/42309.png"
+      },
+      {
+        "tile_id": "z17-x62589-y42310",
+        "z": 17,
+        "x": 62589,
+        "y": 42310,
+        "source_ref": "z17-x62589-y42310",
+        "parent_artifact": "county-base-supertile.png",
+        "pixel_box_in_parent": [0, 1536, 256, 1792],
+        "path": "runtime-tiles/17/62589/42310.png"
+      },
+      {
+        "tile_id": "z17-x62590-y42310",
+        "z": 17,
+        "x": 62590,
+        "y": 42310,
+        "source_ref": "z17-x62590-y42310",
+        "parent_artifact": "county-base-supertile.png",
+        "pixel_box_in_parent": [256, 1536, 512, 1792],
+        "path": "runtime-tiles/17/62590/42310.png"
+      },
+      {
+        "tile_id": "z17-x62591-y42310",
+        "z": 17,
+        "x": 62591,
+        "y": 42310,
+        "source_ref": "z17-x62591-y42310",
+        "parent_artifact": "county-base-supertile.png",
+        "pixel_box_in_parent": [512, 1536, 768, 1792],
+        "path": "runtime-tiles/17/62591/42310.png"
+      },
+      {
+        "tile_id": "z17-x62592-y42310",
+        "z": 17,
+        "x": 62592,
+        "y": 42310,
+        "source_ref": "z17-x62592-y42310",
+        "parent_artifact": "county-base-supertile.png",
+        "pixel_box_in_parent": [768, 1536, 1024, 1792],
+        "path": "runtime-tiles/17/62592/42310.png"
+      },
+      {
+        "tile_id": "z17-x62593-y42310",
+        "z": 17,
+        "x": 62593,
+        "y": 42310,
+        "source_ref": "z17-x62593-y42310",
+        "parent_artifact": "county-base-supertile.png",
+        "pixel_box_in_parent": [1024, 1536, 1280, 1792],
+        "path": "runtime-tiles/17/62593/42310.png"
+      },
+      {
+        "tile_id": "z17-x62594-y42310",
+        "z": 17,
+        "x": 62594,
+        "y": 42310,
+        "source_ref": "z17-x62594-y42310",
+        "parent_artifact": "county-base-supertile.png",
+        "pixel_box_in_parent": [1280, 1536, 1536, 1792],
+        "path": "runtime-tiles/17/62594/42310.png"
+      },
+      {
+        "tile_id": "z17-x62595-y42310",
+        "z": 17,
+        "x": 62595,
+        "y": 42310,
+        "source_ref": "z17-x62595-y42310",
+        "parent_artifact": "county-base-supertile.png",
+        "pixel_box_in_parent": [1536, 1536, 1792, 1792],
+        "path": "runtime-tiles/17/62595/42310.png"
+      },
+      {
+        "tile_id": "z17-x62596-y42310",
+        "z": 17,
+        "x": 62596,
+        "y": 42310,
+        "source_ref": "z17-x62596-y42310",
+        "parent_artifact": "county-base-supertile.png",
+        "pixel_box_in_parent": [1792, 1536, 2048, 1792],
+        "path": "runtime-tiles/17/62596/42310.png"
+      },
+      {
+        "tile_id": "z17-x62597-y42310",
+        "z": 17,
+        "x": 62597,
+        "y": 42310,
+        "source_ref": "z17-x62597-y42310",
+        "parent_artifact": "county-base-supertile.png",
+        "pixel_box_in_parent": [2048, 1536, 2304, 1792],
+        "path": "runtime-tiles/17/62597/42310.png"
+      },
+      {
+        "tile_id": "z17-x62598-y42310",
+        "z": 17,
+        "x": 62598,
+        "y": 42310,
+        "source_ref": "z17-x62598-y42310",
+        "parent_artifact": "county-base-supertile.png",
+        "pixel_box_in_parent": [2304, 1536, 2560, 1792],
+        "path": "runtime-tiles/17/62598/42310.png"
+      },
+      {
+        "tile_id": "z17-x62589-y42311",
+        "z": 17,
+        "x": 62589,
+        "y": 42311,
+        "source_ref": "z17-x62589-y42311",
+        "parent_artifact": "county-base-supertile.png",
+        "pixel_box_in_parent": [0, 1792, 256, 2048],
+        "path": "runtime-tiles/17/62589/42311.png"
+      },
+      {
+        "tile_id": "z17-x62590-y42311",
+        "z": 17,
+        "x": 62590,
+        "y": 42311,
+        "source_ref": "z17-x62590-y42311",
+        "parent_artifact": "county-base-supertile.png",
+        "pixel_box_in_parent": [256, 1792, 512, 2048],
+        "path": "runtime-tiles/17/62590/42311.png"
+      },
+      {
+        "tile_id": "z17-x62591-y42311",
+        "z": 17,
+        "x": 62591,
+        "y": 42311,
+        "source_ref": "z17-x62591-y42311",
+        "parent_artifact": "county-base-supertile.png",
+        "pixel_box_in_parent": [512, 1792, 768, 2048],
+        "path": "runtime-tiles/17/62591/42311.png"
+      },
+      {
+        "tile_id": "z17-x62592-y42311",
+        "z": 17,
+        "x": 62592,
+        "y": 42311,
+        "source_ref": "z17-x62592-y42311",
+        "parent_artifact": "county-base-supertile.png",
+        "pixel_box_in_parent": [768, 1792, 1024, 2048],
+        "path": "runtime-tiles/17/62592/42311.png"
+      },
+      {
+        "tile_id": "z17-x62593-y42311",
+        "z": 17,
+        "x": 62593,
+        "y": 42311,
+        "source_ref": "z17-x62593-y42311",
+        "parent_artifact": "county-base-supertile.png",
+        "pixel_box_in_parent": [1024, 1792, 1280, 2048],
+        "path": "runtime-tiles/17/62593/42311.png"
+      },
+      {
+        "tile_id": "z17-x62594-y42311",
+        "z": 17,
+        "x": 62594,
+        "y": 42311,
+        "source_ref": "z17-x62594-y42311",
+        "parent_artifact": "county-base-supertile.png",
+        "pixel_box_in_parent": [1280, 1792, 1536, 2048],
+        "path": "runtime-tiles/17/62594/42311.png"
+      },
+      {
+        "tile_id": "z17-x62595-y42311",
+        "z": 17,
+        "x": 62595,
+        "y": 42311,
+        "source_ref": "z17-x62595-y42311",
+        "parent_artifact": "county-base-supertile.png",
+        "pixel_box_in_parent": [1536, 1792, 1792, 2048],
+        "path": "runtime-tiles/17/62595/42311.png"
+      },
+      {
+        "tile_id": "z17-x62596-y42311",
+        "z": 17,
+        "x": 62596,
+        "y": 42311,
+        "source_ref": "z17-x62596-y42311",
+        "parent_artifact": "county-base-supertile.png",
+        "pixel_box_in_parent": [1792, 1792, 2048, 2048],
+        "path": "runtime-tiles/17/62596/42311.png"
+      },
+      {
+        "tile_id": "z17-x62597-y42311",
+        "z": 17,
+        "x": 62597,
+        "y": 42311,
+        "source_ref": "z17-x62597-y42311",
+        "parent_artifact": "county-base-supertile.png",
+        "pixel_box_in_parent": [2048, 1792, 2304, 2048],
+        "path": "runtime-tiles/17/62597/42311.png"
+      },
+      {
+        "tile_id": "z17-x62598-y42311",
+        "z": 17,
+        "x": 62598,
+        "y": 42311,
+        "source_ref": "z17-x62598-y42311",
+        "parent_artifact": "county-base-supertile.png",
+        "pixel_box_in_parent": [2304, 1792, 2560, 2048],
+        "path": "runtime-tiles/17/62598/42311.png"
+      },
+      {
+        "tile_id": "z17-x62589-y42312",
+        "z": 17,
+        "x": 62589,
+        "y": 42312,
+        "source_ref": "z17-x62589-y42312",
+        "parent_artifact": "county-base-supertile.png",
+        "pixel_box_in_parent": [0, 2048, 256, 2304],
+        "path": "runtime-tiles/17/62589/42312.png"
+      },
+      {
+        "tile_id": "z17-x62590-y42312",
+        "z": 17,
+        "x": 62590,
+        "y": 42312,
+        "source_ref": "z17-x62590-y42312",
+        "parent_artifact": "county-base-supertile.png",
+        "pixel_box_in_parent": [256, 2048, 512, 2304],
+        "path": "runtime-tiles/17/62590/42312.png"
+      },
+      {
+        "tile_id": "z17-x62591-y42312",
+        "z": 17,
+        "x": 62591,
+        "y": 42312,
+        "source_ref": "z17-x62591-y42312",
+        "parent_artifact": "county-base-supertile.png",
+        "pixel_box_in_parent": [512, 2048, 768, 2304],
+        "path": "runtime-tiles/17/62591/42312.png"
+      },
+      {
+        "tile_id": "z17-x62592-y42312",
+        "z": 17,
+        "x": 62592,
+        "y": 42312,
+        "source_ref": "z17-x62592-y42312",
+        "parent_artifact": "county-base-supertile.png",
+        "pixel_box_in_parent": [768, 2048, 1024, 2304],
+        "path": "runtime-tiles/17/62592/42312.png"
+      },
+      {
+        "tile_id": "z17-x62593-y42312",
+        "z": 17,
+        "x": 62593,
+        "y": 42312,
+        "source_ref": "z17-x62593-y42312",
+        "parent_artifact": "county-base-supertile.png",
+        "pixel_box_in_parent": [1024, 2048, 1280, 2304],
+        "path": "runtime-tiles/17/62593/42312.png"
+      },
+      {
+        "tile_id": "z17-x62594-y42312",
+        "z": 17,
+        "x": 62594,
+        "y": 42312,
+        "source_ref": "z17-x62594-y42312",
+        "parent_artifact": "county-base-supertile.png",
+        "pixel_box_in_parent": [1280, 2048, 1536, 2304],
+        "path": "runtime-tiles/17/62594/42312.png"
+      },
+      {
+        "tile_id": "z17-x62595-y42312",
+        "z": 17,
+        "x": 62595,
+        "y": 42312,
+        "source_ref": "z17-x62595-y42312",
+        "parent_artifact": "county-base-supertile.png",
+        "pixel_box_in_parent": [1536, 2048, 1792, 2304],
+        "path": "runtime-tiles/17/62595/42312.png"
+      },
+      {
+        "tile_id": "z17-x62596-y42312",
+        "z": 17,
+        "x": 62596,
+        "y": 42312,
+        "source_ref": "z17-x62596-y42312",
+        "parent_artifact": "county-base-supertile.png",
+        "pixel_box_in_parent": [1792, 2048, 2048, 2304],
+        "path": "runtime-tiles/17/62596/42312.png"
+      },
+      {
+        "tile_id": "z17-x62597-y42312",
+        "z": 17,
+        "x": 62597,
+        "y": 42312,
+        "source_ref": "z17-x62597-y42312",
+        "parent_artifact": "county-base-supertile.png",
+        "pixel_box_in_parent": [2048, 2048, 2304, 2304],
+        "path": "runtime-tiles/17/62597/42312.png"
+      },
+      {
+        "tile_id": "z17-x62598-y42312",
+        "z": 17,
+        "x": 62598,
+        "y": 42312,
+        "source_ref": "z17-x62598-y42312",
+        "parent_artifact": "county-base-supertile.png",
+        "pixel_box_in_parent": [2304, 2048, 2560, 2304],
+        "path": "runtime-tiles/17/62598/42312.png"
+      },
+      {
+        "tile_id": "z17-x62589-y42313",
+        "z": 17,
+        "x": 62589,
+        "y": 42313,
+        "source_ref": "z17-x62589-y42313",
+        "parent_artifact": "county-base-supertile.png",
+        "pixel_box_in_parent": [0, 2304, 256, 2560],
+        "path": "runtime-tiles/17/62589/42313.png"
+      },
+      {
+        "tile_id": "z17-x62590-y42313",
+        "z": 17,
+        "x": 62590,
+        "y": 42313,
+        "source_ref": "z17-x62590-y42313",
+        "parent_artifact": "county-base-supertile.png",
+        "pixel_box_in_parent": [256, 2304, 512, 2560],
+        "path": "runtime-tiles/17/62590/42313.png"
+      },
+      {
+        "tile_id": "z17-x62591-y42313",
+        "z": 17,
+        "x": 62591,
+        "y": 42313,
+        "source_ref": "z17-x62591-y42313",
+        "parent_artifact": "county-base-supertile.png",
+        "pixel_box_in_parent": [512, 2304, 768, 2560],
+        "path": "runtime-tiles/17/62591/42313.png"
+      },
+      {
+        "tile_id": "z17-x62592-y42313",
+        "z": 17,
+        "x": 62592,
+        "y": 42313,
+        "source_ref": "z17-x62592-y42313",
+        "parent_artifact": "county-base-supertile.png",
+        "pixel_box_in_parent": [768, 2304, 1024, 2560],
+        "path": "runtime-tiles/17/62592/42313.png"
+      },
+      {
+        "tile_id": "z17-x62593-y42313",
+        "z": 17,
+        "x": 62593,
+        "y": 42313,
+        "source_ref": "z17-x62593-y42313",
+        "parent_artifact": "county-base-supertile.png",
+        "pixel_box_in_parent": [1024, 2304, 1280, 2560],
+        "path": "runtime-tiles/17/62593/42313.png"
+      },
+      {
+        "tile_id": "z17-x62594-y42313",
+        "z": 17,
+        "x": 62594,
+        "y": 42313,
+        "source_ref": "z17-x62594-y42313",
+        "parent_artifact": "county-base-supertile.png",
+        "pixel_box_in_parent": [1280, 2304, 1536, 2560],
+        "path": "runtime-tiles/17/62594/42313.png"
+      },
+      {
+        "tile_id": "z17-x62595-y42313",
+        "z": 17,
+        "x": 62595,
+        "y": 42313,
+        "source_ref": "z17-x62595-y42313",
+        "parent_artifact": "county-base-supertile.png",
+        "pixel_box_in_parent": [1536, 2304, 1792, 2560],
+        "path": "runtime-tiles/17/62595/42313.png"
+      },
+      {
+        "tile_id": "z17-x62596-y42313",
+        "z": 17,
+        "x": 62596,
+        "y": 42313,
+        "source_ref": "z17-x62596-y42313",
+        "parent_artifact": "county-base-supertile.png",
+        "pixel_box_in_parent": [1792, 2304, 2048, 2560],
+        "path": "runtime-tiles/17/62596/42313.png"
+      },
+      {
+        "tile_id": "z17-x62597-y42313",
+        "z": 17,
+        "x": 62597,
+        "y": 42313,
+        "source_ref": "z17-x62597-y42313",
+        "parent_artifact": "county-base-supertile.png",
+        "pixel_box_in_parent": [2048, 2304, 2304, 2560],
+        "path": "runtime-tiles/17/62597/42313.png"
+      },
+      {
+        "tile_id": "z17-x62598-y42313",
+        "z": 17,
+        "x": 62598,
+        "y": 42313,
+        "source_ref": "z17-x62598-y42313",
+        "parent_artifact": "county-base-supertile.png",
+        "pixel_box_in_parent": [2304, 2304, 2560, 2560],
+        "path": "runtime-tiles/17/62598/42313.png"
+      }
+    ]
+  },
+  "metrics": {
+    "seams": [
+      {
+        "orientation": "vertical",
+        "x_px": 256,
+        "between_cols": [0, 1],
+        "mean_abs_luma_jump": 4.62288236618042,
+        "nearby_control_mean_abs_luma_jump": 4.378909349441528,
+        "seam_to_control_ratio": 1.0557154755373064
+      },
+      {
+        "orientation": "vertical",
+        "x_px": 512,
+        "between_cols": [1, 2],
+        "mean_abs_luma_jump": 4.3000807762146,
+        "nearby_control_mean_abs_luma_jump": 4.5838096141815186,
+        "seam_to_control_ratio": 0.9381019584475955
+      },
+      {
+        "orientation": "vertical",
+        "x_px": 768,
+        "between_cols": [2, 3],
+        "mean_abs_luma_jump": 4.524956703186035,
+        "nearby_control_mean_abs_luma_jump": 4.16544234752655,
+        "seam_to_control_ratio": 1.0863088060438444
+      },
+      {
+        "orientation": "vertical",
+        "x_px": 1024,
+        "between_cols": [3, 4],
+        "mean_abs_luma_jump": 4.68048095703125,
+        "nearby_control_mean_abs_luma_jump": 4.640967607498169,
+        "seam_to_control_ratio": 1.008514032605882
+      },
+      {
+        "orientation": "vertical",
+        "x_px": 1280,
+        "between_cols": [4, 5],
+        "mean_abs_luma_jump": 4.855849266052246,
+        "nearby_control_mean_abs_luma_jump": 4.588292956352234,
+        "seam_to_control_ratio": 1.0583128218370614
+      },
+      {
+        "orientation": "vertical",
+        "x_px": 1536,
+        "between_cols": [5, 6],
+        "mean_abs_luma_jump": 4.54111385345459,
+        "nearby_control_mean_abs_luma_jump": 4.516627788543701,
+        "seam_to_control_ratio": 1.0054213156490328
+      },
+      {
+        "orientation": "vertical",
+        "x_px": 1792,
+        "between_cols": [6, 7],
+        "mean_abs_luma_jump": 4.535578727722168,
+        "nearby_control_mean_abs_luma_jump": 4.453360915184021,
+        "seam_to_control_ratio": 1.0184619693090269
+      },
+      {
+        "orientation": "vertical",
+        "x_px": 2048,
+        "between_cols": [7, 8],
+        "mean_abs_luma_jump": 4.6762213706970215,
+        "nearby_control_mean_abs_luma_jump": 4.643545627593994,
+        "seam_to_control_ratio": 1.0070368088791577
+      },
+      {
+        "orientation": "vertical",
+        "x_px": 2304,
+        "between_cols": [8, 9],
+        "mean_abs_luma_jump": 4.282288551330566,
+        "nearby_control_mean_abs_luma_jump": 4.40055513381958,
+        "seam_to_control_ratio": 0.9731246220323205
+      },
+      {
+        "orientation": "horizontal",
+        "y_px": 256,
+        "between_rows": [0, 1],
+        "mean_abs_luma_jump": 5.102211952209473,
+        "nearby_control_mean_abs_luma_jump": 5.555959582328796,
+        "seam_to_control_ratio": 0.9183313659151685
+      },
+      {
+        "orientation": "horizontal",
+        "y_px": 512,
+        "between_rows": [1, 2],
+        "mean_abs_luma_jump": 4.74373197555542,
+        "nearby_control_mean_abs_luma_jump": 4.749638199806213,
+        "seam_to_control_ratio": 0.9987564896519835
+      },
+      {
+        "orientation": "horizontal",
+        "y_px": 768,
+        "between_rows": [2, 3],
+        "mean_abs_luma_jump": 4.976553440093994,
+        "nearby_control_mean_abs_luma_jump": 5.27791154384613,
+        "seam_to_control_ratio": 0.9429020169723175
+      },
+      {
+        "orientation": "horizontal",
+        "y_px": 1024,
+        "between_rows": [3, 4],
+        "mean_abs_luma_jump": 4.76964807510376,
+        "nearby_control_mean_abs_luma_jump": 4.901432275772095,
+        "seam_to_control_ratio": 0.9731131242351858
+      },
+      {
+        "orientation": "horizontal",
+        "y_px": 1280,
+        "between_rows": [4, 5],
+        "mean_abs_luma_jump": 4.613995552062988,
+        "nearby_control_mean_abs_luma_jump": 4.475309133529663,
+        "seam_to_control_ratio": 1.0309892377029928
+      },
+      {
+        "orientation": "horizontal",
+        "y_px": 1536,
+        "between_rows": [5, 6],
+        "mean_abs_luma_jump": 4.50407600402832,
+        "nearby_control_mean_abs_luma_jump": 4.35522186756134,
+        "seam_to_control_ratio": 1.034178313067281
+      },
+      {
+        "orientation": "horizontal",
+        "y_px": 1792,
+        "between_rows": [6, 7],
+        "mean_abs_luma_jump": 4.18587589263916,
+        "nearby_control_mean_abs_luma_jump": 4.488756418228149,
+        "seam_to_control_ratio": 0.9325246243349187
+      },
+      {
+        "orientation": "horizontal",
+        "y_px": 2048,
+        "between_rows": [7, 8],
+        "mean_abs_luma_jump": 4.775005340576172,
+        "nearby_control_mean_abs_luma_jump": 4.573271036148071,
+        "seam_to_control_ratio": 1.0441116003913942
+      },
+      {
+        "orientation": "horizontal",
+        "y_px": 2304,
+        "between_rows": [8, 9],
+        "mean_abs_luma_jump": 4.713523864746094,
+        "nearby_control_mean_abs_luma_jump": 4.4905173778533936,
+        "seam_to_control_ratio": 1.0496616465604915
+      }
+    ],
+    "max_seam_to_control_ratio": 1.0863088060438444,
+    "mean_seam_to_control_ratio": 1.0041981238429423,
+    "seam_count": 18,
+    "max_abs_reassembly_error": 0,
+    "tile_count": 100,
+    "tile_size": 256,
+    "threshold": 1.15,
+    "status": "pass"
+  },
+  "human_review": {
+    "contact_sheet": "county-pipeline-proof-contact-sheet.png",
+    "grid_overlay": "county-base-grid-overlay.png",
+    "seam_validation_overlay": "seam-validation-overlay.png"
+  },
+  "imagegen_policy": {
+    "county_base_status": "do_not_use_independent_imagegen_tiles",
+    "cycle_ce_independent_join_status": "fail_requires_repair",
+    "cycle_ce_independent_join_ratio": 2.747887018399838,
+    "allowed_use": "high_value_local_panels_or_single_large_supertile_only",
+    "repair_template": {
+      "status": "template_pending_imagegen_or_local_repair",
+      "purpose": "Bound seam repairs to this mask/contract shape; do not accept broad global repaint without validation.",
+      "join_x_px": 1280,
+      "band_half_width_px": 96,
+      "mask": "masked-seam-repair-template/seam-band-mask.png",
+      "contract_overlay": "masked-seam-repair-template/seam-contract-overlay.png",
+      "acceptance": {
+        "max_repaired_seam_to_control_ratio": 1.15,
+        "requires_before_after_contact_sheet": true,
+        "requires_topology_drift_note": [
+          "roads",
+          "paths",
+          "buildings",
+          "water",
+          "boundaries"
+        ]
+      }
+    },
+    "repair_proof": {
+      "status": "pass_metrics_requires_visual_topology_review",
+      "source": "cycle-ce-county-tile-continuity/murphy-overlap-independent-imagegen-safe-centers-stitched.png",
+      "report": "masked-seam-repair-proof/repair-report.json",
+      "contact_sheet": "masked-seam-repair-proof/repair-contact-sheet.png",
+      "join_x_px": 512,
+      "band_half_width_px": 96,
+      "before_join_to_control_ratio": 2.933157159189815,
+      "after_join_to_control_ratio": 0.7641509792052803,
+      "topology_review_required": true
+    }
+  }
+}
