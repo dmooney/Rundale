@@ -23,7 +23,8 @@ just act-pr         # simulate the pull_request fast lane
 
 ## Local gotchas
 
-- **`ci.yml` is the fast lane.** It keeps pull-request and main/develop push CI under a minute by running proof/docs/script/data checks there. Expensive Rust, coverage, harness, and UI runtime jobs live in `full-ci.yml`, which runs on `merge_group`, main/develop pushes, nightly schedule, and manual dispatch.
+- **`ci.yml` is the fast lane for non-UI changes.** Pull requests whose existing path detector reports `changes.ui == true` also run the complete Playwright suite, and the single required `CI gate` fails closed unless that conditional job succeeds. Expensive Rust, coverage, harness, and other UI runtime jobs remain in `full-ci.yml`, which runs on `merge_group`, main/develop pushes, nightly schedule, and manual dispatch.
+- **A shipped default-surface replacement owns the complete E2E contract.** Migrate or explicitly retire every prior Playwright assertion in the same pull request; a focused smoke spec is not a substitute for a green complete suite.
 - **Agent-check runs on PRs only (non-dependabot).** Push events to `main`/`develop` skip the gate — it already ran on the PR. Dependabot bumps are exempt (root AGENTS.md rule #10).
 - **CI-only edits skip the proof gate (root rule #10).** `.github/**` changes with no source diff do not require a proof bundle.
 - **Linux native deps are inlined in every Rust job** (`libgtk-3-dev`, `libwebkit2gtk-4.1-dev`, `libappindicator3-dev`, `librsvg2-dev`). Update every workflow that contains the apt install block when the dep list changes.
@@ -39,7 +40,8 @@ just act-pr         # simulate the pull_request fast lane
 ### `ci.yml` — Fast CI pipeline
 
 - **Triggers:** `pull_request`, `push` to `main`/`develop`, `workflow_dispatch`.
-- **Jobs:** changes, agent-check, docs-consistency, format-quality, python-quality, shell-quality, toml-quality, and the aggregate `ci-gate`.
+- **Jobs:** changes, agent-check, docs-consistency, format-quality, python-quality, shell-quality, toml-quality, conditional `ui-e2e`, and the aggregate `ci-gate`.
+- **UI contract:** `ui-e2e` runs only for pull requests with `changes.ui == true`. `ci-gate.sh` requires `success` when the job is expected and `skipped` when it is not, so a failure, cancellation, or unexpected skip cannot produce a green required check.
 - **agent-check** runs `bash parish/scripts/agent-check.sh --source=pr "$PR_NUMBER"`. Skipped for dependabot.
 - **Concurrency:** `ci-${{ github.workflow }}-${{ github.ref }}`, cancel-in-progress.
 
