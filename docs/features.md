@@ -55,7 +55,7 @@ Parish is a text-based adventure game set in 1820s rural Ireland, powered by LLM
   - **Bealtaine** (May 1) — Start of summer, bonfires lit on hilltops
   - **Lughnasa** (Aug 1) — Start of autumn, harvest festival
   - **Samhain** (Nov 1) — Start of winter, when the veil between worlds is thin
-- Festivals display in the status bar and debug panel when active
+- Festivals display in the Time & Weather and Debug notebook sheets when active
 - **Relationship boosts** — festivals trigger positive mood shifts and relationship-strength increases across the NPC population
 - **Narrative hooks** — active festivals are injected into NPC prompts, causing them to mention preparations, memories, or local lore tied to the celebration
 
@@ -447,48 +447,53 @@ For dev iteration on `cargo tauri dev`, skip the bundle build — the runtime fa
 
 ## GUI (Tauri 2 + Svelte 5)
 
-### Chat Panel
+### Illustrated Parish Viewport
 
-- Scrolling chat log with full conversation history
-- Speaker labels distinguishing player, NPC, and system messages
-- **Emote parsing:** asterisk-wrapped text (`*nods slowly*`) renders as italic action text
-- Real-time NPC response streaming with animated cursor (▋)
-- Auto-scroll to bottom on new messages
-- Celtic knot loading spinner with culturally themed phrases (25 mod-driven phrases like "Pondering the craic...", "Consulting the sheep...", "Muttering in Irish...")
-- Spinner color cycles through mod-defined RGB palette during load
+- The default play view closely follows the illustrated parish notebook concept: a full-bleed,
+  oblique rural scene rendered in Pixi, a restrained top status ribbon, a nearby-people strip,
+  and a right-edge sewn notebook page
+- Action stamps and the single-line **Player intent** field stay near the lower centre of the
+  scene; Map, Time & Weather, active-intent, and utility cards sit at the edges
+- The game canvas remains visually stable while notebook sheets are open; closing a sheet
+  restores focus to the control that opened it without shifting the viewport
+- There is no persistent dashboard or default content overlay. A semantic live summary exposes
+  location, time phase, weather, season, pause/festival state, the selected nearby person, and
+  response readiness to assistive technology
 
-### Status Bar
+### Notebook Sheets
 
-- Current location, in-game time, weather, season
-- Active festival display
-- Debug panel toggle
-- **Digital clock** — animated client-side display of the current in-game time, advancing smoothly with the simulation
+- **Journal:** scrolling conversation history with player, NPC, and system speaker labels,
+  asterisk-wrapped emote styling, real-time NPC streaming, auto-scroll, and the Celtic-knot
+  loading treatment
+- **People:** nearby parish residents and their current identity/state details
+- **Focail:** the Irish-word and pronunciation guide
+- **Map:** the full parish map, opened from its illustrated card or with M
+- **Time & Weather:** clock, weather, season, simulation/reply state, and active festival
+- **Ledger:** save/load branch picker, opened from the notebook utility tabs or with F5
+- **Debug, Mod, Bug Report, and Shortcuts:** contained utility sheets opened from the notebook's
+  **More** tab or their shortcuts
+- Only one sheet is open at a time. Escape, the close control, or the backdrop dismisses a
+  dismissible sheet; a required Mod selection remains open until the player chooses a mod.
+  Notebook wrappers isolate the existing feature internals from the concept-faithful first view
 
 ### Map
 
-- **MapLibre GL minimap** — player-centered map with historic 1840s Ordnance Survey Ireland tiles or modern OSM, custom SVG icons per location type, and traversal-weighted edges
-- **Full-screen map overlay** — complete parish map with zoom and pan, custom SVG icons per location type, traversal-weighted edges, and click-to-travel (toggled with the M hotkey)
+- **Full notebook map sheet** — complete parish map with zoom and pan, custom SVG icons per location type, traversal-weighted edges, and click-to-travel (toggled with the M hotkey)
 - **Animated travel** — when the player moves between locations, the map smoothly pans and zooms to the destination, interpolating both center and zoom level across the journey's duration so the post-travel view is already framed when the player arrives
 - **Tile sources:** `/map` lists configured tile sources; `/map <id>` switches to one (requires the `period-map-tiles` flag)
 - Fixed-scale Mercator projection from real lat/lon coordinates
 - Label collision avoidance using force-directed repulsion
 
-### Sidebar
-
-- **NPCs Here:** Lists all NPCs at the player's current location
-- **Focail (Irish Words):** Irish language pronunciation guide panel
-- Toggleable via `/irish`
-
 ### Theme System
 
 - **Three themes** selectable with `/theme`: cream/parchment (default), Solarized Light, Solarized Dark
 - Driven by CSS custom properties and persisted in `localStorage` so reloads don't flash the wrong palette
-- Time-of-day color theming applies smooth RGB gradient interpolation between the current time phase's palette and the next, driven by Rust theme-tick events that push CSS custom properties to the frontend. Transitions are continuous — the chat background, NPC name colors, and status bar all shift gradually as game-time advances through morning, afternoon, evening, and night.
+- Time-of-day color theming applies smooth RGB gradient interpolation between the current time phase's palette and the next, driven by Rust theme-tick events that push CSS custom properties to the frontend. Transitions are continuous across the themed notebook-sheet internals as game-time advances through morning, afternoon, evening, and night.
 - Mod-configurable accent color
 
 ### Save Picker
 
-- Papers Please-style interface (F5 hotkey)
+- Ledger-style notebook sheet (F5 hotkey)
 - Branch DAG tree visualization with hierarchical layout
 - Create, load, fork, and manage save branches visually
 - Auto-zoom bounding box for branch tree viewport
@@ -496,7 +501,7 @@ For dev iteration on `cargo tauri dev`, skip the bundle build — the runtime fa
 ### Debug Panel
 
 - **8 tabs:** Overview, NPCs, World, Weather, Gossip, Conversations, Events, Inference
-- Dockable to the side or bottom of the window, opened with F12
+- Contained in a notebook utility sheet, opened with F12 or from More
 - **Overview:** Game clock, time of day, season, weather, speed, pause state, festival, location, tier summary (T1-T4 NPC counts and names)
 - **NPCs:** Selectable NPC list with detailed view (age, occupation, personality, relationships, memory)
 - **World:** World state inspection
@@ -508,14 +513,11 @@ For dev iteration on `cargo tauri dev`, skip the bundle build — the runtime fa
 
 ### Input Field
 
-- Contenteditable multi-line input with enter-to-submit
-- **@mention autocomplete:** type `@` to list NPCs at current location with tab/arrow navigation; mentions render as styled chips
-- **Slash command autocomplete:** type `/` to see filtered command list
-- **Tab completion** for known nouns (NPC names, location names)
-- **Input history:** localStorage-persisted, 50 entries, up/down arrow navigation
-- **Quick travel buttons:** one-click navigation to adjacent locations
-- Auto-disabled during NPC streaming responses
-- Auto-refocus when streaming stops
+- A plain single-line **Player intent** control preserves the concept art's command-strip shape
+- Enter submits the current intent; adjacent illustrated action stamps provide common actions
+- The field remains editable during NPC streaming so a first keystroke can flush the stream and
+  become the start of the next intent
+- Tab moves through the notebook controls; visible focus and Enter activation mirror pointer use
 
 ### Demo / Auto-Play Mode
 
@@ -524,7 +526,7 @@ A hands-free auto-player that drives NPC conversations at a configurable pace:
 - Invoke via `just demo <pause> <turns>` (e.g. `just demo 3 50` for 3-second pauses, 50 turns)
 - The auto-player selects NPCs, issues `/talk` commands, and advances through conversation turns
 - UI includes a `DemoBanner` and `DemoPanel` overlay showing current turn and remaining count
-- Toggle with F11
+- Toggle the demo panel with F10; F11 retains its desktop fullscreen role
 - Use cases: smoke testing, quality assessment, capturing proof transcripts
 
 ### Screenshot Capture
@@ -538,12 +540,15 @@ A hands-free auto-player that drives NPC conversations at a configurable pace:
 ### Keyboard Shortcuts
 
 - **F2** — capture screenshot
-- **F5** — open save picker / save game
-- **F12** — toggle debug panel
-- **M** — toggle full-screen map overlay
-- **Up/Down arrows** — navigate input history
-- **Tab** — autocomplete current word
-- **Esc** — cancel active travel
+- **F5** — open the Ledger (save / load)
+- **F10** — toggle the demo panel
+- **F11** — toggle fullscreen in the desktop app
+- **F12** — toggle the Debug notebook sheet
+- **M** — toggle the full parish map
+- **?** — show the keyboard-shortcuts sheet
+- **Tab** — move through notebook controls
+- **Enter** — activate a focused control or send the current intent
+- **Esc** — close the active dismissible sheet or stop the demo
 
 ### Parish Designer (GUI Editor)
 
@@ -563,7 +568,7 @@ A hands-free auto-player that drives NPC conversations at a configurable pace:
 - ARIA-labelled controls and visible focus rings on all interactive elements
 - Semantic HTML throughout the UI (landmark regions, heading hierarchy, form labels)
 - WCAG-AA contrast compliance across all three theme variants
-- Full keyboard navigation with Esc as a reliable dismiss action
+- Full keyboard navigation with Esc as a reliable dismiss action for optional sheets
 
 ### Ambient Sound
 

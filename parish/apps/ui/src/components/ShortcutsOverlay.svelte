@@ -13,11 +13,9 @@
 		{ keys: 'F11', desc: 'Toggle fullscreen (desktop)' },
 		{ keys: 'F12', desc: 'Toggle the debug panel' },
 		{ keys: '?', desc: 'Show this overlay' },
-		{ keys: '@', desc: 'Mention an NPC (in the input field)' },
-		{ keys: '/', desc: 'Slash commands (in the input field)' },
-		{ keys: '↑ / ↓', desc: 'Browse input history' },
-		{ keys: 'Shift+Enter', desc: 'New line (Enter sends)' },
-		{ keys: 'Esc', desc: 'Close overlays / stop the demo' }
+		{ keys: 'Tab', desc: 'Move through notebook controls' },
+		{ keys: 'Enter', desc: 'Activate a control or send the current intent' },
+		{ keys: 'Esc', desc: 'Close dismissible overlays / stop the demo' },
 	];
 
 	function handleKeydown(e: KeyboardEvent) {
@@ -39,10 +37,21 @@
 		tabindex="-1"
 		onclick={onclose}
 	></button>
-	<div class="shortcuts-card" role="dialog" aria-modal="true" aria-label="Keyboard shortcuts">
+	<div
+		class="shortcuts-card"
+		role="dialog"
+		aria-modal="true"
+		aria-label="Keyboard shortcuts"
+	>
 		<div class="card-header">
 			<span class="card-title">Keyboard Shortcuts</span>
-			<button type="button" class="close-btn" aria-label="Close shortcuts" title="Close (Esc)" onclick={onclose}>
+			<button
+				type="button"
+				class="close-btn"
+				aria-label="Close shortcuts"
+				title="Close (Esc)"
+				onclick={onclose}
+			>
 				<span aria-hidden="true">&times;</span>
 			</button>
 		</div>

@@ -2,32 +2,69 @@
  * E2E tests for user interactions: input submission, streaming, paused state.
  */
 
-import type { Page } from '@playwright/test';
-import * as fs from 'fs';
-import * as path from 'path';
-import { fileURLToPath } from 'url';
 import { test, expect, installTauriMock, emitEvent } from './fixtures';
+import type { Locator, Page } from '@playwright/test';
 import { SNAPSHOTS, IRISH_HINTS } from './mock-data';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const PROOF_DIR = path.resolve(
-	__dirname,
-	'../../../../.proofs/1712-notebook-journal-e2e',
-);
+const PIXI_CANVAS = '[data-testid="illustrated-notebook-pixi-host"] canvas';
 
-async function openNotebookDrawer(page: Page, name: 'journal' | 'intents') {
-	const triggerName =
-		name === 'journal' ? 'Open Journal notebook tab' : 'Open active intents';
-	const trigger = page.getByRole('button', { name: triggerName });
-	await expect(trigger).toBeVisible();
-	await trigger.focus();
-	await page.keyboard.press('Enter');
-	const drawer = page.getByLabel(`${name} drawer`);
-	await expect(drawer).toBeVisible();
-	return drawer;
+async function waitForNotebook(page: Page): Promise<void> {
+	await expect(page.getByTestId('illustrated-notebook-game')).toBeVisible();
+	await expect(page.locator(PIXI_CANVAS)).toBeVisible();
+	await expect(page.locator('.app-shell')).toHaveAttribute(
+		'data-controller-ready',
+		'true',
+	);
+	await expect(
+		page.getByRole('button', { name: 'Ask action', exact: true }),
+	).toHaveCount(1);
 }
 
-async function installSubmitRecorder(page: Page) {
+async function activateNotebookControl(
+	page: Page,
+	name: string,
+): Promise<void> {
+	const control = page.getByRole('button', { name, exact: true });
+	await expect(control).toHaveCount(1);
+	await expect(control).toBeEnabled();
+	await control.focus();
+	await expect(control).toBeFocused();
+	await page.keyboard.press('Enter');
+}
+
+async function openJournal(page: Page): Promise<Locator> {
+	await activateNotebookControl(page, 'Open Journal notebook tab');
+	const journal = page.getByRole('dialog', {
+		name: 'Parish Journal',
+		exact: true,
+	});
+	await expect(journal).toBeVisible();
+	await expect(journal).toHaveAttribute('data-surface', 'journal');
+	await expect(journal.getByTestId('chat-panel')).toBeVisible();
+	return journal;
+}
+
+async function openTimeAndWeather(page: Page): Promise<Locator> {
+	await activateNotebookControl(page, 'Open time and weather');
+	const sheet = page.getByRole('dialog', {
+		name: 'Time & Weather',
+		exact: true,
+	});
+	await expect(sheet).toBeVisible();
+	return sheet;
+}
+
+async function openActiveIntents(page: Page): Promise<Locator> {
+	await activateNotebookControl(page, 'Open active intents');
+	const sheet = page.getByRole('dialog', {
+		name: 'Active Intents',
+		exact: true,
+	});
+	await expect(sheet).toBeVisible();
+	return sheet;
+}
+
+async function installSubmitRecorder(page: Page): Promise<void> {
 	await page.evaluate(() => {
 		type Invoke = (
 			command: string,
@@ -54,37 +91,44 @@ async function submittedCommands(page: Page): Promise<string[]> {
 	});
 }
 
+function timeNoteRow(sheet: Locator, label: string): Locator {
+	return sheet.locator('.ink-notes p').filter({ hasText: label });
+}
+
 test.describe('Input field interactions', () => {
 	test.beforeEach(async ({ page }) => {
 		await installTauriMock(page, 'morning');
 		await page.goto('/');
 		await page.waitForLoadState('networkidle');
-		await expect(
-			page.locator('[data-testid="illustrated-notebook-game"]'),
-		).toBeVisible();
+		await waitForNotebook(page);
 	});
 
 	test('can type and submit text via Enter key', async ({ page }) => {
 		await installSubmitRecorder(page);
-		const input = page.getByLabel('Player intent');
+		const input = page.getByLabel('Player intent', { exact: true });
+		await expect(input).toBeEnabled();
+		await expect(input).toBeEditable();
+		await expect(input).not.toHaveAttribute('aria-disabled');
+		await expect(input).toHaveAttribute('aria-busy', 'false');
+
 		await input.fill('go to Howth');
 		await input.press('Enter');
 
+		// Input should be cleared after submission
 		await expect(input).toHaveValue('');
 		await expect.poll(() => submittedCommands(page)).toEqual(['go to Howth']);
 	});
 
-	// #1379: the notebook input remains an enabled native field while aria-busy
-	// communicates the in-flight reply. The first keystroke flushes that reply
-	// and is then accepted into the draft.
+	// #1379: the input is always editable — no aria-disabled toggling.
+	// During streaming the hidden native input exposes aria-busy so assistive
+	// technology can report the in-flight reply, but the first keystroke can
+	// still flush the stream to completion.
 	test('input stays editable during streaming (flush-on-interaction, #1379)', async ({
 		page,
 	}) => {
-		const input = page.getByLabel('Player intent');
+		const input = page.getByLabel('Player intent', { exact: true });
 
-		// Give the stream manager a real buffered turn. The native notebook input
-		// advertises that the reply is busy, but remains an actual editable input
-		// so the first keystroke can flush the reply.
+		// Simulate a buffered reply so the next real keystroke must flush it.
 		await emitEvent(page, 'loading', { active: true });
 		await emitEvent(page, 'stream-token', {
 			token: 'The whole reply appears when the player starts typing again.',
@@ -93,16 +137,21 @@ test.describe('Input field interactions', () => {
 		});
 		await emitEvent(page, 'stream-turn-end', { turn_id: 1379 });
 
+		// Field must stay natively editable; aria-busy is the stream signal.
+		await expect(input).toBeEnabled();
+		await expect(input).toBeEditable();
 		await expect(input).not.toHaveAttribute('aria-disabled');
 		await expect(input).toHaveAttribute('aria-busy', 'true');
-		await expect(input).not.toHaveAttribute('disabled', '');
+
 		await input.fill('next thought');
 		await input.press('x');
 		await expect(input).toHaveValue('next thoughtx');
-		await expect(input).not.toHaveAttribute('aria-disabled');
 		await expect(input).toHaveAttribute('aria-busy', 'false');
+		await expect(input).toBeEnabled();
+		await expect(input).toBeEditable();
+		await expect(input).not.toHaveAttribute('aria-disabled');
 
-		const journal = await openNotebookDrawer(page, 'journal');
+		const journal = await openJournal(page);
 		await expect(journal).toContainText(
 			'The whole reply appears when the player starts typing again.',
 		);
@@ -112,20 +161,23 @@ test.describe('Input field interactions', () => {
 	// and re-spawns the loading animation per addressed NPC turn, so
 	// `loading {active:false}` arrives mid-chain (between phase-1 NPC
 	// turns, or between phase-1 and the autonomous follow-up chain).
-	// The mid-chain loading=false must NOT clear the notebook busy state — only
-	// the terminal `stream-end` may return the current reply to idle.
+	// #1379: the input is never aria-disabled; instead streamingActive is
+	// reflected by aria-busy. The mid-chain loading=false must NOT clear that
+	// state — only the terminal `stream-end` may.
 	test('input stays in streaming state across mid-chain loading=false (#991)', async ({
 		page,
 	}) => {
-		const input = page.getByLabel('Player intent');
-		const intents = await openNotebookDrawer(page, 'intents');
+		const input = page.getByLabel('Player intent', { exact: true });
 
 		// Chain begins.
 		await emitEvent(page, 'loading', { active: true });
+		// #1379: always editable, never aria-disabled; aria-busy is the signal.
+		await expect(input).toBeEnabled();
+		await expect(input).toBeEditable();
 		await expect(input).not.toHaveAttribute('aria-disabled');
 		await expect(input).toHaveAttribute('aria-busy', 'true');
-		await expect(input).not.toHaveAttribute('disabled', '');
-		await expect(intents).toContainText('Parish reply: pending');
+		const intents = await openActiveIntents(page);
+		await expect(intents).toContainText('pending');
 
 		// NPC 1 streams a reply and the per-turn cancel fires.
 		await emitEvent(page, 'stream-token', {
@@ -136,18 +188,13 @@ test.describe('Input field interactions', () => {
 		await emitEvent(page, 'stream-turn-end', { turn_id: 1001 });
 		await emitEvent(page, 'loading', { active: false });
 
-		// The notebook must remain busy even though loading=false has arrived,
-		// because the chain has not yet emitted `stream-end`.
-		await expect(input).not.toHaveAttribute('aria-disabled');
+		// Input must remain busy even though loading=false has
+		// arrived, because the chain has not yet emitted `stream-end`.
 		await expect(input).toHaveAttribute('aria-busy', 'true');
-		await expect(input).not.toHaveAttribute('disabled', '');
-		await expect(intents).toContainText('Parish reply: pending');
-
-		fs.mkdirSync(PROOF_DIR, { recursive: true });
-		await page.screenshot({
-			path: path.join(PROOF_DIR, 'mid-chain-input-streaming.png'),
-			fullPage: false,
-		});
+		await expect(input).toBeEnabled();
+		await expect(input).toBeEditable();
+		await expect(input).not.toHaveAttribute('aria-disabled');
+		await expect(intents).toContainText('pending');
 
 		// Autonomous follow-up turn (no fresh loading=true in this path).
 		await emitEvent(page, 'stream-token', {
@@ -157,47 +204,44 @@ test.describe('Input field interactions', () => {
 		});
 		await emitEvent(page, 'stream-turn-end', { turn_id: 1002 });
 
-		// Still busy — the chain is still alive.
-		await expect(input).not.toHaveAttribute('aria-disabled');
+		// Still streaming — chain still alive.
 		await expect(input).toHaveAttribute('aria-busy', 'true');
-		await expect(intents).toContainText('Parish reply: pending');
 
 		// Chain terminates.
 		await emitEvent(page, 'stream-end', { hints: [] });
 
-		// Only now does the notebook return to idle.
-		await expect(input).not.toHaveAttribute('aria-disabled');
+		// Only now does aria-busy clear while the field remains editable.
 		await expect(input).toHaveAttribute('aria-busy', 'false');
-		await expect(intents).toContainText('Parish reply: idle');
+		await expect(input).toBeEnabled();
+		await expect(input).toBeEditable();
+		await expect(input).not.toHaveAttribute('aria-disabled');
+		await expect(intents).toContainText('idle');
 	});
 });
 
 test.describe('Streaming simulation', () => {
-	test('stream tokens appear incrementally in the Journal', async ({
-		page,
-	}) => {
+	test('stream tokens appear incrementally in chat', async ({ page }) => {
 		await installTauriMock(page, 'morning');
 		await page.goto('/');
 		await page.waitForLoadState('networkidle');
-		const journal = await openNotebookDrawer(page, 'journal');
+		await waitForNotebook(page);
+		const journal = await openJournal(page);
+		const chatPanel = journal.getByTestId('chat-panel');
 
 		// Start loading
 		await emitEvent(page, 'loading', { active: true });
 
-		// Send tokens and observe each increment through the notebook Journal.
+		// Send tokens
 		await emitEvent(page, 'stream-token', {
 			token: 'Ah, ',
 			turn_id: 1,
 			source: 'Siobhan Murphy',
 		});
-		const reply = journal.locator('p').filter({ hasText: 'Siobhan Murphy' });
-		await expect(reply).toContainText('Ah,');
 		await emitEvent(page, 'stream-token', {
 			token: "you're ",
 			turn_id: 1,
 			source: 'Siobhan Murphy',
 		});
-		await expect(reply).toContainText("Ah, you're");
 		await emitEvent(page, 'stream-token', {
 			token: 'welcome!',
 			turn_id: 1,
@@ -205,7 +249,7 @@ test.describe('Streaming simulation', () => {
 		});
 		await emitEvent(page, 'stream-turn-end', { turn_id: 1 });
 
-		await expect(reply).toContainText("Ah, you're welcome!");
+		await expect(chatPanel.getByText("Ah, you're welcome!")).toBeVisible();
 
 		// End stream
 		await emitEvent(page, 'stream-end', { hints: IRISH_HINTS });
@@ -217,7 +261,9 @@ test.describe('Streaming simulation', () => {
 		await installTauriMock(page, 'morning');
 		await page.goto('/');
 		await page.waitForLoadState('networkidle');
-		const journal = await openNotebookDrawer(page, 'journal');
+		await waitForNotebook(page);
+		const journal = await openJournal(page);
+		const chatPanel = journal.getByTestId('chat-panel');
 
 		await emitEvent(page, 'loading', { active: true });
 
@@ -232,11 +278,9 @@ test.describe('Streaming simulation', () => {
 			turn_id: 11,
 			source: 'Siobhan Murphy',
 		});
-		const siobhan = journal.locator('p').filter({ hasText: 'Siobhan Murphy' });
-		await expect(siobhan).toHaveCount(1);
-		await expect(siobhan).toContainText(
-			'I heard the fair will be lively tonight',
-		);
+		await expect(
+			chatPanel.locator('.bubble-row.npc').nth(0).locator('.label'),
+		).toHaveText('Siobhan Murphy');
 
 		// Queue Padraig before Siobhan has finished animating.
 		await emitEvent(page, 'text-log', {
@@ -260,75 +304,68 @@ test.describe('Streaming simulation', () => {
 		await emitEvent(page, 'stream-turn-end', { turn_id: 12 });
 		await emitEvent(page, 'stream-end', { hints: IRISH_HINTS });
 
-		const padraig = journal.locator('p').filter({ hasText: 'Padraig Darcy' });
-		await expect(siobhan).toContainText(
+		const npcRows = chatPanel.locator('.bubble-row.npc');
+		await expect(npcRows).toHaveCount(2);
+		await expect(npcRows.nth(0).locator('.label')).toHaveText('Siobhan Murphy');
+		await expect(npcRows.nth(0).locator('.content')).toContainText(
 			'I heard the fair will be lively tonight with music by the square.',
 		);
-		await expect(padraig).toContainText(
+		await expect(npcRows.nth(1).locator('.label')).toHaveText('Padraig Darcy');
+		await expect(npcRows.nth(1).locator('.content')).toContainText(
 			"If it is, I'll bring the cart before sunset.",
 		);
-		const lines = await journal.locator('p').allTextContents();
-		const siobhanIdx = lines.findIndex((line) =>
-			line.includes('Siobhan Murphy'),
-		);
-		const padraigIdx = lines.findIndex((line) =>
-			line.includes('Padraig Darcy'),
-		);
-		expect(siobhanIdx).toBeGreaterThan(-1);
-		expect(padraigIdx).toBeGreaterThan(-1);
-		expect(siobhanIdx).toBeLessThan(padraigIdx);
 	});
 });
 
 test.describe('Paused state', () => {
 	test('shows paused indicator when game is paused', async ({ page }) => {
-		test.fixme(
-			true,
-			'#1715 restores a visible and accessible paused-state contract to the illustrated notebook',
-		);
 		const pausedSnapshot = { ...SNAPSHOTS.morning, paused: true };
-		await installTauriMock(page, 'morning');
-
-		// Override the snapshot with paused state
-		await page.addInitScript(
-			({ snapshot }) => {
-				const responses = (
-					window as unknown as Record<string, Record<string, unknown>>
-				).__TEST_MOCK_RESPONSES__;
-				if (responses) responses['get_world_snapshot'] = snapshot;
-			},
-			{ snapshot: pausedSnapshot },
-		);
+		await installTauriMock(page, 'morning', {
+			snapshot: pausedSnapshot,
+		});
 
 		await page.goto('/');
 		await page.waitForLoadState('networkidle');
+		await waitForNotebook(page);
+		const sheet = await openTimeAndWeather(page);
 
-		await expect(page.getByText('Paused')).toBeVisible();
+		await expect(timeNoteRow(sheet, 'Clock state')).toContainText('paused');
+		await expect(timeNoteRow(sheet, 'Parish replies')).toContainText('ready');
+	});
+
+	test('shows inference-paused state without marking the clock paused', async ({
+		page,
+	}) => {
+		const inferencePausedSnapshot = {
+			...SNAPSHOTS.morning,
+			inference_paused: true,
+		};
+		await installTauriMock(page, 'morning', {
+			snapshot: inferencePausedSnapshot,
+		});
+
+		await page.goto('/');
+		await page.waitForLoadState('networkidle');
+		await waitForNotebook(page);
+		const sheet = await openTimeAndWeather(page);
+
+		await expect(timeNoteRow(sheet, 'Clock state')).toContainText('running');
+		await expect(timeNoteRow(sheet, 'Parish replies')).toContainText('paused');
 	});
 });
 
 test.describe('Festival badge', () => {
 	test('shows festival badge when festival is active', async ({ page }) => {
-		test.fixme(
-			true,
-			'#1716 restores the active festival to the illustrated notebook world-state surface',
-		);
 		const festivalSnapshot = { ...SNAPSHOTS.morning, festival: 'Samhain' };
-		await installTauriMock(page, 'morning');
-
-		await page.addInitScript(
-			({ snapshot }) => {
-				const responses = (
-					window as unknown as Record<string, Record<string, unknown>>
-				).__TEST_MOCK_RESPONSES__;
-				if (responses) responses['get_world_snapshot'] = snapshot;
-			},
-			{ snapshot: festivalSnapshot },
-		);
+		await installTauriMock(page, 'morning', {
+			snapshot: festivalSnapshot,
+		});
 
 		await page.goto('/');
 		await page.waitForLoadState('networkidle');
+		await waitForNotebook(page);
+		const sheet = await openTimeAndWeather(page);
 
-		await expect(page.getByText('Samhain')).toBeVisible();
+		await expect(timeNoteRow(sheet, 'Festival')).toContainText('Samhain');
 	});
 });

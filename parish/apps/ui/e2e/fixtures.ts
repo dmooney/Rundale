@@ -21,7 +21,14 @@ import {
 	EDITOR_MODS,
 	EDITOR_SNAPSHOT,
 } from './mock-data';
-import type { ThemePalette, TextLogEntry } from '../src/lib/types';
+import type {
+	MapData,
+	NpcInfo,
+	ThemePalette,
+	TextLogEntry,
+	UiConfig,
+	WorldSnapshot,
+} from '../src/lib/types';
 
 /** Minimal 1×1 transparent PNG — fulfills tile requests instantly. */
 const BLANK_PNG = Buffer.from(
@@ -54,6 +61,15 @@ export async function waitForTextureCompleteNotebookFrame(
 	const canvas = page
 		.getByTestId('illustrated-notebook-pixi-host')
 		.locator('canvas');
+	const preservesPresentedFrame = await canvas.evaluate((element) => {
+		const source = element as HTMLCanvasElement;
+		const context = source.getContext('webgl2') ?? source.getContext('webgl');
+		return context?.getContextAttributes()?.preserveDrawingBuffer ?? null;
+	});
+	expect(
+		preservesPresentedFrame,
+		'Pixi WebGL must preserve its presented frame for product and proof captures',
+	).toBe(true);
 
 	await expect
 		.poll(
@@ -119,12 +135,12 @@ export async function installTauriMock(
 	timeOfDay: string = 'morning',
 	options?: {
 		debugSnapshot?: unknown;
-		mapData?: unknown;
-		npcs?: unknown;
 		saveFiles?: unknown;
 		saveState?: unknown;
-		snapshot?: unknown;
-		uiConfig?: unknown;
+		snapshot?: WorldSnapshot;
+		mapData?: MapData;
+		npcs?: NpcInfo[];
+		uiConfig?: UiConfig;
 	},
 ): Promise<void> {
 	await installTileRouteMock(page);

@@ -18,6 +18,23 @@ beforeEach(() => {
 });
 
 describe('captureScreen()', () => {
+	it('captures the complete illustrated Pixi canvas directly', async () => {
+		const host = document.createElement('div');
+		host.dataset.testid = 'illustrated-notebook-pixi-host';
+		const canvas = document.createElement('canvas');
+		canvas.width = 1440;
+		canvas.height = 900;
+		const toDataURL = vi.fn(() => 'data:image/png;base64,PIXIFRAME');
+		canvas.toDataURL = toDataURL;
+		host.appendChild(canvas);
+		document.body.appendChild(host);
+
+		const { captureScreen } = await import('./screenshot');
+		expect(await captureScreen()).toBe('data:image/png;base64,PIXIFRAME');
+		expect(toDataURL).toHaveBeenCalledWith('image/png');
+		expect(toPngMock).not.toHaveBeenCalled();
+	});
+
 	it('targets .app-shell when present', async () => {
 		const shell = document.createElement('div');
 		shell.className = 'app-shell';
