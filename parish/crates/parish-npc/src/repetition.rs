@@ -4129,11 +4129,11 @@ pub fn guard_invented_place_confirmation(
 
     // Must contain a place-affirmation or soft-validation marker for the guard
     // to fire.
-    let has_affirmation = PLACE_AFFIRMATION_MARKERS.iter().any(|m| lower.contains(m));
-    let has_soft_validation = PLACE_SOFT_VALIDATION_MARKERS
-        .iter()
-        .any(|m| lower.contains(m));
-    if !has_affirmation && !has_soft_validation {
+    let has_place_marker = PLACE_AFFIRMATION_MARKERS.iter().any(|m| lower.contains(m))
+        || PLACE_SOFT_VALIDATION_MARKERS
+            .iter()
+            .any(|m| lower.contains(m));
+    if !has_place_marker {
         return dialogue.to_string();
     }
 
