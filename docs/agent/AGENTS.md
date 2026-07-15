@@ -32,6 +32,7 @@ witness-scan                                        # catch AI partial-completio
 | [`code-style.md`](code-style.md)               | Rust + Svelte conventions, naming, formatting, dep rules                 | `architecture.md`, crate AGENTS.md files                                         |
 | [`gotchas.md`](gotchas.md)                     | Tokio, SQLite, Ollama, mode parity, platform pitfalls                    | root `AGENTS.md` rule block, `parish-engine/AGENTS.md`, every crate AGENTS.md    |
 | [`git-workflow.md`](git-workflow.md)           | Commits, tests, PR standards, review expectations                        | root `AGENTS.md` commit section                                                  |
+| [`improvement-drain.md`](improvement-drain.md) | Event-driven portfolio, readiness contract, WIP and authoritative linkage | `triage-vocabulary.md`, `.github/workflows/triage-audit.yml`, issue/PR templates |
 | [`witness.md`](witness.md)                     | Witness-style completion gates (AI partial-completion markers)           | `harness.md` witness row, `justfile` witness-scan recipe                         |
 | [`agent-check.md`](agent-check.md)             | PR proof-evidence gate (rule #10), local and CI source modes             | root `AGENTS.md` rule #10, `harness.md`, `justfile`                              |
 | [`skills.md`](skills.md)                       | Agent slash commands (`/check`, `/parish-engine`, `/backlog`, ...)       | root `AGENTS.md` skill list, `harness.md` skills section, `.agents/skills/`      |

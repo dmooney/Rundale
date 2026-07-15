@@ -67,12 +67,10 @@ jobs:
 
   agent-check:
     name: Agent proof gate
-    # Proof bundles are attached to PRs as structured comments (see
-    # `just attach-proof`), so the gate only has a comment to read on
-    # pull_request events. Push events to main/develop are post-merge —
-    # the gate already ran on the PR that produced the commit. Dependabot
-    # bumps Cargo.lock / Cargo.toml without touching engine logic; the
-    # proof gate has no useful signal there.
+    # Proof bundles live in the PR body by default; structured comments remain
+    # a legacy fallback. Push events to main/develop are post-merge, so the gate
+    # already ran on the PR that produced the commit. Dependabot bumps have no
+    # useful gameplay-proof signal.
     if: github.event_name == 'pull_request' && github.actor != 'dependabot[bot]'
     runs-on: ubuntu-latest
     permissions:
@@ -89,7 +87,7 @@ jobs:
           clean: true
           fetch-depth: 0
 
-      - name: Validate proof evidence (PR comment)
+      - name: Validate proof evidence (PR body or comment fallback)
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
@@ -135,6 +133,9 @@ jobs:
 
       - name: Markdownlint
         run: npm run lint:md
+
+      - name: Portfolio-governance unit tests
+        run: node --test .github/scripts/*.test.cjs
 
   python-quality:
     name: Python quality (ruff, mypy, yamllint, pytest)

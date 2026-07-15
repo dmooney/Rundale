@@ -53,16 +53,17 @@ be replaced with a pub/sub broker when the service scales horizontally.
 
 ---
 
-### Rule 4: Inference only through `InferenceClient`
+### Rule 4: Inference only through provider-neutral dispatch
 
-LLM calls must go through the `InferenceClient` trait defined in
-`parish/crates/parish-inference/`. Callers must not construct provider-specific
-clients (`OllamaClient`, `AnthropicClient`, `OpenAiClient`) directly in route
-or game-logic code. The client is injected from `AppState`; swap the
-implementation in tests with the `SimulatorClient`.
+LLM calls must use the `AnyClient` / `InferenceClients` dispatch types, and
+provider construction must go through `build_client`. Route and game-logic code
+must not construct `AnthropicClient` or `OpenAiClient` directly. Inject the
+dispatch client from runtime state; tests use its `Simulator` or `Mock` variant.
 
-**Seam:** `parish/crates/parish-inference/src/client.rs` — see issue #617
-(in-flight; the trait boundary is being formalised in that issue).
+**Seam:** [`parish/crates/parish-providers/src/any_client.rs`](../../parish/crates/parish-providers/src/any_client.rs).
+Issue #617 proposed an `InferenceClient` trait, but that dead abstraction was
+removed by #1189; the current provider-neutral enum/factory seam was extracted
+in #1392.
 **What this prevents:** provider-specific imports leaking into shared logic
 and tightly coupling the game engine to a single LLM vendor.
 
@@ -77,8 +78,8 @@ cookie value. The `IdentityStore` and `SessionRegistry` traits
 source of truth for the mapping between external credentials and internal
 account keys.
 
-**Seam:** [`parish/crates/parish-core/src/identity.rs`](../../parish/crates/parish-core/src/identity.rs) — see issues #615
-(IdentityStore) and #618 (account_id keying, in-flight).
+**Seam:** [`parish/crates/parish-core/src/identity.rs`](../../parish/crates/parish-core/src/identity.rs) — see closed issues #615
+(IdentityStore) and #618 (`account_id` keying).
 **What this prevents:** account fragmentation when a user reconnects with
 a refreshed token, and security bugs from keying on mutable external values.
 
@@ -94,8 +95,9 @@ Any HTTP handler that creates or modifies persistent state must:
 3. Be written so that executing it twice with identical inputs produces the
    same outcome (no duplicate records, no double-charges).
 
-**Seam:** idempotency middleware — see issue #619 (in-flight; the middleware
-layer will live in `parish/crates/parish-server/`).
+**Seam:** idempotency middleware in `parish/crates/parish-server/` — implemented
+under closed issue #619. The documented restart-cache limitation remains an
+accepted risk; see [idempotency.md](idempotency.md).
 **What this prevents:** duplicate game actions caused by client retries or
 network hiccups, which corrupt save state and leaderboard data.
 
@@ -157,9 +159,9 @@ in-memory test fixtures, and future CDN-backed mod delivery impossible.
 | 1    | No global state        | `ipc/state.rs`                   | —                       |
 | 2    | `SessionStore` only    | `session_store.rs`               | #614                    |
 | 3    | `EventBus` + `Topic`   | `event_bus.rs`                   | #616                    |
-| 4    | `InferenceClient`      | `parish-inference/src/client.rs` | #617 (in-flight)        |
-| 5    | `account_id` keying    | `identity.rs`                    | #615 / #618 (in-flight) |
-| 6    | Idempotency-Key        | (middleware, in-flight)          | #619 (in-flight)        |
+| 4    | Provider dispatch      | `parish-providers/src/any_client.rs` | #617 / #1189 / #1392 |
+| 5    | `account_id` keying    | `identity.rs`                    | #615 / #618 (closed)    |
+| 6    | Idempotency-Key        | `parish-server/src/middleware.rs` | #619 (closed)          |
 | 7    | `request_id` + tracing | `middleware.rs`                  | #621                    |
 | 8    | Sticky-session routing | `parish_sid` cookie              | —                       |
 | 9    | `ModSource` trait      | `mod_source.rs`                  | #622                    |
