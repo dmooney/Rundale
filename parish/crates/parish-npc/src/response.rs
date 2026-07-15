@@ -269,10 +269,9 @@ fn extract_dialogue_field_heuristic(text: &str) -> Option<String> {
     let after_colon = after_colon.strip_prefix(':')?.trim_start();
     let (inner, opener) = if let Some(rest) = after_colon.strip_prefix('"') {
         (rest, '"')
-    } else if let Some(rest) = after_colon.strip_prefix('\'') {
-        (rest, '\'')
     } else {
-        return None;
+        let rest = after_colon.strip_prefix('\'')?;
+        (rest, '\'')
     };
 
     // Walk the string body, honoring JSON-style backslash escapes. Stop
