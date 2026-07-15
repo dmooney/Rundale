@@ -8,13 +8,12 @@ const test = require('node:test');
 const workflowPath = path.join(__dirname, '..', 'workflows', 'ci.yml');
 
 function agentProofCondition(source) {
-	const jobStart = source.indexOf('\n  agent-check:');
-	const nextJob = source.indexOf('\n  docs-consistency:', jobStart);
+	const jobMatch = source.match(
+		/(?:^|\n)  agent-check:[ \t]*\n([\s\S]*?)(?=\n  [A-Za-z0-9_-]+:[ \t]*(?:\n|$)|$)/,
+	);
 
-	assert.notEqual(jobStart, -1, 'ci.yml must define the agent-check job');
-	assert.notEqual(nextJob, -1, 'agent-check job must precede docs-consistency');
-
-	const job = source.slice(jobStart, nextJob);
+	assert.ok(jobMatch, 'ci.yml must define the agent-check job');
+	const job = jobMatch[1];
 	const condition = job.match(/^    if:\s*(.+)$/m);
 
 	assert.ok(condition, 'agent-check job must have an if condition');
@@ -60,6 +59,24 @@ test('Agent proof gate trusts immutable pull-request authorship', () => {
 
 	assert.match(condition, /github\.event\.pull_request\.user\.login/);
 	assert.doesNotMatch(condition, /github\.actor/);
+});
+
+test('Agent proof condition extraction survives top-level job reordering', () => {
+	const workflow = fs.readFileSync(workflowPath, 'utf8');
+	const condition = agentProofCondition(workflow);
+	const reorderedWorkflow = [
+		'jobs:',
+		'  docs-consistency:',
+		'    runs-on: ubuntu-latest',
+		'  agent-check:',
+		'    name: Agent proof gate',
+		`    if: ${condition}`,
+		'    runs-on: ubuntu-latest',
+		'  changes:',
+		'    runs-on: ubuntu-latest',
+	].join('\n');
+
+	assert.equal(agentProofCondition(reorderedWorkflow), condition);
 });
 
 test('Agent proof gate author/actor matrix preserves only the Dependabot-author exemption', async (t) => {
