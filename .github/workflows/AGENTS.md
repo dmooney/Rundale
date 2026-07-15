@@ -104,8 +104,8 @@ just act-pr         # simulate the pull_request fast lane
 - Marks issues/PRs stale after 90 days, closes after 14 more. Labels: `no-issue-activity`, `no-pr-activity`.
 - **Permissions:** `issues: write`, `pull-requests: write`.
 
-### `triage-audit.yml` — Issue triage label audit
+### `triage-audit.yml` — Portfolio and issue triage audit
 
-- **Triggers:** `schedule` (weekly Monday 09:00 UTC), `issues` opened/reopened, `workflow_dispatch`, `pull_request` to `main` on workflow changes.
-- Checks open issues against `triage-labels.json` for missing P0-P3 priority or theme labels; on open/reopened checks the triggering issue. Reports via CI step summary and warning annotations.
+- **Triggers:** `schedule` (weekly Monday 09:00 UTC), issue lifecycle/label changes after creation, `workflow_dispatch`, and ordinary pull-request lifecycle/label changes on `main`.
+- Checks open issues against `triage-labels.json` for missing P0-P3 severity or theme labels, audits active-item readiness and authoritative closing PR linkage, requires unblock triggers, compares explicitly mapped epic state to roadmap rows, and reports the 3/3 implementation/review buffers. Reports via CI step summary and warning annotations while the reset backlog is reconciled.
 - **Permissions:** `contents: read`, `issues: read`, `pull-requests: read`.

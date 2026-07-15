@@ -1,0 +1,16 @@
+{
+  "entries": [
+    {
+      "issue": 1626,
+      "row": "Illustrated notebook play surface",
+      "openStatus": "In progress",
+      "closedStatus": "Implemented"
+    },
+    {
+      "issue": 1685,
+      "row": "rundale-bench model-quality benchmark",
+      "openStatus": "In progress",
+      "closedStatus": "Implemented"
+    }
+  ]
+}
