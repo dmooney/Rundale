@@ -1,0 +1,23 @@
+# Grove Updated-Legend Numbered Annotation Report
+
+Inputs used: the updated OS 6-inch map key reference plate and the Grove source map crop only.
+
+Output PNG: `docs/graphics-v2/pipeline-experiments/idea-ca4-grove-updated-legend-subagent-numbered-annotation.png`
+
+No image generation was used. The PNG is the original Grove crop with numbered vector markers and translucent local highlights overlaid.
+
+| #   | Reading                                         | Confidence  | Notes                                                                                                                                                                                                              |
+| --- | ----------------------------------------------- | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 1   | Probable roofed structures                      | High        | Dark/hatched rectangular footprints around the Grove yard and the larger rectangular footprint east of the yard. Count, shape, spacing, and orientation should be preserved.                                       |
+| 2   | Physical road/lane                              | High        | The double-edged lane/road corridor is visible on the upper-right side. The marker identifies the lane, not a new path.                                                                                            |
+| 3   | Road with administrative boundary               | Medium-high | The bold dotted line inside the top-left road corridor is treated as a road plus administrative boundary. The dotted line itself should not become terrain, wall, hedge, or path.                                  |
+| 4   | Possible unfenced path/track or access corridor | Low-medium  | A short paired light corridor appears between the Grove buildings and the road. Mark only the visible paired corridor; do not extend it or invent continuations.                                                   |
+| 5   | Deciduous tree clusters                         | High        | Puffy circular tree symbols appear along the lane and around the holding. These read as deciduous trees under the updated key.                                                                                     |
+| 6   | Conifer/evergreen clusters                      | High        | Tight triangular tree symbols are visible at the lower-left lane edge; a few similar isolated symbols appear elsewhere.                                                                                            |
+| 7   | Planted enclosure/orchard/garden/nursery        | Medium      | The enclosed plot north/west of the main structures has regular planting/tree marks. Exact use is uncertain, so treat it as planted enclosure rather than a specific crop type.                                    |
+| 8   | Rough vegetation / overgrown ditch / scrub      | Medium-low  | Dense irregular stipple and small marks inside/around the planted enclosure may be scrub, rough vegetation, or overgrown boundary texture. This overlaps visually with marker 7, so do not force a single reading. |
+| 9   | Solid field/enclosure boundaries                | High        | Thin solid enclosure lines divide the fields. These are boundaries, not walkable paths.                                                                                                                            |
+| 10  | Map label text                                  | High        | `Grove` is printed map text only. Do not render it as an in-world sign or object.                                                                                                                                  |
+| 11  | Open fields                                     | High        | Pale mostly unmarked field areas should stay open. No water, bog, quarry, spring, or crop symbol is marked here without matching legend evidence.                                                                  |
+
+Interpretation guardrails: do not add invented paths, invented buildings, or water/bog/crop/quarry/spring symbols. Treat administrative dots and printed labels as map information, not physical scene objects.

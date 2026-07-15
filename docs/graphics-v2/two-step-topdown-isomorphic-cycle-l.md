@@ -23,9 +23,9 @@ the same crop.
 
 ## Outputs
 
-| Site | L1 top-down control | L2 isomorphic output | Result |
-| --- | --- | --- | --- |
-| Grove | `pipeline-experiments/idea-l-grove-topdown-cleaned.png` | `pipeline-experiments/idea-l-grove-two-step-isomorphic.png` | Useful, especially for topology |
+| Site      | L1 top-down control                                         | L2 isomorphic output                                            | Result                                               |
+| --------- | ----------------------------------------------------------- | --------------------------------------------------------------- | ---------------------------------------------------- |
+| Grove     | `pipeline-experiments/idea-l-grove-topdown-cleaned.png`     | `pipeline-experiments/idea-l-grove-two-step-isomorphic.png`     | Useful, especially for topology                      |
 | Beechwood | `pipeline-experiments/idea-l-beechwood-topdown-cleaned.png` | `pipeline-experiments/idea-l-beechwood-two-step-isomorphic.png` | Useful control, final plate has edge-artifact caveat |
 
 Each output has a `.prompt.md` sidecar and `.report.md` QA note in

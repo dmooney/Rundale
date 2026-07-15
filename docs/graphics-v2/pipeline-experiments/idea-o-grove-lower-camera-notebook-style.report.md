@@ -1,0 +1,6 @@
+# Cycle O Grove Lower-Camera Notebook Style Report
+
+- Style match: Good. The image lands closer to the parish notebook target than Cycle N: heavier sepia ink, dark broken slate roofs, blotchy olive watercolor fields, muddy scumbled lanes, and more varied paper texture are all visible. It still reads slightly more polished/regular than the notebook sample in some walls and garden marks.
+- Camera match: Partial to good. The plate is lower than the Cycle N reference and shows clearer building facades, door faces, wall faces, and tree lower masses. It is still somewhat high/overview-like rather than a truly low 3/4 game camera.
+- Map accuracy: Good. The central four-part planted enclosure, open farmyard, surrounding building cluster, northwest/west road, southwest lane, northeast road, tree placements, and major stone-wall boundaries are preserved. I do not see the eastern dotted/survey boundary reintroduced as a physical line.
+- Obvious failures: The garden rows remain a bit too regular, some stone walls are tidier than the rough notebook target, the left-edge outbuilding is cropped hard, and a few gatepost/yard details may read as small ornamental posts. No UI, visible labels, people, animals, church, shop, river, pond, bridge, smoke, or copied notebook landmarks are apparent.

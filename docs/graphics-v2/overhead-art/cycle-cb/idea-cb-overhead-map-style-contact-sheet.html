@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Cycle CB overhead map style samples</title>
+    <style>
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        width: 2400px;
+        margin: 0;
+        padding: 34px;
+        background: #f4f1e8;
+        color: #27221b;
+        font: 22px/1.35 Arial, Helvetica, sans-serif;
+      }
+
+      h1 {
+        margin: 0 0 6px;
+        font-size: 38px;
+      }
+
+      .sub {
+        margin: 0 0 26px;
+        color: #6e665b;
+      }
+
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 26px;
+      }
+
+      .card {
+        min-height: 492px;
+        padding: 10px;
+        background: #fffdf8;
+        border: 1px solid #cfc3af;
+      }
+
+      .card.wide {
+        grid-column: span 1;
+      }
+
+      .label {
+        margin: 0 0 8px;
+        font-weight: 700;
+      }
+
+      img {
+        display: block;
+        width: 100%;
+        height: 405px;
+        object-fit: contain;
+        background: #efe8db;
+      }
+
+      .note {
+        margin-top: 24px;
+        color: #6e665b;
+        font-size: 18px;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Cycle CB overhead map style samples: Beechwood high-resolution source</h1>
+    <p class="sub">Direct source-map transform, no sample artwork. Pairs compare prompt without vs with OS 6-inch legend as interpretation aid.</p>
+
+    <div class="grid">
+      <section class="card">
+        <p class="label">Source map crop</p>
+        <img src="../../pipeline-experiments/map-crop-control-02.png" alt="Source map crop" />
+      </section>
+      <section class="card">
+        <p class="label">Legend reference, interpretation only</p>
+        <img src="../../web-references/os-6inch-map-key/os-6inch-map-key-reference-sheet.png" alt="OS 6-inch map key" />
+      </section>
+      <section class="card">
+        <p class="label">A no legend</p>
+        <img src="idea-cb-a-no-legend-faithful-ink-watercolor.png" alt="A no legend" />
+      </section>
+      <section class="card">
+        <p class="label">A with legend</p>
+        <img src="idea-cb-a-with-legend-faithful-ink-watercolor.png" alt="A with legend" />
+      </section>
+      <section class="card">
+        <p class="label">B no legend</p>
+        <img src="idea-cb-b-no-legend-clear-game-map.png" alt="B no legend" />
+      </section>
+      <section class="card">
+        <p class="label">B with legend leak</p>
+        <img src="idea-cb-b-with-legend-clear-game-map-legend-leak.png" alt="B with legend leak" />
+      </section>
+      <section class="card">
+        <p class="label">B2 with legend retry</p>
+        <img src="idea-cb-b2-with-legend-clear-game-map-no-key-retry.png" alt="B2 with legend retry" />
+      </section>
+      <section class="card">
+        <p class="label">C no legend</p>
+        <img src="idea-cb-c-no-legend-loose-watercolor.png" alt="C no legend" />
+      </section>
+      <section class="card">
+        <p class="label">C with legend</p>
+        <img src="idea-cb-c-with-legend-loose-watercolor.png" alt="C with legend" />
+      </section>
+      <section class="card">
+        <p class="label">D no legend</p>
+        <img src="idea-cb-d-no-legend-field-atlas.png" alt="D no legend" />
+      </section>
+      <section class="card">
+        <p class="label">D with legend</p>
+        <img src="idea-cb-d-with-legend-field-atlas.png" alt="D with legend" />
+      </section>
+    </div>
+
+    <p class="note">B with legend is intentionally retained because it shows the legend-card leak failure; B2 is the tightened retry.</p>
+  </body>
+</html>

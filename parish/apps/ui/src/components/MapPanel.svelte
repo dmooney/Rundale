@@ -10,6 +10,14 @@
 	import MapTooltip from './MapTooltip.svelte';
 	import type { MapLocation, MapTooltipInfo } from '$lib/types';
 
+	let {
+		fitHalfSpan = 0.008,
+		fitPadding = 16
+	}: {
+		fitHalfSpan?: number;
+		fitPadding?: number;
+	} = $props();
+
 	/** Only show locations within this many hops on the minimap. */
 	const MINIMAP_HOP_RADIUS = 1;
 
@@ -44,14 +52,13 @@
 	 * Neighbors beyond the clamp render as dots on the map edge with their
 	 * connection line sailing off the canvas.
 	 */
-	const MAX_HALF_SPAN = 0.008;
 	function computePlayerCenteredBounds(
 		player: MapLocation,
 		neighbors: MapLocation[]
 	): Array<{ lat: number; lon: number }> {
 		if (neighbors.length === 0) {
 			// No neighbors — construct a small fixed box around the player.
-			const pad = 0.003; // ~300m
+			const pad = Math.min(0.003, fitHalfSpan); // ~300m at the default framing.
 			return [
 				{ lat: player.lat - pad, lon: player.lon - pad },
 				{ lat: player.lat + pad, lon: player.lon + pad }
@@ -63,8 +70,8 @@
 			maxDLat = Math.max(maxDLat, Math.abs(n.lat - player.lat));
 			maxDLon = Math.max(maxDLon, Math.abs(n.lon - player.lon));
 		}
-		maxDLat = Math.min(maxDLat, MAX_HALF_SPAN);
-		maxDLon = Math.min(maxDLon, MAX_HALF_SPAN);
+		maxDLat = Math.min(maxDLat, fitHalfSpan);
+		maxDLon = Math.min(maxDLon, fitHalfSpan);
 		// Add a small halo so the edge nodes aren't flush against the border.
 		maxDLat *= 1.4;
 		maxDLon *= 1.4;
@@ -203,7 +210,7 @@
 		);
 		controller.fitBounds(
 			computePlayerCenteredBounds(player, neighbors),
-			16
+			fitPadding
 		);
 	});
 

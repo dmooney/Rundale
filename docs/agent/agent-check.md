@@ -5,16 +5,14 @@
 The script has two source modes:
 
 - `bash parish/scripts/agent-check.sh --source=local` (default) — validates the bundle that lives at `.proofs/<task-id>/` on disk. This is what `just agent-check` runs, and what the Stop hook expects before a session can end. Bundles in `.proofs/` are gitignored.
-- `bash parish/scripts/agent-check.sh --source=pr <number>` — validates the bundle that was posted to a PR as a structured comment via `just attach-proof`. CI uses this mode on `pull_request` events; the comment must contain a `<!-- parish-proof-bundle:<task-id> v=1 -->` fenced block.
+- `bash parish/scripts/agent-check.sh --source=pr <number>` — validates the bundle embedded in the PR body via `just attach-proof`; a structured comment remains a legacy fallback. CI uses this mode on `pull_request` events and reads the `<!-- parish-proof-bundle:<task-id> v=1 -->` fenced block.
 
 Run it locally with `just agent-check`. It is also part of `just check` and `just verify`.
 
 ## Lifecycle of a bundle
 
 ```text
-/task-start <id>          → write .proofs/<id>/acceptance-criteria.md +
-                            parish/testing/fixtures/play_<id>.txt
-                          → stop, get human approval
+write .proofs/<id>/acceptance-criteria.md
 implement
 run game                  → capture .proofs/<id>/transcript.txt
 write .proofs/<id>/evidence.md   → 'Evidence type: live gameplay transcript'
@@ -56,7 +54,7 @@ Technical debt: clear
 Acceptance criteria: met
 ```
 
-`Acceptance criteria: met` is required when the bundle has an `acceptance-criteria.md` (see rule 13 in AGENTS.md).
+`Acceptance criteria: met` is required when the bundle has an `acceptance-criteria.md`.
 
 ## What Counts As Proof-Relevant
 
@@ -77,11 +75,12 @@ The Stop hook (`.claude/hooks/Stop--proof-required.sh`) blocks session-end with 
 ## Belt-and-suspenders Lints
 
 - Any `.proofs/<...>` path appearing in the git diff is rejected — bundles are gitignored and are carried in the PR body (or a comment), never committed.
-- Changed files are scanned for placeholder debt markers (`todo!()`, `unimplemented!()`, `pass # TODO`, etc.) that often indicate partial completion.
+- Changed files are scanned for language-specific unfinished-work macros and
+  placeholder comments that often indicate partial completion.
 
 ## Acceptance Criteria Requirement
 
-Every new proof bundle must include `.proofs/<task-id>/acceptance-criteria.md`. This file is written **before any code**, using `/task-start <task-id>`, and lists observable criteria with the game commands that prove each one. The judge then verifies each criterion individually against the transcript.
+Every new proof bundle must include `.proofs/<task-id>/acceptance-criteria.md`. This file lists observable criteria with the game commands or screenshots that prove each one. The judge then verifies each criterion individually against the transcript or visual artifact.
 
 ## Posting from a no-gh sandbox
 

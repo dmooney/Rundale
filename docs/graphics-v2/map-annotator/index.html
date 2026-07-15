@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Graphics V2 Map Annotator</title>
+    <link rel="icon" href="data:," />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="brand">
+        <h1>Map Annotator</h1>
+        <span id="imageMeta">No image loaded</span>
+      </div>
+      <div class="top-actions">
+        <button id="loadGrove" type="button">Grove</button>
+        <button id="loadMurphy" type="button">Murphy Farm</button>
+        <button id="loadKilteevan" type="button">Kilteevan</button>
+        <label class="file-button">
+          Open image
+          <input id="imageInput" type="file" accept="image/*" />
+        </label>
+        <label class="file-button">
+          Import JSON
+          <input id="jsonInput" type="file" accept="application/json,.json" />
+        </label>
+        <button id="exportJson" type="button">Export JSON</button>
+        <button id="exportPng" type="button">Export PNG</button>
+      </div>
+    </header>
+
+    <main class="app-shell">
+      <aside class="panel tools-panel">
+        <section>
+          <h2>Tool</h2>
+          <div class="segmented" id="toolButtons">
+            <button type="button" data-tool="select" class="active">Select</button>
+            <button type="button" data-tool="point">Point</button>
+            <button type="button" data-tool="line">Line</button>
+            <button type="button" data-tool="polygon">Polygon</button>
+            <button type="button" data-tool="box">Box</button>
+            <button type="button" data-tool="pan">Pan</button>
+          </div>
+        </section>
+
+        <section>
+          <h2>Category</h2>
+          <div id="categoryList" class="category-list"></div>
+        </section>
+
+        <section class="compact-grid">
+          <button id="undo" type="button">Undo</button>
+          <button id="deleteSelected" type="button">Delete</button>
+          <button id="finishShape" type="button">Finish</button>
+          <button id="cancelDraft" type="button">Cancel</button>
+          <button id="zoomIn" type="button">Zoom +</button>
+          <button id="zoomOut" type="button">Zoom -</button>
+          <button id="fitImage" type="button">Fit</button>
+          <button id="resetView" type="button">100%</button>
+        </section>
+
+        <section>
+          <h2>Drawing</h2>
+          <label class="check-row">
+            <input id="showLabels" type="checkbox" checked />
+            Show labels
+          </label>
+          <label class="check-row">
+            <input id="showIndex" type="checkbox" checked />
+            Show numbers
+          </label>
+          <label class="check-row">
+            <input id="dimImage" type="checkbox" />
+            Dim map
+          </label>
+          <p class="hint">Enter finishes a line or polygon. Escape cancels. Backspace deletes selected. Space temporarily pans.</p>
+        </section>
+      </aside>
+
+      <section class="canvas-wrap" id="canvasWrap">
+        <canvas id="mapCanvas" width="1200" height="820"></canvas>
+        <div id="emptyState" class="empty-state">
+          <strong>Load a crop to start annotating.</strong>
+          <span>Use one of the presets or open any local map image.</span>
+        </div>
+      </section>
+
+      <aside class="panel inspector">
+        <section>
+          <h2>Selected</h2>
+          <div id="selectionEmpty" class="muted">No annotation selected.</div>
+          <form id="editor" class="editor" hidden>
+            <label>
+              Category
+              <select id="editCategory"></select>
+            </label>
+            <label>
+              Label
+              <input id="editLabel" type="text" placeholder="short feature name" />
+            </label>
+            <label>
+              Confidence
+              <select id="editConfidence">
+                <option value="high">High</option>
+                <option value="medium">Medium</option>
+                <option value="low">Low</option>
+              </select>
+            </label>
+            <label>
+              Notes
+              <textarea id="editNotes" rows="5" placeholder="why you read it this way"></textarea>
+            </label>
+          </form>
+        </section>
+
+        <section>
+          <h2>Annotations</h2>
+          <div class="count-row">
+            <span id="annotationCount">0 items</span>
+            <button id="clearAll" type="button">Clear</button>
+          </div>
+          <ol id="annotationList" class="annotation-list"></ol>
+        </section>
+      </aside>
+    </main>
+
+    <script src="app.js"></script>
+  </body>
+</html>

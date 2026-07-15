@@ -144,15 +144,19 @@ At low tiers, route behavior via deterministic rules:
 ## Gameplay systems unlocked
 
 1. **Trust and reputation become emotionally legible**
+
    - same reputation score can feel different depending on unresolved resentment vs fear.
 
 2. **Negotiation minigame depth**
+
    - timing matters: ask favors when NPC is calm/proud, not publicly embarrassed.
 
 3. **Conflict arcs**
+
    - repeated slights push an NPC from guarded → resentful → hostile unless repaired.
 
 4. **Rumor quality model**
+
    - high-arousal states increase exaggeration and certainty language.
 
 5. **Festival and crisis dynamics**

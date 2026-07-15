@@ -19,6 +19,27 @@ context. Attach only:
 Do not attach previous failed/generated plates when testing one-shot behavior.
 Do not attach hand-authored per-location interpretation notes.
 
+Generated control images are aids, not truth. If a deterministic or generated
+preprocessing/control image contains a continuous wall, hedge, road, path,
+seam, crop row, or vegetation chain that is absent from the raw map crop or
+aligns with a cleaned/suppressed administrative boundary, the raw/cleaned map
+must veto it. Treat top-down control boundaries as symbolic unless corroborated
+by the original map.
+
+When possible, prefer deterministic/literal controls over freehand generated
+top-down plan controls. A useful control should preserve crop extent and feature
+uncertainty: roads, building marks, planted regions, tree masses, open fields,
+and suppressed-admin/no-data areas. It should not beautify the scene, choose a
+prettier crossroads composition, complete uncertain enclosures, or redraw
+ordinary parcel lines as confident walls.
+
+Style-reference hygiene is part of the recipe. If a style reference is used, it
+must be an approved crop with no labels, UI, people, animals, smoke, churches,
+bridges, water, carts, loose props, chimneys, or partial doorless buildings.
+Prefer exactly-one-building references where the whole visible walkable building
+has a readable doorway and threshold. Reject crops that only fix the main house
+while leaving a foreground/background building fragment without a door.
+
 ## Prompt Template
 
 ```text
@@ -89,6 +110,40 @@ The image should look like an illustrated historical parish notebook world layer
 - readable 2.5D game-board terrain
 
 Do not over-render grass, roofs, stones, or fields into photographic detail. Use broad watercolor shapes plus ink texture. If realistic prettiness conflicts with readable illustrated game terrain, choose readable illustrated game terrain.
+
+REGIONAL IRISH FIELD BOUNDARIES
+Do not turn every field boundary into a stone wall. Boundary material varies by
+Irish region and local landscape.
+
+For rural County Roscommon around 1820, default ordinary field and garden
+boundaries toward hedgerows, hedgebanks, banks, ditches, remnant hedges, and
+stone-earthen banks unless the map/control, gate/yard context, or local
+landscape clearly supports a full stone wall. Stone-earthen banks may show
+grass/earth banks faced with irregular stones and topped with native hedge
+growth. Continuous full dry-stone walls should be local and source-supported,
+not a universal wall grid.
+
+IRISH DRY-STONE WALL AUTHENTICITY
+Where a stone wall is source-supported, historic Irish rural stone walls are dry
+fit and irregular. They are not made from uniform rectangular blocks.
+
+- Render source-supported stone walls as mortarless dry-stone / fieldstone
+  boundaries.
+- Use locally gathered stones placed as found: mixed sizes, shapes, angles, and
+  orientations.
+- Include gaps, dark chinks, shadow pockets, rough interlock, uneven coping,
+  moss, lichen, weeds, grass at the base, and broken hand-built silhouettes.
+- In Burren/Aran-like limestone terrain, walls may be slabby and pale gray; in
+  other rural fields, use rough local fieldstone or bouldery walls.
+- Low field and garden boundaries may also be hedges, banks, ditches,
+  stone-earthen banks, broken dry-stone walls, or overgrown remnants; do not
+  make every line a continuous wall.
+- Gates and route crossings interrupt walls with rough openings, not clean
+  masonry portals.
+
+Avoid: uniform rectangular blocks, brick-like courses, castle/estate ashlar,
+smooth quarry-cut masonry, identical gray beads, tidy cobblestone chains,
+perfect rectilinear wall grids, and clean modern retaining-wall faces.
 
 CAMERA LOCK: FIXED ORTHOGRAPHIC ISOMETRIC / ISOMORPHIC
 This is non-negotiable.
@@ -248,7 +303,8 @@ Use the attached historic map as ground-plan truth, not as style.
      ditches, or overgrown stone walls by default.
    - They are not roads unless the map clearly shows road width, route
      continuity, or an entrance/exit.
-   - Render them as boundaries with occasional gates/openings only where real
+   - Render them as hedges, ditches, banks, broken dry-stone walls, or
+     overgrown boundary remnants with occasional gates/openings only where real
      roads pass through.
    - Do not convert single plot lines into decorative footpaths.
 
@@ -319,6 +375,8 @@ Use plausible rural Irish 1820 building logic. Keep this simple and physical.
 - Every roof sits on a complete building volume.
 - No roof fragments lying on roads, walls, hedges, or fields.
 - Use low fieldstone walls and hedges for boundaries.
+- Fieldstone walls are dry fit and irregular: no mortar, no uniform rectangular
+  blocks, no identical stone chains, no ashlar.
 - Gates interrupt boundaries wherever routes pass through.
 - Walls do not cross doors, roads, lanes, or yard entrances.
 - Avoid decorative freestanding vertical masonry/roof-stack artifacts.
@@ -348,6 +406,9 @@ Before finalizing, ensure:
 - Gates/openings are visible at boundaries.
 - Door thresholds connect to yards or paths.
 - No route is blocked by wall, hedge, tree, building, prop, or livestock.
+- Prominent stone walls look like authentic Irish dry-stone field walls:
+  mortarless, irregular, mixed-stone, gap-rich, mossy/weedy, and hand-built;
+  not uniform rectangular blockwork.
 - No dead-end path fragments.
 - No invented water features.
 - No visible smoke or smoke wisps.

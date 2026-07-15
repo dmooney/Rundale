@@ -1,0 +1,5 @@
+/status
+look
+/npcs
+/map
+wait

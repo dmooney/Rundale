@@ -1,0 +1,50 @@
+{
+	"name": "rundale-illustrated-notebook-ui",
+	"version": 1,
+	"source": "Generated/coded bitmap runtime kit. Concept art is visual reference only.",
+	"assets": {
+		"scenePlate": "scene-crossroads.png",
+		"topRibbon": "top-ribbon.png",
+		"spiralNotebookPage": "spiral-notebook-page.png",
+		"notebookBindingRings": "notebook-binding-rings.png",
+		"sideTabs": [
+			"side-tab-notes.png",
+			"side-tab-people.png",
+			"side-tab-places.png",
+			"side-tab-rumours.png",
+			"side-tab-journal.png"
+		],
+		"intentParchmentStrip": "intent-parchment-strip.png",
+		"handwrittenInputLine": "handwritten-input-line.png",
+		"inkStampSend": "ink-stamp-send.png",
+		"actionStampFrames": [
+			"action-stamp-frame-a.png",
+			"action-stamp-frame-b.png",
+			"action-stamp-frame-c.png"
+		],
+		"actionIcons": {
+			"talk": "action-icon-talk.png",
+			"ask": "action-icon-ask.png",
+			"help": "action-icon-help.png",
+			"observe": "action-icon-observe.png",
+			"leave": "action-icon-leave.png"
+		},
+		"nearbyPortraitStrip": "nearby-portrait-strip.png",
+		"nearbyPortraitCardFrame": "nearby-portrait-card-frame.png",
+		"portraits": [
+			"portrait-placeholder-1.png",
+			"portrait-placeholder-2.png",
+			"portrait-placeholder-3.png",
+			"portrait-placeholder-4.png"
+		],
+		"activeIntentsCard": "active-intents-card.png",
+		"mapCard": "map-card.png",
+		"timeCard": "time-card.png",
+		"mapIcon": "map-icon.png",
+		"timeIcon": "time-icon.png",
+		"paperExitLabel": "paper-exit-label.png",
+		"npcSelectionRing": "npc-selection-ring.png",
+		"playerMarker": "player-marker.png",
+		"npcMarkers": ["npc-marker-1.png", "npc-marker-2.png", "npc-marker-3.png"]
+	}
+}

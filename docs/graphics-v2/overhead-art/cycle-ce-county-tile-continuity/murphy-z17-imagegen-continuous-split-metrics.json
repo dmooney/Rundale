@@ -1,0 +1,14 @@
+{
+  "input": "docs/graphics-v2/overhead-art/cycle-ce-county-tile-continuity/murphy-z17-imagegen-continuous-supertile.png",
+  "original_size": [1402, 1122],
+  "normalized_size": [1280, 1024],
+  "grid": "5x4",
+  "tile_size": 256,
+  "tile_count": 20,
+  "seam": {
+    "seam_mean_abs_luma_jump": 10.781063216073173,
+    "nearby_control_mean_abs_luma_jump": 10.685671738215856,
+    "seam_to_control_ratio": 1.008927045504885
+  },
+  "max_abs_reassembly_error": 0
+}

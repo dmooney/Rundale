@@ -11,6 +11,7 @@ to produce control images for clean-context image-generation experiments
 without hand-authored per-location interpretation.
 
 Outputs:
+
 - `grove-target-v3-ink-mask.png`
 - `grove-target-v3-semantic-mask.png`
 - `grove-target-v3-oblique-raw-warp.png`
