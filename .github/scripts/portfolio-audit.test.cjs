@@ -1,6 +1,8 @@
 "use strict";
 
 const assert = require("node:assert/strict");
+const fs = require("node:fs");
+const path = require("node:path");
 const test = require("node:test");
 const {
   auditIssue,
@@ -34,6 +36,49 @@ function activeIssue(overrides = {}) {
     ...overrides,
   };
 }
+
+function issueTriggerEventTypes(workflow) {
+  const issueTrigger = workflow.match(
+    /^ {2}issues:[ \t]*\r?\n {4,}types:[ \t]*\[([^\]\r\n]+)\][ \t]*\r?$/m,
+  );
+
+  assert.ok(issueTrigger, "triage audit must retain its issues trigger");
+  return issueTrigger[1]
+    .split(",")
+    .map((event) => event.trim().replace(/^(['"])(.*)\1$/, "$2"));
+}
+
+test("triage audit runs for newly opened issues", () => {
+  const workflowPath = path.join(__dirname, "..", "workflows", "triage-audit.yml");
+  const workflow = fs.readFileSync(workflowPath, "utf8");
+  const eventTypes = issueTriggerEventTypes(workflow);
+  assert.ok(eventTypes.includes("opened"), "issues trigger must include opened");
+});
+test("triage audit parser accepts CRLF, spacing, and quoted inline event types", () => {
+  const workflow = [
+    "on:",
+    "  issues:   ",
+    "      types: [\"opened\", 'edited']",
+    "  pull_request:",
+    "    types: [opened]",
+    "",
+  ].join("\r\n");
+
+  assert.deepEqual(issueTriggerEventTypes(workflow), ["opened", "edited"]);
+});
+
+test("triage audit sensor does not borrow opened from pull_request", () => {
+  const workflow = [
+    "on:",
+    "  issues:",
+    "    types: [edited, closed]",
+    "  pull_request:",
+    "    types: [opened]",
+    "",
+  ].join("\n");
+
+  assert.equal(issueTriggerEventTypes(workflow).includes("opened"), false);
+});
 
 test("a complete active issue passes the portfolio audit", () => {
   assert.deepEqual(auditIssue(activeIssue(), vocabulary).problems, []);
