@@ -4,7 +4,7 @@ on:
   schedule:
     - cron: "0 9 * * MON"
   issues:
-    types: [reopened, edited, labeled, unlabeled, closed]
+    types: [opened, reopened, edited, labeled, unlabeled, closed]
   workflow_dispatch:
   pull_request:
     branches: [main]
