@@ -2,13 +2,24 @@
 
 > [Docs Index](../index.md)
 >
-> Last updated: 2026-05-25
+> Last updated: 2026-07-14
 
 This is the authoritative status view for Rundale + the Parish engine. The
 project no longer tracks a single linear phase pointer — it ships features
 across many subsystems in parallel. The **feature-status matrix** below is the
 source of truth; the historical linear phases are preserved at the bottom for
 provenance.
+
+## Portfolio tracking
+
+The [event-driven improvement drain](../agent/improvement-drain.md) defines how
+work is promoted, bounded, proven, and landed. GitHub Issues are the executable
+source of truth: illustrated-notebook work is tracked by
+[#1626](https://github.com/dmooney/Rundale/issues/1626), and current benchmark
+signal work by [#1685](https://github.com/dmooney/Rundale/issues/1685).
+Proposed roadmap capabilities remain `Later` until they have a funded outcome,
+decision-complete acceptance criteria, a proof strategy, and an activation
+trigger.
 
 ## Status legend
 
@@ -40,14 +51,15 @@ provenance.
 | Tauri 2 + Svelte 5 desktop GUI                      | Implemented | [GUI Design](../design/gui-design.md)                                        | [016](../adr/016-tauri-svelte-gui.md)                                                                         |
 | Web server mode (Chrome testing / axum)             | Implemented | —                                                                            | [014](../adr/014-web-mobile-architecture.md), [023](../adr/023-web-testing-server.md)                         |
 | Full web & mobile client                            | Partial     | [Phase 7 plan](../plans/phase-7-web-mobile.md)                               | [014](../adr/014-web-mobile-architecture.md)                                                                  |
-| Save / load UI (GUI)                                | Planned     | [Save/Load UI plan](../plans/phase-9-save-load-ui.md)                        | —                                                                                                             |
+| Illustrated notebook play surface                   | In progress | [Illustrated Notebook roadmap](../plans/illustrated-notebook-roadmap.md)     | —                                                                                                             |
+| Save / load UI (GUI)                                | In progress | [Save/Load UI plan](../plans/phase-9-save-load-ui.md)                        | —                                                                                                             |
 | Parish Designer (in-GUI data editor)                | Implemented | [Designer Editor](../design/designer-editor.md)                              | —                                                                                                             |
 | Debug system & debug UI                             | Implemented | [Debug System](../design/debug-system.md), [Debug UI](../design/debug-ui.md) | —                                                                                                             |
 | Ambient sound                                       | Implemented | [Ambient Sound](../design/ambient-sound.md)                                  | [015](../adr/015-ambient-sound-system.md)                                                                     |
 | parish-geo-tool (OSM pipeline)                      | Implemented | [Geo-Tool](../design/geo-tool.md)                                            | [011](../adr/011-geo-tool-osm-pipeline.md)                                                                    |
 | Testing harness                                     | Implemented | [Testing Harness](../design/testing.md)                                      | —                                                                                                             |
 | rundale-bench model-quality benchmark               | In progress | [Rundale-Bench plan](../plans/rundale-bench.md)                              | —                                                                                                             |
-| LLM-as-judge quality evals                          | Proposed    | [LLM Quality Evals plan](../plans/llm-quality-evals.md)                      | —                                                                                                             |
+| LLM-as-judge quality evals                          | Partial     | [LLM Quality Evals plan](../plans/llm-quality-evals.md)                      | —                                                                                                             |
 | Promptfoo pentest harness                           | Proposed    | [Promptfoo Pentest plan](../plans/promptfoo-pentest-plan.md)                 | —                                                                                                             |
 | Hiberno-English dialogue fine-tune                  | Proposed    | [Gemma 4 training plan](../plans/gemma4-rundale-training-plan.md)            | [005](../adr/005-ollama-local-inference.md)                                                                   |
 | LLM demo / auto-player mode                         | Implemented | [Demo mode plan](../plans/archive/demo-mode.md)                              | —                                                                                                             |
@@ -69,7 +81,7 @@ reflected in the matrix above.
 | 6 — Polish & Mythology | [active](../plans/phase-6-polish-mythology.md)         | Planned                                                                                                  |
 | 7 — Web & Mobile       | [active](../plans/phase-7-web-mobile.md)               | Partial — web server shipped; egui-WASM approach superseded by [ADR-016](../adr/016-tauri-svelte-gui.md) |
 | 8 — Tauri GUI Rewrite  | [archive](../plans/archive/phase-8-tauri-gui.md)       | Complete                                                                                                 |
-| 9 — Save/Load UI       | [active](../plans/phase-9-save-load-ui.md)             | Planned                                                                                                  |
+| 9 — Save/Load UI       | [active](../plans/phase-9-save-load-ui.md)             | In progress — notebook overlay tracked by #1626 / #1644                                                  |
 
 ## Open questions
 

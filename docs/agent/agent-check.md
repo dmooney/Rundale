@@ -5,7 +5,7 @@
 The script has two source modes:
 
 - `bash parish/scripts/agent-check.sh --source=local` (default) — validates the bundle that lives at `.proofs/<task-id>/` on disk. This is what `just agent-check` runs, and what the Stop hook expects before a session can end. Bundles in `.proofs/` are gitignored.
-- `bash parish/scripts/agent-check.sh --source=pr <number>` — validates the bundle that was posted to a PR as a structured comment via `just attach-proof`. CI uses this mode on `pull_request` events; the comment must contain a `<!-- parish-proof-bundle:<task-id> v=1 -->` fenced block.
+- `bash parish/scripts/agent-check.sh --source=pr <number>` — validates the bundle embedded in the PR body via `just attach-proof`; a structured comment remains a legacy fallback. CI uses this mode on `pull_request` events and reads the `<!-- parish-proof-bundle:<task-id> v=1 -->` fenced block.
 
 Run it locally with `just agent-check`. It is also part of `just check` and `just verify`.
 
@@ -75,7 +75,8 @@ The Stop hook (`.claude/hooks/Stop--proof-required.sh`) blocks session-end with 
 ## Belt-and-suspenders Lints
 
 - Any `.proofs/<...>` path appearing in the git diff is rejected — bundles are gitignored and are carried in the PR body (or a comment), never committed.
-- Changed files are scanned for placeholder debt markers (`todo!()`, `unimplemented!()`, `pass # TODO`, etc.) that often indicate partial completion.
+- Changed files are scanned for language-specific unfinished-work macros and
+  placeholder comments that often indicate partial completion.
 
 ## Acceptance Criteria Requirement
 
