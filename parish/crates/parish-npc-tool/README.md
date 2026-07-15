@@ -30,7 +30,7 @@ parish-npc-tool family-tree 12345
 parish-npc-tool relationships 12345
 ```
 
-See [`docs/design/scalable-npc-data-design.md`](../../docs/design/scalable-npc-data-design.md) for the full design.
+See [`docs/design/scalable-npc-data-design.md`](../../../docs/design/scalable-npc-data-design.md) for the full design.
 
 ## Audience
 

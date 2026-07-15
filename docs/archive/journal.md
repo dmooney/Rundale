@@ -1,6 +1,6 @@
 # Rundale Development Journal
 
-> [Docs Index](index.md)
+> [Docs Index](../index.md)
 
 Notes, observations, and recommendations carried between sessions.
 
