@@ -305,6 +305,20 @@ impl Db {
         Ok(())
     }
 
+    /// Record issue URLs for many findings in a single transaction — one commit
+    /// (one fsync) instead of N. Used by the `backfill-issues` pass.
+    pub fn set_finding_issue_urls_batch(&self, updates: &[(i64, &str)]) -> Result<()> {
+        let tx = self.conn.unchecked_transaction()?;
+        {
+            let mut stmt = tx.prepare("UPDATE findings SET issue_url = ?1 WHERE id = ?2")?;
+            for (id, url) in updates {
+                stmt.execute(params![url, id])?;
+            }
+        }
+        tx.commit()?;
+        Ok(())
+    }
+
     /// Aggregate cost summary across all runs (sums `cost_usd`, `player_tokens`,
     /// `judge_tokens`).
     ///

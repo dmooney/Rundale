@@ -467,8 +467,8 @@ Both log `tracing::debug!` at startup. Serialisation errors inside either loop s
 
 ## Source Modules
 
-- [`crates/parish-core/src/inference/`](../../crates/parish-core/src/inference/) — OpenAI-compatible HTTP client, inference queue, worker, log
-- [`crates/parish-diagnostics/src/debug_snapshot/`](../../crates/parish-diagnostics/src/debug_snapshot/) — `InferenceLogEntry`, `InferenceDebug` structs (re-exported as `parish_core::debug_snapshot`)
-- [`src/inference/`](../../src/inference/) — Root crate inference (headless mode)
-- [`src/input/`](../../src/input/) — Player input parsing
-- [`src/npc/`](../../src/npc/) — NPC context construction
+- [`parish-inference`](../../parish/crates/parish-inference/src/) — inference queue, worker, validation, and logs
+- [`parish-diagnostics/debug_snapshot`](../../parish/crates/parish-diagnostics/src/debug_snapshot/) — `InferenceLogEntry`, `InferenceDebug` structs (re-exported as `parish_core::debug_snapshot`)
+- [`parish-providers`](../../parish/crates/parish-providers/src/) — provider HTTP clients and simulator/mock backends
+- [`parish-input`](../../parish/crates/parish-input/src/) — Player input parsing
+- [`parish-npc`](../../parish/crates/parish-npc/src/) — NPC context construction

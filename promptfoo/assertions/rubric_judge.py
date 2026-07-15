@@ -64,15 +64,75 @@ def get_assert(output, context):
         }
 
     named = {k: float(v) for k, v in axes.items()}
+
+    # §3.7: recompute overall from named scores using explicit weights when the
+    # v2 dialogue axes are present. This removes judge arithmetic variance and
+    # mirrors the live harness's coherence/character 1.5 priority.
+    _DIALOGUE_V2_WEIGHTS = {
+        "character": 1.5,
+        "mood_fidelity": 1.5,
+        "grounding": 1.5,
+        "brevity": 1.25,
+        "repetition": 1.25,
+        "responsiveness": 1.0,
+        "authenticity": 1.0,
+        "language": 0.75,
+        "craft": 0.5,
+    }
+    v2_axes = set(_DIALOGUE_V2_WEIGHTS.keys())
+    if v2_axes.issubset(set(axes.keys())) and slice_name == "dialogue":
+        # All v2 axes present — recompute overall in code, ignore judge's value.
+        weight_sum = sum(_DIALOGUE_V2_WEIGHTS.values())
+        overall = sum(_DIALOGUE_V2_WEIGHTS[k] * axes[k] for k in _DIALOGUE_V2_WEIGHTS) / weight_sum
+        overall = round(overall, 1)
+
+    # §3.7 (multiturn): recompute the multiturn overall from axes in code so it
+    # doesn't depend on the judge's arithmetic — mirrors the dialogue recompute above.
+    _MULTITURN_V2_WEIGHTS = {
+        "continuity": 1.5,
+        "name_fidelity": 1.5,
+        "no_premature_farewell": 1.25,
+        "persona_consistency": 1.25,
+        "memory_retention": 1.0,
+        "freshness": 0.5,
+    }
+    mt_axes = set(_MULTITURN_V2_WEIGHTS.keys())
+    if mt_axes.issubset(set(axes.keys())) and slice_name == "multiturn":
+        # All multiturn v2 axes present — recompute overall in code, ignore judge's value.
+        weight_sum = sum(_MULTITURN_V2_WEIGHTS.values())
+        overall = (
+            sum(_MULTITURN_V2_WEIGHTS[k] * axes[k] for k in _MULTITURN_V2_WEIGHTS) / weight_sum
+        )
+        overall = round(overall, 1)
+
     named["overall"] = float(overall)
+
     if flags.get("non_latin_detected"):
         named["non_latin"] = 1.0
+
+    # §3.2/§3.4: hard-floor flags — degenerate_loop and fabricated force a fail
+    # regardless of overall score. These are model-quality signals, not bench bugs.
+    hard_fail = False
+    if flags.get("degenerate_loop"):
+        named["degenerate_loop"] = 1.0
+        hard_fail = True
+    if flags.get("fabricated"):
+        named["fabricated"] = 1.0
+        hard_fail = True
+
+    passed = (overall >= 3.0) and not hard_fail
+
     return {
-        "pass": overall >= 3.0,
+        "pass": passed,
         "score": overall / 5.0,
         "reason": (
             f"{slice_name} judged by {res.get('judge_model')}: overall {overall:.1f} "
             f"({', '.join(f'{k}={v}' for k, v in axes.items())})"
+            + (
+                f" [HARD FAIL: {','.join(k for k in ('degenerate_loop', 'fabricated') if flags.get(k))}]"
+                if hard_fail
+                else ""
+            )
         ),
         "namedScores": named,
     }

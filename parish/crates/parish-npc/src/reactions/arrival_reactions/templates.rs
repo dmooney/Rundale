@@ -86,6 +86,9 @@ pub struct IntroductionTemplates {
     /// Casual introductions elsewhere.
     #[serde(default)]
     pub casual: Vec<String>,
+    /// First-contact introductions for calculating/shrewd NPCs.
+    #[serde(default = "default_calculating_introductions")]
+    pub calculating: Vec<String>,
 }
 
 /// Occupation-specific greetings used outside the workplace.
@@ -275,7 +278,17 @@ pub(crate) fn default_introductions() -> IntroductionTemplates {
             "\"I'm {name}. I don't think I've seen you about before,\" they say.".into(),
             "\"And you are? I'm {first_name},\" they say with a friendly nod.".into(),
         ],
+        calculating: default_calculating_introductions(),
     }
+}
+
+pub(crate) fn default_calculating_introductions() -> Vec<String> {
+    vec![
+        "\"{name}, the {occupation},\" they say, taking your measure before the welcome. \"What business brings you?\"".into(),
+        "\"{name},\" they say, eyes weighing you like a sack on the scale. \"State your business plainly.\"".into(),
+        "\"I'm {name},\" they say, appraising you from boots to brow. \"We'll see what terms bring you here.\"".into(),
+        "\"{first_name},\" they say, measuring the morning and your face together. \"What price is your errand worth?\"".into(),
+    ]
 }
 
 pub(crate) fn default_occupation_greetings() -> OccupationGreetings {

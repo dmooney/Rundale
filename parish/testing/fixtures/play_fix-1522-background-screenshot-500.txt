@@ -1,0 +1,6 @@
+# fix-1522-background-screenshot-500
+# Infrastructure repro note: issue #1522 concerns the Tauri screenshot command
+# and is verified by focused Rust tests in parish-tauri, not by scripted player
+# movement. See .proofs/fix-1522-background-screenshot-500/acceptance-criteria.md.
+
+/time

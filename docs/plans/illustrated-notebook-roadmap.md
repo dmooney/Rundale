@@ -1,0 +1,179 @@
+# Roadmap: Illustrated Notebook UI
+
+Status: Active roadmap after the Pixi notebook foundation pass.
+
+This is the source of truth for finishing the Rundale illustrated notebook play
+surface. GitHub issues should track executable slices; this document preserves
+the shared direction, acceptance bar, and ordering.
+
+## North Star
+
+The default Rundale play screen should read as an illustrated notebook game:
+full-bleed storybook scene, in-world markers, parchment UI, sketched people,
+stamp actions, and a handwritten command line. Svelte remains the host shell and
+backend bridge, but the first viewport stays Pixi-rendered and asset-driven.
+
+Non-negotiables:
+
+- No visible old dashboard chrome, persistent columns, old map panel, mobile
+  toolbar, or debug toolbar in the first viewport.
+- No visible `InputField.svelte`, `.input-wrapper`, `.input-form`, rectangular
+  text box, or old SEND button in the first viewport.
+- Runtime notebook UI is primarily bitmap/Pixi asset composition, not CSS boxes.
+- Backgrounds and runtime visual-scene metadata come from written descriptions,
+  not historical map image references.
+- Prompts/metadata use wide elevated oblique storybook language, not strict
+  isometric/isomorphic requirements.
+- Desktop and mobile screenshots are required for every visible slice.
+
+## Current Baseline
+
+The foundation pass added:
+
+- A PixiJS play surface hosted by
+  `IllustratedNotebookGame.svelte`.
+- A runtime bitmap asset kit under
+  `parish/apps/ui/static/rundale/notebook-ui/`.
+- Initial depth-scaled markers, in-world labels, Nearby rail, notebook page,
+  action stamps, command strip, Map/Time cards, and Active Intents card.
+- A hidden native input for keyboard/accessibility with Pixi-rendered visible
+  command treatment.
+- Visual-scene metadata/tests rejecting historical map reference language and
+  strict isometric/isomorphic runtime requirements.
+- Proof screenshots at 1440x900 and 390x844.
+
+Known gaps:
+
+- Portrait and marker art is still simple placeholder linework.
+- Marker/tabs/cards/stamps need complete hover, focus, click, and keyboard
+  affordances.
+- Command editing lacks polished caret/selection/history/autocomplete behavior.
+- Most secondary overlays still need notebook-styled wrappers.
+- Scene anchors/depth bands need per-location coverage.
+- Mobile layout is acceptable but not yet deeply tuned.
+
+## Epic And Slice Issues
+
+Create one epic issue named:
+
+- `Epic: finish the illustrated notebook game UI`
+
+Create these vertical-slice issues and link them from the epic:
+
+1. `Pixi notebook interactions: hit targets, hover/focus, and routing`
+2. `Notebook person and marker art system`
+3. `Notebook command strip v2`
+4. `Notebook secondary overlays and drawers`
+5. `Rundale location scene metadata and anchor pipeline`
+6. `Notebook mobile layout hardening`
+7. `Notebook visual regression and asset provenance gates`
+
+Each slice should be implemented as a complete user-visible step: art/data,
+renderer behavior, interaction wiring, tests, and fresh screenshots in one PR.
+Do not split pure art from the system that consumes it unless the art is already
+independently usable and documented.
+
+## Slice Acceptance Criteria
+
+### 1. Pixi notebook interactions
+
+- All visible first-viewport controls have Pixi hit targets and cursor/hover
+  states: NPC markers, Nearby portraits, notebook tabs, action stamps, send
+  affordance, Map/Time cards, and Active Intents card.
+- Clicks route through existing stores/overlay state; no old persistent dashboard
+  panels return to the first viewport.
+- Keyboard focus has a visible notebook-native treatment where applicable.
+- Tests cover hit target dispatch and default selected-person behavior.
+- Desktop/mobile screenshots prove the first viewport remains notebook-native.
+
+### 2. Person and marker art system
+
+- Replace generic placeholder portraits with approved tiny notebook portrait
+  assets for the initial Rundale cast shown in the Nearby rail/notebook page.
+- Replace simple body markers with a small readable sprite/marker set using
+  depth-scale rules and selection-ring readability.
+- Add manifest/provenance entries for portraits and markers.
+- Tests verify fallback behavior for NPCs without approved art.
+- Screenshots prove people read as sketched notebook/game assets, not web icons.
+
+### 3. Command strip v2
+
+- Visible command text, caret, focus, placeholder, busy, disabled, and error
+  states remain Pixi/notebook-rendered.
+- Enter submits, stamp buttons seed commands, send affordance submits, and input
+  clears/focuses predictably through existing `submitInput`.
+- Add command history navigation.
+- Decide separately whether mentions/slash autocomplete returns in this slice;
+  if it does, it must use notebook-native rendering, not `InputField.svelte`.
+- Tests cover submit, history, busy/error, seeded actions, and absence of old
+  input chrome.
+
+### 4. Secondary overlays and drawers
+
+- Journal/chat, People, Focail, Map, Save/Load, Debug, Mod, and Bug Report open
+  from notebook tabs/cards/shortcuts as drawers or modal overlays.
+- Overlay wrappers match the notebook art direction and visually isolate any
+  reused legacy Svelte internals.
+- Closing an overlay restores the Pixi first viewport without layout shift.
+- Tests cover each routing entry point.
+- Screenshots include at least one representative overlay on desktop and mobile.
+
+### 5. Location scene metadata and anchor pipeline
+
+- Add per-location scene metadata for the first playable village loop:
+  Kilteevan Village, The Forge, The Holy Well, The Mill, The Weaver's Cottage,
+  St. Brigid's Church, Murphy's Farm, The Lime Kiln, The Letter Office, and The
+  Crossroads.
+- Each location has a written visual summary, plate asset path, camera hint,
+  player/NPC/exit anchors, and depth bands.
+- Metadata tests continue to reject historical map reference language and strict
+  isometric/isomorphic requirements.
+- Renderer falls back gracefully when metadata or plate assets are missing.
+- Screenshots prove at least three different locations use distinct anchors.
+
+### 6. Mobile layout hardening
+
+- 390x844 keeps the same notebook language without old mobile toolbar/dashboard
+  chrome.
+- Nearby rail, notebook page, markers, action stamps, and command strip avoid
+  overlap and clipped labels.
+- Mobile can intentionally collapse Map/Time and Active Intents, but the route
+  to those surfaces remains available.
+- Add layout tests for narrow, short, and tall mobile viewports.
+- Capture fresh mobile screenshots for every mobile layout change.
+
+### 7. Visual regression and provenance gates
+
+- Add a repeatable screenshot capture/check path for the notebook first
+  viewport.
+- Add selector regression checks for legacy first-viewport chrome.
+- Add asset manifest/provenance checks so runtime assets are documented and not
+  concept-image slices.
+- Add visual-scene metadata checks for banned source-map/projection language.
+- Document how to regenerate or replace each asset class.
+
+## Definition Of Done
+
+Every notebook UI PR must include:
+
+- Focused unit/component tests for behavior touched.
+- Relevant `parish-world` tests if scene metadata or prompt/provenance rules
+  change.
+- `fnm exec --using 22 npm run check`, `lint`, `format:check`, and `build` when
+  frontend code changes.
+- Fresh desktop and mobile screenshots from the running app.
+- `just agent-check` with a local proof bundle when runtime-shipping files
+  change.
+- A PR body that states whether old `InputField.svelte` and dashboard chrome are
+  absent from the first viewport.
+
+## Issue Labels
+
+Use:
+
+- Epic: `epic`, `frontend`, `ux`, `P1`
+- Slices: `frontend`, `ux`, `enhancement`, `P1`
+- Asset/provenance-heavy slices may also use `documentation` when docs change.
+
+Avoid `bug` unless a slice fixes a shipped regression rather than completing the
+planned notebook UI.

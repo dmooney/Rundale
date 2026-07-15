@@ -1,0 +1,8 @@
+# fix-1534-double-address-runon
+# Repro: a canned NPC reply with the exact #1534 stacked-vocative tail must be
+# polished by the dialogue post-generation pipeline before it reaches output.
+
+/wait 90
+go to Darcy's Pub
+/stub Padraig Darcy: Do ye have need of him or his guidance, then, friend stranger, or just curious to know the man of God in these parts?
+talk to Padraig Darcy about Is Father Declan the man I should speak with about parish matters?

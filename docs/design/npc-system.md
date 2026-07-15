@@ -88,7 +88,7 @@ All LLM responses for NPC behavior should be structured JSON:
 
 ## Source Modules
 
-- [`crates/parish-core/src/npc/`](../../crates/parish-core/src/npc/) — NPC data model, behavior, cognition tiers
-- [`crates/parish-core/src/npc/conversation.rs`](../../crates/parish-core/src/npc/conversation.rs) — ConversationLog, ConversationExchange
-- [`crates/parish-core/src/npc/ticks.rs`](../../crates/parish-core/src/npc/ticks.rs) — Prompt builders, witness memories, response processing
-- [`crates/parish-core/src/npc/memory.rs`](../../crates/parish-core/src/npc/memory.rs) — Short-term and long-term memory
+- [`parish-npc`](../../parish/crates/parish-npc/src/) — NPC data model, behavior, and cognition tiers
+- [`parish-types/src/conversation.rs`](../../parish/crates/parish-types/src/conversation.rs) — ConversationLog and ConversationExchange
+- [`parish-npc/src/ticks.rs`](../../parish/crates/parish-npc/src/ticks.rs) — NPC update ticks
+- [`parish-npc/src/memory.rs`](../../parish/crates/parish-npc/src/memory.rs) — Short-term and long-term memory

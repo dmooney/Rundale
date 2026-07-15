@@ -1,0 +1,11 @@
+# fix-1532-absent-priest-feedback
+# Repro: a natural-language question for an absent rostered NPC at an empty
+# church must produce explicit feedback, not silence.
+
+/time
+/wait 90
+/time
+go to St. Brigid's Church
+/debug here
+
+Is Father Declan here? I should like to introduce myself to the parish priest.

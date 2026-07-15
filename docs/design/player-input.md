@@ -98,5 +98,5 @@ Debug commands use the same `/` prefix as system commands. All are feature-gated
 
 ## Source Modules
 
-- [`src/input/`](../../src/input/) — Player input parsing, command detection
-- [`src/inference/`](../../src/inference/) — LLM-based intent parsing
+- [`parish-input`](../../parish/crates/parish-input/src/) — Player input parsing and command detection
+- [`parish-inference`](../../parish/crates/parish-inference/src/) — LLM-based intent parsing

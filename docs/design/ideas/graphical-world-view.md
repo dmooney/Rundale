@@ -1,10 +1,10 @@
 # Graphical World View — Procedural Pixel Scenes
 
-> Status: Superseded — see [Interactive Parish Diorama](parish-diorama.md) · Updated: 2026-06-12 · [Docs Index](../../index.md)
+> Status: Superseded — see [Interactive Parish Diorama](parish-diorama.md) · Updated: 2026-06-17 · [Docs Index](../../index.md)
 >
-> The AI-curated scene-plate approach in the diorama RFC replaces the
-> procedural sprite/scene generation proposed here; the serving route shapes
-> and scene-panel concept below are carried forward.
+> The runtime-composed diorama RFC incorporates this document's deterministic
+> sprite/scene-composition direction while keeping the newer diorama UX,
+> scene-state, and hotspot contract.
 
 > [Docs Index](../../index.md) · [Architecture Overview](../overview.md) · [GUI Design](../gui-design.md) · [Map Evolution](map-evolution.md) — RFC
 

@@ -11,6 +11,11 @@
 // helpers are the deterministic, model-agnostic backstop: they need no live
 // inference and run identically for every provider.
 
+use std::sync::OnceLock;
+
+use crate::types::RelationshipKind;
+use parish_types::time::TimeOfDay;
+
 /// Normalizes a dialogue line for repetition comparison.
 ///
 /// Lower-cases, collapses internal whitespace to single spaces, and trims
@@ -22,6 +27,15 @@ fn normalize_for_repetition(s: &str) -> String {
     collapsed
         .trim_matches(|c: char| c.is_whitespace() || matches!(c, '.' | '!' | '?' | '…' | ',' | ';'))
         .to_string()
+}
+
+fn text_seed(s: &str) -> u64 {
+    let mut hash = 0xcbf29ce484222325u64;
+    for byte in s.bytes() {
+        hash ^= u64::from(byte);
+        hash = hash.wrapping_mul(0x100000001b3);
+    }
+    hash
 }
 
 /// Splits a dialogue body into sentence-ish units on terminal punctuation,
@@ -388,13 +402,55 @@ pub fn guard_against_repetition(
 /// Cycles through a small pool to avoid repeated identical responses.
 fn non_recognition_decline(seed: u64) -> &'static str {
     const DECLINES: &[&str] = &[
-        "I know no one by that name in these parts.",
         "That name is not known to me hereabouts.",
-        "I cannot say I've ever heard of such a person here.",
-        "No one by that name that I know of in this parish.",
-        "I know of no such person — you may have the wrong parish entirely.",
+        "I cannot place that name among the folk here.",
+        "No parish face comes to mind for that name.",
+        "That is not a name I have heard in these parts.",
+        "I cannot put a parish face to that name.",
     ];
     DECLINES[(seed as usize) % DECLINES.len()]
+}
+
+/// Minimal speaker context used by deterministic dialogue polish guards.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DialogueSpeakerContext {
+    /// Speaker's display/roster name.
+    pub name: String,
+    /// Speaker's current occupation or role.
+    pub occupation: String,
+    /// Speaker's current mood label.
+    pub mood: String,
+}
+
+impl DialogueSpeakerContext {
+    fn is_shopkeeper(&self) -> bool {
+        self.occupation.to_lowercase().contains("shopkeeper")
+    }
+}
+
+fn shopkeeper_non_recognition_decline(seed: u64) -> &'static str {
+    const DECLINES: &[&str] = &[
+        "I keep a sharp account at this counter, and that is not a name I can place.",
+        "No account in this shop comes to mind for that name.",
+        "I know the names that cross my counter, and that one has not passed it.",
+        "If that name trades in this parish, it has not crossed my counter.",
+        "No order, debt, or bag of goods brings that name to mind.",
+    ];
+    DECLINES[(seed as usize) % DECLINES.len()]
+}
+
+fn non_recognition_decline_for_speaker(
+    seed: u64,
+    speaker: Option<&DialogueSpeakerContext>,
+) -> &'static str {
+    if speaker
+        .map(DialogueSpeakerContext::is_shopkeeper)
+        .unwrap_or(false)
+    {
+        return shopkeeper_non_recognition_decline(seed);
+    }
+
+    non_recognition_decline(seed)
 }
 
 /// Denial markers used by both the affirmation check and the pronoun-referent
@@ -480,6 +536,10 @@ fn dialogue_affirms_name(dialogue: &str, name: &str) -> bool {
         "a fine man",
         "a fine woman",
         "good woman",
+        "i've heard of",
+        "i have heard of",
+        "heard the talk of",
+        "heard tell of",
         "i know him",
         "i know her",
         "know him well",
@@ -861,6 +921,27 @@ fn name_in_roster(
     false
 }
 
+/// Returns true when a title-cased candidate extracted by the person guard is
+/// actually a known world place. Location matches allow partial contiguous
+/// references such as "Lough Ree" for "The Old Lough Ree Shore" without
+/// treating unrelated surnames like "Mary Church" as a place match for
+/// "Saint Mary's Church".
+fn name_is_known_location(candidate: &str, known_location_names: &[String]) -> bool {
+    let candidate_norm = normalize_for_repetition(candidate);
+    if candidate_norm.is_empty() {
+        return false;
+    }
+    let candidate_tokens: Vec<&str> = candidate_norm.split_whitespace().collect();
+
+    known_location_names.iter().any(|location| {
+        let location_norm = normalize_for_repetition(location);
+        let location_tokens: Vec<&str> = location_norm.split_whitespace().collect();
+        location_tokens
+            .windows(candidate_tokens.len())
+            .any(|window| window == candidate_tokens.as_slice())
+    })
+}
+
 /// Post-generation guard for fabricated-person confirmation (#1459, #1466, #1470).
 ///
 /// After dialogue completion is produced, scans the text for affirmative
@@ -926,6 +1007,32 @@ pub fn guard_fabricated_person_confirmation(
     player_name: Option<&str>,
     seed: u64,
 ) -> String {
+    guard_fabricated_person_confirmation_with_locations(
+        dialogue,
+        player_input,
+        known_person_names,
+        &[],
+        prior_player_inputs,
+        player_name,
+        seed,
+    )
+}
+
+/// Location-aware variant of [`guard_fabricated_person_confirmation`].
+///
+/// The person guard extracts title-cased bigrams/trigrams from the player input.
+/// Place names like "Lough Ree" have the same shape as human names, so callers
+/// with world context should pass known locations to prevent valid place-history
+/// answers from being replaced by "no such person" declines (#1569).
+pub fn guard_fabricated_person_confirmation_with_locations(
+    dialogue: &str,
+    player_input: &str,
+    known_person_names: &[String],
+    known_location_names: &[String],
+    prior_player_inputs: &[&str],
+    player_name: Option<&str>,
+    seed: u64,
+) -> String {
     if dialogue.trim().is_empty() {
         return dialogue.to_string();
     }
@@ -965,6 +1072,7 @@ pub fn guard_fabricated_person_confirmation(
             }
             // Only fabricated ones (not in roster, not the player's own name).
             !name_in_roster(candidate, known_person_names, player_name)
+                && !name_is_known_location(candidate, known_location_names)
         })
         .filter_map(|candidate| {
             candidate
@@ -989,7 +1097,9 @@ pub fn guard_fabricated_person_confirmation(
         .collect();
 
     for candidate in &candidates {
-        if name_in_roster(candidate, known_person_names, player_name) {
+        if name_in_roster(candidate, known_person_names, player_name)
+            || name_is_known_location(candidate, known_location_names)
+        {
             continue;
         }
         // Primary check: dialogue affirms the full fabricated name.
@@ -1066,7 +1176,9 @@ pub fn guard_fabricated_person_confirmation(
     //   4. The NPC reply contains a pronoun affirmation marker.
     //   5. The NPC reply contains no denial marker.
     let current_turn_has_fabricated_candidate = candidates.iter().any(|c| {
-        c.split_whitespace().count() >= 2 && !name_in_roster(c, known_person_names, player_name)
+        c.split_whitespace().count() >= 2
+            && !name_in_roster(c, known_person_names, player_name)
+            && !name_is_known_location(c, known_location_names)
     });
 
     if !current_turn_has_fabricated_candidate && !prior_player_inputs.is_empty() {
@@ -1084,6 +1196,7 @@ pub fn guard_fabricated_person_confirmation(
             .filter(|c| {
                 c.split_whitespace().count() >= 2
                     && !name_in_roster(c, known_person_names, player_name)
+                    && !name_is_known_location(c, known_location_names)
             })
             // Ambiguous-but-real: exclude if the same prior input also named a real
             // roster full name sharing the first name (too ambiguous to suppress).
@@ -1145,6 +1258,91 @@ pub fn guard_fabricated_person_confirmation(
 // This guard applies after collapse_repeated_sentences and the length cap.
 // It is conservative — it only removes clearly structural artifacts, not
 // legitimate prose.
+
+const STACKED_PLAYER_VOCATIVES: &[(&str, &str)] = &[
+    ("friend, stranger", "friend"),
+    ("friend stranger", "friend"),
+    ("stranger, friend", "stranger"),
+    ("stranger friend", "stranger"),
+];
+
+fn vocative_start_boundary(ch: Option<char>) -> bool {
+    match ch {
+        None => true,
+        Some(ch) => ch.is_whitespace() || matches!(ch, ',' | ';' | ':' | '.' | '!' | '?'),
+    }
+}
+
+fn vocative_end_boundary(ch: Option<char>) -> bool {
+    match ch {
+        None => true,
+        Some(ch) => matches!(ch, ',' | ';' | ':' | '.' | '!' | '?'),
+    }
+}
+
+fn match_replacement_case(original: &str, replacement: &str) -> String {
+    if original.chars().next().is_some_and(|ch| ch.is_uppercase()) {
+        let mut chars = replacement.chars();
+        if let Some(first) = chars.next() {
+            let mut out = first.to_uppercase().collect::<String>();
+            out.push_str(chars.as_str());
+            return out;
+        }
+    }
+    replacement.to_string()
+}
+
+fn replace_stacked_vocative_phrase(text: &str, needle: &str, replacement: &str) -> String {
+    let lower = text.to_ascii_lowercase();
+    let mut out = String::new();
+    let mut search_from = 0usize;
+    let mut last_emit = 0usize;
+
+    while search_from < lower.len() {
+        let Some(rel_start) = lower[search_from..].find(needle) else {
+            break;
+        };
+        let start = search_from + rel_start;
+        let end = start + needle.len();
+        let before = if start == 0 {
+            None
+        } else {
+            text[..start].chars().next_back()
+        };
+        let after = text[end..].chars().next();
+
+        if vocative_start_boundary(before) && vocative_end_boundary(after) {
+            out.push_str(&text[last_emit..start]);
+            let original = &text[start..end];
+            out.push_str(&match_replacement_case(original, replacement));
+            last_emit = end;
+            search_from = end;
+        } else {
+            search_from = start + 1;
+        }
+    }
+
+    if last_emit == 0 {
+        text.to_string()
+    } else {
+        out.push_str(&text[last_emit..]);
+        out
+    }
+}
+
+/// Removes adjacent player-address terms such as "friend stranger" (#1534).
+///
+/// These are generated as stacked vocatives rather than meaningful noun
+/// phrases, so the guard keeps the first address term and drops the second.
+/// Matching is intentionally narrow: the stacked phrase must end at punctuation
+/// or end-of-line to avoid rewriting ordinary comparative prose.
+pub fn strip_stacked_player_vocatives(dialogue: &str) -> String {
+    let mut result = dialogue.to_string();
+    for (needle, replacement) in STACKED_PLAYER_VOCATIVES {
+        result = replace_stacked_vocative_phrase(&result, needle, replacement);
+    }
+    result
+}
 
 /// Collapses non-consecutive near-duplicate sentences within a single dialogue
 /// string (#1460 — distributed repetition guard).
@@ -1589,6 +1787,8 @@ pub fn strip_consecutive_short_phrase_repeat(dialogue: &str) -> String {
 ///   first (N-1) sentences plus the trailing question — so the NPC remains
 ///   interactive. If the kept-N sentences already end with a `?`, no swap is made.
 /// - Short replies (<= `MAX_SENTENCE_COUNT` sentences) are returned unchanged.
+/// - Short replies (<= 45 words) are returned unchanged by the default
+///   4-sentence cap even when they contain 5 terse sentence units (#1561).
 ///
 /// The cap is intentionally conservative (4 sentences) — a natural NPC
 /// turn should deliver one thought in 2-3 sentences and optionally ask one
@@ -1614,6 +1814,11 @@ fn cap_sentence_count_with_limit(dialogue: &str, max: usize) -> String {
         return dialogue.trim().to_string();
     }
 
+    const DEFAULT_SHORT_REPLY_WORD_BUDGET: usize = 45;
+    if max >= 4 && dialogue.split_whitespace().count() <= DEFAULT_SHORT_REPLY_WORD_BUDGET {
+        return dialogue.trim().to_string();
+    }
+
     // Keep the first N sentences.
     let mut kept: Vec<&str> = sentences[..max].to_vec();
 
@@ -1633,9 +1838,9 @@ fn cap_sentence_count_with_limit(dialogue: &str, max: usize) -> String {
 
 // ── #1491 — mood-aware sentence cap ───────────────────────────────────────────
 
-/// Mood keywords that indicate a busy/curt NPC should get a tighter (2-sentence)
-/// cap instead of the default 4 (#1491).
-const BUSY_MOOD_KEYWORDS: &[&str] = &[
+/// Mood keywords that indicate an NPC should get a tighter (2-sentence) cap
+/// instead of the default 4 (#1491, #1566).
+const TERSE_MOOD_KEYWORDS: &[&str] = &[
     "busy",
     "sharp",
     "curt",
@@ -1648,11 +1853,14 @@ const BUSY_MOOD_KEYWORDS: &[&str] = &[
     "brusque",
     "irritated",
     "frustrated",
+    "alert",
+    "watchful",
+    "vigilant",
 ];
 
 /// Applies the sentence-count cap with optional mood-aware tightening (#1491).
 ///
-/// For busy/curt moods (matching `BUSY_MOOD_KEYWORDS`), caps at 2 sentences;
+/// For terse moods (matching `TERSE_MOOD_KEYWORDS`), caps at 2 sentences;
 /// otherwise uses the default 4. Exposed for tests.
 ///
 /// Gate: `npc-mood-aware-sentence-cap` (default-on; callers check the flag).
@@ -1660,7 +1868,7 @@ pub fn cap_sentence_count_for_mood(dialogue: &str, mood: Option<&str>) -> String
     let cap = match mood {
         Some(m) => {
             let m_lower = m.to_lowercase();
-            if BUSY_MOOD_KEYWORDS.iter().any(|kw| m_lower.contains(kw)) {
+            if TERSE_MOOD_KEYWORDS.iter().any(|kw| m_lower.contains(kw)) {
                 2
             } else {
                 4
@@ -1669,6 +1877,108 @@ pub fn cap_sentence_count_for_mood(dialogue: &str, mood: Option<&str>) -> String
         None => 4,
     };
     cap_sentence_count_with_limit(dialogue, cap)
+}
+
+// ── #1554 — nearby phrase repeat collapse ─────────────────────────────────────
+
+/// Collapses a phrase that appears twice within a 20-word window (#1554).
+///
+/// When the verbosity guards produce an output where a 3–5 word phrase appears
+/// twice within a 20-word span (not necessarily adjacent), this function
+/// truncates at the end of the first occurrence and trims to the nearest
+/// preceding sentence boundary. Example:
+///
+/// "Aye, tell me indeed, what say ye now, indeed, what be it?" →
+/// `collapse_nearby_phrase_repeat` sees "indeed, what" (3 tokens normed) at
+/// positions 3 and 8 within a 20-word window and trims to "Aye, tell me indeed."
+/// (or the prefix up to the first occurrence when no sentence boundary exists
+/// before it).
+///
+/// Conservative: only fires for phrase widths 3–5, exactly 2 occurrences within
+/// a 20-word window, and only when the words involved have meaningful content.
+/// Does not fire on natural varied prose.
+///
+/// Exposed for tests.
+pub fn collapse_nearby_phrase_repeat(dialogue: &str) -> String {
+    let text = dialogue.trim();
+    if text.is_empty() {
+        return String::new();
+    }
+
+    let words: Vec<&str> = text.split_whitespace().collect();
+    let n = words.len();
+
+    // Precompute normalized form of every token once — normalize_for_repetition
+    // allocates a String (lowercase + split/join + trim), so calling it inside
+    // nested loops would normalize each word O(n²) times in the worst case.
+    // With the precomputed slice we normalize each word exactly once.
+    let normed: Vec<String> = words.iter().map(|w| normalize_for_repetition(w)).collect();
+
+    const MIN_WIDTH: usize = 3;
+    const MAX_WIDTH: usize = 5;
+    // Maximum words between the START of the first occurrence and the START
+    // of the second occurrence. Covers same-sentence embedded repeats.
+    const MAX_START_GAP: usize = 20;
+
+    // Largest width first: richer context, fewer false positives.
+    for width in (MIN_WIDTH..=MAX_WIDTH).rev() {
+        if width * 2 > n {
+            continue;
+        }
+        for i in 0..=(n.saturating_sub(width)) {
+            let ngram = &normed[i..i + width];
+            // Skip all-stopword n-grams (e.g. "and the a") — too common to be
+            // meaningful repeated phrases. Require at least one content word.
+            let has_content = ngram.iter().any(|t| t.len() >= 4);
+            if !has_content {
+                continue;
+            }
+            // Search for a second occurrence within MAX_START_GAP words.
+            let search_end = (i + MAX_START_GAP).min(n.saturating_sub(width) + 1);
+            for j in (i + width)..search_end {
+                let other = &normed[j..j + width];
+                if ngram == other {
+                    // Found a nearby repeat. Build the prefix up to (and
+                    // including) the end of the first occurrence, then
+                    // trim to the nearest sentence boundary.
+                    let prefix_words = &words[..i + width];
+                    let prefix = prefix_words.join(" ");
+                    // Look for the last sentence-end marker in the prefix.
+                    if let Some(last_end) = prefix.rfind(['.', '!', '?']) {
+                        let sentence_end = last_end + 1;
+                        if !prefix[sentence_end..].trim().is_empty() {
+                            // The only clean boundary is before the first
+                            // occurrence of the repeated phrase. Trimming there
+                            // would drop the whole substantive sentence and keep
+                            // only an earlier opener (#1561), so this is not a
+                            // safe loop-collapse candidate.
+                            continue;
+                        }
+                        let trimmed = prefix[..sentence_end].trim();
+                        if !trimmed.is_empty() {
+                            tracing::debug!(
+                                phrase = %ngram.join(" "),
+                                "collapsed nearby phrase repeat at sentence boundary (#1554)"
+                            );
+                            return trimmed.to_string();
+                        }
+                    }
+                    // No sentence boundary before the repeat — return the prefix
+                    // as-is so we don't produce empty output.
+                    let trimmed = prefix.trim();
+                    if !trimmed.is_empty() {
+                        tracing::debug!(
+                            phrase = %ngram.join(" "),
+                            "collapsed nearby phrase repeat (no sentence boundary) (#1554)"
+                        );
+                        return trimmed.to_string();
+                    }
+                }
+            }
+        }
+    }
+
+    text.to_string()
 }
 
 /// Runs the full verbosity guard pipeline with optional mood-aware sentence cap (#1491).
@@ -1686,9 +1996,13 @@ pub fn guard_verbosity_runons_with_mood(dialogue: &str, mood: Option<&str>) -> S
     let after_mood = strip_leaked_mood_word(&after_scaffold);
     let after_trunc = trim_mid_sentence_truncation(&after_mood);
     let after_ellipsis = strip_trailing_ellipsis_artifact(&after_trunc);
-    let after_phrase_loop = collapse_degenerate_phrase_loop(&after_ellipsis);
+    let after_stacked_vocatives = strip_stacked_player_vocatives(&after_ellipsis);
+    let after_phrase_loop = collapse_degenerate_phrase_loop(&after_stacked_vocatives);
     let after_consec_repeat = strip_consecutive_short_phrase_repeat(&after_phrase_loop);
-    let after_distributed = collapse_distributed_repeated_sentences(&after_consec_repeat);
+    // Step 5b (#1554): catch non-adjacent phrase repeats within a 20-word window
+    // that the consecutive guard (step 5, strictly adjacent) misses.
+    let after_nearby = collapse_nearby_phrase_repeat(&after_consec_repeat);
+    let after_distributed = collapse_distributed_repeated_sentences(&after_nearby);
     let after_total_q = cap_total_questions(&after_distributed);
     let after_trailing_q = cap_trailing_questions(&after_total_q);
     let after_sentence_cap = cap_sentence_count_for_mood(&after_trailing_q, mood);
@@ -2025,19 +2339,21 @@ pub fn cap_word_count(dialogue: &str) -> String {
 /// 2. Trim mid-sentence truncation ellipsis ([`trim_mid_sentence_truncation`]).
 /// 3. Strip trailing ellipsis artifact after otherwise-complete text
 ///    ([`strip_trailing_ellipsis_artifact`], #1472).
-/// 4. **Collapse degenerate intra-response phrase-repetition loop** ([`collapse_degenerate_phrase_loop`], #1487).
+/// 4. Strip stacked player vocatives such as "friend stranger"
+///    ([`strip_stacked_player_vocatives`], #1534).
+/// 5. **Collapse degenerate intra-response phrase-repetition loop** ([`collapse_degenerate_phrase_loop`], #1487).
 ///    Detects when a phrase (3–8 words) repeats ≥ 4× and truncates at the
 ///    first clean sentence boundary before the loop.
-/// 5. **Strip consecutive short-phrase repeat** ([`strip_consecutive_short_phrase_repeat`], #1505).
+/// 6. **Strip consecutive short-phrase repeat** ([`strip_consecutive_short_phrase_repeat`], #1505).
 ///    Catches "tell me, tell me" and similar 2–4 word phrases repeated exactly
 ///    twice in a row with only punctuation between occurrences.
-/// 6. Collapse non-consecutive near-duplicate sentences ([`collapse_distributed_repeated_sentences`]).
-/// 7. Cap total questions in the whole reply to at most 2 ([`cap_total_questions`]).
-/// 8. Cap trailing question stack to one ([`cap_trailing_questions`]).
-/// 9. Hard sentence-count cap: trim to at most 4 sentences ([`cap_sentence_count`], #1472).
-///    This is the blunt backstop for paraphrased multi-beat rambles that the surgical
-///    guards (steps 6-8) cannot catch.
-/// 10. **Word-count cap**: trim to at most 80 words at a clean sentence boundary
+/// 7. Collapse non-consecutive near-duplicate sentences ([`collapse_distributed_repeated_sentences`]).
+/// 8. Cap total questions in the whole reply to at most 2 ([`cap_total_questions`]).
+/// 9. Cap trailing question stack to one ([`cap_trailing_questions`]).
+/// 10. Hard sentence-count cap: trim to at most 4 sentences ([`cap_sentence_count`], #1472).
+///     This is the blunt backstop for paraphrased multi-beat rambles that the surgical
+///     guards (steps 6-8) cannot catch.
+/// 11. **Word-count cap**: trim to at most 80 words at a clean sentence boundary
 ///     ([`cap_word_count`], #1489). Final backstop for long-but-few-sentence runs.
 ///
 /// Steps 6 and 7 are the #1460 core fix for distributed / interleaved repetition
@@ -2059,9 +2375,13 @@ pub fn guard_verbosity_runons(dialogue: &str) -> String {
     let after_mood = strip_leaked_mood_word(&after_scaffold);
     let after_trunc = trim_mid_sentence_truncation(&after_mood);
     let after_ellipsis = strip_trailing_ellipsis_artifact(&after_trunc);
-    let after_phrase_loop = collapse_degenerate_phrase_loop(&after_ellipsis);
+    let after_stacked_vocatives = strip_stacked_player_vocatives(&after_ellipsis);
+    let after_phrase_loop = collapse_degenerate_phrase_loop(&after_stacked_vocatives);
     let after_consec_repeat = strip_consecutive_short_phrase_repeat(&after_phrase_loop);
-    let after_distributed = collapse_distributed_repeated_sentences(&after_consec_repeat);
+    // Step 5b (#1554): catch non-adjacent phrase repeats within a 20-word window
+    // that the consecutive guard (step 5, strictly adjacent) misses.
+    let after_nearby = collapse_nearby_phrase_repeat(&after_consec_repeat);
+    let after_distributed = collapse_distributed_repeated_sentences(&after_nearby);
     let after_total_q = cap_total_questions(&after_distributed);
     let after_trailing_q = cap_trailing_questions(&after_total_q);
     let after_sentence_cap = cap_sentence_count(&after_trailing_q);
@@ -2783,6 +3103,56 @@ fn grounded_acknowledgement(seed: u64) -> &'static str {
     POOL[(seed as usize) % POOL.len()]
 }
 
+fn grounded_place_acknowledgement(seed: u64) -> &'static str {
+    const POOL: &[&str] = &[
+        "Aye, that place is known in this parish.",
+        "That is a real place hereabouts, sure enough.",
+        "Aye, the place is known here in the parish.",
+        "That place is no invention; it is known around here.",
+        "Aye, I know the name of that place well enough.",
+    ];
+    POOL[(seed as usize) % POOL.len()]
+}
+
+const GENERIC_PERSON_NONRECOGNITION_MARKERS: &[&str] = &[
+    "no one by that name",
+    "no such person",
+    "know no one by that name",
+    "know of no such person",
+    "never heard of him",
+    "never heard of her",
+    "never heard of them",
+    "that name is not known",
+    "wrong parish",
+];
+
+const GENERIC_ENTITY_NONRECOGNITION_MARKERS: &[&str] = &[
+    "no one by that name",
+    "no such person",
+    "no such place",
+    "no place by that name",
+    "know of no such place",
+    "doesn't exist",
+    "does not exist",
+    "place that doesn't exist",
+    "place that does not exist",
+    "that name is not known",
+    "wrong parish",
+    "wrong place",
+];
+
+fn has_generic_person_nonrecognition(lower_dialogue: &str) -> bool {
+    GENERIC_PERSON_NONRECOGNITION_MARKERS
+        .iter()
+        .any(|marker| lower_dialogue.contains(marker))
+}
+
+fn has_generic_entity_nonrecognition(lower_dialogue: &str) -> bool {
+    GENERIC_ENTITY_NONRECOGNITION_MARKERS
+        .iter()
+        .any(|marker| lower_dialogue.contains(marker))
+}
+
 /// Post-generation guard for false denial of a known roster person (#1527, #1528).
 ///
 /// When an NPC's dialogue contains a denial marker AND the denied name IS in
@@ -2792,12 +3162,10 @@ fn grounded_acknowledgement(seed: u64) -> &'static str {
 ///
 /// Conservative: only fires when ALL of the following hold:
 ///   1. The player's input names a person whose full name IS in `known_person_names`.
-///   2. The NPC dialogue contains that full name (the NPC is talking about them).
-///   3. The NPC dialogue contains a denial marker.
-///   4. The NPC dialogue does NOT contain any of the place-affirmation markers
-///      that would indicate the NPC is correctly locating the person (which
-///      would make the denial non-sensical — already handled by the person-
-///      confirmation guard).
+///   2. The NPC dialogue contains a denial marker.
+///   3. Either the dialogue repeats the full name, or the player input contains
+///      only known full-name candidates and the dialogue uses a generic
+///      "that name/no such person" non-recognition phrase.
 ///
 /// Gate: `dialogue-false-denial-guard` (default-on).
 pub fn guard_false_denial_of_roster_person(
@@ -2806,6 +3174,30 @@ pub fn guard_false_denial_of_roster_person(
     known_person_names: &[String],
     player_name: Option<&str>,
     seed: u64,
+) -> String {
+    guard_false_denial_of_roster_person_with_speaker(
+        dialogue,
+        player_input,
+        known_person_names,
+        player_name,
+        seed,
+        None,
+    )
+}
+
+/// Speaker-aware variant of [`guard_false_denial_of_roster_person`].
+///
+/// In command text like `talk to Roisin Connolly about Martin`, the addressed
+/// NPC's own full name is present in the input but is not the subject being
+/// denied. This variant ignores that addressed-speaker candidate when an
+/// explicit `about ...` topic names someone else.
+pub fn guard_false_denial_of_roster_person_with_speaker(
+    dialogue: &str,
+    player_input: &str,
+    known_person_names: &[String],
+    player_name: Option<&str>,
+    seed: u64,
+    speaker: Option<&DialogueSpeakerContext>,
 ) -> String {
     if dialogue.trim().is_empty() {
         return dialogue.to_string();
@@ -2821,14 +3213,26 @@ pub fn guard_false_denial_of_roster_person(
 
     // Check each candidate name from the player's input.
     let candidates = extract_candidate_names(player_input);
+    let mut has_known_full_name = false;
+    let mut has_unknown_full_name = false;
     for candidate in &candidates {
         // Only fire for full names (multi-word) that ARE in the roster.
         if candidate.split_whitespace().count() < 2 {
             continue;
         }
-        if !name_in_roster(candidate, known_person_names, player_name) {
+        if speaker
+            .map(|speaker| {
+                addressed_speaker_candidate_is_not_topic(candidate, player_input, speaker)
+            })
+            .unwrap_or(false)
+        {
             continue;
         }
+        if !name_in_roster(candidate, known_person_names, player_name) {
+            has_unknown_full_name = true;
+            continue;
+        }
+        has_known_full_name = true;
         // The candidate is a real roster person. Check if the dialogue mentions them.
         let cand_lower = candidate.to_lowercase();
         if !lower.contains(&cand_lower) {
@@ -2842,7 +3246,35 @@ pub fn guard_false_denial_of_roster_person(
         return grounded_acknowledgement(seed).to_string();
     }
 
+    if has_known_full_name && !has_unknown_full_name && has_generic_person_nonrecognition(&lower) {
+        tracing::warn!(
+            "false-denial guard fired: NPC generically denied a known roster person (#1563)"
+        );
+        return grounded_acknowledgement(seed).to_string();
+    }
+
     dialogue.to_string()
+}
+
+fn addressed_speaker_candidate_is_not_topic(
+    candidate: &str,
+    player_input: &str,
+    speaker: &DialogueSpeakerContext,
+) -> bool {
+    let candidate_norm = normalize_for_repetition(candidate);
+    let speaker_norm = normalize_for_repetition(&speaker.name);
+    if candidate_norm.is_empty() || candidate_norm != speaker_norm {
+        return false;
+    }
+
+    let input = normalize_for_repetition(player_input);
+    let Some((address, topic)) = input.split_once(" about ") else {
+        return false;
+    };
+
+    let addressed = address.contains(&speaker_norm);
+    let topic_mentions_speaker = topic.contains(&speaker_norm);
+    addressed && !topic.trim().is_empty() && !topic_mentions_speaker
 }
 
 // ── #1530 — invented place confirmation guard ──────────────────────────────────
@@ -2851,6 +3283,21 @@ pub fn guard_false_denial_of_roster_person(
 /// confirmation guard (#1530). Kill-switch: disable via
 /// `flags.is_disabled(INVENTED_PLACE_GUARD_FLAG)`.
 pub const INVENTED_PLACE_GUARD_FLAG: &str = "dialogue-invented-place-guard";
+
+/// Feature-flag name (default **on**) for small dialogue polish backstops
+/// (#1564): old stock decline templates and time-of-day greeting tics.
+pub const DIALOGUE_POLISH_GUARD_FLAG: &str = "dialogue-polish-guard";
+
+/// Relationship context for post-generation tone guards.
+#[derive(Debug, Clone)]
+pub struct RelationshipToneHint {
+    /// Target NPC display/roster name.
+    pub target_name: String,
+    /// Speaker's relationship kind toward the target.
+    pub kind: RelationshipKind,
+    /// Speaker's relationship strength toward the target.
+    pub strength: f64,
+}
 
 /// Place-affirmation markers: phrases indicating the NPC is confirming or
 /// locating a place. Used by `guard_invented_place_confirmation`.
@@ -2868,17 +3315,530 @@ const PLACE_AFFIRMATION_MARKERS: &[&str] = &[
     "is away in ",
 ];
 
+/// Soft place-validation markers: phrases that avoid an explicit denial while
+/// treating the player's invented place query as a legitimate referent (#1507).
+const PLACE_SOFT_VALIDATION_MARKERS: &[&str] = &[
+    "have ye a reason for asking",
+    "have you a reason for asking",
+    "why do ye ask",
+    "why do you ask",
+    "what brings ye to ask",
+    "what brings you to ask",
+];
+
 /// Returns a stock place-decline for an unknown named place.
 /// Cycles through a small pool to avoid repeated identical responses.
 fn non_recognition_place_decline(seed: u64) -> &'static str {
     const DECLINES: &[&str] = &[
-        "I know of no such place in this parish.",
-        "That name is not known to me hereabouts — ye may have the wrong place.",
-        "No such place that I've heard of in these parts.",
-        "I cannot say I know of any such place in this parish.",
-        "I know of no place by that name near here.",
+        "That place-name is not one I have heard hereabouts.",
+        "No such place comes to mind around here.",
+        "I cannot put that name on any road I know.",
+        "That is not a place I can point you to in this parish.",
+        "No place by that name is known to me near here.",
     ];
     DECLINES[(seed as usize) % DECLINES.len()]
+}
+
+const STOCK_NONRECOGNITION_TEMPLATES: &[&str] = &[
+    "that name is not known to me hereabouts",
+    "i know no one by that name in these parts",
+    "mayhap ye have the wrong parish entirely",
+];
+
+/// Replaces old stock non-recognition templates with the same deterministic
+/// fallback families used by the grounding guards (#1564).
+pub fn guard_stock_nonrecognition_decline(dialogue: &str, player_input: &str, seed: u64) -> String {
+    guard_stock_nonrecognition_decline_with_speaker(dialogue, player_input, seed, None)
+}
+
+/// Speaker-aware variant of [`guard_stock_nonrecognition_decline`].
+pub fn guard_stock_nonrecognition_decline_with_speaker(
+    dialogue: &str,
+    player_input: &str,
+    seed: u64,
+    speaker: Option<&DialogueSpeakerContext>,
+) -> String {
+    if dialogue.trim().is_empty() {
+        return dialogue.to_string();
+    }
+
+    let normalized = normalize_for_repetition(dialogue);
+    if !STOCK_NONRECOGNITION_TEMPLATES
+        .iter()
+        .any(|template| normalized.contains(template))
+    {
+        return dialogue.to_string();
+    }
+
+    let prompt_seed = seed ^ text_seed(player_input);
+    let place_candidates = extract_candidate_places(player_input);
+    if !place_candidates.is_empty() {
+        tracing::warn!(
+            "dialogue polish guard fired: replacing stock place non-recognition (#1564)"
+        );
+        return non_recognition_place_decline(prompt_seed).to_string();
+    }
+
+    tracing::warn!("dialogue polish guard fired: replacing stock person non-recognition (#1564)");
+    non_recognition_decline_for_speaker(prompt_seed, speaker).to_string()
+}
+
+fn normalized_alpha_words(text: &str) -> Vec<String> {
+    text.split_whitespace()
+        .filter_map(|token| {
+            let stripped = token.trim_matches(|c: char| !c.is_alphabetic() && c != '\'');
+            if stripped.is_empty() {
+                None
+            } else {
+                Some(stripped.to_lowercase())
+            }
+        })
+        .collect()
+}
+
+fn text_contains_word_sequence(text: &str, phrase: &str) -> bool {
+    let haystack = normalized_alpha_words(text);
+    let needle = normalized_alpha_words(phrase);
+    if needle.is_empty() || needle.len() > haystack.len() {
+        return false;
+    }
+    haystack
+        .windows(needle.len())
+        .any(|window| window == needle.as_slice())
+}
+
+fn normalized_fact_words(text: &str) -> String {
+    text.split_whitespace()
+        .filter_map(|token| {
+            let stripped = token.trim_matches(|c: char| !c.is_alphabetic() && c != '\'');
+            if stripped.is_empty() {
+                return None;
+            }
+            let lower = stripped.to_lowercase();
+            Some(canonical_honorific(&lower).to_string())
+        })
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
+fn player_input_mentions_fr_declan(player_input: &str) -> bool {
+    let normalized = normalized_fact_words(player_input);
+    normalized.contains("father declan") || normalized.contains("declan tierney")
+}
+
+fn dialogue_has_declan_tenure_drift(dialogue: &str) -> bool {
+    const BAD_TENURE_PATTERNS: &[&str] = &[
+        "nigh on a decade",
+        "nearly a decade",
+        "almost a decade",
+        "about a decade",
+        "for a decade",
+        "ten years",
+    ];
+    const TENURE_CONTEXTS: &[&str] = &[
+        "priest here",
+        "parish priest",
+        "been the priest",
+        "served the parish",
+        "serving the parish",
+        "served here",
+        "been here",
+    ];
+
+    split_sentences(dialogue).iter().any(|sentence| {
+        let normalized = normalize_for_repetition(sentence);
+        BAD_TENURE_PATTERNS
+            .iter()
+            .any(|pattern| normalized.contains(pattern))
+            && TENURE_CONTEXTS
+                .iter()
+                .any(|context| normalized.contains(context))
+    })
+}
+
+fn dialogue_has_declan_canonical_tenure(dialogue: &str) -> bool {
+    let normalized = normalize_for_repetition(dialogue);
+    normalized.contains("twenty-five years")
+        || normalized.contains("twenty five years")
+        || normalized.contains("25 years")
+}
+
+fn relationship_is_cool_or_rival(kind: RelationshipKind, strength: f64) -> bool {
+    matches!(kind, RelationshipKind::Rival | RelationshipKind::Enemy) || strength <= -0.1
+}
+
+fn dialogue_already_carries_cool_tone(dialogue: &str) -> bool {
+    let normalized = normalize_for_repetition(dialogue);
+    const COOL_TONE_CUES: &[&str] = &[
+        "little warmth",
+        "keep my distance",
+        "keeps my distance",
+        "keeps his distance",
+        "keeps her distance",
+        "keeps their distance",
+        "no friend",
+        "not a friend",
+        "not one i trust",
+        "i do not trust",
+        "i don't trust",
+        "she is no friend",
+        "he is no friend",
+        "i am wary of her",
+        "i am wary of him",
+        "wary",
+        "watchful",
+        "careful with",
+        "cool between",
+        "bad blood",
+        "rival",
+        "enemy",
+    ];
+    COOL_TONE_CUES.iter().any(|cue| normalized.contains(cue))
+}
+
+fn dialogue_has_neutral_warm_rival_pattern(dialogue: &str) -> bool {
+    let normalized = normalize_for_repetition(dialogue);
+    const NEUTRAL_WARM_PATTERNS: &[&str] = &[
+        "still keeps an eye on things",
+        "keeps an eye on things",
+        "keeps an eye on the place",
+        "fine man",
+        "good man",
+        "decent man",
+        "grand man",
+        "fine woman",
+        "good woman",
+        "decent woman",
+        "grand woman",
+        "grand fellow",
+        "grand soul",
+        "no harm in him",
+        "no harm in her",
+        "no harm in them",
+        "she keeps an eye on things",
+        "he keeps an eye on things",
+    ];
+    NEUTRAL_WARM_PATTERNS
+        .iter()
+        .any(|pattern| normalized.contains(pattern))
+}
+
+fn player_input_mentions_target(player_input: &str, target_name: &str) -> bool {
+    if text_contains_word_sequence(player_input, target_name) {
+        return true;
+    }
+    extract_candidate_names(player_input)
+        .iter()
+        .any(|candidate| {
+            normalize_name_honorifics(&candidate.to_lowercase())
+                == normalize_name_honorifics(&target_name.to_lowercase())
+        })
+}
+
+fn normalized_person_name_eq(left: &str, right: &str) -> bool {
+    normalize_name_honorifics(&left.to_lowercase())
+        == normalize_name_honorifics(&right.to_lowercase())
+}
+
+fn dialogue_has_presumed_prior_acquaintance_question(dialogue: &str) -> bool {
+    let normalized = normalize_for_repetition(dialogue);
+    const PATTERNS: &[&str] = &[
+        "how do ye find him so far",
+        "how do ye find her so far",
+        "how do ye find them so far",
+        "how do you find him so far",
+        "how do you find her so far",
+        "how do you find them so far",
+    ];
+    PATTERNS.iter().any(|pattern| normalized.contains(pattern))
+}
+
+fn word_is_honorific(word: &str) -> bool {
+    let canonical = canonical_honorific(word);
+    HONORIFIC_PAIRS
+        .iter()
+        .any(|(long, short)| word == *long || word == *short || canonical == *long)
+}
+
+fn strip_honorific_words(text: &str) -> String {
+    normalized_alpha_words(text)
+        .into_iter()
+        .filter(|word| !word_is_honorific(word))
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
+fn player_input_asserts_prior_acquaintance(player_input: &str, target_name: &str) -> bool {
+    let normalized = strip_honorific_words(&normalize_for_repetition(player_input));
+    let target_lower =
+        strip_honorific_words(&normalize_name_honorifics(&target_name.to_lowercase()));
+    let first_name = target_lower
+        .split_whitespace()
+        .next()
+        .unwrap_or(target_lower.as_str());
+
+    const CONTACT_PATTERNS: &[&str] = &[
+        "i met ",
+        "i have met ",
+        "i've met ",
+        "i spoke with ",
+        "i talked to ",
+        "i was speaking with ",
+        "i know ",
+    ];
+
+    CONTACT_PATTERNS.iter().any(|prefix| {
+        normalized.contains(&format!("{prefix}{target_lower}"))
+            || normalized.contains(&format!("{prefix}{first_name}"))
+    })
+}
+
+fn prior_acquaintance_checkin(target_name: &str) -> String {
+    format!("{target_name}, aye. Have ye met {target_name} yet?")
+}
+
+/// Rewrites replies that ask the player to evaluate a named parishioner as if
+/// the player has already met them (#1509).
+///
+/// Conservative: only fires when the player mentioned exactly one non-speaker
+/// roster person and the reply contains the narrow "How do ye/you find him/her
+/// so far?" presupposition. If the player's input itself says they met or know
+/// the target, the reply is left unchanged.
+pub fn guard_presumed_prior_acquaintance(
+    dialogue: &str,
+    player_input: &str,
+    known_person_names: &[String],
+    speaker: Option<&DialogueSpeakerContext>,
+) -> String {
+    if dialogue.trim().is_empty()
+        || known_person_names.is_empty()
+        || !dialogue_has_presumed_prior_acquaintance_question(dialogue)
+    {
+        return dialogue.to_string();
+    }
+
+    let targets: Vec<&String> = known_person_names
+        .iter()
+        .filter(|name| {
+            speaker.is_none_or(|speaker| !normalized_person_name_eq(&speaker.name, name))
+                && player_input_mentions_target(player_input, name)
+        })
+        .collect();
+    let [target] = targets.as_slice() else {
+        return dialogue.to_string();
+    };
+    if player_input_asserts_prior_acquaintance(player_input, target) {
+        return dialogue.to_string();
+    }
+
+    tracing::warn!(
+        target = %target,
+        "dialogue polish guard fired: replacing presumed prior-acquaintance question (#1509)"
+    );
+    prior_acquaintance_checkin(target)
+}
+
+fn count_word_sequence(text: &str, phrase: &str) -> usize {
+    let haystack = normalized_alpha_words(text);
+    let needle = normalized_alpha_words(phrase);
+    if needle.is_empty() || needle.len() > haystack.len() {
+        return 0;
+    }
+    haystack
+        .windows(needle.len())
+        .filter(|window| *window == needle.as_slice())
+        .count()
+}
+
+fn sentence_has_redundant_self_name_reference(sentence: &str, speaker_name: &str) -> bool {
+    if !text_contains_word_sequence(sentence, speaker_name) {
+        return false;
+    }
+    let normalized_sentence =
+        normalize_for_repetition(&sentence.replace('\u{2019}', "'")).replace(',', "");
+    let normalized_name = normalize_for_repetition(speaker_name).replace(',', "");
+    [
+        format!("it's {normalized_name} ye're speaking to"),
+        format!("it's {normalized_name} you're speaking to"),
+        format!("it is {normalized_name} ye're speaking to"),
+        format!("it is {normalized_name} you're speaking to"),
+        format!("ye're speaking to {normalized_name}"),
+        format!("you're speaking to {normalized_name}"),
+    ]
+    .iter()
+    .any(|pattern| normalized_sentence.contains(pattern))
+}
+
+/// Removes redundant repeated self-name references within a single reply
+/// (#1508).
+///
+/// Conservative: only fires when the speaker's full name appears more than
+/// once and a later sentence is a clear self-identity formula such as
+/// "it's Peig Hannigan ye're speaking to." The first self-introduction is
+/// preserved.
+pub fn guard_repeated_speaker_name(
+    dialogue: &str,
+    speaker: Option<&DialogueSpeakerContext>,
+) -> String {
+    let Some(speaker) = speaker else {
+        return dialogue.to_string();
+    };
+    if dialogue.trim().is_empty() || count_word_sequence(dialogue, &speaker.name) <= 1 {
+        return dialogue.to_string();
+    }
+
+    let mut saw_speaker_name = false;
+    let mut changed = false;
+    let mut kept = Vec::new();
+    for sentence in split_sentences(dialogue) {
+        let has_speaker_name = text_contains_word_sequence(&sentence, &speaker.name);
+        if saw_speaker_name
+            && has_speaker_name
+            && sentence_has_redundant_self_name_reference(&sentence, &speaker.name)
+        {
+            changed = true;
+            continue;
+        }
+        if has_speaker_name {
+            saw_speaker_name = true;
+        }
+        kept.push(sentence.trim().to_string());
+    }
+
+    if !changed {
+        return dialogue.to_string();
+    }
+    tracing::warn!(
+        speaker = %speaker.name,
+        "dialogue polish guard fired: removing repeated speaker name (#1508)"
+    );
+    kept.join(" ")
+}
+
+fn rival_tone_fallback(target_name: &str) -> String {
+    format!(
+        "{target_name}, aye. I'll grant the facts, but there is little warmth between us, so I keep my distance."
+    )
+}
+
+/// Cools neutral-warm replies about a target the speaker regards as a rival
+/// (#1521).
+///
+/// This is intentionally narrow: it only fires when the player explicitly asks
+/// about a named target, the response mentions that same target, the speaker's
+/// relationship to the target is rival/cool, and the response contains a
+/// neutral-warm stock pattern. Existing cool wording is left untouched.
+pub fn guard_rival_target_neutral_tone(
+    dialogue: &str,
+    player_input: &str,
+    relationships: &[RelationshipToneHint],
+) -> String {
+    if dialogue.trim().is_empty() || relationships.is_empty() {
+        return dialogue.to_string();
+    }
+    if dialogue_already_carries_cool_tone(dialogue)
+        || !dialogue_has_neutral_warm_rival_pattern(dialogue)
+    {
+        return dialogue.to_string();
+    }
+
+    for rel in relationships {
+        if !relationship_is_cool_or_rival(rel.kind, rel.strength) {
+            continue;
+        }
+        if player_input_mentions_target(player_input, &rel.target_name)
+            && text_contains_word_sequence(dialogue, &rel.target_name)
+        {
+            tracing::warn!(
+                target = %rel.target_name,
+                kind = %rel.kind,
+                strength = rel.strength,
+                "dialogue polish guard fired: cooling neutral rival-target tone (#1521)"
+            );
+            return rival_tone_fallback(&rel.target_name);
+        }
+    }
+
+    dialogue.to_string()
+}
+
+/// Corrects a narrow Fr. Declan Tierney tenure drift where the model changes
+/// his canonical twenty-five-year parish service into a decade-scale claim
+/// (#1520).
+pub fn guard_priest_tenure_drift(dialogue: &str, player_input: &str) -> String {
+    if dialogue.trim().is_empty()
+        || !player_input_mentions_fr_declan(player_input)
+        || dialogue_has_declan_canonical_tenure(dialogue)
+        || !dialogue_has_declan_tenure_drift(dialogue)
+    {
+        return dialogue.to_string();
+    }
+
+    tracing::warn!("dialogue polish guard fired: corrected Fr. Declan tenure drift (#1520)");
+    "Fr. Declan Tierney has served this parish for twenty-five years.".to_string()
+}
+
+fn replacement_greeting(time_of_day: TimeOfDay) -> &'static str {
+    match time_of_day {
+        TimeOfDay::Dawn => "Good day",
+        TimeOfDay::Morning => "Good morning",
+        TimeOfDay::Midday => "Good day",
+        TimeOfDay::Afternoon => "Good afternoon",
+        TimeOfDay::Dusk | TimeOfDay::Night | TimeOfDay::Midnight => "Good evening",
+    }
+}
+
+fn replacement_day_phrase(time_of_day: TimeOfDay) -> &'static str {
+    match time_of_day {
+        TimeOfDay::Dawn => "this early hour",
+        TimeOfDay::Morning => "this morning",
+        TimeOfDay::Midday => "this fine day",
+        TimeOfDay::Afternoon => "this afternoon",
+        TimeOfDay::Dusk | TimeOfDay::Night | TimeOfDay::Midnight => "this evening",
+    }
+}
+
+/// Rewrites obvious opening/greeting morning tics when the actual clock is not
+/// Morning (#1564). The guard intentionally targets greeting phrases and
+/// "this fine morning" style tics rather than every historical mention of
+/// "morning" in a reply.
+pub fn guard_time_of_day_phrase(dialogue: &str, time_of_day: TimeOfDay) -> String {
+    if dialogue.trim().is_empty() || time_of_day == TimeOfDay::Morning {
+        return dialogue.to_string();
+    }
+
+    static GOOD_MORNING: OnceLock<regex::Regex> = OnceLock::new();
+    static THIS_FINE_MORNING: OnceLock<regex::Regex> = OnceLock::new();
+    static THIS_MORNING: OnceLock<regex::Regex> = OnceLock::new();
+
+    let good_morning = GOOD_MORNING.get_or_init(|| {
+        regex::Regex::new(r"(?i)\bgood\s+morn(?:ing|in'?)?\b").expect("valid good-morning regex")
+    });
+    let this_fine_morning = THIS_FINE_MORNING.get_or_init(|| {
+        regex::Regex::new(r"(?i)\bthis\s+fine\s+morn(?:ing|in'?)?\b")
+            .expect("valid this-fine-morning regex")
+    });
+    let this_morning = THIS_MORNING.get_or_init(|| {
+        regex::Regex::new(r"(?i)\bthis\s+morn(?:ing|in'?)?\b").expect("valid this-morning regex")
+    });
+
+    let mut polished = good_morning
+        .replace_all(dialogue, replacement_greeting(time_of_day))
+        .into_owned();
+    polished = this_fine_morning
+        .replace_all(&polished, replacement_day_phrase(time_of_day))
+        .into_owned();
+    polished = this_morning
+        .replace_all(&polished, replacement_day_phrase(time_of_day))
+        .into_owned();
+
+    if polished != dialogue {
+        tracing::warn!(
+            actual_time = %time_of_day,
+            "dialogue polish guard fired: corrected time-of-day phrase (#1564)"
+        );
+    }
+    polished
 }
 
 /// Extracts candidate place-name tokens from the player input.
@@ -2968,6 +3928,10 @@ fn extract_candidate_places(player_input: &str) -> Vec<String> {
         "where is ",
         "where's ",
         "where are ",
+        "guide me to ",
+        "take me to ",
+        "bring me to ",
+        "show me to ",
         "how do i find ",
         "how do i get to ",
         "how do we get to ",
@@ -3137,11 +4101,11 @@ fn place_not_in_known_locations(candidate: &str, known_location_names: &[String]
 ///   1. Player input contains a candidate place name (extracted via
 ///      place-noun collocation or explicit directional query pattern).
 ///   2. The candidate is NOT in `known_location_names`.
-///   3. The NPC dialogue contains a place-affirmation marker.  Because
-///      candidates are only extracted from explicitly signalled place queries,
-///      an affirmation marker in the dialogue is treated as sufficient evidence
-///      that the NPC is confirming the invented place — the NPC may paraphrase
-///      or describe the location without repeating the exact name.
+///   3. The NPC dialogue contains either a place-affirmation marker or a soft
+///      validation marker. Because candidates are only extracted from explicitly
+///      signalled place queries, those markers are sufficient evidence that the
+///      NPC is treating the invented place as a real conversational referent —
+///      the NPC may paraphrase or omit the exact name.
 ///   4. The NPC dialogue does NOT contain a denial marker (already declining).
 ///
 /// Gate: `dialogue-invented-place-guard` (default-on).
@@ -3163,9 +4127,13 @@ pub fn guard_invented_place_confirmation(
         return dialogue.to_string();
     }
 
-    // Must contain a place-affirmation marker for the guard to fire.
-    let has_affirmation = PLACE_AFFIRMATION_MARKERS.iter().any(|m| lower.contains(m));
-    if !has_affirmation {
+    // Must contain a place-affirmation or soft-validation marker for the guard
+    // to fire.
+    let has_place_marker = PLACE_AFFIRMATION_MARKERS.iter().any(|m| lower.contains(m))
+        || PLACE_SOFT_VALIDATION_MARKERS
+            .iter()
+            .any(|m| lower.contains(m));
+    if !has_place_marker {
         return dialogue.to_string();
     }
 
@@ -3177,15 +4145,67 @@ pub fn guard_invented_place_confirmation(
         }
 
         // When the candidate was extracted via the conservative strategies
-        // (place-noun collocation or where-is directional), the presence of a
-        // place-affirmation marker in the dialogue is sufficient evidence that
-        // the NPC is confirming the invented place — the NPC may paraphrase
-        // the name or describe where it "is" without repeating the exact name.
+        // (place-noun collocation or where-is directional), a place-affirmation
+        // or soft-validation marker in the dialogue is sufficient evidence that
+        // the NPC is treating the invented place as real — the NPC may
+        // paraphrase, omit the name, or ask why the player is asking.
         tracing::warn!(
             candidate = %candidate,
-            "invented-place guard fired: NPC confirmed invented place (#1530)"
+            "invented-place guard fired: NPC confirmed/soft-validated invented place (#1530/#1507)"
         );
         return non_recognition_place_decline(seed).to_string();
+    }
+
+    dialogue.to_string()
+}
+
+/// Post-generation guard for false denial of a real place (#1563).
+///
+/// If the player asks about a place that exists in the world graph and the NPC
+/// generically denies it as nonexistent or as "no such person", replace that
+/// denial with a neutral acknowledgement. Unlike the invented-place guard, this
+/// does not invent directions; it only prevents the transcript from asserting
+/// that a real parish place is fake.
+pub fn guard_false_denial_of_known_place(
+    dialogue: &str,
+    player_input: &str,
+    known_location_names: &[String],
+    seed: u64,
+) -> String {
+    if dialogue.trim().is_empty() || known_location_names.is_empty() {
+        return dialogue.to_string();
+    }
+
+    let lower = dialogue.to_lowercase();
+    if !has_generic_entity_nonrecognition(&lower) {
+        return dialogue.to_string();
+    }
+
+    let known_location_names_lower: Vec<String> = known_location_names
+        .iter()
+        .map(|loc| loc.to_lowercase())
+        .collect();
+    let candidates = extract_candidate_places(player_input);
+    let mut has_known_place = false;
+    let mut has_unknown_place = false;
+    for candidate in &candidates {
+        let candidate_lower = candidate.to_lowercase();
+        let is_known_place = known_location_names_lower.iter().any(|location_lower| {
+            location_lower.contains(&candidate_lower)
+                || candidate_lower.contains(location_lower.as_str())
+        });
+        if is_known_place {
+            has_known_place = true;
+        } else {
+            has_unknown_place = true;
+        }
+    }
+
+    if has_known_place && !has_unknown_place {
+        tracing::warn!(
+            "false-denial guard fired: NPC generically denied a known parish place (#1563)"
+        );
+        return grounded_place_acknowledgement(seed).to_string();
     }
 
     dialogue.to_string()
@@ -3340,6 +4360,38 @@ mod tests {
     }
 
     #[test]
+    fn fabricated_titled_landlord_hearsay_confirmation_is_declined() {
+        let dialogue = "Aye, I've heard the talk of Lord Fitzwilliam. 'Tis said he owns most \
+                        of the land round hereabouts. Ye'll need to be careful with yer words \
+                        when ye speak of him, 'tis a mighty man he is.";
+        let player_input = "Have you heard of Lord Fitzwilliam of Castlemore? I hear he is the \
+                            great landlord hereabouts";
+        let known: Vec<String> = vec!["Colm Gallagher".into(), "Seamus Gallagher".into()];
+
+        let result =
+            guard_fabricated_person_confirmation(dialogue, player_input, &known, &[], None, 0);
+        let lower = result.to_lowercase();
+
+        assert!(
+            !lower.contains("heard the talk of lord fitzwilliam")
+                && !lower.contains("owns most of the land")
+                && !lower.contains("mighty man"),
+            "invented landlord confirmation must be replaced: {result:?}"
+        );
+        assert!(
+            lower.contains("no such person")
+                || lower.contains("no one by that name")
+                || lower.contains("wrong parish")
+                || lower.contains("not known to me")
+                || lower.contains("such a person")
+                || lower.contains("that name")
+                || lower.contains("parish face")
+                || lower.contains("comes to mind"),
+            "result should be a non-recognition decline: {result:?}"
+        );
+    }
+
+    #[test]
     fn known_roster_person_passes_through() {
         // NPC confirms someone actually in the roster — guard must not fire.
         let dialogue = "Aye, I know Brigid Connolly well. She is a fine woman.";
@@ -3350,6 +4402,21 @@ mod tests {
         assert_eq!(
             result, dialogue,
             "known-roster person should not be altered: {result:?}"
+        );
+    }
+
+    #[test]
+    fn known_roster_person_hearsay_confirmation_passes_through() {
+        let dialogue = "Aye, I've heard of Brigid Connolly. A fine woman she is.";
+        let player_input = "Have you heard of Brigid Connolly?";
+        let known: Vec<String> = vec!["Brigid Connolly".into(), "Tadhg Murphy".into()];
+
+        let result =
+            guard_fabricated_person_confirmation(dialogue, player_input, &known, &[], None, 0);
+
+        assert_eq!(
+            result, dialogue,
+            "hearsay marker must not suppress known-roster people: {result:?}"
         );
     }
 
@@ -3741,6 +4808,43 @@ mod tests {
             result.trim(),
             dialogue.trim(),
             "mid-sentence mood word unchanged"
+        );
+    }
+
+    #[test]
+    fn stacked_player_vocatives_strip_friend_stranger_only_at_vocative_boundary() {
+        let dialogue = "Do ye have need of him, then, friend stranger, or just curious?";
+        let result = strip_stacked_player_vocatives(dialogue);
+        assert_eq!(
+            result,
+            "Do ye have need of him, then, friend, or just curious?"
+        );
+
+        let comparative = "There is no friend stranger than the one who returns at dawn.";
+        let result = strip_stacked_player_vocatives(comparative);
+        assert_eq!(
+            result, comparative,
+            "ordinary prose without trailing vocative punctuation must stay unchanged"
+        );
+    }
+
+    #[test]
+    fn verbosity_guard_strips_stacked_player_vocative_end_to_end() {
+        let dialogue = "Do ye have need of him or his guidance, then, friend stranger, \
+                        or just curious to know the man of God in these parts?";
+        let result = guard_verbosity_runons(dialogue);
+
+        assert!(
+            !result.to_lowercase().contains("friend stranger"),
+            "stacked vocative must be removed: {result:?}"
+        );
+        assert!(
+            result.contains("friend, or just curious"),
+            "first address term and substantive question should survive: {result:?}"
+        );
+        assert!(
+            result.contains("man of God"),
+            "priest reference should survive: {result:?}"
         );
     }
 
@@ -4897,9 +6001,12 @@ mod tests {
     /// AC-3 (#1491): A neutral mood keeps the default 4-sentence cap.
     #[test]
     fn mood_aware_sentence_cap_neutral_mood_keeps_4() {
-        let dialogue = "Good day to ye. The weather's been mild. \
-            The cattle are doing well. I saw the priest this morning. \
-            He sent his regards.";
+        let dialogue = "Good day to ye, friend, and welcome into the house. \
+            The weather has been mild enough for the cattle in the lower meadow. \
+            The spring grass came early, so every beast has kept a little strength. \
+            I saw the priest this morning walking the road toward the chapel. \
+            He sent his regards and asked after every family by name.";
+        assert!(dialogue.split_whitespace().count() > 45);
         let result = cap_sentence_count_for_mood(dialogue, Some("neutral"));
         let sentence_count = split_sentences(&result)
             .iter()
@@ -4918,7 +6025,12 @@ mod tests {
     /// AC-4 (#1491): None mood uses default 4-sentence cap (no panic).
     #[test]
     fn mood_aware_sentence_cap_none_mood_uses_default() {
-        let dialogue = "One. Two. Three. Four. Five.";
+        let dialogue = "One long sentence gathers enough words for the default cap to matter. \
+            Two long sentence adds a little more local news for the test. \
+            Three long sentence keeps the reply ordinary while staying above the budget. \
+            Four long sentence should remain after the default cap trims the tail. \
+            Five long sentence should be dropped only when the budgeted cap applies.";
+        assert!(dialogue.split_whitespace().count() > 45);
         let result = cap_sentence_count_for_mood(dialogue, None);
         let sentence_count = split_sentences(&result)
             .iter()
@@ -4927,6 +6039,10 @@ mod tests {
         assert!(
             sentence_count <= 4,
             "None mood must cap at 4; got {sentence_count}: {result:?}"
+        );
+        assert!(
+            sentence_count >= 4,
+            "None mood with a long 5-sentence reply must keep 4; got {sentence_count}: {result:?}"
         );
     }
 
@@ -4944,6 +6060,55 @@ mod tests {
         assert!(
             sentence_count <= 2,
             "frustrated mood pipeline must cap at 2 sentences; got {sentence_count}: {result:?}"
+        );
+    }
+
+    /// AC-1 (#1566): a watchful NPC's raw sacred-place run-on must be clipped
+    /// before the repeated "what do ye seek" loop reaches the player.
+    #[test]
+    fn watchful_mood_clips_sacred_place_runon() {
+        let dialogue = "Aye, 'tis said the sidhe live in the mounds and the forts. \
+            But the power here at the well, that's a different matter. \
+            A blessing, mayhap, but not just for those who seek it out. \
+            What do ye seek, Colm Brennan, is it for yerself or for another that \
+            troubles yer thoughts this morning, aye, and brings ye to this place \
+            of old magic and healing water, so it is indeed. \
+            What troubles yer mind, if ye care to speak of it, and I'll do what I \
+            can to ease it, if I may. \
+            Ye'll not be the first to find comfort here, nor the last. \
+            What brings ye to Kilteevan, and why the holy well, do ye ask, if not \
+            simply to see the sights and hear the tales, aye, but to seek a deeper \
+            truth or a healing hand, so it seems. \
+            Tell me, and I'll listen, and if I can, I'll guide ye. \
+            What do ye seek, Colm Brennan, aye, what troubles yer heart and mind \
+            this mornin' so bold, aye, and brings ye here to the well, and not \
+            elsewhere in the parish, if not for the sake of yer soul and the \
+            whispers of the old ones, so it is indeed. \
+            What do ye seek, Colm Brennan, aye, and what brings ye here to the \
+            well, so it is indeed?";
+
+        let result = guard_verbosity_runons_with_mood(dialogue, Some("watchful"));
+        let sentence_count = split_sentences(&result)
+            .iter()
+            .filter(|s| !s.trim().is_empty())
+            .count();
+        let lower = result.to_lowercase();
+
+        assert!(
+            sentence_count <= 2,
+            "watchful mood must keep the run-on terse; got {sentence_count}: {result:?}"
+        );
+        assert!(
+            result.contains("mounds and the forts") && result.contains("power here at the well"),
+            "grounded opening must survive: {result:?}"
+        );
+        assert!(
+            !lower.contains("what do ye seek"),
+            "repeated question loop must be removed: {result:?}"
+        );
+        assert!(
+            !lower.contains("brings ye here to the well"),
+            "later repeated loop tail must be removed: {result:?}"
         );
     }
 
@@ -5170,11 +6335,12 @@ mod tests {
         );
     }
 
-    /// AC-4 (#1527): Denial marker present but roster name not in dialogue → unchanged.
+    /// AC-4 (#1563): A generic "that name" denial after the player names one
+    /// real roster person is still a false denial, even if the dialogue does
+    /// not repeat the person's full name.
     #[test]
-    fn false_denial_guard_no_fire_when_name_absent_from_dialogue() {
+    fn false_denial_guard_fires_for_generic_known_person_denial() {
         let known = make_names(&["Peig Hannigan", "Cormac Duffy"]);
-        // Denial is there but Peig Hannigan's name is NOT in the dialogue.
         let dialogue = "I know no one by that name hereabouts.";
         let result = guard_false_denial_of_roster_person(
             dialogue,
@@ -5183,10 +6349,472 @@ mod tests {
             None,
             0,
         );
+        assert_ne!(
+            result, dialogue,
+            "generic denial of one known roster person must be corrected: {result:?}"
+        );
+        assert!(
+            !result.to_lowercase().contains("no one by that name"),
+            "generic false denial must be replaced: {result:?}"
+        );
+    }
+
+    /// Mixed real + invented questions remain conservative: a generic denial
+    /// could refer to the fabricated name, so leave it unchanged.
+    #[test]
+    fn false_denial_guard_leaves_mixed_known_and_unknown_generic_denial() {
+        let known = make_names(&["Peig Hannigan", "Cormac Duffy"]);
+        let dialogue = "I know no one by that name hereabouts.";
+        let result = guard_false_denial_of_roster_person(
+            dialogue,
+            "Where are Peig Hannigan and Fionn MacCathasaigh?",
+            &known,
+            None,
+            0,
+        );
         assert_eq!(
             result, dialogue,
-            "denial without name in dialogue must pass through: {result:?}"
+            "mixed known+unknown generic denial must stay conservative"
         );
+    }
+
+    #[test]
+    fn false_denial_guard_ignores_addressed_speaker_when_topic_differs() {
+        let known = make_names(&["Roisin Connolly", "Peig Hannigan"]);
+        let speaker = DialogueSpeakerContext {
+            name: "Roisin Connolly".to_string(),
+            occupation: "Shopkeeper".to_string(),
+            mood: "alert".to_string(),
+        };
+        let dialogue = "That name is not known to me hereabouts.";
+        let result = guard_false_denial_of_roster_person_with_speaker(
+            dialogue,
+            "talk to Roisin Connolly about Martin",
+            &known,
+            None,
+            0,
+            Some(&speaker),
+        );
+        assert_eq!(
+            result, dialogue,
+            "speaker addressee must not be mistaken for the denied topic"
+        );
+    }
+
+    #[test]
+    fn false_denial_guard_still_fires_for_known_topic_with_speaker_context() {
+        let known = make_names(&["Roisin Connolly", "Peig Hannigan"]);
+        let speaker = DialogueSpeakerContext {
+            name: "Roisin Connolly".to_string(),
+            occupation: "Shopkeeper".to_string(),
+            mood: "alert".to_string(),
+        };
+        let dialogue = "That name is not known to me hereabouts.";
+        let result = guard_false_denial_of_roster_person_with_speaker(
+            dialogue,
+            "talk to Roisin Connolly about Peig Hannigan",
+            &known,
+            None,
+            0,
+            Some(&speaker),
+        );
+        assert_ne!(
+            result, dialogue,
+            "known topic must still be corrected even when the speaker is addressed"
+        );
+        assert!(
+            result.to_lowercase().contains("known") || result.to_lowercase().contains("parish"),
+            "known-person acknowledgement should survive: {result:?}"
+        );
+    }
+
+    #[test]
+    fn stock_nonrecognition_polish_replaces_old_person_template() {
+        let dialogue = "I know no one by that name in these parts.";
+        let result = guard_stock_nonrecognition_decline(
+            dialogue,
+            "Have you met Sorcha O'Malley from beyond the parish?",
+            0,
+        );
+        assert_ne!(result, dialogue, "old stock template must be replaced");
+        assert!(
+            !result
+                .to_lowercase()
+                .contains("i know no one by that name in these parts"),
+            "replacement must not reuse the stale template: {result:?}"
+        );
+    }
+
+    #[test]
+    fn stock_nonrecognition_polish_uses_shopkeeper_voice_when_available() {
+        let speaker = DialogueSpeakerContext {
+            name: "Roisin Connolly".to_string(),
+            occupation: "Shopkeeper".to_string(),
+            mood: "alert".to_string(),
+        };
+        let dialogue = "That name is not known to me hereabouts.";
+        let result = guard_stock_nonrecognition_decline_with_speaker(
+            dialogue,
+            "talk to Roisin Connolly about Martin",
+            0,
+            Some(&speaker),
+        );
+        let lower = result.to_lowercase();
+
+        assert_ne!(result, dialogue, "reported stock phrase must be replaced");
+        assert!(
+            lower.contains("counter")
+                || lower.contains("shop")
+                || lower.contains("account")
+                || lower.contains("goods")
+                || lower.contains("trade"),
+            "replacement should sound like a shopkeeper: {result:?}"
+        );
+    }
+
+    #[test]
+    fn stock_nonrecognition_polish_uses_place_decline_for_place_prompt() {
+        let dialogue = "Mayhap ye have the wrong parish entirely.";
+        let result = guard_stock_nonrecognition_decline(dialogue, "Where is Silver Bridge?", 0);
+        assert_ne!(result, dialogue, "old place template must be replaced");
+        assert!(
+            result.to_lowercase().contains("place")
+                || result.to_lowercase().contains("road")
+                || result.to_lowercase().contains("point you"),
+            "place prompt should receive a place-shaped decline: {result:?}"
+        );
+    }
+
+    #[test]
+    fn presumed_prior_acquaintance_guard_rewrites_known_target_checkin() {
+        let known = make_names(&["Roisin Connolly", "Colm Gallagher"]);
+        let speaker = DialogueSpeakerContext {
+            name: "Roisin Connolly".to_string(),
+            occupation: "Shopkeeper".to_string(),
+            mood: "alert".to_string(),
+        };
+        let dialogue =
+            "Colm Gallagher, aye, he's a bright lad at the forge. How do ye find him so far?";
+        let result = guard_presumed_prior_acquaintance(
+            dialogue,
+            "talk to Roisin Connolly about Colm Gallagher",
+            &known,
+            Some(&speaker),
+        );
+        let lower = result.to_lowercase();
+
+        assert_ne!(result, dialogue, "presupposing question must be rewritten");
+        assert!(
+            lower.contains("have ye met colm gallagher yet"),
+            "replacement should ask whether the player has met the target: {result:?}"
+        );
+        assert!(
+            !lower.contains("how do ye find him so far"),
+            "presupposing phrase must not survive: {result:?}"
+        );
+    }
+
+    #[test]
+    fn presumed_prior_acquaintance_guard_leaves_declared_meeting() {
+        let known = make_names(&["Roisin Connolly", "Colm Gallagher"]);
+        let speaker = DialogueSpeakerContext {
+            name: "Roisin Connolly".to_string(),
+            occupation: "Shopkeeper".to_string(),
+            mood: "alert".to_string(),
+        };
+        let dialogue = "How do ye find him so far?";
+
+        assert_eq!(
+            guard_presumed_prior_acquaintance(
+                dialogue,
+                "I met Colm Gallagher at the forge. What do you think of him?",
+                &known,
+                Some(&speaker),
+            ),
+            dialogue,
+            "current-turn evidence that the player met the target must pass through"
+        );
+    }
+
+    #[test]
+    fn presumed_prior_acquaintance_guard_leaves_declared_meeting_with_honorific_mismatch() {
+        let known = make_names(&["Roisin Connolly", "Colm Gallagher"]);
+        let speaker = DialogueSpeakerContext {
+            name: "Roisin Connolly".to_string(),
+            occupation: "Shopkeeper".to_string(),
+            mood: "alert".to_string(),
+        };
+        let dialogue = "How do ye find him so far?";
+
+        assert_eq!(
+            guard_presumed_prior_acquaintance(
+                dialogue,
+                "I met Fr. Colm Gallagher at the forge. What do you think of Colm Gallagher?",
+                &known,
+                Some(&speaker),
+            ),
+            dialogue,
+            "extra honorific tokens must not hide current-turn meeting evidence"
+        );
+    }
+
+    #[test]
+    fn repeated_speaker_name_guard_removes_second_self_reference() {
+        let speaker = DialogueSpeakerContext {
+            name: "Peig Hannigan".to_string(),
+            occupation: "Widow".to_string(),
+            mood: "sharp".to_string(),
+        };
+        let dialogue = "Ye can call me Peig Hannigan. As for yer question, it's Peig Hannigan ye're speaking to.";
+        let result = guard_repeated_speaker_name(dialogue, Some(&speaker));
+
+        assert_ne!(
+            result, dialogue,
+            "redundant second self-reference must be removed"
+        );
+        assert_eq!(
+            count_word_sequence(&result, "Peig Hannigan"),
+            1,
+            "speaker full name should appear exactly once: {result:?}"
+        );
+        assert!(
+            !result
+                .to_lowercase()
+                .contains("it's peig hannigan ye're speaking to"),
+            "redundant self-reference phrase must not survive: {result:?}"
+        );
+    }
+
+    #[test]
+    fn repeated_speaker_name_guard_handles_comma_in_self_reference() {
+        let speaker = DialogueSpeakerContext {
+            name: "Peig Hannigan".to_string(),
+            occupation: "Widow".to_string(),
+            mood: "sharp".to_string(),
+        };
+        let dialogue = "Ye can call me Peig Hannigan. As for yer question, it's Peig Hannigan, ye're speaking to.";
+        let result = guard_repeated_speaker_name(dialogue, Some(&speaker));
+
+        assert_eq!(
+            count_word_sequence(&result, "Peig Hannigan"),
+            1,
+            "comma variant should still remove the redundant self-reference: {result:?}"
+        );
+        assert!(
+            !result
+                .to_lowercase()
+                .contains("it's peig hannigan, ye're speaking to"),
+            "comma variant must not surface unchanged: {result:?}"
+        );
+    }
+
+    #[test]
+    fn repeated_speaker_name_guard_leaves_substantive_second_mention() {
+        let speaker = DialogueSpeakerContext {
+            name: "Peig Hannigan".to_string(),
+            occupation: "Widow".to_string(),
+            mood: "sharp".to_string(),
+        };
+        let dialogue =
+            "Ye can call me Peig Hannigan. My mother gave Peig Hannigan that name after her aunt.";
+
+        assert_eq!(
+            guard_repeated_speaker_name(dialogue, Some(&speaker)),
+            dialogue,
+            "non-formulaic second mentions should stay conservative"
+        );
+    }
+
+    #[test]
+    fn priest_tenure_guard_corrects_declan_decade_drift() {
+        let dialogue = "He's been the priest here for nigh on a decade now.";
+        let result = guard_priest_tenure_drift(dialogue, "Tell me about Fr. Declan Tierney");
+
+        assert_ne!(result, dialogue, "tenure drift must be corrected");
+        assert!(
+            result.to_lowercase().contains("twenty-five years"),
+            "replacement must carry canonical tenure: {result:?}"
+        );
+        assert!(
+            !result.to_lowercase().contains("decade"),
+            "replacement must remove the wrong decade claim: {result:?}"
+        );
+    }
+
+    #[test]
+    fn priest_tenure_guard_requires_declan_prompt() {
+        let dialogue = "He's been the priest here for nigh on a decade now.";
+
+        assert_eq!(
+            guard_priest_tenure_drift(dialogue, "Tell me about the harvest"),
+            dialogue,
+            "unrelated prompts must not rewrite decade-scale claims"
+        );
+    }
+
+    #[test]
+    fn priest_tenure_guard_leaves_unrelated_decade_mentions_alone() {
+        let dialogue = "It has been a hard decade for the parish, right enough.";
+
+        assert_eq!(
+            guard_priest_tenure_drift(dialogue, "Tell me about Father Declan"),
+            dialogue,
+            "non-tenure decade references must pass through unchanged"
+        );
+    }
+
+    #[test]
+    fn priest_tenure_guard_requires_pattern_and_context_in_same_sentence() {
+        let dialogue = "The parish priest is Father Declan. I arrived ten years ago.";
+
+        assert_eq!(
+            guard_priest_tenure_drift(dialogue, "Tell me about Father Declan"),
+            dialogue,
+            "tenure context and decade phrase in unrelated sentences must not trigger"
+        );
+    }
+
+    #[test]
+    fn priest_tenure_guard_leaves_canonical_tenure_alone() {
+        let dialogue = "He's served this parish for twenty-five years.";
+
+        assert_eq!(
+            guard_priest_tenure_drift(dialogue, "Tell me about Father Declan"),
+            dialogue,
+            "already-canonical tenure wording must pass through unchanged"
+        );
+    }
+
+    #[test]
+    fn rival_tone_guard_cools_neutral_warm_target_line() {
+        let dialogue = "Mick Flanagan, aye. He's retired now but still keeps an eye on things.";
+        let rels = vec![RelationshipToneHint {
+            target_name: "Mick Flanagan".to_string(),
+            kind: RelationshipKind::Rival,
+            strength: -0.2,
+        }];
+        let result =
+            guard_rival_target_neutral_tone(dialogue, "What do you think of Mick Flanagan?", &rels);
+
+        assert_ne!(result, dialogue, "neutral rival line must be cooled");
+        assert!(
+            result.contains("Mick Flanagan"),
+            "replacement should preserve the target name: {result:?}"
+        );
+        assert!(
+            result.to_lowercase().contains("little warmth")
+                || result.to_lowercase().contains("keep my distance"),
+            "replacement should carry a visible cool/rival cue: {result:?}"
+        );
+    }
+
+    #[test]
+    fn rival_tone_guard_cools_female_pronoun_warm_line() {
+        let dialogue = "Roisin Connolly, aye. She's a good woman, no harm in her.";
+        let rels = vec![RelationshipToneHint {
+            target_name: "Roisin Connolly".to_string(),
+            kind: RelationshipKind::Rival,
+            strength: -0.2,
+        }];
+        let result = guard_rival_target_neutral_tone(
+            dialogue,
+            "What do you think of Roisin Connolly?",
+            &rels,
+        );
+
+        assert_ne!(result, dialogue, "female warm rival line must be cooled");
+        assert!(
+            result.contains("Roisin Connolly"),
+            "replacement should preserve the target name: {result:?}"
+        );
+        assert!(
+            result.to_lowercase().contains("little warmth")
+                || result.to_lowercase().contains("keep my distance"),
+            "replacement should carry a visible cool/rival cue: {result:?}"
+        );
+    }
+
+    #[test]
+    fn rival_tone_guard_leaves_friendly_target_line_alone() {
+        let dialogue = "Mick Flanagan, aye. He's retired now but still keeps an eye on things.";
+        let rels = vec![RelationshipToneHint {
+            target_name: "Mick Flanagan".to_string(),
+            kind: RelationshipKind::Friend,
+            strength: 0.5,
+        }];
+
+        assert_eq!(
+            guard_rival_target_neutral_tone(dialogue, "Tell me about Mick Flanagan", &rels),
+            dialogue,
+            "friendly relationships must not be soured by the rival-tone guard",
+        );
+    }
+
+    #[test]
+    fn rival_tone_guard_leaves_existing_cool_line_alone() {
+        let dialogue =
+            "Mick Flanagan, aye. There is little warmth between us, so I keep my distance.";
+        let rels = vec![RelationshipToneHint {
+            target_name: "Mick Flanagan".to_string(),
+            kind: RelationshipKind::Rival,
+            strength: -0.2,
+        }];
+
+        assert_eq!(
+            guard_rival_target_neutral_tone(dialogue, "Tell me about Mick Flanagan", &rels),
+            dialogue,
+            "already cool wording should pass through unchanged",
+        );
+    }
+
+    #[test]
+    fn rival_tone_guard_leaves_third_person_distance_line_alone() {
+        let dialogue = "Mick Flanagan, aye. He's a good man, but he keeps his distance.";
+        let rels = vec![RelationshipToneHint {
+            target_name: "Mick Flanagan".to_string(),
+            kind: RelationshipKind::Rival,
+            strength: -0.2,
+        }];
+
+        assert_eq!(
+            guard_rival_target_neutral_tone(dialogue, "Tell me about Mick Flanagan", &rels),
+            dialogue,
+            "existing third-person distance cue should pass through unchanged",
+        );
+    }
+
+    #[test]
+    fn rival_tone_guard_requires_player_to_ask_about_target() {
+        let dialogue = "Mick Flanagan, aye. He's retired now but still keeps an eye on things.";
+        let rels = vec![RelationshipToneHint {
+            target_name: "Mick Flanagan".to_string(),
+            kind: RelationshipKind::Rival,
+            strength: -0.2,
+        }];
+
+        assert_eq!(
+            guard_rival_target_neutral_tone(dialogue, "Tell me about Padraig Darcy", &rels),
+            dialogue,
+            "unrelated prompts must not rewrite third-person mentions",
+        );
+    }
+
+    #[test]
+    fn time_of_day_phrase_guard_corrects_midday_morning_tic() {
+        let dialogue = "Good morning to ye. What brings ye in this fine morning?";
+        let result = guard_time_of_day_phrase(dialogue, TimeOfDay::Midday);
+        assert_eq!(result, "Good day to ye. What brings ye in this fine day?");
+        assert!(
+            !result.to_lowercase().contains("morn"),
+            "midday greeting must not retain morning wording: {result:?}"
+        );
+    }
+
+    #[test]
+    fn time_of_day_phrase_guard_leaves_actual_morning_alone() {
+        let dialogue = "Good morning to ye. What brings ye in this fine morning?";
+        let result = guard_time_of_day_phrase(dialogue, TimeOfDay::Morning);
+        assert_eq!(result, dialogue);
     }
 
     // ── #1530 — invented place confirmation guard ──────────────────────────────
@@ -5218,6 +6846,58 @@ mod tests {
         );
     }
 
+    /// AC-1 (#1507): NPC soft-validates an invented place → replaced with
+    /// place-decline instead of suspiciously asking why the player asked.
+    #[test]
+    fn invented_place_guard_fires_for_soft_deflection() {
+        let known = make_locations(&["Kilteevan", "Roscommon", "Strokestown"]);
+        let dialogue = "And Ballygostick Tower, now? Have ye a reason for asking?";
+        let result = guard_invented_place_confirmation(
+            dialogue,
+            "Is there a place called Ballygostick Tower?",
+            &known,
+            0,
+        );
+
+        assert_ne!(
+            result, dialogue,
+            "guard must fire for invented-place soft deflection: {result:?}"
+        );
+        assert!(
+            !result.to_lowercase().contains("ballygostick"),
+            "invented place name must not be repeated: {result:?}"
+        );
+        assert!(
+            result.to_lowercase().contains("place"),
+            "replacement should be a place non-recognition decline: {result:?}"
+        );
+    }
+
+    /// AC-1 (#1507): another post-generation guard may already strip the
+    /// invented place name, leaving only the soft-deflecting question. The
+    /// place guard still has the player's original place query and should
+    /// replace the leftover deflection.
+    #[test]
+    fn invented_place_guard_fires_for_leftover_reason_question() {
+        let known = make_locations(&["Kilteevan", "Roscommon", "Strokestown"]);
+        let dialogue = "Have ye a reason for asking?";
+        let result = guard_invented_place_confirmation(
+            dialogue,
+            "Is there a place called Ballygostick Tower?",
+            &known,
+            1,
+        );
+
+        assert_ne!(
+            result, dialogue,
+            "leftover soft deflection must become a clear place decline: {result:?}"
+        );
+        assert!(
+            result.to_lowercase().contains("place"),
+            "replacement should mention place non-recognition: {result:?}"
+        );
+    }
+
     /// AC-2 (#1530): NPC confirms a real location from the known list → unchanged.
     #[test]
     fn invented_place_guard_leaves_known_location() {
@@ -5227,6 +6907,24 @@ mod tests {
         assert_eq!(
             result, dialogue,
             "known location must pass through unchanged: {result:?}"
+        );
+    }
+
+    /// AC-2 (#1507): soft questions about a real location are not rewritten as
+    /// unknown-place denials.
+    #[test]
+    fn invented_place_guard_leaves_known_location_soft_question() {
+        let known = make_locations(&["Kilteevan", "Roscommon", "Strokestown"]);
+        let dialogue = "Kilteevan, now? Have ye a reason for asking?";
+        let result = guard_invented_place_confirmation(
+            dialogue,
+            "Is there a place called Kilteevan?",
+            &known,
+            0,
+        );
+        assert_eq!(
+            result, dialogue,
+            "known location soft question must pass through unchanged: {result:?}"
         );
     }
 
@@ -5240,6 +6938,62 @@ mod tests {
         assert_eq!(
             result, dialogue,
             "denial without affirmation must pass through: {result:?}"
+        );
+    }
+
+    /// AC-1 (#1563): A real place from the world graph must not be denied as
+    /// nonexistent just because the speaking NPC's local knowledge omitted it.
+    #[test]
+    fn false_denial_place_guard_corrects_known_place_denial() {
+        let known = make_locations(&["Darcy's Pub", "The Forge", "Kilteevan Village"]);
+        let dialogue = "I cannae guide ye to a place that doesn't exist.";
+        let result =
+            guard_false_denial_of_known_place(dialogue, "Where is Darcy's Pub?", &known, 0);
+
+        assert_ne!(
+            result, dialogue,
+            "generic denial of known place must be corrected: {result:?}"
+        );
+        assert!(
+            !result.to_lowercase().contains("doesn't exist"),
+            "known-place denial must be replaced: {result:?}"
+        );
+    }
+
+    /// AC-1 (#1563): The issue repro used navigation wording ("guide me to"),
+    /// so explicit navigation requests are place candidates too.
+    #[test]
+    fn false_denial_place_guard_extracts_guide_me_to_known_place() {
+        let known = make_locations(&["Darcy's Pub", "The Forge", "Kilteevan Village"]);
+        let dialogue = "I cannae guide ye to a place that doesn't exist.";
+        let result = guard_false_denial_of_known_place(
+            dialogue,
+            "Can you guide me to Darcy's Pub?",
+            &known,
+            1,
+        );
+
+        assert_ne!(
+            result, dialogue,
+            "guide-me-to known-place denial must be corrected: {result:?}"
+        );
+        assert!(
+            result.to_lowercase().contains("place"),
+            "replacement should be a grounded place acknowledgement: {result:?}"
+        );
+    }
+
+    /// AC-3 (#1563): A correct denial of an invented place remains a denial.
+    #[test]
+    fn false_denial_place_guard_leaves_unknown_place_denial() {
+        let known = make_locations(&["Darcy's Pub", "The Forge", "Kilteevan Village"]);
+        let dialogue = "I know of no such place in this parish.";
+        let result =
+            guard_false_denial_of_known_place(dialogue, "Where is Ballydrift Abbey?", &known, 0);
+
+        assert_eq!(
+            result, dialogue,
+            "correct denial of invented place must pass through unchanged"
         );
     }
 
@@ -5291,5 +7045,267 @@ mod tests {
         // Whether or not the guard fires (depends on extraction), the result must be a
         // valid string with no panic.
         assert!(!result.is_empty(), "result must be non-empty: {result:?}");
+    }
+
+    // ── #1569 — known place names are not fabricated people ─────────────────
+
+    /// AC-1 (#1569): "Lough Ree" has the same Title-case bigram shape as a
+    /// person name, but it is a known place via "Lough Ree Shore". The
+    /// fabricated-person guard must not replace a valid lake-history answer
+    /// with a "no such person" decline.
+    #[test]
+    fn person_guard_allows_known_place_history_question() {
+        let known_people = vec!["Aoife Brennan".to_string()];
+        let known_locations = make_locations(&["Lough Ree Shore", "Kilteevan Village"]);
+        let player_input =
+            "Aoife, I never saw a lake this grand. What is the history of Lough Ree?";
+        let dialogue = "Ah, the history of Lough Ree is a tale as grand as the lake itself. \
+                        Folk say it was formed by the great flood.";
+
+        let result = guard_fabricated_person_confirmation_with_locations(
+            dialogue,
+            player_input,
+            &known_people,
+            &known_locations,
+            &[],
+            None,
+            0,
+        );
+
+        assert_eq!(
+            result, dialogue,
+            "known place reference must not be treated as a fabricated person: {result:?}"
+        );
+    }
+
+    /// Review hardening (#1569): the known-place exemption must also match a
+    /// candidate phrase in the middle of a longer location name.
+    #[test]
+    fn person_guard_allows_known_place_history_question_for_middle_location_span() {
+        let known_people = vec!["Aoife Brennan".to_string()];
+        let known_locations = make_locations(&["The Old Lough Ree Shore"]);
+        let player_input = "What is the history of Lough Ree?";
+        let dialogue = "The history of Lough Ree is older than the road itself.";
+
+        let result = guard_fabricated_person_confirmation_with_locations(
+            dialogue,
+            player_input,
+            &known_people,
+            &known_locations,
+            &[],
+            None,
+            0,
+        );
+
+        assert_eq!(
+            result, dialogue,
+            "known place span in the middle of a location must not be treated as a person"
+        );
+    }
+
+    /// Review hardening (#1569): token-window location matching must still
+    /// require the full candidate phrase, not only a surname-like suffix.
+    #[test]
+    fn person_guard_does_not_treat_unrelated_surname_as_known_place() {
+        let known_people = vec!["Aoife Brennan".to_string()];
+        let known_locations = make_locations(&["Saint Mary's Church"]);
+        let player_input = "Do you know Mary Church?";
+        let dialogue = "Aye, Mary Church is at the forge this morning.";
+
+        let result = guard_fabricated_person_confirmation_with_locations(
+            dialogue,
+            player_input,
+            &known_people,
+            &known_locations,
+            &[],
+            None,
+            0,
+        );
+
+        assert_ne!(
+            result, dialogue,
+            "unrelated surname-like phrase must still be guarded"
+        );
+    }
+
+    /// AC-3 (#1569): adding known-place context must not disable the fabricated
+    /// person guard for real fabricated people.
+    #[test]
+    fn person_guard_still_declines_fabricated_person_with_location_context() {
+        let known_people = vec!["Aoife Brennan".to_string()];
+        let known_locations = make_locations(&["Lough Ree Shore", "Kilteevan Village"]);
+        let player_input = "Do you know Cormac Sweeney?";
+        let dialogue = "Aye, Cormac Sweeney is at the mill this morning.";
+
+        let result = guard_fabricated_person_confirmation_with_locations(
+            dialogue,
+            player_input,
+            &known_people,
+            &known_locations,
+            &[],
+            None,
+            0,
+        );
+
+        assert_ne!(result, dialogue, "fabricated person must still be guarded");
+        assert!(
+            result.to_lowercase().contains("no such person")
+                || result.to_lowercase().contains("no one by that name")
+                || result.to_lowercase().contains("wrong parish")
+                || result.to_lowercase().contains("that name")
+                || result.to_lowercase().contains("parish face")
+                || result.to_lowercase().contains("comes to mind"),
+            "expected a person non-recognition decline, got: {result:?}"
+        );
+    }
+
+    // ── #1553 — player name exempt from fabricated-person guard ──────────────
+
+    /// When `player_name` is supplied the guard must exempt the player's own
+    /// name from the fabricated-person check (#1553).
+    #[test]
+    fn player_self_introduction_not_denied_when_player_name_passed() {
+        // Warm welcome that contains the player's own name plus affirmation
+        // markers. Must NOT be replaced when player_name is passed.
+        let dialogue = "'Tis a fine mornin', Aiden Carney! Welcome to Kilteevan, indeed! \
+                        A cooper is just what we need. Sit ye down.";
+        let player_input = "I am Aiden Carney, a cooper newly come to Kilteevan.";
+        // Player is NOT in the NPC roster.
+        let known: Vec<String> = vec!["Peig Hannigan".to_string()];
+
+        // Without player_name: the guard might treat "Aiden Carney" as fabricated.
+        // With player_name: the guard exempts it entirely.
+        let result = guard_fabricated_person_confirmation(
+            dialogue,
+            player_input,
+            &known,
+            &[],
+            Some("Aiden Carney"),
+            42,
+        );
+        assert_eq!(
+            result, dialogue,
+            "player self-introduction must not trigger the fabricated-person guard when player_name is passed:\n{result}"
+        );
+    }
+
+    /// The NPC's own name IS in `known_person_names` (all parish NPCs are
+    /// included). The guard must never strip it (#1553).
+    #[test]
+    fn npc_own_name_in_roster_never_denied() {
+        let dialogue = "Good morning. Peig Hannigan, me name. And ye be new to these parts, aye?";
+        let player_input = "Are you Peig Hannigan?";
+        let known: Vec<String> = vec!["Peig Hannigan".to_string()];
+
+        let result =
+            guard_fabricated_person_confirmation(dialogue, player_input, &known, &[], None, 42);
+        assert_eq!(
+            result, dialogue,
+            "NPC's own name in roster must never be stripped:\n{result}"
+        );
+    }
+
+    /// A grounded answer that mentions the player's name as a recipient (not
+    /// an affirmation of a fabricated third party) must pass through unchanged.
+    #[test]
+    fn grounded_work_answer_not_stripped() {
+        let dialogue = "The forge ye'll find near the bridge, and the mill needs sturdy casks. \
+                        There's work enough for a skilled cooper in Kilteevan.";
+        let player_input = "I am Aiden Carney, a cooper. Might there be work hereabouts?";
+        let known: Vec<String> = vec!["Peig Hannigan".to_string(), "Colm Murphy".to_string()];
+
+        let result = guard_fabricated_person_confirmation(
+            dialogue,
+            player_input,
+            &known,
+            &[],
+            Some("Aiden Carney"),
+            42,
+        );
+        assert_eq!(
+            result, dialogue,
+            "grounded work answer must not be stripped by person-confirmation guard:\n{result}"
+        );
+    }
+
+    // ── #1554 — nearby phrase repeat collapse ─────────────────────────────────
+
+    /// The verbosity pipeline output "Aye, tell me indeed, what say ye now,
+    /// indeed, what be it?" has "indeed, what" repeated within a 20-word
+    /// window. The guard must trim it (#1554).
+    #[test]
+    fn collapse_nearby_phrase_repeat_cleans_stacked_tail() {
+        let input = "Aye, tell me indeed, what say ye now, indeed, what be it?";
+        let result = collapse_nearby_phrase_repeat(input);
+        // The second "indeed, what be it" occurrence must be removed.
+        // The result must not contain "indeed" twice within a short span.
+        let result_lower = result.to_lowercase();
+        let first = result_lower.find("indeed").unwrap_or(usize::MAX);
+        let last = result_lower.rfind("indeed").unwrap_or(usize::MAX);
+        assert!(
+            first == last || (last - first) > 15,
+            "nearby phrase repeat must be collapsed: first={first}, last={last}, result={result:?}"
+        );
+    }
+
+    /// Clean dialogue with no nearby repetition must pass through unchanged.
+    #[test]
+    fn collapse_nearby_phrase_repeat_noop_on_clean_dialogue() {
+        let input =
+            "Good morning to ye. The forge is near the bridge, and the mill is by the river.";
+        let result = collapse_nearby_phrase_repeat(input);
+        assert_eq!(result, input, "clean dialogue must not be modified");
+    }
+
+    /// A phrase repeated once with a very large gap (> 20 words) must not
+    /// trigger the guard — that is natural prose, not a degenerate loop.
+    #[test]
+    fn collapse_nearby_phrase_repeat_ignores_distant_repetition() {
+        // "well enough" appears twice but more than 20 words apart.
+        let input = "I know this land well enough, having walked every road from \
+                     Strokestown to Roscommon and back again, aye, and I know it \
+                     well enough to say there's no finer parish.";
+        let result = collapse_nearby_phrase_repeat(input);
+        assert_eq!(
+            result, input,
+            "distant repetition (> 20 words) must not trigger the guard"
+        );
+    }
+
+    /// #1561: The phrase "work for a" repeats in adjacent substantive
+    /// sentences, but the only clean boundary before the first occurrence is the
+    /// greeting. The guard must not trim back to that opener and drop the actual
+    /// cooper-work answer.
+    #[test]
+    fn collapse_nearby_phrase_repeat_preserves_cooper_work_answer() {
+        let input = "Good morning, Aiden Carney. Work for a cooper? Aye, there's \
+                     always work for a man with that skill. This place needs \
+                     barrels for ale and salt, surely. Ye know yer trade?";
+        let result = collapse_nearby_phrase_repeat(input);
+        assert_eq!(
+            result, input,
+            "nearby phrase guard must not truncate a normal answer to its greeting"
+        );
+    }
+
+    /// #1561: The full verbosity pipeline must preserve the same short,
+    /// distinct multi-sentence reply instead of storing only the opener.
+    #[test]
+    fn verbosity_guard_preserves_cooper_work_answer() {
+        let input = "Good morning, Aiden Carney. Work for a cooper? Aye, there's \
+                     always work for a man with that skill. This place needs \
+                     barrels for ale and salt, surely. Ye know yer trade?";
+        let result = guard_verbosity_runons(input);
+        assert!(
+            result.contains("Work for a cooper?")
+                && result.contains("there's always work")
+                && result.contains("barrels for ale and salt")
+                && result.contains("Ye know yer trade?"),
+            "verbosity guard must preserve the substantive answer: {result:?}"
+        );
+        assert_ne!(
+            result, "Good morning, Aiden Carney.",
+            "verbosity guard must not collapse to only the greeting"
+        );
     }
 }

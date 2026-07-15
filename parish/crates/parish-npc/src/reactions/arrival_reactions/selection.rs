@@ -11,6 +11,7 @@ use parish_types::dice::DiceRoll;
 use parish_world::graph::LocationData;
 use parish_world::time::TimeOfDay;
 
+use super::register::has_calculating_register;
 use super::templates::{ReactionTemplates, substitute_placeholders};
 use super::types::{ArrivalContext, NpcReaction, ReactionKind};
 
@@ -159,7 +160,11 @@ fn pick_canned_text(
             }
         }
         ReactionKind::Introduction => {
-            let pool = if npc_ctx.at_workplace {
+            let pool = if has_calculating_register(npc_ctx.npc)
+                && !templates.introductions.calculating.is_empty()
+            {
+                &templates.introductions.calculating
+            } else if npc_ctx.at_workplace {
                 &templates.introductions.workplace
             } else {
                 &templates.introductions.casual

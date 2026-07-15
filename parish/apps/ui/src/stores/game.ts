@@ -81,6 +81,17 @@ export const focailOpen = writable<boolean>(false);
  *  when this changes, regardless of current scroll position (#1431 item 4). */
 export const playerSubmittedCount = writable<number>(0);
 
+/** Draft text requested by outer UI chrome.
+ *
+ * Used by the Parish Notebook action stamps to seed the shared input field
+ * without bypassing the existing submit/history/autocomplete pipeline.
+ */
+export const intentDraft = writable<string | null>(null);
+
+export function requestIntentDraft(text: string): void {
+	intentDraft.set(text);
+}
+
 /**
  * True while the game is being driven externally (by the quality harness or
  * any MCP/bridge client) rather than by the local player.
@@ -289,6 +300,30 @@ export function addReaction(
 			}
 			return { ...entry, reactions };
 		});
+	});
+}
+
+/** Replaces the content of a streaming textLog entry identified by its
+ *  `stream_turn_id` with post-guard corrected dialogue (#1552).
+ *
+ *  Called when the backend emits `dialogue-corrected` after all post-generation
+ *  guards have run and at least one guard altered the raw model output. The entry
+ *  matching `turnId` may still be streaming (the pump may not have drained yet);
+ *  we overwrite its content unconditionally so the player always sees the
+ *  canonical post-guard text, not the raw model output.
+ */
+export function replaceStreamEntryContent(
+	turnId: number,
+	correctedText: string,
+): void {
+	textLog.update((log) => {
+		const idx = log.findIndex((entry) => entry.stream_turn_id === turnId);
+		if (idx < 0) return log;
+		return [
+			...log.slice(0, idx),
+			{ ...log[idx], content: correctedText },
+			...log.slice(idx + 1),
+		];
 	});
 }
 

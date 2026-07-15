@@ -1,0 +1,7 @@
+# fix-1519-calculating-first-contact
+# Repro: Cormac Duffy's calculating mood should shape his first-contact
+# arrival greeting at The Mill instead of falling back to generic warmth.
+
+/flag enable npc-arrival-greetings
+go to Kilteevan Village
+go to The Mill

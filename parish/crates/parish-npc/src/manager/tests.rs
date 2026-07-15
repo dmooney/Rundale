@@ -47,6 +47,33 @@ fn test_add_and_get_npc() {
 }
 
 #[test]
+fn relationship_tone_hints_project_speaker_relationships_with_target_names() {
+    let mut mgr = NpcManager::new();
+    let mut speaker = make_test_npc(1, 2);
+    speaker.relationships.insert(
+        NpcId(2),
+        Relationship::new(crate::types::RelationshipKind::Rival, -0.4),
+    );
+    speaker.relationships.insert(
+        NpcId(99),
+        Relationship::new(crate::types::RelationshipKind::Friend, 0.7),
+    );
+
+    let mut target = make_test_npc(2, 2);
+    target.name = "Mick Flanagan".to_string();
+
+    mgr.add_npc(speaker);
+    mgr.add_npc(target);
+
+    let hints = mgr.relationship_tone_hints(NpcId(1));
+
+    assert_eq!(hints.len(), 1, "dangling relationship targets are ignored");
+    assert_eq!(hints[0].target_name, "Mick Flanagan");
+    assert_eq!(hints[0].kind, crate::types::RelationshipKind::Rival);
+    assert_eq!(hints[0].strength, -0.4);
+}
+
+#[test]
 fn test_npcs_at_location() {
     let mut mgr = NpcManager::new();
     mgr.add_npc(make_test_npc(1, 2));

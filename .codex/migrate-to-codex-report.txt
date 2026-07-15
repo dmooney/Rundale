@@ -1,0 +1,23 @@
+Migration inventory:
+  inactive: instruction files - none found
+  inactive: skills - none found
+  active: command sources - 3 found
+    provider: source command (3)
+      - demo-audit
+      - demo-audit-mcp
+      - todo-drain
+  active: subagents - 1 found
+    - vibecoder-security-review
+Migration surfaces:
+  inactive: AGENTS.md - No supported instruction file found.
+  active: skills - 3 skill(s) converted.
+  active: MCP config - 1 MCP server(s) converted into config.toml.
+  active: subagents - 1 subagent(s) converted.
+Migration report:
+  rewritten: .codex/hooks.json - Unsupported Claude hook fields need review: `hooks.Notification`, `hooks.Stop.matcher`, `hooks.SubagentStart`, `hooks.UserPromptSubmit.matcher`. Rewritten for Codex hooks; review behavior before relying on it. Codex hooks require `[features].codex_hooks = true`, only execute `command` handlers, skip `async` / `prompt` / `agent` handlers, ignore `matcher` for `UserPromptSubmit` and `Stop`, and `PreToolUse` / `PostToolUse` currently run for shell commands only.
+  resolved: .agents/skills/source-command-demo-audit-mcp/SKILL.md - Converted source command `demo-audit-mcp` to a Codex skill; replaced placeholder and slash-command boilerplate with Codex invocation guidance.
+  resolved: .agents/skills/source-command-demo-audit/SKILL.md - Converted source command `demo-audit` to a Codex skill; replaced placeholder and slash-command boilerplate with Codex invocation guidance.
+  resolved: .agents/skills/source-command-todo-drain/SKILL.md - Converted source command `todo-drain` to a Codex skill; replaced Claude worktree and co-author assumptions with Codex guidance.
+  rewritten: .codex/config.toml - Converted 1 MCP server entries.
+  resolved: .codex/config.toml - MCP server `parish` converted; unsupported Claude `description` preserved as a Codex comment pointing to AGENTS.md.
+  resolved: .codex/agents/vibecoder-security-review.toml - Converted subagent; replaced Claude file-memory instructions with Codex-safe review notes.

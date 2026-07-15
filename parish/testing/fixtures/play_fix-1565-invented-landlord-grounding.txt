@@ -1,0 +1,8 @@
+# fix-1565-invented-landlord-grounding
+# Repro: Colm must not affirm an invented landlord/title-place entity.
+
+go to the forge
+/npcs
+
+/stub Colm Gallagher: Aye, I've heard the talk of Lord Fitzwilliam. 'Tis said he owns most of the land round hereabouts. Ye'll need to be careful with yer words when ye speak of him, 'tis a mighty man he is.
+talk to Colm Gallagher about Have you heard of Lord Fitzwilliam of Castlemore? I hear he is the great landlord hereabouts

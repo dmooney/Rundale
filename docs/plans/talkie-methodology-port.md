@@ -88,7 +88,7 @@ The original "train a small period-only LM as a perplexity oracle" idea is obsol
 |                                                                     | Original | Revised          |
 | ------------------------------------------------------------------- | -------- | ---------------- |
 | Literary-extracted dialogue (Joyce/Griffin/Carleton/Croker/Kickham) | 70%      | **75%**          |
-| Joyce 1910 dialect↔standard pairs                                   | 25%      | **20%**          |
+| Joyce 1910 dialect-standard pairs                                   | 25%      | **20%**          |
 | Reference-work instruction pairs (NEW — Talkie-style)               | —        | **5%**           |
 | Hand-written anchor (3× weighted)                                   | 5%       | **0%** (removed) |
 

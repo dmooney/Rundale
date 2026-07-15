@@ -17,9 +17,11 @@
 //! | `types`     | `ReactionKind`, `NpcReaction`, `ArrivalContext`                 |
 //! | `templates` | Template structs, defaults, placeholder substitution            |
 //! | `selection` | Threshold computation, kind selection, capping, generation loop |
+//! | `register`  | Personality/mood register detection shared by prompt + fallback |
 //! | `prompt`    | LLM prompt construction and `resolve_llm_greeting`              |
 
 mod prompt;
+mod register;
 mod selection;
 mod templates;
 mod types;

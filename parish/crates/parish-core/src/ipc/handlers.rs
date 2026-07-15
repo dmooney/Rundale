@@ -419,10 +419,10 @@ fn unambiguous_npc_mention_candidates(
     filtered
 }
 
-fn npc_mention_candidates(
+fn npc_location_mention_candidate_pairs(
     world: &WorldState,
     npc_manager: &NpcManager,
-) -> Vec<NpcMentionCandidate> {
+) -> Vec<(String, String)> {
     let mut candidates = Vec::new();
 
     for npc in npc_manager.npcs_at(world.player_location) {
@@ -436,6 +436,135 @@ fn npc_mention_candidates(
                 add_npc_mention_candidate(&mut candidates, first_name, &npc.name);
             }
         }
+    }
+
+    candidates
+}
+
+fn normalized_query_tokens(raw: &str) -> Vec<String> {
+    raw.chars()
+        .map(|ch| {
+            if ch.is_alphanumeric() || ch == '\'' {
+                ch.to_ascii_lowercase()
+            } else {
+                ' '
+            }
+        })
+        .collect::<String>()
+        .split_whitespace()
+        .map(ToString::to_string)
+        .collect()
+}
+
+fn is_explicit_roster_presence_query(raw: &str) -> bool {
+    let tokens = normalized_query_tokens(raw);
+    if tokens.is_empty() {
+        return false;
+    }
+
+    let starts_with_presence_question = matches!(
+        tokens.first().map(String::as_str),
+        Some("is" | "are" | "was" | "were")
+    ) && tokens
+        .iter()
+        .any(|token| matches!(token.as_str(), "here" | "about" | "nearby"));
+    let asks_where = tokens.windows(2).any(|window| {
+        matches!(
+            window,
+            [first, second]
+                if first == "where" && matches!(second.as_str(), "is" | "are")
+        )
+    });
+    let asks_seen = tokens
+        .windows(3)
+        .any(|window| matches!(window, [a, b, c] if a == "have" && b == "you" && c == "seen"));
+
+    starts_with_presence_question || asks_where || asks_seen
+}
+
+fn name_without_religious_title(name: &str) -> String {
+    let mut parts = name.split_whitespace().collect::<Vec<_>>();
+    while parts.first().is_some_and(|part| {
+        matches!(
+            part.trim_matches(|ch: char| !ch.is_alphanumeric())
+                .to_ascii_lowercase()
+                .as_str(),
+            "fr" | "father"
+        )
+    }) {
+        parts.remove(0);
+    }
+    parts.join(" ")
+}
+
+fn is_priest_occupation(occupation: &str) -> bool {
+    occupation
+        .split_whitespace()
+        .any(|token| token.eq_ignore_ascii_case("priest"))
+}
+
+fn roster_presence_mention_candidate_pairs(npc_manager: &NpcManager) -> Vec<(String, String)> {
+    let mut candidates = Vec::new();
+
+    for npc in npc_manager.all_npcs() {
+        add_npc_mention_candidate(&mut candidates, &npc.name, &npc.name);
+        add_npc_mention_candidate(&mut candidates, &npc.occupation, &npc.name);
+        add_npc_mention_candidate(
+            &mut candidates,
+            &format!("the {}", npc.occupation),
+            &npc.name,
+        );
+
+        let untitled = name_without_religious_title(&npc.name);
+        if !untitled.is_empty() && !untitled.eq_ignore_ascii_case(&npc.name) {
+            add_npc_mention_candidate(&mut candidates, &untitled, &npc.name);
+        }
+
+        if let Some(first_name) = untitled
+            .split_whitespace()
+            .next()
+            .or_else(|| npc.name.split_whitespace().next())
+        {
+            add_npc_mention_candidate(&mut candidates, first_name, &npc.name);
+
+            if is_priest_occupation(&npc.occupation) {
+                add_npc_mention_candidate(
+                    &mut candidates,
+                    &format!("Father {first_name}"),
+                    &npc.name,
+                );
+                add_npc_mention_candidate(&mut candidates, &format!("Fr. {first_name}"), &npc.name);
+                add_npc_mention_candidate(&mut candidates, &format!("Fr {first_name}"), &npc.name);
+            }
+        }
+
+        if is_priest_occupation(&npc.occupation) {
+            add_npc_mention_candidate(&mut candidates, "Father", &npc.name);
+            add_npc_mention_candidate(&mut candidates, "the priest", &npc.name);
+            if !untitled.is_empty() {
+                add_npc_mention_candidate(
+                    &mut candidates,
+                    &format!("Father {untitled}"),
+                    &npc.name,
+                );
+                add_npc_mention_candidate(&mut candidates, &format!("Fr. {untitled}"), &npc.name);
+                add_npc_mention_candidate(&mut candidates, &format!("Fr {untitled}"), &npc.name);
+            }
+        }
+    }
+
+    candidates
+}
+
+fn npc_mention_candidates(
+    raw: &str,
+    world: &WorldState,
+    npc_manager: &NpcManager,
+) -> Vec<NpcMentionCandidate> {
+    let mut candidates = npc_location_mention_candidate_pairs(world, npc_manager);
+
+    if is_explicit_roster_presence_query(raw) {
+        candidates.extend(roster_presence_mention_candidate_pairs(npc_manager));
     }
 
     unambiguous_npc_mention_candidates(candidates)
@@ -513,12 +642,15 @@ fn find_natural_npc_mentions(
 /// display names, so `Padraig`, `Padraig Darcy`, and multi-word lowercase
 /// descriptions like `an older man behind the bar` remain parseable. Ambiguous
 /// mention text is ignored rather than routed to an arbitrary co-located NPC.
+/// Explicit presence/where/seen questions additionally match unambiguous
+/// full-roster names and role titles so "Is Father Declan here?" can report
+/// the named person's absence instead of falling through as ambient input.
 pub fn extract_npc_mentions(
     raw: &str,
     world: &WorldState,
     npc_manager: &NpcManager,
 ) -> MentionedNpcs {
-    let candidates = npc_mention_candidates(world, npc_manager);
+    let candidates = npc_mention_candidates(raw, world, npc_manager);
 
     if candidates.is_empty() {
         return MentionedNpcs {
@@ -797,7 +929,7 @@ pub struct NpcConversationSetup {
     pub system_prompt: String,
     /// The assembled context string for the LLM.
     pub context: String,
-    /// Names from the NPC's known-people roster (PEOPLE YOU KNOW list).
+    /// Names from the full parish person registry plus the player when known.
     /// Used by the post-generation person-confirmation guard (#1459) to detect
     /// when the NPC's reply affirms a fabricated person not on this list.
     pub known_person_names: Vec<String>,
@@ -813,6 +945,10 @@ pub struct NpcConversationSetup {
     /// Used by the invented-place-confirmation guard (#1530) to detect when an
     /// NPC confirms a place name that does not exist in the world.
     pub known_location_names: Vec<String>,
+    /// Player's name as currently known from world state.
+    /// Passed through to post-generation guards so the player's own name is
+    /// never treated as a fabricated third-party person (#1553).
+    pub player_name: Option<String>,
 }
 
 /// Prepares a specific NPC's turn in an ongoing conversation.
@@ -892,13 +1028,32 @@ pub fn prepare_npc_conversation_turn(
     } else {
         None
     };
+    // Prompt grounding (#1563): the "PEOPLE YOU KNOW" block is the model's
+    // primary allow-list for real names. The personal relationship roster is
+    // too small for that purpose: a real parish-wide figure absent from this
+    // NPC's local roster (e.g. a publican) can otherwise be denied as
+    // nonexistent. Keep relationship entries first, then append every other
+    // real parish NPC as a "real parish person" entry so the model may
+    // recognise the name without claiming close acquaintance.
+    let mut prompt_roster = roster.clone();
+    if npc_cfg.grounding_enabled {
+        let mut parish_people: Vec<(NpcId, String, String)> = npc_manager
+            .all_npcs()
+            .filter(|other| other.id != npc.id)
+            .filter(|other| !prompt_roster.iter().any(|(id, _, _)| *id == other.id))
+            .map(|other| (other.id, other.name.clone(), other.occupation.clone()))
+            .collect();
+        parish_people.sort_by_key(|(id, _, _)| id.0);
+        prompt_roster.extend(parish_people);
+    }
+
     let system_prompt = ticks::build_enhanced_system_prompt_with_config(
         &npc,
         improv_enabled,
         language,
         npc_cfg,
         &npc_names,
-        Some(&roster),
+        Some(&prompt_roster),
         location_names.as_deref(),
     );
 
@@ -1006,6 +1161,7 @@ pub fn prepare_npc_conversation_turn(
         roster_names_occupations,
         location_name,
         known_location_names,
+        player_name: world.player_name.clone(),
     })
 }
 
@@ -1449,6 +1605,32 @@ mod tests {
 
         assert!(extracted.names.is_empty());
         assert_eq!(extracted.remaining, raw);
+    }
+
+    #[test]
+    fn extract_npc_mentions_presence_query_matches_absent_rostered_priest_alias() {
+        let world = WorldState::new();
+        let mut npc_mgr = NpcManager::new();
+        let mut priest = Npc::new_test_npc();
+        priest.id = NpcId(10);
+        priest.name = "Fr. Declan Tierney".to_string();
+        priest.occupation = "Parish Priest".to_string();
+        priest.location = LocationId(world.player_location.0 + 1);
+        npc_mgr.add_npc(priest);
+
+        let raw = "Is Father Declan here? I should like to introduce myself to the parish priest.";
+        let extracted = extract_npc_mentions(raw, &world, &npc_mgr);
+
+        assert_eq!(extracted.names, vec!["Fr. Declan Tierney".to_string()]);
+        assert_eq!(extracted.remaining, raw);
+
+        let casual = "I saw Father Declan on the road yesterday.";
+        let extracted = extract_npc_mentions(casual, &world, &npc_mgr);
+        assert!(
+            extracted.names.is_empty(),
+            "full-roster aliases should stay gated to explicit presence queries"
+        );
+        assert_eq!(extracted.remaining, casual);
     }
 
     #[test]
@@ -2085,8 +2267,9 @@ mod tests {
 
         let setup = setup.expect("setup must succeed for co-located NPC");
 
-        // The fix: Roisin must appear in known_person_names even though she
-        // is NOT in the priest's personal relationship roster.
+        // The fix: Roisin must appear in both the hidden guard allow-list and
+        // the system prompt even though she is NOT in the priest's personal
+        // relationship roster.
         assert!(
             setup
                 .known_person_names
@@ -2096,6 +2279,13 @@ mod tests {
              even though she has no relationship with the speaking priest (#1488); \
              got: {:?}",
             setup.known_person_names
+        );
+        assert!(
+            setup.system_prompt.contains("Roisin Malone, Shopkeeper")
+                && setup.system_prompt.contains("real parish person"),
+            "Roisin Malone must appear in the prompt as a real parish person \
+             so the model is not instructed to deny her (#1563):\n{}",
+            setup.system_prompt
         );
 
         // Validate that the person-confirmation guard does NOT fire on a good

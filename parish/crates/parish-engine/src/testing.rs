@@ -525,6 +525,135 @@ impl GameTestHarness {
             .push(response.to_string());
     }
 
+    fn guard_canned_npc_dialogue(
+        &self,
+        npc_id: NpcId,
+        dialogue: String,
+        player_input: &str,
+        game_time: chrono::DateTime<chrono::Utc>,
+    ) -> String {
+        let cfg = parish_core::config::NpcConfig::default();
+        if dialogue.trim().is_empty() {
+            return dialogue;
+        }
+        let mut guarded = dialogue;
+        let known_person_names: Vec<String> = self
+            .app
+            .npc_manager
+            .all_npcs()
+            .map(|npc| npc.name.clone())
+            .collect();
+        let known_location_names: Vec<String> = self
+            .app
+            .world
+            .graph
+            .location_ids()
+            .into_iter()
+            .filter_map(|id| self.app.world.graph.get(id))
+            .map(|location| location.name.clone())
+            .collect();
+        let seed = npc_id.0 as u64 ^ (game_time.timestamp() as u64);
+        let speaker_context =
+            self.app
+                .npc_manager
+                .get(npc_id)
+                .map(|npc| crate::npc::DialogueSpeakerContext {
+                    name: npc.name.clone(),
+                    occupation: npc.occupation.clone(),
+                    mood: npc.mood.clone(),
+                });
+
+        if cfg.person_confirmation_guard_enabled {
+            guarded = crate::npc::guard_fabricated_person_confirmation_with_locations(
+                &guarded,
+                player_input,
+                &known_person_names,
+                &known_location_names,
+                &[],
+                self.app.world.player_name.as_deref(),
+                seed,
+            );
+        }
+
+        if !self
+            .app
+            .flags
+            .is_disabled(crate::npc::FALSE_DENIAL_GUARD_FLAG)
+        {
+            guarded = crate::npc::guard_false_denial_of_roster_person_with_speaker(
+                &guarded,
+                player_input,
+                &known_person_names,
+                self.app.world.player_name.as_deref(),
+                seed,
+                speaker_context.as_ref(),
+            );
+            guarded = crate::npc::guard_false_denial_of_known_place(
+                &guarded,
+                player_input,
+                &known_location_names,
+                seed,
+            );
+        }
+
+        if !self
+            .app
+            .flags
+            .is_disabled(crate::npc::INVENTED_PLACE_GUARD_FLAG)
+        {
+            guarded = crate::npc::guard_invented_place_confirmation(
+                &guarded,
+                player_input,
+                &known_location_names,
+                seed,
+            );
+        }
+
+        if !self
+            .app
+            .flags
+            .is_disabled(crate::npc::DIALOGUE_POLISH_GUARD_FLAG)
+        {
+            guarded = crate::npc::guard_stock_nonrecognition_decline_with_speaker(
+                &guarded,
+                player_input,
+                seed,
+                speaker_context.as_ref(),
+            );
+            guarded =
+                crate::npc::guard_time_of_day_phrase(&guarded, self.app.world.clock.time_of_day());
+            guarded = crate::npc::guard_priest_tenure_drift(&guarded, player_input);
+            guarded = crate::npc::guard_presumed_prior_acquaintance(
+                &guarded,
+                player_input,
+                &known_person_names,
+                speaker_context.as_ref(),
+            );
+            guarded = crate::npc::guard_repeated_speaker_name(&guarded, speaker_context.as_ref());
+            let relationship_tone_hints = self.app.npc_manager.relationship_tone_hints(npc_id);
+            guarded = crate::npc::guard_rival_target_neutral_tone(
+                &guarded,
+                player_input,
+                &relationship_tone_hints,
+            );
+        }
+
+        if cfg.verbosity_guard_enabled {
+            let mood = self
+                .app
+                .npc_manager
+                .get(npc_id)
+                .map(|npc| npc.mood.as_str());
+            guarded = if self.app.flags.is_disabled("npc-mood-aware-sentence-cap") {
+                crate::npc::guard_verbosity_runons(&guarded)
+            } else {
+                crate::npc::guard_verbosity_runons_with_mood(&guarded, mood)
+            };
+        }
+
+        guarded
+    }
+
     /// Returns the name of the player's current location.
     pub fn player_location(&self) -> &str {
         &self.app.world.current_location().name
@@ -1321,6 +1450,8 @@ impl GameTestHarness {
             && !responses.is_empty()
         {
             let dialogue = responses.remove(0);
+            let game_time = self.app.world.clock.now();
+            let dialogue = self.guard_canned_npc_dialogue(speaker_id, dialogue, text, game_time);
 
             let response = crate::npc::NpcStreamResponse {
                 dialogue: dialogue.clone(),
@@ -1343,7 +1474,6 @@ impl GameTestHarness {
             // conversation-log record, witness memories and the
             // `DialogueOccurred` publish — the exact harness/headless drift the
             // consolidation removes.
-            let game_time = self.app.world.clock.now();
             let location = self.app.world.player_location;
             let player_line = strip_dialogue_verb(text);
             let outcome = parish_core::game_session::apply_npc_dialogue_turn(
@@ -1402,18 +1532,31 @@ impl GameTestHarness {
     /// may be promoted to long-term storage.
     fn handle_npc_interaction(&mut self, text: &str) -> ActionResult {
         let npcs_here = self.app.npc_manager.npcs_at(self.app.world.player_location);
+        let mentions =
+            parish_core::ipc::extract_npc_mentions(text, &self.app.world, &self.app.npc_manager);
 
         if npcs_here.is_empty() {
-            self.app.world.log("Nothing happens.".to_string());
-            return ActionResult::UnknownInput;
+            if !mentions.names.is_empty() {
+                let addressed = parish_core::ipc::resolve_addressed_targets(
+                    &self.app.world,
+                    &self.app.npc_manager,
+                    &mentions.names,
+                );
+                if let Some(absent_name) = addressed.absent.first() {
+                    let msg = format!("{absent_name} is not here.");
+                    self.app.world.log(msg.clone());
+                    return ActionResult::SystemCommand { response: msg };
+                }
+            }
+            let msg = self.empty_location_dialogue_message();
+            self.app.world.log(msg.clone());
+            return ActionResult::SystemCommand { response: msg };
         }
 
         // Detect anachronisms in player input
         let detected = crate::npc::anachronism::check_input(text);
         let anachronism_terms: Vec<String> = detected.iter().map(|a| a.term.clone()).collect();
 
-        let mentions =
-            parish_core::ipc::extract_npc_mentions(text, &self.app.world, &self.app.npc_manager);
         let target_ids = if mentions.names.is_empty() {
             Vec::new()
         } else {
@@ -1425,6 +1568,16 @@ impl GameTestHarness {
         };
 
         if !mentions.names.is_empty() && target_ids.is_empty() {
+            let addressed = parish_core::ipc::resolve_addressed_targets(
+                &self.app.world,
+                &self.app.npc_manager,
+                &mentions.names,
+            );
+            if let Some(absent_name) = addressed.absent.first() {
+                let msg = format!("{absent_name} is not here.");
+                self.app.world.log(msg.clone());
+                return ActionResult::SystemCommand { response: msg };
+            }
             return ActionResult::NpcNotAvailable;
         }
 
@@ -1478,6 +1631,28 @@ impl GameTestHarness {
         ActionResult::NpcNotAvailable
     }
 
+    fn empty_location_dialogue_message(&self) -> String {
+        let location = self.app.world.current_location();
+        Self::empty_location_dialogue_message_for(&location.name, location.indoor)
+    }
+
+    fn empty_location_dialogue_message_for(location_name: &str, indoor: bool) -> String {
+        let location_name = location_name.to_lowercase();
+        let words: Vec<&str> = location_name
+            .split(|c: char| !c.is_alphanumeric())
+            .filter(|word| !word.is_empty())
+            .collect();
+        if words.contains(&"church") {
+            "You speak into the empty church, but no one answers.".to_string()
+        } else if words.contains(&"green") {
+            "You speak across the empty green, but no one answers.".to_string()
+        } else if indoor {
+            "You speak into the empty room, but no one answers.".to_string()
+        } else {
+            "You speak into the empty place, but no one answers.".to_string()
+        }
+    }
+
     fn consume_canned_npc_response(
         &mut self,
         npc_id: NpcId,
@@ -1493,6 +1668,8 @@ impl GameTestHarness {
         }
 
         let dialogue = responses.remove(0);
+        let game_time = self.app.world.clock.now();
+        let dialogue = self.guard_canned_npc_dialogue(npc_id, dialogue, text, game_time);
 
         // Build a synthetic NPC response and run it through the memory pipeline
         let response = crate::npc::NpcStreamResponse {
@@ -1510,7 +1687,6 @@ impl GameTestHarness {
         // `DialogueOccurred` publish — one definition for every backend
         // (`parish_core::game_session::apply_npc_dialogue_turn`). The player
         // line is verb-stripped for the journal entry.
-        let game_time = self.app.world.clock.now();
         let location = self.app.world.player_location;
         let player_line = strip_dialogue_verb(text);
         let outcome = parish_core::game_session::apply_npc_dialogue_turn(
@@ -1941,8 +2117,8 @@ mod tests {
     fn test_canned_npc_response() {
         let mut h = GameTestHarness::new();
         h.add_canned_response("Padraig Darcy", "Ah, good morning to ye!");
-        // Advance to 10am when Padraig is scheduled at the pub (9-22)
-        h.advance_time(120);
+        // Advance to 9am, still Morning, when Padraig is scheduled at the pub (9-22).
+        h.advance_time(60);
         h.execute("go to crossroads");
         h.execute("go to pub");
         let result = h.execute("hello there");
@@ -1951,6 +2127,391 @@ mod tests {
             assert_eq!(npc, "Padraig Darcy");
             assert_eq!(dialogue, "Ah, good morning to ye!");
         }
+    }
+
+    #[test]
+    fn natural_absent_presence_query_reports_named_absence_at_empty_church() {
+        let mut h = GameTestHarness::new();
+        h.advance_time(90);
+        let moved = h.execute("go to St. Brigid's Church");
+        assert!(matches!(moved, ActionResult::Moved { .. }), "{moved:?}");
+        assert!(
+            h.npcs_here().is_empty(),
+            "repro requires an empty church after Father Declan's early service"
+        );
+
+        let result = h.execute(
+            "Is Father Declan here? I should like to introduce myself to the parish priest.",
+        );
+
+        assert_eq!(
+            result,
+            ActionResult::SystemCommand {
+                response: "Fr. Declan Tierney is not here.".to_string()
+            }
+        );
+        assert!(
+            h.app
+                .world
+                .text_log
+                .iter()
+                .any(|line| line.contains("Fr. Declan Tierney is not here.")),
+            "absence feedback must be logged for script output"
+        );
+    }
+
+    #[test]
+    fn canned_npc_response_strips_stacked_friend_stranger_vocative() {
+        let mut h = GameTestHarness::new();
+        h.advance_time(90);
+        let moved = h.execute("go to Darcy's Pub");
+        assert!(matches!(moved, ActionResult::Moved { .. }), "{moved:?}");
+
+        h.add_canned_response(
+            "Padraig Darcy",
+            "Do ye have need of him or his guidance, then, friend stranger, or just curious to know the man of God in these parts?",
+        );
+
+        let result = h.execute(
+            "talk to Padraig Darcy about Is Father Declan the man I should speak with about parish matters?",
+        );
+        let ActionResult::NpcResponse { dialogue, .. } = result else {
+            panic!("expected Padraig canned response, got {result:?}");
+        };
+
+        assert!(
+            !dialogue.to_lowercase().contains("friend stranger"),
+            "stacked vocative must be stripped: {dialogue:?}"
+        );
+        assert!(
+            dialogue.contains("friend, or just curious"),
+            "substantive question and one address term must survive: {dialogue:?}"
+        );
+        assert!(
+            dialogue.contains("man of God"),
+            "priest reference must survive: {dialogue:?}"
+        );
+    }
+
+    #[test]
+    fn canned_npc_response_polishes_stock_declines_and_midday_morning_tic() {
+        let mut h = GameTestHarness::new();
+        h.advance_time(240);
+        h.execute("go to Darcy's Pub");
+
+        h.add_canned_response(
+            "Padraig Darcy",
+            "Good morning to ye, mo chara. What brings ye in this fine morning?",
+        );
+        let time_result = h.execute("talk to Padraig Darcy about Good day, what is the news?");
+        let ActionResult::NpcResponse {
+            dialogue: time_dialogue,
+            ..
+        } = time_result
+        else {
+            panic!("expected Padraig to answer the time-polish turn, got {time_result:?}");
+        };
+        assert!(
+            !time_dialogue.to_lowercase().contains("morn"),
+            "midday dialogue must not retain morning wording: {time_dialogue}"
+        );
+
+        h.add_canned_response(
+            "Padraig Darcy",
+            "I know no one by that name in these parts.",
+        );
+        let person_result = h.execute(
+            "talk to Padraig Darcy about Have you met Sorcha O'Malley from beyond the parish?",
+        );
+        let ActionResult::NpcResponse {
+            dialogue: person_dialogue,
+            ..
+        } = person_result
+        else {
+            panic!("expected Padraig to answer the stock-person turn, got {person_result:?}");
+        };
+        assert_ne!(
+            person_dialogue,
+            "I know no one by that name in these parts."
+        );
+
+        h.add_canned_response("Padraig Darcy", "Mayhap ye have the wrong parish entirely.");
+        let place_result = h.execute("talk to Padraig Darcy about Where is Silver Bridge?");
+        let ActionResult::NpcResponse {
+            dialogue: place_dialogue,
+            ..
+        } = place_result
+        else {
+            panic!("expected Padraig to answer the stock-place turn, got {place_result:?}");
+        };
+        assert_ne!(place_dialogue, "Mayhap ye have the wrong parish entirely.");
+        assert_ne!(
+            person_dialogue, place_dialogue,
+            "different unknown-entity prompts should not collapse to one reply"
+        );
+    }
+
+    #[test]
+    fn canned_shopkeeper_stock_decline_keeps_nonrecognition_voice() {
+        let mut h = GameTestHarness::new();
+        let moved = h.execute("go to Connolly's Shop");
+        assert!(matches!(moved, ActionResult::Moved { .. }), "{moved:?}");
+
+        h.add_canned_response(
+            "Roisin Connolly",
+            "That name is not known to me hereabouts.",
+        );
+        let result = h.execute("talk to Roisin Connolly about Martin");
+        let ActionResult::NpcResponse { npc, dialogue, .. } = result else {
+            panic!("expected Roisin to answer through the canned NPC path, got {result:?}");
+        };
+
+        assert_eq!(npc, "Roisin Connolly");
+        let lower = dialogue.to_lowercase();
+        assert!(
+            lower.contains("counter")
+                || lower.contains("shop")
+                || lower.contains("account")
+                || lower.contains("goods")
+                || lower.contains("trade"),
+            "shopkeeper decline should carry trade voice: {dialogue:?}"
+        );
+        assert!(
+            !lower.contains("aye, i know the name"),
+            "stock non-recognition must not be flipped into an affirmation: {dialogue:?}"
+        );
+        assert!(
+            !lower.contains("that name is not known to me hereabouts"),
+            "reported generic stock phrase must not surface unchanged: {dialogue:?}"
+        );
+    }
+
+    #[test]
+    fn canned_npc_response_rewrites_presumed_prior_acquaintance() {
+        let mut h = GameTestHarness::new();
+        let moved = h.execute("go to Connolly's Shop");
+        assert!(matches!(moved, ActionResult::Moved { .. }), "{moved:?}");
+
+        h.add_canned_response(
+            "Roisin Connolly",
+            "Colm Gallagher, aye, he's a bright lad at the forge. How do ye find him so far?",
+        );
+        let result = h.execute("talk to Roisin Connolly about Colm Gallagher");
+        let ActionResult::NpcResponse { npc, dialogue, .. } = result else {
+            panic!("expected Roisin to answer through the canned NPC path, got {result:?}");
+        };
+        let lower = dialogue.to_lowercase();
+
+        assert_eq!(npc, "Roisin Connolly");
+        assert!(
+            lower.contains("have ye met colm gallagher yet"),
+            "guard should ask whether the player has met the target: {dialogue:?}"
+        );
+        assert!(
+            !lower.contains("how do ye find him so far"),
+            "presupposing question must not surface unchanged: {dialogue:?}"
+        );
+    }
+
+    #[test]
+    fn canned_npc_response_removes_repeated_speaker_name() {
+        let mut h = GameTestHarness::new();
+        h.add_canned_response(
+            "Peig Hannigan",
+            "Ye can call me Peig Hannigan. As for yer question, it's Peig Hannigan ye're speaking to.",
+        );
+        let result = h.execute("talk to Peig Hannigan about your name");
+        let ActionResult::NpcResponse { npc, dialogue, .. } = result else {
+            panic!("expected Peig to answer through the canned NPC path, got {result:?}");
+        };
+        let lower = dialogue.to_lowercase();
+
+        assert_eq!(npc, "Peig Hannigan");
+        assert_eq!(
+            lower.matches("peig hannigan").count(),
+            1,
+            "speaker full name should appear once: {dialogue:?}"
+        );
+        assert!(
+            !lower.contains("it's peig hannigan ye're speaking to"),
+            "redundant self-reference phrase must not surface unchanged: {dialogue:?}"
+        );
+    }
+
+    #[test]
+    fn canned_npc_response_replaces_invented_place_soft_deflection() {
+        let mut h = GameTestHarness::new();
+        h.add_canned_response(
+            "Peig Hannigan",
+            "And Ballygostick Tower, now? Have ye a reason for asking?",
+        );
+        let result =
+            h.execute("talk to Peig Hannigan about Is there a place called Ballygostick Tower?");
+        let ActionResult::NpcResponse { npc, dialogue, .. } = result else {
+            panic!("expected Peig to answer through the canned NPC path, got {result:?}");
+        };
+        let lower = dialogue.to_lowercase();
+
+        assert_eq!(npc, "Peig Hannigan");
+        assert!(
+            lower.contains("place"),
+            "invented place should become a place non-recognition decline: {dialogue:?}"
+        );
+        assert!(
+            !lower.contains("ballygostick tower"),
+            "invented place name must not be repeated as a real referent: {dialogue:?}"
+        );
+        assert!(
+            !lower.contains("reason for asking"),
+            "soft deflection must not surface unchanged: {dialogue:?}"
+        );
+    }
+
+    #[test]
+    fn canned_npc_response_cools_neutral_rival_target_tone() {
+        let mut h = GameTestHarness::new();
+        let moved = h.execute("go to Connolly's Shop");
+        assert!(matches!(moved, ActionResult::Moved { .. }), "{moved:?}");
+
+        h.add_canned_response(
+            "Roisin Connolly",
+            "Mick Flanagan, aye. He's retired now but still keeps an eye on things.",
+        );
+
+        let result = h.execute("talk to Roisin Connolly about What do you think of Mick Flanagan?");
+        let ActionResult::NpcResponse { npc, dialogue, .. } = result else {
+            panic!("expected Roisin to answer through the canned NPC path, got {result:?}");
+        };
+
+        assert_eq!(npc, "Roisin Connolly");
+        assert!(
+            !dialogue
+                .to_lowercase()
+                .contains("still keeps an eye on things"),
+            "neutral-warm rival line must not surface unchanged: {dialogue:?}"
+        );
+        assert!(
+            dialogue.contains("Mick Flanagan"),
+            "target name should survive the cooled fallback: {dialogue:?}"
+        );
+        assert!(
+            dialogue.to_lowercase().contains("little warmth")
+                || dialogue.to_lowercase().contains("keep my distance"),
+            "cooled fallback should carry a visible rival cue: {dialogue:?}"
+        );
+    }
+
+    #[test]
+    fn canned_npc_response_corrects_priest_tenure_drift() {
+        let mut h = GameTestHarness::new();
+        let moved = h.execute("go to Connolly's Shop");
+        assert!(matches!(moved, ActionResult::Moved { .. }), "{moved:?}");
+
+        h.add_canned_response(
+            "Roisin Connolly",
+            "He's been the priest here for nigh on a decade now.",
+        );
+        let result = h.execute("talk to Roisin Connolly about Father Declan Tierney");
+        let ActionResult::NpcResponse { npc, dialogue, .. } = result else {
+            panic!("expected Roisin to answer through the canned NPC path, got {result:?}");
+        };
+
+        assert_eq!(npc, "Roisin Connolly");
+        let lower = dialogue.to_lowercase();
+        assert!(
+            lower.contains("twenty-five years"),
+            "canonical tenure must be visible: {dialogue:?}"
+        );
+        assert!(
+            !lower.contains("decade"),
+            "incorrect decade-scale tenure must be removed: {dialogue:?}"
+        );
+    }
+
+    #[test]
+    fn canned_npc_response_declines_invented_titled_landlord() {
+        let mut h = GameTestHarness::new();
+        let moved = h.execute("go to the forge");
+        assert!(matches!(moved, ActionResult::Moved { .. }), "{moved:?}");
+
+        h.add_canned_response(
+            "Colm Gallagher",
+            "Aye, I've heard the talk of Lord Fitzwilliam. 'Tis said he owns most of the land round hereabouts. Ye'll need to be careful with yer words when ye speak of him, 'tis a mighty man he is.",
+        );
+
+        let result = h.execute(
+            "talk to Colm Gallagher about Have you heard of Lord Fitzwilliam of Castlemore? I hear he is the great landlord hereabouts",
+        );
+        let ActionResult::NpcResponse { npc, dialogue, .. } = result else {
+            panic!("expected Colm to answer through the canned NPC path, got {result:?}");
+        };
+
+        assert_eq!(npc, "Colm Gallagher");
+        let lower = dialogue.to_lowercase();
+        assert!(
+            lower.contains("no such person")
+                || lower.contains("no one by that name")
+                || lower.contains("not known to me")
+                || lower.contains("wrong parish")
+                || lower.contains("such a person")
+                || lower.contains("that name")
+                || lower.contains("parish face")
+                || lower.contains("comes to mind"),
+            "{dialogue}"
+        );
+        assert!(!lower.contains("lord fitzwilliam"), "{dialogue}");
+        assert!(!lower.contains("owns most of the land"), "{dialogue}");
+    }
+
+    #[test]
+    fn canned_npc_response_corrects_real_entity_false_denials() {
+        let mut h = GameTestHarness::new();
+        let moved = h.execute("go to the forge");
+        assert!(matches!(moved, ActionResult::Moved { .. }), "{moved:?}");
+
+        h.add_canned_response(
+            "Seamus Gallagher",
+            "I cannae guide ye to a place that doesn't exist.",
+        );
+        let place_result = h.execute("talk to Seamus Gallagher about Where is Darcy's Pub?");
+        let ActionResult::NpcResponse {
+            dialogue: place_dialogue,
+            ..
+        } = place_result
+        else {
+            panic!("expected Seamus to answer the known-place turn, got {place_result:?}");
+        };
+        let place_lower = place_dialogue.to_lowercase();
+        assert!(!place_lower.contains("doesn't exist"), "{place_dialogue}");
+        assert!(
+            place_lower.contains("place")
+                && (place_lower.contains("know")
+                    || place_lower.contains("known")
+                    || place_lower.contains("real")),
+            "{place_dialogue}"
+        );
+
+        h.add_canned_response(
+            "Seamus Gallagher",
+            "I know no one by that name in these parts.",
+        );
+        let person_result = h.execute("talk to Seamus Gallagher about Where is Padraig Darcy?");
+        let ActionResult::NpcResponse {
+            dialogue: person_dialogue,
+            ..
+        } = person_result
+        else {
+            panic!("expected Seamus to answer the known-person turn, got {person_result:?}");
+        };
+        let person_lower = person_dialogue.to_lowercase();
+        assert!(
+            !person_lower.contains("no one by that name"),
+            "{person_dialogue}"
+        );
+        assert!(
+            person_lower.contains("name") || person_lower.contains("parish"),
+            "{person_dialogue}"
+        );
     }
 
     #[test]
@@ -2042,13 +2603,46 @@ mod tests {
     }
 
     #[test]
-    fn test_npc_not_at_empty_location() {
+    fn empty_location_dialogue_returns_no_answer_message() {
         let mut h = GameTestHarness::new();
         // Navigate to a location with no NPCs (e.g., the hurling green)
         h.execute("go to crossroads");
         h.execute("go to hurling green");
+        let before = h.app.world.clock.now();
         let result = h.execute("hello there");
-        assert_eq!(result, ActionResult::UnknownInput);
+        let after = h.app.world.clock.now();
+        let ActionResult::SystemCommand { response } = result else {
+            panic!("expected empty-location dialogue feedback, got {result:?}");
+        };
+        assert!(
+            response.to_lowercase().contains("no one answers")
+                || response.to_lowercase().contains("empty"),
+            "empty-location response should explain that no one answers: {response:?}"
+        );
+        assert_eq!(
+            after, before,
+            "empty-location dialogue must not advance time"
+        );
+    }
+
+    #[test]
+    fn empty_location_dialogue_message_matches_kind_by_whole_word() {
+        assert_eq!(
+            GameTestHarness::empty_location_dialogue_message_for("Churchill's Farm", false),
+            "You speak into the empty place, but no one answers."
+        );
+        assert_eq!(
+            GameTestHarness::empty_location_dialogue_message_for("Greenwood", false),
+            "You speak into the empty place, but no one answers."
+        );
+        assert_eq!(
+            GameTestHarness::empty_location_dialogue_message_for("The Old Green", false),
+            "You speak across the empty green, but no one answers."
+        );
+        assert_eq!(
+            GameTestHarness::empty_location_dialogue_message_for("The Storehouse", true),
+            "You speak into the empty room, but no one answers."
+        );
     }
 
     #[test]

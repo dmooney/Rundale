@@ -1,0 +1,33 @@
+{
+  "status": "pass_metrics_requires_visual_topology_review",
+  "input": "docs/graphics-v2/overhead-art/cycle-ce-county-tile-continuity/murphy-overlap-independent-imagegen-safe-centers-stitched.png",
+  "join_x_px": 512,
+  "band_half_width_px": 96,
+  "threshold": 1.15,
+  "before": {
+    "join_x_px": 512,
+    "join_mean_abs_luma_jump": 32.97841262817383,
+    "nearby_control_mean_abs_luma_jump": 11.243315935134888,
+    "join_to_control_ratio": 2.933157159189815
+  },
+  "after": {
+    "join_x_px": 512,
+    "join_mean_abs_luma_jump": 8.591590881347656,
+    "nearby_control_mean_abs_luma_jump": 11.243315935134888,
+    "join_to_control_ratio": 0.7641509792052803
+  },
+  "artifacts": {
+    "before": "repair-before.png",
+    "after": "repair-after.png",
+    "mask": "repair-mask.png",
+    "overlay": "repair-after-overlay.png",
+    "contact_sheet": "repair-contact-sheet.png"
+  },
+  "topology_drift_note": {
+    "roads": "Local color/texture harmonization only; road geometry is not rerouted or guaranteed aligned.",
+    "paths": "Local color/texture harmonization only; path geometry is not rerouted or guaranteed aligned.",
+    "buildings": "No building-specific edits are attempted.",
+    "water": "No water-specific edits are attempted.",
+    "boundaries": "Boundary linework is preserved as pixels; mismatched independent generations still require visual rejection or imagegen/masked inpaint."
+  }
+}

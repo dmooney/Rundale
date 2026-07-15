@@ -1,0 +1,8 @@
+# fix-1520-priest-tenure
+# Repro: a model/canned reply drifts Fr. Declan Tierney's canonical biography
+# from twenty-five years of service to "nigh on a decade." The script-mode
+# /stub path should route the bad sentence through post-generation guards.
+
+go to Connolly's Shop
+/stub Roisin Connolly: He's been the priest here for nigh on a decade now.
+talk to Roisin Connolly about Father Declan Tierney

@@ -9,6 +9,7 @@ use std::time::Duration;
 
 use clap::{Parser, Subcommand, ValueEnum};
 
+use parish_core::ipc::GitHubBugConfig;
 use parish_harness::actor::{Judge, Player};
 use parish_harness::config::{ActorMode, RunConfig};
 use parish_harness::dashboard::serve;
@@ -45,6 +46,21 @@ enum Command {
     Compare(CompareArgs),
     /// Ingest an externally-produced run (e.g. a quality-harness skill run).
     Ingest(IngestArgs),
+    /// Link stored findings to their GitHub issues by signature.
+    BackfillIssues(BackfillArgs),
+}
+
+#[derive(clap::Args)]
+struct BackfillArgs {
+    /// Path to the harness DB (defaults to the user-data root).
+    #[arg(long)]
+    db: Option<PathBuf>,
+    /// Override the `owner/repo` to search (defaults to the bug-report repo).
+    #[arg(long)]
+    repo: Option<String>,
+    /// Print the signature → issue matches without writing to the DB.
+    #[arg(long)]
+    dry_run: bool,
 }
 
 #[derive(clap::Args)]
@@ -235,6 +251,7 @@ async fn run() -> Result<()> {
         Command::Worker(args) => run_worker(args).await,
         Command::Compare(args) => run_compare(args).await,
         Command::Ingest(args) => run_ingest(args),
+        Command::BackfillIssues(args) => run_backfill(args).await,
     }
 }
 
@@ -243,6 +260,17 @@ fn run_ingest(args: IngestArgs) -> Result<()> {
     let db = Db::open(&db_path)?;
     let run_id = parish_harness::ingest::load_and_ingest(&db, &args.payload, &args.artifacts)?;
     println!("ingested run {run_id}");
+    Ok(())
+}
+
+async fn run_backfill(args: BackfillArgs) -> Result<()> {
+    let db_path = args.db.unwrap_or_else(default_db_path);
+    let db = Db::open(&db_path)?;
+    let mut cfg = GitHubBugConfig::from_env();
+    if let Some(repo) = args.repo {
+        cfg.repo = repo;
+    }
+    parish_harness::backfill::backfill_issues(&db, &cfg, args.dry_run).await?;
     Ok(())
 }
 

@@ -2,9 +2,9 @@
 
 [`nektos/act`](https://github.com/nektos/act) runs our GitHub Actions
 workflows inside Docker against the working tree, so the same jobs that gate
-PRs can be exercised locally — no pushed branch, no billed minutes. Every
-job in `ci.yml` and `audit.yml` is runnable this way, including Playwright
-e2e.
+PRs can be exercised locally — no pushed branch, no billed minutes. Jobs in
+`ci.yml`, `full-ci.yml`, and `audit.yml` are runnable this way, including
+Playwright e2e.
 
 This doc is the source of truth for the setup; `.actrc` and the `act-*`
 recipes in `justfile` point back here.
@@ -45,19 +45,20 @@ Docker. If that works, act is wired up correctly.
 
 All of these are defined in `justfile`:
 
-| Command                 | What it runs                                        |
-| ----------------------- | --------------------------------------------------- |
-| `just act-list`         | Enumerate all jobs (fast, no Docker execution)      |
-| `just act-audit`        | `audit.yml` cargo-audit job — fastest smoke test    |
-| `just act-fmt`          | `ci.yml` rust-quality-gate (fmt + clippy + tests)   |
-| `just act-harness`      | `ci.yml` game-harness fixture sweep                 |
-| `just act-ui`           | `ci.yml` ui-quality (svelte-check + vitest + build) |
-| `just act-e2e`          | `ci.yml` ui-e2e (Playwright)                        |
-| `just act-ci`           | All of `ci.yml` — matches what PRs see              |
-| `just act-job JOB=<id>` | Run a specific job by id from `act-list`            |
-| `just act-pr`           | Simulate the `pull_request` event                   |
-| `just act-refresh`      | Re-fetch third-party actions after a version bump   |
-| `just act-clean`        | Tear down cached containers + artifact output       |
+| Command                 | What it runs                                      |
+| ----------------------- | ------------------------------------------------- |
+| `just act-list`         | Enumerate all jobs (fast, no Docker execution)    |
+| `just act-audit`        | `audit.yml` cargo-audit job — fastest smoke test  |
+| `just act-ci`           | Sub-minute `ci.yml` fast lane                     |
+| `just act-full-ci`      | Preserved full-suite `full-ci.yml`                |
+| `just act-fmt`          | `full-ci.yml` rust-quality-gate                   |
+| `just act-harness`      | `full-ci.yml` game-harness fixture sweep          |
+| `just act-ui`           | `full-ci.yml` UI quality                          |
+| `just act-e2e`          | `full-ci.yml` Playwright e2e                      |
+| `just act-job JOB=<id>` | Run a specific job by id from `act-list`          |
+| `just act-pr`           | Simulate the `pull_request` fast lane             |
+| `just act-refresh`      | Re-fetch third-party actions after a version bump |
+| `just act-clean`        | Tear down cached containers + artifact output     |
 
 ## Configuration
 
@@ -86,7 +87,14 @@ Edit `.actrc` if you need to deviate; per-command overrides also work
 builds inside the container start cold — `Swatinem/rust-cache` caches
 to `~/.cache` inside the container, and `--reuse` keeps that around,
 but the very first `cargo build` in the `ui-e2e` job will take several
-minutes. Budget 30–60 minutes for the first full `just act-ci`.
+minutes. Budget 30–60 minutes for the first full-suite job run.
+
+**Fast lane vs. full suite.** `ci.yml` is the sub-minute workflow for
+pull requests and main/develop pushes. `full-ci.yml` preserves the expensive
+Rust, coverage, harness, and UI runtime jobs on `merge_group`, pushes to
+`main`/`develop`, the nightly schedule, and manual dispatch. Use
+`just act-pr` when reproducing PR timing, `just act-ci` for the default fast
+lane, and `just act-full-ci` or `just act-job JOB=<id>` for full-suite jobs.
 
 **Runs at native arm64 speed.** With CI moved to a self-hosted arm64
 runner, act pulls the arm64 catthehacker variant and runs without
