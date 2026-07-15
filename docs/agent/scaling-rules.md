@@ -154,14 +154,14 @@ in-memory test fixtures, and future CDN-backed mod delivery impossible.
 
 ## Quick-reference table
 
-| Rule | Keyword                | Seam file                        | Issue                   |
-| ---- | ---------------------- | -------------------------------- | ----------------------- |
-| 1    | No global state        | `ipc/state.rs`                   | —                       |
-| 2    | `SessionStore` only    | `session_store.rs`               | #614                    |
-| 3    | `EventBus` + `Topic`   | `event_bus.rs`                   | #616                    |
+| Rule | Keyword                | Seam file                            | Issue                |
+| ---- | ---------------------- | ------------------------------------ | -------------------- |
+| 1    | No global state        | `ipc/state.rs`                       | —                    |
+| 2    | `SessionStore` only    | `session_store.rs`                   | #614                 |
+| 3    | `EventBus` + `Topic`   | `event_bus.rs`                       | #616                 |
 | 4    | Provider dispatch      | `parish-providers/src/any_client.rs` | #617 / #1189 / #1392 |
-| 5    | `account_id` keying    | `identity.rs`                    | #615 / #618 (closed)    |
-| 6    | Idempotency-Key        | `parish-server/src/middleware.rs` | #619 (closed)          |
-| 7    | `request_id` + tracing | `middleware.rs`                  | #621                    |
-| 8    | Sticky-session routing | `parish_sid` cookie              | —                       |
-| 9    | `ModSource` trait      | `mod_source.rs`                  | #622                    |
+| 5    | `account_id` keying    | `identity.rs`                        | #615 / #618 (closed) |
+| 6    | Idempotency-Key        | `parish-server/src/middleware.rs`    | #619 (closed)        |
+| 7    | `request_id` + tracing | `middleware.rs`                      | #621                 |
+| 8    | Sticky-session routing | `parish_sid` cookie                  | —                    |
+| 9    | `ModSource` trait      | `mod_source.rs`                      | #622                 |

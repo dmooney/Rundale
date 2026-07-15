@@ -51,7 +51,7 @@ trigger.
 | Tauri 2 + Svelte 5 desktop GUI                      | Implemented | [GUI Design](../design/gui-design.md)                                        | [016](../adr/016-tauri-svelte-gui.md)                                                                         |
 | Web server mode (Chrome testing / axum)             | Implemented | —                                                                            | [014](../adr/014-web-mobile-architecture.md), [023](../adr/023-web-testing-server.md)                         |
 | Full web & mobile client                            | Partial     | [Phase 7 plan](../plans/phase-7-web-mobile.md)                               | [014](../adr/014-web-mobile-architecture.md)                                                                  |
-| Illustrated notebook play surface                  | In progress | [Illustrated Notebook roadmap](../plans/illustrated-notebook-roadmap.md)     | —                                                                                                             |
+| Illustrated notebook play surface                   | In progress | [Illustrated Notebook roadmap](../plans/illustrated-notebook-roadmap.md)     | —                                                                                                             |
 | Save / load UI (GUI)                                | In progress | [Save/Load UI plan](../plans/phase-9-save-load-ui.md)                        | —                                                                                                             |
 | Parish Designer (in-GUI data editor)                | Implemented | [Designer Editor](../design/designer-editor.md)                              | —                                                                                                             |
 | Debug system & debug UI                             | Implemented | [Debug System](../design/debug-system.md), [Debug UI](../design/debug-ui.md) | —                                                                                                             |
@@ -81,7 +81,7 @@ reflected in the matrix above.
 | 6 — Polish & Mythology | [active](../plans/phase-6-polish-mythology.md)         | Planned                                                                                                  |
 | 7 — Web & Mobile       | [active](../plans/phase-7-web-mobile.md)               | Partial — web server shipped; egui-WASM approach superseded by [ADR-016](../adr/016-tauri-svelte-gui.md) |
 | 8 — Tauri GUI Rewrite  | [archive](../plans/archive/phase-8-tauri-gui.md)       | Complete                                                                                                 |
-| 9 — Save/Load UI       | [active](../plans/phase-9-save-load-ui.md)             | In progress — notebook overlay tracked by #1626 / #1644                                                 |
+| 9 — Save/Load UI       | [active](../plans/phase-9-save-load-ui.md)             | In progress — notebook overlay tracked by #1626 / #1644                                                  |
 
 ## Open questions
 

@@ -81,8 +81,8 @@ Structured tracking layer parallel to the priority backlog above. Items here are
 
 ### Open
 
-| ID     | Category   | Severity | Location                  | Description                                                                                                                                                                                                                                                                                      |
-| ------ | ---------- | -------- | ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| ID     | Category   | Severity | Location                  | Description                                                                                                                                                                                                                                                                        |
+| ------ | ---------- | -------- | ------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | TD-001 | Complexity | P3       | `rundale_bench.py:1-1771` | Tracked by #1686. The main orchestrator owns CLI parsing, target/catalog resolution, all slice runners, judge dispatch, artifact writing, ingest/finalize, and aggregation in one file. Split the L-sized issue into bounded behavior-preserving work units before implementation. |
 
 ### In Progress
