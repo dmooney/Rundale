@@ -41,6 +41,8 @@ bottom; don't lengthen items past 2-3 lines.
 
 ## Agent + tooling gotchas
 
+- **`check-doc-paths.sh` validates all active Markdown links, not just agent-doc backticks.** It deliberately excludes `docs/proofs/`: proof evidence is immutable and can reference ephemeral run artifacts. If a current doc changes a filesystem path, repair its relative Markdown link in the same change.
+
 - **`gh pr view --json baseRepository` was removed** ("Unknown JSON field: baseRepository"). `parish/scripts/attach-proof.sh` no longer uses it — it derives `<owner>/<repo>` from `gh pr view --json url --jq .url` + `sed` (see the comment at attach-proof.sh:63-70). If you hit the error elsewhere, use the same parse. Fallback for posting the proof bundle by hand: `bash parish/scripts/render-proof-comment.sh <task-id> | gh pr comment <pr> --body-file -`.
 - **`awk -v var=value` interprets backslash escapes in `value`.** `\n` becomes a real newline mid-string. To insert a multi-character literal containing `\n` (e.g. a `printf` format), write the trap to a temp file and use `getline < tf` inside `BEGIN`, not `-v`.
 - **`gh pr edit` cannot change a PR's head branch.** If a sub-agent pushes a redo to `branch-v2` instead of the original branch, the PR keeps tracking the old SHA. Recovery: `git push origin +refs/remotes/origin/branch-v2:refs/heads/original-branch` to force-rewrite the PR's branch, then delete `branch-v2`.

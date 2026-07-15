@@ -107,7 +107,7 @@ Claude Code and Claude Desktop. Each line of stdin is one JSON-RPC
 message; each line of stdout is one response. Logs go to stderr.
 
 If you need an HTTP/SSE transport later, the `serve()` function in
-[`src/jsonrpc.rs`](src/jsonrpc.rs) is generic over `AsyncRead`/`AsyncWrite`
+[`src/jsonrpc/`](src/jsonrpc/) is generic over `AsyncRead`/`AsyncWrite`
 and can be reused unchanged — only the entry point in `main.rs` would
 need a second wiring path.
 

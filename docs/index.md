@@ -3,9 +3,9 @@
 > Back to [README](../README.md) | [AGENTS.md](../AGENTS.md) / [CLAUDE.md](../CLAUDE.md) (agent quick reference)
 
 This is the documentation hub for **Rundale**, an Irish Living World Text
-Adventure set in 1820, built on the **Parish** engine. Start here to find any
-document. Every file under `docs/design/`, `docs/design/ideas/`, `docs/plans/`,
-`docs/plans/archive/`, and `docs/adr/` is linked below.
+Adventure set in 1820, built on the **Parish** engine. Start here to find the
+right document. The tables below link the active and durable material; focused
+subcollections keep their own indexes so large evidence corpora stay navigable.
 
 ## Project status
 
@@ -37,30 +37,46 @@ Every design/plan doc carries a `> Status: …` header. See
 
 ## Design — durable subsystem reference
 
-| Document                                                       | Status      | Related ADRs                                                                                                                                                                    |
-| -------------------------------------------------------------- | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [Architecture Overview](design/overview.md)                    | Implemented | —                                                                                                                                                                               |
-| [Cognitive LOD](design/cognitive-lod.md)                       | Implemented | [002](adr/002-cognitive-lod-tiers.md)                                                                                                                                           |
-| [World & Geography](design/world-geography.md)                 | Implemented | [001](adr/001-graph-based-world.md), [009](adr/009-real-geography-fictional-people.md)                                                                                          |
-| [Time System](design/time-system.md)                           | Implemented | [007](adr/007-time-scale-20min-day.md)                                                                                                                                          |
-| [Weather System](design/weather-system.md)                     | Implemented | —                                                                                                                                                                               |
-| [NPC System](design/npc-system.md)                             | Implemented | [008](adr/008-structured-json-llm-output.md), [018](adr/018-npc-intelligence-dimensions.md)                                                                                     |
-| [Inference Pipeline](design/inference-pipeline.md)             | Implemented | [005](adr/005-ollama-local-inference.md), [010](adr/010-prompt-injection-defenses.md), [013](adr/013-cloud-llm-dialogue.md), [017](adr/017-per-category-inference-providers.md) |
-| [Player Input](design/player-input.md)                         | Implemented | [006](adr/006-natural-language-input.md)                                                                                                                                        |
-| [Persistence & Save System](design/persistence.md)             | Implemented | [003](adr/003-sqlite-wal-persistence.md), [004](adr/004-git-like-branching-saves.md)                                                                                            |
-| [GUI Design](design/gui-design.md)                             | Implemented | [016](adr/016-tauri-svelte-gui.md)                                                                                                                                              |
-| [Parish Designer (GUI editor)](design/designer-editor.md)      | Implemented | —                                                                                                                                                                               |
-| [Debug System](design/debug-system.md)                         | Implemented | —                                                                                                                                                                               |
-| [Debug UI](design/debug-ui.md)                                 | Implemented | —                                                                                                                                                                               |
-| [Ambient Sound](design/ambient-sound.md)                       | Implemented | [015](adr/015-ambient-sound-system.md)                                                                                                                                          |
-| [Geo-Tool](design/geo-tool.md)                                 | Implemented | [011](adr/011-geo-tool-osm-pipeline.md)                                                                                                                                         |
-| [Testing Harness](design/testing.md)                           | Implemented | —                                                                                                                                                                               |
-| [Scalable NPC Data Design](design/scalable-npc-data-design.md) | Partial     | —                                                                                                                                                                               |
+| Document                                                                     | Status                               | Related ADRs                                                                                                                                                                    |
+| ---------------------------------------------------------------------------- | ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [Architecture Overview](design/overview.md)                                  | Implemented                          | —                                                                                                                                                                               |
+| [Cognitive LOD](design/cognitive-lod.md)                                     | Implemented                          | [002](adr/002-cognitive-lod-tiers.md)                                                                                                                                           |
+| [World & Geography](design/world-geography.md)                               | Implemented                          | [001](adr/001-graph-based-world.md), [009](adr/009-real-geography-fictional-people.md)                                                                                          |
+| [Time System](design/time-system.md)                                         | Implemented                          | [007](adr/007-time-scale-20min-day.md)                                                                                                                                          |
+| [Weather System](design/weather-system.md)                                   | Implemented                          | —                                                                                                                                                                               |
+| [NPC System](design/npc-system.md)                                           | Implemented                          | [008](adr/008-structured-json-llm-output.md), [018](adr/018-npc-intelligence-dimensions.md)                                                                                     |
+| [Inference Pipeline](design/inference-pipeline.md)                           | Implemented                          | [005](adr/005-ollama-local-inference.md), [010](adr/010-prompt-injection-defenses.md), [013](adr/013-cloud-llm-dialogue.md), [017](adr/017-per-category-inference-providers.md) |
+| [Player Input](design/player-input.md)                                       | Implemented                          | [006](adr/006-natural-language-input.md)                                                                                                                                        |
+| [Persistence & Save System](design/persistence.md)                           | Implemented                          | [003](adr/003-sqlite-wal-persistence.md), [004](adr/004-git-like-branching-saves.md)                                                                                            |
+| [GUI Design](design/gui-design.md)                                           | Implemented                          | [016](adr/016-tauri-svelte-gui.md)                                                                                                                                              |
+| [Illustrated Notebook Real Play Screen](design/illustrated-notebook-real.md) | Pre-implementation                   | [Graphics V2 research index](graphics-v2/README.md)                                                                                                                             |
+| [Parish Notebook UI](design/parish-notebook-ui.md)                           | Proposed (earlier Svelte direction)  | [Illustrated Notebook plan](plans/illustrated-notebook-real.md)                                                                                                                 |
+| [Godot-Based Rundale](design/godot-parish-game-plan.md)                      | Proposed (separate client direction) | [Interactive Parish Diorama](design/ideas/parish-diorama.md)                                                                                                                    |
+| [Parish Designer (GUI editor)](design/designer-editor.md)                    | Implemented                          | —                                                                                                                                                                               |
+| [Debug System](design/debug-system.md)                                       | Implemented                          | —                                                                                                                                                                               |
+| [Debug UI](design/debug-ui.md)                                               | Implemented                          | —                                                                                                                                                                               |
+| [Ambient Sound](design/ambient-sound.md)                                     | Implemented                          | [015](adr/015-ambient-sound-system.md)                                                                                                                                          |
+| [Geo-Tool](design/geo-tool.md)                                               | Implemented                          | [011](adr/011-geo-tool-osm-pipeline.md)                                                                                                                                         |
+| [Testing Harness](design/testing.md)                                         | Implemented                          | —                                                                                                                                                                               |
+| [Scalable NPC Data Design](design/scalable-npc-data-design.md)               | Partial                              | —                                                                                                                                                                               |
 
 **Design sub-collections** (each has its own index):
 
 - [AI Techniques](design/ai-techniques/README.md) — 12 technique surveys (semantic memory/RAG, structured generation, drama manager, social simulation, …)
-- [Input Enrichment](design/input-enrichment/01-slash-autocomplete.md) — per-feature designs feeding the (completed) [implementation plan](plans/archive/input-enrichment-implementation.md)
+- [Input Enrichment](design/input-enrichment/README.md) — per-feature designs feeding the (completed) [implementation plan](plans/archive/input-enrichment-implementation.md)
+
+## Visual client and graphics research
+
+The visual work has three related but distinct tracks. The active default-client
+direction is the Pixi notebook play screen; the Diorama and Godot documents are
+future presentation approaches, not substitutes for its implementation plan.
+
+| Need                                                                  | Start here                                                                   | Follow with                                                                                                           |
+| --------------------------------------------------------------------- | ---------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| Default visual play surface                                           | [Illustrated Notebook Real Play Screen](design/illustrated-notebook-real.md) | [implementation plan](plans/illustrated-notebook-real.md) and [active roadmap](plans/illustrated-notebook-roadmap.md) |
+| Concept art, exterior pipeline, interiors, portraits, or map evidence | [Graphics V2 research index](graphics-v2/README.md)                          | Its task-oriented links and scoped guidance                                                                           |
+| Runtime-composed visual scene system                                  | [Interactive Parish Diorama RFC](design/ideas/parish-diorama.md)             | [Diorama implementation plan](plans/parish-diorama-implementation.md)                                                 |
+| Separate Godot presentation client                                    | [Godot-Based Rundale plan](design/godot-parish-game-plan.md)                 | Treat as an exploratory alternative client                                                                            |
 
 ## Design ideas / RFCs
 
@@ -88,18 +104,37 @@ Speculative and forward-looking — not (yet) committed work.
 
 ## Plans — active
 
-| Plan                                                                                                     | Status      |
-| -------------------------------------------------------------------------------------------------------- | ----------- |
-| [Interactive Parish Diorama — Runtime Compositor Implementation](plans/parish-diorama-implementation.md) | Proposed    |
-| [Phase 5F — World Graph Expansion](plans/phase-5f-world-expansion.md)                                    | Planned     |
-| [Phase 6 — Polish & Mythology Hooks](plans/phase-6-polish-mythology.md)                                  | Planned     |
-| [Phase 7 — Web & Mobile Apps](plans/phase-7-web-mobile.md)                                               | Partial     |
-| [Save/Load UI Plan](plans/phase-9-save-load-ui.md)                                                       | Planned     |
-| [Rundale-Bench](plans/rundale-bench.md)                                                                  | In progress |
-| [LLM Quality Evals](plans/llm-quality-evals.md)                                                          | Proposed    |
-| [Promptfoo Pentest](plans/promptfoo-pentest-plan.md)                                                     | Proposed    |
-| [Gemma 4 Hiberno-English Training](plans/gemma4-rundale-training-plan.md)                                | Proposed    |
-| [Talkie Methodology Port](plans/talkie-methodology-port.md)                                              | Proposed    |
+| Plan                                                                                                     | Status             |
+| -------------------------------------------------------------------------------------------------------- | ------------------ |
+| [Interactive Parish Diorama — Runtime Compositor Implementation](plans/parish-diorama-implementation.md) | Proposed           |
+| [Illustrated Notebook Real Play Screen](plans/illustrated-notebook-real.md)                              | Pre-implementation |
+| [Illustrated Notebook UI Roadmap](plans/illustrated-notebook-roadmap.md)                                 | In progress        |
+| [Phase 5F — World Graph Expansion](plans/phase-5f-world-expansion.md)                                    | Planned            |
+| [Phase 6 — Polish & Mythology Hooks](plans/phase-6-polish-mythology.md)                                  | Planned            |
+| [Phase 7 — Web & Mobile Apps](plans/phase-7-web-mobile.md)                                               | Partial            |
+| [Save/Load UI Plan](plans/phase-9-save-load-ui.md)                                                       | Planned            |
+| [Rundale-Bench](plans/rundale-bench.md)                                                                  | In progress        |
+| [LLM Quality Evals](plans/llm-quality-evals.md)                                                          | Proposed           |
+| [Promptfoo Pentest](plans/promptfoo-pentest-plan.md)                                                     | Proposed           |
+| [Gemma 4 Hiberno-English Training](plans/gemma4-rundale-training-plan.md)                                | Proposed           |
+| [Talkie Methodology Port](plans/talkie-methodology-port.md)                                              | Proposed           |
+
+## Supporting implementation records
+
+These focused plans and design records document shipped infrastructure or an
+earlier approach. Consult them when working in the named subsystem; they are
+not the top-level product roadmap.
+
+| Topic                            | Record                                                                                                                                                                               |
+| -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Bug-report flow                  | [design](design/bug-report-tool.md) · [plan](plans/bug-report-tool.md)                                                                                                               |
+| Game quality harness             | [architecture](design/game-quality-harness-architecture.md) · [plan](plans/game-quality-harness.md)                                                                                  |
+| Harness parity and ingest        | [mock/shadow design](design/harness-mock-shadow.md) · [plan](plans/harness-mock-shadow.md) · [ingest design](design/harness-skill-ingest.md) · [plan](plans/harness-skill-ingest.md) |
+| NPC arrival greetings            | [design](design/npc-arrival-greetings.md) · [plan](plans/npc-arrival-greetings.md)                                                                                                   |
+| MCP cold registration            | [design](design/parish-mcp-cold-register.md) · [plan](plans/parish-mcp-cold-register.md)                                                                                             |
+| Earlier Svelte notebook proposal | [design](design/parish-notebook-ui.md) · [plan](plans/parish-notebook-ui.md)                                                                                                         |
+| Dialogue turn seam               | [design record](design/1172-1173-dialogue-seam.md)                                                                                                                                   |
+| IPC type contract                | [decision record](design/frontend-ipc-types.md)                                                                                                                                      |
 
 ## Plans — archived (complete / historical)
 
