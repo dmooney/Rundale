@@ -70,9 +70,13 @@ test.describe('slash-command echo rendering (#1423)', () => {
 			'system: The clocks of the parish stand still. Time is now paused.',
 		);
 		const lines = await journal.locator('p').allTextContents();
-		expect(lines.findIndex((line) => line.includes('/pause'))).toBeLessThan(
-			lines.findIndex((line) => line.includes('clocks of the parish')),
+		const pauseIdx = lines.findIndex((line) => line.includes('/pause'));
+		const clocksIdx = lines.findIndex((line) =>
+			line.includes('clocks of the parish'),
 		);
+		expect(pauseIdx).toBeGreaterThan(-1);
+		expect(clocksIdx).toBeGreaterThan(-1);
+		expect(pauseIdx).toBeLessThan(clocksIdx);
 
 		// Capture proof screenshot
 		fs.mkdirSync(PROOF_DIR, { recursive: true });
@@ -127,6 +131,10 @@ test.describe('slash-command echo rendering (#1423)', () => {
 		const resumed = lines.findIndex((line) => line.includes('Time flows'));
 		const wait = lines.findIndex((line) => line.includes('/wait 10'));
 		const waited = lines.findIndex((line) => line.includes('Ten minutes'));
+		expect(resume).toBeGreaterThan(-1);
+		expect(resumed).toBeGreaterThan(-1);
+		expect(wait).toBeGreaterThan(-1);
+		expect(waited).toBeGreaterThan(-1);
 		expect(resume).toBeLessThan(resumed);
 		expect(resumed).toBeLessThan(wait);
 		expect(wait).toBeLessThan(waited);

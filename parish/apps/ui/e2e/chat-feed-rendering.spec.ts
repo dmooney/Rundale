@@ -118,11 +118,13 @@ test.describe('chat-feed rendering (#1226, #1275)', () => {
 		await expect(playerLine).toContainText('player: there is not');
 		await expect(followingLine).toHaveCount(1);
 		const lines = await journal.locator('p').allTextContents();
-		expect(
-			lines.findIndex((line) => line.includes('there is not')),
-		).toBeLessThan(
-			lines.findIndex((line) => line.includes('thoughtful silence')),
+		const playerIdx = lines.findIndex((line) => line.includes('there is not'));
+		const systemIdx = lines.findIndex((line) =>
+			line.includes('thoughtful silence'),
 		);
+		expect(playerIdx).toBeGreaterThan(-1);
+		expect(systemIdx).toBeGreaterThan(-1);
+		expect(playerIdx).toBeLessThan(systemIdx);
 	});
 
 	test('capture current Journal proof (#1226 + #1275 migration)', async ({

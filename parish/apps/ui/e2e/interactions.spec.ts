@@ -262,9 +262,15 @@ test.describe('Streaming simulation', () => {
 			"If it is, I'll bring the cart before sunset.",
 		);
 		const lines = await journal.locator('p').allTextContents();
-		expect(
-			lines.findIndex((line) => line.includes('Siobhan Murphy')),
-		).toBeLessThan(lines.findIndex((line) => line.includes('Padraig Darcy')));
+		const siobhanIdx = lines.findIndex((line) =>
+			line.includes('Siobhan Murphy'),
+		);
+		const padraigIdx = lines.findIndex((line) =>
+			line.includes('Padraig Darcy'),
+		);
+		expect(siobhanIdx).toBeGreaterThan(-1);
+		expect(padraigIdx).toBeGreaterThan(-1);
+		expect(siobhanIdx).toBeLessThan(padraigIdx);
 	});
 });
 
