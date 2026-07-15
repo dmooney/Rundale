@@ -1,6 +1,8 @@
 "use strict";
 
 const assert = require("node:assert/strict");
+const fs = require("node:fs");
+const path = require("node:path");
 const test = require("node:test");
 const {
   auditIssue,
@@ -34,6 +36,16 @@ function activeIssue(overrides = {}) {
     ...overrides,
   };
 }
+
+test("triage audit runs for newly opened issues", () => {
+  const workflowPath = path.join(__dirname, "..", "workflows", "triage-audit.yml");
+  const workflow = fs.readFileSync(workflowPath, "utf8");
+  const issueTrigger = workflow.match(/^  issues:\n    types: \[([^\n]+)\]$/m);
+
+  assert.ok(issueTrigger, "triage audit must retain its issues trigger");
+  const eventTypes = issueTrigger[1].split(",").map((event) => event.trim());
+  assert.ok(eventTypes.includes("opened"), "issues trigger must include opened");
+});
 
 test("a complete active issue passes the portfolio audit", () => {
   assert.deepEqual(auditIssue(activeIssue(), vocabulary).problems, []);

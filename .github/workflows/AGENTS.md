@@ -109,6 +109,6 @@ just act-pr         # simulate the pull_request fast lane
 
 ### `triage-audit.yml` — Portfolio and issue triage audit
 
-- **Triggers:** `schedule` (weekly Monday 09:00 UTC), issue lifecycle/label changes after creation, `workflow_dispatch`, and ordinary pull-request lifecycle/label changes on `main`.
+- **Triggers:** `schedule` (weekly Monday 09:00 UTC), issue creation, lifecycle, and label changes, `workflow_dispatch`, and ordinary pull-request lifecycle/label changes on `main`.
 - Checks open issues against `triage-labels.json` for missing P0-P3 severity or theme labels, audits active-item readiness and authoritative closing PR linkage, requires unblock triggers, compares explicitly mapped epic state to roadmap rows, and reports the 3/3 implementation/review buffers. Reports via CI step summary and warning annotations while the reset backlog is reconciled.
 - **Permissions:** `contents: read`, `issues: read`, `pull-requests: read`.
