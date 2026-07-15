@@ -63,6 +63,6 @@ An event bus must propagate state changes across tier boundaries to maintain coh
 
 ## Source Modules
 
-- [`src/npc/`](../../src/npc/) — NPC behavior, cognition tiers
-- [`src/inference/`](../../src/inference/) — Ollama HTTP client, inference queue
-- [`src/world/`](../../src/world/) — World state, location graph
+- [`parish-npc`](../../parish/crates/parish-npc/src/) — NPC behavior, cognition tiers
+- [`parish-inference`](../../parish/crates/parish-inference/src/) — inference queue and worker
+- [`parish-world`](../../parish/crates/parish-world/src/) — World state and location graph

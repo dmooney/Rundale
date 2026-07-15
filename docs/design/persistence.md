@@ -89,8 +89,8 @@ Index: `idx_journal_branch_snap_seq ON journal_events(branch_id, after_snapshot_
 
 ## Source Modules
 
-- [`src/persistence/mod.rs`](../../src/persistence/mod.rs) — Module root, re-exports
-- [`src/persistence/database.rs`](../../src/persistence/database.rs) — Database, AsyncDatabase, schema, CRUD
-- [`src/persistence/snapshot.rs`](../../src/persistence/snapshot.rs) — GameSnapshot, ClockSnapshot, NpcSnapshot
-- [`src/persistence/journal.rs`](../../src/persistence/journal.rs) — WorldEvent enum, replay logic
-- [`src/persistence/picker.rs`](../../src/persistence/picker.rs) — Save file discovery, picker display, startup/load selection
+- [`parish-persistence/src/lib.rs`](../../parish/crates/parish-persistence/src/lib.rs) — Module root and re-exports
+- [`database/`](../../parish/crates/parish-persistence/src/database/) — Database, AsyncDatabase, schema, and CRUD
+- [`snapshot/`](../../parish/crates/parish-persistence/src/snapshot/) — GameSnapshot, ClockSnapshot, and NpcSnapshot
+- [`database/journal.rs`](../../parish/crates/parish-persistence/src/database/journal.rs) — WorldEvent enum and replay logic
+- [`picker.rs`](../../parish/crates/parish-persistence/src/picker.rs) — Save-file discovery, picker display, and startup/load selection
