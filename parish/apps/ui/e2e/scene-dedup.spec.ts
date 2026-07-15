@@ -10,8 +10,21 @@
  * still show the destination scene.
  */
 
+import type { Page } from '@playwright/test';
 import { test, expect, installTauriMock, emitEvent } from './fixtures';
 import { SNAPSHOTS } from './mock-data';
+
+async function openJournal(page: Page) {
+	const trigger = page.getByRole('button', {
+		name: 'Open Journal notebook tab',
+	});
+	await expect(trigger).toBeVisible();
+	await trigger.focus();
+	await page.keyboard.press('Enter');
+	const journal = page.getByLabel('journal drawer');
+	await expect(journal).toBeVisible();
+	return journal;
+}
 
 test.describe('Scene description deduplication', () => {
 	test.beforeEach(async ({ page }) => {
@@ -23,6 +36,7 @@ test.describe('Scene description deduplication', () => {
 	test('movement renders the arrival scene once, not twice', async ({
 		page,
 	}) => {
+		const journal = await openJournal(page);
 		// Full arrival text the backend sends as a `location` text-log entry.
 		const arrivalText =
 			'The churchyard lies still beneath a grey sky. Exits: north to the village green.';
@@ -46,16 +60,19 @@ test.describe('Scene description deduplication', () => {
 		});
 
 		// The arrival scene shows exactly once.
-		await expect(page.getByText(arrivalText, { exact: false })).toHaveCount(1);
+		await expect(journal.getByText(arrivalText, { exact: false })).toHaveCount(
+			1,
+		);
 		// The duplicate, shorter world-update scene line was suppressed.
 		await expect(
-			page.getByText(worldUpdateScene, { exact: false }),
+			journal.getByText(worldUpdateScene, { exact: false }),
 		).toHaveCount(0);
 	});
 
 	test('load/restore still shows the destination scene (no location text-log)', async ({
 		page,
 	}) => {
+		const journal = await openJournal(page);
 		// A load/restore world-update changes the location with no preceding
 		// `location` text-log — the scene must be shown.
 		const loadedScene = 'You stand once more in the loaded harbour town.';
@@ -65,6 +82,8 @@ test.describe('Scene description deduplication', () => {
 			location_description: loadedScene,
 		});
 
-		await expect(page.getByText(loadedScene, { exact: false })).toHaveCount(1);
+		await expect(journal.getByText(loadedScene, { exact: false })).toHaveCount(
+			1,
+		);
 	});
 });

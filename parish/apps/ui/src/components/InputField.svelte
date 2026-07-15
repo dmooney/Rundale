@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { streamingActive, npcsHere, mapData, pushErrorLog, formatIpcError, worldState, flushStream, playerSubmittedCount } from '../stores/game';
+import { streamingActive, npcsHere, mapData, pushErrorLog, formatIpcError, worldState, flushStream, playerSubmittedCount, intentDraft } from '../stores/game';
 	import { submitInput } from '$lib/ipc';
 	import { filterCommands, type SlashCommand } from '$lib/slash-commands';
 	import {
@@ -27,6 +27,8 @@ import ModelDropdown from './ModelDropdown.svelte';
 		extractPrefix,
 		applyCompletion as applyCompletionState
 	} from '$lib/input-field/completion';
+
+	let { autoFocus = true }: { autoFocus?: boolean } = $props();
 
 	let editorEl: HTMLDivElement;
 	let editorText = $state('');
@@ -106,9 +108,21 @@ import ModelDropdown from './ModelDropdown.svelte';
 
 	// ── Focus management ────────────────────────────────────────────────────
 	$effect(() => {
-		if (!$streamingActive && editorEl) {
-			editorEl.focus();
+		if (autoFocus && !$streamingActive && editorEl) {
+			editorEl.focus({ preventScroll: true });
 		}
+	});
+
+	$effect(() => {
+		const draft = $intentDraft;
+		if (draft === null || !editorEl) return;
+		setEditorText(editorEl, draft);
+		editorText = draft;
+		dropdownMode = null;
+		historyIndex = -1;
+		resetCompletion();
+		intentDraft.set(null);
+		editorEl.focus({ preventScroll: true });
 	});
 
 	// ── #1379: flush in-flight stream on first interaction ───────────────────

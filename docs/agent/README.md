@@ -9,6 +9,7 @@ Quick reference for AI coding agents and human contributors working in this repo
 | Code style & dependencies                                         | [code-style.md](code-style.md)                             |
 | Tokio / SQLite / Ollama gotchas                                   | [gotchas.md](gotchas.md)                                   |
 | Git workflow & engineering standards                              | [git-workflow.md](git-workflow.md)                         |
+| Event-driven portfolio and work-in-progress contract              | [improvement-drain.md](improvement-drain.md)               |
 | Witness-style completion gates                                    | [witness.md](witness.md)                                   |
 | PR proof evidence gate                                            | [agent-check.md](agent-check.md)                           |
 | Agent skills (`/check`, `/parish-engine`, ...)                    | [skills.md](skills.md)                                     |
@@ -17,5 +18,6 @@ Quick reference for AI coding agents and human contributors working in this repo
 | Running CI locally with `act`                                     | [act-local.md](act-local.md)                               |
 | Idempotency-Key support (#619)                                    | [idempotency.md](idempotency.md)                           |
 | **Scaling guardrails** — per-session state, seam review checklist | [scaling-rules.md](scaling-rules.md)                       |
+| Visual client, notebook UI, and graphics research                 | [../graphics-v2/README.md](../graphics-v2/README.md)       |
 
 The root `CLAUDE.md` and `AGENTS.md` are slim indexes — start there if you're new, then come here for the details.

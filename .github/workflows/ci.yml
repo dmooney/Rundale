@@ -2,9 +2,10 @@ name: Rundale CI
 
 # Jobs run on GitHub-hosted `ubuntu-latest` runners.
 #
-# Regression coverage for Linux (Tauri native dependencies) is now active
-# by default. macOS-specific builds are currently skipped in CI to save
-# credits, as the core logic is cross-platform.
+# Sub-minute fast lane for pull requests and main/develop pushes. Pull requests
+# that touch the shipped UI additionally run the complete Playwright contract.
+# Other expensive Rust, coverage, game-harness, and UI runtime jobs live in
+# `full-ci.yml`.
 
 on:
   pull_request:
@@ -12,14 +13,6 @@ on:
     branches:
       - main
       - develop
-  # Re-run the full suite when a PR enters the merge queue, so semantic
-  # conflicts between independently-green PRs are caught against latest main
-  # before landing (F1).
-  merge_group:
-  schedule:
-    # Nightly full run: catches toolchain drift, coverage regressions, and
-    # flaky tests that per-PR path-filtering would otherwise let slip.
-    - cron: "0 7 * * *"
   workflow_dispatch:
 
 concurrency:
@@ -38,10 +31,9 @@ permissions:
   contents: read
 
 jobs:
-  # Detect which areas a PR changed so doc/chore/CI-agent PRs can skip the
-  # heavy Rust/UI jobs (E1). The filter runs ONLY on pull_request; on
-  # push / merge_group / schedule the outputs default to 'true' so nothing is
-  # skipped at the merge gate or on the nightly run.
+  # Detect which areas a PR changed. UI changes use this output to opt into the
+  # complete Playwright contract; other expensive path-sensitive jobs live in
+  # `full-ci.yml`.
   changes:
     name: Detect changed areas
     runs-on: ubuntu-latest
@@ -77,13 +69,12 @@ jobs:
 
   agent-check:
     name: Agent proof gate
-    # Proof bundles are attached to PRs as structured comments (see
-    # `just attach-proof`), so the gate only has a comment to read on
-    # pull_request events. Push events to main/develop are post-merge —
-    # the gate already ran on the PR that produced the commit. Dependabot
-    # bumps Cargo.lock / Cargo.toml without touching engine logic; the
-    # proof gate has no useful signal there.
-    if: github.event_name == 'pull_request' && github.actor != 'dependabot[bot]'
+    # Proof bundles live in the PR body by default; structured comments remain
+    # a legacy fallback. Push events to main/develop are post-merge, so the gate
+    # already ran on the PR that produced the commit. Dependabot-authored bumps
+    # have no useful gameplay-proof signal, even when a coordinator refreshes
+    # their branch and becomes the synchronize-event actor.
+    if: github.event_name == 'pull_request' && github.event.pull_request.user.login != 'dependabot[bot]'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -99,213 +90,11 @@ jobs:
           clean: true
           fetch-depth: 0
 
-      - name: Validate proof evidence (PR comment)
+      - name: Validate proof evidence (PR body or comment fallback)
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
         run: bash parish/scripts/agent-check.sh --source=pr "$PR_NUMBER"
-
-  rust-quality-gate:
-    name: Rust quality gate (fmt, clippy, tests)
-    needs: changes
-    # Run on code PRs (rust changed) and always on push / merge_group / schedule.
-    if: ${{ needs.changes.outputs.rust == 'true' || github.event_name != 'pull_request' }}
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v6
-        with:
-          clean: true
-
-      # Toolchain channel comes from rust-toolchain.toml. Dependabot opens a
-      # dedicated PR when a new stable releases; CI runs on it here so any
-      # newly-activated clippy lints surface in that isolated PR, never on an
-      # unrelated one. rustfmt + clippy are declared in the toml.
-      - name: Install Rust toolchain
-        uses: actions-rust-lang/setup-rust-toolchain@46268bd060767258de96ed93c1251119784f2ab6 # v1.16.1
-        with:
-          cache: false
-
-      - name: Cache Rust artifacts
-        uses: Swatinem/rust-cache@v2
-
-      - name: Install cargo-nextest
-        uses: taiki-e/install-action@v2
-        with:
-          tool: cargo-nextest
-
-      - name: Install Linux native deps (Tauri/WebKit)
-        if: runner.os == 'Linux'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            pkg-config \
-            libgtk-3-dev \
-            libwebkit2gtk-4.1-dev \
-            libappindicator3-dev \
-            librsvg2-dev
-
-      - name: Format check
-        run: cargo fmt --all --check
-
-      - name: Clippy (deny warnings)
-        run: cargo clippy --workspace --all-targets -- -D warnings
-
-      # `--retries 1` is the flaky-test detector (#1176): a test that fails
-      # then passes on the retry is reported as FLAKY (the run still goes
-      # green on a single blip, but the nondeterminism is surfaced in the
-      # summary instead of either hard-failing the PR or hiding silently).
-      # `--profile ci` picks up the matching retry/fail-fast policy in
-      # parish/.config/nextest.toml so the same behaviour is reproducible
-      # locally with `cargo nextest run --profile ci`.
-      #
-      # Output is teed to a log so the next step can surface any
-      # retried-and-passed (FLAKY) tests as a non-gating warning + job summary.
-      - name: Unit and integration tests
-        run: |
-          set -o pipefail
-          cargo nextest run --workspace --all-targets --profile ci 2>&1 \
-            | tee nextest-run.log
-
-      # Flaky-test report (#1176): non-gating. nextest prints a `FLAKY` line per
-      # test that failed once and passed on the retry. Surface those as GitHub
-      # Actions ::warning annotations and a job-summary table so the
-      # nondeterminism is visible in the PR checks UI instead of buried in the
-      # raw log. `if: always()` so the report runs even when an unrelated test
-      # hard-fails. Never fails the job — the gate is the test step above.
-      - name: Flaky-test report
-        if: always()
-        run: |
-          if [ ! -f nextest-run.log ]; then
-            echo "No nextest log found — skipping flaky report."
-            exit 0
-          fi
-          # nextest FLAKY summary lines look like:
-          #   FLAKY 2/2 [   0.006s] (1/1) crate::binary test_name
-          flaky=$(grep -E '^\s*FLAKY ' nextest-run.log || true)
-          if [ -z "$flaky" ]; then
-            echo "No flaky tests detected." >> "$GITHUB_STEP_SUMMARY"
-            echo "No flaky tests detected."
-            exit 0
-          fi
-          {
-            echo "### ⚠️ Flaky tests detected (#1176)"
-            echo ""
-            echo "These tests failed on their first attempt but passed on retry."
-            echo "The run is **not** failed by this, but the nondeterminism should be fixed."
-            echo ""
-            echo '```'
-            echo "$flaky"
-            echo '```'
-          } >> "$GITHUB_STEP_SUMMARY"
-          # Emit one ::warning annotation per flaky test name (last field).
-          echo "$flaky" | while IFS= read -r line; do
-            name=$(echo "$line" | awk '{print $NF}')
-            echo "::warning title=Flaky test::${name} failed then passed on retry (#1176)"
-          done
-
-  rust-coverage-ratchet:
-    name: Rust coverage ratchet
-    needs: changes
-    # Skipped on doc/chore PRs (E2); runs on code PRs and on
-    # push / merge_group / nightly schedule so the 60.8 floor still gates main.
-    if: ${{ needs.changes.outputs.rust == 'true' || github.event_name != 'pull_request' }}
-    runs-on: ubuntu-latest
-    timeout-minutes: 45
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v6
-        with:
-          clean: true
-
-      # Same toolchain as the rest of CI (rust-toolchain.toml) so coverage drift
-      # is from tests/code, not a surprise compiler update. Adds llvm-tools-preview.
-      - name: Install Rust toolchain
-        uses: actions-rust-lang/setup-rust-toolchain@46268bd060767258de96ed93c1251119784f2ab6 # v1.16.1
-        with:
-          cache: false
-          components: llvm-tools-preview
-
-      # Distinct cache prefix: coverage instrumentation bakes -Cinstrument-coverage
-      # into target/, so sharing a cache with the quality gate would force one
-      # side to rebuild every run.
-      - name: Cache Rust artifacts
-        uses: Swatinem/rust-cache@v2
-        with:
-          prefix-key: v0-rust-coverage
-
-      - name: Install Linux native deps (Tauri/WebKit)
-        if: runner.os == 'Linux'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            pkg-config \
-            libgtk-3-dev \
-            libwebkit2gtk-4.1-dev \
-            libappindicator3-dev \
-            librsvg2-dev
-
-      # cargo-llvm-cov drives rustc's native LLVM coverage; cargo-nextest
-      # runs the instrumented test binaries in parallel (one process per
-      # core), where tarpaulin executes them serially. On an 8-vcpu runner
-      # this is the main speedup for the ratchet.
-      - name: Install cargo-llvm-cov and cargo-nextest
-        uses: taiki-e/install-action@v2
-        with:
-          tool: cargo-llvm-cov,cargo-nextest
-
-      # Same one-shot retry policy as the quality gate so a single flaky blip
-      # in a coverage-ratchet test is reported FLAKY, not a hard PR failure
-      # (#1176). NEXTEST_PROFILE avoids `--profile` arg ambiguity with llvm-cov.
-      - name: Enforce coverage floor
-        env:
-          NEXTEST_PROFILE: ci
-        run: cargo llvm-cov nextest --workspace --all-targets --exclude parish-client --ignore-filename-regex 'build\.rs' --fail-under-lines 60.8
-
-  rust-multi-channel:
-    name: Rust channel matrix
-    needs: changes
-    if: ${{ needs.changes.outputs.rust == 'true' || github.event_name != 'pull_request' }}
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    # rust-toolchain.toml would otherwise pin every cargo command to the repo
-    # channel; override so this job actually exercises stable/beta.
-    env:
-      RUSTUP_TOOLCHAIN: ${{ matrix.toolchain }}
-    strategy:
-      fail-fast: false
-      matrix:
-        # Beta is a heads-up signal, not a merge blocker — run it on push to
-        # main/develop only so PR runs aren't paying for two channel checks.
-        toolchain: ${{ github.event_name == 'pull_request' && fromJSON('["stable"]') || fromJSON('["stable", "beta"]') }}
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v6
-        with:
-          clean: true
-
-      - name: Install Rust toolchain (${{ matrix.toolchain }})
-        uses: dtolnay/rust-toolchain@master
-        with:
-          toolchain: ${{ matrix.toolchain }}
-
-      - name: Cache Rust artifacts
-        uses: Swatinem/rust-cache@v2
-
-      - name: Install Linux native deps (Tauri/WebKit)
-        if: runner.os == 'Linux'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            pkg-config \
-            libgtk-3-dev \
-            libwebkit2gtk-4.1-dev \
-            libappindicator3-dev \
-            librsvg2-dev
-
-      - name: Compile workspace
-        run: cargo check --workspace --all-targets
 
   docs-consistency:
     name: Docs consistency (paths cited in agent docs exist on disk)
@@ -333,7 +122,7 @@ jobs:
         uses: actions/checkout@v6
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: 22
           cache: npm
@@ -348,6 +137,9 @@ jobs:
       - name: Markdownlint
         run: npm run lint:md
 
+      - name: Portfolio-governance unit tests
+        run: node --test .github/scripts/*.test.cjs
+
   python-quality:
     name: Python quality (ruff, mypy, yamllint, pytest)
     runs-on: ubuntu-latest
@@ -361,7 +153,7 @@ jobs:
         uses: actions/checkout@v6
 
       - name: Setup Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: "3.12"
 
@@ -402,10 +194,14 @@ jobs:
           chmod +x /usr/local/bin/shfmt
 
       - name: ShellCheck
-        run: shellcheck -S warning $(git ls-files '*.sh')
+        run: |
+          mapfile -t shell_files < <(git ls-files '*.sh')
+          shellcheck -S warning "${shell_files[@]}"
 
       - name: shfmt (diff = fail)
-        run: shfmt -i 4 -ci -bn -d $(git ls-files '*.sh')
+        run: |
+          mapfile -t shell_files < <(git ls-files '*.sh')
+          shfmt -i 4 -ci -bn -d "${shell_files[@]}"
 
       - name: Proof-tooling unit tests
         run: |
@@ -437,123 +233,10 @@ jobs:
       - name: Taplo lint
         run: taplo lint
 
-  game-harness:
-    name: Full game harness fixture sweep
-    needs: changes
-    if: ${{ needs.changes.outputs.rust == 'true' || github.event_name != 'pull_request' }}
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v6
-        with:
-          clean: true
-
-      - name: Install Rust toolchain
-        uses: actions-rust-lang/setup-rust-toolchain@46268bd060767258de96ed93c1251119784f2ab6 # v1.16.1
-        with:
-          cache: false
-
-      - name: Cache Rust artifacts
-        uses: Swatinem/rust-cache@v2
-
-      - name: Install Linux native deps (Tauri/WebKit)
-        if: runner.os == 'Linux'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            pkg-config \
-            libgtk-3-dev \
-            libwebkit2gtk-4.1-dev \
-            libappindicator3-dev \
-            librsvg2-dev
-
-      # Build once, then run all fixtures in parallel against the prebuilt
-      # binary (E3). The old serial `cargo run` per fixture scaled linearly
-      # with the fixture count (110+ and growing).
-      - name: Build engine once
-        run: cargo build -p parish-engine
-
-      - name: Run every fixture script (parallel)
-        shell: bash
-        run: |
-          set -euo pipefail
-          export bin="$PWD/target/debug/parish-engine"
-          ls testing/fixtures/*.txt | xargs -P "$(nproc)" -I{} bash -c '
-            f="$1"
-            if ! out=$("$bin" --script "$f" 2>&1); then
-              echo "=== FAIL: $f ==="
-              printf "%s\n" "$out" | tail -n 20
-              exit 1
-            fi
-            echo "ok: $f"
-          ' _ {}
-
-      # parish-client smoke (#1366 §5): the thin HTTP client gets one live
-      # round-trip against a real server per CI run — `parish "look"` must
-      # exit 0 and print the player's location.
-      - name: Build server + client
-        run: cargo build -p parish-server -p parish-client
-
-      - name: parish-client smoke test
-        shell: bash
-        # Jobs default to working-directory: parish, so script paths are
-        # relative to that (the script resolves the repo root internally).
-        run: |
-          set -euo pipefail
-          bash scripts/parish-mcp-backend.sh start
-          trap 'bash scripts/parish-mcp-backend.sh stop' EXIT
-          out=$(PARISH_SERVER=http://127.0.0.1:3030 ./target/debug/parish "look")
-          echo "$out"
-          grep -q "Kilteevan" <<<"$out" || {
-            echo "::error::parish-client smoke: 'look' output did not include the starting location"
-            exit 1
-          }
-
-  ui-quality:
-    name: UI quality (build, check, unit)
-    needs: changes
-    if: ${{ needs.changes.outputs.ui == 'true' || github.event_name != 'pull_request' }}
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    defaults:
-      run:
-        working-directory: parish/apps/ui
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v6
-        with:
-          clean: true
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-          cache-dependency-path: parish/apps/ui/package-lock.json
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Svelte check
-        run: npm run check
-
-      - name: ESLint
-        run: npm run lint
-
-      - name: Prettier check
-        run: npm run format:check
-
-      - name: Build UI
-        run: npm run build
-
-      - name: Unit tests
-        run: npx vitest run
-
   ui-e2e:
     name: UI Playwright e2e
     needs: changes
-    if: ${{ needs.changes.outputs.ui == 'true' || github.event_name != 'pull_request' }}
+    if: github.event_name == 'pull_request' && needs.changes.outputs.ui == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     defaults:
@@ -566,7 +249,7 @@ jobs:
           clean: true
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: 22
           cache: npm
@@ -596,12 +279,6 @@ jobs:
         if: runner.os == 'macOS'
         run: npx playwright install chromium
 
-      # Prebuild parish so Playwright's webServer starts under its 120s
-      # timeout — a cold `cargo run` on this job was busting the deadline.
-      # Must build the SAME crate the webServer runs (`cargo run -p
-      # parish-server` in playwright.config.ts); building parish-engine left
-      # parish-server to compile cold on first request and bust the deadline
-      # (#1179).
       - name: Prebuild parish web server binary
         working-directory: ${{ github.workspace }}/parish
         run: cargo build -p parish-server
@@ -611,56 +288,41 @@ jobs:
 
       - name: Upload Playwright report
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: playwright-report
           path: parish/apps/ui/playwright-report/
           if-no-files-found: ignore
 
   # ── Aggregate required-checks gate ─────────────────────────────────────────
-  # Branch protection requires THIS single job, not the individual Rust matrix
-  # leaves. The Rust jobs above are path-gated (skipped on doc / CI / script-only
-  # PRs via the `changes` filter). A *required matrix leaf* that is skipped never
-  # reports a status, so such PRs got stuck on "Expected — Waiting for status to
-  # be reported" forever. This job always runs and passes when every gated job
-  # either succeeded or was legitimately skipped — non-Rust PRs go green instead
-  # of hanging, while a real Rust failure still blocks the merge.
+  # Branch protection requires THIS single job. It aggregates the fast lane and
+  # the conditional complete Playwright contract for shipped UI changes.
   ci-gate:
     name: CI gate
     needs:
       [
-        rust-quality-gate,
-        rust-coverage-ratchet,
-        rust-multi-channel,
-        game-harness,
+        changes,
+        agent-check,
+        docs-consistency,
+        format-quality,
+        python-quality,
+        shell-quality,
+        toml-quality,
+        ui-e2e,
       ]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 5
-    # No checkout, so override the workflow-level `working-directory: parish`
-    # default (that dir doesn't exist here) to the always-present workspace root.
     defaults:
       run:
         working-directory: ${{ github.workspace }}
     steps:
+      - name: Checkout gate implementation
+        uses: actions/checkout@v6
+
       - name: Require gated jobs to succeed or be skipped
         env:
-          RESULTS: ${{ join(needs.*.result, ' ') }}
-        run: |
-          echo "gated job results: $RESULTS"
-          read -ra results <<< "$RESULTS"
-          status=0
-          for r in "${results[@]}"; do
-            case "$r" in
-              success | skipped) ;;
-              *)
-                echo "::error::a required CI job ended with '$r'"
-                status=1
-                ;;
-            esac
-          done
-          if [ "$status" -ne 0 ]; then
-            echo "CI gate: FAIL — a required job failed or was cancelled."
-            exit 1
-          fi
-          echo "CI gate: PASS — all gated jobs succeeded or were legitimately skipped."
+          GATED_RESULTS: ${{ join(needs.*.result, ' ') }}
+          UI_E2E_REQUIRED: ${{ github.event_name == 'pull_request' && needs.changes.outputs.ui == 'true' }}
+          UI_E2E_RESULT: ${{ needs.ui-e2e.result }}
+        run: bash .github/scripts/ci-gate.sh

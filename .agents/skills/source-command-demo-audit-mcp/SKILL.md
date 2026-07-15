@@ -81,6 +81,7 @@ Each turn is: **observe → decide → act → observe → judge**.
    Maintain coverage counters: distinct locations visited, movement attempts vs
    successes, NPCs talked to, NPC reply rate.
 3. **Act** with `mcp__parish__parish_submit_input`:
+
    - Movement: natural-language intents (`"walk over to the forge"`, `"go to the church"`) —
      deliberately probe the parser grammar, including phrasings you expect to fail.
    - Dialogue: free text. Scope it with the optional `addressed_to` array
@@ -95,6 +96,7 @@ Each turn is: **observe → decide → act → observe → judge**.
 4. **Wait for the turn, then read the reply.** Poll `parish_world_snapshot` until
    `turn_in_flight` is `false` (the clock will also have advanced). Then read what was
    said — there are two ways, since the reply is NOT in any tool's return value:
+
    - **Screenshot (richest):** `mcp__parish__parish_take_screenshot`, then `Read` the
      PNG — the narrative + dialogue column is rendered, so you see player text, NPC
      replies, movement narration, and the present-NPC chips in one image.

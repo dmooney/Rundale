@@ -1,6 +1,6 @@
 # Known Issues
 
-> [Docs Index](index.md)
+> [Docs Index](../index.md)
 
 ## Active
 

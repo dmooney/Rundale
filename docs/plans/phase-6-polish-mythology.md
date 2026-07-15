@@ -17,12 +17,14 @@ Complete the system command UI (/help, /map, /status, /log, /branches), refine t
 ## Tasks
 
 1. **Implement `/help` command in `src/input/mod.rs` + `src/tui/mod.rs`**
+
    - `fn render_help() -> Vec<String>` — returns formatted help text listing all commands with descriptions
    - Render in main text panel when `/help` is entered
    - Include: /pause, /resume, /quit, /save, /fork, /load, /branches, /log, /status, /help, /map
    - Each entry: command, arguments, one-line description
 
 2. **Implement `/map` command in `src/tui/map.rs`** (new file)
+
    - `fn render_ascii_map(graph: &WorldGraph, player_location: LocationId, npcs: &NpcManager) -> Vec<String>`
    - Simple text-based map: list each location with connections shown as `--` lines
    - Mark player location with `[*]`, locations with NPCs present with `(N)` where N is count
@@ -37,6 +39,7 @@ Complete the system command UI (/help, /map, /status, /log, /branches), refine t
    - Show only locations within 3 edges of player (avoid overwhelming output)
 
 3. **Implement `/status` command**
+
    - `fn render_status(world: &WorldState, npcs: &NpcManager, branch_name: &str, play_start: Instant) -> Vec<String>`
    - Display: branch name, in-game date (e.g., "14 March, Year 2"), time of day, season, weather
    - Real play time: hours:minutes since session started
@@ -44,6 +47,7 @@ Complete the system command UI (/help, /map, /status, /log, /branches), refine t
    - Current location name
 
 4. **Implement `/log` command UI**
+
    - Load snapshot history from `Database::branch_log()`
    - Render as scrollable list in main text panel:
 
@@ -57,6 +61,7 @@ Complete the system command UI (/help, /map, /status, /log, /branches), refine t
    - Each entry shows snapshot id, game time, and whether it was auto or manual
 
 5. **Implement `/branches` command UI**
+
    - Load branch list from `Database::list_branches()`
    - Render as table:
 
@@ -69,29 +74,34 @@ Complete the system command UI (/help, /map, /status, /log, /branches), refine t
    - Active branch marked with `*`
 
 6. **Add `mythological_significance` to `Location`**
+
    - Add field: `mythological_significance: Option<MythSignificance>` to `Location` struct
    - `MythSignificance` struct: `kind: MythKind`, `description: String`, `active_seasons: Vec<Season>`
    - `MythKind` enum: `FairyFort`, `HolyWell`, `Crossroads`, `Bog`, `AncientRuin`, `StandingStone`
    - Derive `Serialize, Deserialize` for persistence and data files
 
 7. **Implement festival event hooks in `src/world/time.rs`**
+
    - `fn check_festival_transition(prev: &DateTime<Utc>, now: &DateTime<Utc>) -> Option<Festival>` — detects when clock crosses a festival boundary between ticks
    - Publish `FestivalEvent { festival: Festival, year: i32 }` to EventBus when transition detected
    - NPCs can subscribe: inject festival awareness into context prompts
    - Placeholder handler: log festival occurrence, add text to TUI ("The first day of Bealtaine. Summer is here.")
 
 8. **Implement night-time palette differentiation in `src/tui/mod.rs`**
+
    - Extend `palette_for_time` with smoother gradients: 24 distinct hour-based palettes interpolated via linear RGB lerp
    - `fn lerp_color(a: Color, b: Color, t: f32) -> Color` — smooth transition between time-of-day anchors
    - Night palette: cooler blues, lower contrast text; Midnight: near-black with dim grey text
    - Weather modifier: `fn apply_weather_modifier(palette: &ColorPalette, weather: &WeatherState) -> ColorPalette` — desaturate for overcast, blue-shift for rain, heavy desaturation for fog
 
 9. **Implement atmospheric text tone for night**
+
    - Modify `render_description` (Phase 2) to include tone hints based on time
    - Night descriptions use different vocabulary: "quiet", "shadow", "still", "distant", "flickering"
    - Add `fn atmosphere_prefix(tod: &TimeOfDay, weather: &WeatherState) -> Option<String>` — returns an opening atmospheric sentence for location descriptions at night/dusk/dawn
 
 10. **Add NPC belief/superstition fields**
+
     - Add to `Npc` struct: `beliefs: Vec<Belief>`
     - `Belief` struct: `content: String`, `conviction: f32` (0.0-1.0), `source: BeliefSource`
     - `BeliefSource` enum: `Tradition`, `PersonalExperience`, `Gossip`, `Church`
@@ -99,6 +109,7 @@ Complete the system command UI (/help, /map, /status, /log, /branches), refine t
     - Initial data: assign 1-3 beliefs per NPC in `data/npcs.json` (e.g., Tommy believes in fairies, Fr. Declan warns against the fairy fort, Aoife is skeptical)
 
 11. **Mark mythological locations in parish data**
+
     - Update `data/parish.json`: add `mythological_significance` to The Fairy Fort (FairyFort), The Crossroads (Crossroads), Lough Shore (HolyWell nearby)
     - Description templates for these locations include subtle atmospheric hooks at night: "The hawthorn around the fort seems to lean inward in the dark."
 

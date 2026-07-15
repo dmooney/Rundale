@@ -38,19 +38,53 @@ fn text_seed(s: &str) -> u64 {
     hash
 }
 
+/// Returns whether `period_index` terminates a known abbreviated honorific
+/// followed by an uppercase name token.
+///
+/// `HONORIFIC_PAIRS` is the shared source of truth for abbreviations. The
+/// uppercase look-ahead keeps ordinary lowercase prose such as `"fr. declan"`
+/// on the normal sentence-boundary path instead of treating every known token
+/// as an unconditional exception.
+fn period_belongs_to_honorific(s: &str, period_index: usize) -> bool {
+    let before = &s[..period_index];
+    let token_start = before
+        .char_indices()
+        .rev()
+        .find(|(_, ch)| !ch.is_alphabetic())
+        .map_or(0, |(index, ch)| index + ch.len_utf8());
+    let token = &before[token_start..];
+    let is_abbreviated_honorific = HONORIFIC_PAIRS
+        .iter()
+        .any(|&(_, short)| token.eq_ignore_ascii_case(short));
+
+    is_abbreviated_honorific
+        && s[period_index + '.'.len_utf8()..]
+            .chars()
+            .find(|ch| !ch.is_whitespace())
+            .is_some_and(char::is_uppercase)
+}
+
 /// Splits a dialogue body into sentence-ish units on terminal punctuation,
-/// keeping the delimiter with each piece. Used by [`collapse_repeated_sentences`].
+/// keeping the delimiter with each piece. Periods in known abbreviated
+/// honorifics are not terminal when the next non-space character begins an
+/// uppercase name. Used by [`collapse_repeated_sentences`].
 fn split_sentences(s: &str) -> Vec<String> {
     let mut out = Vec::new();
-    let mut current = String::new();
-    for ch in s.chars() {
-        current.push(ch);
-        if matches!(ch, '.' | '!' | '?' | '…') {
-            out.push(std::mem::take(&mut current));
+    let mut start = 0;
+    for (index, ch) in s.char_indices() {
+        let is_boundary = match ch {
+            '.' => !period_belongs_to_honorific(s, index),
+            '!' | '?' | '…' => true,
+            _ => false,
+        };
+        if is_boundary {
+            let end = index + ch.len_utf8();
+            out.push(s[start..end].to_string());
+            start = end;
         }
     }
-    if !current.trim().is_empty() {
-        out.push(current);
+    if !s[start..].trim().is_empty() {
+        out.push(s[start..].to_string());
     }
     out
 }
@@ -3315,6 +3349,17 @@ const PLACE_AFFIRMATION_MARKERS: &[&str] = &[
     "is away in ",
 ];
 
+/// Soft place-validation markers: phrases that avoid an explicit denial while
+/// treating the player's invented place query as a legitimate referent (#1507).
+const PLACE_SOFT_VALIDATION_MARKERS: &[&str] = &[
+    "have ye a reason for asking",
+    "have you a reason for asking",
+    "why do ye ask",
+    "why do you ask",
+    "what brings ye to ask",
+    "what brings you to ask",
+];
+
 /// Returns a stock place-decline for an unknown named place.
 /// Cycles through a small pool to avoid repeated identical responses.
 fn non_recognition_place_decline(seed: u64) -> &'static str {
@@ -4090,11 +4135,11 @@ fn place_not_in_known_locations(candidate: &str, known_location_names: &[String]
 ///   1. Player input contains a candidate place name (extracted via
 ///      place-noun collocation or explicit directional query pattern).
 ///   2. The candidate is NOT in `known_location_names`.
-///   3. The NPC dialogue contains a place-affirmation marker.  Because
-///      candidates are only extracted from explicitly signalled place queries,
-///      an affirmation marker in the dialogue is treated as sufficient evidence
-///      that the NPC is confirming the invented place — the NPC may paraphrase
-///      or describe the location without repeating the exact name.
+///   3. The NPC dialogue contains either a place-affirmation marker or a soft
+///      validation marker. Because candidates are only extracted from explicitly
+///      signalled place queries, those markers are sufficient evidence that the
+///      NPC is treating the invented place as a real conversational referent —
+///      the NPC may paraphrase or omit the exact name.
 ///   4. The NPC dialogue does NOT contain a denial marker (already declining).
 ///
 /// Gate: `dialogue-invented-place-guard` (default-on).
@@ -4116,9 +4161,13 @@ pub fn guard_invented_place_confirmation(
         return dialogue.to_string();
     }
 
-    // Must contain a place-affirmation marker for the guard to fire.
-    let has_affirmation = PLACE_AFFIRMATION_MARKERS.iter().any(|m| lower.contains(m));
-    if !has_affirmation {
+    // Must contain a place-affirmation or soft-validation marker for the guard
+    // to fire.
+    let has_place_marker = PLACE_AFFIRMATION_MARKERS.iter().any(|m| lower.contains(m))
+        || PLACE_SOFT_VALIDATION_MARKERS
+            .iter()
+            .any(|m| lower.contains(m));
+    if !has_place_marker {
         return dialogue.to_string();
     }
 
@@ -4130,13 +4179,13 @@ pub fn guard_invented_place_confirmation(
         }
 
         // When the candidate was extracted via the conservative strategies
-        // (place-noun collocation or where-is directional), the presence of a
-        // place-affirmation marker in the dialogue is sufficient evidence that
-        // the NPC is confirming the invented place — the NPC may paraphrase
-        // the name or describe where it "is" without repeating the exact name.
+        // (place-noun collocation or where-is directional), a place-affirmation
+        // or soft-validation marker in the dialogue is sufficient evidence that
+        // the NPC is treating the invented place as real — the NPC may
+        // paraphrase, omit the name, or ask why the player is asking.
         tracing::warn!(
             candidate = %candidate,
-            "invented-place guard fired: NPC confirmed invented place (#1530)"
+            "invented-place guard fired: NPC confirmed/soft-validated invented place (#1530/#1507)"
         );
         return non_recognition_place_decline(seed).to_string();
     }
@@ -4286,6 +4335,82 @@ mod tests {
     fn extract_normalized_opener_returns_first_sentence() {
         let opener = extract_normalized_opener("Good morning to ye. How can I help?");
         assert_eq!(opener, "good morning to ye");
+    }
+
+    /// #1706: the shared splitter keeps an abbreviated honorific attached to
+    /// the uppercase name that follows it and preserves the original byte
+    /// slices, including multibyte Irish text and inter-sentence whitespace.
+    #[test]
+    fn sentence_splitter_preserves_honorific_name_and_utf8_slices() {
+        let dialogue = "Éist le Fr. Declan Tierney. Slán abhaile.";
+        assert_eq!(
+            split_sentences(dialogue),
+            vec!["Éist le Fr. Declan Tierney.", " Slán abhaile."]
+        );
+    }
+
+    /// #1706: every abbreviated form in the existing honorific table follows
+    /// the same sentence-boundary rule rather than relying on a `Fr.` special
+    /// case.
+    #[test]
+    fn sentence_splitter_reuses_all_known_honorific_abbreviations() {
+        for &(_, short) in HONORIFIC_PAIRS {
+            let dialogue = format!(
+                "{}. Áine Byrne knows the road. Ask her.",
+                short.to_uppercase()
+            );
+            let sentences = split_sentences(&dialogue);
+            assert_eq!(
+                sentences.len(),
+                2,
+                "honorific {short:?} must stay attached to the uppercase name: {sentences:?}"
+            );
+            assert_eq!(
+                sentences.concat(),
+                dialogue,
+                "sentence slices must preserve every input byte"
+            );
+        }
+    }
+
+    /// #1706 risk boundary: ordinary periods, long-form words, and abbreviated
+    /// honorifics followed by lowercase prose remain sentence terminators.
+    #[test]
+    fn sentence_splitter_keeps_ordinary_period_boundaries() {
+        assert_eq!(
+            split_sentences("The doctor. Declan waited."),
+            vec!["The doctor.", " Declan waited."]
+        );
+        assert_eq!(
+            split_sentences("Fr. declan waited."),
+            vec!["Fr.", " declan waited."]
+        );
+        assert_eq!(
+            split_sentences("That was brief. Declan agreed."),
+            vec!["That was brief.", " Declan agreed."]
+        );
+    }
+
+    /// #1706: opener extraction includes the complete titled first sentence;
+    /// it must never reduce `Fr. Declan Tierney ...` to the token `fr`.
+    #[test]
+    fn extract_normalized_opener_keeps_full_titled_opener() {
+        let opener = extract_normalized_opener(
+            "Fr. Declan Tierney knows the north road. He walks it daily.",
+        );
+        assert_eq!(opener, "fr. declan tierney knows the north road");
+    }
+
+    /// #1706: two distinct titled openers share a name but are not stock-opener
+    /// duplicates, so cross-NPC dedupe must preserve the visible honorific.
+    #[test]
+    fn cross_npc_opener_dedup_preserves_distinct_titled_reply() {
+        let prior = vec![extract_normalized_opener(
+            "Fr. Declan Tierney knows the north road. He walks it daily.",
+        )];
+        let reply = "Fr. Declan Tierney keeps the parish books. Ask him after Mass.";
+
+        assert_eq!(dedupe_cross_npc_openers(&prior, reply), reply);
     }
 
     // ── #1228 existing guard ──────────────────────────────────────────────────
@@ -6831,6 +6956,58 @@ mod tests {
         );
     }
 
+    /// AC-1 (#1507): NPC soft-validates an invented place → replaced with
+    /// place-decline instead of suspiciously asking why the player asked.
+    #[test]
+    fn invented_place_guard_fires_for_soft_deflection() {
+        let known = make_locations(&["Kilteevan", "Roscommon", "Strokestown"]);
+        let dialogue = "And Ballygostick Tower, now? Have ye a reason for asking?";
+        let result = guard_invented_place_confirmation(
+            dialogue,
+            "Is there a place called Ballygostick Tower?",
+            &known,
+            0,
+        );
+
+        assert_ne!(
+            result, dialogue,
+            "guard must fire for invented-place soft deflection: {result:?}"
+        );
+        assert!(
+            !result.to_lowercase().contains("ballygostick"),
+            "invented place name must not be repeated: {result:?}"
+        );
+        assert!(
+            result.to_lowercase().contains("place"),
+            "replacement should be a place non-recognition decline: {result:?}"
+        );
+    }
+
+    /// AC-1 (#1507): another post-generation guard may already strip the
+    /// invented place name, leaving only the soft-deflecting question. The
+    /// place guard still has the player's original place query and should
+    /// replace the leftover deflection.
+    #[test]
+    fn invented_place_guard_fires_for_leftover_reason_question() {
+        let known = make_locations(&["Kilteevan", "Roscommon", "Strokestown"]);
+        let dialogue = "Have ye a reason for asking?";
+        let result = guard_invented_place_confirmation(
+            dialogue,
+            "Is there a place called Ballygostick Tower?",
+            &known,
+            1,
+        );
+
+        assert_ne!(
+            result, dialogue,
+            "leftover soft deflection must become a clear place decline: {result:?}"
+        );
+        assert!(
+            result.to_lowercase().contains("place"),
+            "replacement should mention place non-recognition: {result:?}"
+        );
+    }
+
     /// AC-2 (#1530): NPC confirms a real location from the known list → unchanged.
     #[test]
     fn invented_place_guard_leaves_known_location() {
@@ -6840,6 +7017,24 @@ mod tests {
         assert_eq!(
             result, dialogue,
             "known location must pass through unchanged: {result:?}"
+        );
+    }
+
+    /// AC-2 (#1507): soft questions about a real location are not rewritten as
+    /// unknown-place denials.
+    #[test]
+    fn invented_place_guard_leaves_known_location_soft_question() {
+        let known = make_locations(&["Kilteevan", "Roscommon", "Strokestown"]);
+        let dialogue = "Kilteevan, now? Have ye a reason for asking?";
+        let result = guard_invented_place_confirmation(
+            dialogue,
+            "Is there a place called Kilteevan?",
+            &known,
+            0,
+        );
+        assert_eq!(
+            result, dialogue,
+            "known location soft question must pass through unchanged: {result:?}"
         );
     }
 

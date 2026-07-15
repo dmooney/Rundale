@@ -388,6 +388,7 @@ witness-scan:
     echo "Scanning ${count} changed file(s) for placeholder markers..."
     found=0
     while IFS= read -r f; do
+      grep -Iq . "$f" || continue
       rg -n \
         -e '//\s*unchanged' \
         -e '//\s*existing' \
@@ -508,26 +509,30 @@ notices:
 act-list:
     act -l
 
-# Run the full CI workflow (ci.yml) — all five jobs, matches what PRs see
+# Run the sub-minute CI fast lane (`ci.yml`) with act's default event.
 act-ci:
     act -W ../.github/workflows/ci.yml
 
+# Run the preserved full-suite workflow (`full-ci.yml`).
+act-full-ci:
+    act -W ../.github/workflows/full-ci.yml
+
 # Run just the fmt/clippy/tests job — fastest signal on a Rust change
 act-fmt:
-    act -W ../.github/workflows/ci.yml -j rust-quality-gate
+    act -W ../.github/workflows/full-ci.yml -j rust-quality-gate
 
 # Run the full game harness fixture sweep
 act-harness:
-    act -W ../.github/workflows/ci.yml -j game-harness
+    act -W ../.github/workflows/full-ci.yml -j game-harness
 
 # Run UI unit tests (svelte-check + vitest + build)
 act-ui:
-    act -W ../.github/workflows/ci.yml -j ui-quality
+    act -W ../.github/workflows/full-ci.yml -j ui-quality
 
 # Run Playwright e2e job — slowest, uploads playwright-report as an artifact
 # to /tmp/act-artifacts after the run.
 act-e2e:
-    act -W ../.github/workflows/ci.yml -j ui-e2e
+    act -W ../.github/workflows/full-ci.yml -j ui-e2e
 
 # Run security audit workflow — cheapest, good for smoke-testing that act
 # itself is configured correctly.
@@ -538,9 +543,9 @@ act-audit:
 act-job JOB:
     act -j {{JOB}}
 
-# Simulate the pull_request event (some jobs gate on event type)
+# Simulate the pull_request fast lane (sub-minute PR feedback)
 act-pr:
-    act pull_request
+    act -W ../.github/workflows/ci.yml pull_request
 
 # Force-refresh third-party actions (drops --action-offline-mode). Use after
 # bumping an action version in a workflow.

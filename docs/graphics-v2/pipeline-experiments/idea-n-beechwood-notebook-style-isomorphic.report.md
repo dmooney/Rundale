@@ -1,0 +1,5 @@
+# Cycle N Beechwood Notebook-Style Isomorphic Report
+
+- Style match: Good overall. The plate uses sepia ink contours, mottled olive/brown watercolor, dark broken roof hatching, paper-grain texture, and rough field vegetation that fit the parish notebook family better than the cleaner Cycle M control image.
+- Map accuracy: Good. It preserves the northwest-to-south-southeast road, the road-facing main building group, the large enclosed planted rectangle, two smaller northern enclosures, the lower outbuilding cluster, northwest tree mass, southern tree clusters, and physical stone/field boundaries. The omitted eastern dotted administrative boundary does not reappear as a terrain feature.
+- Obvious failures: The camera still reads somewhat high/steep rather than fully low 3/4 isomorphic. Some boundary walls and garden rows are tidier and more regular than the rough notebook target. The muddy road is accurate in placement but a little smoother/paler than the requested scumbled notebook mud.

@@ -1,7 +1,7 @@
 # rundale-bench TODO
 
 > Backlog for the eval pipeline. Separate from `/TODO.md` (game demo loop) and the gemma4-rundale training plan.
-> Last updated: 2026-06-07 (epic #1206 harness-hardening sweep).
+> Last updated: 2026-07-14. Executable follow-up is tracked by benchmark epic #1685.
 
 ## P0 — blocks correctness or wastes wall-time
 
@@ -11,17 +11,17 @@
 
 ## P1 — quality + signal
 
-- [ ] **Outlines / lm-format-enforcer integration for MLX serve.** _Deferred (epic #1206): needs a live MLX serve + grammar authoring + re-bench of Phi-3.5/DS-R1; no MLX runtime in the hardening sandbox._ Constrains generation to a per-slice JSON grammar. Eliminates ~30% of observed bench-bugs (truncated mid-JSON metadata, format-meta, chain-of-thought leaks bypassing JSON extraction). Targets: Phi-3.5-mini (currently ~90% bench-bug rate → would become benchmark-able), DS-R1 distills (currently 100% bench-bug → would salvage scoring). Trade: ~10-20% throughput hit + grammar files per slice.
+- [ ] **Outlines / lm-format-enforcer integration for MLX serve.** _Blocked; tracked by #1687. Unblock trigger: a live MLX runtime is available and the target models are named._ Constrains generation to a per-slice JSON grammar. Eliminates ~30% of observed bench-bugs (truncated mid-JSON metadata, format-meta, chain-of-thought leaks bypassing JSON extraction). Targets: Phi-3.5-mini (currently ~90% bench-bug rate → would become benchmark-able), DS-R1 distills (currently 100% bench-bug → would salvage scoring). Trade: ~10-20% throughput hit + grammar files per slice.
   - Grammar files needed: `grammars/dialogue.lark`, `grammars/reaction.lark`, `grammars/tier-sim.lark`, `grammars/gaeilge.lark`, `grammars/intent.lark`.
   - Acceptance: re-bench Phi-3.5-mini + DS-R1-Distill-Llama-8B; bench-bug rate drops below 20%; overall scores produce real numbers.
 - [x] **Subagent post-validate wrapper.** Done (#1206) — `judge_bundle.recover_result(done_path, reply_text)`: if the done file is absent/unparseable it regex-extracts the outermost JSON object from the reply text (via `extract_json`), writes it so the queue is consistent for ingest, and raises `ValueError` when nothing is recoverable so the caller can retry the agent. Covered by `test_judge_bundle.py` (6 tests).
-- [ ] **`code-switch` slice** (new). _Deferred (epic #1206): net-new Irish-language corpus authoring needing a fluent-Irish review pass — a content-design task, out of scope for tooling hardening. The slice/judge plumbing (judge-config shape) already supports adding it._ Measures bidirectional Irish/English register-switch per `docs/plans/gemma4-rundale-training-plan.md` Phase 2 prep:
+- [ ] **`code-switch` slice** (new). _Blocked; tracked by #1688. Unblock trigger: a named fluent-Irish reviewer agrees to review the corpus and rubric._ The slice/judge plumbing (judge-config shape) already supports adding it. Measures bidirectional Irish/English register-switch per `docs/plans/gemma4-rundale-training-plan.md` Phase 2 prep:
   - Player switches mid-conversation → NPC continues in matching language.
   - NPC Irish quality in switched mode (reuses gaeilge judge axes).
   - NPC Irish-idiom-drops in English mode.
   - Refusal/clarification when player addresses Irish-only NPC in English (and reverse).
   - Pre-register slice + judge BEFORE Phase 2 training to avoid post-hoc gaming.
-- [ ] **Gaeilge slice expansion.** _Deferred (epic #1206): net-new Irish-language corpus authoring (multi-turn, Connacht/Munster register, 1820 idiom) needing a fluent-Irish review pass — content design, not tooling._ Currently 11 prompts. Add (a) multi-turn conversational, (b) Connacht-marked vs Munster-marked register distinction, (c) period-1820 idiom subset. EuroLLM scores 4.02 on current slice — need wider/harder to differentiate top tier.
+- [ ] **Gaeilge slice expansion.** _Blocked; tracked by #1689. Unblock trigger: a named fluent-Irish reviewer agrees to review the corpus and rubric._ Currently 11 prompts. Add (a) multi-turn conversational, (b) Connacht-marked vs Munster-marked register distinction, (c) period-1820 idiom subset. EuroLLM scores 4.02 on current slice — need wider/harder to differentiate top tier.
 
 ## P2 — infra + ergonomics
 
@@ -35,7 +35,7 @@
 
 - [x] **HF preflight script.** Done (#1206) — `preflight.py` with a pure, offline `classify_repo(config, files)` returning `{ok, is_multimodal, has_chat_template, reasons}` (rejects VL/multimodal architectures + missing `chat_template`) plus an optional `fetch_repo` network path that lazy-imports `huggingface_hub`. CLI: `python3 rundale-bench/preflight.py <repo>`. Approximate weights-size gating is left to the existing `peak_ram_gb_est` fitness check. Covered by `test_preflight.py`.
 - [x] **Disk-cleanup discipline as TOML metadata.** Done (#1206) — `candidates_schema.py` accepts an optional `delete_after_bench: bool` per candidate and exposes `candidates_to_delete(rows)`; `local_runner.py` records the flagged repos in the per-sweep `local_<stamp>.json` (`delete_after_bench` list) so a finaliser can honour them. Covered by `test_candidates_schema.py`. (The actual `huggingface_hub.delete_cache` eviction runs only inside a live sweep.)
-- [ ] **Round 5 / round 6 candidate pre-registration.** _Deferred (epic #1206):_ a planning note (which HF repos to target next), not code. When current backlog clears, next sweeps target: (a) Qwen3-VL-disabled variants if mlx-community ships them, (b) ExaONE-Deep when MLX upload appears, (c) Gemma-3 text-only variants if released, (d) Marco-o1 family, (e) Yi-1.5-34B if RAM cap allows.
+- [ ] **Round 5 / round 6 candidate pre-registration.** _Deferred; tracked by #1690. Unblock trigger: a benchmark sweep is funded and runtime/judging capacity is reserved._ Candidate selection is a planning outcome, not code. Candidate families remain provisional until the issue is activated.
 - [x] **Bench-site model-detail page**: bench-bug rate. Done in #1273 — `build_site_data.py` emits `bench_bug_rate` per model (`build_site_data.py:636`) and `build_leaderboard_page.py` renders a bench-bug-rate column. (Any further Svelte detail-page styling is front-end polish in `bench-site/`.)
 - [x] **Reproducibility manifest.** Done in #1272 — `repro_manifest.py` captures `harness_sha` + tool/runtime versions + model SHA per sweep. Covered by `test_repro_manifest.py`.
 
@@ -81,9 +81,9 @@ Structured tracking layer parallel to the priority backlog above. Items here are
 
 ### Open
 
-| ID     | Category   | Severity | Location                  | Description                                                                                                                                                                                                                                                                                      |
-| ------ | ---------- | -------- | ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| TD-001 | Complexity | P1       | `rundale_bench.py:1-1163` | The main orchestrator owns CLI parsing, target/catalog resolution, all slice runners, judge dispatch, artifact writing, ingest/finalize, and aggregation in one file. Split per-slice runners, CLI commands, artifact I/O, and ingest/finalize into modules before adding more benchmark phases. |
+| ID     | Category   | Severity | Location                  | Description                                                                                                                                                                                                                                                                        |
+| ------ | ---------- | -------- | ------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| TD-001 | Complexity | P3       | `rundale_bench.py:1-1771` | Tracked by #1686. The main orchestrator owns CLI parsing, target/catalog resolution, all slice runners, judge dispatch, artifact writing, ingest/finalize, and aggregation in one file. Split the L-sized issue into bounded behavior-preserving work units before implementation. |
 
 ### In Progress
 
@@ -108,12 +108,11 @@ _2026-06-04 audit: 2 of 14 unchecked items verified done (Round-4 drain via comm
 - **2026-06-06**: Re-audit vs current code. Resolved->Done: none. Still open: TD-001 (rundale_bench.py 1771 LOC), TD-002 (build_site_data.py 1080 LOC), TD-003 (bench.json freshness gate), TD-004 (candidates_local_mlx.toml schema test), TD-005 (local_runner.py RamSampler/fitness_check untested), TD-006 (README/AGENTS say 155 prompts vs MANIFEST 309).
 - **2026-06-07** (#1284): Retired the v1 bench-site. TD-002 + TD-003 are obsolete — `build_site_data.py` and the generated `bench-site/src/data/bench.json` are gone; the v2 site (`promptfoo/bench-site/`) reads `promptfoo/leaderboard/leaderboard.jsonl` directly. Only TD-001 remains open.
 
-- **2026-06-07** (epic #1206 harness-hardening sweep): Resolved -> Done: TD-004 (`candidates_schema.py` + startup validation), TD-005 (`local_runner.py` lazy psutil import + pure-helper/`RamSampler` unit tests), TD-006 (doc count fixed to 309 + `test_doc_drift.py` guard). Also shipped, from the priority backlog: subagent post-validate wrapper (`recover_result`), runtime RAM-cap kill switch (`--max-ram-gb`), per-slice cost ledger, `MLX_VENV` README docs, HF preflight (`preflight.py`), tokenizer-audit scaffold (`tokenizer_audit.py`), and `delete_after_bench` TOML metadata. Verified already-done from prior PRs: Pydantic schemas (#1213), pending_judge + bench-bug-rate surfacing (#1273), reproducibility manifest (#1272). Still open: TD-001/TD-002/TD-003 (large structural refactors / generated-data freshness gate); Outlines/lm-format-enforcer + code-switch slice + Gaeilge expansion + round-5/6 pre-registration (need live MLX / Irish-corpus authoring / planning — all annotated `Deferred (epic #1206)` above).
+- **2026-06-07** (epic #1206 harness-hardening sweep): Resolved -> Done: TD-004 (`candidates_schema.py` + startup validation), TD-005 (`local_runner.py` lazy psutil import + pure-helper/`RamSampler` unit tests), TD-006 (doc count fixed to 309 + `test_doc_drift.py` guard). Also shipped, from the priority backlog: subagent post-validate wrapper (`recover_result`), runtime RAM-cap kill switch (`--max-ram-gb`), per-slice cost ledger, `MLX_VENV` README docs, HF preflight (`preflight.py`), tokenizer-audit scaffold (`tokenizer_audit.py`), and `delete_after_bench` TOML metadata. Verified already-done from prior PRs: Pydantic schemas (#1213), pending_judge + bench-bug-rate surfacing (#1273), reproducibility manifest (#1272). Still open: TD-001 plus the constrained-MLX, code-switch, Gaeilge-expansion, and round-5/6 preregistration capabilities. TD-002 and TD-003 are obsolete as recorded above.
+- **2026-07-14** (#1685): Reconciled every unchecked capability into an atomic issue. TD-001 is #1686; constrained MLX is #1687; code-switch is #1688; Gaeilge expansion is #1689; round-5/6 preregistration is #1690. Blocked and Deferred items now carry exact activation triggers.
 
 ## Issue tracking
 
-2026-06-04 audit: open items tracked under epic #1206 (rundale-bench harness hardening).
-
-2026-06-06 re-audit: all six TD items still open, tracked under epic #1206 (rundale-bench harness hardening), which remains open and now lists them explicitly.
-
-2026-06-07: epic #1206 harness-hardening sweep cleared the tractable backlog (see progress log). TD-001/TD-002/TD-003 + the live-MLX / Irish-corpus items remain open under #1206.
+GitHub epic #1685 and children #1686-#1690 are the executable source of truth.
+This file remains a discovery ledger and historical record; update it when those
+issues change state, but do not schedule work from unchecked boxes alone.

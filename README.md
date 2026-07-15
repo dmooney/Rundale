@@ -385,6 +385,7 @@ The game icon was generated with **ChatGPT** (OpenAI image generation) from a ha
 | [docs/repository-layout.md](docs/repository-layout.md)       | Top-level directory tree and crate index                                                   |
 | [docs/troubleshooting.md](docs/troubleshooting.md)           | Bug reporting + inference-log artefact guide                                               |
 | [docs/design/overview.md](docs/design/overview.md)           | Architecture, tech stack, module tree, LLM providers                                       |
+| [docs/graphics-v2/README.md](docs/graphics-v2/README.md)     | Visual-client research: notebook UI, graphics pipelines, assets, and evidence              |
 | [docs/requirements/roadmap.md](docs/requirements/roadmap.md) | Per-item status tracking across all phases                                                 |
 | [docs/research/README.md](docs/research/README.md)           | Research documents covering life in 1820's Ireland                                         |
 | [docs/adr/README.md](docs/adr/README.md)                     | Architecture decision records and rationale                                                |

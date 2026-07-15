@@ -56,5 +56,5 @@ These would be stored as part of the NPC knowledge model and could surface in di
 
 ## Source Modules
 
-- [`src/world/`](../../../src/world/) — Location properties, time system
-- [`src/npc/`](../../../src/npc/) — NPC knowledge model
+- [`parish-world`](../../../parish/crates/parish-world/src/) — Location properties and time system
+- [`parish-npc`](../../../parish/crates/parish-npc/src/) — NPC knowledge model
