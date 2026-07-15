@@ -3114,7 +3114,7 @@ DEALINGS IN THE SOFTWARE.
 - [num-traits 0.2.19](https://github.com/rust-num/num-traits)
 - [regex-automata 0.4.14](https://github.com/rust-lang/regex)
 - [regex-syntax 0.8.11](https://github.com/rust-lang/regex)
-- [regex 1.12.4](https://github.com/rust-lang/regex)
+- [regex 1.13.0](https://github.com/rust-lang/regex)
 
 ```
 Copyright (c) 2014 The Rust Project Developers
@@ -3148,7 +3148,7 @@ DEALINGS IN THE SOFTWARE.
 
 **Used by:**
 
-- [uuid 1.23.4](https://github.com/uuid-rs/uuid)
+- [uuid 1.23.5](https://github.com/uuid-rs/uuid)
 
 ```
 Copyright (c) 2014 The Rust Project Developers
@@ -6913,14 +6913,14 @@ DEALINGS IN THE SOFTWARE.
 - [serde_spanned 1.1.1](https://github.com/toml-rs/toml)
 - [toml 0.8.2](https://github.com/toml-rs/toml)
 - [toml 0.9.12+spec-1.1.0](https://github.com/toml-rs/toml)
-- [toml 1.1.2+spec-1.1.0](https://github.com/toml-rs/toml)
+- [toml 1.1.3+spec-1.1.0](https://github.com/toml-rs/toml)
 - [toml_datetime 0.7.5+spec-1.1.0](https://github.com/toml-rs/toml)
 - [toml_datetime 1.1.1+spec-1.1.0](https://github.com/toml-rs/toml)
 - [toml_edit 0.19.15](https://github.com/toml-rs/toml)
 - [toml_edit 0.20.2](https://github.com/toml-rs/toml)
 - [toml_edit 0.25.11+spec-1.1.0](https://github.com/toml-rs/toml)
 - [toml_parser 1.1.2+spec-1.1.0](https://github.com/toml-rs/toml)
-- [toml_writer 1.1.1+spec-1.1.0](https://github.com/toml-rs/toml)
+- [toml_writer 1.1.2+spec-1.1.0](https://github.com/toml-rs/toml)
 
 ```
 Copyright (c) Individual contributors
@@ -7278,7 +7278,7 @@ DEALINGS IN THE SOFTWARE.
 
 **Used by:**
 
-- [lru 0.18.0](https://github.com/jeromefroe/lru-rs.git)
+- [lru 0.18.1](https://github.com/jeromefroe/lru-rs.git)
 
 ```
 MIT License
