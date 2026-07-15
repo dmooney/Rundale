@@ -80,7 +80,7 @@ reqwest = { version = "0.12", default-features = false, features = ["rustls-tls"
 hf-hub = { version = "0.5", default-features = false, features = ["tokio"] }
 
 # Database
-rusqlite = { version = "0.32", features = ["bundled"] }
+rusqlite = { version = "0.40", features = ["bundled"] }
 
 # Time and dates
 chrono = { version = "0.4", features = ["serde"] }
