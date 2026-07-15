@@ -1,0 +1,11 @@
+{
+  "grid": "4x5",
+  "tile_count": 20,
+  "tile_size": 256,
+  "join_x": 512,
+  "join": {
+    "join_mean_abs_luma_jump": 32.97841262817383,
+    "nearby_control_mean_abs_luma_jump": 12.001371383666992,
+    "join_to_control_ratio": 2.747887018399838
+  }
+}

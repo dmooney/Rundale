@@ -1,0 +1,21 @@
+{
+  "source": {
+    "seam_mean_abs_luma_jump": 2.097756862640381,
+    "nearby_control_mean_abs_luma_jump": 1.9055110067129135,
+    "seam_to_control_ratio": 1.1008893967288593
+  },
+  "independent_tiles": {
+    "seam_mean_abs_luma_jump": 10.691583275794983,
+    "nearby_control_mean_abs_luma_jump": 5.508934825658798,
+    "seam_to_control_ratio": 1.9407714220900056
+  },
+  "mosaic_first": {
+    "seam_mean_abs_luma_jump": 5.512311935424805,
+    "nearby_control_mean_abs_luma_jump": 5.2063866555690765,
+    "seam_to_control_ratio": 1.0587596158515218
+  },
+  "max_abs_reassembly_error": 0,
+  "tile_count": 25,
+  "tile_size": 256,
+  "grid": "5x5"
+}

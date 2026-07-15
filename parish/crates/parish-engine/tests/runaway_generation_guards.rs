@@ -46,13 +46,13 @@ fn harness_with_one_npc() -> (GameTestHarness, String) {
     let mut h = GameTestHarness::new();
     let player_loc = h.app.world.player_location;
 
-    // Pick the first NPC.
-    let speaker_id = h
-        .app
-        .npc_manager
-        .all_npcs()
-        .map(|n| n.id)
-        .next()
+    // Pick a stable NPC. `NpcManager::all_npcs()` is HashMap-backed, so raw
+    // iterator order varies across test worker threads.
+    let mut npc_ids: Vec<_> = h.app.npc_manager.all_npcs().map(|n| n.id).collect();
+    npc_ids.sort_unstable();
+    let speaker_id = npc_ids
+        .first()
+        .copied()
         .expect("harness loads at least one NPC");
 
     let speaker_name = {
@@ -227,10 +227,15 @@ fn real_loop_real_npc_description_not_denied() {
     // Find the name of a SECOND real parish NPC (the one we moved away).
     let other_name: String = {
         let player_loc = h.app.world.player_location;
-        h.app
+        let mut others: Vec<_> = h
+            .app
             .npc_manager
             .all_npcs()
-            .find(|n| n.location != player_loc)
+            .filter(|n| n.location != player_loc)
+            .collect();
+        others.sort_by_key(|n| n.id);
+        others
+            .first()
             .map(|n| n.name.clone())
             .expect("there must be a second NPC in the parish")
     };
@@ -425,7 +430,6 @@ fn real_loop_spelled_out_honorific_of_roster_member_not_denied() {
     );
 
     let joined = shown.join(" ");
-
     // The guard must NOT have fired — the correct reply must reach the player.
     let decline_phrases = [
         "know no one by that name",
@@ -505,10 +509,15 @@ fn real_loop_false_denial_of_roster_npc_corrected() {
     // Find a second real NPC in the parish (the one we moved away).
     let other_name: String = {
         let player_loc = h.app.world.player_location;
-        h.app
+        let mut others: Vec<_> = h
+            .app
             .npc_manager
             .all_npcs()
-            .find(|n| n.location != player_loc)
+            .filter(|n| n.location != player_loc)
+            .collect();
+        others.sort_by_key(|n| n.id);
+        others
+            .first()
             .map(|n| n.name.clone())
             .expect("there must be a second NPC in the parish")
     };
@@ -631,6 +640,422 @@ fn real_loop_physical_action_produces_you_line() {
     assert!(
         content.contains("pick up"),
         "You-line must narrate the player's pick-up action (#1531); \
-         got content: {content:?}"
+        got content: {content:?}"
+    );
+}
+
+// ── #1561 — ordinary answers must not truncate to opener ─────────────────────
+
+/// AC-1 (#1561, real-loop): a short, distinct multi-sentence answer that
+/// contains a harmless repeated phrase ("work for a") must not be trimmed back
+/// to only its greeting by the post-generation verbosity guards.
+#[test]
+fn real_loop_cooper_work_answer_is_not_truncated_to_greeting() {
+    let (mut h, speaker_name) = harness_with_one_npc();
+
+    let cooper_answer = "Good morning, Aiden Carney. Work for a cooper? \
+                         Aye, there's always work for a man with that skill. \
+                         This place needs barrels for ale and salt, surely. \
+                         Ye know yer trade?";
+
+    h.mock().push_for(&speaker_name, cooper_answer.to_string());
+    let mut rx = h.app.world.event_bus.subscribe();
+    let _events = h.execute_via_real_loop(
+        "I am Aiden Carney, a cooper newly arrived in Kilteevan. Might there be work here?",
+    );
+
+    let dialogue_events = drain(&mut rx);
+    let shown: Vec<String> = dialogue_events
+        .iter()
+        .filter_map(|ev| match ev {
+            GameEvent::DialogueOccurred { npc_said, .. } => npc_said.clone(),
+            _ => None,
+        })
+        .collect();
+
+    assert!(
+        !shown.is_empty(),
+        "expected DialogueOccurred for the cooper-work turn"
+    );
+
+    let joined = shown.join(" ");
+    assert_ne!(
+        joined, "Good morning, Aiden Carney.",
+        "cooper-work answer must not be truncated to only the greeting"
+    );
+    for phrase in [
+        "Work for a cooper?",
+        "there's always work",
+        "barrels for ale and salt",
+        "Ye know yer trade?",
+    ] {
+        assert!(
+            joined.contains(phrase),
+            "cooper-work answer lost phrase {phrase:?}: {joined:?}"
+        );
+    }
+}
+
+// ── #1566 — watchful sacred-place run-on must be terse ──────────────────────
+
+/// AC-1 (#1566, real-loop): when the mock model emits the raw watchful Brigid
+/// sacred-place loop, the mood-aware verbosity guard inside `run_npc_turn` must
+/// clip it before the repeated question/tail reaches `DialogueOccurred`.
+#[test]
+fn real_loop_watchful_sacred_place_runon_is_clipped() {
+    let (mut h, speaker_name) = harness_with_one_npc();
+
+    let raw_dialogue = "Aye, 'tis said the sidhe live in the mounds and the forts. \
+        But the power here at the well, that's a different matter. \
+        A blessing, mayhap, but not just for those who seek it out. \
+        What do ye seek, Colm Brennan, is it for yerself or for another that \
+        troubles yer thoughts this morning, aye, and brings ye to this place \
+        of old magic and healing water, so it is indeed. \
+        What troubles yer mind, if ye care to speak of it, and I'll do what I \
+        can to ease it, if I may. \
+        Ye'll not be the first to find comfort here, nor the last. \
+        What brings ye to Kilteevan, and why the holy well, do ye ask, if not \
+        simply to see the sights and hear the tales, aye, but to seek a deeper \
+        truth or a healing hand, so it seems. \
+        Tell me, and I'll listen, and if I can, I'll guide ye. \
+        What do ye seek, Colm Brennan, aye, what troubles yer heart and mind \
+        this mornin' so bold, aye, and brings ye here to the well, and not \
+        elsewhere in the parish, if not for the sake of yer soul and the \
+        whispers of the old ones, so it is indeed. \
+        What do ye seek, Colm Brennan, aye, and what brings ye here to the \
+        well, so it is indeed?";
+    let json_reply = serde_json::json!({
+        "dialogue": raw_dialogue,
+        "action": "watches carefully",
+        "mood": "watchful",
+        "internal_thought": null,
+        "language_hints": []
+    })
+    .to_string();
+
+    h.mock().push_json_for(&speaker_name, json_reply);
+    let mut rx = h.app.world.event_bus.subscribe();
+    let _events = h.execute_via_real_loop(
+        "I heard there is a fairy fort called Cnoc na Si on Darcy land where the cure is strongest. Is it true?",
+    );
+
+    let dialogue_events = drain(&mut rx);
+    let shown: Vec<String> = dialogue_events
+        .iter()
+        .filter_map(|ev| match ev {
+            GameEvent::DialogueOccurred { npc_said, .. } => npc_said.clone(),
+            _ => None,
+        })
+        .collect();
+
+    assert!(
+        !shown.is_empty(),
+        "expected DialogueOccurred for the watchful run-on turn"
+    );
+
+    let joined = shown.join(" ");
+    let lower = joined.to_lowercase();
+    let sentence_count = joined
+        .split(['.', '!', '?'])
+        .filter(|s| !s.trim().is_empty())
+        .count();
+
+    assert!(
+        sentence_count <= 2,
+        "watchful run-on must be clipped to a terse reply; got {sentence_count}: {joined:?}"
+    );
+    assert!(
+        joined.contains("mounds and the forts") && joined.contains("power here at the well"),
+        "grounded opening must survive (#1566): {joined:?}"
+    );
+    assert!(
+        !lower.contains("what do ye seek"),
+        "repeated question loop must not reach DialogueOccurred (#1566): {joined:?}"
+    );
+    assert!(
+        !lower.contains("brings ye here to the well"),
+        "later repeated loop tail must not reach DialogueOccurred (#1566): {joined:?}"
+    );
+}
+
+// ── #1565 — invented titled landlord must be denied ─────────────────────────
+
+/// AC-1 (#1565, real-loop): an NPC reply that confirms and elaborates on the
+/// fabricated titled entity "Lord Fitzwilliam of Castlemore" must be replaced
+/// by the fabricated-person guard before the dialogue reaches the transcript.
+#[test]
+fn real_loop_invented_titled_landlord_hearsay_is_declined() {
+    let (mut h, speaker_name) = harness_with_one_npc();
+
+    let fabricated_landlord = "Aye, I've heard the talk of Lord Fitzwilliam. \
+                              'Tis said he owns most of the land round hereabouts. \
+                              Ye'll need to be careful with yer words when ye speak \
+                              of him, 'tis a mighty man he is.";
+
+    h.mock()
+        .push_for(&speaker_name, fabricated_landlord.to_string());
+    let mut rx = h.app.world.event_bus.subscribe();
+    let _events = h.execute_via_real_loop(
+        "Have you heard of Lord Fitzwilliam of Castlemore? I hear he is the \
+         great landlord hereabouts",
+    );
+
+    let dialogue_events = drain(&mut rx);
+    let shown: Vec<String> = dialogue_events
+        .iter()
+        .filter_map(|ev| match ev {
+            GameEvent::DialogueOccurred { npc_said, .. } => npc_said.clone(),
+            _ => None,
+        })
+        .collect();
+
+    assert!(
+        !shown.is_empty(),
+        "expected DialogueOccurred for the invented landlord turn"
+    );
+
+    let joined = shown.join(" ");
+    let lower = joined.to_lowercase();
+    for phrase in [
+        "heard the talk of lord fitzwilliam",
+        "owns most of the land",
+        "mighty man",
+    ] {
+        assert!(
+            !lower.contains(phrase),
+            "invented landlord elaboration must not reach transcript (#1565); \
+             phrase {phrase:?} found in: {joined:?}"
+        );
+    }
+    assert!(
+        lower.contains("no such person")
+            || lower.contains("no one by that name")
+            || lower.contains("wrong parish")
+            || lower.contains("not known to me")
+            || lower.contains("such a person")
+            || lower.contains("that name")
+            || lower.contains("parish face")
+            || lower.contains("comes to mind"),
+        "invented landlord reply should become a non-recognition decline (#1565); \
+         got: {joined:?}"
+    );
+}
+
+// ── #1569 — known place history must not trigger person denial ───────────────
+
+/// AC-1 (#1569, real-loop): when the player asks about the history of a known
+/// place whose short name looks like a person bigram ("Lough Ree"), the
+/// fabricated-person guard must not replace the model's valid place-history
+/// answer with a canned "no such person" decline.
+#[test]
+fn real_loop_known_place_history_not_replaced_by_person_denial() {
+    let (mut h, speaker_name) = harness_with_one_npc();
+
+    let lake_history = "Ah, the history of Lough Ree is a tale as grand as the lake itself. \
+                        Folk say it was formed by the great flood, and it is said to be home \
+                        to the Lough Ree wurm.";
+
+    h.mock().push_for(&speaker_name, lake_history.to_string());
+    let mut rx = h.app.world.event_bus.subscribe();
+    let _events = h.execute_via_real_loop(
+        "Aoife, I never saw a lake this grand. What is the history of Lough Ree?",
+    );
+
+    let dialogue_events = drain(&mut rx);
+    let shown: Vec<String> = dialogue_events
+        .iter()
+        .filter_map(|ev| match ev {
+            GameEvent::DialogueOccurred { npc_said, .. } => npc_said.clone(),
+            _ => None,
+        })
+        .collect();
+
+    assert!(
+        !shown.is_empty(),
+        "expected DialogueOccurred for the Lough Ree history turn"
+    );
+
+    let joined = shown.join(" ");
+    let lower = joined.to_lowercase();
+    assert!(
+        joined.contains("history of Lough Ree"),
+        "valid place-history answer must reach the transcript (#1569); got: {joined:?}"
+    );
+    for phrase in [
+        "no such person",
+        "know of no such person",
+        "know no one by that name",
+        "wrong parish",
+    ] {
+        assert!(
+            !lower.contains(phrase),
+            "known place-history answer must not be replaced by a person decline \
+             (#1569); decline phrase {phrase:?} found in: {joined:?}"
+        );
+    }
+}
+
+// ── #1563 — real parish entities must not be falsely denied ─────────────────
+
+/// AC-1/AC-4 (#1563, real-loop): when the mock model generically denies a real
+/// place from the world graph, the shared `run_npc_turn` guard chain must
+/// replace that denial before it reaches `DialogueOccurred`.
+#[test]
+fn real_loop_known_place_generic_denial_is_corrected() {
+    let (mut h, speaker_name) = harness_with_one_npc();
+
+    assert!(
+        h.app
+            .world
+            .graph
+            .location_ids()
+            .into_iter()
+            .filter_map(|id| h.app.world.graph.get(id))
+            .any(|location| location.name == "Darcy's Pub"),
+        "Rundale fixture must include Darcy's Pub"
+    );
+
+    h.mock().push_for(
+        &speaker_name,
+        "I cannae guide ye to a place that doesn't exist.".to_string(),
+    );
+    let mut rx = h.app.world.event_bus.subscribe();
+    let _events = h.execute_via_real_loop(&format!(
+        "talk to {speaker_name} about Where is Darcy's Pub?"
+    ));
+
+    let dialogue_events = drain(&mut rx);
+    let shown: Vec<String> = dialogue_events
+        .iter()
+        .filter_map(|ev| match ev {
+            GameEvent::DialogueOccurred { npc_said, .. } => npc_said.clone(),
+            _ => None,
+        })
+        .collect();
+
+    assert!(
+        !shown.is_empty(),
+        "expected DialogueOccurred for known-place false-denial turn"
+    );
+
+    let joined = shown.join(" ");
+    let lower = joined.to_lowercase();
+    assert!(
+        !lower.contains("doesn't exist") && !lower.contains("does not exist"),
+        "known place must not reach transcript as nonexistent (#1563); got: {joined:?}"
+    );
+    assert!(
+        lower.contains("place")
+            && (lower.contains("know") || lower.contains("known") || lower.contains("real")),
+        "known-place denial should become a grounded acknowledgement; got: {joined:?}"
+    );
+}
+
+/// AC-2/AC-4 (#1563, real-loop): when the mock model says "I know no one by
+/// that name" after the player asks about a real parish NPC, the shared
+/// `run_npc_turn` guard chain must replace the false denial even though the
+/// dialogue did not repeat the full name.
+#[test]
+fn real_loop_known_person_generic_denial_is_corrected() {
+    let (mut h, speaker_name) = harness_with_one_npc();
+
+    assert!(
+        h.app
+            .npc_manager
+            .all_npcs()
+            .any(|npc| npc.name == "Padraig Darcy"),
+        "Rundale fixture must include Padraig Darcy"
+    );
+
+    h.mock().push_for(
+        &speaker_name,
+        "I know no one by that name in these parts.".to_string(),
+    );
+    let mut rx = h.app.world.event_bus.subscribe();
+    let _events = h.execute_via_real_loop(&format!(
+        "talk to {speaker_name} about Where is Padraig Darcy?"
+    ));
+
+    let dialogue_events = drain(&mut rx);
+    let shown: Vec<String> = dialogue_events
+        .iter()
+        .filter_map(|ev| match ev {
+            GameEvent::DialogueOccurred { npc_said, .. } => npc_said.clone(),
+            _ => None,
+        })
+        .collect();
+
+    assert!(
+        !shown.is_empty(),
+        "expected DialogueOccurred for known-person false-denial turn"
+    );
+
+    let joined = shown.join(" ");
+    let lower = joined.to_lowercase();
+    assert!(
+        !lower.contains("no one by that name") && !lower.contains("no such person"),
+        "known person must not reach transcript as nonexistent (#1563); got: {joined:?}"
+    );
+    assert!(
+        lower.contains("name") || lower.contains("parish"),
+        "known-person denial should become a grounded acknowledgement; got: {joined:?}"
+    );
+}
+
+// ── #1553 — player self-introduction not denied (real-loop) ──────────────────
+
+/// AC-1 (#1553, real-loop): When the player introduces themselves ("I am Aiden
+/// Carney") and the NPC mock model replies with a warm welcome that contains
+/// the player's name alongside affirmation markers, `guard_fabricated_person_confirmation`
+/// (called from `run_npc_turn`) must NOT replace the warm welcome with a canned
+/// denial. The player's own name must be exempt from the fabricated-person guard
+/// via `setup.player_name` threaded from `NpcConversationSetup`.
+#[test]
+fn real_loop_player_self_introduction_not_denied() {
+    let (mut h, speaker_name) = harness_with_one_npc();
+
+    // The mock model replies with a warm welcome that contains the player's name
+    // and affirmation markers that would previously trigger the guard.
+    let warm_welcome = "'Tis a fine mornin', Aiden Carney! Welcome to Kilteevan, indeed! \
+                        A cooper is just what we need in these parts.";
+
+    h.mock().push_for(&speaker_name, warm_welcome.to_string());
+    let mut rx = h.app.world.event_bus.subscribe();
+    // Player introduces themselves — detect_and_record_player_name fires first.
+    let _events = h.execute_via_real_loop("I am Aiden Carney, a cooper newly come to Kilteevan.");
+
+    let dialogue_events = drain(&mut rx);
+    let shown: Vec<String> = dialogue_events
+        .iter()
+        .filter_map(|ev| match ev {
+            GameEvent::DialogueOccurred { npc_said, .. } => npc_said.clone(),
+            _ => None,
+        })
+        .collect();
+
+    assert!(
+        !shown.is_empty(),
+        "expected DialogueOccurred for the NPC turn"
+    );
+
+    let joined = shown.join(" ");
+
+    // The warm welcome must NOT have been replaced with a canned denial.
+    // Canned denials contain "not known to me", "know no one by that name", etc.
+    assert!(
+        !joined.to_lowercase().contains("not known to me"),
+        "player self-introduction must not trigger the denial guard (#1553); \
+         warm welcome was replaced with a canned denial in: {joined:?}"
+    );
+    assert!(
+        !joined.to_lowercase().contains("know no one by that name"),
+        "player self-introduction must not trigger the denial guard (#1553); \
+         wrong canned decline in: {joined:?}"
+    );
+
+    // The warm welcome must survive intact.
+    assert!(
+        joined.contains("Aiden Carney"),
+        "player name must survive in the NPC's reply (#1553); got: {joined:?}"
     );
 }

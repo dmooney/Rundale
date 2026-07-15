@@ -47,7 +47,7 @@ fn scored_payload(uuid: &str) -> String {
           "quality_score": 74.0,
           "cost": {{ "cost_usd": 0.42, "player_tokens": 1000, "judge_tokens": 500 }},
           "turns": [
-            {{ "turn_index": 0, "player_input": "hello", "frame_path": "turns/000/frame.png", "lines_path": "turns/000/lines.json", "location_name": "Kilteevan Village", "game_clock": "08:01", "npcs_here_count": 1 }}
+            {{ "turn_index": 0, "player_input": "look", "kind": "look", "frame_path": "turns/000/frame.png", "lines_path": "turns/000/lines.json", "location_name": "Kilteevan Village", "game_clock": "08:01", "npcs_here_count": 1 }}
           ],
           "axes": [
             {{ "axis": "narrative_coherence", "score": 85, "rationale": "a" }},
@@ -181,7 +181,7 @@ fn ingest_turn_llm_log_drives_has_transcript() {
           "cost": {{ "cost_usd": 0.0, "player_tokens": 0, "judge_tokens": 0 }},
           "turns": [
             {{ "turn_index": 0, "player_input": "hi", "frame_path": "turns/000/frame.png", "lines_path": "turns/000/lines.json", "llm_transcript_path": "turns/000/llm.json" }},
-            {{ "turn_index": 1, "player_input": "bye", "frame_path": "turns/001/frame.png", "lines_path": "turns/001/lines.json" }}
+            {{ "turn_index": 1, "player_input": "bye", "kind": "look", "frame_path": "turns/001/frame.png", "lines_path": "turns/001/lines.json" }}
           ],
           "axes": [], "findings": []
         }}"#
@@ -242,7 +242,7 @@ fn ingest_gated_run_has_null_quality_and_reason() {
           "gate": {{ "reason": "crash", "turn": 3, "detail": "transport error mid-run" }},
           "cost": {{ "cost_usd": 0.0, "player_tokens": 0, "judge_tokens": 0 }},
           "turns": [
-            {{ "turn_index": 0, "player_input": "look", "frame_path": "turns/000/frame.png", "lines_path": "turns/000/lines.json" }}
+            {{ "turn_index": 0, "player_input": "look", "kind": "look", "frame_path": "turns/000/frame.png", "lines_path": "turns/000/lines.json" }}
           ],
           "axes": [],
           "findings": []

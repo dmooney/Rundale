@@ -101,10 +101,10 @@ fn build_router(bridge: BridgeState) -> Router {
         .route("/api/load-branch", post(load_branch))
         // ── Screenshot routes ────────────────────────────────────────────────
         // GET: read the most recently captured screenshot path.
-        // POST /api/take-screenshot: agent-triggered capture — emits
-        //   `request-screenshot` to the frontend, awaits the
-        //   `notify_screenshot_captured` Tauri callback (up to 15 s), and
-        //   returns the resulting ScreenshotInfo.
+        // POST /api/take-screenshot: agent-triggered capture. Tries a fresh
+        // native/window capture first; if the window is not capturable but a
+        // previous verified screenshot exists, returns that latest path with a
+        // warning instead of surfacing a generic 500 (#1522).
         .route("/api/latest-screenshot", get(latest_screenshot))
         .route("/api/take-screenshot", post(take_screenshot_mcp))
         // ── Bug reporting ─────────────────────────────────────────────────
@@ -662,13 +662,78 @@ async fn latest_screenshot(
     Ok(Json(info))
 }
 
-async fn take_screenshot_mcp(
-    State(b): State<BridgeState>,
-) -> Result<Json<ScreenshotInfo>, AppError> {
-    let info = crate::commands::do_take_screenshot(&b.state, &b.app)
-        .await
-        .map_err(AppError::from)?;
-    Ok(Json(info))
+#[derive(Debug, Serialize)]
+struct ScreenshotMcpResponse {
+    #[serde(flatten)]
+    info: ScreenshotInfo,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    fallback: Option<&'static str>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    warning: Option<String>,
+}
+
+impl ScreenshotMcpResponse {
+    fn fresh(info: ScreenshotInfo) -> Self {
+        Self {
+            info,
+            fallback: None,
+            warning: None,
+        }
+    }
+
+    fn latest_after_error(info: ScreenshotInfo, capture_error: String) -> Self {
+        Self {
+            info,
+            fallback: Some("latest_screenshot"),
+            warning: Some(format!(
+                "fresh screenshot capture failed; returning the latest verified screenshot: {capture_error}"
+            )),
+        }
+    }
+}
+
+async fn take_screenshot_mcp(State(b): State<BridgeState>) -> axum::response::Response {
+    match crate::commands::do_take_screenshot(&b.state, &b.app).await {
+        Ok(info) => Json(ScreenshotMcpResponse::fresh(info)).into_response(),
+        Err(e) => screenshot_response_for_capture_error(&b.state, e).await,
+    }
+}
+
+async fn screenshot_response_for_capture_error(
+    state: &Arc<AppState>,
+    capture_error: String,
+) -> axum::response::Response {
+    match crate::commands::do_get_latest_screenshot(state).await {
+        Ok(Some(info)) => {
+            tracing::warn!(
+                error = %capture_error,
+                fallback_path = %info.path,
+                "fresh screenshot failed; returning latest verified screenshot"
+            );
+            Json(ScreenshotMcpResponse::latest_after_error(
+                info,
+                capture_error,
+            ))
+            .into_response()
+        }
+        Ok(None) => screenshot_unavailable_response(capture_error, None),
+        Err(latest_error) => screenshot_unavailable_response(capture_error, Some(latest_error)),
+    }
+}
+
+fn screenshot_unavailable_response(
+    capture_error: String,
+    latest_error: Option<String>,
+) -> axum::response::Response {
+    let mut body = serde_json::json!({
+        "error": "screenshot capture unavailable",
+        "detail": capture_error,
+        "hint": "Bring the desktop window to the foreground, or capture once with F2 so a verified latest screenshot is available, then retry.",
+    });
+    if let Some(latest_error) = latest_error {
+        body["latest_error"] = serde_json::Value::String(latest_error);
+    }
+    (StatusCode::SERVICE_UNAVAILABLE, Json(body)).into_response()
 }
 
 async fn submit_bug_report(
@@ -1169,6 +1234,66 @@ mod tests {
         }
     }
 
+    async fn response_json(response: axum::response::Response) -> (StatusCode, serde_json::Value) {
+        let status = response.status();
+        let bytes = axum::body::to_bytes(response.into_body(), usize::MAX)
+            .await
+            .unwrap();
+        let body = serde_json::from_slice(&bytes).unwrap();
+        (status, body)
+    }
+
+    #[tokio::test]
+    async fn screenshot_capture_error_returns_latest_verified_path() {
+        let dir = TempDir::new().unwrap();
+        let state = byok_test_state(&dir);
+        let screenshot_path = dir.path().join("verified-latest.png");
+        std::fs::write(&screenshot_path, b"verified screenshot bytes").unwrap();
+        *state.latest_screenshot_path.lock().await = Some(screenshot_path.clone());
+
+        let response =
+            screenshot_response_for_capture_error(&state, "capture window: no window".to_string())
+                .await;
+        let (status, body) = response_json(response).await;
+
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(
+            body["path"].as_str(),
+            Some(screenshot_path.to_string_lossy().as_ref())
+        );
+        assert_eq!(body["size_bytes"].as_u64(), Some(25));
+        assert_eq!(body["fallback"].as_str(), Some("latest_screenshot"));
+        assert!(
+            body["warning"]
+                .as_str()
+                .is_some_and(|w| w.contains("fresh screenshot capture failed")),
+            "fallback response should explain why it reused the latest screenshot: {body}",
+        );
+    }
+
+    #[tokio::test]
+    async fn screenshot_capture_error_without_latest_is_structured_503() {
+        let dir = TempDir::new().unwrap();
+        let state = byok_test_state(&dir);
+
+        let response =
+            screenshot_response_for_capture_error(&state, "capture window: no window".to_string())
+                .await;
+        let (status, body) = response_json(response).await;
+
+        assert_eq!(status, StatusCode::SERVICE_UNAVAILABLE);
+        assert_eq!(
+            body["error"].as_str(),
+            Some("screenshot capture unavailable")
+        );
+        assert_eq!(body["detail"].as_str(), Some("capture window: no window"));
+        assert!(body["hint"].as_str().is_some_and(|h| h.contains("F2")));
+        assert!(
+            body.get("path").is_none(),
+            "no latest screenshot should mean no fallback path: {body}",
+        );
+    }
+
     // ── submit_input response shape tests (#1353 / #1356) ───────────────────
 
     /// `read_transcript_delta` returns empty when no new entries were added.
@@ -1219,6 +1344,47 @@ mod tests {
         assert_eq!(delta[0].speaker_name, "Mary");
         assert_eq!(delta[0].npc_dialogue, "The weather is fierce today.");
         assert_eq!(delta[0].player_input, "hello");
+    }
+
+    /// #1569: the bridge response must surface the post-guard transcript text
+    /// exactly as stored. When the upstream guard preserves a valid place-history
+    /// answer, `exchanges[]` must not substitute an unrelated person denial.
+    #[tokio::test]
+    async fn submit_input_result_preserves_known_place_history_exchange() {
+        use parish_core::ipc::ConversationLine;
+
+        let dir = TempDir::new().unwrap();
+        let state = byok_test_state(&dir);
+        let len_before = {
+            let conv = state.conversation.lock().await;
+            conv.transcript.len()
+        };
+        let preserved = "Ah, the history of Lough Ree is a tale as grand as the lake itself.";
+        {
+            let mut conv = state.conversation.lock().await;
+            conv.push_line(ConversationLine {
+                speaker: "Aoife Brennan".to_string(),
+                text: preserved.to_string(),
+            });
+        }
+
+        let delta = read_transcript_delta(
+            &state,
+            len_before,
+            "Aoife, what is the history of Lough Ree?",
+        )
+        .await;
+
+        assert_eq!(delta.len(), 1, "expected exactly one exchange");
+        assert_eq!(delta[0].speaker_name, "Aoife Brennan");
+        assert_eq!(delta[0].npc_dialogue, preserved);
+        assert!(
+            !delta[0]
+                .npc_dialogue
+                .to_lowercase()
+                .contains("no such person"),
+            "exchange text must not contain a person-denial substitution: {delta:?}"
+        );
     }
 
     // ── turn_read helper tests (#1356 / #1389) ───────────────────────────────

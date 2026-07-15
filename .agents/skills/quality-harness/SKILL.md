@@ -22,6 +22,18 @@ Args (all optional): `turns N` (default 12), `persona "..."`, `goal "..."`.
 - **Control time explicitly** (see below). Never rely on window focus.
 - **Judge critically.** Default skeptical. See the rubric — inflated scores are a failure of
   the harness.
+- **Judge what the player SEES, not just the API.** Empty `exchanges` proves the engine
+  produced no NPC reply — it does **not** prove the turn was rendered correctly. After every
+  non-dialogue input (look / examine / move / system command), screenshot and confirm the UI
+  renders it in a distinct command/narration style with **no** "You" speech bubble and **no**
+  NPC speaker chip. A command drawn as dialogue, or pinned to an NPC who never replied, is a
+  real defect that the API transcript hides — `parish_turn` / `get_transcript` will look clean.
+- **Attribute every line to its source before scoring.** Tag each transcript/screen line as one
+  of: player speech, player command, **system/time narration**, NPC dialogue, or autonomous
+  world event. The time levers emit narration — `/resume` → "Time stirs again in the parish",
+  `/wait N` → "You wait for N minutes… It is now HH:MM", `/pause` → "The clocks of the parish
+  stand still" — that is **your** scaffolding, not world life. Never credit it to
+  `world_responsiveness` or to an NPC.
 
 ## 1. Preflight (do this first, every time)
 
@@ -39,7 +51,10 @@ Args (all optional): `turns N` (default 12), `persona "..."`, `goal "..."`.
    screenshot comes back a rejected blank frame (the engine still works over MCP; only the
    window is blank). For SCREENSHOTS specifically: use the helper above (frontend served), and
    note the in-app fix wakes a **slept** display before capture — a screen that idled off reports
-   as locked and used to fast-fail; it now wakes + holds the display (`caffeinate -u -d`).
+   as locked and used to fast-fail; it now wakes + holds the display (`caffeinate -u -d`). The
+   launch helper **additionally** holds a `caffeinate -d -i -s` assertion bound to the app's
+   lifetime, so the display never sleeps/locks mid-run and per-turn captures don't degrade to
+   placeholders. §7's close releases it.
 3. Disable focus-auto-pause so window/focus events can't toggle game time during the run
    (once #1357 lands): the harness owns pause state. Until then, just always set `/pause`
    explicitly each loop and never foreground the window except to screenshot (then restore).
@@ -70,10 +85,18 @@ For each turn:
 4. **ADVANCE THE WORLD** (so autonomous life happens): `/resume` → `/wait N` → `/pause`, then
    re-read state. NPCs arrive/leave, gossip spreads, weather/mood shift — capture these deltas.
    The transcript will NOT show them; engine_state + events will.
-5. **SCREENSHOT** (periodically) — `parish_take_screenshot`. If it 45s-times-out, the window is
-   backgrounded; raise it (`osascript -e 'tell application "System Events" to set frontmost of
-(first process whose name contains "parish") to true'`), capture, then **restore `/pause`**
-   (foregrounding can resume the clock pre-#1357). Once #1355 lands, capture is robust.
+5. **SCREENSHOT (every turn)** — after the reply has rendered and the log has autoscrolled to
+   the bottom (sticky-bottom #1529 lands new dialogue at the fold), call `parish_take_screenshot`
+   and save the returned PNG straight to **this turn's** `turns/NNN/frame.png`. One real,
+   distinct capture per turn — do **not** reuse a prior turn's frame. (A single capture fanned
+   across the run is the "every screenshot looks the same" bug — proven in the artifacts: runs
+   had 1 distinct frame across all 25 turns even when the capture itself succeeded.) Capture
+   **without foregrounding** the window — foregrounding toggles game time (#1277). The launch
+   helper holds the display awake (`caffeinate`, §1.2) so the backgrounded capture path stays
+   alive. If a capture still fails for a turn, write the shared placeholder for that ONE turn and
+   **note in the run log that turn N is a placeholder** — never present a placeholder as real
+   (rule #18). If captures fail every turn, raise the window once, capture, then **restore
+   `/pause`** (foregrounding can resume the clock pre-#1357) and record it.
 6. **RECORD** — note input, reply, state delta, and any defect you'd flag as a player.
 
 ## 4. Judge — be a HARD critic
@@ -99,7 +122,16 @@ signature}`. Examples of things a critical playtester MUST flag (not an exhausti
   — this is a character-fidelity **failure**, not a nitpick; cap `character_fidelity` ≤ 60 if it
   happens across NPCs.
 - **Unfounded familiarity** — an NPC implying prior knowledge of a stranger.
-- **Command treated as dialogue** / intent misfire (#1351).
+- **Command treated as dialogue** / intent misfire (#1351). Two distinct flavours, both
+  fileable: (a) the engine generates an NPC reply to a non-dialogue input; (b) the engine makes
+  no reply (`exchanges` empty) but the **UI still renders the command as a "You" speech bubble
+  and/or attaches an NPC speaker chip** — a presentation-layer misroute you can only see in the
+  screenshot. Always screenshot a look/examine/system turn and check its rendering; do not pass
+  it just because the API transcript shows no NPC line.
+- **Source/attribution slip in your own judging** — scoring system/time narration
+  (`/resume` / `/wait` / `/pause` lines) as world life, or crediting a line to the wrong
+  speaker. A finding built on a misattributed line is a false finding; verify the line's origin
+  first.
 - **Small-model verbosity** — rambling, repetition, multiple questions crammed in one reply.
 - Any anachronism, contradiction, retcon, teleport, or scaffolding/JSON leak.
 - A turn where the world did **not** respond when it should have.
@@ -111,10 +143,20 @@ state change for several turns.
 ## 5. Output + file bugs
 
 Produce: per-turn log, the 7 axis scores + rationale, the weighted quality (or GATED + reason),
-and the full findings list. Then **file the substantive findings** via
+and the full findings list. Then **file every finding** via
 `mcp__parish__parish_file_bug(title, description, context)` — it bundles a screenshot + logs +
-state into a GitHub issue labeled for the `/backlog` drain. Dedup obvious repeats. Recurring
-model-quality findings (mood-blind dialogue, verbosity) are real bugs — file them.
+state into a GitHub issue labeled for the `/backlog` drain and **returns the issue URL**.
+**Record that URL against the finding's `signature`** — §6 step 2 writes it into the payload so
+the dashboard links the finding to its issue.
+
+**File all of them, not just the headline ones.** The rule is dedup, not triage: collapse only
+genuine duplicates (the same defect seen twice). **Do not skip a finding because it is
+low-severity** — a `low` is still a real defect and still gets an issue; severity sets priority,
+not whether it is filed. Recurring model-quality findings (mood-blind dialogue, verbosity) are
+real bugs too. The only findings that may go unfiled are ones folded into another issue as an
+exact duplicate; say so explicitly in the output ("folded into #NNNN"). Every finding you carry
+into the ingest payload should have an `issue_url` unless it is such a dup — a payload finding
+with no `issue_url` and no dup note is a filing miss.
 
 ## 6. Persist to the dashboard
 
@@ -123,17 +165,30 @@ end of every run so it shows on `serve` (`http://localhost:8787`) next to binary
 
 1. **Lay out an artifact dir.** Pick a `uuid` for the run and create
    `<root>/runs/<uuid>/turns/NNN/frame.png` for each turn, where `<root>` is the same
-   `--artifacts` dir the dashboard serves (default: next to `harness.db`). You capture
-   screenshots periodically, not per-turn — map each turn to the **most recent** screenshot at
-   or before it; for turns before your first capture, copy a single shared placeholder
-   `frame.png`. Also write `turns/NNN/lines.json` (the turn's narrative lines, `[]` is fine).
-   Every `frame.png` must be non-empty (the ingest validates this — rule #14).
+   `--artifacts` dir the dashboard serves (default: next to `harness.db`). Each turn's
+   `frame.png` is **that turn's own** capture from §3 step 5 — do not fan one screenshot across
+   turns (every-frame-identical is the bug this fixes). Sanity-check before ingest:
+   `find runs/<uuid>/turns -name frame.png -print0 | xargs -0 md5 -q | sort -u | wc -l` should be
+   close to the turn count, not 1 (a few dupes are fine when the world genuinely didn't change;
+   all-identical means the fan-out regressed). Use the shared placeholder **only** for a turn
+   whose live capture failed, and only when you logged that fallback. Also write
+   `turns/NNN/lines.json` (the turn's narrative lines, `[]` is fine). Every `frame.png` must be
+   non-empty (the ingest validates this — rule #14).
 
-   **Per-turn inference log (clickable on the run page).** For each turn, also write
-   `turns/NNN/llm.json` and reference it from that turn's payload as
-   `"llm_transcript_path": "turns/NNN/llm.json"`. The dashboard makes a turn with a log
-   clickable, opening a panel that shows the dialogue exchange by default with a collapsible
-   raw prompt/response section. Capture the raw model I/O from the Tauri black-box (the
+   **Per-turn inference log (clickable on the run page) — MANDATORY for every dialogue turn.**
+   `ingest` only rejects a _dangling_ `llm_transcript_path`; it does **not** reject a dialogue
+   turn that omits one, so a logless run validates green and the dashboard renders blank,
+   non-clickable turns. Do not rely on the validator — author the logs yourself. For **every
+   turn that produced an NPC exchange** write `turns/NNN/llm.json` and reference it from that
+   turn's payload as `"llm_transcript_path": "turns/NNN/llm.json"`. Capture the inference logs
+   **live, per turn, before you close the app** (§7) — once Rundale quits, `get_debug_snapshot`
+   is gone and the raw prompt/response is unrecoverable, leaving exchanges-only logs. Also
+   populate `turns/NNN/lines.json` with the turn's narrative lines (an empty `[]` renders an
+   empty, useless panel — fill it with the look/movement/system narration even when there is no
+   dialogue). Omit `llm_transcript_path` **only** for turns with no NPC exchange (movement,
+   `look`, a system command) — those stay non-clickable by design. The dashboard makes a turn
+   with a log clickable, opening a panel that shows the dialogue exchange by default with a
+   collapsible raw prompt/response section. Capture the raw model I/O from the Tauri black-box (the
    `get_debug_snapshot.conversations` history / the session `inference_logs/<ts>.jsonl` gen_ai
    spans) for the calls that fired during the turn. Schema:
 
@@ -157,16 +212,20 @@ end of every run so it shows on `serve` (`http://localhost:8787`) next to binary
    `status --porcelain`), set `rubric_sha256` to the binary's pinned rubric sha
    (`cargo run -p parish-harness -- ...` records it; or read the rubric file hash), include all
    `turns`, the 7 `axes` with rationales, every `finding` (with the same `signature` you used
-   when filing the issue), and a `cost` tally. On a hard fail set `gate` and omit
-   `quality_score`.
+   when filing the issue **and its `issue_url`** — the URL `parish_file_bug` returned in §5, so
+   ingest links the finding on the dashboard), and a `cost` tally. On a hard fail set `gate` and
+   omit `quality_score`.
 
-3. **Ingest:**
+3. **Ingest, then backfill any missing issue links:**
 
    ```sh
    cargo run -p parish-harness -- ingest --payload <run.json> --artifacts <root>
+   # safety net: link any finding whose issue_url wasn't set inline (e.g. a dedup against a
+   # prior run's issue) by matching its signature to the filed issue body.
+   cargo run -p parish-harness -- backfill-issues
    ```
 
-   It prints `ingested run <id>`. Surface that id and `http://localhost:8787` to the user so
+   Ingest prints `ingested run <id>`. Surface that id and `http://localhost:8787` to the user so
    they can open the run on the dashboard.
 
 ## 7. Close Rundale (always, once the run is complete)
@@ -181,6 +240,9 @@ ingest in §6; do it whether the run completed or hard-failed (a gated run still
 # Graceful quit of the packaged desktop app, then a fallback for the dev binary:
 osascript -e 'quit app "Rundale"' 2>/dev/null || true
 pkill -f 'parish-tauri' 2>/dev/null || true
+# Release the display-awake hold from the launch helper. It self-exits when the app dies
+# (`caffeinate -w "$APP_PID"`), but kill the pidfile too in case the bridge stayed up:
+kill "$(cat "/tmp/parish-caffeinate-${USER:-shared}.pid" 2>/dev/null)" 2>/dev/null || true
 ```
 
 Do **not** touch the dashboard `serve` process (port 8787) — only the game app is closed, so the

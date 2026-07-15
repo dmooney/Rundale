@@ -16,8 +16,10 @@ use tokio_util::sync::CancellationToken;
 
 use crate::config::InferenceCategory;
 use crate::game_loop::{GameLoopContext, handle_movement, handle_npc_conversation};
-use crate::input::{is_physical_action_shaped, parse_intent, parse_intent_local};
-use crate::ipc::{extract_npc_mentions, render_look_text, text_log};
+use crate::input::{
+    is_physical_action_shaped, is_player_dialogue, parse_intent, parse_intent_local,
+};
+use crate::ipc::{extract_npc_mentions, render_look_text, text_log, text_log_typed};
 use crate::npc::reactions::ReactionTemplates;
 use crate::world::transport::TransportMode;
 
@@ -188,6 +190,20 @@ pub async fn handle_game_input(
     // Record the raw player input before any parsing so a bug report filed
     // mid-turn carries the exact action that triggered the failure (#1331).
     ctx.conversation.lock().await.record_player_input(&raw);
+
+    if !is_player_dialogue(&raw) {
+        let echo_enabled = {
+            let config = ctx.config.lock().await;
+            !config.flags.is_disabled("echo-commands")
+        };
+        if echo_enabled {
+            ctx.emitter.emit_event(
+                "text-log",
+                serde_json::to_value(text_log_typed("player", raw.as_str(), "command"))
+                    .unwrap_or(serde_json::Value::Null),
+            );
+        }
+    }
 
     // Resolve the intent client and model (Intent category override, or base).
     let (client, model) = {
@@ -448,6 +464,127 @@ mod tests {
         assert!(
             names.iter().any(|n| n == "text-log"),
             "expected text-log from handle_look; got {names:?}"
+        );
+    }
+
+    #[tokio::test]
+    async fn handle_game_input_echoes_non_dialogue_as_command() {
+        let emitter = Arc::new(CapturingEmitter::new());
+        let world = tokio::sync::Mutex::new(WorldState::new());
+        let npc_manager = tokio::sync::Mutex::new(NpcManager::new());
+        let config = tokio::sync::Mutex::new(GameConfig::default());
+        let conversation = tokio::sync::Mutex::new(ConversationRuntimeState::new());
+        let inference_queue = tokio::sync::Mutex::new(None);
+        let client = tokio::sync::Mutex::new(None);
+        let cloud_client = tokio::sync::Mutex::new(None);
+        let inference_config = crate::config::InferenceConfig::default();
+
+        let ctx = GameLoopContext {
+            world: &world,
+            npc_manager: &npc_manager,
+            config: &config,
+            conversation: &conversation,
+            inference_queue: &inference_queue,
+            emitter: Arc::clone(&emitter) as Arc<dyn EventEmitter>,
+            inference_config: &inference_config,
+            pronunciations: &[],
+            client: &client,
+            cloud_client: &cloud_client,
+            language: crate::npc::LanguageSettings::english_only(),
+            inference_failure_messages: &[],
+            idle_messages: &[],
+        };
+
+        let transport = make_transport();
+        let templates = ReactionTemplates::default();
+        super::handle_game_input(
+            &ctx,
+            "look".to_string(),
+            vec![],
+            &transport,
+            &templates,
+            || None,
+        )
+        .await;
+
+        let events = emitter.events.lock().unwrap();
+        let text_logs: Vec<&serde_json::Value> = events
+            .iter()
+            .filter(|(name, _)| name == "text-log")
+            .map(|(_, payload)| payload)
+            .collect();
+        assert!(
+            text_logs.len() >= 2,
+            "expected command echo plus look narration, got {text_logs:?}"
+        );
+        assert_eq!(
+            text_logs[0].get("source").and_then(|v| v.as_str()),
+            Some("player")
+        );
+        assert_eq!(
+            text_logs[0].get("subtype").and_then(|v| v.as_str()),
+            Some("command")
+        );
+        assert_eq!(
+            text_logs[0].get("content").and_then(|v| v.as_str()),
+            Some("look")
+        );
+        assert!(
+            text_logs
+                .iter()
+                .skip(1)
+                .any(|p| p.get("source").and_then(|v| v.as_str()) == Some("system")),
+            "look should still emit system narration after command echo: {text_logs:?}"
+        );
+    }
+
+    #[tokio::test]
+    async fn handle_game_input_does_not_command_echo_dialogue() {
+        let emitter = Arc::new(CapturingEmitter::new());
+        let world = tokio::sync::Mutex::new(WorldState::new());
+        let npc_manager = tokio::sync::Mutex::new(NpcManager::new());
+        let config = tokio::sync::Mutex::new(GameConfig::default());
+        let conversation = tokio::sync::Mutex::new(ConversationRuntimeState::new());
+        let inference_queue = tokio::sync::Mutex::new(None);
+        let client = tokio::sync::Mutex::new(None);
+        let cloud_client = tokio::sync::Mutex::new(None);
+        let inference_config = crate::config::InferenceConfig::default();
+
+        let ctx = GameLoopContext {
+            world: &world,
+            npc_manager: &npc_manager,
+            config: &config,
+            conversation: &conversation,
+            inference_queue: &inference_queue,
+            emitter: Arc::clone(&emitter) as Arc<dyn EventEmitter>,
+            inference_config: &inference_config,
+            pronunciations: &[],
+            client: &client,
+            cloud_client: &cloud_client,
+            language: crate::npc::LanguageSettings::english_only(),
+            inference_failure_messages: &[],
+            idle_messages: &[],
+        };
+
+        let transport = make_transport();
+        let templates = ReactionTemplates::default();
+        super::handle_game_input(
+            &ctx,
+            "hello there".to_string(),
+            vec![],
+            &transport,
+            &templates,
+            || None,
+        )
+        .await;
+
+        let events = emitter.events.lock().unwrap();
+        assert!(
+            events.iter().all(|(name, payload)| {
+                name != "text-log"
+                    || payload.get("subtype").and_then(|v| v.as_str()) != Some("command")
+            }),
+            "dialogue must not be echoed as a command: {events:?}"
         );
     }
 

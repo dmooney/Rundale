@@ -1,0 +1,20 @@
+# Proof fixture for issue #1627, the Pixi notebook interaction slice.
+#
+# This script does not prove canvas hit targets. It proves the notebook
+# presentation still rides the existing Parish/Rundale gameplay path while the
+# browser proof covers pixels, routing, and selectors.
+
+/status
+look
+/npcs
+/map
+/time
+
+inspect the old well
+
+go to The Forge
+/status
+look
+/npcs
+/map
+/time

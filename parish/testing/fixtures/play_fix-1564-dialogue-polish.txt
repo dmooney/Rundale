@@ -1,0 +1,28 @@
+# fix-1564-dialogue-polish
+# Repro: polish guarded fallback dialogue, time-of-day wording, and direct
+# feedback for addressed-but-absent NPCs.
+
+# Move to midday and anchor the clock before testing time-sensitive dialogue.
+/wait 240
+/time
+
+# At midday, a stubbed reply that says "morning" should be corrected before it
+# reaches the visible dialogue.
+go to Darcy's Pub
+/npcs
+/stub Padraig Darcy: Good morning to ye, mo chara. What brings ye in this fine morning?
+talk to Padraig Darcy about Good day, what is the news?
+
+# Repeated guarded unknown-entity declines should not repeat the old canned
+# templates verbatim across turns.
+/stub Padraig Darcy: I know no one by that name in these parts.
+talk to Padraig Darcy about Have you met Sorcha O'Malley from beyond the parish?
+
+/stub Padraig Darcy: Mayhap ye have the wrong parish entirely.
+talk to Padraig Darcy about Where is Silver Bridge?
+
+# Maire is scheduled at The Forge at midday. From Darcy's Pub she is a known
+# parish NPC but absent here, so addressing her should produce explicit
+# non-empty feedback instead of silence or fallback routing to Padraig.
+/debug here
+talk to Maire Gallagher about the price of flour

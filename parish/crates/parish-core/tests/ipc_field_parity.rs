@@ -94,9 +94,10 @@ use parish_core::debug_snapshot::{
     TierSummary, WeatherDebug, WorldDebug,
 };
 use parish_core::ipc::{
-    BugContext, BugReportRequest, BugReportResult, LoadingPayload, MapData, MapLocation, NpcInfo,
-    NpcReactionPayload, SaveState, StreamEndPayload, StreamTokenPayload, StreamTurnEndPayload,
-    TextLogPayload, TileSourceSnapshot, TravelStartPayload, TravelWaypoint, WorldSnapshot,
+    BugContext, BugReportRequest, BugReportResult, DialogueCorrectedPayload, LoadingPayload,
+    MapData, MapLocation, NpcInfo, NpcReactionPayload, SaveState, StreamEndPayload,
+    StreamTokenPayload, StreamTurnEndPayload, TextLogPayload, TileSourceSnapshot,
+    TravelStartPayload, TravelWaypoint, WorldSnapshot,
 };
 
 #[test]
@@ -201,6 +202,16 @@ fn ipc_field_parity() {
     assert_keys_contain_manifest(
         "StreamTurnEndPayload",
         &StreamTurnEndPayload { turn_id: 1 },
+        &manifest,
+    );
+
+    assert_keys_contain_manifest(
+        "DialogueCorrectedPayload",
+        &DialogueCorrectedPayload {
+            turn_id: 1,
+            corrected_text: "Good day to ye.".into(),
+            message_id: Some("msg-1".into()),
+        },
         &manifest,
     );
 

@@ -1,0 +1,19 @@
+{
+  "status": "template_pending_imagegen_or_local_repair",
+  "purpose": "Bound seam repairs to this mask/contract shape; do not accept broad global repaint without validation.",
+  "join_x_px": 1280,
+  "band_half_width_px": 96,
+  "mask": "masked-seam-repair-template/seam-band-mask.png",
+  "contract_overlay": "masked-seam-repair-template/seam-contract-overlay.png",
+  "acceptance": {
+    "max_repaired_seam_to_control_ratio": 1.15,
+    "requires_before_after_contact_sheet": true,
+    "requires_topology_drift_note": [
+      "roads",
+      "paths",
+      "buildings",
+      "water",
+      "boundaries"
+    ]
+  }
+}

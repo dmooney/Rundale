@@ -1,0 +1,9 @@
+# fix-1561-dialogue-overtruncation
+# Repro: an ordinary multi-sentence answer must not be truncated to only the greeting.
+
+/wait 120
+go to pub
+/npcs
+
+/stub Padraig Darcy: Good morning, Aiden Carney. Work for a cooper? Aye, there's always work for a man with that skill. This place needs barrels for ale and salt, surely. Ye know yer trade?
+talk to Padraig Darcy about I am Aiden Carney, a cooper newly arrived in Kilteevan. Might there be work here?

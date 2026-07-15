@@ -100,12 +100,14 @@ Remove: `eframe = "0.31"` and `image` (PNG encoding only needed for egui screens
 ### Part A: Workspace & Core Extraction
 
 1. **Convert `Cargo.toml` to a workspace manifest**
+
    - Replace `[package]` with `[workspace]` containing `members = ["crates/parish-core", "src-tauri", "."]`
    - Keep the root `[[bin]]` entries for `parish` (CLI) and `parish-geo-tool`
    - Move all current `[dependencies]` (minus `eframe` and `image`) to `crates/parish-core/Cargo.toml`
    - Root `Cargo.toml` depends on `parish-core = { path = "crates/parish-core" }`
 
 2. **Create `crates/parish-core/` library crate**
+
    - Move `src/{error,config,headless,testing,debug}.rs` and `src/{input,world,npc,inference,persistence}/` into `crates/parish-core/src/`
    - Update `crates/parish-core/src/lib.rs` to re-export all public modules
    - All internal `use crate::` paths remain valid; only the crate name changes for external consumers
@@ -121,6 +123,7 @@ Remove: `eframe = "0.31"` and `image` (PNG encoding only needed for egui screens
 ### Part B: Tauri Backend
 
 4. **Initialise the Tauri crate at `src-tauri/`**
+
    - Run `cargo tauri init` from the repo root, pointing devUrl at `http://localhost:5173` and distDir at `../ui/dist`
    - Edit `src-tauri/Cargo.toml`: add `parish-core = { path = "../crates/parish-core" }` as a dependency
    - Set `productName = "Rundale"`, `version` from workspace, `identifier = "ie.parish.app"` in `tauri.conf.json`
@@ -217,6 +220,7 @@ Remove: `eframe = "0.31"` and `image` (PNG encoding only needed for egui screens
    conversation → inference) and emits events as the response streams.
 
 7. **Implement the streaming event bridge in `src-tauri/src/events.rs`**
+
    - Define event payload types with `#[derive(serde::Serialize, Clone)]`:
      - `StreamTokenPayload { token: String }` → event name `"stream-token"`
      - `StreamEndPayload { hints: Vec<IrishWordHint> }` → event name `"stream-end"`
@@ -230,6 +234,7 @@ Remove: `eframe = "0.31"` and `image` (PNG encoding only needed for egui screens
    - After each world state change (movement, time tick): emit `"world-update"`
 
 8. **Wire up Tauri app setup in `src-tauri/src/lib.rs`**
+
    - Initialise `AppState` (load `data/parish.json`, `data/npcs.json`, set up inference clients)
    - Register commands: `tauri::generate_handler![submit_input, get_world_snapshot, get_map, get_npcs_here, get_theme]`
    - Start idle-tick background task (`tokio::spawn`) that fires every 20 s and emits `"world-update"`
@@ -242,6 +247,7 @@ Remove: `eframe = "0.31"` and `image` (PNG encoding only needed for egui screens
 ### Part C: Svelte Frontend
 
 10. **Initialise the Svelte project in `ui/`**
+
     - `npm create svelte@latest ui` — choose Svelte 5, TypeScript, Vite, no SSR
     - Install `@tauri-apps/api`
     - Add `"@tauri-apps/api": "^2"` to `package.json`
@@ -327,6 +333,7 @@ Remove: `eframe = "0.31"` and `image` (PNG encoding only needed for egui screens
     ```
 
 13. **Implement `App.svelte` — root layout and event wiring**
+
     - On mount: call `getWorldSnapshot()`, `getMap()`, `getNpcsHere()`, `getTheme()` to populate stores
     - Subscribe to all five event streams (`onStreamToken`, `onStreamEnd`, `onTextLog`, `onWorldUpdate`, `onLoading`)
     - `onStreamToken`: append token to the last entry in `textLog` (streaming in-place)
@@ -335,12 +342,14 @@ Remove: `eframe = "0.31"` and `image` (PNG encoding only needed for egui screens
     - Layout: CSS grid — status bar top, chat panel left/centre, map panel right, sidebar far-right, input field bottom
 
 14. **Implement `StatusBar.svelte`**
+
     - Reactive to `$worldState`
     - Displays: `{location} | {time_label} {hour}:00 | {weather} | {season}` with optional festival badge
     - Uses `var(--color-accent)` for the festival/pause highlight
     - Matches the information density of the current `status_bar.rs`
 
 15. **Implement `ChatPanel.svelte`**
+
     - Renders `$textLog` as a scrollable list; auto-scrolls to bottom on new entries
     - Each entry: speaker label in `var(--color-accent)`, body text in `var(--color-fg)`
     - Loading state (`$streamingActive`): shows animated Celtic triquetra (Trinity knot) SVG spinner — three interlocking lobes draw and erase sequentially using `stroke-dasharray`/`stroke-dashoffset` CSS animation with `pathLength="120"` normalization, staggered delays (0s/0.8s/1.6s), opacity pulsing (0.3→1→0.3), and a slow 6s rotation overlay. Uses `var(--color-accent)` (gold) for the stroke, adapting to time-of-day palette changes. Pure inline SVG + scoped CSS, no JS animation libraries or font glyph dependencies
@@ -348,6 +357,7 @@ Remove: `eframe = "0.31"` and `image` (PNG encoding only needed for egui screens
     - Streaming entry: last log entry renders with a blinking cursor while `streamingActive` is true
 
 16. **Implement `MapPanel.svelte`**
+
     - Renders `$mapData` as an SVG element
     - Project `lat`/`lon` to SVG viewport coordinates using a simple equirectangular projection
       bounded to the parish's geographic extent
@@ -359,12 +369,14 @@ Remove: `eframe = "0.31"` and `image` (PNG encoding only needed for egui screens
     - Tooltip on hover: location name + NPC count
 
 17. **Implement `Sidebar.svelte`**
+
     - Two collapsible sections matching `sidebar.rs`:
       - **Focail** (Words): list of `$irishHints`, each showing word / phonetic / meaning
       - **NPCs Here**: list from `$npcsHere` showing name / occupation / mood
     - Styled with `var(--color-panel-bg)` and `var(--color-border)`
 
 18. **Implement `InputField.svelte`**
+
     - Single `<input type="text">` with placeholder "Type a command or speak…"
     - On Enter (or submit button): call `submitInput(text)`, clear field, set `streamingActive = true`
     - Disabled while `$streamingActive` is true to prevent double-submission
@@ -390,12 +402,14 @@ Remove: `eframe = "0.31"` and `image` (PNG encoding only needed for egui screens
 ### Part E: Cleanup, Tests & Documentation
 
 21. **Write unit tests for Tauri commands in `src-tauri/src/commands.rs`**
+
     - Test `get_world_snapshot` returns correctly structured data
     - Test `submit_input` with a movement command updates world state
     - Test `get_map` returns all locations with valid lat/lon
     - Use `tauri::test::mock_app()` (Tauri 2 testing utilities)
 
 22. **Write frontend component tests**
+
     - Use Svelte Testing Library (`@testing-library/svelte`) + Vitest
     - Test `ChatPanel`: renders log entries, shows loading state, auto-scrolls
     - Test `MapPanel`: renders correct number of SVG nodes, highlights player location
@@ -403,6 +417,7 @@ Remove: `eframe = "0.31"` and `image` (PNG encoding only needed for egui screens
     - Test `StatusBar`: displays correct time/weather/season from store
 
 23. **Update `CLAUDE.md`**
+
     - Replace `cargo build` / `cargo run` instructions with Tauri equivalents:
       - Dev: `cargo tauri dev` (starts Vite dev server + Tauri app with hot-reload)
       - Build: `cargo tauri build` (production bundle)
@@ -411,14 +426,17 @@ Remove: `eframe = "0.31"` and `image` (PNG encoding only needed for egui screens
     - Update architecture tree to reflect new workspace layout
 
 24. **Update `docs/design/overview.md`**
+
     - Replace `src/gui/` section with description of `src-tauri/` + `ui/` architecture
     - Update the architecture diagram to show Tauri IPC boundary between Rust and Svelte
     - Add note that the CSS variable theme system replaces the Rust palette application in egui
 
 25. **Update `docs/adr/README.md`**
+
     - Add ADR-015 row to the index table
 
 26. **Update `docs/requirements/roadmap.md`**
+
     - Add Phase 8 section with checkboxes for each task above
     - Note that Phase 7's egui-WASM target is superseded by the Svelte frontend
 

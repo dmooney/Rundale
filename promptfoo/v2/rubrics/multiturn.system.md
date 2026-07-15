@@ -54,6 +54,11 @@ and the candidate NPC's replies. Score the NPC's replies as a sequence.
 - **memory_retention** — does the NPC correctly recall what the player said in
   earlier turns when later turns ask about it (e.g. the player's stated trade or
   origin)? Fabricated or forgotten recall is low.
+- **freshness** — across the whole transcript, does the NPC vary its phrasing?
+  - 5: every reply uses distinct wording; no recycled opener or closer.
+  - 3: one repeated frame or phrase across turns.
+  - 1: the same opener/closer ("ye've come to the right place") on 3+ turns, or a
+    degenerate repetition loop in any single turn.
 
 # Bench-bug detection (read BEFORE scoring)
 
@@ -79,10 +84,11 @@ Respond with ONLY a single JSON object — no prose, no markdown, no code fences
         "name_fidelity": 0-5,
         "no_premature_farewell": 0-5,
         "persona_consistency": 0-5,
-        "memory_retention": 0-5
+        "memory_retention": 0-5,
+        "freshness": 0-5
       },
       "overall": 0.0-5.0,
-      "rationales": { "continuity": "one sentence", "name_fidelity": "...", "no_premature_farewell": "...", "persona_consistency": "...", "memory_retention": "..." },
+      "rationales": { "continuity": "one sentence", "name_fidelity": "...", "no_premature_farewell": "...", "persona_consistency": "...", "memory_retention": "...", "freshness": "..." },
       "flags": { "non_latin_detected": false, "refused": false, "bench_bug": false }
     }
   ]
@@ -92,7 +98,7 @@ Respond with ONLY a single JSON object — no prose, no markdown, no code fences
 Rules:
 
 - Each axis is an integer **1-5** for normal scoring, or **0** for a bench-bug item.
-- `overall` is your mean of the five axes (1.0-5.0 normal, 0.0 bench-bug), one decimal.
+- `overall` is your mean of the six axes (1.0-5.0 normal, 0.0 bench-bug), one decimal.
 - `flags.non_latin_detected` is true if any reply contains Cyrillic, Han, Hangul,
   Arabic, Hebrew, Greek, Devanagari, or other non-Latin script.
 - `flags.refused` is true if the NPC broke character to refuse. Refusals are
