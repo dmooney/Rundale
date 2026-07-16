@@ -27,6 +27,16 @@ export function draftForNotebookAction(
 	return notebookActionDraft(action, selectedNpc);
 }
 
+export function windowNotebookCommandText(
+	text: string,
+	maxChars: number,
+): string {
+	const characters = Array.from(text);
+	if (characters.length <= maxChars) return text;
+	if (maxChars <= 3) return '.'.repeat(Math.max(0, maxChars));
+	return `...${characters.slice(-(maxChars - 3)).join('')}`;
+}
+
 export function resolveNotebookCommandPresentation(
 	state: NotebookCommandState,
 ): NotebookCommandPresentation {

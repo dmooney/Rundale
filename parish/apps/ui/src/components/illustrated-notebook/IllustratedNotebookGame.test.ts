@@ -208,7 +208,7 @@ describe('IllustratedNotebookGame', () => {
 	});
 
 	it('renders focus and streaming as distinct command states while the hidden input stays editable', async () => {
-		const { getByLabelText } = render(IllustratedNotebookGame);
+		const { getByLabelText, getByRole } = render(IllustratedNotebookGame);
 		const input = getByLabelText('Player intent') as HTMLInputElement;
 
 		await waitFor(() => expect(lastRenderState?.command.focused).toBe(true));
@@ -222,6 +222,8 @@ describe('IllustratedNotebookGame', () => {
 		expect(input.hasAttribute('aria-disabled')).toBe(false);
 		expect(input.disabled).toBe(false);
 		expect(input.readOnly).toBe(false);
+		const status = getByRole('status');
+		expect(status.hasAttribute('aria-live')).toBe(false);
 	});
 
 	it('renders the local pending submit as disabled without clearing the draft early', async () => {
@@ -244,6 +246,8 @@ describe('IllustratedNotebookGame', () => {
 		expect(input.getAttribute('aria-disabled')).toBe('true');
 		expect(input.readOnly).toBe(true);
 		expect(input.value).toBe('look around');
+		lastRenderState?.callbacks.onAction('ask');
+		await waitFor(() => expect(input.value).toBe('look around'));
 
 		deferred.resolve();
 		await waitFor(() => expect(input.value).toBe(''));
@@ -253,7 +257,7 @@ describe('IllustratedNotebookGame', () => {
 
 	it('renders a failed submit as an accessible Pixi error and preserves the draft for retry', async () => {
 		mockSubmitInput.mockRejectedValueOnce(new Error('bridge unavailable'));
-		const { container, getByLabelText, getByText } = render(
+		const { container, getByLabelText, getByRole, getByText } = render(
 			IllustratedNotebookGame,
 		);
 		const input = getByLabelText('Player intent') as HTMLInputElement;
@@ -266,6 +270,7 @@ describe('IllustratedNotebookGame', () => {
 		expect(input.value).toBe('look around');
 		expect(input.getAttribute('aria-invalid')).toBe('true');
 		expect(getByText(/Ink blotted — Could not send input/)).toBeTruthy();
+		expect(getByRole('alert').hasAttribute('aria-live')).toBe(false);
 		expect(container.querySelector('.input-wrapper')).toBeNull();
 		expect(container.querySelector('.input-form')).toBeNull();
 

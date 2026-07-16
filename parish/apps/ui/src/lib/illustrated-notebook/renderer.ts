@@ -12,7 +12,10 @@ import {
 } from 'pixi.js';
 import type { NotebookAction } from '$lib/notebook/actions';
 import { NOTEBOOK_ASSET_URLS, NOTEBOOK_ASSETS } from './assets';
-import { resolveNotebookCommandPresentation } from './command';
+import {
+	resolveNotebookCommandPresentation,
+	windowNotebookCommandText,
+} from './command';
 import {
 	activateNotebookTarget,
 	notebookHitTarget,
@@ -917,6 +920,7 @@ export class IllustratedNotebookRenderer {
 	): void {
 		NOTEBOOK_ACTIONS.forEach((action, i) => {
 			const rect = layout.actionStamps[i];
+			const disabled = state.command.disabled;
 			const target = this.target(
 				`action:${action}`,
 				'action-stamp',
@@ -924,6 +928,7 @@ export class IllustratedNotebookRenderer {
 				rect,
 				{ type: 'action', action },
 				400 + i,
+				disabled,
 			);
 			this.drawTargetTreatment(target);
 			const group = new Container();
@@ -1035,9 +1040,10 @@ export class IllustratedNotebookRenderer {
 				height: layout.mode === 'mobile' ? 28 : 34,
 			}),
 		);
-		const displayText = shortText(
+		const maxDisplayChars = layout.mode === 'mobile' ? 30 : 58;
+		const displayText = windowNotebookCommandText(
 			command.displayText,
-			layout.mode === 'mobile' ? 30 : 58,
+			maxDisplayChars,
 		);
 		const textFill =
 			command.phase === 'error'
@@ -1058,6 +1064,18 @@ export class IllustratedNotebookRenderer {
 				fontStyle: command.phase === 'disabled' ? 'italic' : 'normal',
 			},
 		);
+		const maxDisplayWidth = lineW - 48;
+		let visibleChars = Math.min(
+			Array.from(command.displayText).length,
+			maxDisplayChars,
+		);
+		while (inputText.width > maxDisplayWidth && visibleChars > 4) {
+			visibleChars -= 1;
+			inputText.text = windowNotebookCommandText(
+				command.displayText,
+				visibleChars,
+			);
+		}
 		this.drawCommandStatus(layout, lineX, lineY, lineW, command);
 		if (command.showCaret) {
 			const caret = new Graphics();

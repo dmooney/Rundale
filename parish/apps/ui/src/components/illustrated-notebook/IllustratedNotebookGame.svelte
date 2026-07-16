@@ -165,6 +165,7 @@
 	}
 
 	function seedAction(action: NotebookAction) {
+		if (isSubmitting) return;
 		commandError = null;
 		intentText = draftForNotebookAction(action, selectedNpc);
 		focusInput();
@@ -296,7 +297,6 @@
 		id="notebook-command-status"
 		class="notebook-command-status"
 		role={commandError ? 'alert' : 'status'}
-		aria-live="polite"
 	>
 		{commandPresentation.statusText ?? 'Command line ready'}
 	</span>

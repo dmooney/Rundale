@@ -4,6 +4,7 @@ import {
 	NOTEBOOK_COMMAND_PLACEHOLDER,
 	resolveNotebookCommandPresentation,
 	submitNotebookCommand,
+	windowNotebookCommandText,
 } from './command';
 import type { NotebookCommandState } from './types';
 
@@ -111,6 +112,21 @@ describe('illustrated notebook command input', () => {
 			phase: 'error',
 			statusText: 'Ink blotted — connection lost',
 		});
+	});
+
+	it('keeps the newest command characters visible at desktop and mobile widths', () => {
+		const command =
+			'ask Roisin to recount every detail because the latest typing stays visible';
+		const desktop = windowNotebookCommandText(command, 58);
+		const mobile = windowNotebookCommandText(command, 30);
+
+		expect(desktop).toHaveLength(58);
+		expect(desktop).toMatch(/^\.\.\./);
+		expect(desktop).toMatch(/the latest typing stays visible$/);
+		expect(mobile).toHaveLength(30);
+		expect(mobile).toMatch(/^\.\.\./);
+		expect(mobile).toBe('...latest typing stays visible');
+		expect(windowNotebookCommandText('look around', 30)).toBe('look around');
 	});
 
 	it('seeds action stamps from the selected person', () => {

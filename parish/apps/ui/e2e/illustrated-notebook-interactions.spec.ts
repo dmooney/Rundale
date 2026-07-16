@@ -111,6 +111,8 @@ async function proveCommandVisualStates(
 	viewport: 'desktop' | 'mobile',
 ) {
 	const input = page.getByLabel('Player intent');
+	const status = page.locator('#notebook-command-status');
+	const askStamp = page.getByRole('button', { name: 'Ask action stamp' });
 	const stableBox = await notebookBox(page);
 
 	await input.focus();
@@ -121,15 +123,29 @@ async function proveCommandVisualStates(
 		fullPage: false,
 	});
 
+	const longCommand =
+		'ask Roisin to recount every detail because the latest typing stays visible';
+	await input.fill(longCommand);
+	await expect(input).toHaveAttribute('data-command-state', 'typing');
+	await expect(input).toHaveValue(longCommand);
+	await settleNotebookFrame(page);
+	await page.screenshot({
+		path: path.join(PROOF_DIR, `${viewport}-long-command.png`),
+		fullPage: false,
+	});
+	await input.fill('');
+	await expect(input).toHaveAttribute('data-command-state', 'focused');
+
 	await emitEvent(page, 'loading', { active: true, phrase: 'Listening...' });
 	await expect(input).toHaveAttribute('data-command-state', 'busy');
 	await expect(input).not.toHaveAttribute('aria-disabled');
 	await expect(input).not.toHaveAttribute('disabled', '');
 	await expect(input).not.toHaveAttribute('readonly', '');
 	await expect(input).toBeEditable();
-	await expect(page.locator('#notebook-command-status')).toContainText(
-		'Parish reply in progress',
-	);
+	await expect(status).toHaveAttribute('role', 'status');
+	await expect(status).not.toHaveAttribute('aria-live');
+	await expect(status).toContainText('Parish reply in progress');
+	await expect(askStamp).toBeEnabled();
 	await settleNotebookFrame(page);
 	await expectNotebookNative(page);
 	expect(await notebookBox(page)).toEqual(stableBox);
@@ -150,9 +166,20 @@ async function proveCommandVisualStates(
 	await expect(input).toHaveValue('ask Roisin what she saw');
 	await input.press('x');
 	await expect(input).toHaveValue('ask Roisin what she saw');
-	await expect(page.locator('#notebook-command-status')).toContainText(
-		'Sending your line',
+	await expect(askStamp).toBeDisabled();
+	const askStampBox = await askStamp.boundingBox();
+	expect(askStampBox).not.toBeNull();
+	if (!askStampBox) throw new Error('ask stamp must have a layout box');
+	await page.mouse.click(
+		askStampBox.x + askStampBox.width / 2,
+		askStampBox.y + askStampBox.height / 2,
 	);
+	await expect(input).toHaveValue('ask Roisin what she saw');
+	await askStamp.dispatchEvent('click');
+	await expect(input).toHaveValue('ask Roisin what she saw');
+	await expect(status).toHaveAttribute('role', 'status');
+	await expect(status).not.toHaveAttribute('aria-live');
+	await expect(status).toContainText('Sending your line');
 	await settleNotebookFrame(page);
 	expect(await notebookBox(page)).toEqual(stableBox);
 	await page.screenshot({
@@ -164,9 +191,12 @@ async function proveCommandVisualStates(
 	await expect(input).toHaveAttribute('data-command-state', 'error');
 	await expect(input).toHaveAttribute('aria-invalid', 'true');
 	await expect(input).toHaveValue('ask Roisin what she saw');
-	await expect(page.locator('#notebook-command-status')).toContainText(
+	await expect(status).toHaveAttribute('role', 'alert');
+	await expect(status).not.toHaveAttribute('aria-live');
+	await expect(status).toContainText(
 		'Ink blotted — Could not send input: bridge unavailable',
 	);
+	await expect(askStamp).toBeEnabled();
 	await settleNotebookFrame(page);
 	await expectNotebookNative(page);
 	expect(await notebookBox(page)).toEqual(stableBox);
