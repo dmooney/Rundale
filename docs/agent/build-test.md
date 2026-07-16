@@ -63,6 +63,21 @@ just ui-e2e
 just screenshots                 # regenerate docs/screenshots/*.png
 ```
 
+`just ui-e2e` needs no per-worktree setup. Locally, the managed-server helper
+uses the normal shared Cargo target for dependency reuse, gives the final
+`parish-server` crate a unique build identity, keys its build script to the
+invoking UI hash set, and preserves a validated copy
+whose embedded CSP hashes match the invoking worktree's UI `dist`. An outer
+cross-process lock keeps concurrent Playwright builds coherent. GitHub-hosted
+jobs already have isolated filesystems, so they retain the existing Cargo
+cache and prebuilt-binary path.
+
+To unit-test the isolation helper from `parish/apps/ui/`:
+
+```sh
+node --test scripts/playwright-worktree-server.test.js
+```
+
 To update Playwright baselines after intentional UI changes:
 
 ```sh

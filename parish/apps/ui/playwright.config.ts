@@ -37,9 +37,11 @@ export default defineConfig({
 	],
 
 	webServer: {
-		command: `cd ../.. && cargo run -p parish-server -- --port ${process.env.PARISH_TEST_PORT || 3099}`,
+		command: `node scripts/playwright-worktree-server.js --port ${process.env.PARISH_TEST_PORT || 3099}`,
 		url: `http://localhost:${process.env.PARISH_TEST_PORT || 3099}/api/world-snapshot`,
-		timeout: 120_000, // cargo build can be slow on first run
+		// A newly-created worktree target may need to materialize the full server
+		// graph even when sccache supplies the compiler outputs.
+		timeout: 300_000,
 		reuseExistingServer: !process.env.CI,
 		// Each Playwright test gets a fresh browser context = fresh
 		// session on the parish web server. With the default cap of 50

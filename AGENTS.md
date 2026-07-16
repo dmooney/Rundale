@@ -58,6 +58,7 @@ Rules marked **(enforced)** are checked mechanically by `cargo test` / CI — se
 16. **Cap external API payloads before sending:** Validate payload size client-side against the provider's documented limit (e.g. GitHub issue body ≤ 65536 chars) and truncate to ≤ 90% of it with a `[truncated N chars]` marker — never rely on the provider's 4xx. A test asserting `payload.len() <= budget` is required for every such code path (#1375).
 17. **Survey existing tooling before building any:** Check whether the repo already provides it — the `parish-harness` binary (built-in web server/dashboard), `justfile` recipes, `parish/scripts/**`, `.claude/skills/` — and run or extend the existing tool in place. Never hand-roll a throwaway duplicate.
 18. **Report only verification you actually ran:** Any claim that a test passed or a process ran must be backed by literal command output from the current session. State skips and failures explicitly — never estimate, extrapolate, or fabricate a result.
+19. **Keep shared-target artifacts worktree-coherent:** When a build script embeds worktree-local files, parallel test tooling that shares a Cargo target must key the build to those inputs and preserve and validate the resulting executable before releasing its coordination lock. Never launch the shared final binary after Cargo releases its own lock; use the Playwright managed-server helper as the reference (#1717).
 
 ## Standard commands
 

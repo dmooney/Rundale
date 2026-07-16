@@ -16,6 +16,12 @@ use std::io::Write as IoWrite;
 use std::path::Path;
 
 fn main() {
+    // Playwright's managed-server helper sets this to a digest of the invoking
+    // worktree's inline-script hashes. Cargo targets may be shared by several
+    // worktrees, so the explicit input prevents a build-script result from a
+    // different dist tree being treated as fresh.
+    println!("cargo:rerun-if-env-changed=PARISH_UI_DIST_DIGEST");
+
     // Tell Cargo to re-run this script when any file under the UI dist tree
     // changes (including adding or removing files).
     println!("cargo:rerun-if-changed=../../apps/ui/dist");
