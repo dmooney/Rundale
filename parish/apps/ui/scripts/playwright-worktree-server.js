@@ -3,6 +3,7 @@ import { createHash, randomBytes } from 'node:crypto';
 import {
 	chmodSync,
 	copyFileSync,
+	linkSync,
 	mkdirSync,
 	readdirSync,
 	readFileSync,
@@ -19,6 +20,28 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 const UI_DIR = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const PARISH_DIR = resolve(UI_DIR, '../..');
 const EXECUTABLE_SUFFIX = process.platform === 'win32' ? '.exe' : '';
+
+export const PLAYWRIGHT_BUILD_LOCK_TIMEOUT_MS = 300_000;
+export const PLAYWRIGHT_SERVER_TIMEOUT_MS = 420_000;
+export const PLAYWRIGHT_SERVER_SHUTDOWN_TIMEOUT_MS = 10_000;
+export const PLAYWRIGHT_LOCK_STALE_GRACE_MS = 15_000;
+
+export function playwrightWebServerConfig(port) {
+	return {
+		command: `node scripts/playwright-worktree-server.js --port ${port}`,
+		url: `http://localhost:${port}/api/world-snapshot`,
+		timeout: PLAYWRIGHT_SERVER_TIMEOUT_MS,
+		// Without this, Playwright force-kills the process group and the launcher
+		// cannot remove its preserved worktree-specific server binary.
+		gracefulShutdown: {
+			signal: 'SIGTERM',
+			timeout: PLAYWRIGHT_SERVER_SHUTDOWN_TIMEOUT_MS,
+		},
+		// A process from another worktree must never satisfy this test run.
+		reuseExistingServer: false,
+		env: { PARISH_MAX_SESSIONS: '500' },
+	};
+}
 
 function commandOutput(command, args, cwd) {
 	return execFileSync(command, args, {
@@ -48,11 +71,24 @@ export function inlineScriptHashesFromHtml(html) {
 
 export function collectInlineScriptHashes(distDir) {
 	const hashes = new Set();
+	try {
+		if (!statSync(distDir).isDirectory()) return [];
+	} catch (error) {
+		if (error?.code === 'ENOENT') return [];
+		throw error;
+	}
 	const pending = [distDir];
 
 	while (pending.length > 0) {
 		const directory = pending.pop();
-		for (const entry of readdirSync(directory, { withFileTypes: true })) {
+		let entries;
+		try {
+			entries = readdirSync(directory, { withFileTypes: true });
+		} catch (error) {
+			if (error?.code === 'ENOENT') continue;
+			throw error;
+		}
+		for (const entry of entries) {
 			const path = join(directory, entry.name);
 			if (entry.isDirectory()) {
 				pending.push(path);
@@ -83,6 +119,7 @@ export function uiDistFingerprint(expectedHashes) {
 export function cargoRustcArgs(buildNonce) {
 	return [
 		'rustc',
+		'--message-format=json-render-diagnostics',
 		'-p',
 		'parish-server',
 		'--bin',
@@ -91,6 +128,31 @@ export function cargoRustcArgs(buildNonce) {
 		'-C',
 		`metadata=playwright_${buildNonce}`,
 	];
+}
+
+export function cargoExecutableFromMessages(output) {
+	let executable;
+	for (const line of output.split('\n')) {
+		if (!line.trim()) continue;
+		let message;
+		try {
+			message = JSON.parse(line);
+		} catch {
+			continue;
+		}
+		if (message.reason === 'compiler-message' && message.message?.rendered) {
+			process.stderr.write(message.message.rendered);
+		}
+		if (
+			message.reason === 'compiler-artifact' &&
+			message.target?.name === 'parish-server' &&
+			message.target?.kind?.includes('bin') &&
+			message.executable
+		) {
+			executable = message.executable;
+		}
+	}
+	return executable;
 }
 
 function processIsAlive(pid) {
@@ -102,75 +164,118 @@ function processIsAlive(pid) {
 	}
 }
 
-function removeAbandonedLock(lockDir) {
-	let owner;
-	try {
-		owner = JSON.parse(readFileSync(join(lockDir, 'owner.json'), 'utf8'));
-	} catch {
-		return false;
-	}
-
+function readLockOwner(lockPath, lockStat) {
+	const ownerPath = lockStat.isDirectory()
+		? join(lockPath, 'owner.json')
+		: lockPath;
+	const owner = JSON.parse(readFileSync(ownerPath, 'utf8'));
 	if (
-		owner.hostname !== hostname() ||
+		typeof owner.hostname !== 'string' ||
 		!Number.isInteger(owner.pid) ||
-		processIsAlive(owner.pid)
+		typeof owner.token !== 'string' ||
+		owner.token.length === 0
 	) {
-		return false;
+		return undefined;
 	}
+	return owner;
+}
 
-	const abandoned = `${lockDir}.abandoned-${process.pid}-${randomBytes(4).toString('hex')}`;
+function quarantineLock(lockPath) {
+	const abandoned = `${lockPath}.abandoned-${process.pid}-${randomBytes(4).toString('hex')}`;
 	try {
-		renameSync(lockDir, abandoned);
+		renameSync(lockPath, abandoned);
 		rmSync(abandoned, { force: true, recursive: true });
 		return true;
 	} catch (error) {
 		if (error?.code === 'ENOENT') return true;
-		return false;
+		throw error;
 	}
 }
 
-/**
- * Acquire a real cross-process lock using atomic directory creation.
- *
- * Cargo releases its own target lock before this launcher can preserve the
- * final binary. Holding this outer lock through build, validation, and copy
- * closes that window between concurrent Playwright processes.
- */
-export async function acquireDirectoryLock(
-	lockDir,
-	{ timeoutMs = 240_000, pollMs = 100 } = {},
+export function removeAbandonedLock(
+	lockPath,
+	{ staleGraceMs = PLAYWRIGHT_LOCK_STALE_GRACE_MS, now = Date.now() } = {},
 ) {
-	mkdirSync(dirname(lockDir), { recursive: true });
+	let lockStat;
+	try {
+		lockStat = statSync(lockPath);
+	} catch (error) {
+		if (error?.code === 'ENOENT') return true;
+		throw error;
+	}
+
+	let owner;
+	try {
+		owner = readLockOwner(lockPath, lockStat);
+	} catch (error) {
+		if (error?.code !== 'ENOENT' && !(error instanceof SyntaxError))
+			throw error;
+		// Missing and corrupt owner metadata get a grace period before recovery.
+		owner = undefined;
+	}
+
+	if (owner) {
+		if (owner.hostname !== hostname()) return false;
+		if (processIsAlive(owner.pid)) return false;
+		return quarantineLock(lockPath);
+	}
+
+	if (now - lockStat.mtimeMs < staleGraceMs) return false;
+	return quarantineLock(lockPath);
+}
+
+function tryCreateLock(lockPath, token) {
+	const candidate = `${lockPath}.candidate-${process.pid}-${randomBytes(4).toString('hex')}`;
+	writeFileSync(
+		candidate,
+		JSON.stringify({ hostname: hostname(), pid: process.pid, token }),
+		{ flag: 'wx', mode: 0o600 },
+	);
+	try {
+		// Hard-linking a fully-written candidate is an atomic create-if-absent.
+		// There is never a visible lock with missing or partial owner metadata.
+		linkSync(candidate, lockPath);
+		return true;
+	} catch (error) {
+		if (error?.code === 'EEXIST') return false;
+		throw error;
+	} finally {
+		rmSync(candidate, { force: true });
+	}
+}
+
+/** Hold an outer lock through Cargo build, validation, and binary copy. */
+export async function acquireBuildLock(
+	lockPath,
+	{
+		timeoutMs = PLAYWRIGHT_BUILD_LOCK_TIMEOUT_MS,
+		pollMs = 100,
+		staleGraceMs = PLAYWRIGHT_LOCK_STALE_GRACE_MS,
+	} = {},
+) {
+	mkdirSync(dirname(lockPath), { recursive: true });
 	const deadline = Date.now() + timeoutMs;
 	const token = randomBytes(16).toString('hex');
 
 	while (Date.now() < deadline) {
-		try {
-			mkdirSync(lockDir);
-			writeFileSync(
-				join(lockDir, 'owner.json'),
-				JSON.stringify({ hostname: hostname(), pid: process.pid, token }),
-			);
+		if (tryCreateLock(lockPath, token)) {
 			return () => {
 				try {
-					const owner = JSON.parse(
-						readFileSync(join(lockDir, 'owner.json'), 'utf8'),
-					);
-					if (owner.token === token) {
-						rmSync(lockDir, { force: true, recursive: true });
-					}
+					const lockStat = statSync(lockPath);
+					const owner = readLockOwner(lockPath, lockStat);
+					if (owner?.token === token) rmSync(lockPath, { force: true });
 				} catch (error) {
 					if (error?.code !== 'ENOENT') throw error;
 				}
 			};
-		} catch (error) {
-			if (error?.code !== 'EEXIST') throw error;
-			if (!removeAbandonedLock(lockDir)) await delay(pollMs);
+		}
+		if (!removeAbandonedLock(lockPath, { staleGraceMs })) {
+			await delay(pollMs);
 		}
 	}
 
 	throw new Error(
-		`timed out waiting for Playwright server build lock: ${lockDir}`,
+		`timed out waiting for Playwright server build lock: ${lockPath}`,
 	);
 }
 
@@ -185,16 +290,41 @@ function effectiveCargoTarget() {
 	return resolve(metadata.target_directory);
 }
 
-function pruneOldCopies(directory) {
-	const oldestAllowed = Date.now() - 24 * 60 * 60 * 1000;
-	try {
-		for (const entry of readdirSync(directory, { withFileTypes: true })) {
-			if (!entry.isFile() || !entry.name.startsWith('parish-server-')) continue;
-			const path = join(directory, entry.name);
-			if (statSync(path).mtimeMs < oldestAllowed) rmSync(path, { force: true });
+export function pruneOldCopies(
+	directory,
+	{
+		now = Date.now(),
+		readDirectory = readdirSync,
+		statPath = statSync,
+		removePath = rmSync,
+	} = {},
+) {
+	const oldestAllowed = now - 24 * 60 * 60 * 1000;
+	const pending = [directory];
+	while (pending.length > 0) {
+		const current = pending.pop();
+		let entries;
+		try {
+			entries = readDirectory(current, { withFileTypes: true });
+		} catch (error) {
+			if (error?.code === 'ENOENT') continue;
+			throw error;
 		}
-	} catch (error) {
-		if (error?.code !== 'ENOENT') throw error;
+		for (const entry of entries) {
+			const path = join(current, entry.name);
+			if (entry.isDirectory()) {
+				pending.push(path);
+				continue;
+			}
+			if (!entry.isFile() || !entry.name.startsWith('parish-server-')) continue;
+			try {
+				if (statPath(path).mtimeMs < oldestAllowed) {
+					removePath(path, { force: true });
+				}
+			} catch (error) {
+				if (error?.code !== 'ENOENT') throw error;
+			}
+		}
 	}
 }
 
@@ -210,14 +340,11 @@ export async function prepareIsolatedServerBinary() {
 		);
 	}
 
-	const outputDir = join(
-		targetDir,
-		'playwright-servers',
-		worktreeKey(worktreeRoot),
-	);
+	const serverRoot = join(targetDir, 'playwright-servers');
+	const outputDir = join(serverRoot, worktreeKey(worktreeRoot));
+	pruneOldCopies(serverRoot);
 	mkdirSync(outputDir, { recursive: true });
-	pruneOldCopies(outputDir);
-	const releaseLock = await acquireDirectoryLock(
+	const releaseLock = await acquireBuildLock(
 		join(targetDir, '.playwright-parish-server-build.lock'),
 	);
 
@@ -226,22 +353,24 @@ export async function prepareIsolatedServerBinary() {
 			const nonce = `${process.pid}_${Date.now()}_${randomBytes(6).toString('hex')}`;
 			const build = spawnSync('cargo', cargoRustcArgs(nonce), {
 				cwd: PARISH_DIR,
+				encoding: 'utf8',
 				env: {
 					...process.env,
 					PARISH_UI_DIST_DIGEST: uiDistFingerprint(expectedHashes),
 				},
-				stdio: 'inherit',
+				maxBuffer: 64 * 1024 * 1024,
+				stdio: ['ignore', 'pipe', 'inherit'],
 			});
 			if (build.error) throw build.error;
+			const source = cargoExecutableFromMessages(build.stdout ?? '');
 			if (build.status !== 0) {
 				throw new Error(`cargo rustc failed with status ${build.status}`);
 			}
-
-			const source = join(
-				targetDir,
-				'debug',
-				`parish-server${EXECUTABLE_SUFFIX}`,
-			);
+			if (!source) {
+				throw new Error(
+					'cargo rustc did not report a parish-server executable',
+				);
+			}
 			const destination = join(
 				outputDir,
 				`parish-server-${nonce}${EXECUTABLE_SUFFIX}`,
@@ -254,7 +383,7 @@ export async function prepareIsolatedServerBinary() {
 			if (
 				binaryContainsExpectedCsp(readFileSync(destination), expectedHashes)
 			) {
-				return destination;
+				return { expectedHashes, path: destination };
 			}
 
 			rmSync(destination, { force: true });
@@ -269,6 +398,109 @@ export async function prepareIsolatedServerBinary() {
 	}
 
 	throw new Error('unreachable: parish-server preparation exhausted retries');
+}
+
+export function assertServedCspCoherent(html, csp, expectedHashes) {
+	const scriptDirective = csp
+		.split(';')
+		.map((directive) => directive.trim())
+		.find((directive) => directive.startsWith('script-src '));
+	if (!scriptDirective)
+		throw new Error('served response has no script-src CSP');
+	if (scriptDirective.includes("'unsafe-inline'")) {
+		throw new Error("served script-src unexpectedly allows 'unsafe-inline'");
+	}
+
+	const allowedHashes = [...scriptDirective.matchAll(/'sha256-[^']+'/g)]
+		.map((match) => match[0])
+		.sort();
+	const expected = [...new Set(expectedHashes)].sort();
+	if (JSON.stringify(allowedHashes) !== JSON.stringify(expected)) {
+		throw new Error(
+			'served script-src hashes do not match the invoking UI dist',
+		);
+	}
+
+	const servedHtmlHashes = [...new Set(inlineScriptHashesFromHtml(html))];
+	if (
+		servedHtmlHashes.length === 0 ||
+		!servedHtmlHashes.every((hash) => allowedHashes.includes(hash))
+	) {
+		throw new Error('served HTML contains an inline script not allowed by CSP');
+	}
+}
+
+async function waitForServedCsp(port, expectedHashes, server) {
+	const deadline = Date.now() + 30_000;
+	let lastError;
+	while (Date.now() < deadline) {
+		if (server.exitCode !== null) {
+			throw new Error(`parish-server exited before CSP validation`);
+		}
+		try {
+			const response = await fetch(`http://127.0.0.1:${port}/`);
+			if (response.ok) {
+				const csp = response.headers.get('content-security-policy') ?? '';
+				assertServedCspCoherent(await response.text(), csp, expectedHashes);
+				return;
+			}
+			lastError = new Error(`server returned HTTP ${response.status}`);
+		} catch (error) {
+			lastError = error;
+		}
+		await delay(100);
+	}
+	throw new Error(
+		`timed out validating served CSP/HTML coherence: ${lastError?.message ?? 'server unavailable'}`,
+	);
+}
+
+export function superviseServer(
+	command,
+	args,
+	{ cwd = PARISH_DIR, env = process.env, preservedBinary } = {},
+) {
+	const server = spawn(command, args, { cwd, env, stdio: 'inherit' });
+	let cleaned = false;
+	const cleanup = () => {
+		if (!preservedBinary || cleaned) return;
+		try {
+			rmSync(preservedBinary, { force: true });
+			cleaned = true;
+		} catch (error) {
+			if (error?.code !== 'EBUSY' && error?.code !== 'EPERM') throw error;
+		}
+	};
+
+	const signalHandlers = new Map();
+	for (const signal of ['SIGINT', 'SIGTERM']) {
+		const handler = () => {
+			cleanup();
+			server.kill(signal);
+		};
+		signalHandlers.set(signal, handler);
+		process.once(signal, handler);
+	}
+	process.once('exit', cleanup);
+
+	const unregister = () => {
+		for (const [signal, handler] of signalHandlers) {
+			process.removeListener(signal, handler);
+		}
+	};
+	server.once('error', (error) => {
+		cleanup();
+		unregister();
+		console.error(error);
+		process.exitCode = 1;
+	});
+	server.once('exit', (code, signal) => {
+		cleanup();
+		unregister();
+		process.exitCode = code ?? (signal ? 0 : 1);
+	});
+
+	return { cleanup, server };
 }
 
 function parsePort(args) {
@@ -287,6 +519,7 @@ async function main() {
 	let command;
 	let args;
 	let preservedBinary;
+	let expectedHashes;
 
 	if (process.env.GITHUB_ACTIONS === 'true') {
 		// GitHub-hosted jobs have an isolated filesystem and already prebuild this
@@ -294,28 +527,24 @@ async function main() {
 		command = 'cargo';
 		args = ['run', '-p', 'parish-server', '--', '--port', port];
 	} else {
-		preservedBinary = await prepareIsolatedServerBinary();
+		const prepared = await prepareIsolatedServerBinary();
+		preservedBinary = prepared.path;
+		expectedHashes = prepared.expectedHashes;
 		command = preservedBinary;
 		args = ['--port', port];
 	}
 
-	const server = spawn(command, args, {
-		cwd: PARISH_DIR,
-		env: process.env,
-		stdio: 'inherit',
-	});
-	for (const signal of ['SIGINT', 'SIGTERM']) {
-		process.once(signal, () => server.kill(signal));
+	const supervision = superviseServer(command, args, { preservedBinary });
+	if (expectedHashes) {
+		try {
+			await waitForServedCsp(port, expectedHashes, supervision.server);
+		} catch (error) {
+			supervision.cleanup();
+			supervision.server.kill('SIGTERM');
+			process.exitCode = 1;
+			throw error;
+		}
 	}
-	server.once('error', (error) => {
-		if (preservedBinary) rmSync(preservedBinary, { force: true });
-		console.error(error);
-		process.exit(1);
-	});
-	server.once('exit', (code) => {
-		if (preservedBinary) rmSync(preservedBinary, { force: true });
-		process.exit(code ?? 1);
-	});
 }
 
 if (

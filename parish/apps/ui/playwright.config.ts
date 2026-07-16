@@ -1,5 +1,9 @@
 import { defineConfig, devices } from '@playwright/test';
 
+import { playwrightWebServerConfig } from './scripts/playwright-worktree-server.js';
+
+const testPort = process.env.PARISH_TEST_PORT || 3099;
+
 /**
  * Playwright configuration for Parish E2E tests.
  *
@@ -23,7 +27,7 @@ export default defineConfig({
 	},
 
 	use: {
-		baseURL: `http://localhost:${process.env.PARISH_TEST_PORT || 3099}`,
+		baseURL: `http://localhost:${testPort}`,
 		viewport: { width: 1280, height: 800 },
 		trace: 'on-first-retry',
 		screenshot: 'only-on-failure',
@@ -36,22 +40,7 @@ export default defineConfig({
 		},
 	],
 
-	webServer: {
-		command: `node scripts/playwright-worktree-server.js --port ${process.env.PARISH_TEST_PORT || 3099}`,
-		url: `http://localhost:${process.env.PARISH_TEST_PORT || 3099}/api/world-snapshot`,
-		// A newly-created worktree target may need to materialize the full server
-		// graph even when sccache supplies the compiler outputs.
-		timeout: 300_000,
-		reuseExistingServer: !process.env.CI,
-		// Each Playwright test gets a fresh browser context = fresh
-		// session on the parish web server. With the default cap of 50
-		// and the suite now sitting at ~54 tests, the last few tests
-		// hit "Server at capacity (50/50 sessions)" before reaching the
-		// app shell. Bump the cap for the e2e harness; admission
-		// control still gets its own dedicated coverage in
-		// parish-server/tests/admission_control.rs.
-		env: {
-			PARISH_MAX_SESSIONS: '500',
-		},
-	},
+	// Never reuse an arbitrary listener on this port: the helper must own the
+	// server process whose worktree/CSP coherence this run relies on.
+	webServer: playwrightWebServerConfig(testPort),
 });
