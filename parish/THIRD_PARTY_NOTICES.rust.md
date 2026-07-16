@@ -5,7 +5,7 @@ regenerate after dependency changes.
 
 ## Overview
 
-- [MIT License](#MIT) — 638 crates
+- [MIT License](#MIT) — 637 crates
 - [Apache License 2.0](#Apache-2.0) — 24 crates
 - [Unicode License v3](#Unicode-3.0) — 19 crates
 - [BSD 3-Clause &quot;New&quot; or &quot;Revised&quot; License](#BSD-3-Clause) — 9 crates
@@ -3104,7 +3104,7 @@ DEALINGS IN THE SOFTWARE.
 **Used by:**
 
 - [bitflags 1.3.2](https://github.com/bitflags/bitflags)
-- [bitflags 2.11.1](https://github.com/bitflags/bitflags)
+- [bitflags 2.13.1](https://github.com/bitflags/bitflags)
 - [glob 0.3.3](https://github.com/rust-lang/glob)
 - [log 0.4.29](https://github.com/rust-lang/log)
 - [num-bigint-dig 0.8.6](https://github.com/dignifiedquire/num-bigint)
@@ -3434,7 +3434,7 @@ DEALINGS IN THE SOFTWARE.
 
 **Used by:**
 
-- [plist 1.9.0](https://github.com/ebarnard/rust-plist/)
+- [plist 1.10.0](https://github.com/ebarnard/rust-plist/)
 
 ```
 Copyright (c) 2015 Edward Barnard
@@ -3461,11 +3461,11 @@ SOFTWARE.
 
 **Used by:**
 
+- [wayland-scanner 0.31.10](https://github.com/smithay/wayland-rs)
 - [wayland-backend 0.3.15](https://github.com/smithay/wayland-rs)
 - [wayland-client 0.31.14](https://github.com/smithay/wayland-rs)
 - [wayland-protocols-wlr 0.3.12](https://github.com/smithay/wayland-rs)
 - [wayland-protocols 0.32.12](https://github.com/smithay/wayland-rs)
-- [wayland-scanner 0.31.10](https://github.com/smithay/wayland-rs)
 - [wayland-server 0.31.13](https://github.com/smithay/wayland-rs)
 - [wayland-sys 0.31.11](https://github.com/smithay/wayland-rs)
 
@@ -10164,8 +10164,7 @@ SOFTWARE.
 
 **Used by:**
 
-- [quick-xml 0.30.0](https://github.com/tafia/quick-xml)
-- [quick-xml 0.39.4](https://github.com/tafia/quick-xml)
+- [quick-xml 0.41.0](https://github.com/tafia/quick-xml)
 
 ```
 The MIT License (MIT)
