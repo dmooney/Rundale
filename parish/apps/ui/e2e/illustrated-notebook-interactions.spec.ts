@@ -123,8 +123,10 @@ async function proveCommandVisualStates(
 
 	await emitEvent(page, 'loading', { active: true, phrase: 'Listening...' });
 	await expect(input).toHaveAttribute('data-command-state', 'busy');
-	await expect(input).toHaveAttribute('aria-disabled', 'true');
+	await expect(input).not.toHaveAttribute('aria-disabled');
 	await expect(input).not.toHaveAttribute('disabled', '');
+	await expect(input).not.toHaveAttribute('readonly', '');
+	await expect(input).toBeEditable();
 	await expect(page.locator('#notebook-command-status')).toContainText(
 		'Parish reply in progress',
 	);
@@ -142,6 +144,11 @@ async function proveCommandVisualStates(
 	await input.fill('ask Roisin what she saw');
 	await input.press('Enter');
 	await expect(input).toHaveAttribute('data-command-state', 'disabled');
+	await expect(input).toHaveAttribute('aria-disabled', 'true');
+	await expect(input).toHaveAttribute('readonly', '');
+	await expect(input).not.toBeEditable();
+	await expect(input).toHaveValue('ask Roisin what she saw');
+	await input.press('x');
 	await expect(input).toHaveValue('ask Roisin what she saw');
 	await expect(page.locator('#notebook-command-status')).toContainText(
 		'Sending your line',

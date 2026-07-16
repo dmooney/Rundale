@@ -279,11 +279,12 @@
 		class="notebook-native-input"
 		type="text"
 		aria-label="Player intent"
-		aria-disabled={$streamingActive || isSubmitting}
+		aria-disabled={isSubmitting || undefined}
 		aria-busy={$streamingActive || isSubmitting}
 		aria-invalid={Boolean(commandError)}
 		aria-describedby={commandError ? 'notebook-command-status' : undefined}
 		data-command-state={commandPresentation.phase}
+		readonly={isSubmitting}
 		autocomplete="off"
 		spellcheck="false"
 		oninput={clearCommandError}

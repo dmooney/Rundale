@@ -219,8 +219,9 @@ describe('IllustratedNotebookGame', () => {
 		await waitFor(() => expect(lastRenderState?.command.busy).toBe(true));
 		expect(lastRenderState?.command.disabled).toBe(false);
 		expect(input.dataset.commandState).toBe('busy');
-		expect(input.getAttribute('aria-disabled')).toBe('true');
+		expect(input.hasAttribute('aria-disabled')).toBe(false);
 		expect(input.disabled).toBe(false);
+		expect(input.readOnly).toBe(false);
 	});
 
 	it('renders the local pending submit as disabled without clearing the draft early', async () => {
@@ -240,10 +241,14 @@ describe('IllustratedNotebookGame', () => {
 		await waitFor(() => expect(lastRenderState?.command.disabled).toBe(true));
 		expect(lastRenderState?.command.busy).toBe(false);
 		expect(input.dataset.commandState).toBe('disabled');
+		expect(input.getAttribute('aria-disabled')).toBe('true');
+		expect(input.readOnly).toBe(true);
 		expect(input.value).toBe('look around');
 
 		deferred.resolve();
 		await waitFor(() => expect(input.value).toBe(''));
+		expect(input.hasAttribute('aria-disabled')).toBe(false);
+		expect(input.readOnly).toBe(false);
 	});
 
 	it('renders a failed submit as an accessible Pixi error and preserves the draft for retry', async () => {
