@@ -1,5 +1,11 @@
 import { describe, expect, it, vi } from 'vitest';
-import { draftForNotebookAction, submitNotebookCommand } from './command';
+import {
+	draftForNotebookAction,
+	NOTEBOOK_COMMAND_PLACEHOLDER,
+	resolveNotebookCommandPresentation,
+	submitNotebookCommand,
+} from './command';
+import type { NotebookCommandState } from './types';
 
 const roisin = {
 	name: 'Roisin Connolly',
@@ -11,6 +17,102 @@ const roisin = {
 };
 
 describe('illustrated notebook command input', () => {
+	function visualState(
+		overrides: Partial<NotebookCommandState> = {},
+	): NotebookCommandState {
+		return {
+			text: '',
+			focused: false,
+			busy: false,
+			disabled: false,
+			error: null,
+			...overrides,
+		};
+	}
+
+	it('resolves distinct idle, focus, text, busy, disabled, and error presentations', () => {
+		expect(resolveNotebookCommandPresentation(visualState())).toMatchObject({
+			phase: 'idle',
+			displayText: NOTEBOOK_COMMAND_PLACEHOLDER,
+			statusText: null,
+			showCaret: false,
+			sendDisabled: true,
+		});
+		expect(
+			resolveNotebookCommandPresentation(visualState({ focused: true })),
+		).toMatchObject({
+			phase: 'focused',
+			statusText: 'Writing',
+			showCaret: true,
+		});
+		expect(
+			resolveNotebookCommandPresentation(
+				visualState({ text: 'ask Roisin', focused: true }),
+			),
+		).toMatchObject({
+			phase: 'typing',
+			displayText: 'ask Roisin',
+			showCaret: true,
+			sendDisabled: false,
+		});
+		expect(
+			resolveNotebookCommandPresentation(visualState({ busy: true })),
+		).toMatchObject({
+			phase: 'busy',
+			displayText: 'waiting on the parish...',
+			statusText: 'Parish reply in progress',
+			showCaret: false,
+			sendDisabled: true,
+		});
+		expect(
+			resolveNotebookCommandPresentation(visualState({ disabled: true })),
+		).toMatchObject({
+			phase: 'disabled',
+			displayText: 'setting ink to paper...',
+			statusText: 'Sending your line',
+			showCaret: false,
+			sendDisabled: true,
+		});
+		expect(
+			resolveNotebookCommandPresentation(
+				visualState({
+					text: 'look',
+					focused: true,
+					error: '  bridge   unavailable ',
+				}),
+			),
+		).toMatchObject({
+			phase: 'error',
+			displayText: 'look',
+			statusText: 'Ink blotted — bridge unavailable',
+			showCaret: true,
+			sendDisabled: false,
+		});
+	});
+
+	it('gives busy and error precedence without discarding the written line', () => {
+		expect(
+			resolveNotebookCommandPresentation(
+				visualState({
+					text: 'ask Roisin',
+					busy: true,
+					disabled: true,
+				}),
+			),
+		).toMatchObject({
+			phase: 'busy',
+			displayText: 'ask Roisin',
+		});
+		expect(
+			resolveNotebookCommandPresentation(
+				visualState({ busy: true, error: 'connection lost' }),
+			),
+		).toMatchObject({
+			phase: 'error',
+			statusText: 'Ink blotted — connection lost',
+		});
+	});
+
 	it('seeds action stamps from the selected person', () => {
 		expect(draftForNotebookAction('ask', roisin)).toBe('ask Roisin Connolly ');
 		expect(draftForNotebookAction('observe', roisin)).toBe(

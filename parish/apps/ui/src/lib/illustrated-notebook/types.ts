@@ -70,14 +70,36 @@ export interface RenderCallbacks {
 	onSend: () => void;
 }
 
+export type NotebookCommandPhase =
+	| 'idle'
+	| 'focused'
+	| 'typing'
+	| 'busy'
+	| 'disabled'
+	| 'error';
+
+export interface NotebookCommandState {
+	text: string;
+	focused: boolean;
+	busy: boolean;
+	disabled: boolean;
+	error: string | null;
+}
+
+export interface NotebookCommandPresentation {
+	phase: NotebookCommandPhase;
+	displayText: string;
+	statusText: string | null;
+	showCaret: boolean;
+	sendDisabled: boolean;
+}
+
 export interface NotebookRenderState {
 	world: WorldSnapshot | null;
 	map: MapData | null;
 	npcs: NpcInfo[];
 	selectedNpc: NpcInfo | null;
 	selectedRealName: string | null;
-	intentText: string;
-	inputFocused: boolean;
-	busy: boolean;
+	command: NotebookCommandState;
 	callbacks: RenderCallbacks;
 }

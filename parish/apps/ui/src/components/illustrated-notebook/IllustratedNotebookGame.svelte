@@ -22,6 +22,7 @@
 	import { modSelectorVisible, savePickerVisible } from '../../stores/save';
 	import {
 		draftForNotebookAction,
+		resolveNotebookCommandPresentation,
 		submitNotebookCommand,
 	} from '$lib/illustrated-notebook/command';
 	import {
@@ -29,7 +30,10 @@
 		type NotebookHitTarget,
 	} from '$lib/illustrated-notebook/interactions';
 	import { IllustratedNotebookRenderer } from '$lib/illustrated-notebook/renderer';
-	import type { NotebookTab } from '$lib/illustrated-notebook/types';
+	import type {
+		NotebookCommandState,
+		NotebookTab,
+	} from '$lib/illustrated-notebook/types';
 
 	let hostEl: HTMLDivElement;
 	let inputEl: HTMLInputElement;
@@ -39,6 +43,7 @@
 	let intentText = $state('');
 	let inputFocused = $state(false);
 	let isSubmitting = $state(false);
+	let commandError = $state<string | null>(null);
 	let drawer = $state<NotebookTab | 'tools' | 'time' | 'intents' | null>(null);
 	let hitTargets = $state<NotebookHitTarget[]>([]);
 	let focusedHitTargetId = $state<string | null>(null);
@@ -50,6 +55,16 @@
 	);
 	const focusableHitTargets = $derived(
 		sortNotebookHitTargetsForFocus(hitTargets),
+	);
+	const commandState = $derived<NotebookCommandState>({
+		text: intentText,
+		focused: inputFocused,
+		busy: $streamingActive,
+		disabled: isSubmitting,
+		error: commandError,
+	});
+	const commandPresentation = $derived(
+		resolveNotebookCommandPresentation(commandState),
 	);
 
 	$effect(() => {
@@ -80,9 +95,7 @@
 			npcs: $npcsHere,
 			selectedNpc,
 			selectedRealName,
-			intentText,
-			inputFocused,
-			busy: $streamingActive || isSubmitting,
+			command: commandState,
 			callbacks: {
 				onAction: seedAction,
 				onFocusInput: focusInput,
@@ -152,8 +165,13 @@
 	}
 
 	function seedAction(action: NotebookAction) {
+		commandError = null;
 		intentText = draftForNotebookAction(action, selectedNpc);
 		focusInput();
+	}
+
+	function clearCommandError() {
+		commandError = null;
 	}
 
 	function openTab(tab: NotebookTab) {
@@ -202,6 +220,7 @@
 	async function submitCurrent() {
 		const text = intentText;
 		if (!text.trim() || isSubmitting || $streamingActive) return;
+		commandError = null;
 		isSubmitting = true;
 		try {
 			const didSubmit = await submitNotebookCommand({
@@ -215,7 +234,8 @@
 			});
 			if (didSubmit) intentText = '';
 		} catch (err) {
-			pushErrorLog(`Could not send input: ${formatIpcError(err)}`);
+			commandError = `Could not send input: ${formatIpcError(err)}`;
+			pushErrorLog(commandError);
 		} finally {
 			isSubmitting = false;
 		}
@@ -260,12 +280,25 @@
 		type="text"
 		aria-label="Player intent"
 		aria-disabled={$streamingActive || isSubmitting}
+		aria-busy={$streamingActive || isSubmitting}
+		aria-invalid={Boolean(commandError)}
+		aria-describedby={commandError ? 'notebook-command-status' : undefined}
+		data-command-state={commandPresentation.phase}
 		autocomplete="off"
 		spellcheck="false"
+		oninput={clearCommandError}
 		onfocus={() => (inputFocused = true)}
 		onblur={() => (inputFocused = false)}
 		onkeydown={handleKeydown}
 	/>
+	<span
+		id="notebook-command-status"
+		class="notebook-command-status"
+		role={commandError ? 'alert' : 'status'}
+		aria-live="polite"
+	>
+		{commandPresentation.statusText ?? 'Command line ready'}
+	</span>
 
 	<div class="notebook-accessibility-targets" aria-label="Notebook controls">
 		{#each focusableHitTargets as target (target.id)}
@@ -398,6 +431,20 @@
 		border: 0;
 		opacity: 0;
 		pointer-events: none;
+	}
+
+	.notebook-command-status {
+		position: fixed;
+		left: 1px;
+		top: 1px;
+		width: 1px;
+		height: 1px;
+		padding: 0;
+		margin: -1px;
+		overflow: hidden;
+		clip-path: inset(50%);
+		white-space: nowrap;
+		border: 0;
 	}
 
 	.notebook-accessibility-targets {

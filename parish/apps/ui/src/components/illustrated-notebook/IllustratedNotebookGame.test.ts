@@ -146,7 +146,8 @@ function seedStores() {
 		target('time-card', 'Open time details', 60),
 		target('active-intents-card', 'Open active intents', 70),
 	];
-	mockSubmitInput.mockClear();
+	mockSubmitInput.mockReset();
+	mockSubmitInput.mockResolvedValue(undefined);
 }
 
 describe('IllustratedNotebookGame', () => {
@@ -204,6 +205,68 @@ describe('IllustratedNotebookGame', () => {
 		await waitFor(() =>
 			expect(mockSubmitInput).toHaveBeenCalledWith('ask Roisin Connolly'),
 		);
+	});
+
+	it('renders focus and streaming as distinct command states while the hidden input stays editable', async () => {
+		const { getByLabelText } = render(IllustratedNotebookGame);
+		const input = getByLabelText('Player intent') as HTMLInputElement;
+
+		await waitFor(() => expect(lastRenderState?.command.focused).toBe(true));
+		expect(input.dataset.commandState).toBe('focused');
+		expect(input.disabled).toBe(false);
+
+		streamingActive.set(true);
+		await waitFor(() => expect(lastRenderState?.command.busy).toBe(true));
+		expect(lastRenderState?.command.disabled).toBe(false);
+		expect(input.dataset.commandState).toBe('busy');
+		expect(input.getAttribute('aria-disabled')).toBe('true');
+		expect(input.disabled).toBe(false);
+	});
+
+	it('renders the local pending submit as disabled without clearing the draft early', async () => {
+		const deferred = { resolve: () => {} };
+		mockSubmitInput.mockImplementationOnce(
+			() =>
+				new Promise<void>((resolve) => {
+					deferred.resolve = resolve;
+				}),
+		);
+		const { getByLabelText } = render(IllustratedNotebookGame);
+		const input = getByLabelText('Player intent') as HTMLInputElement;
+
+		await fireEvent.input(input, { target: { value: 'look around' } });
+		await fireEvent.keyDown(input, { key: 'Enter' });
+
+		await waitFor(() => expect(lastRenderState?.command.disabled).toBe(true));
+		expect(lastRenderState?.command.busy).toBe(false);
+		expect(input.dataset.commandState).toBe('disabled');
+		expect(input.value).toBe('look around');
+
+		deferred.resolve();
+		await waitFor(() => expect(input.value).toBe(''));
+	});
+
+	it('renders a failed submit as an accessible Pixi error and preserves the draft for retry', async () => {
+		mockSubmitInput.mockRejectedValueOnce(new Error('bridge unavailable'));
+		const { container, getByLabelText, getByText } = render(
+			IllustratedNotebookGame,
+		);
+		const input = getByLabelText('Player intent') as HTMLInputElement;
+
+		await fireEvent.input(input, { target: { value: 'look around' } });
+		await fireEvent.keyDown(input, { key: 'Enter' });
+
+		await waitFor(() => expect(input.dataset.commandState).toBe('error'));
+		expect(lastRenderState?.command.error).toContain('bridge unavailable');
+		expect(input.value).toBe('look around');
+		expect(input.getAttribute('aria-invalid')).toBe('true');
+		expect(getByText(/Ink blotted — Could not send input/)).toBeTruthy();
+		expect(container.querySelector('.input-wrapper')).toBeNull();
+		expect(container.querySelector('.input-form')).toBeNull();
+
+		await fireEvent.input(input, { target: { value: 'look' } });
+		await waitFor(() => expect(input.dataset.commandState).toBe('typing'));
+		expect(input.getAttribute('aria-invalid')).toBe('false');
 	});
 
 	it('routes notebook tabs and cards through overlay state', async () => {
