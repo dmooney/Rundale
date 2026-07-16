@@ -1,8 +1,13 @@
 import { defineConfig, devices } from '@playwright/test';
 
-import { playwrightWebServerConfig } from './scripts/playwright-worktree-server.js';
+import {
+	playwrightWebServerConfig,
+	resolvePlaywrightPort,
+} from './scripts/playwright-worktree-server.js';
 
-const testPort = process.env.PARISH_TEST_PORT || 3099;
+// Playwright evaluates the config again in worker processes; the resolver
+// publishes the allocated value so every evaluation uses the same port.
+const testPort = await resolvePlaywrightPort();
 
 /**
  * Playwright configuration for Parish E2E tests.

@@ -1,10 +1,11 @@
-import { execFileSync, spawn, spawnSync } from 'node:child_process';
+import { execFileSync, spawn } from 'node:child_process';
 import { createHash, randomBytes } from 'node:crypto';
 import {
 	chmodSync,
-	copyFileSync,
-	linkSync,
+	closeSync,
+	futimesSync,
 	mkdirSync,
+	openSync,
 	readdirSync,
 	readFileSync,
 	realpathSync,
@@ -13,6 +14,7 @@ import {
 	statSync,
 	writeFileSync,
 } from 'node:fs';
+import { createServer as createNetServer } from 'node:net';
 import { hostname } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -25,22 +27,71 @@ export const PLAYWRIGHT_BUILD_LOCK_TIMEOUT_MS = 300_000;
 export const PLAYWRIGHT_SERVER_TIMEOUT_MS = 420_000;
 export const PLAYWRIGHT_SERVER_SHUTDOWN_TIMEOUT_MS = 10_000;
 export const PLAYWRIGHT_LOCK_STALE_GRACE_MS = 15_000;
+export const PLAYWRIGHT_LOCK_HEARTBEAT_MS = 2_000;
+export const PLAYWRIGHT_ARTIFACT_MAX_AGE_MS = 24 * 60 * 60 * 1_000;
+export const PLAYWRIGHT_MAX_CACHED_ARTIFACTS = 3;
+export const PLAYWRIGHT_BUILD_ID_HEADER = 'x-parish-playwright-build-id';
 
-export function playwrightWebServerConfig(port) {
-	return {
+const RUN_ID_PATTERN = /^[A-Za-z0-9_-]{16,128}$/;
+
+export async function allocateLoopbackPort() {
+	const reservation = createNetServer();
+	reservation.unref();
+	await new Promise((resolveListen, rejectListen) => {
+		reservation.once('error', rejectListen);
+		reservation.listen(0, '127.0.0.1', resolveListen);
+	});
+	const address = reservation.address();
+	if (!address || typeof address === 'string') {
+		reservation.close();
+		throw new Error('failed to allocate a loopback port for Playwright');
+	}
+	await new Promise((resolveClose, rejectClose) => {
+		reservation.close((error) => (error ? rejectClose(error) : resolveClose()));
+	});
+	return address.port;
+}
+
+export async function resolvePlaywrightPort(
+	environment = process.env,
+	allocate = allocateLoopbackPort,
+) {
+	if (environment.PARISH_TEST_PORT) return environment.PARISH_TEST_PORT;
+	const port = await allocate();
+	environment.PARISH_TEST_PORT = String(port);
+	return environment.PARISH_TEST_PORT;
+}
+
+export function playwrightWebServerConfig(
+	port,
+	{ platform = process.platform, runId = randomBytes(16).toString('hex') } = {},
+) {
+	if (!RUN_ID_PATTERN.test(runId)) {
+		throw new Error(
+			'Playwright run identity must be 16-128 URL-safe characters',
+		);
+	}
+	const config = {
 		command: `node scripts/playwright-worktree-server.js --port ${port}`,
-		url: `http://localhost:${port}/api/world-snapshot`,
+		url: `http://127.0.0.1:${port}/api/playwright-ready/${runId}`,
 		timeout: PLAYWRIGHT_SERVER_TIMEOUT_MS,
-		// Without this, Playwright force-kills the process group and the launcher
-		// cannot remove its preserved worktree-specific server binary.
-		gracefulShutdown: {
-			signal: 'SIGTERM',
-			timeout: PLAYWRIGHT_SERVER_SHUTDOWN_TIMEOUT_MS,
-		},
 		// A process from another worktree must never satisfy this test run.
 		reuseExistingServer: false,
-		env: { PARISH_MAX_SESSIONS: '500' },
+		env: {
+			PARISH_MAX_SESSIONS: '500',
+			PARISH_PLAYWRIGHT_RUN_ID: runId,
+		},
 	};
+	// Playwright explicitly ignores gracefulShutdown on Windows and taskkills
+	// the process tree. Artifact correctness therefore never depends on this;
+	// it remains a polite shutdown optimization only on POSIX hosts.
+	if (platform !== 'win32') {
+		config.gracefulShutdown = {
+			signal: 'SIGTERM',
+			timeout: PLAYWRIGHT_SERVER_SHUTDOWN_TIMEOUT_MS,
+		};
+	}
+	return config;
 }
 
 function commandOutput(command, args, cwd) {
@@ -105,6 +156,78 @@ export function collectInlineScriptHashes(distDir) {
 	return [...hashes].sort();
 }
 
+export function captureUiDist(distDir) {
+	try {
+		if (!statSync(distDir).isDirectory()) return undefined;
+	} catch (error) {
+		if (error?.code === 'ENOENT') return undefined;
+		throw error;
+	}
+
+	const files = [];
+	const pending = [{ absolute: distDir, relative: '' }];
+	while (pending.length > 0) {
+		const current = pending.pop();
+		let entries;
+		try {
+			entries = readdirSync(current.absolute, { withFileTypes: true }).sort(
+				(left, right) => left.name.localeCompare(right.name),
+			);
+		} catch (error) {
+			if (error?.code === 'ENOENT') return undefined;
+			throw error;
+		}
+		for (const entry of entries) {
+			const relative = current.relative
+				? `${current.relative}/${entry.name}`
+				: entry.name;
+			const absolute = join(current.absolute, entry.name);
+			if (entry.isDirectory()) {
+				pending.push({ absolute, relative });
+				continue;
+			}
+			if (!entry.isFile()) {
+				throw new Error(`UI dist contains unsupported entry: ${relative}`);
+			}
+			try {
+				files.push({
+					contents: readFileSync(absolute),
+					mode: statSync(absolute).mode,
+					relative,
+				});
+			} catch (error) {
+				if (error?.code === 'ENOENT') return undefined;
+				throw error;
+			}
+		}
+	}
+
+	files.sort((left, right) => left.relative.localeCompare(right.relative));
+	const digest = createHash('sha256');
+	const hashes = new Set();
+	for (const file of files) {
+		digest.update(file.relative);
+		digest.update('\0');
+		digest.update(String(file.contents.length));
+		digest.update('\0');
+		digest.update(file.contents);
+		digest.update('\0');
+		if (file.relative.toLowerCase().endsWith('.html')) {
+			for (const hash of inlineScriptHashesFromHtml(
+				file.contents.toString('utf8'),
+			)) {
+				hashes.add(hash);
+			}
+		}
+	}
+
+	return {
+		expectedHashes: [...hashes].sort(),
+		files,
+		fingerprint: digest.digest('hex'),
+	};
+}
+
 export function binaryContainsExpectedCsp(binary, expectedHashes) {
 	return (
 		expectedHashes.length > 0 &&
@@ -116,18 +239,68 @@ export function uiDistFingerprint(expectedHashes) {
 	return createHash('sha256').update(expectedHashes.join('\n')).digest('hex');
 }
 
-export function cargoRustcArgs(buildNonce) {
+export function playwrightBuildIdentity(worktreeRoot, uiFingerprint) {
+	return `pw-${worktreeKey(worktreeRoot)}-${uiFingerprint}`;
+}
+
+export function binaryContainsExpectedBuildIdentity(binary, buildIdentity) {
+	return binary.includes(Buffer.from(buildIdentity));
+}
+
+export function binaryContentDigest(binary) {
+	return createHash('sha256').update(binary).digest('hex');
+}
+
+export function cargoBuildArgs() {
 	return [
-		'rustc',
+		'build',
 		'--message-format=json-render-diagnostics',
 		'-p',
 		'parish-server',
 		'--bin',
 		'parish-server',
-		'--',
-		'-C',
-		`metadata=playwright_${buildNonce}`,
 	];
+}
+
+export function runCargoBuild(
+	args,
+	{ cwd = PARISH_DIR, env = process.env, maxBuffer = 64 * 1024 * 1024 } = {},
+) {
+	return new Promise((resolveBuild, rejectBuild) => {
+		const child = spawn('cargo', args, {
+			cwd,
+			env,
+			stdio: ['ignore', 'pipe', 'inherit'],
+		});
+		const chunks = [];
+		let length = 0;
+		let settled = false;
+		child.stdout.on('data', (chunk) => {
+			length += chunk.length;
+			if (length > maxBuffer) {
+				child.kill('SIGKILL');
+				if (!settled) {
+					settled = true;
+					rejectBuild(new Error('cargo JSON output exceeded 64 MiB'));
+				}
+				return;
+			}
+			chunks.push(chunk);
+		});
+		child.once('error', (error) => {
+			if (settled) return;
+			settled = true;
+			rejectBuild(error);
+		});
+		child.once('close', (status) => {
+			if (settled) return;
+			settled = true;
+			resolveBuild({
+				status,
+				stdout: Buffer.concat(chunks).toString('utf8'),
+			});
+		});
+	});
 }
 
 export function cargoExecutableFromMessages(output) {
@@ -153,15 +326,6 @@ export function cargoExecutableFromMessages(output) {
 		}
 	}
 	return executable;
-}
-
-function processIsAlive(pid) {
-	try {
-		process.kill(pid, 0);
-		return true;
-	} catch (error) {
-		return error?.code !== 'ESRCH';
-	}
 }
 
 function readLockOwner(lockPath, lockStat) {
@@ -204,43 +368,31 @@ export function removeAbandonedLock(
 		throw error;
 	}
 
-	let owner;
-	try {
-		owner = readLockOwner(lockPath, lockStat);
-	} catch (error) {
-		if (error?.code !== 'ENOENT' && !(error instanceof SyntaxError))
-			throw error;
-		// Missing and corrupt owner metadata get a grace period before recovery.
-		owner = undefined;
-	}
-
-	if (owner) {
-		if (owner.hostname !== hostname()) return false;
-		if (processIsAlive(owner.pid)) return false;
-		return quarantineLock(lockPath);
-	}
-
+	// A heartbeat lease is authoritative. PID existence is not: PIDs are
+	// reused, and a lock may be shared by containers or hosts with unrelated
+	// process namespaces. Fresh malformed files receive the same bounded grace.
 	if (now - lockStat.mtimeMs < staleGraceMs) return false;
 	return quarantineLock(lockPath);
 }
 
 function tryCreateLock(lockPath, token) {
-	const candidate = `${lockPath}.candidate-${process.pid}-${randomBytes(4).toString('hex')}`;
-	writeFileSync(
-		candidate,
-		JSON.stringify({ hostname: hostname(), pid: process.pid, token }),
-		{ flag: 'wx', mode: 0o600 },
-	);
+	let descriptor;
 	try {
-		// Hard-linking a fully-written candidate is an atomic create-if-absent.
-		// There is never a visible lock with missing or partial owner metadata.
-		linkSync(candidate, lockPath);
-		return true;
+		descriptor = openSync(lockPath, 'wx', 0o600);
 	} catch (error) {
-		if (error?.code === 'EEXIST') return false;
+		if (error?.code === 'EEXIST') return undefined;
 		throw error;
-	} finally {
-		rmSync(candidate, { force: true });
+	}
+	try {
+		writeFileSync(
+			descriptor,
+			JSON.stringify({ hostname: hostname(), pid: process.pid, token }),
+		);
+		return descriptor;
+	} catch (error) {
+		closeSync(descriptor);
+		rmSync(lockPath, { force: true });
+		throw error;
 	}
 }
 
@@ -251,22 +403,52 @@ export async function acquireBuildLock(
 		timeoutMs = PLAYWRIGHT_BUILD_LOCK_TIMEOUT_MS,
 		pollMs = 100,
 		staleGraceMs = PLAYWRIGHT_LOCK_STALE_GRACE_MS,
+		heartbeatMs = PLAYWRIGHT_LOCK_HEARTBEAT_MS,
 	} = {},
 ) {
+	if (heartbeatMs <= 0 || heartbeatMs * 3 >= staleGraceMs) {
+		throw new Error(
+			'build-lock heartbeat must be less than one-third of its stale grace',
+		);
+	}
 	mkdirSync(dirname(lockPath), { recursive: true });
 	const deadline = Date.now() + timeoutMs;
 	const token = randomBytes(16).toString('hex');
 
 	while (Date.now() < deadline) {
-		if (tryCreateLock(lockPath, token)) {
-			return () => {
+		const descriptor = tryCreateLock(lockPath, token);
+		if (descriptor !== undefined) {
+			let leaseError;
+			const refresh = () => {
 				try {
+					const now = new Date();
+					futimesSync(descriptor, now, now);
+				} catch (error) {
+					leaseError = error;
+				}
+			};
+			const heartbeat = setInterval(refresh, heartbeatMs);
+			heartbeat.unref();
+			return {
+				assertOwned() {
+					if (leaseError) throw leaseError;
 					const lockStat = statSync(lockPath);
 					const owner = readLockOwner(lockPath, lockStat);
-					if (owner?.token === token) rmSync(lockPath, { force: true });
-				} catch (error) {
-					if (error?.code !== 'ENOENT') throw error;
-				}
+					if (owner?.token !== token) {
+						throw new Error('Playwright server build lock lease was lost');
+					}
+				},
+				release() {
+					clearInterval(heartbeat);
+					closeSync(descriptor);
+					try {
+						const lockStat = statSync(lockPath);
+						const owner = readLockOwner(lockPath, lockStat);
+						if (owner?.token === token) rmSync(lockPath, { force: true });
+					} catch (error) {
+						if (error?.code !== 'ENOENT') throw error;
+					}
+				},
 			};
 		}
 		if (!removeAbandonedLock(lockPath, { staleGraceMs })) {
@@ -290,17 +472,92 @@ function effectiveCargoTarget() {
 	return resolve(metadata.target_directory);
 }
 
-export function pruneOldCopies(
-	directory,
+function removePrunable(path, removePath = rmSync) {
+	try {
+		removePath(path, { force: true, recursive: true });
+		return true;
+	} catch (error) {
+		if (['EBUSY', 'ENOENT', 'EPERM'].includes(error?.code)) return false;
+		throw error;
+	}
+}
+
+export function pruneLegacyLockCandidates(
+	targetDir,
 	{
 		now = Date.now(),
 		readDirectory = readdirSync,
 		statPath = statSync,
 		removePath = rmSync,
+		staleGraceMs = PLAYWRIGHT_LOCK_STALE_GRACE_MS,
 	} = {},
 ) {
-	const oldestAllowed = now - 24 * 60 * 60 * 1000;
-	const pending = [directory];
+	let entries;
+	try {
+		entries = readDirectory(targetDir, { withFileTypes: true });
+	} catch (error) {
+		if (error?.code === 'ENOENT') return;
+		throw error;
+	}
+	for (const entry of entries) {
+		if (
+			!entry.name.startsWith(
+				'.playwright-parish-server-build.lock.candidate-',
+			) &&
+			!entry.name.startsWith('.playwright-parish-server-build.lock.abandoned-')
+		)
+			continue;
+		const path = join(targetDir, entry.name);
+		try {
+			if (now - statPath(path).mtimeMs >= staleGraceMs) {
+				removePrunable(path, removePath);
+			}
+		} catch (error) {
+			if (error?.code !== 'ENOENT') throw error;
+		}
+	}
+}
+
+function pruneCacheGroup(
+	artifacts,
+	{ keepPaths, maxArtifacts, now, removePath, staleGraceMs },
+) {
+	const retained = artifacts
+		.filter((artifact) => {
+			if (keepPaths.has(resolve(artifact.path))) return true;
+			if (now - artifact.mtimeMs >= PLAYWRIGHT_ARTIFACT_MAX_AGE_MS) {
+				return !removePrunable(artifact.path, removePath);
+			}
+			return true;
+		})
+		.sort((left, right) => right.mtimeMs - left.mtimeMs);
+
+	let kept = retained.filter((artifact) =>
+		keepPaths.has(resolve(artifact.path)),
+	).length;
+	for (const artifact of retained) {
+		if (keepPaths.has(resolve(artifact.path))) continue;
+		kept += 1;
+		if (kept > maxArtifacts && now - artifact.mtimeMs >= staleGraceMs) {
+			removePrunable(artifact.path, removePath);
+		}
+	}
+}
+
+export function pruneServerArtifacts(
+	serverRoot,
+	{
+		keepPaths: keep = [],
+		maxArtifacts = PLAYWRIGHT_MAX_CACHED_ARTIFACTS,
+		now = Date.now(),
+		readDirectory = readdirSync,
+		statPath = statSync,
+		removePath = rmSync,
+		staleGraceMs = PLAYWRIGHT_LOCK_STALE_GRACE_MS,
+	} = {},
+) {
+	const keepPaths = new Set(keep.map((path) => resolve(path)));
+	const pending = [serverRoot];
 	while (pending.length > 0) {
 		const current = pending.pop();
 		let entries;
@@ -310,91 +567,228 @@ export function pruneOldCopies(
 			if (error?.code === 'ENOENT') continue;
 			throw error;
 		}
+
+		const binaries = [];
+		const snapshots = [];
 		for (const entry of entries) {
 			const path = join(current, entry.name);
-			if (entry.isDirectory()) {
-				pending.push(path);
+			let pathStat;
+			try {
+				pathStat = statPath(path);
+			} catch (error) {
+				if (error?.code === 'ENOENT') continue;
+				throw error;
+			}
+			if (entry.name.includes('.candidate-')) {
+				if (now - pathStat.mtimeMs >= staleGraceMs) {
+					removePrunable(path, removePath);
+				}
 				continue;
 			}
-			if (!entry.isFile() || !entry.name.startsWith('parish-server-')) continue;
-			try {
-				if (statPath(path).mtimeMs < oldestAllowed) {
-					removePath(path, { force: true });
+			if (entry.name.startsWith('.playwright-ready-')) {
+				if (now - pathStat.mtimeMs >= PLAYWRIGHT_ARTIFACT_MAX_AGE_MS) {
+					removePrunable(path, removePath);
 				}
-			} catch (error) {
-				if (error?.code !== 'ENOENT') throw error;
+				continue;
 			}
+			if (entry.isFile() && entry.name.startsWith('parish-server-')) {
+				binaries.push({ path, mtimeMs: pathStat.mtimeMs });
+				continue;
+			}
+			if (entry.isDirectory() && entry.name.startsWith('ui-dist-')) {
+				snapshots.push({ path, mtimeMs: pathStat.mtimeMs });
+				continue;
+			}
+			if (entry.isDirectory()) pending.push(path);
+		}
+
+		for (const artifacts of [binaries, snapshots]) {
+			pruneCacheGroup(artifacts, {
+				keepPaths,
+				maxArtifacts,
+				now,
+				removePath,
+				staleGraceMs,
+			});
 		}
 	}
 }
 
-export async function prepareIsolatedServerBinary() {
+export function publishUiSnapshot(outputDir, capture) {
+	const destination = join(outputDir, `ui-dist-${capture.fingerprint}`);
+	const existing = captureUiDist(destination);
+	if (existing) {
+		if (existing.fingerprint !== capture.fingerprint) {
+			throw new Error(
+				'cached Playwright UI snapshot failed content validation',
+			);
+		}
+		return destination;
+	}
+
+	const candidate = join(
+		outputDir,
+		`.ui-dist-${capture.fingerprint}.candidate-${process.pid}-${randomBytes(6).toString('hex')}`,
+	);
+	mkdirSync(candidate, { recursive: false });
+	try {
+		for (const file of capture.files) {
+			const path = join(candidate, ...file.relative.split('/'));
+			mkdirSync(dirname(path), { recursive: true });
+			writeFileSync(path, file.contents, { mode: file.mode });
+		}
+		const copied = captureUiDist(candidate);
+		if (copied?.fingerprint !== capture.fingerprint) {
+			throw new Error(
+				'copied Playwright UI snapshot failed content validation',
+			);
+		}
+		try {
+			renameSync(candidate, destination);
+		} catch (error) {
+			if (!['EEXIST', 'ENOTEMPTY'].includes(error?.code)) throw error;
+			const raced = captureUiDist(destination);
+			if (raced?.fingerprint !== capture.fingerprint) throw error;
+		}
+		return destination;
+	} finally {
+		rmSync(candidate, { force: true, recursive: true });
+	}
+}
+
+export function publishCachedBinary(outputDir, binary, mode) {
+	const digest = binaryContentDigest(binary);
+	const destination = join(
+		outputDir,
+		`parish-server-${digest}${EXECUTABLE_SUFFIX}`,
+	);
+	try {
+		const existing = readFileSync(destination);
+		if (binaryContentDigest(existing) !== digest) {
+			throw new Error('content-addressed Playwright server cache is corrupt');
+		}
+		return destination;
+	} catch (error) {
+		if (error?.code !== 'ENOENT') throw error;
+	}
+
+	const candidate = `${destination}.candidate-${process.pid}-${randomBytes(6).toString('hex')}`;
+	try {
+		writeFileSync(candidate, binary, { flag: 'wx', mode });
+		chmodSync(candidate, mode);
+		try {
+			renameSync(candidate, destination);
+		} catch (error) {
+			if (!['EEXIST', 'ENOTEMPTY'].includes(error?.code)) throw error;
+			const raced = readFileSync(destination);
+			if (binaryContentDigest(raced) !== digest) throw error;
+		}
+		return destination;
+	} finally {
+		rmSync(candidate, { force: true });
+	}
+}
+
+export async function prepareIsolatedServerBinary({
+	afterCargoBuild,
+	cargoRunner = runCargoBuild,
+	maxAttempts = 3,
+} = {}) {
 	const worktreeRoot = realpathSync(
 		commandOutput('git', ['rev-parse', '--show-toplevel'], PARISH_DIR),
 	);
 	const targetDir = effectiveCargoTarget();
-	const expectedHashes = collectInlineScriptHashes(join(UI_DIR, 'dist'));
-	if (expectedHashes.length === 0) {
-		throw new Error(
-			'UI dist has no inline script hashes; run the UI build before Playwright',
-		);
-	}
-
 	const serverRoot = join(targetDir, 'playwright-servers');
 	const outputDir = join(serverRoot, worktreeKey(worktreeRoot));
-	pruneOldCopies(serverRoot);
 	mkdirSync(outputDir, { recursive: true });
-	const releaseLock = await acquireBuildLock(
+	pruneLegacyLockCandidates(targetDir);
+
+	const lease = await acquireBuildLock(
 		join(targetDir, '.playwright-parish-server-build.lock'),
 	);
-
 	try {
-		for (let attempt = 1; attempt <= 3; attempt += 1) {
-			const nonce = `${process.pid}_${Date.now()}_${randomBytes(6).toString('hex')}`;
-			const build = spawnSync('cargo', cargoRustcArgs(nonce), {
+		pruneServerArtifacts(serverRoot);
+		for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+			lease.assertOwned();
+			const capture = captureUiDist(join(UI_DIR, 'dist'));
+			if (!capture || capture.expectedHashes.length === 0) {
+				throw new Error(
+					'UI dist has no inline script hashes; run the UI build before Playwright',
+				);
+			}
+			const staticDir = publishUiSnapshot(outputDir, capture);
+			const sourceAfterCopy = captureUiDist(join(UI_DIR, 'dist'));
+			if (sourceAfterCopy?.fingerprint !== capture.fingerprint) {
+				if (attempt === maxAttempts) {
+					throw new Error(
+						'UI dist changed repeatedly while Playwright was snapshotting it',
+					);
+				}
+				continue;
+			}
+
+			const buildId = playwrightBuildIdentity(
+				worktreeRoot,
+				capture.fingerprint,
+			);
+			const build = await cargoRunner(cargoBuildArgs(), {
 				cwd: PARISH_DIR,
-				encoding: 'utf8',
 				env: {
 					...process.env,
-					PARISH_UI_DIST_DIGEST: uiDistFingerprint(expectedHashes),
+					PARISH_PLAYWRIGHT_BUILD_ID: buildId,
+					PARISH_UI_DIST_DIGEST: capture.fingerprint,
+					PARISH_UI_DIST_DIR: staticDir,
 				},
-				maxBuffer: 64 * 1024 * 1024,
-				stdio: ['ignore', 'pipe', 'inherit'],
 			});
-			if (build.error) throw build.error;
 			const source = cargoExecutableFromMessages(build.stdout ?? '');
 			if (build.status !== 0) {
-				throw new Error(`cargo rustc failed with status ${build.status}`);
+				throw new Error(`cargo build failed with status ${build.status}`);
 			}
 			if (!source) {
 				throw new Error(
-					'cargo rustc did not report a parish-server executable',
+					'cargo build did not report a parish-server executable',
 				);
 			}
-			const destination = join(
-				outputDir,
-				`parish-server-${nonce}${EXECUTABLE_SUFFIX}`,
-			);
-			const temporary = `${destination}.tmp`;
-			copyFileSync(source, temporary);
-			chmodSync(temporary, statSync(source).mode);
-			renameSync(temporary, destination);
+			if (afterCargoBuild) {
+				await afterCargoBuild({ attempt, buildId, source, staticDir });
+			}
+			lease.assertOwned();
 
+			// Read the shared Cargo output once. An ordinary Cargo invocation does
+			// not honor our outer lock, so identity validation—not its pathname—is
+			// what proves this immutable snapshot came from our build.
+			const binary = readFileSync(source);
 			if (
-				binaryContainsExpectedCsp(readFileSync(destination), expectedHashes)
+				!binaryContainsExpectedBuildIdentity(binary, buildId) ||
+				!binaryContainsExpectedCsp(binary, capture.expectedHashes)
 			) {
-				return { expectedHashes, path: destination };
+				if (attempt === maxAttempts) {
+					throw new Error(
+						"Cargo's shared parish-server output never matched this worktree's build identity and CSP",
+					);
+				}
+				continue;
 			}
 
-			rmSync(destination, { force: true });
-			if (attempt === 3) {
-				throw new Error(
-					"preserved parish-server binary did not contain this worktree's CSP hashes",
-				);
-			}
+			const path = publishCachedBinary(
+				outputDir,
+				binary,
+				statSync(source).mode,
+			);
+			pruneServerArtifacts(serverRoot, {
+				keepPaths: [path, staticDir],
+			});
+			return {
+				attempts: attempt,
+				buildId,
+				expectedHashes: capture.expectedHashes,
+				outputDir,
+				path,
+				staticDir,
+			};
 		}
 	} finally {
-		releaseLock();
+		lease.release();
 	}
 
 	throw new Error('unreachable: parish-server preparation exhausted retries');
@@ -430,77 +824,129 @@ export function assertServedCspCoherent(html, csp, expectedHashes) {
 	}
 }
 
-async function waitForServedCsp(port, expectedHashes, server) {
-	const deadline = Date.now() + 30_000;
+function readyMarkerPayload(runId, buildId) {
+	return `${runId}\n${buildId}\n`;
+}
+
+export function publishReadyMarker(readyFile, runId, buildId) {
+	const payload = readyMarkerPayload(runId, buildId);
+	try {
+		if (readFileSync(readyFile, 'utf8') === payload) return;
+		throw new Error(
+			'Playwright readiness marker contains an unexpected identity',
+		);
+	} catch (error) {
+		if (error?.code !== 'ENOENT') throw error;
+	}
+	const candidate = `${readyFile}.candidate-${process.pid}-${randomBytes(6).toString('hex')}`;
+	try {
+		writeFileSync(candidate, payload, { flag: 'wx', mode: 0o600 });
+		renameSync(candidate, readyFile);
+	} finally {
+		rmSync(candidate, { force: true });
+	}
+}
+
+async function fetchTextBeforeDeadline(url, deadline, fetchImpl) {
+	const remaining = deadline - Date.now();
+	if (remaining <= 0)
+		throw new Error('Playwright server validation deadline elapsed');
+	const controller = new AbortController();
+	const timer = setTimeout(() => controller.abort(), remaining);
+	try {
+		const response = await fetchImpl(url, { signal: controller.signal });
+		const body = await response.text();
+		return { body, response };
+	} finally {
+		clearTimeout(timer);
+	}
+}
+
+export async function waitForServedCsp({
+	buildId,
+	expectedHashes,
+	fetchImpl = fetch,
+	port,
+	readyFile,
+	runId,
+	server,
+	timeoutMs = 30_000,
+}) {
+	const deadline = Date.now() + timeoutMs;
 	let lastError;
 	while (Date.now() < deadline) {
 		if (server.exitCode !== null) {
-			throw new Error(`parish-server exited before CSP validation`);
+			throw new Error('parish-server exited before identity/CSP validation');
 		}
 		try {
-			const response = await fetch(`http://127.0.0.1:${port}/`);
-			if (response.ok) {
-				const csp = response.headers.get('content-security-policy') ?? '';
-				assertServedCspCoherent(await response.text(), csp, expectedHashes);
-				return;
+			const identityUrl = `http://127.0.0.1:${port}/api/playwright-ready/${encodeURIComponent(runId)}`;
+			const identity = await fetchTextBeforeDeadline(
+				identityUrl,
+				deadline,
+				fetchImpl,
+			);
+			const servedBuildId = identity.response.headers.get(
+				PLAYWRIGHT_BUILD_ID_HEADER,
+			);
+			if (
+				(identity.response.status === 200 ||
+					identity.response.status === 503) &&
+				servedBuildId !== buildId
+			) {
+				throw new Error(
+					'live server build identity does not match this worktree',
+				);
 			}
-			lastError = new Error(`server returned HTTP ${response.status}`);
+			if (identity.response.status === 200) return;
+			if (identity.response.status === 503) {
+				const root = await fetchTextBeforeDeadline(
+					`http://127.0.0.1:${port}/`,
+					deadline,
+					fetchImpl,
+				);
+				if (!root.response.ok) {
+					throw new Error(`server returned HTTP ${root.response.status}`);
+				}
+				const csp = root.response.headers.get('content-security-policy') ?? '';
+				assertServedCspCoherent(root.body, csp, expectedHashes);
+				publishReadyMarker(readyFile, runId, buildId);
+				continue;
+			}
+			if (identity.response.status === 404) {
+				lastError = new Error(
+					'another Playwright run owns the listener on this port',
+				);
+			} else {
+				lastError = new Error(
+					`readiness endpoint returned HTTP ${identity.response.status}`,
+				);
+			}
 		} catch (error) {
 			lastError = error;
 		}
-		await delay(100);
+		const remaining = deadline - Date.now();
+		if (remaining > 0) await delay(Math.min(100, remaining));
 	}
 	throw new Error(
-		`timed out validating served CSP/HTML coherence: ${lastError?.message ?? 'server unavailable'}`,
+		`timed out validating served identity/CSP/HTML coherence: ${lastError?.message ?? 'server unavailable'}`,
 	);
 }
 
 export function superviseServer(
 	command,
 	args,
-	{ cwd = PARISH_DIR, env = process.env, preservedBinary } = {},
+	{ cwd = PARISH_DIR, env = process.env } = {},
 ) {
 	const server = spawn(command, args, { cwd, env, stdio: 'inherit' });
-	let cleaned = false;
-	const cleanup = () => {
-		if (!preservedBinary || cleaned) return;
-		try {
-			rmSync(preservedBinary, { force: true });
-			cleaned = true;
-		} catch (error) {
-			if (error?.code !== 'EBUSY' && error?.code !== 'EPERM') throw error;
-		}
-	};
-
-	const signalHandlers = new Map();
-	for (const signal of ['SIGINT', 'SIGTERM']) {
-		const handler = () => {
-			cleanup();
-			server.kill(signal);
-		};
-		signalHandlers.set(signal, handler);
-		process.once(signal, handler);
-	}
-	process.once('exit', cleanup);
-
-	const unregister = () => {
-		for (const [signal, handler] of signalHandlers) {
-			process.removeListener(signal, handler);
-		}
-	};
 	server.once('error', (error) => {
-		cleanup();
-		unregister();
 		console.error(error);
 		process.exitCode = 1;
 	});
 	server.once('exit', (code, signal) => {
-		cleanup();
-		unregister();
 		process.exitCode = code ?? (signal ? 0 : 1);
 	});
 
-	return { cleanup, server };
+	return { server };
 }
 
 function parsePort(args) {
@@ -516,34 +962,37 @@ function parsePort(args) {
 
 async function main() {
 	const port = parsePort(process.argv.slice(2));
-	let command;
-	let args;
-	let preservedBinary;
-	let expectedHashes;
-
-	if (process.env.GITHUB_ACTIONS === 'true') {
-		// GitHub-hosted jobs have an isolated filesystem and already prebuild this
-		// exact binary, so keep the established Cargo cache path there.
-		command = 'cargo';
-		args = ['run', '-p', 'parish-server', '--', '--port', port];
-	} else {
-		const prepared = await prepareIsolatedServerBinary();
-		preservedBinary = prepared.path;
-		expectedHashes = prepared.expectedHashes;
-		command = preservedBinary;
-		args = ['--port', port];
+	const runId = process.env.PARISH_PLAYWRIGHT_RUN_ID;
+	if (!runId || !RUN_ID_PATTERN.test(runId)) {
+		throw new Error('PARISH_PLAYWRIGHT_RUN_ID is missing or invalid');
 	}
-
-	const supervision = superviseServer(command, args, { preservedBinary });
-	if (expectedHashes) {
-		try {
-			await waitForServedCsp(port, expectedHashes, supervision.server);
-		} catch (error) {
-			supervision.cleanup();
-			supervision.server.kill('SIGTERM');
-			process.exitCode = 1;
-			throw error;
-		}
+	const prepared = await prepareIsolatedServerBinary();
+	const readyFile = join(prepared.outputDir, `.playwright-ready-${runId}`);
+	rmSync(readyFile, { force: true });
+	const env = {
+		...process.env,
+		PARISH_PLAYWRIGHT_BUILD_ID: prepared.buildId,
+		PARISH_PLAYWRIGHT_READY_FILE: readyFile,
+		PARISH_PLAYWRIGHT_RUN_ID: runId,
+	};
+	const supervision = superviseServer(
+		prepared.path,
+		['--port', port, '--static-dir', prepared.staticDir],
+		{ env },
+	);
+	try {
+		await waitForServedCsp({
+			buildId: prepared.buildId,
+			expectedHashes: prepared.expectedHashes,
+			port,
+			readyFile,
+			runId,
+			server: supervision.server,
+		});
+	} catch (error) {
+		supervision.server.kill('SIGTERM');
+		process.exitCode = 1;
+		throw error;
 	}
 }
 

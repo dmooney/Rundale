@@ -64,18 +64,27 @@ just screenshots                 # regenerate docs/screenshots/*.png
 ```
 
 `just ui-e2e` needs no per-worktree setup. Locally, the managed-server helper
-uses the normal shared Cargo target for dependency reuse, gives the final
-`parish-server` crate a unique build identity, keys its build script to the
-invoking UI hash set, and preserves a validated copy
-whose embedded CSP hashes match the invoking worktree's UI `dist`. An outer
-cross-process lock keeps concurrent Playwright builds coherent. GitHub-hosted
-jobs already have isolated filesystems, so they retain the existing Cargo
-cache and prebuilt-binary path.
+uses the normal shared Cargo target for dependency reuse, snapshots the
+invoking worktree's UI `dist`, embeds a worktree/snapshot build identity, and
+publishes a content-addressed server copy only after validating that identity
+and its CSP hashes. The server then echoes the identity through a per-run
+readiness URL before Playwright proceeds. Default runs allocate a free
+loopback port; set `PARISH_TEST_PORT` only when a fixed port is required. A
+heartbeat lease serializes helper builds, while bounded cache and candidate
+pruning recover from abrupt process death on every supported OS. The same path
+runs in local, GitHub-hosted, and self-hosted environments.
 
 To unit-test the isolation helper from `parish/apps/ui/`:
 
 ```sh
 node --test scripts/playwright-worktree-server.test.js
+```
+
+To run the slower integration race that overwrites Cargo's shared final binary
+with an ordinary build between helper build and copy:
+
+```sh
+npm run test:playwright-launcher-integration
 ```
 
 To update Playwright baselines after intentional UI changes:

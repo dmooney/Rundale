@@ -5,6 +5,7 @@ import {
 	existsSync,
 	mkdirSync,
 	mkdtempSync,
+	readdirSync,
 	readFileSync,
 	rmSync,
 	statSync,
@@ -12,44 +13,71 @@ import {
 	writeFileSync,
 } from 'node:fs';
 import { createServer } from 'node:http';
-import { tmpdir } from 'node:os';
+import { hostname, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 
 import {
+	PLAYWRIGHT_ARTIFACT_MAX_AGE_MS,
+	PLAYWRIGHT_BUILD_ID_HEADER,
 	PLAYWRIGHT_BUILD_LOCK_TIMEOUT_MS,
 	PLAYWRIGHT_SERVER_SHUTDOWN_TIMEOUT_MS,
 	PLAYWRIGHT_SERVER_TIMEOUT_MS,
 	acquireBuildLock,
+	allocateLoopbackPort,
 	assertServedCspCoherent,
+	binaryContainsExpectedBuildIdentity,
 	binaryContainsExpectedCsp,
+	binaryContentDigest,
+	captureUiDist,
+	cargoBuildArgs,
 	cargoExecutableFromMessages,
-	cargoRustcArgs,
 	collectInlineScriptHashes,
 	inlineScriptHashesFromHtml,
+	playwrightBuildIdentity,
 	playwrightWebServerConfig,
-	pruneOldCopies,
+	pruneLegacyLockCandidates,
+	pruneServerArtifacts,
+	publishCachedBinary,
+	publishReadyMarker,
+	publishUiSnapshot,
+	resolvePlaywrightPort,
 	uiDistFingerprint,
+	waitForServedCsp,
 	worktreeKey,
 } from './playwright-worktree-server.js';
 
 const helperUrl = new URL('./playwright-worktree-server.js', import.meta.url)
 	.href;
 
-function backdate(path) {
-	const old = new Date(Date.now() - 60_000);
+function backdate(path, milliseconds = 60_000) {
+	const old = new Date(Date.now() - milliseconds);
 	utimesSync(path, old, old);
 }
 
-test('worktree keys are stable and distinct', () => {
+async function closeServer(server) {
+	server.close();
+	server.closeAllConnections?.();
+	await once(server, 'close');
+}
+
+test('worktree and build identities are stable and distinct', () => {
 	assert.equal(worktreeKey('/tmp/worktree-a'), worktreeKey('/tmp/worktree-a'));
 	assert.notEqual(
 		worktreeKey('/tmp/worktree-a'),
 		worktreeKey('/tmp/worktree-b'),
 	);
+	assert.equal(
+		playwrightBuildIdentity('/tmp/worktree-a', 'ui-a'),
+		playwrightBuildIdentity('/tmp/worktree-a', 'ui-a'),
+	);
+	assert.notEqual(
+		playwrightBuildIdentity('/tmp/worktree-a', 'ui-a'),
+		playwrightBuildIdentity('/tmp/worktree-b', 'ui-a'),
+	);
 });
 
-test('managed config refuses to reuse a responsive stale local endpoint', async () => {
+test('managed config uses per-run readiness and a Windows-correct shutdown policy', async () => {
 	const stale = createServer((_request, response) => {
 		response.writeHead(200, { 'content-type': 'application/json' });
 		response.end('{}');
@@ -59,18 +87,71 @@ test('managed config refuses to reuse a responsive stale local endpoint', async 
 	try {
 		const address = stale.address();
 		assert.equal(typeof address, 'object');
-		const config = playwrightWebServerConfig(address.port);
-		assert.equal((await fetch(config.url)).status, 200);
-		assert.equal(config.reuseExistingServer, false);
-		assert.match(config.command, /playwright-worktree-server\.js/);
-		assert.deepEqual(config.gracefulShutdown, {
+		const windows = playwrightWebServerConfig(address.port, {
+			platform: 'win32',
+			runId: '0123456789abcdef',
+		});
+		const posix = playwrightWebServerConfig(address.port, {
+			platform: 'linux',
+			runId: 'fedcba9876543210',
+		});
+		assert.equal((await fetch(windows.url)).status, 200);
+		assert.equal(windows.reuseExistingServer, false);
+		assert.match(windows.command, /playwright-worktree-server\.js/);
+		assert.match(windows.url, /playwright-ready\/0123456789abcdef$/);
+		assert.equal(windows.env.PARISH_PLAYWRIGHT_RUN_ID, '0123456789abcdef');
+		assert.equal('gracefulShutdown' in windows, false);
+		assert.deepEqual(posix.gracefulShutdown, {
 			signal: 'SIGTERM',
 			timeout: PLAYWRIGHT_SERVER_SHUTDOWN_TIMEOUT_MS,
 		});
+		assert.notEqual(posix.url, windows.url);
 	} finally {
-		stale.close();
-		await once(stale, 'close');
+		await closeServer(stale);
 	}
+});
+
+test('GitHub-hosted and self-hosted Actions retain the identity helper path', () => {
+	const helperSource = readFileSync(new URL(helperUrl), 'utf8');
+	assert.doesNotMatch(helperSource, /GITHUB_ACTIONS/);
+	assert.doesNotMatch(helperSource, /\blinkSync\b/);
+
+	for (const runnerEnvironment of ['github-hosted', 'self-hosted']) {
+		const config = playwrightWebServerConfig(34567, {
+			platform: 'linux',
+			runId: `0123456789abcdef-${runnerEnvironment}`,
+		});
+		assert.match(config.command, /playwright-worktree-server\.js/);
+		assert.equal(
+			config.env.PARISH_PLAYWRIGHT_RUN_ID.includes(runnerEnvironment),
+			true,
+		);
+	}
+});
+
+test('default port allocation returns a bindable loopback port', async () => {
+	const port = await allocateLoopbackPort();
+	const server = createServer((_request, response) => response.end('ok'));
+	server.listen(port, '127.0.0.1');
+	await once(server, 'listening');
+	try {
+		assert.equal(server.address().port, port);
+	} finally {
+		await closeServer(server);
+	}
+});
+
+test('repeated config evaluation reuses the allocated port', async () => {
+	const environment = {};
+	let allocations = 0;
+	const allocate = async () => {
+		allocations += 1;
+		return 34567;
+	};
+	assert.equal(await resolvePlaywrightPort(environment, allocate), '34567');
+	assert.equal(await resolvePlaywrightPort(environment, allocate), '34567');
+	assert.equal(environment.PARISH_TEST_PORT, '34567');
+	assert.equal(allocations, 1);
 });
 
 test('server timeout leaves a full minute beyond the build-lock wait', () => {
@@ -98,16 +179,63 @@ test('missing dist returns no hashes so the launcher can report a helpful error'
 		collectInlineScriptHashes('/definitely/missing/parish-dist'),
 		[],
 	);
+	assert.equal(captureUiDist('/definitely/missing/parish-dist'), undefined);
 });
 
-test('preserved binary validation requires every expected CSP hash', () => {
+test('UI capture and published snapshot are content-addressed and immutable', () => {
+	const root = mkdtempSync(join(tmpdir(), 'parish-playwright-dist-'));
+	const source = join(root, 'source');
+	const cache = join(root, 'cache');
+	mkdirSync(join(source, 'assets'), { recursive: true });
+	mkdirSync(cache);
+	writeFileSync(join(source, 'index.html'), '<script>bootA()</script>');
+	writeFileSync(join(source, 'assets', 'app.js'), 'asset-a');
+	try {
+		const first = captureUiDist(source);
+		assert.equal(first.expectedHashes.length, 1);
+		const snapshot = publishUiSnapshot(cache, first);
+		assert.equal(captureUiDist(snapshot).fingerprint, first.fingerprint);
+
+		writeFileSync(join(source, 'index.html'), '<script>bootB()</script>');
+		const second = captureUiDist(source);
+		assert.notEqual(second.fingerprint, first.fingerprint);
+		assert.match(readFileSync(join(snapshot, 'index.html'), 'utf8'), /bootA/);
+		assert.equal(publishUiSnapshot(cache, first), snapshot);
+	} finally {
+		rmSync(root, { force: true, recursive: true });
+	}
+});
+
+test('binary validation requires CSP and embedded build identity', () => {
 	const hashes = ["'sha256-first='", "'sha256-second='"];
-	const coherent = Buffer.from(`prefix ${hashes.join(' ')} suffix`);
+	const buildId = 'pw-worktree-ui';
+	const coherent = Buffer.from(`prefix ${buildId} ${hashes.join(' ')} suffix`);
 	const stale = Buffer.from(`prefix ${hashes[0]} suffix`);
 
 	assert.equal(binaryContainsExpectedCsp(coherent, hashes), true);
 	assert.equal(binaryContainsExpectedCsp(stale, hashes), false);
 	assert.equal(binaryContainsExpectedCsp(coherent, []), false);
+	assert.equal(binaryContainsExpectedBuildIdentity(coherent, buildId), true);
+	assert.equal(binaryContainsExpectedBuildIdentity(stale, buildId), false);
+	assert.equal(binaryContentDigest(coherent), binaryContentDigest(coherent));
+});
+
+test('content-addressed server cache reuses an identical binary', () => {
+	const root = mkdtempSync(join(tmpdir(), 'parish-playwright-binary-'));
+	const binary = Buffer.from('fake executable');
+	try {
+		const first = publishCachedBinary(root, binary, 0o755);
+		const second = publishCachedBinary(root, binary, 0o755);
+		assert.equal(first, second);
+		assert.deepEqual(readFileSync(first), binary);
+		assert.equal(
+			readdirSync(root).filter((name) => name.startsWith('parish-server-'))
+				.length,
+			1,
+		);
+	} finally {
+		rmSync(root, { force: true, recursive: true });
+	}
 });
 
 test('served CSP must exactly match the dist and authorize served HTML', () => {
@@ -125,61 +253,87 @@ test('served CSP must exactly match the dist and authorize served HTML', () => {
 	);
 });
 
-test('UI dist fingerprints are stable and sensitive to the CSP hash set', () => {
+test('UI hash fingerprints are stable and sensitive to the CSP hash set', () => {
 	const first = uiDistFingerprint(["'sha256-first='"]);
 	assert.equal(first, uiDistFingerprint(["'sha256-first='"]));
 	assert.notEqual(first, uiDistFingerprint(["'sha256-second='"]));
 });
 
-test('cargo rustc reports the executable instead of assuming target/debug', () => {
-	assert.deepEqual(cargoRustcArgs('abc123'), [
-		'rustc',
+test('cargo build reports the executable instead of inventing a final filename', () => {
+	assert.deepEqual(cargoBuildArgs(), [
+		'build',
 		'--message-format=json-render-diagnostics',
 		'-p',
 		'parish-server',
 		'--bin',
 		'parish-server',
-		'--',
-		'-C',
-		'metadata=playwright_abc123',
 	]);
-	const crossTargetPath = '/target/aarch64-unknown-linux/debug/parish-server';
+	const sharedPath = '/target/debug/parish-server';
 	const output = JSON.stringify({
 		reason: 'compiler-artifact',
 		target: { kind: ['bin'], name: 'parish-server' },
-		executable: crossTargetPath,
+		executable: sharedPath,
 	});
-	assert.equal(cargoExecutableFromMessages(output), crossTargetPath);
+	assert.equal(cargoExecutableFromMessages(output), sharedPath);
 });
 
 test('build lock serializes callers until the owner releases it', async () => {
 	const root = mkdtempSync(join(tmpdir(), 'parish-playwright-lock-'));
 	const lock = join(root, 'build.lock');
-
 	try {
-		const releaseFirst = await acquireBuildLock(lock, {
+		const first = await acquireBuildLock(lock, {
+			heartbeatMs: 5,
 			pollMs: 5,
+			staleGraceMs: 50,
 			timeoutMs: 1_000,
 		});
 		assert.equal(statSync(lock).isFile(), true);
 		assert.doesNotThrow(() => JSON.parse(readFileSync(lock, 'utf8')));
 
 		let secondAcquired = false;
-		const second = acquireBuildLock(lock, {
+		const secondPromise = acquireBuildLock(lock, {
+			heartbeatMs: 5,
 			pollMs: 5,
+			staleGraceMs: 50,
 			timeoutMs: 1_000,
-		}).then((release) => {
+		}).then((lease) => {
 			secondAcquired = true;
-			return release;
+			return lease;
 		});
-
 		await new Promise((resolveDelay) => setTimeout(resolveDelay, 25));
 		assert.equal(secondAcquired, false);
-		releaseFirst();
+		first.release();
 
-		const releaseSecond = await second;
+		const second = await secondPromise;
 		assert.equal(secondAcquired, true);
-		releaseSecond();
+		second.release();
+	} finally {
+		rmSync(root, { force: true, recursive: true });
+	}
+});
+
+test('heartbeat keeps a valid lock fresh beyond the stale threshold', async () => {
+	const root = mkdtempSync(join(tmpdir(), 'parish-playwright-heartbeat-'));
+	const lock = join(root, 'build.lock');
+	try {
+		const first = await acquireBuildLock(lock, {
+			heartbeatMs: 5,
+			pollMs: 5,
+			staleGraceMs: 40,
+			timeoutMs: 1_000,
+		});
+		await new Promise((resolveDelay) => setTimeout(resolveDelay, 80));
+		await assert.rejects(
+			acquireBuildLock(lock, {
+				heartbeatMs: 5,
+				pollMs: 5,
+				staleGraceMs: 40,
+				timeoutMs: 30,
+			}),
+			/timed out/,
+		);
+		first.assertOwned();
+		first.release();
 	} finally {
 		rmSync(root, { force: true, recursive: true });
 	}
@@ -188,10 +342,11 @@ test('build lock serializes callers until the owner releases it', async () => {
 test('recent ownerless lock is protected, then recovered after it is stale', async () => {
 	const root = mkdtempSync(join(tmpdir(), 'parish-playwright-ownerless-'));
 	const lock = join(root, 'build.lock');
-	mkdirSync(lock);
+	writeFileSync(lock, '');
 	try {
 		await assert.rejects(
 			acquireBuildLock(lock, {
+				heartbeatMs: 10,
 				pollMs: 5,
 				staleGraceMs: 1_000,
 				timeoutMs: 30,
@@ -201,37 +356,85 @@ test('recent ownerless lock is protected, then recovered after it is stale', asy
 		assert.equal(existsSync(lock), true);
 
 		backdate(lock);
-		const release = await acquireBuildLock(lock, {
+		const lease = await acquireBuildLock(lock, {
+			heartbeatMs: 2,
 			pollMs: 5,
 			staleGraceMs: 10,
 			timeoutMs: 1_000,
 		});
-		release();
+		lease.release();
 		assert.equal(existsSync(lock), false);
 	} finally {
 		rmSync(root, { force: true, recursive: true });
 	}
 });
 
-test('stale corrupt owner is quarantined and later acquisition succeeds', async () => {
-	const root = mkdtempSync(join(tmpdir(), 'parish-playwright-corrupt-'));
+test('stale valid lock is bounded despite PID reuse or another hostname', async () => {
+	const root = mkdtempSync(join(tmpdir(), 'parish-playwright-reused-pid-'));
 	const lock = join(root, 'build.lock');
-	writeFileSync(lock, '{not-json');
+	writeFileSync(
+		lock,
+		JSON.stringify({
+			hostname: `${hostname()}-other`,
+			pid: process.pid,
+			token: 'old',
+		}),
+	);
 	backdate(lock);
 	try {
-		const release = await acquireBuildLock(lock, {
+		const lease = await acquireBuildLock(lock, {
+			heartbeatMs: 2,
 			pollMs: 5,
 			staleGraceMs: 10,
 			timeoutMs: 1_000,
 		});
-		release();
+		lease.release();
 		assert.equal(existsSync(lock), false);
 	} finally {
 		rmSync(root, { force: true, recursive: true });
 	}
 });
 
-test('pruning continues when another process deletes one candidate', () => {
+test('an abruptly killed lock owner is recoverable after its bounded lease', async () => {
+	const root = mkdtempSync(join(tmpdir(), 'parish-playwright-killed-owner-'));
+	const lock = join(root, 'build.lock');
+	const childScript = join(root, 'owner.mjs');
+	writeFileSync(
+		childScript,
+		`import { acquireBuildLock } from ${JSON.stringify(helperUrl)};\nawait acquireBuildLock(${JSON.stringify(lock)}, { heartbeatMs: 5, staleGraceMs: 40, timeoutMs: 1000 });\nconsole.log('locked');\nsetInterval(() => {}, 1000);\n`,
+	);
+	const owner = spawn(process.execPath, [childScript], {
+		stdio: ['ignore', 'pipe', 'inherit'],
+	});
+	owner.stdout.setEncoding('utf8');
+	let output = '';
+	owner.stdout.on('data', (chunk) => {
+		output += chunk;
+	});
+	try {
+		const deadline = Date.now() + 5_000;
+		while (!output.includes('locked') && Date.now() < deadline) {
+			await new Promise((resolveDelay) => setTimeout(resolveDelay, 10));
+		}
+		assert.match(output, /locked/);
+		owner.kill('SIGKILL');
+		await once(owner, 'exit');
+		await new Promise((resolveDelay) => setTimeout(resolveDelay, 60));
+		const recovered = await acquireBuildLock(lock, {
+			heartbeatMs: 5,
+			pollMs: 5,
+			staleGraceMs: 40,
+			timeoutMs: 1_000,
+		});
+		recovered.release();
+		assert.equal(existsSync(lock), false);
+	} finally {
+		if (owner.exitCode === null) owner.kill('SIGKILL');
+		rmSync(root, { force: true, recursive: true });
+	}
+});
+
+test('pruning continues when another process deletes one artifact', () => {
 	const root = mkdtempSync(join(tmpdir(), 'parish-playwright-prune-'));
 	const first = join(root, 'parish-server-first');
 	const second = join(root, 'parish-server-second');
@@ -240,8 +443,10 @@ test('pruning continues when another process deletes one candidate', () => {
 	backdate(first);
 	backdate(second);
 	try {
-		pruneOldCopies(root, {
-			now: Date.now() + 24 * 60 * 60 * 1000,
+		pruneServerArtifacts(root, {
+			maxArtifacts: 0,
+			now: Date.now(),
+			staleGraceMs: 10,
 			statPath(path) {
 				if (path === first) {
 					rmSync(path);
@@ -258,39 +463,185 @@ test('pruning continues when another process deletes one candidate', () => {
 	}
 });
 
-test('SIGTERM supervision removes the preserved binary before exit', async () => {
-	const root = mkdtempSync(join(tmpdir(), 'parish-playwright-supervisor-'));
-	const fakeServer = join(root, 'parish-server-test.mjs');
-	const launcher = join(root, 'launcher.mjs');
-	writeFileSync(
-		fakeServer,
-		"process.on('SIGTERM', () => process.exit(0)); console.log('fake-ready'); setInterval(() => {}, 1000);\n",
-	);
-	writeFileSync(
-		launcher,
-		`import { superviseServer } from ${JSON.stringify(helperUrl)};\nsuperviseServer(process.execPath, [${JSON.stringify(fakeServer)}], { cwd: ${JSON.stringify(root)}, preservedBinary: ${JSON.stringify(fakeServer)} });\n`,
-	);
-
-	const wrapper = spawn(process.execPath, [launcher], {
-		stdio: ['ignore', 'pipe', 'pipe'],
-	});
-	let output = '';
-	wrapper.stdout.setEncoding('utf8');
-	wrapper.stdout.on('data', (chunk) => {
-		output += chunk;
-	});
+test('pruning bounds reusable binaries and removes abrupt candidates', () => {
+	const root = mkdtempSync(join(tmpdir(), 'parish-playwright-cache-prune-'));
+	const worktree = join(root, 'worktree');
+	mkdirSync(worktree);
+	for (let index = 0; index < 5; index += 1) {
+		const binary = join(worktree, `parish-server-${index}`);
+		writeFileSync(binary, String(index));
+		backdate(binary, 60_000 + index * 1_000);
+	}
+	const candidate = join(worktree, '.ui-dist-x.candidate-dead');
+	mkdirSync(candidate);
+	writeFileSync(join(candidate, 'partial'), 'partial');
+	backdate(candidate);
 	try {
-		const deadline = Date.now() + 5_000;
-		while (!output.includes('fake-ready') && Date.now() < deadline) {
-			await new Promise((resolveDelay) => setTimeout(resolveDelay, 10));
-		}
-		assert.match(output, /fake-ready/);
-		wrapper.kill('SIGTERM');
-		const [code] = await once(wrapper, 'exit');
-		assert.equal(code, 0);
-		assert.equal(existsSync(fakeServer), false);
+		pruneServerArtifacts(root, {
+			maxArtifacts: 2,
+			staleGraceMs: 10,
+		});
+		assert.equal(existsSync(candidate), false);
+		assert.equal(
+			readdirSync(worktree).filter((name) => name.startsWith('parish-server-'))
+				.length,
+			2,
+		);
 	} finally {
-		if (wrapper.exitCode === null) wrapper.kill('SIGKILL');
+		rmSync(root, { force: true, recursive: true });
+	}
+});
+
+test('legacy hard-link candidates are pruned after the crash grace', () => {
+	const root = mkdtempSync(
+		join(tmpdir(), 'parish-playwright-legacy-candidate-'),
+	);
+	const stale = join(
+		root,
+		'.playwright-parish-server-build.lock.candidate-dead',
+	);
+	const recent = join(
+		root,
+		'.playwright-parish-server-build.lock.candidate-active',
+	);
+	const abandoned = join(
+		root,
+		'.playwright-parish-server-build.lock.abandoned-dead',
+	);
+	writeFileSync(stale, 'stale');
+	writeFileSync(recent, 'recent');
+	writeFileSync(abandoned, 'abandoned');
+	backdate(stale);
+	backdate(abandoned);
+	try {
+		pruneLegacyLockCandidates(root, { staleGraceMs: 1_000 });
+		assert.equal(existsSync(stale), false);
+		assert.equal(existsSync(abandoned), false);
+		assert.equal(existsSync(recent), true);
+	} finally {
+		rmSync(root, { force: true, recursive: true });
+	}
+});
+
+test('validated readiness marker gates the live build identity and CSP', async () => {
+	const root = mkdtempSync(join(tmpdir(), 'parish-playwright-ready-'));
+	const readyFile = join(root, '.playwright-ready-run');
+	const runId = '0123456789abcdef';
+	const buildId = 'pw-worktree-ui';
+	const html = '<script>boot()</script>';
+	const hashes = inlineScriptHashesFromHtml(html);
+	const csp = `default-src 'self'; script-src 'self' ${hashes.join(' ')}`;
+	const server = createServer((request, response) => {
+		if (request.url === `/api/playwright-ready/${runId}`) {
+			response.setHeader(PLAYWRIGHT_BUILD_ID_HEADER, buildId);
+			response.statusCode = existsSync(readyFile) ? 200 : 503;
+			response.end();
+			return;
+		}
+		response.setHeader('content-security-policy', csp);
+		response.end(html);
+	});
+	server.listen(0, '127.0.0.1');
+	await once(server, 'listening');
+	try {
+		await waitForServedCsp({
+			buildId,
+			expectedHashes: hashes,
+			port: server.address().port,
+			readyFile,
+			runId,
+			server: { exitCode: null },
+			timeoutMs: 1_000,
+		});
+		assert.equal(readFileSync(readyFile, 'utf8'), `${runId}\n${buildId}\n`);
+	} finally {
+		await closeServer(server);
+		rmSync(root, { force: true, recursive: true });
+	}
+});
+
+test('another run on the same port cannot satisfy readiness', async () => {
+	const root = mkdtempSync(join(tmpdir(), 'parish-playwright-owner-gate-'));
+	const readyFile = join(root, '.playwright-ready-b');
+	const ownerRun = '0123456789abcdef';
+	const waitingRun = 'fedcba9876543210';
+	const server = createServer((request, response) => {
+		response.statusCode = request.url?.endsWith(ownerRun) ? 503 : 404;
+		response.end();
+	});
+	server.listen(0, '127.0.0.1');
+	await once(server, 'listening');
+	try {
+		await assert.rejects(
+			waitForServedCsp({
+				buildId: 'pw-waiting',
+				expectedHashes: ["'sha256-unused='"],
+				port: server.address().port,
+				readyFile,
+				runId: waitingRun,
+				server: { exitCode: null },
+				timeoutMs: 100,
+			}),
+			/another Playwright run owns the listener/,
+		);
+		assert.equal(existsSync(readyFile), false);
+	} finally {
+		await closeServer(server);
+		rmSync(root, { force: true, recursive: true });
+	}
+});
+
+test('a hanging response is aborted at the validation deadline', async () => {
+	const root = mkdtempSync(join(tmpdir(), 'parish-playwright-hanging-'));
+	const server = createServer(() => {});
+	server.listen(0, '127.0.0.1');
+	await once(server, 'listening');
+	const started = Date.now();
+	try {
+		await assert.rejects(
+			waitForServedCsp({
+				buildId: 'pw-hanging',
+				expectedHashes: ["'sha256-unused='"],
+				port: server.address().port,
+				readyFile: join(root, '.ready'),
+				runId: '0123456789abcdef',
+				server: { exitCode: null },
+				timeoutMs: 75,
+			}),
+			/timed out validating/,
+		);
+		assert.ok(Date.now() - started < 1_000);
+	} finally {
+		await closeServer(server);
+		rmSync(root, { force: true, recursive: true });
+	}
+});
+
+test('ready-marker publication is idempotent but rejects an identity collision', () => {
+	const root = mkdtempSync(join(tmpdir(), 'parish-playwright-marker-'));
+	const marker = join(root, '.playwright-ready-test');
+	try {
+		publishReadyMarker(marker, '0123456789abcdef', 'build-a');
+		publishReadyMarker(marker, '0123456789abcdef', 'build-a');
+		assert.throws(
+			() => publishReadyMarker(marker, '0123456789abcdef', 'build-b'),
+			/unexpected identity/,
+		);
+	} finally {
+		rmSync(root, { force: true, recursive: true });
+	}
+});
+
+test('artifact age policy eventually removes force-kill residue', () => {
+	const root = mkdtempSync(join(tmpdir(), 'parish-playwright-expiry-'));
+	const binary = join(root, 'parish-server-expired');
+	writeFileSync(binary, 'expired');
+	try {
+		pruneServerArtifacts(root, {
+			now: Date.now() + PLAYWRIGHT_ARTIFACT_MAX_AGE_MS + 1,
+		});
+		assert.equal(existsSync(binary), false);
+	} finally {
 		rmSync(root, { force: true, recursive: true });
 	}
 });

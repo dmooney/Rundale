@@ -59,6 +59,7 @@ Rules marked **(enforced)** are checked mechanically by `cargo test` / CI — se
 17. **Survey existing tooling before building any:** Check whether the repo already provides it — the `parish-harness` binary (built-in web server/dashboard), `justfile` recipes, `parish/scripts/**`, `.claude/skills/` — and run or extend the existing tool in place. Never hand-roll a throwaway duplicate.
 18. **Report only verification you actually ran:** Any claim that a test passed or a process ran must be backed by literal command output from the current session. State skips and failures explicitly — never estimate, extrapolate, or fabricate a result.
 19. **Keep shared-target artifacts worktree-coherent:** When a build script embeds worktree-local files, parallel test tooling that shares a Cargo target must key the build to those inputs and preserve and validate the resulting executable before releasing its coordination lock. Never launch the shared final binary after Cargo releases its own lock; use the Playwright managed-server helper as the reference (#1717).
+20. **Make managed-test lifecycles crash-safe on every platform:** Locks, candidates, and copied executables must have bounded startup recovery and mechanically tested platform policy. Never make correctness or artifact cleanup depend solely on POSIX signal or exit hooks—Windows process managers may force-terminate the entire tree without running them (#1717).
 
 ## Standard commands
 
