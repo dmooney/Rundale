@@ -9,6 +9,7 @@
 	"constraints": [
 		"The concept image is a style and composition reference, never a runtime crop.",
 		"The approved page remains hand-sewn: no rings, ring holes, spiral binding, or paperclip.",
+		"The fore-edge controls are five blank folded-vellum finding tabs, not modern file-folder buttons.",
 		"Portrait artwork is outside this asset slice; the portrait frame remains empty."
 	],
 	"provenance_classes": {
@@ -100,13 +101,13 @@
 			"sha256": "2a5bf1588b3dde9d0b6afdb2a2143bafa884e6c006d136ea77a2614fa4843230"
 		},
 		{
-			"key": "tab",
-			"file": "parchment-tab.png",
-			"width": 184,
-			"height": 156,
+			"key": "indexRail",
+			"file": "notebook-index-rail.png",
+			"width": 264,
+			"height": 640,
 			"alpha": "cutout",
 			"provenance": "concept-paper",
-			"sha256": "86c0201f2839bc4c96dfe7927028aa6a061de67c8f151c0ac2a2ec49241abeed"
+			"sha256": "39fe71eef27f5df1cbf2f7fd8193b17f419504c4f2e6b01ef984f07dfba4bd5e"
 		},
 		{
 			"key": "label",
@@ -125,6 +126,15 @@
 			"alpha": "cutout",
 			"provenance": "concept-paper",
 			"sha256": "fb16cf4baed2b2ff50f2b2314e9ede00706985de77b169e04c3dec05a58d2ec0"
+		},
+		{
+			"key": "compassIcon",
+			"file": "icon-compass.png",
+			"width": 128,
+			"height": 128,
+			"alpha": "cutout",
+			"provenance": "concept-icon",
+			"sha256": "ffa67a2a743e27794ec1f0732502ff19f789b7ae1765294fe898d52d5ec99b7e"
 		},
 		{
 			"key": "actionIcons.talk",

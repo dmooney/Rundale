@@ -48,6 +48,14 @@ const TAB_LABELS: ParishTab[] = [
 	'journal',
 ];
 
+const MOBILE_TAB_LABELS: Record<ParishTab, string> = {
+	notes: 'N',
+	people: 'Pe',
+	places: 'Pl',
+	rumours: 'R',
+	journal: 'J',
+};
+
 const ACTION_LABELS: Record<NotebookAction, string> = {
 	talk: 'Talk',
 	ask: 'Ask',
@@ -590,63 +598,99 @@ export class IllustratedParishRenderer {
 				this.layers.chrome,
 				location,
 				layout.statusRibbon.x + 10,
-				layout.statusRibbon.y + 5,
+				layout.statusRibbon.y + 6,
 				14,
 			);
 			this.text(
 				this.layers.chrome,
-				`${shortText(weather, 20)}  ·  ${time}`,
+				`${shortText(weather, 27)}  ·  ${time}`,
 				layout.statusRibbon.x + 10,
-				layout.statusRibbon.y + layout.statusRibbon.height * 0.5,
+				layout.statusRibbon.y + layout.statusRibbon.height * 0.53,
 				11,
 				{ fill: INK_SOFT },
 			);
-		} else {
-			this.text(
+			const north = this.text(
 				this.layers.chrome,
-				location,
-				layout.statusRibbon.x + layout.statusRibbon.width * 0.17,
-				layout.statusRibbon.y + layout.statusRibbon.height * 0.16,
-				Math.max(19, layout.statusRibbon.height * 0.42),
+				'N',
+				layout.compass.x + layout.compass.width / 2,
+				layout.compass.y + 3,
+				8,
 			);
-			this.text(
+			north.anchor.set(0.5, 0);
+			this.contain(
 				this.layers.chrome,
-				'•',
-				layout.statusRibbon.x + layout.statusRibbon.width * 0.48,
-				layout.statusRibbon.y + layout.statusRibbon.height * 0.1,
-				20,
+				PARISH_ASSETS.compassIcon,
+				{
+					x: layout.compass.x,
+					y: layout.compass.y + 8,
+					width: layout.compass.width,
+					height: layout.compass.height - 8,
+				},
+				1,
+			);
+		} else {
+			const centerY = layout.statusRibbon.y + layout.statusRibbon.height * 0.48;
+			const centeredText = (
+				value: string,
+				xRatio: number,
+				size: number,
+				options: Partial<TextStyleOptions> = {},
+			) => {
+				const display = this.text(
+					this.layers.chrome,
+					value,
+					layout.statusRibbon.x + layout.statusRibbon.width * xRatio,
+					centerY,
+					size,
+					options,
+				);
+				display.anchor.set(0.5);
+				return display;
+			};
+			centeredText(
+				location,
+				0.23,
+				Math.max(18, layout.statusRibbon.height * 0.38),
+			);
+			centeredText('•', 0.45, Math.max(15, layout.statusRibbon.height * 0.32));
+			centeredText(
+				shortText(weather.replaceAll(' · ', ' '), 22),
+				0.61,
+				Math.max(14, layout.statusRibbon.height * 0.29),
+				{ fill: INK_SOFT },
 			);
 			this.drawWeather(
 				this.layers.chrome,
-				layout.statusRibbon.x + layout.statusRibbon.width * 0.76,
-				layout.statusRibbon.y + layout.statusRibbon.height * 0.62,
-				layout.statusRibbon.height * 0.28,
+				layout.statusRibbon.x + layout.statusRibbon.width * 0.77,
+				centerY,
+				layout.statusRibbon.height * 0.2,
 			);
-			this.text(
-				this.layers.chrome,
-				shortText(weather, 18),
-				layout.statusRibbon.x + layout.statusRibbon.width * 0.52,
-				layout.statusRibbon.y + layout.statusRibbon.height * 0.18,
-				Math.max(15, layout.statusRibbon.height * 0.3),
-			);
-			this.text(
-				this.layers.chrome,
-				time,
-				layout.statusRibbon.x + layout.statusRibbon.width * 0.86,
-				layout.statusRibbon.y + layout.statusRibbon.height * 0.2,
-				Math.max(15, layout.statusRibbon.height * 0.3),
-			);
+			centeredText(time, 0.9, Math.max(14, layout.statusRibbon.height * 0.29));
 			this.paper(this.layers.chrome, layout.compass, {
 				pale: true,
 				shadow: false,
 				alpha: 0.84,
 			});
-			this.drawCompass(
+			const compassSize = Math.min(52, layout.compass.height * 0.68);
+			const compassRect = {
+				x:
+					layout.compass.x +
+					layout.compass.width -
+					compassSize -
+					layout.compass.height * 0.18,
+				y: layout.compass.y + layout.compass.height * 0.23,
+				width: compassSize,
+				height: compassSize,
+			};
+			this.contain(this.layers.chrome, PARISH_ASSETS.compassIcon, compassRect);
+			const north = this.text(
 				this.layers.chrome,
-				layout.compass.x + layout.compass.width * 0.88,
-				layout.compass.y + layout.compass.height * 0.66,
-				layout.compass.height * 0.22,
+				'N',
+				compassRect.x + compassRect.width / 2,
+				layout.compass.y + 3,
+				Math.max(9, layout.compass.height * 0.15),
 			);
+			north.anchor.set(0.5, 0);
 		}
 	}
 
@@ -952,12 +996,19 @@ export class IllustratedParishRenderer {
 	}
 
 	private drawTabs(layout: ParishLayout): void {
+		this.layers.chrome.addChild(
+			this.place(this.sprite(PARISH_ASSETS.indexRail), layout.tabRail),
+		);
+		const pageRight = layout.notebookPage.x + layout.notebookPage.width;
 		layout.tabs.forEach((rect, index) => {
 			const tab = TAB_LABELS[index];
-			const paper = this.place(this.sprite(PARISH_ASSETS.tab), rect);
-			this.layers.chrome.addChild(paper);
+			const hit = new Graphics();
+			hit
+				.rect(rect.x, rect.y, rect.width, rect.height)
+				.fill({ color: 0xffffff, alpha: 0.001 });
+			this.layers.chrome.addChild(hit);
 			this.bind(
-				paper,
+				hit,
 				this.target(
 					`tab:${tab}`,
 					'tab',
@@ -967,21 +1018,17 @@ export class IllustratedParishRenderer {
 					40 + index,
 				),
 			);
-			this.text(
+			const label = this.text(
 				this.layers.chrome,
-				titleCase(tab),
-				rect.x + rect.width * 0.24,
-				rect.y + rect.height * 0.14,
-				Math.max(10, Math.min(15, rect.height * 0.23)),
-				{ wordWrap: true, wordWrapWidth: rect.width * 0.7 },
+				layout.mode === 'mobile' ? MOBILE_TAB_LABELS[tab] : titleCase(tab),
+				pageRight + (rect.x + rect.width - pageRight) / 2,
+				rect.y + rect.height / 2,
+				layout.mode === 'mobile'
+					? 9
+					: Math.max(10, Math.min(13, rect.height * 0.27)),
+				{ fill: INK_SOFT },
 			);
-			this.drawTabIcon(
-				this.layers.chrome,
-				tab,
-				rect.x + rect.width * 0.54,
-				rect.y + rect.height * 0.65,
-				Math.max(7, rect.height * 0.16),
-			);
+			label.anchor.set(0.5);
 		});
 	}
 
@@ -1271,70 +1318,6 @@ export class IllustratedParishRenderer {
 			{ fill: INK_SOFT, fontWeight: '600' },
 		);
 		initials.anchor.set(0.5);
-	}
-
-	private drawTabIcon(
-		layer: Container,
-		tab: ParishTab,
-		x: number,
-		y: number,
-		radius: number,
-	): void {
-		const g = new Graphics();
-		if (tab === 'notes' || tab === 'journal') {
-			g.rect(x - radius * 0.7, y - radius, radius * 1.4, radius * 1.8).stroke({
-				color: INK,
-				width: 1,
-				alpha: 0.8,
-			});
-			this.inkLine(
-				layer,
-				x - radius * 0.42,
-				y - radius * 0.45,
-				x + radius * 0.42,
-				y - radius * 0.45,
-				0.55,
-			);
-			this.inkLine(layer, x - radius * 0.42, y, x + radius * 0.42, y, 0.55);
-		} else if (tab === 'people') {
-			g.circle(x, y - radius * 0.4, radius * 0.42)
-				.stroke({ color: INK, width: 1, alpha: 0.8 })
-				.moveTo(x - radius * 0.8, y + radius)
-				.quadraticCurveTo(x, y + radius * 0.1, x + radius * 0.8, y + radius)
-				.stroke({ color: INK, width: 1, alpha: 0.8 });
-		} else if (tab === 'places') {
-			g.moveTo(x - radius, y)
-				.lineTo(x, y - radius)
-				.lineTo(x + radius, y)
-				.moveTo(x - radius * 0.7, y - radius * 0.1)
-				.lineTo(x - radius * 0.7, y + radius)
-				.lineTo(x + radius * 0.7, y + radius)
-				.lineTo(x + radius * 0.7, y - radius * 0.1)
-				.stroke({ color: INK, width: 1, alpha: 0.8 });
-		} else {
-			g.ellipse(x, y, radius, radius * 0.7).stroke({
-				color: INK,
-				width: 1,
-				alpha: 0.8,
-			});
-		}
-		layer.addChild(g);
-	}
-
-	private drawCompass(layer: Container, x: number, y: number, r: number): void {
-		const g = new Graphics();
-		g.moveTo(x, y - r * 1.4)
-			.lineTo(x, y + r * 1.4)
-			.moveTo(x - r, y)
-			.lineTo(x + r, y)
-			.moveTo(x, y - r * 1.4)
-			.lineTo(x - r * 0.22, y - r * 0.85)
-			.lineTo(x + r * 0.22, y - r * 0.85)
-			.closePath()
-			.fill({ color: INK, alpha: 0.75 })
-			.stroke({ color: INK, width: 1, alpha: 0.82 });
-		layer.addChild(g);
-		this.text(layer, 'N', x - 4, y - r * 2.1, Math.max(10, r * 0.8));
 	}
 
 	private drawChurch(

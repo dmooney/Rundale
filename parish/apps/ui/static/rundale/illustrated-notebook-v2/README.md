@@ -22,12 +22,18 @@ but no runtime file is cut from that concept image.
   camera direction, and plate-normalized scene anchors validated by
   `parish-world` tests.
 - `parchment-*.png` provides the raster top ribbon, Nearby rail, five-cell
-  action strip, intent slip, bottom cards, tabs, and scene labels. Each was
+  action strip, intent slip, bottom cards, and scene labels. Each was
   generated independently with the built-in image generator, using the
   canonical concept as a style/composition reference and the approved sewn
   page as the material reference.
-- `icon-*.png` provides transparent 128×128 action, map, time, and quill
-  cutouts generated from the concept's loose charcoal/sepia symbol language.
+- `notebook-index-rail.png` is one transparent assembly of five distinct blank
+  folded-vellum finding tabs. Its buried tails sit behind the sewn page while
+  runtime labels and five independent hit targets preserve legibility and
+  accessibility.
+- `icon-*.png` provides transparent 128×128 action, map, time, quill, and
+  compass cutouts generated from the concept's loose charcoal/sepia symbol
+  language.
+  The compass contains no generated lettering; the renderer supplies `N`.
 - `portrait-slot-frame.png` is intentionally empty. It reserves layout space
   without introducing portrait art from the separate portrait issue.
 - `ui-assets.json` records every runtime image's role, dimensions, alpha

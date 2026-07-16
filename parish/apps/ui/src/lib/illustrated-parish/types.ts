@@ -64,6 +64,7 @@ export interface ParishLayout {
 	nearbyRail: ParishRect;
 	moreButton: ParishRect;
 	notebookPage: ParishRect;
+	tabRail: ParishRect;
 	tabs: ParishRect[];
 	actionStrip: ParishRect;
 	actionCells: ParishRect[];

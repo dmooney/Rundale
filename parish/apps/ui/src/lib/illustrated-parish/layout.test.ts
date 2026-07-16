@@ -12,6 +12,14 @@ describe('concept-faithful illustrated parish layout', () => {
 		expect(layout.mode).toBe('desktop');
 		expect(layout.logoCard.x / layout.width).toBeCloseTo(0, 3);
 		expect(layout.logoCard.width / layout.width).toBeCloseTo(0.225, 3);
+		expect(layout.logoCard.x + layout.logoCard.width).toBeCloseTo(
+			layout.statusRibbon.x,
+		);
+		expect(layout.statusRibbon.x + layout.statusRibbon.width).toBeCloseTo(
+			layout.compass.x,
+		);
+		expect(layout.logoCard.height).toBeGreaterThan(layout.compass.height);
+		expect(layout.compass.height).toBeGreaterThan(layout.statusRibbon.height);
 		expect(layout.nearbyRail.y / layout.height).toBeCloseTo(0.215, 3);
 		expect(layout.actionStrip.x / layout.width).toBeCloseTo(0.316, 3);
 		expect(layout.actionStrip.y / layout.height).toBeCloseTo(0.79, 3);
@@ -39,6 +47,10 @@ describe('concept-faithful illustrated parish layout', () => {
 			[390, 844],
 		] as const) {
 			const layout = computeParishLayout(width, height);
+			expect(layout.tabRail.x).toBeGreaterThanOrEqual(0);
+			expect(layout.tabRail.x + layout.tabRail.width).toBeLessThanOrEqual(
+				width,
+			);
 			for (const tab of layout.tabs) {
 				expect(tab.x).toBeGreaterThanOrEqual(0);
 				expect(tab.x + tab.width).toBeLessThanOrEqual(width);
@@ -53,12 +65,27 @@ describe('concept-faithful illustrated parish layout', () => {
 		] as const) {
 			const layout = computeParishLayout(width, height);
 			const pageRight = layout.notebookPage.x + layout.notebookPage.width;
+			expect(layout.tabRail.x).toBeLessThan(pageRight);
 			for (const tab of layout.tabs) {
-				expect(tab.x).toBeLessThan(pageRight);
+				expect(tab.x).toBeLessThanOrEqual(pageRight);
 				expect(tab.x + tab.width - pageRight).toBeGreaterThanOrEqual(
 					minimumProtrusion,
 				);
 			}
+		}
+	});
+
+	it('spaces the desktop finding tabs instead of tiling a button tower', () => {
+		const layout = computeParishLayout(1440, 900);
+
+		expect(layout.tabRail.height / layout.notebookPage.height).toBeCloseTo(
+			0.72,
+			2,
+		);
+		for (let index = 1; index < layout.tabs.length; index += 1) {
+			const previous = layout.tabs[index - 1];
+			const current = layout.tabs[index];
+			expect(current.y).toBeGreaterThan(previous.y + previous.height);
 		}
 	});
 
@@ -107,6 +134,10 @@ describe('concept-faithful illustrated parish layout', () => {
 		expect(layout.mode).toBe('mobile');
 		expect(layout.nearbyRail.width).toBeGreaterThan(370);
 		expect(layout.notebookPage.x / layout.width).toBeGreaterThan(0.48);
+		expect(layout.compass.x).toBeGreaterThan(layout.statusRibbon.x);
+		expect(layout.compass.x + layout.compass.width).toBeLessThanOrEqual(
+			layout.statusRibbon.x + layout.statusRibbon.width,
+		);
 		expect(layout.actionStrip.y / layout.height).toBeCloseTo(0.67, 3);
 		expect(layout.intentStrip.y / layout.height).toBeCloseTo(0.765, 3);
 		expect(layout.mapCard.width).toBeGreaterThanOrEqual(44);

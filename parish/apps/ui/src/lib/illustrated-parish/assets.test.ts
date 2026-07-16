@@ -170,8 +170,12 @@ describe('fresh illustrated parish asset boundary', () => {
 
 	it('keeps the period-correct sewn page and excludes rejected visual assets', () => {
 		expect(PARISH_ASSETS.sewnPage).toContain('sewn-notebook-page.png');
+		expect(PARISH_ASSETS.indexRail).toContain('notebook-index-rail.png');
+		expect(PARISH_ASSETS.compassIcon).toContain('icon-compass.png');
 		for (const url of PARISH_ASSET_URLS) {
-			expect(url).not.toMatch(/spiral|ring|placeholder|stamp-frame|npc-marker/);
+			expect(url).not.toMatch(
+				/spiral|ring|placeholder|stamp-frame|npc-marker|parchment-tab/,
+			);
 		}
 	});
 });

@@ -98,8 +98,9 @@ export function mapPlateRectToViewport(
 function desktopLayout(width: number, height: number): ParishLayout {
 	let pageHeight = height * 0.575;
 	let pageWidth = pageHeight * PAGE_ASPECT;
-	const tabWidth = Math.max(54, width * 0.058);
-	const tabProtrusion = tabWidth * 0.7;
+	const tabWidth = Math.min(88, Math.max(78, width * 0.06));
+	const tabTuck = tabWidth * 0.4;
+	const tabProtrusion = tabWidth - tabTuck;
 	// The concept's 22.9% notebook width includes the protruding tabs. Keep the
 	// sewn page and its tab handles inside that same overall silhouette.
 	const maximumWidth = width * 0.229 - tabProtrusion;
@@ -116,8 +117,17 @@ function desktopLayout(width: number, height: number): ParishLayout {
 	);
 	const nearbyRail = normalized(width, height, 0, 0.215, 0.081, 0.589);
 	const actionStrip = normalized(width, height, 0.316, 0.79, 0.312, 0.095);
-	const tabHeight = page.height / 5.06;
-	const tabX = pageRight - tabWidth * 0.3;
+	const tabRailHeight = Math.min(320, page.height * 0.72);
+	const tabRail = rect(
+		pageRight - tabTuck,
+		page.y + (page.height - tabRailHeight) / 2,
+		tabWidth,
+		tabRailHeight,
+	);
+	const tabPitch = tabRail.height / 5;
+	const tabHitHeight = Math.min(tabPitch, Math.max(44, tabPitch * 0.78));
+	const tabHitWidth = Math.max(44, tabProtrusion);
+	const tabHitX = pageRight + tabProtrusion - tabHitWidth;
 	const plateRect = (x: number, y: number, w: number, h: number) =>
 		mapPlateRectToViewport(
 			width,
@@ -143,7 +153,7 @@ function desktopLayout(width: number, height: number): ParishLayout {
 		width,
 		height,
 		logoCard: normalized(width, height, 0, 0, 0.225, 0.084),
-		statusRibbon: normalized(width, height, 0.225, 0, 0.553, 0.073),
+		statusRibbon: normalized(width, height, 0.225, 0, 0.553, 0.061),
 		compass: normalized(width, height, 0.778, 0, 0.222, 0.073),
 		nearbyRail,
 		moreButton: rect(
@@ -153,8 +163,14 @@ function desktopLayout(width: number, height: number): ParishLayout {
 			Math.max(32, height * 0.043),
 		),
 		notebookPage: page,
+		tabRail,
 		tabs: Array.from({ length: 5 }, (_, index) =>
-			rect(tabX, page.y + index * tabHeight + 4, tabWidth, tabHeight - 5),
+			rect(
+				tabHitX,
+				tabRail.y + index * tabPitch + (tabPitch - tabHitHeight) / 2,
+				tabHitWidth,
+				tabHitHeight,
+			),
 		),
 		actionStrip,
 		actionCells: cells(actionStrip, PARISH_ACTIONS.length),
@@ -187,8 +203,10 @@ function mobileLayout(width: number, height: number): ParishLayout {
 		pageHeight = maximumHeight;
 		pageWidth = pageHeight * PAGE_ASPECT;
 	}
-	const tabWidth = Math.max(42, width * 0.105);
-	const pageRight = width - Math.max(2, width * 0.005) - tabWidth * 0.68;
+	const tabWidth = Math.min(58, Math.max(52, width * 0.14));
+	const tabTuck = tabWidth * 0.48;
+	const tabProtrusion = tabWidth - tabTuck;
+	const pageRight = width - Math.max(2, width * 0.005) - tabProtrusion;
 	const page = rect(
 		pageRight - pageWidth,
 		height * 0.19,
@@ -197,8 +215,17 @@ function mobileLayout(width: number, height: number): ParishLayout {
 	);
 	const nearbyRail = normalized(width, height, 0.015, 0.086, 0.97, 0.102);
 	const actionStrip = normalized(width, height, 0.015, 0.67, 0.97, 0.085);
-	const tabHeight = page.height / 5.05;
-	const tabX = pageRight - tabWidth * 0.32;
+	const tabRailHeight = Math.min(228, page.height * 0.9);
+	const tabRail = rect(
+		pageRight - tabTuck,
+		page.y + (page.height - tabRailHeight) / 2,
+		tabWidth,
+		tabRailHeight,
+	);
+	const tabPitch = tabRail.height / 5;
+	const tabHitHeight = Math.max(42, Math.min(46, tabPitch));
+	const tabHitWidth = Math.max(44, tabProtrusion);
+	const tabHitX = pageRight + tabProtrusion - tabHitWidth;
 
 	return {
 		mode: 'mobile',
@@ -206,7 +233,7 @@ function mobileLayout(width: number, height: number): ParishLayout {
 		height,
 		logoCard: normalized(width, height, 0.015, 0.01, 0.3, 0.064),
 		statusRibbon: normalized(width, height, 0.315, 0.01, 0.67, 0.064),
-		compass: normalized(width, height, 0.9, 0.015, 0.07, 0.05),
+		compass: normalized(width, height, 0.89, 0.014, 0.08, 0.052),
 		nearbyRail,
 		moreButton: rect(
 			nearbyRail.x + nearbyRail.width - Math.max(52, width * 0.16),
@@ -215,12 +242,13 @@ function mobileLayout(width: number, height: number): ParishLayout {
 			nearbyRail.height - 10,
 		),
 		notebookPage: page,
+		tabRail,
 		tabs: Array.from({ length: 5 }, (_, index) =>
 			rect(
-				tabX,
-				page.y + index * tabHeight + 2,
-				tabWidth,
-				Math.max(42, tabHeight - 3),
+				tabHitX,
+				tabRail.y + index * tabPitch + (tabPitch - tabHitHeight) / 2,
+				tabHitWidth,
+				tabHitHeight,
 			),
 		),
 		actionStrip,
