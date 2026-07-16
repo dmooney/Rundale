@@ -3399,8 +3399,8 @@ THE SOFTWARE.
 
 - [either 1.15.0](https://github.com/rayon-rs/either)
 - [itertools 0.13.0](https://github.com/rust-itertools/itertools)
-- [serde_with 3.20.0](https://github.com/jonasbb/serde_with/)
-- [serde_with_macros 3.20.0](https://github.com/jonasbb/serde_with/)
+- [serde_with 3.21.0](https://github.com/jonasbb/serde_with/)
+- [serde_with_macros 3.21.0](https://github.com/jonasbb/serde_with/)
 
 ```
 Copyright (c) 2015
