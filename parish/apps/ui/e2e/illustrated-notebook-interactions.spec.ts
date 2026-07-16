@@ -11,6 +11,10 @@ import { fileURLToPath } from 'url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PROOF_DIR = path.resolve(__dirname, '../../../../.proofs/1636');
+// Setup plus the five visual states each wait up to 10 seconds for a
+// texture-complete WebGL frame. The ordinary 60-second test timeout therefore
+// cannot cover the proof's own bounded waits under a loaded full-suite run.
+const VISUAL_PROOF_TIMEOUT_MS = 120_000;
 
 type NotebookBox = NonNullable<
 	Awaited<ReturnType<import('@playwright/test').Locator['boundingBox']>>
@@ -117,6 +121,8 @@ async function proveCommandVisualStates(
 
 	await input.focus();
 	await expect(input).toHaveAttribute('data-command-state', 'focused');
+	await expect(input).not.toHaveAttribute('aria-disabled');
+	await expect(input).toHaveAttribute('aria-busy', 'false');
 	await settleNotebookFrame(page);
 	await page.screenshot({
 		path: path.join(PROOF_DIR, `${viewport}-focused.png`),
@@ -139,6 +145,7 @@ async function proveCommandVisualStates(
 	await emitEvent(page, 'loading', { active: true, phrase: 'Listening...' });
 	await expect(input).toHaveAttribute('data-command-state', 'busy');
 	await expect(input).not.toHaveAttribute('aria-disabled');
+	await expect(input).toHaveAttribute('aria-busy', 'true');
 	await expect(input).not.toHaveAttribute('disabled', '');
 	await expect(input).not.toHaveAttribute('readonly', '');
 	await expect(input).toBeEditable();
@@ -156,11 +163,14 @@ async function proveCommandVisualStates(
 
 	await emitEvent(page, 'loading', { active: false });
 	await expect(input).toHaveAttribute('data-command-state', 'focused');
+	await expect(input).not.toHaveAttribute('aria-disabled');
+	await expect(input).toHaveAttribute('aria-busy', 'false');
 	await installControlledSubmitFailure(page);
 	await input.fill('ask Roisin what she saw');
 	await input.press('Enter');
 	await expect(input).toHaveAttribute('data-command-state', 'disabled');
 	await expect(input).toHaveAttribute('aria-disabled', 'true');
+	await expect(input).toHaveAttribute('aria-busy', 'true');
 	await expect(input).toHaveAttribute('readonly', '');
 	await expect(input).not.toBeEditable();
 	await expect(input).toHaveValue('ask Roisin what she saw');
@@ -189,6 +199,8 @@ async function proveCommandVisualStates(
 
 	await rejectControlledSubmit(page);
 	await expect(input).toHaveAttribute('data-command-state', 'error');
+	await expect(input).not.toHaveAttribute('aria-disabled');
+	await expect(input).toHaveAttribute('aria-busy', 'false');
 	await expect(input).toHaveAttribute('aria-invalid', 'true');
 	await expect(input).toHaveValue('ask Roisin what she saw');
 	await expect(status).toHaveAttribute('role', 'alert');
@@ -207,6 +219,8 @@ async function proveCommandVisualStates(
 }
 
 test.describe('illustrated notebook interactions', () => {
+	test.describe.configure({ timeout: VISUAL_PROOF_TIMEOUT_MS });
+
 	test.beforeAll(() => {
 		fs.mkdirSync(PROOF_DIR, { recursive: true });
 	});
