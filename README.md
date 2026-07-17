@@ -97,12 +97,13 @@ A four-tier simulation that scales hundreds of NPCs at varying fidelity based on
 - **Free-text dialogue** parsed by an LLM intent extractor (Move / Talk / Look / Examine / Interact), with a regex fallback.
 - **`@mention` targeting** to address a specific NPC in a crowded room.
 - **Slash-command surface** spanning save management, time control, provider config, debug, theming, and map switching — the same set works in the GUI, web, and CLI.
-- **Streaming responses** rendered word-by-word with smooth per-chunk timing.
+- **Illustrated parish first viewport** — a full-bleed watercolor scene, in-world people and exits, parchment status ribbon, Nearby rail, hand-sewn notebook page, action stamps, and handwritten intent strip rendered in Pixi.
+- **Notebook secondary sheets** — Journal/chat, People, Focail, Map, Save/Load, Debug, Mod, Bug Report, and shortcuts open only when requested and leave the illustrated parish mounted underneath.
+- **Streaming responses** rendered word-by-word in the notebook Journal with smooth per-chunk timing.
 - **Emote rendering** — `*nods thoughtfully*` italicized inline.
-- **Message reactions** — emoji palette persisted with the save.
-- **Mention + slash autocomplete**, tab completion for known nouns, and a 50-entry input history.
-- **Quick-travel chips** for adjacent locations rendered below the input.
-- **Pronunciation sidebar** — Irish vocabulary and NPC names accumulate with IPA hints as you encounter them.
+- **Message reactions** — emoji palette persisted with the save and shown in the Journal.
+- **Notebook command strip** — plain text and slash commands submit through the existing engine path; five action stamps seed Talk, Ask, Help, Observe, and Leave intents. Notebook-native autocomplete, history, and multiline editing remain deferred.
+- **Focail sheet** — Irish vocabulary and NPC names accumulate with pronunciation hints as you encounter them.
 
 ### Persistence & branching
 
@@ -115,16 +116,17 @@ A four-tier simulation that scales hundreds of NPCs at varying fidelity based on
 
 ### Desktop GUI (Tauri 2 + Svelte 5)
 
-- **Three-panel layout** — interactive map, scrollable chat with streaming responses, NPC/language sidebar — collapsing to a single tabbed column under 768 px.
-- **MapLibre GL minimap + full-screen overlay** with historic 1840s OS Ireland tiles or modern OSM, custom SVG icons per location type, traversal-weighted edges, and click-to-travel.
+- **Concept-led Pixi play surface** — the default desktop and mobile viewport follows the illustrated parish-notebook concept instead of presenting persistent dashboard columns.
+- **Responsive notebook composition** — desktop and 390×844 mobile layouts retain the watercolor scene, sewn page, actions, command strip, and notebook cards without falling back to the old mobile toolbar.
+- **MapLibre GL parish overlay** with historic 1840s OS Ireland tiles or modern OSM, custom SVG icons per location type, traversal-weighted edges, and click-to-travel, opened from the Map card or `M`.
 - **Animated travel** — when the player moves between locations the map smoothly pans and zooms to the destination, interpolating both center and zoom level across the journey's duration so the post-travel view is already framed when the player arrives.
-- **Status bar** — location, time-of-day label, weather, season, festival indicator, pause indicator, digital clock animated client-side.
+- **Illustrated status ribbon and cards** — location, time, weather, map, and active-intent state stay legible without persistent status-bar chrome; season, festival, and pause details remain available in Time & Weather.
 - **Three themes** selectable with `/theme` — default cream/parchment, Solarized Light, Solarized Dark — driven by CSS custom properties and persisted in `localStorage` so reloads don't flash the wrong palette.
-- **Debug panel** (F12) — eight tabs (Overview, NPCs, World, Weather, Gossip, Conversations, Events, Inference) dockable to the side or bottom.
-- **Bug reporter** (🐛) — a toolbar button (and a 🐛 next to every record in the debug panel) captures a screenshot, recent logs, and current game state and files a GitHub issue on the configured repo (`dmooney/rundale` by default), embedding the screenshot inline. Per-record buttons attach the exact inference call / event / conversation as context. Every report also carries a "black box" diagnostic payload — the raw LLM prompt/response history, the canonical `get_engine_state` snapshot, and the last raw user intent — so local-inference drift is reproducible. Also available to auto-QA agents via the `parish_file_bug` MCP tool. Gated by the default-on `bug-report` flag; configured via `PARISH_BUG_REPORT_TOKEN` / `PARISH_BUG_REPORT_REPO`, with `PARISH_BUG_REPORT_DRY_RUN=1` writing the report to disk instead of filing.
+- **Notebook-contained Debug records** (F12) — eight tabs (Overview, NPCs, World, Weather, Gossip, Conversations, Events, Inference) inside one Parish Records sheet; opening it does not resize the Pixi viewport.
+- **Bug reporter** — opened from the notebook More sheet or a 🐛 next to a debug record; it captures a clean game screenshot, recent logs, and current game state and files a GitHub issue on the configured repo (`dmooney/rundale` by default), embedding the screenshot inline. Per-record buttons attach the exact inference call / event / conversation as context. Every report also carries a "black box" diagnostic payload — the raw LLM prompt/response history, the canonical `get_engine_state` snapshot, and the last raw user intent — so local-inference drift is reproducible. Also available to auto-QA agents via the `parish_file_bug` MCP tool. Gated by the default-on `bug-report` flag; configured via `PARISH_BUG_REPORT_TOKEN` / `PARISH_BUG_REPORT_REPO`, with `PARISH_BUG_REPORT_DRY_RUN=1` writing the report to disk instead of filing.
 - **MCP automated-QA loop** — the `parish_engine_state` MCP tool exposes the canonical, deterministic engine state (active scene, clock, weather, player, NPCs, gossip grapevine) so an agent can assert the UI resolved each state transition. The `parish/scripts/parish-mcp-audit.sh` lifecycle script wraps a strict Init → Execute → Validate (UI vs `get_engine_state`) → Teardown (file a bug on mismatch, kill the backend cleanly) loop. Gated by the default-on `engine-state` flag.
 - **Save picker** (F5) with a DAG visualization of branches and inline fork form.
-- **Keyboard shortcuts** — F5 saves, F12 debug, M map, Up/Down history, Tab autocomplete, Esc cancels travel.
+- **Keyboard shortcuts** — F2 screenshot, F5 Ledger, F10 demo, F11 fullscreen, F12 Debug, M map, `?` help, Tab through notebook controls, Enter activate/send, and Esc close a dismissible sheet or stop the demo.
 - **Parish Designer** — integrated GUI editor at `/editor` for authoring NPCs, locations, schedules, and mod data without touching JSON directly; see the [Parish Designer](#parish-designer-gui-editor) section below.
 - **Accessibility** — ARIA-labelled controls, visible focus rings, semantic HTML, WCAG-AA contrast across all theme variants.
 

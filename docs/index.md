@@ -49,7 +49,7 @@ Every design/plan doc carries a `> Status: …` header. See
 | [Player Input](design/player-input.md)                                       | Implemented                          | [006](adr/006-natural-language-input.md)                                                                                                                                        |
 | [Persistence & Save System](design/persistence.md)                           | Implemented                          | [003](adr/003-sqlite-wal-persistence.md), [004](adr/004-git-like-branching-saves.md)                                                                                            |
 | [GUI Design](design/gui-design.md)                                           | Implemented                          | [016](adr/016-tauri-svelte-gui.md)                                                                                                                                              |
-| [Illustrated Notebook Real Play Screen](design/illustrated-notebook-real.md) | Pre-implementation                   | [Graphics V2 research index](graphics-v2/README.md)                                                                                                                             |
+| [Illustrated Notebook Real Play Screen](design/illustrated-notebook-real.md) | In progress (#1630 fresh rebuild)    | [Graphics V2 research index](graphics-v2/README.md)                                                                                                                             |
 | [Parish Notebook UI](design/parish-notebook-ui.md)                           | Proposed (earlier Svelte direction)  | [Illustrated Notebook plan](plans/illustrated-notebook-real.md)                                                                                                                 |
 | [Godot-Based Rundale](design/godot-parish-game-plan.md)                      | Proposed (separate client direction) | [Interactive Parish Diorama](design/ideas/parish-diorama.md)                                                                                                                    |
 | [Parish Designer (GUI editor)](design/designer-editor.md)                    | Implemented                          | —                                                                                                                                                                               |
@@ -105,20 +105,20 @@ Speculative and forward-looking — not (yet) committed work.
 
 ## Plans — active
 
-| Plan                                                                                                     | Status             |
-| -------------------------------------------------------------------------------------------------------- | ------------------ |
-| [Interactive Parish Diorama — Runtime Compositor Implementation](plans/parish-diorama-implementation.md) | Proposed           |
-| [Illustrated Notebook Real Play Screen](plans/illustrated-notebook-real.md)                              | Pre-implementation |
-| [Illustrated Notebook UI Roadmap](plans/illustrated-notebook-roadmap.md)                                 | In progress        |
-| [Phase 5F — World Graph Expansion](plans/phase-5f-world-expansion.md)                                    | Planned            |
-| [Phase 6 — Polish & Mythology Hooks](plans/phase-6-polish-mythology.md)                                  | Planned            |
-| [Phase 7 — Web & Mobile Apps](plans/phase-7-web-mobile.md)                                               | Partial            |
-| [Save/Load UI Plan](plans/phase-9-save-load-ui.md)                                                       | Planned            |
-| [Rundale-Bench](plans/rundale-bench.md)                                                                  | In progress        |
-| [LLM Quality Evals](plans/llm-quality-evals.md)                                                          | Proposed           |
-| [Promptfoo Pentest](plans/promptfoo-pentest-plan.md)                                                     | Proposed           |
-| [Gemma 4 Hiberno-English Training](plans/gemma4-rundale-training-plan.md)                                | Proposed           |
-| [Talkie Methodology Port](plans/talkie-methodology-port.md)                                              | Proposed           |
+| Plan                                                                                                     | Status      |
+| -------------------------------------------------------------------------------------------------------- | ----------- |
+| [Interactive Parish Diorama — Runtime Compositor Implementation](plans/parish-diorama-implementation.md) | Proposed    |
+| [Illustrated Notebook Real Play Screen](plans/illustrated-notebook-real.md)                              | In progress |
+| [Illustrated Notebook UI Roadmap](plans/illustrated-notebook-roadmap.md)                                 | In progress |
+| [Phase 5F — World Graph Expansion](plans/phase-5f-world-expansion.md)                                    | Planned     |
+| [Phase 6 — Polish & Mythology Hooks](plans/phase-6-polish-mythology.md)                                  | Planned     |
+| [Phase 7 — Web & Mobile Apps](plans/phase-7-web-mobile.md)                                               | Partial     |
+| [Save/Load UI Plan](plans/phase-9-save-load-ui.md)                                                       | Planned     |
+| [Rundale-Bench](plans/rundale-bench.md)                                                                  | In progress |
+| [LLM Quality Evals](plans/llm-quality-evals.md)                                                          | Proposed    |
+| [Promptfoo Pentest](plans/promptfoo-pentest-plan.md)                                                     | Proposed    |
+| [Gemma 4 Hiberno-English Training](plans/gemma4-rundale-training-plan.md)                                | Proposed    |
+| [Talkie Methodology Port](plans/talkie-methodology-port.md)                                              | Proposed    |
 
 ## Supporting implementation records
 

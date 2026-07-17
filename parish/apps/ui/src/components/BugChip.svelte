@@ -1,13 +1,21 @@
 <script lang="ts">
-	import { openBugReport } from '../stores/bugReport';
+	import { openNotebookOverlay } from '../stores/notebookOverlay';
 
-	let { kind, label, detail }: { kind: string; label: string; detail: unknown } = $props();
+	let {
+		kind,
+		label,
+		detail,
+	}: { kind: string; label: string; detail: unknown } = $props();
 
 	function fileBug(e: MouseEvent) {
 		// Don't trigger the surrounding row's own click handler (e.g. inference
 		// log-row selection).
 		e.stopPropagation();
-		void openBugReport({ kind, label, detail });
+		void openNotebookOverlay('bug', e.currentTarget as HTMLButtonElement, {
+			kind,
+			label,
+			detail,
+		});
 	}
 </script>
 

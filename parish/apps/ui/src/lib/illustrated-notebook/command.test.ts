@@ -6,7 +6,7 @@ import {
 	submitNotebookCommand,
 	windowNotebookCommandText,
 } from './command';
-import type { NotebookCommandState } from './types';
+import type { NotebookCommandState } from '$lib/illustrated-parish/types';
 
 const roisin = {
 	npc_id: 6,

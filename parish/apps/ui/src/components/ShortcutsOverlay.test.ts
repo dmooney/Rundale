@@ -4,7 +4,7 @@ import ShortcutsOverlay from './ShortcutsOverlay.svelte';
 
 describe('ShortcutsOverlay', () => {
 	it('renders the shortcut list with the main bindings', () => {
-		const { getByTestId, getByText } = render(ShortcutsOverlay, {
+		const { getByTestId, getByText, queryByText } = render(ShortcutsOverlay, {
 			props: { onclose: () => {} },
 		});
 		expect(getByTestId('shortcuts-overlay')).toBeTruthy();
@@ -12,6 +12,12 @@ describe('ShortcutsOverlay', () => {
 		expect(getByText('Open the Ledger (save / load)')).toBeTruthy();
 		expect(getByText('Toggle the debug panel')).toBeTruthy();
 		expect(getByText('Save a screenshot')).toBeTruthy();
+		expect(getByText('Move through notebook controls')).toBeTruthy();
+		expect(
+			getByText('Activate a control or send the current intent'),
+		).toBeTruthy();
+		expect(queryByText('Browse input history')).toBeNull();
+		expect(queryByText('New line (Enter sends)')).toBeNull();
 	});
 
 	it('calls onclose when the close button is clicked', async () => {
