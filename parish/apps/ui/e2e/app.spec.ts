@@ -136,7 +136,7 @@ test.describe('App layout', () => {
 		for (const npc of NPCS) {
 			await expect(
 				page.getByRole('button', {
-					name: `Select ${npc.name} in the parish scene`,
+					name: `Select marker for ${npc.name}`,
 					exact: true,
 				}),
 			).toHaveCount(1);

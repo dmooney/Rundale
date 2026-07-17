@@ -118,8 +118,6 @@ export interface ParishRenderState {
 	npcs: NpcInfo[];
 	selectedNpc: NpcInfo | null;
 	selectedRealName: string | null;
-	intentText: string;
-	inputFocused: boolean;
-	busy: boolean;
+	command: NotebookCommandState;
 	callbacks: ParishRenderCallbacks;
 }

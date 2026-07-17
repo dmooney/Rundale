@@ -104,9 +104,7 @@
 			npcs: $npcsHere,
 			selectedNpc,
 			selectedRealName,
-			intentText,
-			inputFocused,
-			busy: $streamingActive || isSubmitting,
+			command: commandState,
 			callbacks: {
 				onAction: seedAction,
 				onFocusInput: focusInput,

@@ -232,7 +232,7 @@ describe('IllustratedNotebookGame fresh parish bridge', () => {
 		await fireEvent.input(input);
 
 		expect(flush).toHaveBeenCalledOnce();
-		await waitFor(() => expect(lastRenderState?.intentText).toBe('x'));
+		await waitFor(() => expect(lastRenderState?.command.text).toBe('x'));
 		expect(mockSubmitInput).not.toHaveBeenCalled();
 	});
 

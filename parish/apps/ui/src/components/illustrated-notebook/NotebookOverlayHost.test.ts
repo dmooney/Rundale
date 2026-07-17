@@ -21,6 +21,7 @@ describe('NotebookOverlayHost', () => {
 		uiConfig.update((config) => ({ ...config, base_mod_required: false }));
 		npcsHere.set([
 			{
+				npc_id: 4,
 				name: 'Roisin Connolly',
 				real_name: 'Roisin Connolly',
 				occupation: 'shopkeeper',

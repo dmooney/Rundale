@@ -11,6 +11,17 @@ import {
 	type TextStyleOptions,
 } from 'pixi.js';
 import type { NotebookAction } from '$lib/notebook/actions';
+import {
+	resolveNotebookCommandPresentation,
+	windowNotebookCommandText,
+} from '$lib/illustrated-notebook/command';
+import {
+	loadNotebookPersonArt,
+	NOTEBOOK_PERSON_ART_MANIFEST,
+	resolveNotebookPersonArt,
+	type LoadedNotebookPersonArt,
+	type NotebookPersonArtRuntimeManifest,
+} from '$lib/notebook/person-art';
 import { PARISH_ASSETS, PARISH_ASSET_URLS, PARISH_PLATE_SIZES } from './assets';
 import { activateParishTarget } from './interactions';
 import {
@@ -38,6 +49,7 @@ const PAPER_SHADOW = 0x5a4935;
 const MOOD_RED = 0xa1543a;
 const TRUST_OLIVE = 0x84954e;
 const WASH_GRAY = 0x72736d;
+const COMMAND_BUSY = 0x55603e;
 const HAND_FONT = 'Kalam, "Bradley Hand", "Segoe Print", cursive';
 const BOOKEND_PAPER_OPTIONS = {
 	pale: true,
@@ -84,6 +96,7 @@ export interface IllustratedParishRendererOptions {
 export class IllustratedParishRenderer {
 	private app: Application | null = null;
 	private readonly textures = new Map<string, Texture>();
+	private personArt: LoadedNotebookPersonArt = loadNotebookPersonArt(null);
 	private lastState: ParishRenderState | null = null;
 	private hitTargets: ParishHitTarget[] = [];
 	private hoveredTargetId: string | null = null;
@@ -183,9 +196,23 @@ export class IllustratedParishRenderer {
 	}
 
 	private async loadAssets(): Promise<void> {
-		const loaded = await Assets.load(PARISH_ASSET_URLS);
-		for (const url of PARISH_ASSET_URLS) {
+		this.personArt = loadNotebookPersonArt(await this.fetchPersonArtManifest());
+		const assetUrls = [
+			...new Set([...PARISH_ASSET_URLS, ...this.personArt.assetUrls]),
+		];
+		const loaded = await Assets.load(assetUrls);
+		for (const url of assetUrls) {
 			this.textures.set(url, loaded[url] ?? Texture.from(url));
+		}
+	}
+
+	private async fetchPersonArtManifest(): Promise<NotebookPersonArtRuntimeManifest | null> {
+		try {
+			const response = await fetch(NOTEBOOK_PERSON_ART_MANIFEST);
+			if (!response.ok) return null;
+			return (await response.json()) as NotebookPersonArtRuntimeManifest;
+		} catch {
+			return null;
 		}
 	}
 
@@ -482,18 +509,23 @@ export class IllustratedParishRenderer {
 				.rect(targetRect.x, targetRect.y, targetRect.width, targetRect.height)
 				.fill({ color: 0xffffff, alpha: 0.001 });
 			this.layers.sceneInk.addChild(hit);
-			this.bind(
-				hit,
-				this.target(
-					`scene-person:${safeId(npc.real_name)}`,
-					'scene-person',
-					`Select ${npc.name} in the parish scene`,
-					targetRect,
-					{ type: 'select-npc', realName: npc.real_name },
-					120 + index,
-				),
+			const target = this.target(
+				`scene-person:${safeId(npc.real_name)}`,
+				'scene-person',
+				`Select marker for ${npc.name}`,
+				targetRect,
+				{ type: 'select-npc', realName: npc.real_name },
+				120 + index,
 			);
-			this.drawEye(this.layers.sceneInk, x + 18, y - 26, 0.7 * markerScale);
+			this.bind(hit, target);
+			const marker = this.contain(
+				this.layers.sceneInk,
+				resolveNotebookPersonArt(this.personArt, npc.npc_id, npc.real_name)
+					.marker,
+				targetRect,
+				1,
+			);
+			this.bind(marker, target);
 			if (selected) {
 				const selection = new Graphics();
 				selection
@@ -813,12 +845,7 @@ export class IllustratedParishRenderer {
 						width: row.width * 0.56,
 						height: row.height - 4,
 					};
-		this.drawPortraitPlaceholder(
-			this.layers.chrome,
-			portraitRect,
-			npc.name,
-			selected,
-		);
+		this.drawPersonPortrait(this.layers.chrome, portraitRect, npc, selected);
 		const target = this.target(
 			`nearby:${safeId(npc.real_name)}`,
 			'nearby-portrait',
@@ -923,12 +950,7 @@ export class IllustratedParishRenderer {
 				width: page.width * 0.25,
 				height: page.height * 0.13,
 			};
-			this.drawPortraitPlaceholder(
-				this.layers.chrome,
-				portraitRect,
-				selected.name,
-				true,
-			);
+			this.drawPersonPortrait(this.layers.chrome, portraitRect, selected, true);
 			this.text(
 				this.layers.chrome,
 				shortText(selected.mood || 'watchful', 13),
@@ -1069,7 +1091,7 @@ export class IllustratedParishRenderer {
 				cell,
 				{ type: 'action', action },
 				70 + index,
-				state.busy,
+				state.command.disabled,
 			);
 			const hit = new Graphics();
 			hit
@@ -1089,12 +1111,15 @@ export class IllustratedParishRenderer {
 				cell.x + cell.width * 0.22,
 				cell.y + cell.height * 0.67,
 				Math.max(10, Math.min(16, cell.height * 0.22)),
-				{ fill: state.busy ? INK_SOFT : INK },
+				{
+					fill: state.command.disabled ? INK_SOFT : INK,
+				},
 			);
 		});
 	}
 
 	private drawIntent(layout: ParishLayout, state: ParishRenderState): void {
+		const command = resolveNotebookCommandPresentation(state.command);
 		const paper = this.place(
 			this.sprite(PARISH_ASSETS.intentStrip),
 			layout.intentStrip,
@@ -1109,6 +1134,7 @@ export class IllustratedParishRenderer {
 				layout.intentStrip,
 				{ type: 'focus-input' },
 				80,
+				state.command.disabled,
 			),
 		);
 		const labelWidth =
@@ -1129,22 +1155,77 @@ export class IllustratedParishRenderer {
 			lineY,
 			layout.intentStrip.x + layout.intentStrip.width - sendWidth,
 			lineY,
-			state.inputFocused ? 0.82 : 0.48,
+			command.phase === 'error'
+				? 0.28
+				: state.command.focused
+					? command.phase === 'busy'
+						? 0.38
+						: 0.82
+					: 0.48,
 		);
-		this.text(
+		if (command.phase === 'error') {
+			const errorLine = new Graphics();
+			errorLine
+				.moveTo(lineX, lineY)
+				.lineTo(
+					layout.intentStrip.x + layout.intentStrip.width - sendWidth,
+					lineY,
+				)
+				.stroke({ color: MOOD_RED, width: 1.5, alpha: 0.78 });
+			this.layers.intent.addChild(errorLine);
+		}
+		const maxDisplayChars = layout.mode === 'mobile' ? 33 : 58;
+		const inputText = this.text(
 			this.layers.intent,
-			shortText(
-				state.intentText || 'write what you mean to do…',
-				layout.mode === 'mobile' ? 33 : 58,
-			),
+			windowNotebookCommandText(command.displayText, maxDisplayChars),
 			lineX + 7,
 			layout.intentStrip.y + layout.intentStrip.height * 0.28,
 			Math.max(12, Math.min(18, layout.intentStrip.height * 0.27)),
 			{
-				fill: state.intentText ? INK : INK_SOFT,
+				fill:
+					command.phase === 'error'
+						? MOOD_RED
+						: command.phase === 'busy'
+							? COMMAND_BUSY
+							: state.command.text
+								? INK
+								: INK_SOFT,
+				fontStyle: command.phase === 'disabled' ? 'italic' : 'normal',
 				wordWrap: false,
 			},
 		);
+		const maxDisplayWidth = Math.max(
+			24,
+			layout.intentStrip.x + layout.intentStrip.width - sendWidth - lineX - 14,
+		);
+		let visibleChars = Math.min(
+			Array.from(command.displayText).length,
+			maxDisplayChars,
+		);
+		while (inputText.width > maxDisplayWidth && visibleChars > 4) {
+			visibleChars -= 1;
+			inputText.text = windowNotebookCommandText(
+				command.displayText,
+				visibleChars,
+			);
+		}
+		this.drawCommandStatus(layout, lineX, command);
+		if (command.showCaret) {
+			const caretX = Math.min(
+				layout.intentStrip.x + layout.intentStrip.width - sendWidth - 10,
+				lineX + 9 + (state.command.text ? inputText.width : 0),
+			);
+			const caret = new Graphics();
+			caret
+				.rect(
+					caretX,
+					layout.intentStrip.y + layout.intentStrip.height * 0.27,
+					1.7,
+					Math.max(15, layout.intentStrip.height * 0.28),
+				)
+				.fill({ color: INK, alpha: 0.76 });
+			this.layers.intent.addChild(caret);
+		}
 		const sendRect = {
 			x: layout.intentStrip.x + layout.intentStrip.width - sendWidth,
 			y: layout.intentStrip.y,
@@ -1165,22 +1246,91 @@ export class IllustratedParishRenderer {
 				sendRect,
 				{ type: 'send' },
 				81,
-				state.busy || !state.intentText.trim(),
+				command.sendDisabled,
 			),
 		);
-		this.contain(this.layers.intent, PARISH_ASSETS.quillIcon, {
+		const quill = this.contain(this.layers.intent, PARISH_ASSETS.quillIcon, {
 			x: sendRect.x + sendRect.width * 0.12,
 			y: sendRect.y + sendRect.height * 0.08,
 			width: sendRect.width * 0.76,
 			height: sendRect.height * 0.82,
 		});
-		if (state.busy) {
+		quill.alpha = command.sendDisabled
+			? command.phase === 'disabled'
+				? 0.3
+				: 0.48
+			: 1;
+		if (command.phase === 'busy' || command.phase === 'disabled') {
 			const veil = new Graphics();
 			veil
 				.rect(sendRect.x, sendRect.y, sendRect.width, sendRect.height)
 				.fill({ color: PAPER_LIGHT, alpha: 0.44 });
 			this.layers.intent.addChild(veil);
 		}
+		if (command.phase === 'error' && !command.sendDisabled) {
+			const retry = new Graphics();
+			retry
+				.circle(
+					sendRect.x + sendRect.width / 2,
+					sendRect.y + sendRect.height / 2,
+					Math.min(sendRect.width, sendRect.height) * 0.42,
+				)
+				.stroke({ color: MOOD_RED, width: 1.8, alpha: 0.74 });
+			this.layers.intent.addChild(retry);
+		}
+	}
+
+	private drawCommandStatus(
+		layout: ParishLayout,
+		lineX: number,
+		command: ReturnType<typeof resolveNotebookCommandPresentation>,
+	): void {
+		if (!command.statusText) return;
+		const color =
+			command.phase === 'error'
+				? MOOD_RED
+				: command.phase === 'busy'
+					? COMMAND_BUSY
+					: INK_SOFT;
+		const mark = new Graphics();
+		const markX = lineX + 4;
+		const markY = layout.intentStrip.y + 10;
+		if (command.phase === 'busy') {
+			for (let index = 0; index < 3; index += 1) {
+				mark.circle(markX + index * 5, markY + (index % 2), 1.6).fill({
+					color,
+					alpha: 0.86 - index * 0.12,
+				});
+			}
+		} else if (command.phase === 'disabled') {
+			mark
+				.moveTo(markX, markY + 3)
+				.lineTo(markX + 5, markY - 2)
+				.moveTo(markX + 4, markY + 3)
+				.lineTo(markX + 9, markY - 2)
+				.stroke({ color, width: 1.4, alpha: 0.74 });
+		} else if (command.phase === 'error') {
+			mark
+				.moveTo(markX, markY - 3)
+				.lineTo(markX + 7, markY + 4)
+				.moveTo(markX + 7, markY - 3)
+				.lineTo(markX, markY + 4)
+				.stroke({ color, width: 1.7, alpha: 0.86 });
+		} else {
+			mark
+				.moveTo(markX, markY + 3)
+				.lineTo(markX + 7, markY - 2)
+				.stroke({ color, width: 1.4, alpha: 0.72 });
+		}
+		this.layers.intent.addChild(mark);
+		this.text(
+			this.layers.intent,
+			shortText(command.statusText, layout.mode === 'mobile' ? 30 : 56),
+			lineX + 20,
+			layout.intentStrip.y + 3,
+			Math.max(9, Math.min(11, layout.intentStrip.height * 0.17)),
+			{ fill: color, wordWrap: false },
+		);
 	}
 
 	private drawBottomCards(
@@ -1236,7 +1386,7 @@ export class IllustratedParishRenderer {
 		);
 		this.text(
 			this.layers.chrome,
-			state.busy ? 'awaiting the parish…' : '(none)',
+			state.command.busy ? 'awaiting the parish…' : '(none)',
 			layout.activeIntentsCard.x + layout.activeIntentsCard.width * 0.12,
 			layout.activeIntentsCard.y + layout.activeIntentsCard.height * 0.43,
 			Math.max(10, Math.min(15, layout.activeIntentsCard.height * 0.16)),
@@ -1305,13 +1455,19 @@ export class IllustratedParishRenderer {
 		layer.addChild(eye);
 	}
 
-	private drawPortraitPlaceholder(
+	private drawPersonPortrait(
 		layer: Container,
 		rect: ParishRect,
-		name: string,
+		npc: ParishRenderState['npcs'][number],
 		selected: boolean,
 	): void {
+		const art = resolveNotebookPersonArt(
+			this.personArt,
+			npc.npc_id,
+			npc.real_name,
+		);
 		this.contain(layer, PARISH_ASSETS.portraitFrame, rect);
+		this.contain(layer, art.portrait, rect, 2);
 		if (selected) {
 			const selection = new Graphics();
 			selection
@@ -1319,16 +1475,6 @@ export class IllustratedParishRenderer {
 				.stroke({ color: MOOD_RED, width: 1.5, alpha: 0.7 });
 			layer.addChild(selection);
 		}
-
-		const initials = this.text(
-			layer,
-			npcInitials(name),
-			rect.x + rect.width / 2,
-			rect.y + rect.height / 2,
-			Math.max(11, Math.min(rect.width, rect.height) * 0.38),
-			{ fill: INK_SOFT, fontWeight: '600' },
-		);
-		initials.anchor.set(0.5);
 	}
 
 	private drawChurch(
@@ -1415,17 +1561,6 @@ function safeId(value: string): string {
 		.toLowerCase()
 		.replace(/[^a-z0-9]+/g, '-')
 		.replace(/^-|-$/g, '');
-}
-
-function npcInitials(value: string): string {
-	return (
-		value
-			.trim()
-			.split(/\s+/)
-			.slice(0, 2)
-			.map((part) => part.charAt(0).toLocaleUpperCase())
-			.join('') || '?'
-	);
 }
 
 function titleCase(value: string): string {

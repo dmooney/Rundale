@@ -29,17 +29,32 @@ describe('fresh illustrated parish provenance boundary', () => {
 	it('does not ship the rejected asset kit or its dead renderer', () => {
 		for (const path of [
 			'static/notebook-ui',
-			'static/rundale/notebook-ui',
-			'src/components/notebook',
 			'scripts/generate-notebook-assets.mjs',
 		]) {
 			expect(existsSync(resolve(process.cwd(), path)), path).toBe(false);
 		}
+		const rejectedComponents = resolve(
+			process.cwd(),
+			'src/components/notebook',
+		);
+		expect(
+			existsSync(rejectedComponents) ? readdirSync(rejectedComponents) : [],
+		).toEqual([]);
 		expect(
 			readdirSync(
 				resolve(process.cwd(), 'src/lib/illustrated-notebook'),
 			).sort(),
 		).toEqual(['command.test.ts', 'command.ts']);
+		expect(
+			readdirSync(resolve(process.cwd(), 'static/rundale/notebook-ui')).sort(),
+		).toEqual([
+			'asset-manifest.json',
+			'asset-readme.md',
+			'people',
+			'person-art-contact-sheet.html',
+			'person-art-contact-sheet.png',
+			'person-art-provenance.md',
+		]);
 	});
 
 	it('does not route through the rejected visual stack or asset kit', () => {
