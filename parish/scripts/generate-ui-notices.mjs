@@ -16,21 +16,79 @@ const REQUIRED_MANIFESTS = [
 	'package-lock.json',
 	'license-clarifications.json',
 ];
+const NPM_EXEC_PATH_OVERRIDE = 'PARISH_UI_NOTICES_NPM_EXEC_PATH';
+const TARGET_MANIFEST_PATH = fileURLToPath(
+	new URL('./ui-notice-targets.json', import.meta.url),
+);
 
-// Keep this matrix aligned with the support sensors in the regression test.
-// Desktop targets come from .github/workflows/audit.yml; Linux arm64 is an
-// active container target in deploy/Dockerfile. Lockfile-only future targets
-// (Android, iOS, FreeBSD, OpenHarmony, Windows arm64) are intentionally absent.
-export const SUPPORTED_TARGETS = Object.freeze([
-	Object.freeze({ id: 'darwin-arm64', os: 'darwin', cpu: 'arm64' }),
-	Object.freeze({ id: 'darwin-x64', os: 'darwin', cpu: 'x64' }),
-	Object.freeze({ id: 'linux-arm64', os: 'linux', cpu: 'arm64' }),
-	Object.freeze({ id: 'linux-x64', os: 'linux', cpu: 'x64' }),
-	Object.freeze({ id: 'win32-x64', os: 'win32', cpu: 'x64' }),
-]);
+function deepFreeze(value) {
+	if (value && typeof value === 'object' && !Object.isFrozen(value)) {
+		for (const child of Object.values(value)) deepFreeze(child);
+		Object.freeze(value);
+	}
+	return value;
+}
 
-export function defaultNpmCommand(platform = process.platform) {
-	return [platform === 'win32' ? 'npm.cmd' : 'npm'];
+function readTargetManifest() {
+	let manifest;
+	try {
+		manifest = JSON.parse(fs.readFileSync(TARGET_MANIFEST_PATH, 'utf8'));
+	} catch (error) {
+		throw new Error(
+			`invalid UI notice target manifest: ${TARGET_MANIFEST_PATH}`,
+			{
+				cause: error,
+			},
+		);
+	}
+	if (manifest.schemaVersion !== 1 || !Array.isArray(manifest.targets)) {
+		throw new Error('UI notice target manifest must use schemaVersion 1');
+	}
+	return deepFreeze(manifest);
+}
+
+// This is the one authoritative support list. The focused sensor test reads the
+// same manifest and verifies its audit, container, and release rationale against
+// the repository files named there.
+export const UI_NOTICE_TARGET_MANIFEST = readTargetManifest();
+export const SUPPORTED_TARGETS = Object.freeze(
+	UI_NOTICE_TARGET_MANIFEST.targets.map((target) =>
+		Object.freeze({ cpu: target.cpu, id: target.id, os: target.os }),
+	),
+);
+
+export function defaultNpmCommand(options = {}) {
+	const env = options.env ?? process.env;
+	const fsOps = options.fsOps ?? fs;
+	const npmExecPath = env[NPM_EXEC_PATH_OVERRIDE] ?? env.npm_execpath;
+	const source = env[NPM_EXEC_PATH_OVERRIDE]
+		? NPM_EXEC_PATH_OVERRIDE
+		: 'npm_execpath';
+	if (!npmExecPath) {
+		throw new Error(
+			`npm_execpath is unavailable; run the supported npm script or set ${NPM_EXEC_PATH_OVERRIDE}`,
+		);
+	}
+	if (!path.isAbsolute(npmExecPath)) {
+		throw new Error(
+			`${source} must be an absolute path to npm's JS entry point`,
+		);
+	}
+	if (!/\.(?:cjs|mjs|js)$/i.test(npmExecPath)) {
+		throw new Error(`${source} must name a JavaScript entry point`);
+	}
+	let stats;
+	try {
+		stats = fsOps.statSync(npmExecPath);
+	} catch (error) {
+		throw new Error(`${source} does not exist: ${npmExecPath}`, {
+			cause: error,
+		});
+	}
+	if (!stats.isFile()) {
+		throw new Error(`${source} is not a file: ${npmExecPath}`);
+	}
+	return [options.execPath ?? process.execPath, npmExecPath];
 }
 
 function parseCommandOverride(value, label) {
@@ -232,11 +290,17 @@ function createCommitCandidate(fsOps, destinationDirectory) {
 			`.ui-notices.commit-${process.pid}-${randomUUID()}`,
 		);
 		try {
-			const descriptor = fsOps.openSync(candidate, 'wx', 0o600);
-			fsOps.closeSync(descriptor);
+			fsOps.writeFileSync(candidate, '', {
+				encoding: 'utf8',
+				flag: 'wx',
+				mode: 0o600,
+			});
 			return candidate;
 		} catch (error) {
-			if (error.code !== 'EEXIST') throw error;
+			if (error.code !== 'EEXIST') {
+				cleanupBestEffort(fsOps, candidate);
+				throw error;
+			}
 		}
 	}
 	throw new Error('could not allocate a unique UI notice commit candidate');
@@ -247,8 +311,19 @@ function cleanupBestEffort(fsOps, target) {
 	try {
 		fsOps.rmSync(target, { force: true, recursive: true });
 	} catch {
-		// Preserve the original failure. Cleanup is deliberately best-effort only
-		// before commit; the success path disarms it before the atomic rename.
+		// Preserve the original handled failure. Abrupt process termination can
+		// leave hidden transaction paths, but cannot partially replace destination.
+	}
+}
+
+function verifySourceManifestsUnchanged(fsOps, uiDirectory, manifests) {
+	for (const [manifest, original] of manifests) {
+		const current = fsOps.readFileSync(path.join(uiDirectory, manifest));
+		if (!current.equals(original)) {
+			throw new Error(
+				`source prerequisite changed during generation: ${manifest}`,
+			);
+		}
 	}
 }
 
@@ -270,11 +345,11 @@ export function generateUiNotices(options = {}) {
 	const targets = options.targets ?? SUPPORTED_TARGETS;
 	const npmCommand =
 		options.npmCommand ??
-		parseCommandOverride(
-			env.PARISH_UI_NOTICES_NPM_COMMAND_JSON,
-			'PARISH_UI_NOTICES_NPM_COMMAND_JSON',
-		) ??
-		defaultNpmCommand(options.platform ?? process.platform);
+		defaultNpmCommand({
+			env,
+			execPath: options.execPath,
+			fsOps,
+		});
 	const scannerOverride =
 		options.scannerCommand ??
 		parseCommandOverride(
@@ -287,17 +362,6 @@ export function generateUiNotices(options = {}) {
 			`destination directory does not exist: ${destinationDirectory}`,
 		);
 	}
-	const manifests = new Map();
-	for (const manifest of REQUIRED_MANIFESTS) {
-		const source = path.join(uiDirectory, manifest);
-		try {
-			manifests.set(manifest, fsOps.readFileSync(source));
-		} catch (error) {
-			throw new Error(`missing prerequisite ${source}`, { cause: error });
-		}
-	}
-	verifyLockedScanner(manifests);
-
 	const targetIds = new Set();
 	for (const target of targets) {
 		if (!target.id || !target.os || !target.cpu || targetIds.has(target.id)) {
@@ -310,11 +374,21 @@ export function generateUiNotices(options = {}) {
 
 	let workDirectory;
 	let commitCandidate;
+	const manifests = new Map();
 	try {
+		for (const manifest of REQUIRED_MANIFESTS) {
+			const source = path.join(uiDirectory, manifest);
+			try {
+				manifests.set(manifest, fsOps.readFileSync(source));
+			} catch (error) {
+				throw new Error(`missing prerequisite ${source}`, { cause: error });
+			}
+		}
+		verifyLockedScanner(manifests);
+		commitCandidate = createCommitCandidate(fsOps, destinationDirectory);
 		workDirectory = fsOps.mkdtempSync(
 			path.join(destinationDirectory, '.ui-notices.work-'),
 		);
-		commitCandidate = createCommitCandidate(fsOps, destinationDirectory);
 		const cacheDirectory = path.join(workDirectory, 'npm-cache');
 		const targetArtifacts = [];
 
@@ -412,27 +486,18 @@ export function generateUiNotices(options = {}) {
 
 		const unionNotice = validateAndMergeTargets(targetArtifacts, fsOps);
 		fsOps.writeFileSync(commitCandidate, unionNotice, 'utf8');
-
-		// Refuse to commit a snapshot if its source manifests changed while the
-		// private target installs were running.
-		for (const [manifest, original] of manifests) {
-			const current = fsOps.readFileSync(path.join(uiDirectory, manifest));
-			if (!current.equals(original)) {
-				throw new Error(
-					`source prerequisite changed during generation: ${manifest}`,
-				);
-			}
-		}
-
 		fsOps.chmodSync(commitCandidate, 0o644);
-		// All potentially failing cleanup finishes before commit. The failure path
-		// below is best-effort and cannot mask the original error.
+		// All fallible preparation and handled-failure cleanup finishes before the
+		// final source comparison. A hard termination can leave hidden residue, but
+		// the destination still remains either the old or complete new file.
 		fsOps.rmSync(workDirectory, { force: true, recursive: true });
 		workDirectory = undefined;
 		logger.log(
-			`Validated ${targets.length}-target UI notice union; replacing ${destination} atomically.`,
+			`Prepared ${targets.length}-target UI notice union; validating sources before atomic replacement.`,
 		);
-		// Same-directory rename is the literal final fallible operation.
+		// Keep these adjacent: the same-directory rename is the literal next and
+		// final fallible operation after re-reading every source manifest.
+		verifySourceManifestsUnchanged(fsOps, uiDirectory, manifests);
 		fsOps.renameSync(commitCandidate, destination);
 	} catch (error) {
 		cleanupBestEffort(fsOps, workDirectory);

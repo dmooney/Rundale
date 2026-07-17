@@ -496,7 +496,9 @@ notices:
     echo "Generating Rust notices..."
     cargo about generate about.hbs --output-file THIRD_PARTY_NOTICES.rust.md
     echo "Generating UI notices..."
-    node scripts/generate-ui-notices.mjs
+    # npm run supplies npm_execpath, so the generator can invoke npm's JS entry
+    # point through the current Node binary without a shell or Windows .cmd shim.
+    npm --prefix apps/ui run notices
     echo "Done. Regenerated THIRD_PARTY_NOTICES.rust.md and THIRD_PARTY_NOTICES.ui.md."
 
 # ─── Local CI (act) ──────────────────────────────────────────────────────────

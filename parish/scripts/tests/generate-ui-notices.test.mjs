@@ -9,6 +9,7 @@ import assert from 'node:assert/strict';
 
 import {
 	SUPPORTED_TARGETS,
+	UI_NOTICE_TARGET_MANIFEST,
 	defaultNpmCommand,
 	generateUiNotices,
 } from '../generate-ui-notices.mjs';
@@ -18,6 +19,10 @@ const scriptsDirectory = path.resolve(testDirectory, '..');
 const parishDirectory = path.resolve(scriptsDirectory, '..');
 const repositoryRoot = path.resolve(parishDirectory, '..');
 const generatorPath = path.join(scriptsDirectory, 'generate-ui-notices.mjs');
+const targetManifestPath = path.join(
+	scriptsDirectory,
+	'ui-notice-targets.json',
+);
 const scannerPackage = 'license-checker-rseidelsohn';
 const scannerVersion = '4.4.2';
 const firstTarget = [SUPPORTED_TARGETS[0]];
@@ -99,7 +104,9 @@ const commandStubSource = `#!/usr/bin/env node
 import fs from "node:fs";
 import path from "node:path";
 
-const [role, ...args] = process.argv.slice(2);
+const commandArgs = process.argv.slice(2);
+const role = commandArgs[0] === "scanner" ? commandArgs.shift() : "npm";
+const args = commandArgs;
 const config = JSON.parse(fs.readFileSync(process.env.TEST_NOTICE_CONFIG, "utf8"));
 const target = process.env.npm_config_os + "-" + process.env.npm_config_cpu;
 const record = JSON.stringify({ args, cwd: process.cwd(), pid: process.pid, role, target }) + "\\n";
@@ -210,11 +217,6 @@ function createFixture() {
 	const env = {
 		...process.env,
 		PARISH_UI_NOTICES_DESTINATION: destination,
-		PARISH_UI_NOTICES_NPM_COMMAND_JSON: JSON.stringify([
-			process.execPath,
-			stubPath,
-			'npm',
-		]),
 		PARISH_UI_NOTICES_SCANNER_COMMAND_JSON: JSON.stringify([
 			process.execPath,
 			stubPath,
@@ -222,14 +224,17 @@ function createFixture() {
 		]),
 		PARISH_UI_NOTICES_UI_DIR: uiDirectory,
 		TEST_NOTICE_CONFIG: configPath,
+		npm_execpath: stubPath,
 	};
 	return {
 		baseline,
 		calls,
 		config,
+		configPath,
 		destination,
 		env,
 		root,
+		stubPath,
 		uiDirectory,
 		writeConfig,
 	};
@@ -322,52 +327,138 @@ function runCli(env) {
 	});
 }
 
-test('supported target matrix stays tied to release and deploy facts', () => {
-	const audit = fs.readFileSync(
-		path.join(repositoryRoot, '.github', 'workflows', 'audit.yml'),
+async function waitForFirstCall(callLog, timeoutMs = 5_000) {
+	const deadline = Date.now() + timeoutMs;
+	while (Date.now() < deadline) {
+		if (fs.readFileSync(callLog, 'utf8').includes('\n')) return;
+		await new Promise((resolve) => setTimeout(resolve, 10));
+	}
+	throw new Error(`timed out waiting for subprocess call in ${callLog}`);
+}
+
+test('canonical target manifest matches audit and container sensors and records the release subset', () => {
+	const diskManifest = JSON.parse(fs.readFileSync(targetManifestPath, 'utf8'));
+	assert.deepEqual(UI_NOTICE_TARGET_MANIFEST, diskManifest);
+	const { audit, container, release } = diskManifest.sensors;
+	const targetIds = diskManifest.targets.map((target) => target.id).sort();
+	const noticeEvidenceIds = new Set(
+		[...audit.targets, ...container.targets].map(
+			(target) => target.noticeTarget,
+		),
+	);
+	assert.deepEqual([...noticeEvidenceIds].sort(), targetIds);
+	assert.ok(
+		release.targets.every((target) =>
+			noticeEvidenceIds.has(target.noticeTarget),
+		),
+	);
+	assert.match(audit.purpose, /not a release matrix/i);
+	assert.match(release.purpose, /only Linux x86_64/i);
+
+	const auditWorkflow = fs.readFileSync(
+		path.join(repositoryRoot, audit.path),
 		'utf8',
 	);
 	const dockerfile = fs.readFileSync(
-		path.join(repositoryRoot, 'deploy', 'Dockerfile'),
+		path.join(repositoryRoot, container.path),
+		'utf8',
+	);
+	const releaseWorkflow = fs.readFileSync(
+		path.join(repositoryRoot, release.path),
 		'utf8',
 	);
 	const rustTargets = [
-		...audit.matchAll(/^\s+"((?:aarch64|x86_64)-[^"]+)"$/gm),
+		...auditWorkflow.matchAll(/^\s+"((?:aarch64|x86_64)-[^"]+)"$/gm),
 	].map((match) => match[1]);
-	assert.deepEqual(rustTargets.sort(), [
-		'aarch64-apple-darwin',
-		'x86_64-apple-darwin',
-		'x86_64-pc-windows-msvc',
-		'x86_64-unknown-linux-gnu',
-	]);
+	assert.deepEqual(
+		rustTargets.sort(),
+		audit.targets.map((target) => target.source).sort(),
+	);
 	const dockerArchitectures = [
 		...dockerfile.matchAll(/^\s+(amd64|arm64)\) SHA256=/gm),
 	].map((match) => match[1]);
-	assert.deepEqual(dockerArchitectures.sort(), ['amd64', 'arm64']);
-	assert.deepEqual(SUPPORTED_TARGETS.map((target) => target.id).sort(), [
-		'darwin-arm64',
-		'darwin-x64',
-		'linux-arm64',
-		'linux-x64',
-		'win32-x64',
-	]);
+	assert.deepEqual(
+		dockerArchitectures.sort(),
+		container.targets.map((target) => target.source).sort(),
+	);
+	const releaseTargets = [
+		...releaseWorkflow.matchAll(/^\s+name: Build (.+) release binary$/gm),
+	].map((match) => match[1]);
+	assert.deepEqual(
+		releaseTargets.sort(),
+		release.targets.map((target) => target.source).sort(),
+	);
+	assert.deepEqual(
+		SUPPORTED_TARGETS.map((target) => target.id).sort(),
+		targetIds,
+	);
 });
 
-test('native Windows entry point uses npm.cmd and shell-free Node', () => {
-	assert.deepEqual(defaultNpmCommand('win32'), ['npm.cmd']);
-	assert.deepEqual(defaultNpmCommand('darwin'), ['npm']);
-	const packageJson = JSON.parse(
-		fs.readFileSync(
-			path.join(parishDirectory, 'apps', 'ui', 'package.json'),
+test('default npm JS entry point executes shell-free with paths containing spaces', () =>
+	withFixture((fixture) => {
+		assert.deepEqual(defaultNpmCommand({ env: fixture.env, fsOps: fs }), [
+			process.execPath,
+			fixture.stubPath,
+		]);
+		const spawnOptions = runFixture(fixture);
+		const npmCalls = spawnOptions.filter(
+			(call) => call.args[0] === fixture.stubPath && call.args[1] !== 'scanner',
+		);
+		assert.equal(npmCalls.length, 2);
+		assert.ok(fixture.stubPath.includes(' '));
+		assert.ok(
+			npmCalls.every(
+				(call) =>
+					call.command === process.execPath && call.options.shell === false,
+			),
+		);
+
+		const packageJson = JSON.parse(
+			fs.readFileSync(
+				path.join(parishDirectory, 'apps', 'ui', 'package.json'),
+				'utf8',
+			),
+		);
+		assert.equal(
+			packageJson.scripts.notices,
+			'node ../../scripts/generate-ui-notices.mjs',
+		);
+		assert.equal(packageJson.devDependencies[scannerPackage], scannerVersion);
+		const justfile = fs.readFileSync(
+			path.join(parishDirectory, 'justfile'),
 			'utf8',
-		),
-	);
-	assert.equal(
-		packageJson.scripts.notices,
-		'node ../../scripts/generate-ui-notices.mjs',
-	);
-	assert.equal(packageJson.devDependencies[scannerPackage], scannerVersion);
-});
+		);
+		assert.match(justfile, /^\s+npm --prefix apps\/ui run notices$/m);
+	}));
+
+test('explicit npm JS override is validated and executed without command parsing', () =>
+	withFixture((fixture) => {
+		fixture.env.npm_execpath = 'relative/not-used.js';
+		fixture.env.PARISH_UI_NOTICES_NPM_EXEC_PATH = fixture.stubPath;
+		const spawnOptions = runFixture(fixture);
+		assert.ok(
+			spawnOptions.every(
+				(call) =>
+					call.command === process.execPath && call.options.shell === false,
+			),
+		);
+		delete fixture.env.PARISH_UI_NOTICES_NPM_EXEC_PATH;
+		delete fixture.env.npm_execpath;
+		assert.throws(
+			() => defaultNpmCommand({ env: fixture.env, fsOps: fs }),
+			/npm_execpath is unavailable/,
+		);
+		fixture.env.PARISH_UI_NOTICES_NPM_EXEC_PATH = `${fixture.stubPath}.cmd`;
+		assert.throws(
+			() => defaultNpmCommand({ env: fixture.env, fsOps: fs }),
+			/must name a JavaScript entry point/,
+		);
+		fixture.env.PARISH_UI_NOTICES_NPM_EXEC_PATH = 'relative/npm-cli.js';
+		assert.throws(
+			() => defaultNpmCommand({ env: fixture.env, fsOps: fs }),
+			/must be an absolute path/,
+		);
+	}));
 
 test('scanner and every transitive are lockfile-backed', () => {
 	const lock = JSON.parse(
@@ -480,6 +571,38 @@ for (const failure of ['chmod', 'cleanup', 'rename']) {
 		}));
 }
 
+for (const manifest of [
+	'package.json',
+	'package-lock.json',
+	'license-clarifications.json',
+]) {
+	test(`${manifest} mutation during cleanup rejects the stale snapshot byte-for-byte`, () =>
+		withFixture((fixture) => {
+			let injected = false;
+			const fsOps = Object.create(fs);
+			fsOps.rmSync = (target, options) => {
+				if (
+					!injected &&
+					path.basename(target).startsWith('.ui-notices.work-')
+				) {
+					injected = true;
+					fs.appendFileSync(path.join(fixture.uiDirectory, manifest), '\n');
+				}
+				return fs.rmSync(target, options);
+			};
+			assert.throws(
+				() => runFixture(fixture, { fsOps }),
+				new RegExp(
+					`source prerequisite changed during generation: ${manifest.replaceAll('.', '\\.')}`,
+				),
+			);
+			assert.equal(injected, true);
+			assertPreserved(fixture);
+			assertSourceInstallPreserved(fixture);
+			assertNoTransactionResidue(fixture);
+		}));
+}
+
 test('matrix success uses private installs, sorted union, and final atomic rename', () =>
 	withFixture((fixture) => {
 		const packageHash = sha256(path.join(fixture.uiDirectory, 'package.json'));
@@ -488,6 +611,19 @@ test('matrix success uses private installs, sorted union, and final atomic renam
 		);
 		const events = [];
 		const fsOps = Object.create(fs);
+		fsOps.readFileSync = (target, ...args) => {
+			if (
+				path.dirname(target) === fixture.uiDirectory &&
+				[
+					'package.json',
+					'package-lock.json',
+					'license-clarifications.json',
+				].includes(path.basename(target))
+			) {
+				events.push({ operation: 'source-read', target });
+			}
+			return fs.readFileSync(target, ...args);
+		};
 		fsOps.chmodSync = (target, mode) => {
 			events.push({ operation: 'chmod', target });
 			return fs.chmodSync(target, mode);
@@ -504,6 +640,7 @@ test('matrix success uses private installs, sorted union, and final atomic renam
 		const spawnOptions = [];
 		runFixture(fixture, {
 			fsOps,
+			logger: { log: () => events.push({ operation: 'log' }) },
 			spawnOptions,
 			targets: SUPPORTED_TARGETS,
 		});
@@ -531,9 +668,22 @@ test('matrix success uses private installs, sorted union, and final atomic renam
 		);
 		assert.ok(ciCalls.every((call) => call.args.includes('--ignore-scripts')));
 		assert.equal(events.at(-1).operation, 'rename');
+		assert.deepEqual(
+			events.slice(-4).map((event) => event.operation),
+			['source-read', 'source-read', 'source-read', 'rename'],
+		);
+		const finalReadIndex = events.length - 4;
 		assert.ok(
-			events.findIndex((event) => event.operation === 'cleanup') <
-				events.length - 1,
+			events.findLastIndex((event) => event.operation === 'chmod') <
+				finalReadIndex,
+		);
+		assert.ok(
+			events.findLastIndex((event) => event.operation === 'cleanup') <
+				finalReadIndex,
+		);
+		assert.ok(
+			events.findLastIndex((event) => event.operation === 'log') <
+				finalReadIndex,
 		);
 		assertNoTransactionResidue(fixture);
 	}));
@@ -549,7 +699,7 @@ test('two sequential matrix generations are byte-identical', () =>
 		assertSourceInstallPreserved(fixture);
 	}));
 
-test('two real concurrent CLI processes cannot share or corrupt installs', async () => {
+test('overlapping same-snapshot CLI processes use disjoint candidates', async () => {
 	await withFixture(async (fixture) => {
 		fixture.config.delayMs = 15;
 		fixture.writeConfig();
@@ -571,6 +721,44 @@ test('two real concurrent CLI processes cannot share or corrupt installs', async
 		assert.ok(
 			ciCalls.every((call) => !call.cwd.startsWith(fixture.uiDirectory)),
 		);
+		assertNoTransactionResidue(fixture);
+	});
+});
+
+test('different-snapshot concurrent process commits current and rejects stale', async () => {
+	await withFixture(async (fixture) => {
+		fixture.config.delayMs = 75;
+		fixture.writeConfig();
+		const currentConfigPath = path.join(
+			fixture.root,
+			'current stub config.json',
+		);
+		fs.writeFileSync(
+			currentConfigPath,
+			`${JSON.stringify({ ...fixture.config, delayMs: 0 }, null, 2)}\n`,
+		);
+
+		const staleRun = runCli(fixture.env);
+		await waitForFirstCall(fixture.calls);
+		const packagePath = path.join(fixture.uiDirectory, 'package.json');
+		const packageJson = JSON.parse(fs.readFileSync(packagePath, 'utf8'));
+		packageJson.description = 'new source snapshot';
+		fs.writeFileSync(packagePath, `${JSON.stringify(packageJson, null, 2)}\n`);
+
+		const currentRun = runCli({
+			...fixture.env,
+			TEST_NOTICE_CONFIG: currentConfigPath,
+		});
+		const [stale, current] = await Promise.all([staleRun, currentRun]);
+		assert.notEqual(stale.code, 0);
+		assert.match(
+			stale.stderr,
+			/source prerequisite changed during generation: package\.json/,
+		);
+		assert.equal(current.code, 0, current.stderr);
+		assert.equal(current.signal, null);
+		assert.equal(fs.readFileSync(fixture.destination, 'utf8'), expectedUnion());
+		assertSourceInstallPreserved(fixture);
 		assertNoTransactionResidue(fixture);
 	});
 });

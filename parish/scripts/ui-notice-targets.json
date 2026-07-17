@@ -1,0 +1,48 @@
+{
+  "schemaVersion": 1,
+  "rationale": "The UI notice covers production npm variants for targets exercised by the dependency-audit and container support surfaces. GitHub release packaging is recorded separately and is only a subset.",
+  "targets": [
+    { "id": "darwin-arm64", "os": "darwin", "cpu": "arm64" },
+    { "id": "darwin-x64", "os": "darwin", "cpu": "x64" },
+    { "id": "linux-arm64", "os": "linux", "cpu": "arm64" },
+    { "id": "linux-x64", "os": "linux", "cpu": "x64" },
+    { "id": "win32-x64", "os": "win32", "cpu": "x64" }
+  ],
+  "sensors": {
+    "audit": {
+      "path": ".github/workflows/audit.yml",
+      "purpose": "The security audit checks temporary Rust pins on these compilation targets; it is not a release matrix.",
+      "targets": [
+        {
+          "source": "aarch64-apple-darwin",
+          "noticeTarget": "darwin-arm64"
+        },
+        {
+          "source": "x86_64-apple-darwin",
+          "noticeTarget": "darwin-x64"
+        },
+        {
+          "source": "x86_64-pc-windows-msvc",
+          "noticeTarget": "win32-x64"
+        },
+        {
+          "source": "x86_64-unknown-linux-gnu",
+          "noticeTarget": "linux-x64"
+        }
+      ]
+    },
+    "container": {
+      "path": "deploy/Dockerfile",
+      "purpose": "The container selects architecture-specific Linux cloudflared binaries for these BuildKit architectures.",
+      "targets": [
+        { "source": "arm64", "noticeTarget": "linux-arm64" },
+        { "source": "amd64", "noticeTarget": "linux-x64" }
+      ]
+    },
+    "release": {
+      "path": ".github/workflows/release.yml",
+      "purpose": "The tag release currently packages only Linux x86_64; it does not prove the other four notice targets.",
+      "targets": [{ "source": "Linux x86_64", "noticeTarget": "linux-x64" }]
+    }
+  }
+}
