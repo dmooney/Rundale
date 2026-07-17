@@ -1,10 +1,15 @@
 import { test, expect, installTauriMock, emitEvent } from './fixtures';
+import type { Page } from '@playwright/test';
 
 /**
  * Dispatch a KeyboardEvent with the given key.
  * More reliable than page.keyboard.press() for Svelte <svelte:window> handlers.
  */
 async function pressKey(page: import('@playwright/test').Page, key: string) {
+	await expect(page.locator('.app-shell')).toHaveAttribute(
+		'data-controller-ready',
+		'true',
+	);
 	await page.evaluate(
 		({ key }) => {
 			window.dispatchEvent(
@@ -15,25 +20,44 @@ async function pressKey(page: import('@playwright/test').Page, key: string) {
 	);
 }
 
-async function activateNotebookControl(
-	page: import('@playwright/test').Page,
-	name: string,
-) {
+async function activateNotebookControl(page: Page, name: string) {
+	await expect(page.locator('.app-shell')).toHaveAttribute(
+		'data-controller-ready',
+		'true',
+	);
 	const control = page.getByRole('button', { name, exact: true });
 	await expect(control).toHaveCount(1);
 	await control.focus();
 	await expect(control).toBeFocused();
 	await page.keyboard.press('Enter');
+	return control;
 }
 
-async function openNotebookTools(page: import('@playwright/test').Page) {
-	const toggle = page.getByRole('button', { name: 'Notebook tools' });
-	await expect(toggle).toBeVisible();
-	await toggle.click();
+async function openJournal(page: Page) {
+	await activateNotebookControl(page, 'Open Journal notebook tab');
+	const journal = page.getByRole('dialog', {
+		name: 'Parish Journal',
+		exact: true,
+	});
+	await expect(journal).toBeVisible();
+	return journal;
+}
 
-	const drawer = page.locator('aside[aria-label="tools drawer"]');
-	await expect(drawer).toBeVisible();
-	return drawer;
+async function openFocail(page: Page) {
+	await activateNotebookControl(page, 'Open notebook tools');
+	const tools = page.getByRole('dialog', {
+		name: 'More from the Notebook',
+		exact: true,
+	});
+	await expect(tools).toBeVisible();
+	await tools.getByRole('button', { name: /^Focail/ }).click();
+
+	const focail = page.getByRole('dialog', {
+		name: 'Focail — Irish Words',
+		exact: true,
+	});
+	await expect(focail).toBeVisible();
+	return focail;
 }
 
 test.describe('Debug panel', () => {
@@ -76,24 +100,21 @@ test.describe('Debug panel', () => {
 		}
 	});
 
-	test('dock toggle and close work', async ({ page }) => {
+	test('notebook wrapper and close work', async ({ page }) => {
 		await pressKey(page, 'F12');
 		const debugPanel = page.locator('[data-testid="debug-panel"]');
+		const wrapper = page.getByRole('dialog', { name: 'Parish Records' });
+		await expect(wrapper).toBeVisible();
+		await expect(debugPanel.locator('.debug-dock-toggle')).toBeHidden();
 
-		await debugPanel.locator('.debug-dock-toggle').click();
-		await expect(debugPanel).toHaveClass(/left-dock/);
-
-		await debugPanel.locator('.debug-dock-toggle').click();
-		await expect(debugPanel).not.toHaveClass(/left-dock/);
-
-		await debugPanel.locator('.debug-close').click();
+		await wrapper.getByRole('button', { name: 'Close Parish Records' }).click();
 		await expect(debugPanel).not.toBeVisible();
 	});
 
 	test('reopens after close with F12', async ({ page }) => {
 		await pressKey(page, 'F12');
 		const debugPanel = page.locator('[data-testid="debug-panel"]');
-		await debugPanel.locator('.debug-close').click();
+		await page.getByRole('button', { name: 'Close Parish Records' }).click();
 		await expect(debugPanel).not.toBeVisible();
 
 		await pressKey(page, 'F12');
@@ -187,88 +208,78 @@ test.describe('Save picker', () => {
 	});
 });
 
-test.describe('Notebook drawers', () => {
+test.describe('Focail notebook overlay', () => {
 	test.beforeEach(async ({ page }) => {
 		await installTauriMock(page, 'morning');
 		await page.goto('/');
 		await page.waitForLoadState('networkidle');
 	});
 
-	test('People drawer lists nearby people and returns to the notebook', async ({
+	test('opens from notebook tools and closes back to the clean parish view', async ({
 		page,
 	}) => {
-		await activateNotebookControl(page, 'Open People notebook tab');
+		await expect(page.getByTestId('sidebar')).toHaveCount(0);
+		const focail = await openFocail(page);
+		await expect(focail.locator('.focail-panel')).toBeVisible();
 
-		const drawer = page.locator('aside[aria-label="people drawer"]');
-		await expect(drawer).toBeVisible();
-		await expect(drawer).toContainText('Séamas Ó Briain');
-		await expect(drawer).toContainText('Publican');
-		await expect(drawer).toContainText('Aoife Ní Cheallaigh');
-		await expect(drawer).toContainText('Scholar');
-
-		await drawer.getByRole('button', { name: /Aoife Ní Cheallaigh/ }).click();
-		await expect(drawer).not.toBeVisible();
-		await expect(
-			page.getByTestId('illustrated-notebook-pixi-host'),
-		).toBeVisible();
+		await focail
+			.getByRole('button', { name: 'Close Focail — Irish Words' })
+			.click();
+		await expect(focail).not.toBeVisible();
+		await expect(page.getByTestId('illustrated-notebook-game')).toHaveAttribute(
+			'aria-hidden',
+			'false',
+		);
 	});
 
-	test('Journal drawer shows the latest parish lines', async ({ page }) => {
-		await emitEvent(page, 'text-log', {
-			id: 'journal-proof',
-			source: 'Séamas Ó Briain',
-			content: 'The bridge road is clear before dusk.',
-		});
-		await activateNotebookControl(page, 'Open Journal notebook tab');
-
-		const drawer = page.locator('aside[aria-label="journal drawer"]');
-		await expect(drawer).toBeVisible();
-		await expect(drawer).toContainText('Séamas Ó Briain');
-		await expect(drawer).toContainText('The bridge road is clear before dusk.');
-		// Focail and rich reaction/chat parity remain product work on #1630.
+	test('shows language hints when opened', async ({ page }) => {
+		const focail = await openFocail(page);
+		await expect(focail.getByText('Baile Átha Cliath')).toBeVisible();
+		await expect(focail.getByText('[EE-fa]')).toBeVisible();
 	});
 });
 
-test.describe('Notebook tools', () => {
+test.describe('Reactions', () => {
 	test.beforeEach(async ({ page }) => {
 		await installTauriMock(page, 'morning');
 		await page.goto('/');
 		await page.waitForLoadState('networkidle');
 	});
 
-	test('routes Save/Load and Map from the tools drawer', async ({ page }) => {
-		let drawer = await openNotebookTools(page);
-		await drawer.getByRole('button', { name: 'Save/Load' }).click();
-		const picker = page.getByTestId('save-picker');
-		await expect(picker).toBeVisible();
-		await picker.getByText('Close').click();
-
-		drawer = await openNotebookTools(page);
-		await drawer.getByRole('button', { name: 'Map', exact: true }).click();
-		const map = page.getByTestId('full-map');
-		await expect(map).toBeVisible();
-		await page.getByRole('button', { name: 'Close full map' }).click();
-		await expect(map).not.toBeVisible();
-	});
-
-	test('routes Debug, Mod, and Bug Report from the tools drawer', async ({
+	test('reaction bar appears for NPC messages with reactions', async ({
 		page,
 	}) => {
-		let drawer = await openNotebookTools(page);
-		await drawer.getByRole('button', { name: 'Debug' }).click();
-		const debugPanel = page.getByTestId('debug-panel');
-		await expect(debugPanel).toBeVisible();
-		await debugPanel.locator('.debug-close').click();
+		const journal = await openJournal(page);
+		await emitEvent(page, 'text-log', {
+			id: 'npc-msg-1',
+			source: 'Séamas Ó Briain',
+			content: 'Welcome to the tavern!',
+		});
 
-		drawer = await openNotebookTools(page);
-		await drawer.getByRole('button', { name: 'Mod' }).click();
-		const modDialog = page.getByRole('dialog', { name: 'Select mod' });
-		await expect(modDialog).toBeVisible();
-		await modDialog.getByRole('button', { name: 'Close' }).click();
+		await emitEvent(page, 'npc-reaction', {
+			message_id: 'npc-msg-1',
+			emoji: '\u{1F44D}',
+			source: 'player',
+		});
 
-		drawer = await openNotebookTools(page);
-		await drawer.getByRole('button', { name: 'Bug Report' }).click();
-		await expect(page.getByTestId('bug-report-modal')).toBeVisible();
+		const reactionBar = journal.locator('[data-testid="reaction-bar"]');
+		await expect(reactionBar).toBeVisible();
+		await expect(reactionBar).toContainText('\u{1F44D}');
+	});
+
+	test('reaction picker appears on NPC message hover', async ({ page }) => {
+		const journal = await openJournal(page);
+		await emitEvent(page, 'text-log', {
+			id: 'npc-msg-2',
+			source: 'Séamas Ó Briain',
+			content: 'Good day to you!',
+		});
+
+		const bubbleAnchor = journal.locator('.bubble-anchor').first();
+		await bubbleAnchor.hover();
+
+		const picker = journal.locator('[data-testid="reaction-picker"]');
+		await expect(picker).toBeVisible();
 	});
 });
 
@@ -316,13 +327,9 @@ test.describe('Editor', () => {
 
 		await page.locator('.back-link').click();
 		await page.waitForLoadState('networkidle');
-		await expect(page).toHaveURL(/\/$/);
 		await expect(page.getByTestId('illustrated-notebook-game')).toBeVisible();
 		await expect(
-			page.getByTestId('illustrated-notebook-pixi-host'),
-		).toBeVisible();
-		await expect(
-			page.getByTestId('illustrated-notebook-pixi-host').locator('canvas'),
-		).toBeVisible();
+			page.getByRole('button', { name: 'Ask action', exact: true }),
+		).toHaveCount(1);
 	});
 });

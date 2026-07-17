@@ -17,6 +17,36 @@ export const bugReportContext = writable<BugContext | null>(null);
  */
 export const bugReportScreenshot = writable<string | null>(null);
 
+export interface PreparedBugReport {
+	context: BugContext | null;
+	screenshot: string | null;
+}
+
+/**
+ * Captures the report payload without publishing it to the shared modal
+ * stores. Coordinators can discard a stale capture without disturbing a
+ * newer report that already owns the modal.
+ */
+export async function prepareBugReport(
+	context?: BugContext,
+): Promise<PreparedBugReport> {
+	let screenshot: string | null = null;
+	try {
+		const { captureScreen } = await import('$lib/screenshot');
+		screenshot = await captureScreen();
+	} catch {
+		// A failed capture is non-fatal; the report still opens without an image.
+	}
+	return { context: context ?? null, screenshot };
+}
+
+/** Publishes one fully captured report to the modal stores atomically. */
+export function showPreparedBugReport(report: PreparedBugReport): void {
+	bugReportContext.set(report.context);
+	bugReportScreenshot.set(report.screenshot);
+	bugReportVisible.set(true);
+}
+
 /**
  * Opens the bug-report modal, optionally pre-filled with a debug record.
  *
@@ -25,14 +55,7 @@ export const bugReportScreenshot = writable<string | null>(null);
  * is non-fatal — the report is still filed without an image.
  */
 export async function openBugReport(context?: BugContext): Promise<void> {
-	bugReportContext.set(context ?? null);
-	try {
-		const { captureScreen } = await import('$lib/screenshot');
-		bugReportScreenshot.set(await captureScreen());
-	} catch {
-		bugReportScreenshot.set(null);
-	}
-	bugReportVisible.set(true);
+	showPreparedBugReport(await prepareBugReport(context));
 }
 
 /** Closes the bug-report modal and clears any attached context/screenshot. */

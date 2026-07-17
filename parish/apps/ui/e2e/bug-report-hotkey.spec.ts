@@ -16,15 +16,15 @@ test.describe('Bug report modal — hotkey isolation', () => {
 	test('typing "m" in the description does not open the map', async ({
 		parishPage: page,
 	}) => {
-		// Open the bug-report modal from the current notebook tools drawer.
-		const toolsButton = page.getByRole('button', { name: 'Notebook tools' });
-		await expect(toolsButton).toBeVisible();
-		await toolsButton.click();
-		const toolsDrawer = page.locator('aside[aria-label="tools drawer"]');
-		await expect(toolsDrawer).toBeVisible();
-		const bugButton = toolsDrawer.getByRole('button', {
-			name: 'Bug Report',
+		// Open the report sheet from the illustrated notebook's More page.
+		const moreButton = page.getByRole('button', {
+			name: 'Open notebook tools',
 		});
+		await moreButton.focus();
+		await page.keyboard.press('Enter');
+		const bugButton = page
+			.getByRole('dialog', { name: 'More from the Notebook' })
+			.getByRole('button', { name: /^Bug Report/ });
 		await expect(bugButton).toBeVisible();
 		await bugButton.click();
 		await expect(page.locator('[data-testid="bug-report-modal"]')).toBeVisible({

@@ -1,118 +1,100 @@
 # Plan: Illustrated Notebook Real Play Screen
 
-Status: Pre-implementation plan
+Status: In progress — fresh concept-aligned rebuild for issue #1630
 
-## Commit 1: `feat(ui): add pixi notebook play surface`
+This implementation plan follows the canonical
+[`illustrated-parish-notebook.png`](../graphics-v2/illustrated-parish-notebook.png)
+concept and the active
+[`illustrated-notebook-roadmap.md`](illustrated-notebook-roadmap.md). The first
+implementation attempt is rejected as a visual source: its renderer, layout,
+asset kit, and proof artifacts are not inputs to this rebuild.
 
-1. Add PixiJS to `parish/apps/ui/package.json` and refresh the package lock
-   without unrelated dependency churn.
-2. Create `src/components/illustrated-notebook/IllustratedNotebookGame.svelte`
-   as the Svelte host for a full-viewport Pixi canvas plus hidden/minimal
-   accessibility input.
-3. Create `src/lib/illustrated-notebook/renderer.ts` with explicit Pixi layer
-   containers matching the acceptance criteria.
-4. Create `src/lib/illustrated-notebook/layout.ts` with desktop/mobile layout
-   math, depth anchor mapping, and deterministic marker scaling.
-5. Switch `routes/+page.svelte` to mount `IllustratedNotebookGame` as the
-   default play viewport while retaining setup/save/map/debug/demo/bug/mod
-   overlays as secondary surfaces.
+## Clean Boundary
 
-## Commit 2: `feat(ui): add generated notebook asset kit`
+- The active visual implementation lives in
+  `parish/apps/ui/src/lib/illustrated-parish/`.
+- Runtime art lives in
+  `parish/apps/ui/static/rundale/illustrated-notebook-v2/`.
+- The approved `sewn-notebook-page.png` is the sole retained visual exception.
+  Its 440×620 shape is preserved without stretching.
+- The rejected `src/lib/illustrated-notebook/` visual modules and
+  `static/rundale/notebook-ui/` assets were removed. The existing pure command
+  helpers remain shared behavior, not visual provenance.
+- The page is hand-sewn. Spiral binding, rings, ring holes, and paperclips are
+  outside the art direction and the 1820 setting.
+- Portrait-system expansion belongs to the separate person-and-marker slice;
+  issue #1630 does not broaden that system.
 
-1. Create `parish/apps/ui/static/rundale/notebook-ui/`.
-2. Generate or create original bitmap assets for the top ribbon, spiral
-   notebook, binding/rings, tabs, bottom intent strip, input line, send stamp,
-   action stamps/icons, portrait frames/placeholders, Active Intents card, Map
-   card, Time card, exit label, selection ring, player marker, and NPC markers.
-3. Add an asset manifest consumed by the Pixi renderer.
-4. Add `asset-readme.md` documenting prompts/source descriptions, usage, and
-   that the concept image was not sliced.
-5. Keep any old `static/notebook-ui` experiment available only if unused by the
-   first viewport or explicitly deleted in a separate cleanup.
+## Current Implementation Slices
 
-## Commit 3: `feat(world): add notebook visual scene metadata`
+### 1. Fresh Pixi parish surface
 
-1. Add additive visual-scene metadata for the default Rundale/Kilteevan scene:
-   written visual summary, plate asset path, camera hint using "wide elevated
-   oblique illustrated storybook game scene", scene anchors, and depth bands.
-2. Verify the runtime plate provenance is written-description-only. If the
-   existing plate cannot be proven clean, generate a new plate and document its
-   prompt.
-3. Add `parish-world` tests that reject historical-map-reference language and
-   strict isometric/isomorphic requirement language in runtime visual-scene
-   metadata.
-4. Keep "isometric" references out of new runtime prompts except in tests or
-   docs that explicitly identify old rejected experiments.
+1. Host one full-viewport Pixi canvas from
+   `IllustratedNotebookGame.svelte`.
+2. Compose the desktop/mobile watercolor parish plates with fine ink and muted
+   parchment treatments that track the canonical concept's placements.
+3. Render the top ribbon, Nearby rail, sewn notebook page and tabs, action
+   strip, handwritten intent strip, and bottom cards from existing game state.
+4. Keep the old status bar, persistent chat/sidebar/map, dashboard input, and
+   developer chrome out of the default viewport.
 
-## Commit 4: `feat(ui): render notebook gameplay layers in pixi`
+### 2. Input and accessible controls
 
-1. Render the world background plate as the root Pixi scene layer.
-2. Render exit labels, player marker, nearby NPC markers, selection ring, and
-   callout with depth sorting and scale bands.
-3. Render the top parchment ribbon with title, location, time, weather, and
-   compass.
-4. Render the left Nearby portrait strip from `npcsHere`.
-5. Render the right spiral notebook page/tabs for the selected/default NPC,
-   including sketch/portrait, name, mood, occupation, trust dots, known facts or
-   placeholder, and witness information when present.
-6. Render bottom action stamps, Map/Time cards, Active Intents card, and bottom
-   intent strip.
-7. Add hover/focus/selected/busy states in Pixi without falling back to DOM
-   boxes in the first viewport.
+1. Render the visible intent treatment in Pixi while a minimal native input
+   owns keyboard, clipboard, IME, and screen-reader behavior.
+2. Submit through the existing `submitInput` contract; action stamps seed the
+   intent and Enter submits.
+3. Mirror Pixi hit regions with ordered semantic controls and a visible
+   notebook-native focus treatment.
+4. Keep mentions, slash autocomplete, history, and multiline editing deferred
+   until they have notebook-native presentation.
 
-## Commit 5: `feat(ui): replace visible command input`
+### 3. Secondary overlays — issue #1630
 
-1. Build `NotebookCommandInput` controller/helpers for visible Pixi text,
-   placeholder, caret/focus, disabled/busy state, and send affordance.
-2. Use a hidden/minimally styled native input or textarea only for keyboard,
-   accessibility, clipboard, and IME.
-3. Submit through existing `submitInput`, support Enter submit, preserve error
-   routing, and clear/update state after submit.
-4. Make action stamps seed intent text and focus the hidden input.
-5. Add focused tests for submit, Enter handling, busy disabled behavior, action
-   seeding, and old `InputField.svelte` absence from the default viewport.
+1. Route Journal/chat, People, Focail, Map, Save/Load, Debug, Mod, and Bug
+   Report from tabs, cards, the More sheet, or global shortcuts.
+2. Mount reused Svelte interiors inside one notebook-styled overlay host so
+   their fixed dashboard chrome cannot move or redefine the Pixi viewport.
+3. Keep only one secondary surface active, trap focus inside it, and restore
+   focus to the originating notebook control when it closes.
+4. Keep the same Pixi host mounted and inert beneath an overlay; closing must
+   restore identical canvas bounds.
+5. Keep required Mod selection non-dismissible and capture Bug Report evidence
+   only after the current sheet has left the viewport.
 
-## Commit 6: `feat(ui): notebook secondary overlays`
+### 4. Provenance and regression guards
 
-1. Wire right-side tabs/cards to open Journal/chat, People, Focail, Map,
-   Save/Load, Debug, Mod, and Bug Report as overlays/drawers.
-2. Reuse existing Svelte surfaces inside those secondary overlays only where
-   appropriate.
-3. Ensure none of those surfaces render persistently in the default first
-   viewport.
+1. Document every runtime asset in the v2 asset README and `ui-assets.json`,
+   including dimensions, alpha contract, provenance, and hash.
+2. Reject active imports from the discarded visual namespace and asset kit.
+3. Pin the approved sewn-page hash in a test.
+4. Test the canonical desktop placements, mobile composition, cover-crop
+   annotation mapping, page aspect ratio, and tab bounds.
+5. Keep visual-scene prompt metadata grounded in written descriptions rather
+   than historical-map crops or strict isometric projection requirements.
 
-## Commit 7: `test(ui): verify responsive notebook presentation`
+## Verification
 
-1. Add focused unit/component tests for marker scaling/depth sorting and command
-   input behavior.
-2. Run `fnm exec --using 22 npm run check`.
-3. Run `fnm exec --using 22 npm run lint`.
-4. Run `fnm exec --using 22 npm run format:check`.
-5. Run `fnm exec --using 22 npm run build`.
-6. Run the relevant `parish-world` visual-scene tests.
-7. Run the backend fixture:
-   `cd parish && cargo run -p parish-engine -- --script
-testing/fixtures/play_illustrated-notebook-real.txt`.
-8. Start the built app against Rundale, capture:
-   `.proofs/illustrated-notebook-real/desktop.png` at 1440x900 and
-   `.proofs/illustrated-notebook-real/mobile.png` at 390x844.
-9. Open both screenshots and compare against
-   `docs/graphics-v2/illustrated-parish-notebook.png`.
-10. Write `.proofs/illustrated-notebook-real/evidence.md` and `judge.md` with
-    explicit visual-pass notes.
-11. Run `just agent-check`.
+1. Run frontend format, lint, Svelte diagnostics, unit tests, and production
+   build on the repository's locked package versions.
+2. Run the Rust quality gates and the real engine walkthrough.
+3. Capture fresh 1440×900 desktop and 390×844 mobile first viewports from the
+   running UI, plus a representative overlay at each size.
+4. Compare those captures directly with the canonical concept; do not reuse
+   screenshots from the rejected attempt.
+5. Record runtime proof in `.proofs/1630/`, map every acceptance criterion in
+   `evidence.md`, add an independent judge verdict, and run `just agent-check`.
 
 ## Rework Triggers
 
-- The first viewport still reads as old UI over a background.
-- `InputField.svelte`, `.input-wrapper`, `.input-form`, a rectangular text box,
-  or an old `Send` button is visible in the first viewport.
-- Persistent `StatusBar`, `ChatPanel`, `Sidebar`, map panel, mobile toolbar, or
-  debug/dev toolbar is visible in the first viewport.
-- Most notebook UI pieces are CSS rectangles/SVG placeholders rather than
-  original generated bitmap assets.
-- The runtime background/provenance depends on historical map image references.
-- The prompt/metadata insists on strict isometric/isomorphic projection.
-- Desktop or mobile screenshots are not captured from the running app.
+- The first viewport still reads as the rejected UI with a new asset swapped
+  into it.
+- A legacy dashboard surface is visible before the player opens it.
+- The sewn page is stretched, replaced with a ring-bound page, or decorated
+  with a paperclip.
+- A routed overlay changes or remounts the Pixi viewport.
+- Active visual code imports the rejected renderer/layout/assets.
+- Desktop or mobile proof was not freshly captured and compared with the named
+  concept.
 
 Any rework trigger is a requirement failure, not future polish.
