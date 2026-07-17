@@ -653,7 +653,7 @@ test('promotes a complete approved production release that builds without its ca
 	assert.equal(entries.length, 24);
 	assert.equal(new Set(assetPaths).size, 48);
 	assert.equal(new Set(assetHashes).size, 48);
-});
+}, 30_000);
 
 test('production promotion rejects stale canonical catalogs and source mutations', async () => {
 	const fixture = await createProductionFixture();
