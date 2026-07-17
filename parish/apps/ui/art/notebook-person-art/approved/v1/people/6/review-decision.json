@@ -1,0 +1,108 @@
+{
+	"schema_version": 1,
+	"record_type": "notebook-person-art-human-review-decision",
+	"candidate_receipt_path": "parish/apps/ui/art/notebook-person-art/candidates/objects/3c/3c847699f3a5baa3b921c1cab81dc3bcd3d4535116aa428fe19f59b78615d0f7/receipt.json",
+	"candidate_receipt_sha256": "00fa5768ca77b52e93a45563a5dc3250445c387b66c03d0b23a717af33ddedca",
+	"candidate_sha256": "220e2e9653e4cf4978572ac9f8535414baa210ef1542b5c4cfc0a3a4552cd7c7",
+	"raw_sha256": "acf96da62891b8f552698af939ab43f3bd395005ebb589ba61b8b4440602f9ba",
+	"subject": {
+		"kind": "npc",
+		"npc_id": 6,
+		"name": "Aoife Brennan",
+		"input_record_sha256": "44bf147901fafcd1fc133d161419625d66c10e4842390a6fef94cb4f972d9fba"
+	},
+	"asset": {
+		"kind": "pair",
+		"candidate_index": 1,
+		"children": [
+			"portrait",
+			"marker"
+		]
+	},
+	"hair_topology": {
+		"schema_version": 4,
+		"subject_key": "npc:6",
+		"vector": {
+			"color_and_texture": "dark brown hair with fine narrow braids",
+			"front": {
+				"family": "visible-temple-braids",
+				"description": "clean near-centre part with one narrow braid beginning at each temple"
+			},
+			"rear": {
+				"family": "shallow-upper-coronet",
+				"description": "two braids pinned as a shallow coronet across the upper rear head"
+			},
+			"covering": {
+				"family": "uncovered-indoors",
+				"description": "uncovered for teaching indoors; a plain bonnet is reserved for travel or church"
+			},
+			"silhouette": {
+				"family": "visible-crown-band",
+				"description": "a slim braided band rises behind and above the ears with no nape mass"
+			},
+			"loose_details": "two very fine temple wisps beneath the braids"
+		},
+		"sha256": "9363a2899ec383073941bd68d041cfb16749cc71b04585c0f5707b2d3c7c1ba8"
+	},
+	"marker_identity": {
+		"schema_version": 4,
+		"subject_key": "npc:6",
+		"marker_identity": {
+			"composition": "character-only",
+			"silhouette": "slim late-twenties woman with uncovered dark hair, fine temple braids, a shallow upper-rear coronet, and a short jacket; no object/scenery",
+			"stance": "upright stance with one empty hand gesturing and the other at her side; no object/scenery",
+			"empty_hand_pose": "one-hand-gesturing",
+			"readability_cues": [
+				{
+					"kind": "hair-or-headwear",
+					"description": "visible temple-braid origins joining a slim raised coronet band"
+				},
+				{
+					"kind": "face",
+					"description": "pointed-chin profile"
+				}
+			],
+			"tiny_readability_notes": [
+				"The fine braids need a clear, sparse outline at marker scale."
+			]
+		},
+		"sha256": "c33a76172f87c0e4dcf506a4b48c941e42da29255d7f93b9c26cabd36d3e0db8"
+	},
+	"decision": "approved",
+	"promotion_eligible": true,
+	"reviewer": "dmooney",
+	"reviewed_at": "2026-07-17T01:52:56.021Z",
+	"notes": "Approved by dmooney after reviewing the final 24-pair whole-cast sheet in Codex on 2026-07-16.",
+	"checklist": {
+		"identity_specific": true,
+		"concept_style_match": true,
+		"period_appropriate": true,
+		"no_prohibited_content": true,
+		"key_removal_clean": true,
+		"production_quality": true,
+		"diegetic_player_sketch": true,
+		"uncolored_pen_and_ink": true,
+		"sparse_open_linework": true,
+		"no_baked_background": true,
+		"framing_complete": true,
+		"selected_size_readable": true,
+		"nearby_size_readable": true,
+		"restrained_world_color": true,
+		"full_body_complete": true,
+		"silhouette_readable": true,
+		"character_only_marker": true,
+		"empty_hands": true,
+		"no_contextual_props_or_scenery": true,
+		"no_ground_plane": true,
+		"scene_size_readable": true,
+		"cross_asset_identity": true,
+		"hair_front_matches": true,
+		"hair_rear_matches": true,
+		"hair_covering_matches": true,
+		"hair_silhouette_matches": true,
+		"correct_surface_split": true,
+		"atomic_rerender_understood": true
+	},
+	"source_template_path": "parish/apps/ui/art/notebook-person-art/candidates/review-packets/identity-v8-character-only-full-cast-a-20260716/6-pair-220e2e9653e4-review.json",
+	"review_id": "390930eadaed8ab2645d153c"
+}

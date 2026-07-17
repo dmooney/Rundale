@@ -1,472 +1,863 @@
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
-import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
-import { deflateSync, inflateSync } from 'node:zlib';
+import { randomUUID } from 'node:crypto';
+import {
+	cp,
+	mkdir,
+	readFile,
+	rename,
+	rm,
+	stat,
+	writeFile,
+} from 'node:fs/promises';
+import {
+	basename,
+	dirname,
+	isAbsolute,
+	join,
+	relative,
+	resolve,
+	sep,
+} from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
+import { parseArgs } from 'node:util';
+import {
+	assertCanonicalHairTopologyBinding,
+	assertCanonicalMarkerIdentityBinding,
+	assertExactChecklist,
+	canonicalJson,
+	computeReviewId,
+	NAMED_CAST_SIZE,
+	pairCandidateDigest,
+	REQUIRED_PAIR_REVIEW_CHECKS,
+	REQUIRED_WHOLE_CAST_REVIEW_CHECKS,
+	sha256,
+	subjectKey,
+} from './notebook-person-art-approval-contract.mjs';
+import {
+	alphaStats,
+	compositeOpaque,
+	createImage,
+	decodePngBytes,
+	encodePng,
+	fillRect,
+	resizeContain,
+} from './notebook-person-art-png.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
-const uiRoot = join(here, '..');
-const artRoot = join(uiRoot, 'art', 'notebook-person-art');
-const configPath = join(artRoot, 'approved-cast-v1.json');
-const runtimeRoot = join(uiRoot, 'static', 'rundale', 'notebook-ui');
-const peopleRoot = join(runtimeRoot, 'people');
-const manifestPath = join(runtimeRoot, 'asset-manifest.json');
-const assetReadmePath = join(runtimeRoot, 'asset-readme.md');
-const provenancePath = join(runtimeRoot, 'person-art-provenance.md');
+const defaultUiRoot = resolve(here, '..');
+const defaultRepoRoot = resolve(defaultUiRoot, '../../..');
+const RELEASE_MANIFEST_TYPE = 'notebook-person-art-approved-release';
+const CONTACT_COLUMNS = 4;
+const DEFAULT_RUNTIME_SIZES = {
+	portrait: { width: 144, height: 164 },
+	marker: { width: 120, height: 170 },
+};
 
-function crc32(buf) {
-	let c = 0xffffffff;
-	for (let i = 0; i < buf.length; i += 1) {
-		c ^= buf[i];
-		for (let k = 0; k < 8; k += 1) {
-			c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
-		}
-	}
-	return (c ^ 0xffffffff) >>> 0;
+function promptPayloadHash(bytes) {
+	return sha256(
+		bytes.length > 0 && bytes.at(-1) === 0x0a ? bytes.subarray(0, -1) : bytes,
+	);
 }
 
-function chunk(type, data) {
-	const typeBuf = Buffer.from(type);
-	const len = Buffer.alloc(4);
-	len.writeUInt32BE(data.length, 0);
-	const crc = Buffer.alloc(4);
-	crc.writeUInt32BE(crc32(Buffer.concat([typeBuf, data])), 0);
-	return Buffer.concat([len, typeBuf, data, crc]);
+function assertObject(value, label) {
+	if (!value || typeof value !== 'object' || Array.isArray(value))
+		throw new Error(`${label} must be an object`);
+	return value;
 }
 
-function encodePng(image) {
-	const signature = Buffer.from([
-		0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a,
-	]);
-	const ihdr = Buffer.alloc(13);
-	ihdr.writeUInt32BE(image.width, 0);
-	ihdr.writeUInt32BE(image.height, 4);
-	ihdr[8] = 8;
-	ihdr[9] = 6;
-	const stride = image.width * 4;
-	const raw = Buffer.alloc((stride + 1) * image.height);
-	for (let y = 0; y < image.height; y += 1) {
-		raw[y * (stride + 1)] = 0;
-		image.data.copy(raw, y * (stride + 1) + 1, y * stride, y * stride + stride);
+function assertExactObjectKeys(value, expected, label) {
+	assertObject(value, label);
+	const actual = Object.keys(value).toSorted();
+	const wanted = [...expected].toSorted();
+	if (canonicalJson(actual) !== canonicalJson(wanted)) {
+		throw new Error(`${label} keys do not match the approval contract`);
 	}
-	return Buffer.concat([
-		signature,
-		chunk('IHDR', ihdr),
-		chunk('IDAT', deflateSync(raw, { level: 9 })),
-		chunk('IEND', Buffer.alloc(0)),
-	]);
 }
 
-function unfilterScanline(filter, line, prev, bpp) {
-	const out = Buffer.from(line);
-	for (let i = 0; i < out.length; i += 1) {
-		const left = i >= bpp ? out[i - bpp] : 0;
-		const up = prev ? prev[i] : 0;
-		const upLeft = prev && i >= bpp ? prev[i - bpp] : 0;
-		let add = 0;
-		if (filter === 1) add = left;
-		else if (filter === 2) add = up;
-		else if (filter === 3) add = Math.floor((left + up) / 2);
-		else if (filter === 4) {
-			const p = left + up - upLeft;
-			const pa = Math.abs(p - left);
-			const pb = Math.abs(p - up);
-			const pc = Math.abs(p - upLeft);
-			add = pa <= pb && pa <= pc ? left : pb <= pc ? up : upLeft;
-		} else if (filter !== 0) {
-			throw new Error(`Unsupported PNG filter ${filter}`);
-		}
-		out[i] = (out[i] + add) & 0xff;
-	}
-	return out;
+function assertString(value, label) {
+	if (typeof value !== 'string' || value.length === 0)
+		throw new Error(`${label} must be a non-empty string`);
+	return value;
 }
 
-async function decodePng(path) {
-	const buf = await readFile(path);
-	const sig = buf.subarray(0, 8);
-	if (sig.toString('hex') !== '89504e470d0a1a0a') {
-		throw new Error(`${path} is not a PNG file`);
+function assertSha256(value, label) {
+	if (!/^[a-f0-9]{64}$/.test(value ?? ''))
+		throw new Error(`${label} must be a lowercase SHA-256 hash`);
+	return value;
+}
+
+function portablePath(path) {
+	return path.split(sep).join('/');
+}
+
+async function pathExists(path) {
+	try {
+		await stat(path);
+		return true;
+	} catch (error) {
+		if (error.code === 'ENOENT') return false;
+		throw error;
 	}
-	let offset = 8;
-	let width = 0;
-	let height = 0;
-	let bitDepth = 0;
-	let colorType = 0;
-	let interlace = 0;
-	const idat = [];
-	while (offset < buf.length) {
-		const len = buf.readUInt32BE(offset);
-		const type = buf.subarray(offset + 4, offset + 8).toString('ascii');
-		const data = buf.subarray(offset + 8, offset + 8 + len);
-		offset += 12 + len;
-		if (type === 'IHDR') {
-			width = data.readUInt32BE(0);
-			height = data.readUInt32BE(4);
-			bitDepth = data[8];
-			colorType = data[9];
-			interlace = data[12];
-		} else if (type === 'IDAT') {
-			idat.push(data);
-		} else if (type === 'IEND') {
-			break;
-		}
+}
+
+async function replaceRuntimeTree(stagingRoot, runtimeRoot) {
+	const backupRoot = join(
+		dirname(runtimeRoot),
+		`.${basename(runtimeRoot)}.backup-${process.pid}-${randomUUID()}`,
+	);
+	const hadRuntime = await pathExists(runtimeRoot);
+	if (hadRuntime) await rename(runtimeRoot, backupRoot);
+	try {
+		await rename(stagingRoot, runtimeRoot);
+	} catch (error) {
+		if (hadRuntime) await rename(backupRoot, runtimeRoot);
+		throw error;
 	}
+	if (hadRuntime) await rm(backupRoot, { recursive: true, force: true });
+}
+
+function containedPath(root, path, label) {
+	assertString(path, label);
+	if (isAbsolute(path)) throw new Error(`${label} must be relative: ${path}`);
+	const target = resolve(root, path);
+	const relation = relative(root, target);
 	if (
-		bitDepth !== 8 ||
-		(colorType !== 2 && colorType !== 6) ||
-		interlace !== 0
+		relation === '..' ||
+		relation.startsWith(`..${sep}`) ||
+		isAbsolute(relation)
+	) {
+		throw new Error(`${label} escapes its configured root: ${path}`);
+	}
+	return target;
+}
+
+function positiveInteger(value, label) {
+	if (!Number.isInteger(value) || value <= 0)
+		throw new Error(`${label} must be a positive integer`);
+	return value;
+}
+
+function dimensions(value, label) {
+	assertObject(value, label);
+	return {
+		width: positiveInteger(value.width, `${label}.width`),
+		height: positiveInteger(value.height, `${label}.height`),
+	};
+}
+
+function slugify(value) {
+	const slug = value
+		.normalize('NFKD')
+		.replaceAll(/[\u0300-\u036f]/g, '')
+		.toLowerCase()
+		.replaceAll(/[^a-z0-9]+/g, '-')
+		.replaceAll(/^-|-$/g, '');
+	if (!slug) throw new Error(`Could not derive a runtime slug from ${value}`);
+	return slug;
+}
+
+async function readVerifiedPath(root, configuredPath, expectedHash, label) {
+	const path = containedPath(root, configuredPath, `${label}.path`);
+	const bytes = await readFile(path);
+	const actual = sha256(bytes);
+	if (actual !== assertSha256(expectedHash, `${label}.sha256`)) {
+		throw new Error(
+			`${label} hash mismatch: expected ${expectedHash}, got ${actual}`,
+		);
+	}
+	return { path, bytes, sha256: actual };
+}
+
+function validatePng(bytes, expectedDimensions, label, requireTransparency) {
+	const image = decodePngBytes(bytes, label);
+	if (
+		expectedDimensions &&
+		(image.width !== expectedDimensions.width ||
+			image.height !== expectedDimensions.height)
 	) {
 		throw new Error(
-			`${path} must be a non-interlaced 8-bit RGB/RGBA PNG; got bitDepth=${bitDepth}, colorType=${colorType}, interlace=${interlace}`,
+			`${label} dimensions mismatch: expected ${expectedDimensions.width}x${expectedDimensions.height}, got ${image.width}x${image.height}`,
 		);
 	}
-	const bpp = colorType === 6 ? 4 : 3;
-	const inflated = inflateSync(Buffer.concat(idat));
-	const stride = width * bpp;
-	const out = Buffer.alloc(width * height * 4);
-	let prev = null;
-	for (let y = 0; y < height; y += 1) {
-		const start = y * (stride + 1);
-		const filter = inflated[start];
-		const scanline = inflated.subarray(start + 1, start + 1 + stride);
-		const line = unfilterScanline(filter, scanline, prev, bpp);
-		prev = line;
-		for (let x = 0; x < width; x += 1) {
-			const src = x * bpp;
-			const dst = (y * width + x) * 4;
-			out[dst] = line[src];
-			out[dst + 1] = line[src + 1];
-			out[dst + 2] = line[src + 2];
-			out[dst + 3] = colorType === 6 ? line[src + 3] : 255;
-		}
+	const stats = alphaStats(image);
+	const minimumPixels = Math.max(1, Math.ceil(stats.total * 0.001));
+	if (stats.visible < minimumPixels)
+		throw new Error(`${label} is blank or has too few visible pixels`);
+	if (requireTransparency && stats.transparent < minimumPixels) {
+		throw new Error(`${label} must have a transparent background`);
 	}
-	return { width, height, data: out };
+	return image;
 }
 
-function createImage(width, height, rgba) {
-	const data = Buffer.alloc(width * height * 4);
-	for (let i = 0; i < data.length; i += 4) {
-		data[i] = rgba[0];
-		data[i + 1] = rgba[1];
-		data[i + 2] = rgba[2];
-		data[i + 3] = rgba[3];
+async function verifyPromotedFile(releaseRoot, record, label) {
+	assertObject(record, label);
+	return readVerifiedPath(releaseRoot, record.path, record.sha256, label);
+}
+
+async function verifyReleaseProvenance(manifest, releaseRoot) {
+	const provenance = assertObject(manifest.provenance, 'release provenance');
+	const configFile = await verifyPromotedFile(
+		releaseRoot,
+		provenance.generation_config,
+		'generation config',
+	);
+	const inputsFile = await verifyPromotedFile(
+		releaseRoot,
+		provenance.npc_art_inputs,
+		'NPC art inputs',
+	);
+	let config;
+	let inputs;
+	try {
+		config = JSON.parse(configFile.bytes);
+		inputs = JSON.parse(inputsFile.bytes);
+	} catch (error) {
+		throw new Error(`release provenance JSON is invalid: ${error.message}`, {
+			cause: error,
+		});
 	}
-	return { width, height, data };
-}
-
-function getPixel(image, x, y) {
-	const clampedX = Math.max(0, Math.min(image.width - 1, x));
-	const clampedY = Math.max(0, Math.min(image.height - 1, y));
-	const i = (clampedY * image.width + clampedX) * 4;
-	return [
-		image.data[i],
-		image.data[i + 1],
-		image.data[i + 2],
-		image.data[i + 3],
-	];
-}
-
-function setPixel(image, x, y, pixel) {
-	if (x < 0 || y < 0 || x >= image.width || y >= image.height) return;
-	const i = (y * image.width + x) * 4;
-	image.data[i] = pixel[0];
-	image.data[i + 1] = pixel[1];
-	image.data[i + 2] = pixel[2];
-	image.data[i + 3] = pixel[3];
-}
-
-function crop(image, rect) {
-	const out = createImage(rect.width, rect.height, [0, 0, 0, 0]);
-	for (let y = 0; y < rect.height; y += 1) {
-		for (let x = 0; x < rect.width; x += 1) {
-			setPixel(out, x, y, getPixel(image, rect.x + x, rect.y + y));
-		}
+	if (
+		!Array.isArray(provenance.references) ||
+		provenance.references.length === 0
+	) {
+		throw new Error('release provenance must contain reference inputs');
 	}
-	return out;
-}
-
-function inkBounds(image) {
-	let minX = image.width;
-	let minY = image.height;
-	let maxX = -1;
-	let maxY = -1;
-	for (let y = 0; y < image.height; y += 1) {
-		for (let x = 0; x < image.width; x += 1) {
-			const [r, g, b, a] = getPixel(image, x, y);
-			const luma = 0.2126 * r + 0.7152 * g + 0.0722 * b;
-			if (a > 32 && luma < 188) {
-				minX = Math.min(minX, x);
-				minY = Math.min(minY, y);
-				maxX = Math.max(maxX, x);
-				maxY = Math.max(maxY, y);
-			}
-		}
+	const references = [];
+	for (const [index, reference] of provenance.references.entries()) {
+		const file = await verifyPromotedFile(
+			releaseRoot,
+			reference,
+			`reference[${index}]`,
+		);
+		validatePng(file.bytes, null, `reference[${index}]`, false);
+		references.push({ record: reference, file });
 	}
-	if (maxX < minX || maxY < minY) return null;
-	return { minX, minY, maxX, maxY };
+	return { config, configFile, inputs, inputsFile, references };
 }
 
-function cropInkWithPadding(image, padding) {
-	const bounds = inkBounds(image);
-	if (!bounds) return image;
-	return crop(image, {
-		x: Math.max(0, bounds.minX - padding.left),
-		y: Math.max(0, bounds.minY - padding.top),
-		width:
-			Math.min(image.width - 1, bounds.maxX + padding.right) -
-			Math.max(0, bounds.minX - padding.left) +
-			1,
-		height:
-			Math.min(image.height - 1, bounds.maxY + padding.bottom) -
-			Math.max(0, bounds.minY - padding.top) +
-			1,
-	});
-}
-
-function sampleBilinearPremul(image, x, y) {
-	const x0 = Math.floor(x);
-	const y0 = Math.floor(y);
-	const x1 = x0 + 1;
-	const y1 = y0 + 1;
-	const tx = x - x0;
-	const ty = y - y0;
-	const weights = [
-		[getPixel(image, x0, y0), (1 - tx) * (1 - ty)],
-		[getPixel(image, x1, y0), tx * (1 - ty)],
-		[getPixel(image, x0, y1), (1 - tx) * ty],
-		[getPixel(image, x1, y1), tx * ty],
-	];
-	let r = 0;
-	let g = 0;
-	let b = 0;
-	let a = 0;
-	for (const [pixel, weight] of weights) {
-		const alpha = pixel[3] * weight;
-		r += pixel[0] * alpha;
-		g += pixel[1] * alpha;
-		b += pixel[2] * alpha;
-		a += alpha;
+async function verifyEntryFiles(entry, releaseRoot, label, shared) {
+	const generation = assertObject(entry.generation, `${label}.generation`);
+	const receiptFile = await readVerifiedPath(
+		releaseRoot,
+		generation.receipt_path,
+		generation.receipt_sha256,
+		`${label}.receipt`,
+	);
+	let receipt;
+	try {
+		receipt = JSON.parse(receiptFile.bytes);
+	} catch (error) {
+		throw new Error(`${label}.receipt is not valid JSON: ${error.message}`, {
+			cause: error,
+		});
 	}
-	if (a <= 0) return [0, 0, 0, 0];
-	return [
-		Math.round(r / a),
-		Math.round(g / a),
-		Math.round(b / a),
-		Math.round(a),
-	];
-}
-
-function resizeCover(image, width, height, background) {
-	const out = createImage(width, height, background);
-	const scale = Math.max(width / image.width, height / image.height);
-	const scaledWidth = image.width * scale;
-	const scaledHeight = image.height * scale;
-	const offsetX = (width - scaledWidth) / 2;
-	const offsetY = (height - scaledHeight) / 2;
-	for (let y = 0; y < height; y += 1) {
-		for (let x = 0; x < width; x += 1) {
-			const sourceX = (x - offsetX + 0.5) / scale - 0.5;
-			const sourceY = (y - offsetY + 0.5) / scale - 0.5;
-			setPixel(out, x, y, sampleBilinearPremul(image, sourceX, sourceY));
-		}
+	if (
+		receipt.schema_version !== 1 ||
+		receipt.receipt_type !== 'notebook-person-art-pair-candidate' ||
+		receipt.status !== 'candidate' ||
+		receipt.review?.status !== 'pending' ||
+		receipt.promotion?.eligible !== false ||
+		receipt.asset?.kind !== 'pair' ||
+		canonicalJson(receipt.asset.children) !==
+			canonicalJson(['portrait', 'marker'])
+	) {
+		throw new Error(`${label}.receipt is not a pending v1 pair receipt`);
 	}
-	return out;
-}
-
-function resizeContain(image, width, height, background) {
-	const out = createImage(width, height, background);
-	const scale = Math.min(width / image.width, height / image.height);
-	const scaledWidth = image.width * scale;
-	const scaledHeight = image.height * scale;
-	const offsetX = (width - scaledWidth) / 2;
-	const offsetY = (height - scaledHeight) / 2;
-	for (let y = 0; y < height; y += 1) {
-		for (let x = 0; x < width; x += 1) {
-			const sourceX = (x - offsetX + 0.5) / scale - 0.5;
-			const sourceY = (y - offsetY + 0.5) / scale - 0.5;
-			if (
-				sourceX < 0 ||
-				sourceY < 0 ||
-				sourceX > image.width - 1 ||
-				sourceY > image.height - 1
-			) {
-				continue;
-			}
-			setPixel(out, x, y, sampleBilinearPremul(image, sourceX, sourceY));
-		}
+	if (
+		receipt.job_id !== entry.job_id ||
+		canonicalJson(receipt.subject) !== canonicalJson(entry.subject) ||
+		receipt.asset.candidate_index !== entry.candidate_index ||
+		canonicalJson(receipt.provider) !== canonicalJson(entry.provider)
+	) {
+		throw new Error(`${label}.receipt identity does not match release entry`);
 	}
-	return out;
-}
-
-function hexToRgb(hex) {
-	const clean = hex.replace(/^#/, '');
-	return [
-		Number.parseInt(clean.slice(0, 2), 16),
-		Number.parseInt(clean.slice(2, 4), 16),
-		Number.parseInt(clean.slice(4, 6), 16),
-	];
-}
-
-function applyChromaKey(image, hex) {
-	const [kr, kg, kb] = hexToRgb(hex);
-	const out = createImage(image.width, image.height, [0, 0, 0, 0]);
-	for (let y = 0; y < image.height; y += 1) {
-		for (let x = 0; x < image.width; x += 1) {
-			const [r, g, b, a] = getPixel(image, x, y);
-			const dist = Math.hypot(r - kr, g - kg, b - kb);
-			let alpha = a;
-			if (dist <= 28) alpha = 0;
-			else if (dist < 140) alpha = Math.round(a * ((dist - 28) / 112));
-			let rr = r;
-			let gg = g;
-			let bb = b;
-			if (alpha < 255 && kr > 200 && kb > 200 && kg < 80) {
-				rr = Math.min(rr, Math.max(gg + 72, 96));
-				bb = Math.min(bb, Math.max(gg + 72, 96));
-			}
-			setPixel(out, x, y, [rr, gg, bb, alpha]);
-		}
+	const prompt = await readVerifiedPath(
+		releaseRoot,
+		generation.prompt_path,
+		generation.prompt_file_sha256,
+		`${label}.prompt`,
+	);
+	if (
+		promptPayloadHash(prompt.bytes) !==
+		assertSha256(generation.prompt_sha256, `${label}.prompt_sha256`)
+	) {
+		throw new Error(`${label}.prompt payload hash mismatch`);
 	}
-	return out;
-}
-
-function cellRect(image, sheet, cell) {
-	if (cell.column < 0 || cell.column >= sheet.columns) {
-		throw new Error(`Invalid cell column ${cell.column} for ${sheet.path}`);
-	}
-	if (cell.row < 0 || cell.row >= sheet.rows) {
-		throw new Error(`Invalid cell row ${cell.row} for ${sheet.path}`);
-	}
-	const x1 = Math.round((image.width * cell.column) / sheet.columns);
-	const rowBounds = sheet.row_bounds?.[cell.row];
-	const y1 = rowBounds
-		? Math.round(rowBounds.y)
-		: Math.round((image.height * cell.row) / sheet.rows);
-	const x2 = Math.round((image.width * (cell.column + 1)) / sheet.columns);
-	const y2 = rowBounds
-		? Math.round(rowBounds.y + rowBounds.height)
-		: Math.round((image.height * (cell.row + 1)) / sheet.rows);
-	if (y1 < 0 || y2 > image.height || y2 <= y1) {
+	const inputRecord = await readVerifiedPath(
+		releaseRoot,
+		generation.input_record_path,
+		generation.input_record_file_sha256,
+		`${label}.input record`,
+	);
+	let inputRecordValue;
+	try {
+		inputRecordValue = JSON.parse(inputRecord.bytes);
+	} catch (error) {
 		throw new Error(
-			`Invalid row_bounds for row ${cell.row} in ${sheet.path}: y=${y1}, y2=${y2}, image height=${image.height}`,
+			`${label}.input record is not valid JSON: ${error.message}`,
+			{ cause: error },
 		);
 	}
-	return { x: x1, y: y1, width: x2 - x1, height: y2 - y1 };
+	const inputRecordHash = sha256(canonicalJson(inputRecordValue));
+	if (
+		inputRecordHash !==
+		assertSha256(generation.input_record_sha256, `${label}.input_record_sha256`)
+	) {
+		throw new Error(`${label}.input record canonical hash mismatch`);
+	}
+	if (entry.subject.input_record_sha256 !== inputRecordHash) {
+		throw new Error(`${label}.subject input record hash mismatch`);
+	}
+	if (
+		receipt.subject.input_record_sha256 !== inputRecordHash ||
+		receipt.provenance?.config_sha256 !== shared.configFile.sha256 ||
+		receipt.provenance?.inputs_sha256 !== shared.inputsFile.sha256 ||
+		receipt.provenance?.prompt_sha256 !== generation.prompt_sha256
+	) {
+		throw new Error(`${label}.receipt generation provenance does not match`);
+	}
+	const sourceRecord =
+		receipt.subject.kind === 'fallback'
+			? shared.inputs.fallback
+			: shared.inputs.npcs?.find(
+					(npc) => npc.npc_id === receipt.subject.npc_id,
+				);
+	if (canonicalJson(sourceRecord) !== canonicalJson(inputRecordValue)) {
+		throw new Error(`${label}.input record does not match the release dataset`);
+	}
+	const configuredProvider = shared.config.provider ?? {};
+	if (
+		canonicalJson({
+			id: receipt.provider?.id,
+			adapter: receipt.provider?.adapter,
+			model: receipt.provider?.model,
+			endpoint: receipt.provider?.endpoint,
+			request: receipt.provider?.request,
+		}) !==
+		canonicalJson({
+			id: configuredProvider.id,
+			adapter: configuredProvider.adapter,
+			model: configuredProvider.model,
+			endpoint: configuredProvider.endpoint,
+			request: configuredProvider.request,
+		})
+	) {
+		throw new Error(
+			`${label}.receipt provider does not match generation config`,
+		);
+	}
+	const receiptReferences = receipt.provenance?.reference_inputs ?? [];
+	const releaseReferences = shared.references.map(({ record }) => ({
+		id: record.id,
+		purpose: record.purpose,
+		sha256: record.sha256,
+	}));
+	if (
+		canonicalJson(
+			receiptReferences.map(({ id, purpose, sha256: hash }) => ({
+				id,
+				purpose,
+				sha256: hash,
+			})),
+		) !== canonicalJson(releaseReferences)
+	) {
+		throw new Error(`${label}.receipt references do not match release copies`);
+	}
+	const configuredReferences = (shared.config.reference_inputs ?? [])
+		.filter(
+			(reference) =>
+				!reference.asset_kinds || reference.asset_kinds.includes('pair'),
+		)
+		.map(({ id, path, purpose }) => ({ id, path, purpose }));
+	if (
+		canonicalJson(
+			receiptReferences.map(({ id, path, purpose }) => ({ id, path, purpose })),
+		) !== canonicalJson(configuredReferences)
+	) {
+		throw new Error(
+			`${label}.receipt references do not match generation config`,
+		);
+	}
+	const rawArtifact = assertObject(
+		generation.raw_artifact,
+		`${label}.generation.raw_artifact`,
+	);
+	const providerRaw = await readVerifiedPath(
+		releaseRoot,
+		rawArtifact.path,
+		rawArtifact.sha256,
+		`${label}.provider raw`,
+	);
+	if (receipt.artifact?.raw_sha256 !== rawArtifact.sha256) {
+		throw new Error(`${label}.provider raw hash does not match receipt`);
+	}
+	validatePng(
+		providerRaw.bytes,
+		dimensions(receipt.artifact, `${label}.receipt artifact`),
+		`${label}.provider raw`,
+		false,
+	);
+
+	const approval = assertObject(entry.approval, `${label}.approval`);
+	if (
+		approval.decision !== 'approved' ||
+		approval.promotion_eligible !== true
+	) {
+		throw new Error(`${label} is not approved and promotion eligible`);
+	}
+	assertExactChecklist(
+		approval.checklist,
+		REQUIRED_PAIR_REVIEW_CHECKS,
+		`${label}.manifest pair checklist`,
+	);
+	const decisionFile = await readVerifiedPath(
+		releaseRoot,
+		approval.decision_path,
+		approval.decision_sha256,
+		`${label}.decision`,
+	);
+	let decision;
+	try {
+		decision = JSON.parse(decisionFile.bytes);
+	} catch (error) {
+		throw new Error(`${label}.decision is not valid JSON: ${error.message}`, {
+			cause: error,
+		});
+	}
+	assertExactObjectKeys(
+		decision,
+		[
+			'schema_version',
+			'record_type',
+			'candidate_receipt_path',
+			'candidate_receipt_sha256',
+			'candidate_sha256',
+			'raw_sha256',
+			'subject',
+			'asset',
+			'hair_topology',
+			'marker_identity',
+			'decision',
+			'promotion_eligible',
+			'reviewer',
+			'reviewed_at',
+			'notes',
+			'checklist',
+			'source_template_path',
+			'review_id',
+		],
+		`${label}.decision`,
+	);
+	assertExactChecklist(
+		decision.checklist,
+		REQUIRED_PAIR_REVIEW_CHECKS,
+		`${label}.decision pair checklist`,
+	);
+	assertCanonicalHairTopologyBinding(
+		decision.hair_topology,
+		entry.subject,
+		`${label}.decision hair topology`,
+	);
+	assertCanonicalMarkerIdentityBinding(
+		decision.marker_identity,
+		entry.subject,
+		`${label}.decision marker identity`,
+	);
+	if (
+		decision.schema_version !== 1 ||
+		decision.record_type !== 'notebook-person-art-human-review-decision' ||
+		decision.decision !== 'approved' ||
+		decision.promotion_eligible !== true ||
+		decision.review_id !== computeReviewId(decision) ||
+		decision.review_id !== approval.review_id ||
+		decision.candidate_receipt_sha256 !== generation.receipt_sha256 ||
+		decision.candidate_sha256 !== pairCandidateDigest(receipt) ||
+		decision.raw_sha256 !== providerRaw.sha256 ||
+		canonicalJson(decision.subject) !== canonicalJson(entry.subject) ||
+		canonicalJson(decision.asset) !== canonicalJson(receipt.asset) ||
+		decision.reviewer !== approval.reviewer ||
+		decision.reviewed_at !== approval.reviewed_at ||
+		decision.notes !== approval.notes ||
+		approval.hair_topology_sha256 !== decision.hair_topology.sha256 ||
+		approval.marker_identity_sha256 !== decision.marker_identity.sha256 ||
+		canonicalJson(decision.checklist) !== canonicalJson(approval.checklist)
+	) {
+		throw new Error(`${label}.decision does not match release entry`);
+	}
+	const identity = {
+		schema_version: 1,
+		pipeline_revision: shared.config.pipeline_revision,
+		provider: {
+			id: configuredProvider.id,
+			adapter: configuredProvider.adapter,
+			model: configuredProvider.model,
+			request: configuredProvider.request,
+		},
+		raw_output: shared.config.raw_output,
+		validation: shared.config.validation,
+		reference_inputs: receiptReferences.map(({ id, sha256: hash }) => ({
+			id,
+			sha256: hash,
+		})),
+		subject_kind: receipt.subject.kind,
+		npc_id: receipt.subject.npc_id,
+		input_record_sha256: inputRecordHash,
+		asset_kind: 'pair',
+		candidate_index: receipt.asset.candidate_index,
+		prompt_sha256: generation.prompt_sha256,
+	};
+	if (sha256(canonicalJson(identity)) !== receipt.job_id) {
+		throw new Error(
+			`${label}.receipt job identity does not match copied inputs`,
+		);
+	}
+	return { receipt, receiptFile, decision, decisionFile, providerRaw };
 }
 
-function assertApproved(label, value) {
-	if (value.approval_status !== 'approved') {
-		throw new Error(`${label} is not approved; got ${value.approval_status}`);
+async function loadArt(entry, kind, releaseRoot, receipt, label) {
+	const art = assertObject(entry.art?.[kind], `${label}.${kind}`);
+	if (art.media_type !== 'image/png')
+		throw new Error(`${label}.${kind} media_type must be image/png`);
+	const expectedDimensions = dimensions(art, `${label}.${kind}`);
+	const master = await readVerifiedPath(
+		releaseRoot,
+		art.master_path,
+		art.sha256,
+		`${label}.${kind}.master`,
+	);
+	const raw = await readVerifiedPath(
+		releaseRoot,
+		art.raw_path,
+		art.source_raw_sha256,
+		`${label}.${kind}.raw`,
+	);
+	assertString(
+		art.source_candidate_path,
+		`${label}.${kind}.source candidate path`,
+	);
+	assertString(art.source_raw_path, `${label}.${kind}.source raw path`);
+	assertSha256(art.source_raw_sha256, `${label}.${kind}.source raw hash`);
+	const masterImage = validatePng(
+		master.bytes,
+		expectedDimensions,
+		`${label}.${kind}.master`,
+		true,
+	);
+	validatePng(raw.bytes, expectedDimensions, `${label}.${kind}.raw`, false);
+	const receiptChild = assertObject(
+		receipt.artifact?.children?.[kind],
+		`${label}.receipt ${kind}`,
+	);
+	if (
+		receiptChild.candidate_sha256 !== art.sha256 ||
+		receiptChild.raw_sha256 !== art.source_raw_sha256 ||
+		receiptChild.width !== art.width ||
+		receiptChild.height !== art.height
+	) {
+		throw new Error(`${label}.${kind} provenance does not match receipt`);
 	}
+	return { art, master, masterImage, raw };
 }
 
-function alphaStats(image) {
-	let opaque = 0;
-	let transparent = 0;
-	for (let i = 3; i < image.data.length; i += 4) {
-		if (image.data[i] > 16) opaque += 1;
-		if (image.data[i] < 16) transparent += 1;
+async function verifyWholeCastApproval(manifest, releaseRoot, loadedEntries) {
+	const approval = assertObject(manifest.approval, 'release approval');
+	const descriptor = assertObject(
+		approval.whole_cast_visual_review,
+		'release whole-cast visual review',
+	);
+	const recordFile = await readVerifiedPath(
+		releaseRoot,
+		descriptor.path,
+		descriptor.sha256,
+		'whole-cast visual review',
+	);
+	let record;
+	try {
+		record = JSON.parse(recordFile.bytes);
+	} catch (error) {
+		throw new Error(`whole-cast review is not valid JSON: ${error.message}`, {
+			cause: error,
+		});
 	}
-	return { opaque, transparent, total: image.width * image.height };
-}
-
-function validatePortrait(image, name) {
-	const { opaque, total } = alphaStats(image);
-	if (opaque < total * 0.9) {
-		throw new Error(`${name} portrait is unexpectedly transparent or blank`);
+	assertExactObjectKeys(
+		record,
+		[
+			'schema_version',
+			'record_type',
+			'source_packets',
+			'cast',
+			'decision',
+			'promotion_eligible',
+			'reviewer',
+			'reviewed_at',
+			'notes',
+			'checklist',
+			'source_template_path',
+			'review_id',
+		],
+		'whole-cast review',
+	);
+	assertExactChecklist(
+		record.checklist,
+		REQUIRED_WHOLE_CAST_REVIEW_CHECKS,
+		'whole-cast review checklist',
+	);
+	if (
+		record.schema_version !== 1 ||
+		record.record_type !==
+			'notebook-person-art-whole-cast-human-review-decision' ||
+		record.decision !== 'approved' ||
+		record.promotion_eligible !== true ||
+		!record.reviewer ||
+		!record.reviewed_at ||
+		record.review_id !== computeReviewId(record) ||
+		record.review_id !== descriptor.review_id
+	) {
+		throw new Error('whole-cast review identity or approval is invalid');
 	}
-}
-
-function validateMarker(image, name) {
-	const { opaque, transparent, total } = alphaStats(image);
-	if (opaque < total * 0.08) {
-		throw new Error(`${name} marker is too sparse or blank`);
+	if (
+		!Array.isArray(record.source_packets) ||
+		record.source_packets.length === 0 ||
+		record.source_packets.length > 3 ||
+		record.source_packets.some(
+			(packet) => !packet?.path || !/^[a-f0-9]{64}$/.test(packet.sha256 ?? ''),
+		)
+	) {
+		throw new Error('whole-cast review packet provenance is invalid');
 	}
-	if (transparent < total * 0.3) {
-		throw new Error(`${name} marker key removal left too little transparency`);
+	assertExactObjectKeys(
+		record.cast,
+		['named_count', 'total_count', 'members'],
+		'whole-cast binding',
+	);
+	if (
+		record.cast.named_count !== loadedEntries.length - 1 ||
+		record.cast.total_count !== loadedEntries.length ||
+		!Array.isArray(record.cast.members) ||
+		record.cast.members.length !== loadedEntries.length
+	) {
+		throw new Error('whole-cast review does not bind the complete release');
 	}
-	for (const [x, y] of [
-		[0, 0],
-		[image.width - 1, 0],
-		[0, image.height - 1],
-		[image.width - 1, image.height - 1],
-	]) {
-		if (getPixel(image, x, y)[3] > 4) {
-			throw new Error(`${name} marker corner is not transparent`);
+	const seen = new Set();
+	for (const [index, loaded] of loadedEntries.entries()) {
+		const member = record.cast.members[index];
+		assertExactObjectKeys(
+			member,
+			[
+				'subject_key',
+				'subject',
+				'candidate_receipt_path',
+				'candidate_receipt_sha256',
+				'candidate_sha256',
+				'raw_sha256',
+				'portrait_sha256',
+				'marker_sha256',
+				'hair_topology',
+				'marker_identity',
+			],
+			`whole-cast member[${index}]`,
+		);
+		if (seen.has(member.subject_key)) {
+			throw new Error('whole-cast review contains duplicate subjects');
+		}
+		seen.add(member.subject_key);
+		assertString(
+			member.candidate_receipt_path,
+			`whole-cast member[${index}].candidate receipt path`,
+		);
+		if (
+			member.subject_key !== subjectKey(loaded.entry.subject) ||
+			member.candidate_receipt_sha256 !== loaded.verified.receiptFile.sha256 ||
+			member.candidate_sha256 !==
+				pairCandidateDigest(loaded.verified.receipt) ||
+			member.raw_sha256 !== loaded.verified.providerRaw.sha256 ||
+			member.portrait_sha256 !== loaded.portrait.master.sha256 ||
+			member.marker_sha256 !== loaded.marker.master.sha256 ||
+			canonicalJson(member.hair_topology) !==
+				canonicalJson(loaded.verified.decision.hair_topology) ||
+			canonicalJson(member.marker_identity) !==
+				canonicalJson(loaded.verified.decision.marker_identity) ||
+			canonicalJson(member.subject) !== canonicalJson(loaded.entry.subject)
+		) {
+			throw new Error(
+				`whole-cast member ${member.subject_key ?? index} does not match release bytes`,
+			);
 		}
 	}
+	return { record, recordFile };
 }
 
-function composite(base, image, x, y) {
-	for (let yy = 0; yy < image.height; yy += 1) {
-		for (let xx = 0; xx < image.width; xx += 1) {
-			const dstX = x + xx;
-			const dstY = y + yy;
-			if (dstX < 0 || dstY < 0 || dstX >= base.width || dstY >= base.height) {
-				continue;
-			}
-			const src = getPixel(image, xx, yy);
-			const dst = getPixel(base, dstX, dstY);
-			const a = src[3] / 255;
-			const ia = 1 - a;
-			setPixel(base, dstX, dstY, [
-				Math.round(src[0] * a + dst[0] * ia),
-				Math.round(src[1] * a + dst[1] * ia),
-				Math.round(src[2] * a + dst[2] * ia),
-				255,
-			]);
-		}
+function validateReleaseManifest(manifest, expectedNamedCount, allowFixture) {
+	assertObject(manifest, 'approved release manifest');
+	if (
+		manifest.schema_version !== 1 ||
+		manifest.manifest_type !== RELEASE_MANIFEST_TYPE
+	) {
+		throw new Error(
+			`approved release manifest must be v1 ${RELEASE_MANIFEST_TYPE}`,
+		);
 	}
+	if (manifest.mode !== 'production' && manifest.mode !== 'fixture') {
+		throw new Error(
+			'approved release manifest mode must be production or fixture',
+		);
+	}
+	if (manifest.mode === 'fixture' && !allowFixture) {
+		throw new Error('fixture release manifests require allowFixture: true');
+	}
+	if (
+		!Array.isArray(manifest.entries) ||
+		manifest.entry_count !== manifest.entries.length
+	) {
+		throw new Error(
+			'approved release manifest entry_count does not match entries',
+		);
+	}
+	const { release_id: _releaseId, ...manifestBase } = manifest;
+	const expectedReleaseId = sha256(canonicalJson(manifestBase));
+	if (
+		assertSha256(
+			manifest.release_id,
+			'approved release manifest.release_id',
+		) !== expectedReleaseId
+	) {
+		throw new Error(
+			`approved release manifest release_id mismatch: expected ${expectedReleaseId}, got ${manifest.release_id}`,
+		);
+	}
+	const named = manifest.entries.filter(
+		(entry) => entry.subject?.kind === 'npc',
+	);
+	const fallback = manifest.entries.filter(
+		(entry) => entry.subject?.kind === 'fallback',
+	);
+	if (named.length !== expectedNamedCount || fallback.length !== 1) {
+		throw new Error(
+			`approved release manifest must contain exactly ${expectedNamedCount} named people plus one fallback; got ${named.length} named and ${fallback.length} fallback`,
+		);
+	}
+	const npcIds = named.map((entry, index) =>
+		positiveInteger(
+			entry.subject?.npc_id,
+			`named entry[${index}].subject.npc_id`,
+		),
+	);
+	if (new Set(npcIds).size !== npcIds.length)
+		throw new Error(
+			'approved release manifest contains duplicate npc_id values',
+		);
+	if (npcIds.some((npcId, index) => index > 0 && npcId <= npcIds[index - 1])) {
+		throw new Error(
+			'approved release manifest NPC entries must be sorted by npc_id',
+		);
+	}
+	if (manifest.entries.at(-1) !== fallback[0]) {
+		throw new Error(
+			'approved release manifest fallback must be the final entry',
+		);
+	}
+	if (fallback[0].subject?.npc_id !== null)
+		throw new Error('approved fallback npc_id must be null');
+	return { named, fallback: fallback[0] };
 }
 
-function fillRect(image, x, y, width, height, color) {
-	for (let yy = y; yy < y + height; yy += 1) {
-		for (let xx = x; xx < x + width; xx += 1) {
-			setPixel(image, xx, yy, color);
-		}
-	}
+function runtimeRecord(loaded, manifestPath, manifestHash) {
+	const { entry, portrait, marker, runtime } = loaded;
+	return {
+		npc_id: entry.subject.npc_id,
+		real_name: entry.subject.name,
+		display_name: entry.subject.name,
+		portrait: runtime.portrait,
+		marker: runtime.marker,
+		approval_status: 'approved',
+		provenance: {
+			release_manifest: manifestPath,
+			release_manifest_sha256: manifestHash,
+			release_id: loaded.releaseId,
+			job_id: entry.job_id,
+			input_record_sha256: entry.subject.input_record_sha256,
+			review_id: entry.approval.review_id,
+			portrait: {
+				master_path: portablePath(portrait.art.master_path),
+				master_sha256: portrait.master.sha256,
+				source_candidate_path: portablePath(portrait.art.source_candidate_path),
+				source_raw_path: portablePath(portrait.art.source_raw_path),
+				source_raw_sha256: portrait.art.source_raw_sha256,
+			},
+			marker: {
+				master_path: portablePath(marker.art.master_path),
+				master_sha256: marker.master.sha256,
+				source_candidate_path: portablePath(marker.art.source_candidate_path),
+				source_raw_path: portablePath(marker.art.source_raw_path),
+				source_raw_sha256: marker.art.source_raw_sha256,
+			},
+		},
+	};
 }
 
 function drawContactSheet(assets) {
-	const cols = 4;
-	const cellW = 276;
-	const cellH = 250;
-	const pad = 24;
+	const cellWidth = 276;
+	const cellHeight = 250;
+	const padding = 24;
+	const rows = Math.ceil(assets.length / CONTACT_COLUMNS);
 	const sheet = createImage(
-		cols * cellW + pad * 2,
-		2 * cellH + pad * 2,
+		CONTACT_COLUMNS * cellWidth + padding * 2,
+		rows * cellHeight + padding * 2,
 		[237, 218, 176, 255],
 	);
-	for (let y = 0; y <= 2; y += 1) {
-		fillRect(sheet, pad, pad + y * cellH, cols * cellW, 2, [87, 62, 38, 130]);
+	for (let row = 0; row <= rows; row += 1) {
+		fillRect(
+			sheet,
+			padding,
+			padding + row * cellHeight,
+			CONTACT_COLUMNS * cellWidth,
+			2,
+			[87, 62, 38, 255],
+		);
 	}
-	for (let x = 0; x <= cols; x += 1) {
-		fillRect(sheet, pad + x * cellW, pad, 2, 2 * cellH, [87, 62, 38, 130]);
+	for (let column = 0; column <= CONTACT_COLUMNS; column += 1) {
+		fillRect(
+			sheet,
+			padding + column * cellWidth,
+			padding,
+			2,
+			rows * cellHeight,
+			[87, 62, 38, 255],
+		);
 	}
 	assets.forEach((asset, index) => {
-		const col = index % cols;
-		const row = Math.floor(index / cols);
-		const x = pad + col * cellW;
-		const y = pad + row * cellH;
-		const portrait = resizeContain(
-			asset.portraitImage,
-			126,
-			134,
-			[237, 218, 176, 255],
+		const left = padding + (index % CONTACT_COLUMNS) * cellWidth;
+		const top = padding + Math.floor(index / CONTACT_COLUMNS) * cellHeight;
+		compositeOpaque(
+			sheet,
+			resizeContain(asset.portrait, 126, 134),
+			left + 24,
+			top + 42,
 		);
-		const marker = resizeCover(asset.markerImage, 96, 136, [0, 0, 0, 0]);
-		composite(sheet, portrait, x + 28, y + 40);
-		composite(sheet, marker, x + 160, y + 36);
+		compositeOpaque(
+			sheet,
+			resizeContain(asset.marker, 96, 136),
+			left + 158,
+			top + 40,
+		);
 	});
 	return sheet;
 }
 
-function contactSheetHtml(config, people) {
-	const rows = people
+function escapeHtml(value) {
+	return String(value)
+		.replaceAll('&', '&amp;')
+		.replaceAll('<', '&lt;')
+		.replaceAll('>', '&gt;')
+		.replaceAll('"', '&quot;');
+}
+
+function contactSheetHtml(releaseId, records) {
+	const figures = records
 		.map(
 			(person) => `<figure>
-	<img src="${person.portrait}" alt="${person.display_name} portrait">
-	<img src="${person.marker}" alt="${person.display_name} marker">
-	<figcaption>${person.display_name}</figcaption>
+	<img src="${escapeHtml(person.portrait)}" alt="${escapeHtml(person.display_name)} portrait">
+	<img src="${escapeHtml(person.marker)}" alt="${escapeHtml(person.display_name)} marker">
+	<figcaption>${escapeHtml(person.display_name)}${person.npc_id === null ? ' (fallback)' : ` (NPC ${person.npc_id})`}</figcaption>
 </figure>`,
 		)
 		.join('\n');
@@ -478,219 +869,319 @@ body { margin: 24px; background: #ead8af; color: #2f2316; font-family: Georgia, 
 h1 { font-size: 24px; font-weight: 400; }
 .sheet { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 18px; max-width: 1100px; }
 figure { margin: 0; padding: 14px; border: 1px solid rgba(47, 35, 22, 0.35); background: rgba(255, 248, 222, 0.45); }
-img { max-width: 46%; height: 140px; object-fit: contain; vertical-align: middle; image-rendering: auto; }
+img { width: 46%; height: 140px; object-fit: contain; vertical-align: middle; }
 figcaption { margin-top: 8px; font-size: 15px; }
 </style>
 <h1>Rundale Notebook Person Art Contact Sheet</h1>
-<p>Config: ${config.issue ? `issue #${config.issue}` : 'approved cast'}; all entries approved.</p>
+<p>Approved release: ${escapeHtml(releaseId)}; ${records.length - 1} named people plus approved fallback.</p>
 <div class="sheet">
-${rows}
+${figures}
 </div>
 `;
 }
 
-function relativePromptPath(path) {
-	return join('parish/apps/ui/art/notebook-person-art', path).replaceAll(
-		'\\',
-		'/',
-	);
-}
-
-function provenanceMarkdown(config, people) {
-	const rows = people
+function provenanceMarkdown(releaseId, records, releasePath, releaseHash) {
+	const rows = records
 		.map(
 			(person) =>
-				`| ${person.display_name} | ${person.portrait} | ${person.marker} | ${person.approval_status} | ${person.review_notes} |`,
+				`| ${person.npc_id ?? 'fallback'} | ${person.display_name} | ${person.portrait} | ${person.marker} | ${person.provenance.portrait.master_sha256} | ${person.provenance.marker.master_sha256} |`,
 		)
 		.join('\n');
 	return `# Notebook Person Art Provenance
 
-Generated by \`parish/apps/ui/scripts/build-notebook-person-art.mjs\` from
-\`parish/apps/ui/art/notebook-person-art/approved-cast-v1.json\`.
+Generated deterministically by \`parish/apps/ui/scripts/build-notebook-person-art.mjs\`.
+The sole shipping authority is approved release \`${releaseId}\` at
+\`${releasePath}\` (manifest SHA-256 \`${releaseHash}\`). Legacy source sheets are
+not an approval authority and are not consumed by this builder.
 
-## Sources
+The builder verifies the release ID and every promoted/source hash referenced by
+the release manifest before writing output. PNG masters and source candidates are
+dimension-checked and must contain both visible pixels and transparent background.
 
-- Portrait source sheet: \`${relativePromptPath(config.source_sheets.portraits.path)}\`
-- Portrait prompt: \`${relativePromptPath(config.source_sheets.portraits.prompt)}\`
-- Marker source sheet: \`${relativePromptPath(config.source_sheets.markers.path)}\`
-- Marker prompt: \`${relativePromptPath(config.source_sheets.markers.prompt)}\`
-- Marker chroma key: \`${config.source_sheets.markers.key_color}\`
-
-Both source sheets and every runtime entry must be marked \`approved\` in the
-config or the pipeline exits without writing shipping assets.
-
-## Runtime Assets
-
-| Person | Portrait | Marker | Approval | Review notes |
-| --- | --- | --- | --- | --- |
+| NPC ID | Person | Portrait | Marker | Portrait master SHA-256 | Marker master SHA-256 |
+| --- | --- | --- | --- | --- | --- |
 ${rows}
 
-Contact sheet: \`${config.contact_sheet}\`
-HTML contact sheet: \`person-art-contact-sheet.html\`
+Review artifacts: \`person-art-contact-sheet.png\` and
+\`person-art-contact-sheet.html\` (${CONTACT_COLUMNS} columns,
+${Math.ceil(records.length / CONTACT_COLUMNS)} rows).
 `;
 }
 
-function assetReadme() {
+function assetReadme(releasePath) {
 	return `# Rundale Illustrated Notebook Runtime UI Assets
 
-This directory is the production runtime asset kit for the PixiJS illustrated
-notebook play screen.
+This directory is the production runtime asset kit for the illustrated notebook.
 
-## Source And Provenance
+Approved portraits and complete in-world markers are built from the deterministic
+approved-release manifest at \`${releasePath}\`. The builder verifies the release,
+master, source candidate, raw source, generation, and approval hashes plus PNG
+dimensions and content. Portraits and markers are contain-scaled on transparent
+canvases, so complete figures are never cropped.
 
-- The parchment frame crops are copied from the existing generated sheet at
-  \`/notebook-ui/generated/notebook-ui-sheet-v1-source.png\`. Its manifest
-  describes it as blank reusable hand-drawn parchment UI elements with no text,
-  portraits, or scene content.
-- Reusable runtime controls are generated by
-  \`parish/apps/ui/scripts/generate-notebook-assets.mjs\` as original raster PNG
-  line art: action icons, map/time icons, send stamp, exit label, input line,
-  selection ring, player marker, binding rings, and portrait card frame.
-- Approved person portraits and NPC markers are assembled by
-  \`parish/apps/ui/scripts/build-notebook-person-art.mjs\` from reviewed source
-  sheets and \`parish/apps/ui/art/notebook-person-art/approved-cast-v1.json\`.
-  The pipeline refuses unapproved source sheets or person entries.
-- The scene plate is copied from \`/notebook-ui/scene-crossroads.png\`, which
-  follows the written background prompt in
-  \`docs/graphics-v2/illustrated-parish-scene-no-ui-prompt.md\`.
-- \`docs/graphics-v2/illustrated-parish-notebook.png\` is visual reference only.
-  No runtime asset in this directory is cut from that concept image.
-
-## Runtime Usage
-
-- \`asset-manifest.json\` is consumed by the Pixi renderer.
-- \`visual-scenes.json\` supplies written visual summary, camera hint, plate path,
-  scene anchors, and marker depth bands for the notebook scene.
-- \`person-art-provenance.md\` documents portrait/marker prompt, source, approval,
-  and fallback provenance.
-- \`person-art-contact-sheet.png\` and \`person-art-contact-sheet.html\` show the
-  final approved portrait + marker set.
-- Svelte may size the canvas host and provide hidden accessibility inputs, but
-  the first viewport notebook UI is intended to be rendered from these bitmap
-  assets in Pixi.
+\`asset-manifest.json\` records NPC IDs and per-asset provenance.
+\`person-art-provenance.md\` records the approved release and master hashes.
+\`person-art-contact-sheet.png\` and \`person-art-contact-sheet.html\` show all
+named pairs and the approved fallback in a dynamic four-column grid.
 `;
 }
 
-async function writeRuntimeAsset(path, image) {
-	await writeFile(path, encodePng(image));
+async function writeRuntimeImage(runtimeRoot, configuredPath, image, master) {
+	const target = containedPath(
+		runtimeRoot,
+		configuredPath,
+		'runtime asset path',
+	);
+	await mkdir(dirname(target), { recursive: true });
+	const bytes =
+		image.width === master.masterImage.width &&
+		image.height === master.masterImage.height
+			? master.master.bytes
+			: encodePng(image);
+	await writeFile(target, bytes);
+}
+
+export async function buildNotebookPersonArt(options = {}) {
+	const uiRoot = resolve(options.uiRoot ?? defaultUiRoot);
+	const repoRoot = resolve(options.repoRoot ?? defaultRepoRoot);
+	const releaseManifestPath = resolve(
+		options.releaseManifestPath ??
+			join(
+				uiRoot,
+				'art',
+				'notebook-person-art',
+				'approved',
+				'v1',
+				'release-manifest.json',
+			),
+	);
+	const releaseRoot = resolve(
+		options.releaseRoot ?? dirname(releaseManifestPath),
+	);
+	const runtimeRoot = resolve(
+		options.runtimeRoot ?? join(uiRoot, 'static', 'rundale', 'notebook-ui'),
+	);
+	const expectedNamedCount = options.expectedNamedCount ?? NAMED_CAST_SIZE;
+	const runtimeSizes = {
+		portrait: dimensions(
+			options.runtimeSizes?.portrait ?? DEFAULT_RUNTIME_SIZES.portrait,
+			'runtime portrait size',
+		),
+		marker: dimensions(
+			options.runtimeSizes?.marker ?? DEFAULT_RUNTIME_SIZES.marker,
+			'runtime marker size',
+		),
+	};
+	const releaseBytes = await readFile(releaseManifestPath);
+	const releaseHash = sha256(releaseBytes);
+	const manifest = JSON.parse(releaseBytes);
+	const releaseEntries = validateReleaseManifest(
+		manifest,
+		expectedNamedCount,
+		options.allowFixture === true,
+	);
+	const shared = await verifyReleaseProvenance(manifest, releaseRoot);
+
+	const orderedEntries = [...releaseEntries.named, releaseEntries.fallback];
+	const loadedEntries = [];
+	const runtimePaths = new Set();
+	for (const [index, entry] of orderedEntries.entries()) {
+		const label =
+			entry.subject.kind === 'fallback'
+				? 'fallback'
+				: `NPC ${entry.subject.npc_id}`;
+		assertString(entry.subject.name, `${label}.subject.name`);
+		assertSha256(entry.job_id, `${label}.job_id`);
+		assertSha256(
+			entry.subject.input_record_sha256,
+			`${label}.subject.input_record_sha256`,
+		);
+		const verified = await verifyEntryFiles(entry, releaseRoot, label, shared);
+		const slug =
+			entry.subject.kind === 'fallback'
+				? 'unknown-neighbour'
+				: slugify(entry.subject.name);
+		const runtime = {
+			portrait: `people/portrait-${slug}.png`,
+			marker: `people/marker-${slug}.png`,
+		};
+		for (const path of Object.values(runtime)) {
+			containedPath(runtimeRoot, path, `${label} runtime path`);
+			if (runtimePaths.has(path))
+				throw new Error(`duplicate runtime asset path: ${path}`);
+			runtimePaths.add(path);
+		}
+		loadedEntries.push({
+			entry,
+			verified,
+			runtime,
+			releaseId: manifest.release_id,
+			portrait: await loadArt(
+				entry,
+				'portrait',
+				releaseRoot,
+				verified.receipt,
+				label,
+			),
+			marker: await loadArt(
+				entry,
+				'marker',
+				releaseRoot,
+				verified.receipt,
+				label,
+			),
+			index,
+		});
+	}
+	await verifyWholeCastApproval(manifest, releaseRoot, loadedEntries);
+
+	let runtimeManifest = { version: 3, assets: {} };
+	const baseManifestPath =
+		options.baseManifestPath === null
+			? null
+			: resolve(
+					options.baseManifestPath ?? join(runtimeRoot, 'asset-manifest.json'),
+				);
+	if (baseManifestPath) {
+		runtimeManifest = JSON.parse(await readFile(baseManifestPath, 'utf8'));
+	}
+
+	// Build a complete sibling tree before replacing the shipping directory.
+	const stagingRoot = join(
+		dirname(runtimeRoot),
+		`.${basename(runtimeRoot)}.tmp-${process.pid}-${randomUUID()}`,
+	);
+	await rm(stagingRoot, { recursive: true, force: true });
+	await mkdir(dirname(runtimeRoot), { recursive: true });
+	if (await pathExists(runtimeRoot)) {
+		await cp(runtimeRoot, stagingRoot, { recursive: true });
+	} else {
+		await mkdir(stagingRoot, { recursive: true });
+	}
+	const records = [];
+	const contactAssets = [];
+	try {
+		await rm(join(stagingRoot, 'people'), { recursive: true, force: true });
+		const manifestLabel = portablePath(
+			options.releaseManifestLabel ?? relative(repoRoot, releaseManifestPath),
+		);
+		for (const loaded of loadedEntries) {
+			const portrait = resizeContain(
+				loaded.portrait.masterImage,
+				runtimeSizes.portrait.width,
+				runtimeSizes.portrait.height,
+			);
+			const marker = resizeContain(
+				loaded.marker.masterImage,
+				runtimeSizes.marker.width,
+				runtimeSizes.marker.height,
+			);
+			validatePng(
+				encodePng(portrait),
+				runtimeSizes.portrait,
+				`${loaded.entry.subject.name}.runtime portrait`,
+				true,
+			);
+			validatePng(
+				encodePng(marker),
+				runtimeSizes.marker,
+				`${loaded.entry.subject.name}.runtime marker`,
+				true,
+			);
+			await writeRuntimeImage(
+				stagingRoot,
+				loaded.runtime.portrait,
+				portrait,
+				loaded.portrait,
+			);
+			await writeRuntimeImage(
+				stagingRoot,
+				loaded.runtime.marker,
+				marker,
+				loaded.marker,
+			);
+			records.push(runtimeRecord(loaded, manifestLabel, releaseHash));
+			contactAssets.push({ portrait, marker });
+		}
+
+		await writeFile(
+			join(stagingRoot, 'person-art-contact-sheet.png'),
+			encodePng(drawContactSheet(contactAssets)),
+		);
+		await writeFile(
+			join(stagingRoot, 'person-art-contact-sheet.html'),
+			contactSheetHtml(manifest.release_id, records),
+		);
+		runtimeManifest.version = Math.max(Number(runtimeManifest.version ?? 1), 3);
+		runtimeManifest.assets ??= {};
+		runtimeManifest.assets.portraits = records.map((person) => person.portrait);
+		runtimeManifest.assets.npcMarkers = records.map((person) => person.marker);
+		runtimeManifest.assets.personArt = {
+			release_id: manifest.release_id,
+			release_manifest: manifestLabel,
+			release_manifest_sha256: releaseHash,
+			approval_status: 'approved',
+			contact_sheet: 'person-art-contact-sheet.png',
+			contact_sheet_html: 'person-art-contact-sheet.html',
+			fallback: records.at(-1),
+			people: records.slice(0, -1),
+		};
+		await writeFile(
+			join(stagingRoot, 'asset-manifest.json'),
+			`${JSON.stringify(runtimeManifest, null, '\t')}\n`,
+		);
+		await writeFile(
+			join(stagingRoot, 'person-art-provenance.md'),
+			provenanceMarkdown(
+				manifest.release_id,
+				records,
+				manifestLabel,
+				releaseHash,
+			),
+		);
+		await writeFile(
+			join(stagingRoot, 'asset-readme.md'),
+			assetReadme(manifestLabel),
+		);
+		await replaceRuntimeTree(stagingRoot, runtimeRoot);
+	} catch (error) {
+		await rm(stagingRoot, { recursive: true, force: true });
+		throw error;
+	}
+
+	return {
+		release_id: manifest.release_id,
+		release_manifest_sha256: releaseHash,
+		named_count: releaseEntries.named.length,
+		fallback_count: 1,
+		runtime_root: runtimeRoot,
+		contact_sheet_rows: Math.ceil(records.length / CONTACT_COLUMNS),
+	};
 }
 
 async function main() {
-	const config = JSON.parse(await readFile(configPath, 'utf8'));
-	assertApproved('portrait source sheet', config.source_sheets.portraits);
-	assertApproved('marker source sheet', config.source_sheets.markers);
-	assertApproved('fallback person art', config.fallback);
-	for (const person of config.people) {
-		assertApproved(person.display_name, person);
-	}
-
-	await mkdir(peopleRoot, { recursive: true });
-	const portraitSheet = await decodePng(
-		join(artRoot, config.source_sheets.portraits.path),
-	);
-	const markerSheet = await decodePng(
-		join(artRoot, config.source_sheets.markers.path),
-	);
-	const runtimePeople = [...config.people, config.fallback];
-	const contactAssets = [];
-
-	for (const person of runtimePeople) {
-		const portraitCell = crop(
-			portraitSheet,
-			cellRect(
-				portraitSheet,
-				config.source_sheets.portraits,
-				person.portrait_cell,
-			),
-		);
-		const portraitContent = cropInkWithPadding(portraitCell, {
-			left: 86,
-			right: 86,
-			top: 96,
-			bottom: 118,
-		});
-		const portrait = resizeContain(
-			portraitContent,
-			config.portrait_size.width,
-			config.portrait_size.height,
-			[237, 218, 176, 255],
-		);
-		validatePortrait(portrait, person.display_name);
-		await writeRuntimeAsset(join(runtimeRoot, person.portrait), portrait);
-
-		const markerCell = crop(
-			markerSheet,
-			cellRect(markerSheet, config.source_sheets.markers, person.marker_cell),
-		);
-		const keyed = applyChromaKey(
-			markerCell,
-			config.source_sheets.markers.key_color,
-		);
-		const marker = resizeCover(
-			keyed,
-			config.marker_size.width,
-			config.marker_size.height,
-			[0, 0, 0, 0],
-		);
-		validateMarker(marker, person.display_name);
-		await writeRuntimeAsset(join(runtimeRoot, person.marker), marker);
-		contactAssets.push({
-			person,
-			portraitImage: portrait,
-			markerImage: marker,
-		});
-	}
-
-	const contactSheet = drawContactSheet(contactAssets);
-	await writeRuntimeAsset(
-		join(runtimeRoot, config.contact_sheet),
-		contactSheet,
-	);
-	await writeFile(
-		join(runtimeRoot, 'person-art-contact-sheet.html'),
-		contactSheetHtml(config, runtimePeople),
-	);
-
-	const manifest = JSON.parse(await readFile(manifestPath, 'utf8'));
-	const people = config.people.map((person) => ({
-		real_name: person.real_name,
-		display_name: person.display_name,
-		npc_id: person.npc_id,
-		portrait: person.portrait,
-		marker: person.marker,
-		approval_status: person.approval_status,
-		source_config:
-			'parish/apps/ui/art/notebook-person-art/approved-cast-v1.json',
-		review_notes: person.review_notes,
-	}));
-	manifest.version = Math.max(Number(manifest.version ?? 1), 2);
-	manifest.source =
-		'Generated bitmap runtime kit plus approved notebook person art. Concept art is visual reference only.';
-	manifest.assets.portraits = runtimePeople.map((person) => person.portrait);
-	manifest.assets.npcMarkers = runtimePeople.map((person) => person.marker);
-	manifest.assets.personArt = {
-		source_config:
-			'parish/apps/ui/art/notebook-person-art/approved-cast-v1.json',
-		portrait_prompt: relativePromptPath(config.source_sheets.portraits.prompt),
-		marker_prompt: relativePromptPath(config.source_sheets.markers.prompt),
-		contact_sheet: config.contact_sheet,
-		contact_sheet_html: 'person-art-contact-sheet.html',
-		fallback: {
-			display_name: config.fallback.display_name,
-			portrait: config.fallback.portrait,
-			marker: config.fallback.marker,
-			approval_status: config.fallback.approval_status,
-			review_notes: config.fallback.review_notes,
+	const { values } = parseArgs({
+		options: {
+			'release-manifest': { type: 'string' },
+			'release-root': { type: 'string' },
+			'repo-root': { type: 'string' },
+			'runtime-root': { type: 'string' },
+			'base-manifest': { type: 'string' },
 		},
-		people,
-	};
-	await writeFile(manifestPath, `${JSON.stringify(manifest, null, '\t')}\n`);
-	await writeFile(provenancePath, provenanceMarkdown(config, runtimePeople));
-	await writeFile(assetReadmePath, assetReadme());
-
+	});
+	const result = await buildNotebookPersonArt({
+		releaseManifestPath: values['release-manifest'],
+		releaseRoot: values['release-root'],
+		repoRoot: values['repo-root'],
+		runtimeRoot: values['runtime-root'],
+		baseManifestPath: values['base-manifest'],
+	});
 	console.log(
-		`Built ${runtimePeople.length} approved notebook person portrait/marker pairs in ${runtimeRoot}`,
+		`Built ${result.named_count} approved named portrait/marker pairs plus fallback in ${result.runtime_root}`,
 	);
 }
 
-await main();
+const isMain =
+	process.argv[1] &&
+	pathToFileURL(resolve(process.argv[1])).href === import.meta.url;
+if (isMain) await main();

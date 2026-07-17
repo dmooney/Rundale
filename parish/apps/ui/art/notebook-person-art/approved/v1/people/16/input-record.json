@@ -1,0 +1,206 @@
+{
+	"npc_id": 16,
+	"name": "Kathleen Walsh",
+	"age": 30,
+	"pronouns": "she/her",
+	"occupation": "Fisherman's Wife",
+	"mood": "warm",
+	"brief_description": "a young woman with a baby on her hip",
+	"home": {
+		"id": 20,
+		"name": "The Boatman's Cottage",
+		"description": "A small thatched cottage perched above the waterline, with nets drying on a stone wall and a currach pulled up on the shingle. The smell of turf smoke and fish mingles in the air. It is daylight. The lake stretches away under the weather sky."
+	},
+	"workplace": {
+		"id": 20,
+		"name": "The Boatman's Cottage",
+		"description": "A small thatched cottage perched above the waterline, with nets drying on a stone wall and a currach pulled up on the shingle. The smell of turf smoke and fish mingles in the air. It is daylight. The lake stretches away under the weather sky."
+	},
+	"source_personality_summary": "A practical, warm-hearted young woman who keeps the boatman's cottage together.",
+	"source_knowledge": [
+		"Knows Eamon's smuggling routes and worries every time he goes out at night.",
+		"Her family in Curraghboy says the land agent there has started evicting tenants.",
+		"Knows dozens of old songs in Irish that her grandmother taught her.",
+		"Noticed Martin Concannon asking questions about boats at the bay."
+	],
+	"source_relationships": [
+		{
+			"target_id": 15,
+			"target_name": "Eamon Walsh",
+			"kind": "Family",
+			"strength": 0.9
+		},
+		{
+			"target_id": 17,
+			"target_name": "Ciaran Walsh",
+			"kind": "Family",
+			"strength": 0.95
+		},
+		{
+			"target_id": 20,
+			"target_name": "Una Malone",
+			"kind": "Friend",
+			"strength": 0.5
+		},
+		{
+			"target_id": 4,
+			"target_name": "Roisin Connolly",
+			"kind": "Neighbor",
+			"strength": 0.3
+		}
+	],
+	"source_schedule_cues": [
+		{
+			"location_id": 1,
+			"location_name": "The Crossroads",
+			"activity": "at the crossroads after Mass, chatting with the other women"
+		},
+		{
+			"location_id": 3,
+			"location_name": "St. Brigid's Church",
+			"activity": "at Mass with Eamon and Ciaran"
+		},
+		{
+			"location_id": 8,
+			"location_name": "Hodson Bay",
+			"activity": "down at the bay, washing clothes in the shallows, watching for Eamon's boat"
+		},
+		{
+			"location_id": 13,
+			"location_name": "Connolly's Shop",
+			"activity": "walking to Connolly's Shop for supplies, Ciaran in tow"
+		},
+		{
+			"location_id": 19,
+			"location_name": "The Weaver's Cottage",
+			"activity": "visiting Una Malone at the weaver's cottage, singing songs together"
+		},
+		{
+			"location_id": 20,
+			"location_name": "The Boatman's Cottage",
+			"activity": "Sunday dinner at the cottage"
+		},
+		{
+			"location_id": 20,
+			"location_name": "The Boatman's Cottage",
+			"activity": "dinner at the cottage with Ciaran"
+		},
+		{
+			"location_id": 20,
+			"location_name": "The Boatman's Cottage",
+			"activity": "home for the evening"
+		},
+		{
+			"location_id": 20,
+			"location_name": "The Boatman's Cottage",
+			"activity": "household work — washing, cleaning, tending the garden"
+		},
+		{
+			"location_id": 20,
+			"location_name": "The Boatman's Cottage",
+			"activity": "preparing supper, mending nets, singing to Ciaran"
+		},
+		{
+			"location_id": 20,
+			"location_name": "The Boatman's Cottage",
+			"activity": "putting Ciaran to bed, waiting for Eamon to come home"
+		},
+		{
+			"location_id": 20,
+			"location_name": "The Boatman's Cottage",
+			"activity": "rising, feeding Ciaran, making breakfast, seeing Eamon off"
+		},
+		{
+			"location_id": 20,
+			"location_name": "The Boatman's Cottage",
+			"activity": "sleeping at the cottage"
+		}
+	],
+	"source_visual_cues": [
+		"age: 30",
+		"occupation: Fisherman's Wife",
+		"brief_description: a young woman with a baby on her hip",
+		"prop/activity"
+	],
+	"source_metadata_status": {
+		"canonical_npc_data_sufficient_for_production_art": false,
+		"status": "weak-partial",
+		"reason": "The canonical NPC data identifies the character but does not provide enough structured appearance, clothing, or tiny-marker guidance for production art."
+	},
+	"art_direction": {
+		"npc_id": 16,
+		"npc_name": "Kathleen Walsh",
+		"portrait_identity": {
+			"visual_identity_seed": "rundale-person-v2:16",
+			"identity_cohort": "woman",
+			"apparent_age": "around thirty",
+			"facial_geometry": {
+				"face_shape": "soft heart-shaped face, broad at the temples and narrow below",
+				"proportions": "short midface, wide eye spacing, gently lengthened lower third",
+				"brow_and_eyes": "fine arched brows over wide-set almond-shaped eyes",
+				"nose": "short straight nose with a rounded tip",
+				"mouth": "small bow-shaped upper lip and distinctly full lower lip",
+				"jaw_and_chin": "lightly angled jaw ending in a narrow rounded chin",
+				"cheekbones": "high rounded cheekbones without hollowing",
+				"hairline": "smooth high curved hairline with even temples",
+				"age_detail": "faint lower-lid lines and a single light crease beside the mouth"
+			},
+			"distinguishing_features": [
+				"left eyebrow sits slightly higher than the right",
+				"full lower lip beneath a compact bow-shaped upper lip",
+				"small dimple in the right cheek"
+			],
+			"hair": "ABSOLUTE VISIBLE SILHOUETTE: dark softly waved hair with an uneven left-of-centre part lies flat beneath a short compact triangular linen kerchief tied with two short nape ends. The single plait is doubled upward flat under the cloth, so there is no rounded nape mass, bun, coil, large trailing kerchief tail, or long facial tendril; only two short temple wisps. Portrait line economy: use sparse open contours and a few wave marks, leaving hair, cloth, and face unfilled; no black masses, dense hatching, or engraving texture. The marker must repeat the compact flat kerchief silhouette.",
+			"clothing": "plain dress, shawl wrapped for wind, working apron",
+			"pose_expression": "steady and protective, baby balanced naturally at hip; portrait and marker must show the same around-thirty softly square face, full cheeks, straight brows, and blunt chin without making her younger or more glamorous",
+			"props": [
+				"baby bundle on hip",
+				"small fish basket or net edge"
+			],
+			"palette_notes": [
+				"shore grey",
+				"soft shawl brown",
+				"linen baby wrap"
+			]
+		},
+		"marker_identity": {
+			"composition": "character-only",
+			"silhouette": "around-thirty woman with a compact triangular linen kerchief, softly waved dark hair, wind-wrapped shawl, plain dress, and broad steady skirt line; no object/scenery",
+			"stance": "steady protective stance with one hand on hip and the other at her side; no object/scenery",
+			"empty_hand_pose": "one-on-hip-one-at-side",
+			"readability_cues": [
+				{
+					"kind": "hair-or-headwear",
+					"description": "compact flat triangular kerchief"
+				},
+				{
+					"kind": "clothing",
+					"description": "wind-wrapped shawl"
+				},
+				{
+					"kind": "face",
+					"description": "softly square face"
+				},
+				{
+					"kind": "body-shape",
+					"description": "broad steady outline"
+				}
+			],
+			"tiny_readability_notes": [
+				"Keep Kathleen as a solo character cutout; her readable protection comes from stance and clothing."
+			]
+		},
+		"avoid": [
+			"sentimental Madonna iconography",
+			"modern pram",
+			"glamour mother portrait",
+			"rounded bun, loose long hair, or full head shawl instead of the doubled flat plait and short triangular kerchief"
+		],
+		"authoring_notes": [
+			"Brief description gives baby cue; supplement defines readable tiny-marker treatment."
+		]
+	},
+	"pair_prompt": "Identity contract for Kathleen Walsh, age 30, Fisherman's Wife: visual identity seed rundale-person-v2:16; apparent age around thirty; Explicit facial geometry: face shape soft heart-shaped face, broad at the temples and narrow below; proportions short midface, wide eye spacing, gently lengthened lower third; brow and eyes fine arched brows over wide-set almond-shaped eyes; nose short straight nose with a rounded tip; mouth small bow-shaped upper lip and distinctly full lower lip; jaw and chin lightly angled jaw ending in a narrow rounded chin; cheekbones high rounded cheekbones without hollowing; hairline smooth high curved hairline with even temples; age detail faint lower-lid lines and a single light crease beside the mouth. Distinguishing features: left eyebrow sits slightly higher than the right, full lower lip beneath a compact bow-shaped upper lip, small dimple in the right cheek. Hair: ABSOLUTE VISIBLE SILHOUETTE: dark softly waved hair with an uneven left-of-centre part lies flat beneath a short compact triangular linen kerchief tied with two short nape ends. The single plait is doubled upward flat under the cloth, so there is no rounded nape mass, bun, coil, large trailing kerchief tail, or long facial tendril; only two short temple wisps. Portrait line economy: use sparse open contours and a few wave marks, leaving hair, cloth, and face unfilled; no black masses, dense hatching, or engraving texture. The marker must repeat the compact flat kerchief silhouette.. Production task: create one identity-locked portrait-and-marker pair in Rundale, rural County Roscommon, Ireland, 1820, ordinary parish life, period-appropriate work clothing, under this visual authority: Illustrated Parish Notebook concept art only. The two renderings must unmistakably be the same person by reproducing every stated identity fact. Clothing: plain dress, shawl wrapped for wind, working apron; canonical biography cue for clothing and expression only, never for setting, activity, or objects: a young woman with a baby on her hip; current mood warm. Left asset, notebook portrait: a quick observational head-and-shoulders sketch the player character drew in their working notebook after meeting this person. Use sparse uncolored sepia/graphite contours, open unfilled shapes, and only a few isolated short structural hatch marks; optional lower-edge prop baby bundle on hip, simply outlined and confined to the left cell. Do not cross-hatch or shade any broad region of the face, hair, neck, scarf, waistcoat, coat, dress, or apron, and do not render a dark garment as a filled or densely hatched mass. Keep the complete ink drawing between 40 and 60 percent of the left cell height with generous empty padding; every uninked interior region must remain provider key, never white, cream, parchment, skin tone, gray, or any other fill. It must not read as a formal illustration or painted portrait. Right asset, painted-world marker: one tiny static full-body transparent character-only cutout designed for compositing into the painted parish scene; silhouette around-thirty woman with a compact triangular linen kerchief, softly waved dark hair, wind-wrapped shawl, plain dress, and broad steady skirt line; no object/scenery; stance steady protective stance with one hand on hip and the other at her side; no object/scenery; empty-hand pose one empty hand on the hip and one relaxed at the side; tiny-readability cues from the person's body, hair or headwear, clothing, and stance alone: hair or headwear: compact flat triangular kerchief; clothing: wind-wrapped shawl; face: softly square face; body shape: broad steady outline; complete figure roughly 45 percent of the right cell height, acceptable range 40 to 60 percent, with generous key-visible margins; restrained translucent watercolor within loose sepia/graphite contours, simplified face, and complete feet. The right cell must contain the person only: both hands empty; no held or carried objects, tools, books, containers, bundles, furniture, counters, architecture, vegetation, scenery fragments, ground plane, shadow, or extra person. Worn clothing and headwear are allowed. Do not illustrate the canonical biography's occupation, workplace, activity, or narrative context around the marker. Limit painted color to muted wool gray, bog green, weathered tan, dull brick red, peat brown, and faded indigo; no saturated primary colors. Shared constraints: one depiction in each assigned cell, ordinary 1820 rural County Roscommon clothing, no modern or fantasy elements, no text, labels, frames, contact-sheet furniture, or sprite-sheet poses. Never copy a left-cell portrait prop into the marker. Character-specific avoid list: sentimental Madonna iconography, modern pram, glamour mother portrait, rounded bun, loose long hair, or full head shawl instead of the doubled flat plait and short triangular kerchief.",
+	"portrait_prompt": "Subject identity: Kathleen Walsh, age 30, Fisherman's Wife; visual identity seed rundale-person-v2:16; apparent age around thirty; Explicit facial geometry: face shape soft heart-shaped face, broad at the temples and narrow below; proportions short midface, wide eye spacing, gently lengthened lower third; brow and eyes fine arched brows over wide-set almond-shaped eyes; nose short straight nose with a rounded tip; mouth small bow-shaped upper lip and distinctly full lower lip; jaw and chin lightly angled jaw ending in a narrow rounded chin; cheekbones high rounded cheekbones without hollowing; hairline smooth high curved hairline with even temples; age detail faint lower-lid lines and a single light crease beside the mouth. Distinguishing features: left eyebrow sits slightly higher than the right, full lower lip beneath a compact bow-shaped upper lip, small dimple in the right cheek. Hair: ABSOLUTE VISIBLE SILHOUETTE: dark softly waved hair with an uneven left-of-centre part lies flat beneath a short compact triangular linen kerchief tied with two short nape ends. The single plait is doubled upward flat under the cloth, so there is no rounded nape mass, bun, coil, large trailing kerchief tail, or long facial tendril; only two short temple wisps. Portrait line economy: use sparse open contours and a few wave marks, leaving hair, cloth, and face unfilled; no black masses, dense hatching, or engraving texture. The marker must repeat the compact flat kerchief silhouette.. Artifact and lore: this is a quick observational sketch the player character drew by hand in the margin of their working parish notebook after meeting the subject. It is diegetic notebook ephemera, not a commissioned illustration, formal portrait study, character card, or polished concept painting. Non-negotiable drawing language: sparse, uncolored pen-and-ink line drawing under this visual authority: Illustrated Parish Notebook concept art only. Use one irregular sepia/graphite ink line, economical contours, open shapes, and only a few short loose hatch marks where structurally necessary. Leave most of the face, hair, clothing, and canvas unfilled. No skin-tone fill, white underpainting, cream fill, solid dark garment, gray wash, watercolor, smooth tonal modeling, dense cross-hatching, photorealistic rendering, or glamour. Delivery composition: 1024x1024 transparent-background PNG source, portrait line art occupies roughly 45 percent of source height, centered head-and-shoulders drawing with generous transparent padding on all sides, top of hair/head covering and shoulders fully visible, no baked parchment, paper texture, wash, card, border, label, or UI furniture; keep the complete inked drawing between roughly 40 and 60 percent of canvas height with generous empty space on every side. Uninked areas are transparent in the delivery asset so the UI-controlled notebook paper shows through. Setting: Rundale, rural County Roscommon, Ireland, 1820, ordinary parish life, period-appropriate work clothing. Clothing: plain dress, shawl wrapped for wind, working apron, indicated only with contour, seam, and a few fold lines; expression and pose steady and protective, baby balanced naturally at hip; portrait and marker must show the same around-thirty softly square face, full cheeks, straight brows, and blunt chin without making her younger or more glamorous; current mood warm. Optional lower-edge identity cue: baby bundle on hip, at most one simply outlined prop. Canonical context: a young woman with a baby on her hip; home/workplace at The Boatman's Cottage. Hard constraints: one character, head and shoulders only, period-appropriate rural County Roscommon clothing, no text, no label, no border, no card, no UI chrome. Character-specific avoid list: sentimental Madonna iconography, modern pram, glamour mother portrait, rounded bun, loose long hair, or full head shawl instead of the doubled flat plait and short triangular kerchief.",
+	"marker_prompt": "Subject identity: Kathleen Walsh, age 30, Fisherman's Wife; visual identity seed rundale-person-v2:16; apparent age around thirty; Explicit facial geometry: face shape soft heart-shaped face, broad at the temples and narrow below; proportions short midface, wide eye spacing, gently lengthened lower third; brow and eyes fine arched brows over wide-set almond-shaped eyes; nose short straight nose with a rounded tip; mouth small bow-shaped upper lip and distinctly full lower lip; jaw and chin lightly angled jaw ending in a narrow rounded chin; cheekbones high rounded cheekbones without hollowing; hairline smooth high curved hairline with even temples; age detail faint lower-lid lines and a single light crease beside the mouth. Distinguishing features: left eyebrow sits slightly higher than the right, full lower lip beneath a compact bow-shaped upper lip, small dimple in the right cheek. Hair: ABSOLUTE VISIBLE SILHOUETTE: dark softly waved hair with an uneven left-of-centre part lies flat beneath a short compact triangular linen kerchief tied with two short nape ends. The single plait is doubled upward flat under the cloth, so there is no rounded nape mass, bun, coil, large trailing kerchief tail, or long facial tendril; only two short temple wisps. Portrait line economy: use sparse open contours and a few wave marks, leaving hair, cloth, and face unfilled; no black masses, dense hatching, or engraving texture. The marker must repeat the compact flat kerchief silhouette.. Asset role: one tiny static full-body NPC marker delivered as a transparent character-only cutout for compositing over Rundale's painted world surface. It is not a UI portrait, paper doll, animation sheet, formal character illustration, vignette, or sprite-sheet panel. Visual language: loose hand-inked watercolor miniature under this visual authority: Illustrated Parish Notebook concept art only. Use irregular sepia/graphite contours, a simple readable human silhouette, restrained translucent washes, low facial detail, and only enough clothing folds to identify the person at scene size. Keep the treatment handmade and subordinate to the environment, never glossy, photorealistic, densely rendered, or cut out with a broad halo. Delivery composition: 1024x1024 flat #ff00ff chroma-key PNG source, full-body figure occupies roughly 45 percent of source height, centered figure with feet fully visible and generous flat background margins, one single static in-world marker pose per NPC for this slice, no ground shadow, floor plane, label, border, or extra figure. Palette: sepia/graphite line with muted wool gray, bog green, weathered tan, dull brick red, peat brown, and faded indigo only; no saturated primary colors. Setting: Rundale, rural County Roscommon, Ireland, 1820, ordinary parish life, period-appropriate work clothing. Character-only silhouette: around-thirty woman with a compact triangular linen kerchief, softly waved dark hair, wind-wrapped shawl, plain dress, and broad steady skirt line; no object/scenery. Stance: steady protective stance with one hand on hip and the other at her side; no object/scenery. Empty-hand pose: one empty hand on the hip and one relaxed at the side. Tiny-readability cues from the person's body, hair or headwear, clothing, and stance alone: hair or headwear: compact flat triangular kerchief; clothing: wind-wrapped shawl; face: softly square face; body shape: broad steady outline. Tiny-readability requirements: Keep Kathleen as a solo character cutout; her readable protection comes from stance and clothing.. Hard constraints: one character only, both hands empty, period-appropriate ordinary rural clothing, simplified face, complete feet, no held or carried objects, tools, books, containers, bundles, furniture, architecture, vegetation, scenery fragments, ground plane, shadow, text, label, border, or UI chrome. Worn clothing and headwear are allowed. Do not illustrate an occupation, workplace, activity, or narrative context around the person. Character-specific avoid list: sentimental Madonna iconography, modern pram, glamour mother portrait, rounded bun, loose long hair, or full head shawl instead of the doubled flat plait and short triangular kerchief."
+}

@@ -1,0 +1,112 @@
+{
+	"schema_version": 1,
+	"record_type": "notebook-person-art-human-review-decision",
+	"candidate_receipt_path": "parish/apps/ui/art/notebook-person-art/candidates/objects/fd/fd28737520bcf113842ed6f1c09c253d793f413fcff255ce0bdf46c30221145a/receipt.json",
+	"candidate_receipt_sha256": "edb3c22f53d031eda976ec5bce2b65ca75735b8466fbdfd91ca6162eb900c82b",
+	"candidate_sha256": "1349f3e34eb8958f00441de1f5f8bc87048b742b09e3b25314040fb4889b0f6a",
+	"raw_sha256": "9e75badd7870d88733fe1a6a719b278fe40c53426dffdd925f2f3041411da741",
+	"subject": {
+		"kind": "npc",
+		"npc_id": 1,
+		"name": "Padraig Darcy",
+		"input_record_sha256": "e894fdd569f7e6e272465f45d0393f47270ed77d8487401ea65d24531cac1933"
+	},
+	"asset": {
+		"kind": "pair",
+		"candidate_index": 1,
+		"children": [
+			"portrait",
+			"marker"
+		]
+	},
+	"hair_topology": {
+		"schema_version": 4,
+		"subject_key": "npc:1",
+		"vector": {
+			"color_and_texture": "coarse dark-grey hair with grey whiskers",
+			"front": {
+				"family": "uneven-brushed-back-front",
+				"description": "short front brushed back unevenly from a mature high-temple hairline"
+			},
+			"rear": {
+				"family": "short-rough-nape",
+				"description": "short rough crop at the crown and nape"
+			},
+			"covering": {
+				"family": "uncovered",
+				"description": "no cap or other head covering"
+			},
+			"silhouette": {
+				"family": "broad-sideburn-profile",
+				"description": "broad brushed-back outline anchored by prominent sideburns"
+			},
+			"loose_details": "prominent greying sideburns and trimmed grey whiskers"
+		},
+		"sha256": "f91fb0d9397c7f953a7b91de7ec9da1ca3fbd8b2c2509a02f59a75b5ad930a5a"
+	},
+	"marker_identity": {
+		"schema_version": 4,
+		"subject_key": "npc:1",
+		"marker_identity": {
+			"composition": "character-only",
+			"silhouette": "stocky late-fifties man with square shoulders, broad sideburns, worn dark waistcoat, and rolled sleeves; no object/scenery",
+			"stance": "grounded square stance with both hands near the waistcoat front; no object/scenery",
+			"empty_hand_pose": "hands-near-coat-front",
+			"readability_cues": [
+				{
+					"kind": "body-shape",
+					"description": "compact broad build"
+				},
+				{
+					"kind": "hair-or-headwear",
+					"description": "prominent greying sideburns"
+				},
+				{
+					"kind": "clothing",
+					"description": "dark waistcoat over pale rolled sleeves"
+				}
+			],
+			"tiny_readability_notes": [
+				"Make the broad, low center of gravity readable before facial detail."
+			]
+		},
+		"sha256": "5f24d08d93fd6c170a975a973308b9a42ba7be10aa70818138a33b7b6eb42162"
+	},
+	"decision": "approved",
+	"promotion_eligible": true,
+	"reviewer": "dmooney",
+	"reviewed_at": "2026-07-17T01:52:55.994Z",
+	"notes": "Approved by dmooney after reviewing the final 24-pair whole-cast sheet in Codex on 2026-07-16.",
+	"checklist": {
+		"identity_specific": true,
+		"concept_style_match": true,
+		"period_appropriate": true,
+		"no_prohibited_content": true,
+		"key_removal_clean": true,
+		"production_quality": true,
+		"diegetic_player_sketch": true,
+		"uncolored_pen_and_ink": true,
+		"sparse_open_linework": true,
+		"no_baked_background": true,
+		"framing_complete": true,
+		"selected_size_readable": true,
+		"nearby_size_readable": true,
+		"restrained_world_color": true,
+		"full_body_complete": true,
+		"silhouette_readable": true,
+		"character_only_marker": true,
+		"empty_hands": true,
+		"no_contextual_props_or_scenery": true,
+		"no_ground_plane": true,
+		"scene_size_readable": true,
+		"cross_asset_identity": true,
+		"hair_front_matches": true,
+		"hair_rear_matches": true,
+		"hair_covering_matches": true,
+		"hair_silhouette_matches": true,
+		"correct_surface_split": true,
+		"atomic_rerender_understood": true
+	},
+	"source_template_path": "parish/apps/ui/art/notebook-person-art/candidates/review-packets/identity-v8-character-only-full-cast-a-20260716/1-pair-1349f3e34eb8-review.json",
+	"review_id": "9a2bbb71fb6c9b12b82d70f5"
+}

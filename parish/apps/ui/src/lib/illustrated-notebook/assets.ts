@@ -40,6 +40,7 @@ export interface ResolvedNotebookPersonArt {
 }
 
 export interface LoadedNotebookPersonArt {
+	byId: Map<number, ResolvedNotebookPersonArt>;
 	byName: Map<string, ResolvedNotebookPersonArt>;
 	fallback: ResolvedNotebookPersonArt;
 	assetUrls: string[];
@@ -76,12 +77,6 @@ export const NOTEBOOK_ASSETS = {
 	inkStampSend: `${NOTEBOOK_ASSET_BASE}ink-stamp-send.png`,
 	nearbyPortraitStrip: `${NOTEBOOK_ASSET_BASE}nearby-portrait-strip.png`,
 	nearbyPortraitCardFrame: `${NOTEBOOK_ASSET_BASE}nearby-portrait-card-frame.png`,
-	portraits: [
-		`${NOTEBOOK_ASSET_BASE}portrait-placeholder-1.png`,
-		`${NOTEBOOK_ASSET_BASE}portrait-placeholder-2.png`,
-		`${NOTEBOOK_ASSET_BASE}portrait-placeholder-3.png`,
-		`${NOTEBOOK_ASSET_BASE}portrait-placeholder-4.png`,
-	],
 	activeIntentsCard: `${NOTEBOOK_ASSET_BASE}active-intents-card.png`,
 	mapCard: `${NOTEBOOK_ASSET_BASE}map-card.png`,
 	timeCard: `${NOTEBOOK_ASSET_BASE}time-card.png`,
@@ -90,12 +85,14 @@ export const NOTEBOOK_ASSETS = {
 	paperExitLabel: `${NOTEBOOK_ASSET_BASE}paper-exit-label.png`,
 	npcSelectionRing: `${NOTEBOOK_ASSET_BASE}npc-selection-ring.png`,
 	playerMarker: `${NOTEBOOK_ASSET_BASE}player-marker.png`,
-	npcMarkers: [
-		`${NOTEBOOK_ASSET_BASE}npc-marker-1.png`,
-		`${NOTEBOOK_ASSET_BASE}npc-marker-2.png`,
-		`${NOTEBOOK_ASSET_BASE}npc-marker-3.png`,
-	],
 } as const;
+
+const UNKNOWN_NOTEBOOK_PERSON_ART: ResolvedNotebookPersonArt = {
+	displayName: 'Unknown parish neighbour',
+	portrait: `${NOTEBOOK_ASSET_BASE}people/portrait-unknown-neighbour.png`,
+	marker: `${NOTEBOOK_ASSET_BASE}people/marker-unknown-neighbour.png`,
+	fallback: true,
+};
 
 export const NOTEBOOK_ASSET_URLS = [
 	NOTEBOOK_ASSETS.scenePlate,
@@ -110,7 +107,6 @@ export const NOTEBOOK_ASSET_URLS = [
 	NOTEBOOK_ASSETS.inkStampSend,
 	NOTEBOOK_ASSETS.nearbyPortraitStrip,
 	NOTEBOOK_ASSETS.nearbyPortraitCardFrame,
-	...NOTEBOOK_ASSETS.portraits,
 	NOTEBOOK_ASSETS.activeIntentsCard,
 	NOTEBOOK_ASSETS.mapCard,
 	NOTEBOOK_ASSETS.timeCard,
@@ -119,7 +115,6 @@ export const NOTEBOOK_ASSET_URLS = [
 	NOTEBOOK_ASSETS.paperExitLabel,
 	NOTEBOOK_ASSETS.npcSelectionRing,
 	NOTEBOOK_ASSETS.playerMarker,
-	...NOTEBOOK_ASSETS.npcMarkers,
 ];
 
 export function notebookAssetUrl(path: string): string {
@@ -136,10 +131,31 @@ export function normalizeNotebookPersonName(value: string): string {
 		.replace(/\s+/g, ' ');
 }
 
-function approved(
-	entry: NotebookPersonArtManifestEntry | undefined,
+function validAssetEntry(
+	entry: unknown,
 ): entry is NotebookPersonArtManifestEntry {
-	return entry?.approval_status === 'approved';
+	if (!entry || typeof entry !== 'object' || Array.isArray(entry)) return false;
+	const candidate = entry as Partial<NotebookPersonArtManifestEntry>;
+	return (
+		candidate.approval_status === 'approved' &&
+		typeof candidate.display_name === 'string' &&
+		candidate.display_name.trim().length > 0 &&
+		typeof candidate.portrait === 'string' &&
+		candidate.portrait.trim().length > 0 &&
+		typeof candidate.marker === 'string' &&
+		candidate.marker.trim().length > 0 &&
+		(candidate.real_name === undefined ||
+			typeof candidate.real_name === 'string')
+	);
+}
+
+function validNpcId(value: number | undefined): value is number {
+	return (
+		typeof value === 'number' &&
+		Number.isInteger(value) &&
+		value > 0 &&
+		value <= 0xffffffff
+	);
 }
 
 function resolvedEntry(
@@ -157,34 +173,56 @@ function resolvedEntry(
 export function loadNotebookPersonArt(
 	manifest: NotebookAssetManifest | null | undefined,
 ): LoadedNotebookPersonArt {
-	const personArt = manifest?.assets.personArt;
-	const fallback = approved(personArt?.fallback)
-		? resolvedEntry(personArt.fallback, true)
-		: {
-				displayName: 'Unknown parish neighbour',
-				portrait: NOTEBOOK_ASSETS.portraits[0],
-				marker: NOTEBOOK_ASSETS.npcMarkers[0],
-				fallback: true,
-			};
+	const personArt =
+		manifest?.assets && typeof manifest.assets === 'object'
+			? manifest.assets.personArt
+			: undefined;
+	const people = Array.isArray(personArt?.people) ? personArt.people : [];
+	const fallback =
+		personArt?.fallback && validAssetEntry(personArt.fallback)
+			? resolvedEntry(personArt.fallback, true)
+			: UNKNOWN_NOTEBOOK_PERSON_ART;
+	const byId = new Map<number, ResolvedNotebookPersonArt>();
 	const byName = new Map<string, ResolvedNotebookPersonArt>();
 	const assetUrls = new Set([fallback.portrait, fallback.marker]);
-	for (const entry of personArt?.people ?? []) {
-		if (!approved(entry) || !entry.real_name) continue;
+	const idCounts = new Map<number, number>();
+	const nameCounts = new Map<string, number>();
+	for (const entry of people) {
+		if (validAssetEntry(entry) && validNpcId(entry.npc_id)) {
+			idCounts.set(entry.npc_id, (idCounts.get(entry.npc_id) ?? 0) + 1);
+		}
+		if (validAssetEntry(entry) && entry.real_name) {
+			const name = normalizeNotebookPersonName(entry.real_name);
+			if (name) nameCounts.set(name, (nameCounts.get(name) ?? 0) + 1);
+		}
+	}
+	for (const entry of people) {
+		if (!validAssetEntry(entry)) continue;
+		if (entry.npc_id !== undefined && !validNpcId(entry.npc_id)) continue;
+		if (validNpcId(entry.npc_id) && idCounts.get(entry.npc_id) !== 1) continue;
 		const resolved = resolvedEntry(entry, false);
-		byName.set(normalizeNotebookPersonName(entry.real_name), resolved);
+		if (validNpcId(entry.npc_id)) byId.set(entry.npc_id, resolved);
+		if (entry.real_name) {
+			const name = normalizeNotebookPersonName(entry.real_name);
+			if (nameCounts.get(name) === 1) byName.set(name, resolved);
+		}
 		assetUrls.add(resolved.portrait);
 		assetUrls.add(resolved.marker);
 	}
-	return { byName, fallback, assetUrls: [...assetUrls] };
+	return { byId, byName, fallback, assetUrls: [...assetUrls] };
 }
 
 export function resolveNotebookPersonArt(
 	personArt: LoadedNotebookPersonArt | null | undefined,
+	npcId: number | null | undefined,
 	realName: string | null | undefined,
 ): ResolvedNotebookPersonArt {
-	if (!personArt || !realName) {
-		return loadNotebookPersonArt(null).fallback;
+	if (!personArt) return UNKNOWN_NOTEBOOK_PERSON_ART;
+	if (npcId !== null && npcId !== undefined) {
+		if (!validNpcId(npcId)) return personArt.fallback;
+		return personArt.byId.get(npcId) ?? personArt.fallback;
 	}
+	if (!realName) return personArt.fallback;
 	return (
 		personArt.byName.get(normalizeNotebookPersonName(realName)) ??
 		personArt.fallback

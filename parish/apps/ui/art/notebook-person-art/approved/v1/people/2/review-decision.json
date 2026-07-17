@@ -1,0 +1,112 @@
+{
+	"schema_version": 1,
+	"record_type": "notebook-person-art-human-review-decision",
+	"candidate_receipt_path": "parish/apps/ui/art/notebook-person-art/candidates/objects/01/011092f480b0e23b26da10420861167f1060d2030dad6fe02af1253c74ab40b5/receipt.json",
+	"candidate_receipt_sha256": "7660842c867c5b5c1dbf763212185fafd4e13fdb01665305894d1166e1181aaa",
+	"candidate_sha256": "bd5365f0b912bfd196870cecc1776f4c1e1739eba37661143782f5c73c372fbd",
+	"raw_sha256": "e117a17ac39caba454aefbfafc384cb7843deae8dc570cc9d158f1e21f6fd529",
+	"subject": {
+		"kind": "npc",
+		"npc_id": 2,
+		"name": "Siobhan Murphy",
+		"input_record_sha256": "18babe0507888c411132124ee3add55c39fabfd7a069dc7cfc444b6d692a2902"
+	},
+	"asset": {
+		"kind": "pair",
+		"candidate_index": 1,
+		"children": [
+			"portrait",
+			"marker"
+		]
+	},
+	"hair_topology": {
+		"schema_version": 4,
+		"subject_key": "npc:2",
+		"vector": {
+			"color_and_texture": "dark brown practical working hair",
+			"front": {
+				"family": "fully-covered-front",
+				"description": "front hairline and part completely hidden by the kerchief"
+			},
+			"rear": {
+				"family": "concealed-crossed-plaits",
+				"description": "two flat plaits crossed horizontally and fully concealed, never a rounded bun"
+			},
+			"covering": {
+				"family": "full-work-kerchief",
+				"description": "plain dark repaired work kerchief tied securely at the nape"
+			},
+			"silhouette": {
+				"family": "close-triangular-kerchief",
+				"description": "close triangular cloth silhouette with no exposed side or rear hair mass"
+			},
+			"loose_details": "no decorative curl, ribbon, or loose lock"
+		},
+		"sha256": "aa1bf75b5c1d423d14dcb1bf31ddd14ff273887bc5fbb49bb6dd8b67d9b73bbc"
+	},
+	"marker_identity": {
+		"schema_version": 4,
+		"subject_key": "npc:2",
+		"marker_identity": {
+			"composition": "character-only",
+			"silhouette": "sturdy mid-forties woman with a close triangular dark kerchief, pinned shawl, sturdy apron, and broad skirt; no object/scenery",
+			"stance": "forward-set stance with one hand on hip and the other at her side; no object/scenery",
+			"empty_hand_pose": "one-on-hip-one-at-side",
+			"readability_cues": [
+				{
+					"kind": "hair-or-headwear",
+					"description": "fully covered triangular kerchief"
+				},
+				{
+					"kind": "body-shape",
+					"description": "firm forward shoulders"
+				},
+				{
+					"kind": "clothing",
+					"description": "broad apron-and-skirt outline"
+				}
+			],
+			"tiny_readability_notes": [
+				"The close kerchief silhouette must remain distinct from caps, bonnets, and loose hair."
+			]
+		},
+		"sha256": "5f01b10cd233e6025002b0c474354764bb1d412696365c2fa490c0448f9631a6"
+	},
+	"decision": "approved",
+	"promotion_eligible": true,
+	"reviewer": "dmooney",
+	"reviewed_at": "2026-07-17T01:52:56.000Z",
+	"notes": "Approved by dmooney after reviewing the final 24-pair whole-cast sheet in Codex on 2026-07-16.",
+	"checklist": {
+		"identity_specific": true,
+		"concept_style_match": true,
+		"period_appropriate": true,
+		"no_prohibited_content": true,
+		"key_removal_clean": true,
+		"production_quality": true,
+		"diegetic_player_sketch": true,
+		"uncolored_pen_and_ink": true,
+		"sparse_open_linework": true,
+		"no_baked_background": true,
+		"framing_complete": true,
+		"selected_size_readable": true,
+		"nearby_size_readable": true,
+		"restrained_world_color": true,
+		"full_body_complete": true,
+		"silhouette_readable": true,
+		"character_only_marker": true,
+		"empty_hands": true,
+		"no_contextual_props_or_scenery": true,
+		"no_ground_plane": true,
+		"scene_size_readable": true,
+		"cross_asset_identity": true,
+		"hair_front_matches": true,
+		"hair_rear_matches": true,
+		"hair_covering_matches": true,
+		"hair_silhouette_matches": true,
+		"correct_surface_split": true,
+		"atomic_rerender_understood": true
+	},
+	"source_template_path": "parish/apps/ui/art/notebook-person-art/candidates/review-packets/identity-v8-character-only-full-cast-a-20260716/2-pair-bd5365f0b912-review.json",
+	"review_id": "2e84d72b43c553df83244948"
+}

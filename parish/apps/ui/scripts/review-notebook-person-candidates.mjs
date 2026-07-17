@@ -1,4 +1,4 @@
-import { createHash, randomUUID } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
 import { mkdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises';
 import {
 	basename,
@@ -10,6 +10,21 @@ import {
 } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { parseArgs } from 'node:util';
+import {
+	assertHairTopologyBinding,
+	assertMarkerIdentityBinding,
+	castBinding,
+	castMemberFromReceipt,
+	canonicalJson,
+	computeReviewId,
+	hairTopologyBinding,
+	markerIdentityBinding,
+	NAMED_CAST_SIZE,
+	pairCandidateDigest,
+	REQUIRED_PAIR_REVIEW_CHECKS,
+	REQUIRED_WHOLE_CAST_REVIEW_CHECKS,
+	sha256,
+} from './notebook-person-art-approval-contract.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const uiRoot = resolve(here, '..');
@@ -20,14 +35,18 @@ const defaultCandidateRoot = join(
 	'notebook-person-art',
 	'candidates',
 );
-const MAX_PACKET_CANDIDATES = 24;
+const defaultArtDirectionPath = join(
+	uiRoot,
+	'art',
+	'notebook-person-art',
+	'npc-art-direction-v1.json',
+);
+const MAX_PACKET_CANDIDATES = 8;
 const MAX_PACKET_IMAGE_BYTES = 96 * 1024 * 1024;
+const MAX_CAST_PACKET_COUNT = 3;
+const MAX_CAST_REVIEW_IMAGE_BYTES = 32 * 1024 * 1024;
 
 class ReviewError extends Error {}
-
-function sha256(value) {
-	return createHash('sha256').update(value).digest('hex');
-}
 
 function prettyJson(value) {
 	return `${JSON.stringify(value, null, '\t')}\n`;
@@ -81,6 +100,41 @@ async function loadJson(path, label) {
 	return { value, bytes, sha256: sha256(bytes) };
 }
 
+async function loadArtDirection(repoRoot, pathInput, fixture) {
+	const path = resolvePath(repoRoot, pathInput ?? defaultArtDirectionPath);
+	if (path !== resolve(defaultArtDirectionPath) && !fixture) {
+		throw new ReviewError(
+			'Non-canonical NPC art direction sidecars require explicit fixture mode',
+		);
+	}
+	return (await loadJson(path, 'canonical NPC art direction sidecar')).value;
+}
+
+function identityBindings(sidecar, subject, existing = null) {
+	try {
+		return {
+			hairTopology: existing
+				? assertHairTopologyBinding(
+						existing.hairTopology,
+						sidecar,
+						subject,
+						`${existing.label} hair topology`,
+					)
+				: hairTopologyBinding(sidecar, subject),
+			markerIdentity: existing
+				? assertMarkerIdentityBinding(
+						existing.markerIdentity,
+						sidecar,
+						subject,
+						`${existing.label} marker identity`,
+					)
+				: markerIdentityBinding(sidecar, subject),
+		};
+	} catch (error) {
+		throw new ReviewError(error.message);
+	}
+}
+
 function assertPng(bytes, label) {
 	if (bytes.subarray(0, 8).toString('hex') !== '89504e470d0a1a0a') {
 		throw new ReviewError(`${label} is not a PNG`);
@@ -93,7 +147,7 @@ const sharedChecklist = {
 	concept_style_match:
 		'The asset belongs to the illustrated notebook concept art direction.',
 	period_appropriate:
-		'Clothing, hair, props, and pose are plausible for rural Roscommon in 1820.',
+		'Clothing, hair, and pose are plausible for rural Roscommon in 1820.',
 	no_prohibited_content:
 		'There is no text, watermark, frame, modern object, fantasy cue, or extra person.',
 	key_removal_clean:
@@ -127,7 +181,12 @@ const markerChecklist = {
 	full_body_complete:
 		'The full body and both feet are visible without cropping.',
 	silhouette_readable:
-		'The NPC is recognizable from silhouette, posture, and one or two large props.',
+		'The NPC is recognizable from face, hair or headwear, clothing, body shape, and stance.',
+	character_only_marker:
+		'The marker is one transparent character-only cutout, not a miniature narrative vignette.',
+	empty_hands: 'Both hands are empty and no object is held or carried.',
+	no_contextual_props_or_scenery:
+		'There is no extra person, furniture, counter, architecture, vegetation, scenery fragment, ground plane, or shadow.',
 	no_ground_plane:
 		'There is no baked floor, card, frame, label, or broad ground shadow.',
 	scene_size_readable:
@@ -139,11 +198,39 @@ const pairChecklist = {
 	...markerChecklist,
 	cross_asset_identity:
 		'The portrait and marker unmistakably depict the same person: matching apparent age, facial proportions, eyes, nose, jaw, hairline, hairstyle, and characteristic expression.',
+	hair_front_matches:
+		'The visible front arrangement matches the reviewed source record in both assets; a generic centre part, fringe, roll, curl, or covered hairline is not substituted.',
+	hair_rear_matches:
+		'The visible rear anchor, height, and geometry match the reviewed source record in both assets; a generic low bun or rounded coil is not substituted.',
+	hair_covering_matches:
+		'The exact cap, bonnet, kerchief, shawl, or uncovered state matches the reviewed source record and remains consistent across both assets.',
+	hair_silhouette_matches:
+		'The complete hair and headwear silhouette matches the reviewed source record and stays recognizable at portrait and marker review sizes.',
 	correct_surface_split:
 		'The left portrait remains sparse uncolored notebook ink while the right marker alone uses restrained painted-world watercolor.',
 	atomic_rerender_understood:
 		'If either child fails review, this entire portrait-marker pair will be rejected and rerun together.',
 };
+
+const wholeCastChecklist = {
+	cast_distinctive:
+		'Every named face plus the fallback is visibly distinct across the complete bound cast, including apparent age, facial geometry, hair, and silhouette.',
+	cast_hair_topology_distinctive:
+		'Across the complete bound cast, hair front, rear anchor, covering, and overall silhouette form visibly distinct topologies rather than wording or color variants of one repeated construction.',
+};
+
+if (
+	canonicalJson(Object.keys(pairChecklist).toSorted()) !==
+	canonicalJson([...REQUIRED_PAIR_REVIEW_CHECKS].toSorted())
+) {
+	throw new Error('Pair review checklist drifted from the approval contract');
+}
+if (
+	canonicalJson(Object.keys(wholeCastChecklist).toSorted()) !==
+	canonicalJson([...REQUIRED_WHOLE_CAST_REVIEW_CHECKS].toSorted())
+) {
+	throw new Error('Whole-cast checklist drifted from the approval contract');
+}
 
 function checklistDefinition(assetKind) {
 	if (assetKind === 'portrait') return portraitChecklist;
@@ -153,14 +240,7 @@ function checklistDefinition(assetKind) {
 }
 
 function candidateDigest(receipt) {
-	if (receipt.asset?.kind === 'pair') {
-		return sha256(
-			JSON.stringify({
-				portrait: receipt.artifact?.children?.portrait?.candidate_sha256,
-				marker: receipt.artifact?.children?.marker?.candidate_sha256,
-			}),
-		);
-	}
+	if (receipt.asset?.kind === 'pair') return pairCandidateDigest(receipt);
 	return receipt.artifact?.candidate_sha256;
 }
 
@@ -278,7 +358,7 @@ async function loadCandidate(repoRoot, receiptPathInput) {
 	};
 }
 
-function reviewTemplate(repoRoot, loaded) {
+function reviewTemplate(repoRoot, loaded, bindings) {
 	const definition = checklistDefinition(loaded.receipt.asset.kind);
 	return {
 		schema_version: 1,
@@ -289,6 +369,12 @@ function reviewTemplate(repoRoot, loaded) {
 		raw_sha256: loaded.receipt.artifact.raw_sha256,
 		subject: loaded.receipt.subject,
 		asset: loaded.receipt.asset,
+		...(bindings
+			? {
+					hair_topology: bindings.hairTopology,
+					marker_identity: bindings.markerIdentity,
+				}
+			: {}),
 		decision: null,
 		reviewer: null,
 		notes: '',
@@ -311,9 +397,34 @@ function dataUri(bytes) {
 	return `data:image/png;base64,${bytes.toString('base64')}`;
 }
 
+function markerIdentityHtml(binding) {
+	const record = binding.marker_identity;
+	const cues = record.readability_cues
+		.map(
+			(cue) =>
+				`<li><strong>${escapeHtml(cue.kind)}</strong>: ${escapeHtml(cue.description)}</li>`,
+		)
+		.join('\n');
+	const notes = record.tiny_readability_notes
+		.map((note) => `<li>${escapeHtml(note)}</li>`)
+		.join('\n');
+	return `<div class="identity-contract">
+	<h3>Expected marker identity</h3>
+	<dl>
+		<dt>Canonical SHA-256</dt><dd><code>${escapeHtml(binding.sha256)}</code></dd>
+		<dt>Composition</dt><dd>${escapeHtml(record.composition)}</dd>
+		<dt>Silhouette</dt><dd>${escapeHtml(record.silhouette)}</dd>
+		<dt>Stance</dt><dd>${escapeHtml(record.stance)}</dd>
+		<dt>Empty-hand pose</dt><dd>${escapeHtml(record.empty_hand_pose)}</dd>
+	</dl>
+	<h4>Readability cues</h4><ul>${cues}</ul>
+	<h4>Tiny-readability notes</h4><ul>${notes}</ul>
+</div>`;
+}
+
 function packetHtml(entries) {
 	const sections = entries
-		.map(({ loaded, templateName }) => {
+		.map(({ loaded, template, templateName }) => {
 			const receipt = loaded.receipt;
 			const definition = checklistDefinition(receipt.asset.kind);
 			const checklist = Object.entries(definition)
@@ -345,6 +456,7 @@ function packetHtml(entries) {
 		<dt>Model</dt><dd>${escapeHtml(receipt.provider.model)}</dd>
 		<dt>Request ID</dt><dd><code>${escapeHtml(receipt.provider.request_id)}</code></dd>
 	</dl>
+	${markerIdentityHtml(template.marker_identity)}
 	<h3>Required atomic checklist</h3>
 	<ul>${checklist}</ul>
 </section>`;
@@ -387,6 +499,7 @@ h1, h2, h3, p { max-width: 850px; }
 .proof-band.pair .sheet { grid-column: 1 / -1; }
 .proof-band.pair .sheet img { width: 100%; aspect-ratio: 2; }
 .runtime-band { display: flex; gap: 18px; align-items: end; margin-top: 18px; }
+.identity-contract { max-width: 900px; padding: 16px 0; }
 figure { margin: 0; min-width: 0; }
 figure img { display: block; max-width: 100%; object-fit: contain; background: #deccae; border: 1px solid #807661; }
 figure.source img { width: 100%; aspect-ratio: 1; }
@@ -425,6 +538,16 @@ export async function prepareReviewPacket(options = {}) {
 	const loaded = await Promise.all(
 		receiptInputs.map((path) => loadCandidate(repoRoot, path)),
 	);
+	const hasPairs = loaded.some(
+		(candidate) => candidate.receipt.asset.kind === 'pair',
+	);
+	const artDirection = hasPairs
+		? await loadArtDirection(
+				repoRoot,
+				options.artDirectionPath,
+				options.fixture === true,
+			)
+		: null;
 	const imageBytes = loaded.reduce(
 		(total, candidate) => total + candidate.imageBytes,
 		0,
@@ -444,7 +567,11 @@ export async function prepareReviewPacket(options = {}) {
 	await mkdir(outputDir, { recursive: true });
 	const entries = [];
 	for (const candidate of loaded) {
-		const template = reviewTemplate(repoRoot, candidate);
+		const bindings =
+			candidate.receipt.asset.kind === 'pair'
+				? identityBindings(artDirection, candidate.receipt.subject)
+				: null;
+		const template = reviewTemplate(repoRoot, candidate, bindings);
 		const templateName = `${candidate.receipt.subject.npc_id ?? 'fallback'}-${candidate.receipt.asset.kind}-${candidate.candidateSha256.slice(0, 12)}-review.json`;
 		const templatePath = join(outputDir, templateName);
 		await atomicWrite(templatePath, prettyJson(template));
@@ -473,6 +600,283 @@ export async function prepareReviewPacket(options = {}) {
 		manifestPath,
 		templatePaths: entries.map((entry) => entry.templatePath),
 	};
+}
+
+async function loadReviewPackets(repoRoot, packetInputs, artDirection) {
+	if (packetInputs.length === 0) {
+		throw new ReviewError('prepare-cast requires at least one --packet');
+	}
+	if (packetInputs.length > MAX_CAST_PACKET_COUNT) {
+		throw new ReviewError(
+			`Whole-cast review accepts at most ${MAX_CAST_PACKET_COUNT} visual packets`,
+		);
+	}
+	const packets = [];
+	const candidates = [];
+	for (const packetInput of packetInputs) {
+		const packetPath = resolvePath(repoRoot, packetInput);
+		const packetFile = await loadJson(packetPath, 'review packet manifest');
+		const packet = packetFile.value;
+		if (
+			packet.schema_version !== 1 ||
+			!Array.isArray(packet.templates) ||
+			packet.templates.length === 0 ||
+			packet.templates.length > MAX_PACKET_CANDIDATES ||
+			packet.candidate_count !== packet.templates.length
+		) {
+			throw new ReviewError(
+				`Review packet must contain 1-${MAX_PACKET_CANDIDATES} bound templates`,
+			);
+		}
+		packets.push({
+			path: portablePath(repoRoot, packetPath),
+			sha256: packetFile.sha256,
+		});
+		for (const templateInput of packet.templates) {
+			const templatePath = isAbsolute(templateInput)
+				? resolve(templateInput)
+				: resolve(dirname(packetPath), templateInput);
+			const template = (await loadJson(templatePath, 'review template')).value;
+			if (
+				template.schema_version !== 1 ||
+				template.template_type !== 'notebook-person-art-human-review'
+			) {
+				throw new ReviewError(`${templatePath} is not a v1 review template`);
+			}
+			const loaded = await loadCandidate(
+				repoRoot,
+				template.candidate_receipt_path,
+			);
+			if (
+				template.candidate_receipt_sha256 !== loaded.receiptSha256 ||
+				template.candidate_sha256 !== loaded.candidateSha256
+			) {
+				throw new ReviewError(
+					'Visual packet template no longer matches its candidate',
+				);
+			}
+			if (loaded.receipt.asset.kind !== 'pair') {
+				throw new ReviewError('Whole-cast review requires pair candidates');
+			}
+			const bindings = identityBindings(artDirection, loaded.receipt.subject, {
+				hairTopology: template.hair_topology,
+				markerIdentity: template.marker_identity,
+				label: 'Pair review template',
+			});
+			loaded.hairTopology = bindings.hairTopology;
+			loaded.markerIdentity = bindings.markerIdentity;
+			candidates.push(loaded);
+		}
+	}
+	return { packets, candidates };
+}
+
+function validateWholeCastCandidates(candidates, expectedNamedCount) {
+	const members = candidates.map((candidate) =>
+		castMemberFromReceipt(
+			candidate.receipt,
+			candidate.receiptPath,
+			candidate.receiptSha256,
+			candidate.hairTopology,
+			candidate.markerIdentity,
+		),
+	);
+	const binding = castBinding(members);
+	const keys = binding.members.map((member) => member.subject_key);
+	if (new Set(keys).size !== keys.length) {
+		throw new ReviewError('Whole-cast review contains a duplicate subject');
+	}
+	const fallbackCount = binding.members.filter(
+		(member) => member.subject_key === 'fallback',
+	).length;
+	if (
+		binding.named_count !== expectedNamedCount ||
+		binding.total_count !== expectedNamedCount + 1 ||
+		fallbackCount !== 1
+	) {
+		throw new ReviewError(
+			`Whole-cast review requires exactly ${expectedNamedCount} named candidates plus fallback`,
+		);
+	}
+	return binding;
+}
+
+function wholeCastHtml(candidates, binding) {
+	const byCandidate = new Map(
+		candidates.map((candidate) => [candidate.candidateSha256, candidate]),
+	);
+	const figures = binding.members
+		.map((member) => {
+			const candidate = byCandidate.get(member.candidate_sha256);
+			return `<figure>
+	<img src="${dataUri(candidate.children.portrait.candidate)}" alt="${escapeHtml(member.subject.name)} portrait">
+	<img src="${dataUri(candidate.children.marker.candidate)}" alt="${escapeHtml(member.subject.name)} marker">
+	<figcaption>${escapeHtml(member.subject.name)} <code>${escapeHtml(member.candidate_sha256.slice(0, 12))}</code></figcaption>
+	<details><summary>Expected marker identity</summary>${markerIdentityHtml(member.marker_identity)}</details>
+</figure>`;
+		})
+		.join('\n');
+	return `<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Rundale Whole-Cast Person Art Review</title>
+<style>
+body { margin: 24px; color: #36362e; background: #d7c6a7; font-family: Georgia, serif; }
+.cast { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; }
+figure { margin: 0; padding: 12px; border: 1px solid #807661; }
+img { width: 46%; height: 136px; object-fit: contain; vertical-align: bottom; }
+figcaption { margin-top: 8px; overflow-wrap: anywhere; }
+details { margin-top: 8px; }
+.identity-contract { font-size: 14px; overflow-wrap: anywhere; }
+.identity-contract h3 { font-size: 16px; }
+.identity-contract dl { display: grid; grid-template-columns: 110px minmax(0, 1fr); gap: 4px 8px; }
+.identity-contract dd { margin: 0; }
+code { font-family: ui-monospace, monospace; }
+@media (max-width: 760px) { .cast { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+</style>
+<h1>Whole-Cast Visual Review</h1>
+<p>One immutable decision binds all ${binding.total_count} candidates. Use the three source packets for full-size inspection and this complete set for cross-cast comparison.</p>
+<div class="cast">${figures}</div>
+`;
+}
+
+export async function prepareWholeCastReview(options = {}) {
+	const repoRoot = resolve(options.repoRoot ?? defaultRepoRoot);
+	const expectedNamedCount = options.expectedNamedCount ?? NAMED_CAST_SIZE;
+	const artDirection = await loadArtDirection(
+		repoRoot,
+		options.artDirectionPath,
+		options.fixture === true,
+	);
+	const { packets, candidates } = await loadReviewPackets(
+		repoRoot,
+		options.packetPaths ?? [],
+		artDirection,
+	);
+	const binding = validateWholeCastCandidates(candidates, expectedNamedCount);
+	const imageBytes = candidates.reduce(
+		(total, candidate) =>
+			total +
+			candidate.children.portrait.candidate.length +
+			candidate.children.marker.candidate.length,
+		0,
+	);
+	if (imageBytes > MAX_CAST_REVIEW_IMAGE_BYTES) {
+		throw new ReviewError('Whole-cast preview images exceed the 32 MiB cap');
+	}
+	const outputDir = resolvePath(
+		repoRoot,
+		options.outputDir ?? join(defaultCandidateRoot, 'whole-cast-review'),
+	);
+	const templatePath = join(outputDir, 'whole-cast-review.json');
+	const htmlPath = join(outputDir, 'whole-cast-review.html');
+	const template = {
+		schema_version: 1,
+		template_type: 'notebook-person-art-whole-cast-human-review',
+		source_packets: packets,
+		cast: binding,
+		decision: null,
+		reviewer: null,
+		notes: '',
+		checklist: Object.fromEntries(
+			REQUIRED_WHOLE_CAST_REVIEW_CHECKS.map((key) => [key, null]),
+		),
+	};
+	await Promise.all([
+		atomicWrite(templatePath, prettyJson(template)),
+		atomicWrite(htmlPath, wholeCastHtml(candidates, binding)),
+	]);
+	return { template, templatePath, htmlPath };
+}
+
+export async function submitWholeCastReviewDecision(options = {}) {
+	const repoRoot = resolve(options.repoRoot ?? defaultRepoRoot);
+	if (!options.templatePath) {
+		throw new ReviewError('decide-cast requires --template');
+	}
+	const templatePath = resolvePath(repoRoot, options.templatePath);
+	const template = (await loadJson(templatePath, 'whole-cast review template'))
+		.value;
+	if (
+		template.schema_version !== 1 ||
+		template.template_type !== 'notebook-person-art-whole-cast-human-review'
+	) {
+		throw new ReviewError(
+			`${templatePath} is not a whole-cast review template`,
+		);
+	}
+	const packetPaths = (template.source_packets ?? []).map((packet) => {
+		if (!packet?.path || !packet?.sha256) {
+			throw new ReviewError(
+				'Whole-cast template has invalid packet provenance',
+			);
+		}
+		return packet.path;
+	});
+	const artDirection = await loadArtDirection(
+		repoRoot,
+		options.artDirectionPath,
+		options.fixture === true,
+	);
+	const loaded = await loadReviewPackets(repoRoot, packetPaths, artDirection);
+	for (const [index, packet] of loaded.packets.entries()) {
+		if (packet.sha256 !== template.source_packets[index].sha256) {
+			throw new ReviewError('A source review packet changed after preparation');
+		}
+	}
+	const expectedNamedCount = options.expectedNamedCount ?? NAMED_CAST_SIZE;
+	const binding = validateWholeCastCandidates(
+		loaded.candidates,
+		expectedNamedCount,
+	);
+	if (canonicalJson(binding) !== canonicalJson(template.cast)) {
+		throw new ReviewError(
+			'Whole-cast candidate binding changed after preparation',
+		);
+	}
+	validateCompletedChecklist(template, wholeCastChecklist);
+	const decision = String(template.decision ?? '').toLowerCase();
+	if (decision !== 'approved' && decision !== 'rejected') {
+		throw new ReviewError('Whole-cast decision must be approved or rejected');
+	}
+	const reviewer = String(template.reviewer ?? '').trim();
+	if (!reviewer) throw new ReviewError('Whole-cast reviewer is required');
+	const notes = String(template.notes ?? '').trim();
+	const failedChecks = Object.entries(template.checklist)
+		.filter(([, passed]) => !passed)
+		.map(([key]) => key);
+	if (decision === 'approved' && failedChecks.length > 0) {
+		throw new ReviewError(
+			'Whole-cast approval requires every cast distinctiveness check',
+		);
+	}
+	if (decision === 'rejected' && (!notes || failedChecks.length === 0)) {
+		throw new ReviewError(
+			'Whole-cast rejection requires notes and a failed checklist item',
+		);
+	}
+	const recordBase = {
+		schema_version: 1,
+		record_type: 'notebook-person-art-whole-cast-human-review-decision',
+		source_packets: template.source_packets,
+		cast: template.cast,
+		decision,
+		promotion_eligible: decision === 'approved',
+		reviewer,
+		reviewed_at: new Date().toISOString(),
+		notes,
+		checklist: template.checklist,
+		source_template_path: portablePath(repoRoot, templatePath),
+	};
+	const record = { ...recordBase, review_id: computeReviewId(recordBase) };
+	const recordPath = join(
+		dirname(templatePath),
+		'reviews',
+		`${record.review_id}.json`,
+	);
+	await mkdir(dirname(recordPath), { recursive: true });
+	await writeFile(recordPath, prettyJson(record), { flag: 'wx' });
+	return { record, recordPath };
 }
 
 function validateCompletedChecklist(template, definition) {
@@ -516,6 +920,19 @@ export async function submitReviewDecision(options = {}) {
 			'Candidate hash changed after the review packet was prepared',
 		);
 	}
+	let bindings;
+	if (loaded.receipt.asset.kind === 'pair') {
+		const artDirection = await loadArtDirection(
+			repoRoot,
+			options.artDirectionPath,
+			options.fixture === true,
+		);
+		bindings = identityBindings(artDirection, loaded.receipt.subject, {
+			hairTopology: template.hair_topology,
+			markerIdentity: template.marker_identity,
+			label: 'Pair review template',
+		});
+	}
 	const decision = String(template.decision ?? '').toLowerCase();
 	if (decision !== 'approved' && decision !== 'rejected') {
 		throw new ReviewError('Review decision must be approved or rejected');
@@ -556,6 +973,12 @@ export async function submitReviewDecision(options = {}) {
 		raw_sha256: loaded.receipt.artifact.raw_sha256,
 		subject: loaded.receipt.subject,
 		asset: loaded.receipt.asset,
+		...(bindings
+			? {
+					hair_topology: bindings.hairTopology,
+					marker_identity: bindings.markerIdentity,
+				}
+			: {}),
 		decision,
 		promotion_eligible: decision === 'approved',
 		reviewer,
@@ -564,7 +987,7 @@ export async function submitReviewDecision(options = {}) {
 		checklist: template.checklist,
 		source_template_path: portablePath(repoRoot, templatePath),
 	};
-	const reviewId = sha256(JSON.stringify(recordBase)).slice(0, 24);
+	const reviewId = computeReviewId(recordBase);
 	const record = { ...recordBase, review_id: reviewId };
 	const recordPath = join(
 		loaded.reviewStorageRoot,
@@ -632,24 +1055,36 @@ function cliOptions() {
 	const parsed = parseArgs({
 		options: {
 			receipt: { type: 'string', multiple: true },
+			packet: { type: 'string', multiple: true },
 			template: { type: 'string' },
 			output: { type: 'string' },
 			'packet-id': { type: 'string' },
+			'art-direction': { type: 'string' },
+			fixture: { type: 'boolean' },
 		},
 		allowPositionals: true,
 		strict: true,
 	});
 	const command = parsed.positionals[0];
-	if (!['prepare', 'decide', 'status'].includes(command)) {
-		throw new ReviewError('Command must be prepare, decide, or status');
+	if (
+		!['prepare', 'decide', 'status', 'prepare-cast', 'decide-cast'].includes(
+			command,
+		)
+	) {
+		throw new ReviewError(
+			'Command must be prepare, decide, status, prepare-cast, or decide-cast',
+		);
 	}
 	return {
 		command,
+		packetPaths: parsed.values.packet,
 		receiptPaths: parsed.values.receipt,
 		receiptPath: parsed.values.receipt?.[0],
 		templatePath: parsed.values.template,
 		outputDir: parsed.values.output,
 		packetId: parsed.values['packet-id'],
+		artDirectionPath: parsed.values['art-direction'],
+		fixture: parsed.values.fixture,
 	};
 }
 
@@ -665,6 +1100,23 @@ async function main() {
 				templates: result.templatePaths.map((path) =>
 					portablePath(defaultRepoRoot, path),
 				),
+			}).trimEnd(),
+		);
+	} else if (options.command === 'prepare-cast') {
+		result = await prepareWholeCastReview(options);
+		console.log(
+			prettyJson({
+				html: portablePath(defaultRepoRoot, result.htmlPath),
+				template: portablePath(defaultRepoRoot, result.templatePath),
+			}).trimEnd(),
+		);
+	} else if (options.command === 'decide-cast') {
+		result = await submitWholeCastReviewDecision(options);
+		console.log(
+			prettyJson({
+				decision: result.record.decision,
+				promotion_eligible: result.record.promotion_eligible,
+				record: portablePath(defaultRepoRoot, result.recordPath),
 			}).trimEnd(),
 		);
 	} else if (options.command === 'decide') {

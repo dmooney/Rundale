@@ -1,0 +1,112 @@
+{
+	"schema_version": 1,
+	"record_type": "notebook-person-art-human-review-decision",
+	"candidate_receipt_path": "parish/apps/ui/art/notebook-person-art/candidates/objects/3c/3c36c58324fde8b65d79242425be29a085077658d64072e87dd70716c0a696bc/receipt.json",
+	"candidate_receipt_sha256": "73c0e88ff8c2644221d1fc3111ad5b5af6b4d92aa86dc928841c43dc891506eb",
+	"candidate_sha256": "d79cc75e045c6b513f0288a904eed45ae64f7c79fe8c6505a8ad8224e6511189",
+	"raw_sha256": "7048aeae7adffcb76059a7ae22c838674fd8b038f8c38e14806a5521d1f42f0a",
+	"subject": {
+		"kind": "npc",
+		"npc_id": 19,
+		"name": "Brigid Ni Fhatharta",
+		"input_record_sha256": "62d78b27c9dced1b4bfb88f9750eb7fc7a7a577fc7214241ace8e60ebff3b353"
+	},
+	"asset": {
+		"kind": "pair",
+		"candidate_index": 1,
+		"children": [
+			"portrait",
+			"marker"
+		]
+	},
+	"hair_topology": {
+		"schema_version": 4,
+		"subject_key": "npc:19",
+		"vector": {
+			"color_and_texture": "coarse grey hair with darker strands beneath",
+			"front": {
+				"family": "swept-back-grey-front",
+				"description": "coarse grey hair swept directly back with no centre part and visible grey at the temples"
+			},
+			"rear": {
+				"family": "crown-crossed-twin-braids",
+				"description": "twin braids rise from behind the ears and cross over the crown"
+			},
+			"covering": {
+				"family": "broad-caul-linen-cap",
+				"description": "broad-cauld washable unbleached linen cap accommodating the raised braids"
+			},
+			"silhouette": {
+				"family": "raised-crown-under-broad-cap",
+				"description": "broad cap with a visibly raised crown and close sides, not a nape bun"
+			},
+			"loose_details": "one coarse grey strand visible above the left temple; no ornamental braid ends"
+		},
+		"sha256": "3a9d255d2dda811d635201d344caddccad23c85fd07d8a2f59177adf20d7da3c"
+	},
+	"marker_identity": {
+		"schema_version": 4,
+		"subject_key": "npc:19",
+		"marker_identity": {
+			"composition": "character-only",
+			"silhouette": "long-boned mid-fifties woman with a broad raised-crown linen cap, visible grey temple band, dark shawl, and straight practical dress; no object/scenery",
+			"stance": "slight forward lean with hands near the shawl front; no object/scenery",
+			"empty_hand_pose": "hands-near-coat-front",
+			"readability_cues": [
+				{
+					"kind": "hair-or-headwear",
+					"description": "raised-crown broad linen cap"
+				},
+				{
+					"kind": "face",
+					"description": "long angular face profile"
+				},
+				{
+					"kind": "clothing",
+					"description": "dark close-wrapped shawl"
+				}
+			],
+			"tiny_readability_notes": [
+				"The raised cap crown and bony vertical outline must carry the small-scale identity."
+			]
+		},
+		"sha256": "da07e24d3bc771c91d795a2fde9ef04e5b85112ab2890e5bbb0e1018741001ce"
+	},
+	"decision": "approved",
+	"promotion_eligible": true,
+	"reviewer": "dmooney",
+	"reviewed_at": "2026-07-17T01:52:56.084Z",
+	"notes": "Approved by dmooney after reviewing the final 24-pair whole-cast sheet in Codex on 2026-07-16.",
+	"checklist": {
+		"identity_specific": true,
+		"concept_style_match": true,
+		"period_appropriate": true,
+		"no_prohibited_content": true,
+		"key_removal_clean": true,
+		"production_quality": true,
+		"diegetic_player_sketch": true,
+		"uncolored_pen_and_ink": true,
+		"sparse_open_linework": true,
+		"no_baked_background": true,
+		"framing_complete": true,
+		"selected_size_readable": true,
+		"nearby_size_readable": true,
+		"restrained_world_color": true,
+		"full_body_complete": true,
+		"silhouette_readable": true,
+		"character_only_marker": true,
+		"empty_hands": true,
+		"no_contextual_props_or_scenery": true,
+		"no_ground_plane": true,
+		"scene_size_readable": true,
+		"cross_asset_identity": true,
+		"hair_front_matches": true,
+		"hair_rear_matches": true,
+		"hair_covering_matches": true,
+		"hair_silhouette_matches": true,
+		"correct_surface_split": true,
+		"atomic_rerender_understood": true
+	},
+	"source_template_path": "parish/apps/ui/art/notebook-person-art/candidates/review-packets/identity-v8-character-only-full-cast-c-20260716/19-pair-d79cc75e045c-review.json",
+	"review_id": "dd7106eb69d42270246703d4"
+}

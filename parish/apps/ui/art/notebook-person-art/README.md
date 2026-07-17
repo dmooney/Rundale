@@ -23,14 +23,14 @@ The export covers all 23 current Rundale NPCs. The audit is
 ## Provider Candidate Generation
 
 `generation-config-v1.json` pins the provider adapter, model snapshot, image
-settings, paired-cell layout, asset-specific visual references, keyed-output
+settings, paired-cell layout, authoritative concept reference, keyed-output
 rules, validation thresholds, rate limit, retry policy, storage layout, and
 initial review status. It also pins deterministic premultiplied-alpha framing
 normalization for complete figures that exceed the runtime scale ceiling. The
 current provider is OpenAI's
-`gpt-image-2-2026-04-21` through `/v1/images/edits`. Each request attaches the
-issue-approved portrait and marker style derivatives and generates both assets
-from one shared identity prompt.
+`gpt-image-2-2026-04-21` through `/v1/images/edits`. Each request attaches only
+the full issue-authoritative Illustrated Parish Notebook concept and generates
+both assets from one shared structured-identity prompt.
 
 Plan the full current batch without credentials or provider calls:
 
@@ -63,8 +63,8 @@ Git worktrees do not copy ignored `.env` files. In that case, pass
 without copying the key into candidate artifacts or receipts.
 
 The runner sends one exact metadata-derived `pair_prompt`, the fixed paired
-rendering contract, both full child contracts, and both role-scoped style
-references. One `2048x1024` response is persisted before validation, then split
+rendering contract, both full child contracts, and the sole concept reference.
+One `2048x1024` response is persisted before validation, then split
 deterministically into a left portrait and right marker. Each child is validated
 against its own visual contract. Portrait checks cover inked drawing height,
 total subject fill, dark-ink coverage, ink density, light fill, chromatic edge
@@ -83,13 +83,27 @@ postprocessing preserves the watercolor palette while neutralizing
 palette-forbidden magenta-balanced edge spill at any alpha; a residual-spill
 gate rejects contaminated transparent candidates.
 
-The paired request uses the issue-approved sparse Roisin sketch as a left-cell
-style-transfer anchor and the issue-approved marker derivative as a right-cell
-style-transfer anchor. Both are style references only; NPC identity comes from
-metadata. Their role separation prevents the painted-world marker treatment
-from overriding the UI portrait's sparse pen-and-ink language. Reference
-provenance and deterministic derivatives are documented in
-`references/README.md`.
+The internal schema-v4 art-direction sidecar separates stable identity
+seed/cohort data from nine explicit facial-geometry dimensions, distinguishing
+features, provider-facing hair prose, structured hair/headwear topology, age,
+expression, wardrobe, and marker cues. Marker identity is explicitly
+character-only: one person with empty hands, no contextual props or scenery,
+and readability derived from hair/headwear, clothing, body shape, and stance.
+The exporter rejects the legacy prop-driven schema, blank or duplicate
+identities and same-cohort faces that differ in fewer than four of nine geometry
+dimensions. A separate gate compares front, rear, covering, and silhouette hair
+families and requires every same-cohort pair to differ in at least two.
+
+The generated provider-input file deliberately remains schema v3. Structured
+hair topology is a source-side lint contract and is not serialized into each
+job record; the exact provider-facing `hair` sentence carries its rendering
+requirements. This keeps unchanged paid jobs content-addressably reusable when
+an internal classification or an unrelated NPC changes, which is required for
+cast sizes beyond manual regeneration.
+A controlled reference ablation proved that the former full-face Roisin uploads
+overpowered those facts and collapsed unrelated women onto one face, so the
+Roisin derivatives are retained only as review history. The full concept is now
+the sole provider reference; details are in `references/README.md`.
 
 One provider call materially improves face consistency, but stochastic image
 generation is not a mathematical identity guarantee. The production guarantee
@@ -135,6 +149,16 @@ matching receipt makes reruns resumable. `--shard-count N --shard-index I`
 partitions those stable job IDs for parallel workers without changing them.
 Every generated receipt starts as `candidate` / `pending`, sets promotion
 eligibility to false, and cannot be consumed by the approved runtime builder.
+Paid attempt raws, split raws, candidates, failure records, and accepted
+receipts are installed with atomic no-replace writes. A retry may reuse the
+job-level prompt and input record only when their bytes are identical; it cannot
+overwrite any earlier attempt. Provider refusals with no image still retain an
+immutable failure record including HTTP status plus provider request ID and
+structured error code/type when the provider returns them.
+Execution run directories are also single-use: automatic execute IDs are
+unique, and an explicit `--run-id` cannot be reused even when every job is
+resumable. Resume the stable job IDs under a fresh run ID so earlier manifests
+remain auditable.
 
 Rejected raw responses are immutable and can be reprocessed after a validator
 improvement without making another provider request:
@@ -165,8 +189,11 @@ At millions of NPCs, the same job identity and receipt contracts should move to
 an object store plus queue/database index instead of one local JSON input and
 filesystem tree. The current command already supplies deterministic sharding,
 bounded concurrency, request caps, and idempotent resume semantics needed at
-that boundary; it does not pretend a monolithic JSON file is an eight-million
-record transport.
+that boundary. A batch-fatal provider error such as invalid credentials, an
+unknown model, exhausted quota, or a billing hard limit opens a circuit after
+the bounded in-flight requests; untouched jobs remain pending for exact retry.
+The local implementation does not pretend a monolithic JSON file is an
+eight-million-record transport.
 
 ## Human Review Gate
 
@@ -184,7 +211,13 @@ For a pair receipt, the packet embeds the full raw sheet, both split raws, both
 transparent candidates, selected and tiny runtime previews, provider identity,
 request ID, and every bound hash. Its one atomic checklist combines the
 portrait and marker checks with cross-asset identity, correct UI/world surface
-separation, and acknowledgement that a failed child requires a joint rerender.
+separation, a character-only marker with empty hands and no contextual props or
+scenery, and acknowledgement that a failed child requires a joint rerender.
+It also embeds the exact schema-v4 per-subject hair-topology vector and its
+canonical digest. `prepare`, `decide`, and production promotion independently
+re-read the canonical supplement and reject a changed or substituted vector;
+unrelated subjects may change without invalidating this pair's paid job or
+review.
 The reviewer fills every checklist value with `true` or `false`, sets
 `decision` to `approved` or `rejected`, identifies themselves, and records notes
 for a rejection. One decision applies to both children; they cannot be approved
@@ -207,43 +240,107 @@ pointer. A second decision is refused. Approval only makes both children
 eligible for the later promotion stage; it does not alter
 `approved-cast-v1.json` or runtime assets.
 
-## Current Named Candidate Batch
+Production promotion also requires one whole-cast review binding all three
+bounded visual packet manifests. This separate gate prevents individually
+approved pairs from claiming that they were compared against the full cast:
+
+```sh
+npm --prefix parish/apps/ui run notebook:art-review -- prepare-cast \
+  --packet path/to/named-batch-1/manifest.json \
+  --packet path/to/named-batch-2/manifest.json \
+  --packet path/to/named-batch-3-and-fallback/manifest.json \
+  --output path/to/whole-cast-review
+
+npm --prefix parish/apps/ui run notebook:art-review -- decide-cast \
+  --template path/to/completed-whole-cast-review.json
+```
+
+The generated whole-cast HTML embeds all 48 transparent candidate images. Its
+decision binds the three packet hashes plus every subject, receipt, provider raw,
+portrait, marker, and per-subject topology hash, and requires
+`cast_distinctive: true`.
+It separately requires `cast_hair_topology_distinctive: true`, so plausible
+period styling cannot collapse the women or any other cohort onto one repeated
+front/rear/covering silhouette.
+
+## Current Production Release
 
 The 2026-07-11 named-cast run made 22 bounded provider requests and resumed the
 existing Roisin request. Fourteen new pairs passed immediately; eight otherwise
-valid pairs exceeded a fixed portrait or marker scale ceiling. The final
-`notebook-person-pairs-v2` postprocess migrated all 23 preserved raws locally,
-downscaling only complete oversized figures and rejecting genuine edge contact.
-The final audit reports 23 resumable jobs and zero pending provider requests.
+valid pairs exceeded a fixed portrait or marker scale ceiling. Later deterministic
+postprocess revisions migrated all 23 preserved raws locally, downscaling only
+complete oversized figures, rejecting genuine edge contact, and preserving every
+provider request ID and paid raw hash.
 
-Three ignored, self-contained review packets cover all 23 final receipts under
-`candidates/review-packets/named-cast-v2-batch-*-20260711/`. Every decision
-template remains pending. See
-`experiments/named-cast-v2-batch-20260711.md` for the exact run evidence and
-failure analysis.
+The `notebook-person-pairs-v4` catalog is rejected as a production cast. Its
+pair-local checks passed, but full-cast review found eight women sharing the same
+young oval face, low bun/headscarf construction, and shawl/apron template. It is
+retained only as failure evidence in
+`experiments/final-candidate-v4-20260712.md`; its pending review packets must not
+be promoted.
+
+The `notebook-person-pairs-v5` candidate set is also rejected: its faces were
+distinct, but its women repeated a center-parted low-bun silhouette too often.
+The internal art-direction catalog is now schema v4 with machine-comparable hair
+front, rear, covering, and silhouette families; the provider-facing catalog stays
+schema v3 so unrelated metadata changes do not invalidate paid immutable jobs.
+Revision v6 proved that the topology data could diversify the cast, but failed
+exact topology, sparse-ink, and several portrait-to-marker age checks. Revision
+v7 tightened those contracts; after provider billing recovered, the corrected
+women were generated and visually approved. That approval was superseded by the
+definitive character-only marker direction because every earlier marker used the
+old prop-driven schema.
+
+The production `approved/v1` release was generated under pipeline revision
+`notebook-person-pairs-v7-character-only-sparse-portraits` in the final
+character-only runs. It contains 23 named pairs plus the unknown-neighbour
+fallback. Every marker has empty hands and no props or scenery; every portrait is
+sparse uncolored notebook ink. The user approved the complete 24-pair sheet, all
+24 pair decisions and the whole-cast decision are hash-bound, and release
+`41ddb06811e2bcda004421314e01560423b0986f990477c65592ac2b19576049`
+is the sole production source authority.
 
 ## Approved Asset Build
 
 ```sh
-pnpm --dir parish/apps/ui run notebook:people
+npm --prefix parish/apps/ui run notebook:art-promote -- \
+  --packet path/to/named-batch-1/manifest.json \
+  --packet path/to/named-batch-2/manifest.json \
+  --packet path/to/named-batch-3/manifest.json \
+  --cast-review path/to/whole-cast-review-decision.json
+
+npm --prefix parish/apps/ui run notebook:people
+
+npm --prefix parish/apps/ui run notebook:art-pipeline:test
 ```
 
-This downstream assembly command reads `approved-cast-v1.json`, validates that
-every source sheet and person entry is explicitly `approved`, crops the reviewed
-source sheets, chroma-keys the marker sprites, writes stable runtime PNGs under
-`static/rundale/notebook-ui/people/`, updates `asset-manifest.json`, and writes
-`static/rundale/notebook-ui/person-art-contact-sheet.png`.
+Promotion resolves each packet's immutable review pointers, verifies the complete
+receipt/decision/prompt/config/input/reference/artifact hash chain, requires the
+immutable whole-cast decision, and requires exact coverage of all 23 numeric NPC
+IDs plus the fallback. It atomically writes the sole approved source authority
+under `approved/v1/`; pending, rejected, incomplete, or unbound review records
+cannot enter that release.
 
-It is not the provider-generation stage. The provider-generation stage must
-consume `npc-art-inputs-v1.json`, call the configured image provider/model,
-store candidates and receipts, and promote only reviewed/approved assets.
+The downstream builder consumes only that checked-in approved release, so it can
+run from a clean checkout without the ignored local candidate store. It verifies
+the release ID, copied provenance and approval records, receipt-bound master
+hashes, PNG dimensions/content/transparency, and complete roster before its first
+shipping write. It contain-scales complete assets without cropping, replaces the
+runtime `people/` directory, updates `asset-manifest.json` and provenance docs,
+and writes dynamic PNG/HTML contact sheets for all 24 pairs.
+
+The pipeline test command exercises generation, review, promotion, and build
+contracts. Its end-to-end fixture promotes all 23 numeric NPC IDs plus fallback,
+deletes the candidate store, builds the runtime pack from the approved release
+alone, and requires 24 manifest entries with 48 unique emitted images.
 
 ## Review Gate
 
-Generated candidates are not treated as approved by default. A source sheet,
-fallback, or person entry with any `approval_status` other than `approved`
-causes the pipeline to fail. The config stores the source prompt, source sheet,
-runtime asset paths, cell coordinates, and per-entry review notes.
+Generated candidates are not treated as approved by default. The review command
+writes immutable hash-bound decisions; promotion then revalidates them and the
+builder accepts only the resulting production release. `approved-cast-v1.json`
+and its source sheets are retained only as legacy history and are not an approval
+authority or builder input.
 
 The source visual authority for this issue is
 `docs/graphics-v2/illustrated-parish-notebook.png`. The accepted Roisin chat
@@ -252,17 +349,11 @@ to isolate that concept's sparse portrait line language. Existing unrelated
 portrait experiments, marker concept sheets, old procedural busts, and
 placeholder markers are not source artwork for this approved set.
 
-## Legacy Runtime Set
+## Runtime Set
 
-The currently checked-in runtime pack predates the metadata-driven provider
-batch. It covers the live starting Kilteevan cast plus early/common notebook
-people, but it is not the final all-23 set required by issue #1628:
-
-- Brigid Ni Fhatharta
-- Sean Ruadh Kelly
-- Peig Hannigan
-- Roisin Connolly
-- Aoife Brennan
-- Mick Flanagan
-- Niamh Darcy
-- Unknown parish neighbour fallback
+The checked-in runtime pack is built from `approved/v1` and contains all 23
+named NPCs plus the unknown-neighbour fallback. Portraits are emitted at
+`144x164`; markers are emitted at `120x170`. `asset-manifest.json` binds every
+runtime record to the approved release, source masters, and pair review, while
+`person-art-contact-sheet.png` and `person-art-contact-sheet.html` provide the
+visible 24-pair review artifact.

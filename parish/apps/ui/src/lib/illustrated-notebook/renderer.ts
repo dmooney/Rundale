@@ -503,8 +503,11 @@ export class IllustratedNotebookRenderer {
 			const safeNpcIndex = npcIndex >= 0 ? npcIndex : 0;
 			const markerUrl = isPlayer
 				? NOTEBOOK_ASSETS.playerMarker
-				: resolveNotebookPersonArt(this.personArt, actor.actor.npc?.real_name)
-						.marker;
+				: resolveNotebookPersonArt(
+						this.personArt,
+						actor.actor.npc?.npc_id,
+						actor.actor.npc?.real_name,
+					).marker;
 			const marker = this.sprite(markerUrl);
 			marker.anchor.set(0.5, 1);
 			marker.x = p.x;
@@ -709,7 +712,11 @@ export class IllustratedNotebookRenderer {
 		frame.alpha = selected ? 1 : 0.86;
 		this.bindTarget(frame, target);
 		this.layers.ui.addChild(frame);
-		const personArt = resolveNotebookPersonArt(this.personArt, npc.real_name);
+		const personArt = resolveNotebookPersonArt(
+			this.personArt,
+			npc.npc_id,
+			npc.real_name,
+		);
 		const portrait = this.sprite(personArt.portrait, {
 			x: x - size * 0.31,
 			y: y - size * 0.02,
@@ -802,7 +809,11 @@ export class IllustratedNotebookRenderer {
 		);
 		if (npc) {
 			const portraitSize = layout.mode === 'mobile' ? 66 : 112;
-			const personArt = resolveNotebookPersonArt(this.personArt, npc.real_name);
+			const personArt = resolveNotebookPersonArt(
+				this.personArt,
+				npc.npc_id,
+				npc.real_name,
+			);
 			this.layers.ui.addChild(
 				this.sprite(personArt.portrait, {
 					x: page.x + inset + 6,

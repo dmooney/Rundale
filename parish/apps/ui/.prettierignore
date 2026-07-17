@@ -5,6 +5,7 @@ build/
 node_modules/
 art/notebook-person-art/candidates/
 art/notebook-person-art/review-packets/
+art/notebook-person-art/approved/v1/
 art/notebook-person-art/npc-art-inputs-v1.json
 package-lock.json
 pnpm-lock.yaml

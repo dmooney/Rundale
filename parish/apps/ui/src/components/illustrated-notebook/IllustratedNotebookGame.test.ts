@@ -63,6 +63,7 @@ vi.mock('$lib/illustrated-notebook/renderer', () => ({
 }));
 
 const roisin = {
+	npc_id: 6,
 	name: 'Roisin Connolly',
 	real_name: 'Roisin Connolly',
 	occupation: 'shopkeeper',
@@ -71,6 +72,7 @@ const roisin = {
 	mood_emoji: '•',
 };
 const aoife = {
+	npc_id: 7,
 	name: 'Aoife Kelly',
 	real_name: 'Aoife Kelly',
 	occupation: 'weaver',

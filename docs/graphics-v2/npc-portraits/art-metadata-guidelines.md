@@ -18,7 +18,7 @@ person-art pipeline calls an image provider.
 `npcs.json` by itself is not enough for production art. It has useful identity
 and activity data, and some entries have strong brief visual cues, but it does
 not consistently define face/hair, clothing, portrait pose, marker silhouette,
-tiny-readability props, palette notes, or avoid-lists.
+intrinsic tiny-readability cues, palette notes, or avoid-lists.
 
 ## Definitive Surface Direction
 
@@ -41,6 +41,10 @@ a style failure even when the identity and period clothing are correct.
 
 In-world NPC markers may use restrained watercolor because they sit on the
 painted world surface. Keep marker color muted and subordinate to the scene.
+Each marker is a transparent character-only cutout with empty hands, not a
+miniature vignette. Worn clothing and headwear are valid identity cues; held or
+carried objects, extra people, furniture, architecture, vegetation, scenery
+fragments, ground planes, and shadows are not.
 
 ## Source Asset Contract
 
@@ -94,53 +98,124 @@ background key and must never appear in a portrait or marker subject.
 
 Every named NPC needs:
 
+- `portrait_identity.visual_identity_seed`
+- `portrait_identity.identity_cohort`
 - `portrait_identity.apparent_age`
-- `portrait_identity.face_and_hair`
+- `portrait_identity.facial_geometry.face_shape`
+- `portrait_identity.facial_geometry.proportions`
+- `portrait_identity.facial_geometry.brow_and_eyes`
+- `portrait_identity.facial_geometry.nose`
+- `portrait_identity.facial_geometry.mouth`
+- `portrait_identity.facial_geometry.jaw_and_chin`
+- `portrait_identity.facial_geometry.cheekbones`
+- `portrait_identity.facial_geometry.hairline`
+- `portrait_identity.facial_geometry.age_detail`
+- `portrait_identity.distinguishing_features` with at least two unique entries
+- `portrait_identity.hair`
+- `portrait_identity.hair_topology.color_and_texture`
+- `portrait_identity.hair_topology.front.family` and `.description`
+- `portrait_identity.hair_topology.rear.family` and `.description`
+- `portrait_identity.hair_topology.covering.family` and `.description`
+- `portrait_identity.hair_topology.silhouette.family` and `.description`
+- `portrait_identity.hair_topology.loose_details`
 - `portrait_identity.clothing`
 - `portrait_identity.pose_expression`
 - `portrait_identity.props`
 - `portrait_identity.palette_notes`
+- `marker_identity.composition` set to `character-only`
 - `marker_identity.silhouette`
-- `marker_identity.pose`
-- `marker_identity.readable_props`
+- `marker_identity.stance`
+- `marker_identity.empty_hand_pose`
+- `marker_identity.readability_cues` with at least two entries using distinct
+  `kind` values from `face`, `hair-or-headwear`, `clothing`, `body-shape`, and
+  `stance`, plus a nonempty `description` for each
 - `marker_identity.tiny_readability_notes`
 - `avoid`
 - `authoring_notes`
 
 The marker fields are not optional. A good portrait description can still fail
-as a game marker if the silhouette and large readable prop are undefined.
+as a game marker if the person-specific silhouette, stance, and intrinsic
+readability cues are undefined.
 
 ## Authoring Rules
 
 - Start from canonical NPC/world facts, then add missing visual facts in the art
   supplement. Do not hide visual identity in one-off provider prompts.
+- Treat personality adjectives as expression direction, not facial identity.
+  Words such as thoughtful, lively, practical, warm, guarded, or anxious do not
+  satisfy any facial-geometry field.
+- Keep identity dimensions independently observable in sparse line art. Within
+  each cohort, at least four of the nine facial-geometry dimensions must differ
+  between every pair; exact seeds and facial fingerprints must be unique. Hair
+  is not allowed to make a near-duplicate face pass.
+- Treat hair/headwear topology as structured identity rather than one prose
+  sentence. `front`, `rear`, `covering`, and `silhouette` use lowercase
+  kebab-case family keys plus literal visual descriptions. Within each cohort,
+  every pair must differ in at least two of those four families; fallback must
+  differ from every named person by the same threshold.
+- Keep `portrait_identity.hair` as the provider-facing rendering sentence. It
+  must faithfully compose the structured topology, including rear anchor
+  height and geometry, even when the portrait needs a three-quarter view to
+  reveal it. The topology itself is internal authoring data and is deliberately
+  omitted from the v2 provider-input export so adding a lint-only category does
+  not invalidate unchanged paid jobs. The review packet instead binds the exact
+  per-subject topology vector and canonical digest; approval and promotion
+  re-read that one source record, so topology cannot drift while unrelated NPC
+  edits remain incremental.
+- Encode family resemblance deliberately by sharing a limited number of cues,
+  never by cloning the full facial vector. Spouses must not acquire resemblance
+  merely because they share a household record.
 - Generate the portrait and marker together from one shared `pair_prompt` so
   the model can carry one face and hair identity across both rendering modes.
 - Use the illustrated notebook concept art as the only style authority for this
   slice. Do not use prior portrait experiments, marker sheets, procedural busts,
   or unrelated graphics cycles as substitutes.
+- Do not upload one named NPC's full face or full-body marker as the style prior
+  for an unrelated cast. A full-face image-edit reference can overpower textual
+  geometry even when the prompt calls it style-only; use the authoritative full
+  concept or a genuinely identity-neutral derivative.
 - Keep source metadata provider-neutral. Provider/model syntax belongs in the
   later generation job, not in the NPC art-direction file.
 - Treat source dimensions, transparency/chroma-key policy, concept palette, and
   sheet policy as global production constraints. Do not bury them in one-off
   per-NPC prompts.
-- Avoid stereotype shortcuts. Occupation can suggest clothing and props, but it
-  must not flatten the character into a caricature.
+- Avoid stereotype shortcuts. Occupation can suggest clothing, but it must not
+  flatten the character into a caricature or make a prop carry the identity.
 - Avoid anachronisms: no modern garments, modern tools, photography-era styling,
   Victorian fashion cues, fantasy costume, or uniform details not warranted by
   the NPC data.
 - Keep tiny-readability explicit. At marker size, identity should come from
-  silhouette, posture, and one or two large props, not facial detail alone.
+  face, hair/headwear, clothing, body shape, and stance, not facial detail or
+  occupational props alone.
 - Preserve dignity and specificity for every NPC, including fallback art.
+- Review identity across the complete cast. Portrait-marker consistency within
+  one pair is necessary but insufficient when another NPC has the same face,
+  age treatment, hair construction, or marker silhouette.
+
+## Historical Hair Evidence Boundary
+
+Pinned or covered working hair, kerchiefs, linen caps, bonnets, centre parts,
+controlled front curls, plaits, and rear arrangements are plausible around
+1820. There was not one frozen rural-Irish hairstyle: surviving Irish clothing
+evidence shows local materials coexisting with wider British and European
+fashion. Sources also overrepresent garments affluent enough to survive. Use
+the [National Museum of Ireland overview](https://www.museum.ie/en-IE/Museums/Decorative-Arts-History/Exhibitions/The-Way-We-Wore),
+the near-date [1808 County Clare costume survey](https://clarelibraries.ie/localstudies/history/economy-and-industry-in-clare/costume-in-county-clare/),
+and [National Library of Ireland Brocas material](https://catalogue.nli.ie/Collection/vtls000747996/CollectionList)
+as boundaries, not as proof of a role-by-role Roscommon taxonomy. Exact
+arrangements are reviewed reconstructions chosen for plausibility, work safety,
+and cast readability. Never invent rules such as "all married women wore X."
 
 ## Scaling Rule
 
-At 23 NPCs, the supplement can be reviewed by hand. At 1,000 NPCs, the same
-schema needs linting, batch reports, role defaults, and spot review. At millions
-of NPCs, the authoring model has to become data-driven: controlled vocabularies
-for clothing/body/prop classes, deterministic occupation defaults, confidence
-scores, missing-field gates, sampled review queues, and automatic rejection of
-records that would generate generic or stereotyped art.
+At 23 NPCs, the supplement can be reviewed by hand and every same-cohort vector
+can be compared. At 1,000 NPCs, derive geometry from the stable seed using
+versioned distributions and family constraints, then add linting, batch reports,
+nearest-neighbour identity checks, role defaults, and sampled review. At millions
+of NPCs, store seeds plus authored overrides, derive geometry on demand, use
+controlled vocabularies and distribution-entropy gates, and reject collisions
+through approximate-nearest-neighbour checks on both metadata vectors and
+generated portrait embeddings.
 
 The rule does not change with scale: the provider receives generated prompts
 from structured source data, and any missing required visual contract is a data

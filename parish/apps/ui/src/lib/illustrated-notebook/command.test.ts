@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { draftForNotebookAction, submitNotebookCommand } from './command';
 
 const roisin = {
+	npc_id: 6,
 	name: 'Roisin Connolly',
 	real_name: 'Roisin Connolly',
 	occupation: 'shopkeeper',

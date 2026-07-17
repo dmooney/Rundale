@@ -16,7 +16,8 @@ use serde_json::ser::{PrettyFormatter, Serializer};
 
 use crate::catalog::load_catalog;
 
-const ART_INPUT_SCHEMA_VERSION: u32 = 1;
+const ART_INPUT_SCHEMA_VERSION: u32 = 3;
+const ART_DIRECTION_SCHEMA_VERSION: u32 = 4;
 
 #[derive(Debug, Deserialize)]
 struct WorldFile {
@@ -78,8 +79,14 @@ struct NpcArtDirection {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct PortraitDirection {
+    visual_identity_seed: String,
+    identity_cohort: String,
     apparent_age: String,
-    face_and_hair: String,
+    facial_geometry: FacialGeometry,
+    distinguishing_features: Vec<String>,
+    hair: String,
+    #[serde(skip_serializing)]
+    hair_topology: HairIdentity,
     clothing: String,
     pose_expression: String,
     props: Vec<String>,
@@ -87,11 +94,106 @@ struct PortraitDirection {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+struct HairIdentity {
+    color_and_texture: String,
+    front: HairFeature,
+    rear: HairFeature,
+    covering: HairFeature,
+    silhouette: HairFeature,
+    loose_details: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct HairFeature {
+    family: String,
+    description: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct FacialGeometry {
+    face_shape: String,
+    proportions: String,
+    brow_and_eyes: String,
+    nose: String,
+    mouth: String,
+    jaw_and_chin: String,
+    cheekbones: String,
+    hairline: String,
+    age_detail: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 struct MarkerDirection {
+    composition: MarkerComposition,
     silhouette: String,
-    pose: String,
-    readable_props: Vec<String>,
+    stance: String,
+    empty_hand_pose: MarkerHandPose,
+    readability_cues: Vec<MarkerReadabilityCue>,
     tiny_readability_notes: Vec<String>,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+enum MarkerComposition {
+    CharacterOnly,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+enum MarkerHandPose {
+    BothAtSides,
+    HandsClasped,
+    OneOnHipOneAtSide,
+    ArmsFolded,
+    HandsInPockets,
+    OneHandGesturing,
+    HandsBehindBack,
+    HandsNearCoatFront,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct MarkerReadabilityCue {
+    kind: MarkerReadabilityCueKind,
+    description: String,
+}
+
+#[derive(Debug, Clone, Copy, Eq, Hash, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+enum MarkerReadabilityCueKind {
+    Face,
+    HairOrHeadwear,
+    Clothing,
+    BodyShape,
+    Stance,
+}
+
+impl MarkerReadabilityCueKind {
+    fn prompt_text(self) -> &'static str {
+        match self {
+            Self::Face => "face",
+            Self::HairOrHeadwear => "hair or headwear",
+            Self::Clothing => "clothing",
+            Self::BodyShape => "body shape",
+            Self::Stance => "stance",
+        }
+    }
+}
+
+impl MarkerHandPose {
+    fn prompt_text(self) -> &'static str {
+        match self {
+            Self::BothAtSides => "both empty hands relaxed at the sides",
+            Self::HandsClasped => "both empty hands clasped together",
+            Self::OneOnHipOneAtSide => "one empty hand on the hip and one relaxed at the side",
+            Self::ArmsFolded => "empty arms folded across the body",
+            Self::HandsInPockets => "both empty hands tucked into clothing pockets",
+            Self::OneHandGesturing => "one empty hand making a small gesture and the other relaxed",
+            Self::HandsBehindBack => "both empty hands held behind the back",
+            Self::HandsNearCoatFront => "both empty hands resting near the coat front",
+        }
+    }
 }
 
 #[derive(Debug, Serialize)]
@@ -273,9 +375,9 @@ pub(crate) fn export_art_inputs(
     let dataset = ArtInputDataset {
         schema_version: ART_INPUT_SCHEMA_VERSION,
         source: ArtInputSource {
-            npcs_json: npcs_path.display().to_string(),
-            world_json: world_path.display().to_string(),
-            art_direction_json: art_direction_path.display().to_string(),
+            npcs_json: stable_source_path(npcs_path)?,
+            world_json: stable_source_path(world_path)?,
+            art_direction_json: stable_source_path(art_direction_path)?,
             generator: "parish-npc-tool art-inputs",
         },
         global_style: art_direction.global_style.clone(),
@@ -333,20 +435,90 @@ fn load_art_direction(path: &Path) -> Result<ArtDirectionFile> {
         .with_context(|| format!("read art direction {}", path.display()))?;
     let file: ArtDirectionFile = serde_json::from_str(&raw)
         .with_context(|| format!("parse art direction {}", path.display()))?;
-    if file.schema_version != ART_INPUT_SCHEMA_VERSION {
+    if file.schema_version != ART_DIRECTION_SCHEMA_VERSION {
         bail!(
             "unsupported art direction schema_version {}; expected {}",
             file.schema_version,
-            ART_INPUT_SCHEMA_VERSION
+            ART_DIRECTION_SCHEMA_VERSION
         );
     }
     Ok(file)
+}
+
+fn stable_source_path(path: &Path) -> Result<String> {
+    let canonical = path
+        .canonicalize()
+        .with_context(|| format!("canonicalize source path {}", path.display()))?;
+    let repo_root = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .ancestors()
+        .nth(3)
+        .expect("parish-npc-tool must be nested under parish/crates")
+        .canonicalize()
+        .context("canonicalize repository root")?;
+    let stable = canonical
+        .strip_prefix(&repo_root)
+        .map(Path::to_path_buf)
+        .unwrap_or(canonical);
+    Ok(stable.display().to_string())
+}
+
+#[derive(Clone, Copy)]
+enum IdentityOwner {
+    Npc(u32),
+    Fallback,
+}
+
+struct CohortIdentity {
+    owner: IdentityOwner,
+    facial_dimensions: [String; 9],
+    hair_topology: [String; 4],
+}
+
+fn identity_pair(left: IdentityOwner, right: IdentityOwner) -> String {
+    match (left, right) {
+        (IdentityOwner::Npc(left), IdentityOwner::Npc(right)) => {
+            format!("NPC ids {left} and {right}")
+        }
+        (IdentityOwner::Npc(id), IdentityOwner::Fallback)
+        | (IdentityOwner::Fallback, IdentityOwner::Npc(id)) => {
+            format!("NPC id {id} and fallback")
+        }
+        (IdentityOwner::Fallback, IdentityOwner::Fallback) => "fallback and fallback".to_string(),
+    }
+}
+
+fn register_identity(
+    direction: &PortraitDirection,
+    owner: IdentityOwner,
+    seeds: &mut HashMap<String, IdentityOwner>,
+    facial_fingerprints: &mut HashMap<String, IdentityOwner>,
+) -> Result<()> {
+    let seed = normalize_identity_text(&direction.visual_identity_seed);
+    if let Some(existing) = seeds.insert(seed, owner) {
+        bail!(
+            "duplicate visual_identity_seed for {}",
+            identity_pair(existing, owner)
+        );
+    }
+
+    let dimensions = facial_dimensions(direction);
+    let fingerprint = dimensions.join("\u{1f}");
+    if let Some(existing) = facial_fingerprints.insert(fingerprint, owner) {
+        bail!(
+            "duplicate facial geometry fingerprint for {}",
+            identity_pair(existing, owner)
+        );
+    }
+    Ok(())
 }
 
 fn validate_art_direction(npcs: &[NpcFileEntry], art: &ArtDirectionFile) -> Result<()> {
     let npc_by_id: HashMap<u32, &NpcFileEntry> =
         npcs.iter().map(|entry| (entry.id, entry)).collect();
     let mut seen = HashSet::new();
+    let mut seeds = HashMap::new();
+    let mut facial_fingerprints = HashMap::new();
+    let mut cohort_identities: HashMap<String, Vec<CohortIdentity>> = HashMap::new();
     for direction in &art.npcs {
         let Some(npc) = npc_by_id.get(&direction.npc_id) else {
             bail!(
@@ -367,6 +539,109 @@ fn validate_art_direction(npcs: &[NpcFileEntry], art: &ArtDirectionFile) -> Resu
         if !seen.insert(direction.npc_id) {
             bail!("duplicate art direction for NPC id {}", direction.npc_id);
         }
+
+        validate_portrait_direction(
+            &direction.portrait_identity,
+            &format!("NPC id {} portrait_identity", direction.npc_id),
+        )?;
+        validate_marker_direction(
+            &direction.marker_identity,
+            &format!("NPC id {} marker_identity", direction.npc_id),
+        )?;
+        register_identity(
+            &direction.portrait_identity,
+            IdentityOwner::Npc(direction.npc_id),
+            &mut seeds,
+            &mut facial_fingerprints,
+        )?;
+        cohort_identities
+            .entry(normalize_identity_text(
+                &direction.portrait_identity.identity_cohort,
+            ))
+            .or_default()
+            .push(CohortIdentity {
+                owner: IdentityOwner::Npc(direction.npc_id),
+                facial_dimensions: facial_dimensions(&direction.portrait_identity),
+                hair_topology: hair_topology_dimensions(&direction.portrait_identity),
+            });
+    }
+
+    validate_portrait_direction(
+        &art.fallback.portrait_identity,
+        "fallback portrait_identity",
+    )?;
+    validate_marker_direction(&art.fallback.marker_identity, "fallback marker_identity")?;
+    register_identity(
+        &art.fallback.portrait_identity,
+        IdentityOwner::Fallback,
+        &mut seeds,
+        &mut facial_fingerprints,
+    )?;
+
+    let fallback_facial_dimensions = facial_dimensions(&art.fallback.portrait_identity);
+    let fallback_hair_topology = hair_topology_dimensions(&art.fallback.portrait_identity);
+    for direction in &art.npcs {
+        let named_facial_dimensions = facial_dimensions(&direction.portrait_identity);
+        let differing_dimensions = named_facial_dimensions
+            .iter()
+            .zip(&fallback_facial_dimensions)
+            .filter(|(named, fallback)| named != fallback)
+            .count();
+        if differing_dimensions < 4 {
+            bail!(
+                "fallback and NPC id {} differ in only {} of 9 facial geometry dimensions; at least 4 must differ",
+                direction.npc_id,
+                differing_dimensions
+            );
+        }
+
+        let named_hair_topology = hair_topology_dimensions(&direction.portrait_identity);
+        let differing_dimensions = named_hair_topology
+            .iter()
+            .zip(&fallback_hair_topology)
+            .filter(|(named, fallback)| named != fallback)
+            .count();
+        if differing_dimensions < 2 {
+            bail!(
+                "fallback and NPC id {} differ in only {} of 4 hair topology dimensions; at least 2 must differ",
+                direction.npc_id,
+                differing_dimensions
+            );
+        }
+    }
+
+    for identities in cohort_identities.values() {
+        for (index, left) in identities.iter().enumerate() {
+            for right in &identities[index + 1..] {
+                let differing_dimensions = left
+                    .facial_dimensions
+                    .iter()
+                    .zip(&right.facial_dimensions)
+                    .filter(|(left, right)| left != right)
+                    .count();
+                if differing_dimensions < 4 {
+                    bail!(
+                        "same-cohort {} differ in only {} of 9 facial geometry dimensions; at least 4 must differ",
+                        identity_pair(left.owner, right.owner),
+                        differing_dimensions
+                    );
+                }
+
+                let differing_dimensions = left
+                    .hair_topology
+                    .iter()
+                    .zip(&right.hair_topology)
+                    .filter(|(left, right)| left != right)
+                    .count();
+                if differing_dimensions < 2 {
+                    bail!(
+                        "same-cohort {} differ in only {} of 4 hair topology dimensions; at least 2 must differ",
+                        identity_pair(left.owner, right.owner),
+                        differing_dimensions
+                    );
+                }
+            }
+        }
     }
 
     let missing: Vec<String> = npcs
@@ -381,6 +656,222 @@ fn validate_art_direction(npcs: &[NpcFileEntry], art: &ArtDirectionFile) -> Resu
         );
     }
     Ok(())
+}
+
+fn validate_portrait_direction(direction: &PortraitDirection, label: &str) -> Result<()> {
+    for (field, value) in [
+        (
+            "visual_identity_seed",
+            direction.visual_identity_seed.as_str(),
+        ),
+        ("identity_cohort", direction.identity_cohort.as_str()),
+        ("apparent_age", direction.apparent_age.as_str()),
+        (
+            "facial_geometry.face_shape",
+            direction.facial_geometry.face_shape.as_str(),
+        ),
+        (
+            "facial_geometry.proportions",
+            direction.facial_geometry.proportions.as_str(),
+        ),
+        (
+            "facial_geometry.brow_and_eyes",
+            direction.facial_geometry.brow_and_eyes.as_str(),
+        ),
+        (
+            "facial_geometry.nose",
+            direction.facial_geometry.nose.as_str(),
+        ),
+        (
+            "facial_geometry.mouth",
+            direction.facial_geometry.mouth.as_str(),
+        ),
+        (
+            "facial_geometry.jaw_and_chin",
+            direction.facial_geometry.jaw_and_chin.as_str(),
+        ),
+        (
+            "facial_geometry.cheekbones",
+            direction.facial_geometry.cheekbones.as_str(),
+        ),
+        (
+            "facial_geometry.hairline",
+            direction.facial_geometry.hairline.as_str(),
+        ),
+        (
+            "facial_geometry.age_detail",
+            direction.facial_geometry.age_detail.as_str(),
+        ),
+        ("hair", direction.hair.as_str()),
+        (
+            "hair_topology.color_and_texture",
+            direction.hair_topology.color_and_texture.as_str(),
+        ),
+        (
+            "hair_topology.front.family",
+            direction.hair_topology.front.family.as_str(),
+        ),
+        (
+            "hair_topology.front.description",
+            direction.hair_topology.front.description.as_str(),
+        ),
+        (
+            "hair_topology.rear.family",
+            direction.hair_topology.rear.family.as_str(),
+        ),
+        (
+            "hair_topology.rear.description",
+            direction.hair_topology.rear.description.as_str(),
+        ),
+        (
+            "hair_topology.covering.family",
+            direction.hair_topology.covering.family.as_str(),
+        ),
+        (
+            "hair_topology.covering.description",
+            direction.hair_topology.covering.description.as_str(),
+        ),
+        (
+            "hair_topology.silhouette.family",
+            direction.hair_topology.silhouette.family.as_str(),
+        ),
+        (
+            "hair_topology.silhouette.description",
+            direction.hair_topology.silhouette.description.as_str(),
+        ),
+        (
+            "hair_topology.loose_details",
+            direction.hair_topology.loose_details.as_str(),
+        ),
+        ("clothing", direction.clothing.as_str()),
+        ("pose_expression", direction.pose_expression.as_str()),
+    ] {
+        if value.trim().is_empty() {
+            bail!("{label}.{field} must be nonempty");
+        }
+    }
+
+    for (field, family) in [
+        (
+            "hair_topology.front.family",
+            direction.hair_topology.front.family.as_str(),
+        ),
+        (
+            "hair_topology.rear.family",
+            direction.hair_topology.rear.family.as_str(),
+        ),
+        (
+            "hair_topology.covering.family",
+            direction.hair_topology.covering.family.as_str(),
+        ),
+        (
+            "hair_topology.silhouette.family",
+            direction.hair_topology.silhouette.family.as_str(),
+        ),
+    ] {
+        if !is_lowercase_kebab_slug(family) {
+            bail!("{label}.{field} must be a lowercase kebab slug");
+        }
+    }
+
+    if direction.distinguishing_features.len() < 2 {
+        bail!("{label}.distinguishing_features must contain at least 2 entries");
+    }
+    let mut features = HashSet::new();
+    for feature in &direction.distinguishing_features {
+        let normalized = normalize_identity_text(feature);
+        if normalized.is_empty() {
+            bail!("{label}.distinguishing_features entries must be nonempty");
+        }
+        if !features.insert(normalized) {
+            bail!("{label}.distinguishing_features entries must be unique");
+        }
+    }
+    Ok(())
+}
+
+fn validate_marker_direction(direction: &MarkerDirection, label: &str) -> Result<()> {
+    for (field, value) in [
+        ("silhouette", direction.silhouette.as_str()),
+        ("stance", direction.stance.as_str()),
+    ] {
+        if value.trim().is_empty() {
+            bail!("{label}.{field} must be nonempty");
+        }
+    }
+
+    if direction.readability_cues.len() < 2 {
+        bail!("{label}.readability_cues must contain at least 2 entries");
+    }
+    let mut cue_kinds = HashSet::new();
+    let mut cue_descriptions = HashSet::new();
+    for cue in &direction.readability_cues {
+        if !cue_kinds.insert(cue.kind) {
+            bail!("{label}.readability_cues must use distinct cue kinds");
+        }
+        let normalized = normalize_identity_text(&cue.description);
+        if normalized.is_empty() {
+            bail!("{label}.readability_cues descriptions must be nonempty");
+        }
+        if !cue_descriptions.insert(normalized) {
+            bail!("{label}.readability_cues descriptions must be unique");
+        }
+    }
+
+    if direction.tiny_readability_notes.is_empty()
+        || direction
+            .tiny_readability_notes
+            .iter()
+            .any(|note| note.trim().is_empty())
+    {
+        bail!("{label}.tiny_readability_notes must contain nonempty entries");
+    }
+
+    Ok(())
+}
+
+fn normalize_identity_text(value: &str) -> String {
+    value
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ")
+        .to_lowercase()
+}
+
+fn is_lowercase_kebab_slug(value: &str) -> bool {
+    !value.is_empty()
+        && value.split('-').all(|segment| {
+            !segment.is_empty()
+                && segment
+                    .bytes()
+                    .all(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit())
+        })
+}
+
+fn facial_dimensions(direction: &PortraitDirection) -> [String; 9] {
+    let geometry = &direction.facial_geometry;
+    [
+        &geometry.face_shape,
+        &geometry.proportions,
+        &geometry.brow_and_eyes,
+        &geometry.nose,
+        &geometry.mouth,
+        &geometry.jaw_and_chin,
+        &geometry.cheekbones,
+        &geometry.hairline,
+        &geometry.age_detail,
+    ]
+    .map(|value| normalize_identity_text(value))
+}
+
+fn hair_topology_dimensions(direction: &PortraitDirection) -> [String; 4] {
+    [
+        &direction.hair_topology.front.family,
+        &direction.hair_topology.rear.family,
+        &direction.hair_topology.covering.family,
+        &direction.hair_topology.silhouette.family,
+    ]
+    .map(|value| normalize_identity_text(value))
 }
 
 fn location_summary(
@@ -541,13 +1032,14 @@ fn portrait_prompt(
         .map(String::as_str)
         .unwrap_or("none");
     format!(
-        "{} Subject identity: {}, age {}, {}; apparent age {}; face and hair {}; clothing {}, indicated only with contour, seam, and a few fold lines; expression and pose {}; current mood {}. Optional lower-edge identity cue: {}, at most one simply outlined prop. Canonical context: {}; {}. Hard constraints: one character, head and shoulders only, period-appropriate rural County Roscommon clothing, no text, no label, no border, no card, no UI chrome. Character-specific avoid list: {}.",
-        portrait_style_prefix(style),
+        "Subject identity: {}, age {}, {}; visual identity seed {}; apparent age {}; {} {} Clothing: {}, indicated only with contour, seam, and a few fold lines; expression and pose {}; current mood {}. Optional lower-edge identity cue: {}, at most one simply outlined prop. Canonical context: {}; {}. Hard constraints: one character, head and shoulders only, period-appropriate rural County Roscommon clothing, no text, no label, no border, no card, no UI chrome. Character-specific avoid list: {}.",
         context.name,
         context.age,
         context.occupation,
+        direction.portrait_identity.visual_identity_seed,
         direction.portrait_identity.apparent_age,
-        direction.portrait_identity.face_and_hair,
+        portrait_identity_facts(&direction.portrait_identity),
+        portrait_style_prefix(style),
         direction.portrait_identity.clothing,
         direction.portrait_identity.pose_expression,
         context.mood,
@@ -575,24 +1067,18 @@ fn marker_prompt(
     direction: &NpcArtDirection,
 ) -> String {
     format!(
-        "{} Subject identity: {}, age {}, {}; canonical cue {}. Silhouette: {}. Static pose: {}. Use at most these one or two large readable props: {}. Tiny-readability requirements: {}. Hard constraints: one character only, period-appropriate ordinary rural clothing, simplified face, complete feet, no text, no label, no border, no UI chrome. Character-specific avoid list: {}.",
-        marker_style_prefix(style),
+        "Subject identity: {}, age {}, {}; visual identity seed {}; apparent age {}; {} {} Character-only silhouette: {}. Stance: {}. Empty-hand pose: {}. Tiny-readability cues from the person's body, hair or headwear, clothing, and stance alone: {}. Tiny-readability requirements: {}. Hard constraints: one character only, both hands empty, period-appropriate ordinary rural clothing, simplified face, complete feet, no held or carried objects, tools, books, containers, bundles, furniture, architecture, vegetation, scenery fragments, ground plane, shadow, text, label, border, or UI chrome. Worn clothing and headwear are allowed. Do not illustrate an occupation, workplace, activity, or narrative context around the person. Character-specific avoid list: {}.",
         context.name,
         context.age,
         context.occupation,
-        context
-            .brief_description
-            .unwrap_or("ordinary parish neighbour"),
+        direction.portrait_identity.visual_identity_seed,
+        direction.portrait_identity.apparent_age,
+        portrait_identity_facts(&direction.portrait_identity),
+        marker_style_prefix(style),
         direction.marker_identity.silhouette,
-        direction.marker_identity.pose,
-        direction
-            .marker_identity
-            .readable_props
-            .iter()
-            .take(2)
-            .cloned()
-            .collect::<Vec<_>>()
-            .join(", "),
+        direction.marker_identity.stance,
+        direction.marker_identity.empty_hand_pose.prompt_text(),
+        marker_readability_cues(&direction.marker_identity),
         direction.marker_identity.tiny_readability_notes.join(", "),
         direction.avoid.join(", ")
     )
@@ -600,7 +1086,7 @@ fn marker_prompt(
 
 fn marker_style_prefix(style: &GlobalStyle) -> String {
     format!(
-        "Asset role: one tiny static full-body NPC marker that sits inside Rundale's painted world surface. It is not a UI portrait, paper doll, animation sheet, formal character illustration, or sprite-sheet panel. Visual language: loose hand-inked watercolor miniature under this visual authority: {} Use irregular sepia/graphite contours, a simple readable silhouette, restrained translucent washes, low facial detail, and only enough clothing folds to identify the person at scene size. Keep the treatment handmade and subordinate to the environment, never glossy, photorealistic, densely rendered, or cut out with a broad halo. Delivery composition: {}. Palette: sepia/graphite line with muted wool gray, bog green, weathered tan, dull brick red, peat brown, and faded indigo only; no saturated primary colors. Setting: {}.",
+        "Asset role: one tiny static full-body NPC marker delivered as a transparent character-only cutout for compositing over Rundale's painted world surface. It is not a UI portrait, paper doll, animation sheet, formal character illustration, vignette, or sprite-sheet panel. Visual language: loose hand-inked watercolor miniature under this visual authority: {} Use irregular sepia/graphite contours, a simple readable human silhouette, restrained translucent washes, low facial detail, and only enough clothing folds to identify the person at scene size. Keep the treatment handmade and subordinate to the environment, never glossy, photorealistic, densely rendered, or cut out with a broad halo. Delivery composition: {}. Palette: sepia/graphite line with muted wool gray, bog green, weathered tan, dull brick red, peat brown, and faded indigo only; no saturated primary colors. Setting: {}.",
         first_sentence(&style.style_reference),
         style.source_assets.marker_source.join(", "),
         style.setting.join(", ")
@@ -618,22 +1104,16 @@ fn pair_prompt(
         .first()
         .map(String::as_str)
         .unwrap_or("none");
-    let marker_props = direction
-        .marker_identity
-        .readable_props
-        .iter()
-        .take(2)
-        .cloned()
-        .collect::<Vec<_>>()
-        .join(", ");
     format!(
-        "Production task: create one identity-locked portrait-and-marker pair for {}, age {}, {}, in {}, under the {} visual authority. The two renderings must unmistakably be the same person: preserve the same apparent age, facial proportions, eye shape, nose, jaw, hairline, hairstyle, and characteristic expression across both. Shared identity: face and hair {}; clothing {}; composed from this canonical cue: {}; current mood {}. Left asset, notebook portrait: a quick observational head-and-shoulders sketch the player character drew in their working notebook after meeting this person. Use sparse uncolored sepia/graphite contours, open unfilled shapes, and only a few short hatch marks; optional lower-edge prop {}, simply outlined. Keep the complete ink drawing between 40 and 60 percent of the left cell height with generous empty padding; every uninked interior region must remain provider key, never white, cream, parchment, skin tone, gray, or any other fill. It must not read as a formal illustration or painted portrait. Right asset, painted-world marker: one tiny static full-body figure inside the painted parish scene, silhouette {}; pose {}; one or two large readable props {}; complete figure roughly 45 percent of the right cell height, acceptable range 40 to 60 percent, with generous key-visible margins; restrained translucent watercolor within loose sepia/graphite contours, simplified face, complete feet, no ground plane. Limit painted color to muted wool gray, bog green, weathered tan, dull brick red, peat brown, and faded indigo; no saturated primary colors. Shared constraints: one depiction in each assigned cell, ordinary 1820 rural County Roscommon clothing, no modern or fantasy elements, no text, labels, frames, extra people, contact-sheet furniture, or sprite-sheet poses. Character-specific avoid list: {}.",
+        "Identity contract for {}, age {}, {}: visual identity seed {}; apparent age {}; {} Production task: create one identity-locked portrait-and-marker pair in {}, under this visual authority: {} The two renderings must unmistakably be the same person by reproducing every stated identity fact. Clothing: {}; canonical biography cue for clothing and expression only, never for setting, activity, or objects: {}; current mood {}. Left asset, notebook portrait: a quick observational head-and-shoulders sketch the player character drew in their working notebook after meeting this person. Use sparse uncolored sepia/graphite contours, open unfilled shapes, and only a few isolated short structural hatch marks; optional lower-edge prop {}, simply outlined and confined to the left cell. Do not cross-hatch or shade any broad region of the face, hair, neck, scarf, waistcoat, coat, dress, or apron, and do not render a dark garment as a filled or densely hatched mass. Keep the complete ink drawing between 40 and 60 percent of the left cell height with generous empty padding; every uninked interior region must remain provider key, never white, cream, parchment, skin tone, gray, or any other fill. It must not read as a formal illustration or painted portrait. Right asset, painted-world marker: one tiny static full-body transparent character-only cutout designed for compositing into the painted parish scene; silhouette {}; stance {}; empty-hand pose {}; tiny-readability cues from the person's body, hair or headwear, clothing, and stance alone: {}; complete figure roughly 45 percent of the right cell height, acceptable range 40 to 60 percent, with generous key-visible margins; restrained translucent watercolor within loose sepia/graphite contours, simplified face, and complete feet. The right cell must contain the person only: both hands empty; no held or carried objects, tools, books, containers, bundles, furniture, counters, architecture, vegetation, scenery fragments, ground plane, shadow, or extra person. Worn clothing and headwear are allowed. Do not illustrate the canonical biography's occupation, workplace, activity, or narrative context around the marker. Limit painted color to muted wool gray, bog green, weathered tan, dull brick red, peat brown, and faded indigo; no saturated primary colors. Shared constraints: one depiction in each assigned cell, ordinary 1820 rural County Roscommon clothing, no modern or fantasy elements, no text, labels, frames, contact-sheet furniture, or sprite-sheet poses. Never copy a left-cell portrait prop into the marker. Character-specific avoid list: {}.",
         context.name,
         context.age,
         context.occupation,
+        direction.portrait_identity.visual_identity_seed,
+        direction.portrait_identity.apparent_age,
+        portrait_identity_facts(&direction.portrait_identity),
         style.setting.join(", "),
         first_sentence(&style.style_reference),
-        direction.portrait_identity.face_and_hair,
         direction.portrait_identity.clothing,
         context
             .brief_description
@@ -641,8 +1121,9 @@ fn pair_prompt(
         context.mood,
         portrait_prop,
         direction.marker_identity.silhouette,
-        direction.marker_identity.pose,
-        marker_props,
+        direction.marker_identity.stance,
+        direction.marker_identity.empty_hand_pose.prompt_text(),
+        marker_readability_cues(&direction.marker_identity),
         direction.avoid.join(", ")
     )
 }
@@ -655,10 +1136,11 @@ fn fallback_portrait_prompt(style: &GlobalStyle, fallback: &FallbackArtDirection
         .map(String::as_str)
         .unwrap_or("none");
     format!(
-        "{} Subject identity: unknown Rundale parish neighbour fallback; apparent age {}; face and hair {}; clothing {}, indicated only with contour, seam, and a few fold lines; expression and pose {}. Optional lower-edge identity cue: {}, at most one simply outlined prop. Hard constraints: one anonymous character, head and shoulders only, period-appropriate rural County Roscommon clothing, no text, no label, no border, no card, no UI chrome. Character-specific avoid list: {}.",
-        portrait_style_prefix(style),
+        "Subject identity: unknown Rundale parish neighbour fallback; visual identity seed {}; apparent age {}; {} {} Clothing: {}, indicated only with contour, seam, and a few fold lines; expression and pose {}. Optional lower-edge identity cue: {}, at most one simply outlined prop. Hard constraints: one anonymous character, head and shoulders only, period-appropriate rural County Roscommon clothing, no text, no label, no border, no card, no UI chrome. Character-specific avoid list: {}.",
+        fallback.portrait_identity.visual_identity_seed,
         fallback.portrait_identity.apparent_age,
-        fallback.portrait_identity.face_and_hair,
+        portrait_identity_facts(&fallback.portrait_identity),
+        portrait_style_prefix(style),
         fallback.portrait_identity.clothing,
         fallback.portrait_identity.pose_expression,
         prop,
@@ -668,18 +1150,15 @@ fn fallback_portrait_prompt(style: &GlobalStyle, fallback: &FallbackArtDirection
 
 fn fallback_marker_prompt(style: &GlobalStyle, fallback: &FallbackArtDirection) -> String {
     format!(
-        "{} Subject identity: unknown Rundale parish neighbour fallback. Silhouette: {}. Static pose: {}. Use at most these one or two large readable props: {}. Tiny-readability requirements: {}. Hard constraints: one anonymous character only, period-appropriate ordinary rural clothing, simplified face, complete feet, no text, no label, no border, no UI chrome. Character-specific avoid list: {}.",
+        "Subject identity: unknown Rundale parish neighbour fallback; visual identity seed {}; apparent age {}; {} {} Character-only silhouette: {}. Stance: {}. Empty-hand pose: {}. Tiny-readability cues from the person's body, hair or headwear, clothing, and stance alone: {}. Tiny-readability requirements: {}. Hard constraints: one anonymous character only, both hands empty, period-appropriate ordinary rural clothing, simplified face, complete feet, no held or carried objects, tools, books, containers, bundles, furniture, architecture, vegetation, scenery fragments, ground plane, shadow, text, label, border, or UI chrome. Worn clothing and headwear are allowed. Character-specific avoid list: {}.",
+        fallback.portrait_identity.visual_identity_seed,
+        fallback.portrait_identity.apparent_age,
+        portrait_identity_facts(&fallback.portrait_identity),
         marker_style_prefix(style),
         fallback.marker_identity.silhouette,
-        fallback.marker_identity.pose,
-        fallback
-            .marker_identity
-            .readable_props
-            .iter()
-            .take(2)
-            .cloned()
-            .collect::<Vec<_>>()
-            .join(", "),
+        fallback.marker_identity.stance,
+        fallback.marker_identity.empty_hand_pose.prompt_text(),
+        marker_readability_cues(&fallback.marker_identity),
         fallback.marker_identity.tiny_readability_notes.join(", "),
         fallback.avoid.join(", ")
     )
@@ -692,27 +1171,48 @@ fn fallback_pair_prompt(style: &GlobalStyle, fallback: &FallbackArtDirection) ->
         .first()
         .map(String::as_str)
         .unwrap_or("none");
-    let marker_props = fallback
-        .marker_identity
-        .readable_props
-        .iter()
-        .take(2)
-        .cloned()
-        .collect::<Vec<_>>()
-        .join(", ");
     format!(
-        "Production task: create one identity-locked portrait-and-marker pair for an unknown Rundale parish neighbour in {}, under the {} visual authority. Both renderings must unmistakably depict the same anonymous person, preserving apparent age, facial proportions, hairline, hairstyle, and expression without resembling a named NPC. Shared identity: apparent age {}; face and hair {}; clothing {}; expression {}. Left asset, notebook portrait: quick sparse uncolored sepia/graphite head-and-shoulders observation drawn by the player character, open unfilled shapes, only a few hatch marks, optional simply outlined lower-edge prop {}. Keep the complete ink drawing between 40 and 60 percent of the left cell height with generous empty padding; every uninked interior region must remain provider key, never white, cream, parchment, skin tone, gray, or any other fill. Right asset, painted-world marker: one tiny static full-body figure, silhouette {}; pose {}; readable props {}; complete figure roughly 45 percent of the right cell height, acceptable range 40 to 60 percent, with generous key-visible margins; restrained translucent watercolor within loose sepia/graphite contours, simplified face, complete feet, no ground plane. Limit painted color to muted wool gray, bog green, weathered tan, dull brick red, peat brown, and faded indigo; no saturated primary colors. Shared constraints: one depiction in each assigned cell, ordinary 1820 rural County Roscommon clothing, no modern or fantasy elements, no text, labels, frames, extra people, contact-sheet furniture, or sprite-sheet poses. Character-specific avoid list: {}.",
+        "Identity contract for an unknown Rundale parish neighbour: visual identity seed {}; apparent age {}; {} Production task: create one identity-locked portrait-and-marker pair in {}, under this visual authority: {} Both renderings must unmistakably depict the same anonymous person by reproducing every stated identity fact without resembling a named NPC. Clothing: {}; expression {}. Left asset, notebook portrait: quick sparse uncolored sepia/graphite head-and-shoulders observation drawn by the player character, open unfilled shapes, only a few isolated short structural hatch marks, optional simply outlined lower-edge prop {} confined to the left cell. Do not cross-hatch or shade any broad region of the face, hair, neck, scarf, waistcoat, coat, dress, or apron, and do not render a dark garment as a filled or densely hatched mass. Keep the complete ink drawing between 40 and 60 percent of the left cell height with generous empty padding; every uninked interior region must remain provider key, never white, cream, parchment, skin tone, gray, or any other fill. Right asset, painted-world marker: one tiny static full-body transparent character-only cutout, silhouette {}; stance {}; empty-hand pose {}; tiny-readability cues from body, hair or headwear, clothing, and stance alone: {}; complete figure roughly 45 percent of the right cell height, acceptable range 40 to 60 percent, with generous key-visible margins; restrained translucent watercolor within loose sepia/graphite contours, simplified face, complete feet. The right cell must contain the person only: both hands empty; no held or carried objects, tools, books, containers, bundles, furniture, counters, architecture, vegetation, scenery fragments, ground plane, shadow, or extra person. Worn clothing and headwear are allowed. Limit painted color to muted wool gray, bog green, weathered tan, dull brick red, peat brown, and faded indigo; no saturated primary colors. Shared constraints: one depiction in each assigned cell, ordinary 1820 rural County Roscommon clothing, no modern or fantasy elements, no text, labels, frames, contact-sheet furniture, or sprite-sheet poses. Never copy a left-cell portrait prop into the marker. Character-specific avoid list: {}.",
+        fallback.portrait_identity.visual_identity_seed,
+        fallback.portrait_identity.apparent_age,
+        portrait_identity_facts(&fallback.portrait_identity),
         style.setting.join(", "),
         first_sentence(&style.style_reference),
-        fallback.portrait_identity.apparent_age,
-        fallback.portrait_identity.face_and_hair,
         fallback.portrait_identity.clothing,
         fallback.portrait_identity.pose_expression,
         portrait_prop,
         fallback.marker_identity.silhouette,
-        fallback.marker_identity.pose,
-        marker_props,
+        fallback.marker_identity.stance,
+        fallback.marker_identity.empty_hand_pose.prompt_text(),
+        marker_readability_cues(&fallback.marker_identity),
         fallback.avoid.join(", ")
+    )
+}
+
+fn marker_readability_cues(direction: &MarkerDirection) -> String {
+    direction
+        .readability_cues
+        .iter()
+        .map(|cue| format!("{}: {}", cue.kind.prompt_text(), cue.description))
+        .collect::<Vec<_>>()
+        .join("; ")
+}
+
+fn portrait_identity_facts(direction: &PortraitDirection) -> String {
+    let geometry = &direction.facial_geometry;
+    format!(
+        "Explicit facial geometry: face shape {}; proportions {}; brow and eyes {}; nose {}; mouth {}; jaw and chin {}; cheekbones {}; hairline {}; age detail {}. Distinguishing features: {}. Hair: {}.",
+        geometry.face_shape,
+        geometry.proportions,
+        geometry.brow_and_eyes,
+        geometry.nose,
+        geometry.mouth,
+        geometry.jaw_and_chin,
+        geometry.cheekbones,
+        geometry.hairline,
+        geometry.age_detail,
+        direction.distinguishing_features.join(", "),
+        direction.hair
     )
 }
 

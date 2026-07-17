@@ -1,14 +1,16 @@
 import { createHash, randomUUID } from 'node:crypto';
 import {
 	appendFile,
+	link,
 	mkdir,
-	open,
 	readFile,
+	readdir,
 	rename,
 	rm,
 	stat,
 	writeFile,
 } from 'node:fs/promises';
+import { hostname } from 'node:os';
 import {
 	basename,
 	dirname,
@@ -33,20 +35,76 @@ const sleep = (milliseconds) =>
 
 class PipelineError extends Error {}
 
+class ProviderCircuitOpenError extends PipelineError {
+	constructor(circuit) {
+		super('Provider circuit is open after a batch-fatal response');
+		this.circuit = circuit;
+	}
+}
+
+const FATAL_PROVIDER_CODES = new Set([
+	'account_deactivated',
+	'billing_not_active',
+	'billing_hard_limit_reached',
+	'insufficient_quota',
+	'invalid_api_key',
+	'invalid_model',
+	'model_access_denied',
+	'model_not_found',
+	'model_not_supported',
+	'organization_deactivated',
+	'unsupported_model',
+]);
+
 class ProviderError extends Error {
-	constructor(message, { status = null, retryAfterMs = null } = {}) {
+	constructor(
+		message,
+		{
+			status = null,
+			retryAfterMs = null,
+			requestId = null,
+			providerCode = null,
+			providerType = null,
+			providerParam = null,
+			attempts = null,
+			providerCreatedAt = null,
+			usage = null,
+			responseBody = null,
+		} = {},
+	) {
 		super(message);
 		this.status = status;
 		this.retryAfterMs = retryAfterMs;
+		this.requestId = requestId;
+		this.providerCode = providerCode;
+		this.providerType = providerType;
+		this.providerParam = providerParam;
+		this.attempts = attempts;
+		this.providerCreatedAt = providerCreatedAt;
+		this.usage = usage;
+		this.responseBody = responseBody;
+		this.attemptRecord = null;
 	}
 
 	get retryable() {
 		return (
-			this.status === null ||
-			this.status === 408 ||
-			this.status === 409 ||
-			this.status === 429 ||
-			this.status >= 500
+			!this.batchFatal &&
+			(this.status === null ||
+				this.status === 408 ||
+				this.status === 409 ||
+				this.status === 429 ||
+				this.status >= 500)
+		);
+	}
+
+	get batchFatal() {
+		return (
+			this.status === 401 ||
+			this.status === 403 ||
+			this.status === 404 ||
+			FATAL_PROVIDER_CODES.has(this.providerCode) ||
+			this.providerParam === 'model' ||
+			this.providerType === 'billing_limit_user_error'
 		);
 	}
 }
@@ -258,8 +316,65 @@ function validateConfig(config) {
 	);
 }
 
+const EMPTY_HAND_POSES = new Set([
+	'both-at-sides',
+	'hands-clasped',
+	'one-on-hip-one-at-side',
+	'arms-folded',
+	'hands-in-pockets',
+	'one-hand-gesturing',
+	'hands-behind-back',
+	'hands-near-coat-front',
+]);
+const MARKER_READABILITY_CUE_KINDS = new Set([
+	'face',
+	'hair-or-headwear',
+	'clothing',
+	'body-shape',
+	'stance',
+]);
+
+function validateMarkerDirection(direction, label) {
+	if (direction?.composition !== 'character-only') {
+		throw new PipelineError(`${label} must use character-only composition`);
+	}
+	if ('readable_props' in direction) {
+		throw new PipelineError(`${label} must not define readable_props`);
+	}
+	if (
+		typeof direction.silhouette !== 'string' ||
+		!direction.silhouette.trim() ||
+		typeof direction.stance !== 'string' ||
+		!direction.stance.trim()
+	) {
+		throw new PipelineError(`${label} needs a silhouette and stance`);
+	}
+	if (!EMPTY_HAND_POSES.has(direction.empty_hand_pose)) {
+		throw new PipelineError(`${label} has an unsupported empty_hand_pose`);
+	}
+	if (
+		!Array.isArray(direction.readability_cues) ||
+		direction.readability_cues.length < 2 ||
+		direction.readability_cues.some((cue) => {
+			const keys = Object.keys(cue ?? {}).toSorted();
+			return (
+				JSON.stringify(keys) !== JSON.stringify(['description', 'kind']) ||
+				!MARKER_READABILITY_CUE_KINDS.has(cue.kind) ||
+				typeof cue.description !== 'string' ||
+				!cue.description.trim()
+			);
+		}) ||
+		new Set(direction.readability_cues.map((cue) => cue.kind)).size !==
+			direction.readability_cues.length
+	) {
+		throw new PipelineError(
+			`${label} needs at least two intrinsic readability_cues`,
+		);
+	}
+}
+
 function validateInputs(inputs) {
-	if (inputs.schema_version !== 1) {
+	if (inputs.schema_version !== 3) {
 		throw new PipelineError(
 			`Unsupported NPC art-input schema_version ${inputs.schema_version}`,
 		);
@@ -276,6 +391,10 @@ function validateInputs(inputs) {
 			'NPC art-input dataset is missing fallback prompts',
 		);
 	}
+	validateMarkerDirection(
+		inputs.fallback.art_direction?.marker_identity,
+		'Fallback marker identity',
+	);
 	const seen = new Set();
 	for (const npc of inputs.npcs) {
 		if (!Number.isInteger(npc.npc_id) || !npc.name) {
@@ -288,6 +407,10 @@ function validateInputs(inputs) {
 		if (!npc.pair_prompt || !npc.portrait_prompt || !npc.marker_prompt) {
 			throw new PipelineError(`NPC ${npc.npc_id} is missing generated prompts`);
 		}
+		validateMarkerDirection(
+			npc.art_direction?.marker_identity,
+			`NPC ${npc.npc_id} marker identity`,
+		);
 	}
 }
 
@@ -531,6 +654,33 @@ async function atomicWrite(path, value) {
 	}
 }
 
+async function atomicWriteImmutable(path, value) {
+	await mkdir(dirname(path), { recursive: true });
+	const temporary = `${path}.tmp-${process.pid}-${randomUUID()}`;
+	try {
+		await writeFile(temporary, value, { flag: 'wx' });
+		await link(temporary, path);
+	} finally {
+		await rm(temporary, { force: true });
+	}
+}
+
+async function writeOnceOrVerify(path, value, label) {
+	try {
+		await atomicWriteImmutable(path, value);
+		return;
+	} catch (error) {
+		if (error.code !== 'EEXIST') throw error;
+	}
+	const expected = Buffer.isBuffer(value) ? value : Buffer.from(value);
+	const existing = await readFile(path);
+	if (!existing.equals(expected)) {
+		throw new PipelineError(
+			`${label} already exists with different bytes at ${path}`,
+		);
+	}
+}
+
 async function fileExists(path) {
 	try {
 		await stat(path);
@@ -541,65 +691,298 @@ async function fileExists(path) {
 	}
 }
 
-async function existingReceipt(repoRoot, paths, job) {
-	if (!(await fileExists(paths.receipt))) return null;
+function processIsAlive(pid) {
+	if (!Number.isInteger(pid) || pid <= 0) return false;
 	try {
-		const receipt = JSON.parse(await readFile(paths.receipt, 'utf8'));
-		if (
-			receipt.job_id !== job.jobId ||
-			receipt.status !== 'candidate' ||
-			receipt.review?.status !== 'pending' ||
-			!receipt.artifact?.raw_path
-		) {
-			return null;
-		}
-		const artifacts = [
-			{
-				path: receipt.artifact.raw_path,
-				hash: receipt.artifact.raw_sha256,
-			},
-		];
-		if (job.assetKind === 'pair') {
-			if (
-				receipt.receipt_type !== 'notebook-person-art-pair-candidate' ||
-				receipt.asset?.kind !== 'pair'
-			) {
-				return null;
-			}
-			for (const kind of ['portrait', 'marker']) {
-				const child = receipt.artifact.children?.[kind];
-				if (
-					!child?.raw_path ||
-					!child.raw_sha256 ||
-					!child.candidate_path ||
-					!child.candidate_sha256
-				) {
-					return null;
-				}
-				artifacts.push(
-					{ path: child.raw_path, hash: child.raw_sha256 },
-					{ path: child.candidate_path, hash: child.candidate_sha256 },
+		process.kill(pid, 0);
+		return true;
+	} catch (error) {
+		return error.code === 'EPERM';
+	}
+}
+
+async function acquireJobLock(path, jobId) {
+	const token = randomUUID();
+	const record = {
+		schema_version: 1,
+		job_id: jobId,
+		pid: process.pid,
+		hostname: hostname(),
+		token,
+		created_at: new Date().toISOString(),
+	};
+	for (let attempt = 0; attempt < 2; attempt += 1) {
+		try {
+			await atomicWriteImmutable(path, prettyJson(record));
+			return { path, token };
+		} catch (error) {
+			if (error.code !== 'EEXIST') throw error;
+			let existing;
+			try {
+				existing = JSON.parse(await readFile(path, 'utf8'));
+			} catch {
+				throw new PipelineError(
+					`Job ${jobId} has an unreadable generation lock at ${path}`,
 				);
 			}
-		} else {
-			if (!receipt.artifact.candidate_path) return null;
-			artifacts.push({
-				path: receipt.artifact.candidate_path,
-				hash: receipt.artifact.candidate_sha256,
-			});
+			if (existing.hostname === hostname() && !processIsAlive(existing.pid)) {
+				await rm(path, { force: true });
+				continue;
+			}
+			throw new PipelineError(
+				`Job ${jobId} is already locked by another runner`,
+			);
 		}
-		for (const artifact of artifacts) {
-			const path = resolvePath(repoRoot, artifact.path);
-			if (!(await fileExists(path))) return null;
-			if (sha256(await readFile(path)) !== artifact.hash) return null;
-		}
-		return {
-			receipt,
-			receiptPath: receiptPath(repoRoot, paths.receipt),
-		};
-	} catch {
-		return null;
 	}
+	throw new PipelineError(`Could not acquire generation lock for job ${jobId}`);
+}
+
+async function releaseJobLock(lock) {
+	try {
+		const existing = JSON.parse(await readFile(lock.path, 'utf8'));
+		if (existing.token === lock.token) await rm(lock.path, { force: true });
+	} catch (error) {
+		if (error.code !== 'ENOENT') throw error;
+	}
+}
+
+async function existingReceipt(repoRoot, paths, job) {
+	if (!(await fileExists(paths.receipt))) return null;
+	let receipt;
+	try {
+		receipt = JSON.parse(await readFile(paths.receipt, 'utf8'));
+	} catch (error) {
+		throw new PipelineError(
+			`Existing receipt for job ${job.jobId} is unreadable: ${error.message}`,
+		);
+	}
+	if (
+		receipt.job_id !== job.jobId ||
+		receipt.status !== 'candidate' ||
+		receipt.review?.status !== 'pending' ||
+		!receipt.artifact?.raw_path ||
+		!receipt.artifact.raw_sha256
+	) {
+		throw new PipelineError(
+			`Existing receipt for job ${job.jobId} is invalid and must be repaired before generation`,
+		);
+	}
+	const artifacts = [
+		{
+			path: receipt.artifact.raw_path,
+			hash: receipt.artifact.raw_sha256,
+		},
+	];
+	if (job.assetKind === 'pair') {
+		if (
+			receipt.receipt_type !== 'notebook-person-art-pair-candidate' ||
+			receipt.asset?.kind !== 'pair'
+		) {
+			throw new PipelineError(
+				`Existing receipt for job ${job.jobId} has the wrong asset contract`,
+			);
+		}
+		for (const kind of ['portrait', 'marker']) {
+			const child = receipt.artifact.children?.[kind];
+			if (
+				!child?.raw_path ||
+				!child.raw_sha256 ||
+				!child.candidate_path ||
+				!child.candidate_sha256
+			) {
+				throw new PipelineError(
+					`Existing receipt for job ${job.jobId} is missing its ${kind} artifact binding`,
+				);
+			}
+			artifacts.push(
+				{ path: child.raw_path, hash: child.raw_sha256 },
+				{ path: child.candidate_path, hash: child.candidate_sha256 },
+			);
+		}
+	} else {
+		if (
+			!receipt.artifact.candidate_path ||
+			!receipt.artifact.candidate_sha256
+		) {
+			throw new PipelineError(
+				`Existing receipt for job ${job.jobId} is missing its candidate artifact binding`,
+			);
+		}
+		artifacts.push({
+			path: receipt.artifact.candidate_path,
+			hash: receipt.artifact.candidate_sha256,
+		});
+	}
+	for (const artifact of artifacts) {
+		const path = resolvePath(repoRoot, artifact.path);
+		if (
+			!(await fileExists(path)) ||
+			sha256(await readFile(path)) !== artifact.hash
+		) {
+			throw new PipelineError(
+				`Existing artifact for job ${job.jobId} is missing or does not match its receipt: ${path}`,
+			);
+		}
+	}
+	return {
+		receipt,
+		receiptPath: receiptPath(repoRoot, paths.receipt),
+	};
+}
+
+async function inspectIncompleteJobState(pipeline, paths, job) {
+	if (!(await fileExists(paths.root))) return { status: 'absent' };
+	for (const [path, expected, label] of [
+		[paths.prompt, `${job.prompt}\n`, 'prompt'],
+		[paths.inputRecord, prettyJson(job.subject.record), 'input record'],
+	]) {
+		if (
+			(await fileExists(path)) &&
+			!(await readFile(path)).equals(Buffer.from(expected))
+		) {
+			throw new PipelineError(
+				`Existing ${label} for job ${job.jobId} does not match the selected content-addressed job`,
+			);
+		}
+	}
+	const rootEntries = await readdir(paths.root, { withFileTypes: true });
+	const allowedRootEntries = new Set([
+		'generation.lock',
+		'input-record.json',
+		'prompt.txt',
+		'attempts',
+	]);
+	for (const entry of rootEntries) {
+		if (!allowedRootEntries.has(entry.name)) {
+			throw new PipelineError(
+				`Unrecognized existing artifact state for job ${job.jobId}: ${join(paths.root, entry.name)}`,
+			);
+		}
+	}
+	const attemptsRoot = join(paths.root, 'attempts');
+	if (!(await fileExists(attemptsRoot))) return { status: 'absent' };
+	const attemptEntries = await readdir(attemptsRoot, { withFileTypes: true });
+	const recoverable = [];
+	for (const entry of attemptEntries) {
+		if (!entry.isDirectory()) {
+			throw new PipelineError(
+				`Unexpected artifact state for job ${job.jobId}: ${join(attemptsRoot, entry.name)}`,
+			);
+		}
+		const attemptRoot = join(attemptsRoot, entry.name);
+		const journalPath = join(attemptRoot, 'attempt.json');
+		const failurePath = join(attemptRoot, 'failure.json');
+		if (await fileExists(journalPath)) {
+			let journal;
+			try {
+				journal = JSON.parse(await readFile(journalPath, 'utf8'));
+			} catch (error) {
+				throw new PipelineError(
+					`Provider attempt journal for job ${job.jobId} is unreadable: ${error.message}`,
+				);
+			}
+			if (
+				journal.receipt_type !== 'notebook-person-art-provider-attempt' ||
+				journal.job_id !== job.jobId ||
+				journal.provenance?.job_identity_sha256 !== job.jobId ||
+				canonicalJson(journal.provenance?.job_identity) !==
+					canonicalJson(job.identity)
+			) {
+				throw new PipelineError(
+					`Provider attempt journal is not bound to job ${job.jobId}: ${journalPath}`,
+				);
+			}
+			for (const artifact of [journal.response, journal.artifact]) {
+				if (!artifact) continue;
+				const path = resolvePath(
+					pipeline.repoRoot,
+					artifact.path ?? artifact.raw_path,
+				);
+				const expectedHash = artifact.sha256 ?? artifact.raw_sha256;
+				if (
+					!expectedHash ||
+					!(await fileExists(path)) ||
+					sha256(await readFile(path)) !== expectedHash
+				) {
+					throw new PipelineError(
+						`Provider attempt artifact is missing or corrupt for job ${job.jobId}: ${path}`,
+					);
+				}
+			}
+			if (journal.status === 'response-persisted') {
+				if (!journal.artifact?.raw_path) {
+					throw new PipelineError(
+						`Successful provider attempt for job ${job.jobId} has no raw artifact`,
+					);
+				}
+				if (!(await fileExists(failurePath))) {
+					recoverable.push({
+						attemptRoot,
+						journalPath,
+						journal,
+					});
+				}
+			} else if (journal.status !== 'failed') {
+				throw new PipelineError(
+					`Provider attempt for job ${job.jobId} has unknown status ${journal.status}`,
+				);
+			}
+			continue;
+		}
+		if (await fileExists(failurePath)) {
+			let failure;
+			try {
+				failure = JSON.parse(await readFile(failurePath, 'utf8'));
+			} catch (error) {
+				throw new PipelineError(
+					`Legacy failure receipt for job ${job.jobId} is unreadable: ${error.message}`,
+				);
+			}
+			if (
+				failure.receipt_type !== 'notebook-person-art-generation-failure' ||
+				failure.job_id !== job.jobId ||
+				failure.status !== 'failed' ||
+				(failure.provenance?.job_identity !== undefined &&
+					(canonicalJson(failure.provenance.job_identity) !==
+						canonicalJson(job.identity) ||
+						failure.provenance.job_identity_sha256 !== job.jobId))
+			) {
+				throw new PipelineError(
+					`Legacy failure receipt is not bound to job ${job.jobId}: ${failurePath}`,
+				);
+			}
+			if (failure.artifact?.raw_persisted) {
+				const rawPath = resolvePath(
+					pipeline.repoRoot,
+					failure.artifact.raw_path,
+				);
+				if (
+					!(await fileExists(rawPath)) ||
+					sha256(await readFile(rawPath)) !== failure.artifact.raw_sha256
+				) {
+					throw new PipelineError(
+						`Legacy failure artifact is missing or corrupt for job ${job.jobId}`,
+					);
+				}
+			}
+			continue;
+		}
+		const files = await readdir(attemptRoot);
+		if (files.length > 0) {
+			throw new PipelineError(
+				`Unjournaled provider artifact state exists for job ${job.jobId}: ${attemptRoot}`,
+			);
+		}
+	}
+	if (recoverable.length > 0) {
+		recoverable.sort((left, right) =>
+			left.journal.timing.completed_at.localeCompare(
+				right.journal.timing.completed_at,
+			),
+		);
+		return { status: 'recoverable', recovery: recoverable.at(-1) };
+	}
+	return { status: attemptEntries.length > 0 ? 'retryable' : 'absent' };
 }
 
 function pixelDistance(r, g, b, key) {
@@ -666,12 +1049,12 @@ function inspectRawPng(buffer, config, assetKind, options = {}) {
 	let lightSubjectPixels = 0;
 	let coloredSubjectPixels = 0;
 	const coloredSubjectMask = new Uint8Array(total);
-	const subjectRows = new Uint32Array(png.height);
-	const subjectColumns = new Uint32Array(png.width);
-	let minX = png.width;
-	let minY = png.height;
-	let maxX = -1;
-	let maxY = -1;
+	const boundsRows = new Uint32Array(png.height);
+	const boundsColumns = new Uint32Array(png.width);
+	const boundsKeyDistance = Math.max(
+		threshold,
+		validation.key_feather_distance,
+	);
 	let inkMinX = png.width;
 	let inkMinY = png.height;
 	let inkMaxX = -1;
@@ -692,12 +1075,10 @@ function inspectRawPng(buffer, config, assetKind, options = {}) {
 				keyPixels += 1;
 			} else if (alpha > 16) {
 				subjectPixels += 1;
-				subjectRows[y] += 1;
-				subjectColumns[x] += 1;
-				minX = Math.min(minX, x);
-				minY = Math.min(minY, y);
-				maxX = Math.max(maxX, x);
-				maxY = Math.max(maxY, y);
+				if (keyDistance > boundsKeyDistance) {
+					boundsRows[y] += 1;
+					boundsColumns[x] += 1;
+				}
 				if (colorBuckets.size < 4096) {
 					colorBuckets.add(`${r >> 4}:${g >> 4}:${b >> 4}:${alpha >> 4}`);
 				}
@@ -769,18 +1150,21 @@ function inspectRawPng(buffer, config, assetKind, options = {}) {
 	const inkBoundsArea = inkBounds ? inkBounds.width * inkBounds.height : 0;
 	const minAxisPixels =
 		config.raw_output.framing_normalization?.min_axis_pixels ?? 1;
-	const significantColumns = Array.from(subjectColumns.entries()).filter(
+	const significantColumns = Array.from(boundsColumns.entries()).filter(
 		([, count]) => count >= minAxisPixels,
 	);
-	const significantRows = Array.from(subjectRows.entries()).filter(
+	const significantRows = Array.from(boundsRows.entries()).filter(
 		([, count]) => count >= minAxisPixels,
 	);
-	const boundsMinX = significantColumns[0]?.[0] ?? minX;
-	const boundsMaxX = significantColumns.at(-1)?.[0] ?? maxX;
-	const boundsMinY = significantRows[0]?.[0] ?? minY;
-	const boundsMaxY = significantRows.at(-1)?.[0] ?? maxY;
+	const boundsMinX = significantColumns[0]?.[0];
+	const boundsMaxX = significantColumns.at(-1)?.[0];
+	const boundsMinY = significantRows[0]?.[0];
+	const boundsMaxY = significantRows.at(-1)?.[0];
 	const subjectBounds =
-		maxX < minX
+		boundsMinX === undefined ||
+		boundsMaxX === undefined ||
+		boundsMinY === undefined ||
+		boundsMaxY === undefined
 			? null
 			: {
 					x: boundsMinX,
@@ -796,6 +1180,14 @@ function inspectRawPng(buffer, config, assetKind, options = {}) {
 				png.height - (subjectBounds.y + subjectBounds.height),
 			) / Math.min(png.width, png.height)
 		: 0;
+	const subjectMarginPixels = subjectBounds
+		? Math.min(
+				subjectBounds.x,
+				subjectBounds.y,
+				png.width - (subjectBounds.x + subjectBounds.width),
+				png.height - (subjectBounds.y + subjectBounds.height),
+			)
+		: 0;
 	const stats = {
 		width: png.width,
 		height: png.height,
@@ -810,6 +1202,7 @@ function inspectRawPng(buffer, config, assetKind, options = {}) {
 		keyed_corners: keyedCorners,
 		corner_key_distance: cornerThreshold,
 		bounds_axis_min_pixels: minAxisPixels,
+		bounds_key_distance: boundsKeyDistance,
 		subject_bounds: subjectBounds,
 		subject_bounds_height_fraction: subjectBounds
 			? subjectBounds.height / png.height
@@ -818,6 +1211,7 @@ function inspectRawPng(buffer, config, assetKind, options = {}) {
 			? subjectBounds.width / png.width
 			: 0,
 		subject_margin_fraction: subjectMargin,
+		subject_margin_pixels: subjectMarginPixels,
 		ink_bounds: inkBounds,
 		ink_bounds_height_fraction: inkBounds ? inkBounds.height / png.height : 0,
 	};
@@ -833,7 +1227,8 @@ function inspectRawPng(buffer, config, assetKind, options = {}) {
 	}
 	if (
 		stats.subject_fraction < validation.min_subject_fraction ||
-		stats.subject_fraction > validation.max_subject_fraction
+		(!options.allowOversizedFraming &&
+			stats.subject_fraction > validation.max_subject_fraction)
 	) {
 		throw new PipelineError(
 			`Provider subject coverage ${stats.subject_fraction.toFixed(3)} is outside ${validation.min_subject_fraction}-${validation.max_subject_fraction}`,
@@ -870,7 +1265,9 @@ function inspectRawPng(buffer, config, assetKind, options = {}) {
 	}
 	if (
 		validation.min_subject_margin_fraction !== undefined &&
-		stats.subject_margin_fraction < validation.min_subject_margin_fraction
+		stats.subject_margin_fraction < validation.min_subject_margin_fraction &&
+		(!options.allowOversizedFraming ||
+			stats.subject_margin_pixels < minAxisPixels)
 	) {
 		throw new PipelineError(
 			`Provider subject margin ${stats.subject_margin_fraction.toFixed(3)} is below ${validation.min_subject_margin_fraction}; cropped or cell-boundary content detected`,
@@ -1137,6 +1534,36 @@ function resizeCandidateSubject(png, bounds, scale) {
 	return resized;
 }
 
+function neutralizeCandidateKeySpill(png, config, assetKind) {
+	const validation = validationForAsset(config, assetKind);
+	const key = parseKeyColor(config.raw_output.key_color);
+	for (let offset = 0; offset < png.data.length; offset += 4) {
+		if (png.data[offset + 3] <= 0) continue;
+		if (
+			!isMagentaKeySpill(
+				png.data[offset],
+				png.data[offset + 1],
+				png.data[offset + 2],
+				key,
+				validation,
+			)
+		) {
+			continue;
+		}
+		const neutral = Math.round(
+			pixelLuminance(
+				png.data[offset],
+				png.data[offset + 1],
+				png.data[offset + 2],
+			),
+		);
+		png.data[offset] = neutral;
+		png.data[offset + 1] = neutral;
+		png.data[offset + 2] = Math.max(0, neutral - 6);
+	}
+	return png;
+}
+
 function candidatePixelStats(png, config, assetKind) {
 	const validation = validationForAsset(config, assetKind);
 	const key = parseKeyColor(config.raw_output.key_color);
@@ -1171,6 +1598,11 @@ function candidatePixelStats(png, config, assetKind) {
 	if (visiblePixels / total < validation.min_subject_fraction * 0.8) {
 		throw new PipelineError(
 			'Framing normalization removed the subject or produced a blank candidate',
+		);
+	}
+	if (visiblePixels / total > validation.max_subject_fraction) {
+		throw new PipelineError(
+			`Framing normalization retained excessive subject coverage ${(visiblePixels / total).toFixed(3)}`,
 		);
 	}
 	if (
@@ -1256,9 +1688,11 @@ function normalizeCandidateFraming(candidate, config, assetKind) {
 		);
 	}
 	const applied = scale < 1;
-	const output = applied
-		? resizeCandidateSubject(original, before.bounds, scale)
-		: original;
+	const output = neutralizeCandidateKeySpill(
+		applied ? resizeCandidateSubject(original, before.bounds, scale) : original,
+		config,
+		assetKind,
+	);
 	const after = framingStats(output);
 	validateCandidateFraming(after, validation, assetKind);
 	return {
@@ -1441,24 +1875,53 @@ async function callOpenAiImagesEdit({
 	} catch (error) {
 		throw new ProviderError(`OpenAI image request failed: ${error.message}`);
 	}
+	let responseBody;
+	try {
+		responseBody = Buffer.from(await response.arrayBuffer());
+	} catch (error) {
+		throw new ProviderError(
+			`OpenAI image response could not be read: ${error.message}`,
+			{
+				status: response.status,
+				requestId: response.headers.get('x-request-id'),
+			},
+		);
+	}
 	if (!response.ok) {
-		const body = (await response.text()).slice(0, 4000);
+		const body = responseBody.toString('utf8', 0, 4000);
+		let parsedBody = null;
+		let providerError = null;
+		try {
+			parsedBody = JSON.parse(body);
+			providerError = parsedBody?.error ?? null;
+		} catch {
+			// Keep the bounded raw response body in the error message below.
+		}
 		throw new ProviderError(
 			`OpenAI image request returned HTTP ${response.status}: ${body}`,
 			{
 				status: response.status,
 				retryAfterMs: retryAfterMilliseconds(response),
+				requestId: response.headers.get('x-request-id'),
+				providerCode: providerError?.code ?? null,
+				providerType: providerError?.type ?? null,
+				providerParam: providerError?.param ?? null,
+				providerCreatedAt: parsedBody?.created ?? null,
+				usage: parsedBody?.usage ?? providerError?.usage ?? null,
+				responseBody,
 			},
 		);
 	}
 	let body;
 	try {
-		body = await response.json();
+		body = JSON.parse(responseBody.toString('utf8'));
 	} catch (error) {
 		throw new ProviderError(
 			`OpenAI image response was not JSON: ${error.message}`,
 			{
 				status: response.status,
+				requestId: response.headers.get('x-request-id'),
+				responseBody,
 			},
 		);
 	}
@@ -1468,6 +1931,10 @@ async function callOpenAiImagesEdit({
 			'OpenAI image response did not contain data[0].b64_json',
 			{
 				status: response.status,
+				requestId: response.headers.get('x-request-id'),
+				providerCreatedAt: body.created ?? null,
+				usage: body.usage ?? null,
+				responseBody,
 			},
 		);
 	}
@@ -1477,6 +1944,10 @@ async function callOpenAiImagesEdit({
 			'OpenAI image response exceeded the 64 MiB candidate limit',
 			{
 				status: response.status,
+				requestId: response.headers.get('x-request-id'),
+				providerCreatedAt: body.created ?? null,
+				usage: body.usage ?? null,
+				responseBody,
 			},
 		);
 	}
@@ -1485,6 +1956,8 @@ async function callOpenAiImagesEdit({
 		requestId: response.headers.get('x-request-id'),
 		providerCreatedAt: body.created ?? null,
 		usage: body.usage ?? null,
+		responseBody,
+		status: response.status,
 	};
 }
 
@@ -1510,18 +1983,80 @@ function createRateGate(requestsPerMinute) {
 	};
 }
 
-async function generateWithRetry(context, rateGate) {
+function createProviderController(maxRequests, pendingJobs) {
+	let attempts = 0;
+	let unstartedJobs = pendingJobs;
+	let circuit = null;
+	return {
+		get attempts() {
+			return attempts;
+		},
+		get circuit() {
+			return circuit;
+		},
+		reserve(firstAttempt) {
+			if (circuit) return { blocked: circuit };
+			if (!firstAttempt && maxRequests - attempts <= unstartedJobs) {
+				return null;
+			}
+			if (attempts >= maxRequests) return null;
+			if (firstAttempt) unstartedJobs -= 1;
+			attempts += 1;
+			return { globalAttempt: attempts };
+		},
+		openCircuit(job, error) {
+			circuit ??= { job_id: job.jobId, error: safeError(error) };
+			return circuit;
+		},
+	};
+}
+
+async function generateWithRetry(
+	context,
+	rateGate,
+	providerController,
+	persistAttempt,
+) {
 	const { config } = context;
 	let lastError;
+	let actualAttempts = 0;
 	for (let attempt = 1; attempt <= config.retry.max_attempts; attempt += 1) {
 		await rateGate();
+		const reservation = providerController.reserve(attempt === 1);
+		if (reservation?.blocked) {
+			if (lastError) throw lastError;
+			throw new ProviderCircuitOpenError(reservation.blocked);
+		}
+		if (!reservation) {
+			if (lastError) throw lastError;
+			throw new PipelineError(
+				'Provider request budget was exhausted before this job could start',
+			);
+		}
+		actualAttempts += 1;
+		const startedAt = new Date().toISOString();
 		try {
-			return {
-				...(await callOpenAiImagesEdit(context)),
-				attempts: attempt,
-			};
+			const generated = await callOpenAiImagesEdit(context);
+			return await persistAttempt({
+				generated,
+				attempt,
+				globalAttempt: reservation.globalAttempt,
+				startedAt,
+			});
 		} catch (error) {
 			lastError = error;
+			if (error instanceof ProviderError) {
+				error.attempts = actualAttempts;
+				error.attemptRecord = await persistAttempt({
+					error,
+					attempt,
+					globalAttempt: reservation.globalAttempt,
+					startedAt,
+				});
+				if (error.batchFatal) {
+					providerController.openCircuit(context.job, error);
+				}
+			}
 			const retryable = error instanceof ProviderError && error.retryable;
 			if (!retryable || attempt === config.retry.max_attempts) break;
 			const exponential = Math.min(
@@ -1539,27 +2074,78 @@ function safeError(error) {
 		name: error.name,
 		message: String(error.message).slice(0, 4000),
 		status: error instanceof ProviderError ? error.status : null,
+		request_id: error instanceof ProviderError ? error.requestId : null,
+		provider_code: error instanceof ProviderError ? error.providerCode : null,
+		provider_type: error instanceof ProviderError ? error.providerType : null,
+		provider_param: error instanceof ProviderError ? error.providerParam : null,
+		retry_after_ms: error instanceof ProviderError ? error.retryAfterMs : null,
+		batch_fatal: error instanceof ProviderError ? error.batchFatal : false,
 	};
 }
 
-async function assertProviderInputsMatchForReprocessing(
-	pipeline,
-	job,
-	failure,
-) {
+async function assertProviderInputsMatchForReprocessing(pipeline, job, source) {
 	const mismatches = [];
-	if (failure.provenance?.prompt_sha256 !== job.promptSha256) {
+	const provenance = source.provenance ?? {};
+	const sourceIdentity = provenance.job_identity;
+	const sourceAssetKind = source.asset_kind ?? source.asset?.kind;
+	const sourceCandidateIndex =
+		source.candidate_index ?? source.asset?.candidate_index;
+	if (
+		source.subject?.kind !== job.subject.subjectKind ||
+		source.subject?.npc_id !== job.subject.npcId ||
+		source.subject?.name !== job.subject.name
+	) {
+		mismatches.push('subject metadata');
+	}
+	if (
+		sourceAssetKind !== job.assetKind ||
+		sourceCandidateIndex !== job.candidateIndex
+	) {
+		mismatches.push('asset metadata');
+	}
+	if (provenance.prompt_sha256 !== job.promptSha256) {
 		mismatches.push('prompt');
+	}
+	try {
+		const promptPath = resolvePath(
+			pipeline.repoRoot,
+			provenance.prompt_path ?? '',
+		);
+		const prompt = await readFile(promptPath, 'utf8');
+		if (prompt !== `${job.prompt}\n`) mismatches.push('prompt bytes');
+	} catch {
+		mismatches.push('prompt bytes');
 	}
 	const expectedReferences = job.references.map(({ id, sha256: hash }) => ({
 		id,
 		sha256: hash,
 	}));
-	const failureReferences = (failure.provenance?.reference_inputs ?? []).map(
+	const sourceReferences = (provenance.reference_inputs ?? []).map(
 		({ id, sha256: hash }) => ({ id, sha256: hash }),
 	);
-	if (canonicalJson(failureReferences) !== canonicalJson(expectedReferences)) {
+	if (canonicalJson(sourceReferences) !== canonicalJson(expectedReferences)) {
 		mismatches.push('references');
+	}
+	if ((provenance.reference_inputs ?? []).length === job.references.length) {
+		for (let index = 0; index < job.references.length; index += 1) {
+			const expected = job.references[index];
+			const bound = provenance.reference_inputs[index];
+			try {
+				const referencePath = resolvePath(pipeline.repoRoot, bound?.path ?? '');
+				if (
+					bound?.id !== expected.id ||
+					bound?.purpose !== expected.purpose ||
+					referencePath !== expected.path ||
+					sha256(await readFile(referencePath)) !== bound?.sha256
+				) {
+					mismatches.push('reference metadata/bytes');
+					break;
+				}
+			} catch {
+				mismatches.push('reference metadata/bytes');
+				break;
+			}
+		}
 	}
 	const currentProvider = {
 		id: pipeline.config.provider.id,
@@ -1568,23 +2154,101 @@ async function assertProviderInputsMatchForReprocessing(
 		endpoint: pipeline.config.provider.endpoint,
 		request: pipeline.config.provider.request,
 	};
-	const failureProvider = {
-		id: failure.provider?.id,
-		adapter: failure.provider?.adapter,
-		model: failure.provider?.model,
-		endpoint: failure.provider?.endpoint,
-		request: failure.provider?.request,
+	const sourceProvider = {
+		id: source.provider?.id,
+		adapter: source.provider?.adapter,
+		model: source.provider?.model,
+		endpoint: source.provider?.endpoint,
+		request: source.provider?.request,
 	};
-	if (canonicalJson(failureProvider) !== canonicalJson(currentProvider)) {
+	if (canonicalJson(sourceProvider) !== canonicalJson(currentProvider)) {
 		mismatches.push('provider request');
+	}
+	if (sourceIdentity === undefined) {
+		if (source.job_id !== job.jobId) {
+			throw new PipelineError(
+				'Legacy source receipt lacks canonical job_identity and cannot be migrated into a changed job',
+			);
+		}
+	} else if (
+		sourceIdentity === null ||
+		typeof sourceIdentity !== 'object' ||
+		Array.isArray(sourceIdentity)
+	) {
+		mismatches.push('canonical job identity payload');
+	} else {
+		if (
+			provenance.job_identity_sha256 !== source.job_id ||
+			sha256(canonicalJson(sourceIdentity)) !== source.job_id
+		) {
+			mismatches.push('canonical job identity hash');
+		}
+		const identityBindings = {
+			provider: sourceIdentity.provider,
+			reference_inputs: sourceIdentity.reference_inputs,
+			subject_kind: sourceIdentity.subject_kind,
+			npc_id: sourceIdentity.npc_id,
+			input_record_sha256: sourceIdentity.input_record_sha256,
+			asset_kind: sourceIdentity.asset_kind,
+			candidate_index: sourceIdentity.candidate_index,
+			prompt_sha256: sourceIdentity.prompt_sha256,
+		};
+		const receiptBindings = {
+			provider: {
+				id: source.provider?.id,
+				adapter: source.provider?.adapter,
+				model: source.provider?.model,
+				request: source.provider?.request,
+			},
+			reference_inputs: sourceReferences,
+			subject_kind: source.subject?.kind,
+			npc_id: source.subject?.npc_id,
+			input_record_sha256:
+				source.subject?.input_record_sha256 ?? job.inputRecordSha256,
+			asset_kind: sourceAssetKind,
+			candidate_index: sourceCandidateIndex,
+			prompt_sha256: provenance.prompt_sha256,
+		};
+		if (canonicalJson(identityBindings) !== canonicalJson(receiptBindings)) {
+			mismatches.push('canonical job identity bindings');
+		}
+	}
+	if (
+		resolvePath(pipeline.repoRoot, provenance.config_path ?? '') !==
+			pipeline.configPath ||
+		resolvePath(pipeline.repoRoot, provenance.inputs_path ?? '') !==
+			pipeline.inputsPath
+	) {
+		mismatches.push('config/input provenance paths');
+	}
+	if (source.job_id === job.jobId) {
+		if (provenance.config_sha256 !== pipeline.configSha256) {
+			mismatches.push('generation config');
+		}
+		if (provenance.inputs_sha256 !== pipeline.inputsSha256) {
+			mismatches.push('NPC input dataset');
+		}
+		if (sha256(canonicalJson(job.identity)) !== source.job_id) {
+			mismatches.push('job identity');
+		}
+	} else if (
+		provenance.config_sha256 === pipeline.configSha256 &&
+		provenance.inputs_sha256 === pipeline.inputsSha256
+	) {
+		mismatches.push('job identity');
 	}
 	try {
 		const inputRecordPath = resolvePath(
 			pipeline.repoRoot,
-			failure.provenance?.input_record_path ?? '',
+			provenance.input_record_path ?? '',
 		);
 		const previousRecord = JSON.parse(await readFile(inputRecordPath, 'utf8'));
-		if (sha256(canonicalJson(previousRecord)) !== job.inputRecordSha256) {
+		const inputRecordHash = sha256(canonicalJson(previousRecord));
+		if (
+			inputRecordHash !== job.inputRecordSha256 ||
+			(source.subject?.input_record_sha256 !== undefined &&
+				source.subject.input_record_sha256 !== inputRecordHash)
+		) {
 			mismatches.push('NPC input record');
 		}
 	} catch {
@@ -1592,7 +2256,7 @@ async function assertProviderInputsMatchForReprocessing(
 	}
 	if (mismatches.length > 0) {
 		throw new PipelineError(
-			`Failure receipt cannot be reprocessed under the current provider inputs; changed: ${mismatches.join(', ')}`,
+			`Source receipt cannot be reprocessed under the current provider inputs; changed: ${[...new Set(mismatches)].join(', ')}`,
 		);
 	}
 }
@@ -1614,6 +2278,8 @@ function providerReceipt(pipeline, environment, generated = null) {
 
 function provenanceReceipt(pipeline, job, paths) {
 	return {
+		job_identity: job.identity,
+		job_identity_sha256: job.jobId,
 		config_path: receiptPath(pipeline.repoRoot, pipeline.configPath),
 		config_sha256: pipeline.configSha256,
 		inputs_path: receiptPath(pipeline.repoRoot, pipeline.inputsPath),
@@ -1627,6 +2293,96 @@ function provenanceReceipt(pipeline, job, paths) {
 			purpose: reference.purpose,
 			sha256: reference.sha256,
 		})),
+	};
+}
+
+async function persistProviderAttempt({
+	pipeline,
+	job,
+	paths,
+	runId,
+	environment,
+	generated = null,
+	error = null,
+	attempt,
+	globalAttempt,
+	startedAt,
+}) {
+	const attemptId = `${runId}-${startedAt.replaceAll(/[^0-9]/g, '')}-${randomUUID()}`;
+	const attemptRoot = join(paths.root, 'attempts', attemptId);
+	const rawPath = generated ? join(attemptRoot, 'raw.png') : null;
+	const responseBody = generated?.responseBody ?? error?.responseBody ?? null;
+	const responsePath = responseBody
+		? join(attemptRoot, 'provider-response.json')
+		: null;
+	const journalPath = join(attemptRoot, 'attempt.json');
+	const providerSource = generated ?? error;
+	await mkdir(attemptRoot, { recursive: true });
+	if (responsePath) await atomicWriteImmutable(responsePath, responseBody);
+	if (rawPath) await atomicWriteImmutable(rawPath, generated.buffer);
+	const journal = {
+		schema_version: 1,
+		receipt_type: 'notebook-person-art-provider-attempt',
+		attempt_id: attemptId,
+		job_id: job.jobId,
+		run_id: runId,
+		status: generated ? 'response-persisted' : 'failed',
+		attempt: {
+			job_sequence: attempt,
+			global_sequence: globalAttempt,
+		},
+		subject: {
+			kind: job.subject.subjectKind,
+			npc_id: job.subject.npcId,
+			name: job.subject.name,
+			input_record_sha256: job.inputRecordSha256,
+		},
+		asset_kind: job.assetKind,
+		candidate_index: job.candidateIndex,
+		provider: providerReceipt(pipeline, environment, {
+			requestId: providerSource?.requestId ?? null,
+			providerCreatedAt: providerSource?.providerCreatedAt ?? null,
+			attempts: attempt,
+			usage: providerSource?.usage ?? null,
+		}),
+		provenance: provenanceReceipt(pipeline, job, paths),
+		response: responsePath
+			? {
+					path: receiptPath(pipeline.repoRoot, responsePath),
+					sha256: sha256(responseBody),
+					size_bytes: responseBody.length,
+					http_status: generated?.status ?? error?.status ?? null,
+				}
+			: null,
+		artifact: rawPath
+			? {
+					raw_path: receiptPath(pipeline.repoRoot, rawPath),
+					raw_sha256: sha256(generated.buffer),
+					size_bytes: generated.buffer.length,
+					media_type: 'image/png',
+				}
+			: null,
+		error: error ? safeError(error) : null,
+		timing: {
+			started_at: startedAt,
+			completed_at: new Date().toISOString(),
+		},
+	};
+	await atomicWriteImmutable(journalPath, prettyJson(journal));
+	if (error) {
+		return {
+			attemptRoot,
+			journalPath,
+			journal,
+		};
+	}
+	return {
+		...generated,
+		attempts: attempt,
+		attemptRoot,
+		rawPath,
+		journalPath,
+		journal,
 	};
 }
 
@@ -1783,70 +2539,99 @@ async function executeJob({
 	environment,
 	fetchImpl,
 	rateGate,
+	providerController,
+	recovery = null,
 }) {
 	await mkdir(paths.root, { recursive: true });
-	let lock;
-	try {
-		lock = await open(paths.lock, 'wx');
-	} catch (error) {
-		if (error.code === 'EEXIST') {
-			throw new PipelineError(
-				`Job ${job.jobId} is already locked by another runner`,
-			);
-		}
-		throw error;
-	}
+	const lock = await acquireJobLock(paths.lock, job.jobId);
 	const startedAt = new Date().toISOString();
-	const attemptId = `${runId}-${startedAt.replaceAll(/[^0-9]/g, '')}-${randomUUID()}`;
-	const attemptRoot = join(paths.root, 'attempts', attemptId);
-	const rawPath = join(attemptRoot, 'raw.png');
-	const candidatePath = join(attemptRoot, 'candidate.png');
-	const childPaths = Object.fromEntries(
-		['portrait', 'marker'].map((kind) => [
-			kind,
-			{
-				raw: join(attemptRoot, `${kind}-raw.png`),
-				candidate: join(attemptRoot, `${kind}-candidate.png`),
-			},
-		]),
-	);
-	const failurePath = join(attemptRoot, 'failure.json');
 	let generated = null;
 	let rawPersisted = false;
 	let split = null;
 	let childRawsPersisted = false;
+	let rawPath = null;
+	let childPaths = null;
 	try {
 		await Promise.all([
-			atomicWrite(paths.prompt, `${job.prompt}\n`),
-			atomicWrite(paths.inputRecord, prettyJson(job.subject.record)),
+			writeOnceOrVerify(paths.prompt, `${job.prompt}\n`, 'Job prompt'),
+			writeOnceOrVerify(
+				paths.inputRecord,
+				prettyJson(job.subject.record),
+				'Job input record',
+			),
 		]);
-		generated = await generateWithRetry(
-			{
-				config: pipeline.config,
-				references: job.references,
-				prompt: job.prompt,
-				environment,
-				fetchImpl,
-			},
-			rateGate,
+		if (recovery) {
+			rawPath = resolvePath(
+				pipeline.repoRoot,
+				recovery.journal.artifact.raw_path,
+			);
+			generated = {
+				buffer: await readFile(rawPath),
+				requestId: recovery.journal.provider.request_id,
+				providerCreatedAt:
+					recovery.journal.provider.provider_created_at ?? null,
+				attempts: recovery.journal.attempt.job_sequence,
+				usage: recovery.journal.provider.usage ?? null,
+				attemptRoot: recovery.attemptRoot,
+				rawPath,
+				journalPath: recovery.journalPath,
+				journal: recovery.journal,
+			};
+		} else {
+			generated = await generateWithRetry(
+				{
+					config: pipeline.config,
+					references: job.references,
+					prompt: job.prompt,
+					environment,
+					fetchImpl,
+					job,
+				},
+				rateGate,
+				providerController,
+				(attempt) =>
+					persistProviderAttempt({
+						pipeline,
+						job,
+						paths,
+						runId,
+						environment,
+						...attempt,
+					}),
+			);
+		}
+		rawPath = generated.rawPath;
+		const candidatePath = join(generated.attemptRoot, 'candidate.png');
+		childPaths = Object.fromEntries(
+			['portrait', 'marker'].map((kind) => [
+				kind,
+				{
+					raw: join(generated.attemptRoot, `${kind}-raw.png`),
+					candidate: join(generated.attemptRoot, `${kind}-candidate.png`),
+				},
+			]),
 		);
-		await atomicWrite(rawPath, generated.buffer);
 		rawPersisted = true;
 		let receipt;
 		if (job.assetKind === 'pair') {
 			split = splitPairedRaw(generated.buffer, pipeline.config);
 			await Promise.all(
 				['portrait', 'marker'].map((kind) =>
-					atomicWrite(childPaths[kind].raw, split.children[kind].buffer),
+					writeOnceOrVerify(
+						childPaths[kind].raw,
+						split.children[kind].buffer,
+						`${kind} provider cell`,
+					),
 				),
 			);
 			childRawsPersisted = true;
 			const children = validatePairedChildren(split, pipeline.config);
 			await Promise.all(
 				['portrait', 'marker'].map((kind) =>
-					atomicWrite(
+					writeOnceOrVerify(
 						childPaths[kind].candidate,
 						children[kind].candidate.buffer,
+						`${kind} candidate`,
 					),
 				),
 			);
@@ -1877,7 +2662,11 @@ async function executeJob({
 				pipeline.config,
 				job.assetKind,
 			);
-			await atomicWrite(candidatePath, candidate.buffer);
+			await writeOnceOrVerify(
+				candidatePath,
+				candidate.buffer,
+				'Candidate artifact',
+			);
 			receipt = candidateReceipt({
 				pipeline,
 				job,
@@ -1892,13 +2681,31 @@ async function executeJob({
 			});
 		}
 		receipt.run_id = runId;
-		await atomicWrite(paths.receipt, prettyJson(receipt));
+		await atomicWriteImmutable(paths.receipt, prettyJson(receipt));
 		return {
 			job_id: job.jobId,
 			status: 'generated',
 			receipt: receiptPath(pipeline.repoRoot, paths.receipt),
 		};
 	} catch (error) {
+		if (error instanceof ProviderCircuitOpenError) {
+			return {
+				job_id: job.jobId,
+				status: 'blocked',
+				reason: 'provider-circuit-open',
+				blocked_by_job_id: error.circuit.job_id,
+				provider_error: error.circuit.error,
+			};
+		}
+		const failureRoot =
+			generated?.attemptRoot ??
+			error.attemptRecord?.attemptRoot ??
+			join(
+				paths.root,
+				'attempts',
+				`${runId}-local-${new Date().toISOString().replaceAll(/[^0-9]/g, '')}-${randomUUID()}`,
+			);
+		const failurePath = join(failureRoot, 'failure.json');
 		const failure = {
 			schema_version: 1,
 			receipt_type: 'notebook-person-art-generation-failure',
@@ -1909,10 +2716,23 @@ async function executeJob({
 				kind: job.subject.subjectKind,
 				npc_id: job.subject.npcId,
 				name: job.subject.name,
+				input_record_sha256: job.inputRecordSha256,
 			},
 			asset_kind: job.assetKind,
 			candidate_index: job.candidateIndex,
-			provider: providerReceipt(pipeline, environment, generated),
+			provider: providerReceipt(
+				pipeline,
+				environment,
+				generated ??
+					(error instanceof ProviderError
+						? {
+								requestId: error.requestId,
+								attempts: error.attempts,
+								providerCreatedAt: error.providerCreatedAt,
+								usage: error.usage,
+							}
+						: null),
+			),
 			provenance: provenanceReceipt(pipeline, job, paths),
 			artifact: generated
 				? {
@@ -1943,7 +2763,7 @@ async function executeJob({
 			started_at: startedAt,
 			failed_at: new Date().toISOString(),
 		};
-		await atomicWrite(failurePath, prettyJson(failure));
+		await atomicWriteImmutable(failurePath, prettyJson(failure));
 		return {
 			job_id: job.jobId,
 			status: 'failed',
@@ -1951,8 +2771,7 @@ async function executeJob({
 			error: failure.error,
 		};
 	} finally {
-		await lock.close();
-		await rm(paths.lock, { force: true });
+		await releaseJobLock(lock);
 	}
 }
 
@@ -1975,6 +2794,25 @@ function validateRunId(runId) {
 		throw new PipelineError(
 			`--run-id may contain only letters, numbers, dot, underscore, and hyphen`,
 		);
+	}
+}
+
+function uniqueExecutionRunId(baseRunId) {
+	const timestamp = new Date().toISOString().replaceAll(/[^0-9]/g, '');
+	return `${baseRunId}-${timestamp}-${randomUUID().slice(0, 8)}`;
+}
+
+async function createRunRoot(runRoot) {
+	await mkdir(dirname(runRoot), { recursive: true });
+	try {
+		await mkdir(runRoot);
+	} catch (error) {
+		if (error.code === 'EEXIST') {
+			throw new PipelineError(
+				`Generation run already exists at ${runRoot}; choose a new --run-id`,
+			);
+		}
+		throw error;
 	}
 }
 
@@ -2009,12 +2847,11 @@ async function reprocessCandidateSource(options, sourceKind) {
 	}
 	const pipeline = await loadPipeline(options);
 	const sourcePath = resolvePath(pipeline.repoRoot, sourceOption);
-	const source = (
-		await loadJsonWithHash(
-			sourcePath,
-			sourceKind === 'failure' ? 'failure receipt' : 'candidate receipt',
-		)
-	).value;
+	const sourceFile = await loadJsonWithHash(
+		sourcePath,
+		sourceKind === 'failure' ? 'failure receipt' : 'candidate receipt',
+	);
+	const source = sourceFile.value;
 	const isFailure =
 		source.receipt_type === 'notebook-person-art-generation-failure' &&
 		source.status === 'failed';
@@ -2058,18 +2895,60 @@ async function reprocessCandidateSource(options, sourceKind) {
 		candidateCount: candidateIndex,
 	});
 	const job = selection.jobs.find(
-		(candidateJob) => candidateJob.candidateIndex === candidateIndex,
+		(candidateJob) =>
+			candidateJob.candidateIndex === candidateIndex &&
+			candidateJob.subject.subjectKind === source.subject?.kind &&
+			candidateJob.subject.npcId === source.subject?.npc_id,
 	);
 	if (!job) {
 		throw new PipelineError(
 			'Source receipt does not match a current candidate job',
 		);
 	}
-	if (job.jobId !== source.job_id) {
-		await assertProviderInputsMatchForReprocessing(pipeline, job, source);
-	}
+	await assertProviderInputsMatchForReprocessing(pipeline, job, source);
 	const configuredRoot = options.outputRoot ?? pipeline.config.storage.root;
 	const outputRoot = resolvePath(pipeline.repoRoot, configuredRoot);
+	const sourceObjectRoot = join(
+		outputRoot,
+		'objects',
+		source.job_id.slice(0, 2),
+		source.job_id,
+	);
+	if (
+		resolvePath(pipeline.repoRoot, source.provenance.prompt_path) !==
+			join(sourceObjectRoot, 'prompt.txt') ||
+		resolvePath(pipeline.repoRoot, source.provenance.input_record_path) !==
+			join(sourceObjectRoot, 'input-record.json') ||
+		(sourceKind === 'receipt'
+			? sourcePath !== join(sourceObjectRoot, 'receipt.json')
+			: dirname(sourcePath) !== dirname(rawPath))
+	) {
+		throw new PipelineError(
+			'Source receipt paths are not bound to its claimed content-addressed job',
+		);
+	}
+	if (sourceKind === 'failure' && source.job_id === job.jobId) {
+		throw new PipelineError(
+			'A failure receipt can only be reprocessed into a changed content-addressed job',
+		);
+	}
+	if (job.assetKind === 'pair' && source.artifact.children) {
+		const split = splitPairedRaw(raw, pipeline.config);
+		for (const kind of ['portrait', 'marker']) {
+			const child = source.artifact.children[kind];
+			if (
+				!child?.raw_path ||
+				sha256(split.children[kind].buffer) !== child.raw_sha256 ||
+				sha256(
+					await readFile(resolvePath(pipeline.repoRoot, child.raw_path)),
+				) !== child.raw_sha256
+			) {
+				throw new PipelineError(
+					`Preserved ${kind} raw artifact does not match source receipt`,
+				);
+			}
+		}
+	}
 	const paths = objectPaths(outputRoot, job);
 	const existing = await existingReceipt(pipeline.repoRoot, paths, job);
 	if (existing) {
@@ -2081,21 +2960,17 @@ async function reprocessCandidateSource(options, sourceKind) {
 	}
 
 	await mkdir(paths.root, { recursive: true });
-	let lock;
-	try {
-		lock = await open(paths.lock, 'wx');
-	} catch (error) {
-		if (error.code === 'EEXIST') {
-			throw new PipelineError(`Job ${job.jobId} is locked by another runner`);
-		}
-		throw error;
-	}
+	const lock = await acquireJobLock(paths.lock, job.jobId);
 	try {
 		const reprocessId = `reprocess-${new Date().toISOString().replaceAll(/[^0-9]/g, '')}-${randomUUID()}`;
 		const attemptRoot = join(paths.root, 'attempts', reprocessId);
 		await Promise.all([
-			atomicWrite(paths.prompt, `${job.prompt}\n`),
-			atomicWrite(paths.inputRecord, prettyJson(job.subject.record)),
+			writeOnceOrVerify(paths.prompt, `${job.prompt}\n`, 'Job prompt'),
+			writeOnceOrVerify(
+				paths.inputRecord,
+				prettyJson(job.subject.record),
+				'Job input record',
+			),
 		]);
 		const generated = {
 			buffer: raw,
@@ -2109,10 +2984,12 @@ async function reprocessCandidateSource(options, sourceKind) {
 			...(sourceKind === 'failure'
 				? {
 						source_failure_path: receiptPath(pipeline.repoRoot, sourcePath),
+						source_failure_sha256: sourceFile.sha256,
 						source_failure_error: source.error,
 					}
 				: {
 						source_receipt_path: receiptPath(pipeline.repoRoot, sourcePath),
+						source_receipt_sha256: sourceFile.sha256,
 						source_candidate_sha256:
 							source.artifact?.children?.portrait?.candidate_sha256 ??
 							source.artifact?.candidate_sha256 ??
@@ -2136,13 +3013,16 @@ async function reprocessCandidateSource(options, sourceKind) {
 			);
 			await Promise.all(
 				['portrait', 'marker'].map((kind) =>
-					atomicWrite(childPaths[kind].raw, split.children[kind].buffer),
+					atomicWriteImmutable(
+						childPaths[kind].raw,
+						split.children[kind].buffer,
+					),
 				),
 			);
 			const children = validatePairedChildren(split, pipeline.config);
 			await Promise.all(
 				['portrait', 'marker'].map((kind) =>
-					atomicWrite(
+					atomicWriteImmutable(
 						childPaths[kind].candidate,
 						children[kind].candidate.buffer,
 					),
@@ -2173,7 +3053,7 @@ async function reprocessCandidateSource(options, sourceKind) {
 				job.assetKind,
 			);
 			const candidatePath = join(attemptRoot, 'candidate.png');
-			await atomicWrite(candidatePath, candidate.buffer);
+			await atomicWriteImmutable(candidatePath, candidate.buffer);
 			receipt = candidateReceipt({
 				pipeline,
 				job,
@@ -2190,15 +3070,14 @@ async function reprocessCandidateSource(options, sourceKind) {
 			});
 		}
 		receipt.run_id = options.runId ?? source.run_id;
-		await atomicWrite(paths.receipt, prettyJson(receipt));
+		await atomicWriteImmutable(paths.receipt, prettyJson(receipt));
 		return {
 			status: 'reprocessed',
 			receiptPath: receiptPath(pipeline.repoRoot, paths.receipt),
 			receipt,
 		};
 	} finally {
-		await lock.close();
-		await rm(paths.lock, { force: true });
+		await releaseJobLock(lock);
 	}
 }
 
@@ -2244,16 +3123,15 @@ export async function reprocessCandidateManifest(options = {}) {
 			);
 		}
 	}
-	const runId =
-		options.runId ??
-		`reprocess-${sha256(await readFile(sourceManifestPath)).slice(0, 16)}`;
+	const baseRunId = `reprocess-${sha256(await readFile(sourceManifestPath)).slice(0, 16)}`;
+	const runId = options.runId ?? uniqueExecutionRunId(baseRunId);
 	validateRunId(runId);
 	const configuredRoot = options.outputRoot ?? pipeline.config.storage.root;
 	const outputRoot = resolvePath(pipeline.repoRoot, configuredRoot);
 	const runRoot = join(outputRoot, 'runs', runId);
 	const manifestPath = join(runRoot, 'manifest.jsonl');
 	const startedAt = new Date().toISOString();
-	await mkdir(runRoot, { recursive: true });
+	await createRunRoot(runRoot);
 	await atomicWrite(
 		join(runRoot, 'run.json'),
 		prettyJson({
@@ -2349,15 +3227,28 @@ export async function runCandidateGeneration(options = {}) {
 	const selection = buildJobs(pipeline, options);
 	const configuredRoot = options.outputRoot ?? pipeline.config.storage.root;
 	const outputRoot = resolvePath(pipeline.repoRoot, configuredRoot);
-	const runId = options.runId ?? defaultRunId(pipeline, selection);
+	const baseRunId = defaultRunId(pipeline, selection);
+	const runId =
+		options.runId ??
+		(options.execute ? uniqueExecutionRunId(baseRunId) : baseRunId);
 	validateRunId(runId);
 	const existing = new Map();
+	const recoverable = new Map();
 	for (const job of selection.jobs) {
 		const paths = objectPaths(outputRoot, job);
 		const receipt = await existingReceipt(pipeline.repoRoot, paths, job);
-		if (receipt) existing.set(job.jobId, receipt);
+		if (receipt) {
+			existing.set(job.jobId, receipt);
+			continue;
+		}
+		const state = await inspectIncompleteJobState(pipeline, paths, job);
+		if (state.status === 'recoverable') {
+			recoverable.set(job.jobId, state.recovery);
+		}
 	}
-	const pending = selection.jobs.filter((job) => !existing.has(job.jobId));
+	const pending = selection.jobs.filter(
+		(job) => !existing.has(job.jobId) && !recoverable.has(job.jobId),
+	);
 	const plan = {
 		schema_version: 1,
 		run_id: runId,
@@ -2383,6 +3274,7 @@ export async function runCandidateGeneration(options = {}) {
 		requests: {
 			planned: selection.jobs.length,
 			resumable_existing: existing.size,
+			recoverable_existing: recoverable.size,
 			pending: pending.length,
 		},
 		approval: pipeline.config.approval,
@@ -2393,7 +3285,11 @@ export async function runCandidateGeneration(options = {}) {
 			name: job.subject.name,
 			asset_kind: job.assetKind,
 			candidate_index: job.candidateIndex,
-			status: existing.has(job.jobId) ? 'resume-skip' : 'pending',
+			status: existing.has(job.jobId)
+				? 'resume-skip'
+				: recoverable.has(job.jobId)
+					? 'recoverable'
+					: 'pending',
 		})),
 	};
 	if (!options.execute) return { plan, results: [] };
@@ -2425,7 +3321,7 @@ export async function runCandidateGeneration(options = {}) {
 	);
 	const runRoot = join(outputRoot, 'runs', runId);
 	const manifestPath = join(runRoot, 'manifest.jsonl');
-	await mkdir(runRoot, { recursive: true });
+	await createRunRoot(runRoot);
 	await atomicWrite(
 		join(runRoot, 'run.json'),
 		prettyJson({
@@ -2434,7 +3330,7 @@ export async function runCandidateGeneration(options = {}) {
 			started_at: new Date().toISOString(),
 		}),
 	);
-	await atomicWrite(manifestPath, '');
+	await atomicWriteImmutable(manifestPath, '');
 	let appendQueue = Promise.resolve();
 	const appendResult = (result) => {
 		appendQueue = appendQueue.then(() =>
@@ -2458,8 +3354,12 @@ export async function runCandidateGeneration(options = {}) {
 	const rateGate = createRateGate(
 		pipeline.config.rate_limit.requests_per_minute,
 	);
-	const generatedResults = await mapConcurrent(
-		pending,
+	const providerController = createProviderController(
+		maxRequests,
+		pending.length,
+	);
+	const recoveredResults = await mapConcurrent(
+		selection.jobs.filter((job) => recoverable.has(job.jobId)),
 		concurrency,
 		async (job) => {
 			const result = await executeJob({
@@ -2470,30 +3370,70 @@ export async function runCandidateGeneration(options = {}) {
 				environment,
 				fetchImpl: options.fetchImpl ?? fetch,
 				rateGate,
+				providerController,
+				recovery: recoverable.get(job.jobId),
+			});
+			await appendResult(result);
+			return result;
+		},
+	);
+	const generatedResults = await mapConcurrent(
+		pending,
+		concurrency,
+		async (job) => {
+			if (providerController.circuit) {
+				const result = {
+					job_id: job.jobId,
+					status: 'blocked',
+					reason: 'provider-circuit-open',
+					blocked_by_job_id: providerController.circuit.job_id,
+					provider_error: providerController.circuit.error,
+				};
+				await appendResult(result);
+				return result;
+			}
+			const result = await executeJob({
+				pipeline,
+				job,
+				paths: objectPaths(outputRoot, job),
+				runId,
+				environment,
+				fetchImpl: options.fetchImpl ?? fetch,
+				rateGate,
+				providerController,
 			});
 			await appendResult(result);
 			return result;
 		},
 	);
 	await appendQueue;
-	const results = [...initialResults, ...generatedResults];
+	const results = [...initialResults, ...recoveredResults, ...generatedResults];
 	const failed = results.filter((result) => result.status === 'failed').length;
+	const blocked = results.filter(
+		(result) => result.status === 'blocked',
+	).length;
 	const summary = {
 		...plan,
-		status: failed === 0 ? 'completed' : 'failed',
+		status: failed === 0 && blocked === 0 ? 'completed' : 'failed',
 		completed_at: new Date().toISOString(),
+		provider_attempts: providerController.attempts,
 		result_counts: {
 			generated: results.filter((result) => result.status === 'generated')
 				.length,
 			resume_skip: results.filter((result) => result.status === 'resume-skip')
 				.length,
 			failed,
+			blocked,
 		},
 	};
 	await atomicWrite(join(runRoot, 'run.json'), prettyJson(summary));
-	if (failed > 0) {
+	if (failed > 0 || blocked > 0) {
+		const failureSummary =
+			blocked > 0
+				? `${failed} candidate generation job(s) failed and ${blocked} were not attempted after a batch-fatal provider error`
+				: `${failed} candidate generation job(s) failed`;
 		throw new PipelineError(
-			`${failed} candidate generation job(s) failed; see ${receiptPath(pipeline.repoRoot, manifestPath)}`,
+			`${failureSummary}; see ${receiptPath(pipeline.repoRoot, manifestPath)}`,
 		);
 	}
 	return { plan: summary, results };
