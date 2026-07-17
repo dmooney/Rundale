@@ -5,6 +5,7 @@ import {
 	existsSync,
 	mkdirSync,
 	mkdtempSync,
+	realpathSync,
 	readdirSync,
 	readFileSync,
 	rmSync,
@@ -30,13 +31,16 @@ import {
 	binaryContainsExpectedBuildIdentity,
 	binaryContainsExpectedCsp,
 	binaryContentDigest,
+	buildUiDist,
 	captureUiDist,
 	cargoBuildArgs,
 	cargoExecutableFromMessages,
 	collectInlineScriptHashes,
 	inlineScriptHashesFromHtml,
+	npmBuildCommand,
 	playwrightBuildIdentity,
 	playwrightWebServerConfig,
+	prepareManagedServer,
 	pruneLegacyLockCandidates,
 	pruneServerArtifacts,
 	publishActiveUseLease,
@@ -113,6 +117,172 @@ test('managed config uses per-run readiness and a Windows-correct shutdown polic
 	} finally {
 		await closeServer(stale);
 	}
+});
+
+test('UI build executes npm JavaScript entry point through Node without a shell', () => {
+	const root = mkdtempSync(join(tmpdir(), 'parish ui build '));
+	const cwd = join(root, 'worktree with spaces');
+	const npmExecPath = join(root, 'npm tooling with spaces', 'npm-cli.mjs');
+	const capturePath = join(root, 'invocation.json');
+	try {
+		mkdirSync(cwd, { recursive: true });
+		mkdirSync(join(root, 'npm tooling with spaces'), { recursive: true });
+		writeFileSync(
+			npmExecPath,
+			`import { writeFileSync } from 'node:fs';
+writeFileSync(process.env.PARISH_PLAYWRIGHT_BUILD_TEST_CAPTURE, JSON.stringify({ args: process.argv.slice(2), cwd: process.cwd() }));
+`,
+		);
+		buildUiDist({
+			cwd,
+			environment: {
+				...process.env,
+				npm_execpath: npmExecPath,
+				PARISH_PLAYWRIGHT_BUILD_TEST_CAPTURE: capturePath,
+			},
+		});
+		const invocation = JSON.parse(readFileSync(capturePath, 'utf8'));
+		assert.deepEqual(invocation.args, ['run', 'build']);
+		assert.equal(realpathSync(invocation.cwd), realpathSync(cwd));
+	} finally {
+		rmSync(root, { force: true, recursive: true });
+	}
+});
+
+test('UI build validates its npm JavaScript entry point and explicit override', () => {
+	const root = mkdtempSync(join(tmpdir(), 'parish-npm-entrypoint-'));
+	const npmExecPath = join(root, 'npm tooling with spaces', 'npm-cli.js');
+	const override = 'PARISH_PLAYWRIGHT_NPM_EXEC_PATH';
+	try {
+		mkdirSync(join(root, 'npm tooling with spaces'), { recursive: true });
+		writeFileSync(npmExecPath, 'process.exitCode = 0;\n');
+		const environment = {
+			[override]: npmExecPath,
+			npm_execpath: 'relative/npm-cli.js',
+		};
+		let invocation;
+		buildUiDist({
+			cwd: root,
+			environment,
+			execPath: '/node runtime with spaces/node',
+			runCommand(command, args, options) {
+				invocation = { args, command, options };
+			},
+		});
+		assert.deepEqual(invocation.args, [npmExecPath, 'run', 'build']);
+		assert.equal(invocation.command, '/node runtime with spaces/node');
+		assert.equal(invocation.options.cwd, root);
+		assert.equal(invocation.options.env, environment);
+		assert.equal(invocation.options.shell, false);
+		assert.equal(invocation.options.stdio, 'inherit');
+		assert.equal(invocation.options.windowsHide, true);
+
+		assert.throws(
+			() => npmBuildCommand({ environment: {} }),
+			/npm_execpath is unavailable/,
+		);
+		assert.throws(
+			() => npmBuildCommand({ environment: { npm_execpath: 'npm-cli.js' } }),
+			/must be an absolute path/,
+		);
+		assert.throws(
+			() =>
+				npmBuildCommand({
+					environment: { npm_execpath: join(root, 'npm.cmd') },
+				}),
+			/must name a JavaScript entry point/,
+		);
+		assert.throws(
+			() =>
+				npmBuildCommand({
+					environment: { npm_execpath: join(root, 'missing-npm-cli.js') },
+				}),
+			/does not exist/,
+		);
+	} finally {
+		rmSync(root, { force: true, recursive: true });
+	}
+});
+
+test('managed launcher rebuilds missing or stale dist before snapshot capture', async (t) => {
+	const config = playwrightWebServerConfig(34567, {
+		runId: '0123456789abcdef-managed-build',
+	});
+	assert.match(config.command, /playwright-worktree-server\.js/);
+	assert.match(
+		readFileSync(new URL(helperUrl), 'utf8'),
+		/const prepared = await prepareManagedServer\(\)/,
+	);
+	for (const initialState of ['missing', 'stale']) {
+		await t.test(initialState, async () => {
+			const root = mkdtempSync(join(tmpdir(), 'parish-ui-build-order-'));
+			const distDir = join(root, 'dist');
+			const indexPath = join(distDir, 'index.html');
+			const events = [];
+			try {
+				if (initialState === 'stale') {
+					mkdirSync(distDir, { recursive: true });
+					writeFileSync(indexPath, 'stale UI');
+				}
+				const prepared = await prepareManagedServer({
+					buildUi() {
+						events.push(
+							`build:${existsSync(indexPath) ? readFileSync(indexPath, 'utf8') : 'missing'}`,
+						);
+						mkdirSync(distDir, { recursive: true });
+						writeFileSync(indexPath, 'fresh UI');
+					},
+					prepare() {
+						const captured = readFileSync(indexPath, 'utf8');
+						events.push(`capture:${captured}`);
+						assert.equal(captured, 'fresh UI');
+						return { captured };
+					},
+				});
+				assert.deepEqual(events, [
+					`build:${initialState === 'stale' ? 'stale UI' : 'missing'}`,
+					'capture:fresh UI',
+				]);
+				assert.deepEqual(prepared, { captured: 'fresh UI' });
+			} finally {
+				rmSync(root, { force: true, recursive: true });
+			}
+		});
+	}
+});
+
+test('direct, package, baseline, and screenshot runs share the managed launcher', () => {
+	const packageJson = JSON.parse(
+		readFileSync(new URL('../package.json', import.meta.url), 'utf8'),
+	);
+	assert.equal(packageJson.scripts['test:e2e'], 'playwright test');
+	assert.equal(
+		packageJson.scripts['test:e2e:update'],
+		'playwright test --update-snapshots',
+	);
+
+	const configSource = readFileSync(
+		new URL('../playwright.config.ts', import.meta.url),
+		'utf8',
+	);
+	assert.match(
+		configSource,
+		/webServer:\s*playwrightWebServerConfig\(testPort\)/,
+	);
+
+	const justfile = readFileSync(
+		new URL('../../../justfile', import.meta.url),
+		'utf8',
+	);
+	const updateRecipe = justfile.match(/^ui-e2e-update:\n(?: {4}.*\n)+/m)?.[0];
+	const screenshotsRecipe = justfile.match(
+		/^screenshots:\n(?: {4}.*\n)+/m,
+	)?.[0];
+	assert.match(updateRecipe ?? '', /npx playwright test --update-snapshots/);
+	assert.match(
+		screenshotsRecipe ?? '',
+		/npx playwright test e2e\/screenshots\.spec\.ts/,
+	);
 });
 
 test('GitHub-hosted and self-hosted Actions retain the identity helper path', () => {

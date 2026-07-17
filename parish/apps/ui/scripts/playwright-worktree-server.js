@@ -49,6 +49,7 @@ const RUN_ID_PATTERN = /^[A-Za-z0-9_-]{16,128}$/;
 const ACTIVE_USE_LEASE_PREFIX = '.playwright-server-active-';
 const ACTIVE_USE_TOMBSTONE_PREFIX = '.playwright-server-retired-';
 const ACTIVE_USE_LEASE_SUFFIX = '.json';
+const NPM_EXEC_PATH_OVERRIDE = 'PARISH_PLAYWRIGHT_NPM_EXEC_PATH';
 
 export async function allocateLoopbackPort() {
 	const reservation = createNetServer();
@@ -108,6 +109,61 @@ export function playwrightWebServerConfig(
 		};
 	}
 	return config;
+}
+
+export function npmBuildCommand({
+	environment = process.env,
+	execPath = process.execPath,
+	stat = statSync,
+} = {}) {
+	const override = environment[NPM_EXEC_PATH_OVERRIDE];
+	const npmExecPath = override || environment.npm_execpath;
+	const source = override ? NPM_EXEC_PATH_OVERRIDE : 'npm_execpath';
+	if (!npmExecPath) {
+		throw new Error(
+			`npm_execpath is unavailable; run Playwright through npm/npx or set ${NPM_EXEC_PATH_OVERRIDE}`,
+		);
+	}
+	if (!isAbsolute(npmExecPath)) {
+		throw new Error(
+			`${source} must be an absolute path to npm's JavaScript entry point`,
+		);
+	}
+	if (!/\.(?:cjs|mjs|js)$/i.test(npmExecPath)) {
+		throw new Error(`${source} must name a JavaScript entry point`);
+	}
+	let stats;
+	try {
+		stats = stat(npmExecPath);
+	} catch (error) {
+		throw new Error(`${source} does not exist: ${npmExecPath}`, {
+			cause: error,
+		});
+	}
+	if (!stats.isFile()) {
+		throw new Error(`${source} is not a file: ${npmExecPath}`);
+	}
+	return [execPath, npmExecPath];
+}
+
+export function buildUiDist({
+	cwd = UI_DIR,
+	environment = process.env,
+	execPath = process.execPath,
+	resolveCommand = npmBuildCommand,
+	runCommand = execFileSync,
+} = {}) {
+	const [command, ...prefixArgs] = resolveCommand({
+		environment,
+		execPath,
+	});
+	return runCommand(command, [...prefixArgs, 'run', 'build'], {
+		cwd,
+		env: environment,
+		shell: false,
+		stdio: 'inherit',
+		windowsHide: true,
+	});
 }
 
 function commandOutput(command, args, cwd) {
@@ -1466,13 +1522,21 @@ function parsePort(args) {
 	return port;
 }
 
+export async function prepareManagedServer({
+	buildUi = buildUiDist,
+	prepare = prepareIsolatedServerBinary,
+} = {}) {
+	await buildUi();
+	return prepare();
+}
+
 async function main() {
 	const port = parsePort(process.argv.slice(2));
 	const runId = process.env.PARISH_PLAYWRIGHT_RUN_ID;
 	if (!runId || !RUN_ID_PATTERN.test(runId)) {
 		throw new Error('PARISH_PLAYWRIGHT_RUN_ID is missing or invalid');
 	}
-	const prepared = await prepareIsolatedServerBinary();
+	const prepared = await prepareManagedServer();
 	const readyFile = join(prepared.outputDir, `.playwright-ready-${runId}`);
 	rmSync(readyFile, { force: true });
 	const env = {

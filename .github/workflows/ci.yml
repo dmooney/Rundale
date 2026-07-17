@@ -3,7 +3,8 @@ name: Rundale CI
 # Jobs run on GitHub-hosted `ubuntu-latest` runners.
 #
 # Sub-minute fast lane for pull requests and main/develop pushes. Pull requests
-# that touch the shipped UI additionally run the complete Playwright contract.
+# that touch the shipped browser/server seam additionally run the complete
+# Playwright contract.
 # Other expensive Rust, coverage, game-harness, and UI runtime jobs live in
 # `full-ci.yml`.
 
@@ -31,9 +32,9 @@ permissions:
   contents: read
 
 jobs:
-  # Detect which areas a PR changed. UI changes use this output to opt into the
-  # complete Playwright contract; other expensive path-sensitive jobs live in
-  # `full-ci.yml`.
+  # Detect which areas a PR changed. Browser UI and parish-server seam changes
+  # use this output to opt into the complete Playwright contract; other
+  # expensive path-sensitive jobs live in `full-ci.yml`.
   changes:
     name: Detect changed areas
     runs-on: ubuntu-latest
@@ -65,6 +66,7 @@ jobs:
               - '.github/workflows/ci.yml'
             ui:
               - 'parish/apps/ui/**'
+              - 'parish/crates/parish-server/**'
               - '.github/workflows/ci.yml'
 
   agent-check:
@@ -318,7 +320,8 @@ jobs:
 
   # ── Aggregate required-checks gate ─────────────────────────────────────────
   # Branch protection requires THIS single job. It aggregates the fast lane and
-  # the conditional complete Playwright contract for shipped UI changes.
+  # the conditional complete Playwright contract for shipped browser/server
+  # seam changes.
   ci-gate:
     name: CI gate
     needs:

@@ -12,8 +12,8 @@ const testPort = await resolvePlaywrightPort();
 /**
  * Playwright configuration for Parish E2E tests.
  *
- * Starts the axum web server via `cargo run -- --web <port>` and runs
- * Chromium tests against it.
+ * Starts the worktree-isolated managed launcher, which rebuilds and snapshots
+ * the UI before compiling the axum server, then runs Chromium against it.
  */
 export default defineConfig({
 	testDir: 'e2e',
