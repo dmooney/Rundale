@@ -5,6 +5,7 @@ import type { NpcInfo } from '$lib/types';
 
 function makeNpc(name: string, introduced: boolean): NpcInfo {
 	return {
+		npc_id: name.length,
 		name,
 		real_name: name,
 		occupation: `${name}'s occupation`,

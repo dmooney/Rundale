@@ -10,29 +10,46 @@
 //! the server still compiles, but the resulting CSP will reject all inline
 //! scripts.  Run `just ui-build` (or `npm run build` inside `apps/ui/`) before
 //! `cargo build` to get a correct hash list.
+//!
+//! Tests may set `PARISH_UI_DIST_DIR` to supply an isolated generated HTML
+//! tree; Cargo rebuilds this script when that override changes.
 
 use std::collections::BTreeSet;
 use std::io::Write as IoWrite;
-use std::path::Path;
+use std::path::{Path, PathBuf};
+
+const UI_DIST_DIR_ENV: &str = "PARISH_UI_DIST_DIR";
 
 fn main() {
-    // Tell Cargo to re-run this script when any file under the UI dist tree
-    // changes (including adding or removing files).
-    println!("cargo:rerun-if-changed=../../apps/ui/dist");
+    println!("cargo:rerun-if-env-changed={UI_DIST_DIR_ENV}");
 
-    let dist = Path::new("../../apps/ui/dist");
+    // Retain the dist root as a catch-all for a newly generated route, then
+    // emit one concrete HTML path below. Cargo does not reliably invalidate a
+    // recursive directory watch when a nested Vite page's contents change.
+    let dist = ui_dist_dir();
+    println!("cargo:rerun-if-changed={}", dist.display());
+
     let hashes = if dist.exists() {
-        collect_script_hashes(dist)
+        collect_script_hashes(&dist)
     } else {
         // No dist directory — warn but don't fail.
         println!(
-            "cargo:warning=parish-server build.rs: apps/ui/dist not found; \
-             script-src hashes will be empty. Run `just ui-build` first."
+            "cargo:warning=parish-server build.rs: {} not found; \
+             script-src hashes will be empty. Run `just ui-build` first.",
+            dist.display()
         );
         BTreeSet::new()
     };
 
     write_generated_file(&hashes);
+}
+
+/// Resolve the generated UI directory, with a test-friendly override for
+/// isolated Cargo builds. The production default is `apps/ui/dist`.
+fn ui_dist_dir() -> PathBuf {
+    std::env::var_os(UI_DIST_DIR_ENV)
+        .map(PathBuf::from)
+        .unwrap_or_else(|| PathBuf::from("../../apps/ui/dist"))
 }
 
 /// Walk all `*.html` files under `dir`, extract every inline `<script>` block's
@@ -54,6 +71,11 @@ fn collect_script_hashes(dir: &Path) -> BTreeSet<String> {
         if path.extension().and_then(|e| e.to_str()) != Some("html") {
             continue;
         }
+
+        // Vite emits routes recursively (for example, `editor/index.html`).
+        // Watch each generated HTML file so a changed inline bootstrap causes
+        // Cargo to regenerate the CSP hash list on the next server build.
+        println!("cargo:rerun-if-changed={}", path.display());
 
         let html = match std::fs::read_to_string(&path) {
             Ok(s) => s,

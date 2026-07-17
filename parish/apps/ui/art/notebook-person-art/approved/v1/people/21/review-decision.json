@@ -1,0 +1,112 @@
+{
+	"schema_version": 1,
+	"record_type": "notebook-person-art-human-review-decision",
+	"candidate_receipt_path": "parish/apps/ui/art/notebook-person-art/candidates/objects/6e/6e650eb2d64708787d4e35a3919754f5be60ebcc559af56e1a5f5b92be602c6c/receipt.json",
+	"candidate_receipt_sha256": "61afb8da6dc5ca885b79271c7a576d53d5cbdfd29b48e0af41ead55e88761df4",
+	"candidate_sha256": "875d9884381e0634fdf60f4f130d9b85a964c52dbca31c6e12f9d3a9b6a15f93",
+	"raw_sha256": "2b43b6911550cd65f870c4e57f29dd75ee1acfffe9bb745d57b50705d794e6d4",
+	"subject": {
+		"kind": "npc",
+		"npc_id": 21,
+		"name": "Sean Ruadh Kelly",
+		"input_record_sha256": "4efec93b235ef837658866cc23620009304fadc9aaed228957a87cfe40fd9d30"
+	},
+	"asset": {
+		"kind": "pair",
+		"candidate_index": 1,
+		"children": [
+			"portrait",
+			"marker"
+		]
+	},
+	"hair_topology": {
+		"schema_version": 4,
+		"subject_key": "npc:21",
+		"vector": {
+			"color_and_texture": "thick muted red tight waves",
+			"front": {
+				"family": "forward-tight-red-waves",
+				"description": "tight unruly waves fall forward over the forehead without a part"
+			},
+			"rear": {
+				"family": "long-wave-over-ears",
+				"description": "tight waves remain longer over the ears and upper nape"
+			},
+			"covering": {
+				"family": "uncovered-red-head",
+				"description": "no cap or head covering"
+			},
+			"silhouette": {
+				"family": "unruly-tight-curl-halo",
+				"description": "broken tight-wave outline around forehead, ears, and crown"
+			},
+			"loose_details": "one longer wave hangs over the right brow"
+		},
+		"sha256": "988529c44b07ed0d7c66cc05e2656a6f5708599d13a3a5f255b032a17718bc51"
+	},
+	"marker_identity": {
+		"schema_version": 4,
+		"subject_key": "npc:21",
+		"marker_identity": {
+			"composition": "character-only",
+			"silhouette": "lean mid-twenties man with unruly muted-red tight waves, a narrow diamond face, patched coat, frayed neckcloth, and worn trousers; no object/scenery",
+			"stance": "narrow tense stance with arms folded; no object/scenery",
+			"empty_hand_pose": "arms-folded",
+			"readability_cues": [
+				{
+					"kind": "hair-or-headwear",
+					"description": "unruly muted-red hair"
+				},
+				{
+					"kind": "face",
+					"description": "very narrow diamond-shaped head"
+				},
+				{
+					"kind": "clothing",
+					"description": "patched coat and frayed neckcloth"
+				}
+			],
+			"tiny_readability_notes": [
+				"Keep the red hair natural and muted while preserving the tight, closed silhouette."
+			]
+		},
+		"sha256": "ac66eb24354ae0f7d593b38ecac6148c713a74a561285cc5792728ccc2084055"
+	},
+	"decision": "approved",
+	"promotion_eligible": true,
+	"reviewer": "dmooney",
+	"reviewed_at": "2026-07-17T01:52:56.094Z",
+	"notes": "Approved by dmooney after reviewing the final 24-pair whole-cast sheet in Codex on 2026-07-16.",
+	"checklist": {
+		"identity_specific": true,
+		"concept_style_match": true,
+		"period_appropriate": true,
+		"no_prohibited_content": true,
+		"key_removal_clean": true,
+		"production_quality": true,
+		"diegetic_player_sketch": true,
+		"uncolored_pen_and_ink": true,
+		"sparse_open_linework": true,
+		"no_baked_background": true,
+		"framing_complete": true,
+		"selected_size_readable": true,
+		"nearby_size_readable": true,
+		"restrained_world_color": true,
+		"full_body_complete": true,
+		"silhouette_readable": true,
+		"character_only_marker": true,
+		"empty_hands": true,
+		"no_contextual_props_or_scenery": true,
+		"no_ground_plane": true,
+		"scene_size_readable": true,
+		"cross_asset_identity": true,
+		"hair_front_matches": true,
+		"hair_rear_matches": true,
+		"hair_covering_matches": true,
+		"hair_silhouette_matches": true,
+		"correct_surface_split": true,
+		"atomic_rerender_understood": true
+	},
+	"source_template_path": "parish/apps/ui/art/notebook-person-art/candidates/review-packets/identity-v8-character-only-full-cast-c-20260716/21-pair-875d9884381e-review.json",
+	"review_id": "a48efdb5c7b8bdd0eedded2f"
+}

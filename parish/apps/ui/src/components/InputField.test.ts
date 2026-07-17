@@ -173,6 +173,7 @@ describe('InputField', () => {
 	describe('NPC mention autocomplete', () => {
 		const testNpcs = [
 			{
+				npc_id: 4,
 				name: 'Padraig Darcy',
 				real_name: 'Padraig Darcy',
 				occupation: 'Publican',
@@ -181,6 +182,7 @@ describe('InputField', () => {
 				mood_emoji: '😌',
 			},
 			{
+				npc_id: 5,
 				name: 'Siobhan Murphy',
 				real_name: 'Siobhan Murphy',
 				occupation: 'Farmer',
@@ -189,6 +191,7 @@ describe('InputField', () => {
 				mood_emoji: '😤',
 			},
 			{
+				npc_id: 6,
 				name: 'Father Callahan',
 				real_name: 'Father Callahan',
 				occupation: 'Priest',
@@ -614,6 +617,7 @@ describe('InputField', () => {
 	describe('npc selection buttons', () => {
 		const testNpcs = [
 			{
+				npc_id: 4,
 				name: 'Padraig Darcy',
 				real_name: 'Padraig Darcy',
 				occupation: 'Publican',
@@ -622,6 +626,7 @@ describe('InputField', () => {
 				mood_emoji: '😌',
 			},
 			{
+				npc_id: 5,
 				name: 'an older man behind the bar',
 				real_name: 'Tomas Brennan',
 				occupation: 'Publican',
@@ -630,6 +635,7 @@ describe('InputField', () => {
 				mood_emoji: '😐',
 			},
 			{
+				npc_id: 6,
 				name: 'Siobhan Murphy',
 				real_name: 'Siobhan Murphy',
 				occupation: 'Farmer',
@@ -948,6 +954,7 @@ describe('InputField', () => {
 
 		const testNpcs = [
 			{
+				npc_id: 4,
 				name: 'Padraig Darcy',
 				real_name: 'Padraig Darcy',
 				occupation: 'Publican',
@@ -1053,6 +1060,7 @@ describe('InputField', () => {
 		it('mention dropdown Tab takes priority over noun completion', async () => {
 			npcsHere.set([
 				{
+					npc_id: 4,
 					name: 'Padraig Darcy',
 					real_name: 'Padraig Darcy',
 					occupation: 'Publican',
@@ -1212,6 +1220,7 @@ describe('InputField', () => {
 	describe('ARIA combobox attributes (#683)', () => {
 		const testNpcs = [
 			{
+				npc_id: 4,
 				name: 'Padraig Darcy',
 				real_name: 'Padraig Darcy',
 				occupation: 'Publican',
