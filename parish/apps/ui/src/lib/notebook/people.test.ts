@@ -4,6 +4,7 @@ import { notebookPersonInitial, notebookPersonLabel } from './people';
 
 function npc(overrides: Partial<NpcInfo>): NpcInfo {
 	return {
+		npc_id: 6,
 		name: 'Roisin Connolly',
 		real_name: 'Roisin Connolly',
 		occupation: '',

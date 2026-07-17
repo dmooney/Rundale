@@ -37,10 +37,12 @@ export default defineConfig({
 	],
 
 	webServer: {
-		command: `cd ../.. && cargo run -p parish-server -- --port ${process.env.PARISH_TEST_PORT || 3099}`,
+		command: `npm run build && cd ../.. && cargo run -p parish-server -- --port ${process.env.PARISH_TEST_PORT || 3099}`,
 		url: `http://localhost:${process.env.PARISH_TEST_PORT || 3099}/api/world-snapshot`,
 		timeout: 120_000, // cargo build can be slow on first run
-		reuseExistingServer: !process.env.CI,
+		// A running local server can be serving an older dist/CSP pair. Fail
+		// instead of silently attaching to it, after rebuilding the bundle.
+		reuseExistingServer: false,
 		// Each Playwright test gets a fresh browser context = fresh
 		// session on the parish web server. With the default cap of 50
 		// and the suite now sitting at ~54 tests, the last few tests

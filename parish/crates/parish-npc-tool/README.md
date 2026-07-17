@@ -28,6 +28,11 @@ parish-npc-tool export --parish Kiltoom > kiltoom.json
 parish-npc-tool import < kiltoom.json
 parish-npc-tool family-tree 12345
 parish-npc-tool relationships 12345
+cargo run --manifest-path parish/Cargo.toml -p parish-npc-tool -- art-inputs \
+  --npcs mods/rundale/npcs.json \
+  --world mods/rundale/world.json \
+  --art-direction parish/apps/ui/art/notebook-person-art/npc-art-direction-v1.json \
+  --output parish/apps/ui/art/notebook-person-art/npc-art-inputs-v1.json
 ```
 
 See [`docs/design/scalable-npc-data-design.md`](../../../docs/design/scalable-npc-data-design.md) for the full design.
@@ -39,3 +44,7 @@ Mod authors and content designers — not end-users of the game. Output is hand-
 ## Relationship to runtime crate `parish-npc`
 
 `parish-npc` (the runtime library) consumes NPC data files at game-load time. `parish-npc-tool` (this crate, the dev binary) produces those files. They share JSON schema conventions but no Rust code.
+
+The `art-inputs` command is file-only and does not touch the SQLite world-builder
+database. It validates that every NPC has a reviewed art-direction entry before
+exporting provider-ready notebook person-art prompts.

@@ -1,0 +1,112 @@
+{
+	"schema_version": 1,
+	"record_type": "notebook-person-art-human-review-decision",
+	"candidate_receipt_path": "parish/apps/ui/art/notebook-person-art/candidates/objects/de/de18afa2260b6d43dd52c6d6055f2c9e878146f3bfe0ed02a8ca023d8c50de58/receipt.json",
+	"candidate_receipt_sha256": "f6a72d5ed7b1b89f407dedb713934e4480bc6c1ca9bc34a2d43c1929c960db42",
+	"candidate_sha256": "4fe57476d3a25709e585da2d126a74344b13dc0a79be58ed0d0730dba7f1a5d8",
+	"raw_sha256": "6def3957e26a279bcaee7e90f5472e46641a8a65d44bb514ccfd39421b993ad7",
+	"subject": {
+		"kind": "npc",
+		"npc_id": 7,
+		"name": "Mick Flanagan",
+		"input_record_sha256": "d93722bd799c79d16b7834b7801a6f9aa5cd3c8dc1c27218eb28b529cdb9fe92"
+	},
+	"asset": {
+		"kind": "pair",
+		"candidate_index": 1,
+		"children": [
+			"portrait",
+			"marker"
+		]
+	},
+	"hair_topology": {
+		"schema_version": 4,
+		"subject_key": "npc:7",
+		"vector": {
+			"color_and_texture": "close iron-grey hair with a broad grey moustache",
+			"front": {
+				"family": "close-cropped-front",
+				"description": "short iron-grey front following the skull without a part"
+			},
+			"rear": {
+				"family": "close-cropped-rear",
+				"description": "uniform close crop at crown, sides, and nape"
+			},
+			"covering": {
+				"family": "uncovered",
+				"description": "no cap or head covering"
+			},
+			"silhouette": {
+				"family": "close-skull-with-moustache",
+				"description": "close skull outline contrasted by a wide horizontal moustache"
+			},
+			"loose_details": "neat broad moustache; no beard or side locks"
+		},
+		"sha256": "6c5af2e96989efa277c2a19431461a08415c48790a9d135c4e78aab31cb0ae16"
+	},
+	"marker_identity": {
+		"schema_version": 4,
+		"subject_key": "npc:7",
+		"marker_identity": {
+			"composition": "character-only",
+			"silhouette": "upright mid-sixties man with a square torso, close iron-grey hair, broad grey moustache, and old dark civilian coat; no object/scenery",
+			"stance": "still, rigid stance with hands behind the back and head slightly turned; no object/scenery",
+			"empty_hand_pose": "hands-behind-back",
+			"readability_cues": [
+				{
+					"kind": "body-shape",
+					"description": "square upright build"
+				},
+				{
+					"kind": "face",
+					"description": "broad horizontal grey moustache"
+				},
+				{
+					"kind": "hair-or-headwear",
+					"description": "close-cropped iron-grey hair"
+				}
+			],
+			"tiny_readability_notes": [
+				"Contrast Tommy with a straight vertical posture and a contained arm silhouette."
+			]
+		},
+		"sha256": "0a757ca16e21a08bbf81a0dc58a498ea1ccd6c38143abfe14914ce22af539cc3"
+	},
+	"decision": "approved",
+	"promotion_eligible": true,
+	"reviewer": "dmooney",
+	"reviewed_at": "2026-07-17T01:52:56.025Z",
+	"notes": "Approved by dmooney after reviewing the final 24-pair whole-cast sheet in Codex on 2026-07-16.",
+	"checklist": {
+		"identity_specific": true,
+		"concept_style_match": true,
+		"period_appropriate": true,
+		"no_prohibited_content": true,
+		"key_removal_clean": true,
+		"production_quality": true,
+		"diegetic_player_sketch": true,
+		"uncolored_pen_and_ink": true,
+		"sparse_open_linework": true,
+		"no_baked_background": true,
+		"framing_complete": true,
+		"selected_size_readable": true,
+		"nearby_size_readable": true,
+		"restrained_world_color": true,
+		"full_body_complete": true,
+		"silhouette_readable": true,
+		"character_only_marker": true,
+		"empty_hands": true,
+		"no_contextual_props_or_scenery": true,
+		"no_ground_plane": true,
+		"scene_size_readable": true,
+		"cross_asset_identity": true,
+		"hair_front_matches": true,
+		"hair_rear_matches": true,
+		"hair_covering_matches": true,
+		"hair_silhouette_matches": true,
+		"correct_surface_split": true,
+		"atomic_rerender_understood": true
+	},
+	"source_template_path": "parish/apps/ui/art/notebook-person-art/candidates/review-packets/identity-v8-character-only-full-cast-a-20260716/7-pair-4fe57476d3a2-review.json",
+	"review_id": "a4ac0d22d53c0b7e314cdaf2"
+}
