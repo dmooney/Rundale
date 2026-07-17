@@ -271,6 +271,9 @@ jobs:
       - name: Build UI
         run: npm run build
 
+      - name: Run managed-server integration races
+        run: npm run test:playwright-launcher-integration
+
       - name: Install Playwright browser (Linux-only OS deps)
         if: runner.os == 'Linux'
         run: npx playwright install --with-deps chromium
@@ -294,6 +297,25 @@ jobs:
           path: parish/apps/ui/playwright-report/
           if-no-files-found: ignore
 
+  playwright-launcher-windows:
+    name: Playwright launcher lifecycle (Windows)
+    runs-on: windows-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: parish/apps/ui
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+
+      - name: Run built-in launcher lifecycle tests
+        run: node --test scripts/playwright-worktree-server.test.js
+
   # ── Aggregate required-checks gate ─────────────────────────────────────────
   # Branch protection requires THIS single job. It aggregates the fast lane and
   # the conditional complete Playwright contract for shipped UI changes.
@@ -306,6 +328,7 @@ jobs:
         docs-consistency,
         format-quality,
         python-quality,
+        playwright-launcher-windows,
         shell-quality,
         toml-quality,
         ui-e2e,
@@ -323,6 +346,7 @@ jobs:
       - name: Require gated jobs to succeed or be skipped
         env:
           GATED_RESULTS: ${{ join(needs.*.result, ' ') }}
+          PLAYWRIGHT_WINDOWS_RESULT: ${{ needs.playwright-launcher-windows.result }}
           UI_E2E_REQUIRED: ${{ github.event_name == 'pull_request' && needs.changes.outputs.ui == 'true' }}
           UI_E2E_RESULT: ${{ needs.ui-e2e.result }}
         run: bash .github/scripts/ci-gate.sh

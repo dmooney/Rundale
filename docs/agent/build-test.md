@@ -72,10 +72,14 @@ readiness URL before Playwright proceeds. Default runs allocate a free
 loopback port; set `PARISH_TEST_PORT` only when a fixed port is required. A
 heartbeat lease serializes helper builds. Before releasing that lock, the
 helper publishes a second heartbeat lease for the exact binary and UI snapshot
-used by the live server; every pruner preserves fresh active-use leases and
-reclaims stale or malformed residue after a bounded grace. Normal teardown
-releases ownership but leaves up to three reusable cache entries. The same path
-runs in local, GitHub-hosted, and self-hosted environments.
+used by the live server. Losing that lease fences the server; pruning first
+retires stale or malformed state behind a tombstone grace and only a later pass
+can reclaim its artifacts. POSIX group-signal teardown stops and waits for the
+child before releasing ownership. Windows force-tree termination can skip that
+release, so the bounded retirement path is required there. Pruning keeps up to
+three reusable entries per worktree cache directory and artifact type, removes
+empty cache directories, and applies a 24-hour age limit to bound cross-worktree
+residue. The same helper path runs locally and on GitHub-hosted/self-hosted CI.
 
 To unit-test the isolation helper from `parish/apps/ui/`:
 
@@ -83,8 +87,8 @@ To unit-test the isolation helper from `parish/apps/ui/`:
 node --test scripts/playwright-worktree-server.test.js
 ```
 
-To run the slower integration race that overwrites Cargo's shared final binary
-with an ordinary build between helper build and copy:
+To run the slower integration races for shared-Cargo overwrite and live lease
+loss fencing (required by the UI PR workflow):
 
 ```sh
 npm run test:playwright-launcher-integration

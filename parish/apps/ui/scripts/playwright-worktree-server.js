@@ -11,8 +11,10 @@ import {
 	readFileSync,
 	realpathSync,
 	renameSync,
+	rmdirSync,
 	rmSync,
 	statSync,
+	utimesSync,
 	writeFileSync,
 } from 'node:fs';
 import { createServer as createNetServer } from 'node:net';
@@ -45,6 +47,7 @@ export const PLAYWRIGHT_BUILD_ID_HEADER = 'x-parish-playwright-build-id';
 
 const RUN_ID_PATTERN = /^[A-Za-z0-9_-]{16,128}$/;
 const ACTIVE_USE_LEASE_PREFIX = '.playwright-server-active-';
+const ACTIVE_USE_TOMBSTONE_PREFIX = '.playwright-server-retired-';
 const ACTIVE_USE_LEASE_SUFFIX = '.json';
 
 export async function allocateLoopbackPort() {
@@ -520,6 +523,24 @@ function activeUseLeaseToken(name) {
 	return /^[a-f0-9]{32}$/.test(token) ? token : undefined;
 }
 
+function retiredActiveUseLeaseIdentity(name) {
+	if (
+		!name.startsWith(ACTIVE_USE_TOMBSTONE_PREFIX) ||
+		!name.endsWith(ACTIVE_USE_LEASE_SUFFIX)
+	)
+		return undefined;
+	const identity = name.slice(
+		ACTIVE_USE_TOMBSTONE_PREFIX.length,
+		-ACTIVE_USE_LEASE_SUFFIX.length,
+	);
+	const match = identity.match(/^([a-f0-9]{32})-([0-9]{1,16})-[a-f0-9]{8}$/);
+	if (!match) return undefined;
+	const retiredAtMs = Number(match[2]);
+	return Number.isSafeInteger(retiredAtMs)
+		? { retiredAtMs, token: match[1] }
+		: undefined;
+}
+
 function readActiveUseLease(leasePath, serverRoot, expectedToken) {
 	const payload = JSON.parse(readFileSync(leasePath, 'utf8'));
 	if (
@@ -610,7 +631,16 @@ export function publishActiveUseLease(
 	}
 
 	let leaseError;
+	let notifyLeaseLost;
+	const lost = new Promise((resolveLost) => {
+		notifyLeaseLost = resolveLost;
+	});
 	let released = false;
+	const recordLeaseLoss = (error) => {
+		if (leaseError) return;
+		leaseError = error;
+		notifyLeaseLost(error);
+	};
 	const assertLeaseFileOwned = () => {
 		if (released)
 			throw new Error('Playwright server active-use lease was released');
@@ -631,7 +661,7 @@ export function publishActiveUseLease(
 			const now = new Date();
 			futimesSync(descriptor, now, now);
 		} catch (error) {
-			leaseError ??= error;
+			recordLeaseLoss(error);
 		}
 	};
 	const heartbeat = setInterval(refresh, heartbeatMs);
@@ -639,10 +669,16 @@ export function publishActiveUseLease(
 
 	return {
 		artifacts: resolvedArtifacts,
+		lost,
 		path: leasePath,
 		assertOwned() {
 			if (leaseError) throw leaseError;
-			assertLeaseFileOwned();
+			try {
+				assertLeaseFileOwned();
+			} catch (error) {
+				recordLeaseLoss(error);
+				throw error;
+			}
 		},
 		release() {
 			if (released) return;
@@ -653,7 +689,11 @@ export function publishActiveUseLease(
 				const owner = readActiveUseLease(leasePath, root, token);
 				if (owner?.token === token) rmSync(leasePath, { force: true });
 			} catch (error) {
-				if (error?.code !== 'ENOENT') throw error;
+				// A replaced or truncated lease is no longer ours to unlink. Leave it
+				// for bounded tombstone recovery instead of deleting by pathname.
+				if (error?.code !== 'ENOENT' && !(error instanceof SyntaxError)) {
+					throw error;
+				}
 			}
 		},
 	};
@@ -661,7 +701,15 @@ export function publishActiveUseLease(
 
 function collectActiveUseLeasePaths(
 	serverRoot,
-	{ leaseStaleGraceMs, now, readDirectory, removePath, statPath },
+	{
+		leaseStaleGraceMs,
+		now,
+		readDirectory,
+		removePath,
+		renamePath,
+		statPath,
+		touchPath,
+	},
 ) {
 	const keepPaths = new Set();
 	let pruningBlocked = false;
@@ -674,11 +722,13 @@ function collectActiveUseLeasePaths(
 	}
 
 	for (const entry of entries) {
-		if (
-			!entry.name.startsWith(ACTIVE_USE_LEASE_PREFIX) ||
-			!entry.name.endsWith(ACTIVE_USE_LEASE_SUFFIX)
-		)
-			continue;
+		const isActive =
+			entry.name.startsWith(ACTIVE_USE_LEASE_PREFIX) &&
+			entry.name.endsWith(ACTIVE_USE_LEASE_SUFFIX);
+		const isRetired =
+			entry.name.startsWith(ACTIVE_USE_TOMBSTONE_PREFIX) &&
+			entry.name.endsWith(ACTIVE_USE_LEASE_SUFFIX);
+		if (!isActive && !isRetired) continue;
 		const leasePath = join(serverRoot, entry.name);
 		let leaseStat;
 		try {
@@ -688,30 +738,74 @@ function collectActiveUseLeasePaths(
 			throw error;
 		}
 
-		if (now - leaseStat.mtimeMs >= leaseStaleGraceMs) {
-			if (removePrunable(leasePath, removePath)) continue;
-			try {
-				statPath(leasePath);
-			} catch (error) {
-				if (error?.code === 'ENOENT') continue;
-				throw error;
-			}
-		}
-
+		const retiredIdentity = isRetired
+			? retiredActiveUseLeaseIdentity(entry.name)
+			: undefined;
+		const token = isActive
+			? activeUseLeaseToken(entry.name)
+			: retiredIdentity?.token;
+		let lease;
 		try {
-			const token = activeUseLeaseToken(entry.name);
-			const lease = token
+			lease = token
 				? readActiveUseLease(leasePath, serverRoot, token)
 				: undefined;
-			if (!lease) {
+		} catch (error) {
+			if (error?.code === 'ENOENT') continue;
+			if (!(error instanceof SyntaxError)) throw error;
+		}
+
+		// The retirement timestamp in the owned tombstone name is authoritative
+		// if a platform renames the open lease but cannot refresh its mtime.
+		const freshSinceMs = retiredIdentity
+			? Math.max(leaseStat.mtimeMs, retiredIdentity.retiredAtMs)
+			: leaseStat.mtimeMs;
+		const stale = now - freshSinceMs >= leaseStaleGraceMs;
+		if (isRetired) {
+			if (stale) {
+				// Removing a tombstone never authorizes artifact deletion in the same
+				// pass. A later pruner may reclaim after the owner had a full grace
+				// period to observe lease loss and fence its child.
+				removePrunable(leasePath, removePath);
 				pruningBlocked = true;
 				continue;
 			}
+			if (lease) {
+				for (const path of lease.artifacts) keepPaths.add(path);
+			} else {
+				pruningBlocked = true;
+			}
+			continue;
+		}
+
+		if (stale) {
+			const retiredToken = token ?? randomBytes(16).toString('hex');
+			const retiredAtMs = Math.max(0, Math.trunc(now));
+			const tombstonePath = join(
+				serverRoot,
+				`${ACTIVE_USE_TOMBSTONE_PREFIX}${retiredToken}-${retiredAtMs}-${randomBytes(4).toString('hex')}${ACTIVE_USE_LEASE_SUFFIX}`,
+			);
+			try {
+				renamePath(leasePath, tombstonePath);
+				const retiredAt = new Date(retiredAtMs);
+				touchPath(tombstonePath, retiredAt, retiredAt);
+			} catch (error) {
+				if (!['EBUSY', 'ENOENT', 'EPERM'].includes(error?.code)) throw error;
+				// An uncertain retirement cannot authorize artifact deletion.
+				pruningBlocked = true;
+			}
+			if (lease) {
+				for (const path of lease.artifacts) keepPaths.add(path);
+			} else {
+				pruningBlocked = true;
+			}
+			continue;
+		}
+
+		if (lease) {
 			for (const path of lease.artifacts) keepPaths.add(path);
-		} catch (error) {
-			if (error?.code === 'ENOENT') continue;
-			// A fresh partial or unreadable lease may still belong to a publisher.
-			// Fail closed until its bounded stale grace elapses.
+		} else {
+			// A fresh partial or invalid lease may still belong to a publisher.
+			// Fail closed until it can transition through bounded retirement.
 			pruningBlocked = true;
 		}
 	}
@@ -788,9 +882,12 @@ export function pruneServerArtifacts(
 		maxArtifacts = PLAYWRIGHT_MAX_CACHED_ARTIFACTS,
 		now = Date.now(),
 		readDirectory = readdirSync,
+		removeEmptyDirectory = rmdirSync,
 		statPath = statSync,
 		removePath = rmSync,
+		renamePath = renameSync,
 		staleGraceMs = PLAYWRIGHT_LOCK_STALE_GRACE_MS,
+		touchPath = utimesSync,
 	} = {},
 ) {
 	const keepPaths = new Set(keep.map((path) => resolve(path)));
@@ -799,13 +896,31 @@ export function pruneServerArtifacts(
 		now,
 		readDirectory,
 		removePath,
+		renamePath,
 		statPath,
+		touchPath,
 	});
 	if (activeUse.pruningBlocked) return;
 	for (const path of activeUse.keepPaths) keepPaths.add(path);
-	const pending = [serverRoot];
+	const root = resolve(serverRoot);
+	const pending = [{ cleanup: false, path: serverRoot }];
 	while (pending.length > 0) {
-		const current = pending.pop();
+		const item = pending.pop();
+		const current = item.path;
+		if (item.cleanup) {
+			if (resolve(current) !== root) {
+				try {
+					removeEmptyDirectory(current);
+				} catch (error) {
+					if (
+						!['EBUSY', 'ENOENT', 'ENOTEMPTY', 'EPERM'].includes(error?.code)
+					) {
+						throw error;
+					}
+				}
+			}
+			continue;
+		}
 		let entries;
 		try {
 			entries = readDirectory(current, { withFileTypes: true });
@@ -813,6 +928,7 @@ export function pruneServerArtifacts(
 			if (error?.code === 'ENOENT') continue;
 			throw error;
 		}
+		pending.push({ cleanup: true, path: current });
 
 		const binaries = [];
 		const snapshots = [];
@@ -845,7 +961,7 @@ export function pruneServerArtifacts(
 				snapshots.push({ path, mtimeMs: pathStat.mtimeMs });
 				continue;
 			}
-			if (entry.isDirectory()) pending.push(path);
+			if (entry.isDirectory()) pending.push({ cleanup: false, path });
 		}
 
 		for (const artifacts of [binaries, snapshots]) {
@@ -1194,31 +1310,149 @@ export async function waitForServedCsp({
 export function superviseServer(
 	command,
 	args,
-	{ cwd = PARISH_DIR, env = process.env, onExit = () => {} } = {},
+	{
+		cwd = PARISH_DIR,
+		env = process.env,
+		shutdownTimeoutMs = PLAYWRIGHT_SERVER_SHUTDOWN_TIMEOUT_MS,
+		stdio = 'inherit',
+	} = {},
 ) {
-	const server = spawn(command, args, { cwd, env, stdio: 'inherit' });
-	let finalized = false;
-	const finalize = () => {
-		if (finalized) return;
-		finalized = true;
-		try {
-			onExit();
-		} catch (error) {
-			console.error(error);
-			process.exitCode = 1;
-		}
+	const server = spawn(command, args, { cwd, env, stdio });
+	let settleExit;
+	const exited = new Promise((resolveExit) => {
+		settleExit = resolveExit;
+	});
+	let settled = false;
+	const settle = (result) => {
+		if (settled) return;
+		settled = true;
+		settleExit(result);
 	};
 	server.once('error', (error) => {
-		console.error(error);
-		process.exitCode = 1;
-		finalize();
+		settle({ error });
 	});
 	server.once('exit', (code, signal) => {
-		process.exitCode = code ?? (signal ? 0 : 1);
-		finalize();
+		settle({ code, signal });
 	});
 
-	return { server };
+	return {
+		exited,
+		server,
+		async stop(signal = 'SIGTERM') {
+			if (server.exitCode === null && server.signalCode === null) {
+				try {
+					server.kill(signal);
+				} catch (error) {
+					if (error?.code !== 'ESRCH') throw error;
+				}
+			}
+			if (signal === 'SIGKILL') return exited;
+
+			let escalationTimer;
+			const forcedExit = new Promise((resolveForcedExit, rejectForcedExit) => {
+				escalationTimer = setTimeout(async () => {
+					try {
+						if (server.exitCode === null && server.signalCode === null) {
+							server.kill('SIGKILL');
+						}
+						resolveForcedExit(await exited);
+					} catch (error) {
+						if (error?.code === 'ESRCH') {
+							resolveForcedExit(await exited);
+						} else {
+							rejectForcedExit(error);
+						}
+					}
+				}, shutdownTimeoutMs);
+				escalationTimer.unref();
+			});
+			try {
+				return await Promise.race([exited, forcedExit]);
+			} finally {
+				clearTimeout(escalationTimer);
+			}
+		},
+	};
+}
+
+/**
+ * Keep the launcher alive through signal-driven child shutdown and fence the
+ * child immediately if its artifact lease is lost.
+ */
+export async function runManagedServerLifecycle({
+	activeUseLease,
+	processRef = process,
+	supervision,
+	waitUntilReady = async () => {},
+}) {
+	let resolveTermination;
+	const termination = new Promise((resolveSignal) => {
+		resolveTermination = resolveSignal;
+	});
+	const handlers = new Map(
+		['SIGTERM', 'SIGINT'].map((signal) => [
+			signal,
+			() => resolveTermination({ signal, type: 'termination' }),
+		]),
+	);
+	for (const [signal, handler] of handlers) processRef.on(signal, handler);
+
+	const childExit = supervision.exited.then((result) => ({
+		result,
+		type: 'child-exit',
+	}));
+	const leaseLoss = activeUseLease.lost.then((error) => ({
+		error,
+		type: 'lease-loss',
+	}));
+	const readiness = Promise.resolve()
+		.then(waitUntilReady)
+		.then(
+			() => ({ type: 'ready' }),
+			(error) => ({ error, type: 'startup-error' }),
+		);
+
+	try {
+		let outcome = await Promise.race([
+			readiness,
+			childExit,
+			leaseLoss,
+			termination,
+		]);
+		if (outcome.type === 'ready') {
+			outcome = await Promise.race([childExit, leaseLoss, termination]);
+		}
+
+		if (outcome.type === 'termination') {
+			await supervision.stop(outcome.signal);
+			processRef.exitCode = outcome.signal === 'SIGINT' ? 130 : 143;
+			return;
+		}
+		if (outcome.type === 'lease-loss') {
+			processRef.exitCode = 1;
+			await supervision.stop('SIGTERM');
+			throw new Error(
+				`Playwright server artifact lease was lost: ${outcome.error.message}`,
+				{ cause: outcome.error },
+			);
+		}
+		if (outcome.type === 'startup-error') {
+			processRef.exitCode = 1;
+			await supervision.stop('SIGTERM');
+			throw outcome.error;
+		}
+		if (outcome.result.error) {
+			processRef.exitCode = 1;
+			throw outcome.result.error;
+		}
+		processRef.exitCode =
+			outcome.result.code ?? (outcome.result.signal ? 0 : 1);
+	} finally {
+		for (const [signal, handler] of handlers) {
+			processRef.removeListener(signal, handler);
+		}
+		activeUseLease.release();
+	}
 }
 
 function parsePort(args) {
@@ -1250,22 +1484,21 @@ async function main() {
 	const supervision = superviseServer(
 		prepared.path,
 		['--port', port, '--static-dir', prepared.staticDir],
-		{ env, onExit: () => prepared.activeUseLease.release() },
+		{ env },
 	);
-	try {
-		await waitForServedCsp({
-			buildId: prepared.buildId,
-			expectedHashes: prepared.expectedHashes,
-			port,
-			readyFile,
-			runId,
-			server: supervision.server,
-		});
-	} catch (error) {
-		supervision.server.kill('SIGTERM');
-		process.exitCode = 1;
-		throw error;
-	}
+	await runManagedServerLifecycle({
+		activeUseLease: prepared.activeUseLease,
+		supervision,
+		waitUntilReady: () =>
+			waitForServedCsp({
+				buildId: prepared.buildId,
+				expectedHashes: prepared.expectedHashes,
+				port,
+				readyFile,
+				runId,
+				server: supervision.server,
+			}),
+	});
 }
 
 if (
