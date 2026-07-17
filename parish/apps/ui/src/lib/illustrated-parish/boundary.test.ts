@@ -17,11 +17,17 @@ function runtimeSources(directory: string): string[] {
 	});
 }
 
+const PERSON_ART_RUNTIME_SOURCE = resolve(
+	process.cwd(),
+	'src/lib/notebook/person-art.ts',
+);
+
 const ACTIVE_VISUAL_SOURCES = [
 	...runtimeSources(resolve(process.cwd(), 'src/lib/illustrated-parish')),
 	...runtimeSources(
 		resolve(process.cwd(), 'src/components/illustrated-notebook'),
 	),
+	PERSON_ART_RUNTIME_SOURCE,
 	resolve(process.cwd(), 'src/routes/+page.svelte'),
 ];
 
@@ -57,11 +63,14 @@ describe('fresh illustrated parish provenance boundary', () => {
 		]);
 	});
 
-	it('does not route through the rejected visual stack or asset kit', () => {
+	it('does not route through the rejected visual stack or broaden the approved person-art root', () => {
 		for (const source of ACTIVE_VISUAL_SOURCES) {
 			const text = readFileSync(source, 'utf8');
 			expect(text).not.toMatch(
-				/illustrated-notebook\/(?:renderer|layout|assets|types|interactions)|(?:components|\.\.)\/notebook\/|(?:\/|static\/)(?:rundale\/)?notebook-ui\//,
+				/illustrated-notebook\/(?:renderer|layout|assets|types|interactions)|(?:components|\.\.)\/notebook\//,
+			);
+			expect(text.match(/\/rundale\/notebook-ui\//g) ?? []).toEqual(
+				source === PERSON_ART_RUNTIME_SOURCE ? ['/rundale/notebook-ui/'] : [],
 			);
 		}
 	});
