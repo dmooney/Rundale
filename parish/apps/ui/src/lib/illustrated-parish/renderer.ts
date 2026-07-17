@@ -39,6 +39,11 @@ const MOOD_RED = 0xa1543a;
 const TRUST_OLIVE = 0x84954e;
 const WASH_GRAY = 0x72736d;
 const HAND_FONT = 'Kalam, "Bradley Hand", "Segoe Print", cursive';
+const BOOKEND_PAPER_OPTIONS = {
+	pale: true,
+	alpha: 0.93,
+	shadow: true,
+} as const;
 
 const TAB_LABELS: ParishTab[] = [
 	'notes',
@@ -47,14 +52,6 @@ const TAB_LABELS: ParishTab[] = [
 	'rumours',
 	'journal',
 ];
-
-const MOBILE_TAB_LABELS: Record<ParishTab, string> = {
-	notes: 'N',
-	people: 'Pe',
-	places: 'Pl',
-	rumours: 'R',
-	journal: 'J',
-};
 
 const ACTION_LABELS: Record<NotebookAction, string> = {
 	talk: 'Talk',
@@ -550,7 +547,10 @@ export class IllustratedParishRenderer {
 	}
 
 	private drawTop(layout: ParishLayout, state: ParishRenderState): void {
-		this.paper(this.layers.chrome, layout.logoCard, { pale: true });
+		this.paper(this.layers.chrome, layout.logoCard, BOOKEND_PAPER_OPTIONS);
+		if (layout.mode === 'desktop') {
+			this.paper(this.layers.chrome, layout.compass, BOOKEND_PAPER_OPTIONS);
+		}
 		const compactLogo = layout.mode === 'mobile';
 		this.text(
 			this.layers.chrome,
@@ -666,11 +666,6 @@ export class IllustratedParishRenderer {
 				layout.statusRibbon.height * 0.2,
 			);
 			centeredText(time, 0.9, Math.max(14, layout.statusRibbon.height * 0.29));
-			this.paper(this.layers.chrome, layout.compass, {
-				pale: true,
-				shadow: false,
-				alpha: 0.84,
-			});
 			const compassSize = Math.min(52, layout.compass.height * 0.68);
 			const compassRect = {
 				x:
@@ -1002,6 +997,10 @@ export class IllustratedParishRenderer {
 		const pageRight = layout.notebookPage.x + layout.notebookPage.width;
 		layout.tabs.forEach((rect, index) => {
 			const tab = TAB_LABELS[index];
+			const visibleRight = Math.min(layout.width, rect.x + rect.width);
+			const visibleWidth = Math.max(1, visibleRight - pageRight);
+			const visibleCenterX = pageRight + visibleWidth / 2;
+			const iconOnly = layout.mode === 'mobile' || rect.height < 38;
 			const hit = new Graphics();
 			hit
 				.rect(rect.x, rect.y, rect.width, rect.height)
@@ -1018,17 +1017,29 @@ export class IllustratedParishRenderer {
 					40 + index,
 				),
 			);
-			const label = this.text(
-				this.layers.chrome,
-				layout.mode === 'mobile' ? MOBILE_TAB_LABELS[tab] : titleCase(tab),
-				pageRight + (rect.x + rect.width - pageRight) / 2,
-				rect.y + rect.height / 2,
-				layout.mode === 'mobile'
-					? 9
-					: Math.max(10, Math.min(13, rect.height * 0.27)),
-				{ fill: INK_SOFT },
-			);
-			label.anchor.set(0.5);
+			if (!iconOnly) {
+				const label = this.text(
+					this.layers.chrome,
+					titleCase(tab),
+					visibleCenterX,
+					rect.y + rect.height * 0.19,
+					Math.max(9, Math.min(11, rect.height * 0.23)),
+					{ fill: INK_SOFT },
+				);
+				label.anchor.set(0.5);
+			}
+
+			const iconSize = iconOnly
+				? Math.max(14, Math.min(22, visibleWidth - 5, rect.height - 8))
+				: Math.min(36, Math.max(28, visibleWidth * 0.65), rect.height * 0.78);
+			this.contain(this.layers.chrome, PARISH_ASSETS.tabIcons[tab], {
+				x: visibleCenterX - iconSize / 2,
+				y: iconOnly
+					? rect.y + (rect.height - iconSize) / 2
+					: rect.y + rect.height * 0.32,
+				width: iconSize,
+				height: iconSize,
+			});
 		});
 	}
 

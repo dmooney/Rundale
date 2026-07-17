@@ -148,13 +148,30 @@ function desktopLayout(width: number, height: number): ParishLayout {
 		);
 	};
 
+	const bookendWidth = 0.225;
+	const bookendHeight = 0.084;
+
 	return {
 		mode: 'desktop',
 		width,
 		height,
-		logoCard: normalized(width, height, 0, 0, 0.225, 0.084),
-		statusRibbon: normalized(width, height, 0.225, 0, 0.553, 0.061),
-		compass: normalized(width, height, 0.778, 0, 0.222, 0.073),
+		logoCard: normalized(width, height, 0, 0, bookendWidth, bookendHeight),
+		statusRibbon: normalized(
+			width,
+			height,
+			bookendWidth,
+			0,
+			1 - bookendWidth * 2,
+			0.061,
+		),
+		compass: normalized(
+			width,
+			height,
+			1 - bookendWidth,
+			0,
+			bookendWidth,
+			bookendHeight,
+		),
 		nearbyRail,
 		moreButton: rect(
 			nearbyRail.x + 7,

@@ -26,13 +26,15 @@ but no runtime file is cut from that concept image.
   generated independently with the built-in image generator, using the
   canonical concept as a style/composition reference and the approved sewn
   page as the material reference.
-- `notebook-index-rail.png` is one transparent assembly of five distinct blank
+- `notebook-index-rail.png` is one transparent assembly of five distinct
   folded-vellum finding tabs. Its buried tails sit behind the sewn page while
-  runtime labels and five independent hit targets preserve legibility and
-  accessibility.
-- `icon-*.png` provides transparent 128×128 action, map, time, quill, and
+  raster ink symbols, desktop labels, and five independent transparent hit
+  targets preserve legibility and accessibility.
+- `icon-*.png` provides transparent 128×128 action, tab, map, time, quill, and
   compass cutouts generated from the concept's loose charcoal/sepia symbol
-  language.
+  language. The five tab cutouts are a loose notes folio, anonymous People
+  bust, rural chapel, rumours bubble, and plain open journal; none introduces
+  portrait identity or modern binding hardware.
   The compass contains no generated lettering; the renderer supplies `N`.
 - `portrait-slot-frame.png` is intentionally empty. It reserves layout space
   without introducing portrait art from the separate portrait issue.

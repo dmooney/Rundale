@@ -276,9 +276,11 @@ test.describe('illustrated notebook overlays (#1630)', () => {
 		const initialBounds = await canvasBounds(page);
 
 		for (const name of [
+			'Open Notes notebook tab',
 			'Open Journal notebook tab',
 			'Open People notebook tab',
 			'Open Places notebook tab',
+			'Open Rumours notebook tab',
 			'Open parish map',
 			'Open notebook tools',
 		]) {
@@ -384,6 +386,19 @@ test.describe('illustrated notebook overlays (#1630)', () => {
 		await page.setViewportSize({ width: 390, height: 844 });
 		await setupNotebookPage(page);
 		const initialBounds = await canvasBounds(page);
+		for (const name of [
+			'Open Notes notebook tab',
+			'Open People notebook tab',
+			'Open Places notebook tab',
+			'Open Rumours notebook tab',
+			'Open Journal notebook tab',
+		]) {
+			const bounds = await page
+				.getByRole('button', { name, exact: true })
+				.boundingBox();
+			expect(bounds?.width).toBeGreaterThanOrEqual(44);
+			expect(bounds?.height).toBeGreaterThanOrEqual(42);
+		}
 
 		await page.screenshot({
 			path: path.join(PROOF_DIR, 'mobile-first-viewport.png'),

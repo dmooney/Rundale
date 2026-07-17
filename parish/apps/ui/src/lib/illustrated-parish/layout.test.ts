@@ -18,8 +18,14 @@ describe('concept-faithful illustrated parish layout', () => {
 		expect(layout.statusRibbon.x + layout.statusRibbon.width).toBeCloseTo(
 			layout.compass.x,
 		);
-		expect(layout.logoCard.height).toBeGreaterThan(layout.compass.height);
-		expect(layout.compass.height).toBeGreaterThan(layout.statusRibbon.height);
+		expect(layout.logoCard.width).toBeCloseTo(layout.compass.width, 8);
+		expect(layout.logoCard.height).toBeCloseTo(layout.compass.height, 8);
+		expect(layout.logoCard.y).toBeCloseTo(layout.compass.y, 8);
+		expect(layout.compass.x + layout.compass.width).toBeCloseTo(
+			layout.width,
+			8,
+		);
+		expect(layout.logoCard.height).toBeGreaterThan(layout.statusRibbon.height);
 		expect(layout.nearbyRail.y / layout.height).toBeCloseTo(0.215, 3);
 		expect(layout.actionStrip.x / layout.width).toBeCloseTo(0.316, 3);
 		expect(layout.actionStrip.y / layout.height).toBeCloseTo(0.79, 3);
@@ -27,6 +33,34 @@ describe('concept-faithful illustrated parish layout', () => {
 		expect(layout.activeIntentsCard.x / layout.width).toBeCloseTo(0.782, 3);
 		expect(layout.actionCells).toHaveLength(5);
 		expect(layout.tabs).toHaveLength(5);
+	});
+
+	it('keeps the desktop masthead bookends matched at every desktop width', () => {
+		for (const [width, height] of [
+			[1672, 941],
+			[1440, 900],
+			[761, 900],
+		] as const) {
+			const layout = computeParishLayout(width, height);
+
+			expect(layout.mode).toBe('desktop');
+			expect(layout.logoCard.width).toBeCloseTo(layout.compass.width, 8);
+			expect(layout.logoCard.height).toBeCloseTo(layout.compass.height, 8);
+			expect(layout.logoCard.y).toBeCloseTo(layout.compass.y, 8);
+			expect(layout.logoCard.x + layout.logoCard.width).toBeCloseTo(
+				layout.statusRibbon.x,
+				8,
+			);
+			expect(layout.statusRibbon.x + layout.statusRibbon.width).toBeCloseTo(
+				layout.compass.x,
+				8,
+			);
+			expect(layout.compass.x + layout.compass.width).toBeCloseTo(
+				layout.width,
+				8,
+			);
+			expect(layout.statusRibbon.height).toBeLessThan(layout.logoCard.height);
+		}
 	});
 
 	it('never stretches the approved sewn page', () => {

@@ -172,6 +172,13 @@ describe('fresh illustrated parish asset boundary', () => {
 		expect(PARISH_ASSETS.sewnPage).toContain('sewn-notebook-page.png');
 		expect(PARISH_ASSETS.indexRail).toContain('notebook-index-rail.png');
 		expect(PARISH_ASSETS.compassIcon).toContain('icon-compass.png');
+		expect(Object.keys(PARISH_ASSETS.tabIcons)).toEqual([
+			'notes',
+			'people',
+			'places',
+			'rumours',
+			'journal',
+		]);
 		for (const url of PARISH_ASSET_URLS) {
 			expect(url).not.toMatch(
 				/spiral|ring|placeholder|stamp-frame|npc-marker|parchment-tab/,

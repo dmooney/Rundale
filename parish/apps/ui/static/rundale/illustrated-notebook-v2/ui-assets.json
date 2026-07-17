@@ -9,7 +9,7 @@
 	"constraints": [
 		"The concept image is a style and composition reference, never a runtime crop.",
 		"The approved page remains hand-sewn: no rings, ring holes, spiral binding, or paperclip.",
-		"The fore-edge controls are five blank folded-vellum finding tabs, not modern file-folder buttons.",
+		"The fore-edge controls are five folded-vellum finding tabs carrying period-appropriate raster ink symbols, not modern file-folder buttons.",
 		"Portrait artwork is outside this asset slice; the portrait frame remains empty."
 	],
 	"provenance_classes": {
@@ -108,6 +108,51 @@
 			"alpha": "cutout",
 			"provenance": "concept-paper",
 			"sha256": "39fe71eef27f5df1cbf2f7fd8193b17f419504c4f2e6b01ef984f07dfba4bd5e"
+		},
+		{
+			"key": "tabIcons.notes",
+			"file": "icon-tab-notes.png",
+			"width": 128,
+			"height": 128,
+			"alpha": "cutout",
+			"provenance": "concept-icon",
+			"sha256": "6594a8937963f023b4a720d2af9c63eb19f2084c6acaa220571a2e60ec31be01"
+		},
+		{
+			"key": "tabIcons.people",
+			"file": "icon-tab-people.png",
+			"width": 128,
+			"height": 128,
+			"alpha": "cutout",
+			"provenance": "concept-icon",
+			"sha256": "08b6d487b1c34d8cbd1a2db0745607521946d46b2303570eb1765f635065e03b"
+		},
+		{
+			"key": "tabIcons.places",
+			"file": "icon-tab-places.png",
+			"width": 128,
+			"height": 128,
+			"alpha": "cutout",
+			"provenance": "concept-icon",
+			"sha256": "c028147226abd10dadd1962c99c86667d85be8a6d3d27fd2e2d7d0e901bd5ca7"
+		},
+		{
+			"key": "tabIcons.rumours",
+			"file": "icon-tab-rumours.png",
+			"width": 128,
+			"height": 128,
+			"alpha": "cutout",
+			"provenance": "concept-icon",
+			"sha256": "739587a37034dc7a2bc91d7c4c3b6f88d84d7d6139f62bd6dce13982c861c3d3"
+		},
+		{
+			"key": "tabIcons.journal",
+			"file": "icon-tab-journal.png",
+			"width": 128,
+			"height": 128,
+			"alpha": "cutout",
+			"provenance": "concept-icon",
+			"sha256": "a1a0efaaa80d32c2fc3fa13e02bf62d61feff9aa261744a71d0d7e0e549a6244"
 		},
 		{
 			"key": "label",
