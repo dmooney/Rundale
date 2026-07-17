@@ -1,0 +1,1643 @@
+{
+	"schema_version": 1,
+	"record_type": "notebook-person-art-whole-cast-human-review-decision",
+	"source_packets": [
+		{
+			"path": "parish/apps/ui/art/notebook-person-art/candidates/review-packets/identity-v8-character-only-full-cast-a-20260716/manifest.json",
+			"sha256": "f95c73bbe10fa7b612bb67a64c9d669e6f1f12c7366ef8467ea14be74356bcf1"
+		},
+		{
+			"path": "parish/apps/ui/art/notebook-person-art/candidates/review-packets/identity-v8-character-only-full-cast-b-20260716/manifest.json",
+			"sha256": "eb031eaec08a4029466585ea5b0f5ad33c6204ece0919443294af2429cb4eddb"
+		},
+		{
+			"path": "parish/apps/ui/art/notebook-person-art/candidates/review-packets/identity-v8-character-only-full-cast-c-20260716/manifest.json",
+			"sha256": "d7c97d6e39ee492f3950a7a3f075abaa14c7d0d9575ceb4effdc848bdd1d0e60"
+		}
+	],
+	"cast": {
+		"named_count": 23,
+		"total_count": 24,
+		"members": [
+			{
+				"subject_key": "npc:1",
+				"subject": {
+					"kind": "npc",
+					"npc_id": 1,
+					"name": "Padraig Darcy",
+					"input_record_sha256": "e894fdd569f7e6e272465f45d0393f47270ed77d8487401ea65d24531cac1933"
+				},
+				"candidate_receipt_path": "/Users/dmooney/.codex/worktrees/c8551411-006b-4f7d-a526-046eeda0e842/Rundale/parish/apps/ui/art/notebook-person-art/candidates/objects/fd/fd28737520bcf113842ed6f1c09c253d793f413fcff255ce0bdf46c30221145a/receipt.json",
+				"candidate_receipt_sha256": "edb3c22f53d031eda976ec5bce2b65ca75735b8466fbdfd91ca6162eb900c82b",
+				"candidate_sha256": "1349f3e34eb8958f00441de1f5f8bc87048b742b09e3b25314040fb4889b0f6a",
+				"raw_sha256": "9e75badd7870d88733fe1a6a719b278fe40c53426dffdd925f2f3041411da741",
+				"portrait_sha256": "cd8495cedea645984f005bbfe9acb4de472c2f7ed6dcfd530d78ff32b92d7297",
+				"marker_sha256": "38d6e6b9190e812329b538a34510390919859d1f82cfcd1855533879aa434df6",
+				"hair_topology": {
+					"schema_version": 4,
+					"subject_key": "npc:1",
+					"vector": {
+						"color_and_texture": "coarse dark-grey hair with grey whiskers",
+						"front": {
+							"family": "uneven-brushed-back-front",
+							"description": "short front brushed back unevenly from a mature high-temple hairline"
+						},
+						"rear": {
+							"family": "short-rough-nape",
+							"description": "short rough crop at the crown and nape"
+						},
+						"covering": {
+							"family": "uncovered",
+							"description": "no cap or other head covering"
+						},
+						"silhouette": {
+							"family": "broad-sideburn-profile",
+							"description": "broad brushed-back outline anchored by prominent sideburns"
+						},
+						"loose_details": "prominent greying sideburns and trimmed grey whiskers"
+					},
+					"sha256": "f91fb0d9397c7f953a7b91de7ec9da1ca3fbd8b2c2509a02f59a75b5ad930a5a"
+				},
+				"marker_identity": {
+					"schema_version": 4,
+					"subject_key": "npc:1",
+					"marker_identity": {
+						"composition": "character-only",
+						"silhouette": "stocky late-fifties man with square shoulders, broad sideburns, worn dark waistcoat, and rolled sleeves; no object/scenery",
+						"stance": "grounded square stance with both hands near the waistcoat front; no object/scenery",
+						"empty_hand_pose": "hands-near-coat-front",
+						"readability_cues": [
+							{
+								"kind": "body-shape",
+								"description": "compact broad build"
+							},
+							{
+								"kind": "hair-or-headwear",
+								"description": "prominent greying sideburns"
+							},
+							{
+								"kind": "clothing",
+								"description": "dark waistcoat over pale rolled sleeves"
+							}
+						],
+						"tiny_readability_notes": [
+							"Make the broad, low center of gravity readable before facial detail."
+						]
+					},
+					"sha256": "5f24d08d93fd6c170a975a973308b9a42ba7be10aa70818138a33b7b6eb42162"
+				}
+			},
+			{
+				"subject_key": "npc:2",
+				"subject": {
+					"kind": "npc",
+					"npc_id": 2,
+					"name": "Siobhan Murphy",
+					"input_record_sha256": "18babe0507888c411132124ee3add55c39fabfd7a069dc7cfc444b6d692a2902"
+				},
+				"candidate_receipt_path": "/Users/dmooney/.codex/worktrees/c8551411-006b-4f7d-a526-046eeda0e842/Rundale/parish/apps/ui/art/notebook-person-art/candidates/objects/01/011092f480b0e23b26da10420861167f1060d2030dad6fe02af1253c74ab40b5/receipt.json",
+				"candidate_receipt_sha256": "7660842c867c5b5c1dbf763212185fafd4e13fdb01665305894d1166e1181aaa",
+				"candidate_sha256": "bd5365f0b912bfd196870cecc1776f4c1e1739eba37661143782f5c73c372fbd",
+				"raw_sha256": "e117a17ac39caba454aefbfafc384cb7843deae8dc570cc9d158f1e21f6fd529",
+				"portrait_sha256": "f4283b9d3ba86bc62e18451bfa70480a64423f2b41b8ed359e1442f43cc86337",
+				"marker_sha256": "61163eba45498f450a298534aa5f662fe962d2dcbe0b442d64b3132b4d282df2",
+				"hair_topology": {
+					"schema_version": 4,
+					"subject_key": "npc:2",
+					"vector": {
+						"color_and_texture": "dark brown practical working hair",
+						"front": {
+							"family": "fully-covered-front",
+							"description": "front hairline and part completely hidden by the kerchief"
+						},
+						"rear": {
+							"family": "concealed-crossed-plaits",
+							"description": "two flat plaits crossed horizontally and fully concealed, never a rounded bun"
+						},
+						"covering": {
+							"family": "full-work-kerchief",
+							"description": "plain dark repaired work kerchief tied securely at the nape"
+						},
+						"silhouette": {
+							"family": "close-triangular-kerchief",
+							"description": "close triangular cloth silhouette with no exposed side or rear hair mass"
+						},
+						"loose_details": "no decorative curl, ribbon, or loose lock"
+					},
+					"sha256": "aa1bf75b5c1d423d14dcb1bf31ddd14ff273887bc5fbb49bb6dd8b67d9b73bbc"
+				},
+				"marker_identity": {
+					"schema_version": 4,
+					"subject_key": "npc:2",
+					"marker_identity": {
+						"composition": "character-only",
+						"silhouette": "sturdy mid-forties woman with a close triangular dark kerchief, pinned shawl, sturdy apron, and broad skirt; no object/scenery",
+						"stance": "forward-set stance with one hand on hip and the other at her side; no object/scenery",
+						"empty_hand_pose": "one-on-hip-one-at-side",
+						"readability_cues": [
+							{
+								"kind": "hair-or-headwear",
+								"description": "fully covered triangular kerchief"
+							},
+							{
+								"kind": "body-shape",
+								"description": "firm forward shoulders"
+							},
+							{
+								"kind": "clothing",
+								"description": "broad apron-and-skirt outline"
+							}
+						],
+						"tiny_readability_notes": [
+							"The close kerchief silhouette must remain distinct from caps, bonnets, and loose hair."
+						]
+					},
+					"sha256": "5f01b10cd233e6025002b0c474354764bb1d412696365c2fa490c0448f9631a6"
+				}
+			},
+			{
+				"subject_key": "npc:3",
+				"subject": {
+					"kind": "npc",
+					"npc_id": 3,
+					"name": "Fr. Declan Tierney",
+					"input_record_sha256": "f4adfa68aaa23fb5f7ede1f6df75a70ab7e2e29c1533d42b5f740db841aa80b6"
+				},
+				"candidate_receipt_path": "/Users/dmooney/.codex/worktrees/c8551411-006b-4f7d-a526-046eeda0e842/Rundale/parish/apps/ui/art/notebook-person-art/candidates/objects/c4/c47f36dcd61921175f396dd12ac6a5e90526a9f21c35cefe8f627e7320765b16/receipt.json",
+				"candidate_receipt_sha256": "c20f379e15892cc707d2a049d2758473328c38b220e1d42b34815ff743e5a9a2",
+				"candidate_sha256": "0c2f11aee2bf48135a73fe8d73fa82e381e9ff15f45e98c837ead1caef827807",
+				"raw_sha256": "7e8a7e1fd73574625d87898ba567d982350d9a17a2a20482c2dbcb9d2918bf61",
+				"portrait_sha256": "bb6050f8f4684f2159a58516c2ee8c4ce2d1ac764b69f080a5ea1c2d8ee967cc",
+				"marker_sha256": "7a89a518013054cde7f3c37abddcdca730363b2d694965b1e50fe4ee368c6f2b",
+				"hair_topology": {
+					"schema_version": 4,
+					"subject_key": "npc:3",
+					"vector": {
+						"color_and_texture": "fine silver hair",
+						"front": {
+							"family": "receding-close-brushback",
+							"description": "receding temples with fine hair brushed straight back"
+						},
+						"rear": {
+							"family": "longer-over-ears",
+							"description": "close rear with slight length retained over the ears"
+						},
+						"covering": {
+							"family": "clerical-uncovered",
+							"description": "uncovered head without cap or hat"
+						},
+						"silhouette": {
+							"family": "fine-receding-profile",
+							"description": "narrow close-haired silhouette with clearly receding temples"
+						},
+						"loose_details": "a few fine silver strands above each ear"
+					},
+					"sha256": "f5e1a2394322fa450eaadde4ff541ee452811a43857250061d64d58c11088726"
+				},
+				"marker_identity": {
+					"schema_version": 4,
+					"subject_key": "npc:3",
+					"marker_identity": {
+						"composition": "character-only",
+						"silhouette": "slender early-sixties man in a dark long coat with a small white collar and close silver hair; no object/scenery",
+						"stance": "gentle slight stoop with hands clasped at the waist; no object/scenery",
+						"empty_hand_pose": "hands-clasped",
+						"readability_cues": [
+							{
+								"kind": "clothing",
+								"description": "long dark coat and small white collar"
+							},
+							{
+								"kind": "hair-or-headwear",
+								"description": "receding silver hair"
+							},
+							{
+								"kind": "body-shape",
+								"description": "slender stooped frame"
+							}
+						],
+						"tiny_readability_notes": [
+							"Keep the silhouette narrow and contemplative without adding ceremonial objects."
+						]
+					},
+					"sha256": "9ac7bcb82b6cf5c435c06a741a7520487a6c46c2b214e7bf3de839d1a2a7263a"
+				}
+			},
+			{
+				"subject_key": "npc:4",
+				"subject": {
+					"kind": "npc",
+					"npc_id": 4,
+					"name": "Roisin Connolly",
+					"input_record_sha256": "8ad5fcee06124d3c9eab95161fac3baf2723b42e66b72ea7dc2865bf1690228a"
+				},
+				"candidate_receipt_path": "/Users/dmooney/.codex/worktrees/c8551411-006b-4f7d-a526-046eeda0e842/Rundale/parish/apps/ui/art/notebook-person-art/candidates/objects/80/80595d7965b2ec7967a3608244bf2b2582932785ea87934fae4d38464fa438af/receipt.json",
+				"candidate_receipt_sha256": "4da0a0f24dd79b0aee4541dc58a735f0977619a51f67a304cf204f96617a69d4",
+				"candidate_sha256": "b46f2e7559371c8ee5a21d9718d08f9d4a641f448c93060957309633647dabcb",
+				"raw_sha256": "9d6dac6bb2c668b8cda0b059e82265754bb1aa3a7e3f6d97c714ec97063aaed2",
+				"portrait_sha256": "ea6056803aa5e2e389a76ec184d587de8db3fa2a021fd8dcc662700661ab5eff",
+				"marker_sha256": "943f6eca969037d93508ab979beb9f571ed899b3e9532b39c44fa3869bf1f437",
+				"hair_topology": {
+					"schema_version": 4,
+					"subject_key": "npc:4",
+					"vector": {
+						"color_and_texture": "smooth dark brown hair",
+						"front": {
+							"family": "clean-part-with-side-rolls",
+							"description": "clean centre part framed by one gentle controlled roll on each side"
+						},
+						"rear": {
+							"family": "mid-back-braided-coil",
+							"description": "compact braided coil centered at mid-back height, clearly above the nape"
+						},
+						"covering": {
+							"family": "narrow-frilled-day-cap",
+							"description": "neat white linen day cap with a narrow face frill, leaving the part and side rolls visible"
+						},
+						"silhouette": {
+							"family": "rolled-mid-back-cap",
+							"description": "tidy side width and a compact raised rear coil under a close cap"
+						},
+						"loose_details": "two fine temple wisps only; no hanging ringlets"
+					},
+					"sha256": "c66b733c153436d9f36faf950182942ab34f5fddb55b67e3efbc7789faa6dbba"
+				},
+				"marker_identity": {
+					"schema_version": 4,
+					"subject_key": "npc:4",
+					"marker_identity": {
+						"composition": "character-only",
+						"silhouette": "neat late-thirties woman with a narrow-frilled linen cap, visible side rolls, raised compact rear coil, and tidy dark dress; no object/scenery",
+						"stance": "upright three-quarter stance with hands clasped low; no object/scenery",
+						"empty_hand_pose": "hands-clasped",
+						"readability_cues": [
+							{
+								"kind": "hair-or-headwear",
+								"description": "narrow-frilled white cap over side rolls and a raised compact rear coil"
+							},
+							{
+								"kind": "stance",
+								"description": "tidy upright outline"
+							}
+						],
+						"tiny_readability_notes": [
+							"Preserve the cap, side rolls, and raised coil as one clean small-scale profile."
+						]
+					},
+					"sha256": "e77e46d6ac7d56ace2399f895298565fe186eacc6f3dd90b5f338ce2259c6c47"
+				}
+			},
+			{
+				"subject_key": "npc:5",
+				"subject": {
+					"kind": "npc",
+					"npc_id": 5,
+					"name": "Tommy O'Brien",
+					"input_record_sha256": "2ba604dd220bfbd678a9ee780b49255a628a693f17989cd44c9073b06a94cd77"
+				},
+				"candidate_receipt_path": "/Users/dmooney/.codex/worktrees/c8551411-006b-4f7d-a526-046eeda0e842/Rundale/parish/apps/ui/art/notebook-person-art/candidates/objects/9b/9b6d40bef136cef2135a01df195d83ce9c07986fb7492e6a4552ab70ffc9126d/receipt.json",
+				"candidate_receipt_sha256": "78c478d6ba46171c41a5354e6ed9ba43f88ae57d81da612cf5f4f6a9c11e26a2",
+				"candidate_sha256": "47f6a038e5a30f4292f777a2c8de7c8f7799ed441d93a7c2b42e7bee5fbb9186",
+				"raw_sha256": "42616d2e7e29b7b0151f0111c7771c87cf4715d8e2c8ffcc3e723fd7e45c9510",
+				"portrait_sha256": "5afbc64563506ba6d7a82fd71926ee15b89738cd56d39e5f140920cc238e6c0c",
+				"marker_sha256": "077c1677f7627936822ac9e13dafa7a476a93a6b4e35ac7c310de1820261e2b7",
+				"hair_topology": {
+					"schema_version": 4,
+					"subject_key": "npc:5",
+					"vector": {
+						"color_and_texture": "sparse white hair and thin whiskers",
+						"front": {
+							"family": "sparse-temples-under-cap",
+							"description": "mostly hidden front with sparse white temple hair visible"
+						},
+						"rear": {
+							"family": "white-nape-wisps",
+							"description": "thin uneven white wisps at the nape"
+						},
+						"covering": {
+							"family": "battered-wool-cap",
+							"description": "soft battered wool cap sitting unevenly"
+						},
+						"silhouette": {
+							"family": "collapsed-cap-and-whiskers",
+							"description": "collapsed cap crown over sparse hair with narrow whisker points"
+						},
+						"loose_details": "uneven chin stubble and thin white whiskers"
+					},
+					"sha256": "45c06b6e837090109a8af762c2e2df14236892ef493fa9aaeddf1d103655dfe9"
+				},
+				"marker_identity": {
+					"schema_version": 4,
+					"subject_key": "npc:5",
+					"marker_identity": {
+						"composition": "character-only",
+						"silhouette": "lean around-seventy man with a battered soft cap, weathered scarf, rounded stoop, and long old coat; no object/scenery",
+						"stance": "stooped three-quarter stance with one empty hand gesturing and the other at his side; no object/scenery",
+						"empty_hand_pose": "one-hand-gesturing",
+						"readability_cues": [
+							{
+								"kind": "hair-or-headwear",
+								"description": "soft battered cap"
+							},
+							{
+								"kind": "body-shape",
+								"description": "pronounced stoop"
+							},
+							{
+								"kind": "face",
+								"description": "thin white whiskers"
+							}
+						],
+						"tiny_readability_notes": [
+							"Separate him from Mick through his rounded stoop and softer, more animated arm line."
+						]
+					},
+					"sha256": "1b78b43624c7d7bbd86249b6a887eaceb67abd76a31c6b235e5369ad726803f7"
+				}
+			},
+			{
+				"subject_key": "npc:6",
+				"subject": {
+					"kind": "npc",
+					"npc_id": 6,
+					"name": "Aoife Brennan",
+					"input_record_sha256": "44bf147901fafcd1fc133d161419625d66c10e4842390a6fef94cb4f972d9fba"
+				},
+				"candidate_receipt_path": "/Users/dmooney/.codex/worktrees/c8551411-006b-4f7d-a526-046eeda0e842/Rundale/parish/apps/ui/art/notebook-person-art/candidates/objects/3c/3c847699f3a5baa3b921c1cab81dc3bcd3d4535116aa428fe19f59b78615d0f7/receipt.json",
+				"candidate_receipt_sha256": "00fa5768ca77b52e93a45563a5dc3250445c387b66c03d0b23a717af33ddedca",
+				"candidate_sha256": "220e2e9653e4cf4978572ac9f8535414baa210ef1542b5c4cfc0a3a4552cd7c7",
+				"raw_sha256": "acf96da62891b8f552698af939ab43f3bd395005ebb589ba61b8b4440602f9ba",
+				"portrait_sha256": "a412255130a3f0f14e6575b9287ec58b9425b07b67d13fac8399e46c130bfa54",
+				"marker_sha256": "aaef777a93156580b626609ffe2e487f4972a64fdb112c36580aaf89dacaab14",
+				"hair_topology": {
+					"schema_version": 4,
+					"subject_key": "npc:6",
+					"vector": {
+						"color_and_texture": "dark brown hair with fine narrow braids",
+						"front": {
+							"family": "visible-temple-braids",
+							"description": "clean near-centre part with one narrow braid beginning at each temple"
+						},
+						"rear": {
+							"family": "shallow-upper-coronet",
+							"description": "two braids pinned as a shallow coronet across the upper rear head"
+						},
+						"covering": {
+							"family": "uncovered-indoors",
+							"description": "uncovered for teaching indoors; a plain bonnet is reserved for travel or church"
+						},
+						"silhouette": {
+							"family": "visible-crown-band",
+							"description": "a slim braided band rises behind and above the ears with no nape mass"
+						},
+						"loose_details": "two very fine temple wisps beneath the braids"
+					},
+					"sha256": "9363a2899ec383073941bd68d041cfb16749cc71b04585c0f5707b2d3c7c1ba8"
+				},
+				"marker_identity": {
+					"schema_version": 4,
+					"subject_key": "npc:6",
+					"marker_identity": {
+						"composition": "character-only",
+						"silhouette": "slim late-twenties woman with uncovered dark hair, fine temple braids, a shallow upper-rear coronet, and a short jacket; no object/scenery",
+						"stance": "upright stance with one empty hand gesturing and the other at her side; no object/scenery",
+						"empty_hand_pose": "one-hand-gesturing",
+						"readability_cues": [
+							{
+								"kind": "hair-or-headwear",
+								"description": "visible temple-braid origins joining a slim raised coronet band"
+							},
+							{
+								"kind": "face",
+								"description": "pointed-chin profile"
+							}
+						],
+						"tiny_readability_notes": [
+							"The fine braids need a clear, sparse outline at marker scale."
+						]
+					},
+					"sha256": "c33a76172f87c0e4dcf506a4b48c941e42da29255d7f93b9c26cabd36d3e0db8"
+				}
+			},
+			{
+				"subject_key": "npc:7",
+				"subject": {
+					"kind": "npc",
+					"npc_id": 7,
+					"name": "Mick Flanagan",
+					"input_record_sha256": "d93722bd799c79d16b7834b7801a6f9aa5cd3c8dc1c27218eb28b529cdb9fe92"
+				},
+				"candidate_receipt_path": "/Users/dmooney/.codex/worktrees/c8551411-006b-4f7d-a526-046eeda0e842/Rundale/parish/apps/ui/art/notebook-person-art/candidates/objects/de/de18afa2260b6d43dd52c6d6055f2c9e878146f3bfe0ed02a8ca023d8c50de58/receipt.json",
+				"candidate_receipt_sha256": "f6a72d5ed7b1b89f407dedb713934e4480bc6c1ca9bc34a2d43c1929c960db42",
+				"candidate_sha256": "4fe57476d3a25709e585da2d126a74344b13dc0a79be58ed0d0730dba7f1a5d8",
+				"raw_sha256": "6def3957e26a279bcaee7e90f5472e46641a8a65d44bb514ccfd39421b993ad7",
+				"portrait_sha256": "6ee6cfa731753563203112554bb377531335b0991077d1106d8d465dd89ec64e",
+				"marker_sha256": "e29ad24b03ff434e359993b18104af4bdf9b9b5dd90fbd89072b7e6131018bd5",
+				"hair_topology": {
+					"schema_version": 4,
+					"subject_key": "npc:7",
+					"vector": {
+						"color_and_texture": "close iron-grey hair with a broad grey moustache",
+						"front": {
+							"family": "close-cropped-front",
+							"description": "short iron-grey front following the skull without a part"
+						},
+						"rear": {
+							"family": "close-cropped-rear",
+							"description": "uniform close crop at crown, sides, and nape"
+						},
+						"covering": {
+							"family": "uncovered",
+							"description": "no cap or head covering"
+						},
+						"silhouette": {
+							"family": "close-skull-with-moustache",
+							"description": "close skull outline contrasted by a wide horizontal moustache"
+						},
+						"loose_details": "neat broad moustache; no beard or side locks"
+					},
+					"sha256": "6c5af2e96989efa277c2a19431461a08415c48790a9d135c4e78aab31cb0ae16"
+				},
+				"marker_identity": {
+					"schema_version": 4,
+					"subject_key": "npc:7",
+					"marker_identity": {
+						"composition": "character-only",
+						"silhouette": "upright mid-sixties man with a square torso, close iron-grey hair, broad grey moustache, and old dark civilian coat; no object/scenery",
+						"stance": "still, rigid stance with hands behind the back and head slightly turned; no object/scenery",
+						"empty_hand_pose": "hands-behind-back",
+						"readability_cues": [
+							{
+								"kind": "body-shape",
+								"description": "square upright build"
+							},
+							{
+								"kind": "face",
+								"description": "broad horizontal grey moustache"
+							},
+							{
+								"kind": "hair-or-headwear",
+								"description": "close-cropped iron-grey hair"
+							}
+						],
+						"tiny_readability_notes": [
+							"Contrast Tommy with a straight vertical posture and a contained arm silhouette."
+						]
+					},
+					"sha256": "0a757ca16e21a08bbf81a0dc58a498ea1ccd6c38143abfe14914ce22af539cc3"
+				}
+			},
+			{
+				"subject_key": "npc:8",
+				"subject": {
+					"kind": "npc",
+					"npc_id": 8,
+					"name": "Niamh Darcy",
+					"input_record_sha256": "45073b7f153ed602384da0494fb7b2bb1736273c8f37ee4664c15badd7daf8a1"
+				},
+				"candidate_receipt_path": "/Users/dmooney/.codex/worktrees/c8551411-006b-4f7d-a526-046eeda0e842/Rundale/parish/apps/ui/art/notebook-person-art/candidates/objects/38/382c4cfead75ef8641c445caa2ac3daccd731e6496bd730b0fd2b9139fdfee3a/receipt.json",
+				"candidate_receipt_sha256": "c2b1be3eb679472a756ac3d4b813348eacfe0c72c6e11e8c52809ae589aee8d7",
+				"candidate_sha256": "3156d8912dd76c23676e78c5042e93401343956334b8bbc2f961e249eef3abe3",
+				"raw_sha256": "82f7e3778aeecf03f305706ecde58cca621dc3405e8889cb3679e54c86958335",
+				"portrait_sha256": "33646a05b63274361e00d354d88dd4e3b231372ca5101b892f3c9967d39894e9",
+				"marker_sha256": "1689d7ab2d5aa9746890e407f3ac5bd7b3592de3b37529039803fd663c0aa46b",
+				"hair_topology": {
+					"schema_version": 4,
+					"subject_key": "npc:8",
+					"vector": {
+						"color_and_texture": "thick auburn-brown hair with a soft natural wave",
+						"front": {
+							"family": "short-front-ringlets",
+							"description": "soft near-centre part with one short practical ringlet at each temple"
+						},
+						"rear": {
+							"family": "small-high-loop",
+							"description": "small looped knot pinned high at the back, well above the nape"
+						},
+						"covering": {
+							"family": "uncovered-while-serving",
+							"description": "uncovered indoors while serving; modest bonnet only outdoors"
+						},
+						"silhouette": {
+							"family": "high-back-loop-and-ringlets",
+							"description": "small raised rear loop with two visible front ringlets and no low bun"
+						},
+						"loose_details": "several practical flyaways near the high loop"
+					},
+					"sha256": "6d0cfeaaf37fbed0b4509a2d5f30b0e0d11fac79621e373cfea903294cf65bd9"
+				},
+				"marker_identity": {
+					"schema_version": 4,
+					"subject_key": "npc:8",
+					"marker_identity": {
+						"composition": "character-only",
+						"silhouette": "slender early-twenties woman with two short temple ringlets, a small high rear loop, loose shoulder shawl, and narrow apron; no object/scenery",
+						"stance": "light half-turn with one hand at her hip and the other at her side; no object/scenery",
+						"empty_hand_pose": "one-on-hip-one-at-side",
+						"readability_cues": [
+							{
+								"kind": "hair-or-headwear",
+								"description": "exactly two short temple ringlets with a small high rear hair loop"
+							},
+							{
+								"kind": "stance",
+								"description": "restless half-turned line"
+							}
+						],
+						"tiny_readability_notes": [
+							"Keep the high loop and short ringlets visible without enlarging the head."
+						]
+					},
+					"sha256": "2328130f81488c348823fc3cb908b2e025b4776ec0e00aa80c8bbdcc937bd74b"
+				}
+			},
+			{
+				"subject_key": "npc:9",
+				"subject": {
+					"kind": "npc",
+					"npc_id": 9,
+					"name": "Seamus Gallagher",
+					"input_record_sha256": "98ee5aed19ae29bca8e99f5cca5a4e414a3b3d08bc86a19a1edbd9d06da2ac59"
+				},
+				"candidate_receipt_path": "/Users/dmooney/.codex/worktrees/c8551411-006b-4f7d-a526-046eeda0e842/Rundale/parish/apps/ui/art/notebook-person-art/candidates/objects/cc/cc7e1e80c8eced1466b0682adfac695c3d3a0b96cbddb668c4d8fbc87f647fe8/receipt.json",
+				"candidate_receipt_sha256": "f58d455028be2ba49ff72f94663eddad0281cb601e7194c8c9fa1e1431acb862",
+				"candidate_sha256": "30d7b6635b06688091c4f2f0ab5f24fbf15e996554b6fd550ca4df4c1ee3222e",
+				"raw_sha256": "2298547d95ec065bd6cce356bf9faa6568b700a9a5834668210b83ae4f967d95",
+				"portrait_sha256": "52844ac3f596f044a26f5e91248aae0892ef81ea6291dc955ef7ca3379629d4f",
+				"marker_sha256": "de913c31e48748d5642547aa5a15985495a966045dcda40a5538b45bcd5db491",
+				"hair_topology": {
+					"schema_version": 4,
+					"subject_key": "npc:9",
+					"vector": {
+						"color_and_texture": "thick coarse auburn-brown wave with dark stubble",
+						"front": {
+							"family": "forward-coarse-wave",
+							"description": "coarse short waves pushed irregularly forward without a clean part"
+						},
+						"rear": {
+							"family": "short-heavy-crown",
+							"description": "thick short crown tapering roughly at the nape"
+						},
+						"covering": {
+							"family": "uncovered",
+							"description": "no cap or head covering"
+						},
+						"silhouette": {
+							"family": "thick-wave-and-beard",
+							"description": "heavy irregular hair crown balanced by close beard mass"
+						},
+						"loose_details": "one broken wave over the right brow and close heavy stubble"
+					},
+					"sha256": "c02b2973a3932d7ee8eb1d94449bbe601516119a3cbe1982d355199abe065be3"
+				},
+				"marker_identity": {
+					"schema_version": 4,
+					"subject_key": "npc:9",
+					"marker_identity": {
+						"composition": "character-only",
+						"silhouette": "broad-shouldered early-forties man with thick coarse auburn waves, close dark beard, rolled sleeves, and a heavy leather apron; no object/scenery",
+						"stance": "planted broad stance with both empty hands at his sides; no object/scenery",
+						"empty_hand_pose": "both-at-sides",
+						"readability_cues": [
+							{
+								"kind": "body-shape",
+								"description": "broad shoulder span"
+							},
+							{
+								"kind": "face",
+								"description": "thick auburn hair and close beard"
+							},
+							{
+								"kind": "clothing",
+								"description": "heavy leather apron"
+							}
+						],
+						"tiny_readability_notes": [
+							"Let the wide shoulder-and-apron silhouette carry the read at tiny scale."
+						]
+					},
+					"sha256": "c7a71e5fe416e31532d3e6f680b969c356402e5fcb2c04338c5aaa987edc7206"
+				}
+			},
+			{
+				"subject_key": "npc:10",
+				"subject": {
+					"kind": "npc",
+					"npc_id": 10,
+					"name": "Maire Gallagher",
+					"input_record_sha256": "3829bd5f3e45e3ccbfcf0966df5be24dfcfb62c23da13d63cfeed2fb6a21d482"
+				},
+				"candidate_receipt_path": "/Users/dmooney/.codex/worktrees/c8551411-006b-4f7d-a526-046eeda0e842/Rundale/parish/apps/ui/art/notebook-person-art/candidates/objects/dd/dd703e7db150cbc465210eca4abd80ae5e5a072d6cc6be8323143171b5f792bf/receipt.json",
+				"candidate_receipt_sha256": "b96aa2096fb76b1f421a221d56bdf3486d262ede94ea0f24883c0745715ae277",
+				"candidate_sha256": "821f727f0367c2bf645197e3d0d365fe8918235ec22881765a60d000a5531c01",
+				"raw_sha256": "999b2761c4247b3c341ea43dc1dcded5c4d1aa24eb64dc8ad1584b40f6b186fb",
+				"portrait_sha256": "e2c97b6e7c7de8c0a5411e2890de6bd09289eae35a113b96c333df50ff9475bb",
+				"marker_sha256": "de8607e17bb563b06dd465099ff412e729c9d408c85669df135a647d5798223c",
+				"hair_topology": {
+					"schema_version": 4,
+					"subject_key": "npc:10",
+					"vector": {
+						"color_and_texture": "deep auburn-brown strong working hair",
+						"front": {
+							"family": "brushed-back-under-cap",
+							"description": "hair brushed directly back from the brow with no visible centre part"
+						},
+						"rear": {
+							"family": "vertical-folded-plait",
+							"description": "one long plait folded vertically upward and pinned flat, not coiled"
+						},
+						"covering": {
+							"family": "full-caul-work-cap",
+							"description": "roomy gathered unbleached linen cap with a full rear caul tied behind"
+						},
+						"silhouette": {
+							"family": "rounded-caul-with-flat-rear",
+							"description": "full soft cap silhouette around a flat vertical rear anchor"
+						},
+						"loose_details": "only a few flour-dusted wisps at the temples"
+					},
+					"sha256": "e0d4b7eb5a920cee8b4385fe924f2e9dc4d58046cf04c6b9b621ed4b6040ebda"
+				},
+				"marker_identity": {
+					"schema_version": 4,
+					"subject_key": "npc:10",
+					"marker_identity": {
+						"composition": "character-only",
+						"silhouette": "late-thirties woman with a full unbleached linen caul, brushed-back auburn hair, wide jaw, rolled sleeves, and clean pale apron; no object/scenery",
+						"stance": "ready upright stance with hands near the apron front; no object/scenery",
+						"empty_hand_pose": "hands-near-coat-front",
+						"readability_cues": [
+							{
+								"kind": "hair-or-headwear",
+								"description": "full rounded linen caul over brushed-back hair without a part"
+							},
+							{
+								"kind": "body-shape",
+								"description": "wide-jawed compact build"
+							}
+						],
+						"tiny_readability_notes": [
+							"Use the full caul and broad face-body proportion to separate her from Siobhan."
+						]
+					},
+					"sha256": "24c51ad7797375e387fb2d80b2df3f0d4c764fdc6cee5d5d2c88a5f61289d798"
+				}
+			},
+			{
+				"subject_key": "npc:11",
+				"subject": {
+					"kind": "npc",
+					"npc_id": 11,
+					"name": "Colm Gallagher",
+					"input_record_sha256": "7495a8c4a5320b656fced7d085a76963aeb46fcde5aea0c821c38400dc5fae86"
+				},
+				"candidate_receipt_path": "/Users/dmooney/.codex/worktrees/c8551411-006b-4f7d-a526-046eeda0e842/Rundale/parish/apps/ui/art/notebook-person-art/candidates/objects/6a/6af307be20073d9107cd8911ba1070ee5d83c11d64cab1a16cac13ad7d7bd59c/receipt.json",
+				"candidate_receipt_sha256": "010266133d47781fb00989c62ffc175e923023c7028d5ab1ee5d579cbe6ee3e3",
+				"candidate_sha256": "a932230d2cfce5b74f5167fb81fa26f4f9696b65b378cb89f5f90de680b13b00",
+				"raw_sha256": "e60bd1f67b3ca2ee8aac4c44e386ce331c96aeb554f1c7787c2cbf24c799b6c6",
+				"portrait_sha256": "27d67dd7ddeba57975960a44db36e28b037fbc50d757959a79978f0e91f5c33e",
+				"marker_sha256": "608e1c30eeedd610b629c5ddd1555b4ae1cf00e62611d3a251fa3f1bf0fecdfe",
+				"hair_topology": {
+					"schema_version": 4,
+					"subject_key": "npc:11",
+					"vector": {
+						"color_and_texture": "thick muted copper-red waves",
+						"front": {
+							"family": "left-cowlick-front",
+							"description": "uneven front with a distinct raised cowlick on the left"
+						},
+						"rear": {
+							"family": "uneven-short-crop",
+							"description": "thick uneven crop ending well above the collar"
+						},
+						"covering": {
+							"family": "uncovered",
+							"description": "no cap or head covering"
+						},
+						"silhouette": {
+							"family": "rounded-tousled-copper-crop",
+							"description": "rounded youthful wave mass broken by the left cowlick"
+						},
+						"loose_details": "one stray lock points outward above the left ear"
+					},
+					"sha256": "6cc4eb1d95867e0ba80aae8f5e24bb6a2d8e7db34cbe1cb1f165df508ad174e8"
+				},
+				"marker_identity": {
+					"schema_version": 4,
+					"subject_key": "npc:11",
+					"marker_identity": {
+						"composition": "character-only",
+						"silhouette": "lanky mid-teen boy with muted copper-red waves, a raised left cowlick, rolled sleeves, and an oversized leather apron; no object/scenery",
+						"stance": "eager slight forward lean with both empty hands at his sides; no object/scenery",
+						"empty_hand_pose": "both-at-sides",
+						"readability_cues": [
+							{
+								"kind": "body-shape",
+								"description": "long adolescent proportions"
+							},
+							{
+								"kind": "hair-or-headwear",
+								"description": "raised left cowlick"
+							},
+							{
+								"kind": "clothing",
+								"description": "oversized apron over narrow frame"
+							}
+						],
+						"tiny_readability_notes": [
+							"Keep him visibly lankier and less broad than Seamus."
+						]
+					},
+					"sha256": "c8d55138cb5cc6bd3655a0bf7066d71af1b40bfd2b04135bf5c9f8d76ec69dc5"
+				}
+			},
+			{
+				"subject_key": "npc:12",
+				"subject": {
+					"kind": "npc",
+					"npc_id": 12,
+					"name": "Cormac Duffy",
+					"input_record_sha256": "58e690b412718939d3e0d113474a4d383eb064f197a49abb42b72e6b1ff405f3"
+				},
+				"candidate_receipt_path": "/Users/dmooney/.codex/worktrees/c8551411-006b-4f7d-a526-046eeda0e842/Rundale/parish/apps/ui/art/notebook-person-art/candidates/objects/b1/b18f862dfd72044e0898f2244dd1852230d1be7714321e921390e78849cfe1d8/receipt.json",
+				"candidate_receipt_sha256": "31c8ca884cb6deacb887cf45b6d4c4e2e4e6435a5b80440dd30d55691448bbdd",
+				"candidate_sha256": "68f77fcd830fcc02e0a0a3c2c87ca256442ea6297f33a56dd0ad0603af5897da",
+				"raw_sha256": "db7a65d42fccf238c956d7d28eff8ecd95636cffe42c73c73d2dbfa09ef809b2",
+				"portrait_sha256": "70681dd2d6aa21cf3f0e2316b7006e7175132456d2d77019f650cdd8650b0e6f",
+				"marker_sha256": "d41fe5eb15d556fc58962a94c0f0c6d65b1fc542e4eae28914079a65db097da5",
+				"hair_topology": {
+					"schema_version": 4,
+					"subject_key": "npc:12",
+					"vector": {
+						"color_and_texture": "orderly medium brown hair threaded with grey",
+						"front": {
+							"family": "orderly-receding-brushback",
+							"description": "carefully brushed back from two receding temple corners"
+						},
+						"rear": {
+							"family": "short-tapered-nape",
+							"description": "short orderly crown tapered cleanly at the nape"
+						},
+						"covering": {
+							"family": "uncovered",
+							"description": "no cap or head covering"
+						},
+						"silhouette": {
+							"family": "neat-receding-profile",
+							"description": "controlled low hair outline with symmetrical temple recession"
+						},
+						"loose_details": "no stray locks; grey most visible at the temples"
+					},
+					"sha256": "e7d274ccc2be9e25c3c7bc31a6769e3139c301e6c5d5bf13af5e38683142ba5e"
+				},
+				"marker_identity": {
+					"schema_version": 4,
+					"subject_key": "npc:12",
+					"marker_identity": {
+						"composition": "character-only",
+						"silhouette": "rounder around-fifty man with orderly receding brown-grey hair, a respectable waistcoat, clean pale apron, and full torso; no object/scenery",
+						"stance": "self-contained stance with hands near the waistcoat front; no object/scenery",
+						"empty_hand_pose": "hands-near-coat-front",
+						"readability_cues": [
+							{
+								"kind": "body-shape",
+								"description": "round full torso"
+							},
+							{
+								"kind": "hair-or-headwear",
+								"description": "orderly receding brown-grey hair"
+							},
+							{
+								"kind": "clothing",
+								"description": "respectable waistcoat and pale apron"
+							}
+						],
+						"tiny_readability_notes": [
+							"Read him as rounded and tidy rather than broad-shouldered like Seamus."
+						]
+					},
+					"sha256": "edba24e2d629126996c86d4e80398ace3afa3263488d3ba76f317029f4eed3f6"
+				}
+			},
+			{
+				"subject_key": "npc:13",
+				"subject": {
+					"kind": "npc",
+					"npc_id": 13,
+					"name": "Nora Duffy",
+					"input_record_sha256": "6dc238dd0983ccf1b0ec80da45e8c253b1b8ce82946317e13f190dd97d1c5ace"
+				},
+				"candidate_receipt_path": "/Users/dmooney/.codex/worktrees/c8551411-006b-4f7d-a526-046eeda0e842/Rundale/parish/apps/ui/art/notebook-person-art/candidates/objects/09/097f465d61912f0ece8c01325a0231f3599183ed658568d4969b510ce448f098/receipt.json",
+				"candidate_receipt_sha256": "6c0906fad680024ef0678ca74ed0c1aaa681c116234eee626439fb5808292601",
+				"candidate_sha256": "a0119964af21100c36d3b40caa7916bb5cc56711e1f7233492f0bf696de1d4ae",
+				"raw_sha256": "ae22c952fa462ed72313f22812218563a32a8be75790fcef7706ee0dfa754a76",
+				"portrait_sha256": "d1354afc2bb7140203509b5978e1455c2f55ac63fefebf11989fb400872da6ec",
+				"marker_sha256": "0d0869a1f14f60542d0c4be8ef42be5b5ddb7be6cdff539c11fe83c3b7c8cd7a",
+				"hair_topology": {
+					"schema_version": 4,
+					"subject_key": "npc:13",
+					"vector": {
+						"color_and_texture": "smooth dark brown hair with visible grey at both temples",
+						"front": {
+							"family": "precise-part-with-rope-rolls",
+							"description": "exact centre part with a tight rope roll running above each ear"
+						},
+						"rear": {
+							"family": "crossed-flat-nape-rolls",
+							"description": "the two side rolls cross flat at the nape without becoming a rounded knot"
+						},
+						"covering": {
+							"family": "crisp-close-frilled-cap",
+							"description": "well-bleached close linen cap with narrow face frill and neat ties"
+						},
+						"silhouette": {
+							"family": "wide-ear-rolls-under-close-cap",
+							"description": "controlled width at the ears under a close cap, with no rear projection"
+						},
+						"loose_details": "no flyaways; visible grey is deliberately symmetrical at the temples"
+					},
+					"sha256": "74ffa1147118028c06c933bba4545598b83d468025f182063e7c05cdceede4a8"
+				},
+				"marker_identity": {
+					"schema_version": 4,
+					"subject_key": "npc:13",
+					"marker_identity": {
+						"composition": "character-only",
+						"silhouette": "thin mid-forties woman with a crisp close white cap, narrow twisted rolls, neat shawl, clean apron, and drawn-in shoulders; no object/scenery",
+						"stance": "inward-facing stance with hands clasped at the waist; no object/scenery",
+						"empty_hand_pose": "hands-clasped",
+						"readability_cues": [
+							{
+								"kind": "hair-or-headwear",
+								"description": "close white cap with narrow face frill over twisted rolls above the ears"
+							},
+							{
+								"kind": "body-shape",
+								"description": "thin inward shoulders"
+							}
+						],
+						"tiny_readability_notes": [
+							"Show quiet tension through the narrow outline without exaggerating the pose."
+						]
+					},
+					"sha256": "30046f8b6f84a56d9eb9694afb321925ec2062d42b40fb839a1e35a200395e85"
+				}
+			},
+			{
+				"subject_key": "npc:14",
+				"subject": {
+					"kind": "npc",
+					"npc_id": 14,
+					"name": "Brendan Duffy",
+					"input_record_sha256": "6937f2f81af2246c2b5ed771e43ba25596ccc65e01f226c0992b887da5f3bfed"
+				},
+				"candidate_receipt_path": "/Users/dmooney/.codex/worktrees/c8551411-006b-4f7d-a526-046eeda0e842/Rundale/parish/apps/ui/art/notebook-person-art/candidates/objects/6e/6e26afbecd411eefce3ba64e4b927c489d328fa2cd3c168a77a3de33b781c506/receipt.json",
+				"candidate_receipt_sha256": "d99fedfcbedcf27b4d1cdb3ad8da7c27b25fb3a649d57fe3ba2bf4f141ac5d6e",
+				"candidate_sha256": "b850bacd0075f45dd491f7e36168cbbce0f54174188b1eaea76341f35bc15b87",
+				"raw_sha256": "bb49b7230ed44d997eff08acf2aab7188004d7d948b70e9854b2b2035ad7ccde",
+				"portrait_sha256": "2f1c334a4fcee20cd238864a87c14153f4add28bb41dfce3741b6ee16b852029",
+				"marker_sha256": "8f9ae66b1ceb5fac63e8af2cde6d50b9cd589e6cf64e95f559ec817d66364f3d",
+				"hair_topology": {
+					"schema_version": 4,
+					"subject_key": "npc:14",
+					"vector": {
+						"color_and_texture": "dense loose medium-brown waves dusted with flour",
+						"front": {
+							"family": "flour-dusted-forward-waves",
+							"description": "loose front waves fall forward with flour caught along their ridges"
+						},
+						"rear": {
+							"family": "wavy-above-collar",
+							"description": "dense loose wave ends just above the collar"
+						},
+						"covering": {
+							"family": "uncovered-baker",
+							"description": "uncovered head with no cap in the chosen observation"
+						},
+						"silhouette": {
+							"family": "soft-collar-wave-profile",
+							"description": "soft youthful wave mass broader at the front and tapering above the collar"
+						},
+						"loose_details": "one flour-brightened wave falls toward the left brow"
+					},
+					"sha256": "fd83a460209d848eff5c610804aefed373c02a9d95400638e39ac712f0045a20"
+				},
+				"marker_identity": {
+					"schema_version": 4,
+					"subject_key": "npc:14",
+					"marker_identity": {
+						"composition": "character-only",
+						"silhouette": "tall late-teen boy with dense loose brown waves, a long young frame, rolled sleeves, and a plain pale apron; no object/scenery",
+						"stance": "restless weight-shifted stance with one hand on hip and the other at his side; no object/scenery",
+						"empty_hand_pose": "one-on-hip-one-at-side",
+						"readability_cues": [
+							{
+								"kind": "body-shape",
+								"description": "tall adolescent build"
+							},
+							{
+								"kind": "hair-or-headwear",
+								"description": "dense loose brown waves catching pale flour"
+							},
+							{
+								"kind": "clothing",
+								"description": "long rolled-sleeve line"
+							}
+						],
+						"tiny_readability_notes": [
+							"His tall youth and lifted hair texture must carry the marker read."
+						]
+					},
+					"sha256": "b05945997c9cc20bfea25861d6a6777cd03bb626bf70f34838e0764a4192ce78"
+				}
+			},
+			{
+				"subject_key": "npc:15",
+				"subject": {
+					"kind": "npc",
+					"npc_id": 15,
+					"name": "Eamon Walsh",
+					"input_record_sha256": "5a5f03f76fb410ca6db2a4bb4a5b865ffb7b14b917e6e542361166308b670b4f"
+				},
+				"candidate_receipt_path": "/Users/dmooney/.codex/worktrees/c8551411-006b-4f7d-a526-046eeda0e842/Rundale/parish/apps/ui/art/notebook-person-art/candidates/objects/0e/0e7cc6dc011bc0d2672143318687d3a6bdc0aa914d49a4ef38a96a2f07875f6e/receipt.json",
+				"candidate_receipt_sha256": "d3f3a4e3ea3d759e4990aa284478d40d7239dd0fb2f4ac12e2c1c087c23d15df",
+				"candidate_sha256": "5aabcd8ab0ccf324b406fc60768fd18648c7962b21530eb28fb06b9e553a9445",
+				"raw_sha256": "c3b649a2aed579e8cfdc2bd1d29e9e5bea69525e0c7128b1726b2ec1c07790dd",
+				"portrait_sha256": "f5982964d5cbcb081ad8138b931a5c0640d046b028e950b4feb4e3a2c5568abd",
+				"marker_sha256": "dfdb146580131da928385c46df1a0090fbb78661420a4b57b0cede56031fa37f",
+				"hair_topology": {
+					"schema_version": 4,
+					"subject_key": "npc:15",
+					"vector": {
+						"color_and_texture": "dark coarse wavy hair",
+						"front": {
+							"family": "cap-flattened-wave-front",
+							"description": "coarse front waves flattened unevenly beneath the cap edge"
+						},
+						"rear": {
+							"family": "cropped-working-nape",
+							"description": "practical coarse crop at the neck"
+						},
+						"covering": {
+							"family": "rough-working-wool-cap",
+							"description": "low rough wool cap worn firmly for fishing work"
+						},
+						"silhouette": {
+							"family": "firm-cap-with-wave-edge",
+							"description": "firm low cap outline with a dark broken wave edge below it"
+						},
+						"loose_details": "one coarse lock escapes near the right ear"
+					},
+					"sha256": "b8fc48ec4c70a35b3d84cf0d44955ed8d3e5c300cd6d9b58d6f4a909befe7d43"
+				},
+				"marker_identity": {
+					"schema_version": 4,
+					"subject_key": "npc:15",
+					"marker_identity": {
+						"composition": "character-only",
+						"silhouette": "lean mid-thirties man with a rough low wool cap, dark cropped waves, patched coat, rolled cuffs, and narrow shoulders; no object/scenery",
+						"stance": "contained angled stance with both empty hands at his sides; no object/scenery",
+						"empty_hand_pose": "both-at-sides",
+						"readability_cues": [
+							{
+								"kind": "hair-or-headwear",
+								"description": "rough low wool cap"
+							},
+							{
+								"kind": "body-shape",
+								"description": "lean narrow frame"
+							},
+							{
+								"kind": "clothing",
+								"description": "patched dark coat with rolled cuffs"
+							}
+						],
+						"tiny_readability_notes": [
+							"Use the cap, long narrow silhouette, and quiet angle as character-intrinsic cues."
+						]
+					},
+					"sha256": "f097ae5e7b796d70e9eb60d03df27592c4c89ca8af8bca646e1d151c76e3c12e"
+				}
+			},
+			{
+				"subject_key": "npc:16",
+				"subject": {
+					"kind": "npc",
+					"npc_id": 16,
+					"name": "Kathleen Walsh",
+					"input_record_sha256": "3da2498090e1c03a1107614e4b4994cbaf9e58109f4ba8899a6a0a6bf08e1e28"
+				},
+				"candidate_receipt_path": "/Users/dmooney/.codex/worktrees/c8551411-006b-4f7d-a526-046eeda0e842/Rundale/parish/apps/ui/art/notebook-person-art/candidates/objects/02/0285f99b83736d1c1fe681b0b4fd41b10bd7c6b0c059549a33bed4a0d46a6e18/receipt.json",
+				"candidate_receipt_sha256": "3bc4e1a606d56fc67173662f1e582ad2e633ea230f5ffa9034570dc7e74f9b49",
+				"candidate_sha256": "2cf2ceef374fd2ab269b1d00b443f15254e430e4b973b2eefadd1f0558b777e8",
+				"raw_sha256": "8169be598d676be51c30f84ca6bbb01b01f5c25ddf860aff219866517e7d1db1",
+				"portrait_sha256": "1878651565c63244c5ca751bc34f4b4278ee9c4326c3031a662c408a85be0ab6",
+				"marker_sha256": "e69ce62f60967bf98bbdef0af3fac2589d0018af92f32079b3cf97d46efcfc90",
+				"hair_topology": {
+					"schema_version": 4,
+					"subject_key": "npc:16",
+					"vector": {
+						"color_and_texture": "dark softly waved hair",
+						"front": {
+							"family": "uneven-left-part",
+							"description": "practical uneven part left of centre with hair smoothed close around the face"
+						},
+						"rear": {
+							"family": "single-doubled-up-plait",
+							"description": "one plait doubled upward once and tied flat, not wound into a coil"
+						},
+						"covering": {
+							"family": "short-triangular-kerchief",
+							"description": "soft undyed triangular linen kerchief with short ends tied securely at the nape"
+						},
+						"silhouette": {
+							"family": "compact-flat-kerchief-profile",
+							"description": "compact flat rear profile under a triangular cloth, safe from a baby's grasp"
+						},
+						"loose_details": "two short practical wisps at the right temple"
+					},
+					"sha256": "7bc0e2532f437c90898cc7173827eb359f2c36c0373166c2a38a4a7295ef3c43"
+				},
+				"marker_identity": {
+					"schema_version": 4,
+					"subject_key": "npc:16",
+					"marker_identity": {
+						"composition": "character-only",
+						"silhouette": "around-thirty woman with a compact triangular linen kerchief, softly waved dark hair, wind-wrapped shawl, plain dress, and broad steady skirt line; no object/scenery",
+						"stance": "steady protective stance with one hand on hip and the other at her side; no object/scenery",
+						"empty_hand_pose": "one-on-hip-one-at-side",
+						"readability_cues": [
+							{
+								"kind": "hair-or-headwear",
+								"description": "compact flat triangular kerchief"
+							},
+							{
+								"kind": "clothing",
+								"description": "wind-wrapped shawl"
+							},
+							{
+								"kind": "face",
+								"description": "softly square face"
+							},
+							{
+								"kind": "body-shape",
+								"description": "broad steady outline"
+							}
+						],
+						"tiny_readability_notes": [
+							"Keep Kathleen as a solo character cutout; her readable protection comes from stance and clothing."
+						]
+					},
+					"sha256": "065e00076c4b91af517c36b040c968659a9c0ac397974da0094a02c8e537eb36"
+				}
+			},
+			{
+				"subject_key": "npc:17",
+				"subject": {
+					"kind": "npc",
+					"npc_id": 17,
+					"name": "Ciaran Walsh",
+					"input_record_sha256": "23546174b52d3255268dc3de3af7edaa4f4a05277df3336392c96b283f724388"
+				},
+				"candidate_receipt_path": "/Users/dmooney/.codex/worktrees/c8551411-006b-4f7d-a526-046eeda0e842/Rundale/parish/apps/ui/art/notebook-person-art/candidates/objects/17/17700f50a6738ee50c993c5cbe5ddbf3db7f019cbc799368b280ff5c9ad89741/receipt.json",
+				"candidate_receipt_sha256": "66bbb3c5189bfdb18339dee617e75a021fe8d5830af1224524a4a6b4e58c277a",
+				"candidate_sha256": "b92ddd20dd6736d32a0d8fedea017a373fb1ffcefffd37e8f7168dbfcb696f54",
+				"raw_sha256": "8fb68f64a7d7c9e45b9afaa05d8c995f95214d7a5211b5ee4d4639261c857155",
+				"portrait_sha256": "96fe58e82563e5d41987e64c6063cf6b136da2cbecf29c9cf164e7805c9d6904",
+				"marker_sha256": "bb1a2ad72252f401d394e72a4d4ab865aa985cbfcb579b3fbc534c26a0abe929",
+				"hair_topology": {
+					"schema_version": 4,
+					"subject_key": "npc:17",
+					"vector": {
+						"color_and_texture": "fine medium-dark child hair",
+						"front": {
+							"family": "upright-front-lock",
+							"description": "one fine lock stands upright above an uneven child fringe"
+						},
+						"rear": {
+							"family": "wind-layered-child-crop",
+							"description": "short wind-tossed layers around crown, ears, and nape"
+						},
+						"covering": {
+							"family": "uncovered-child",
+							"description": "no cap or head covering"
+						},
+						"silhouette": {
+							"family": "airy-upright-child-profile",
+							"description": "small airy outline broken by the single upright lock"
+						},
+						"loose_details": "several fine points lift at the crown in the wind"
+					},
+					"sha256": "a9cb5be93781361d592b944d21a1020ad42e3377a9d6578c60c21734719af080"
+				},
+				"marker_identity": {
+					"schema_version": 4,
+					"subject_key": "npc:17",
+					"marker_identity": {
+						"composition": "character-only",
+						"silhouette": "small eight-year-old boy with uneven wind-tossed dark hair, one upright front lock, ragged linen shirt, short breeches, and bare feet; no object/scenery",
+						"stance": "lively forward-leaning stance with both empty hands at his sides; no object/scenery",
+						"empty_hand_pose": "both-at-sides",
+						"readability_cues": [
+							{
+								"kind": "body-shape",
+								"description": "child-sized proportions"
+							},
+							{
+								"kind": "hair-or-headwear",
+								"description": "single upright front lock"
+							},
+							{
+								"kind": "clothing",
+								"description": "short breeches and bare feet"
+							}
+						],
+						"tiny_readability_notes": [
+							"Keep the whole body visibly child-sized beside adult markers."
+						]
+					},
+					"sha256": "6837961f9aa21f76adfc0c9eae34192c572f5e5165d20d3942bd9aa7ca60f98b"
+				}
+			},
+			{
+				"subject_key": "npc:18",
+				"subject": {
+					"kind": "npc",
+					"npc_id": 18,
+					"name": "Liam Murphy",
+					"input_record_sha256": "b014e63763f6265f888678eda910452c27a52e39c45611934155307323393769"
+				},
+				"candidate_receipt_path": "/Users/dmooney/.codex/worktrees/c8551411-006b-4f7d-a526-046eeda0e842/Rundale/parish/apps/ui/art/notebook-person-art/candidates/objects/98/9860a50ffe6ae4833eff18e5c798b7428394b721a2624b77c29c78a603049f94/receipt.json",
+				"candidate_receipt_sha256": "abd277e72c59d28e968fa98253d1ee19ef94294e8e5d904f1caacc5ca459018d",
+				"candidate_sha256": "2403106efed60a7ff954e02fc070cbd5d48992e0136d5c912786575c905ae97e",
+				"raw_sha256": "d2b3878e3303b46945cf71b934f48ae5c1308089a7ea6b2bd7c69b8c57a67689",
+				"portrait_sha256": "5f2472a32c8a2e7b8fc6bb38dc8b59dbb87dc9f4c37b3af9b2772f508906b918",
+				"marker_sha256": "3ad8664a660953a419a166e48fce34087ee3dd258a55a4ab152a3b0e17b8c8f0",
+				"hair_topology": {
+					"schema_version": 4,
+					"subject_key": "npc:18",
+					"vector": {
+						"color_and_texture": "straight medium-brown adolescent hair",
+						"front": {
+							"family": "flat-fringe-under-cap",
+							"description": "straight uneven fringe pressed flat beneath the cap"
+						},
+						"rear": {
+							"family": "uneven-around-ears-and-nape",
+							"description": "straight rough cut around both ears and the nape"
+						},
+						"covering": {
+							"family": "worn-low-crowned-cap",
+							"description": "worn low-crowned cap sitting close to the head"
+						},
+						"silhouette": {
+							"family": "low-cap-with-straight-edge",
+							"description": "flat low cap crown over a straight broken hair edge"
+						},
+						"loose_details": "one straight lock projects below the cap behind the left ear"
+					},
+					"sha256": "f5b6ec7f9c5764b94b27f8183e0cb1c820c6f19d1be55f6751258155ce422291"
+				},
+				"marker_identity": {
+					"schema_version": 4,
+					"subject_key": "npc:18",
+					"marker_identity": {
+						"composition": "character-only",
+						"silhouette": "quiet mid-teen boy with a worn low-crowned cap, straight brown hair at the ears, patched vest, muddy boots, and a slender frame; no object/scenery",
+						"stance": "slightly apart, lowered-shoulder stance with hands in pockets; no object/scenery",
+						"empty_hand_pose": "hands-in-pockets",
+						"readability_cues": [
+							{
+								"kind": "hair-or-headwear",
+								"description": "worn low-crowned cap with straight hair visible at ears and nape"
+							},
+							{
+								"kind": "body-shape",
+								"description": "slender teenage proportions"
+							}
+						],
+						"tiny_readability_notes": [
+							"Keep the lowered, reserved adolescent posture distinct from adult figures and Ciaran."
+						]
+					},
+					"sha256": "fad2d0dc95bc19915bba91350bee38713ce6baf58bf89375dcb36f31f77ba1c7"
+				}
+			},
+			{
+				"subject_key": "npc:19",
+				"subject": {
+					"kind": "npc",
+					"npc_id": 19,
+					"name": "Brigid Ni Fhatharta",
+					"input_record_sha256": "62d78b27c9dced1b4bfb88f9750eb7fc7a7a577fc7214241ace8e60ebff3b353"
+				},
+				"candidate_receipt_path": "/Users/dmooney/.codex/worktrees/c8551411-006b-4f7d-a526-046eeda0e842/Rundale/parish/apps/ui/art/notebook-person-art/candidates/objects/3c/3c36c58324fde8b65d79242425be29a085077658d64072e87dd70716c0a696bc/receipt.json",
+				"candidate_receipt_sha256": "73c0e88ff8c2644221d1fc3111ad5b5af6b4d92aa86dc928841c43dc891506eb",
+				"candidate_sha256": "d79cc75e045c6b513f0288a904eed45ae64f7c79fe8c6505a8ad8224e6511189",
+				"raw_sha256": "7048aeae7adffcb76059a7ae22c838674fd8b038f8c38e14806a5521d1f42f0a",
+				"portrait_sha256": "2afeaf0bbe2821688ec56a20cbc2fbff46b2bcb847ed952b9c39cd288e32811b",
+				"marker_sha256": "4510d7c98b0a0de1cfeea89d72dfcce022a5ee5ad44d786223db7d0a31f6791c",
+				"hair_topology": {
+					"schema_version": 4,
+					"subject_key": "npc:19",
+					"vector": {
+						"color_and_texture": "coarse grey hair with darker strands beneath",
+						"front": {
+							"family": "swept-back-grey-front",
+							"description": "coarse grey hair swept directly back with no centre part and visible grey at the temples"
+						},
+						"rear": {
+							"family": "crown-crossed-twin-braids",
+							"description": "twin braids rise from behind the ears and cross over the crown"
+						},
+						"covering": {
+							"family": "broad-caul-linen-cap",
+							"description": "broad-cauld washable unbleached linen cap accommodating the raised braids"
+						},
+						"silhouette": {
+							"family": "raised-crown-under-broad-cap",
+							"description": "broad cap with a visibly raised crown and close sides, not a nape bun"
+						},
+						"loose_details": "one coarse grey strand visible above the left temple; no ornamental braid ends"
+					},
+					"sha256": "3a9d255d2dda811d635201d344caddccad23c85fd07d8a2f59177adf20d7da3c"
+				},
+				"marker_identity": {
+					"schema_version": 4,
+					"subject_key": "npc:19",
+					"marker_identity": {
+						"composition": "character-only",
+						"silhouette": "long-boned mid-fifties woman with a broad raised-crown linen cap, visible grey temple band, dark shawl, and straight practical dress; no object/scenery",
+						"stance": "slight forward lean with hands near the shawl front; no object/scenery",
+						"empty_hand_pose": "hands-near-coat-front",
+						"readability_cues": [
+							{
+								"kind": "hair-or-headwear",
+								"description": "raised-crown broad linen cap"
+							},
+							{
+								"kind": "face",
+								"description": "long angular face profile"
+							},
+							{
+								"kind": "clothing",
+								"description": "dark close-wrapped shawl"
+							}
+						],
+						"tiny_readability_notes": [
+							"The raised cap crown and bony vertical outline must carry the small-scale identity."
+						]
+					},
+					"sha256": "da07e24d3bc771c91d795a2fde9ef04e5b85112ab2890e5bbb0e1018741001ce"
+				}
+			},
+			{
+				"subject_key": "npc:20",
+				"subject": {
+					"kind": "npc",
+					"npc_id": 20,
+					"name": "Una Malone",
+					"input_record_sha256": "b30223abbfd7d7aae11799b735b23fbd1767599dc49bbcb442990416eca2f9e4"
+				},
+				"candidate_receipt_path": "/Users/dmooney/.codex/worktrees/c8551411-006b-4f7d-a526-046eeda0e842/Rundale/parish/apps/ui/art/notebook-person-art/candidates/objects/15/15ec1d8097028c69f932ea840e8e513fbe7bdd48110278a727ad90a215e81fe4/receipt.json",
+				"candidate_receipt_sha256": "1928c9e1d6f1fd6b353ea52960a98317a9ed3f9c497cf97ee21651b14f1f36e1",
+				"candidate_sha256": "e850d2f48555918d80a6813c10d4e7afcad2e8d92393fb0332e4a0cd3449076b",
+				"raw_sha256": "61edcf1397c572a6123d5f0d5344b85219d92cbc6c17d245cd324b59b1753f75",
+				"portrait_sha256": "9ae25cd105a85bfc846ce72e7514924109821016f478eb1ed732c6864d18f55c",
+				"marker_sha256": "6f6aa20f7dcd325c45350aa160d97df79e4e0be32534b8ac6269a156cbc8afc1",
+				"hair_topology": {
+					"schema_version": 4,
+					"subject_key": "npc:20",
+					"vector": {
+						"color_and_texture": "dark hair lightly streaked with grey and kept smooth for loom work",
+						"front": {
+							"family": "off-centre-temple-twists",
+							"description": "soft off-centre front with a rope twist beginning at each temple"
+						},
+						"rear": {
+							"family": "broad-flat-upper-coronet",
+							"description": "broad flat braided coronet spanning the upper rear head"
+						},
+						"covering": {
+							"family": "narrow-crown-kerchief",
+							"description": "narrow folded woven-linen kerchief laid across the crown and knotted at the nape"
+						},
+						"silhouette": {
+							"family": "broad-visible-coronet-band",
+							"description": "wide horizontal braided band remains visible behind the narrower crown cloth"
+						},
+						"loose_details": "all loose ends are contained away from the loom; one grey temple wave remains visible"
+					},
+					"sha256": "3ee32422a51e4ded04fcb68286fff30db6fd647284715ededc509efe1ac373af"
+				},
+				"marker_identity": {
+					"schema_version": 4,
+					"subject_key": "npc:20",
+					"marker_identity": {
+						"composition": "character-only",
+						"silhouette": "broad late-forties woman with a visible flat braided coronet, narrow crown kerchief, woven shawl, apron, and broad heavy-jawed outline; no object/scenery",
+						"stance": "calm upright stance with hands clasped at the waist; no object/scenery",
+						"empty_hand_pose": "hands-clasped",
+						"readability_cues": [
+							{
+								"kind": "hair-or-headwear",
+								"description": "broad flat braided coronet under a narrow crown kerchief"
+							},
+							{
+								"kind": "face",
+								"description": "broad jaw and full cheeks"
+							}
+						],
+						"tiny_readability_notes": [
+							"Keep the visible coronet wider than the narrow crown cloth at marker scale."
+						]
+					},
+					"sha256": "14e28296b8e4b46a13630349b4d0356ab1e3068e1ec8c95bdfcd96ca1e7faf28"
+				}
+			},
+			{
+				"subject_key": "npc:21",
+				"subject": {
+					"kind": "npc",
+					"npc_id": 21,
+					"name": "Sean Ruadh Kelly",
+					"input_record_sha256": "4efec93b235ef837658866cc23620009304fadc9aaed228957a87cfe40fd9d30"
+				},
+				"candidate_receipt_path": "/Users/dmooney/.codex/worktrees/c8551411-006b-4f7d-a526-046eeda0e842/Rundale/parish/apps/ui/art/notebook-person-art/candidates/objects/6e/6e650eb2d64708787d4e35a3919754f5be60ebcc559af56e1a5f5b92be602c6c/receipt.json",
+				"candidate_receipt_sha256": "61afb8da6dc5ca885b79271c7a576d53d5cbdfd29b48e0af41ead55e88761df4",
+				"candidate_sha256": "875d9884381e0634fdf60f4f130d9b85a964c52dbca31c6e12f9d3a9b6a15f93",
+				"raw_sha256": "2b43b6911550cd65f870c4e57f29dd75ee1acfffe9bb745d57b50705d794e6d4",
+				"portrait_sha256": "16dd355c45613027128eb0f3cfa9841f98a4cb7aef952197c3f32a11b97b1ac3",
+				"marker_sha256": "7ad27639d655e2cfd4f13349e4f06c2738c8882739ac666c0d3c7d6456c06236",
+				"hair_topology": {
+					"schema_version": 4,
+					"subject_key": "npc:21",
+					"vector": {
+						"color_and_texture": "thick muted red tight waves",
+						"front": {
+							"family": "forward-tight-red-waves",
+							"description": "tight unruly waves fall forward over the forehead without a part"
+						},
+						"rear": {
+							"family": "long-wave-over-ears",
+							"description": "tight waves remain longer over the ears and upper nape"
+						},
+						"covering": {
+							"family": "uncovered-red-head",
+							"description": "no cap or head covering"
+						},
+						"silhouette": {
+							"family": "unruly-tight-curl-halo",
+							"description": "broken tight-wave outline around forehead, ears, and crown"
+						},
+						"loose_details": "one longer wave hangs over the right brow"
+					},
+					"sha256": "988529c44b07ed0d7c66cc05e2656a6f5708599d13a3a5f255b032a17718bc51"
+				},
+				"marker_identity": {
+					"schema_version": 4,
+					"subject_key": "npc:21",
+					"marker_identity": {
+						"composition": "character-only",
+						"silhouette": "lean mid-twenties man with unruly muted-red tight waves, a narrow diamond face, patched coat, frayed neckcloth, and worn trousers; no object/scenery",
+						"stance": "narrow tense stance with arms folded; no object/scenery",
+						"empty_hand_pose": "arms-folded",
+						"readability_cues": [
+							{
+								"kind": "hair-or-headwear",
+								"description": "unruly muted-red hair"
+							},
+							{
+								"kind": "face",
+								"description": "very narrow diamond-shaped head"
+							},
+							{
+								"kind": "clothing",
+								"description": "patched coat and frayed neckcloth"
+							}
+						],
+						"tiny_readability_notes": [
+							"Keep the red hair natural and muted while preserving the tight, closed silhouette."
+						]
+					},
+					"sha256": "ac66eb24354ae0f7d593b38ecac6148c713a74a561285cc5792728ccc2084055"
+				}
+			},
+			{
+				"subject_key": "npc:22",
+				"subject": {
+					"kind": "npc",
+					"npc_id": 22,
+					"name": "Peig Hannigan",
+					"input_record_sha256": "38b9a7cb5fec4e16924e07ac84ef586909f7e76066e9062750b0a3f503ca104a"
+				},
+				"candidate_receipt_path": "/Users/dmooney/.codex/worktrees/c8551411-006b-4f7d-a526-046eeda0e842/Rundale/parish/apps/ui/art/notebook-person-art/candidates/objects/24/2497c08d92194e108d4737df3e0acad75d6a469f240b0b2d2a171eeba2766135/receipt.json",
+				"candidate_receipt_sha256": "c021f3da4448c2eb79f2e859661f02b10b2a4fe1e45bf6c36c5131abc49e81d3",
+				"candidate_sha256": "e2470de29558790db7412777ba710bb7515350cc687782bd82663885fea1b309",
+				"raw_sha256": "beafada05e6c400763a34446e49a94ac7ecc7a43639c5b5d5c885a24875ee1c5",
+				"portrait_sha256": "750ef6927aadb336d48dbb74f8608fa168eb085566d669a8bcedddd91af06dcb",
+				"marker_sha256": "29a037d98897936f26212f3766a20d3755eea3d609984800f82d8e909db01374",
+				"hair_topology": {
+					"schema_version": 4,
+					"subject_key": "npc:22",
+					"vector": {
+						"color_and_texture": "fine sparse silver-grey hair",
+						"front": {
+							"family": "soft-part-with-grey-side-rolls",
+							"description": "soft centre part with sparse grey hair rolled upward once over each ear"
+						},
+						"rear": {
+							"family": "fully-cap-contained-rear",
+							"description": "side rolls disappear into the cap with no visible rear knot or coil"
+						},
+						"covering": {
+							"family": "deep-frilled-chin-tied-cap",
+							"description": "old full gathered linen cap with rounded caul, deeper face frill, and ties under the chin"
+						},
+						"silhouette": {
+							"family": "full-rounded-elder-cap",
+							"description": "full rounded cap silhouette framing the ears and chin, with no projecting bun"
+						},
+						"loose_details": "visible silver temples and a repeatedly mended cap edge"
+					},
+					"sha256": "f90f361090400e3df512d3258f2958c6464e872e28ed2d309d5fea62b9dfd074"
+				},
+				"marker_identity": {
+					"schema_version": 4,
+					"subject_key": "npc:22",
+					"marker_identity": {
+						"composition": "character-only",
+						"silhouette": "small late-sixties woman with a full rounded chin-tied linen cap, visible silver temple rolls, dark close-wrapped shawl, and narrow old-dress line; no object/scenery",
+						"stance": "small forward lean with hands clasped beneath the shawl line; no object/scenery",
+						"empty_hand_pose": "hands-clasped",
+						"readability_cues": [
+							{
+								"kind": "hair-or-headwear",
+								"description": "full rounded chin-tied cap"
+							},
+							{
+								"kind": "body-shape",
+								"description": "small scale and pointed chin"
+							},
+							{
+								"kind": "clothing",
+								"description": "dark close-wrapped shawl"
+							}
+						],
+						"tiny_readability_notes": [
+							"Separate her from Brigid through smaller scale, a rounded elder cap, and a sharper forward tilt."
+						]
+					},
+					"sha256": "fbafca94ce5bf54f80f0e16ae4e1b981425d61831037517de749a540d8f005b5"
+				}
+			},
+			{
+				"subject_key": "npc:23",
+				"subject": {
+					"kind": "npc",
+					"npc_id": 23,
+					"name": "Martin Concannon",
+					"input_record_sha256": "74a5a43404cb2e54138f8186ccc33358ae5eda8757988469e4cd0b04c4b13764"
+				},
+				"candidate_receipt_path": "/Users/dmooney/.codex/worktrees/c8551411-006b-4f7d-a526-046eeda0e842/Rundale/parish/apps/ui/art/notebook-person-art/candidates/objects/78/78e489c167dd4679ea39f15cf711ef8e1974f11e1445ffb9f9875ca5dac790bc/receipt.json",
+				"candidate_receipt_sha256": "0bbd8519d2f2dae1d68d287ffbbbdaa56eccfcea85b0bf9a7d505dadcc7e4df6",
+				"candidate_sha256": "8d6be68b51f7a1b8d1066bb15bc63a75751298026cb486159e29f50181fff9f9",
+				"raw_sha256": "b55a479b2dadb65974bc27f1fc8ad08cf028b48c2a2de1001cb7b1b2b823dcbd",
+				"portrait_sha256": "6a664ca9b2f675679b1734f165b54dfc8334aba71b8099f7733ad4b4f1428e4d",
+				"marker_sha256": "7ce1515ee48da6ecf0a90587d40bbecc6dd30aa1e896e9d96616fe6a3005c9c3",
+				"hair_topology": {
+					"schema_version": 4,
+					"subject_key": "npc:23",
+					"vector": {
+						"color_and_texture": "dark fine orderly waves",
+						"front": {
+							"family": "clean-side-parted-wave",
+							"description": "clean side part with one controlled wave over the forehead"
+						},
+						"rear": {
+							"family": "close-around-neck",
+							"description": "fine waves kept close around both ears and the neck"
+						},
+						"covering": {
+							"family": "uncovered-clerk",
+							"description": "no cap or head covering"
+						},
+						"silhouette": {
+							"family": "neat-side-part-profile",
+							"description": "slim orderly outline with one distinct side-part wave"
+						},
+						"loose_details": "a single fine wave rests above the left temple"
+					},
+					"sha256": "77d49f6410e614713b8083c7eeadb04f2068bc2978f3150d5b5e78deee16cc38"
+				},
+				"marker_identity": {
+					"schema_version": 4,
+					"subject_key": "npc:23",
+					"marker_identity": {
+						"composition": "character-only",
+						"silhouette": "slim early-thirties man with a neat dark side part, high forehead, better-quality dark coat, fitted waistcoat, and clean cravat; no object/scenery",
+						"stance": "formal upright stance with hands behind the back and head slightly turned; no object/scenery",
+						"empty_hand_pose": "hands-behind-back",
+						"readability_cues": [
+							{
+								"kind": "hair-or-headwear",
+								"description": "neat side-parted dark hair"
+							},
+							{
+								"kind": "clothing",
+								"description": "fitted formal coat and waistcoat"
+							},
+							{
+								"kind": "stance",
+								"description": "restrained upright posture"
+							}
+						],
+						"tiny_readability_notes": [
+							"Make his formal vertical tailoring distinct from Roisin without using documents."
+						]
+					},
+					"sha256": "0a3f5791b8b72abd5a637462efa8db037168858a1f74b90b344356e810be5f79"
+				}
+			},
+			{
+				"subject_key": "fallback",
+				"subject": {
+					"kind": "fallback",
+					"npc_id": null,
+					"name": "Unknown parish neighbour",
+					"input_record_sha256": "2a644e9712dbf7565ace688bc9ac26d0ccebd57e2a7ac6ee3bc5bb22bd2886e5"
+				},
+				"candidate_receipt_path": "/Users/dmooney/.codex/worktrees/c8551411-006b-4f7d-a526-046eeda0e842/Rundale/parish/apps/ui/art/notebook-person-art/candidates/objects/ce/cec1a6b19fc858734e528a729b971f6a01f44477eea9abc021e31bb3b0ad4113/receipt.json",
+				"candidate_receipt_sha256": "f1b847d9befaf78ff8717c2c270d5f6176b0878f6ab8102efb7e55d7ee2c2759",
+				"candidate_sha256": "b673bedd0cc590eef77d5f81c8ef1bb276c03f75b68d2e20bcd1b29938b59c9f",
+				"raw_sha256": "a04bb0dcd62e3104129b6a0fb74336b2a91b038979caa47bd91cca4be06070ee",
+				"portrait_sha256": "e51c8c2a29bce2a465e3199e89393c10fc4422dcea248e508a0f07c57d8ecd35",
+				"marker_sha256": "80dda8eec6e0b56b8e0caea8a1b9aed75c98a1df2a61b921f8ed931f448b3253",
+				"hair_topology": {
+					"schema_version": 4,
+					"subject_key": "fallback",
+					"vector": {
+						"color_and_texture": "light straight hair",
+						"front": {
+							"family": "side-lock-under-cap",
+							"description": "mostly hidden front with one short lock visible at the left temple"
+						},
+						"rear": {
+							"family": "close-cropped-nape",
+							"description": "close crop with no rear mass below the cap"
+						},
+						"covering": {
+							"family": "low-felt-cap",
+							"description": "plain low soft felt cap"
+						},
+						"silhouette": {
+							"family": "low-soft-cap-profile",
+							"description": "low rounded cap crown with one projecting ear and no hair volume"
+						},
+						"loose_details": "one short side lock below the cap at the left temple"
+					},
+					"sha256": "7e26a9f5a78f4a57332dcebadf3644433fd688827c72ea92983650492ad7aac8"
+				},
+				"marker_identity": {
+					"schema_version": 4,
+					"subject_key": "fallback",
+					"marker_identity": {
+						"composition": "character-only",
+						"silhouette": "narrow-shouldered adult in a low felt cap and knee-length plain frieze coat; no object/scenery",
+						"stance": "small three-quarter standing figure with hands near the coat front; no object/scenery",
+						"empty_hand_pose": "hands-near-coat-front",
+						"readability_cues": [
+							{
+								"kind": "hair-or-headwear",
+								"description": "low soft felt cap"
+							},
+							{
+								"kind": "body-shape",
+								"description": "narrow shoulders"
+							},
+							{
+								"kind": "clothing",
+								"description": "long plain frieze coat"
+							}
+						],
+						"tiny_readability_notes": [
+							"Keep the face subdued and non-specific so it remains anonymous among named NPCs."
+						]
+					},
+					"sha256": "609b6886d71164917acaab6f33ac8e7c01f7c1f9e72503cd56a7e080e7404d0f"
+				}
+			}
+		]
+	},
+	"decision": "approved",
+	"promotion_eligible": true,
+	"reviewer": "dmooney",
+	"reviewed_at": "2026-07-17T01:52:56.166Z",
+	"notes": "Approved by dmooney after reviewing the final 24-pair whole-cast sheet in Codex on 2026-07-16.",
+	"checklist": {
+		"cast_distinctive": true,
+		"cast_hair_topology_distinctive": true
+	},
+	"source_template_path": "parish/apps/ui/art/notebook-person-art/candidates/review-packets/identity-v8-character-only-whole-cast-20260716/whole-cast-review.json",
+	"review_id": "8def65018ffc8133600bf154"
+}

@@ -1,0 +1,213 @@
+{
+	"npc_id": 18,
+	"name": "Liam Murphy",
+	"age": 16,
+	"pronouns": "he/him",
+	"occupation": "Farm Boy",
+	"mood": "quiet",
+	"brief_description": "a quiet teenage boy with muddy boots",
+	"home": {
+		"id": 9,
+		"name": "Murphy's Farm",
+		"description": "A working farm with a whitewashed house and stone outbuildings roofed in thatch. Cattle graze in the near field. A sheepdog watches from the gate. It is daylight. The sky is weather."
+	},
+	"workplace": {
+		"id": 9,
+		"name": "Murphy's Farm",
+		"description": "A working farm with a whitewashed house and stone outbuildings roofed in thatch. Cattle graze in the near field. A sheepdog watches from the gate. It is daylight. The sky is weather."
+	},
+	"source_personality_summary": "Siobhan Murphy's son, a quiet, hardworking lad who has taken on much of the heavy farm work since his father died three years ago.",
+	"source_knowledge": [
+		"Knows every field and ditch on the farm — which gates are weak, which drains are blocked.",
+		"Misses his father and visits his grave at St. Brigid's when no one is looking.",
+		"Tommy O'Brien has been teaching him the old skills — thatching, drystone walling.",
+		"Saw Sean Ruadh Kelly hiding something under a stone near the lime kiln one night."
+	],
+	"source_relationships": [
+		{
+			"target_id": 2,
+			"target_name": "Siobhan Murphy",
+			"kind": "Family",
+			"strength": 0.9
+		},
+		{
+			"target_id": 11,
+			"target_name": "Colm Gallagher",
+			"kind": "Friend",
+			"strength": 0.7
+		},
+		{
+			"target_id": 5,
+			"target_name": "Tommy O'Brien",
+			"kind": "Neighbor",
+			"strength": 0.5
+		},
+		{
+			"target_id": 6,
+			"target_name": "Aoife Brennan",
+			"kind": "Friend",
+			"strength": 0.4
+		}
+	],
+	"source_schedule_cues": [
+		{
+			"location_id": 1,
+			"location_name": "The Crossroads",
+			"activity": "at the crossroads after Mass with Colm"
+		},
+		{
+			"location_id": 3,
+			"location_name": "St. Brigid's Church",
+			"activity": "at Mass with his mother"
+		},
+		{
+			"location_id": 5,
+			"location_name": "The Hurling Green",
+			"activity": "Sunday hurling match"
+		},
+		{
+			"location_id": 5,
+			"location_name": "The Hurling Green",
+			"activity": "hurling on the green with the lads"
+		},
+		{
+			"location_id": 6,
+			"location_name": "The Hedge School",
+			"activity": "at the hedge school when farm work allows"
+		},
+		{
+			"location_id": 9,
+			"location_name": "Murphy's Farm",
+			"activity": "Sunday dinner"
+		},
+		{
+			"location_id": 9,
+			"location_name": "Murphy's Farm",
+			"activity": "afternoon farm work — mending walls, herding cattle"
+		},
+		{
+			"location_id": 9,
+			"location_name": "Murphy's Farm",
+			"activity": "dinner with his mother"
+		},
+		{
+			"location_id": 9,
+			"location_name": "Murphy's Farm",
+			"activity": "feeding the animals — they don't rest on Sundays"
+		},
+		{
+			"location_id": 9,
+			"location_name": "Murphy's Farm",
+			"activity": "home for supper and bed"
+		},
+		{
+			"location_id": 9,
+			"location_name": "Murphy's Farm",
+			"activity": "home for the evening"
+		},
+		{
+			"location_id": 9,
+			"location_name": "Murphy's Farm",
+			"activity": "rising with his mother, milking, feeding the animals"
+		},
+		{
+			"location_id": 9,
+			"location_name": "Murphy's Farm",
+			"activity": "sleeping at the farmhouse"
+		},
+		{
+			"location_id": 9,
+			"location_name": "Murphy's Farm",
+			"activity": "working the fields — ploughing, planting, weeding"
+		},
+		{
+			"location_id": 10,
+			"location_name": "O'Brien's Farm",
+			"activity": "visiting Tommy O'Brien, listening to his stories"
+		},
+		{
+			"location_id": 16,
+			"location_name": "The Forge",
+			"activity": "visiting Colm at the forge, larking about"
+		}
+	],
+	"source_visual_cues": [
+		"age: 16",
+		"occupation: Farm Boy",
+		"brief_description: a quiet teenage boy with muddy boots",
+		"clothing"
+	],
+	"source_metadata_status": {
+		"canonical_npc_data_sufficient_for_production_art": false,
+		"status": "weak-partial",
+		"reason": "The canonical NPC data identifies the character but does not provide enough structured appearance, clothing, or tiny-marker guidance for production art."
+	},
+	"art_direction": {
+		"npc_id": 18,
+		"npc_name": "Liam Murphy",
+		"portrait_identity": {
+			"visual_identity_seed": "rundale-person-v2:18",
+			"identity_cohort": "boy",
+			"apparent_age": "mid teens",
+			"facial_geometry": {
+				"face_shape": "narrow youthful oblong face with a softly squared lower outline",
+				"proportions": "Murphy long midface and broad nose root retained; jaw and cheeks not yet fully developed",
+				"brow_and_eyes": "level brows matching Siobhan's line; deep-set medium-spaced eyes with lighter adolescent contours",
+				"nose": "straight developing nose, broad at the root and narrower through the tip than Siobhan's",
+				"mouth": "medium-wide level mouth with a fuller lower lip",
+				"jaw_and_chin": "slender jaw with a short softly squared chin",
+				"cheekbones": "high-set but understated cheek planes",
+				"hairline": "low irregular hairline, mostly hidden by his cap",
+				"age_detail": "mid-teen face with smooth planes, slight under-eye shadow, and no adult beard line"
+			},
+			"distinguishing_features": [
+				"left ear more exposed beneath the cap",
+				"subtle central notch in the lower lip",
+				"right eyelid opens slightly wider"
+			],
+			"hair": "straight medium-brown hair cut unevenly around the ears and nape, flattened beneath a worn low-crowned cap",
+			"clothing": "patched farm coat or vest, muddy boots, plain shirt",
+			"pose_expression": "reserved and hard-working, shoulders slightly hunched",
+			"props": [
+				"hay fork handle",
+				"rope halter",
+				"muddy boots"
+			],
+			"palette_notes": [
+				"mud brown",
+				"worn cap grey",
+				"field green wash"
+			]
+		},
+		"marker_identity": {
+			"composition": "character-only",
+			"silhouette": "quiet mid-teen boy with a worn low-crowned cap, straight brown hair at the ears, patched vest, muddy boots, and a slender frame; no object/scenery",
+			"stance": "slightly apart, lowered-shoulder stance with hands in pockets; no object/scenery",
+			"empty_hand_pose": "hands-in-pockets",
+			"readability_cues": [
+				{
+					"kind": "hair-or-headwear",
+					"description": "worn low-crowned cap with straight hair visible at ears and nape"
+				},
+				{
+					"kind": "body-shape",
+					"description": "slender teenage proportions"
+				}
+			],
+			"tiny_readability_notes": [
+				"Keep the lowered, reserved adolescent posture distinct from adult figures and Ciaran."
+			]
+		},
+		"avoid": [
+			"adult farmer build",
+			"modern work boots",
+			"overly heroic farm tool pose"
+		],
+		"authoring_notes": [
+			"Canonical data gives farm boy and muddy boots; supplement completes face, clothing, and marker identity."
+		]
+	},
+	"pair_prompt": "Identity contract for Liam Murphy, age 16, Farm Boy: visual identity seed rundale-person-v2:18; apparent age mid teens; Explicit facial geometry: face shape narrow youthful oblong face with a softly squared lower outline; proportions Murphy long midface and broad nose root retained; jaw and cheeks not yet fully developed; brow and eyes level brows matching Siobhan's line; deep-set medium-spaced eyes with lighter adolescent contours; nose straight developing nose, broad at the root and narrower through the tip than Siobhan's; mouth medium-wide level mouth with a fuller lower lip; jaw and chin slender jaw with a short softly squared chin; cheekbones high-set but understated cheek planes; hairline low irregular hairline, mostly hidden by his cap; age detail mid-teen face with smooth planes, slight under-eye shadow, and no adult beard line. Distinguishing features: left ear more exposed beneath the cap, subtle central notch in the lower lip, right eyelid opens slightly wider. Hair: straight medium-brown hair cut unevenly around the ears and nape, flattened beneath a worn low-crowned cap. Production task: create one identity-locked portrait-and-marker pair in Rundale, rural County Roscommon, Ireland, 1820, ordinary parish life, period-appropriate work clothing, under this visual authority: Illustrated Parish Notebook concept art only. The two renderings must unmistakably be the same person by reproducing every stated identity fact. Clothing: patched farm coat or vest, muddy boots, plain shirt; canonical biography cue for clothing and expression only, never for setting, activity, or objects: a quiet teenage boy with muddy boots; current mood quiet. Left asset, notebook portrait: a quick observational head-and-shoulders sketch the player character drew in their working notebook after meeting this person. Use sparse uncolored sepia/graphite contours, open unfilled shapes, and only a few isolated short structural hatch marks; optional lower-edge prop hay fork handle, simply outlined and confined to the left cell. Do not cross-hatch or shade any broad region of the face, hair, neck, scarf, waistcoat, coat, dress, or apron, and do not render a dark garment as a filled or densely hatched mass. Keep the complete ink drawing between 40 and 60 percent of the left cell height with generous empty padding; every uninked interior region must remain provider key, never white, cream, parchment, skin tone, gray, or any other fill. It must not read as a formal illustration or painted portrait. Right asset, painted-world marker: one tiny static full-body transparent character-only cutout designed for compositing into the painted parish scene; silhouette quiet mid-teen boy with a worn low-crowned cap, straight brown hair at the ears, patched vest, muddy boots, and a slender frame; no object/scenery; stance slightly apart, lowered-shoulder stance with hands in pockets; no object/scenery; empty-hand pose both empty hands tucked into clothing pockets; tiny-readability cues from the person's body, hair or headwear, clothing, and stance alone: hair or headwear: worn low-crowned cap with straight hair visible at ears and nape; body shape: slender teenage proportions; complete figure roughly 45 percent of the right cell height, acceptable range 40 to 60 percent, with generous key-visible margins; restrained translucent watercolor within loose sepia/graphite contours, simplified face, and complete feet. The right cell must contain the person only: both hands empty; no held or carried objects, tools, books, containers, bundles, furniture, counters, architecture, vegetation, scenery fragments, ground plane, shadow, or extra person. Worn clothing and headwear are allowed. Do not illustrate the canonical biography's occupation, workplace, activity, or narrative context around the marker. Limit painted color to muted wool gray, bog green, weathered tan, dull brick red, peat brown, and faded indigo; no saturated primary colors. Shared constraints: one depiction in each assigned cell, ordinary 1820 rural County Roscommon clothing, no modern or fantasy elements, no text, labels, frames, contact-sheet furniture, or sprite-sheet poses. Never copy a left-cell portrait prop into the marker. Character-specific avoid list: adult farmer build, modern work boots, overly heroic farm tool pose.",
+	"portrait_prompt": "Subject identity: Liam Murphy, age 16, Farm Boy; visual identity seed rundale-person-v2:18; apparent age mid teens; Explicit facial geometry: face shape narrow youthful oblong face with a softly squared lower outline; proportions Murphy long midface and broad nose root retained; jaw and cheeks not yet fully developed; brow and eyes level brows matching Siobhan's line; deep-set medium-spaced eyes with lighter adolescent contours; nose straight developing nose, broad at the root and narrower through the tip than Siobhan's; mouth medium-wide level mouth with a fuller lower lip; jaw and chin slender jaw with a short softly squared chin; cheekbones high-set but understated cheek planes; hairline low irregular hairline, mostly hidden by his cap; age detail mid-teen face with smooth planes, slight under-eye shadow, and no adult beard line. Distinguishing features: left ear more exposed beneath the cap, subtle central notch in the lower lip, right eyelid opens slightly wider. Hair: straight medium-brown hair cut unevenly around the ears and nape, flattened beneath a worn low-crowned cap. Artifact and lore: this is a quick observational sketch the player character drew by hand in the margin of their working parish notebook after meeting the subject. It is diegetic notebook ephemera, not a commissioned illustration, formal portrait study, character card, or polished concept painting. Non-negotiable drawing language: sparse, uncolored pen-and-ink line drawing under this visual authority: Illustrated Parish Notebook concept art only. Use one irregular sepia/graphite ink line, economical contours, open shapes, and only a few short loose hatch marks where structurally necessary. Leave most of the face, hair, clothing, and canvas unfilled. No skin-tone fill, white underpainting, cream fill, solid dark garment, gray wash, watercolor, smooth tonal modeling, dense cross-hatching, photorealistic rendering, or glamour. Delivery composition: 1024x1024 transparent-background PNG source, portrait line art occupies roughly 45 percent of source height, centered head-and-shoulders drawing with generous transparent padding on all sides, top of hair/head covering and shoulders fully visible, no baked parchment, paper texture, wash, card, border, label, or UI furniture; keep the complete inked drawing between roughly 40 and 60 percent of canvas height with generous empty space on every side. Uninked areas are transparent in the delivery asset so the UI-controlled notebook paper shows through. Setting: Rundale, rural County Roscommon, Ireland, 1820, ordinary parish life, period-appropriate work clothing. Clothing: patched farm coat or vest, muddy boots, plain shirt, indicated only with contour, seam, and a few fold lines; expression and pose reserved and hard-working, shoulders slightly hunched; current mood quiet. Optional lower-edge identity cue: hay fork handle, at most one simply outlined prop. Canonical context: a quiet teenage boy with muddy boots; home/workplace at Murphy's Farm. Hard constraints: one character, head and shoulders only, period-appropriate rural County Roscommon clothing, no text, no label, no border, no card, no UI chrome. Character-specific avoid list: adult farmer build, modern work boots, overly heroic farm tool pose.",
+	"marker_prompt": "Subject identity: Liam Murphy, age 16, Farm Boy; visual identity seed rundale-person-v2:18; apparent age mid teens; Explicit facial geometry: face shape narrow youthful oblong face with a softly squared lower outline; proportions Murphy long midface and broad nose root retained; jaw and cheeks not yet fully developed; brow and eyes level brows matching Siobhan's line; deep-set medium-spaced eyes with lighter adolescent contours; nose straight developing nose, broad at the root and narrower through the tip than Siobhan's; mouth medium-wide level mouth with a fuller lower lip; jaw and chin slender jaw with a short softly squared chin; cheekbones high-set but understated cheek planes; hairline low irregular hairline, mostly hidden by his cap; age detail mid-teen face with smooth planes, slight under-eye shadow, and no adult beard line. Distinguishing features: left ear more exposed beneath the cap, subtle central notch in the lower lip, right eyelid opens slightly wider. Hair: straight medium-brown hair cut unevenly around the ears and nape, flattened beneath a worn low-crowned cap. Asset role: one tiny static full-body NPC marker delivered as a transparent character-only cutout for compositing over Rundale's painted world surface. It is not a UI portrait, paper doll, animation sheet, formal character illustration, vignette, or sprite-sheet panel. Visual language: loose hand-inked watercolor miniature under this visual authority: Illustrated Parish Notebook concept art only. Use irregular sepia/graphite contours, a simple readable human silhouette, restrained translucent washes, low facial detail, and only enough clothing folds to identify the person at scene size. Keep the treatment handmade and subordinate to the environment, never glossy, photorealistic, densely rendered, or cut out with a broad halo. Delivery composition: 1024x1024 flat #ff00ff chroma-key PNG source, full-body figure occupies roughly 45 percent of source height, centered figure with feet fully visible and generous flat background margins, one single static in-world marker pose per NPC for this slice, no ground shadow, floor plane, label, border, or extra figure. Palette: sepia/graphite line with muted wool gray, bog green, weathered tan, dull brick red, peat brown, and faded indigo only; no saturated primary colors. Setting: Rundale, rural County Roscommon, Ireland, 1820, ordinary parish life, period-appropriate work clothing. Character-only silhouette: quiet mid-teen boy with a worn low-crowned cap, straight brown hair at the ears, patched vest, muddy boots, and a slender frame; no object/scenery. Stance: slightly apart, lowered-shoulder stance with hands in pockets; no object/scenery. Empty-hand pose: both empty hands tucked into clothing pockets. Tiny-readability cues from the person's body, hair or headwear, clothing, and stance alone: hair or headwear: worn low-crowned cap with straight hair visible at ears and nape; body shape: slender teenage proportions. Tiny-readability requirements: Keep the lowered, reserved adolescent posture distinct from adult figures and Ciaran.. Hard constraints: one character only, both hands empty, period-appropriate ordinary rural clothing, simplified face, complete feet, no held or carried objects, tools, books, containers, bundles, furniture, architecture, vegetation, scenery fragments, ground plane, shadow, text, label, border, or UI chrome. Worn clothing and headwear are allowed. Do not illustrate an occupation, workplace, activity, or narrative context around the person. Character-specific avoid list: adult farmer build, modern work boots, overly heroic farm tool pose."
+}

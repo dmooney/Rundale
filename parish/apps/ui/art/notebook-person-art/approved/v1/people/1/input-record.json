@@ -1,0 +1,262 @@
+{
+	"npc_id": 1,
+	"name": "Padraig Darcy",
+	"age": 58,
+	"pronouns": "he/him",
+	"occupation": "Publican",
+	"mood": "content",
+	"brief_description": "an older man behind the bar",
+	"home": {
+		"id": 2,
+		"name": "Darcy's Pub",
+		"description": "The warm interior of Darcy's Pub. Turf smoke hangs in the air. Old prints of hurling matches line the walls beside a faded map of the county. A fiddle sits propped in the corner. It is daylight and the weather outside is weather."
+	},
+	"workplace": {
+		"id": 2,
+		"name": "Darcy's Pub",
+		"description": "The warm interior of Darcy's Pub. Turf smoke hangs in the air. Old prints of hurling matches line the walls beside a faded map of the county. A fiddle sits propped in the corner. It is daylight and the weather outside is weather."
+	},
+	"source_personality_summary": "A gruff but warm-hearted publican who has run Darcy's Pub for thirty years.",
+	"source_knowledge": [
+		"Knows every family in the parish and their histories going back three generations.",
+		"Heard that the land agent is planning to raise rents again after the harvest.",
+		"Remembers when the old church roof collapsed in the storm of 1808.",
+		"Knows which roads flood in heavy rain and which paths are safe at night."
+	],
+	"source_relationships": [
+		{
+			"target_id": 8,
+			"target_name": "Niamh Darcy",
+			"kind": "Family",
+			"strength": 0.9
+		},
+		{
+			"target_id": 5,
+			"target_name": "Tommy O'Brien",
+			"kind": "Friend",
+			"strength": 0.7
+		},
+		{
+			"target_id": 4,
+			"target_name": "Roisin Connolly",
+			"kind": "Professional",
+			"strength": 0.5
+		},
+		{
+			"target_id": 7,
+			"target_name": "Mick Flanagan",
+			"kind": "Friend",
+			"strength": 0.4
+		},
+		{
+			"target_id": 9,
+			"target_name": "Seamus Gallagher",
+			"kind": "Friend",
+			"strength": 0.6
+		},
+		{
+			"target_id": 15,
+			"target_name": "Eamon Walsh",
+			"kind": "Professional",
+			"strength": 0.4
+		},
+		{
+			"target_id": 14,
+			"target_name": "Brendan Duffy",
+			"kind": "Neighbor",
+			"strength": -0.1
+		},
+		{
+			"target_id": 23,
+			"target_name": "Martin Concannon",
+			"kind": "Professional",
+			"strength": -0.1
+		}
+	],
+	"source_schedule_cues": [
+		{
+			"location_id": 1,
+			"location_name": "The Crossroads",
+			"activity": "lingering at the crossroads after Mass, catching up on the week's news"
+		},
+		{
+			"location_id": 1,
+			"location_name": "The Crossroads",
+			"activity": "taking the morning air at the crossroads, greeting early risers"
+		},
+		{
+			"location_id": 2,
+			"location_name": "Darcy's Pub",
+			"activity": "Sunday evening session — music, singing, the week's stories retold"
+		},
+		{
+			"location_id": 2,
+			"location_name": "Darcy's Pub",
+			"activity": "a quieter Sunday afternoon, folk visiting family"
+		},
+		{
+			"location_id": 2,
+			"location_name": "Darcy's Pub",
+			"activity": "closing up early, the winter night pressing in"
+		},
+		{
+			"location_id": 2,
+			"location_name": "Darcy's Pub",
+			"activity": "closing up for the night"
+		},
+		{
+			"location_id": 2,
+			"location_name": "Darcy's Pub",
+			"activity": "closing up, banking the fire, locking the door"
+		},
+		{
+			"location_id": 2,
+			"location_name": "Darcy's Pub",
+			"activity": "minding the bar, quiet afternoon trade"
+		},
+		{
+			"location_id": 2,
+			"location_name": "Darcy's Pub",
+			"activity": "opening up — little trade before noon in winter"
+		},
+		{
+			"location_id": 2,
+			"location_name": "Darcy's Pub",
+			"activity": "opening up, sweeping the floor, rolling barrels up from the cellar"
+		},
+		{
+			"location_id": 2,
+			"location_name": "Darcy's Pub",
+			"activity": "serving the midday trade — farmers in from the fields for a quick pint"
+		},
+		{
+			"location_id": 2,
+			"location_name": "Darcy's Pub",
+			"activity": "sleeping above the pub, the fire banked low"
+		},
+		{
+			"location_id": 2,
+			"location_name": "Darcy's Pub",
+			"activity": "sleeping in the rooms above the pub"
+		},
+		{
+			"location_id": 2,
+			"location_name": "Darcy's Pub",
+			"activity": "sleeping late on the Lord's day"
+		},
+		{
+			"location_id": 2,
+			"location_name": "Darcy's Pub",
+			"activity": "stirring the fire, a slow breakfast of stirabout and buttermilk"
+		},
+		{
+			"location_id": 2,
+			"location_name": "Darcy's Pub",
+			"activity": "tending bar, the dark afternoons bring folk in early from the cold"
+		},
+		{
+			"location_id": 2,
+			"location_name": "Darcy's Pub",
+			"activity": "the after-Mass crowd — the busiest dinner trade of the week"
+		},
+		{
+			"location_id": 2,
+			"location_name": "Darcy's Pub",
+			"activity": "the busy evening — pouring pints, settling arguments, holding court"
+		},
+		{
+			"location_id": 2,
+			"location_name": "Darcy's Pub",
+			"activity": "the evening rush — a full house by the fire, stories and song"
+		},
+		{
+			"location_id": 3,
+			"location_name": "St. Brigid's Church",
+			"activity": "attending Mass at St. Brigid's"
+		}
+	],
+	"source_visual_cues": [
+		"age: 58",
+		"occupation: Publican",
+		"brief_description: an older man behind the bar",
+		"prop/activity"
+	],
+	"source_metadata_status": {
+		"canonical_npc_data_sufficient_for_production_art": false,
+		"status": "weak-partial",
+		"reason": "The canonical NPC data identifies the character but does not provide enough structured appearance, clothing, or tiny-marker guidance for production art."
+	},
+	"art_direction": {
+		"npc_id": 1,
+		"npc_name": "Padraig Darcy",
+		"portrait_identity": {
+			"visual_identity_seed": "rundale-person-v2:1",
+			"identity_cohort": "man",
+			"apparent_age": "late fifties",
+			"facial_geometry": {
+				"face_shape": "broad rounded-square face with a slightly heavier lower half",
+				"proportions": "wide forehead and cheek span; compact midface; face nearly as wide as it is long",
+				"brow_and_eyes": "heavy mostly straight brows; medium-set, slightly hooded eyes",
+				"nose": "stout straight bridge with a broad rounded tip",
+				"mouth": "wide mouth with a defined upper lip and heavier lower lip",
+				"jaw_and_chin": "broad jaw with softened corners and a short blunt chin",
+				"cheekbones": "low, broad cheek structure with weathered cheek folds",
+				"hairline": "mature high-temple hairline without a pronounced central peak",
+				"age_detail": "late-fifties lines at the outer eyes, brow, and mouth; sparse rough beard shadow"
+			},
+			"distinguishing_features": [
+				"thick greying sideburns",
+				"left brow slightly more broken than the right",
+				"single strong crease beside the right cheek"
+			],
+			"hair": "short coarse dark-grey hair, brushed back unevenly, with prominent greying sideburns and trimmed grey whiskers",
+			"clothing": "rolled linen sleeves, dark worn waistcoat, plain neckcloth, publican's apron hinted low in frame",
+			"pose_expression": "gruff but warm, looking up from work as if ready with dry advice",
+			"props": [
+				"bar rag",
+				"small pewter cup",
+				"key ring"
+			],
+			"palette_notes": [
+				"dark waistcoat",
+				"warm pub umber",
+				"turf-smoke grey"
+			]
+		},
+		"marker_identity": {
+			"composition": "character-only",
+			"silhouette": "stocky late-fifties man with square shoulders, broad sideburns, worn dark waistcoat, and rolled sleeves; no object/scenery",
+			"stance": "grounded square stance with both hands near the waistcoat front; no object/scenery",
+			"empty_hand_pose": "hands-near-coat-front",
+			"readability_cues": [
+				{
+					"kind": "body-shape",
+					"description": "compact broad build"
+				},
+				{
+					"kind": "hair-or-headwear",
+					"description": "prominent greying sideburns"
+				},
+				{
+					"kind": "clothing",
+					"description": "dark waistcoat over pale rolled sleeves"
+				}
+			],
+			"tiny_readability_notes": [
+				"Make the broad, low center of gravity readable before facial detail."
+			]
+		},
+		"avoid": [
+			"modern bartender",
+			"stage-Irish drunk caricature",
+			"large foaming beer stein",
+			"top hat"
+		],
+		"authoring_notes": [
+			"Canonical data gives age, publican role, pub location, and behind-the-bar cue, but not stable hair, clothing, or marker silhouette."
+		]
+	},
+	"pair_prompt": "Identity contract for Padraig Darcy, age 58, Publican: visual identity seed rundale-person-v2:1; apparent age late fifties; Explicit facial geometry: face shape broad rounded-square face with a slightly heavier lower half; proportions wide forehead and cheek span; compact midface; face nearly as wide as it is long; brow and eyes heavy mostly straight brows; medium-set, slightly hooded eyes; nose stout straight bridge with a broad rounded tip; mouth wide mouth with a defined upper lip and heavier lower lip; jaw and chin broad jaw with softened corners and a short blunt chin; cheekbones low, broad cheek structure with weathered cheek folds; hairline mature high-temple hairline without a pronounced central peak; age detail late-fifties lines at the outer eyes, brow, and mouth; sparse rough beard shadow. Distinguishing features: thick greying sideburns, left brow slightly more broken than the right, single strong crease beside the right cheek. Hair: short coarse dark-grey hair, brushed back unevenly, with prominent greying sideburns and trimmed grey whiskers. Production task: create one identity-locked portrait-and-marker pair in Rundale, rural County Roscommon, Ireland, 1820, ordinary parish life, period-appropriate work clothing, under this visual authority: Illustrated Parish Notebook concept art only. The two renderings must unmistakably be the same person by reproducing every stated identity fact. Clothing: rolled linen sleeves, dark worn waistcoat, plain neckcloth, publican's apron hinted low in frame; canonical biography cue for clothing and expression only, never for setting, activity, or objects: an older man behind the bar; current mood content. Left asset, notebook portrait: a quick observational head-and-shoulders sketch the player character drew in their working notebook after meeting this person. Use sparse uncolored sepia/graphite contours, open unfilled shapes, and only a few isolated short structural hatch marks; optional lower-edge prop bar rag, simply outlined and confined to the left cell. Do not cross-hatch or shade any broad region of the face, hair, neck, scarf, waistcoat, coat, dress, or apron, and do not render a dark garment as a filled or densely hatched mass. Keep the complete ink drawing between 40 and 60 percent of the left cell height with generous empty padding; every uninked interior region must remain provider key, never white, cream, parchment, skin tone, gray, or any other fill. It must not read as a formal illustration or painted portrait. Right asset, painted-world marker: one tiny static full-body transparent character-only cutout designed for compositing into the painted parish scene; silhouette stocky late-fifties man with square shoulders, broad sideburns, worn dark waistcoat, and rolled sleeves; no object/scenery; stance grounded square stance with both hands near the waistcoat front; no object/scenery; empty-hand pose both empty hands resting near the coat front; tiny-readability cues from the person's body, hair or headwear, clothing, and stance alone: body shape: compact broad build; hair or headwear: prominent greying sideburns; clothing: dark waistcoat over pale rolled sleeves; complete figure roughly 45 percent of the right cell height, acceptable range 40 to 60 percent, with generous key-visible margins; restrained translucent watercolor within loose sepia/graphite contours, simplified face, and complete feet. The right cell must contain the person only: both hands empty; no held or carried objects, tools, books, containers, bundles, furniture, counters, architecture, vegetation, scenery fragments, ground plane, shadow, or extra person. Worn clothing and headwear are allowed. Do not illustrate the canonical biography's occupation, workplace, activity, or narrative context around the marker. Limit painted color to muted wool gray, bog green, weathered tan, dull brick red, peat brown, and faded indigo; no saturated primary colors. Shared constraints: one depiction in each assigned cell, ordinary 1820 rural County Roscommon clothing, no modern or fantasy elements, no text, labels, frames, contact-sheet furniture, or sprite-sheet poses. Never copy a left-cell portrait prop into the marker. Character-specific avoid list: modern bartender, stage-Irish drunk caricature, large foaming beer stein, top hat.",
+	"portrait_prompt": "Subject identity: Padraig Darcy, age 58, Publican; visual identity seed rundale-person-v2:1; apparent age late fifties; Explicit facial geometry: face shape broad rounded-square face with a slightly heavier lower half; proportions wide forehead and cheek span; compact midface; face nearly as wide as it is long; brow and eyes heavy mostly straight brows; medium-set, slightly hooded eyes; nose stout straight bridge with a broad rounded tip; mouth wide mouth with a defined upper lip and heavier lower lip; jaw and chin broad jaw with softened corners and a short blunt chin; cheekbones low, broad cheek structure with weathered cheek folds; hairline mature high-temple hairline without a pronounced central peak; age detail late-fifties lines at the outer eyes, brow, and mouth; sparse rough beard shadow. Distinguishing features: thick greying sideburns, left brow slightly more broken than the right, single strong crease beside the right cheek. Hair: short coarse dark-grey hair, brushed back unevenly, with prominent greying sideburns and trimmed grey whiskers. Artifact and lore: this is a quick observational sketch the player character drew by hand in the margin of their working parish notebook after meeting the subject. It is diegetic notebook ephemera, not a commissioned illustration, formal portrait study, character card, or polished concept painting. Non-negotiable drawing language: sparse, uncolored pen-and-ink line drawing under this visual authority: Illustrated Parish Notebook concept art only. Use one irregular sepia/graphite ink line, economical contours, open shapes, and only a few short loose hatch marks where structurally necessary. Leave most of the face, hair, clothing, and canvas unfilled. No skin-tone fill, white underpainting, cream fill, solid dark garment, gray wash, watercolor, smooth tonal modeling, dense cross-hatching, photorealistic rendering, or glamour. Delivery composition: 1024x1024 transparent-background PNG source, portrait line art occupies roughly 45 percent of source height, centered head-and-shoulders drawing with generous transparent padding on all sides, top of hair/head covering and shoulders fully visible, no baked parchment, paper texture, wash, card, border, label, or UI furniture; keep the complete inked drawing between roughly 40 and 60 percent of canvas height with generous empty space on every side. Uninked areas are transparent in the delivery asset so the UI-controlled notebook paper shows through. Setting: Rundale, rural County Roscommon, Ireland, 1820, ordinary parish life, period-appropriate work clothing. Clothing: rolled linen sleeves, dark worn waistcoat, plain neckcloth, publican's apron hinted low in frame, indicated only with contour, seam, and a few fold lines; expression and pose gruff but warm, looking up from work as if ready with dry advice; current mood content. Optional lower-edge identity cue: bar rag, at most one simply outlined prop. Canonical context: an older man behind the bar; home/workplace at Darcy's Pub. Hard constraints: one character, head and shoulders only, period-appropriate rural County Roscommon clothing, no text, no label, no border, no card, no UI chrome. Character-specific avoid list: modern bartender, stage-Irish drunk caricature, large foaming beer stein, top hat.",
+	"marker_prompt": "Subject identity: Padraig Darcy, age 58, Publican; visual identity seed rundale-person-v2:1; apparent age late fifties; Explicit facial geometry: face shape broad rounded-square face with a slightly heavier lower half; proportions wide forehead and cheek span; compact midface; face nearly as wide as it is long; brow and eyes heavy mostly straight brows; medium-set, slightly hooded eyes; nose stout straight bridge with a broad rounded tip; mouth wide mouth with a defined upper lip and heavier lower lip; jaw and chin broad jaw with softened corners and a short blunt chin; cheekbones low, broad cheek structure with weathered cheek folds; hairline mature high-temple hairline without a pronounced central peak; age detail late-fifties lines at the outer eyes, brow, and mouth; sparse rough beard shadow. Distinguishing features: thick greying sideburns, left brow slightly more broken than the right, single strong crease beside the right cheek. Hair: short coarse dark-grey hair, brushed back unevenly, with prominent greying sideburns and trimmed grey whiskers. Asset role: one tiny static full-body NPC marker delivered as a transparent character-only cutout for compositing over Rundale's painted world surface. It is not a UI portrait, paper doll, animation sheet, formal character illustration, vignette, or sprite-sheet panel. Visual language: loose hand-inked watercolor miniature under this visual authority: Illustrated Parish Notebook concept art only. Use irregular sepia/graphite contours, a simple readable human silhouette, restrained translucent washes, low facial detail, and only enough clothing folds to identify the person at scene size. Keep the treatment handmade and subordinate to the environment, never glossy, photorealistic, densely rendered, or cut out with a broad halo. Delivery composition: 1024x1024 flat #ff00ff chroma-key PNG source, full-body figure occupies roughly 45 percent of source height, centered figure with feet fully visible and generous flat background margins, one single static in-world marker pose per NPC for this slice, no ground shadow, floor plane, label, border, or extra figure. Palette: sepia/graphite line with muted wool gray, bog green, weathered tan, dull brick red, peat brown, and faded indigo only; no saturated primary colors. Setting: Rundale, rural County Roscommon, Ireland, 1820, ordinary parish life, period-appropriate work clothing. Character-only silhouette: stocky late-fifties man with square shoulders, broad sideburns, worn dark waistcoat, and rolled sleeves; no object/scenery. Stance: grounded square stance with both hands near the waistcoat front; no object/scenery. Empty-hand pose: both empty hands resting near the coat front. Tiny-readability cues from the person's body, hair or headwear, clothing, and stance alone: body shape: compact broad build; hair or headwear: prominent greying sideburns; clothing: dark waistcoat over pale rolled sleeves. Tiny-readability requirements: Make the broad, low center of gravity readable before facial detail.. Hard constraints: one character only, both hands empty, period-appropriate ordinary rural clothing, simplified face, complete feet, no held or carried objects, tools, books, containers, bundles, furniture, architecture, vegetation, scenery fragments, ground plane, shadow, text, label, border, or UI chrome. Worn clothing and headwear are allowed. Do not illustrate an occupation, workplace, activity, or narrative context around the person. Character-specific avoid list: modern bartender, stage-Irish drunk caricature, large foaming beer stein, top hat."
+}

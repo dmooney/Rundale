@@ -1,0 +1,268 @@
+{
+	"npc_id": 3,
+	"name": "Fr. Declan Tierney",
+	"age": 62,
+	"pronouns": "he/him",
+	"occupation": "Parish Priest",
+	"mood": "contemplative",
+	"brief_description": "a priest",
+	"home": {
+		"id": 3,
+		"name": "St. Brigid's Church",
+		"description": "A small stone church with a slate roof, its stained-glass windows catching the daylight light. The graveyard behind is thick with Celtic crosses and lichen-covered headstones. The sky is weather."
+	},
+	"workplace": {
+		"id": 3,
+		"name": "St. Brigid's Church",
+		"description": "A small stone church with a slate roof, its stained-glass windows catching the daylight light. The graveyard behind is thick with Celtic crosses and lichen-covered headstones. The sky is weather."
+	},
+	"source_personality_summary": "A kind, thoughtful priest who has served the parish for twenty-five years.",
+	"source_knowledge": [
+		"Receives letters from other parishes about the political situation in Dublin.",
+		"Knows that Daniel O'Connell is gaining support for Catholic Emancipation.",
+		"Aware that some parishioners still visit the fairy fort despite his gentle discouragement.",
+		"Has heard confessions that weigh on him — secrets he can never share."
+	],
+	"source_relationships": [
+		{
+			"target_id": 1,
+			"target_name": "Padraig Darcy",
+			"kind": "Friend",
+			"strength": 0.6
+		},
+		{
+			"target_id": 6,
+			"target_name": "Aoife Brennan",
+			"kind": "Professional",
+			"strength": 0.5
+		},
+		{
+			"target_id": 7,
+			"target_name": "Mick Flanagan",
+			"kind": "Friend",
+			"strength": 0.3
+		},
+		{
+			"target_id": 2,
+			"target_name": "Siobhan Murphy",
+			"kind": "Professional",
+			"strength": 0.4
+		},
+		{
+			"target_id": 19,
+			"target_name": "Brigid Ni Fhatharta",
+			"kind": "Professional",
+			"strength": 0.3
+		},
+		{
+			"target_id": 23,
+			"target_name": "Martin Concannon",
+			"kind": "Professional",
+			"strength": 0.3
+		}
+	],
+	"source_schedule_cues": [
+		{
+			"location_id": 1,
+			"location_name": "The Crossroads",
+			"activity": "at the crossroads after Mass, speaking with parishioners, settling small disputes"
+		},
+		{
+			"location_id": 1,
+			"location_name": "The Crossroads",
+			"activity": "walking the parish roads in the long summer light, checking on outlying families"
+		},
+		{
+			"location_id": 2,
+			"location_name": "Darcy's Pub",
+			"activity": "Sunday evening at the pub, the most social night of the week"
+		},
+		{
+			"location_id": 2,
+			"location_name": "Darcy's Pub",
+			"activity": "a quiet evening at Darcy's Pub — pastoral duty, he would say"
+		},
+		{
+			"location_id": 2,
+			"location_name": "Darcy's Pub",
+			"activity": "an evening at Darcy's Pub, warming himself by the fire"
+		},
+		{
+			"location_id": 3,
+			"location_name": "St. Brigid's Church",
+			"activity": "Sunday dinner at the parish house"
+		},
+		{
+			"location_id": 3,
+			"location_name": "St. Brigid's Church",
+			"activity": "afternoon prayers, preparing Sunday's sermon"
+		},
+		{
+			"location_id": 3,
+			"location_name": "St. Brigid's Church",
+			"activity": "celebrating Sunday Mass — the whole parish gathered together"
+		},
+		{
+			"location_id": 3,
+			"location_name": "St. Brigid's Church",
+			"activity": "dinner at the parish house, reading correspondence from the diocese"
+		},
+		{
+			"location_id": 3,
+			"location_name": "St. Brigid's Church",
+			"activity": "evening prayers and early to bed"
+		},
+		{
+			"location_id": 3,
+			"location_name": "St. Brigid's Church",
+			"activity": "evening prayers and parish accounts"
+		},
+		{
+			"location_id": 3,
+			"location_name": "St. Brigid's Church",
+			"activity": "morning prayers by candlelight, the church cold as a tomb"
+		},
+		{
+			"location_id": 3,
+			"location_name": "St. Brigid's Church",
+			"activity": "preparing for the Sunday Mass — vestments, sermon notes, the altar"
+		},
+		{
+			"location_id": 3,
+			"location_name": "St. Brigid's Church",
+			"activity": "reading and prayer before bed"
+		},
+		{
+			"location_id": 3,
+			"location_name": "St. Brigid's Church",
+			"activity": "reading by candlelight — poetry, theology, letters from Maynooth"
+		},
+		{
+			"location_id": 3,
+			"location_name": "St. Brigid's Church",
+			"activity": "reading, writing letters, parish correspondence by the fire"
+		},
+		{
+			"location_id": 3,
+			"location_name": "St. Brigid's Church",
+			"activity": "rising early, morning prayers and breviary"
+		},
+		{
+			"location_id": 3,
+			"location_name": "St. Brigid's Church",
+			"activity": "saying morning Mass"
+		},
+		{
+			"location_id": 3,
+			"location_name": "St. Brigid's Church",
+			"activity": "saying morning Mass for the few who attend on weekdays"
+		},
+		{
+			"location_id": 3,
+			"location_name": "St. Brigid's Church",
+			"activity": "sleeping in the parish house"
+		},
+		{
+			"location_id": 3,
+			"location_name": "St. Brigid's Church",
+			"activity": "sleeping in the parish house beside the church"
+		},
+		{
+			"location_id": 11,
+			"location_name": "The Fairy Fort",
+			"activity": "a contemplative walk to the fairy fort — he prays there, though he would not call it that"
+		},
+		{
+			"location_id": 15,
+			"location_name": "Kilteevan Village",
+			"activity": "visiting parishioners in Kilteevan Village — the sick, the elderly, the troubled"
+		},
+		{
+			"location_id": 15,
+			"location_name": "Kilteevan Village",
+			"activity": "visiting the sick in Kilteevan — shorter rounds in winter"
+		}
+	],
+	"source_visual_cues": [
+		"age: 62",
+		"occupation: Parish Priest",
+		"brief_description: a priest"
+	],
+	"source_metadata_status": {
+		"canonical_npc_data_sufficient_for_production_art": false,
+		"status": "weak-partial",
+		"reason": "The canonical NPC data identifies the character but does not provide enough structured appearance, clothing, or tiny-marker guidance for production art."
+	},
+	"art_direction": {
+		"npc_id": 3,
+		"npc_name": "Fr. Declan Tierney",
+		"portrait_identity": {
+			"visual_identity_seed": "rundale-person-v2:3",
+			"identity_cohort": "man",
+			"apparent_age": "early sixties",
+			"facial_geometry": {
+				"face_shape": "long narrow oval face with a tapered lower third",
+				"proportions": "high forehead; long nose-led midface; relatively short mouth-to-chin distance",
+				"brow_and_eyes": "fine descending brows; deep-set almond-shaped eyes with pronounced upper lids",
+				"nose": "long narrow bridge with a modest convex turn and downturned tip",
+				"mouth": "small horizontal mouth with a thin upper lip and softly defined lower lip",
+				"jaw_and_chin": "narrow jaw ending in a rounded, slightly forward chin",
+				"cheekbones": "high narrow cheekbones, lightly hollowed beneath",
+				"hairline": "clearly receded at both temples with a shallow central forelock",
+				"age_detail": "early-sixties forehead lines, outer-eye fans, and light folds beside the mouth"
+			},
+			"distinguishing_features": [
+				"left brow descends more sharply toward the nose",
+				"shallow notch in the left earlobe",
+				"two clear horizontal forehead lines"
+			],
+			"hair": "fine silver hair, receding at the temples and brushed back close to the head, slightly longer over the ears",
+			"clothing": "plain black priest's coat or cassock-like dark clerical dress, simple white collar or neckcloth",
+			"pose_expression": "contemplative, gentle, slightly stooped from walking the parish",
+			"props": [
+				"small worn prayer book",
+				"plain rosary tucked in hand"
+			],
+			"palette_notes": [
+				"soft black",
+				"linen white",
+				"quiet sepia shadows"
+			]
+		},
+		"marker_identity": {
+			"composition": "character-only",
+			"silhouette": "slender early-sixties man in a dark long coat with a small white collar and close silver hair; no object/scenery",
+			"stance": "gentle slight stoop with hands clasped at the waist; no object/scenery",
+			"empty_hand_pose": "hands-clasped",
+			"readability_cues": [
+				{
+					"kind": "clothing",
+					"description": "long dark coat and small white collar"
+				},
+				{
+					"kind": "hair-or-headwear",
+					"description": "receding silver hair"
+				},
+				{
+					"kind": "body-shape",
+					"description": "slender stooped frame"
+				}
+			],
+			"tiny_readability_notes": [
+				"Keep the silhouette narrow and contemplative without adding ceremonial objects."
+			]
+		},
+		"avoid": [
+			"bishop mitre",
+			"ornate vestments outside Mass",
+			"Victorian clerical costume",
+			"saint iconography"
+		],
+		"authoring_notes": [
+			"Canonical data says priest and church schedule but only brief_description 'a priest'; production identity needs clothing and marker details."
+		]
+	},
+	"pair_prompt": "Identity contract for Fr. Declan Tierney, age 62, Parish Priest: visual identity seed rundale-person-v2:3; apparent age early sixties; Explicit facial geometry: face shape long narrow oval face with a tapered lower third; proportions high forehead; long nose-led midface; relatively short mouth-to-chin distance; brow and eyes fine descending brows; deep-set almond-shaped eyes with pronounced upper lids; nose long narrow bridge with a modest convex turn and downturned tip; mouth small horizontal mouth with a thin upper lip and softly defined lower lip; jaw and chin narrow jaw ending in a rounded, slightly forward chin; cheekbones high narrow cheekbones, lightly hollowed beneath; hairline clearly receded at both temples with a shallow central forelock; age detail early-sixties forehead lines, outer-eye fans, and light folds beside the mouth. Distinguishing features: left brow descends more sharply toward the nose, shallow notch in the left earlobe, two clear horizontal forehead lines. Hair: fine silver hair, receding at the temples and brushed back close to the head, slightly longer over the ears. Production task: create one identity-locked portrait-and-marker pair in Rundale, rural County Roscommon, Ireland, 1820, ordinary parish life, period-appropriate work clothing, under this visual authority: Illustrated Parish Notebook concept art only. The two renderings must unmistakably be the same person by reproducing every stated identity fact. Clothing: plain black priest's coat or cassock-like dark clerical dress, simple white collar or neckcloth; canonical biography cue for clothing and expression only, never for setting, activity, or objects: a priest; current mood contemplative. Left asset, notebook portrait: a quick observational head-and-shoulders sketch the player character drew in their working notebook after meeting this person. Use sparse uncolored sepia/graphite contours, open unfilled shapes, and only a few isolated short structural hatch marks; optional lower-edge prop small worn prayer book, simply outlined and confined to the left cell. Do not cross-hatch or shade any broad region of the face, hair, neck, scarf, waistcoat, coat, dress, or apron, and do not render a dark garment as a filled or densely hatched mass. Keep the complete ink drawing between 40 and 60 percent of the left cell height with generous empty padding; every uninked interior region must remain provider key, never white, cream, parchment, skin tone, gray, or any other fill. It must not read as a formal illustration or painted portrait. Right asset, painted-world marker: one tiny static full-body transparent character-only cutout designed for compositing into the painted parish scene; silhouette slender early-sixties man in a dark long coat with a small white collar and close silver hair; no object/scenery; stance gentle slight stoop with hands clasped at the waist; no object/scenery; empty-hand pose both empty hands clasped together; tiny-readability cues from the person's body, hair or headwear, clothing, and stance alone: clothing: long dark coat and small white collar; hair or headwear: receding silver hair; body shape: slender stooped frame; complete figure roughly 45 percent of the right cell height, acceptable range 40 to 60 percent, with generous key-visible margins; restrained translucent watercolor within loose sepia/graphite contours, simplified face, and complete feet. The right cell must contain the person only: both hands empty; no held or carried objects, tools, books, containers, bundles, furniture, counters, architecture, vegetation, scenery fragments, ground plane, shadow, or extra person. Worn clothing and headwear are allowed. Do not illustrate the canonical biography's occupation, workplace, activity, or narrative context around the marker. Limit painted color to muted wool gray, bog green, weathered tan, dull brick red, peat brown, and faded indigo; no saturated primary colors. Shared constraints: one depiction in each assigned cell, ordinary 1820 rural County Roscommon clothing, no modern or fantasy elements, no text, labels, frames, contact-sheet furniture, or sprite-sheet poses. Never copy a left-cell portrait prop into the marker. Character-specific avoid list: bishop mitre, ornate vestments outside Mass, Victorian clerical costume, saint iconography.",
+	"portrait_prompt": "Subject identity: Fr. Declan Tierney, age 62, Parish Priest; visual identity seed rundale-person-v2:3; apparent age early sixties; Explicit facial geometry: face shape long narrow oval face with a tapered lower third; proportions high forehead; long nose-led midface; relatively short mouth-to-chin distance; brow and eyes fine descending brows; deep-set almond-shaped eyes with pronounced upper lids; nose long narrow bridge with a modest convex turn and downturned tip; mouth small horizontal mouth with a thin upper lip and softly defined lower lip; jaw and chin narrow jaw ending in a rounded, slightly forward chin; cheekbones high narrow cheekbones, lightly hollowed beneath; hairline clearly receded at both temples with a shallow central forelock; age detail early-sixties forehead lines, outer-eye fans, and light folds beside the mouth. Distinguishing features: left brow descends more sharply toward the nose, shallow notch in the left earlobe, two clear horizontal forehead lines. Hair: fine silver hair, receding at the temples and brushed back close to the head, slightly longer over the ears. Artifact and lore: this is a quick observational sketch the player character drew by hand in the margin of their working parish notebook after meeting the subject. It is diegetic notebook ephemera, not a commissioned illustration, formal portrait study, character card, or polished concept painting. Non-negotiable drawing language: sparse, uncolored pen-and-ink line drawing under this visual authority: Illustrated Parish Notebook concept art only. Use one irregular sepia/graphite ink line, economical contours, open shapes, and only a few short loose hatch marks where structurally necessary. Leave most of the face, hair, clothing, and canvas unfilled. No skin-tone fill, white underpainting, cream fill, solid dark garment, gray wash, watercolor, smooth tonal modeling, dense cross-hatching, photorealistic rendering, or glamour. Delivery composition: 1024x1024 transparent-background PNG source, portrait line art occupies roughly 45 percent of source height, centered head-and-shoulders drawing with generous transparent padding on all sides, top of hair/head covering and shoulders fully visible, no baked parchment, paper texture, wash, card, border, label, or UI furniture; keep the complete inked drawing between roughly 40 and 60 percent of canvas height with generous empty space on every side. Uninked areas are transparent in the delivery asset so the UI-controlled notebook paper shows through. Setting: Rundale, rural County Roscommon, Ireland, 1820, ordinary parish life, period-appropriate work clothing. Clothing: plain black priest's coat or cassock-like dark clerical dress, simple white collar or neckcloth, indicated only with contour, seam, and a few fold lines; expression and pose contemplative, gentle, slightly stooped from walking the parish; current mood contemplative. Optional lower-edge identity cue: small worn prayer book, at most one simply outlined prop. Canonical context: a priest; home/workplace at St. Brigid's Church. Hard constraints: one character, head and shoulders only, period-appropriate rural County Roscommon clothing, no text, no label, no border, no card, no UI chrome. Character-specific avoid list: bishop mitre, ornate vestments outside Mass, Victorian clerical costume, saint iconography.",
+	"marker_prompt": "Subject identity: Fr. Declan Tierney, age 62, Parish Priest; visual identity seed rundale-person-v2:3; apparent age early sixties; Explicit facial geometry: face shape long narrow oval face with a tapered lower third; proportions high forehead; long nose-led midface; relatively short mouth-to-chin distance; brow and eyes fine descending brows; deep-set almond-shaped eyes with pronounced upper lids; nose long narrow bridge with a modest convex turn and downturned tip; mouth small horizontal mouth with a thin upper lip and softly defined lower lip; jaw and chin narrow jaw ending in a rounded, slightly forward chin; cheekbones high narrow cheekbones, lightly hollowed beneath; hairline clearly receded at both temples with a shallow central forelock; age detail early-sixties forehead lines, outer-eye fans, and light folds beside the mouth. Distinguishing features: left brow descends more sharply toward the nose, shallow notch in the left earlobe, two clear horizontal forehead lines. Hair: fine silver hair, receding at the temples and brushed back close to the head, slightly longer over the ears. Asset role: one tiny static full-body NPC marker delivered as a transparent character-only cutout for compositing over Rundale's painted world surface. It is not a UI portrait, paper doll, animation sheet, formal character illustration, vignette, or sprite-sheet panel. Visual language: loose hand-inked watercolor miniature under this visual authority: Illustrated Parish Notebook concept art only. Use irregular sepia/graphite contours, a simple readable human silhouette, restrained translucent washes, low facial detail, and only enough clothing folds to identify the person at scene size. Keep the treatment handmade and subordinate to the environment, never glossy, photorealistic, densely rendered, or cut out with a broad halo. Delivery composition: 1024x1024 flat #ff00ff chroma-key PNG source, full-body figure occupies roughly 45 percent of source height, centered figure with feet fully visible and generous flat background margins, one single static in-world marker pose per NPC for this slice, no ground shadow, floor plane, label, border, or extra figure. Palette: sepia/graphite line with muted wool gray, bog green, weathered tan, dull brick red, peat brown, and faded indigo only; no saturated primary colors. Setting: Rundale, rural County Roscommon, Ireland, 1820, ordinary parish life, period-appropriate work clothing. Character-only silhouette: slender early-sixties man in a dark long coat with a small white collar and close silver hair; no object/scenery. Stance: gentle slight stoop with hands clasped at the waist; no object/scenery. Empty-hand pose: both empty hands clasped together. Tiny-readability cues from the person's body, hair or headwear, clothing, and stance alone: clothing: long dark coat and small white collar; hair or headwear: receding silver hair; body shape: slender stooped frame. Tiny-readability requirements: Keep the silhouette narrow and contemplative without adding ceremonial objects.. Hard constraints: one character only, both hands empty, period-appropriate ordinary rural clothing, simplified face, complete feet, no held or carried objects, tools, books, containers, bundles, furniture, architecture, vegetation, scenery fragments, ground plane, shadow, text, label, border, or UI chrome. Worn clothing and headwear are allowed. Do not illustrate an occupation, workplace, activity, or narrative context around the person. Character-specific avoid list: bishop mitre, ornate vestments outside Mass, Victorian clerical costume, saint iconography."
+}

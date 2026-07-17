@@ -606,3 +606,5 @@ await writeFile(join(outRoot, 'asset-readme.md'), readme);
 console.log(
 	`Generated ${Object.keys(copies).length + Object.keys(generated).length} notebook assets in ${outRoot}`,
 );
+
+await import('./build-notebook-person-art.mjs');

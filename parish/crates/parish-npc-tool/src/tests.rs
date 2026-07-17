@@ -28,6 +28,790 @@ fn assert_validation_failed(result: Result<()>) {
     );
 }
 
+// ── notebook person-art inputs ──────────────────────────────────────────
+
+fn minimal_art_direction(npcs: &str) -> String {
+    format!(
+        r#"{{
+    "schema_version": 4,
+    "global_style": {{
+        "style_reference": "illustrated notebook concept art only",
+        "source_assets": {{
+            "portrait_source": ["1024x1024 transparent-background PNG source"],
+            "marker_source": ["1024x1024 flat #ff00ff chroma-key PNG source"],
+            "runtime_derivatives": ["downsample transparent portrait and marker PNGs from approved source art"],
+            "sheet_policy": ["pack approved runtime assets into a shared atlas only after review"]
+        }},
+        "medium": ["ink-and-wash", "paper-native"],
+        "setting": ["County Roscommon", "Ireland", "1820"],
+        "palette": ["sepia ink", "muted watercolor"],
+        "common_constraints": ["no modern clothing", "no text labels"]
+    }},
+    "fallback": {{
+        "portrait_identity": {{
+            "visual_identity_seed": "fallback-neighbour-v3",
+            "identity_cohort": "anonymous-fallback",
+            "apparent_age": "ambiguous adult",
+            "facial_geometry": {{
+                "face_shape": "soft oval",
+                "proportions": "even vertical thirds",
+                "brow_and_eyes": "level brows over round-set eyes",
+                "nose": "short straight nose",
+                "mouth": "medium mouth with level corners",
+                "jaw_and_chin": "soft jaw and rounded chin",
+                "cheekbones": "low subtle cheekbones",
+                "hairline": "plain curved hairline",
+                "age_detail": "light adult brow and eye lines"
+            }},
+            "distinguishing_features": ["small crease beside left eye", "slightly uneven upper lip"],
+            "hair": "plain medium hair hidden under cap or shawl",
+            "hair_topology": {{
+                "color_and_texture": "medium brown hair with a coarse wave",
+                "front": {{"family": "soft-side-part", "description": "a soft side part with a short swept fringe"}},
+                "rear": {{"family": "nape-bun", "description": "a small bun resting at the nape"}},
+                "covering": {{"family": "wool-shawl", "description": "a wool shawl loosely covering the crown"}},
+                "silhouette": {{"family": "round-crowned", "description": "a rounded crown with modest width"}},
+                "loose_details": "two fine wisps escape beside the ears"
+            }},
+            "clothing": "plain homespun outer layer",
+            "pose_expression": "neutral parish-neighbour expression",
+            "props": ["none"],
+            "palette_notes": ["muted browns"]
+        }},
+        "marker_identity": {{
+            "composition": "character-only",
+            "silhouette": "ordinary villager",
+            "stance": "standing with a quiet, balanced posture",
+            "empty_hand_pose": "hands-near-coat-front",
+            "readability_cues": [
+                {{"kind": "body-shape", "description": "narrow shoulders"}},
+                {{"kind": "hair-or-headwear", "description": "low felt cap"}},
+                {{"kind": "clothing", "description": "long plain coat"}}
+            ],
+            "tiny_readability_notes": ["do not imply a named NPC"]
+        }},
+        "avoid": ["distinctive props"],
+        "authoring_notes": ["fallback only"]
+    }},
+    "npcs": [{}]
+}}"#,
+        npcs
+    )
+}
+
+fn minimal_npc_art_direction(id: u32) -> String {
+    format!(
+        r#"{{
+        "npc_id": {},
+        "portrait_identity": {{
+            "visual_identity_seed": "test-npc-{}-v3",
+            "identity_cohort": "test-working-adults",
+            "apparent_age": "middle-aged",
+            "facial_geometry": {{
+                "face_shape": "long oval face {}",
+                "proportions": "high brow and short lower third {}",
+                "brow_and_eyes": "arched brows over deep-set eyes {}",
+                "nose": "long narrow nose {}",
+                "mouth": "wide thin-lipped mouth {}",
+                "jaw_and_chin": "tapered jaw and square chin {}",
+                "cheekbones": "high pronounced cheekbones {}",
+                "hairline": "low widow's peak {}",
+                "age_detail": "weather lines around eyes and mouth {}"
+            }},
+            "distinguishing_features": ["notch in left brow", "deep right cheek crease"],
+            "hair": "dark wavy hair under a kerchief {}",
+            "hair_topology": {{
+                "color_and_texture": "dark wavy hair with a wiry texture {}",
+                "front": {{"family": "parted-fringe-{}", "description": "a narrow parted fringe swept over the brow {}"}},
+                "rear": {{"family": "braided-bun-{}", "description": "a compact braided bun at the nape {}"}},
+                "covering": {{"family": "kerchief-wrap-{}", "description": "a close kerchief wrapped over the crown {}"}},
+                "silhouette": {{"family": "tall-oval-{}", "description": "a tall oval hair mass behind the head {}"}},
+                "loose_details": "one loose curl rests beside the right ear {}"
+            }},
+            "clothing": "plain wool coat and linen shirt",
+            "pose_expression": "steady, direct look",
+            "props": ["work tool"],
+            "palette_notes": ["earth browns"]
+        }},
+        "marker_identity": {{
+            "composition": "character-only",
+            "silhouette": "compact working villager",
+            "stance": "standing squarely with weight planted",
+            "empty_hand_pose": "both-at-sides",
+            "readability_cues": [
+                {{"kind": "body-shape", "description": "compact build"}},
+                {{"kind": "clothing", "description": "plain wool coat with squared hem"}}
+            ],
+            "tiny_readability_notes": ["body shape and coat silhouette must read at scene size"]
+        }},
+        "avoid": ["modern clothing"],
+        "authoring_notes": ["test fixture"]
+    }}"#,
+        id, id, id, id, id, id, id, id, id, id, id, id, id, id, id, id, id, id, id, id, id, id
+    )
+}
+
+fn write_test_file(dir: &std::path::Path, name: &str, body: &str) -> std::path::PathBuf {
+    let path = dir.join(name);
+    std::fs::write(&path, body).expect("write fixture");
+    path
+}
+
+fn two_npc_art_direction() -> serde_json::Value {
+    let npcs = format!(
+        "{},{}",
+        minimal_npc_art_direction(1),
+        minimal_npc_art_direction(2)
+    );
+    serde_json::from_str(&minimal_art_direction(&npcs)).expect("valid art fixture")
+}
+
+fn export_two_npc_art_direction(art: &serde_json::Value) -> anyhow::Result<usize> {
+    let tmp = tempfile::tempdir().unwrap();
+    let npcs = write_test_file(
+        tmp.path(),
+        "npcs.json",
+        r#"{"npcs":[
+            {"id":1,"name":"Bridget","age":40,"occupation":"Farmer","personality":"A practical farmer.","home":10,"mood":"busy","relationships":[],"knowledge":[]},
+            {"id":2,"name":"Cormac","age":50,"occupation":"Miller","personality":"A calculating miller.","home":10,"mood":"guarded","relationships":[],"knowledge":[]}
+        ]}"#,
+    );
+    let world = write_test_file(
+        tmp.path(),
+        "world.json",
+        r#"{"locations":[{"id":10,"name":"The Mill","description_template":"A sturdy mill."}]}"#,
+    );
+    let art = write_test_file(
+        tmp.path(),
+        "art.json",
+        &serde_json::to_string_pretty(art).unwrap(),
+    );
+    export_art_inputs(&npcs, &world, &art, &tmp.path().join("out.json"))
+}
+
+#[test]
+fn art_inputs_export_writes_one_input_per_npc() {
+    let tmp = tempfile::tempdir().unwrap();
+    let npcs = write_test_file(
+        tmp.path(),
+        "npcs.json",
+        r#"{"npcs":[
+            {"id":1,"name":"Bridget","brief_description":"a farmer with muddy boots","age":40,"occupation":"Farmer","personality":"A practical farmer.","home":10,"workplace":10,"mood":"busy","relationships":[],"knowledge":[]}
+        ]}"#,
+    );
+    let world = write_test_file(
+        tmp.path(),
+        "world.json",
+        r#"{"locations":[{"id":10,"name":"Murphy's Farm","description_template":"A working farm."}]}"#,
+    );
+    let art = write_test_file(
+        tmp.path(),
+        "art.json",
+        &minimal_art_direction(&minimal_npc_art_direction(1)),
+    );
+    let out = tmp.path().join("out.json");
+
+    let count = export_art_inputs(&npcs, &world, &art, &out).expect("export art inputs");
+    assert_eq!(count, 1);
+
+    let value: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string(out).unwrap()).unwrap();
+    assert_eq!(value["schema_version"], 3);
+    assert_eq!(value["npcs"].as_array().unwrap().len(), 1);
+    assert_eq!(value["npcs"][0]["name"], "Bridget");
+    assert_eq!(
+        value["npcs"][0]["art_direction"]["portrait_identity"]["visual_identity_seed"],
+        "test-npc-1-v3"
+    );
+    assert_eq!(
+        value["npcs"][0]["art_direction"]["portrait_identity"]["facial_geometry"]["nose"],
+        "long narrow nose 1"
+    );
+    assert!(
+        value["npcs"][0]["portrait_prompt"]
+            .as_str()
+            .unwrap()
+            .contains("Murphy's Farm"),
+        "portrait prompt should include merged world context"
+    );
+    assert!(
+        value["npcs"][0]["portrait_prompt"]
+            .as_str()
+            .unwrap()
+            .contains("transparent-background PNG source"),
+        "portrait prompt should include source canvas constraints"
+    );
+    let portrait_prompt = value["npcs"][0]["portrait_prompt"].as_str().unwrap();
+    assert!(
+        portrait_prompt.contains("player character drew by hand"),
+        "portrait prompt should establish the diegetic notebook-sketch lore"
+    );
+    assert!(
+        portrait_prompt.find("Explicit facial geometry").unwrap()
+            < portrait_prompt.find("Artifact and lore").unwrap()
+            && portrait_prompt.find("Explicit facial geometry").unwrap()
+                < portrait_prompt.find("Clothing:").unwrap(),
+        "portrait prompt must state explicit geometry before visual style and clothing"
+    );
+    assert!(
+        portrait_prompt.contains("Hair: dark wavy hair under a kerchief 1."),
+        "portrait prompt must keep the provider-facing hair prose"
+    );
+    assert!(
+        value["npcs"][0]["art_direction"]["portrait_identity"]
+            .get("hair_topology")
+            .is_none(),
+        "source-only topology must not ship in generated art inputs"
+    );
+    assert!(
+        portrait_prompt.contains("Leave most of the face, hair, clothing, and canvas unfilled"),
+        "portrait prompt should make sparse line economy explicit"
+    );
+    assert!(
+        !portrait_prompt.contains("muted watercolor")
+            && !portrait_prompt.contains("runtime derivatives")
+            && !portrait_prompt.contains("sheet policy"),
+        "portrait prompt must not inherit marker medium or pipeline metadata"
+    );
+    assert!(
+        portrait_prompt.len() < 3_500,
+        "portrait provider prompt should stay concise enough for its dominant constraints to remain clear"
+    );
+    let marker_prompt = value["npcs"][0]["marker_prompt"].as_str().unwrap();
+    assert!(
+        marker_prompt.contains("for compositing over Rundale's painted world surface")
+            && marker_prompt.contains("complete feet")
+            && marker_prompt.contains("transparent character-only cutout")
+            && marker_prompt.contains("both hands empty")
+            && marker_prompt.contains("no held or carried objects")
+            && marker_prompt.contains("Worn clothing and headwear are allowed")
+            && marker_prompt.contains(
+                "Do not illustrate an occupation, workplace, activity, or narrative context"
+            )
+            && !marker_prompt.contains("an older man behind the bar"),
+        "marker prompt should establish its world-surface, full-body, and character-only contracts"
+    );
+    assert!(
+        marker_prompt.find("Explicit facial geometry").unwrap()
+            < marker_prompt.find("Asset role").unwrap(),
+        "standalone marker prompt must state explicit geometry before visual style"
+    );
+    assert!(
+        marker_prompt.matches("portrait").count() <= 1
+            && !marker_prompt.contains("runtime derivatives")
+            && !marker_prompt.contains("sheet policy")
+            && !marker_prompt.contains("transparent portrait"),
+        "marker prompt must not inherit portrait or downstream pipeline metadata"
+    );
+    assert!(
+        marker_prompt.len() < 3_000,
+        "marker provider prompt should keep its visual contract dominant"
+    );
+    let pair_prompt = value["npcs"][0]["pair_prompt"].as_str().unwrap();
+    assert!(
+        pair_prompt.contains("identity-locked portrait-and-marker pair")
+            && pair_prompt.contains("must unmistakably be the same person")
+            && pair_prompt.contains("Left asset, notebook portrait")
+            && pair_prompt.contains("Right asset, painted-world marker")
+            && pair_prompt.contains("every uninked interior region must remain provider key")
+            && pair_prompt.contains("roughly 45 percent of the right cell height")
+            && pair_prompt.contains("muted wool gray, bog green")
+            && pair_prompt.contains("transparent character-only cutout")
+            && pair_prompt.contains("Never copy a left-cell portrait prop into the marker")
+            && pair_prompt.contains("no held or carried objects")
+            && pair_prompt.contains(
+                "canonical biography cue for clothing and expression only, never for setting, activity, or objects"
+            ),
+        "paired prompt should lock identity and define both output roles"
+    );
+    assert!(
+        pair_prompt.find("Explicit facial geometry").unwrap()
+            < pair_prompt.find("visual authority").unwrap()
+            && pair_prompt.find("Explicit facial geometry").unwrap()
+                < pair_prompt.find("Clothing:").unwrap()
+            && !pair_prompt.contains("unspecified geometry"),
+        "paired prompt must use stated geometry rather than asking the model to preserve unspecified traits"
+    );
+    let fallback_prompt = value["fallback"]["portrait_prompt"].as_str().unwrap();
+    assert!(
+        fallback_prompt.find("Explicit facial geometry").unwrap()
+            < fallback_prompt.find("Artifact and lore").unwrap()
+            && fallback_prompt.find("Explicit facial geometry").unwrap()
+                < fallback_prompt.find("Clothing:").unwrap(),
+        "fallback portrait prompt must state explicit geometry before style and clothing"
+    );
+    assert!(
+        pair_prompt.len() < 3_500,
+        "paired provider prompt should remain concise despite defining both assets"
+    );
+}
+
+#[test]
+fn art_inputs_export_requires_art_direction_for_every_npc() {
+    let tmp = tempfile::tempdir().unwrap();
+    let npcs = write_test_file(
+        tmp.path(),
+        "npcs.json",
+        r#"{"npcs":[
+            {"id":1,"name":"Bridget","age":40,"occupation":"Farmer","personality":"A practical farmer.","home":10,"mood":"busy","relationships":[],"knowledge":[]},
+            {"id":2,"name":"Cormac","age":50,"occupation":"Miller","personality":"A calculating miller.","home":10,"mood":"guarded","relationships":[],"knowledge":[]}
+        ]}"#,
+    );
+    let world = write_test_file(
+        tmp.path(),
+        "world.json",
+        r#"{"locations":[{"id":10,"name":"The Mill","description_template":"A sturdy mill."}]}"#,
+    );
+    let art = write_test_file(
+        tmp.path(),
+        "art.json",
+        &minimal_art_direction(&minimal_npc_art_direction(1)),
+    );
+
+    let err = export_art_inputs(&npcs, &world, &art, &tmp.path().join("out.json"))
+        .expect_err("missing NPC art direction must fail");
+    assert!(
+        err.to_string()
+            .contains("missing art direction for NPC id(s): 2"),
+        "{err}"
+    );
+}
+
+#[test]
+fn art_inputs_export_rejects_unknown_art_direction_id() {
+    let tmp = tempfile::tempdir().unwrap();
+    let npcs = write_test_file(
+        tmp.path(),
+        "npcs.json",
+        r#"{"npcs":[
+            {"id":1,"name":"Bridget","age":40,"occupation":"Farmer","personality":"A practical farmer.","home":10,"mood":"busy","relationships":[],"knowledge":[]}
+        ]}"#,
+    );
+    let world = write_test_file(
+        tmp.path(),
+        "world.json",
+        r#"{"locations":[{"id":10,"name":"Murphy's Farm","description_template":"A working farm."}]}"#,
+    );
+    let art = write_test_file(
+        tmp.path(),
+        "art.json",
+        &minimal_art_direction(&minimal_npc_art_direction(99)),
+    );
+
+    let err = export_art_inputs(&npcs, &world, &art, &tmp.path().join("out.json"))
+        .expect_err("unknown NPC art direction must fail");
+    assert!(
+        err.to_string()
+            .contains("art direction references unknown NPC id 99"),
+        "{err}"
+    );
+}
+
+#[test]
+fn art_inputs_export_rejects_missing_or_blank_identity_fields() {
+    let mut missing = two_npc_art_direction();
+    missing["npcs"][0]["portrait_identity"]["hair_topology"]
+        .as_object_mut()
+        .unwrap()
+        .remove("front");
+    let err = export_two_npc_art_direction(&missing)
+        .expect_err("missing structured identity field must fail");
+    assert!(
+        format!("{err:#}").contains("missing field `front`"),
+        "{err:#}"
+    );
+
+    let mut blank = two_npc_art_direction();
+    blank["fallback"]["portrait_identity"]["hair_topology"]["loose_details"] =
+        serde_json::json!(" \t ");
+    let err =
+        export_two_npc_art_direction(&blank).expect_err("blank fallback identity field must fail");
+    assert!(
+        err.to_string()
+            .contains("fallback portrait_identity.hair_topology.loose_details must be nonempty"),
+        "{err}"
+    );
+}
+
+#[test]
+fn art_inputs_export_requires_v4_sidecar_schema_and_valid_hair_family_slugs() {
+    let mut old_schema = two_npc_art_direction();
+    old_schema["schema_version"] = serde_json::json!(3);
+    let err = export_two_npc_art_direction(&old_schema)
+        .expect_err("v3 art-direction sidecar must not be accepted");
+    assert!(
+        err.to_string()
+            .contains("unsupported art direction schema_version 3; expected 4"),
+        "{err}"
+    );
+
+    let mut invalid_family = two_npc_art_direction();
+    invalid_family["npcs"][0]["portrait_identity"]["hair_topology"]["front"]["family"] =
+        serde_json::json!("Side_Part");
+    let err = export_two_npc_art_direction(&invalid_family)
+        .expect_err("hair family must be a lowercase kebab slug");
+    assert!(
+        err.to_string().contains(
+            "NPC id 1 portrait_identity.hair_topology.front.family must be a lowercase kebab slug"
+        ),
+        "{err}"
+    );
+}
+
+#[test]
+fn art_inputs_export_rejects_prop_driven_or_incomplete_marker_contracts() {
+    let mut legacy_props = two_npc_art_direction();
+    legacy_props["npcs"][0]["marker_identity"]["readable_props"] = serde_json::json!(["hammer"]);
+    let err = export_two_npc_art_direction(&legacy_props)
+        .expect_err("legacy marker props must not be accepted");
+    assert!(
+        format!("{err:#}").contains("unknown field `readable_props`"),
+        "{err:#}"
+    );
+
+    let mut invalid_hand_pose = two_npc_art_direction();
+    invalid_hand_pose["npcs"][0]["marker_identity"]["empty_hand_pose"] =
+        serde_json::json!("holding-a-hammer");
+    let err = export_two_npc_art_direction(&invalid_hand_pose)
+        .expect_err("an unstructured hand pose must not be accepted");
+    assert!(
+        format!("{err:#}").contains("unknown variant `holding-a-hammer`"),
+        "{err:#}"
+    );
+
+    let mut too_few_cues = two_npc_art_direction();
+    too_few_cues["fallback"]["marker_identity"]["readability_cues"] =
+        serde_json::json!([{"kind": "clothing", "description": "plain coat"}]);
+    let err = export_two_npc_art_direction(&too_few_cues)
+        .expect_err("marker readability needs multiple intrinsic cues");
+    assert!(
+        err.to_string()
+            .contains("fallback marker_identity.readability_cues must contain at least 2 entries"),
+        "{err}"
+    );
+
+    let mut prop_cue = two_npc_art_direction();
+    prop_cue["npcs"][0]["marker_identity"]["readability_cues"][0]["kind"] =
+        serde_json::json!("prop");
+    let err = export_two_npc_art_direction(&prop_cue)
+        .expect_err("a prop must not be accepted as an intrinsic cue kind");
+    assert!(
+        format!("{err:#}").contains("unknown variant `prop`"),
+        "{err:#}"
+    );
+
+    let mut duplicate_kinds = two_npc_art_direction();
+    duplicate_kinds["npcs"][0]["marker_identity"]["readability_cues"][1]["kind"] =
+        serde_json::json!("body-shape");
+    let err = export_two_npc_art_direction(&duplicate_kinds)
+        .expect_err("marker readability cues must span distinct intrinsic dimensions");
+    assert!(
+        err.to_string()
+            .contains("NPC id 1 marker_identity.readability_cues must use distinct cue kinds"),
+        "{err}"
+    );
+}
+
+#[test]
+fn art_inputs_export_rejects_duplicate_normalized_identity_seed() {
+    let mut art = two_npc_art_direction();
+    art["npcs"][1]["portrait_identity"]["visual_identity_seed"] =
+        serde_json::json!("  TEST-NPC-1-V3  ");
+
+    let err = export_two_npc_art_direction(&art).expect_err("duplicate seed must fail");
+    assert!(
+        err.to_string()
+            .contains("duplicate visual_identity_seed for NPC ids 1 and 2"),
+        "{err}"
+    );
+}
+
+#[test]
+fn art_inputs_export_rejects_fallback_duplicate_identity_seed() {
+    let mut art = two_npc_art_direction();
+    art["fallback"]["portrait_identity"]["visual_identity_seed"] =
+        serde_json::json!("  TEST-NPC-1-V3  ");
+
+    let err = export_two_npc_art_direction(&art).expect_err("fallback seed collision must fail");
+    assert!(
+        err.to_string()
+            .contains("duplicate visual_identity_seed for NPC id 1 and fallback"),
+        "{err}"
+    );
+}
+
+#[test]
+fn art_inputs_export_rejects_bad_distinguishing_features() {
+    let mut too_few = two_npc_art_direction();
+    too_few["npcs"][0]["portrait_identity"]["distinguishing_features"] =
+        serde_json::json!(["one feature"]);
+    let err = export_two_npc_art_direction(&too_few)
+        .expect_err("fewer than two distinguishing features must fail");
+    assert!(
+        err.to_string()
+            .contains("distinguishing_features must contain at least 2 entries"),
+        "{err}"
+    );
+
+    let mut duplicate = two_npc_art_direction();
+    duplicate["fallback"]["portrait_identity"]["distinguishing_features"] =
+        serde_json::json!(["Crooked Left Brow", "  crooked   left brow "]);
+    let err = export_two_npc_art_direction(&duplicate)
+        .expect_err("normalized duplicate distinguishing features must fail");
+    assert!(
+        err.to_string()
+            .contains("fallback portrait_identity.distinguishing_features entries must be unique"),
+        "{err}"
+    );
+}
+
+#[test]
+fn art_inputs_export_rejects_exact_duplicate_geometry_fingerprint() {
+    let mut art = two_npc_art_direction();
+    art["npcs"][1]["portrait_identity"]["identity_cohort"] = serde_json::json!("different cohort");
+    art["npcs"][1]["portrait_identity"]["facial_geometry"] =
+        art["npcs"][0]["portrait_identity"]["facial_geometry"].clone();
+
+    let err = export_two_npc_art_direction(&art).expect_err("duplicate fingerprint must fail");
+    assert!(
+        err.to_string()
+            .contains("duplicate facial geometry fingerprint for NPC ids 1 and 2"),
+        "{err}"
+    );
+}
+
+#[test]
+fn art_inputs_export_rejects_fallback_exact_geometry_fingerprint() {
+    let mut art = two_npc_art_direction();
+    art["fallback"]["portrait_identity"]["facial_geometry"] =
+        art["npcs"][0]["portrait_identity"]["facial_geometry"].clone();
+
+    let err =
+        export_two_npc_art_direction(&art).expect_err("fallback fingerprint collision must fail");
+    assert!(
+        err.to_string()
+            .contains("duplicate facial geometry fingerprint for NPC id 1 and fallback"),
+        "{err}"
+    );
+}
+
+#[test]
+fn art_inputs_export_rejects_same_cohort_near_duplicate_even_with_distinct_hair_topology() {
+    let mut art = two_npc_art_direction();
+    art["npcs"][1]["portrait_identity"]["facial_geometry"] =
+        art["npcs"][0]["portrait_identity"]["facial_geometry"].clone();
+    art["npcs"][1]["portrait_identity"]["facial_geometry"]["face_shape"] =
+        serde_json::json!("round face");
+    art["npcs"][1]["portrait_identity"]["facial_geometry"]["nose"] =
+        serde_json::json!("short broad nose");
+
+    let err = export_two_npc_art_direction(&art).expect_err("near duplicate must fail");
+    assert!(
+        err.to_string().contains(
+            "same-cohort NPC ids 1 and 2 differ in only 2 of 9 facial geometry dimensions"
+        ),
+        "{err}"
+    );
+}
+
+#[test]
+fn art_inputs_export_rejects_fallback_same_cohort_near_duplicate() {
+    let mut art = two_npc_art_direction();
+    art["fallback"]["portrait_identity"]["identity_cohort"] =
+        art["npcs"][0]["portrait_identity"]["identity_cohort"].clone();
+    art["fallback"]["portrait_identity"]["facial_geometry"] =
+        art["npcs"][0]["portrait_identity"]["facial_geometry"].clone();
+    art["fallback"]["portrait_identity"]["facial_geometry"]["face_shape"] =
+        serde_json::json!("round face");
+    art["fallback"]["portrait_identity"]["facial_geometry"]["nose"] =
+        serde_json::json!("short broad nose");
+
+    let err = export_two_npc_art_direction(&art)
+        .expect_err("fallback same-cohort near duplicate must fail");
+    assert!(
+        err.to_string()
+            .contains("fallback and NPC id 1 differ in only 2 of 9 facial geometry dimensions"),
+        "{err}"
+    );
+}
+
+#[test]
+fn art_inputs_export_rejects_fallback_different_cohort_near_duplicate() {
+    let mut art = two_npc_art_direction();
+    assert_ne!(
+        art["fallback"]["portrait_identity"]["identity_cohort"],
+        art["npcs"][0]["portrait_identity"]["identity_cohort"],
+        "fixture must exercise the cross-cohort fallback policy"
+    );
+    art["fallback"]["portrait_identity"]["facial_geometry"] =
+        art["npcs"][0]["portrait_identity"]["facial_geometry"].clone();
+    art["fallback"]["portrait_identity"]["facial_geometry"]["face_shape"] =
+        serde_json::json!("round face");
+    art["fallback"]["portrait_identity"]["facial_geometry"]["nose"] =
+        serde_json::json!("short broad nose");
+
+    let err = export_two_npc_art_direction(&art)
+        .expect_err("fallback cross-cohort near duplicate must fail");
+    assert!(
+        err.to_string()
+            .contains("fallback and NPC id 1 differ in only 2 of 9 facial geometry dimensions"),
+        "{err}"
+    );
+}
+
+#[test]
+fn art_inputs_export_rejects_exact_hair_topology_collision_within_cohort() {
+    let mut art = two_npc_art_direction();
+    art["npcs"][1]["portrait_identity"]["hair_topology"] =
+        art["npcs"][0]["portrait_identity"]["hair_topology"].clone();
+
+    let err = export_two_npc_art_direction(&art).expect_err("exact topology collision must fail");
+    assert!(
+        err.to_string()
+            .contains("same-cohort NPC ids 1 and 2 differ in only 0 of 4 hair topology dimensions"),
+        "{err}"
+    );
+}
+
+#[test]
+fn art_inputs_export_rejects_near_hair_topology_collision_within_cohort() {
+    let mut art = two_npc_art_direction();
+    art["npcs"][1]["portrait_identity"]["hair_topology"] =
+        art["npcs"][0]["portrait_identity"]["hair_topology"].clone();
+    art["npcs"][1]["portrait_identity"]["hair_topology"]["front"]["family"] =
+        serde_json::json!("swept-fringe-2");
+
+    let err = export_two_npc_art_direction(&art).expect_err("near topology collision must fail");
+    assert!(
+        err.to_string()
+            .contains("same-cohort NPC ids 1 and 2 differ in only 1 of 4 hair topology dimensions"),
+        "{err}"
+    );
+}
+
+#[test]
+fn art_inputs_export_rejects_fallback_hair_topology_collision_across_cohorts() {
+    let mut art = two_npc_art_direction();
+    art["fallback"]["portrait_identity"]["hair_topology"] =
+        art["npcs"][0]["portrait_identity"]["hair_topology"].clone();
+    art["fallback"]["portrait_identity"]["hair_topology"]["rear"]["family"] =
+        serde_json::json!("shoulder-plait");
+
+    let err = export_two_npc_art_direction(&art)
+        .expect_err("fallback topology collision must ignore cohort names");
+    assert!(
+        err.to_string()
+            .contains("fallback and NPC id 1 differ in only 1 of 4 hair topology dimensions"),
+        "{err}"
+    );
+}
+
+#[test]
+fn art_inputs_export_omits_topology_only_sidecar_changes() {
+    let original = two_npc_art_direction();
+    let mut changed = original.clone();
+    changed["npcs"][0]["portrait_identity"]["hair_topology"]["front"]["description"] =
+        serde_json::json!("a changed source-only fringe description");
+
+    let tmp = tempfile::tempdir().unwrap();
+    let npcs = write_test_file(
+        tmp.path(),
+        "npcs.json",
+        r#"{"npcs":[{"id":1,"name":"Bridget","age":40,"occupation":"Farmer","personality":"A practical farmer.","home":10,"mood":"busy","relationships":[],"knowledge":[]},{"id":2,"name":"Cormac","age":50,"occupation":"Miller","personality":"A calculating miller.","home":10,"mood":"guarded","relationships":[],"knowledge":[]}]}"#,
+    );
+    let world = write_test_file(
+        tmp.path(),
+        "world.json",
+        r#"{"locations":[{"id":10,"name":"The Mill","description_template":"A sturdy mill."}]}"#,
+    );
+    let original_path = write_test_file(
+        tmp.path(),
+        "original.json",
+        &serde_json::to_string(&original).unwrap(),
+    );
+    let changed_path = write_test_file(
+        tmp.path(),
+        "changed.json",
+        &serde_json::to_string(&changed).unwrap(),
+    );
+    let original_out = tmp.path().join("original-out.json");
+    let changed_out = tmp.path().join("changed-out.json");
+
+    export_art_inputs(&npcs, &world, &original_path, &original_out).unwrap();
+    export_art_inputs(&npcs, &world, &changed_path, &changed_out).unwrap();
+
+    let original_dataset: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string(original_out).unwrap()).unwrap();
+    let changed_dataset: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string(changed_out).unwrap()).unwrap();
+    assert_eq!(
+        original_dataset["npcs"], changed_dataset["npcs"],
+        "topology-only sidecar changes must leave exported NPC records and prompts byte-stable"
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn art_inputs_export_is_byte_identical_across_equivalent_source_path_spellings() {
+    use std::os::unix::fs::symlink;
+
+    let tmp = tempfile::tempdir_in(".").expect("create repo-local fixture dir");
+    let actual = tmp.path().join("actual");
+    std::fs::create_dir(&actual).expect("create actual fixture dir");
+    let linked = tmp.path().join("linked");
+    symlink(&actual, &linked).expect("create fixture symlink");
+
+    let npcs = write_test_file(
+        &actual,
+        "npcs.json",
+        r#"{"npcs":[
+            {"id":1,"name":"Bridget","age":40,"occupation":"Farmer","personality":"A practical farmer.","home":10,"mood":"busy","relationships":[],"knowledge":[]}
+        ]}"#,
+    );
+    let world = write_test_file(
+        &actual,
+        "world.json",
+        r#"{"locations":[{"id":10,"name":"The Mill","description_template":"A sturdy mill."}]}"#,
+    );
+    let art = write_test_file(
+        &actual,
+        "art.json",
+        &minimal_art_direction(&minimal_npc_art_direction(1)),
+    );
+
+    let relative_out = tmp.path().join("relative.json");
+    export_art_inputs(&npcs, &world, &art, &relative_out).expect("export from relative paths");
+
+    let absolute_out = tmp.path().join("absolute.json");
+    export_art_inputs(
+        &npcs.canonicalize().unwrap(),
+        &world.canonicalize().unwrap(),
+        &art.canonicalize().unwrap(),
+        &absolute_out,
+    )
+    .expect("export from absolute paths");
+
+    let symlink_out = tmp.path().join("symlink.json");
+    export_art_inputs(
+        &linked.join("npcs.json"),
+        &linked.join("world.json"),
+        &linked.join("art.json"),
+        &symlink_out,
+    )
+    .expect("export through symlink paths");
+
+    let relative_body = std::fs::read(&relative_out).unwrap();
+    assert_eq!(relative_body, std::fs::read(&absolute_out).unwrap());
+    assert_eq!(relative_body, std::fs::read(&symlink_out).unwrap());
+
+    let value: serde_json::Value = serde_json::from_slice(&relative_body).unwrap();
+    let source_path = value["source"]["npcs_json"].as_str().unwrap();
+    assert!(
+        !std::path::Path::new(source_path).is_absolute(),
+        "sources inside the repository should remain repo-relative: {source_path}"
+    );
+}
+
 // ── weighted_occupation (TD-019) ─────────────────────────────────────────
 
 #[test]
