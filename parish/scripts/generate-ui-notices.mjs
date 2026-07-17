@@ -29,13 +29,18 @@ function deepFreeze(value) {
 	return value;
 }
 
-function readTargetManifest() {
+function readTargetManifest(
+	targetManifestPath = TARGET_MANIFEST_PATH,
+	fsOps = fs,
+) {
+	let source;
 	let manifest;
 	try {
-		manifest = JSON.parse(fs.readFileSync(TARGET_MANIFEST_PATH, 'utf8'));
+		source = fsOps.readFileSync(targetManifestPath);
+		manifest = JSON.parse(source.toString('utf8'));
 	} catch (error) {
 		throw new Error(
-			`invalid UI notice target manifest: ${TARGET_MANIFEST_PATH}`,
+			`invalid UI notice target manifest: ${targetManifestPath}`,
 			{
 				cause: error,
 			},
@@ -44,15 +49,23 @@ function readTargetManifest() {
 	if (manifest.schemaVersion !== 1 || !Array.isArray(manifest.targets)) {
 		throw new Error('UI notice target manifest must use schemaVersion 1');
 	}
-	return deepFreeze(manifest);
+	return { manifest: deepFreeze(manifest), source };
+}
+
+function targetsFromManifest(manifest) {
+	return manifest.targets.map((target) => ({
+		cpu: target.cpu,
+		id: target.id,
+		os: target.os,
+	}));
 }
 
 // This is the one authoritative support list. The focused sensor test reads the
 // same manifest and verifies its audit, container, and release rationale against
 // the repository files named there.
-export const UI_NOTICE_TARGET_MANIFEST = readTargetManifest();
+export const UI_NOTICE_TARGET_MANIFEST = readTargetManifest().manifest;
 export const SUPPORTED_TARGETS = Object.freeze(
-	UI_NOTICE_TARGET_MANIFEST.targets.map((target) =>
+	targetsFromManifest(UI_NOTICE_TARGET_MANIFEST).map((target) =>
 		Object.freeze({ cpu: target.cpu, id: target.id, os: target.os }),
 	),
 );
@@ -316,12 +329,12 @@ function cleanupBestEffort(fsOps, target) {
 	}
 }
 
-function verifySourceManifestsUnchanged(fsOps, uiDirectory, manifests) {
-	for (const [manifest, original] of manifests) {
-		const current = fsOps.readFileSync(path.join(uiDirectory, manifest));
-		if (!current.equals(original)) {
+function verifySourceSnapshotsUnchanged(fsOps, sourceSnapshots) {
+	for (const snapshot of sourceSnapshots) {
+		const current = fsOps.readFileSync(snapshot.path);
+		if (!current.equals(snapshot.original)) {
 			throw new Error(
-				`source prerequisite changed during generation: ${manifest}`,
+				`source prerequisite changed during generation: ${snapshot.label}`,
 			);
 		}
 	}
@@ -342,7 +355,20 @@ export function generateUiNotices(options = {}) {
 			path.join(parishDirectory, 'THIRD_PARTY_NOTICES.ui.md'),
 	);
 	const destinationDirectory = path.dirname(destination);
-	const targets = options.targets ?? SUPPORTED_TARGETS;
+	let targets = options.targets;
+	let targetManifestSnapshot;
+	if (targets == null) {
+		const targetManifestPath = path.resolve(
+			options.targetManifestPath ?? TARGET_MANIFEST_PATH,
+		);
+		const loadedTargetManifest = readTargetManifest(targetManifestPath, fsOps);
+		targets = targetsFromManifest(loadedTargetManifest.manifest);
+		targetManifestSnapshot = {
+			label: path.basename(targetManifestPath),
+			original: loadedTargetManifest.source,
+			path: targetManifestPath,
+		};
+	}
 	const npmCommand =
 		options.npmCommand ??
 		defaultNpmCommand({
@@ -378,14 +404,24 @@ export function generateUiNotices(options = {}) {
 	let workDirectory;
 	let commitCandidate;
 	const manifests = new Map();
+	const sourceSnapshots = [];
 	try {
 		for (const manifest of REQUIRED_MANIFESTS) {
 			const source = path.join(uiDirectory, manifest);
 			try {
-				manifests.set(manifest, fsOps.readFileSync(source));
+				const content = fsOps.readFileSync(source);
+				manifests.set(manifest, content);
+				sourceSnapshots.push({
+					label: manifest,
+					original: content,
+					path: source,
+				});
 			} catch (error) {
 				throw new Error(`missing prerequisite ${source}`, { cause: error });
 			}
+		}
+		if (targetManifestSnapshot) {
+			sourceSnapshots.push(targetManifestSnapshot);
 		}
 		verifyLockedScanner(manifests);
 		commitCandidate = createCommitCandidate(fsOps, destinationDirectory);
@@ -500,7 +536,7 @@ export function generateUiNotices(options = {}) {
 		);
 		// Keep these adjacent: the same-directory rename is the literal next and
 		// final fallible operation after re-reading every source manifest.
-		verifySourceManifestsUnchanged(fsOps, uiDirectory, manifests);
+		verifySourceSnapshotsUnchanged(fsOps, sourceSnapshots);
 		fsOps.renameSync(commitCandidate, destination);
 	} catch (error) {
 		cleanupBestEffort(fsOps, workDirectory);

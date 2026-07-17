@@ -155,6 +155,7 @@ function createFixture() {
 	const calls = path.join(root, 'calls.jsonl');
 	const configPath = path.join(root, 'stub config.json');
 	const stubPath = path.join(root, 'command stub.mjs');
+	const targetManifestPath = path.join(root, 'ui-notice-targets.json');
 	fs.mkdirSync(uiDirectory, { recursive: true });
 	const packageJson = {
 		dependencies: { alpha: '1.0.0', beta: '2.0.0' },
@@ -204,6 +205,10 @@ function createFixture() {
 	fs.copyFileSync(destination, baseline);
 	fs.writeFileSync(calls, '');
 	fs.writeFileSync(stubPath, commandStubSource);
+	fs.writeFileSync(
+		targetManifestPath,
+		`${JSON.stringify(UI_NOTICE_TARGET_MANIFEST, null, 2)}\n`,
+	);
 
 	const config = {
 		calls,
@@ -235,6 +240,7 @@ function createFixture() {
 		env,
 		root,
 		stubPath,
+		targetManifestPath,
 		uiDirectory,
 		writeConfig,
 	};
@@ -279,13 +285,18 @@ function runFixture(fixture, options = {}) {
 		spawnOptions.push({ args, command, options: childOptions });
 		return spawnSync(command, args, childOptions);
 	};
-	generateUiNotices({
+	const generatorOptions = {
 		env: fixture.env,
 		fsOps: options.fsOps,
 		logger: options.logger ?? { log() {} },
 		spawnSyncImpl,
-		targets: options.targets ?? firstTarget,
-	});
+	};
+	if (options.useTargetManifest) {
+		generatorOptions.targetManifestPath = fixture.targetManifestPath;
+	} else {
+		generatorOptions.targets = options.targets ?? firstTarget;
+	}
+	generateUiNotices(generatorOptions);
 	return spawnOptions;
 }
 
@@ -507,6 +518,27 @@ test('empty target matrix fails before changing the destination', () =>
 		assertNoTransactionResidue(fixture);
 	}));
 
+test('default targets are read from current manifest bytes at generation start', () =>
+	withFixture((fixture) => {
+		const currentTarget = SUPPORTED_TARGETS.at(-1);
+		fs.writeFileSync(
+			fixture.targetManifestPath,
+			`${JSON.stringify(
+				{ schemaVersion: 1, targets: [currentTarget] },
+				null,
+				2,
+			)}\n`,
+		);
+		runFixture(fixture, { useTargetManifest: true });
+		const ciCalls = readCalls(fixture).filter(
+			(call) => call.role === 'npm' && call.args[0] === 'ci',
+		);
+		assert.deepEqual(
+			ciCalls.map((call) => call.target),
+			[currentTarget.id],
+		);
+	}));
+
 for (const failure of ['npm-ci', 'npm-ls', 'scanner']) {
 	test(`${failure} failure preserves every destination byte`, () =>
 		withFixture((fixture) => {
@@ -614,6 +646,27 @@ for (const manifest of [
 		}));
 }
 
+test('target manifest mutation during cleanup rejects the stale snapshot byte-for-byte', () =>
+	withFixture((fixture) => {
+		let injected = false;
+		const fsOps = Object.create(fs);
+		fsOps.rmSync = (target, options) => {
+			if (!injected && path.basename(target).startsWith('.ui-notices.work-')) {
+				injected = true;
+				fs.appendFileSync(fixture.targetManifestPath, '\n');
+			}
+			return fs.rmSync(target, options);
+		};
+		assert.throws(
+			() => runFixture(fixture, { fsOps, useTargetManifest: true }),
+			/source prerequisite changed during generation: ui-notice-targets\.json/,
+		);
+		assert.equal(injected, true);
+		assertPreserved(fixture);
+		assertSourceInstallPreserved(fixture);
+		assertNoTransactionResidue(fixture);
+	}));
+
 test('matrix success uses private installs, sorted union, and final atomic rename', () =>
 	withFixture((fixture) => {
 		const packageHash = sha256(path.join(fixture.uiDirectory, 'package.json'));
@@ -624,12 +677,13 @@ test('matrix success uses private installs, sorted union, and final atomic renam
 		const fsOps = Object.create(fs);
 		fsOps.readFileSync = (target, ...args) => {
 			if (
-				path.dirname(target) === fixture.uiDirectory &&
-				[
-					'package.json',
-					'package-lock.json',
-					'license-clarifications.json',
-				].includes(path.basename(target))
+				(path.dirname(target) === fixture.uiDirectory &&
+					[
+						'package.json',
+						'package-lock.json',
+						'license-clarifications.json',
+					].includes(path.basename(target))) ||
+				target === fixture.targetManifestPath
 			) {
 				events.push({ operation: 'source-read', target });
 			}
@@ -653,7 +707,7 @@ test('matrix success uses private installs, sorted union, and final atomic renam
 			fsOps,
 			logger: { log: () => events.push({ operation: 'log' }) },
 			spawnOptions,
-			targets: SUPPORTED_TARGETS,
+			useTargetManifest: true,
 		});
 		assert.equal(fs.readFileSync(fixture.destination, 'utf8'), expectedUnion());
 		assertSourceInstallPreserved(fixture);
@@ -680,10 +734,10 @@ test('matrix success uses private installs, sorted union, and final atomic renam
 		assert.ok(ciCalls.every((call) => call.args.includes('--ignore-scripts')));
 		assert.equal(events.at(-1).operation, 'rename');
 		assert.deepEqual(
-			events.slice(-4).map((event) => event.operation),
-			['source-read', 'source-read', 'source-read', 'rename'],
+			events.slice(-5).map((event) => event.operation),
+			['source-read', 'source-read', 'source-read', 'source-read', 'rename'],
 		);
-		const finalReadIndex = events.length - 4;
+		const finalReadIndex = events.length - 5;
 		assert.ok(
 			events.findLastIndex((event) => event.operation === 'chmod') <
 				finalReadIndex,
@@ -701,10 +755,10 @@ test('matrix success uses private installs, sorted union, and final atomic renam
 
 test('two sequential matrix generations are byte-identical', () =>
 	withFixture((fixture) => {
-		runFixture(fixture, { targets: SUPPORTED_TARGETS });
+		runFixture(fixture, { useTargetManifest: true });
 		const firstBytes = fs.readFileSync(fixture.destination);
 		const firstHash = sha256(fixture.destination);
-		runFixture(fixture, { targets: SUPPORTED_TARGETS });
+		runFixture(fixture, { useTargetManifest: true });
 		assert.deepEqual(fs.readFileSync(fixture.destination), firstBytes);
 		assert.equal(sha256(fixture.destination), firstHash);
 		assertSourceInstallPreserved(fixture);
