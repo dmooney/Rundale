@@ -110,7 +110,8 @@ test.describe('App layout', () => {
 		page,
 	}) => {
 		const input = page.getByLabel('Player intent');
-		await expect(input).toHaveAttribute('aria-disabled', 'false');
+		await expect(input).not.toHaveAttribute('aria-disabled');
+		await expect(input).toHaveAttribute('aria-busy', 'false');
 		await input.focus();
 		await expect(input).toBeFocused();
 		await page.keyboard.insertText('ask what happened');
