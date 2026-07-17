@@ -195,8 +195,7 @@ readability cues are undefined.
 ## Historical Hair Evidence Boundary
 
 Pinned or covered working hair, kerchiefs, linen caps, bonnets, centre parts,
-controlled front curls, plaits, and rear arrangements are plausible around
-1820. There was not one frozen rural-Irish hairstyle: surviving Irish clothing
+controlled front curls, plaits, and rear arrangements are plausible around 1820. There was not one frozen rural-Irish hairstyle: surviving Irish clothing
 evidence shows local materials coexisting with wider British and European
 fashion. Sources also overrepresent garments affluent enough to survive. Use
 the [National Museum of Ireland overview](https://www.museum.ie/en-IE/Museums/Decorative-Arts-History/Exhibitions/The-Way-We-Wore),
