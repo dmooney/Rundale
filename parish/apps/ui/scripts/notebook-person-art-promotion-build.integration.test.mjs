@@ -548,6 +548,7 @@ test('production refuses an alternate input catalog even when its bytes match ca
 	);
 });
 
+// Production freshness invokes Cargo with its own five-minute timeout.
 test('promotes a complete approved production release that builds without its candidate store', async () => {
 	const fixture = await createProductionFixture();
 	const releaseRoot = join(fixture.root, 'approved', 'v1');
@@ -653,7 +654,7 @@ test('promotes a complete approved production release that builds without its ca
 	assert.equal(entries.length, 24);
 	assert.equal(new Set(assetPaths).size, 48);
 	assert.equal(new Set(assetHashes).size, 48);
-}, 30_000);
+}, 360_000);
 
 test('production promotion rejects stale canonical catalogs and source mutations', async () => {
 	const fixture = await createProductionFixture();
