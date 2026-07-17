@@ -74,9 +74,9 @@ test.describe('Input field interactions', () => {
 		await expect.poll(() => submittedCommands(page)).toEqual(['go to Howth']);
 	});
 
-	// #1379: the notebook input remains an enabled native field while its
-	// aria-disabled value communicates the in-flight reply. The first keystroke
-	// flushes that reply and is then accepted into the draft.
+	// #1379: the notebook input remains an enabled native field while aria-busy
+	// communicates the in-flight reply. The first keystroke flushes that reply
+	// and is then accepted into the draft.
 	test('input stays editable during streaming (flush-on-interaction, #1379)', async ({
 		page,
 	}) => {
@@ -93,12 +93,14 @@ test.describe('Input field interactions', () => {
 		});
 		await emitEvent(page, 'stream-turn-end', { turn_id: 1379 });
 
-		await expect(input).toHaveAttribute('aria-disabled', 'true');
+		await expect(input).not.toHaveAttribute('aria-disabled');
+		await expect(input).toHaveAttribute('aria-busy', 'true');
 		await expect(input).not.toHaveAttribute('disabled', '');
 		await input.fill('next thought');
 		await input.press('x');
 		await expect(input).toHaveValue('next thoughtx');
-		await expect(input).toHaveAttribute('aria-disabled', 'false');
+		await expect(input).not.toHaveAttribute('aria-disabled');
+		await expect(input).toHaveAttribute('aria-busy', 'false');
 
 		const journal = await openNotebookDrawer(page, 'journal');
 		await expect(journal).toContainText(
@@ -120,7 +122,8 @@ test.describe('Input field interactions', () => {
 
 		// Chain begins.
 		await emitEvent(page, 'loading', { active: true });
-		await expect(input).toHaveAttribute('aria-disabled', 'true');
+		await expect(input).not.toHaveAttribute('aria-disabled');
+		await expect(input).toHaveAttribute('aria-busy', 'true');
 		await expect(input).not.toHaveAttribute('disabled', '');
 		await expect(intents).toContainText('Parish reply: pending');
 
@@ -135,7 +138,8 @@ test.describe('Input field interactions', () => {
 
 		// The notebook must remain busy even though loading=false has arrived,
 		// because the chain has not yet emitted `stream-end`.
-		await expect(input).toHaveAttribute('aria-disabled', 'true');
+		await expect(input).not.toHaveAttribute('aria-disabled');
+		await expect(input).toHaveAttribute('aria-busy', 'true');
 		await expect(input).not.toHaveAttribute('disabled', '');
 		await expect(intents).toContainText('Parish reply: pending');
 
@@ -154,14 +158,16 @@ test.describe('Input field interactions', () => {
 		await emitEvent(page, 'stream-turn-end', { turn_id: 1002 });
 
 		// Still busy — the chain is still alive.
-		await expect(input).toHaveAttribute('aria-disabled', 'true');
+		await expect(input).not.toHaveAttribute('aria-disabled');
+		await expect(input).toHaveAttribute('aria-busy', 'true');
 		await expect(intents).toContainText('Parish reply: pending');
 
 		// Chain terminates.
 		await emitEvent(page, 'stream-end', { hints: [] });
 
 		// Only now does the notebook return to idle.
-		await expect(input).toHaveAttribute('aria-disabled', 'false');
+		await expect(input).not.toHaveAttribute('aria-disabled');
+		await expect(input).toHaveAttribute('aria-busy', 'false');
 		await expect(intents).toContainText('Parish reply: idle');
 	});
 });
