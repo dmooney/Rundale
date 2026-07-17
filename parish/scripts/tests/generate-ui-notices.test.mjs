@@ -496,6 +496,17 @@ test('missing manifest fails before changing the destination', () =>
 		expectFailure(fixture);
 	}));
 
+test('empty target matrix fails before changing the destination', () =>
+	withFixture((fixture) => {
+		assert.throws(
+			() => runFixture(fixture, { targets: [] }),
+			/UI notice generation requires at least one target/,
+		);
+		assertPreserved(fixture);
+		assertSourceInstallPreserved(fixture);
+		assertNoTransactionResidue(fixture);
+	}));
+
 for (const failure of ['npm-ci', 'npm-ls', 'scanner']) {
 	test(`${failure} failure preserves every destination byte`, () =>
 		withFixture((fixture) => {

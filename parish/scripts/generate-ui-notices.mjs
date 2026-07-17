@@ -357,6 +357,9 @@ export function generateUiNotices(options = {}) {
 			'PARISH_UI_NOTICES_SCANNER_COMMAND_JSON',
 		);
 
+	if (!Array.isArray(targets) || targets.length === 0) {
+		throw new Error('UI notice generation requires at least one target');
+	}
 	if (!fsOps.statSync(destinationDirectory).isDirectory()) {
 		throw new Error(
 			`destination directory does not exist: ${destinationDirectory}`,
