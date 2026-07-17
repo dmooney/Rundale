@@ -477,8 +477,8 @@ update:
     cargo update
 
 # Regenerate third-party notice files (Rust + UI) from the current lockfiles.
-# Requires `cargo-about` (installed on demand). The UI helper installs the
-# locked npm tree and runs a pinned `license-checker-rseidelsohn` atomically.
+# Requires `cargo-about` (installed on demand). The portable UI helper creates
+# private target installs and runs the lockfile-pinned scanner atomically.
 #
 # Outputs:
 #   THIRD_PARTY_NOTICES.rust.md — all transitive Rust crates
@@ -496,7 +496,7 @@ notices:
     echo "Generating Rust notices..."
     cargo about generate about.hbs --output-file THIRD_PARTY_NOTICES.rust.md
     echo "Generating UI notices..."
-    bash scripts/generate-ui-notices.sh
+    node scripts/generate-ui-notices.mjs
     echo "Done. Regenerated THIRD_PARTY_NOTICES.rust.md and THIRD_PARTY_NOTICES.ui.md."
 
 # ─── Local CI (act) ──────────────────────────────────────────────────────────
