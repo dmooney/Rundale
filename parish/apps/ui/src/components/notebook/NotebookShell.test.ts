@@ -21,6 +21,7 @@ vi.mock('$lib/ipc', () => ({
 }));
 
 const roisin = {
+	npc_id: 6,
 	name: 'Roisin Connolly',
 	real_name: 'Roisin Connolly',
 	occupation: 'shopkeeper',

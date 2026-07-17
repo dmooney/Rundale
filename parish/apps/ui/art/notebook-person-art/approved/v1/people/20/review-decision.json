@@ -1,0 +1,108 @@
+{
+	"schema_version": 1,
+	"record_type": "notebook-person-art-human-review-decision",
+	"candidate_receipt_path": "parish/apps/ui/art/notebook-person-art/candidates/objects/15/15ec1d8097028c69f932ea840e8e513fbe7bdd48110278a727ad90a215e81fe4/receipt.json",
+	"candidate_receipt_sha256": "1928c9e1d6f1fd6b353ea52960a98317a9ed3f9c497cf97ee21651b14f1f36e1",
+	"candidate_sha256": "e850d2f48555918d80a6813c10d4e7afcad2e8d92393fb0332e4a0cd3449076b",
+	"raw_sha256": "61edcf1397c572a6123d5f0d5344b85219d92cbc6c17d245cd324b59b1753f75",
+	"subject": {
+		"kind": "npc",
+		"npc_id": 20,
+		"name": "Una Malone",
+		"input_record_sha256": "b30223abbfd7d7aae11799b735b23fbd1767599dc49bbcb442990416eca2f9e4"
+	},
+	"asset": {
+		"kind": "pair",
+		"candidate_index": 1,
+		"children": [
+			"portrait",
+			"marker"
+		]
+	},
+	"hair_topology": {
+		"schema_version": 4,
+		"subject_key": "npc:20",
+		"vector": {
+			"color_and_texture": "dark hair lightly streaked with grey and kept smooth for loom work",
+			"front": {
+				"family": "off-centre-temple-twists",
+				"description": "soft off-centre front with a rope twist beginning at each temple"
+			},
+			"rear": {
+				"family": "broad-flat-upper-coronet",
+				"description": "broad flat braided coronet spanning the upper rear head"
+			},
+			"covering": {
+				"family": "narrow-crown-kerchief",
+				"description": "narrow folded woven-linen kerchief laid across the crown and knotted at the nape"
+			},
+			"silhouette": {
+				"family": "broad-visible-coronet-band",
+				"description": "wide horizontal braided band remains visible behind the narrower crown cloth"
+			},
+			"loose_details": "all loose ends are contained away from the loom; one grey temple wave remains visible"
+		},
+		"sha256": "3ee32422a51e4ded04fcb68286fff30db6fd647284715ededc509efe1ac373af"
+	},
+	"marker_identity": {
+		"schema_version": 4,
+		"subject_key": "npc:20",
+		"marker_identity": {
+			"composition": "character-only",
+			"silhouette": "broad late-forties woman with a visible flat braided coronet, narrow crown kerchief, woven shawl, apron, and broad heavy-jawed outline; no object/scenery",
+			"stance": "calm upright stance with hands clasped at the waist; no object/scenery",
+			"empty_hand_pose": "hands-clasped",
+			"readability_cues": [
+				{
+					"kind": "hair-or-headwear",
+					"description": "broad flat braided coronet under a narrow crown kerchief"
+				},
+				{
+					"kind": "face",
+					"description": "broad jaw and full cheeks"
+				}
+			],
+			"tiny_readability_notes": [
+				"Keep the visible coronet wider than the narrow crown cloth at marker scale."
+			]
+		},
+		"sha256": "14e28296b8e4b46a13630349b4d0356ab1e3068e1ec8c95bdfcd96ca1e7faf28"
+	},
+	"decision": "approved",
+	"promotion_eligible": true,
+	"reviewer": "dmooney",
+	"reviewed_at": "2026-07-17T01:52:56.089Z",
+	"notes": "Approved by dmooney after reviewing the final 24-pair whole-cast sheet in Codex on 2026-07-16.",
+	"checklist": {
+		"identity_specific": true,
+		"concept_style_match": true,
+		"period_appropriate": true,
+		"no_prohibited_content": true,
+		"key_removal_clean": true,
+		"production_quality": true,
+		"diegetic_player_sketch": true,
+		"uncolored_pen_and_ink": true,
+		"sparse_open_linework": true,
+		"no_baked_background": true,
+		"framing_complete": true,
+		"selected_size_readable": true,
+		"nearby_size_readable": true,
+		"restrained_world_color": true,
+		"full_body_complete": true,
+		"silhouette_readable": true,
+		"character_only_marker": true,
+		"empty_hands": true,
+		"no_contextual_props_or_scenery": true,
+		"no_ground_plane": true,
+		"scene_size_readable": true,
+		"cross_asset_identity": true,
+		"hair_front_matches": true,
+		"hair_rear_matches": true,
+		"hair_covering_matches": true,
+		"hair_silhouette_matches": true,
+		"correct_surface_split": true,
+		"atomic_rerender_understood": true
+	},
+	"source_template_path": "parish/apps/ui/art/notebook-person-art/candidates/review-packets/identity-v8-character-only-full-cast-c-20260716/20-pair-e850d2f48555-review.json",
+	"review_id": "fdb88d0c4fbd40d5bf33c411"
+}

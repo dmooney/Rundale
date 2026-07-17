@@ -1,0 +1,338 @@
+{
+	"schema_version": 1,
+	"receipt_type": "notebook-person-art-pair-candidate",
+	"job_id": "011092f480b0e23b26da10420861167f1060d2030dad6fe02af1253c74ab40b5",
+	"status": "candidate",
+	"review": {
+		"status": "pending",
+		"reviewer": null,
+		"reviewed_at": null,
+		"notes": null
+	},
+	"promotion": {
+		"eligible": false,
+		"reason": "Atomic human approval of both assets and their shared identity is required"
+	},
+	"identity_lock": {
+		"generation": "single-provider-request",
+		"status": "pending-human-review",
+		"rerender_policy": "If either child fails, rerun and review the portrait-marker pair together"
+	},
+	"subject": {
+		"kind": "npc",
+		"npc_id": 2,
+		"name": "Siobhan Murphy",
+		"input_record_sha256": "18babe0507888c411132124ee3add55c39fabfd7a069dc7cfc444b6d692a2902"
+	},
+	"asset": {
+		"kind": "pair",
+		"candidate_index": 1,
+		"children": [
+			"portrait",
+			"marker"
+		]
+	},
+	"provider": {
+		"id": "openai",
+		"adapter": "openai-images-edits-v1",
+		"base_url": "https://api.openai.com/v1",
+		"model": "gpt-image-2-2026-04-21",
+		"endpoint": "/images/edits",
+		"request": {
+			"size": "2048x1024",
+			"quality": "high",
+			"output_format": "png",
+			"background": "opaque",
+			"moderation": "auto"
+		},
+		"request_id": "req_910178cd95654c8b82c7fe9ec16623d4",
+		"provider_created_at": 1784210267,
+		"attempts": 1,
+		"usage": {
+			"input_tokens": 3163,
+			"input_tokens_details": {
+				"image_tokens": 1508,
+				"text_tokens": 1655
+			},
+			"output_tokens": 4720,
+			"output_tokens_details": {
+				"image_tokens": 4720,
+				"text_tokens": 0
+			},
+			"total_tokens": 7883
+		}
+	},
+	"provenance": {
+		"job_identity": {
+			"schema_version": 1,
+			"pipeline_revision": "notebook-person-pairs-v7-character-only-sparse-portraits",
+			"provider": {
+				"id": "openai",
+				"adapter": "openai-images-edits-v1",
+				"model": "gpt-image-2-2026-04-21",
+				"request": {
+					"size": "2048x1024",
+					"quality": "high",
+					"output_format": "png",
+					"background": "opaque",
+					"moderation": "auto"
+				}
+			},
+			"raw_output": {
+				"key_color": "#ff00ff",
+				"postprocess_revision": "notebook-person-key-v7",
+				"portrait_ink_color": "#36362e",
+				"framing_normalization": {
+					"enabled": true,
+					"algorithm": "premultiplied-bilinear-v1",
+					"headroom_fraction": 0.02,
+					"min_axis_pixels": 2
+				},
+				"pair_contract": "Return one 2048x1024 production sheet on a perfectly flat #ff00ff background. The left 1024x1024 cell contains only the notebook portrait; the right 1024x1024 cell contains only the painted-world marker. Keep both figures wholly inside their assigned cells and leave the center boundary as flat key. Do not add labels, dividers, panels, frames, duplicate poses, or shared props. The right cell is a character-only cutout: both hands empty, with no held or carried object, extra person, furniture, architecture, vegetation, scenery fragment, ground plane, or shadow. Worn clothing and headwear are allowed. Both cells must depict the same exact person with matching facial structure, age, hairline, hairstyle, and expression cues.",
+				"portrait_contract": "Generate sparse dark ink lines against one perfectly flat #ff00ff provider background. The #ff00ff key must remain visible through every uninked interior region, including open areas of the face, hair, neck, clothing, and prop. Do not underpaint the subject with white, cream, parchment, skin tone, gray, or any other fill. Do not cross-hatch or shade any broad region of the face, hair, neck, scarf, waistcoat, coat, dress, or apron; use only a few isolated short structural hatch marks. Do not render a dark garment as a filled or densely hatched mass. The pipeline removes only the key to produce transparent line art; do not paint paper, a card, a frame, a wash, or #ff00ff ink into the subject.",
+				"marker_contract": "Generate one full-body character-only marker against one perfectly flat #ff00ff provider background. The pipeline removes that key to produce the transparent candidate. Both hands must be empty. Do not add any held or carried object, tool, book, container, bundle, baby or other person, furniture, counter, architecture, vegetation, scenery fragment, ground plane, shadow, border, or #ff00ff to the subject. Worn clothing and headwear are allowed; identity must read from the person alone."
+			},
+			"validation": {
+				"key_distance": 40,
+				"key_feather_distance": 136,
+				"key_spill_chroma_min": 24,
+				"key_spill_balance_max": 40,
+				"min_key_fraction": 0.45,
+				"max_key_fraction": 0.985,
+				"min_subject_fraction": 0.005,
+				"max_subject_fraction": 0.55,
+				"min_subject_color_buckets": 2,
+				"require_keyed_corners": true,
+				"ink_luminance_max": 192,
+				"ink_chroma_max": 72,
+				"asset_contracts": {
+					"portrait": {
+						"max_subject_fraction": 0.2,
+						"min_ink_bounds_height_fraction": 0.35,
+						"max_ink_bounds_height_fraction": 0.7,
+						"max_ink_fraction": 0.09,
+						"max_ink_fill_fraction": 0.22,
+						"max_light_subject_fraction": 0.1,
+						"max_colored_subject_fraction": 0.06,
+						"max_colored_fill_fraction": 0.003
+					},
+					"marker": {
+						"max_subject_fraction": 0.2,
+						"min_subject_bounds_height_fraction": 0.35,
+						"max_subject_bounds_height_fraction": 0.65,
+						"max_subject_bounds_width_fraction": 0.4,
+						"min_subject_margin_fraction": 0.08,
+						"max_residual_key_spill_fraction": 0.002
+					}
+				}
+			},
+			"reference_inputs": [
+				{
+					"id": "illustrated-parish-notebook-concept",
+					"sha256": "a34d088a9edc5d6cbe5d9d2e611fa40ce9d606140fae3258ef000a5638f84c81"
+				}
+			],
+			"subject_kind": "npc",
+			"npc_id": 2,
+			"input_record_sha256": "18babe0507888c411132124ee3add55c39fabfd7a069dc7cfc444b6d692a2902",
+			"asset_kind": "pair",
+			"candidate_index": 1,
+			"prompt_sha256": "6a96df8835e7a8c9a27d05b2e964380849bad6703b4531600fda0923bc0384ba"
+		},
+		"job_identity_sha256": "011092f480b0e23b26da10420861167f1060d2030dad6fe02af1253c74ab40b5",
+		"config_path": "parish/apps/ui/art/notebook-person-art/generation-config-v1.json",
+		"config_sha256": "68bcd16977c2a95d77522f53a55b44250c32bc37df9d1de5e19937ccbd19938a",
+		"inputs_path": "parish/apps/ui/art/notebook-person-art/npc-art-inputs-v1.json",
+		"inputs_sha256": "4af3968dcf6debf744e3664bf49423585d702c2817c31df74bc4be64ff20f65e",
+		"prompt_path": "parish/apps/ui/art/notebook-person-art/candidates/objects/01/011092f480b0e23b26da10420861167f1060d2030dad6fe02af1253c74ab40b5/prompt.txt",
+		"prompt_sha256": "6a96df8835e7a8c9a27d05b2e964380849bad6703b4531600fda0923bc0384ba",
+		"input_record_path": "parish/apps/ui/art/notebook-person-art/candidates/objects/01/011092f480b0e23b26da10420861167f1060d2030dad6fe02af1253c74ab40b5/input-record.json",
+		"reference_inputs": [
+			{
+				"id": "illustrated-parish-notebook-concept",
+				"path": "docs/graphics-v2/illustrated-parish-notebook.png",
+				"purpose": "Sole authoritative production reference. Use the notebook portrait line language for the left cell and the painted-world marker language for the right cell. Preserve subject identity only from the structured NPC facts; do not copy any depicted concept character.",
+				"sha256": "a34d088a9edc5d6cbe5d9d2e611fa40ce9d606140fae3258ef000a5638f84c81"
+			}
+		]
+	},
+	"artifact": {
+		"raw_path": "parish/apps/ui/art/notebook-person-art/candidates/objects/01/011092f480b0e23b26da10420861167f1060d2030dad6fe02af1253c74ab40b5/attempts/identity-v8-character-only-full-cast-20260716-a-20260716135607024-c058d6d4-5461-4853-b9de-c9ec192dadab/raw.png",
+		"raw_sha256": "e117a17ac39caba454aefbfafc384cb7843deae8dc570cc9d158f1e21f6fd529",
+		"media_type": "image/png",
+		"width": 2048,
+		"height": 1024,
+		"key_color": "#ff00ff",
+		"layout": {
+			"cell_size": "1024x1024",
+			"portrait": {
+				"x": 0,
+				"y": 0
+			},
+			"marker": {
+				"x": 1024,
+				"y": 0
+			}
+		},
+		"children": {
+			"portrait": {
+				"raw_path": "parish/apps/ui/art/notebook-person-art/candidates/objects/01/011092f480b0e23b26da10420861167f1060d2030dad6fe02af1253c74ab40b5/attempts/identity-v8-character-only-full-cast-20260716-a-20260716135607024-c058d6d4-5461-4853-b9de-c9ec192dadab/portrait-raw.png",
+				"raw_sha256": "2d4f1f283ccaa12221059a9c2cf50a2891f4fa54b76b8918afc4c082c4cd70f4",
+				"candidate_path": "parish/apps/ui/art/notebook-person-art/candidates/objects/01/011092f480b0e23b26da10420861167f1060d2030dad6fe02af1253c74ab40b5/attempts/identity-v8-character-only-full-cast-20260716-a-20260716135607024-c058d6d4-5461-4853-b9de-c9ec192dadab/portrait-candidate.png",
+				"candidate_sha256": "f4283b9d3ba86bc62e18451bfa70480a64423f2b41b8ed359e1442f43cc86337",
+				"media_type": "image/png",
+				"width": 1024,
+				"height": 1024,
+				"raw_validation": {
+					"width": 1024,
+					"height": 1024,
+					"key_fraction": 0.9541234970092773,
+					"subject_fraction": 0.045876502990722656,
+					"ink_fraction": 0.0064029693603515625,
+					"ink_fill_fraction": 0.010966108615761536,
+					"light_subject_fraction": 0.022103309631347656,
+					"colored_subject_fraction": 0.017370223999023438,
+					"colored_fill_fraction": 0.00008392333984375,
+					"subject_color_buckets": 338,
+					"keyed_corners": 4,
+					"corner_key_distance": 136,
+					"bounds_axis_min_pixels": 2,
+					"bounds_key_distance": 136,
+					"subject_bounds": {
+						"x": 108,
+						"y": 156,
+						"width": 785,
+						"height": 793
+					},
+					"subject_bounds_height_fraction": 0.7744140625,
+					"subject_bounds_width_fraction": 0.7666015625,
+					"subject_margin_fraction": 0.0732421875,
+					"subject_margin_pixels": 75,
+					"ink_bounds": {
+						"x": 109,
+						"y": 156,
+						"width": 775,
+						"height": 790
+					},
+					"ink_bounds_height_fraction": 0.771484375
+				},
+				"candidate_validation": {
+					"transparent_fraction": 0.958888053894043,
+					"visible_fraction": 0.03757476806640625,
+					"residual_key_spill_fraction": 0,
+					"normalized_ink_color": "#36362e",
+					"framing_normalization": {
+						"algorithm": "premultiplied-bilinear-v1",
+						"applied": true,
+						"scale": 0.8747738693467336,
+						"headroom_fraction": 0.02,
+						"before": {
+							"bounds": {
+								"x": 108,
+								"y": 155,
+								"width": 786,
+								"height": 796
+							},
+							"height_fraction": 0.77734375,
+							"width_fraction": 0.767578125,
+							"margin_fraction": 0.0712890625
+						},
+						"after": {
+							"bounds": {
+								"x": 168,
+								"y": 164,
+								"width": 687,
+								"height": 696
+							},
+							"height_fraction": 0.6796875,
+							"width_fraction": 0.6708984375,
+							"margin_fraction": 0.16015625
+						}
+					}
+				}
+			},
+			"marker": {
+				"raw_path": "parish/apps/ui/art/notebook-person-art/candidates/objects/01/011092f480b0e23b26da10420861167f1060d2030dad6fe02af1253c74ab40b5/attempts/identity-v8-character-only-full-cast-20260716-a-20260716135607024-c058d6d4-5461-4853-b9de-c9ec192dadab/marker-raw.png",
+				"raw_sha256": "40f95b15dd4e34f4140a38a56e08dec0f9f20753e3460409e916ae0ac9c162b2",
+				"candidate_path": "parish/apps/ui/art/notebook-person-art/candidates/objects/01/011092f480b0e23b26da10420861167f1060d2030dad6fe02af1253c74ab40b5/attempts/identity-v8-character-only-full-cast-20260716-a-20260716135607024-c058d6d4-5461-4853-b9de-c9ec192dadab/marker-candidate.png",
+				"candidate_sha256": "61163eba45498f450a298534aa5f662fe962d2dcbe0b442d64b3132b4d282df2",
+				"media_type": "image/png",
+				"width": 1024,
+				"height": 1024,
+				"raw_validation": {
+					"width": 1024,
+					"height": 1024,
+					"key_fraction": 0.7751083374023438,
+					"subject_fraction": 0.22489166259765625,
+					"ink_fraction": 0.2140350341796875,
+					"ink_fill_fraction": 0.6443622039557739,
+					"light_subject_fraction": 0.0043315887451171875,
+					"colored_subject_fraction": 0.0065250396728515625,
+					"colored_fill_fraction": 0.0010004043579101562,
+					"subject_color_buckets": 657,
+					"keyed_corners": 4,
+					"corner_key_distance": 136,
+					"bounds_axis_min_pixels": 2,
+					"bounds_key_distance": 136,
+					"subject_bounds": {
+						"x": 287,
+						"y": 56,
+						"width": 380,
+						"height": 920
+					},
+					"subject_bounds_height_fraction": 0.8984375,
+					"subject_bounds_width_fraction": 0.37109375,
+					"subject_margin_fraction": 0.046875,
+					"subject_margin_pixels": 48,
+					"ink_bounds": {
+						"x": 288,
+						"y": 56,
+						"width": 379,
+						"height": 919
+					},
+					"ink_bounds_height_fraction": 0.8974609375
+				},
+				"candidate_validation": {
+					"transparent_fraction": 0.8893404006958008,
+					"visible_fraction": 0.11044883728027344,
+					"residual_key_spill_fraction": 0,
+					"normalized_ink_color": null,
+					"framing_normalization": {
+						"algorithm": "premultiplied-bilinear-v1",
+						"applied": true,
+						"scale": 0.7004560260586319,
+						"headroom_fraction": 0.02,
+						"before": {
+							"bounds": {
+								"x": 287,
+								"y": 55,
+								"width": 380,
+								"height": 921
+							},
+							"height_fraction": 0.8994140625,
+							"width_fraction": 0.37109375,
+							"margin_fraction": 0.046875
+						},
+						"after": {
+							"bounds": {
+								"x": 379,
+								"y": 189,
+								"width": 266,
+								"height": 645
+							},
+							"height_fraction": 0.6298828125,
+							"width_fraction": 0.259765625,
+							"margin_fraction": 0.1845703125
+						}
+					}
+				}
+			}
+		}
+	},
+	"reprocessing": null,
+	"timing": {
+		"started_at": "2026-07-16T13:55:52.022Z",
+		"completed_at": "2026-07-16T13:57:48.306Z"
+	},
+	"run_id": "identity-v8-character-only-full-cast-20260716-a"
+}

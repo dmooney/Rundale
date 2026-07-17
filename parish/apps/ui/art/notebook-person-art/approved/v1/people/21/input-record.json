@@ -1,0 +1,244 @@
+{
+	"npc_id": 21,
+	"name": "Sean Ruadh Kelly",
+	"age": 26,
+	"pronouns": "he/him",
+	"occupation": "Labourer",
+	"mood": "bitter",
+	"brief_description": "a lean, red-haired young man with hard eyes",
+	"home": {
+		"id": 15,
+		"name": "Kilteevan Village",
+		"description": "The small village of Kilteevan — a handful of whitewashed cottages clustered around a well and an old stone bridge over a shallow stream. Smoke drifts from chimneys. A rooster crows from behind a low wall. The weather sky hangs over the quiet street. It is daylight."
+	},
+	"workplace": null,
+	"source_personality_summary": "A landless cottier — one of the poorest men in the parish.",
+	"source_knowledge": [
+		"Attends secret meetings of disaffected men at the lime kiln on dark nights.",
+		"Knows that the land agent plans to raise rents after harvest — heard it from a contact.",
+		"Has a cousin in Galway who was transported for agrarian agitation.",
+		"Hides pamphlets about tenant rights under a stone near the fairy fort."
+	],
+	"source_relationships": [
+		{
+			"target_id": 23,
+			"target_name": "Martin Concannon",
+			"kind": "Rival",
+			"strength": -0.4
+		},
+		{
+			"target_id": 2,
+			"target_name": "Siobhan Murphy",
+			"kind": "Professional",
+			"strength": 0.3
+		},
+		{
+			"target_id": 9,
+			"target_name": "Seamus Gallagher",
+			"kind": "Friend",
+			"strength": 0.3
+		},
+		{
+			"target_id": 1,
+			"target_name": "Padraig Darcy",
+			"kind": "Neighbor",
+			"strength": 0.2
+		}
+	],
+	"source_schedule_cues": [
+		{
+			"location_id": 1,
+			"location_name": "The Crossroads",
+			"activity": "at the crossroads, cold and restless"
+		},
+		{
+			"location_id": 1,
+			"location_name": "The Crossroads",
+			"activity": "at the crossroads, looking for any odd work or news"
+		},
+		{
+			"location_id": 1,
+			"location_name": "The Crossroads",
+			"activity": "at the crossroads, talking politics with anyone who will listen"
+		},
+		{
+			"location_id": 2,
+			"location_name": "Darcy's Pub",
+			"activity": "Sunday evening at the pub"
+		},
+		{
+			"location_id": 2,
+			"location_name": "Darcy's Pub",
+			"activity": "at Darcy's Pub, drinking more than he should, arguing about politics"
+		},
+		{
+			"location_id": 2,
+			"location_name": "Darcy's Pub",
+			"activity": "at the pub, nursing a pint he can barely afford"
+		},
+		{
+			"location_id": 3,
+			"location_name": "St. Brigid's Church",
+			"activity": "at Mass — he goes, though he has doubts"
+		},
+		{
+			"location_id": 5,
+			"location_name": "The Hurling Green",
+			"activity": "at the hurling green — he plays hard and angry"
+		},
+		{
+			"location_id": 9,
+			"location_name": "Murphy's Farm",
+			"activity": "dinner of potatoes and buttermilk, paid in food as much as coin"
+		},
+		{
+			"location_id": 9,
+			"location_name": "Murphy's Farm",
+			"activity": "labouring on Murphy's Farm — digging, hauling, whatever Siobhan needs"
+		},
+		{
+			"location_id": 9,
+			"location_name": "Murphy's Farm",
+			"activity": "odd jobs on Murphy's Farm if there is work"
+		},
+		{
+			"location_id": 12,
+			"location_name": "The Bog Road",
+			"activity": "cutting turf on the bog for whoever will pay"
+		},
+		{
+			"location_id": 14,
+			"location_name": "The Lime Kiln",
+			"activity": "at the lime kiln, burning lime for whatever farmer will pay"
+		},
+		{
+			"location_id": 15,
+			"location_name": "Kilteevan Village",
+			"activity": "a poor Sunday dinner"
+		},
+		{
+			"location_id": 15,
+			"location_name": "Kilteevan Village",
+			"activity": "home"
+		},
+		{
+			"location_id": 15,
+			"location_name": "Kilteevan Village",
+			"activity": "home to the village"
+		},
+		{
+			"location_id": 15,
+			"location_name": "Kilteevan Village",
+			"activity": "looking for any work — winter is lean for a labourer"
+		},
+		{
+			"location_id": 15,
+			"location_name": "Kilteevan Village",
+			"activity": "rising, cold water and dry bread"
+		},
+		{
+			"location_id": 15,
+			"location_name": "Kilteevan Village",
+			"activity": "sleeping"
+		},
+		{
+			"location_id": 15,
+			"location_name": "Kilteevan Village",
+			"activity": "sleeping in a shared room in one of the village cottages"
+		},
+		{
+			"location_id": 15,
+			"location_name": "Kilteevan Village",
+			"activity": "sleeping, hungry and cold in the shared cottage"
+		},
+		{
+			"location_id": 15,
+			"location_name": "Kilteevan Village",
+			"activity": "stumbling home to the village"
+		}
+	],
+	"source_visual_cues": [
+		"age: 26",
+		"occupation: Labourer",
+		"brief_description: a lean, red-haired young man with hard eyes",
+		"face/eyes",
+		"hair"
+	],
+	"source_metadata_status": {
+		"canonical_npc_data_sufficient_for_production_art": false,
+		"status": "strong-partial",
+		"reason": "The canonical NPC data has useful visual cues, but still lacks a structured production portrait/marker contract."
+	},
+	"art_direction": {
+		"npc_id": 21,
+		"npc_name": "Sean Ruadh Kelly",
+		"portrait_identity": {
+			"visual_identity_seed": "rundale-person-v2:21",
+			"identity_cohort": "man",
+			"apparent_age": "mid twenties",
+			"facial_geometry": {
+				"face_shape": "narrow diamond-shaped face with a sharply tapered lower half",
+				"proportions": "long upper and central thirds, close eye spacing, narrow lower third",
+				"brow_and_eyes": "thick nearly horizontal brows over narrow deep-set eyes",
+				"nose": "long convex nose with a narrow tip",
+				"mouth": "thin asymmetrical mouth, lower at the left corner",
+				"jaw_and_chin": "tight angular jaw ending in a pointed projecting chin",
+				"cheekbones": "very high sharp cheekbones with deep hollows beneath",
+				"hairline": "low irregular hairline broken by several forward curls",
+				"age_detail": "young face with light under-eye lines and work-weathered cheek texture"
+			},
+			"distinguishing_features": [
+				"small natural gap in the outer left eyebrow",
+				"left corner of the mouth rests lower than the right",
+				"three strong curls crossing the forehead"
+			],
+			"hair": "thick muted red hair in unruly tight waves, longer over the forehead and ears",
+			"clothing": "patched coat, rough shirt, worn trousers, frayed scarf or neckcloth",
+			"pose_expression": "bitter and guarded, weight held ready but not violent",
+			"props": [
+				"spade handle",
+				"small cloth bundle"
+			],
+			"palette_notes": [
+				"red hair",
+				"patched brown coat",
+				"cold grey shadow"
+			]
+		},
+		"marker_identity": {
+			"composition": "character-only",
+			"silhouette": "lean mid-twenties man with unruly muted-red tight waves, a narrow diamond face, patched coat, frayed neckcloth, and worn trousers; no object/scenery",
+			"stance": "narrow tense stance with arms folded; no object/scenery",
+			"empty_hand_pose": "arms-folded",
+			"readability_cues": [
+				{
+					"kind": "hair-or-headwear",
+					"description": "unruly muted-red hair"
+				},
+				{
+					"kind": "face",
+					"description": "very narrow diamond-shaped head"
+				},
+				{
+					"kind": "clothing",
+					"description": "patched coat and frayed neckcloth"
+				}
+			],
+			"tiny_readability_notes": [
+				"Keep the red hair natural and muted while preserving the tight, closed silhouette."
+			]
+		},
+		"avoid": [
+			"criminal caricature",
+			"weaponized spade",
+			"revolutionary uniform",
+			"stage-villain scowl"
+		],
+		"authoring_notes": [
+			"Canonical brief supplies lean red-haired hard-eyed cue; supplement prevents caricature and locks marker prop."
+		]
+	},
+	"pair_prompt": "Identity contract for Sean Ruadh Kelly, age 26, Labourer: visual identity seed rundale-person-v2:21; apparent age mid twenties; Explicit facial geometry: face shape narrow diamond-shaped face with a sharply tapered lower half; proportions long upper and central thirds, close eye spacing, narrow lower third; brow and eyes thick nearly horizontal brows over narrow deep-set eyes; nose long convex nose with a narrow tip; mouth thin asymmetrical mouth, lower at the left corner; jaw and chin tight angular jaw ending in a pointed projecting chin; cheekbones very high sharp cheekbones with deep hollows beneath; hairline low irregular hairline broken by several forward curls; age detail young face with light under-eye lines and work-weathered cheek texture. Distinguishing features: small natural gap in the outer left eyebrow, left corner of the mouth rests lower than the right, three strong curls crossing the forehead. Hair: thick muted red hair in unruly tight waves, longer over the forehead and ears. Production task: create one identity-locked portrait-and-marker pair in Rundale, rural County Roscommon, Ireland, 1820, ordinary parish life, period-appropriate work clothing, under this visual authority: Illustrated Parish Notebook concept art only. The two renderings must unmistakably be the same person by reproducing every stated identity fact. Clothing: patched coat, rough shirt, worn trousers, frayed scarf or neckcloth; canonical biography cue for clothing and expression only, never for setting, activity, or objects: a lean, red-haired young man with hard eyes; current mood bitter. Left asset, notebook portrait: a quick observational head-and-shoulders sketch the player character drew in their working notebook after meeting this person. Use sparse uncolored sepia/graphite contours, open unfilled shapes, and only a few isolated short structural hatch marks; optional lower-edge prop spade handle, simply outlined and confined to the left cell. Do not cross-hatch or shade any broad region of the face, hair, neck, scarf, waistcoat, coat, dress, or apron, and do not render a dark garment as a filled or densely hatched mass. Keep the complete ink drawing between 40 and 60 percent of the left cell height with generous empty padding; every uninked interior region must remain provider key, never white, cream, parchment, skin tone, gray, or any other fill. It must not read as a formal illustration or painted portrait. Right asset, painted-world marker: one tiny static full-body transparent character-only cutout designed for compositing into the painted parish scene; silhouette lean mid-twenties man with unruly muted-red tight waves, a narrow diamond face, patched coat, frayed neckcloth, and worn trousers; no object/scenery; stance narrow tense stance with arms folded; no object/scenery; empty-hand pose empty arms folded across the body; tiny-readability cues from the person's body, hair or headwear, clothing, and stance alone: hair or headwear: unruly muted-red hair; face: very narrow diamond-shaped head; clothing: patched coat and frayed neckcloth; complete figure roughly 45 percent of the right cell height, acceptable range 40 to 60 percent, with generous key-visible margins; restrained translucent watercolor within loose sepia/graphite contours, simplified face, and complete feet. The right cell must contain the person only: both hands empty; no held or carried objects, tools, books, containers, bundles, furniture, counters, architecture, vegetation, scenery fragments, ground plane, shadow, or extra person. Worn clothing and headwear are allowed. Do not illustrate the canonical biography's occupation, workplace, activity, or narrative context around the marker. Limit painted color to muted wool gray, bog green, weathered tan, dull brick red, peat brown, and faded indigo; no saturated primary colors. Shared constraints: one depiction in each assigned cell, ordinary 1820 rural County Roscommon clothing, no modern or fantasy elements, no text, labels, frames, contact-sheet furniture, or sprite-sheet poses. Never copy a left-cell portrait prop into the marker. Character-specific avoid list: criminal caricature, weaponized spade, revolutionary uniform, stage-villain scowl.",
+	"portrait_prompt": "Subject identity: Sean Ruadh Kelly, age 26, Labourer; visual identity seed rundale-person-v2:21; apparent age mid twenties; Explicit facial geometry: face shape narrow diamond-shaped face with a sharply tapered lower half; proportions long upper and central thirds, close eye spacing, narrow lower third; brow and eyes thick nearly horizontal brows over narrow deep-set eyes; nose long convex nose with a narrow tip; mouth thin asymmetrical mouth, lower at the left corner; jaw and chin tight angular jaw ending in a pointed projecting chin; cheekbones very high sharp cheekbones with deep hollows beneath; hairline low irregular hairline broken by several forward curls; age detail young face with light under-eye lines and work-weathered cheek texture. Distinguishing features: small natural gap in the outer left eyebrow, left corner of the mouth rests lower than the right, three strong curls crossing the forehead. Hair: thick muted red hair in unruly tight waves, longer over the forehead and ears. Artifact and lore: this is a quick observational sketch the player character drew by hand in the margin of their working parish notebook after meeting the subject. It is diegetic notebook ephemera, not a commissioned illustration, formal portrait study, character card, or polished concept painting. Non-negotiable drawing language: sparse, uncolored pen-and-ink line drawing under this visual authority: Illustrated Parish Notebook concept art only. Use one irregular sepia/graphite ink line, economical contours, open shapes, and only a few short loose hatch marks where structurally necessary. Leave most of the face, hair, clothing, and canvas unfilled. No skin-tone fill, white underpainting, cream fill, solid dark garment, gray wash, watercolor, smooth tonal modeling, dense cross-hatching, photorealistic rendering, or glamour. Delivery composition: 1024x1024 transparent-background PNG source, portrait line art occupies roughly 45 percent of source height, centered head-and-shoulders drawing with generous transparent padding on all sides, top of hair/head covering and shoulders fully visible, no baked parchment, paper texture, wash, card, border, label, or UI furniture; keep the complete inked drawing between roughly 40 and 60 percent of canvas height with generous empty space on every side. Uninked areas are transparent in the delivery asset so the UI-controlled notebook paper shows through. Setting: Rundale, rural County Roscommon, Ireland, 1820, ordinary parish life, period-appropriate work clothing. Clothing: patched coat, rough shirt, worn trousers, frayed scarf or neckcloth, indicated only with contour, seam, and a few fold lines; expression and pose bitter and guarded, weight held ready but not violent; current mood bitter. Optional lower-edge identity cue: spade handle, at most one simply outlined prop. Canonical context: a lean, red-haired young man with hard eyes; home at Kilteevan Village. Hard constraints: one character, head and shoulders only, period-appropriate rural County Roscommon clothing, no text, no label, no border, no card, no UI chrome. Character-specific avoid list: criminal caricature, weaponized spade, revolutionary uniform, stage-villain scowl.",
+	"marker_prompt": "Subject identity: Sean Ruadh Kelly, age 26, Labourer; visual identity seed rundale-person-v2:21; apparent age mid twenties; Explicit facial geometry: face shape narrow diamond-shaped face with a sharply tapered lower half; proportions long upper and central thirds, close eye spacing, narrow lower third; brow and eyes thick nearly horizontal brows over narrow deep-set eyes; nose long convex nose with a narrow tip; mouth thin asymmetrical mouth, lower at the left corner; jaw and chin tight angular jaw ending in a pointed projecting chin; cheekbones very high sharp cheekbones with deep hollows beneath; hairline low irregular hairline broken by several forward curls; age detail young face with light under-eye lines and work-weathered cheek texture. Distinguishing features: small natural gap in the outer left eyebrow, left corner of the mouth rests lower than the right, three strong curls crossing the forehead. Hair: thick muted red hair in unruly tight waves, longer over the forehead and ears. Asset role: one tiny static full-body NPC marker delivered as a transparent character-only cutout for compositing over Rundale's painted world surface. It is not a UI portrait, paper doll, animation sheet, formal character illustration, vignette, or sprite-sheet panel. Visual language: loose hand-inked watercolor miniature under this visual authority: Illustrated Parish Notebook concept art only. Use irregular sepia/graphite contours, a simple readable human silhouette, restrained translucent washes, low facial detail, and only enough clothing folds to identify the person at scene size. Keep the treatment handmade and subordinate to the environment, never glossy, photorealistic, densely rendered, or cut out with a broad halo. Delivery composition: 1024x1024 flat #ff00ff chroma-key PNG source, full-body figure occupies roughly 45 percent of source height, centered figure with feet fully visible and generous flat background margins, one single static in-world marker pose per NPC for this slice, no ground shadow, floor plane, label, border, or extra figure. Palette: sepia/graphite line with muted wool gray, bog green, weathered tan, dull brick red, peat brown, and faded indigo only; no saturated primary colors. Setting: Rundale, rural County Roscommon, Ireland, 1820, ordinary parish life, period-appropriate work clothing. Character-only silhouette: lean mid-twenties man with unruly muted-red tight waves, a narrow diamond face, patched coat, frayed neckcloth, and worn trousers; no object/scenery. Stance: narrow tense stance with arms folded; no object/scenery. Empty-hand pose: empty arms folded across the body. Tiny-readability cues from the person's body, hair or headwear, clothing, and stance alone: hair or headwear: unruly muted-red hair; face: very narrow diamond-shaped head; clothing: patched coat and frayed neckcloth. Tiny-readability requirements: Keep the red hair natural and muted while preserving the tight, closed silhouette.. Hard constraints: one character only, both hands empty, period-appropriate ordinary rural clothing, simplified face, complete feet, no held or carried objects, tools, books, containers, bundles, furniture, architecture, vegetation, scenery fragments, ground plane, shadow, text, label, border, or UI chrome. Worn clothing and headwear are allowed. Do not illustrate an occupation, workplace, activity, or narrative context around the person. Character-specific avoid list: criminal caricature, weaponized spade, revolutionary uniform, stage-villain scowl."
+}

@@ -1,0 +1,308 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "https://rundale.invalid/schemas/notebook-person-art-approved-release-v1.json",
+	"title": "Notebook person art approved release manifest v1",
+	"type": "object",
+	"required": [
+		"schema_version",
+		"manifest_type",
+		"release_version",
+		"mode",
+		"entry_count",
+		"approval",
+		"provenance",
+		"entries",
+		"release_id"
+	],
+	"properties": {
+		"schema_version": { "const": 1 },
+		"manifest_type": { "const": "notebook-person-art-approved-release" },
+		"release_version": { "type": "string", "minLength": 1 },
+		"mode": { "enum": ["production", "fixture"] },
+		"entry_count": { "type": "integer", "minimum": 1 },
+		"release_id": { "$ref": "#/$defs/sha256" },
+		"approval": {
+			"type": "object",
+			"required": ["whole_cast_visual_review"],
+			"additionalProperties": false,
+			"properties": {
+				"whole_cast_visual_review": {
+					"type": "object",
+					"required": ["path", "sha256", "review_id"],
+					"additionalProperties": false,
+					"properties": {
+						"path": { "type": "string", "minLength": 1 },
+						"sha256": { "$ref": "#/$defs/sha256" },
+						"review_id": { "type": "string", "pattern": "^[a-f0-9]{24}$" }
+					}
+				}
+			}
+		},
+		"provenance": {
+			"type": "object",
+			"required": ["generation_config", "npc_art_inputs", "references"],
+			"properties": {
+				"generation_config": { "$ref": "#/$defs/sourceFile" },
+				"npc_art_inputs": { "$ref": "#/$defs/sourceFile" },
+				"references": {
+					"type": "array",
+					"minItems": 1,
+					"items": {
+						"allOf": [
+							{ "$ref": "#/$defs/sourceFile" },
+							{
+								"type": "object",
+								"required": ["id", "purpose"],
+								"properties": {
+									"id": { "type": "string", "minLength": 1 },
+									"purpose": { "type": "string", "minLength": 1 }
+								}
+							}
+						]
+					}
+				}
+			}
+		},
+		"entries": {
+			"type": "array",
+			"minItems": 1,
+			"items": { "$ref": "#/$defs/entry" }
+		}
+	},
+	"$defs": {
+		"sha256": {
+			"type": "string",
+			"pattern": "^[a-f0-9]{64}$"
+		},
+		"sourceFile": {
+			"type": "object",
+			"required": ["path", "sha256", "source_path"],
+			"properties": {
+				"path": { "type": "string", "minLength": 1 },
+				"sha256": { "$ref": "#/$defs/sha256" },
+				"source_path": { "type": "string", "minLength": 1 }
+			}
+		},
+		"subject": {
+			"type": "object",
+			"required": ["kind", "npc_id", "name", "input_record_sha256"],
+			"properties": {
+				"kind": { "enum": ["npc", "fallback"] },
+				"npc_id": {
+					"anyOf": [{ "type": "integer", "minimum": 1 }, { "type": "null" }]
+				},
+				"name": { "type": "string", "minLength": 1 },
+				"input_record_sha256": { "$ref": "#/$defs/sha256" }
+			}
+		},
+		"art": {
+			"type": "object",
+			"required": [
+				"master_path",
+				"sha256",
+				"raw_path",
+				"media_type",
+				"width",
+				"height",
+				"source_candidate_path",
+				"source_raw_path",
+				"source_raw_sha256",
+				"validation"
+			],
+			"properties": {
+				"master_path": { "type": "string", "minLength": 1 },
+				"sha256": { "$ref": "#/$defs/sha256" },
+				"raw_path": { "type": "string", "minLength": 1 },
+				"media_type": { "const": "image/png" },
+				"width": { "type": "integer", "minimum": 1 },
+				"height": { "type": "integer", "minimum": 1 },
+				"source_candidate_path": { "type": "string", "minLength": 1 },
+				"source_raw_path": { "type": "string", "minLength": 1 },
+				"source_raw_sha256": { "$ref": "#/$defs/sha256" },
+				"validation": { "type": "object" }
+			}
+		},
+		"entry": {
+			"type": "object",
+			"required": [
+				"subject",
+				"job_id",
+				"candidate_index",
+				"provider",
+				"generation",
+				"art",
+				"approval"
+			],
+			"properties": {
+				"subject": { "$ref": "#/$defs/subject" },
+				"job_id": { "$ref": "#/$defs/sha256" },
+				"candidate_index": { "type": "integer", "minimum": 1 },
+				"provider": {
+					"type": "object",
+					"required": [
+						"id",
+						"adapter",
+						"model",
+						"endpoint",
+						"request",
+						"request_id"
+					],
+					"properties": {
+						"id": { "type": "string", "minLength": 1 },
+						"adapter": { "type": "string", "minLength": 1 },
+						"base_url": { "type": "string", "minLength": 1 },
+						"model": { "type": "string", "minLength": 1 },
+						"endpoint": { "type": "string", "minLength": 1 },
+						"request": { "type": "object" },
+						"request_id": {
+							"anyOf": [
+								{ "type": "string", "minLength": 1 },
+								{ "type": "null" }
+							]
+						},
+						"provider_created_at": {
+							"anyOf": [{ "type": "integer" }, { "type": "null" }]
+						},
+						"attempts": {
+							"anyOf": [{ "type": "integer", "minimum": 1 }, { "type": "null" }]
+						},
+						"usage": {
+							"anyOf": [{ "type": "object" }, { "type": "null" }]
+						}
+					}
+				},
+				"generation": {
+					"type": "object",
+					"required": [
+						"receipt_path",
+						"receipt_sha256",
+						"source_receipt_path",
+						"prompt_path",
+						"prompt_file_sha256",
+						"prompt_sha256",
+						"input_record_path",
+						"input_record_file_sha256",
+						"input_record_sha256",
+						"raw_artifact",
+						"reprocessing",
+						"timing"
+					],
+					"properties": {
+						"receipt_path": { "type": "string", "minLength": 1 },
+						"receipt_sha256": { "$ref": "#/$defs/sha256" },
+						"source_receipt_path": { "type": "string", "minLength": 1 },
+						"prompt_path": { "type": "string", "minLength": 1 },
+						"prompt_file_sha256": { "$ref": "#/$defs/sha256" },
+						"prompt_sha256": { "$ref": "#/$defs/sha256" },
+						"input_record_path": { "type": "string", "minLength": 1 },
+						"input_record_file_sha256": { "$ref": "#/$defs/sha256" },
+						"input_record_sha256": { "$ref": "#/$defs/sha256" },
+						"raw_artifact": { "$ref": "#/$defs/sourceFile" },
+						"reprocessing": {
+							"anyOf": [{ "type": "object" }, { "type": "null" }]
+						},
+						"timing": {
+							"anyOf": [{ "type": "object" }, { "type": "null" }]
+						}
+					}
+				},
+				"art": {
+					"type": "object",
+					"required": ["portrait", "marker"],
+					"properties": {
+						"portrait": { "$ref": "#/$defs/art" },
+						"marker": { "$ref": "#/$defs/art" }
+					}
+				},
+				"approval": {
+					"type": "object",
+					"required": [
+						"decision_path",
+						"decision_sha256",
+						"source_decision_path",
+						"pointer_path",
+						"pointer_sha256",
+						"review_id",
+						"decision",
+						"promotion_eligible",
+						"reviewer",
+						"reviewed_at",
+						"notes",
+						"checklist"
+					],
+					"properties": {
+						"decision_path": { "type": "string", "minLength": 1 },
+						"decision_sha256": { "$ref": "#/$defs/sha256" },
+						"source_decision_path": { "type": "string", "minLength": 1 },
+						"pointer_path": { "type": "string", "minLength": 1 },
+						"review_id": { "type": "string", "pattern": "^[a-f0-9]{24}$" },
+						"pointer_sha256": { "$ref": "#/$defs/sha256" },
+						"decision": { "const": "approved" },
+						"promotion_eligible": { "const": true },
+						"reviewer": { "type": "string", "minLength": 1 },
+						"reviewed_at": { "type": "string", "minLength": 1 },
+						"notes": { "type": "string" },
+						"checklist": {
+							"type": "object",
+							"required": [
+								"identity_specific",
+								"concept_style_match",
+								"period_appropriate",
+								"no_prohibited_content",
+								"key_removal_clean",
+								"production_quality",
+								"diegetic_player_sketch",
+								"uncolored_pen_and_ink",
+								"sparse_open_linework",
+								"no_baked_background",
+								"framing_complete",
+								"selected_size_readable",
+								"nearby_size_readable",
+								"restrained_world_color",
+								"full_body_complete",
+								"silhouette_readable",
+								"no_ground_plane",
+								"scene_size_readable",
+								"cross_asset_identity",
+								"hair_front_matches",
+								"hair_rear_matches",
+								"hair_covering_matches",
+								"hair_silhouette_matches",
+								"correct_surface_split",
+								"atomic_rerender_understood"
+							],
+							"additionalProperties": false,
+							"properties": {
+								"identity_specific": { "const": true },
+								"concept_style_match": { "const": true },
+								"period_appropriate": { "const": true },
+								"no_prohibited_content": { "const": true },
+								"key_removal_clean": { "const": true },
+								"production_quality": { "const": true },
+								"diegetic_player_sketch": { "const": true },
+								"uncolored_pen_and_ink": { "const": true },
+								"sparse_open_linework": { "const": true },
+								"no_baked_background": { "const": true },
+								"framing_complete": { "const": true },
+								"selected_size_readable": { "const": true },
+								"nearby_size_readable": { "const": true },
+								"restrained_world_color": { "const": true },
+								"full_body_complete": { "const": true },
+								"silhouette_readable": { "const": true },
+								"no_ground_plane": { "const": true },
+								"scene_size_readable": { "const": true },
+								"cross_asset_identity": { "const": true },
+								"hair_front_matches": { "const": true },
+								"hair_rear_matches": { "const": true },
+								"hair_covering_matches": { "const": true },
+								"hair_silhouette_matches": { "const": true },
+								"correct_surface_split": { "const": true },
+								"atomic_rerender_understood": { "const": true }
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+}

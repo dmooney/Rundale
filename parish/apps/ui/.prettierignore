@@ -3,8 +3,14 @@
 dist/
 build/
 node_modules/
+art/notebook-person-art/candidates/
+art/notebook-person-art/review-packets/
+art/notebook-person-art/approved/v1/
+art/notebook-person-art/npc-art-inputs-v1.json
 package-lock.json
 pnpm-lock.yaml
+static/rundale/notebook-ui/person-art-contact-sheet.html
+static/rundale/notebook-ui/person-art-provenance.md
 # Playwright visual baselines (binary)
 e2e/screenshots/
 playwright-report/
