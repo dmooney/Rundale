@@ -28,30 +28,39 @@ After implementing any gameplay feature, run `/parish-engine prove <feature desc
 
 Explain the behavior change, link related issues, list commands run (`just check`, `just verify`, UI tests), and include screenshots or updated Playwright baselines for visible UI changes.
 
-## Merge queue
+## Merge protection
 
-CI declares an `on: merge_group` trigger, so the full suite re-runs against the
-tip of `main` when a PR enters the queue. This catches _semantic_ conflicts —
-two PRs each green in isolation that break once combined — which plain git
-merges miss. With many worktrees landing in parallel this is the main guard on
-`main` staying green.
+GitHub merge queues are unavailable while this repository is user-owned. The
+exact unblock trigger is transfer to an eligible GitHub organization or future
+GitHub support for queues on user-owned repositories.
 
-Enabling the queue itself is a one-time **repo-admin** action (Settings →
-Branches), outside the codebase:
+Until then, protect `main` with the closest available gate:
 
-- Require a merge queue on the protected `main` branch.
-- Set required status checks to the jobs that always run on `merge_group`
-  (e.g. `rust-quality-gate`, `game-harness`, `ui-quality`). Do **not** mark a
-  path-filtered job required in a way that blocks on `skipped` for doc-only PRs:
-  a job skipped by the `changes` filter reports `skipped`, which classic branch
-  protection treats as pending. Require the always-on jobs, or rely on the
-  `merge_group` run (where nothing is skipped) as the gate.
+- require the fast `CI gate` with strict status checks, so an out-of-date PR
+  must be brought current before merge;
+- make that single required gate aggregate the complete Playwright suite for
+  every pull request whose path detector reports a shipped UI change;
+- require all review conversations to be resolved;
+- run `Full CI` on the PR head when the change needs the Rust, coverage,
+  harness, UI, or end-to-end gates; and
+- stop new starts and repair immediately if the post-merge `Full CI` run makes
+  `main` red.
+
+`full-ci.yml` retains its `merge_group` trigger so the stronger queue gate is
+ready if repository ownership changes.
 
 ## CI cost controls
 
-A `changes` job (dorny/paths-filter) runs first on every PR and gates the heavy
-Rust/UI jobs: a doc/chore/CI-agent-only PR skips them and pays only
-`agent-check` and `docs-consistency`. The filter applies **only on
-`pull_request`** — on `push`, `merge_group`, and the nightly `schedule` every
-job runs regardless, so the merge gate and nightly catch anything a per-PR skip
-might miss.
+The fast `ci.yml` workflow uses path filtering so a doc/chore/CI-agent-only PR
+pays only the relevant proof, documentation, and format checks. A pull request
+that changes `parish/apps/ui/**` runs the complete Playwright contract before
+`CI gate` can pass. Expensive Rust, coverage, harness, and the remaining UI jobs
+live in `full-ci.yml`; it runs on pushes to `main`/`develop`, `merge_group`,
+nightly schedule, and manual dispatch. Until a merge queue is available,
+dispatch it explicitly for high-risk PR heads and let the post-merge run catch
+any remaining integration failure.
+
+Replacing the shipped default UI surface is one logical contract migration:
+the same pull request must migrate or explicitly retire every canonical E2E
+assertion for the prior surface, and the complete `just ui-e2e` suite must pass.
+A focused smoke test does not satisfy this gate by itself.

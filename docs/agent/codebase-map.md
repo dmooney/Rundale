@@ -7,40 +7,41 @@ symlink where present.
 
 ## Repository Layout
 
-| Path                                              | Purpose                                                                      | Entry / key file                      | Scope doc                                   |
-| ------------------------------------------------- | ---------------------------------------------------------------------------- | ------------------------------------- | ------------------------------------------- |
-| `AGENTS.md`, `CLAUDE.md`                          | Repo-wide agent instructions. `CLAUDE.md` is a symlink to `AGENTS.md`        | [AGENTS.md](../../AGENTS.md)          | [AGENTS.md](../../AGENTS.md)                |
-| `LEARNINGS.md`                                    | Short-lived gotchas and surprising defaults for future agents                | [LEARNINGS.md](../../LEARNINGS.md)    | -                                           |
-| `parish/`                                         | Main Rust workspace and frontend workspace for the Parish engine             | [Cargo.toml](../../parish/Cargo.toml) | -                                           |
-| `parish/crates/`                                  | 23 Rust workspace crates: binaries, composition crate, and leaf logic crates | see [Parish crates](#parish-crates)   | per crate                                   |
-| `parish/apps/ui/`                                 | Svelte 5 + TypeScript frontend shared by desktop and web modes               | `src/routes/`, `src/lib/`             | [AGENTS.md](../../parish/apps/ui/AGENTS.md) |
-| `parish/testing/`                                 | Harness fixtures, eval scripts, and test data                                | `fixtures/`, `evals/`                 | [AGENTS.md](../../parish/testing/AGENTS.md) |
-| `parish/scripts/`                                 | Check, proof, MCP-backend, screenshot, and release helper scripts            | `*.sh`, `*.py`                        | -                                           |
-| `parish/assets/`                                  | Bundled app assets such as fonts                                             | `fonts/`                              | -                                           |
-| `parish/dist/`                                    | Runtime distribution helpers and local model/proxy assets                    | `vllm-mlx/`                           | -                                           |
-| `parish/docs/`                                    | Parish-local generated docs/screenshots used by the app workspace            | `screenshots/`                        | -                                           |
-| `mods/`                                           | Game/content mods, provider mods, and settings mods                          | `mod-list.toml`, provider dirs        | -                                           |
-| `mods/rundale/`                                   | Rundale game content: NPCs, world, prompts, palette, and mod metadata        | `mod.toml`                            | [AGENTS.md](../../mods/rundale/AGENTS.md)   |
-| `mods/testbed/`                                   | Small settings/content mod for deterministic tests                           | `mod.toml`                            | -                                           |
-| `rundale-bench/`                                  | v1 dialogue benchmark, candidate configs, and bench artifacts                | `candidates_*.toml`, `artifacts/`     | -                                           |
-| `promptfoo/`                                      | v2 benchmark of record + generated GitHub Pages site (`bench-site/`)         | `leaderboard/`, `bench-site/`         | -                                           |
-| `docs/`                                           | Project documentation hub                                                    | [`index.md`](../index.md)             | -                                           |
-| `docs/agent/`                                     | Agent-facing engineering docs                                                | [`README.md`](README.md)              | -                                           |
-| `docs/proofs/`                                    | Long-lived benchmark archives (`local-perf/`, `rundale-bench/`)              | -                                     | -                                           |
-| `docs/screenshots/`                               | Checked-in UI screenshot baselines                                           | `*.png`                               | -                                           |
-| `docs/adr/`, `docs/design/`, `docs/plans/`        | Architecture records, design notes, and planning docs                        | `*.md`                                | -                                           |
-| `docs/research/`, `docs/reviews/`, `docs/audits/` | Research notes, review artifacts, and audits                                 | `*.md`                                | -                                           |
-| `deploy/`                                         | Packaging and release artifacts                                              | `Dockerfile`                          | -                                           |
-| `scripts/`                                        | Root-level utility scripts outside the Parish workspace                      | `loc_projection.py`                   | -                                           |
-| `crates/`                                         | Root-level Rust examples/experiments outside the Parish workspace            | `parish-world/examples/`              | -                                           |
-| `.agents/`                                        | Tool-agnostic agent assets and source skills                                 | `skills/`                             | -                                           |
-| `.claude/`                                        | Claude Code hooks, commands, agents, and local settings                      | `settings.json`, `hooks/`             | -                                           |
-| `.claude-plugin/`                                 | Distributable Rundale plugin manifest                                        | `plugin.json`                         | -                                           |
-| `.codex/`                                         | Codex project skill/config assets                                            | `skills/`                             | -                                           |
-| `.opencode/`                                      | opencode agents, commands, skills, tools, and plugin config                  | `opencode.jsonc`, `skills/`           | -                                           |
-| `.github/`                                        | GitHub workflows, commands, labels, and PR template                          | `workflows/`                          | -                                           |
-| `.devcontainer/`                                  | Dev container image and editor setup                                         | `devcontainer.json`                   | -                                           |
-| `.vscode/`                                        | Workspace editor tasks, launch configs, and settings                         | `settings.json`, `tasks.json`         | -                                           |
+| Path                                              | Purpose                                                                      | Entry / key file                        | Scope doc                                   |
+| ------------------------------------------------- | ---------------------------------------------------------------------------- | --------------------------------------- | ------------------------------------------- |
+| `AGENTS.md`, `CLAUDE.md`                          | Repo-wide agent instructions. `CLAUDE.md` is a symlink to `AGENTS.md`        | [AGENTS.md](../../AGENTS.md)            | [AGENTS.md](../../AGENTS.md)                |
+| `LEARNINGS.md`                                    | Short-lived gotchas and surprising defaults for future agents                | [LEARNINGS.md](../../LEARNINGS.md)      | -                                           |
+| `parish/`                                         | Main Rust workspace and frontend workspace for the Parish engine             | [Cargo.toml](../../parish/Cargo.toml)   | -                                           |
+| `parish/crates/`                                  | 23 Rust workspace crates: binaries, composition crate, and leaf logic crates | see [Parish crates](#parish-crates)     | per crate                                   |
+| `parish/apps/ui/`                                 | Svelte 5 + TypeScript frontend shared by desktop and web modes               | `src/routes/`, `src/lib/`               | [AGENTS.md](../../parish/apps/ui/AGENTS.md) |
+| `parish/testing/`                                 | Harness fixtures, eval scripts, and test data                                | `fixtures/`, `evals/`                   | [AGENTS.md](../../parish/testing/AGENTS.md) |
+| `parish/scripts/`                                 | Check, proof, MCP-backend, screenshot, and release helper scripts            | `*.sh`, `*.py`                          | -                                           |
+| `parish/assets/`                                  | Bundled app assets such as fonts                                             | `fonts/`                                | -                                           |
+| `parish/dist/`                                    | Runtime distribution helpers and local model/proxy assets                    | `vllm-mlx/`                             | -                                           |
+| `parish/docs/`                                    | Parish-local generated docs/screenshots used by the app workspace            | `screenshots/`                          | -                                           |
+| `mods/`                                           | Game/content mods, provider mods, and settings mods                          | `mod-list.toml`, provider dirs          | -                                           |
+| `mods/rundale/`                                   | Rundale game content: NPCs, world, prompts, palette, and mod metadata        | `mod.toml`                              | [AGENTS.md](../../mods/rundale/AGENTS.md)   |
+| `mods/testbed/`                                   | Small settings/content mod for deterministic tests                           | `mod.toml`                              | -                                           |
+| `rundale-bench/`                                  | v1 dialogue benchmark, candidate configs, and bench artifacts                | `candidates_*.toml`, `artifacts/`       | -                                           |
+| `promptfoo/`                                      | v2 benchmark of record + generated GitHub Pages site (`bench-site/`)         | `leaderboard/`, `bench-site/`           | -                                           |
+| `docs/`                                           | Project documentation hub                                                    | [`index.md`](../index.md)               | -                                           |
+| `docs/agent/`                                     | Agent-facing engineering docs                                                | [`README.md`](README.md)                | -                                           |
+| `docs/graphics-v2/`                               | Visual-client research, art provenance, and reproducible rendering evidence  | [`README.md`](../graphics-v2/README.md) | [AGENTS.md](../graphics-v2/AGENTS.md)       |
+| `docs/proofs/`                                    | Long-lived benchmark archives (`local-perf/`, `rundale-bench/`)              | -                                       | -                                           |
+| `docs/screenshots/`                               | Checked-in UI screenshot baselines                                           | `*.png`                                 | -                                           |
+| `docs/adr/`, `docs/design/`, `docs/plans/`        | Architecture records, design notes, and planning docs                        | `*.md`                                  | -                                           |
+| `docs/research/`, `docs/reviews/`, `docs/audits/` | Research notes, review artifacts, and audits                                 | `*.md`                                  | -                                           |
+| `deploy/`                                         | Packaging and release artifacts                                              | `Dockerfile`                            | -                                           |
+| `scripts/`                                        | Root-level utility scripts outside the Parish workspace                      | `loc_projection.py`                     | -                                           |
+| `crates/`                                         | Root-level Rust examples/experiments outside the Parish workspace            | `parish-world/examples/`                | -                                           |
+| `.agents/`                                        | Tool-agnostic agent assets and source skills                                 | `skills/`                               | -                                           |
+| `.claude/`                                        | Claude Code hooks, commands, agents, and local settings                      | `settings.json`, `hooks/`               | -                                           |
+| `.claude-plugin/`                                 | Distributable Rundale plugin manifest                                        | `plugin.json`                           | -                                           |
+| `.codex/`                                         | Codex project skill/config assets                                            | `skills/`                               | -                                           |
+| `.opencode/`                                      | opencode agents, commands, skills, tools, and plugin config                  | `opencode.jsonc`, `skills/`             | -                                           |
+| `.github/`                                        | GitHub workflows, commands, labels, and PR template                          | `workflows/`                            | -                                           |
+| `.devcontainer/`                                  | Dev container image and editor setup                                         | `devcontainer.json`                     | -                                           |
+| `.vscode/`                                        | Workspace editor tasks, launch configs, and settings                         | `settings.json`, `tasks.json`           | -                                           |
 
 ## Parish Crates
 
@@ -93,7 +94,7 @@ See [README Ways to run Parish](../../README.md#ways-to-run-parish) for the full
 - `parish-server --port PORT` - Axum HTTP/WS server (separate binary, also exported as library)
 - `parish` (crate `parish-client`) - thin HTTP shell against a running `parish-server`. Modes: single-shot `"cmd"`, `--script FILE`, `--json`, no-arg REPL.
 - `parish-tauri` (desktop) - `cargo run -p parish-tauri -- --mcp-port 3030`
-- `parish-mcp` - MCP bridge for Claude Code (auto-built by `SessionStart--build-mcp.sh`)
+- `parish-mcp` - MCP bridge for Claude Code/Codex, launched by `parish/scripts/parish-mcp-launch.sh` (with a no-build cold shim)
 - `parish-geo-tool`, `parish-npc-tool` - content-authoring CLIs
 
 ## Where to find things
@@ -104,6 +105,7 @@ See [README Ways to run Parish](../../README.md#ways-to-run-parish) for the full
 - **Harness map (sensors / skills / gates):** [`harness.md`](harness.md)
 - **Scaling seam checklist:** [`scaling-rules.md`](scaling-rules.md)
 - **Proof-evidence gate:** [`agent-check.md`](agent-check.md)
+- **Visual-client and graphics research:** [`../graphics-v2/README.md`](../graphics-v2/README.md)
 
 ## Refresh Checklist
 

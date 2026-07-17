@@ -903,7 +903,7 @@ fn relationship_summaries(
         out.push(RelationshipSummary {
             target_id: rel.target_id,
             target_name: (*target_name).to_string(),
-            kind: format!("{:?}", &rel.kind),
+            kind: format!("{:?}", rel.kind),
             strength: rel.strength,
         });
     }

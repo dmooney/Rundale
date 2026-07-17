@@ -20,6 +20,10 @@ import {
 	type NotebookAssetManifest,
 } from './assets';
 import {
+	resolveNotebookCommandPresentation,
+	windowNotebookCommandText,
+} from './command';
+import {
 	activateNotebookTarget,
 	notebookHitTarget,
 	type NotebookHitTarget,
@@ -45,6 +49,7 @@ import type {
 const INK = 0x312316;
 const INK_SOFT = 0x6f5836;
 const INK_RED = 0x874534;
+const INK_BUSY = 0x55603e;
 const PAPER_LIGHT = 0xf4e4bd;
 const TAB_LABELS: NotebookTab[] = [
 	'notes',
@@ -947,6 +952,7 @@ export class IllustratedNotebookRenderer {
 	): void {
 		NOTEBOOK_ACTIONS.forEach((action, i) => {
 			const rect = layout.actionStamps[i];
+			const disabled = state.command.disabled;
 			const target = this.target(
 				`action:${action}`,
 				'action-stamp',
@@ -954,6 +960,7 @@ export class IllustratedNotebookRenderer {
 				rect,
 				{ type: 'action', action },
 				400 + i,
+				disabled,
 			);
 			this.drawTargetTreatment(target);
 			const group = new Container();
@@ -999,7 +1006,7 @@ export class IllustratedNotebookRenderer {
 				},
 			);
 			label.anchor.set(0.5, 0);
-			if (state.busy) group.alpha = 0.72;
+			if (state.command.busy || state.command.disabled) group.alpha = 0.72;
 		});
 	}
 
@@ -1008,6 +1015,7 @@ export class IllustratedNotebookRenderer {
 		state: NotebookRenderState,
 	): void {
 		this.clear(this.layers.intent);
+		const command = resolveNotebookCommandPresentation(state.command);
 		const strip = this.sprite(
 			NOTEBOOK_ASSETS.intentParchmentStrip,
 			layout.intentStrip,
@@ -1019,6 +1027,7 @@ export class IllustratedNotebookRenderer {
 			layout.intentStrip,
 			{ type: 'focus-input' },
 			500,
+			state.command.disabled,
 		);
 		this.drawTargetTreatment(inputTarget);
 		this.bindTarget(strip, inputTarget);
@@ -1036,6 +1045,25 @@ export class IllustratedNotebookRenderer {
 		const lineX = layout.intentStrip.x + layout.intentStrip.width * 0.22;
 		const lineY = layout.intentStrip.y + layout.intentStrip.height * 0.43;
 		const lineW = layout.intentStrip.width * 0.58;
+		const focusMark = new Graphics();
+		if (state.command.focused && !state.command.disabled) {
+			focusMark
+				.moveTo(lineX + 8, lineY + (layout.mode === 'mobile' ? 29 : 34))
+				.lineTo(
+					lineX + lineW * 0.48,
+					lineY + (layout.mode === 'mobile' ? 31 : 36),
+				)
+				.lineTo(
+					lineX + lineW - 10,
+					lineY + (layout.mode === 'mobile' ? 29 : 34),
+				)
+				.stroke({
+					color: command.phase === 'error' ? INK_RED : FOCUS_INK,
+					width: 2,
+					alpha: command.phase === 'busy' ? 0.38 : 0.82,
+				});
+			this.layers.intent.addChild(focusMark);
+		}
 		this.layers.intent.addChild(
 			this.sprite(NOTEBOOK_ASSETS.handwrittenInputLine, {
 				x: lineX,
@@ -1044,9 +1072,19 @@ export class IllustratedNotebookRenderer {
 				height: layout.mode === 'mobile' ? 28 : 34,
 			}),
 		);
-		const displayText =
-			state.intentText ||
-			(state.busy ? 'waiting on the parish...' : 'ask Roisin what she saw');
+		const maxDisplayChars = layout.mode === 'mobile' ? 30 : 58;
+		const displayText = windowNotebookCommandText(
+			command.displayText,
+			maxDisplayChars,
+		);
+		const textFill =
+			command.phase === 'error'
+				? INK_RED
+				: command.phase === 'busy'
+					? INK_BUSY
+					: state.command.text
+						? INK
+						: INK_SOFT;
 		const inputText = this.addText(
 			this.layers.intent,
 			displayText,
@@ -1054,14 +1092,26 @@ export class IllustratedNotebookRenderer {
 			lineY,
 			layout.mode === 'mobile' ? 15 : 20,
 			{
-				fill: state.intentText ? INK : INK_SOFT,
-				wordWrap: true,
-				wordWrapWidth: lineW - 24,
+				fill: textFill,
+				fontStyle: command.phase === 'disabled' ? 'italic' : 'normal',
 			},
 		);
-		if (state.inputFocused && !state.busy) {
+		const maxDisplayWidth = lineW - 48;
+		let visibleChars = Math.min(
+			Array.from(command.displayText).length,
+			maxDisplayChars,
+		);
+		while (inputText.width > maxDisplayWidth && visibleChars > 4) {
+			visibleChars -= 1;
+			inputText.text = windowNotebookCommandText(
+				command.displayText,
+				visibleChars,
+			);
+		}
+		this.drawCommandStatus(layout, lineX, lineY, lineW, command);
+		if (command.showCaret) {
 			const caret = new Graphics();
-			const typedWidth = state.intentText ? inputText.width : 0;
+			const typedWidth = state.command.text ? inputText.width : 0;
 			const caretX = Math.min(
 				lineX + lineW - 18,
 				lineX + 16 + Math.min(typedWidth, lineW - 34),
@@ -1078,7 +1128,6 @@ export class IllustratedNotebookRenderer {
 			width: sendSize,
 			height: sendSize,
 		});
-		const sendDisabled = state.busy || !state.intentText.trim();
 		const sendTarget = this.target(
 			'send',
 			'send',
@@ -1091,12 +1140,88 @@ export class IllustratedNotebookRenderer {
 			},
 			{ type: 'send' },
 			510,
-			sendDisabled,
+			command.sendDisabled,
 		);
-		send.alpha = sendDisabled ? 0.48 : 1;
+		send.alpha = command.sendDisabled
+			? command.phase === 'disabled'
+				? 0.32
+				: 0.48
+			: 1;
 		this.drawTargetTreatment(sendTarget);
 		this.bindTarget(send, sendTarget);
 		this.layers.intent.addChild(send);
+		if (command.phase === 'error' && !command.sendDisabled) {
+			const retryMark = new Graphics();
+			retryMark
+				.circle(
+					send.x + send.width / 2,
+					send.y + send.height / 2,
+					send.width * 0.48,
+				)
+				.stroke({ color: INK_RED, width: 2, alpha: 0.72 });
+			this.layers.intent.addChild(retryMark);
+		}
+	}
+
+	private drawCommandStatus(
+		layout: NotebookLayout,
+		lineX: number,
+		lineY: number,
+		lineW: number,
+		command: ReturnType<typeof resolveNotebookCommandPresentation>,
+	): void {
+		if (!command.statusText) return;
+		const mark = new Graphics();
+		const markX = lineX + 12;
+		const markY = layout.intentStrip.y + (layout.mode === 'mobile' ? 15 : 14);
+		const color =
+			command.phase === 'error'
+				? INK_RED
+				: command.phase === 'busy'
+					? INK_BUSY
+					: INK_SOFT;
+
+		if (command.phase === 'busy') {
+			for (let i = 0; i < 3; i += 1) {
+				mark.circle(markX + i * 6, markY + (i % 2), 1.8).fill({
+					color,
+					alpha: 0.86 - i * 0.12,
+				});
+			}
+		} else if (command.phase === 'disabled') {
+			mark
+				.moveTo(markX - 1, markY + 4)
+				.lineTo(markX + 5, markY - 2)
+				.moveTo(markX + 4, markY + 4)
+				.lineTo(markX + 10, markY - 2)
+				.stroke({ color, width: 1.5, alpha: 0.74 });
+		} else if (command.phase === 'error') {
+			mark
+				.moveTo(markX, markY - 3)
+				.lineTo(markX + 7, markY + 4)
+				.moveTo(markX + 7, markY - 3)
+				.lineTo(markX, markY + 4)
+				.stroke({ color, width: 1.8, alpha: 0.86 });
+		} else {
+			mark
+				.moveTo(markX, markY + 3)
+				.lineTo(markX + 7, markY - 2)
+				.stroke({ color, width: 1.6, alpha: 0.72 });
+		}
+		this.layers.intent.addChild(mark);
+		this.addText(
+			this.layers.intent,
+			shortText(command.statusText, layout.mode === 'mobile' ? 34 : 68),
+			lineX + 28,
+			layout.intentStrip.y + (layout.mode === 'mobile' ? 8 : 7),
+			layout.mode === 'mobile' ? 10 : 12,
+			{
+				fill: color,
+				fontStyle: 'normal',
+				wordWrap: false,
+				wordWrapWidth: lineW - 32,
+			},
+		);
 	}
 
 	private drawLowerCards(

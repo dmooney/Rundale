@@ -1,5 +1,12 @@
 # TODO.md Audit — 2026-06-04
 
+> **Historical snapshot — superseded for execution tracking.** The findings
+> below describe the repository on 2026-06-04. The debt sweep subsequently
+> cleared the crate/app/mod Open ledgers. Current executable work lives in
+> GitHub Issues; the portfolio reset is tracked by
+> [#1684](https://github.com/dmooney/Rundale/issues/1684). Do not use the counts
+> in this report as the current backlog.
+
 Static audit of every Open item across all 20 `TODO.md` files: each claim verified against its cited `file:line`, cross-checked against `git log` for fix attempts, and cross-referenced to GitHub issues (`dmooney/rundale`). TODO files were updated in place (fixed -> Done, stale anchors corrected). This report is the synthesis.
 
 Method: 18 parallel Sonnet audit agents (16 crate/app + bench + root), 751 tool calls.

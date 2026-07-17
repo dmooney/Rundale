@@ -186,7 +186,7 @@ A custom tracing subscriber layer captures log entries into a ring buffer:
 
 ## Source Modules
 
-- [`src/debug.rs`](../../src/debug.rs) — Debug commands and metrics
-- [`src/input/`](../../src/input/) — Debug command parsing
-- [`src/npc/`](../../src/npc/) — NPC state access for debug views
-- [`src/inference/`](../../src/inference/) — Inference metrics collection
+- [`parish-engine/src/debug.rs`](../../parish/crates/parish-engine/src/debug.rs) — Debug commands and metrics
+- [`parish-input`](../../parish/crates/parish-input/src/) — Debug command parsing
+- [`parish-npc`](../../parish/crates/parish-npc/src/) — NPC state access for debug views
+- [`parish-inference`](../../parish/crates/parish-inference/src/) — Inference metrics collection

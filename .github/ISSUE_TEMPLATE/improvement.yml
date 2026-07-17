@@ -1,0 +1,190 @@
+name: Portfolio work item
+description: Propose a bounded bug, risk, debt, product, or experiment work item.
+title: ""
+labels: []
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this form for executable work. P0-P3 records severity only; Horizon records sequence.
+        An item enters `in-progress` only after a worker slot is committed.
+
+  - type: textarea
+    id: outcome
+    attributes:
+      label: Outcome
+      description: State the observable result, not the implementation activity.
+      placeholder: Players, operators, or maintainers can observe that...
+    validations:
+      required: true
+
+  - type: dropdown
+    id: status
+    attributes:
+      label: Portfolio status
+      options:
+        - Intake
+        - Ready
+        - Blocked
+        - Deferred
+    validations:
+      required: true
+
+  - type: dropdown
+    id: severity
+    attributes:
+      label: Severity
+      description: P0-P3 records impact only; use Horizon for sequence.
+      options:
+        - P0
+        - P1
+        - P2
+        - P3
+    validations:
+      required: true
+
+  - type: dropdown
+    id: initiative
+    attributes:
+      label: Initiative
+      options:
+        - Notebook
+        - Player Quality
+        - Architecture/Scaling
+        - Testing
+        - Bench/Evals
+        - Future Roadmap
+        - Governance
+    validations:
+      required: true
+
+  - type: dropdown
+    id: horizon
+    attributes:
+      label: Horizon
+      options:
+        - Now
+        - Next
+        - Later
+    validations:
+      required: true
+
+  - type: dropdown
+    id: work_type
+    attributes:
+      label: Work type
+      options:
+        - Bug
+        - Risk
+        - Debt
+        - Product
+        - Experiment
+    validations:
+      required: true
+
+  - type: dropdown
+    id: risk
+    attributes:
+      label: Risk
+      options:
+        - Standard
+        - High
+    validations:
+      required: true
+
+  - type: dropdown
+    id: size
+    attributes:
+      label: Size
+      description: Large items must be split before they enter Ready.
+      options:
+        - S
+        - M
+        - L
+    validations:
+      required: true
+
+  - type: input
+    id: dri
+    attributes:
+      label: DRI
+      description: Use Codex unless a named human or external owner is required.
+      placeholder: Codex
+    validations:
+      required: true
+
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: List observable, independently verifiable completion conditions.
+      placeholder: |
+        - [ ] ...
+        - [ ] ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: proof
+    attributes:
+      label: Proof method
+      description: Name the tests, gameplay proof, screenshots, or live measurements that will prove the criteria.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: runtime_modes
+    attributes:
+      label: Runtime modes affected
+      multiple: true
+      options:
+        - Not applicable
+        - Tauri desktop
+        - Web server
+        - Headless CLI/script harness
+        - Svelte UI
+        - Benchmark/evaluation tooling
+    validations:
+      required: true
+
+  - type: dropdown
+    id: scaling_seams
+    attributes:
+      label: Scaling seams affected
+      multiple: true
+      options:
+        - Not applicable
+        - Persistence
+        - Identity
+        - Inference
+        - Sessions
+        - AppState
+        - Realtime/EventBus
+        - Mod loading
+        - Request tracing
+    validations:
+      required: true
+
+  - type: textarea
+    id: dependencies
+    attributes:
+      label: Dependencies
+      description: Link prerequisites or write `None`.
+    validations:
+      required: true
+
+  - type: textarea
+    id: unblock_trigger
+    attributes:
+      label: Unblock trigger
+      description: Required for Blocked or Deferred work; otherwise write `Not applicable`.
+    validations:
+      required: true
+
+  - type: input
+    id: parent
+    attributes:
+      label: Parent initiative or roadmap entry
+      description: Link the active epic or name the roadmap row.
+    validations:
+      required: true

@@ -11,71 +11,123 @@ import {
 } from './fixtures';
 import { SNAPSHOTS, PALETTES, NPCS } from './mock-data';
 import { DEFAULT_THEME_PALETTE } from '../src/lib/theme';
+import type { Page } from '@playwright/test';
+
+async function waitForNotebook(page: Page): Promise<void> {
+	await expect(page.getByTestId('illustrated-notebook-game')).toBeVisible();
+	await expect(
+		page.getByTestId('illustrated-notebook-pixi-host').locator('canvas'),
+	).toBeVisible();
+	await expect(
+		page.getByRole('button', { name: 'Open Journal notebook tab' }),
+	).toHaveCount(1);
+}
+
+async function activateNotebookControl(
+	page: Page,
+	name: string,
+): Promise<void> {
+	const control = page.getByRole('button', { name });
+	await expect(control).toHaveCount(1);
+	await control.focus();
+	await page.keyboard.press('Enter');
+}
 
 test.describe('App layout', () => {
 	test.beforeEach(async ({ page }) => {
 		await installTauriMock(page, 'morning');
 		await page.goto('/');
 		await page.waitForLoadState('networkidle');
+		await waitForNotebook(page);
 	});
 
-	test('renders the app shell with all major sections', async ({ page }) => {
+	test('renders the illustrated notebook shell without retired dashboard chrome', async ({
+		page,
+	}) => {
 		await expect(page.locator('.app-shell')).toBeVisible();
+		await expect(page.getByTestId('illustrated-notebook-game')).toBeVisible();
 		await expect(
-			page.locator('[data-testid="status-bar"]').getByText('Baile Átha Cliath'),
+			page.getByTestId('illustrated-notebook-pixi-host').locator('canvas'),
 		).toBeVisible();
-	});
+		await expect(page.getByLabel('Player intent')).toHaveCount(1);
 
-	test('status bar shows time label and weather', async ({ page }) => {
-		// StatusBar derives time label from game_epoch_ms (hour 8 → "Morning")
-		await expect(page.locator('.time-label')).toContainText('Morning');
-		await expect(page.getByText('Clear')).toBeVisible();
-		await expect(page.getByText('Spring')).toBeVisible();
-	});
-
-	test('chat panel shows initial location description', async ({ page }) => {
-		await expect(
-			page.getByText('The streets of Dublin bustle with life', {
-				exact: false,
-			}),
-		).toBeVisible();
-	});
-
-	test('map panel renders MapLibre canvas', async ({ page }) => {
-		// The minimap uses MapLibre GL (WebGL canvas), so assert the canvas is
-		// mounted inside the map panel rather than counting SVG markers.
-		const canvas = page.locator(
-			'[data-testid="map-panel"] canvas.maplibregl-canvas',
-		);
-		await expect(canvas).toBeVisible();
-	});
-
-	test('NPC chip row shows NPCs at current location', async ({ page }) => {
-		// NPCs are now rendered as a clickable chip row above the input field,
-		// not in the sidebar.
-		for (const npc of NPCS) {
-			await expect(
-				page.locator('.npc-chip', { hasText: npc.name }),
-			).toBeVisible();
+		for (const selector of [
+			'[data-testid="status-bar"]',
+			'[data-testid="chat-panel"]',
+			'[data-testid="map-panel"]',
+			'[data-testid="sidebar"]',
+			'[data-testid="input-field"]',
+			'.input-wrapper',
+			'.input-form',
+		]) {
+			await expect(page.locator(selector)).toHaveCount(0);
 		}
 	});
 
-	test('input field is visible and enabled', async ({ page }) => {
-		const input = page.locator('[data-testid="input-field"]');
-		await expect(input).toBeVisible();
-		// #1379: the input is always contenteditable (never aria-disabled="true");
-		// the field must be present and interactive at idle state.
-		await expect(input).toHaveAttribute('contenteditable', 'true');
-		await expect(input).not.toHaveAttribute('aria-disabled', 'true');
-	});
-
-	test('sidebar shows name pronunciation hints from world snapshot', async ({
+	test('time drawer shows the current clock, weather, and season', async ({
 		page,
 	}) => {
-		// Verify pronunciation hints appear in the Focail panel
-		await expect(page.getByText('[EE-fa]')).toBeVisible();
-		await expect(page.getByText('— beauty, radiance')).toBeVisible();
-		await expect(page.getByText('[BAHL-ya AH-ha KLEE-ah]')).toBeVisible();
+		await activateNotebookControl(page, 'Open time details');
+		const drawer = page.getByLabel('time drawer');
+		await expect(drawer).toBeVisible();
+		await expect(drawer).toContainText(/08:00\s*Morning/);
+		await expect(drawer).toContainText('Weather: Clear');
+		await expect(drawer).toContainText('Season: Spring');
+	});
+
+	test('journal drawer shows the initial location description', async ({
+		page,
+	}) => {
+		await activateNotebookControl(page, 'Open Journal notebook tab');
+		await expect(page.getByLabel('journal drawer')).toContainText(
+			'The streets of Dublin bustle with life',
+		);
+	});
+
+	test('notebook map control opens the full MapLibre map', async ({ page }) => {
+		await activateNotebookControl(page, 'Open parish map');
+		const map = page.getByTestId('full-map');
+		await expect(map).toBeVisible();
+		await expect(map.locator('canvas.maplibregl-canvas')).toBeVisible();
+	});
+
+	test('notebook markers and nearby controls expose every present NPC', async ({
+		page,
+	}) => {
+		for (const npc of NPCS) {
+			await expect(
+				page.getByRole('button', { name: `Select marker for ${npc.name}` }),
+			).toHaveCount(1);
+			await expect(
+				page.getByRole('button', {
+					name: `Select nearby person ${npc.name}`,
+				}),
+			).toHaveCount(1);
+		}
+	});
+
+	test('hidden native intent control accepts keyboard input at idle', async ({
+		page,
+	}) => {
+		const input = page.getByLabel('Player intent');
+		await expect(input).not.toHaveAttribute('aria-disabled');
+		await expect(input).toHaveAttribute('aria-busy', 'false');
+		await input.focus();
+		await expect(input).toBeFocused();
+		await page.keyboard.insertText('ask what happened');
+		await expect(input).toHaveValue('ask what happened');
+	});
+
+	test('people drawer replaces the persistent sidebar for nearby details', async ({
+		page,
+	}) => {
+		await activateNotebookControl(page, 'Open People notebook tab');
+		const drawer = page.getByLabel('people drawer');
+		await expect(drawer).toBeVisible();
+		for (const npc of NPCS) {
+			await expect(drawer).toContainText(npc.name);
+			await expect(drawer).toContainText(npc.occupation);
+		}
 	});
 });
 
@@ -126,32 +178,40 @@ test.describe('Theme application', () => {
 });
 
 test.describe('Event handling', () => {
-	test('text-log event adds entry to chat panel', async ({ page }) => {
+	test('text-log event adds an entry to the journal drawer', async ({
+		page,
+	}) => {
 		await installTauriMock(page, 'morning');
 		await page.goto('/');
 		await page.waitForLoadState('networkidle');
+		await waitForNotebook(page);
 
 		await emitEvent(page, 'text-log', {
 			source: 'system',
 			content: 'You arrive at the market square.',
 		});
 
-		await expect(
-			page.getByText('You arrive at the market square.'),
-		).toBeVisible();
+		await activateNotebookControl(page, 'Open Journal notebook tab');
+		await expect(page.getByLabel('journal drawer')).toContainText(
+			'You arrive at the market square.',
+		);
 	});
 
-	test('world-update event refreshes status bar', async ({ page }) => {
+	test('world-update event refreshes notebook time details', async ({
+		page,
+	}) => {
 		await installTauriMock(page, 'morning');
 		await page.goto('/');
 		await page.waitForLoadState('networkidle');
+		await waitForNotebook(page);
 
-		// Verify initial state
-		await expect(page.locator('.time-label')).toContainText('Morning');
+		await activateNotebookControl(page, 'Open time details');
+		const drawer = page.getByLabel('time drawer');
+		await expect(drawer).toContainText(/08:00\s*Morning/);
 
-		// Emit world update to midday
 		await emitEvent(page, 'world-update', SNAPSHOTS.midday);
 
-		await expect(page.locator('.time-label')).toContainText('Midday');
+		await expect(drawer).toContainText(/12:00\s*Midday/);
+		await expect(drawer).toContainText('Weather: Overcast');
 	});
 });

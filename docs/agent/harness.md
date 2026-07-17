@@ -6,20 +6,20 @@ The framing comes from OpenAI's [harness-engineering post](https://openai.com/in
 
 ## When you... → the harness... → lives at
 
-| When you...                                                                                          | The harness...                                            | Lives at                                                                                                       |
-| ---------------------------------------------------------------------------------------------------- | --------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------- |
-| Edit a doc that cites a path                                                                         | Rejects nonexistent paths in any backtick-quoted token    | `parish/scripts/check-doc-paths.sh` (CI: `docs-consistency`, local: `just check`)                              |
-| Edit `AGENTS.md`                                                                                     | `CLAUDE.md` follows automatically                         | `CLAUDE.md` is a symlink to `AGENTS.md`                                                                        |
-| Add a runtime dep (`axum`, `tauri`, etc.) to a leaf crate                                            | Test fails citing the rule                                | `parish/crates/parish-core/tests/architecture_fitness.rs` → `backend_agnostic_crates_do_not_pull_runtime_deps` |
-| Create a top-level module under `parish/crates/parish-engine/src/` that shadows one in `parish-core` | Test fails with the canonical fix (extend the leaf crate) | `architecture_fitness.rs` → `parish_engine_does_not_duplicate_parish_core_modules`                             |
-| Leave a `.rs` file behind after a refactor (no `mod` declaration anywhere)                           | Test fails listing the orphan(s)                          | `architecture_fitness.rs` → `no_orphaned_source_files`                                                         |
-| Change anything that affects gameplay JSON output                                                    | Snapshot baseline test fails with a `live                 | baseline` diff window                                                                                          | `parish/crates/parish-engine/tests/eval_baselines.rs` |
-| Introduce an out-of-period word in a fixture                                                         | Rubric fails                                              | `eval_baselines.rs` → `rubric_anachronisms_are_empty`                                                          |
-| Accidentally return `Moved { minutes: 0 }` (frozen clock)                                            | Rubric fails                                              | `eval_baselines.rs` → `rubric_movement_minutes_are_positive`                                                   |
-| Silently break the location-description renderer                                                     | Rubric fails                                              | `eval_baselines.rs` → `rubric_look_descriptions_are_non_empty`                                                 |
-| Leave AI partial-completion markers in changed files                                                 | Witness scan fails                                        | `parish/justfile` -> `witness-scan` (gates `just check` and `just verify`)                                     |
-| Open a PR with runtime, UI, gameplay, CI, harness, or agent-instruction changes but no proof         | Agent proof gate fails                                    | `parish/scripts/agent-check.sh` (CI: `agent-check`, local: `just agent-check`)                                 |
-| Want to know which gameplay subsystems lack a fixture                                                | Read-only report                                          | `just harness-audit` → `parish/scripts/harness-audit.sh`                                                       |
+| When you...                                                                                          | The harness...                                                               | Lives at                                                                                                       |
+| ---------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------- |
+| Edit a doc that links to a path                                                                      | Rejects broken relative Markdown links and nonexistent agent-path references | `parish/scripts/check-doc-paths.sh` (CI: `docs-consistency`, local: `just check`)                              |
+| Edit `AGENTS.md`                                                                                     | `CLAUDE.md` follows automatically                                            | `CLAUDE.md` is a symlink to `AGENTS.md`                                                                        |
+| Add a runtime dep (`axum`, `tauri`, etc.) to a leaf crate                                            | Test fails citing the rule                                                   | `parish/crates/parish-core/tests/architecture_fitness.rs` → `backend_agnostic_crates_do_not_pull_runtime_deps` |
+| Create a top-level module under `parish/crates/parish-engine/src/` that shadows one in `parish-core` | Test fails with the canonical fix (extend the leaf crate)                    | `architecture_fitness.rs` → `parish_engine_does_not_duplicate_parish_core_modules`                             |
+| Leave a `.rs` file behind after a refactor (no `mod` declaration anywhere)                           | Test fails listing the orphan(s)                                             | `architecture_fitness.rs` → `no_orphaned_source_files`                                                         |
+| Change anything that affects gameplay JSON output                                                    | Snapshot baseline test fails with a `live                                    | baseline` diff window                                                                                          | `parish/crates/parish-engine/tests/eval_baselines.rs` |
+| Introduce an out-of-period word in a fixture                                                         | Rubric fails                                                                 | `eval_baselines.rs` → `rubric_anachronisms_are_empty`                                                          |
+| Accidentally return `Moved { minutes: 0 }` (frozen clock)                                            | Rubric fails                                                                 | `eval_baselines.rs` → `rubric_movement_minutes_are_positive`                                                   |
+| Silently break the location-description renderer                                                     | Rubric fails                                                                 | `eval_baselines.rs` → `rubric_look_descriptions_are_non_empty`                                                 |
+| Leave AI partial-completion markers in changed files                                                 | Witness scan fails                                                           | `parish/justfile` -> `witness-scan` (gates `just check` and `just verify`)                                     |
+| Open a PR with runtime, UI, gameplay, CI, harness, or agent-instruction changes but no proof         | Agent proof gate fails                                                       | `parish/scripts/agent-check.sh` (CI: `agent-check`, local: `just agent-check`)                                 |
+| Want to know which gameplay subsystems lack a fixture                                                | Read-only report                                                             | `just harness-audit` → `parish/scripts/harness-audit.sh`                                                       |
 
 ## Skills
 
@@ -43,7 +43,8 @@ CI fast lane (`ci.yml`):
         agent-check           # proof evidence + judge verdict + fast debt scan
         docs-consistency      # check-doc-paths
         format/python/shell/toml quality
-        ci-gate               # stable required status; target < 60s
+        ui-e2e                # complete Playwright contract, UI-change PRs only
+        ci-gate               # stable required status; aggregates conditional UI proof
 
 CI full suite (`full-ci.yml`, merge_group / main push / nightly / manual):
         rust-quality-gate     # fmt + clippy + test (the architecture-fitness tests run here)
@@ -52,6 +53,13 @@ CI full suite (`full-ci.yml`, merge_group / main push / nightly / manual):
         game-harness          # every fixture in testing/fixtures/ + parish-client smoke
         ui-quality + ui-e2e   # frontend
 ```
+
+The complete Playwright suite is the canonical shipped-surface contract. A
+pull request that replaces the default UI must migrate or explicitly retire
+every assertion for the prior surface in that same change. The conditional
+`ui-e2e` result is folded into the sole branch-protection context, `CI gate`:
+UI changes require `success`, while non-UI pull requests require the job to be
+`skipped`. Failures, cancellations, and unexpected skips fail closed.
 
 ## Where the harness ends
 

@@ -35,7 +35,7 @@ cargo run --manifest-path parish/Cargo.toml -p parish-npc-tool -- art-inputs \
   --output parish/apps/ui/art/notebook-person-art/npc-art-inputs-v1.json
 ```
 
-See [`docs/design/scalable-npc-data-design.md`](../../docs/design/scalable-npc-data-design.md) for the full design.
+See [`docs/design/scalable-npc-data-design.md`](../../../docs/design/scalable-npc-data-design.md) for the full design.
 
 ## Audience
 

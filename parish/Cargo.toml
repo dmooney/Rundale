@@ -80,7 +80,7 @@ reqwest = { version = "0.12", default-features = false, features = ["rustls-tls"
 hf-hub = { version = "0.5", default-features = false, features = ["tokio"] }
 
 # Database
-rusqlite = { version = "0.32", features = ["bundled"] }
+rusqlite = { version = "0.40", features = ["bundled"] }
 
 # Time and dates
 chrono = { version = "0.4", features = ["serde"] }
@@ -117,6 +117,18 @@ tokio-test = "0.4"
 serial_test = "3"
 rand_chacha = "0.10"
 tracing-test = "0.2"
+
+# Temporary upstream security pins for target-specific paths retained in the
+# lockfile. Both crates keep their published package versions while the pinned
+# git trees move quick-xml to 0.41, fixing RUSTSEC-2026-0194 and
+# RUSTSEC-2026-0195. The wayland-scanner tree also contains unreleased breaking
+# codegen, edition-2024, and MSRV changes; neither patched crate may become
+# reachable on a supported target while these pins remain. The Security audit
+# workflow enforces that invariant. Remove each patch after its next crates.io
+# release contains the cited commit.
+[patch.crates-io]
+xcb = { git = "https://github.com/rust-x-bindings/rust-xcb", rev = "ae3b2cd080e78173223038ccbebdc644eaf4a9ad" }
+wayland-scanner = { git = "https://github.com/Smithay/wayland-rs", rev = "d07c4f91f28b42e5a485823ffd9d8d5a210b1053" }
 
 [profile.release]
 opt-level = 3
