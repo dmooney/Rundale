@@ -1,7 +1,17 @@
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { once } from 'node:events';
-import { readFileSync, rmSync } from 'node:fs';
+import {
+	existsSync,
+	mkdirSync,
+	mkdtempSync,
+	readFileSync,
+	rmSync,
+	statSync,
+	utimesSync,
+	writeFileSync,
+} from 'node:fs';
+import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
@@ -11,14 +21,24 @@ import {
 	allocateLoopbackPort,
 	binaryContainsExpectedBuildIdentity,
 	binaryContainsExpectedCsp,
+	captureUiDist,
 	cargoBuildArgs,
 	prepareIsolatedServerBinary,
+	pruneServerArtifacts,
+	publishActiveUseLease,
+	publishCachedBinary,
+	publishUiSnapshot,
 	runCargoBuild,
 	waitForServedCsp,
 } from './playwright-worktree-server.js';
 
 const UI_DIR = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const PARISH_DIR = resolve(UI_DIR, '../..');
+
+function backdate(path, milliseconds) {
+	const old = new Date(Date.now() - milliseconds);
+	utimesSync(path, old, old);
+}
 
 test(
 	'ordinary Cargo overwrite with identical UI hashes is rejected before live readiness',
@@ -91,6 +111,107 @@ test(
 		} finally {
 			server.kill('SIGTERM');
 			if (server.exitCode === null) await once(server, 'exit');
+			prepared.activeUseLease.release();
+		}
+	},
+);
+
+test(
+	'fresh lease keeps an oldest live static tree readable until lease expiry',
+	{ timeout: 300_000 },
+	async () => {
+		const prepared = await prepareIsolatedServerBinary();
+		const root = mkdtempSync(join(tmpdir(), 'parish-playwright-live-lease-'));
+		let activeUseLease;
+		let server;
+		try {
+			const capture = captureUiDist(prepared.staticDir);
+			assert.ok(capture);
+			const staticDir = publishUiSnapshot(root, capture);
+			const binaryPath = publishCachedBinary(
+				root,
+				readFileSync(prepared.path),
+				statSync(prepared.path).mode,
+			);
+			activeUseLease = publishActiveUseLease(root, [binaryPath, staticDir]);
+			const leasePath = activeUseLease.path;
+			backdate(binaryPath, 120_000);
+			backdate(staticDir, 120_000);
+
+			for (let index = 0; index < 3; index += 1) {
+				const binary = join(root, `parish-server-fixture-${index}`);
+				const snapshot = join(root, `ui-dist-fixture-${index}`);
+				writeFileSync(binary, String(index));
+				mkdirSync(snapshot);
+				writeFileSync(join(snapshot, 'index.html'), String(index));
+				backdate(binary, 60_000 - index * 10_000);
+				backdate(snapshot, 60_000 - index * 10_000);
+			}
+
+			const port = await allocateLoopbackPort();
+			const runId = 'integrationactivelease012345';
+			const readyFile = join(root, `.playwright-ready-${runId}`);
+			server = spawn(
+				binaryPath,
+				['--port', String(port), '--static-dir', staticDir],
+				{
+					cwd: PARISH_DIR,
+					env: {
+						...process.env,
+						PARISH_PLAYWRIGHT_BUILD_ID: prepared.buildId,
+						PARISH_PLAYWRIGHT_READY_FILE: readyFile,
+						PARISH_PLAYWRIGHT_RUN_ID: runId,
+					},
+					stdio: 'ignore',
+				},
+			);
+			await waitForServedCsp({
+				buildId: prepared.buildId,
+				expectedHashes: prepared.expectedHashes,
+				port,
+				readyFile,
+				runId,
+				server,
+			});
+
+			const first = await fetch(`http://127.0.0.1:${port}/`);
+			assert.equal(first.status, 200);
+			const firstHtml = await first.text();
+			pruneServerArtifacts(root, {
+				maxArtifacts: 3,
+				staleGraceMs: 0,
+			});
+			assert.equal(existsSync(binaryPath), true);
+			assert.equal(existsSync(staticDir), true);
+			const second = await fetch(`http://127.0.0.1:${port}/`);
+			assert.equal(second.status, 200);
+			assert.equal(await second.text(), firstHtml);
+
+			server.kill('SIGTERM');
+			if (server.exitCode === null) await once(server, 'exit');
+			activeUseLease.release();
+			activeUseLease = undefined;
+			assert.equal(existsSync(leasePath), false);
+
+			const newestBinary = join(root, 'parish-server-fixture-newest');
+			const newestSnapshot = join(root, 'ui-dist-fixture-newest');
+			writeFileSync(newestBinary, 'newest');
+			mkdirSync(newestSnapshot);
+			writeFileSync(join(newestSnapshot, 'index.html'), 'newest');
+			pruneServerArtifacts(root, {
+				maxArtifacts: 3,
+				staleGraceMs: 0,
+			});
+			assert.equal(existsSync(binaryPath), false);
+			assert.equal(existsSync(staticDir), false);
+		} finally {
+			if (server?.exitCode === null && server?.signalCode === null) {
+				server.kill('SIGKILL');
+				await once(server, 'exit');
+			}
+			activeUseLease?.release();
+			prepared.activeUseLease.release();
+			rmSync(root, { force: true, recursive: true });
 		}
 	},
 );

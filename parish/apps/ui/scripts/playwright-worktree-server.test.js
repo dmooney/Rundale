@@ -18,6 +18,7 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 
 import {
+	PLAYWRIGHT_ACTIVE_USE_STALE_GRACE_MS,
 	PLAYWRIGHT_ARTIFACT_MAX_AGE_MS,
 	PLAYWRIGHT_BUILD_ID_HEADER,
 	PLAYWRIGHT_BUILD_LOCK_TIMEOUT_MS,
@@ -38,10 +39,12 @@ import {
 	playwrightWebServerConfig,
 	pruneLegacyLockCandidates,
 	pruneServerArtifacts,
+	publishActiveUseLease,
 	publishCachedBinary,
 	publishReadyMarker,
 	publishUiSnapshot,
 	resolvePlaywrightPort,
+	superviseServer,
 	uiDistFingerprint,
 	waitForServedCsp,
 	worktreeKey,
@@ -488,6 +491,173 @@ test('pruning bounds reusable binaries and removes abrupt candidates', () => {
 			2,
 		);
 	} finally {
+		rmSync(root, { force: true, recursive: true });
+	}
+});
+
+test('fresh active-use lease keeps the oldest cache until abrupt-owner expiry', async () => {
+	const root = mkdtempSync(join(tmpdir(), 'parish-playwright-active-cache-'));
+	const activeBinary = join(root, 'parish-server-0');
+	const activeSnapshot = join(root, 'ui-dist-0');
+	for (let index = 0; index < 4; index += 1) {
+		const binary = join(root, `parish-server-${index}`);
+		const snapshot = join(root, `ui-dist-${index}`);
+		writeFileSync(binary, String(index));
+		mkdirSync(snapshot);
+		writeFileSync(join(snapshot, 'index.html'), String(index));
+		backdate(binary, 120_000 - index * 10_000);
+		backdate(snapshot, 120_000 - index * 10_000);
+	}
+
+	const ownerScript = join(root, 'active-owner.mjs');
+	writeFileSync(
+		ownerScript,
+		`import { publishActiveUseLease } from ${JSON.stringify(helperUrl)};\nconst lease = publishActiveUseLease(${JSON.stringify(root)}, [${JSON.stringify(activeBinary)}, ${JSON.stringify(activeSnapshot)}], { heartbeatMs: 5, staleGraceMs: 60 });\nconsole.log(lease.path);\nsetInterval(() => {}, 1000);\n`,
+	);
+	const owner = spawn(process.execPath, [ownerScript], {
+		stdio: ['ignore', 'pipe', 'inherit'],
+	});
+	owner.stdout.setEncoding('utf8');
+	let output = '';
+	owner.stdout.on('data', (chunk) => {
+		output += chunk;
+	});
+	try {
+		const deadline = Date.now() + 5_000;
+		while (!output.includes('\n') && Date.now() < deadline) {
+			await new Promise((resolveDelay) => setTimeout(resolveDelay, 10));
+		}
+		const leasePath = output.trim();
+		assert.match(leasePath, /\.playwright-server-active-[a-f0-9]{32}\.json$/);
+
+		pruneServerArtifacts(root, {
+			leaseStaleGraceMs: 60,
+			maxArtifacts: 3,
+			staleGraceMs: 0,
+		});
+		assert.equal(existsSync(activeBinary), true);
+		assert.equal(existsSync(activeSnapshot), true);
+		assert.equal(existsSync(leasePath), true);
+		assert.equal(
+			readdirSync(root).filter((name) => name.startsWith('parish-server-'))
+				.length,
+			3,
+		);
+		assert.equal(
+			readdirSync(root).filter((name) => name.startsWith('ui-dist-')).length,
+			3,
+		);
+
+		owner.kill('SIGKILL');
+		await once(owner, 'exit');
+		await new Promise((resolveDelay) => setTimeout(resolveDelay, 80));
+		const newestBinary = join(root, 'parish-server-newest');
+		const newestSnapshot = join(root, 'ui-dist-newest');
+		writeFileSync(newestBinary, 'newest');
+		mkdirSync(newestSnapshot);
+		writeFileSync(join(newestSnapshot, 'index.html'), 'newest');
+		pruneServerArtifacts(root, {
+			leaseStaleGraceMs: 60,
+			maxArtifacts: 3,
+			staleGraceMs: 0,
+		});
+		assert.equal(existsSync(leasePath), false);
+		assert.equal(existsSync(activeBinary), false);
+		assert.equal(existsSync(activeSnapshot), false);
+	} finally {
+		if (owner.exitCode === null) owner.kill('SIGKILL');
+		rmSync(root, { force: true, recursive: true });
+	}
+});
+
+test('fresh malformed active-use lease fails closed then is reclaimed', () => {
+	const root = mkdtempSync(join(tmpdir(), 'parish-playwright-bad-active-'));
+	for (let index = 0; index < 4; index += 1) {
+		const binary = join(root, `parish-server-${index}`);
+		writeFileSync(binary, String(index));
+		backdate(binary, 60_000 + index * 1_000);
+	}
+	const malformed = join(root, '.playwright-server-active-malformed.json');
+	writeFileSync(malformed, '{');
+	try {
+		pruneServerArtifacts(root, {
+			leaseStaleGraceMs: 1_000,
+			maxArtifacts: 3,
+			staleGraceMs: 0,
+		});
+		assert.equal(
+			readdirSync(root).filter((name) => name.startsWith('parish-server-'))
+				.length,
+			4,
+		);
+		assert.equal(existsSync(malformed), true);
+
+		backdate(malformed);
+		pruneServerArtifacts(root, {
+			leaseStaleGraceMs: 10,
+			maxArtifacts: 3,
+			staleGraceMs: 0,
+		});
+		assert.equal(existsSync(malformed), false);
+		assert.equal(
+			readdirSync(root).filter((name) => name.startsWith('parish-server-'))
+				.length,
+			3,
+		);
+	} finally {
+		rmSync(root, { force: true, recursive: true });
+	}
+});
+
+test('releasing one active-use lease cannot remove another run lease', () => {
+	const root = mkdtempSync(join(tmpdir(), 'parish-playwright-owned-active-'));
+	const firstBinary = join(root, 'parish-server-first');
+	const firstSnapshot = join(root, 'ui-dist-first');
+	const secondBinary = join(root, 'parish-server-second');
+	const secondSnapshot = join(root, 'ui-dist-second');
+	for (const path of [firstBinary, secondBinary]) writeFileSync(path, path);
+	for (const path of [firstSnapshot, secondSnapshot]) mkdirSync(path);
+	backdate(firstBinary, 1_000);
+	backdate(firstSnapshot, 1_000);
+	const first = publishActiveUseLease(root, [firstBinary, firstSnapshot]);
+	const second = publishActiveUseLease(root, [secondBinary, secondSnapshot]);
+	try {
+		first.release();
+		assert.equal(existsSync(first.path), false);
+		assert.equal(existsSync(second.path), true);
+		pruneServerArtifacts(root, {
+			leaseStaleGraceMs: PLAYWRIGHT_ACTIVE_USE_STALE_GRACE_MS,
+			maxArtifacts: 0,
+			staleGraceMs: 0,
+		});
+		assert.equal(existsSync(firstBinary), false);
+		assert.equal(existsSync(firstSnapshot), false);
+		assert.equal(existsSync(secondBinary), true);
+		assert.equal(existsSync(secondSnapshot), true);
+		assert.equal(existsSync(second.path), true);
+	} finally {
+		first.release();
+		second.release();
+		rmSync(root, { force: true, recursive: true });
+	}
+});
+
+test('server supervision releases the active-use lease on child exit', async () => {
+	const root = mkdtempSync(join(tmpdir(), 'parish-playwright-supervised-'));
+	const binary = join(root, 'parish-server-supervised');
+	const snapshot = join(root, 'ui-dist-supervised');
+	writeFileSync(binary, 'binary');
+	mkdirSync(snapshot);
+	const lease = publishActiveUseLease(root, [binary, snapshot]);
+	try {
+		const { server } = superviseServer(process.execPath, ['-e', ''], {
+			cwd: root,
+			onExit: () => lease.release(),
+		});
+		await once(server, 'exit');
+		assert.equal(existsSync(lease.path), false);
+	} finally {
+		lease.release();
 		rmSync(root, { force: true, recursive: true });
 	}
 });

@@ -70,8 +70,11 @@ publishes a content-addressed server copy only after validating that identity
 and its CSP hashes. The server then echoes the identity through a per-run
 readiness URL before Playwright proceeds. Default runs allocate a free
 loopback port; set `PARISH_TEST_PORT` only when a fixed port is required. A
-heartbeat lease serializes helper builds, while bounded cache and candidate
-pruning recover from abrupt process death on every supported OS. The same path
+heartbeat lease serializes helper builds. Before releasing that lock, the
+helper publishes a second heartbeat lease for the exact binary and UI snapshot
+used by the live server; every pruner preserves fresh active-use leases and
+reclaims stale or malformed residue after a bounded grace. Normal teardown
+releases ownership but leaves up to three reusable cache entries. The same path
 runs in local, GitHub-hosted, and self-hosted environments.
 
 To unit-test the isolation helper from `parish/apps/ui/`:

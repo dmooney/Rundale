@@ -3,6 +3,7 @@ import { createHash, randomBytes } from 'node:crypto';
 import {
 	chmodSync,
 	closeSync,
+	fstatSync,
 	futimesSync,
 	mkdirSync,
 	openSync,
@@ -16,7 +17,15 @@ import {
 } from 'node:fs';
 import { createServer as createNetServer } from 'node:net';
 import { hostname } from 'node:os';
-import { dirname, join, resolve } from 'node:path';
+import {
+	basename,
+	dirname,
+	isAbsolute,
+	join,
+	relative,
+	resolve,
+	sep,
+} from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const UI_DIR = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -28,11 +37,15 @@ export const PLAYWRIGHT_SERVER_TIMEOUT_MS = 420_000;
 export const PLAYWRIGHT_SERVER_SHUTDOWN_TIMEOUT_MS = 10_000;
 export const PLAYWRIGHT_LOCK_STALE_GRACE_MS = 15_000;
 export const PLAYWRIGHT_LOCK_HEARTBEAT_MS = 2_000;
+export const PLAYWRIGHT_ACTIVE_USE_STALE_GRACE_MS = 15_000;
+export const PLAYWRIGHT_ACTIVE_USE_HEARTBEAT_MS = 2_000;
 export const PLAYWRIGHT_ARTIFACT_MAX_AGE_MS = 24 * 60 * 60 * 1_000;
 export const PLAYWRIGHT_MAX_CACHED_ARTIFACTS = 3;
 export const PLAYWRIGHT_BUILD_ID_HEADER = 'x-parish-playwright-build-id';
 
 const RUN_ID_PATTERN = /^[A-Za-z0-9_-]{16,128}$/;
+const ACTIVE_USE_LEASE_PREFIX = '.playwright-server-active-';
+const ACTIVE_USE_LEASE_SUFFIX = '.json';
 
 export async function allocateLoopbackPort() {
 	const reservation = createNetServer();
@@ -482,6 +495,229 @@ function removePrunable(path, removePath = rmSync) {
 	}
 }
 
+function isServerArtifactPath(serverRoot, path) {
+	const root = resolve(serverRoot);
+	const artifact = resolve(path);
+	const fromRoot = relative(root, artifact);
+	return (
+		fromRoot !== '' &&
+		fromRoot !== '..' &&
+		!fromRoot.startsWith(`..${sep}`) &&
+		!isAbsolute(fromRoot)
+	);
+}
+
+function activeUseLeaseToken(name) {
+	if (
+		!name.startsWith(ACTIVE_USE_LEASE_PREFIX) ||
+		!name.endsWith(ACTIVE_USE_LEASE_SUFFIX)
+	)
+		return undefined;
+	const token = name.slice(
+		ACTIVE_USE_LEASE_PREFIX.length,
+		-ACTIVE_USE_LEASE_SUFFIX.length,
+	);
+	return /^[a-f0-9]{32}$/.test(token) ? token : undefined;
+}
+
+function readActiveUseLease(leasePath, serverRoot, expectedToken) {
+	const payload = JSON.parse(readFileSync(leasePath, 'utf8'));
+	if (
+		payload?.version !== 1 ||
+		payload.token !== expectedToken ||
+		typeof payload.hostname !== 'string' ||
+		!Number.isInteger(payload.pid) ||
+		!Array.isArray(payload.artifacts) ||
+		payload.artifacts.length !== 2 ||
+		!payload.artifacts.every((path) => typeof path === 'string')
+	) {
+		return undefined;
+	}
+
+	const artifacts = [
+		...new Set(payload.artifacts.map((path) => resolve(path))),
+	];
+	if (
+		artifacts.length !== 2 ||
+		!artifacts.every((path) => isServerArtifactPath(serverRoot, path)) ||
+		!artifacts.some((path) => basename(path).startsWith('parish-server-')) ||
+		!artifacts.some((path) => basename(path).startsWith('ui-dist-'))
+	) {
+		return undefined;
+	}
+	return { ...payload, artifacts };
+}
+
+/**
+ * Publish the binary and UI snapshot used by one live managed server.
+ *
+ * Production callers create this while holding the global build lock. The
+ * unique pathname plus token check makes release owner-specific, while the
+ * heartbeat lets later pruners recover residue from an abruptly killed owner.
+ */
+export function publishActiveUseLease(
+	serverRoot,
+	artifacts,
+	{
+		heartbeatMs = PLAYWRIGHT_ACTIVE_USE_HEARTBEAT_MS,
+		staleGraceMs = PLAYWRIGHT_ACTIVE_USE_STALE_GRACE_MS,
+	} = {},
+) {
+	if (heartbeatMs <= 0 || heartbeatMs * 3 >= staleGraceMs) {
+		throw new Error(
+			'active-use heartbeat must be less than one-third of its stale grace',
+		);
+	}
+	const root = resolve(serverRoot);
+	const resolvedArtifacts = [
+		...new Set(artifacts.map((path) => resolve(path))),
+	];
+	if (
+		resolvedArtifacts.length !== 2 ||
+		!resolvedArtifacts.every((path) => isServerArtifactPath(root, path)) ||
+		!resolvedArtifacts.some((path) =>
+			basename(path).startsWith('parish-server-'),
+		) ||
+		!resolvedArtifacts.some((path) => basename(path).startsWith('ui-dist-'))
+	) {
+		throw new Error(
+			'active-use lease must contain one cached server binary and one UI snapshot',
+		);
+	}
+
+	mkdirSync(root, { recursive: true });
+	const token = randomBytes(16).toString('hex');
+	const leasePath = join(
+		root,
+		`${ACTIVE_USE_LEASE_PREFIX}${token}${ACTIVE_USE_LEASE_SUFFIX}`,
+	);
+	const descriptor = openSync(leasePath, 'wx+', 0o600);
+	try {
+		writeFileSync(
+			descriptor,
+			JSON.stringify({
+				artifacts: resolvedArtifacts,
+				hostname: hostname(),
+				pid: process.pid,
+				token,
+				version: 1,
+			}),
+		);
+	} catch (error) {
+		closeSync(descriptor);
+		rmSync(leasePath, { force: true });
+		throw error;
+	}
+
+	let leaseError;
+	let released = false;
+	const assertLeaseFileOwned = () => {
+		if (released)
+			throw new Error('Playwright server active-use lease was released');
+		const descriptorStat = fstatSync(descriptor);
+		const pathStat = statSync(leasePath);
+		const owner = readActiveUseLease(leasePath, root, token);
+		if (
+			!owner ||
+			descriptorStat.dev !== pathStat.dev ||
+			descriptorStat.ino !== pathStat.ino
+		) {
+			throw new Error('Playwright server active-use lease was lost');
+		}
+	};
+	const refresh = () => {
+		try {
+			assertLeaseFileOwned();
+			const now = new Date();
+			futimesSync(descriptor, now, now);
+		} catch (error) {
+			leaseError ??= error;
+		}
+	};
+	const heartbeat = setInterval(refresh, heartbeatMs);
+	heartbeat.unref();
+
+	return {
+		artifacts: resolvedArtifacts,
+		path: leasePath,
+		assertOwned() {
+			if (leaseError) throw leaseError;
+			assertLeaseFileOwned();
+		},
+		release() {
+			if (released) return;
+			released = true;
+			clearInterval(heartbeat);
+			closeSync(descriptor);
+			try {
+				const owner = readActiveUseLease(leasePath, root, token);
+				if (owner?.token === token) rmSync(leasePath, { force: true });
+			} catch (error) {
+				if (error?.code !== 'ENOENT') throw error;
+			}
+		},
+	};
+}
+
+function collectActiveUseLeasePaths(
+	serverRoot,
+	{ leaseStaleGraceMs, now, readDirectory, removePath, statPath },
+) {
+	const keepPaths = new Set();
+	let pruningBlocked = false;
+	let entries;
+	try {
+		entries = readDirectory(serverRoot, { withFileTypes: true });
+	} catch (error) {
+		if (error?.code === 'ENOENT') return { keepPaths, pruningBlocked };
+		throw error;
+	}
+
+	for (const entry of entries) {
+		if (
+			!entry.name.startsWith(ACTIVE_USE_LEASE_PREFIX) ||
+			!entry.name.endsWith(ACTIVE_USE_LEASE_SUFFIX)
+		)
+			continue;
+		const leasePath = join(serverRoot, entry.name);
+		let leaseStat;
+		try {
+			leaseStat = statPath(leasePath);
+		} catch (error) {
+			if (error?.code === 'ENOENT') continue;
+			throw error;
+		}
+
+		if (now - leaseStat.mtimeMs >= leaseStaleGraceMs) {
+			if (removePrunable(leasePath, removePath)) continue;
+			try {
+				statPath(leasePath);
+			} catch (error) {
+				if (error?.code === 'ENOENT') continue;
+				throw error;
+			}
+		}
+
+		try {
+			const token = activeUseLeaseToken(entry.name);
+			const lease = token
+				? readActiveUseLease(leasePath, serverRoot, token)
+				: undefined;
+			if (!lease) {
+				pruningBlocked = true;
+				continue;
+			}
+			for (const path of lease.artifacts) keepPaths.add(path);
+		} catch (error) {
+			if (error?.code === 'ENOENT') continue;
+			// A fresh partial or unreadable lease may still belong to a publisher.
+			// Fail closed until its bounded stale grace elapses.
+			pruningBlocked = true;
+		}
+	}
+	return { keepPaths, pruningBlocked };
+}
+
 export function pruneLegacyLockCandidates(
 	targetDir,
 	{
@@ -548,6 +784,7 @@ export function pruneServerArtifacts(
 	serverRoot,
 	{
 		keepPaths: keep = [],
+		leaseStaleGraceMs = PLAYWRIGHT_ACTIVE_USE_STALE_GRACE_MS,
 		maxArtifacts = PLAYWRIGHT_MAX_CACHED_ARTIFACTS,
 		now = Date.now(),
 		readDirectory = readdirSync,
@@ -557,6 +794,15 @@ export function pruneServerArtifacts(
 	} = {},
 ) {
 	const keepPaths = new Set(keep.map((path) => resolve(path)));
+	const activeUse = collectActiveUseLeasePaths(serverRoot, {
+		leaseStaleGraceMs,
+		now,
+		readDirectory,
+		removePath,
+		statPath,
+	});
+	if (activeUse.pruningBlocked) return;
+	for (const path of activeUse.keepPaths) keepPaths.add(path);
 	const pending = [serverRoot];
 	while (pending.length > 0) {
 		const current = pending.pop();
@@ -775,17 +1021,30 @@ export async function prepareIsolatedServerBinary({
 				binary,
 				statSync(source).mode,
 			);
-			pruneServerArtifacts(serverRoot, {
-				keepPaths: [path, staticDir],
-			});
-			return {
-				attempts: attempt,
-				buildId,
-				expectedHashes: capture.expectedHashes,
-				outputDir,
+			lease.assertOwned();
+			const activeUseLease = publishActiveUseLease(serverRoot, [
 				path,
 				staticDir,
-			};
+			]);
+			try {
+				// The active-use lease is visible before the global build lock is
+				// released, so every later preparer sees a complete handoff.
+				pruneServerArtifacts(serverRoot);
+				lease.assertOwned();
+				activeUseLease.assertOwned();
+				return {
+					activeUseLease,
+					attempts: attempt,
+					buildId,
+					expectedHashes: capture.expectedHashes,
+					outputDir,
+					path,
+					staticDir,
+				};
+			} catch (error) {
+				activeUseLease.release();
+				throw error;
+			}
 		}
 	} finally {
 		lease.release();
@@ -935,15 +1194,28 @@ export async function waitForServedCsp({
 export function superviseServer(
 	command,
 	args,
-	{ cwd = PARISH_DIR, env = process.env } = {},
+	{ cwd = PARISH_DIR, env = process.env, onExit = () => {} } = {},
 ) {
 	const server = spawn(command, args, { cwd, env, stdio: 'inherit' });
+	let finalized = false;
+	const finalize = () => {
+		if (finalized) return;
+		finalized = true;
+		try {
+			onExit();
+		} catch (error) {
+			console.error(error);
+			process.exitCode = 1;
+		}
+	};
 	server.once('error', (error) => {
 		console.error(error);
 		process.exitCode = 1;
+		finalize();
 	});
 	server.once('exit', (code, signal) => {
 		process.exitCode = code ?? (signal ? 0 : 1);
+		finalize();
 	});
 
 	return { server };
@@ -978,7 +1250,7 @@ async function main() {
 	const supervision = superviseServer(
 		prepared.path,
 		['--port', port, '--static-dir', prepared.staticDir],
-		{ env },
+		{ env, onExit: () => prepared.activeUseLease.release() },
 	);
 	try {
 		await waitForServedCsp({
