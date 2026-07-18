@@ -1375,8 +1375,14 @@ test('artifact age policy eventually removes force-kill residue', () => {
 	const binary = join(root, 'parish-server-expired');
 	writeFileSync(binary, 'expired');
 	try {
+		const artifactMtimeMs = statSync(binary).mtimeMs;
 		pruneServerArtifacts(root, {
-			now: Date.now() + PLAYWRIGHT_ARTIFACT_MAX_AGE_MS + 1,
+			now: artifactMtimeMs + PLAYWRIGHT_ARTIFACT_MAX_AGE_MS - 1,
+		});
+		assert.equal(existsSync(binary), true);
+
+		pruneServerArtifacts(root, {
+			now: artifactMtimeMs + PLAYWRIGHT_ARTIFACT_MAX_AGE_MS,
 		});
 		assert.equal(existsSync(binary), false);
 	} finally {
