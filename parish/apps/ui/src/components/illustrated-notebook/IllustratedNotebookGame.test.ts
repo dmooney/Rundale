@@ -108,6 +108,7 @@ function target(id: string, label: string, order: number): ParishHitTarget {
 }
 
 function seedStores() {
+	sessionStorage.clear();
 	resetNotebookOverlayForTests();
 	worldState.set({
 		location_name: 'Kilteevan Village',
@@ -289,6 +290,32 @@ describe('IllustratedNotebookGame fresh parish bridge', () => {
 		await waitFor(() =>
 			expect(mockSubmitInput).toHaveBeenCalledWith('ask Roisin Connolly'),
 		);
+	});
+
+	it('recalls successful notebook commands and restores the in-progress draft', async () => {
+		const { getByLabelText } = render(IllustratedNotebookGame);
+		const input = getByLabelText('Player intent') as HTMLInputElement;
+
+		await fireEvent.input(input, { target: { value: 'look around' } });
+		await fireEvent.keyDown(input, { key: 'Enter' });
+		await waitFor(() => expect(input.value).toBe(''));
+
+		await fireEvent.input(input, { target: { value: 'talk to Roisin' } });
+		await fireEvent.keyDown(input, { key: 'Enter' });
+		await waitFor(() => expect(input.value).toBe(''));
+
+		await fireEvent.input(input, { target: { value: 'my new draft' } });
+		await fireEvent.keyDown(input, { key: 'ArrowUp' });
+		expect(input.value).toBe('talk to Roisin');
+		await fireEvent.keyDown(input, { key: 'ArrowUp' });
+		expect(input.value).toBe('look around');
+		await fireEvent.keyDown(input, { key: 'ArrowDown' });
+		expect(input.value).toBe('talk to Roisin');
+		await fireEvent.keyDown(input, { key: 'ArrowDown' });
+		expect(input.value).toBe('my new draft');
+
+		expect(mockSubmitInput).toHaveBeenNthCalledWith(1, 'look around');
+		expect(mockSubmitInput).toHaveBeenNthCalledWith(2, 'talk to Roisin');
 	});
 
 	it('renders focus and streaming as distinct command states while the hidden input stays editable', async () => {

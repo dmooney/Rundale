@@ -10,11 +10,19 @@ import type { Page } from '@playwright/test';
 import * as fs from 'fs';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
-import { expect, installTauriMock, test } from './fixtures';
+import {
+	emitEvent,
+	expect,
+	installTauriMock,
+	test,
+	waitForTextureCompleteNotebookFrame,
+} from './fixtures';
 import type { MapData, NpcInfo, WorldSnapshot } from '../src/lib/types';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PROOF_DIR = path.resolve(__dirname, '../../../../.proofs/1630');
+const COMMAND_PROOF_DIR = path.resolve(__dirname, '../../../../.proofs/1626');
+const COMMAND_VISUAL_PROOF_TIMEOUT_MS = 120_000;
 
 type CanvasBounds = NonNullable<
 	Awaited<ReturnType<ReturnType<Page['locator']>['boundingBox']>>
@@ -133,6 +141,139 @@ async function settlePaint(page: Page): Promise<void> {
 	);
 }
 
+async function settleNotebookFrame(page: Page): Promise<void> {
+	await settlePaint(page);
+	await waitForTextureCompleteNotebookFrame(page);
+}
+
+async function installControlledSubmitFailure(page: Page): Promise<void> {
+	await page.evaluate(() => {
+		type Invoke = (
+			command: string,
+			args?: Record<string, unknown>,
+		) => Promise<unknown>;
+		const globals = window as unknown as Record<string, unknown>;
+		const internals = globals.__TAURI_INTERNALS__ as { invoke: Invoke };
+		const originalInvoke = internals.invoke.bind(internals);
+		const control: { reject: (reason?: unknown) => void } = {
+			reject: () => {},
+		};
+		globals.__TEST_REJECT_NOTEBOOK_SUBMIT__ = () =>
+			control.reject(new Error('bridge unavailable'));
+		internals.invoke = (command, args) => {
+			if (command !== 'submit_input') return originalInvoke(command, args);
+			return new Promise<unknown>((_resolve, reject) => {
+				control.reject = reject;
+			});
+		};
+	});
+}
+
+async function rejectControlledSubmit(page: Page): Promise<void> {
+	await page.evaluate(() => {
+		const reject = (
+			window as unknown as Record<string, (() => void) | undefined>
+		).__TEST_REJECT_NOTEBOOK_SUBMIT__;
+		if (!reject)
+			throw new Error('controlled submit rejection was not installed');
+		reject();
+	});
+}
+
+async function proveCommandSurface(
+	page: Page,
+	viewport: 'desktop' | 'mobile',
+): Promise<void> {
+	const input = page.getByLabel('Player intent', { exact: true });
+	const status = page.locator('#notebook-command-status');
+	const askStamp = page.getByRole('button', {
+		name: 'Ask action',
+		exact: true,
+	});
+	const stableCanvas = await canvasBounds(page);
+
+	await input.fill('look around');
+	await input.press('Enter');
+	await expect(input).toHaveValue('');
+	await input.fill('talk to Roisin');
+	await input.press('Enter');
+	await expect(input).toHaveValue('');
+	await input.fill('a draft worth keeping');
+	await input.press('ArrowUp');
+	await expect(input).toHaveValue('talk to Roisin');
+	await input.press('ArrowUp');
+	await expect(input).toHaveValue('look around');
+	await input.press('ArrowDown');
+	await expect(input).toHaveValue('talk to Roisin');
+	await input.press('ArrowDown');
+	await expect(input).toHaveValue('a draft worth keeping');
+	await settleNotebookFrame(page);
+	await page.screenshot({
+		path: path.join(COMMAND_PROOF_DIR, `${viewport}-command-history.png`),
+		fullPage: false,
+	});
+
+	await input.fill('');
+	await emitEvent(page, 'loading', { active: true, phrase: 'Listening...' });
+	await expect(input).toHaveAttribute('data-command-state', 'busy');
+	await expect(input).not.toHaveAttribute('aria-disabled');
+	await expect(input).toHaveAttribute('aria-busy', 'true');
+	await expect(input).toBeEditable();
+	await expect(status).toHaveAttribute('role', 'status');
+	await expect(status).not.toHaveAttribute('aria-live');
+	await expect(status).toContainText('Parish reply in progress');
+	await expect(askStamp).toBeEnabled();
+	await settleNotebookFrame(page);
+	await expectCleanFirstViewport(page);
+	await expectCanvasBounds(page, stableCanvas);
+	await page.screenshot({
+		path: path.join(COMMAND_PROOF_DIR, `${viewport}-command-busy.png`),
+		fullPage: false,
+	});
+
+	await emitEvent(page, 'loading', { active: false });
+	await installControlledSubmitFailure(page);
+	await input.fill('ask Roisin what she saw');
+	await input.press('Enter');
+	await expect(input).toHaveAttribute('data-command-state', 'disabled');
+	await expect(input).toHaveAttribute('aria-disabled', 'true');
+	await expect(input).toHaveAttribute('aria-busy', 'true');
+	await expect(input).toHaveAttribute('readonly', '');
+	await expect(input).not.toBeEditable();
+	await expect(input).toHaveValue('ask Roisin what she saw');
+	await expect(askStamp).toBeDisabled();
+	await askStamp.dispatchEvent('click');
+	await expect(input).toHaveValue('ask Roisin what she saw');
+	await expect(status).toHaveAttribute('role', 'status');
+	await expect(status).toContainText('Sending your line');
+	await settleNotebookFrame(page);
+	await expectCanvasBounds(page, stableCanvas);
+	await page.screenshot({
+		path: path.join(COMMAND_PROOF_DIR, `${viewport}-command-disabled.png`),
+		fullPage: false,
+	});
+
+	await rejectControlledSubmit(page);
+	await expect(input).toHaveAttribute('data-command-state', 'error');
+	await expect(input).not.toHaveAttribute('aria-disabled');
+	await expect(input).toHaveAttribute('aria-busy', 'false');
+	await expect(input).toHaveAttribute('aria-invalid', 'true');
+	await expect(input).toHaveValue('ask Roisin what she saw');
+	await expect(status).toHaveAttribute('role', 'alert');
+	await expect(status).not.toHaveAttribute('aria-live');
+	await expect(status).toContainText(
+		'Ink blotted — Could not send input: bridge unavailable',
+	);
+	await expect(askStamp).toBeEnabled();
+	await settleNotebookFrame(page);
+	await expectCleanFirstViewport(page);
+	await expectCanvasBounds(page, stableCanvas);
+	await page.screenshot({
+		path: path.join(COMMAND_PROOF_DIR, `${viewport}-command-error.png`),
+		fullPage: false,
+	});
+}
+
 async function canvasBounds(page: Page): Promise<CanvasBounds> {
 	const bounds = await page.locator(PIXI_CANVAS).boundingBox();
 	if (!bounds)
@@ -221,8 +362,11 @@ async function setupNotebookPage(page: Page): Promise<void> {
 }
 
 test.describe('illustrated notebook overlays (#1630)', () => {
+	test.describe.configure({ timeout: COMMAND_VISUAL_PROOF_TIMEOUT_MS });
+
 	test.beforeAll(() => {
 		fs.mkdirSync(PROOF_DIR, { recursive: true });
+		fs.mkdirSync(COMMAND_PROOF_DIR, { recursive: true });
 	});
 
 	test('browser decodes every documented v2 raster asset', async ({ page }) => {
@@ -440,5 +584,21 @@ test.describe('illustrated notebook overlays (#1630)', () => {
 		await expectCleanFirstViewport(page);
 		await expect(invoker).toBeFocused();
 		await expectCanvasBounds(page, initialBounds);
+	});
+
+	test('desktop command history and state transitions remain notebook-native', async ({
+		page,
+	}) => {
+		await page.setViewportSize({ width: 1440, height: 900 });
+		await setupNotebookPage(page);
+		await proveCommandSurface(page, 'desktop');
+	});
+
+	test('mobile command history and state transitions remain notebook-native', async ({
+		page,
+	}) => {
+		await page.setViewportSize({ width: 390, height: 844 });
+		await setupNotebookPage(page);
+		await proveCommandSurface(page, 'mobile');
 	});
 });
