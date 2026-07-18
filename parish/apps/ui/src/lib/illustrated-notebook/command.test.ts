@@ -1,8 +1,12 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
+	appendNotebookCommandHistory,
 	draftForNotebookAction,
+	loadNotebookCommandHistory,
 	NOTEBOOK_COMMAND_PLACEHOLDER,
+	NOTEBOOK_COMMAND_HISTORY_MAX,
 	resolveNotebookCommandPresentation,
+	saveNotebookCommandHistory,
 	submitNotebookCommand,
 	windowNotebookCommandText,
 } from './command';
@@ -136,6 +140,45 @@ describe('illustrated notebook command input', () => {
 			'observe Roisin Connolly',
 		);
 		expect(draftForNotebookAction('talk', null)).toBe('talk to ');
+	});
+
+	it('keeps a bounded, consecutive-deduplicated notebook-only command history', () => {
+		const history = appendNotebookCommandHistory([], ' look around ');
+		expect(history).toEqual(['look around']);
+		expect(appendNotebookCommandHistory(history, 'look around')).toEqual([
+			'look around',
+		]);
+		expect(appendNotebookCommandHistory(history, 'talk to Roisin')).toEqual([
+			'look around',
+			'talk to Roisin',
+		]);
+
+		const bounded = appendNotebookCommandHistory(
+			Array.from(
+				{ length: NOTEBOOK_COMMAND_HISTORY_MAX },
+				(_value, index) => `command ${index}`,
+			),
+			'latest command',
+		);
+		expect(bounded).toHaveLength(NOTEBOOK_COMMAND_HISTORY_MAX);
+		expect(bounded[0]).toBe('command 1');
+		expect(bounded.at(-1)).toBe('latest command');
+	});
+
+	it('loads valid session history and ignores corrupted storage', () => {
+		const values = new Map<string, string>();
+		const storage = {
+			getItem: (key: string) => values.get(key) ?? null,
+			setItem: (key: string, value: string) => values.set(key, value),
+		};
+
+		saveNotebookCommandHistory(['look around', 'talk to Roisin'], storage);
+		expect(loadNotebookCommandHistory(storage)).toEqual([
+			'look around',
+			'talk to Roisin',
+		]);
+		values.set('parish-notebook-command-history', '{broken json');
+		expect(loadNotebookCommandHistory(storage)).toEqual([]);
 	});
 
 	it('submits natural-language text through the existing submit function', async () => {

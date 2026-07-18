@@ -65,6 +65,7 @@ Rules marked **(enforced)** are checked mechanically by `cargo test` / CI — se
 23. **Character markers are character-only cutouts:** Make marker identity readable from face, hair/headwear, clothing, body shape, and stance. Reject held or carried objects, extra people, furniture, architecture, vegetation, scenery fragments, ground planes, and shadows unless an issue explicitly opts into contextual markers; worn clothing and headwear remain valid identity cues.
 24. **Commit generated files as transactions:** Finish every fallible preparation and handled-failure cleanup before the final source-snapshot comparison, then perform the same-filesystem rename immediately. Inject source mutation at the last cleanup seam and exercise competing snapshots across processes.
 25. **Launch portable Node tools without a shell:** Cross-platform Node automation must use `shell: false` and invoke JavaScript CLI entry points through `process.execPath`, never platform wrappers such as `.cmd`; execute the default path in tests with spaces in filesystem paths.
+26. **Preserve merged end-to-end contracts when extending a shared spec:** If a later UI slice rewrites a shared Playwright file, retain every already-merged runtime assertion from that file and add the new slice's coverage alongside it. A passing focused test for the new slice does not prove an earlier slice's browser contract still exists.
 
 ## Standard commands
 

@@ -5,8 +5,11 @@
 	import type { NpcInfo } from '$lib/types';
 	import { submitInput } from '$lib/ipc';
 	import {
+		appendNotebookCommandHistory,
 		draftForNotebookAction,
+		loadNotebookCommandHistory,
 		resolveNotebookCommandPresentation,
+		saveNotebookCommandHistory,
 		submitNotebookCommand,
 	} from '$lib/illustrated-notebook/command';
 	import { sortParishTargetsForFocus } from '$lib/illustrated-parish/interactions';
@@ -44,6 +47,9 @@
 	let inputFocused = $state(false);
 	let isSubmitting = $state(false);
 	let commandError = $state<string | null>(null);
+	let commandHistory = $state<string[]>(loadNotebookCommandHistory());
+	let commandHistoryIndex = $state<number | null>(null);
+	let commandHistoryDraft = $state('');
 	let hitTargets = $state<ParishHitTarget[]>([]);
 	let focusedTargetId = $state<string | null>(null);
 
@@ -93,6 +99,7 @@
 		const draft = $intentDraft;
 		if (draft === null) return;
 		intentText = draft;
+		resetCommandHistoryNavigation();
 		intentDraft.set(null);
 		if (!$notebookOverlay) focusInput();
 	});
@@ -170,11 +177,66 @@
 		if (isSubmitting) return;
 		commandError = null;
 		intentText = draftForNotebookAction(action, selectedNpc);
+		resetCommandHistoryNavigation();
 		focusInput();
 	}
 
 	function clearCommandError() {
 		commandError = null;
+	}
+
+	function resetCommandHistoryNavigation() {
+		commandHistoryIndex = null;
+		commandHistoryDraft = '';
+	}
+
+	function recordCommandHistory(command: string) {
+		commandHistory = appendNotebookCommandHistory(commandHistory, command);
+		saveNotebookCommandHistory(commandHistory);
+		resetCommandHistoryNavigation();
+	}
+
+	function handleCommandInput() {
+		clearCommandError();
+		resetCommandHistoryNavigation();
+	}
+
+	function handleCommandHistory(event: KeyboardEvent): boolean {
+		if (
+			(event.key !== 'ArrowUp' && event.key !== 'ArrowDown') ||
+			event.altKey ||
+			event.ctrlKey ||
+			event.metaKey ||
+			isSubmitting
+		) {
+			return false;
+		}
+
+		if (event.key === 'ArrowUp') {
+			if (commandHistory.length === 0) return false;
+			event.preventDefault();
+			if (commandHistoryIndex === null) {
+				commandHistoryDraft = intentText;
+				commandHistoryIndex = commandHistory.length - 1;
+			} else if (commandHistoryIndex > 0) {
+				commandHistoryIndex -= 1;
+			}
+			intentText = commandHistory[commandHistoryIndex] ?? '';
+			clearCommandError();
+			return true;
+		}
+
+		if (commandHistoryIndex === null) return false;
+		event.preventDefault();
+		if (commandHistoryIndex < commandHistory.length - 1) {
+			commandHistoryIndex += 1;
+			intentText = commandHistory[commandHistoryIndex] ?? '';
+		} else {
+			intentText = commandHistoryDraft;
+			resetCommandHistoryNavigation();
+		}
+		clearCommandError();
+		return true;
 	}
 
 	function openTab(tab: ParishTab) {
@@ -218,6 +280,7 @@
 				return;
 			}
 		}
+		if (handleCommandHistory(event)) return;
 		if (event.key === 'Enter') {
 			event.preventDefault();
 			void submitCurrent();
@@ -239,7 +302,10 @@
 				},
 				onLocalSubmit: () => playerSubmittedCount.update((count) => count + 1),
 			});
-			if (didSubmit) intentText = '';
+			if (didSubmit) {
+				recordCommandHistory(text);
+				intentText = '';
+			}
 		} catch (err) {
 			commandError = `Could not send input: ${formatIpcError(err)}`;
 			pushErrorLog(commandError);
@@ -304,7 +370,7 @@
 		readonly={isSubmitting}
 		autocomplete="off"
 		spellcheck="false"
-		oninput={clearCommandError}
+		oninput={handleCommandInput}
 		onfocus={() => (inputFocused = true)}
 		onblur={() => (inputFocused = false)}
 		onkeydown={handleKeydown}
