@@ -2,7 +2,7 @@ import type { NpcInfo } from '$lib/types';
 import type {
 	NotebookCommandPresentation,
 	NotebookCommandState,
-} from './types';
+} from '$lib/illustrated-parish/types';
 import {
 	notebookActionDraft,
 	type NotebookAction,

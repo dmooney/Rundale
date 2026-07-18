@@ -1,8 +1,11 @@
 import { fireEvent, render, waitFor } from '@testing-library/svelte';
 import { get } from 'svelte/store';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { NotebookHitTarget } from '$lib/illustrated-notebook/interactions';
-import type { NotebookRenderState } from '$lib/illustrated-notebook/types';
+import type { Mock } from 'vitest';
+import type {
+	ParishHitTarget,
+	ParishRenderState,
+} from '$lib/illustrated-parish/types';
 import IllustratedNotebookGame from './IllustratedNotebookGame.svelte';
 import {
 	flushStream,
@@ -14,32 +17,40 @@ import {
 	textLog,
 	worldState,
 } from '../../stores/game';
+import {
+	closeNotebookOverlay,
+	notebookOverlay,
+	resetNotebookOverlayForTests,
+} from '../../stores/notebookOverlay';
 
-let lastRenderState: NotebookRenderState | null = null;
+let lastRenderState: ParishRenderState | null = null;
 let lastRenderer: {
-	activateTarget: (id: string) => unknown;
-	setFocusedTarget: (id: string | null) => unknown;
+	activateTarget: Mock<(id: string) => boolean>;
+	setFocusedTarget: Mock<(id: string | null) => void>;
 } | null = null;
-let mockHitTargets: NotebookHitTarget[] = [];
+let mockHitTargets: ParishHitTarget[] = [];
+let rendererConstructCount = 0;
 const mockSubmitInput = vi.fn(async (..._args: unknown[]) => {});
 
 vi.mock('$lib/ipc', () => ({
 	submitInput: (...args: unknown[]) => mockSubmitInput(...args),
+	getDebugSnapshot: vi.fn(async () => ({})),
 }));
 
-vi.mock('$lib/illustrated-notebook/renderer', () => ({
-	IllustratedNotebookRenderer: class {
+vi.mock('$lib/illustrated-parish/renderer', () => ({
+	IllustratedParishRenderer: class {
 		private readonly options?: {
-			onHitTargetsChanged?: (targets: NotebookHitTarget[]) => void;
+			onHitTargetsChanged?: (targets: ParishHitTarget[]) => void;
 		};
 
 		constructor(
 			_host: HTMLElement,
 			options?: {
-				onHitTargetsChanged?: (targets: NotebookHitTarget[]) => void;
+				onHitTargetsChanged?: (targets: ParishHitTarget[]) => void;
 			},
 		) {
 			this.options = options;
+			rendererConstructCount += 1;
 			lastRenderer = {
 				activateTarget: vi.fn((_id: string) => true),
 				setFocusedTarget: vi.fn((_id: string | null) => undefined),
@@ -47,15 +58,19 @@ vi.mock('$lib/illustrated-notebook/renderer', () => ({
 		}
 
 		async init() {}
-		render(state: NotebookRenderState) {
+
+		render(state: ParishRenderState) {
 			lastRenderState = state;
 			this.options?.onHitTargetsChanged?.(mockHitTargets);
 		}
+
 		resize() {}
 		destroy() {}
+
 		activateTarget(id: string) {
 			return lastRenderer?.activateTarget(id);
 		}
+
 		setFocusedTarget(id: string | null) {
 			return lastRenderer?.setFocusedTarget(id);
 		}
@@ -81,10 +96,10 @@ const aoife = {
 	mood_emoji: '•',
 };
 
-function target(id: string, label: string, order: number): NotebookHitTarget {
+function target(id: string, label: string, order: number): ParishHitTarget {
 	return {
 		id,
-		kind: 'action-stamp',
+		kind: 'action',
 		label,
 		rect: { x: order, y: order, width: 20, height: 20 },
 		order,
@@ -93,6 +108,7 @@ function target(id: string, label: string, order: number): NotebookHitTarget {
 }
 
 function seedStores() {
+	resetNotebookOverlayForTests();
 	worldState.set({
 		location_name: 'Kilteevan Village',
 		location_description: 'A whitewashed village by the bridge.',
@@ -141,27 +157,42 @@ function seedStores() {
 	fullMapOpen.set(false);
 	lastRenderState = null;
 	lastRenderer = null;
+	rendererConstructCount = 0;
 	mockHitTargets = [
 		target('nearby:roisin', 'Select nearby person Roisin Connolly', 10),
-		target('action:ask', 'Ask action stamp', 40),
+		target('action:ask', 'Ask action', 40),
 		target('tab:people', 'Open People notebook tab', 50),
-		target('time-card', 'Open time details', 60),
-		target('active-intents-card', 'Open active intents', 70),
+		target('time-card', 'Open time and weather', 60),
+		target('active-intents', 'Open active intents', 70),
 	];
 	mockSubmitInput.mockReset();
 	mockSubmitInput.mockResolvedValue(undefined);
 }
 
-describe('IllustratedNotebookGame', () => {
+describe('IllustratedNotebookGame fresh parish bridge', () => {
 	beforeEach(seedStores);
 
-	it('mounts a Pixi host without old dashboard or InputField chrome', async () => {
-		const { container, getByTestId, queryByText } = render(
+	it('mounts one Pixi viewport without dashboard chrome', async () => {
+		const { container, getByRole, getByTestId, queryByText } = render(
 			IllustratedNotebookGame,
 		);
 
-		expect(getByTestId('illustrated-notebook-game')).toBeTruthy();
+		expect(
+			getByRole('region', {
+				name: 'Rundale illustrated parish notebook',
+			}),
+		).toBe(getByTestId('illustrated-notebook-game'));
 		expect(getByTestId('illustrated-notebook-pixi-host')).toBeTruthy();
+		expect(getByTestId('illustrated-notebook-pixi-host')).toHaveAttribute(
+			'aria-hidden',
+			'true',
+		);
+		expect(getByRole('status', { name: 'Parish status' })).toHaveTextContent(
+			'Location: Kilteevan Village',
+		);
+		expect(getByRole('status', { name: 'Parish status' })).toHaveTextContent(
+			'Selected person: Roisin Connolly, shopkeeper, mood wary',
+		);
 		expect(container.querySelector('.input-wrapper')).toBeNull();
 		expect(container.querySelector('.input-form')).toBeNull();
 		expect(container.querySelector('[data-testid="chat-panel"]')).toBeNull();
@@ -172,9 +203,60 @@ describe('IllustratedNotebookGame', () => {
 		);
 	});
 
-	it('keeps default selected-person behavior stable when nearby people change', async () => {
-		render(IllustratedNotebookGame);
+	it('keeps intent editable while exposing the streaming state', async () => {
+		const { getByLabelText } = render(IllustratedNotebookGame);
+		const input = getByLabelText('Player intent') as HTMLInputElement;
 
+		expect(input.disabled).toBe(false);
+		expect(input).not.toHaveAttribute('aria-disabled');
+		expect(input).toHaveAttribute('aria-busy', 'false');
+
+		streamingActive.set(true);
+		await waitFor(() => expect(input).toHaveAttribute('aria-busy', 'true'));
+		expect(input.disabled).toBe(false);
+		expect(input).not.toHaveAttribute('aria-disabled');
+	});
+
+	it('flushes streaming on the first character and keeps that draft', async () => {
+		const flush = vi.fn(() => {
+			streamingActive.set(false);
+			return 1;
+		});
+		flushStream.set(flush);
+		streamingActive.set(true);
+		const { getByLabelText } = render(IllustratedNotebookGame);
+		const input = getByLabelText('Player intent') as HTMLInputElement;
+
+		await fireEvent.keyDown(input, { key: 'x' });
+		input.value = 'x';
+		await fireEvent.input(input);
+
+		expect(flush).toHaveBeenCalledOnce();
+		await waitFor(() => expect(lastRenderState?.command.text).toBe('x'));
+		expect(mockSubmitInput).not.toHaveBeenCalled();
+	});
+
+	it('flushes but does not submit when Enter ends a stream', async () => {
+		const flush = vi.fn(() => {
+			streamingActive.set(false);
+			return 1;
+		});
+		flushStream.set(flush);
+		streamingActive.set(true);
+		const { getByLabelText } = render(IllustratedNotebookGame);
+		const input = getByLabelText('Player intent') as HTMLInputElement;
+		input.value = 'ask Roisin';
+		await fireEvent.input(input);
+
+		await fireEvent.keyDown(input, { key: 'Enter' });
+
+		expect(flush).toHaveBeenCalledOnce();
+		expect(mockSubmitInput).not.toHaveBeenCalled();
+		expect(input.value).toBe('ask Roisin');
+	});
+
+	it('keeps the selected person stable as nearby people change', async () => {
+		render(IllustratedNotebookGame);
 		await waitFor(() =>
 			expect(lastRenderState?.selectedNpc?.name).toBe('Roisin Connolly'),
 		);
@@ -195,7 +277,7 @@ describe('IllustratedNotebookGame', () => {
 		);
 	});
 
-	it('seeds and submits through the new hidden command input', async () => {
+	it('seeds and submits through the hidden command input', async () => {
 		const { getByLabelText } = render(IllustratedNotebookGame);
 		const input = getByLabelText('Player intent') as HTMLInputElement;
 
@@ -224,7 +306,7 @@ describe('IllustratedNotebookGame', () => {
 		expect(input.hasAttribute('aria-disabled')).toBe(false);
 		expect(input.disabled).toBe(false);
 		expect(input.readOnly).toBe(false);
-		const status = getByRole('status');
+		const status = getByRole('status', { name: 'Command status' });
 		expect(status.hasAttribute('aria-live')).toBe(false);
 	});
 
@@ -281,32 +363,48 @@ describe('IllustratedNotebookGame', () => {
 		expect(input.getAttribute('aria-invalid')).toBe('false');
 	});
 
-	it('routes notebook tabs and cards through overlay state', async () => {
-		const { getByLabelText, getByText } = render(IllustratedNotebookGame);
-
+	it('routes tabs and cards through the single overlay coordinator', async () => {
+		render(IllustratedNotebookGame);
 		await waitFor(() => expect(lastRenderState).not.toBeNull());
 
 		lastRenderState?.callbacks.onOpenTab('people');
-		await waitFor(() => expect(getByLabelText('people drawer')).toBeTruthy());
+		await waitFor(() => expect(get(notebookOverlay)).toBe('people'));
 
-		lastRenderState?.callbacks.onOpenTime();
-		await waitFor(() => expect(getByText('Clock')).toBeTruthy());
+		lastRenderState?.callbacks.onOpenSurface('time');
+		await waitFor(() => expect(get(notebookOverlay)).toBe('time'));
 
-		lastRenderState?.callbacks.onOpenActiveIntents();
-		await waitFor(() => expect(getByText('Current line')).toBeTruthy());
-
-		lastRenderState?.callbacks.onOpenMap();
-		expect(get(fullMapOpen)).toBe(true);
+		lastRenderState?.callbacks.onOpenSurface('map');
+		await waitFor(() => {
+			expect(get(notebookOverlay)).toBe('map');
+			expect(get(fullMapOpen)).toBe(true);
+		});
+		closeNotebookOverlay('map');
 	});
 
-	it('exposes renderer hit targets for keyboard focus and activation', async () => {
+	it('keeps the same Pixi host mounted and inert while an overlay is open', async () => {
+		const { getByTestId } = render(IllustratedNotebookGame);
+		const game = getByTestId('illustrated-notebook-game');
+		const host = getByTestId('illustrated-notebook-pixi-host');
+		await waitFor(() => expect(rendererConstructCount).toBe(1));
+
+		lastRenderState?.callbacks.onOpenSurface('people');
+		await waitFor(() => expect(game.getAttribute('aria-hidden')).toBe('true'));
+		expect(game.classList.contains('overlay-open')).toBe(true);
+		expect(getByTestId('illustrated-notebook-pixi-host')).toBe(host);
+		expect(rendererConstructCount).toBe(1);
+
+		closeNotebookOverlay('people');
+		await waitFor(() => expect(game.getAttribute('aria-hidden')).toBe('false'));
+		expect(game.classList.contains('overlay-open')).toBe(false);
+		expect(getByTestId('illustrated-notebook-pixi-host')).toBe(host);
+		expect(rendererConstructCount).toBe(1);
+	});
+
+	it('exposes fresh renderer hit targets for focus and activation', async () => {
 		const { getByLabelText } = render(IllustratedNotebookGame);
+		await waitFor(() => expect(getByLabelText('Ask action')).toBeTruthy());
 
-		await waitFor(() =>
-			expect(getByLabelText('Ask action stamp')).toBeTruthy(),
-		);
-
-		const targetButton = getByLabelText('Ask action stamp');
+		const targetButton = getByLabelText('Ask action');
 		await fireEvent.focus(targetButton);
 		expect(lastRenderer?.setFocusedTarget).toHaveBeenCalledWith('action:ask');
 

@@ -2,59 +2,59 @@
 	import { onDestroy, onMount } from 'svelte';
 	import { get } from 'svelte/store';
 	import type { NotebookAction } from '$lib/notebook/actions';
-	import type { NpcInfo, TextLogEntry } from '$lib/types';
+	import type { NpcInfo } from '$lib/types';
 	import { submitInput } from '$lib/ipc';
-	import { openBugReport } from '../../stores/bugReport';
-	import { debugVisible } from '../../stores/debug';
+	import {
+		draftForNotebookAction,
+		resolveNotebookCommandPresentation,
+		submitNotebookCommand,
+	} from '$lib/illustrated-notebook/command';
+	import { sortParishTargetsForFocus } from '$lib/illustrated-parish/interactions';
+	import { IllustratedParishRenderer } from '$lib/illustrated-parish/renderer';
+	import type {
+		NotebookCommandState,
+		NotebookSurface,
+		ParishHitTarget,
+		ParishTab,
+	} from '$lib/illustrated-parish/types';
 	import {
 		flushStream,
 		formatIpcError,
-		fullMapOpen,
 		intentDraft,
 		mapData,
 		npcsHere,
 		playerSubmittedCount,
 		pushErrorLog,
 		streamingActive,
-		textLog,
 		worldState,
 	} from '../../stores/game';
-	import { modSelectorVisible, savePickerVisible } from '../../stores/save';
 	import {
-		draftForNotebookAction,
-		resolveNotebookCommandPresentation,
-		submitNotebookCommand,
-	} from '$lib/illustrated-notebook/command';
-	import {
-		sortNotebookHitTargetsForFocus,
-		type NotebookHitTarget,
-	} from '$lib/illustrated-notebook/interactions';
-	import { IllustratedNotebookRenderer } from '$lib/illustrated-notebook/renderer';
-	import type {
-		NotebookCommandState,
-		NotebookTab,
-	} from '$lib/illustrated-notebook/types';
+		notebookPersonSelection,
+		notebookOverlay,
+		notebookOverlayTransitioning,
+		openNotebookOverlay,
+	} from '../../stores/notebookOverlay';
 
 	let hostEl: HTMLDivElement;
 	let inputEl: HTMLInputElement;
-	let renderer = $state<IllustratedNotebookRenderer | null>(null);
+	let renderer = $state<IllustratedParishRenderer | null>(null);
 	let resizeObserver: ResizeObserver | null = null;
 	let selectedRealName = $state<string | null>(null);
 	let intentText = $state('');
 	let inputFocused = $state(false);
 	let isSubmitting = $state(false);
 	let commandError = $state<string | null>(null);
-	let drawer = $state<NotebookTab | 'tools' | 'time' | 'intents' | null>(null);
-	let hitTargets = $state<NotebookHitTarget[]>([]);
-	let focusedHitTargetId = $state<string | null>(null);
+	let hitTargets = $state<ParishHitTarget[]>([]);
+	let focusedTargetId = $state<string | null>(null);
 
 	const selectedNpc = $derived<NpcInfo | null>(
 		$npcsHere.find((npc) => npc.real_name === selectedRealName) ??
 			$npcsHere[0] ??
 			null,
 	);
-	const focusableHitTargets = $derived(
-		sortNotebookHitTargetsForFocus(hitTargets),
+	const focusableHitTargets = $derived(sortParishTargetsForFocus(hitTargets));
+	const notebookBlocked = $derived(
+		$notebookOverlay !== null || $notebookOverlayTransitioning,
 	);
 	const commandState = $derived<NotebookCommandState>({
 		text: intentText,
@@ -81,11 +81,20 @@
 	});
 
 	$effect(() => {
+		const requestedPerson = $notebookPersonSelection;
+		if (!requestedPerson) return;
+		if ($npcsHere.some((npc) => npc.real_name === requestedPerson)) {
+			selectedRealName = requestedPerson;
+		}
+		notebookPersonSelection.set(null);
+	});
+
+	$effect(() => {
 		const draft = $intentDraft;
 		if (draft === null) return;
 		intentText = draft;
 		intentDraft.set(null);
-		focusInput();
+		if (!$notebookOverlay) focusInput();
 	});
 
 	$effect(() => {
@@ -99,11 +108,9 @@
 			callbacks: {
 				onAction: seedAction,
 				onFocusInput: focusInput,
-				onOpenActiveIntents: () => (drawer = 'intents'),
-				onOpenMap: () => fullMapOpen.set(true),
+				onOpenSurface: openSurface,
 				onOpenTab: openTab,
-				onOpenTime: () => (drawer = 'time'),
-				onSelectNpc: selectNpc,
+				onSelectNpc: (realName) => (selectedRealName = realName),
 				onSend: () => void submitCurrent(),
 			},
 		});
@@ -112,9 +119,9 @@
 	onMount(() => {
 		let cancelled = false;
 		void (async () => {
-			let next: IllustratedNotebookRenderer | null = null;
+			let next: IllustratedParishRenderer | null = null;
 			try {
-				next = new IllustratedNotebookRenderer(hostEl, {
+				next = new IllustratedParishRenderer(hostEl, {
 					onHitTargetsChanged: (targets) => {
 						hitTargets = targets;
 					},
@@ -130,12 +137,12 @@
 					resizeObserver.observe(hostEl);
 				}
 				renderer.resize();
-				focusInput();
-			} catch (err) {
+				if (!get(notebookOverlay)) focusInput();
+			} catch (error) {
 				next?.destroy();
 				if (!cancelled) {
 					pushErrorLog(
-						`Failed to initialize notebook renderer: ${formatIpcError(err)}`,
+						`Failed to initialize illustrated parish: ${formatIpcError(error)}`,
 					);
 				}
 			}
@@ -151,17 +158,12 @@
 		renderer?.destroy();
 		renderer = null;
 		hitTargets = [];
-		focusedHitTargetId = null;
+		focusedTargetId = null;
 	});
 
 	function focusInput() {
-		window.setTimeout(() => {
-			inputEl?.focus({ preventScroll: true });
-		}, 0);
-	}
-
-	function selectNpc(realName: string) {
-		selectedRealName = realName;
+		if (get(notebookOverlay)) return;
+		window.setTimeout(() => inputEl?.focus({ preventScroll: true }), 0);
 	}
 
 	function seedAction(action: NotebookAction) {
@@ -175,45 +177,49 @@
 		commandError = null;
 	}
 
-	function openTab(tab: NotebookTab) {
-		if (tab === 'places') {
-			fullMapOpen.set(true);
-			return;
-		}
-		drawer = tab;
+	function openTab(tab: ParishTab) {
+		const surface: NotebookSurface =
+			tab === 'people'
+				? 'people'
+				: tab === 'places'
+					? 'map'
+					: tab === 'rumours'
+						? 'rumours'
+						: 'journal';
+		openSurface(surface);
+	}
+
+	function openSurface(surface: NotebookSurface) {
+		void openNotebookOverlay(surface);
 	}
 
 	function focusHitTarget(id: string) {
-		focusedHitTargetId = id;
+		focusedTargetId = id;
 		renderer?.setFocusedTarget(id);
 	}
 
 	function blurHitTarget(id: string) {
-		if (focusedHitTargetId !== id) return;
-		focusedHitTargetId = null;
+		if (focusedTargetId !== id) return;
+		focusedTargetId = null;
 		renderer?.setFocusedTarget(null);
 	}
 
-	function activateHitTarget(id: string) {
-		renderer?.activateTarget(id);
-	}
-
-	function handleKeydown(e: KeyboardEvent) {
+	function handleKeydown(event: KeyboardEvent) {
 		if (
 			$streamingActive &&
-			e.key !== 'Shift' &&
-			e.key !== 'Control' &&
-			e.key !== 'Alt' &&
-			e.key !== 'Meta'
+			event.key !== 'Shift' &&
+			event.key !== 'Control' &&
+			event.key !== 'Alt' &&
+			event.key !== 'Meta'
 		) {
 			get(flushStream)();
-			if (e.key === 'Enter') {
-				e.preventDefault();
+			if (event.key === 'Enter') {
+				event.preventDefault();
 				return;
 			}
 		}
-		if (e.key === 'Enter') {
-			e.preventDefault();
+		if (event.key === 'Enter') {
+			event.preventDefault();
 			void submitCurrent();
 		}
 	}
@@ -231,7 +237,7 @@
 				submitInput: async (command) => {
 					await submitInput(command);
 				},
-				onLocalSubmit: () => playerSubmittedCount.update((n) => n + 1),
+				onLocalSubmit: () => playerSubmittedCount.update((count) => count + 1),
 			});
 			if (didSubmit) intentText = '';
 		} catch (err) {
@@ -241,39 +247,49 @@
 			isSubmitting = false;
 		}
 	}
-
-	function recentLines(entries: TextLogEntry[]): TextLogEntry[] {
-		return entries.slice(-8);
-	}
-
-	function openTools(which: 'save' | 'debug' | 'mod' | 'bug') {
-		drawer = null;
-		switch (which) {
-			case 'save':
-				savePickerVisible.set(true);
-				break;
-			case 'debug':
-				debugVisible.update((v) => !v);
-				break;
-			case 'mod':
-				modSelectorVisible.set(true);
-				break;
-			case 'bug':
-				void openBugReport();
-				break;
-		}
-	}
 </script>
 
 <section
 	class="illustrated-notebook-game"
+	class:overlay-open={notebookBlocked}
 	data-testid="illustrated-notebook-game"
+	aria-label="Rundale illustrated parish notebook"
+	aria-hidden={notebookBlocked}
+	inert={notebookBlocked}
 >
 	<div
 		bind:this={hostEl}
 		class="pixi-host"
 		data-testid="illustrated-notebook-pixi-host"
+		aria-hidden="true"
 	></div>
+	<div
+		class="notebook-screenreader-summary"
+		role="status"
+		aria-label="Parish status"
+		aria-live="polite"
+		aria-atomic="true"
+	>
+		<p>
+			Location: {$worldState?.location_name ?? 'unknown'}.
+			{$worldState?.time_label ?? 'Time unknown'}.
+			Weather: {$worldState?.weather ?? 'unknown'}.
+			Season: {$worldState?.season ?? 'unknown'}.
+			{#if $worldState?.paused}The parish clock is paused.{/if}
+			{#if $worldState?.festival}Festival: {$worldState.festival}.{/if}
+		</p>
+		<p>
+			{#if selectedNpc}
+				Selected person: {selectedNpc.name}, {selectedNpc.occupation ||
+					'parish resident'}, mood {selectedNpc.mood || 'watchful'}.
+			{:else}
+				No one is nearby.
+			{/if}
+			{$streamingActive || isSubmitting
+				? 'The parish is preparing a reply.'
+				: 'Ready for your intent.'}
+		</p>
+	</div>
 	<input
 		bind:this={inputEl}
 		bind:value={intentText}
@@ -297,11 +313,12 @@
 		id="notebook-command-status"
 		class="notebook-command-status"
 		role={commandError ? 'alert' : 'status'}
+		aria-label="Command status"
 	>
 		{commandPresentation.statusText ?? 'Command line ready'}
 	</span>
 
-	<div class="notebook-accessibility-targets" aria-label="Notebook controls">
+	<nav class="notebook-accessibility-targets" aria-label="Notebook controls">
 		{#each focusableHitTargets as target (target.id)}
 			<button
 				type="button"
@@ -311,94 +328,10 @@
 				aria-label={target.label}
 				onfocus={() => focusHitTarget(target.id)}
 				onblur={() => blurHitTarget(target.id)}
-				onclick={() => activateHitTarget(target.id)}
+				onclick={() => renderer?.activateTarget(target.id)}
 			></button>
 		{/each}
-	</div>
-
-	<button
-		class="tools-hotspot"
-		type="button"
-		onclick={() => (drawer = 'tools')}
-	>
-		Notebook tools
-	</button>
-
-	{#if drawer}
-		<aside class="notebook-drawer" aria-label={`${drawer} drawer`}>
-			<header>
-				<strong>{drawer === 'tools' ? 'Tools' : drawer}</strong>
-				<button
-					type="button"
-					aria-label="Close notebook drawer"
-					onclick={() => (drawer = null)}>Close</button
-				>
-			</header>
-			{#if drawer === 'people'}
-				<ul>
-					{#each $npcsHere as npc (npc.real_name)}
-						<li>
-							<button
-								type="button"
-								onclick={() => {
-									selectedRealName = npc.real_name;
-									drawer = null;
-								}}
-							>
-								{npc.name} <span>{npc.occupation}</span>
-							</button>
-						</li>
-					{/each}
-				</ul>
-			{:else if drawer === 'journal' || drawer === 'notes'}
-				<div class="journal-lines">
-					{#each recentLines($textLog) as entry, i (`${entry.id ?? i}-${entry.content}`)}
-						<p class:error={entry.subtype === 'error'}>
-							<strong>{entry.source}</strong>: {entry.content}
-						</p>
-					{/each}
-				</div>
-			{:else if drawer === 'rumours'}
-				<p>The parish has no pinned rumours in this notebook margin yet.</p>
-			{:else if drawer === 'time'}
-				<div class="journal-lines">
-					<p>
-						<strong>Clock</strong>:
-						{String($worldState?.hour ?? 0).padStart(2, '0')}:{String(
-							$worldState?.minute ?? 0,
-						).padStart(2, '0')}
-						{$worldState?.time_label ?? ''}
-					</p>
-					<p><strong>Weather</strong>: {$worldState?.weather ?? 'unknown'}</p>
-					<p><strong>Season</strong>: {$worldState?.season ?? 'unknown'}</p>
-				</div>
-			{:else if drawer === 'intents'}
-				<div class="journal-lines">
-					<p><strong>Current line</strong>: {intentText || '(none)'}</p>
-					<p>
-						<strong>Parish reply</strong>: {$streamingActive
-							? 'pending'
-							: 'idle'}
-					</p>
-				</div>
-			{:else if drawer === 'tools'}
-				<div class="tool-grid">
-					<button type="button" onclick={() => openTools('save')}
-						>Save/Load</button
-					>
-					<button type="button" onclick={() => fullMapOpen.set(true)}
-						>Map</button
-					>
-					<button type="button" onclick={() => openTools('debug')}>Debug</button
-					>
-					<button type="button" onclick={() => openTools('mod')}>Mod</button>
-					<button type="button" onclick={() => openTools('bug')}
-						>Bug Report</button
-					>
-				</div>
-			{/if}
-		</aside>
-	{/if}
+	</nav>
 </section>
 
 <style>
@@ -408,7 +341,11 @@
 		height: 100%;
 		min-height: 100dvh;
 		overflow: hidden;
-		background: #21180f;
+		background: #302b22;
+	}
+
+	.illustrated-notebook-game.overlay-open {
+		pointer-events: none;
 	}
 
 	.pixi-host {
@@ -448,6 +385,18 @@
 		border: 0;
 	}
 
+	.notebook-screenreader-summary {
+		position: absolute;
+		width: 1px;
+		height: 1px;
+		padding: 0;
+		margin: -1px;
+		overflow: hidden;
+		clip: rect(0, 0, 0, 0);
+		white-space: nowrap;
+		border: 0;
+	}
+
 	.notebook-accessibility-targets {
 		position: absolute;
 		inset: 0;
@@ -462,106 +411,5 @@
 		opacity: 0;
 		background: transparent;
 		pointer-events: none;
-	}
-
-	.tools-hotspot {
-		position: absolute;
-		right: 0.5rem;
-		top: 0.5rem;
-		z-index: 3;
-		width: 2.4rem;
-		height: 2.4rem;
-		overflow: hidden;
-		text-indent: -999px;
-		border: 0;
-		background: transparent;
-		cursor: pointer;
-	}
-
-	.notebook-drawer {
-		position: absolute;
-		right: min(1rem, 3vw);
-		top: 5.2rem;
-		z-index: 5;
-		width: min(25rem, calc(100vw - 2rem));
-		max-height: min(72vh, 38rem);
-		overflow: auto;
-		padding: 1rem;
-		color: #322315;
-		background:
-			linear-gradient(rgba(246, 226, 180, 0.88), rgba(222, 195, 139, 0.92)),
-			#ead3a0;
-		border: 1px solid rgba(55, 38, 20, 0.5);
-		box-shadow: 0 16px 40px rgba(20, 13, 6, 0.42);
-		font-family: Georgia, 'Times New Roman', serif;
-	}
-
-	.notebook-drawer header {
-		display: flex;
-		align-items: center;
-		justify-content: space-between;
-		gap: 1rem;
-		border-bottom: 1px solid rgba(55, 38, 20, 0.35);
-		padding-bottom: 0.45rem;
-		margin-bottom: 0.6rem;
-		text-transform: capitalize;
-	}
-
-	.notebook-drawer button {
-		color: #322315;
-		background: rgba(255, 246, 216, 0.52);
-		border: 1px solid rgba(55, 38, 20, 0.38);
-		padding: 0.35rem 0.55rem;
-		font: inherit;
-		cursor: pointer;
-	}
-
-	.notebook-drawer ul {
-		list-style: none;
-		padding: 0;
-		margin: 0;
-		display: grid;
-		gap: 0.4rem;
-	}
-
-	.notebook-drawer li button {
-		width: 100%;
-		text-align: left;
-	}
-
-	.notebook-drawer li span {
-		display: block;
-		font-size: 0.82rem;
-		opacity: 0.72;
-	}
-
-	.journal-lines {
-		display: grid;
-		gap: 0.45rem;
-		font-size: 0.92rem;
-	}
-
-	.journal-lines p {
-		margin: 0;
-	}
-
-	.journal-lines .error {
-		color: #7e2f28;
-	}
-
-	.tool-grid {
-		display: grid;
-		grid-template-columns: repeat(2, minmax(0, 1fr));
-		gap: 0.5rem;
-	}
-
-	@media (max-width: 760px) {
-		.notebook-drawer {
-			left: 0.75rem;
-			right: 0.75rem;
-			top: 11.6rem;
-			width: auto;
-			max-height: 48vh;
-		}
 	}
 </style>

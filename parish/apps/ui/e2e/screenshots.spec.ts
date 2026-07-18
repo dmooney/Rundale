@@ -23,11 +23,52 @@ const TIMES_OF_DAY = ['morning', 'midday', 'dusk', 'night'] as const;
 // Path is relative to apps/ui/e2e/screenshots.spec.ts → repo root → docs/screenshots/.
 const SCREENSHOT_DIR = path.resolve(__dirname, '../../../docs/screenshots');
 
+async function expectRenderedNotebookScreenshot(
+	page: Page,
+	png: Buffer,
+): Promise<void> {
+	const stats = await page.evaluate(async (base64) => {
+		const image = new Image();
+		image.src = `data:image/png;base64,${base64}`;
+		await image.decode();
+		const sample = document.createElement('canvas');
+		sample.width = 32;
+		sample.height = 20;
+		const context = sample.getContext('2d', { willReadFrequently: true });
+		if (!context) return { nonBlackRatio: 0, colourBuckets: 0 };
+		context.drawImage(image, 0, 0, sample.width, sample.height);
+		const pixels = context.getImageData(0, 0, sample.width, sample.height).data;
+		let nonBlack = 0;
+		const colourBuckets = new Set<number>();
+		for (let index = 0; index < pixels.length; index += 4) {
+			const red = pixels[index];
+			const green = pixels[index + 1];
+			const blue = pixels[index + 2];
+			const alpha = pixels[index + 3];
+			if (alpha > 0 && red + green + blue > 60) nonBlack += 1;
+			colourBuckets.add((red >> 4) * 256 + (green >> 4) * 16 + (blue >> 4));
+		}
+		return {
+			nonBlackRatio: nonBlack / (pixels.length / 4),
+			colourBuckets: colourBuckets.size,
+		};
+	}, png.toString('base64'));
+
+	expect(
+		stats.nonBlackRatio,
+		'generated notebook screenshot must not contain cleared black WebGL regions',
+	).toBeGreaterThanOrEqual(0.7);
+	expect(
+		stats.colourBuckets,
+		'generated notebook screenshot must contain a varied rendered scene',
+	).toBeGreaterThanOrEqual(20);
+}
+
 /**
  * Shared page setup for both the screenshot-generation and visual-regression
- * suites (TD-041): installs the Tauri mock for `time`, navigates, applies the
- * matching theme palette, and proves the Pixi notebook has rendered the
- * expected clock/weather state before capture.
+ * suites (TD-041): installs the Tauri mock for `time`, navigates, and waits for
+ * the illustrated Pixi scene to finish loading. The default capture deliberately
+ * leaves every notebook overlay closed so it records the clean first viewport.
  */
 async function setupScreenshotPage(
 	page: Page,
@@ -37,24 +78,65 @@ async function setupScreenshotPage(
 	await page.goto('/');
 	await page.waitForLoadState('networkidle');
 
-	await applyTheme(page, PALETTES[time]);
-	await expect(page.getByTestId('illustrated-notebook-game')).toBeVisible();
 	await expect(
-		page.getByTestId('illustrated-notebook-pixi-host').locator('canvas'),
+		page.locator('[data-testid="illustrated-notebook-pixi-host"] canvas'),
 	).toBeVisible();
-
-	const timeControl = page.getByRole('button', { name: 'Open time details' });
-	await expect(timeControl).toHaveCount(1);
-	await timeControl.focus();
-	await page.keyboard.press('Enter');
-	const drawer = page.getByLabel('time drawer');
-	await expect(drawer).toContainText(
-		`${String(SNAPSHOTS[time].hour).padStart(2, '0')}:00`,
+	await expect(page.locator('.app-shell')).toHaveAttribute(
+		'data-controller-ready',
+		'true',
 	);
-	await expect(drawer).toContainText(SNAPSHOTS[time].time_label);
-	await expect(drawer).toContainText(`Weather: ${SNAPSHOTS[time].weather}`);
-	await page.getByRole('button', { name: 'Close notebook drawer' }).click();
-	await expect(drawer).toHaveCount(0);
+	await expect(
+		page.getByRole('button', { name: 'Ask action', exact: true }),
+	).toHaveCount(1);
+	await applyTheme(page, PALETTES[time]);
+
+	const summary = page.locator('.notebook-screenreader-summary');
+	await expect(summary).toContainText(SNAPSHOTS[time].time_label);
+	const timeControl = page.getByRole('button', {
+		name: 'Open time and weather',
+		exact: true,
+	});
+	await expect(timeControl).toHaveCount(1);
+	await expect(timeControl).toBeEnabled();
+	await timeControl.focus();
+	await expect(timeControl).toBeFocused();
+	await page.keyboard.press('Enter');
+	const notes = page.getByRole('dialog', {
+		name: 'Time & Weather',
+		exact: true,
+	});
+	await expect(notes).toBeVisible();
+	await expect(
+		notes.getByText(
+			`${String(SNAPSHOTS[time].hour).padStart(2, '0')}:${String(
+				SNAPSHOTS[time].minute,
+			).padStart(2, '0')}`,
+			{ exact: true },
+		),
+	).toBeVisible();
+	await expect(
+		notes.getByText(SNAPSHOTS[time].weather, { exact: true }),
+	).toBeVisible();
+	await expect(
+		notes.getByText(SNAPSHOTS[time].season, { exact: true }),
+	).toBeVisible();
+	await notes
+		.getByRole('button', { name: 'Close Time & Weather', exact: true })
+		.click();
+	await expect(notes).toHaveCount(0);
+	await expect(page.getByTestId('notebook-overlay-backdrop')).toHaveCount(0);
+	await expect(page.getByTestId('chat-panel')).toHaveCount(0);
+
+	await page.evaluate(async () => {
+		await document.fonts.ready;
+		await new Promise<void>((resolve) =>
+			requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+		);
+	});
+	await expect(page.getByTestId('illustrated-notebook-game')).toHaveAttribute(
+		'aria-hidden',
+		'false',
+	);
 	await waitForTextureCompleteNotebookFrame(page);
 }
 
@@ -64,10 +146,11 @@ test.describe('Screenshot generation', () => {
 			await setupScreenshotPage(page, time);
 
 			// Save to docs/screenshots/ for the project
-			await page.screenshot({
+			const png = await page.screenshot({
 				path: path.join(SCREENSHOT_DIR, `gui-${time}.png`),
 				fullPage: false,
 			});
+			await expectRenderedNotebookScreenshot(page, png);
 		});
 	}
 });
