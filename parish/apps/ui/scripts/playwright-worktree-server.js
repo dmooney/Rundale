@@ -1033,6 +1033,7 @@ export function pruneServerArtifacts(
 }
 
 export function publishUiSnapshot(outputDir, capture) {
+	mkdirSync(outputDir, { recursive: true });
 	const destination = join(outputDir, `ui-dist-${capture.fingerprint}`);
 	const existing = captureUiDist(destination);
 	if (existing) {

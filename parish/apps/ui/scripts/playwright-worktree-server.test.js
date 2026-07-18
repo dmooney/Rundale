@@ -17,6 +17,7 @@ import { createServer } from 'node:http';
 import { hostname, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
+import { fileURLToPath } from 'node:url';
 
 import {
 	PLAYWRIGHT_ACTIVE_USE_STALE_GRACE_MS,
@@ -251,7 +252,7 @@ test('managed launcher rebuilds missing or stale dist before snapshot capture', 
 	}
 });
 
-test('direct, package, baseline, and screenshot runs share the managed launcher', () => {
+test('direct, package, baseline, and screenshot runs share the managed launcher on LF and CRLF checkouts', () => {
 	const packageJson = JSON.parse(
 		readFileSync(new URL('../package.json', import.meta.url), 'utf8'),
 	);
@@ -270,19 +271,32 @@ test('direct, package, baseline, and screenshot runs share the managed launcher'
 		/webServer:\s*playwrightWebServerConfig\(testPort\)/,
 	);
 
-	const justfile = readFileSync(
+	const justfilePath = fileURLToPath(
 		new URL('../../../justfile', import.meta.url),
-		'utf8',
 	);
-	const updateRecipe = justfile.match(/^ui-e2e-update:\n(?: {4}.*\n)+/m)?.[0];
-	const screenshotsRecipe = justfile.match(
-		/^screenshots:\n(?: {4}.*\n)+/m,
-	)?.[0];
-	assert.match(updateRecipe ?? '', /npx playwright test --update-snapshots/);
-	assert.match(
-		screenshotsRecipe ?? '',
-		/npx playwright test e2e\/screenshots\.spec\.ts/,
+	const normalizedJustfile = readFileSync(justfilePath, 'utf8').replace(
+		/\r\n/g,
+		'\n',
 	);
+	for (const justfile of [
+		normalizedJustfile,
+		normalizedJustfile.replace(/\n/g, '\r\n'),
+	]) {
+		const updateRecipe = justfile.match(
+			/^ui-e2e-update:\r?\n(?: {4}.*\r?\n)+/m,
+		)?.[0];
+		const screenshotsRecipe = justfile.match(
+			/^screenshots:\r?\n(?: {4}.*\r?\n)+/m,
+		)?.[0];
+		assert.match(
+			updateRecipe ?? '',
+			/npx playwright test --update-snapshots/,
+		);
+		assert.match(
+			screenshotsRecipe ?? '',
+			/npx playwright test e2e\/screenshots\.spec\.ts/,
+		);
+	}
 });
 
 test('GitHub-hosted and self-hosted Actions retain the identity helper path', () => {
@@ -356,18 +370,19 @@ test('missing dist returns no hashes so the launcher can report a helpful error'
 	assert.equal(captureUiDist('/definitely/missing/parish-dist'), undefined);
 });
 
-test('UI capture and published snapshot are content-addressed and immutable', () => {
+test('UI snapshot creates a missing cache parent and remains content-addressed', () => {
 	const root = mkdtempSync(join(tmpdir(), 'parish-playwright-dist-'));
 	const source = join(root, 'source');
 	const cache = join(root, 'cache');
 	mkdirSync(join(source, 'assets'), { recursive: true });
-	mkdirSync(cache);
 	writeFileSync(join(source, 'index.html'), '<script>bootA()</script>');
 	writeFileSync(join(source, 'assets', 'app.js'), 'asset-a');
 	try {
+		assert.equal(existsSync(cache), false);
 		const first = captureUiDist(source);
 		assert.equal(first.expectedHashes.length, 1);
 		const snapshot = publishUiSnapshot(cache, first);
+		assert.equal(existsSync(cache), true);
 		assert.equal(captureUiDist(snapshot).fingerprint, first.fingerprint);
 
 		writeFileSync(join(source, 'index.html'), '<script>bootB()</script>');
