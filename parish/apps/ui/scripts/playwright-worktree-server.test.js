@@ -288,10 +288,7 @@ test('direct, package, baseline, and screenshot runs share the managed launcher 
 		const screenshotsRecipe = justfile.match(
 			/^screenshots:\r?\n(?: {4}.*\r?\n)+/m,
 		)?.[0];
-		assert.match(
-			updateRecipe ?? '',
-			/npx playwright test --update-snapshots/,
-		);
+		assert.match(updateRecipe ?? '', /npx playwright test --update-snapshots/);
 		assert.match(
 			screenshotsRecipe ?? '',
 			/npx playwright test e2e\/screenshots\.spec\.ts/,
