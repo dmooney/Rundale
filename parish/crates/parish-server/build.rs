@@ -22,6 +22,11 @@ const UI_DIST_DIR_ENV: &str = "PARISH_UI_DIST_DIR";
 
 fn main() {
     println!("cargo:rerun-if-env-changed={UI_DIST_DIR_ENV}");
+    // Playwright's managed-server helper sets these to the invoking worktree's
+    // UI digest and expected identity. Shared Cargo targets must not reuse a
+    // build-script result belonging to a different dist snapshot.
+    println!("cargo:rerun-if-env-changed=PARISH_UI_DIST_DIGEST");
+    println!("cargo:rerun-if-env-changed=PARISH_PLAYWRIGHT_BUILD_ID");
 
     // Retain the dist root as a catch-all for a newly generated route, then
     // emit one concrete HTML path below. Cargo does not reliably invalidate a
@@ -41,7 +46,8 @@ fn main() {
         BTreeSet::new()
     };
 
-    write_generated_file(&hashes);
+    let playwright_build_id = std::env::var("PARISH_PLAYWRIGHT_BUILD_ID").ok();
+    write_generated_file(&hashes, playwright_build_id.as_deref());
 }
 
 /// Resolve the generated UI directory, with a test-friendly override for
@@ -228,7 +234,7 @@ fn base64_encode(input: &[u8]) -> String {
 }
 
 /// Write the generated Rust source file to `$OUT_DIR/csp_script_hashes.rs`.
-fn write_generated_file(hashes: &BTreeSet<String>) {
+fn write_generated_file(hashes: &BTreeSet<String>, playwright_build_id: Option<&str>) {
     let out_dir = std::env::var("OUT_DIR").expect("OUT_DIR not set");
     let dest = Path::new(&out_dir).join("csp_script_hashes.rs");
     let mut file = std::fs::File::create(&dest).expect("cannot create csp_script_hashes.rs");
@@ -252,6 +258,12 @@ pub const SCRIPT_SRC_HASHES: &[&str] = &["
     }
 
     writeln!(file, "];").expect("write error");
+    writeln!(
+        file,
+        "/// Worktree/UI identity embedded by the Playwright managed-server build.\n\
+         pub const PLAYWRIGHT_BUILD_ID: Option<&str> = {playwright_build_id:?};"
+    )
+    .expect("write error");
 }
 
 // ── Unit tests for the build-script helpers ───────────────────────────────

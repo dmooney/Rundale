@@ -9,6 +9,7 @@ const gate = path.join(__dirname, 'ci-gate.sh');
 
 function runGate({
 	gatedResults = 'success success skipped success',
+	playwrightWindowsResult = 'success',
 	uiRequired,
 	uiResult,
 }) {
@@ -17,11 +18,34 @@ function runGate({
 		env: {
 			...process.env,
 			GATED_RESULTS: gatedResults,
+			PLAYWRIGHT_WINDOWS_RESULT: playwrightWindowsResult,
 			UI_E2E_REQUIRED: uiRequired,
 			UI_E2E_RESULT: uiResult,
 		},
 	});
 }
+
+test('Windows Playwright launcher lifecycle must succeed', async (t) => {
+	for (const [playwrightWindowsResult, expectedStatus] of [
+		['success', 0],
+		['skipped', 1],
+		['failure', 1],
+		['cancelled', 1],
+	]) {
+		await t.test(playwrightWindowsResult, () => {
+			const result = runGate({
+				playwrightWindowsResult,
+				uiRequired: 'false',
+				uiResult: 'skipped',
+			});
+			assert.equal(
+				result.status,
+				expectedStatus,
+				result.stdout + result.stderr,
+			);
+		});
+	}
+});
 
 test('required UI Playwright passes only when it succeeds', async (t) => {
 	const cases = [

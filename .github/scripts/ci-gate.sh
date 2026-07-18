@@ -2,6 +2,7 @@
 set -euo pipefail
 
 : "${GATED_RESULTS:?GATED_RESULTS must be set}"
+: "${PLAYWRIGHT_WINDOWS_RESULT:?PLAYWRIGHT_WINDOWS_RESULT must be set}"
 : "${UI_E2E_REQUIRED:?UI_E2E_REQUIRED must be set}"
 : "${UI_E2E_RESULT:?UI_E2E_RESULT must be set}"
 
@@ -18,6 +19,11 @@ for result in "${results[@]}"; do
             ;;
     esac
 done
+
+if [[ "$PLAYWRIGHT_WINDOWS_RESULT" != "success" ]]; then
+    echo "::error::Windows Playwright launcher lifecycle was required but ended with '$PLAYWRIGHT_WINDOWS_RESULT'"
+    status=1
+fi
 
 case "$UI_E2E_REQUIRED" in
     true)

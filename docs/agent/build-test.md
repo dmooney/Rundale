@@ -58,9 +58,51 @@ python3 parish/scripts/profile-demo-requests.py --baseline docs/proofs/demo-api-
 ```sh
 cd parish/apps/ui && npx vitest run    # unit tests
 cd parish/apps/ui && npx playwright test    # e2e (auto-starts axum server)
+cd parish/apps/ui && npm run test:e2e       # same config-managed e2e path
 just ui-test
 just ui-e2e
+just ui-e2e-update             # update visual baselines after a fresh UI build
 just screenshots                 # regenerate docs/screenshots/*.png
+```
+
+`just ui-e2e` needs no per-worktree setup. Every managed-server launch first
+runs the UI's normal `npm run build`, so direct `npx playwright test`, baseline,
+and screenshot commands cannot capture a missing or stale `dist`. Package
+scripts (`test:e2e`, `test:e2e:update`) and the `just ui-e2e-update` and
+`just screenshots` recipes all enter that same config-managed lifecycle.
+`npm`/`npx` supplies the absolute `npm_execpath` used to invoke npm's JavaScript
+entry point through the current Node runtime without a shell. A deliberate
+direct `node scripts/playwright-worktree-server.js` launch must instead set
+`PARISH_PLAYWRIGHT_NPM_EXEC_PATH` to an absolute npm `.js`, `.cjs`, or `.mjs`
+entry point. The helper then uses the normal shared Cargo target for dependency
+reuse, snapshots the invoking worktree's fresh UI `dist`, embeds a
+worktree/snapshot build identity, and publishes a content-addressed server copy
+only after validating that identity and its CSP hashes. The server then echoes
+the identity through a per-run readiness URL before Playwright proceeds.
+Default runs allocate a free loopback port; set `PARISH_TEST_PORT` only when a
+fixed port is required. A heartbeat lease serializes helper builds. Before
+releasing that lock, the helper publishes a second heartbeat lease for the
+exact binary and UI snapshot used by the live server. Losing that lease fences
+the server; pruning first retires stale or malformed state behind a tombstone
+grace and only a later pass can reclaim its artifacts. POSIX group-signal
+teardown stops and waits for the child before releasing ownership. Windows
+force-tree termination can skip that release, so the bounded retirement path
+is required there. Pruning keeps up to three reusable entries per worktree
+cache directory and artifact type, removes empty cache directories, and applies
+a 24-hour age limit to bound cross-worktree residue. The same helper path runs
+locally and on GitHub-hosted/self-hosted CI.
+
+To unit-test the isolation helper from `parish/apps/ui/`:
+
+```sh
+node --test scripts/playwright-worktree-server.test.js
+```
+
+To run the slower integration races for shared-Cargo overwrite and live lease
+loss fencing (required by the UI PR workflow):
+
+```sh
+npm run test:playwright-launcher-integration
 ```
 
 To update Playwright baselines after intentional UI changes:
