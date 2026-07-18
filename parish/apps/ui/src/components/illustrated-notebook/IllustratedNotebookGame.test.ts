@@ -256,6 +256,34 @@ describe('IllustratedNotebookGame fresh parish bridge', () => {
 		expect(input.value).toBe('ask Roisin');
 	});
 
+	it.each(['ArrowUp', 'ArrowDown'])(
+		'flushes streaming without recalling command history on %s',
+		async (key) => {
+			const { getByLabelText } = render(IllustratedNotebookGame);
+			const input = getByLabelText('Player intent') as HTMLInputElement;
+
+			await fireEvent.input(input, { target: { value: 'look around' } });
+			await fireEvent.keyDown(input, { key: 'Enter' });
+			await waitFor(() => expect(input.value).toBe(''));
+
+			await fireEvent.input(input, {
+				target: { value: 'draft during stream' },
+			});
+			const flush = vi.fn(() => {
+				streamingActive.set(false);
+				return 1;
+			});
+			flushStream.set(flush);
+			streamingActive.set(true);
+
+			await fireEvent.keyDown(input, { key });
+
+			expect(flush).toHaveBeenCalledOnce();
+			expect(input.value).toBe('draft during stream');
+			expect(mockSubmitInput).toHaveBeenCalledTimes(1);
+		},
+	);
+
 	it('keeps the selected person stable as nearby people change', async () => {
 		render(IllustratedNotebookGame);
 		await waitFor(() =>

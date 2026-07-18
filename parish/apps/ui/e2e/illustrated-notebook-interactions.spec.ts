@@ -213,6 +213,18 @@ async function proveCommandSurface(
 		fullPage: false,
 	});
 
+	await emitEvent(page, 'loading', { active: true, phrase: 'Listening...' });
+	await emitEvent(page, 'stream-token', {
+		token: 'The whole reply appears when the player chooses to move on.',
+		turn_id: 1629,
+		source: 'Roisin Connolly',
+	});
+	await emitEvent(page, 'stream-turn-end', { turn_id: 1629 });
+	await expect(input).toHaveAttribute('aria-busy', 'true');
+	await input.press('ArrowUp');
+	await expect(input).toHaveValue('a draft worth keeping');
+	await expect(input).toHaveAttribute('aria-busy', 'false');
+
 	await input.fill('');
 	await emitEvent(page, 'loading', { active: true, phrase: 'Listening...' });
 	await expect(input).toHaveAttribute('data-command-state', 'busy');
