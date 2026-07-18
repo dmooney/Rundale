@@ -277,8 +277,8 @@
 			get(flushStream)();
 			if (event.key === 'Enter') {
 				event.preventDefault();
-				return;
 			}
+			return;
 		}
 		if (handleCommandHistory(event)) return;
 		if (event.key === 'Enter') {
