@@ -515,6 +515,12 @@ fn build_router(
     let mut app = Router::new()
         // #373 — /api/health: exempt from auth, returns 200 for health probes.
         .route("/api/health", get(routes::get_health))
+        // Test-only ownership gate: returns 404 unless the managed Playwright
+        // launcher supplied matching runtime and compile-time identities.
+        .route(
+            "/api/playwright-ready/{run_id}",
+            get(routes::get_playwright_ready),
+        )
         // #373 — /metrics: auth-protected, exposes auth failure counter.
         .route("/metrics", get(get_metrics))
         // #377 — /api/session-init: issues short-lived WS session tokens.

@@ -3,7 +3,8 @@ name: Rundale CI
 # Jobs run on GitHub-hosted `ubuntu-latest` runners.
 #
 # Sub-minute fast lane for pull requests and main/develop pushes. Pull requests
-# that touch the shipped UI additionally run the complete Playwright contract.
+# that touch the shipped browser/server seam additionally run the complete
+# Playwright contract.
 # Other expensive Rust, coverage, game-harness, and UI runtime jobs live in
 # `full-ci.yml`.
 
@@ -31,9 +32,9 @@ permissions:
   contents: read
 
 jobs:
-  # Detect which areas a PR changed. UI changes use this output to opt into the
-  # complete Playwright contract; other expensive path-sensitive jobs live in
-  # `full-ci.yml`.
+  # Detect which areas a PR changed. Browser UI and parish-server seam changes
+  # use this output to opt into the complete Playwright contract; other
+  # expensive path-sensitive jobs live in `full-ci.yml`.
   changes:
     name: Detect changed areas
     runs-on: ubuntu-latest
@@ -65,6 +66,7 @@ jobs:
               - '.github/workflows/ci.yml'
             ui:
               - 'parish/apps/ui/**'
+              - 'parish/crates/parish-server/**'
               - '.github/workflows/ci.yml'
 
   agent-check:
@@ -271,6 +273,9 @@ jobs:
       - name: Build UI
         run: npm run build
 
+      - name: Run managed-server integration races
+        run: npm run test:playwright-launcher-integration
+
       - name: Install Playwright browser (Linux-only OS deps)
         if: runner.os == 'Linux'
         run: npx playwright install --with-deps chromium
@@ -294,9 +299,29 @@ jobs:
           path: parish/apps/ui/playwright-report/
           if-no-files-found: ignore
 
+  playwright-launcher-windows:
+    name: Playwright launcher lifecycle (Windows)
+    runs-on: windows-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: parish/apps/ui
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+
+      - name: Run built-in launcher lifecycle tests
+        run: node --test scripts/playwright-worktree-server.test.js
+
   # ── Aggregate required-checks gate ─────────────────────────────────────────
   # Branch protection requires THIS single job. It aggregates the fast lane and
-  # the conditional complete Playwright contract for shipped UI changes.
+  # the conditional complete Playwright contract for shipped browser/server
+  # seam changes.
   ci-gate:
     name: CI gate
     needs:
@@ -306,6 +331,7 @@ jobs:
         docs-consistency,
         format-quality,
         python-quality,
+        playwright-launcher-windows,
         shell-quality,
         toml-quality,
         ui-e2e,
@@ -323,6 +349,7 @@ jobs:
       - name: Require gated jobs to succeed or be skipped
         env:
           GATED_RESULTS: ${{ join(needs.*.result, ' ') }}
+          PLAYWRIGHT_WINDOWS_RESULT: ${{ needs.playwright-launcher-windows.result }}
           UI_E2E_REQUIRED: ${{ github.event_name == 'pull_request' && needs.changes.outputs.ui == 'true' }}
           UI_E2E_RESULT: ${{ needs.ui-e2e.result }}
         run: bash .github/scripts/ci-gate.sh

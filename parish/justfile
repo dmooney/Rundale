@@ -212,8 +212,8 @@ ui-test:
     eval "$(fnm env)" && cd apps/ui && npx vitest run
 
 # Run Playwright E2E tests (headless Chromium, mocked Tauri IPC).
-# Depends on ui-build so Playwright's webServer serves a fresh dist rather
-# than a stale (or missing) bundle from before the last src/ change (#1179).
+# Keep the early ui-build feedback; the config-managed launcher rebuilds again
+# immediately before capture so every Playwright entry point is safe (#1717).
 ui-e2e: ui-build
     eval "$(fnm env)" && cd apps/ui && npx playwright test
 
