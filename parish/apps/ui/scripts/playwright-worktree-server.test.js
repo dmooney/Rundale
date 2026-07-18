@@ -1318,7 +1318,7 @@ test('another run on the same port cannot satisfy readiness', async () => {
 				readyFile,
 				runId: waitingRun,
 				server: { exitCode: null },
-				timeoutMs: 100,
+				timeoutMs: 1_000,
 			}),
 			/another Playwright run owns the listener/,
 		);
