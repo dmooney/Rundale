@@ -107,6 +107,20 @@ function target(id: string, label: string, order: number): ParishHitTarget {
 	};
 }
 
+function tabTarget(
+	tab: 'notes' | 'people' | 'places' | 'rumours' | 'journal',
+	order: number,
+): ParishHitTarget {
+	return {
+		id: `tab:${tab}`,
+		kind: 'tab',
+		label: `Open ${tab.charAt(0).toUpperCase()}${tab.slice(1)} notebook tab`,
+		rect: { x: order, y: order, width: 44, height: 44 },
+		order,
+		activation: { type: 'open-tab', tab },
+	};
+}
+
 function seedStores() {
 	sessionStorage.clear();
 	resetNotebookOverlayForTests();
@@ -162,7 +176,11 @@ function seedStores() {
 	mockHitTargets = [
 		target('nearby:roisin', 'Select nearby person Roisin Connolly', 10),
 		target('action:ask', 'Ask action', 40),
-		target('tab:people', 'Open People notebook tab', 50),
+		tabTarget('notes', 50),
+		tabTarget('people', 51),
+		tabTarget('places', 52),
+		tabTarget('rumours', 53),
+		tabTarget('journal', 54),
 		target('time-card', 'Open time and weather', 60),
 		target('active-intents', 'Open active intents', 70),
 	];
@@ -418,12 +436,27 @@ describe('IllustratedNotebookGame fresh parish bridge', () => {
 		expect(input.getAttribute('aria-invalid')).toBe('false');
 	});
 
-	it('routes tabs and cards through the single overlay coordinator', async () => {
-		render(IllustratedNotebookGame);
+	it('turns tabs in place while cards use the overlay coordinator', async () => {
+		const { getByRole, getByTestId } = render(IllustratedNotebookGame);
 		await waitFor(() => expect(lastRenderState).not.toBeNull());
+		const section = getByTestId('notebook-active-section');
+		expect(section).toHaveAttribute('data-section', 'notes');
+		expect(
+			getByRole('button', { name: 'Open Notes notebook tab' }),
+		).toHaveAttribute('aria-pressed', 'true');
 
-		lastRenderState?.callbacks.onOpenTab('people');
-		await waitFor(() => expect(get(notebookOverlay)).toBe('people'));
+		lastRenderState?.callbacks.onOpenTab('places');
+		await waitFor(() => {
+			expect(lastRenderState?.activeTab).toBe('places');
+			expect(section).toHaveAttribute('data-section', 'places');
+			expect(section).toHaveTextContent('Places in this Parish');
+			expect(section).toHaveTextContent('The Crossroads');
+		});
+		expect(get(notebookOverlay)).toBeNull();
+		expect(get(fullMapOpen)).toBe(false);
+		expect(
+			getByRole('button', { name: 'Open Places notebook tab' }),
+		).toHaveAttribute('aria-pressed', 'true');
 
 		lastRenderState?.callbacks.onOpenSurface('time');
 		await waitFor(() => expect(get(notebookOverlay)).toBe('time'));
@@ -442,13 +475,13 @@ describe('IllustratedNotebookGame fresh parish bridge', () => {
 		const host = getByTestId('illustrated-notebook-pixi-host');
 		await waitFor(() => expect(rendererConstructCount).toBe(1));
 
-		lastRenderState?.callbacks.onOpenSurface('people');
+		lastRenderState?.callbacks.onOpenSurface('time');
 		await waitFor(() => expect(game.getAttribute('aria-hidden')).toBe('true'));
 		expect(game.classList.contains('overlay-open')).toBe(true);
 		expect(getByTestId('illustrated-notebook-pixi-host')).toBe(host);
 		expect(rendererConstructCount).toBe(1);
 
-		closeNotebookOverlay('people');
+		closeNotebookOverlay('time');
 		await waitFor(() => expect(game.getAttribute('aria-hidden')).toBe('false'));
 		expect(game.classList.contains('overlay-open')).toBe(false);
 		expect(getByTestId('illustrated-notebook-pixi-host')).toBe(host);

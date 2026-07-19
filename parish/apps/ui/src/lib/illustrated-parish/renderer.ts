@@ -30,6 +30,7 @@ import {
 	PARISH_ACTIONS,
 } from './layout';
 import { parishProfilePlaceholder } from './profile';
+import { buildNotebookSectionContent } from './sections';
 import type {
 	NotebookSurface,
 	ParishHitTarget,
@@ -904,7 +905,7 @@ export class IllustratedParishRenderer {
 
 	private drawNotebook(layout: ParishLayout, state: ParishRenderState): void {
 		// Tabs sit behind the sewn page so only their right-hand handles protrude.
-		this.drawTabs(layout);
+		this.drawTabs(layout, state.activeTab);
 		const shadow = new Graphics();
 		shadow
 			.roundRect(
@@ -922,14 +923,12 @@ export class IllustratedParishRenderer {
 
 		const page = layout.notebookPage;
 		const scale = page.width / 440;
-		const selected = state.selectedNpc;
-		const profile = parishProfilePlaceholder();
 		const pageLeft = page.x + page.width * 0.17;
 		const pageRight = page.x + page.width * 0.88;
-		const name = selected?.name ?? 'Parish Notes';
+		const section = buildNotebookSectionContent(state);
 		this.text(
 			this.layers.chrome,
-			shortText(name, layout.mode === 'mobile' ? 18 : 26),
+			shortText(section.title, layout.mode === 'mobile' ? 20 : 28),
 			pageLeft,
 			page.y + page.height * 0.105,
 			Math.max(13, 23 * scale),
@@ -943,82 +942,60 @@ export class IllustratedParishRenderer {
 			0.28,
 		);
 
-		if (selected) {
-			const portraitRect = {
-				x: pageLeft,
-				y: page.y + page.height * 0.18,
-				width: page.width * 0.25,
-				height: page.height * 0.13,
-			};
-			this.drawPersonPortrait(this.layers.chrome, portraitRect, selected, true);
+		const lines = section.lines.slice(0, 4);
+		const contentTop = page.y + page.height * 0.2;
+		const linePitch = page.height * (layout.mode === 'mobile' ? 0.145 : 0.155);
+		lines.forEach((line, index) => {
+			const lineY = contentTop + index * linePitch;
 			this.text(
 				this.layers.chrome,
-				shortText(selected.mood || 'watchful', 13),
-				page.x + page.width * 0.58,
-				page.y + page.height * 0.22,
-				Math.max(12, 18 * scale),
-				{ fill: MOOD_RED },
+				line.label,
+				pageLeft,
+				lineY,
+				Math.max(10, 16 * scale),
+				{ fill: index === 0 ? MOOD_RED : INK },
 			);
-		}
-
-		const trustY = page.y + page.height * 0.37;
-		this.text(
-			this.layers.chrome,
-			'Trust',
-			pageLeft,
-			trustY,
-			Math.max(13, 19 * scale),
-		);
-		for (let index = 0; index < profile.profileTrustSlots; index++) {
-			const dot = new Graphics();
-			dot
-				.circle(
-					page.x + page.width * (0.48 + index * 0.075),
-					trustY + Math.max(8, 10 * scale),
-					Math.max(3, 6 * scale),
-				)
-				.fill({
-					color: index < profile.filledTrustSlots ? TRUST_OLIVE : PAPER_LIGHT,
-					alpha: 0.9,
-				})
-				.stroke({ color: INK, width: 1, alpha: 0.8 });
-			this.layers.chrome.addChild(dot);
-		}
-
-		const factsY = page.y + page.height * 0.47;
-		this.text(
-			this.layers.chrome,
-			'They know',
-			pageLeft,
-			factsY,
-			Math.max(13, 18 * scale),
-		);
-		const facts = profile.knowledgeNotes;
-		facts.forEach((fact, index) => {
 			this.text(
 				this.layers.chrome,
-				`• ${shortText(fact, layout.mode === 'mobile' ? 22 : 31)}`,
-				pageLeft + 5,
-				factsY + page.height * (0.075 + index * 0.07),
-				Math.max(10, 15 * scale),
-				{ wordWrap: true, wordWrapWidth: page.width * 0.65 },
+				shortText(line.text, layout.mode === 'mobile' ? 44 : 66),
+				pageLeft + 4,
+				lineY + Math.max(13, 20 * scale),
+				Math.max(9, 13 * scale),
+				{
+					fill: INK_SOFT,
+					wordWrap: true,
+					wordWrapWidth: pageRight - pageLeft - 4,
+				},
 			);
+			if (index < lines.length - 1) {
+				this.inkLine(
+					this.layers.chrome,
+					pageLeft,
+					lineY + linePitch - Math.max(4, 7 * scale),
+					pageRight,
+					lineY + linePitch - Math.max(4, 7 * scale),
+					0.18,
+				);
+			}
 		});
-		this.drawCartSketch(
+		this.text(
 			this.layers.chrome,
-			page.x + page.width * 0.34,
-			page.y + page.height * 0.76,
-			page.width * 0.42,
+			`${titleCase(section.tab)} · turn a tab to change this page`,
+			pageLeft,
+			page.y + page.height * 0.88,
+			Math.max(8, 11 * scale),
+			{ fill: INK_SOFT },
 		);
 	}
 
-	private drawTabs(layout: ParishLayout): void {
+	private drawTabs(layout: ParishLayout, activeTab: ParishTab): void {
 		this.layers.chrome.addChild(
 			this.place(this.sprite(PARISH_ASSETS.indexRail), layout.tabRail),
 		);
 		const pageRight = layout.notebookPage.x + layout.notebookPage.width;
 		layout.tabs.forEach((rect, index) => {
 			const tab = TAB_LABELS[index];
+			const selected = tab === activeTab;
 			const visibleRight = Math.min(layout.width, rect.x + rect.width);
 			const visibleWidth = Math.max(1, visibleRight - pageRight);
 			const visibleCenterX = pageRight + visibleWidth / 2;
@@ -1062,6 +1039,13 @@ export class IllustratedParishRenderer {
 				width: iconSize,
 				height: iconSize,
 			});
+			if (selected) {
+				const marker = new Graphics();
+				marker
+					.circle(visibleCenterX, rect.y + rect.height - 5, 2.7)
+					.fill({ color: MOOD_RED, alpha: 0.94 });
+				this.layers.chrome.addChild(marker);
+			}
 		});
 	}
 
@@ -1524,27 +1508,6 @@ export class IllustratedParishRenderer {
 				)
 				.stroke({ color: INK, width: 0.8, alpha: 0.52 });
 		}
-		layer.addChild(g);
-	}
-
-	private drawCartSketch(
-		layer: Container,
-		x: number,
-		y: number,
-		width: number,
-	): void {
-		const g = new Graphics();
-		const h = width * 0.3;
-		g.circle(x, y + h, h * 0.36)
-			.circle(x + width * 0.58, y + h, h * 0.36)
-			.moveTo(x, y + h)
-			.lineTo(x + width * 0.58, y + h)
-			.lineTo(x + width * 0.48, y)
-			.lineTo(x + width * 0.07, y)
-			.closePath()
-			.moveTo(x + width * 0.58, y + h * 0.2)
-			.lineTo(x + width, y - h * 0.1)
-			.stroke({ color: INK, width: 1, alpha: 0.45 });
 		layer.addChild(g);
 	}
 }
