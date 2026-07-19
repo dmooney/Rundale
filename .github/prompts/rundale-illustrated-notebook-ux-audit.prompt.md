@@ -18,7 +18,7 @@ interruptive. Preserve the player’s context and visual language in either case
 
 ## Required process
 
-1. Read `AGENTS.md`, `LEARNINGS.md`, this prompt, the current illustrated
+1. Read [AGENTS.md](../../AGENTS.md), [LEARNINGS.md](../../LEARNINGS.md), this prompt, the current illustrated
    notebook design documents, and the relevant implementation and Playwright
    tests. Use the Five Whys method before changing code when an unexpected UI
    behaviour is involved.
