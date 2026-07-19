@@ -11,6 +11,11 @@ import {
 export type SubmitInput = (text: string) => Promise<void>;
 
 export const NOTEBOOK_COMMAND_PLACEHOLDER = 'ask Roisin what she saw';
+export const NOTEBOOK_COMMAND_HISTORY_STORAGE_KEY =
+	'parish-notebook-command-history';
+export const NOTEBOOK_COMMAND_HISTORY_MAX = 50;
+
+type NotebookCommandHistoryStorage = Pick<Storage, 'getItem' | 'setItem'>;
 
 export interface SubmitNotebookCommandOptions {
 	text: string;
@@ -18,6 +23,62 @@ export interface SubmitNotebookCommandOptions {
 	paused: boolean;
 	submitInput: SubmitInput;
 	onLocalSubmit: () => void;
+}
+
+function sessionHistoryStorage(): NotebookCommandHistoryStorage | null {
+	if (typeof window === 'undefined') return null;
+	try {
+		return window.sessionStorage;
+	} catch {
+		return null;
+	}
+}
+
+export function loadNotebookCommandHistory(
+	storage: Pick<Storage, 'getItem'> | null = sessionHistoryStorage(),
+): string[] {
+	if (!storage) return [];
+	try {
+		const encoded = storage.getItem(NOTEBOOK_COMMAND_HISTORY_STORAGE_KEY);
+		if (!encoded) return [];
+		const parsed: unknown = JSON.parse(encoded);
+		if (!Array.isArray(parsed)) return [];
+
+		const history: string[] = [];
+		for (const value of parsed) {
+			if (typeof value !== 'string') continue;
+			const command = value.trim();
+			if (!command || history[history.length - 1] === command) continue;
+			history.push(command);
+		}
+		return history.slice(-NOTEBOOK_COMMAND_HISTORY_MAX);
+	} catch {
+		return [];
+	}
+}
+
+export function appendNotebookCommandHistory(
+	history: readonly string[],
+	command: string,
+): string[] {
+	const trimmed = command.trim();
+	if (!trimmed || history[history.length - 1] === trimmed) return [...history];
+	return [...history, trimmed].slice(-NOTEBOOK_COMMAND_HISTORY_MAX);
+}
+
+export function saveNotebookCommandHistory(
+	history: readonly string[],
+	storage: Pick<Storage, 'setItem'> | null = sessionHistoryStorage(),
+): void {
+	if (!storage) return;
+	try {
+		storage.setItem(
+			NOTEBOOK_COMMAND_HISTORY_STORAGE_KEY,
+			JSON.stringify(history),
+		);
+	} catch {
+		// A private or quota-limited browser session must not make command entry fail.
+	}
 }
 
 export function draftForNotebookAction(
