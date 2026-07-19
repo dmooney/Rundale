@@ -1,6 +1,7 @@
 # Roadmap: Illustrated Notebook UI
 
-Status: Active roadmap after the fresh #1630 concept-aligned rebuild.
+Status: Integrated default play surface complete; deferred follow-on slices are
+tracked with their residual risks below.
 
 This is the source of truth for finishing the Rundale illustrated notebook play
 surface. GitHub issues should track executable slices; this document preserves
@@ -40,32 +41,34 @@ The fresh #1630 baseline adds:
   `src/lib/illustrated-notebook/` visual implementation.
 - A fresh asset kit under
   `parish/apps/ui/static/rundale/illustrated-notebook-v2/`: desktop/mobile parish
-  plates, concept-referenced raster parchment/ink cutouts, an empty portrait
-  frame, and the explicitly approved hand-sewn page. Runtime initials reserve
-  the future portrait slots; portrait art/system work remains a separate slice.
-  The kit does not import either rejected `notebook-ui` asset set.
+  plates, concept-referenced raster parchment/ink cutouts, approved person
+  portraits and markers, and the explicitly approved hand-sewn page. The kit
+  does not import either rejected `notebook-ui` asset set.
 - Concept-aligned scene people and labels, Nearby rail, sewn notebook page,
   contiguous action strip, command strip, Map/Time cards, and Active Intents
   card.
 - A hidden native input for keyboard/accessibility with Pixi-rendered visible
-  command treatment.
+  command treatment, including Enter/send/stamp submission, busy/error states,
+  and session command-history navigation.
 - A single notebook-styled overlay coordinator/host for Journal, People,
   Focail, Map, Save/Load, Debug, Mod, Bug Report, and supporting utility
   surfaces.
 - Visual-scene metadata/tests rejecting historical map reference language and
-  strict isometric/isomorphic runtime requirements.
+  strict isometric/isomorphic runtime requirements, plus screenshot, selector,
+  and asset-provenance regression coverage.
 
-Known gaps:
+Deferred follow-on slices:
 
-- Portrait art, broader cast coverage, and fallback behavior are intentionally
-  deferred to the separate person-and-marker issue.
-- Scene people/tabs/cards/actions need complete hover, focus, click, and keyboard
-  affordances.
-- Command editing lacks polished caret/selection/history/autocomplete behavior.
-- Reused overlay internals remain legacy code behind the notebook wrapper and
-  should migrate only where isolation is insufficient.
-- Scene anchors/depth bands need per-location coverage.
-- Mobile layout is acceptable but not yet deeply tuned.
+- **#1631 — location scene metadata and anchors.** Deferred until the next
+  location-expansion product slot is explicitly scheduled. Residual risk: beyond
+  the starter loop, shared fallback anchors can weaken scene-specific placement.
+- **#1632 — mobile layout hardening.** Deferred until a device-matrix hardening
+  slot is explicitly scheduled. Residual risk: uncommon short or extreme mobile
+  viewports have less focused layout coverage than the proven 390x844 surface.
+- **#1633 — visual regression and provenance gates.** Deferred until the
+  cross-slice visual-quality slot is explicitly scheduled. Residual risk:
+  notebook-specific safeguards remain distributed across the shipped slice tests
+  and provenance checks rather than one coordinator-owned gate.
 
 ## Epic And Slice Issues
 
