@@ -63,7 +63,12 @@ async function openJournal(page: Page) {
 	return journal;
 }
 
-test.describe('chat-feed rendering (#1226, #1275)', () => {
+// #1755 replaced the modal ChatPanel Journal with concise in-page notebook
+// entries. The detailed bubble/chip rendering remains exhaustively covered by
+// ChatPanel.test.ts, but it is no longer a player-facing browser destination;
+// keep these legacy visual proofs explicitly retired instead of routing the
+// Journal tab back through a modal solely to satisfy old tests.
+test.describe.skip('legacy chat-feed rendering (#1226, #1275)', () => {
 	test.beforeEach(async ({ page }) => {
 		// Default light theme — gold player bubble, cream page — matches the bug.
 		await installTauriMock(page, 'morning');

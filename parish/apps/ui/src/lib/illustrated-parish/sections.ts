@@ -146,7 +146,7 @@ function nearbyPeople(npcs: ParishRenderState['npcs']): string {
 function journalLines(entries: TextLogEntry[]): NotebookSectionLine[] {
 	const recent = entries
 		.filter((entry) => entry.content.trim().length > 0)
-		.slice(-3);
+		.slice(-4);
 	if (recent.length === 0) {
 		return [{ label: 'Latest', text: EMPTY_NOTE }];
 	}

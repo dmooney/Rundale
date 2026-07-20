@@ -109,4 +109,20 @@ describe('illustrated parish notebook sections', () => {
 			{ label: 'Roisin', text: 'The road is quiet today.' },
 		]);
 	});
+
+	it('keeps the four entries the visible notebook page can render', () => {
+		const journal = buildNotebookSectionContent({
+			...state('journal'),
+			journalEntries: Array.from({ length: 6 }, (_, index) => ({
+				source: 'system',
+				content: `Entry ${index + 1}`,
+			})),
+		});
+		expect(journal.lines.map((line) => line.text)).toEqual([
+			'Entry 3',
+			'Entry 4',
+			'Entry 5',
+			'Entry 6',
+		]);
+	});
 });

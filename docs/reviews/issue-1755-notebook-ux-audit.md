@@ -67,6 +67,7 @@ safe route away from the current situation without an undocumented command.
 | Scene, draft, and canvas survive navigation | Playwright draft, section, and bounds assertions | Resolved |
 | Primary action, feedback, navigation, exit visible | Desktop/mobile first-page screenshots and control inventory | Resolved |
 | Deliberate sheets share visual language | Map and utility screenshots | Resolved by the existing notebook sheet host; no deferral |
+| Legacy ChatPanel reaction picker and detailed bubble layout | `ChatPanel.test.ts`; explicitly skipped legacy-only browser proofs | Deliberate deferral: the coherent in-page Journal shows recent entries, but reactions need a notebook-native interaction design before returning to the player surface |
 
 Proof images are generated under `.proofs/1755/` by
 `e2e/illustrated-notebook-interactions.spec.ts` and intentionally remain
