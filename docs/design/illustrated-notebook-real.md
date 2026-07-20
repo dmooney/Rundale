@@ -135,6 +135,23 @@ The renderer owns the visible first viewport:
 Svelte should host the canvas, subscribe to stores, pass render props into the
 renderer, submit commands, and open secondary overlays only when requested.
 
+## Interaction Model
+
+The sewn page and its protruding tabs are one persistent notebook surface:
+
+- **Notes** records the current scene, conditions, and next-action guidance.
+- **People** shows the selected person's record and the nearby directory.
+- **Places** is a written directory of the current and adjacent places.
+- **Rumours** holds learned stories.
+- **Journal** shows recent narrative and conversation entries.
+
+Turning a tab changes that page in place; it does not open a dialog. Selecting a
+person also turns to People. The separate **Map** card opens a notebook-styled
+geographic sheet with routes and zoom/pan controls, while utility and
+interruptive work such as Save/Load, Debug, Mod, Bug Report, and Shortcuts uses
+dismissible notebook-styled sheets. Closing a sheet returns to the same tab,
+scene, command draft, canvas dimensions, and invoking control.
+
 ## Command Input
 
 The visible input must be new. Preferred implementation:

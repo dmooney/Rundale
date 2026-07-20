@@ -1,6 +1,6 @@
 /**
- * Visual and interaction proof for the fresh illustrated-notebook rebuild
- * (#1630). Proof images are written to the repo-root `.proofs/1630/` bundle.
+ * Visual and interaction proof for the illustrated-notebook interaction model
+ * (#1755). Proof images are written to the repo-root `.proofs/1755/` bundle.
  *
  * The Pixi controls expose semantic companion buttons, so this spec exercises
  * those controls by accessible name instead of depending on scene coordinates.
@@ -20,7 +20,7 @@ import {
 import type { MapData, NpcInfo, WorldSnapshot } from '../src/lib/types';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const PROOF_DIR = path.resolve(__dirname, '../../../../.proofs/1630');
+const PROOF_DIR = path.resolve(__dirname, '../../../../.proofs/1755');
 const COMMAND_PROOF_DIR = path.resolve(__dirname, '../../../../.proofs/1626');
 const COMMAND_VISUAL_PROOF_TIMEOUT_MS = 120_000;
 
@@ -373,7 +373,7 @@ async function setupNotebookPage(page: Page): Promise<void> {
 	await settlePaint(page);
 }
 
-test.describe('illustrated notebook overlays (#1630)', () => {
+test.describe('illustrated notebook interaction model (#1755)', () => {
 	test.describe.configure({ timeout: COMMAND_VISUAL_PROOF_TIMEOUT_MS });
 
 	test.beforeAll(() => {
@@ -424,7 +424,7 @@ test.describe('illustrated notebook overlays (#1630)', () => {
 		);
 	});
 
-	test('desktop keeps the first viewport clean and routes notebook tools without resizing Pixi', async ({
+	test('desktop turns notebook sections in place and reserves sheets for transient tools', async ({
 		page,
 	}) => {
 		await page.setViewportSize({ width: 1440, height: 900 });
@@ -445,23 +445,65 @@ test.describe('illustrated notebook overlays (#1630)', () => {
 			);
 		}
 
-		await page.screenshot({
-			path: path.join(PROOF_DIR, 'desktop-first-viewport.png'),
-			fullPage: false,
-		});
+		const section = page.getByTestId('notebook-active-section');
+		for (const [tab, title] of [
+			['notes', 'Parish Notes'],
+			['people', 'Roisin Connolly'],
+			['places', 'Places in this Parish'],
+			['rumours', 'Rumours'],
+			['journal', 'Parish Journal'],
+		] as const) {
+			const control = await activateNotebookControl(
+				page,
+				`Open ${tab.charAt(0).toUpperCase()}${tab.slice(1)} notebook tab`,
+			);
+			await expect(control).toHaveAttribute('aria-pressed', 'true');
+			await expect(section).toHaveAttribute('data-section', tab);
+			await expect(section).toContainText(title);
+			await expect(page.getByTestId('notebook-overlay-backdrop')).toHaveCount(
+				0,
+			);
+			await expectCanvasBounds(page, initialBounds);
+			await settleNotebookFrame(page);
+			await page.screenshot({
+				path: path.join(PROOF_DIR, `desktop-section-${tab}.png`),
+				fullPage: false,
+			});
+		}
+
+		await activateNotebookControl(page, 'Open Places notebook tab');
+		await expect(section).toContainText("St. Brigid's Church");
+		await expect(section).toContainText('Open the Map card below');
+		await expect(page.getByLabel('Player intent', { exact: true })).toHaveValue(
+			'ask Roisin what she saw.',
+		);
 
 		// Use the canvas itself (not the semantic companion button) to prove that
-		// a translated and scaled raster Sprite owns the correct local hit area.
+		// the geographically distinct Map card owns the correct local hit area.
 		await clickNotebookCanvasTarget(page, 'Open parish map');
 		const mapOverlay = page.getByRole('dialog', {
 			name: 'Parish Map',
 			exact: true,
 		});
 		await expect(mapOverlay).toBeVisible();
+		await expect(mapOverlay).toHaveAttribute('data-surface', 'map');
+		await expect(page.getByLabel('Map controls')).toContainText(
+			'scroll or pinch to zoom',
+		);
+		await settlePaint(page);
+		await page.screenshot({
+			path: path.join(PROOF_DIR, 'desktop-map-sheet.png'),
+			fullPage: false,
+		});
 		await page
 			.getByRole('button', { name: 'Close Parish Map', exact: true })
 			.click();
 		await expectCleanFirstViewport(page);
+		await expect(section).toHaveAttribute('data-section', 'places');
+		await expect(section).toContainText('Places in this Parish');
+		await expect(page.getByLabel('Player intent', { exact: true })).toHaveValue(
+			'ask Roisin what she saw.',
+		);
 		await expectCanvasBounds(page, initialBounds);
 
 		const toolsInvoker = await activateNotebookControl(
@@ -501,42 +543,9 @@ test.describe('illustrated notebook overlays (#1630)', () => {
 		await expectCleanFirstViewport(page);
 		await expect(toolsInvoker).toBeFocused();
 		await expectCanvasBounds(page, initialBounds);
-
-		const journalInvoker = await activateNotebookControl(
-			page,
-			'Open Journal notebook tab',
-		);
-		const journalOverlay = page.getByRole('dialog', {
-			name: 'Parish Journal',
-			exact: true,
-		});
-		await expect(journalOverlay).toBeVisible();
-		await expect(journalOverlay).toHaveAttribute('data-surface', 'journal');
-		await expect(journalOverlay.getByTestId('chat-panel')).toBeVisible();
-		await expectCanvasBounds(page, initialBounds);
-		await page.keyboard.press('F10');
-		await expect(
-			page.getByRole('dialog', { name: 'Demo mode configuration' }),
-		).toHaveCount(0);
-
-		await settlePaint(page);
-		await page.screenshot({
-			path: path.join(PROOF_DIR, 'desktop-journal-overlay.png'),
-			fullPage: false,
-		});
-
-		await page
-			.getByRole('button', {
-				name: 'Close Parish Journal',
-				exact: true,
-			})
-			.click();
-		await expectCleanFirstViewport(page);
-		await expect(journalInvoker).toBeFocused();
-		await expectCanvasBounds(page, initialBounds);
 	});
 
-	test('mobile keeps notebook controls usable and restores the vertical canvas after a drawer closes', async ({
+	test('mobile exposes every notebook section and restores it after the Map sheet closes', async ({
 		page,
 	}) => {
 		await page.setViewportSize({ width: 390, height: 844 });
@@ -556,45 +565,56 @@ test.describe('illustrated notebook overlays (#1630)', () => {
 			expect(bounds?.height).toBeGreaterThanOrEqual(42);
 		}
 
-		await page.screenshot({
-			path: path.join(PROOF_DIR, 'mobile-first-viewport.png'),
-			fullPage: false,
-		});
-
 		await activateNotebookControl(page, 'Ask action');
 		await expect(
 			page.getByRole('textbox', { name: 'Player intent', exact: true }),
 		).toHaveValue(/^ask /i);
 
-		const invoker = await activateNotebookControl(
-			page,
-			'Open People notebook tab',
-		);
-		const peopleOverlay = page.getByRole('dialog', {
-			name: 'People of the Parish',
+		const section = page.getByTestId('notebook-active-section');
+		for (const tab of [
+			'notes',
+			'people',
+			'places',
+			'rumours',
+			'journal',
+		] as const) {
+			const control = await activateNotebookControl(
+				page,
+				`Open ${tab.charAt(0).toUpperCase()}${tab.slice(1)} notebook tab`,
+			);
+			await expect(control).toHaveAttribute('aria-pressed', 'true');
+			await expect(section).toHaveAttribute('data-section', tab);
+			await expect(page.getByTestId('notebook-overlay-backdrop')).toHaveCount(
+				0,
+			);
+			await settleNotebookFrame(page);
+			await page.screenshot({
+				path: path.join(PROOF_DIR, `mobile-section-${tab}.png`),
+				fullPage: false,
+			});
+		}
+
+		await activateNotebookControl(page, 'Open Places notebook tab');
+		const mapInvoker = await activateNotebookControl(page, 'Open parish map');
+		const mapOverlay = page.getByRole('dialog', {
+			name: 'Parish Map',
 			exact: true,
 		});
-		await expect(peopleOverlay).toBeVisible();
-		await expect(peopleOverlay).toHaveAttribute('data-surface', 'people');
-		await expect(
-			peopleOverlay.locator('.people-list button').first(),
-		).toBeVisible();
-		await expectCanvasBounds(page, initialBounds);
-
+		await expect(mapOverlay).toBeVisible();
+		await expect(page.getByLabel('Map controls')).toContainText(
+			'click an outlined place to travel',
+		);
 		await settlePaint(page);
 		await page.screenshot({
-			path: path.join(PROOF_DIR, 'mobile-people-overlay.png'),
+			path: path.join(PROOF_DIR, 'mobile-map-sheet.png'),
 			fullPage: false,
 		});
-
 		await page
-			.getByRole('button', {
-				name: 'Close People of the Parish',
-				exact: true,
-			})
+			.getByRole('button', { name: 'Close Parish Map', exact: true })
 			.click();
 		await expectCleanFirstViewport(page);
-		await expect(invoker).toBeFocused();
+		await expect(mapInvoker).toBeFocused();
+		await expect(section).toHaveAttribute('data-section', 'places');
 		await expectCanvasBounds(page, initialBounds);
 	});
 

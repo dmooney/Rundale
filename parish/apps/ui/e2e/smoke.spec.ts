@@ -35,11 +35,11 @@ async function activateNotebookControl(
 
 async function openJournal(page: Page) {
 	await activateNotebookControl(page, 'Open Journal notebook tab');
-	const journal = page.getByRole('dialog', {
-		name: 'Parish Journal',
-		exact: true,
-	});
+	const journal = page.getByTestId('notebook-active-section');
 	await expect(journal).toBeVisible();
+	await expect(journal).toHaveAttribute('data-section', 'journal');
+	await expect(journal).toContainText('Parish Journal');
+	await expect(page.getByTestId('notebook-overlay-backdrop')).toHaveCount(0);
 	return journal;
 }
 
@@ -83,17 +83,14 @@ test.describe('Parish Web UI', () => {
 		).toBeEnabled();
 
 		const journal = await openJournal(page);
-		await expect(journal.getByTestId('chat-panel')).not.toBeEmpty();
-		await closeNotebookSurface(page, 'Parish Journal');
+		await expect(journal.locator('p')).not.toHaveCount(0);
 
 		await activateNotebookControl(page, 'Open People notebook tab');
-		const people = page.getByRole('dialog', {
-			name: 'People of the Parish',
-			exact: true,
-		});
+		const people = page.getByTestId('notebook-active-section');
 		await expect(people).toBeVisible();
-		await expect(people.locator('.people-list')).toBeVisible();
-		await closeNotebookSurface(page, 'People of the Parish');
+		await expect(people).toHaveAttribute('data-section', 'people');
+		await expect(people).toContainText('Nearby');
+		await expect(page.getByTestId('notebook-overlay-backdrop')).toHaveCount(0);
 
 		await activateNotebookControl(page, 'Open notebook tools');
 		const tools = page.getByRole('dialog', {
@@ -146,15 +143,10 @@ test.describe('Parish Web UI', () => {
 		// the backend's first round-trip — which on a cold-start CI runner
 		// can exceed 5 s when the inference worker hasn't warmed up (#1086).
 		const journal = await openJournal(page);
-		const chatPanel = journal.getByTestId('chat-panel');
-		const systemEntries = chatPanel.locator('.entry.system');
-		await expect(systemEntries).toHaveCount(3, { timeout: 30_000 });
 		await expect(
-			systemEntries.filter({ hasText: snapshot.location_description }),
+			journal.locator('p').filter({ hasText: snapshot.location_description }),
 		).toHaveCount(2, { timeout: 30_000 });
-		await expect(
-			chatPanel.locator('.entry.player').filter({ hasText: 'look' }),
-		).toHaveCount(0);
+		await expect(journal.getByText('look', { exact: true })).toHaveCount(0);
 	});
 
 	test('player can move to a location', async ({ page }) => {
@@ -185,8 +177,7 @@ test.describe('Parish Web UI', () => {
 			.toBe(destination.name);
 
 		const journal = await openJournal(page);
-		const chatPanel = journal.getByTestId('chat-panel');
-		await expect(chatPanel).toContainText(destination.name, {
+		await expect(journal).toContainText(destination.name, {
 			timeout: 30_000,
 		});
 	});
@@ -234,7 +225,7 @@ test.describe('Parish Web UI', () => {
 		// After a command
 		await submitIntent(page, '/status');
 		const journal = await openJournal(page);
-		await expect(journal.getByTestId('chat-panel')).toContainText('Location:', {
+		await expect(journal).toContainText('Location:', {
 			timeout: 30_000,
 		});
 		await waitForTextureCompleteNotebookFrame(page);

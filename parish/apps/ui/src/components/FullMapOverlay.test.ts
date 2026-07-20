@@ -78,6 +78,15 @@ describe('FullMapOverlay', () => {
 		expect(container.querySelector('.close-btn')).toBeTruthy();
 	});
 
+	it('explains the geographic pointer and zoom loop', () => {
+		const { getByLabelText } = render(FullMapOverlay, {
+			props: { onclose: vi.fn() },
+		});
+		expect(getByLabelText('Map controls')).toHaveTextContent(
+			'Drag to explore · scroll or pinch to zoom · click an outlined place to travel',
+		);
+	});
+
 	it('calls fitBounds exactly once when map data is already present at mount', () => {
 		// Set map data BEFORE rendering so onMount sees it immediately.
 		// This is the bug scenario: without the fix, onMount calls fitBounds,
