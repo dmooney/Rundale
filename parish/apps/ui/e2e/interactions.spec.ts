@@ -34,13 +34,11 @@ async function activateNotebookControl(
 
 async function openJournal(page: Page): Promise<Locator> {
 	await activateNotebookControl(page, 'Open Journal notebook tab');
-	const journal = page.getByRole('dialog', {
-		name: 'Parish Journal',
-		exact: true,
-	});
+	const journal = page.getByTestId('notebook-active-section');
 	await expect(journal).toBeVisible();
-	await expect(journal).toHaveAttribute('data-surface', 'journal');
-	await expect(journal.getByTestId('chat-panel')).toBeVisible();
+	await expect(journal).toHaveAttribute('data-section', 'journal');
+	await expect(journal).toContainText('Parish Journal');
+	await expect(page.getByTestId('notebook-overlay-backdrop')).toHaveCount(0);
 	return journal;
 }
 
@@ -226,7 +224,6 @@ test.describe('Streaming simulation', () => {
 		await page.waitForLoadState('networkidle');
 		await waitForNotebook(page);
 		const journal = await openJournal(page);
-		const chatPanel = journal.getByTestId('chat-panel');
 
 		// Start loading
 		await emitEvent(page, 'loading', { active: true });
@@ -249,7 +246,7 @@ test.describe('Streaming simulation', () => {
 		});
 		await emitEvent(page, 'stream-turn-end', { turn_id: 1 });
 
-		await expect(chatPanel.getByText("Ah, you're welcome!")).toBeVisible();
+		await expect(journal.getByText("Ah, you're welcome!")).toBeVisible();
 
 		// End stream
 		await emitEvent(page, 'stream-end', { hints: IRISH_HINTS });
@@ -263,7 +260,6 @@ test.describe('Streaming simulation', () => {
 		await page.waitForLoadState('networkidle');
 		await waitForNotebook(page);
 		const journal = await openJournal(page);
-		const chatPanel = journal.getByTestId('chat-panel');
 
 		await emitEvent(page, 'loading', { active: true });
 
@@ -279,8 +275,8 @@ test.describe('Streaming simulation', () => {
 			source: 'Siobhan Murphy',
 		});
 		await expect(
-			chatPanel.locator('.bubble-row.npc').nth(0).locator('.label'),
-		).toHaveText('Siobhan Murphy');
+			journal.locator('p').filter({ hasText: 'Siobhan Murphy' }),
+		).toContainText('I heard the fair will be lively tonight');
 
 		// Queue Padraig before Siobhan has finished animating.
 		await emitEvent(page, 'text-log', {
@@ -304,14 +300,18 @@ test.describe('Streaming simulation', () => {
 		await emitEvent(page, 'stream-turn-end', { turn_id: 12 });
 		await emitEvent(page, 'stream-end', { hints: IRISH_HINTS });
 
-		const npcRows = chatPanel.locator('.bubble-row.npc');
-		await expect(npcRows).toHaveCount(2);
-		await expect(npcRows.nth(0).locator('.label')).toHaveText('Siobhan Murphy');
-		await expect(npcRows.nth(0).locator('.content')).toContainText(
+		const siobhanRow = journal.locator('p').filter({
+			hasText: 'Siobhan Murphy',
+		});
+		const padraigRow = journal.locator('p').filter({
+			hasText: 'Padraig Darcy',
+		});
+		await expect(siobhanRow.locator('strong')).toHaveText('Siobhan Murphy:');
+		await expect(siobhanRow).toContainText(
 			'I heard the fair will be lively tonight with music by the square.',
 		);
-		await expect(npcRows.nth(1).locator('.label')).toHaveText('Padraig Darcy');
-		await expect(npcRows.nth(1).locator('.content')).toContainText(
+		await expect(padraigRow.locator('strong')).toHaveText('Padraig Darcy:');
+		await expect(padraigRow).toContainText(
 			"If it is, I'll bring the cart before sunset.",
 		);
 	});

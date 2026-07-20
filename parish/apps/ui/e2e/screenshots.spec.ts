@@ -90,7 +90,7 @@ async function setupScreenshotPage(
 	).toHaveCount(1);
 	await applyTheme(page, PALETTES[time]);
 
-	const summary = page.locator('.notebook-screenreader-summary');
+	const summary = page.getByRole('status', { name: 'Parish status' });
 	await expect(summary).toContainText(SNAPSHOTS[time].time_label);
 	const timeControl = page.getByRole('button', {
 		name: 'Open time and weather',

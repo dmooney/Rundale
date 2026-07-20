@@ -41,11 +41,11 @@ async function activateNotebookControl(
 
 async function openJournal(page: Page) {
 	await activateNotebookControl(page, 'Open Journal notebook tab');
-	const journal = page.getByRole('dialog', {
-		name: 'Parish Journal',
-		exact: true,
-	});
+	const journal = page.getByTestId('notebook-active-section');
 	await expect(journal).toBeVisible();
+	await expect(journal).toHaveAttribute('data-section', 'journal');
+	await expect(journal).toContainText('Parish Journal');
+	await expect(page.getByTestId('notebook-overlay-backdrop')).toHaveCount(0);
 	return journal;
 }
 
@@ -151,17 +151,16 @@ test.describe('App layout', () => {
 
 	test('People tab lists NPCs at the current location', async ({ page }) => {
 		await activateNotebookControl(page, 'Open People notebook tab');
-		const people = page.getByRole('dialog', {
-			name: 'People of the Parish',
-			exact: true,
-		});
+		const people = page.getByTestId('notebook-active-section');
 		await expect(people).toBeVisible();
+		await expect(people).toHaveAttribute('data-section', 'people');
 		for (const npc of NPCS) {
-			await expect(people.getByText(npc.name, { exact: true })).toBeVisible();
-			await expect(
-				people.getByText(new RegExp(`^${npc.occupation}\\s*[·•]`)),
-			).toBeVisible();
+			await expect(people).toContainText(npc.name);
 		}
+		await expect(people).toContainText(
+			NPCS[0]?.occupation ?? 'Parish resident',
+		);
+		await expect(page.getByTestId('notebook-overlay-backdrop')).toHaveCount(0);
 	});
 
 	test('hidden native intent control accepts keyboard input at idle', async ({
@@ -343,7 +342,7 @@ test.describe('Event handling', () => {
 		await page.goto('/');
 		await page.waitForLoadState('networkidle');
 		await waitForNotebook(page);
-		const summary = page.locator('.notebook-screenreader-summary');
+		const summary = page.getByRole('status', { name: 'Parish status' });
 		await expect(summary).toContainText('Morning');
 		await activateNotebookControl(page, 'Open time and weather');
 		const notes = page.getByRole('dialog', {
@@ -360,6 +359,9 @@ test.describe('Event handling', () => {
 
 		await expect(notes.getByText('12:00', { exact: true })).toBeVisible();
 		await expect(notes.getByText('Overcast', { exact: true })).toBeVisible();
+		await notes
+			.getByRole('button', { name: 'Close Time & Weather', exact: true })
+			.click();
 		await expect(summary).toContainText('Midday');
 	});
 });

@@ -239,7 +239,11 @@ test.describe('Focail notebook overlay', () => {
 	});
 });
 
-test.describe('Reactions', () => {
+// #1755 retired the modal ChatPanel route from the player-facing Journal tab.
+// These two browser tests exercise controls that only exist inside that legacy
+// component; ChatPanel.test.ts retains the picker, IPC, and reaction-bar
+// contracts until reactions receive an in-page notebook interaction design.
+test.describe.skip('Legacy ChatPanel reactions', () => {
 	test.beforeEach(async ({ page }) => {
 		await installTauriMock(page, 'morning');
 		await page.goto('/');

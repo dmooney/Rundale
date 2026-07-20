@@ -1,5 +1,5 @@
 import type { NotebookAction } from '$lib/notebook/actions';
-import type { MapData, NpcInfo, WorldSnapshot } from '$lib/types';
+import type { MapData, NpcInfo, TextLogEntry, WorldSnapshot } from '$lib/types';
 
 export type ParishTab = 'notes' | 'people' | 'places' | 'rumours' | 'journal';
 
@@ -113,11 +113,13 @@ export interface ParishRenderCallbacks {
 }
 
 export interface ParishRenderState {
+	activeTab: ParishTab;
 	world: WorldSnapshot | null;
 	map: MapData | null;
 	npcs: NpcInfo[];
 	selectedNpc: NpcInfo | null;
 	selectedRealName: string | null;
+	journalEntries: TextLogEntry[];
 	command: NotebookCommandState;
 	callbacks: ParishRenderCallbacks;
 }

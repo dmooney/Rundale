@@ -16,11 +16,8 @@ import { SNAPSHOTS } from './mock-data';
 
 const PIXI_CANVAS = '[data-testid="illustrated-notebook-pixi-host"] canvas';
 
-function journalOverlay(page: Page) {
-	return page.getByRole('dialog', {
-		name: 'Parish Journal',
-		exact: true,
-	});
+function journalSection(page: Page) {
+	return page.getByTestId('notebook-active-section');
 }
 
 async function openJournal(page: Page) {
@@ -44,10 +41,11 @@ async function openJournal(page: Page) {
 	await expect(control).toBeFocused();
 	await page.keyboard.press('Enter');
 
-	const journal = journalOverlay(page);
+	const journal = journalSection(page);
 	await expect(journal).toBeVisible();
-	await expect(journal).toHaveAttribute('data-surface', 'journal');
-	await expect(journal.getByTestId('chat-panel')).toBeVisible();
+	await expect(journal).toHaveAttribute('data-section', 'journal');
+	await expect(journal).toContainText('Parish Journal');
+	await expect(page.getByTestId('notebook-overlay-backdrop')).toHaveCount(0);
 	return journal;
 }
 
@@ -62,7 +60,7 @@ test.describe('Scene description deduplication', () => {
 	test('movement renders the arrival scene once, not twice', async ({
 		page,
 	}) => {
-		const chatPanel = journalOverlay(page).getByTestId('chat-panel');
+		const journal = journalSection(page);
 
 		// Full arrival text the backend sends as a `location` text-log entry.
 		const arrivalText =
@@ -87,19 +85,19 @@ test.describe('Scene description deduplication', () => {
 		});
 
 		// The arrival scene shows exactly once.
-		await expect(
-			chatPanel.getByText(arrivalText, { exact: false }),
-		).toHaveCount(1);
+		await expect(journal.getByText(arrivalText, { exact: false })).toHaveCount(
+			1,
+		);
 		// The duplicate, shorter world-update scene line was suppressed.
 		await expect(
-			chatPanel.getByText(worldUpdateScene, { exact: false }),
+			journal.getByText(worldUpdateScene, { exact: false }),
 		).toHaveCount(0);
 	});
 
 	test('load/restore still shows the destination scene (no location text-log)', async ({
 		page,
 	}) => {
-		const chatPanel = journalOverlay(page).getByTestId('chat-panel');
+		const journal = journalSection(page);
 
 		// A load/restore world-update changes the location with no preceding
 		// `location` text-log — the scene must be shown.
@@ -110,8 +108,8 @@ test.describe('Scene description deduplication', () => {
 			location_description: loadedScene,
 		});
 
-		await expect(
-			chatPanel.getByText(loadedScene, { exact: false }),
-		).toHaveCount(1);
+		await expect(journal.getByText(loadedScene, { exact: false })).toHaveCount(
+			1,
+		);
 	});
 });

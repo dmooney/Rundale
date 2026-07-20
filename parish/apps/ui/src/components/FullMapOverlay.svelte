@@ -1,6 +1,11 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { mapData, pushErrorLog, formatIpcError, uiConfig } from '../stores/game';
+	import {
+		mapData,
+		pushErrorLog,
+		formatIpcError,
+		uiConfig,
+	} from '../stores/game';
 	import { travelState } from '../stores/travel';
 	import { tiles, currentTileSource } from '../stores/tiles';
 	import { submitInput } from '$lib/ipc';
@@ -27,7 +32,7 @@
 			container,
 			variant: 'full',
 			interactive: true,
-			tileSource: currentTileSource($tiles)
+			tileSource: currentTileSource($tiles),
 		});
 
 		controller.onLocationClick(async (info) => {
@@ -36,7 +41,7 @@
 				await submitInput(`go to ${info.name}`);
 			} catch (err) {
 				pushErrorLog(
-					`Could not travel to ${info.name}: ${formatIpcError(err)}`
+					`Could not travel to ${info.name}: ${formatIpcError(err)}`,
 				);
 			}
 		});
@@ -47,12 +52,12 @@
 					name: info.name,
 					indoor: info.indoor,
 					travel_minutes: info.travelMinutes,
-					visited: info.visited
+					visited: info.visited,
 				};
 			},
 			() => {
 				tooltip = null;
-			}
+			},
 		);
 
 		// Fit to the bounding box of every location on mount so the whole
@@ -61,7 +66,7 @@
 		if (m && m.locations.length > 0) {
 			controller.fitBounds(
 				m.locations.map((l) => ({ lat: l.lat, lon: l.lon })),
-				60
+				60,
 			);
 			hasFitOnce = true;
 		}
@@ -98,7 +103,7 @@
 			if (!hasFitOnce && m.locations.length > 0) {
 				controller.fitBounds(
 					m.locations.map((l) => ({ lat: l.lat, lon: l.lon })),
-					60
+					60,
 				);
 				hasFitOnce = true;
 			}
@@ -141,11 +146,24 @@
 	{#if $uiConfig.map_overlay === 'grid'}
 		<div class="blueprint-grid-overlay"></div>
 	{/if}
+	<p class="map-help" aria-label="Map controls">
+		Drag to explore · scroll or pinch to zoom · click an outlined place to
+		travel
+	</p>
 	<div class="map-legend" data-testid="map-legend" aria-label="Map legend">
-		<span class="legend-item"><span class="swatch swatch-player"></span>You are here</span>
-		<span class="legend-item"><span class="swatch swatch-adjacent"></span>Walkable now (click to travel)</span>
-		<span class="legend-item"><span class="swatch swatch-visited"></span>Visited</span>
-		<span class="legend-item"><span class="swatch swatch-frontier"></span>Unexplored</span>
+		<span class="legend-item"
+			><span class="swatch swatch-player"></span>You are here</span
+		>
+		<span class="legend-item"
+			><span class="swatch swatch-adjacent"></span>Walkable now (click to
+			travel)</span
+		>
+		<span class="legend-item"
+			><span class="swatch swatch-visited"></span>Visited</span
+		>
+		<span class="legend-item"
+			><span class="swatch swatch-frontier"></span>Unexplored</span
+		>
 	</div>
 	<MapTooltip info={tooltip} variant="full" />
 </div>
@@ -212,6 +230,26 @@
 		pointer-events: none;
 	}
 
+	.map-help {
+		position: absolute;
+		top: 0.75rem;
+		left: 50%;
+		z-index: 2;
+		max-width: calc(100% - 8rem);
+		margin: 0;
+		padding: 0.35rem 0.65rem;
+		transform: translateX(-50%);
+		color: var(--color-muted);
+		background: color-mix(in srgb, var(--color-panel-bg) 88%, transparent);
+		border: 1px solid color-mix(in srgb, var(--color-border) 70%, transparent);
+		border-radius: 3px;
+		font-family: var(--font-display);
+		font-size: 0.64rem;
+		letter-spacing: 0.04em;
+		text-align: center;
+		pointer-events: none;
+	}
+
 	.legend-item {
 		display: inline-flex;
 		align-items: center;
@@ -244,6 +282,17 @@
 		background: transparent;
 		border: 2px dashed var(--color-muted);
 		opacity: 0.6;
+	}
+
+	@media (max-width: 760px) {
+		.map-help {
+			top: 0.55rem;
+			left: 0.75rem;
+			max-width: calc(100% - 5.75rem);
+			transform: none;
+			font-size: 0.58rem;
+			text-align: left;
+		}
 	}
 
 	/* .travel-dot-marker and @keyframes travel-pulse are defined once in app.css */

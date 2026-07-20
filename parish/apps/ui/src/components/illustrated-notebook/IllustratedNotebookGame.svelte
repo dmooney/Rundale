@@ -14,6 +14,7 @@
 	} from '$lib/illustrated-notebook/command';
 	import { sortParishTargetsForFocus } from '$lib/illustrated-parish/interactions';
 	import { IllustratedParishRenderer } from '$lib/illustrated-parish/renderer';
+	import { buildNotebookSectionContent } from '$lib/illustrated-parish/sections';
 	import type {
 		NotebookCommandState,
 		NotebookSurface,
@@ -29,6 +30,7 @@
 		playerSubmittedCount,
 		pushErrorLog,
 		streamingActive,
+		textLog,
 		worldState,
 	} from '../../stores/game';
 	import {
@@ -43,6 +45,7 @@
 	let renderer = $state<IllustratedParishRenderer | null>(null);
 	let resizeObserver: ResizeObserver | null = null;
 	let selectedRealName = $state<string | null>(null);
+	let activeTab = $state<ParishTab>('notes');
 	let intentText = $state('');
 	let inputFocused = $state(false);
 	let isSubmitting = $state(false);
@@ -72,6 +75,16 @@
 	const commandPresentation = $derived(
 		resolveNotebookCommandPresentation(commandState),
 	);
+	const activeSection = $derived(
+		buildNotebookSectionContent({
+			activeTab,
+			world: $worldState,
+			map: $mapData,
+			npcs: $npcsHere,
+			selectedNpc,
+			journalEntries: $textLog,
+		}),
+	);
 
 	$effect(() => {
 		if ($npcsHere.length === 0) {
@@ -91,6 +104,7 @@
 		if (!requestedPerson) return;
 		if ($npcsHere.some((npc) => npc.real_name === requestedPerson)) {
 			selectedRealName = requestedPerson;
+			activeTab = 'people';
 		}
 		notebookPersonSelection.set(null);
 	});
@@ -106,18 +120,20 @@
 
 	$effect(() => {
 		renderer?.render({
+			activeTab,
 			world: $worldState,
 			map: $mapData,
 			npcs: $npcsHere,
 			selectedNpc,
 			selectedRealName,
+			journalEntries: $textLog,
 			command: commandState,
 			callbacks: {
 				onAction: seedAction,
 				onFocusInput: focusInput,
 				onOpenSurface: openSurface,
 				onOpenTab: openTab,
-				onSelectNpc: (realName) => (selectedRealName = realName),
+				onSelectNpc: selectNpc,
 				onSend: () => void submitCurrent(),
 			},
 		});
@@ -240,15 +256,12 @@
 	}
 
 	function openTab(tab: ParishTab) {
-		const surface: NotebookSurface =
-			tab === 'people'
-				? 'people'
-				: tab === 'places'
-					? 'map'
-					: tab === 'rumours'
-						? 'rumours'
-						: 'journal';
-		openSurface(surface);
+		activeTab = tab;
+	}
+
+	function selectNpc(realName: string) {
+		selectedRealName = realName;
+		activeTab = 'people';
 	}
 
 	function openSurface(surface: NotebookSurface) {
@@ -338,9 +351,8 @@
 	>
 		<p>
 			Location: {$worldState?.location_name ?? 'unknown'}.
-			{$worldState?.time_label ?? 'Time unknown'}.
-			Weather: {$worldState?.weather ?? 'unknown'}.
-			Season: {$worldState?.season ?? 'unknown'}.
+			{$worldState?.time_label ?? 'Time unknown'}. Weather: {$worldState?.weather ??
+				'unknown'}. Season: {$worldState?.season ?? 'unknown'}.
 			{#if $worldState?.paused}The parish clock is paused.{/if}
 			{#if $worldState?.festival}Festival: {$worldState.festival}.{/if}
 		</p>
@@ -355,6 +367,18 @@
 				? 'The parish is preparing a reply.'
 				: 'Ready for your intent.'}
 		</p>
+	</div>
+	<div
+		class="notebook-screenreader-summary"
+		role="region"
+		aria-label="Notebook section"
+		data-testid="notebook-active-section"
+		data-section={activeSection.tab}
+	>
+		<h2>{activeSection.title}</h2>
+		{#each activeSection.lines as line, index (index)}
+			<p><strong>{line.label}:</strong> {line.text}</p>
+		{/each}
 	</div>
 	<input
 		bind:this={inputEl}
@@ -392,6 +416,9 @@
 				disabled={target.disabled}
 				style={`left:${target.rect.x}px;top:${target.rect.y}px;width:${target.rect.width}px;height:${target.rect.height}px;`}
 				aria-label={target.label}
+				aria-pressed={target.activation.type === 'open-tab'
+					? target.activation.tab === activeTab
+					: undefined}
 				onfocus={() => focusHitTarget(target.id)}
 				onblur={() => blurHitTarget(target.id)}
 				onclick={() => renderer?.activateTarget(target.id)}
