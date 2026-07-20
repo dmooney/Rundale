@@ -17,7 +17,9 @@ Args (all optional): `turns N` (default 12), `persona "..."`, `goal "..."`.
 ## Hard rules (non-negotiable)
 
 - **Tauri + parish MCP only.** Drive via `mcp__parish__*`. Never the headless `parish-server`,
-  never raw `/api/*` curl, never read a SQLite DB. The cloud env runs the desktop app.
+  never raw `/api/*` curl, never read a SQLite DB. A runnable harness session needs a desktop
+  Tauri window; if the environment cannot launch one, report that the quality harness is
+  unavailable rather than substituting a headless run.
 - **Real models.** Dialogue is real (vllm-mlx Qwen). Do not "simulate" a run.
 - **Control time explicitly** (see below). Never rely on window focus.
 - **Judge critically.** Default skeptical. See the rubric — inflated scores are a failure of
@@ -39,9 +41,11 @@ Args (all optional): `turns N` (default 12), `persona "..."`, `goal "..."`.
 
 1. Confirm the MCP tools exist: call `mcp__parish__parish_engine_state`.
    - **If `mcp__parish__*` is unavailable**, the parish MCP server did not register. It only
-     spawns at **session init** and there is **no in-session reload**. Tell the user to **start a
-     fresh session** (Tauri must be running first); pre-build with
-     `cargo build -p parish-mcp`. Do NOT fall back to headless/`/api`. (See #1352.)
+     spawns at **session init** and there is **no in-session reload**. Tell the user to start a
+     fresh session in a checkout containing the current `parish-mcp-launch.sh` cold-start shim.
+     The shim registers the tool list without a built `parish-mcp` binary or a running game, so
+     do **not** require Tauri to be running first or ask for a separate MCP pre-build. Do NOT
+     fall back to headless/`/api`. (See #1352.)
 2. Confirm the game is up: `parish_engine_state` returns a scene. If it errors with a transport
    error, the Tauri app isn't running — launch it with
    `bash parish/scripts/launch-tauri-screenshottable.sh 3030` (it starts vite **then** the app,
@@ -54,7 +58,8 @@ Args (all optional): `turns N` (default 12), `persona "..."`, `goal "..."`.
    as locked and used to fast-fail; it now wakes + holds the display (`caffeinate -u -d`). The
    launch helper **additionally** holds a `caffeinate -d -i -s` assertion bound to the app's
    lifetime, so the display never sleeps/locks mid-run and per-turn captures don't degrade to
-   placeholders. §7's close releases it.
+   placeholders. §7's close releases it. If the helper cannot start or no desktop display is
+   available, report the harness as unavailable; do not substitute the headless backend.
 3. Disable focus-auto-pause so window/focus events can't toggle game time during the run
    (once #1357 lands): the harness owns pause state. Until then, just always set `/pause`
    explicitly each loop and never foreground the window except to screenshot (then restore).
