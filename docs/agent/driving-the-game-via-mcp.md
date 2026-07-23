@@ -19,9 +19,8 @@ loop → anchored critical judge → file findings). This doc is its reference m
   14B dialogue + 1.5B intent/reaction, and the MCP bridge on `:3030`). The MCP server
   (`.mcp.json` → `parish-mcp-launch.sh`) bridges your `mcp__parish__*` calls to it.
   **If you need screenshots, boot with `bash parish/scripts/launch-tauri-screenshottable.sh 3030`
-  instead** — the debug binary loads its UI from the vite dev server (`devUrl` :5173), so the raw
-  `cargo run` launch (no vite) renders a blank **white** window and every capture is a rejected
-  blank frame. The helper starts vite first. (Display sleep is handled in-app: the capture path
+  instead** — it builds this worktree's static UI and forces Tauri to load `frontendDist`, so the
+  graphical harness never depends on a Vite server. (Display sleep is handled in-app: the capture path
   wakes + holds a slept screen, which otherwise reports as locked and fast-fails.)
 - **The bridge `:3030` ≠ the parish-server `/api/command` surface.** Bridge routes:
   `submit-input`, `engine-state`, `world-snapshot`, `npcs-here`, `transcript`,

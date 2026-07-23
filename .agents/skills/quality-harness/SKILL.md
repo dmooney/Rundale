@@ -44,12 +44,10 @@ Args (all optional): `turns N` (default 12), `persona "..."`, `goal "..."`.
      `cargo build -p parish-mcp`. Do NOT fall back to headless/`/api`. (See #1352.)
 2. Confirm the game is up: `parish_engine_state` returns a scene. If it errors with a transport
    error, the Tauri app isn't running — launch it with
-   `bash parish/scripts/launch-tauri-screenshottable.sh 3030` (it starts vite **then** the app,
-   so the window renders the game; auto-starts the bundled models). Plain
-   `cargo run -p parish-tauri -- --mcp-port 3030` skips vite, so the debug binary loads its UI
-   from `devUrl` (:5173) — with no vite running the window is blank **white** and every
-   screenshot comes back a rejected blank frame (the engine still works over MCP; only the
-   window is blank). For SCREENSHOTS specifically: use the helper above (frontend served), and
+   `bash parish/scripts/launch-tauri-screenshottable.sh 3030` (it builds the current worktree UI
+   and launches Tauri against static frontend assets, so no Vite lifecycle can leave the window
+   blank). Plain `cargo run -p parish-tauri -- --mcp-port 3030` uses `devUrl` and is not a
+   graphical-harness runtime. For SCREENSHOTS specifically: use the helper above, and
    note the in-app fix wakes a **slept** display before capture — a screen that idled off reports
    as locked and used to fast-fail; it now wakes + holds the display (`caffeinate -u -d`). The
    launch helper **additionally** holds a `caffeinate -d -i -s` assertion bound to the app's
