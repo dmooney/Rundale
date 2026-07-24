@@ -16,6 +16,12 @@ use std::sync::OnceLock;
 use crate::types::RelationshipKind;
 use parish_types::time::TimeOfDay;
 
+/// Maximum number of spoken sentences in one NPC reply.
+///
+/// The Tier-1 prompt interpolates this same value so the generation contract
+/// and deterministic post-generation guard cannot drift apart.
+pub(crate) const MAX_DIALOGUE_SENTENCES: usize = 3;
+
 /// Normalizes a dialogue line for repetition comparison.
 ///
 /// Lower-cases, collapses internal whitespace to single spaces, and trims
@@ -1771,7 +1777,8 @@ pub fn strip_consecutive_short_phrase_repeat(dialogue: &str) -> String {
     dialogue.to_string()
 }
 
-/// Trims a multi-sentence NPC reply to at most `MAX_SENTENCE_COUNT` sentences
+/// Trims a multi-sentence NPC reply to at most [`MAX_DIALOGUE_SENTENCES`]
+/// sentences
 /// (#1472 — hard length cap).
 ///
 /// This is the blunt backstop for run-on replies that the surgical dedup guards
@@ -1781,25 +1788,22 @@ pub fn strip_consecutive_short_phrase_repeat(dialogue: &str) -> String {
 ///
 /// Behavior:
 /// - Splits on terminal punctuation (`.`, `!`, `?`, `…`) using [`split_sentences`].
-/// - Keeps the first `MAX_SENTENCE_COUNT` sentence units.
-/// - If the ORIGINAL final sentence is a question (ends with `?`) and would be
-///   cut by the cap, it is preserved as the last sentence of the result — keeping
-///   first (N-1) sentences plus the trailing question — so the NPC remains
-///   interactive. If the kept-N sentences already end with a `?`, no swap is made.
-/// - Short replies (<= `MAX_SENTENCE_COUNT` sentences) are returned unchanged.
-/// - Short replies (<= 45 words) are returned unchanged by the default
-///   4-sentence cap even when they contain 5 terse sentence units (#1561).
+/// - When the reply exceeds the cap and opens with a standalone greeting,
+///   drops that greeting before substantive content.
+/// - Keeps the first N remaining sentence units in their original order. It
+///   never replaces a substantive middle sentence merely to retain a trailing
+///   question.
+/// - Replies already within the cap are returned unchanged.
 ///
-/// The cap is intentionally conservative (4 sentences) — a natural NPC
-/// turn should deliver one thought in 2-3 sentences and optionally ask one
-/// question; 4 gives generous headroom without admitting multi-beat rambles.
+/// Three sentences matches the Tier-1 generation contract: one conversational
+/// beat with enough room for an answer, a supporting detail, and a question.
 pub fn cap_sentence_count(dialogue: &str) -> String {
-    cap_sentence_count_with_limit(dialogue, 4)
+    cap_sentence_count_with_limit(dialogue, MAX_DIALOGUE_SENTENCES)
 }
 
 /// Applies the sentence-count cap at a specific `max` limit (#1491).
 ///
-/// Factored out of `cap_sentence_count` so both the default (4-sentence) cap and
+/// Factored out of `cap_sentence_count` so both the default 3-sentence cap and
 /// the mood-aware tighter cap share one implementation.
 fn cap_sentence_count_with_limit(dialogue: &str, max: usize) -> String {
     let sentences = split_sentences(dialogue);
@@ -1814,32 +1818,91 @@ fn cap_sentence_count_with_limit(dialogue: &str, max: usize) -> String {
         return dialogue.trim().to_string();
     }
 
-    const DEFAULT_SHORT_REPLY_WORD_BUDGET: usize = 45;
-    if max >= 4 && dialogue.split_whitespace().count() <= DEFAULT_SHORT_REPLY_WORD_BUDGET {
-        return dialogue.trim().to_string();
+    if max == 0 {
+        return String::new();
     }
 
-    // Keep the first N sentences.
-    let mut kept: Vec<&str> = sentences[..max].to_vec();
+    let candidates = if is_standalone_greeting(sentences[0]) {
+        &sentences[1..]
+    } else {
+        sentences.as_slice()
+    };
 
-    // If the original reply ends with a question that would be cut, preserve it.
-    // Only do this when the last sentence is genuinely interrogative (ends with '?')
-    // and the already-kept slice does not already end with a question.
-    let original_last = *sentences.last().expect("non-empty checked above");
-    let kept_last = *kept.last().expect("max >= 1");
-    if original_last.ends_with('?') && !kept_last.ends_with('?') {
-        // Swap out the Nth sentence for the trailing question so the reply
-        // stays at exactly max sentences and ends interactively.
-        *kept.last_mut().expect("non-empty") = original_last;
+    candidates[..candidates.len().min(max)].join(" ")
+}
+
+/// Returns true when a sentence is only a salutation, optional polite
+/// addressee, and no substantive clause.
+///
+/// Proper-name tokens retain their initial capital in `sentence`, allowing
+/// replies such as "Ah, good day to you, Aiden Carney." without treating
+/// "Good morning, the road is flooded." as a disposable greeting.
+fn is_standalone_greeting(sentence: &str) -> bool {
+    let words: Vec<(String, bool)> = sentence
+        .split_whitespace()
+        .filter_map(|token| {
+            let stripped =
+                token.trim_matches(|c: char| !c.is_alphabetic() && c != '\'' && c != '\u{2019}');
+            if stripped.is_empty() {
+                None
+            } else {
+                Some((
+                    stripped.to_lowercase(),
+                    stripped.chars().next().is_some_and(char::is_uppercase),
+                ))
+            }
+        })
+        .collect();
+    if words.is_empty() {
+        return false;
     }
 
-    kept.join(" ")
+    let mut index = 0;
+    if matches!(words[index].0.as_str(), "ah" | "aye" | "well" | "sure") {
+        index += 1;
+    }
+    if index >= words.len() {
+        return false;
+    }
+
+    match words[index].0.as_str() {
+        "good"
+            if words.get(index + 1).is_some_and(|(word, _)| {
+                matches!(
+                    word.as_str(),
+                    "morning" | "mornin" | "mornin'" | "day" | "afternoon" | "evening"
+                )
+            }) =>
+        {
+            index += 2;
+        }
+        "dia"
+            if words
+                .get(index + 1)
+                .is_some_and(|(word, _)| word == "dhuit") =>
+        {
+            index += 2;
+        }
+        "hello" | "hullo" => {
+            index += 1;
+        }
+        _ => return false,
+    }
+
+    const POLITE_ADDRESS_WORDS: &[&str] = &[
+        "to", "ye", "you", "there", "friend", "stranger", "sir", "madam", "ma'am", "mister",
+        "mistress", "miss", "widow", "lad", "lass", "child", "mo", "chara",
+    ];
+
+    words[index..].iter().all(|(word, initially_upper)| {
+        *initially_upper || POLITE_ADDRESS_WORDS.contains(&word.as_str())
+    })
 }
 
 // ── #1491 — mood-aware sentence cap ───────────────────────────────────────────
 
 /// Mood keywords that indicate an NPC should get a tighter (2-sentence) cap
-/// instead of the default 4 (#1491, #1566).
+/// instead of the default 3 (#1491, #1566).
 const TERSE_MOOD_KEYWORDS: &[&str] = &[
     "busy",
     "sharp",
@@ -1861,7 +1924,7 @@ const TERSE_MOOD_KEYWORDS: &[&str] = &[
 /// Applies the sentence-count cap with optional mood-aware tightening (#1491).
 ///
 /// For terse moods (matching `TERSE_MOOD_KEYWORDS`), caps at 2 sentences;
-/// otherwise uses the default 4. Exposed for tests.
+/// otherwise uses the shared default. Exposed for tests.
 ///
 /// Gate: `npc-mood-aware-sentence-cap` (default-on; callers check the flag).
 pub fn cap_sentence_count_for_mood(dialogue: &str, mood: Option<&str>) -> String {
@@ -1871,10 +1934,10 @@ pub fn cap_sentence_count_for_mood(dialogue: &str, mood: Option<&str>) -> String
             if TERSE_MOOD_KEYWORDS.iter().any(|kw| m_lower.contains(kw)) {
                 2
             } else {
-                4
+                MAX_DIALOGUE_SENTENCES
             }
         }
-        None => 4,
+        None => MAX_DIALOGUE_SENTENCES,
     };
     cap_sentence_count_with_limit(dialogue, cap)
 }
@@ -1984,7 +2047,7 @@ pub fn collapse_nearby_phrase_repeat(dialogue: &str) -> String {
 /// Runs the full verbosity guard pipeline with optional mood-aware sentence cap (#1491).
 ///
 /// When `mood` is `Some` and contains a "busy" mood keyword, the sentence cap
-/// is reduced to 2 (from the default 4) so a busy NPC stays terse.
+/// is reduced to 2 (from the default 3) so a busy NPC stays terse.
 ///
 /// Gate: `npc-mood-aware-sentence-cap` (default-on; callers check the flag).
 pub fn guard_verbosity_runons_with_mood(dialogue: &str, mood: Option<&str>) -> String {
@@ -2003,10 +2066,12 @@ pub fn guard_verbosity_runons_with_mood(dialogue: &str, mood: Option<&str>) -> S
     // that the consecutive guard (step 5, strictly adjacent) misses.
     let after_nearby = collapse_nearby_phrase_repeat(&after_consec_repeat);
     let after_distributed = collapse_distributed_repeated_sentences(&after_nearby);
-    let after_total_q = cap_total_questions(&after_distributed);
+    // Cap in semantic order before question cleanup. This prevents a trailing
+    // question from displacing a direct answer when the reply is shortened.
+    let after_sentence_cap = cap_sentence_count_for_mood(&after_distributed, mood);
+    let after_total_q = cap_total_questions(&after_sentence_cap);
     let after_trailing_q = cap_trailing_questions(&after_total_q);
-    let after_sentence_cap = cap_sentence_count_for_mood(&after_trailing_q, mood);
-    cap_word_count(&after_sentence_cap)
+    cap_word_count(&after_trailing_q)
 }
 
 /// Known mood adjectives that the Qwen2.5-14B model leaks as bare words at the
@@ -2255,7 +2320,7 @@ pub fn collapse_degenerate_phrase_loop(dialogue: &str) -> String {
 // ── #1489 — word-count cap guard ──────────────────────────────────────────────
 //
 // Some generations run 43–47 s and hit the token cap, producing a reply that
-// may be 200+ words across 4 or fewer sentences (so `cap_sentence_count` does
+// may be 200+ words across 3 or fewer sentences (so `cap_sentence_count` does
 // not trim it). A word-count cap is the deterministic backstop: if the reply
 // exceeds MAX_WORDS words, trim at the last sentence boundary within the first
 // MAX_WORDS words. This bounds time-to-display and forces the NPC to be concise.
@@ -2273,7 +2338,7 @@ pub fn collapse_degenerate_phrase_loop(dialogue: &str) -> String {
 ///   is one long unpunctuated run), the first `MAX_WORDS` words are returned
 ///   with a closing period added.
 ///
-/// Conservative: `MAX_WORDS = 80`. A natural 3–4 sentence NPC reply in
+/// Conservative: `MAX_WORDS = 80`. A natural 2–3 sentence NPC reply in
 /// Hiberno-English is 40–60 words; 80 words gives generous headroom (≈ 5
 /// sentences at normal length) while preventing multi-hundred-word runaways.
 pub fn cap_word_count(dialogue: &str) -> String {
@@ -2348,22 +2413,21 @@ pub fn cap_word_count(dialogue: &str) -> String {
 ///    Catches "tell me, tell me" and similar 2–4 word phrases repeated exactly
 ///    twice in a row with only punctuation between occurrences.
 /// 7. Collapse non-consecutive near-duplicate sentences ([`collapse_distributed_repeated_sentences`]).
-/// 8. Cap total questions in the whole reply to at most 2 ([`cap_total_questions`]).
-/// 9. Cap trailing question stack to one ([`cap_trailing_questions`]).
-/// 10. Hard sentence-count cap: trim to at most 4 sentences ([`cap_sentence_count`], #1472).
+/// 8. Hard sentence-count cap: trim to at most 3 sentences ([`cap_sentence_count`], #1472).
 ///     This is the blunt backstop for paraphrased multi-beat rambles that the surgical
-///     guards (steps 6-8) cannot catch.
+///     guards (steps 6-7) cannot catch.
+/// 9. Cap total questions in the whole reply to at most 2 ([`cap_total_questions`]).
+/// 10. Cap trailing question stack to one ([`cap_trailing_questions`]).
 /// 11. **Word-count cap**: trim to at most 80 words at a clean sentence boundary
 ///     ([`cap_word_count`], #1489). Final backstop for long-but-few-sentence runs.
 ///
 /// Steps 6 and 7 are the #1460 core fix for distributed / interleaved repetition
 /// that `collapse_repeated_sentences` (which only handles consecutive duplicates,
-/// called upstream by `guard_against_repetition`) does not catch. Step 8 keeps
-/// the earlier trailing-question guard in place as a final cleanup. Step 9 runs
-/// before step 10 so it operates on already-cleaned text, giving the surgical
-/// guards their best shot before the blunt caps apply.
+/// called upstream by `guard_against_repetition`) does not catch. Step 8 caps
+/// semantic content in its original order before steps 9 and 10 clean up excess
+/// questions, so a tail question cannot displace a direct answer.
 ///
-/// Conservative — does not alter legitimate prose within 4 sentences and 80 words.
+/// Conservative — does not alter legitimate prose within 3 sentences and 80 words.
 pub fn guard_verbosity_runons(dialogue: &str) -> String {
     if dialogue.trim().is_empty() {
         return dialogue.to_string();
@@ -2382,10 +2446,12 @@ pub fn guard_verbosity_runons(dialogue: &str) -> String {
     // that the consecutive guard (step 5, strictly adjacent) misses.
     let after_nearby = collapse_nearby_phrase_repeat(&after_consec_repeat);
     let after_distributed = collapse_distributed_repeated_sentences(&after_nearby);
-    let after_total_q = cap_total_questions(&after_distributed);
+    // Cap in semantic order before question cleanup. This prevents a trailing
+    // question from displacing a direct answer when the reply is shortened.
+    let after_sentence_cap = cap_sentence_count(&after_distributed);
+    let after_total_q = cap_total_questions(&after_sentence_cap);
     let after_trailing_q = cap_trailing_questions(&after_total_q);
-    let after_sentence_cap = cap_sentence_count(&after_trailing_q);
-    cap_word_count(&after_sentence_cap)
+    cap_word_count(&after_trailing_q)
 }
 
 // ── #1477 — wrong-location reference guard ────────────────────────────────────
@@ -5051,7 +5117,7 @@ mod tests {
         // "Brendan, go fetch the tea, as I bid ye" are semantically the same
         // instruction in different words. The surgical distributed-dedup guard cannot
         // catch paraphrases (different word sets). The hard sentence cap must trim to
-        // <=4 sentences regardless of phrasing variation.
+        // the shared contract regardless of phrasing variation.
         let dialogue = "Sit yerself down, friend, and rest yer weary bones. \
             Brendan, bring yer friend a cup of the hot spiced tea. \
             The fire is warm enough and ye look as though the road has tired ye. \
@@ -5067,8 +5133,8 @@ mod tests {
             .filter(|s| !s.trim().is_empty())
             .count();
         assert!(
-            sentence_count <= 4,
-            "reply should be capped to <=4 sentences, got {sentence_count}: {result:?}"
+            sentence_count <= MAX_DIALOGUE_SENTENCES,
+            "reply should be capped to <={MAX_DIALOGUE_SENTENCES} sentences, got {sentence_count}: {result:?}"
         );
         // The paraphrased second repeat ("Brendan, go fetch the tea") must be gone.
         assert!(
@@ -5095,50 +5161,50 @@ mod tests {
     }
 
     #[test]
-    fn four_sentence_reply_unchanged_by_length_cap() {
-        // Boundary: exactly 4 sentences — at the cap limit, must pass through.
-        let dialogue = "Good day to ye. The harvest has been fine this year. \
+    fn three_sentence_reply_unchanged_by_length_cap() {
+        // Boundary: exactly 3 sentences — at the shared cap, must pass through.
+        let dialogue = "The harvest has been fine this year. \
             Brigid was asking after the grain prices. Have ye heard the news from Roscommon?";
         let result = cap_sentence_count(dialogue);
         assert_eq!(
             result.trim(),
             dialogue.trim(),
-            "4-sentence reply at the cap limit should be unchanged: {result:?}"
+            "3-sentence reply at the cap limit should be unchanged: {result:?}"
         );
     }
 
     #[test]
-    fn cap_preserves_trailing_question() {
-        // An 8-sentence reply whose LAST sentence is a question must be capped to
-        // <=4 sentences AND the trailing question must appear at the end of the
-        // result so the NPC remains interactive (#1472 — trailing-question preserve).
-        let dialogue = "Good mornin' to ye, friend. \
-            The roads have been muddy these past few days. \
-            Old Séamus from across the hill was asking after the grain prices. \
-            There's much talk about the rent collectors coming round again. \
-            Mary Brien says the miller raised his prices last Tuesday. \
-            The bishop passed through Strokestown not a fortnight ago. \
-            Sure, the weather has been unkind to us all this season. \
+    fn cap_preserves_semantic_order_instead_of_tail_swapping() {
+        // The old cap replaced the last retained substantive sentence with a
+        // far-later question. Capping must keep the first three beats in order.
+        let dialogue = "The roads have been muddy these past few days. \
+            Old Séamus was asking after the grain prices. \
+            There's much talk about the rent collectors. \
+            Mary says the miller raised his prices. \
             Now, what brings ye here?";
         let result = cap_sentence_count(dialogue);
         let sentence_count = split_sentences(&result)
             .iter()
             .filter(|s| !s.trim().is_empty())
             .count();
-        assert!(
-            sentence_count <= 4,
-            "capped reply should be <=4 sentences, got {sentence_count}: {result:?}"
+        assert_eq!(
+            sentence_count, MAX_DIALOGUE_SENTENCES,
+            "capped reply should contain exactly {MAX_DIALOGUE_SENTENCES} sentences: {result:?}"
         );
         assert!(
-            result.trim_end().ends_with("what brings ye here?"),
-            "trailing question should be preserved at end of capped reply: {result:?}"
+            result.ends_with("There's much talk about the rent collectors."),
+            "the third semantic beat should survive in order: {result:?}"
+        );
+        assert!(
+            !result.contains("what brings ye here"),
+            "a trailing question must not displace substantive content: {result:?}"
         );
     }
 
     #[test]
     fn cap_no_trailing_question_unchanged_behavior() {
         // An 8-sentence reply with NO trailing question must produce the same
-        // result as before: keep the first 4 sentences (head, not tail).
+        // result as before: keep the first sentences (head, not tail).
         let dialogue = "The morning is fine enough today. \
             I was just heading to the market in town. \
             Brigid asked me to pick up some wool thread for her. \
@@ -5153,8 +5219,8 @@ mod tests {
             .filter(|s| !s.trim().is_empty())
             .count();
         assert!(
-            sentence_count <= 4,
-            "capped reply without trailing question should be <=4 sentences, got {sentence_count}: {result:?}"
+            sentence_count <= MAX_DIALOGUE_SENTENCES,
+            "capped reply without trailing question should be <={MAX_DIALOGUE_SENTENCES} sentences, got {sentence_count}: {result:?}"
         );
         // First sentence must survive (head-keep behavior unchanged).
         assert!(
@@ -5165,6 +5231,58 @@ mod tests {
         assert!(
             !result.contains("No doubt things will look better by Easter"),
             "tail sentence should be dropped when no trailing question: {result:?}"
+        );
+    }
+
+    /// Regression (#1775): Peig answered the direct identity question in the
+    /// raw completion, but the old terse cap tail-swapped that answer away.
+    #[test]
+    fn peig_harness_identity_answer_survives_terse_cap() {
+        let dialogue = "Good morning. Peig Hannigan's the name. \
+            New to these parts, eh? What brings ye here?";
+
+        assert_eq!(
+            guard_verbosity_runons_with_mood(dialogue, Some("sharp")),
+            "Peig Hannigan's the name. New to these parts, eh?"
+        );
+    }
+
+    /// Regression (#1787): Tommy's exact four-sentence harness completion
+    /// escaped the former four-sentence guard despite the prompt's cap.
+    #[test]
+    fn tommy_harness_reply_drops_greeting_and_keeps_three_substantive_sentences() {
+        let dialogue = "Ah, good day to you, Aiden Carney. \
+            I've seen ye around, though we haven't spoken much. \
+            As for advice, it's simple enough: listen to the land and the folk here. \
+            The crossroads are a place of power, so pay attention to the tales and the whispers of the past.";
+
+        assert_eq!(
+            guard_verbosity_runons_with_mood(dialogue, Some("reflective")),
+            "I've seen ye around, though we haven't spoken much. \
+             As for advice, it's simple enough: listen to the land and the folk here. \
+             The crossroads are a place of power, so pay attention to the tales and the whispers of the past."
+        );
+    }
+
+    #[test]
+    fn terse_four_sentence_reply_does_not_bypass_shared_cap() {
+        let dialogue = "The gate is shut. The road is wet. The mare is lame. Come again tomorrow.";
+        assert!(dialogue.split_whitespace().count() <= 45);
+
+        assert_eq!(
+            cap_sentence_count(dialogue),
+            "The gate is shut. The road is wet. The mare is lame."
+        );
+    }
+
+    #[test]
+    fn substantive_greeting_sentence_is_not_discarded() {
+        let dialogue = "Good morning, the road is flooded. \
+            Take the upper path. Mind the broken stile. Bring a stout stick.";
+
+        assert_eq!(
+            cap_sentence_count(dialogue),
+            "Good morning, the road is flooded. Take the upper path. Mind the broken stile."
         );
     }
 
@@ -5259,12 +5377,16 @@ mod tests {
             .filter(|s| !s.trim().is_empty())
             .count();
         assert!(
-            sentence_count <= 4,
-            "8-sentence ramble should be capped to <=4 sentences, got {sentence_count}: {result:?}"
+            sentence_count <= MAX_DIALOGUE_SENTENCES,
+            "8-sentence ramble should be capped to <={MAX_DIALOGUE_SENTENCES} sentences, got {sentence_count}: {result:?}"
         );
         assert!(
-            result.contains("Good day to ye"),
-            "first sentence must survive: {result:?}"
+            result.contains("Come in out of the cold"),
+            "first substantive sentence must survive: {result:?}"
+        );
+        assert!(
+            !result.contains("Good day to ye"),
+            "standalone greeting should be discarded before substantive beats: {result:?}"
         );
     }
 
@@ -5507,7 +5629,8 @@ mod tests {
         // Build a 100-word reply across 3 sentences.
         // S1: ~10 words, S2: ~55 words, S3: ~35 words — total ~100 words.
         let s1 = "Good day to ye, friend, and welcome to Kilteevan.";
-        let s2 = "The roads have been fierce hard on everyone this past fortnight and the river at \
+        let s2 =
+            "The roads have been fierce hard on everyone this past fortnight and the river at \
             Strokestown rose three whole feet after the terrible rains came down last Tuesday \
             and Wednesday and the landlord sent his agent round to collect the rents early \
             before the harvest was even in which caused great hardship to all.";
@@ -5561,7 +5684,8 @@ mod tests {
     fn guard_verbosity_runons_word_cap_end_to_end() {
         // A reply that is only 2 sentences but 100+ words (bypasses sentence cap).
         let s1 = "Good day to ye, friend, and welcome to the parish.";
-        let s2 = "The roads have been fierce hard on everyone this past fortnight and the river at \
+        let s2 =
+            "The roads have been fierce hard on everyone this past fortnight and the river at \
             Strokestown rose three whole feet after the terrible rains came down last Tuesday \
             and Wednesday and the landlord sent his agent round to collect the rents early \
             before the harvest was even in which caused great hardship to all the families \
@@ -5998,13 +6122,13 @@ mod tests {
         );
     }
 
-    /// AC-3 (#1491): A neutral mood keeps the default 4-sentence cap.
+    /// AC-3 (#1491): A neutral mood keeps the shared 3-sentence cap.
     #[test]
-    fn mood_aware_sentence_cap_neutral_mood_keeps_4() {
-        let dialogue = "Good day to ye, friend, and welcome into the house. \
-            The weather has been mild enough for the cattle in the lower meadow. \
+    fn mood_aware_sentence_cap_neutral_mood_keeps_3() {
+        let dialogue = "The weather has been mild enough for the cattle in the lower meadow. \
             The spring grass came early, so every beast has kept a little strength. \
             I saw the priest this morning walking the road toward the chapel. \
+            The chapel bell sounded before he reached the lane. \
             He sent his regards and asked after every family by name.";
         assert!(dialogue.split_whitespace().count() > 45);
         let result = cap_sentence_count_for_mood(dialogue, Some("neutral"));
@@ -6013,16 +6137,16 @@ mod tests {
             .filter(|s| !s.trim().is_empty())
             .count();
         assert!(
-            sentence_count <= 4,
-            "neutral mood must cap at 4; got {sentence_count}: {result:?}"
+            sentence_count <= MAX_DIALOGUE_SENTENCES,
+            "neutral mood must cap at {MAX_DIALOGUE_SENTENCES}; got {sentence_count}: {result:?}"
         );
-        assert!(
-            sentence_count >= 4,
-            "neutral mood with 5 sentences must keep 4; got {sentence_count}: {result:?}"
+        assert_eq!(
+            sentence_count, MAX_DIALOGUE_SENTENCES,
+            "neutral mood with 5 sentences must keep {MAX_DIALOGUE_SENTENCES}; got {sentence_count}: {result:?}"
         );
     }
 
-    /// AC-4 (#1491): None mood uses default 4-sentence cap (no panic).
+    /// AC-4 (#1491): None mood uses the shared 3-sentence cap (no panic).
     #[test]
     fn mood_aware_sentence_cap_none_mood_uses_default() {
         let dialogue = "One long sentence gathers enough words for the default cap to matter. \
@@ -6037,12 +6161,12 @@ mod tests {
             .filter(|s| !s.trim().is_empty())
             .count();
         assert!(
-            sentence_count <= 4,
-            "None mood must cap at 4; got {sentence_count}: {result:?}"
+            sentence_count <= MAX_DIALOGUE_SENTENCES,
+            "None mood must cap at {MAX_DIALOGUE_SENTENCES}; got {sentence_count}: {result:?}"
         );
-        assert!(
-            sentence_count >= 4,
-            "None mood with a long 5-sentence reply must keep 4; got {sentence_count}: {result:?}"
+        assert_eq!(
+            sentence_count, MAX_DIALOGUE_SENTENCES,
+            "None mood with a long 5-sentence reply must keep {MAX_DIALOGUE_SENTENCES}; got {sentence_count}: {result:?}"
         );
     }
 
@@ -7288,8 +7412,9 @@ mod tests {
         );
     }
 
-    /// #1561: The full verbosity pipeline must preserve the same short,
-    /// distinct multi-sentence reply instead of storing only the opener.
+    /// #1561: The full verbosity pipeline must preserve the substantive answer
+    /// instead of storing only the opener. The shared cap may drop the final
+    /// follow-up question.
     #[test]
     fn verbosity_guard_preserves_cooper_work_answer() {
         let input = "Good morning, Aiden Carney. Work for a cooper? Aye, there's \
@@ -7299,9 +7424,12 @@ mod tests {
         assert!(
             result.contains("Work for a cooper?")
                 && result.contains("there's always work")
-                && result.contains("barrels for ale and salt")
-                && result.contains("Ye know yer trade?"),
+                && result.contains("barrels for ale and salt"),
             "verbosity guard must preserve the substantive answer: {result:?}"
+        );
+        assert!(
+            !result.contains("Ye know yer trade?"),
+            "the fourth substantive sentence should be capped in semantic order: {result:?}"
         );
         assert_ne!(
             result, "Good morning, Aiden Carney.",

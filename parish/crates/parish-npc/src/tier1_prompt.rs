@@ -1,6 +1,7 @@
 //! Tier 1 system-prompt and action-line construction.
 
 use super::*;
+use crate::repetition::MAX_DIALOGUE_SENTENCES;
 
 /// The improv craft guidelines injected into the system prompt when improv mode is enabled.
 ///
@@ -123,7 +124,7 @@ pub fn build_tier1_system_prompt(npc: &Npc, improv: bool, language: &LanguageSet
         The dialogue should contain only what you say aloud — \
         pure dialogue, no narration or action descriptions.\n\
         \n\
-        LENGTH: 2-3 sentences maximum. Be conversational, not a monologue. \
+        LENGTH: 2-{max_dialogue_sentences} sentences maximum. Be conversational, not a monologue. \
         Ask AT MOST ONE question per reply — never stack multiple questions. \
         If several questions occur to you, pick the SINGLE most important one and \
         drop the rest; a reply ending in two or more question marks is wrong. Do \
@@ -142,6 +143,7 @@ pub fn build_tier1_system_prompt(npc: &Npc, improv: bool, language: &LanguageSet
         name = npc.name,
         age = npc.age,
         occupation = npc.occupation,
+        max_dialogue_sentences = MAX_DIALOGUE_SENTENCES,
         personality = npc.personality,
         intel_guidance = if intel_guidance.is_empty() {
             String::new()
@@ -221,9 +223,10 @@ mod tests {
         let npc = make_named_npc(1, "Padraig", 1);
         let lang = crate::LanguageSettings::english_only();
         let prompt = build_tier1_system_prompt(&npc, false, &lang);
+        let expected = format!("2-{MAX_DIALOGUE_SENTENCES} sentences");
         assert!(
-            prompt.contains("2-3 sentences") || prompt.contains("2–3 sentences"),
-            "system prompt must include 2-3 sentence length cap"
+            prompt.contains(&expected),
+            "system prompt must use the shared {MAX_DIALOGUE_SENTENCES}-sentence cap"
         );
     }
 
