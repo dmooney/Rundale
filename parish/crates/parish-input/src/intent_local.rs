@@ -199,6 +199,7 @@ pub fn parse_intent_local(raw_input: &str) -> Option<PlayerIntent> {
         "i pick up ",
         "i put down ",
         "i set down ",
+        "i set to work ",
         "i tie a ",
         "i tie the ",
         "i tie your ",
@@ -797,6 +798,14 @@ mod tests {
         // Open
         let intent = parse_intent_local("I open the gate").unwrap();
         assert_eq!(intent.intent, IntentKind::Interact);
+
+        // Common first-person task narration from an NPC assignment.
+        let intent = parse_intent_local(
+            "I set to work in the potato patch, breaking clods and planting seed.",
+        )
+        .unwrap();
+        assert_eq!(intent.intent, IntentKind::Interact);
+        assert!(intent.dialogue.is_none());
     }
 
     /// AC-2 (#1476): First-person narrative without a known action verb stays Talk.
@@ -1542,5 +1551,8 @@ mod tests {
         assert!(!is_player_dialogue("pick up the stone"));
         assert!(!is_player_dialogue("light the candle"));
         assert!(!is_player_dialogue("kneel before the altar"));
+        assert!(!is_player_dialogue(
+            "I set to work in the potato patch, breaking clods and planting seed.",
+        ));
     }
 }

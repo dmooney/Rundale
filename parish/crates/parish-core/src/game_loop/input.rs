@@ -143,10 +143,16 @@ async fn try_handle_move(
 /// Extracted so tests can drive the narration branch directly without
 /// requiring an LLM-classified `Interact` intent.
 pub(crate) async fn handle_interact(ctx: &GameLoopContext<'_>, raw: &str) {
-    // Normalize: trim whitespace, strip trailing period, lowercase first character.
-    // This prevents awkward output like "You Tie a strip of cloth.." when the player
-    // types a capitalized sentence with trailing punctuation.
-    let mut chars = raw.trim().trim_end_matches('.').chars();
+    // Normalize: trim whitespace and trailing punctuation, then translate a
+    // first-person action ("I set to work") into second-person narration
+    // ("You set to work"). Otherwise lowercase the first character so a
+    // capitalized imperative does not render as "You Tie ...".
+    let trimmed = raw.trim().trim_end_matches('.');
+    let action = trimmed
+        .get(..2)
+        .filter(|prefix| prefix.eq_ignore_ascii_case("i "))
+        .map_or(trimmed, |_| trimmed[2..].trim_start());
+    let mut chars = action.chars();
     let normalized = match chars.next() {
         None => String::new(),
         Some(c) => c.to_lowercase().collect::<String>() + chars.as_str(),
@@ -1324,6 +1330,15 @@ mod tests {
             || None,
         )
         .await;
+        super::handle_game_input(
+            &ctx,
+            "I set to work in the potato patch, breaking clods and planting seed.".to_string(),
+            vec![],
+            &transport,
+            &templates,
+            || None,
+        )
+        .await;
 
         let logs: Vec<String> = emitter
             .events
@@ -1346,6 +1361,12 @@ mod tests {
             logs.iter()
                 .any(|l| l.contains("tie a strip of cloth to the thorn bush")),
             "#1449: narration must reference the original input; got: {logs:?}"
+        );
+        assert!(
+            logs.iter().any(|l| {
+                l == "You set to work in the potato patch, breaking clods and planting seed."
+            }),
+            "#1780: first-person task action must route to narration; got: {logs:?}"
         );
     }
 
@@ -1410,8 +1431,8 @@ mod tests {
 
     // ── Gemini review thread fixes ────────────────────────────────────────────
 
-    /// Thread 1: capitalized input with trailing period must be normalized to
-    /// lowercase-first, no trailing double-period.
+    /// Capitalized imperatives and first-person task actions must be normalized
+    /// into grammatical second-person narration.
     ///
     /// "Tie a strip of cloth." → "You tie a strip of cloth."
     #[tokio::test]
@@ -1444,6 +1465,11 @@ mod tests {
 
         // Capitalized input with trailing period — the Gemini repro case.
         super::handle_interact(&ctx, "Tie a strip of cloth.").await;
+        super::handle_interact(
+            &ctx,
+            "I set to work in the potato patch, breaking clods and planting seed.",
+        )
+        .await;
 
         let logs: Vec<String> = emitter
             .events
@@ -1466,6 +1492,16 @@ mod tests {
         assert!(
             logs.iter().any(|l| l == "You tie a strip of cloth."),
             "expected 'You tie a strip of cloth.' (normalized); got: {logs:?}"
+        );
+        assert!(
+            logs.iter().any(|l| {
+                l == "You set to work in the potato patch, breaking clods and planting seed."
+            }),
+            "first-person task action must become second-person narration; got: {logs:?}"
+        );
+        assert!(
+            !logs.iter().any(|l| l.to_lowercase().starts_with("you i ")),
+            "narration must not retain the first-person pronoun; got: {logs:?}"
         );
         // Must NOT produce a double-period.
         assert!(
