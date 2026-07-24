@@ -26,6 +26,7 @@ import {
 	scaleForDepth,
 	sortAnchorsByDepth,
 } from './layout';
+import { notebookNpcLabel } from './view-model';
 import type {
 	NotebookLayout,
 	NotebookRect,
@@ -163,6 +164,7 @@ export class IllustratedNotebookRenderer {
 		this.drawTopRibbon(layout, state);
 		this.drawNearby(layout, state);
 		this.drawNotebookPage(layout, state);
+		this.drawLiveChronicle(layout, state);
 		this.drawActionStamps(layout, state);
 		this.drawIntentStrip(layout, state);
 		this.drawLowerCards(layout, state);
@@ -498,7 +500,7 @@ export class IllustratedNotebookRenderer {
 				const target = this.target(
 					`marker:${targetIdPart(actor.actor.npc.real_name)}`,
 					'npc-marker',
-					`Select marker for ${actor.actor.npc.name}`,
+					`Select marker for ${notebookNpcLabel(actor.actor.npc)}`,
 					targetRect,
 					{
 						type: 'select-npc',
@@ -520,7 +522,7 @@ export class IllustratedNotebookRenderer {
 				this.layers.markers.addChild(label);
 				this.addText(
 					this.layers.markers,
-					shortNpcName(actor.actor.npc.name, 24),
+					shortNpcName(notebookNpcLabel(actor.actor.npc), 24),
 					label.x + 36,
 					label.y + 10,
 					12,
@@ -539,12 +541,9 @@ export class IllustratedNotebookRenderer {
 	): void {
 		const ribbon = this.sprite(NOTEBOOK_ASSETS.topRibbon, layout.topRibbon);
 		this.layers.ui.addChild(ribbon);
-		const world = state.world;
-		const location = world?.location_name ?? 'Rundale';
-		const weather = world?.weather ?? 'weather turning';
-		const time = world
-			? `${String(world.hour).padStart(2, '0')}:${String(world.minute).padStart(2, '0')}`
-			: '3:40 PM';
+		const location = state.view.locationName;
+		const weather = state.view.weather;
+		const time = state.view.time;
 		const y = layout.topRibbon.y + 12;
 		const titleSize = layout.mode === 'mobile' ? 20 : 28;
 		this.addText(this.layers.ui, 'RUNDALE', 24, y - 2, titleSize, {
@@ -674,7 +673,7 @@ export class IllustratedNotebookRenderer {
 		const target = this.target(
 			`nearby:${targetIdPart(npc.real_name)}`,
 			'nearby-portrait',
-			`Select nearby person ${npc.name}`,
+			`Select nearby person ${notebookNpcLabel(npc)}`,
 			frameRect,
 			{ type: 'select-npc', realName: npc.real_name },
 			200 + index,
@@ -701,7 +700,7 @@ export class IllustratedNotebookRenderer {
 		if (layout.mode === 'desktop') {
 			this.addText(
 				this.layers.ui,
-				shortNpcName(npc.name, 20),
+				shortNpcName(notebookNpcLabel(npc), 20),
 				x - size * 0.55,
 				y + size * 0.73,
 				11,
@@ -757,11 +756,11 @@ export class IllustratedNotebookRenderer {
 				);
 			}
 		});
-		const npc = state.selectedNpc;
+		const person = state.view.person;
 		const page = layout.notebookPage;
 		const inset = layout.mode === 'mobile' ? 18 : 46;
 		const titleSize = layout.mode === 'mobile' ? 16 : 25;
-		const title = npc?.name ?? pageTitle(state);
+		const title = person?.label ?? state.view.locationName;
 		const adjustedTitleSize =
 			title.length > 36
 				? Math.max(13, titleSize - 7)
@@ -780,7 +779,7 @@ export class IllustratedNotebookRenderer {
 				wordWrapWidth: page.width - inset * 1.4,
 			},
 		);
-		if (npc) {
+		if (person) {
 			const portraitSize = layout.mode === 'mobile' ? 66 : 112;
 			this.layers.ui.addChild(
 				this.sprite(NOTEBOOK_ASSETS.portraits[0], {
@@ -792,7 +791,7 @@ export class IllustratedNotebookRenderer {
 			);
 			this.addText(
 				this.layers.ui,
-				npc.mood || 'watchful',
+				person.mood,
 				page.x + page.width * 0.56,
 				page.y + (layout.mode === 'mobile' ? 96 : 128),
 				layout.mode === 'mobile' ? 15 : 20,
@@ -802,7 +801,7 @@ export class IllustratedNotebookRenderer {
 			);
 			this.addText(
 				this.layers.ui,
-				npc.occupation || 'parish neighbour',
+				person.detail,
 				page.x + page.width * 0.55,
 				page.y + (layout.mode === 'mobile' ? 122 : 158),
 				layout.mode === 'mobile' ? 11 : 15,
@@ -814,35 +813,45 @@ export class IllustratedNotebookRenderer {
 			);
 			this.addText(
 				this.layers.ui,
-				'Trust',
+				'Recent exchange',
 				page.x + inset,
 				page.y + (layout.mode === 'mobile' ? 166 : 245),
-				layout.mode === 'mobile' ? 13 : 18,
+				layout.mode === 'mobile' ? 12 : 18,
 				{
 					fill: INK,
 					fontStyle: 'normal',
 				},
 			);
-			this.drawTrustDots(
-				page.x + inset + (layout.mode === 'mobile' ? 52 : 76),
-				page.y + (layout.mode === 'mobile' ? 176 : 257),
-				layout.mode === 'mobile' ? 5 : 7,
+			const recentLine = person.recentLines.at(-1);
+			this.addText(
+				this.layers.ui,
+				recentLine
+					? `${shortText(
+							recentLine.content,
+							layout.mode === 'mobile' ? 42 : 56,
+						)}${recentLine.streaming ? ' …' : ''}`
+					: person.emptyNote,
+				page.x + inset,
+				page.y + (layout.mode === 'mobile' ? 190 : 276),
+				layout.mode === 'mobile' ? 11 : 14,
+				{
+					fill: recentLine ? INK : INK_SOFT,
+					wordWrap: true,
+					wordWrapWidth: page.width - inset * 1.55,
+				},
 			);
 			if (layout.mode === 'desktop') {
+				const placeY = page.y + page.height - 112;
+				this.addText(this.layers.ui, 'Here', page.x + inset, placeY, 16, {
+					fill: INK,
+					fontStyle: 'normal',
+				});
 				this.addText(
 					this.layers.ui,
-					'She knows',
+					shortText(state.view.locationName, 44),
 					page.x + inset,
-					page.y + 300,
-					19,
-					{ fill: INK },
-				);
-				this.addText(
-					this.layers.ui,
-					'- cart delayed\n- flour is short\n- saw who crossed the bridge',
-					page.x + inset + 8,
-					page.y + 337,
-					16,
+					placeY + 25,
+					14,
 					{
 						fill: INK,
 						wordWrap: true,
@@ -851,35 +860,21 @@ export class IllustratedNotebookRenderer {
 				);
 				this.addText(
 					this.layers.ui,
-					'Witness notes: watching the road.',
+					shortText(state.view.locationDescription, 92),
 					page.x + inset,
-					page.y + page.height - 78,
-					14,
+					placeY + 47,
+					12,
 					{
 						fill: INK_SOFT,
 						wordWrap: true,
 						wordWrapWidth: page.width - inset * 1.6,
 					},
 				);
-			} else {
-				this.addText(
-					this.layers.ui,
-					'Knows: cart delayed',
-					page.x + inset,
-					page.y + 202,
-					11,
-					{
-						fill: INK,
-						wordWrap: true,
-						wordWrapWidth: page.width - inset * 1.5,
-					},
-				);
 			}
 		} else {
 			this.addText(
 				this.layers.ui,
-				state.world?.location_description ??
-					'The parish waits for your next line.',
+				state.view.locationDescription,
 				page.x + inset,
 				page.y + 100,
 				layout.mode === 'mobile' ? 12 : 16,
@@ -892,21 +887,80 @@ export class IllustratedNotebookRenderer {
 		}
 	}
 
-	private drawTrustDots(x: number, y: number, radius: number): void {
-		const g = new Graphics();
-		for (let i = 0; i < 5; i += 1) {
-			g.circle(x + i * radius * 2.5, y, radius).stroke({
-				color: INK,
-				width: 1.4,
-				alpha: 0.8,
-			});
-			if (i < 2)
-				g.circle(x + i * radius * 2.5, y, radius - 1).fill({
-					color: 0x8b9560,
-					alpha: 0.9,
-				});
+	private drawLiveChronicle(
+		layout: NotebookLayout,
+		state: NotebookRenderState,
+	): void {
+		const mobile = layout.mode === 'mobile';
+		const panelHeight = mobile ? 172 : 178;
+		const stampTop = Math.min(...layout.actionStamps.map((stamp) => stamp.y));
+		const panelX = mobile
+			? 10
+			: layout.nearbyStrip.x + layout.nearbyStrip.width + 24;
+		const panelWidth = mobile
+			? layout.width - 20
+			: Math.max(260, layout.notebookPage.x - panelX - 24);
+		const minimumY = mobile
+			? layout.nearbyStrip.y + layout.nearbyStrip.height + 12
+			: layout.topRibbon.height + 18;
+		const panelY = Math.max(minimumY, stampTop - panelHeight - 16);
+		const panel = new Graphics();
+		panel
+			.roundRect(panelX, panelY, panelWidth, panelHeight, 12)
+			.fill({ color: PAPER_LIGHT, alpha: 0.88 })
+			.stroke({ color: INK, width: 1.5, alpha: 0.52 });
+		this.layers.ui.addChild(panel);
+		this.addText(
+			this.layers.ui,
+			state.view.liveTitle,
+			panelX + 18,
+			panelY + 12,
+			mobile ? 13 : 16,
+			{ fill: INK, fontStyle: 'normal', fontWeight: '600' },
+		);
+
+		const lines = state.view.liveLines.slice(mobile ? -3 : -4);
+		if (lines.length === 0) {
+			this.addText(
+				this.layers.ui,
+				state.view.liveEmpty,
+				panelX + 18,
+				panelY + 45,
+				mobile ? 12 : 14,
+				{
+					fill: INK_SOFT,
+					wordWrap: true,
+					wordWrapWidth: panelWidth - 36,
+				},
+			);
+			return;
 		}
-		this.layers.ui.addChild(g);
+
+		const contentTop = panelY + 42;
+		const lineHeight = (panelHeight - 50) / lines.length;
+		lines.forEach((line, index) => {
+			this.addText(
+				this.layers.ui,
+				`${line.speaker}: ${shortText(
+					line.content,
+					mobile ? 78 : 158,
+				)}${line.streaming ? ' …' : ''}`,
+				panelX + 18,
+				contentTop + index * lineHeight,
+				mobile ? 11 : 13,
+				{
+					fill:
+						line.kind === 'error'
+							? INK_RED
+							: line.kind === 'npc'
+								? INK
+								: INK_SOFT,
+					fontStyle: line.kind === 'player' ? 'italic' : 'normal',
+					wordWrap: true,
+					wordWrapWidth: panelWidth - 36,
+				},
+			);
+		});
 	}
 
 	private drawActionStamps(
@@ -1012,9 +1066,7 @@ export class IllustratedNotebookRenderer {
 				height: layout.mode === 'mobile' ? 28 : 34,
 			}),
 		);
-		const displayText =
-			state.intentText ||
-			(state.busy ? 'waiting on the parish...' : 'ask Roisin what she saw');
+		const displayText = state.intentText || state.view.intentPlaceholder;
 		const inputText = this.addText(
 			this.layers.intent,
 			displayText,
@@ -1160,7 +1212,7 @@ export class IllustratedNotebookRenderer {
 			this.layers.ui.addChild(active);
 			this.addText(
 				this.layers.ui,
-				'Active Intents',
+				'Current Intent',
 				layout.activeIntentsCard.x + 35,
 				layout.activeIntentsCard.y + 20,
 				16,
@@ -1168,7 +1220,7 @@ export class IllustratedNotebookRenderer {
 			);
 			this.addText(
 				this.layers.ui,
-				'(none)',
+				shortText(state.view.draftSummary, 34),
 				layout.activeIntentsCard.x + 42,
 				layout.activeIntentsCard.y + 52,
 				13,
@@ -1188,10 +1240,6 @@ export class IllustratedNotebookRenderer {
 
 function titleCase(tab: NotebookTab): string {
 	return tab.charAt(0).toUpperCase() + tab.slice(1);
-}
-
-function pageTitle(state: NotebookRenderState): string {
-	return state.world?.location_name ?? 'Parish Notes';
 }
 
 function shortText(text: string, max: number): string {

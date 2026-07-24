@@ -1,4 +1,4 @@
-import type { MapData, NpcInfo, WorldSnapshot } from '$lib/types';
+import type { MapData, NpcInfo, TextLogEntry, WorldSnapshot } from '$lib/types';
 import type { NotebookAction } from '$lib/notebook/actions';
 
 export type NotebookTab = 'notes' | 'people' | 'places' | 'rumours' | 'journal';
@@ -70,12 +70,58 @@ export interface RenderCallbacks {
 	onSend: () => void;
 }
 
+export type NotebookLiveLineKind =
+	| 'player'
+	| 'npc'
+	| 'location'
+	| 'narration'
+	| 'error';
+
+export interface NotebookLiveLine {
+	key: string;
+	kind: NotebookLiveLineKind;
+	speaker: string;
+	content: string;
+	streaming: boolean;
+}
+
+export interface NotebookPersonView {
+	label: string;
+	mood: string;
+	detail: string;
+	recentLines: NotebookLiveLine[];
+	emptyNote: string;
+}
+
+export interface NotebookViewModel {
+	locationName: string;
+	locationDescription: string;
+	weather: string;
+	time: string;
+	person: NotebookPersonView | null;
+	liveTitle: string;
+	liveEmpty: string;
+	liveLines: NotebookLiveLine[];
+	intentPlaceholder: string;
+	draftSummary: string;
+}
+
+export interface NotebookViewModelInput {
+	world: WorldSnapshot | null;
+	npcs: NpcInfo[];
+	selectedNpc: NpcInfo | null;
+	textLog: TextLogEntry[];
+	busy: boolean;
+	intentText: string;
+}
+
 export interface NotebookRenderState {
 	world: WorldSnapshot | null;
 	map: MapData | null;
 	npcs: NpcInfo[];
 	selectedNpc: NpcInfo | null;
 	selectedRealName: string | null;
+	view: NotebookViewModel;
 	intentText: string;
 	inputFocused: boolean;
 	busy: boolean;

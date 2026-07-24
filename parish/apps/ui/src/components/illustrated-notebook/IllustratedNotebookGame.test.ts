@@ -192,6 +192,51 @@ describe('IllustratedNotebookGame', () => {
 		);
 	});
 
+	it('reactively forwards live commands, narration, and streaming dialogue to Pixi', async () => {
+		const { getByLabelText } = render(IllustratedNotebookGame);
+
+		textLog.set([
+			{ id: 'p1', source: 'player', content: 'look around the crossroads' },
+			{
+				id: 's1',
+				source: 'system',
+				content: 'A cart rattles along the eastern road.',
+			},
+			{
+				id: 'n1',
+				source: 'Roisin Connolly',
+				content: 'There is rain coming',
+				streaming: true,
+			},
+		]);
+		streamingActive.set(true);
+
+		await waitFor(() =>
+			expect(lastRenderState?.view.liveLines).toMatchObject([
+				{
+					kind: 'player',
+					speaker: 'You',
+					content: 'look around the crossroads',
+				},
+				{
+					kind: 'narration',
+					speaker: 'Parish',
+					content: 'A cart rattles along the eastern road.',
+				},
+				{
+					kind: 'npc',
+					speaker: 'Roisin Connolly',
+					content: 'There is rain coming',
+					streaming: true,
+				},
+			]),
+		);
+		expect(lastRenderState?.busy).toBe(true);
+		expect(getByLabelText('Live chronicle · listening').textContent).toContain(
+			'There is rain coming',
+		);
+	});
+
 	it('seeds and submits through the new hidden command input', async () => {
 		const { getByLabelText } = render(IllustratedNotebookGame);
 		const input = getByLabelText('Player intent') as HTMLInputElement;

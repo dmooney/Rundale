@@ -3,6 +3,7 @@ import {
 	notebookActionDraft,
 	type NotebookAction,
 } from '$lib/notebook/actions';
+import { notebookNpcLabel } from './view-model';
 
 export type SubmitInput = (text: string) => Promise<void>;
 
@@ -18,7 +19,13 @@ export function draftForNotebookAction(
 	action: NotebookAction,
 	selectedNpc: NpcInfo | null,
 ): string {
-	return notebookActionDraft(action, selectedNpc);
+	if (!selectedNpc) return notebookActionDraft(action, null);
+	const visibleLabel = notebookNpcLabel(selectedNpc);
+	return notebookActionDraft(action, {
+		...selectedNpc,
+		name: visibleLabel,
+		real_name: visibleLabel,
+	});
 }
 
 export async function submitNotebookCommand({

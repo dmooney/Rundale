@@ -19,6 +19,18 @@ describe('illustrated notebook command input', () => {
 		expect(draftForNotebookAction('talk', null)).toBe('talk to ');
 	});
 
+	it('uses an appearance label instead of an unintroduced canonical name', () => {
+		expect(
+			draftForNotebookAction('ask', {
+				...roisin,
+				name: 'a lean stranger with hard eyes',
+				real_name: 'Sean Ruadh Kelly',
+				occupation: 'labourer',
+				introduced: false,
+			}),
+		).toBe('ask Lean stranger ');
+	});
+
 	it('submits natural-language text through the existing submit function', async () => {
 		const submitInput = vi.fn(async () => {});
 		const onLocalSubmit = vi.fn();

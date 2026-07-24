@@ -2,7 +2,7 @@
 	import { onDestroy, onMount } from 'svelte';
 	import { get } from 'svelte/store';
 	import type { NotebookAction } from '$lib/notebook/actions';
-	import type { NpcInfo, TextLogEntry } from '$lib/types';
+	import type { NpcInfo } from '$lib/types';
 	import { submitInput } from '$lib/ipc';
 	import { openBugReport } from '../../stores/bugReport';
 	import { debugVisible } from '../../stores/debug';
@@ -30,6 +30,10 @@
 	} from '$lib/illustrated-notebook/interactions';
 	import { IllustratedNotebookRenderer } from '$lib/illustrated-notebook/renderer';
 	import type { NotebookTab } from '$lib/illustrated-notebook/types';
+	import {
+		buildNotebookViewModel,
+		notebookNpcLabel,
+	} from '$lib/illustrated-notebook/view-model';
 
 	let hostEl: HTMLDivElement;
 	let inputEl: HTMLInputElement;
@@ -50,6 +54,16 @@
 	);
 	const focusableHitTargets = $derived(
 		sortNotebookHitTargetsForFocus(hitTargets),
+	);
+	const notebookView = $derived(
+		buildNotebookViewModel({
+			world: $worldState,
+			npcs: $npcsHere,
+			selectedNpc,
+			textLog: $textLog,
+			busy: $streamingActive || isSubmitting,
+			intentText,
+		}),
 	);
 
 	$effect(() => {
@@ -80,6 +94,7 @@
 			npcs: $npcsHere,
 			selectedNpc,
 			selectedRealName,
+			view: notebookView,
 			intentText,
 			inputFocused,
 			busy: $streamingActive || isSubmitting,
@@ -221,10 +236,6 @@
 		}
 	}
 
-	function recentLines(entries: TextLogEntry[]): TextLogEntry[] {
-		return entries.slice(-8);
-	}
-
 	function openTools(which: 'save' | 'debug' | 'mod' | 'bug') {
 		drawer = null;
 		switch (which) {
@@ -253,6 +264,19 @@
 		class="pixi-host"
 		data-testid="illustrated-notebook-pixi-host"
 	></div>
+	<div
+		class="notebook-live-transcript"
+		aria-label={notebookView.liveTitle}
+		aria-live="polite"
+	>
+		{#if notebookView.liveLines.length === 0}
+			<p>{notebookView.liveEmpty}</p>
+		{:else}
+			{#each notebookView.liveLines as line (line.key)}
+				<p>{line.speaker}: {line.content}</p>
+			{/each}
+		{/if}
+	</div>
 	<input
 		bind:this={inputEl}
 		bind:value={intentText}
@@ -311,18 +335,26 @@
 									drawer = null;
 								}}
 							>
-								{npc.name} <span>{npc.occupation}</span>
+								{notebookNpcLabel(npc)}
+								<span>
+									{npc.introduced
+										? npc.occupation || 'occupation not recorded'
+										: 'not yet introduced'}
+								</span>
 							</button>
 						</li>
 					{/each}
 				</ul>
 			{:else if drawer === 'journal' || drawer === 'notes'}
 				<div class="journal-lines">
-					{#each recentLines($textLog) as entry, i (`${entry.id ?? i}-${entry.content}`)}
-						<p class:error={entry.subtype === 'error'}>
-							<strong>{entry.source}</strong>: {entry.content}
+					{#each notebookView.liveLines as line (line.key)}
+						<p class:error={line.kind === 'error'}>
+							<strong>{line.speaker}</strong>: {line.content}
 						</p>
 					{/each}
+					{#if notebookView.liveLines.length === 0}
+						<p>{notebookView.liveEmpty}</p>
+					{/if}
 				</div>
 			{:else if drawer === 'rumours'}
 				<p>The parish has no pinned rumours in this notebook margin yet.</p>
@@ -386,6 +418,18 @@
 		display: block;
 		width: 100% !important;
 		height: 100% !important;
+	}
+
+	.notebook-live-transcript {
+		position: absolute;
+		width: 1px;
+		height: 1px;
+		padding: 0;
+		margin: -1px;
+		overflow: hidden;
+		clip: rect(0, 0, 0, 0);
+		white-space: nowrap;
+		border: 0;
 	}
 
 	.notebook-native-input {
