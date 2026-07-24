@@ -10,7 +10,7 @@ COPY parish/apps/ui/ ./
 RUN npm run build
 
 # ── Stage 2: build Rust binary ────────────────────────────────────────────────
-FROM rust:1.96.1-slim-bookworm AS builder
+FROM rust:1.97.0-slim-bookworm AS builder
 RUN apt-get update && apt-get install -y --no-install-recommends \
     pkg-config \
     && rm -rf /var/lib/apt/lists/*
@@ -21,9 +21,11 @@ COPY parish/Cargo.toml parish/Cargo.lock parish/
 COPY parish/crates/ parish/crates/
 # Compile-time embedding targets (see parish-server/src/lib.rs)
 COPY LICENSE NOTICE THIRD_PARTY_NOTICES.md ./
-# Build only the parish binary (excludes the Tauri desktop binary)
+# parish-server's build script derives CSP script hashes from the built UI.
+COPY --from=frontend /build/dist /build/parish/apps/ui/dist/
+# Build only the web-server binary (excludes the desktop and thin-client binaries).
 WORKDIR /build/parish
-RUN cargo build --release -p parish --bin parish
+RUN cargo build --release -p parish-server --bin parish-server
 
 # ── Stage 3: minimal runtime image ────────────────────────────────────────────
 FROM debian:bookworm-slim
@@ -53,7 +55,7 @@ RUN cd /tmp \
  && rm cloudflared
 
 WORKDIR /app
-COPY --from=builder /build/parish/target/release/parish ./
+COPY --from=builder /build/parish/target/release/parish-server ./parish-server
 COPY --from=frontend /build/dist ./apps/ui/dist/
 COPY mods/ ./mods/
 RUN useradd -m -u 1000 app && chown -R app:app /app
@@ -62,4 +64,4 @@ USER app
 ENV RUST_LOG=info
 EXPOSE 3001
 # Host platforms commonly inject $PORT; fall back to 3001 for local docker testing.
-CMD sh -c "./parish --web ${PORT:-3001}"
+CMD ["sh", "-c", "exec ./parish-server --port ${PORT:-3001} --data-dir /app/mods/rundale --static-dir /app/apps/ui/dist"]

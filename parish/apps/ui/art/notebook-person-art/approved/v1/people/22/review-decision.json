@@ -1,0 +1,112 @@
+{
+	"schema_version": 1,
+	"record_type": "notebook-person-art-human-review-decision",
+	"candidate_receipt_path": "parish/apps/ui/art/notebook-person-art/candidates/objects/24/2497c08d92194e108d4737df3e0acad75d6a469f240b0b2d2a171eeba2766135/receipt.json",
+	"candidate_receipt_sha256": "c021f3da4448c2eb79f2e859661f02b10b2a4fe1e45bf6c36c5131abc49e81d3",
+	"candidate_sha256": "e2470de29558790db7412777ba710bb7515350cc687782bd82663885fea1b309",
+	"raw_sha256": "beafada05e6c400763a34446e49a94ac7ecc7a43639c5b5d5c885a24875ee1c5",
+	"subject": {
+		"kind": "npc",
+		"npc_id": 22,
+		"name": "Peig Hannigan",
+		"input_record_sha256": "38b9a7cb5fec4e16924e07ac84ef586909f7e76066e9062750b0a3f503ca104a"
+	},
+	"asset": {
+		"kind": "pair",
+		"candidate_index": 1,
+		"children": [
+			"portrait",
+			"marker"
+		]
+	},
+	"hair_topology": {
+		"schema_version": 4,
+		"subject_key": "npc:22",
+		"vector": {
+			"color_and_texture": "fine sparse silver-grey hair",
+			"front": {
+				"family": "soft-part-with-grey-side-rolls",
+				"description": "soft centre part with sparse grey hair rolled upward once over each ear"
+			},
+			"rear": {
+				"family": "fully-cap-contained-rear",
+				"description": "side rolls disappear into the cap with no visible rear knot or coil"
+			},
+			"covering": {
+				"family": "deep-frilled-chin-tied-cap",
+				"description": "old full gathered linen cap with rounded caul, deeper face frill, and ties under the chin"
+			},
+			"silhouette": {
+				"family": "full-rounded-elder-cap",
+				"description": "full rounded cap silhouette framing the ears and chin, with no projecting bun"
+			},
+			"loose_details": "visible silver temples and a repeatedly mended cap edge"
+		},
+		"sha256": "f90f361090400e3df512d3258f2958c6464e872e28ed2d309d5fea62b9dfd074"
+	},
+	"marker_identity": {
+		"schema_version": 4,
+		"subject_key": "npc:22",
+		"marker_identity": {
+			"composition": "character-only",
+			"silhouette": "small late-sixties woman with a full rounded chin-tied linen cap, visible silver temple rolls, dark close-wrapped shawl, and narrow old-dress line; no object/scenery",
+			"stance": "small forward lean with hands clasped beneath the shawl line; no object/scenery",
+			"empty_hand_pose": "hands-clasped",
+			"readability_cues": [
+				{
+					"kind": "hair-or-headwear",
+					"description": "full rounded chin-tied cap"
+				},
+				{
+					"kind": "body-shape",
+					"description": "small scale and pointed chin"
+				},
+				{
+					"kind": "clothing",
+					"description": "dark close-wrapped shawl"
+				}
+			],
+			"tiny_readability_notes": [
+				"Separate her from Brigid through smaller scale, a rounded elder cap, and a sharper forward tilt."
+			]
+		},
+		"sha256": "fbafca94ce5bf54f80f0e16ae4e1b981425d61831037517de749a540d8f005b5"
+	},
+	"decision": "approved",
+	"promotion_eligible": true,
+	"reviewer": "dmooney",
+	"reviewed_at": "2026-07-17T01:52:56.098Z",
+	"notes": "Approved by dmooney after reviewing the final 24-pair whole-cast sheet in Codex on 2026-07-16.",
+	"checklist": {
+		"identity_specific": true,
+		"concept_style_match": true,
+		"period_appropriate": true,
+		"no_prohibited_content": true,
+		"key_removal_clean": true,
+		"production_quality": true,
+		"diegetic_player_sketch": true,
+		"uncolored_pen_and_ink": true,
+		"sparse_open_linework": true,
+		"no_baked_background": true,
+		"framing_complete": true,
+		"selected_size_readable": true,
+		"nearby_size_readable": true,
+		"restrained_world_color": true,
+		"full_body_complete": true,
+		"silhouette_readable": true,
+		"character_only_marker": true,
+		"empty_hands": true,
+		"no_contextual_props_or_scenery": true,
+		"no_ground_plane": true,
+		"scene_size_readable": true,
+		"cross_asset_identity": true,
+		"hair_front_matches": true,
+		"hair_rear_matches": true,
+		"hair_covering_matches": true,
+		"hair_silhouette_matches": true,
+		"correct_surface_split": true,
+		"atomic_rerender_understood": true
+	},
+	"source_template_path": "parish/apps/ui/art/notebook-person-art/candidates/review-packets/identity-v8-character-only-full-cast-c-20260716/22-pair-e2470de29558-review.json",
+	"review_id": "347e43ec62c3709b362e4246"
+}

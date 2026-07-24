@@ -5,13 +5,19 @@
   "type": "module",
   "scripts": {
     "dev": "astro dev",
+    "check": "astro check",
     "build": "astro build",
     "preview": "astro preview"
   },
   "dependencies": {
-    "@astrojs/svelte": "^7.0.0",
-    "astro": "^6.4.8",
-    "simple-icons": "^16.24.0",
-    "svelte": "^5.56.3"
+    "@astrojs/svelte": "^9.0.1",
+    "astro": "^7.0.7",
+    "simple-icons": "^16.26.0",
+    "svelte": "^5.56.5"
+  },
+  "devDependencies": {
+    "@astrojs/check": "^0.9.9",
+    "@types/node": "^22.20.1",
+    "typescript": "^5.9.3"
   }
 }

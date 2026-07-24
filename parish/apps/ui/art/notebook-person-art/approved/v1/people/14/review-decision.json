@@ -1,0 +1,112 @@
+{
+	"schema_version": 1,
+	"record_type": "notebook-person-art-human-review-decision",
+	"candidate_receipt_path": "parish/apps/ui/art/notebook-person-art/candidates/objects/6e/6e26afbecd411eefce3ba64e4b927c489d328fa2cd3c168a77a3de33b781c506/receipt.json",
+	"candidate_receipt_sha256": "d99fedfcbedcf27b4d1cdb3ad8da7c27b25fb3a649d57fe3ba2bf4f141ac5d6e",
+	"candidate_sha256": "b850bacd0075f45dd491f7e36168cbbce0f54174188b1eaea76341f35bc15b87",
+	"raw_sha256": "bb49b7230ed44d997eff08acf2aab7188004d7d948b70e9854b2b2035ad7ccde",
+	"subject": {
+		"kind": "npc",
+		"npc_id": 14,
+		"name": "Brendan Duffy",
+		"input_record_sha256": "6937f2f81af2246c2b5ed771e43ba25596ccc65e01f226c0992b887da5f3bfed"
+	},
+	"asset": {
+		"kind": "pair",
+		"candidate_index": 1,
+		"children": [
+			"portrait",
+			"marker"
+		]
+	},
+	"hair_topology": {
+		"schema_version": 4,
+		"subject_key": "npc:14",
+		"vector": {
+			"color_and_texture": "dense loose medium-brown waves dusted with flour",
+			"front": {
+				"family": "flour-dusted-forward-waves",
+				"description": "loose front waves fall forward with flour caught along their ridges"
+			},
+			"rear": {
+				"family": "wavy-above-collar",
+				"description": "dense loose wave ends just above the collar"
+			},
+			"covering": {
+				"family": "uncovered-baker",
+				"description": "uncovered head with no cap in the chosen observation"
+			},
+			"silhouette": {
+				"family": "soft-collar-wave-profile",
+				"description": "soft youthful wave mass broader at the front and tapering above the collar"
+			},
+			"loose_details": "one flour-brightened wave falls toward the left brow"
+		},
+		"sha256": "fd83a460209d848eff5c610804aefed373c02a9d95400638e39ac712f0045a20"
+	},
+	"marker_identity": {
+		"schema_version": 4,
+		"subject_key": "npc:14",
+		"marker_identity": {
+			"composition": "character-only",
+			"silhouette": "tall late-teen boy with dense loose brown waves, a long young frame, rolled sleeves, and a plain pale apron; no object/scenery",
+			"stance": "restless weight-shifted stance with one hand on hip and the other at his side; no object/scenery",
+			"empty_hand_pose": "one-on-hip-one-at-side",
+			"readability_cues": [
+				{
+					"kind": "body-shape",
+					"description": "tall adolescent build"
+				},
+				{
+					"kind": "hair-or-headwear",
+					"description": "dense loose brown waves catching pale flour"
+				},
+				{
+					"kind": "clothing",
+					"description": "long rolled-sleeve line"
+				}
+			],
+			"tiny_readability_notes": [
+				"His tall youth and lifted hair texture must carry the marker read."
+			]
+		},
+		"sha256": "b05945997c9cc20bfea25861d6a6777cd03bb626bf70f34838e0764a4192ce78"
+	},
+	"decision": "approved",
+	"promotion_eligible": true,
+	"reviewer": "dmooney",
+	"reviewed_at": "2026-07-17T01:52:56.060Z",
+	"notes": "Approved by dmooney after reviewing the final 24-pair whole-cast sheet in Codex on 2026-07-16.",
+	"checklist": {
+		"identity_specific": true,
+		"concept_style_match": true,
+		"period_appropriate": true,
+		"no_prohibited_content": true,
+		"key_removal_clean": true,
+		"production_quality": true,
+		"diegetic_player_sketch": true,
+		"uncolored_pen_and_ink": true,
+		"sparse_open_linework": true,
+		"no_baked_background": true,
+		"framing_complete": true,
+		"selected_size_readable": true,
+		"nearby_size_readable": true,
+		"restrained_world_color": true,
+		"full_body_complete": true,
+		"silhouette_readable": true,
+		"character_only_marker": true,
+		"empty_hands": true,
+		"no_contextual_props_or_scenery": true,
+		"no_ground_plane": true,
+		"scene_size_readable": true,
+		"cross_asset_identity": true,
+		"hair_front_matches": true,
+		"hair_rear_matches": true,
+		"hair_covering_matches": true,
+		"hair_silhouette_matches": true,
+		"correct_surface_split": true,
+		"atomic_rerender_understood": true
+	},
+	"source_template_path": "parish/apps/ui/art/notebook-person-art/candidates/review-packets/identity-v8-character-only-full-cast-b-20260716/14-pair-b850bacd0075-review.json",
+	"review_id": "51ca7044b8ab8fd7467b136c"
+}

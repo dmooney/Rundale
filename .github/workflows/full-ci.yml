@@ -325,6 +325,9 @@ jobs:
       - name: Build UI
         run: npm run build
 
+      - name: Run managed-server integration races
+        run: npm run test:playwright-launcher-integration
+
       - name: Install Playwright browser (Linux-only OS deps)
         if: runner.os == 'Linux'
         run: npx playwright install --with-deps chromium

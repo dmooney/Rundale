@@ -9,6 +9,7 @@ cargo run  -p parish-npc-tool -- generate-world --counties roscommon,galway
 cargo run  -p parish-npc-tool -- generate-parish Kiltoom --pop 2000
 cargo run  -p parish-npc-tool -- validate --all
 cargo run  -p parish-npc-tool -- export --parish Kiltoom
+cargo run --manifest-path parish/Cargo.toml -p parish-npc-tool -- art-inputs --npcs mods/rundale/npcs.json --world mods/rundale/world.json --art-direction parish/apps/ui/art/notebook-person-art/npc-art-direction-v1.json --output parish/apps/ui/art/notebook-person-art/npc-art-inputs-v1.json
 cargo test -p parish-npc-tool                              # unit
 ```
 

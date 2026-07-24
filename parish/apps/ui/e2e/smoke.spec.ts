@@ -1,5 +1,66 @@
-import { test, expect } from '@playwright/test';
-import { installTileRouteMock } from './fixtures';
+import { test, expect, type Page } from '@playwright/test';
+import {
+	installTileRouteMock,
+	waitForTextureCompleteNotebookFrame,
+} from './fixtures';
+
+const PIXI_CANVAS = '[data-testid="illustrated-notebook-pixi-host"] canvas';
+
+async function waitForNotebook(page: Page): Promise<void> {
+	const shell = page.locator('.app-shell');
+	await expect(page.getByTestId('illustrated-notebook-game')).toBeVisible({
+		timeout: 10_000,
+	});
+	await expect(page.locator(PIXI_CANVAS)).toBeVisible();
+	await expect(
+		page.getByRole('button', { name: 'Ask action', exact: true }),
+	).toHaveCount(1);
+	// The real-server suite submits immediately after this helper. Waiting for
+	// the page controller prevents a cold-start race before WebSocket/Tauri
+	// listeners have finished registering.
+	await expect(shell).toHaveAttribute('data-controller-ready', 'true');
+}
+
+async function activateNotebookControl(
+	page: Page,
+	name: string,
+): Promise<void> {
+	const control = page.getByRole('button', { name, exact: true });
+	await expect(control).toHaveCount(1);
+	await expect(control).toBeEnabled();
+	await control.focus();
+	await expect(control).toBeFocused();
+	await page.keyboard.press('Enter');
+}
+
+async function openJournal(page: Page) {
+	await activateNotebookControl(page, 'Open Journal notebook tab');
+	const journal = page.getByTestId('notebook-active-section');
+	await expect(journal).toBeVisible();
+	await expect(journal).toHaveAttribute('data-section', 'journal');
+	await expect(journal).toContainText('Parish Journal');
+	await expect(page.getByTestId('notebook-overlay-backdrop')).toHaveCount(0);
+	return journal;
+}
+
+async function closeNotebookSurface(page: Page, title: string): Promise<void> {
+	await page
+		.getByRole('button', { name: `Close ${title}`, exact: true })
+		.click();
+	await expect(
+		page.getByRole('dialog', { name: title, exact: true }),
+	).toHaveCount(0);
+}
+
+async function submitIntent(page: Page, text: string): Promise<void> {
+	const input = page.getByLabel('Player intent', { exact: true });
+	await input.focus();
+	await expect(input).toBeFocused();
+	await page.keyboard.insertText(text);
+	await expect(input).toHaveValue(text);
+	await page.keyboard.press('Enter');
+	await expect(input).toHaveValue('', { timeout: 30_000 });
+}
 
 test.describe('Parish Web UI', () => {
 	test.beforeEach(async ({ page }) => {
@@ -8,44 +69,66 @@ test.describe('Parish Web UI', () => {
 
 	test('page loads with game state', async ({ page }) => {
 		await page.goto('/');
+		await waitForNotebook(page);
 
-		// Status bar should show a time-of-day label
-		const statusBar = page.locator('[data-testid="status-bar"]');
-		await expect(statusBar).toBeVisible({ timeout: 10_000 });
-		await expect(statusBar).toContainText(
-			/Morning|Midday|Afternoon|Dusk|Night|Dawn/,
-		);
+		// The first viewport is the Pixi notebook scene; legacy dashboard
+		// surfaces are mounted only after an explicit notebook action.
+		await expect(page.getByTestId('notebook-overlay-backdrop')).toHaveCount(0);
+		await expect(page.getByTestId('status-bar')).toHaveCount(0);
+		await expect(page.getByTestId('chat-panel')).toHaveCount(0);
+		await expect(page.getByTestId('sidebar')).toHaveCount(0);
+		await expect(page.getByTestId('full-map')).toHaveCount(0);
+		await expect(
+			page.getByLabel('Player intent', { exact: true }),
+		).toBeEnabled();
 
-		// Chat panel should have the initial location description
-		const chatPanel = page.locator('[data-testid="chat-panel"]');
-		await expect(chatPanel).toBeVisible();
-		await expect(chatPanel).not.toBeEmpty();
+		const journal = await openJournal(page);
+		await expect(journal.locator('p')).not.toHaveCount(0);
 
-		// Input field should be present
-		const inputField = page.locator('[data-testid="input-field"]');
-		await expect(inputField).toBeVisible();
+		await activateNotebookControl(page, 'Open People notebook tab');
+		const people = page.getByTestId('notebook-active-section');
+		await expect(people).toBeVisible();
+		await expect(people).toHaveAttribute('data-section', 'people');
+		await expect(people).toContainText('Nearby');
+		await expect(page.getByTestId('notebook-overlay-backdrop')).toHaveCount(0);
 
-		// Map panel should render
-		const mapPanel = page.locator('[data-testid="map-panel"]');
-		await expect(mapPanel).toBeVisible();
+		await activateNotebookControl(page, 'Open notebook tools');
+		const tools = page.getByRole('dialog', {
+			name: 'More from the Notebook',
+			exact: true,
+		});
+		await expect(tools).toBeVisible();
+		await tools.getByRole('button', { name: /^Focail/ }).click();
+		const focail = page.getByRole('dialog', {
+			name: 'Focail — Irish Words',
+			exact: true,
+		});
+		await expect(focail).toBeVisible();
+		await expect(focail.locator('.focail-panel')).toBeVisible();
+		await closeNotebookSurface(page, 'Focail — Irish Words');
 
-		// Sidebar should render
-		const sidebar = page.locator('[data-testid="sidebar"]');
-		await expect(sidebar).toBeVisible();
+		await activateNotebookControl(page, 'Open parish map');
+		const map = page.getByRole('dialog', {
+			name: 'Parish Map',
+			exact: true,
+		});
+		await expect(map).toBeVisible();
+		await expect(
+			map.getByTestId('full-map').locator('canvas.maplibregl-canvas'),
+		).toBeVisible();
 	});
 
 	test('player can type a command', async ({ page }) => {
 		await page.goto('/');
+		await waitForNotebook(page);
 
-		// Wait for initial load
-		await expect(page.locator('[data-testid="status-bar"]')).toBeVisible({
-			timeout: 10_000,
-		});
+		const snapshotResponse = await page.request.get('/api/world-snapshot');
+		expect(snapshotResponse.ok()).toBeTruthy();
+		const snapshot = (await snapshotResponse.json()) as {
+			location_description: string;
+		};
 
-		// Type a look command
-		const input = page.locator('[data-testid="input-field"]');
-		await input.fill('look');
-		await input.press('Enter');
+		await submitIntent(page, 'look');
 
 		// Since #1351, a bare `look` is routed as a game action, NOT echoed as
 		// a player speech bubble. The chat panel should receive a new system
@@ -59,26 +142,42 @@ test.describe('Parish Web UI', () => {
 		// Timeout is 30 s, not 5 s, because the chat panel only updates after
 		// the backend's first round-trip — which on a cold-start CI runner
 		// can exceed 5 s when the inference worker hasn't warmed up (#1086).
-		const chatPanel = page.locator('[data-testid="chat-panel"]');
-		const systemEntries = chatPanel.locator('.entry.system');
-		await expect(systemEntries).toHaveCount(3, { timeout: 30_000 });
+		const journal = await openJournal(page);
+		await expect(
+			journal.locator('p').filter({ hasText: snapshot.location_description }),
+		).toHaveCount(2, { timeout: 30_000 });
+		await expect(journal.getByText('look', { exact: true })).toHaveCount(0);
 	});
 
 	test('player can move to a location', async ({ page }) => {
 		await page.goto('/');
-		await expect(page.locator('[data-testid="status-bar"]')).toBeVisible({
-			timeout: 10_000,
-		});
+		await waitForNotebook(page);
 
-		const input = page.locator('[data-testid="input-field"]');
-		await input.fill('go to church');
-		await input.press('Enter');
+		const mapResponse = await page.request.get('/api/map');
+		expect(mapResponse.ok()).toBeTruthy();
+		const mapData = (await mapResponse.json()) as {
+			locations: Array<{ name: string; adjacent: boolean }>;
+		};
+		const destination = mapData.locations.find((location) => location.adjacent);
+		expect(destination).toBeTruthy();
+		if (!destination) return;
 
-		// Should see travel narration or "not found" message in the chat.
-		// Timeout is 30 s for the same cold-start reason as the sibling
-		// 'player can type a command' test above (#1086).
-		const chatPanel = page.locator('[data-testid="chat-panel"]');
-		await expect(chatPanel).toContainText(/church|faintest notion/i, {
+		await submitIntent(page, `go to ${destination.name}`);
+		await expect
+			.poll(
+				async () => {
+					const response = await page.request.get('/api/world-snapshot');
+					const snapshot = (await response.json()) as {
+						location_name: string;
+					};
+					return snapshot.location_name;
+				},
+				{ timeout: 30_000 },
+			)
+			.toBe(destination.name);
+
+		const journal = await openJournal(page);
+		await expect(journal).toContainText(destination.name, {
 			timeout: 30_000,
 		});
 	});
@@ -114,28 +213,25 @@ test.describe('Parish Web UI', () => {
 
 	test('screenshot at different states', async ({ page }) => {
 		await page.goto('/');
-		await expect(page.locator('[data-testid="status-bar"]')).toBeVisible({
-			timeout: 10_000,
-		});
+		await waitForNotebook(page);
 
-		// Wait for the app shell to be fully rendered before taking the screenshot.
-		await expect(page.locator('.app-shell')).toBeVisible();
+		// Capture the clean illustrated first viewport before opening any sheet.
+		await waitForTextureCompleteNotebookFrame(page);
 		await page.screenshot({
 			path: 'e2e-results/initial-load.png',
-			fullPage: true,
+			fullPage: false,
 		});
 
 		// After a command
-		const input = page.locator('[data-testid="input-field"]');
-		await input.fill('/status');
-		await input.press('Enter');
-		await expect(page.locator('[data-testid="chat-panel"]')).toContainText(
-			'Location:',
-			{ timeout: 5_000 },
-		);
+		await submitIntent(page, '/status');
+		const journal = await openJournal(page);
+		await expect(journal).toContainText('Location:', {
+			timeout: 30_000,
+		});
+		await waitForTextureCompleteNotebookFrame(page);
 		await page.screenshot({
 			path: 'e2e-results/after-status.png',
-			fullPage: true,
+			fullPage: false,
 		});
 	});
 });

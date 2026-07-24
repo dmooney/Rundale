@@ -1,0 +1,210 @@
+{
+	"npc_id": 13,
+	"name": "Nora Duffy",
+	"age": 46,
+	"pronouns": "she/her",
+	"occupation": "Miller's Wife",
+	"mood": "anxious",
+	"brief_description": "a thin, anxious-looking woman in a clean apron",
+	"home": {
+		"id": 18,
+		"name": "The Mill",
+		"description": "A sturdy stone mill built beside a weir on the stream. The great wooden wheel turns slowly in the current. Sacks of grain and flour are stacked against the walls. The air is thick with white dust. It is daylight. The weather is weather."
+	},
+	"workplace": {
+		"id": 18,
+		"name": "The Mill",
+		"description": "A sturdy stone mill built beside a weir on the stream. The great wooden wheel turns slowly in the current. Sacks of grain and flour are stacked against the walls. The air is thick with white dust. It is daylight. The weather is weather."
+	},
+	"source_personality_summary": "A devout, anxious woman who lives in her husband's shadow.",
+	"source_knowledge": [
+		"Knows every prayer and saint's day — can tell you which saint to invoke for any ailment.",
+		"Worries that Brendan is spending too much time at Darcy's Pub chasing Niamh.",
+		"Heard from Brigid Ni Fhatharta that the holy well water cured a child in Curraghboy.",
+		"Suspects Cormac is harder in his dealings than he lets on at home."
+	],
+	"source_relationships": [
+		{
+			"target_id": 12,
+			"target_name": "Cormac Duffy",
+			"kind": "Family",
+			"strength": 0.85
+		},
+		{
+			"target_id": 14,
+			"target_name": "Brendan Duffy",
+			"kind": "Family",
+			"strength": 0.9
+		},
+		{
+			"target_id": 3,
+			"target_name": "Fr. Declan Tierney",
+			"kind": "Friend",
+			"strength": 0.5
+		},
+		{
+			"target_id": 19,
+			"target_name": "Brigid Ni Fhatharta",
+			"kind": "Friend",
+			"strength": 0.4
+		}
+	],
+	"source_schedule_cues": [
+		{
+			"location_id": 3,
+			"location_name": "St. Brigid's Church",
+			"activity": "at Mass, praying with great devotion"
+		},
+		{
+			"location_id": 13,
+			"location_name": "Connolly's Shop",
+			"activity": "at Connolly's Shop for supplies, a quiet word with Roisin"
+		},
+		{
+			"location_id": 15,
+			"location_name": "Kilteevan Village",
+			"activity": "visiting neighbours in the village"
+		},
+		{
+			"location_id": 17,
+			"location_name": "The Holy Well",
+			"activity": "at the holy well after Mass, a private moment of prayer"
+		},
+		{
+			"location_id": 17,
+			"location_name": "The Holy Well",
+			"activity": "visiting the holy well to pray and leave a ribbon"
+		},
+		{
+			"location_id": 18,
+			"location_name": "The Mill",
+			"activity": "Sunday dinner, the best meal of the week"
+		},
+		{
+			"location_id": 18,
+			"location_name": "The Mill",
+			"activity": "dinner, washing up"
+		},
+		{
+			"location_id": 18,
+			"location_name": "The Mill",
+			"activity": "household work at the mill — cooking, cleaning, mending"
+		},
+		{
+			"location_id": 18,
+			"location_name": "The Mill",
+			"activity": "preparing for Mass in her Sunday best"
+		},
+		{
+			"location_id": 18,
+			"location_name": "The Mill",
+			"activity": "preparing supper, evening chores"
+		},
+		{
+			"location_id": 18,
+			"location_name": "The Mill",
+			"activity": "rising, baking bread, preparing breakfast"
+		},
+		{
+			"location_id": 18,
+			"location_name": "The Mill",
+			"activity": "rosary and bed"
+		},
+		{
+			"location_id": 18,
+			"location_name": "The Mill",
+			"activity": "saying the rosary by the fire"
+		},
+		{
+			"location_id": 18,
+			"location_name": "The Mill",
+			"activity": "sleeping at the mill house"
+		},
+		{
+			"location_id": 18,
+			"location_name": "The Mill",
+			"activity": "to bed"
+		}
+	],
+	"source_visual_cues": [
+		"age: 46",
+		"occupation: Miller's Wife",
+		"brief_description: a thin, anxious-looking woman in a clean apron",
+		"body/build",
+		"face/eyes",
+		"clothing"
+	],
+	"source_metadata_status": {
+		"canonical_npc_data_sufficient_for_production_art": false,
+		"status": "strong-partial",
+		"reason": "The canonical NPC data has useful visual cues, but still lacks a structured production portrait/marker contract."
+	},
+	"art_direction": {
+		"npc_id": 13,
+		"npc_name": "Nora Duffy",
+		"portrait_identity": {
+			"visual_identity_seed": "rundale-person-v2:13",
+			"identity_cohort": "woman",
+			"apparent_age": "mid forties",
+			"facial_geometry": {
+				"face_shape": "long narrow diamond with a marked taper below the cheekbones",
+				"proportions": "tall forehead, long midface, short narrow lower face",
+				"brow_and_eyes": "low straight brows; medium-set, deep-set eyes with heavy upper lids",
+				"nose": "long narrow bridge ending in a defined rounded tip",
+				"mouth": "narrow mouth with a flat upper contour and fuller lower lip",
+				"jaw_and_chin": "fine jaw and narrow rounded-pointed chin",
+				"cheekbones": "high, prominent cheekbones with shallow cheeks",
+				"hairline": "high centered hairline with mild temple recession",
+				"age_detail": "mid-forties forehead lines, fine outer-eye creases, and light vertical lip lines"
+			},
+			"distinguishing_features": [
+				"small dark mark below the left cheekbone",
+				"left eyebrow sits slightly higher",
+				"fine vertical crease centered above the nose bridge"
+			],
+			"hair": "ABSOLUTE VISIBLE SILHOUETTE: dark brown hair greying at both temples has an exact centre part and two narrow tight rope rolls running immediately above the ears. A crisp close white linen cap with narrow face frill and neat ties follows the skull tightly; the rolls cross flat beneath it with no rear pouch, projection, bun, loose strand, or broad smooth side mass. Portrait line economy: use sparse open contours and a few rope-direction marks, leaving hair, cap, and face unfilled; no black masses, dense hatching, or engraving texture. The marker must repeat the narrow rolls and close non-projecting cap.",
+			"clothing": "very clean apron over plain dark dress, neat shawl held close",
+			"pose_expression": "anxious and devout, hands held together; portrait and marker must show the same mid-forties narrow oblong face, hollow cheeks, pointed chin, and restrained age lines, with neither an elderly portrait nor a rejuvenated marker",
+			"props": [
+				"small rosary or prayer book",
+				"clean apron edge"
+			],
+			"palette_notes": [
+				"clean linen white",
+				"subdued dark dress",
+				"pale flour dust"
+			]
+		},
+		"marker_identity": {
+			"composition": "character-only",
+			"silhouette": "thin mid-forties woman with a crisp close white cap, narrow twisted rolls, neat shawl, clean apron, and drawn-in shoulders; no object/scenery",
+			"stance": "inward-facing stance with hands clasped at the waist; no object/scenery",
+			"empty_hand_pose": "hands-clasped",
+			"readability_cues": [
+				{
+					"kind": "hair-or-headwear",
+					"description": "close white cap with narrow face frill over twisted rolls above the ears"
+				},
+				{
+					"kind": "body-shape",
+					"description": "thin inward shoulders"
+				}
+			],
+			"tiny_readability_notes": [
+				"Show quiet tension through the narrow outline without exaggerating the pose."
+			]
+		},
+		"avoid": [
+			"melodramatic fear",
+			"nun habit",
+			"generic pale ghost look",
+			"plain low coil instead of the precise side rope rolls, crossed flat nape rolls, and crisp frilled cap"
+		],
+		"authoring_notes": [
+			"Canonical data provides thin, anxious, clean apron; supplement turns it into stable production cues."
+		]
+	},
+	"pair_prompt": "Identity contract for Nora Duffy, age 46, Miller's Wife: visual identity seed rundale-person-v2:13; apparent age mid forties; Explicit facial geometry: face shape long narrow diamond with a marked taper below the cheekbones; proportions tall forehead, long midface, short narrow lower face; brow and eyes low straight brows; medium-set, deep-set eyes with heavy upper lids; nose long narrow bridge ending in a defined rounded tip; mouth narrow mouth with a flat upper contour and fuller lower lip; jaw and chin fine jaw and narrow rounded-pointed chin; cheekbones high, prominent cheekbones with shallow cheeks; hairline high centered hairline with mild temple recession; age detail mid-forties forehead lines, fine outer-eye creases, and light vertical lip lines. Distinguishing features: small dark mark below the left cheekbone, left eyebrow sits slightly higher, fine vertical crease centered above the nose bridge. Hair: ABSOLUTE VISIBLE SILHOUETTE: dark brown hair greying at both temples has an exact centre part and two narrow tight rope rolls running immediately above the ears. A crisp close white linen cap with narrow face frill and neat ties follows the skull tightly; the rolls cross flat beneath it with no rear pouch, projection, bun, loose strand, or broad smooth side mass. Portrait line economy: use sparse open contours and a few rope-direction marks, leaving hair, cap, and face unfilled; no black masses, dense hatching, or engraving texture. The marker must repeat the narrow rolls and close non-projecting cap.. Production task: create one identity-locked portrait-and-marker pair in Rundale, rural County Roscommon, Ireland, 1820, ordinary parish life, period-appropriate work clothing, under this visual authority: Illustrated Parish Notebook concept art only. The two renderings must unmistakably be the same person by reproducing every stated identity fact. Clothing: very clean apron over plain dark dress, neat shawl held close; canonical biography cue for clothing and expression only, never for setting, activity, or objects: a thin, anxious-looking woman in a clean apron; current mood anxious. Left asset, notebook portrait: a quick observational head-and-shoulders sketch the player character drew in their working notebook after meeting this person. Use sparse uncolored sepia/graphite contours, open unfilled shapes, and only a few isolated short structural hatch marks; optional lower-edge prop small rosary or prayer book, simply outlined and confined to the left cell. Do not cross-hatch or shade any broad region of the face, hair, neck, scarf, waistcoat, coat, dress, or apron, and do not render a dark garment as a filled or densely hatched mass. Keep the complete ink drawing between 40 and 60 percent of the left cell height with generous empty padding; every uninked interior region must remain provider key, never white, cream, parchment, skin tone, gray, or any other fill. It must not read as a formal illustration or painted portrait. Right asset, painted-world marker: one tiny static full-body transparent character-only cutout designed for compositing into the painted parish scene; silhouette thin mid-forties woman with a crisp close white cap, narrow twisted rolls, neat shawl, clean apron, and drawn-in shoulders; no object/scenery; stance inward-facing stance with hands clasped at the waist; no object/scenery; empty-hand pose both empty hands clasped together; tiny-readability cues from the person's body, hair or headwear, clothing, and stance alone: hair or headwear: close white cap with narrow face frill over twisted rolls above the ears; body shape: thin inward shoulders; complete figure roughly 45 percent of the right cell height, acceptable range 40 to 60 percent, with generous key-visible margins; restrained translucent watercolor within loose sepia/graphite contours, simplified face, and complete feet. The right cell must contain the person only: both hands empty; no held or carried objects, tools, books, containers, bundles, furniture, counters, architecture, vegetation, scenery fragments, ground plane, shadow, or extra person. Worn clothing and headwear are allowed. Do not illustrate the canonical biography's occupation, workplace, activity, or narrative context around the marker. Limit painted color to muted wool gray, bog green, weathered tan, dull brick red, peat brown, and faded indigo; no saturated primary colors. Shared constraints: one depiction in each assigned cell, ordinary 1820 rural County Roscommon clothing, no modern or fantasy elements, no text, labels, frames, contact-sheet furniture, or sprite-sheet poses. Never copy a left-cell portrait prop into the marker. Character-specific avoid list: melodramatic fear, nun habit, generic pale ghost look, plain low coil instead of the precise side rope rolls, crossed flat nape rolls, and crisp frilled cap.",
+	"portrait_prompt": "Subject identity: Nora Duffy, age 46, Miller's Wife; visual identity seed rundale-person-v2:13; apparent age mid forties; Explicit facial geometry: face shape long narrow diamond with a marked taper below the cheekbones; proportions tall forehead, long midface, short narrow lower face; brow and eyes low straight brows; medium-set, deep-set eyes with heavy upper lids; nose long narrow bridge ending in a defined rounded tip; mouth narrow mouth with a flat upper contour and fuller lower lip; jaw and chin fine jaw and narrow rounded-pointed chin; cheekbones high, prominent cheekbones with shallow cheeks; hairline high centered hairline with mild temple recession; age detail mid-forties forehead lines, fine outer-eye creases, and light vertical lip lines. Distinguishing features: small dark mark below the left cheekbone, left eyebrow sits slightly higher, fine vertical crease centered above the nose bridge. Hair: ABSOLUTE VISIBLE SILHOUETTE: dark brown hair greying at both temples has an exact centre part and two narrow tight rope rolls running immediately above the ears. A crisp close white linen cap with narrow face frill and neat ties follows the skull tightly; the rolls cross flat beneath it with no rear pouch, projection, bun, loose strand, or broad smooth side mass. Portrait line economy: use sparse open contours and a few rope-direction marks, leaving hair, cap, and face unfilled; no black masses, dense hatching, or engraving texture. The marker must repeat the narrow rolls and close non-projecting cap.. Artifact and lore: this is a quick observational sketch the player character drew by hand in the margin of their working parish notebook after meeting the subject. It is diegetic notebook ephemera, not a commissioned illustration, formal portrait study, character card, or polished concept painting. Non-negotiable drawing language: sparse, uncolored pen-and-ink line drawing under this visual authority: Illustrated Parish Notebook concept art only. Use one irregular sepia/graphite ink line, economical contours, open shapes, and only a few short loose hatch marks where structurally necessary. Leave most of the face, hair, clothing, and canvas unfilled. No skin-tone fill, white underpainting, cream fill, solid dark garment, gray wash, watercolor, smooth tonal modeling, dense cross-hatching, photorealistic rendering, or glamour. Delivery composition: 1024x1024 transparent-background PNG source, portrait line art occupies roughly 45 percent of source height, centered head-and-shoulders drawing with generous transparent padding on all sides, top of hair/head covering and shoulders fully visible, no baked parchment, paper texture, wash, card, border, label, or UI furniture; keep the complete inked drawing between roughly 40 and 60 percent of canvas height with generous empty space on every side. Uninked areas are transparent in the delivery asset so the UI-controlled notebook paper shows through. Setting: Rundale, rural County Roscommon, Ireland, 1820, ordinary parish life, period-appropriate work clothing. Clothing: very clean apron over plain dark dress, neat shawl held close, indicated only with contour, seam, and a few fold lines; expression and pose anxious and devout, hands held together; portrait and marker must show the same mid-forties narrow oblong face, hollow cheeks, pointed chin, and restrained age lines, with neither an elderly portrait nor a rejuvenated marker; current mood anxious. Optional lower-edge identity cue: small rosary or prayer book, at most one simply outlined prop. Canonical context: a thin, anxious-looking woman in a clean apron; home/workplace at The Mill. Hard constraints: one character, head and shoulders only, period-appropriate rural County Roscommon clothing, no text, no label, no border, no card, no UI chrome. Character-specific avoid list: melodramatic fear, nun habit, generic pale ghost look, plain low coil instead of the precise side rope rolls, crossed flat nape rolls, and crisp frilled cap.",
+	"marker_prompt": "Subject identity: Nora Duffy, age 46, Miller's Wife; visual identity seed rundale-person-v2:13; apparent age mid forties; Explicit facial geometry: face shape long narrow diamond with a marked taper below the cheekbones; proportions tall forehead, long midface, short narrow lower face; brow and eyes low straight brows; medium-set, deep-set eyes with heavy upper lids; nose long narrow bridge ending in a defined rounded tip; mouth narrow mouth with a flat upper contour and fuller lower lip; jaw and chin fine jaw and narrow rounded-pointed chin; cheekbones high, prominent cheekbones with shallow cheeks; hairline high centered hairline with mild temple recession; age detail mid-forties forehead lines, fine outer-eye creases, and light vertical lip lines. Distinguishing features: small dark mark below the left cheekbone, left eyebrow sits slightly higher, fine vertical crease centered above the nose bridge. Hair: ABSOLUTE VISIBLE SILHOUETTE: dark brown hair greying at both temples has an exact centre part and two narrow tight rope rolls running immediately above the ears. A crisp close white linen cap with narrow face frill and neat ties follows the skull tightly; the rolls cross flat beneath it with no rear pouch, projection, bun, loose strand, or broad smooth side mass. Portrait line economy: use sparse open contours and a few rope-direction marks, leaving hair, cap, and face unfilled; no black masses, dense hatching, or engraving texture. The marker must repeat the narrow rolls and close non-projecting cap.. Asset role: one tiny static full-body NPC marker delivered as a transparent character-only cutout for compositing over Rundale's painted world surface. It is not a UI portrait, paper doll, animation sheet, formal character illustration, vignette, or sprite-sheet panel. Visual language: loose hand-inked watercolor miniature under this visual authority: Illustrated Parish Notebook concept art only. Use irregular sepia/graphite contours, a simple readable human silhouette, restrained translucent washes, low facial detail, and only enough clothing folds to identify the person at scene size. Keep the treatment handmade and subordinate to the environment, never glossy, photorealistic, densely rendered, or cut out with a broad halo. Delivery composition: 1024x1024 flat #ff00ff chroma-key PNG source, full-body figure occupies roughly 45 percent of source height, centered figure with feet fully visible and generous flat background margins, one single static in-world marker pose per NPC for this slice, no ground shadow, floor plane, label, border, or extra figure. Palette: sepia/graphite line with muted wool gray, bog green, weathered tan, dull brick red, peat brown, and faded indigo only; no saturated primary colors. Setting: Rundale, rural County Roscommon, Ireland, 1820, ordinary parish life, period-appropriate work clothing. Character-only silhouette: thin mid-forties woman with a crisp close white cap, narrow twisted rolls, neat shawl, clean apron, and drawn-in shoulders; no object/scenery. Stance: inward-facing stance with hands clasped at the waist; no object/scenery. Empty-hand pose: both empty hands clasped together. Tiny-readability cues from the person's body, hair or headwear, clothing, and stance alone: hair or headwear: close white cap with narrow face frill over twisted rolls above the ears; body shape: thin inward shoulders. Tiny-readability requirements: Show quiet tension through the narrow outline without exaggerating the pose.. Hard constraints: one character only, both hands empty, period-appropriate ordinary rural clothing, simplified face, complete feet, no held or carried objects, tools, books, containers, bundles, furniture, architecture, vegetation, scenery fragments, ground plane, shadow, text, label, border, or UI chrome. Worn clothing and headwear are allowed. Do not illustrate an occupation, workplace, activity, or narrative context around the person. Character-specific avoid list: melodramatic fear, nun habit, generic pale ghost look, plain low coil instead of the precise side rope rolls, crossed flat nape rolls, and crisp frilled cap."
+}

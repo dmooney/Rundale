@@ -1,0 +1,213 @@
+{
+	"npc_id": 14,
+	"name": "Brendan Duffy",
+	"age": 19,
+	"pronouns": "he/him",
+	"occupation": "Miller's Son",
+	"mood": "restless",
+	"brief_description": "a strong young man with flour in his hair",
+	"home": {
+		"id": 18,
+		"name": "The Mill",
+		"description": "A sturdy stone mill built beside a weir on the stream. The great wooden wheel turns slowly in the current. Sacks of grain and flour are stacked against the walls. The air is thick with white dust. It is daylight. The weather is weather."
+	},
+	"workplace": {
+		"id": 18,
+		"name": "The Mill",
+		"description": "A sturdy stone mill built beside a weir on the stream. The great wooden wheel turns slowly in the current. Sacks of grain and flour are stacked against the walls. The air is thick with white dust. It is daylight. The weather is weather."
+	},
+	"source_personality_summary": "A quiet, strong young man who works the mill with his father.",
+	"source_knowledge": [
+		"Knows the mill machinery inside and out — can fix a jammed stone in his sleep.",
+		"Has been saving pennies from odd jobs, dreaming of a future with Niamh.",
+		"Overheard his father talking about buying a second mill near Curraghboy.",
+		"Knows the best fishing spots on the stream below the mill."
+	],
+	"source_relationships": [
+		{
+			"target_id": 12,
+			"target_name": "Cormac Duffy",
+			"kind": "Family",
+			"strength": 0.8
+		},
+		{
+			"target_id": 13,
+			"target_name": "Nora Duffy",
+			"kind": "Family",
+			"strength": 0.9
+		},
+		{
+			"target_id": 8,
+			"target_name": "Niamh Darcy",
+			"kind": "Romantic",
+			"strength": 0.5
+		},
+		{
+			"target_id": 1,
+			"target_name": "Padraig Darcy",
+			"kind": "Neighbor",
+			"strength": -0.1
+		}
+	],
+	"source_schedule_cues": [
+		{
+			"location_id": 1,
+			"location_name": "The Crossroads",
+			"activity": "at the crossroads after Mass, lingering near the Darcys"
+		},
+		{
+			"location_id": 2,
+			"location_name": "Darcy's Pub",
+			"activity": "Sunday evening at the pub — music and a chance to talk to Niamh"
+		},
+		{
+			"location_id": 2,
+			"location_name": "Darcy's Pub",
+			"activity": "at Darcy's Pub, hoping to talk to Niamh"
+		},
+		{
+			"location_id": 3,
+			"location_name": "St. Brigid's Church",
+			"activity": "at Mass, trying to catch Niamh's eye"
+		},
+		{
+			"location_id": 5,
+			"location_name": "The Hurling Green",
+			"activity": "Sunday hurling match"
+		},
+		{
+			"location_id": 5,
+			"location_name": "The Hurling Green",
+			"activity": "hurling practice on the green"
+		},
+		{
+			"location_id": 18,
+			"location_name": "The Mill",
+			"activity": "Sunday dinner with his parents"
+		},
+		{
+			"location_id": 18,
+			"location_name": "The Mill",
+			"activity": "afternoon milling, loading carts, delivering flour"
+		},
+		{
+			"location_id": 18,
+			"location_name": "The Mill",
+			"activity": "dinner at the mill"
+		},
+		{
+			"location_id": 18,
+			"location_name": "The Mill",
+			"activity": "home for the night"
+		},
+		{
+			"location_id": 18,
+			"location_name": "The Mill",
+			"activity": "home to the mill for the night"
+		},
+		{
+			"location_id": 18,
+			"location_name": "The Mill",
+			"activity": "rising, hauling sacks of grain, preparing the mill"
+		},
+		{
+			"location_id": 18,
+			"location_name": "The Mill",
+			"activity": "sleeping at the mill house"
+		},
+		{
+			"location_id": 18,
+			"location_name": "The Mill",
+			"activity": "sleeping in"
+		},
+		{
+			"location_id": 18,
+			"location_name": "The Mill",
+			"activity": "working the mill alongside his father"
+		}
+	],
+	"source_visual_cues": [
+		"age: 19",
+		"occupation: Miller's Son",
+		"brief_description: a strong young man with flour in his hair",
+		"body/build",
+		"hair",
+		"prop/activity"
+	],
+	"source_metadata_status": {
+		"canonical_npc_data_sufficient_for_production_art": false,
+		"status": "strong-partial",
+		"reason": "The canonical NPC data has useful visual cues, but still lacks a structured production portrait/marker contract."
+	},
+	"art_direction": {
+		"npc_id": 14,
+		"npc_name": "Brendan Duffy",
+		"portrait_identity": {
+			"visual_identity_seed": "rundale-person-v2:14",
+			"identity_cohort": "man",
+			"apparent_age": "late teens",
+			"facial_geometry": {
+				"face_shape": "rectangular oval with a broad lower face",
+				"proportions": "wide forehead, balanced midface, long developing lower face",
+				"brow_and_eyes": "low straight brows; medium-set, deep-set eyes with slightly heavy upper lids",
+				"nose": "broad straight bridge with a rounded projecting tip",
+				"mouth": "medium-wide mouth with a flat upper contour and full lower lip",
+				"jaw_and_chin": "broad youthful jaw and rounded chin with a shallow central cleft",
+				"cheekbones": "high-set cheekbones with moderate cheek fullness",
+				"hairline": "low straight hairline with a small central irregularity",
+				"age_detail": "late-teen smoothness, minimal under-eye definition, and light early beard shadow"
+			},
+			"distinguishing_features": [
+				"shallow central chin cleft",
+				"slightly lower right upper eyelid",
+				"small irregular dip at the center of the hairline"
+			],
+			"hair": "medium brown, dense and loosely wavy, cut above the collar with flour catching in the front waves",
+			"clothing": "rolled sleeves, plain work shirt, floury apron or sackcloth shoulder pad",
+			"pose_expression": "quiet restless strength, not boastful",
+			"props": [
+				"grain sack over one shoulder",
+				"flour dust"
+			],
+			"palette_notes": [
+				"flour white",
+				"plain linen",
+				"muted mill brown"
+			]
+		},
+		"marker_identity": {
+			"composition": "character-only",
+			"silhouette": "tall late-teen boy with dense loose brown waves, a long young frame, rolled sleeves, and a plain pale apron; no object/scenery",
+			"stance": "restless weight-shifted stance with one hand on hip and the other at his side; no object/scenery",
+			"empty_hand_pose": "one-on-hip-one-at-side",
+			"readability_cues": [
+				{
+					"kind": "body-shape",
+					"description": "tall adolescent build"
+				},
+				{
+					"kind": "hair-or-headwear",
+					"description": "dense loose brown waves catching pale flour"
+				},
+				{
+					"kind": "clothing",
+					"description": "long rolled-sleeve line"
+				}
+			],
+			"tiny_readability_notes": [
+				"His tall youth and lifted hair texture must carry the marker read."
+			]
+		},
+		"avoid": [
+			"adult strongman",
+			"heroic warrior pose",
+			"modern workwear"
+		],
+		"authoring_notes": [
+			"Canonical brief has strong visual seeds; supplement fixes age and marker prop."
+		]
+	},
+	"pair_prompt": "Identity contract for Brendan Duffy, age 19, Miller's Son: visual identity seed rundale-person-v2:14; apparent age late teens; Explicit facial geometry: face shape rectangular oval with a broad lower face; proportions wide forehead, balanced midface, long developing lower face; brow and eyes low straight brows; medium-set, deep-set eyes with slightly heavy upper lids; nose broad straight bridge with a rounded projecting tip; mouth medium-wide mouth with a flat upper contour and full lower lip; jaw and chin broad youthful jaw and rounded chin with a shallow central cleft; cheekbones high-set cheekbones with moderate cheek fullness; hairline low straight hairline with a small central irregularity; age detail late-teen smoothness, minimal under-eye definition, and light early beard shadow. Distinguishing features: shallow central chin cleft, slightly lower right upper eyelid, small irregular dip at the center of the hairline. Hair: medium brown, dense and loosely wavy, cut above the collar with flour catching in the front waves. Production task: create one identity-locked portrait-and-marker pair in Rundale, rural County Roscommon, Ireland, 1820, ordinary parish life, period-appropriate work clothing, under this visual authority: Illustrated Parish Notebook concept art only. The two renderings must unmistakably be the same person by reproducing every stated identity fact. Clothing: rolled sleeves, plain work shirt, floury apron or sackcloth shoulder pad; canonical biography cue for clothing and expression only, never for setting, activity, or objects: a strong young man with flour in his hair; current mood restless. Left asset, notebook portrait: a quick observational head-and-shoulders sketch the player character drew in their working notebook after meeting this person. Use sparse uncolored sepia/graphite contours, open unfilled shapes, and only a few isolated short structural hatch marks; optional lower-edge prop grain sack over one shoulder, simply outlined and confined to the left cell. Do not cross-hatch or shade any broad region of the face, hair, neck, scarf, waistcoat, coat, dress, or apron, and do not render a dark garment as a filled or densely hatched mass. Keep the complete ink drawing between 40 and 60 percent of the left cell height with generous empty padding; every uninked interior region must remain provider key, never white, cream, parchment, skin tone, gray, or any other fill. It must not read as a formal illustration or painted portrait. Right asset, painted-world marker: one tiny static full-body transparent character-only cutout designed for compositing into the painted parish scene; silhouette tall late-teen boy with dense loose brown waves, a long young frame, rolled sleeves, and a plain pale apron; no object/scenery; stance restless weight-shifted stance with one hand on hip and the other at his side; no object/scenery; empty-hand pose one empty hand on the hip and one relaxed at the side; tiny-readability cues from the person's body, hair or headwear, clothing, and stance alone: body shape: tall adolescent build; hair or headwear: dense loose brown waves catching pale flour; clothing: long rolled-sleeve line; complete figure roughly 45 percent of the right cell height, acceptable range 40 to 60 percent, with generous key-visible margins; restrained translucent watercolor within loose sepia/graphite contours, simplified face, and complete feet. The right cell must contain the person only: both hands empty; no held or carried objects, tools, books, containers, bundles, furniture, counters, architecture, vegetation, scenery fragments, ground plane, shadow, or extra person. Worn clothing and headwear are allowed. Do not illustrate the canonical biography's occupation, workplace, activity, or narrative context around the marker. Limit painted color to muted wool gray, bog green, weathered tan, dull brick red, peat brown, and faded indigo; no saturated primary colors. Shared constraints: one depiction in each assigned cell, ordinary 1820 rural County Roscommon clothing, no modern or fantasy elements, no text, labels, frames, contact-sheet furniture, or sprite-sheet poses. Never copy a left-cell portrait prop into the marker. Character-specific avoid list: adult strongman, heroic warrior pose, modern workwear.",
+	"portrait_prompt": "Subject identity: Brendan Duffy, age 19, Miller's Son; visual identity seed rundale-person-v2:14; apparent age late teens; Explicit facial geometry: face shape rectangular oval with a broad lower face; proportions wide forehead, balanced midface, long developing lower face; brow and eyes low straight brows; medium-set, deep-set eyes with slightly heavy upper lids; nose broad straight bridge with a rounded projecting tip; mouth medium-wide mouth with a flat upper contour and full lower lip; jaw and chin broad youthful jaw and rounded chin with a shallow central cleft; cheekbones high-set cheekbones with moderate cheek fullness; hairline low straight hairline with a small central irregularity; age detail late-teen smoothness, minimal under-eye definition, and light early beard shadow. Distinguishing features: shallow central chin cleft, slightly lower right upper eyelid, small irregular dip at the center of the hairline. Hair: medium brown, dense and loosely wavy, cut above the collar with flour catching in the front waves. Artifact and lore: this is a quick observational sketch the player character drew by hand in the margin of their working parish notebook after meeting the subject. It is diegetic notebook ephemera, not a commissioned illustration, formal portrait study, character card, or polished concept painting. Non-negotiable drawing language: sparse, uncolored pen-and-ink line drawing under this visual authority: Illustrated Parish Notebook concept art only. Use one irregular sepia/graphite ink line, economical contours, open shapes, and only a few short loose hatch marks where structurally necessary. Leave most of the face, hair, clothing, and canvas unfilled. No skin-tone fill, white underpainting, cream fill, solid dark garment, gray wash, watercolor, smooth tonal modeling, dense cross-hatching, photorealistic rendering, or glamour. Delivery composition: 1024x1024 transparent-background PNG source, portrait line art occupies roughly 45 percent of source height, centered head-and-shoulders drawing with generous transparent padding on all sides, top of hair/head covering and shoulders fully visible, no baked parchment, paper texture, wash, card, border, label, or UI furniture; keep the complete inked drawing between roughly 40 and 60 percent of canvas height with generous empty space on every side. Uninked areas are transparent in the delivery asset so the UI-controlled notebook paper shows through. Setting: Rundale, rural County Roscommon, Ireland, 1820, ordinary parish life, period-appropriate work clothing. Clothing: rolled sleeves, plain work shirt, floury apron or sackcloth shoulder pad, indicated only with contour, seam, and a few fold lines; expression and pose quiet restless strength, not boastful; current mood restless. Optional lower-edge identity cue: grain sack over one shoulder, at most one simply outlined prop. Canonical context: a strong young man with flour in his hair; home/workplace at The Mill. Hard constraints: one character, head and shoulders only, period-appropriate rural County Roscommon clothing, no text, no label, no border, no card, no UI chrome. Character-specific avoid list: adult strongman, heroic warrior pose, modern workwear.",
+	"marker_prompt": "Subject identity: Brendan Duffy, age 19, Miller's Son; visual identity seed rundale-person-v2:14; apparent age late teens; Explicit facial geometry: face shape rectangular oval with a broad lower face; proportions wide forehead, balanced midface, long developing lower face; brow and eyes low straight brows; medium-set, deep-set eyes with slightly heavy upper lids; nose broad straight bridge with a rounded projecting tip; mouth medium-wide mouth with a flat upper contour and full lower lip; jaw and chin broad youthful jaw and rounded chin with a shallow central cleft; cheekbones high-set cheekbones with moderate cheek fullness; hairline low straight hairline with a small central irregularity; age detail late-teen smoothness, minimal under-eye definition, and light early beard shadow. Distinguishing features: shallow central chin cleft, slightly lower right upper eyelid, small irregular dip at the center of the hairline. Hair: medium brown, dense and loosely wavy, cut above the collar with flour catching in the front waves. Asset role: one tiny static full-body NPC marker delivered as a transparent character-only cutout for compositing over Rundale's painted world surface. It is not a UI portrait, paper doll, animation sheet, formal character illustration, vignette, or sprite-sheet panel. Visual language: loose hand-inked watercolor miniature under this visual authority: Illustrated Parish Notebook concept art only. Use irregular sepia/graphite contours, a simple readable human silhouette, restrained translucent washes, low facial detail, and only enough clothing folds to identify the person at scene size. Keep the treatment handmade and subordinate to the environment, never glossy, photorealistic, densely rendered, or cut out with a broad halo. Delivery composition: 1024x1024 flat #ff00ff chroma-key PNG source, full-body figure occupies roughly 45 percent of source height, centered figure with feet fully visible and generous flat background margins, one single static in-world marker pose per NPC for this slice, no ground shadow, floor plane, label, border, or extra figure. Palette: sepia/graphite line with muted wool gray, bog green, weathered tan, dull brick red, peat brown, and faded indigo only; no saturated primary colors. Setting: Rundale, rural County Roscommon, Ireland, 1820, ordinary parish life, period-appropriate work clothing. Character-only silhouette: tall late-teen boy with dense loose brown waves, a long young frame, rolled sleeves, and a plain pale apron; no object/scenery. Stance: restless weight-shifted stance with one hand on hip and the other at his side; no object/scenery. Empty-hand pose: one empty hand on the hip and one relaxed at the side. Tiny-readability cues from the person's body, hair or headwear, clothing, and stance alone: body shape: tall adolescent build; hair or headwear: dense loose brown waves catching pale flour; clothing: long rolled-sleeve line. Tiny-readability requirements: His tall youth and lifted hair texture must carry the marker read.. Hard constraints: one character only, both hands empty, period-appropriate ordinary rural clothing, simplified face, complete feet, no held or carried objects, tools, books, containers, bundles, furniture, architecture, vegetation, scenery fragments, ground plane, shadow, text, label, border, or UI chrome. Worn clothing and headwear are allowed. Do not illustrate an occupation, workplace, activity, or narrative context around the person. Character-specific avoid list: adult strongman, heroic warrior pose, modern workwear."
+}

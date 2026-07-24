@@ -1,6 +1,8 @@
 # Plan: Parish Notebook UI
 
-Status: Proposed
+Status: Superseded by the fresh Pixi implementation in issue #1630. The
+`components/notebook` experiment described below was removed; this file is
+retained as historical context only.
 
 ## Scope
 

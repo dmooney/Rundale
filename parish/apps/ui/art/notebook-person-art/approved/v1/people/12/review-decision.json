@@ -1,0 +1,112 @@
+{
+	"schema_version": 1,
+	"record_type": "notebook-person-art-human-review-decision",
+	"candidate_receipt_path": "parish/apps/ui/art/notebook-person-art/candidates/objects/b1/b18f862dfd72044e0898f2244dd1852230d1be7714321e921390e78849cfe1d8/receipt.json",
+	"candidate_receipt_sha256": "31c8ca884cb6deacb887cf45b6d4c4e2e4e6435a5b80440dd30d55691448bbdd",
+	"candidate_sha256": "68f77fcd830fcc02e0a0a3c2c87ca256442ea6297f33a56dd0ad0603af5897da",
+	"raw_sha256": "db7a65d42fccf238c956d7d28eff8ecd95636cffe42c73c73d2dbfa09ef809b2",
+	"subject": {
+		"kind": "npc",
+		"npc_id": 12,
+		"name": "Cormac Duffy",
+		"input_record_sha256": "58e690b412718939d3e0d113474a4d383eb064f197a49abb42b72e6b1ff405f3"
+	},
+	"asset": {
+		"kind": "pair",
+		"candidate_index": 1,
+		"children": [
+			"portrait",
+			"marker"
+		]
+	},
+	"hair_topology": {
+		"schema_version": 4,
+		"subject_key": "npc:12",
+		"vector": {
+			"color_and_texture": "orderly medium brown hair threaded with grey",
+			"front": {
+				"family": "orderly-receding-brushback",
+				"description": "carefully brushed back from two receding temple corners"
+			},
+			"rear": {
+				"family": "short-tapered-nape",
+				"description": "short orderly crown tapered cleanly at the nape"
+			},
+			"covering": {
+				"family": "uncovered",
+				"description": "no cap or head covering"
+			},
+			"silhouette": {
+				"family": "neat-receding-profile",
+				"description": "controlled low hair outline with symmetrical temple recession"
+			},
+			"loose_details": "no stray locks; grey most visible at the temples"
+		},
+		"sha256": "e7d274ccc2be9e25c3c7bc31a6769e3139c301e6c5d5bf13af5e38683142ba5e"
+	},
+	"marker_identity": {
+		"schema_version": 4,
+		"subject_key": "npc:12",
+		"marker_identity": {
+			"composition": "character-only",
+			"silhouette": "rounder around-fifty man with orderly receding brown-grey hair, a respectable waistcoat, clean pale apron, and full torso; no object/scenery",
+			"stance": "self-contained stance with hands near the waistcoat front; no object/scenery",
+			"empty_hand_pose": "hands-near-coat-front",
+			"readability_cues": [
+				{
+					"kind": "body-shape",
+					"description": "round full torso"
+				},
+				{
+					"kind": "hair-or-headwear",
+					"description": "orderly receding brown-grey hair"
+				},
+				{
+					"kind": "clothing",
+					"description": "respectable waistcoat and pale apron"
+				}
+			],
+			"tiny_readability_notes": [
+				"Read him as rounded and tidy rather than broad-shouldered like Seamus."
+			]
+		},
+		"sha256": "edba24e2d629126996c86d4e80398ace3afa3263488d3ba76f317029f4eed3f6"
+	},
+	"decision": "approved",
+	"promotion_eligible": true,
+	"reviewer": "dmooney",
+	"reviewed_at": "2026-07-17T01:52:56.049Z",
+	"notes": "Approved by dmooney after reviewing the final 24-pair whole-cast sheet in Codex on 2026-07-16.",
+	"checklist": {
+		"identity_specific": true,
+		"concept_style_match": true,
+		"period_appropriate": true,
+		"no_prohibited_content": true,
+		"key_removal_clean": true,
+		"production_quality": true,
+		"diegetic_player_sketch": true,
+		"uncolored_pen_and_ink": true,
+		"sparse_open_linework": true,
+		"no_baked_background": true,
+		"framing_complete": true,
+		"selected_size_readable": true,
+		"nearby_size_readable": true,
+		"restrained_world_color": true,
+		"full_body_complete": true,
+		"silhouette_readable": true,
+		"character_only_marker": true,
+		"empty_hands": true,
+		"no_contextual_props_or_scenery": true,
+		"no_ground_plane": true,
+		"scene_size_readable": true,
+		"cross_asset_identity": true,
+		"hair_front_matches": true,
+		"hair_rear_matches": true,
+		"hair_covering_matches": true,
+		"hair_silhouette_matches": true,
+		"correct_surface_split": true,
+		"atomic_rerender_understood": true
+	},
+	"source_template_path": "parish/apps/ui/art/notebook-person-art/candidates/review-packets/identity-v8-character-only-full-cast-b-20260716/12-pair-68f77fcd830f-review.json",
+	"review_id": "e61fbc283b6ac89b7024fec3"
+}

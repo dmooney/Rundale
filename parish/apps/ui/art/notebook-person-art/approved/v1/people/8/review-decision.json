@@ -1,0 +1,108 @@
+{
+	"schema_version": 1,
+	"record_type": "notebook-person-art-human-review-decision",
+	"candidate_receipt_path": "parish/apps/ui/art/notebook-person-art/candidates/objects/38/382c4cfead75ef8641c445caa2ac3daccd731e6496bd730b0fd2b9139fdfee3a/receipt.json",
+	"candidate_receipt_sha256": "c2b1be3eb679472a756ac3d4b813348eacfe0c72c6e11e8c52809ae589aee8d7",
+	"candidate_sha256": "3156d8912dd76c23676e78c5042e93401343956334b8bbc2f961e249eef3abe3",
+	"raw_sha256": "82f7e3778aeecf03f305706ecde58cca621dc3405e8889cb3679e54c86958335",
+	"subject": {
+		"kind": "npc",
+		"npc_id": 8,
+		"name": "Niamh Darcy",
+		"input_record_sha256": "45073b7f153ed602384da0494fb7b2bb1736273c8f37ee4664c15badd7daf8a1"
+	},
+	"asset": {
+		"kind": "pair",
+		"candidate_index": 1,
+		"children": [
+			"portrait",
+			"marker"
+		]
+	},
+	"hair_topology": {
+		"schema_version": 4,
+		"subject_key": "npc:8",
+		"vector": {
+			"color_and_texture": "thick auburn-brown hair with a soft natural wave",
+			"front": {
+				"family": "short-front-ringlets",
+				"description": "soft near-centre part with one short practical ringlet at each temple"
+			},
+			"rear": {
+				"family": "small-high-loop",
+				"description": "small looped knot pinned high at the back, well above the nape"
+			},
+			"covering": {
+				"family": "uncovered-while-serving",
+				"description": "uncovered indoors while serving; modest bonnet only outdoors"
+			},
+			"silhouette": {
+				"family": "high-back-loop-and-ringlets",
+				"description": "small raised rear loop with two visible front ringlets and no low bun"
+			},
+			"loose_details": "several practical flyaways near the high loop"
+		},
+		"sha256": "6d0cfeaaf37fbed0b4509a2d5f30b0e0d11fac79621e373cfea903294cf65bd9"
+	},
+	"marker_identity": {
+		"schema_version": 4,
+		"subject_key": "npc:8",
+		"marker_identity": {
+			"composition": "character-only",
+			"silhouette": "slender early-twenties woman with two short temple ringlets, a small high rear loop, loose shoulder shawl, and narrow apron; no object/scenery",
+			"stance": "light half-turn with one hand at her hip and the other at her side; no object/scenery",
+			"empty_hand_pose": "one-on-hip-one-at-side",
+			"readability_cues": [
+				{
+					"kind": "hair-or-headwear",
+					"description": "exactly two short temple ringlets with a small high rear hair loop"
+				},
+				{
+					"kind": "stance",
+					"description": "restless half-turned line"
+				}
+			],
+			"tiny_readability_notes": [
+				"Keep the high loop and short ringlets visible without enlarging the head."
+			]
+		},
+		"sha256": "2328130f81488c348823fc3cb908b2e025b4776ec0e00aa80c8bbdcc937bd74b"
+	},
+	"decision": "approved",
+	"promotion_eligible": true,
+	"reviewer": "dmooney",
+	"reviewed_at": "2026-07-17T01:52:56.030Z",
+	"notes": "Approved by dmooney after reviewing the final 24-pair whole-cast sheet in Codex on 2026-07-16.",
+	"checklist": {
+		"identity_specific": true,
+		"concept_style_match": true,
+		"period_appropriate": true,
+		"no_prohibited_content": true,
+		"key_removal_clean": true,
+		"production_quality": true,
+		"diegetic_player_sketch": true,
+		"uncolored_pen_and_ink": true,
+		"sparse_open_linework": true,
+		"no_baked_background": true,
+		"framing_complete": true,
+		"selected_size_readable": true,
+		"nearby_size_readable": true,
+		"restrained_world_color": true,
+		"full_body_complete": true,
+		"silhouette_readable": true,
+		"character_only_marker": true,
+		"empty_hands": true,
+		"no_contextual_props_or_scenery": true,
+		"no_ground_plane": true,
+		"scene_size_readable": true,
+		"cross_asset_identity": true,
+		"hair_front_matches": true,
+		"hair_rear_matches": true,
+		"hair_covering_matches": true,
+		"hair_silhouette_matches": true,
+		"correct_surface_split": true,
+		"atomic_rerender_understood": true
+	},
+	"source_template_path": "parish/apps/ui/art/notebook-person-art/candidates/review-packets/identity-v8-character-only-full-cast-a-20260716/8-pair-3156d8912dd7-review.json",
+	"review_id": "a5b5c3e8971d0529cb8eebde"
+}

@@ -3,6 +3,7 @@ import { notebookActionDraft, npcAddressName } from './actions';
 import type { NpcInfo } from '$lib/types';
 
 const roisin: NpcInfo = {
+	npc_id: 6,
 	name: 'Roisin Connolly',
 	real_name: 'Roisin Connolly',
 	occupation: 'shopkeeper',

@@ -1,0 +1,108 @@
+{
+	"schema_version": 1,
+	"record_type": "notebook-person-art-human-review-decision",
+	"candidate_receipt_path": "parish/apps/ui/art/notebook-person-art/candidates/objects/80/80595d7965b2ec7967a3608244bf2b2582932785ea87934fae4d38464fa438af/receipt.json",
+	"candidate_receipt_sha256": "4da0a0f24dd79b0aee4541dc58a735f0977619a51f67a304cf204f96617a69d4",
+	"candidate_sha256": "b46f2e7559371c8ee5a21d9718d08f9d4a641f448c93060957309633647dabcb",
+	"raw_sha256": "9d6dac6bb2c668b8cda0b059e82265754bb1aa3a7e3f6d97c714ec97063aaed2",
+	"subject": {
+		"kind": "npc",
+		"npc_id": 4,
+		"name": "Roisin Connolly",
+		"input_record_sha256": "8ad5fcee06124d3c9eab95161fac3baf2723b42e66b72ea7dc2865bf1690228a"
+	},
+	"asset": {
+		"kind": "pair",
+		"candidate_index": 1,
+		"children": [
+			"portrait",
+			"marker"
+		]
+	},
+	"hair_topology": {
+		"schema_version": 4,
+		"subject_key": "npc:4",
+		"vector": {
+			"color_and_texture": "smooth dark brown hair",
+			"front": {
+				"family": "clean-part-with-side-rolls",
+				"description": "clean centre part framed by one gentle controlled roll on each side"
+			},
+			"rear": {
+				"family": "mid-back-braided-coil",
+				"description": "compact braided coil centered at mid-back height, clearly above the nape"
+			},
+			"covering": {
+				"family": "narrow-frilled-day-cap",
+				"description": "neat white linen day cap with a narrow face frill, leaving the part and side rolls visible"
+			},
+			"silhouette": {
+				"family": "rolled-mid-back-cap",
+				"description": "tidy side width and a compact raised rear coil under a close cap"
+			},
+			"loose_details": "two fine temple wisps only; no hanging ringlets"
+		},
+		"sha256": "c66b733c153436d9f36faf950182942ab34f5fddb55b67e3efbc7789faa6dbba"
+	},
+	"marker_identity": {
+		"schema_version": 4,
+		"subject_key": "npc:4",
+		"marker_identity": {
+			"composition": "character-only",
+			"silhouette": "neat late-thirties woman with a narrow-frilled linen cap, visible side rolls, raised compact rear coil, and tidy dark dress; no object/scenery",
+			"stance": "upright three-quarter stance with hands clasped low; no object/scenery",
+			"empty_hand_pose": "hands-clasped",
+			"readability_cues": [
+				{
+					"kind": "hair-or-headwear",
+					"description": "narrow-frilled white cap over side rolls and a raised compact rear coil"
+				},
+				{
+					"kind": "stance",
+					"description": "tidy upright outline"
+				}
+			],
+			"tiny_readability_notes": [
+				"Preserve the cap, side rolls, and raised coil as one clean small-scale profile."
+			]
+		},
+		"sha256": "e77e46d6ac7d56ace2399f895298565fe186eacc6f3dd90b5f338ce2259c6c47"
+	},
+	"decision": "approved",
+	"promotion_eligible": true,
+	"reviewer": "dmooney",
+	"reviewed_at": "2026-07-17T01:52:56.010Z",
+	"notes": "Approved by dmooney after reviewing the final 24-pair whole-cast sheet in Codex on 2026-07-16.",
+	"checklist": {
+		"identity_specific": true,
+		"concept_style_match": true,
+		"period_appropriate": true,
+		"no_prohibited_content": true,
+		"key_removal_clean": true,
+		"production_quality": true,
+		"diegetic_player_sketch": true,
+		"uncolored_pen_and_ink": true,
+		"sparse_open_linework": true,
+		"no_baked_background": true,
+		"framing_complete": true,
+		"selected_size_readable": true,
+		"nearby_size_readable": true,
+		"restrained_world_color": true,
+		"full_body_complete": true,
+		"silhouette_readable": true,
+		"character_only_marker": true,
+		"empty_hands": true,
+		"no_contextual_props_or_scenery": true,
+		"no_ground_plane": true,
+		"scene_size_readable": true,
+		"cross_asset_identity": true,
+		"hair_front_matches": true,
+		"hair_rear_matches": true,
+		"hair_covering_matches": true,
+		"hair_silhouette_matches": true,
+		"correct_surface_split": true,
+		"atomic_rerender_understood": true
+	},
+	"source_template_path": "parish/apps/ui/art/notebook-person-art/candidates/review-packets/identity-v8-character-only-full-cast-a-20260716/4-pair-b46f2e755937-review.json",
+	"review_id": "1465f7d9bad09d1b1dabf1fd"
+}

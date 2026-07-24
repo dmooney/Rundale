@@ -9,7 +9,8 @@ inference and a GCS FUSE mount for persistence.
 Rundale currently deploys via a Railway-targeted Docker image
 (`deploy/Dockerfile`) running a single Axum server (`parish-server`) that:
 
-- binds `0.0.0.0:$PORT` (via `CMD sh -c "./parish --web ${PORT:-3001}"`);
+- binds `0.0.0.0:$PORT` via `parish-server --port ${PORT:-3001}` with
+  explicit packaged mod and frontend paths;
 - serves the pre-built Svelte frontend out of `apps/ui/dist`;
 - writes SQLite databases under a `saves/` directory — one global
   `sessions.db` plus per-session `saves/<sid>/parish_NNN.db`

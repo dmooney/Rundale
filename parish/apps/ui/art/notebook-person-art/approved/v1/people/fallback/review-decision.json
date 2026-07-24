@@ -1,0 +1,112 @@
+{
+	"schema_version": 1,
+	"record_type": "notebook-person-art-human-review-decision",
+	"candidate_receipt_path": "parish/apps/ui/art/notebook-person-art/candidates/objects/ce/cec1a6b19fc858734e528a729b971f6a01f44477eea9abc021e31bb3b0ad4113/receipt.json",
+	"candidate_receipt_sha256": "f1b847d9befaf78ff8717c2c270d5f6176b0878f6ab8102efb7e55d7ee2c2759",
+	"candidate_sha256": "b673bedd0cc590eef77d5f81c8ef1bb276c03f75b68d2e20bcd1b29938b59c9f",
+	"raw_sha256": "a04bb0dcd62e3104129b6a0fb74336b2a91b038979caa47bd91cca4be06070ee",
+	"subject": {
+		"kind": "fallback",
+		"npc_id": null,
+		"name": "Unknown parish neighbour",
+		"input_record_sha256": "2a644e9712dbf7565ace688bc9ac26d0ccebd57e2a7ac6ee3bc5bb22bd2886e5"
+	},
+	"asset": {
+		"kind": "pair",
+		"candidate_index": 1,
+		"children": [
+			"portrait",
+			"marker"
+		]
+	},
+	"hair_topology": {
+		"schema_version": 4,
+		"subject_key": "fallback",
+		"vector": {
+			"color_and_texture": "light straight hair",
+			"front": {
+				"family": "side-lock-under-cap",
+				"description": "mostly hidden front with one short lock visible at the left temple"
+			},
+			"rear": {
+				"family": "close-cropped-nape",
+				"description": "close crop with no rear mass below the cap"
+			},
+			"covering": {
+				"family": "low-felt-cap",
+				"description": "plain low soft felt cap"
+			},
+			"silhouette": {
+				"family": "low-soft-cap-profile",
+				"description": "low rounded cap crown with one projecting ear and no hair volume"
+			},
+			"loose_details": "one short side lock below the cap at the left temple"
+		},
+		"sha256": "7e26a9f5a78f4a57332dcebadf3644433fd688827c72ea92983650492ad7aac8"
+	},
+	"marker_identity": {
+		"schema_version": 4,
+		"subject_key": "fallback",
+		"marker_identity": {
+			"composition": "character-only",
+			"silhouette": "narrow-shouldered adult in a low felt cap and knee-length plain frieze coat; no object/scenery",
+			"stance": "small three-quarter standing figure with hands near the coat front; no object/scenery",
+			"empty_hand_pose": "hands-near-coat-front",
+			"readability_cues": [
+				{
+					"kind": "hair-or-headwear",
+					"description": "low soft felt cap"
+				},
+				{
+					"kind": "body-shape",
+					"description": "narrow shoulders"
+				},
+				{
+					"kind": "clothing",
+					"description": "long plain frieze coat"
+				}
+			],
+			"tiny_readability_notes": [
+				"Keep the face subdued and non-specific so it remains anonymous among named NPCs."
+			]
+		},
+		"sha256": "609b6886d71164917acaab6f33ac8e7c01f7c1f9e72503cd56a7e080e7404d0f"
+	},
+	"decision": "approved",
+	"promotion_eligible": true,
+	"reviewer": "dmooney",
+	"reviewed_at": "2026-07-17T01:52:56.107Z",
+	"notes": "Approved by dmooney after reviewing the final 24-pair whole-cast sheet in Codex on 2026-07-16.",
+	"checklist": {
+		"identity_specific": true,
+		"concept_style_match": true,
+		"period_appropriate": true,
+		"no_prohibited_content": true,
+		"key_removal_clean": true,
+		"production_quality": true,
+		"diegetic_player_sketch": true,
+		"uncolored_pen_and_ink": true,
+		"sparse_open_linework": true,
+		"no_baked_background": true,
+		"framing_complete": true,
+		"selected_size_readable": true,
+		"nearby_size_readable": true,
+		"restrained_world_color": true,
+		"full_body_complete": true,
+		"silhouette_readable": true,
+		"character_only_marker": true,
+		"empty_hands": true,
+		"no_contextual_props_or_scenery": true,
+		"no_ground_plane": true,
+		"scene_size_readable": true,
+		"cross_asset_identity": true,
+		"hair_front_matches": true,
+		"hair_rear_matches": true,
+		"hair_covering_matches": true,
+		"hair_silhouette_matches": true,
+		"correct_surface_split": true,
+		"atomic_rerender_understood": true
+	},
+	"source_template_path": "parish/apps/ui/art/notebook-person-art/candidates/review-packets/identity-v8-character-only-full-cast-c-20260716/fallback-pair-b673bedd0cc5-review.json",
+	"review_id": "6c8eeedf15efce93ac8cf9b5"
+}

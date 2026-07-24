@@ -145,7 +145,8 @@ const VENDOR_KEYWORDS: Array<[string, string]> = [
 	['kimi', 'moonshotai'],
 	['minimax', 'minimax'],
 	['mimo', 'xiaomi'],
-].sort((a, b) => b[0].length - a[0].length);
+];
+VENDOR_KEYWORDS.sort((a, b) => b[0].length - a[0].length);
 
 // Resolve a catalog family string to a renderable Brand. Returns null
 // when family is empty / 'unknown' so callers can choose to skip the

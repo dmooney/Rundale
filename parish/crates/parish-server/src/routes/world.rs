@@ -18,10 +18,10 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use axum::Json;
-use axum::extract::{Extension, State};
-use axum::http::StatusCode;
+use axum::extract::{Extension, Path as AxumPath, State};
 use axum::http::header::{CACHE_CONTROL, CONTENT_TYPE};
-use axum::response::IntoResponse;
+use axum::http::{HeaderName, HeaderValue, StatusCode};
+use axum::response::{IntoResponse, Response};
 
 use parish_core::debug_snapshot::{self, AuthDebug, InferenceDebug};
 use parish_core::ipc::{MapData, NpcInfo, ThemePalette, WorldSnapshot};
@@ -485,4 +485,58 @@ pub async fn submit_bug_report(
 /// `GET /api/health` — lightweight liveness probe; no auth required.
 pub async fn get_health() -> StatusCode {
     StatusCode::OK
+}
+
+const PLAYWRIGHT_BUILD_ID_HEADER: HeaderName =
+    HeaderName::from_static("x-parish-playwright-build-id");
+
+pub(crate) fn playwright_readiness_status(
+    requested_run_id: &str,
+    expected_run_id: Option<&str>,
+    compiled_build_id: Option<&str>,
+    expected_build_id: Option<&str>,
+    marker: Option<&str>,
+) -> (StatusCode, bool) {
+    let (Some(expected_run_id), Some(compiled_build_id), Some(expected_build_id)) =
+        (expected_run_id, compiled_build_id, expected_build_id)
+    else {
+        return (StatusCode::NOT_FOUND, false);
+    };
+    if requested_run_id != expected_run_id || compiled_build_id != expected_build_id {
+        return (StatusCode::NOT_FOUND, false);
+    }
+
+    let expected_marker = format!("{expected_run_id}\n{compiled_build_id}\n");
+    if marker == Some(expected_marker.as_str()) {
+        (StatusCode::OK, true)
+    } else {
+        (StatusCode::SERVICE_UNAVAILABLE, true)
+    }
+}
+
+/// Playwright polls this per-run path instead of a generic health endpoint.
+/// A server from another concurrent run therefore cannot satisfy readiness,
+/// even when both worktrees happen to have identical UI hashes.
+pub async fn get_playwright_ready(AxumPath(run_id): AxumPath<String>) -> Response {
+    let expected_run_id = std::env::var("PARISH_PLAYWRIGHT_RUN_ID").ok();
+    let expected_build_id = std::env::var("PARISH_PLAYWRIGHT_BUILD_ID").ok();
+    let marker = std::env::var_os("PARISH_PLAYWRIGHT_READY_FILE")
+        .and_then(|path| std::fs::read_to_string(path).ok());
+    let (status, reveal_build_id) = playwright_readiness_status(
+        &run_id,
+        expected_run_id.as_deref(),
+        crate::PLAYWRIGHT_BUILD_ID,
+        expected_build_id.as_deref(),
+        marker.as_deref(),
+    );
+    let mut response = status.into_response();
+    if reveal_build_id
+        && let Some(build_id) = crate::PLAYWRIGHT_BUILD_ID
+        && let Ok(value) = HeaderValue::from_str(build_id)
+    {
+        response
+            .headers_mut()
+            .insert(PLAYWRIGHT_BUILD_ID_HEADER, value);
+    }
+    response
 }

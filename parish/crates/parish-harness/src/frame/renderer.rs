@@ -195,6 +195,7 @@ mod tests {
     use parish_core::ipc::engine_state::{
         ActiveScene, EngineClock, GrapevineStatus, NpcStateSummary, NpcStatus, PlayerState,
     };
+    use std::io::Cursor;
 
     fn sample_state() -> EngineState {
         EngineState {
@@ -242,16 +243,27 @@ mod tests {
 
     #[test]
     fn frame_nonblank_produces_decodable_png() {
-        let frame = render(&sample_state(), "You step into the smoky pub.", 7).unwrap();
+        let state = sample_state();
+        let frame = render(&state, "You step into the smoky pub.", 7).unwrap();
+        let repeated = render(&state, "You step into the smoky pub.", 7).unwrap();
         assert!(!frame.png.is_empty());
+        assert_eq!(
+            frame.png, repeated.png,
+            "PNG encoding must be deterministic"
+        );
         // PNG magic bytes.
         assert_eq!(&frame.png[0..8], &[137, 80, 78, 71, 13, 10, 26, 10]);
-        // Decodes back to the expected dimensions.
-        let decoder = png::Decoder::new(frame.png.as_slice());
-        let reader = decoder.read_info().unwrap();
-        let info = reader.info();
+        // Fully decodes back to the exact RGB pixels that were rendered.
+        let decoder = png::Decoder::new(Cursor::new(frame.png.as_slice()));
+        let mut reader = decoder.read_info().unwrap();
+        let mut decoded = vec![0; reader.output_buffer_size().unwrap()];
+        let info = reader.next_frame(&mut decoded).unwrap();
         assert_eq!(info.width, W);
         assert_eq!(info.height, H);
+        assert_eq!(info.color_type, png::ColorType::Rgb);
+        assert_eq!(info.bit_depth, png::BitDepth::Eight);
+        decoded.truncate(info.buffer_size());
+        assert_eq!(decoded, render_pixels(&state));
         // SVG carries the readable ground truth.
         assert!(frame.svg.contains("Darcy&#39;s Pub") || frame.svg.contains("Darcy's Pub"));
         assert!(frame.svg.contains("grapevine"));

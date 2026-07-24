@@ -1,0 +1,215 @@
+{
+	"npc_id": 10,
+	"name": "Maire Gallagher",
+	"age": 39,
+	"pronouns": "she/her",
+	"occupation": "Blacksmith's Wife",
+	"mood": "busy",
+	"brief_description": "a capable-looking woman with flour on her hands",
+	"home": {
+		"id": 16,
+		"name": "The Forge",
+		"description": "A low stone building open at the front, where a bellows feeds a glowing hearth. The anvil sits dark and scarred in the centre. Horseshoes, tongs, and half-finished ironwork hang from hooks along the wall. Sparks drift in the weather air. It is daylight."
+	},
+	"workplace": {
+		"id": 16,
+		"name": "The Forge",
+		"description": "A low stone building open at the front, where a bellows feeds a glowing hearth. The anvil sits dark and scarred in the centre. Horseshoes, tongs, and half-finished ironwork hang from hooks along the wall. Sparks drift in the weather air. It is daylight."
+	},
+	"source_personality_summary": "Aoife Brennan's older sister, Maire is warm, practical, and fiercely protective of her family.",
+	"source_knowledge": [
+		"Worries that Aoife's hedge school teaching will draw the attention of the authorities.",
+		"Knows every family's business from managing the forge accounts — who owes and who pays.",
+		"Heard that Martin Concannon the clerk has been asking questions about the hedge school.",
+		"Keeps a store of dried herbs from Brigid Ni Fhatharta for the children's ailments."
+	],
+	"source_relationships": [
+		{
+			"target_id": 9,
+			"target_name": "Seamus Gallagher",
+			"kind": "Family",
+			"strength": 0.95
+		},
+		{
+			"target_id": 11,
+			"target_name": "Colm Gallagher",
+			"kind": "Family",
+			"strength": 0.9
+		},
+		{
+			"target_id": 6,
+			"target_name": "Aoife Brennan",
+			"kind": "Family",
+			"strength": 0.8
+		},
+		{
+			"target_id": 4,
+			"target_name": "Roisin Connolly",
+			"kind": "Friend",
+			"strength": 0.5
+		}
+	],
+	"source_schedule_cues": [
+		{
+			"location_id": 1,
+			"location_name": "The Crossroads",
+			"activity": "socialising at the crossroads after Mass"
+		},
+		{
+			"location_id": 3,
+			"location_name": "St. Brigid's Church",
+			"activity": "attending Mass with the family"
+		},
+		{
+			"location_id": 6,
+			"location_name": "The Hedge School",
+			"activity": "visiting Aoife at the hedge school for Sunday tea"
+		},
+		{
+			"location_id": 6,
+			"location_name": "The Hedge School",
+			"activity": "visiting her sister Aoife at the hedge school, bringing food"
+		},
+		{
+			"location_id": 13,
+			"location_name": "Connolly's Shop",
+			"activity": "shopping at Connolly's, exchanging news with Roisin"
+		},
+		{
+			"location_id": 16,
+			"location_name": "The Forge",
+			"activity": "Sunday dinner — the best meal of the week"
+		},
+		{
+			"location_id": 16,
+			"location_name": "The Forge",
+			"activity": "dinner, mending clothes, household work"
+		},
+		{
+			"location_id": 16,
+			"location_name": "The Forge",
+			"activity": "knitting by the fire, waiting for Seamus to come home from the pub"
+		},
+		{
+			"location_id": 16,
+			"location_name": "The Forge",
+			"activity": "preparing supper, evening chores at the forge"
+		},
+		{
+			"location_id": 16,
+			"location_name": "The Forge",
+			"activity": "quiet evening at home"
+		},
+		{
+			"location_id": 16,
+			"location_name": "The Forge",
+			"activity": "retiring for the night"
+		},
+		{
+			"location_id": 16,
+			"location_name": "The Forge",
+			"activity": "rising early, making breakfast, sending Colm to his tasks"
+		},
+		{
+			"location_id": 16,
+			"location_name": "The Forge",
+			"activity": "sleeping behind the forge"
+		},
+		{
+			"location_id": 16,
+			"location_name": "The Forge",
+			"activity": "sleeping late on Sunday"
+		},
+		{
+			"location_id": 16,
+			"location_name": "The Forge",
+			"activity": "tending the garden, managing the forge accounts, greeting customers"
+		},
+		{
+			"location_id": 16,
+			"location_name": "The Forge",
+			"activity": "to bed"
+		}
+	],
+	"source_visual_cues": [
+		"age: 39",
+		"occupation: Blacksmith's Wife",
+		"brief_description: a capable-looking woman with flour on her hands",
+		"face/eyes",
+		"prop/activity"
+	],
+	"source_metadata_status": {
+		"canonical_npc_data_sufficient_for_production_art": false,
+		"status": "strong-partial",
+		"reason": "The canonical NPC data has useful visual cues, but still lacks a structured production portrait/marker contract."
+	},
+	"art_direction": {
+		"npc_id": 10,
+		"npc_name": "Maire Gallagher",
+		"portrait_identity": {
+			"visual_identity_seed": "rundale-person-v2:10",
+			"identity_cohort": "woman",
+			"apparent_age": "late thirties",
+			"facial_geometry": {
+				"face_shape": "softly rectangular oval with a mild taper below the cheekbones",
+				"proportions": "moderately high forehead, balanced midface, slightly broad lower face",
+				"brow_and_eyes": "level medium-thick brows; medium-wide-set almond eyes with clear upper-lid folds",
+				"nose": "straight narrow-to-medium bridge with a subtly left-offset rounded tip",
+				"mouth": "medium-wide mouth, shallow cupid's bow, full lower lip",
+				"jaw_and_chin": "rounded-square jaw and compact rounded chin",
+				"cheekbones": "high, softly angular cheekbones with fuller lower cheeks",
+				"hairline": "gentle widow's peak beneath a centered part",
+				"age_detail": "late-thirties outer-eye lines and light nasolabial definition"
+			},
+			"distinguishing_features": [
+				"small round mark below the right cheekbone",
+				"slightly higher left eyebrow",
+				"shallow central chin crease"
+			],
+			"hair": "ABSOLUTE VISIBLE SILHOUETTE: deep auburn-brown hair brushes straight back from the brow with no visible part and disappears completely into a roomy gathered unbleached linen work cap with a full soft rear caul. The hidden plait is folded vertically flat; no exposed rear hair, rounded bun, side coil, centre part, or loose tendril may appear. Portrait line economy: outline the brushed-back front and caul with sparse open contours, leaving hair, cap, and face unfilled; no black masses, dense hatching, or engraving texture. The marker must repeat the no-part front and full unbleached caul.",
+			"clothing": "clean but work-worn apron over plain dress, sleeves rolled for household work",
+			"pose_expression": "busy and capable, kind but not idle; portrait and marker must show the same late-thirties broad heart-shaped face, wide jaw, heavy cheeks, and age treatment, never a younger narrow-oval substitute",
+			"props": [
+				"flour on hands",
+				"small bowl",
+				"folded cloth"
+			],
+			"palette_notes": [
+				"flour white",
+				"soft brown dress",
+				"linen cap"
+			]
+		},
+		"marker_identity": {
+			"composition": "character-only",
+			"silhouette": "late-thirties woman with a full unbleached linen caul, brushed-back auburn hair, wide jaw, rolled sleeves, and clean pale apron; no object/scenery",
+			"stance": "ready upright stance with hands near the apron front; no object/scenery",
+			"empty_hand_pose": "hands-near-coat-front",
+			"readability_cues": [
+				{
+					"kind": "hair-or-headwear",
+					"description": "full rounded linen caul over brushed-back hair without a part"
+				},
+				{
+					"kind": "body-shape",
+					"description": "wide-jawed compact build"
+				}
+			],
+			"tiny_readability_notes": [
+				"Use the full caul and broad face-body proportion to separate her from Siobhan."
+			]
+		},
+		"avoid": [
+			"generic housewife stereotype",
+			"bakery shop uniform",
+			"modern kitchen tools",
+			"visible centre part or rounded bun instead of the brushed-back front, vertical folded plait, and full-caul work cap"
+		],
+		"authoring_notes": [
+			"Brief description gives flour hands; supplement sets the full visual identity."
+		]
+	},
+	"pair_prompt": "Identity contract for Maire Gallagher, age 39, Blacksmith's Wife: visual identity seed rundale-person-v2:10; apparent age late thirties; Explicit facial geometry: face shape softly rectangular oval with a mild taper below the cheekbones; proportions moderately high forehead, balanced midface, slightly broad lower face; brow and eyes level medium-thick brows; medium-wide-set almond eyes with clear upper-lid folds; nose straight narrow-to-medium bridge with a subtly left-offset rounded tip; mouth medium-wide mouth, shallow cupid's bow, full lower lip; jaw and chin rounded-square jaw and compact rounded chin; cheekbones high, softly angular cheekbones with fuller lower cheeks; hairline gentle widow's peak beneath a centered part; age detail late-thirties outer-eye lines and light nasolabial definition. Distinguishing features: small round mark below the right cheekbone, slightly higher left eyebrow, shallow central chin crease. Hair: ABSOLUTE VISIBLE SILHOUETTE: deep auburn-brown hair brushes straight back from the brow with no visible part and disappears completely into a roomy gathered unbleached linen work cap with a full soft rear caul. The hidden plait is folded vertically flat; no exposed rear hair, rounded bun, side coil, centre part, or loose tendril may appear. Portrait line economy: outline the brushed-back front and caul with sparse open contours, leaving hair, cap, and face unfilled; no black masses, dense hatching, or engraving texture. The marker must repeat the no-part front and full unbleached caul.. Production task: create one identity-locked portrait-and-marker pair in Rundale, rural County Roscommon, Ireland, 1820, ordinary parish life, period-appropriate work clothing, under this visual authority: Illustrated Parish Notebook concept art only. The two renderings must unmistakably be the same person by reproducing every stated identity fact. Clothing: clean but work-worn apron over plain dress, sleeves rolled for household work; canonical biography cue for clothing and expression only, never for setting, activity, or objects: a capable-looking woman with flour on her hands; current mood busy. Left asset, notebook portrait: a quick observational head-and-shoulders sketch the player character drew in their working notebook after meeting this person. Use sparse uncolored sepia/graphite contours, open unfilled shapes, and only a few isolated short structural hatch marks; optional lower-edge prop flour on hands, simply outlined and confined to the left cell. Do not cross-hatch or shade any broad region of the face, hair, neck, scarf, waistcoat, coat, dress, or apron, and do not render a dark garment as a filled or densely hatched mass. Keep the complete ink drawing between 40 and 60 percent of the left cell height with generous empty padding; every uninked interior region must remain provider key, never white, cream, parchment, skin tone, gray, or any other fill. It must not read as a formal illustration or painted portrait. Right asset, painted-world marker: one tiny static full-body transparent character-only cutout designed for compositing into the painted parish scene; silhouette late-thirties woman with a full unbleached linen caul, brushed-back auburn hair, wide jaw, rolled sleeves, and clean pale apron; no object/scenery; stance ready upright stance with hands near the apron front; no object/scenery; empty-hand pose both empty hands resting near the coat front; tiny-readability cues from the person's body, hair or headwear, clothing, and stance alone: hair or headwear: full rounded linen caul over brushed-back hair without a part; body shape: wide-jawed compact build; complete figure roughly 45 percent of the right cell height, acceptable range 40 to 60 percent, with generous key-visible margins; restrained translucent watercolor within loose sepia/graphite contours, simplified face, and complete feet. The right cell must contain the person only: both hands empty; no held or carried objects, tools, books, containers, bundles, furniture, counters, architecture, vegetation, scenery fragments, ground plane, shadow, or extra person. Worn clothing and headwear are allowed. Do not illustrate the canonical biography's occupation, workplace, activity, or narrative context around the marker. Limit painted color to muted wool gray, bog green, weathered tan, dull brick red, peat brown, and faded indigo; no saturated primary colors. Shared constraints: one depiction in each assigned cell, ordinary 1820 rural County Roscommon clothing, no modern or fantasy elements, no text, labels, frames, contact-sheet furniture, or sprite-sheet poses. Never copy a left-cell portrait prop into the marker. Character-specific avoid list: generic housewife stereotype, bakery shop uniform, modern kitchen tools, visible centre part or rounded bun instead of the brushed-back front, vertical folded plait, and full-caul work cap.",
+	"portrait_prompt": "Subject identity: Maire Gallagher, age 39, Blacksmith's Wife; visual identity seed rundale-person-v2:10; apparent age late thirties; Explicit facial geometry: face shape softly rectangular oval with a mild taper below the cheekbones; proportions moderately high forehead, balanced midface, slightly broad lower face; brow and eyes level medium-thick brows; medium-wide-set almond eyes with clear upper-lid folds; nose straight narrow-to-medium bridge with a subtly left-offset rounded tip; mouth medium-wide mouth, shallow cupid's bow, full lower lip; jaw and chin rounded-square jaw and compact rounded chin; cheekbones high, softly angular cheekbones with fuller lower cheeks; hairline gentle widow's peak beneath a centered part; age detail late-thirties outer-eye lines and light nasolabial definition. Distinguishing features: small round mark below the right cheekbone, slightly higher left eyebrow, shallow central chin crease. Hair: ABSOLUTE VISIBLE SILHOUETTE: deep auburn-brown hair brushes straight back from the brow with no visible part and disappears completely into a roomy gathered unbleached linen work cap with a full soft rear caul. The hidden plait is folded vertically flat; no exposed rear hair, rounded bun, side coil, centre part, or loose tendril may appear. Portrait line economy: outline the brushed-back front and caul with sparse open contours, leaving hair, cap, and face unfilled; no black masses, dense hatching, or engraving texture. The marker must repeat the no-part front and full unbleached caul.. Artifact and lore: this is a quick observational sketch the player character drew by hand in the margin of their working parish notebook after meeting the subject. It is diegetic notebook ephemera, not a commissioned illustration, formal portrait study, character card, or polished concept painting. Non-negotiable drawing language: sparse, uncolored pen-and-ink line drawing under this visual authority: Illustrated Parish Notebook concept art only. Use one irregular sepia/graphite ink line, economical contours, open shapes, and only a few short loose hatch marks where structurally necessary. Leave most of the face, hair, clothing, and canvas unfilled. No skin-tone fill, white underpainting, cream fill, solid dark garment, gray wash, watercolor, smooth tonal modeling, dense cross-hatching, photorealistic rendering, or glamour. Delivery composition: 1024x1024 transparent-background PNG source, portrait line art occupies roughly 45 percent of source height, centered head-and-shoulders drawing with generous transparent padding on all sides, top of hair/head covering and shoulders fully visible, no baked parchment, paper texture, wash, card, border, label, or UI furniture; keep the complete inked drawing between roughly 40 and 60 percent of canvas height with generous empty space on every side. Uninked areas are transparent in the delivery asset so the UI-controlled notebook paper shows through. Setting: Rundale, rural County Roscommon, Ireland, 1820, ordinary parish life, period-appropriate work clothing. Clothing: clean but work-worn apron over plain dress, sleeves rolled for household work, indicated only with contour, seam, and a few fold lines; expression and pose busy and capable, kind but not idle; portrait and marker must show the same late-thirties broad heart-shaped face, wide jaw, heavy cheeks, and age treatment, never a younger narrow-oval substitute; current mood busy. Optional lower-edge identity cue: flour on hands, at most one simply outlined prop. Canonical context: a capable-looking woman with flour on her hands; home/workplace at The Forge. Hard constraints: one character, head and shoulders only, period-appropriate rural County Roscommon clothing, no text, no label, no border, no card, no UI chrome. Character-specific avoid list: generic housewife stereotype, bakery shop uniform, modern kitchen tools, visible centre part or rounded bun instead of the brushed-back front, vertical folded plait, and full-caul work cap.",
+	"marker_prompt": "Subject identity: Maire Gallagher, age 39, Blacksmith's Wife; visual identity seed rundale-person-v2:10; apparent age late thirties; Explicit facial geometry: face shape softly rectangular oval with a mild taper below the cheekbones; proportions moderately high forehead, balanced midface, slightly broad lower face; brow and eyes level medium-thick brows; medium-wide-set almond eyes with clear upper-lid folds; nose straight narrow-to-medium bridge with a subtly left-offset rounded tip; mouth medium-wide mouth, shallow cupid's bow, full lower lip; jaw and chin rounded-square jaw and compact rounded chin; cheekbones high, softly angular cheekbones with fuller lower cheeks; hairline gentle widow's peak beneath a centered part; age detail late-thirties outer-eye lines and light nasolabial definition. Distinguishing features: small round mark below the right cheekbone, slightly higher left eyebrow, shallow central chin crease. Hair: ABSOLUTE VISIBLE SILHOUETTE: deep auburn-brown hair brushes straight back from the brow with no visible part and disappears completely into a roomy gathered unbleached linen work cap with a full soft rear caul. The hidden plait is folded vertically flat; no exposed rear hair, rounded bun, side coil, centre part, or loose tendril may appear. Portrait line economy: outline the brushed-back front and caul with sparse open contours, leaving hair, cap, and face unfilled; no black masses, dense hatching, or engraving texture. The marker must repeat the no-part front and full unbleached caul.. Asset role: one tiny static full-body NPC marker delivered as a transparent character-only cutout for compositing over Rundale's painted world surface. It is not a UI portrait, paper doll, animation sheet, formal character illustration, vignette, or sprite-sheet panel. Visual language: loose hand-inked watercolor miniature under this visual authority: Illustrated Parish Notebook concept art only. Use irregular sepia/graphite contours, a simple readable human silhouette, restrained translucent washes, low facial detail, and only enough clothing folds to identify the person at scene size. Keep the treatment handmade and subordinate to the environment, never glossy, photorealistic, densely rendered, or cut out with a broad halo. Delivery composition: 1024x1024 flat #ff00ff chroma-key PNG source, full-body figure occupies roughly 45 percent of source height, centered figure with feet fully visible and generous flat background margins, one single static in-world marker pose per NPC for this slice, no ground shadow, floor plane, label, border, or extra figure. Palette: sepia/graphite line with muted wool gray, bog green, weathered tan, dull brick red, peat brown, and faded indigo only; no saturated primary colors. Setting: Rundale, rural County Roscommon, Ireland, 1820, ordinary parish life, period-appropriate work clothing. Character-only silhouette: late-thirties woman with a full unbleached linen caul, brushed-back auburn hair, wide jaw, rolled sleeves, and clean pale apron; no object/scenery. Stance: ready upright stance with hands near the apron front; no object/scenery. Empty-hand pose: both empty hands resting near the coat front. Tiny-readability cues from the person's body, hair or headwear, clothing, and stance alone: hair or headwear: full rounded linen caul over brushed-back hair without a part; body shape: wide-jawed compact build. Tiny-readability requirements: Use the full caul and broad face-body proportion to separate her from Siobhan.. Hard constraints: one character only, both hands empty, period-appropriate ordinary rural clothing, simplified face, complete feet, no held or carried objects, tools, books, containers, bundles, furniture, architecture, vegetation, scenery fragments, ground plane, shadow, text, label, border, or UI chrome. Worn clothing and headwear are allowed. Do not illustrate an occupation, workplace, activity, or narrative context around the person. Character-specific avoid list: generic housewife stereotype, bakery shop uniform, modern kitchen tools, visible centre part or rounded bun instead of the brushed-back front, vertical folded plait, and full-caul work cap."
+}

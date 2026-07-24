@@ -1,33 +1,39 @@
 # Illustrated Notebook Real Play Screen
 
-Status: Pre-implementation design note
+Status: Implemented foundation; refreshed for issue #1630
 
 ## Player Experience
 
-Rundale opens directly into a full-screen illustrated game scene that looks like
-the approved notebook concept, not a web dashboard. The player sees a
-watercolor parish plate with in-world labels and markers, a parchment ribbon,
-nearby portrait strip, right-hand spiral notebook page, action stamps, and a
-handwritten intent strip. The old Svelte dashboard components may still power
-secondary overlays, but the default play surface is a Pixi-rendered notebook
-interface.
+Rundale opens directly into a full-screen illustrated game scene that follows
+the named
+[notebook concept](../graphics-v2/illustrated-parish-notebook.png), not a web
+dashboard. The player sees a watercolor parish plate with in-world labels and
+people, a parchment ribbon, nearby portrait strip, right-hand hand-sewn notebook
+page, action strip, and handwritten intent strip. The approved sewn page has no
+ring binding or paperclip. Existing Svelte components may still power secondary
+overlays, but the default play surface is a Pixi-rendered notebook interface.
 
 ## Affected Subsystems
 
 - `parish/apps/ui/src/routes/+page.svelte`: keep page lifecycle, global
-  shortcuts, screenshot/setup/save/debug overlays, and controller setup, but
-  mount the Pixi play surface for the default viewport.
-- `parish/apps/ui/src/components/illustrated-notebook/`: new Svelte host
-  component and any accessibility overlays for the Pixi canvas.
-- `parish/apps/ui/src/lib/illustrated-notebook/`: renderer, layout model, asset
-  manifest, marker depth-scale helpers, command input controller, and tests.
+  shortcuts, screenshot/setup, and controller setup while mounting the Pixi
+  play surface and one overlay host.
+- `parish/apps/ui/src/components/illustrated-notebook/`: Svelte canvas host,
+  accessibility input, and notebook-styled overlay host.
+- `parish/apps/ui/src/lib/illustrated-parish/`: fresh renderer, responsive
+  layout, asset manifest, interaction routing, types, and tests. This namespace
+  is the visual implementation boundary for the #1630 rebuild.
+- `parish/apps/ui/src/stores/notebookOverlay.ts`: canonical routing and focus
+  restoration for notebook overlays.
 - `parish/apps/ui/src/stores/game.ts`: read existing stores only; do not fork
   transport or create parallel state ownership.
 - `parish/apps/ui/src/lib/ipc.ts`: submit commands through existing `submitInput`.
-- `parish/apps/ui/static/rundale/notebook-ui/`: original runtime bitmap asset
-  kit and provenance notes.
-- `mods/rundale/`: optional visual-scene metadata that points to the approved
-  runtime plate, written visual summary, camera hint, anchors, and depth bands.
+- `parish/apps/ui/static/rundale/illustrated-notebook-v2/`: fresh runtime scene
+  plates, temporary people-layout stand-ins, and the explicitly approved
+  hand-sewn page. Portrait-system work remains separate.
+- `parish/apps/ui/static/rundale/illustrated-notebook-v2/visual-scenes.json`:
+  fresh plate paths, written visual summary, camera hint, anchors, and depth
+  bands kept inside the same provenance boundary as the runtime art.
 - `parish/crates/parish-world`: validation for visual-scene prompt/metadata
   language that rejects historical-map-reference dependencies and strict
   isometric/isomorphic requirements.
@@ -48,45 +54,43 @@ Frontend rendering derives from existing state:
 
 New frontend-only models:
 
-- `NotebookSceneAnchor`: normalized `{ id, x, y, depth, kind }` anchors for
-  player, nearby NPCs, exits, and labels.
-- `NotebookDepthBand`: `{ minDepth, maxDepth, minScale, maxScale }` bands used
-  to keep far markers readable without pretending the scene is strict
-  isometric.
-- `NotebookAssetManifest`: paths for the generated/original bitmap UI assets.
-- `NotebookSelection`: selected NPC real name, defaulting to the selected/current
-  NPC if known, otherwise the first nearby NPC.
+- `ParishLayout`: responsive rectangles and scene anchors for the concept's
+  desktop and mobile composition.
+- `ParishHitTarget`: ordered hit regions and semantic activations for portraits,
+  tabs, actions, intent, cards, and overflow controls.
+- `ParishRenderState`: the existing world/map/NPC state presented to Pixi.
+- `NotebookSurface`: the canonical journal, people, Focail, map, save, debug,
+  mod, bug, shortcuts, utility, time, intents, and rumours overlay routes.
 
 Potential mod metadata is additive. It must not break existing saves and must
 not require coordinate edits.
 
 ## Runtime Art Assets
 
-Create a clean asset kit under `parish/apps/ui/static/rundale/notebook-ui/`.
-Do not cut up `docs/graphics-v2/illustrated-parish-notebook.png`.
+The clean runtime asset kit lives under
+`parish/apps/ui/static/rundale/illustrated-notebook-v2/`. It contains:
 
-Required assets:
+- `parish-crossroads-watercolor.png` and
+  `parish-crossroads-watercolor-mobile.png`: fresh desktop and vertical scene
+  plates.
+- `parchment-*.png`: fresh transparent top-ribbon, Nearby-rail, action-strip,
+  intent-strip, tab, label, and bottom-card cutouts generated from the canonical
+  concept's paper language.
+- `icon-*.png`: fresh transparent action, map, time, and quill cutouts generated
+  from the concept's loose charcoal/sepia symbols.
+- `portrait-slot-frame.png`: an intentionally empty raster frame. Runtime
+  initials reserve the Nearby and selected-person slots; portrait art and the
+  portrait/fallback system remain outside issue #1630.
+- `sewn-notebook-page.png`: the explicitly approved hand-sewn notebook page.
+- `ui-assets.json`: dimensions, alpha contracts, provenance classes, and hashes
+  for every runtime image.
 
-- parchment top ribbon
-- spiral notebook page
-- notebook binding/rings
-- side tab stack
-- bottom intent parchment strip
-- handwritten input line texture
-- ink/stamp send affordance
-- action stamp buttons/icons for Talk, Ask, Help, Observe, Leave
-- Nearby portrait card frame
-- sketched portrait placeholders or generated portrait set
-- Active Intents card
-- Map card
-- Time card
-- paper exit label
-- NPC selection ring
-- player marker
-- NPC silhouette/marker set with depth-scale readability
-
-The asset readme must document generation source, prompt/source description,
-where each asset is used, and that concept art files were references only.
+Pixi preloads the raster parchment and ink cutouts, then draws dynamic text,
+trust dots, hit regions, focus treatments, and selection callouts at runtime.
+There are deliberately no binding rings, ring holes, or paperclip. The renderer
+must not import either rejected `notebook-ui` visual kit or the rejected
+`src/lib/illustrated-notebook/` implementation. The concept image is a named
+style/composition reference, never a runtime image slice.
 
 ## Scene Plate And Prompt Rules
 
@@ -97,8 +101,9 @@ Prompt/metadata language should prefer:
 
 > wide elevated oblique illustrated storybook game scene
 
-Do not require strict isometric or isomorphic projection. The renderer handles
-player/NPC/exit placement with anchors and depth scaling instead.
+Do not require strict isometric or isomorphic projection. The renderer maps its
+current people and exit anchors through the plate's actual cover crop. The
+metadata depth bands remain available to the separate person/marker slice.
 
 Add tests in `parish-world` or the nearest existing visual-scene validation
 module to reject:
@@ -117,8 +122,8 @@ The renderer owns the visible first viewport:
 1. background scene plate
 2. subtle scene wash/vignette if needed
 3. in-world exit labels
-4. player/NPC markers with depth sorting and scale
-5. selection ring/callout
+4. scene people and labels
+5. thin selection ellipse/callout
 6. top parchment ribbon
 7. left Nearby portrait strip
 8. right notebook page/tabs
@@ -129,6 +134,23 @@ The renderer owns the visible first viewport:
 
 Svelte should host the canvas, subscribe to stores, pass render props into the
 renderer, submit commands, and open secondary overlays only when requested.
+
+## Interaction Model
+
+The sewn page and its protruding tabs are one persistent notebook surface:
+
+- **Notes** records the current scene, conditions, and next-action guidance.
+- **People** shows the selected person's record and the nearby directory.
+- **Places** is a written directory of the current and adjacent places.
+- **Rumours** holds learned stories.
+- **Journal** shows recent narrative and conversation entries.
+
+Turning a tab changes that page in place; it does not open a dialog. Selecting a
+person also turns to People. The separate **Map** card opens a notebook-styled
+geographic sheet with routes and zoom/pan controls, while utility and
+interruptive work such as Save/Load, Debug, Mod, Bug Report, and Shortcuts uses
+dismissible notebook-styled sheets. Closing a sheet returns to the same tab,
+scene, command draft, canvas dimensions, and invoking control.
 
 ## Command Input
 
@@ -153,7 +175,8 @@ the default viewport.
 testing/fixtures/play_illustrated-notebook-real.txt` proves the backend
   behavior path still returns status, scene, NPCs, map, time, natural-language
   command handling, and movement.
-- Unit tests prove marker sorting/scaling and command input submit behavior.
+- Unit tests prove target ordering, layout/crop mapping, and command input
+  submit/stream-flush behavior.
 - `parish-world` tests prove prompt/metadata language rejects historical map
   dependencies and strict isometric/isomorphic requirements.
 - Desktop and mobile screenshots prove the first viewport meets the notebook

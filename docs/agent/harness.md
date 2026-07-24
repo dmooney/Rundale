@@ -43,7 +43,8 @@ CI fast lane (`ci.yml`):
         agent-check           # proof evidence + judge verdict + fast debt scan
         docs-consistency      # check-doc-paths
         format/python/shell/toml quality
-        ci-gate               # stable required status; target < 60s
+        ui-e2e                # complete Playwright contract, UI-change PRs only
+        ci-gate               # stable required status; aggregates conditional UI proof
 
 CI full suite (`full-ci.yml`, merge_group / main push / nightly / manual):
         rust-quality-gate     # fmt + clippy + test (the architecture-fitness tests run here)
@@ -52,6 +53,13 @@ CI full suite (`full-ci.yml`, merge_group / main push / nightly / manual):
         game-harness          # every fixture in testing/fixtures/ + parish-client smoke
         ui-quality + ui-e2e   # frontend
 ```
+
+The complete Playwright suite is the canonical shipped-surface contract. A
+pull request that replaces the default UI must migrate or explicitly retire
+every assertion for the prior surface in that same change. The conditional
+`ui-e2e` result is folded into the sole branch-protection context, `CI gate`:
+UI changes require `success`, while non-UI pull requests require the job to be
+`skipped`. Failures, cancellations, and unexpected skips fail closed.
 
 ## Where the harness ends
 

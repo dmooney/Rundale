@@ -23,8 +23,10 @@ just act-pr         # simulate the pull_request fast lane
 
 ## Local gotchas
 
-- **`ci.yml` is the fast lane.** It keeps pull-request and main/develop push CI under a minute by running proof/docs/script/data checks there. Expensive Rust, coverage, harness, and UI runtime jobs live in `full-ci.yml`, which runs on `merge_group`, main/develop pushes, nightly schedule, and manual dispatch.
+- **`ci.yml` is the fast lane for non-UI changes.** Pull requests whose existing path detector reports `changes.ui == true` also run the complete Playwright suite, and the single required `CI gate` fails closed unless that conditional job succeeds. Expensive Rust, coverage, harness, and other UI runtime jobs remain in `full-ci.yml`, which runs on `merge_group`, main/develop pushes, nightly schedule, and manual dispatch.
+- **A shipped default-surface replacement owns the complete E2E contract.** Migrate or explicitly retire every prior Playwright assertion in the same pull request; a focused smoke spec is not a substitute for a green complete suite.
 - **Agent-check runs on PRs only (non-dependabot).** Push events to `main`/`develop` skip the gate — it already ran on the PR. Dependabot bumps are exempt (root AGENTS.md rule #10).
+- **Key PR-author exemptions to immutable authorship.** Use `github.event.pull_request.user.login`, never `github.actor`: the event actor changes when a coordinator refreshes an existing automation-authored branch, while the pull-request author does not.
 - **CI-only edits skip the proof gate (root rule #10).** `.github/**` changes with no source diff do not require a proof bundle.
 - **Linux native deps are inlined in every Rust job** (`libgtk-3-dev`, `libwebkit2gtk-4.1-dev`, `libappindicator3-dev`, `librsvg2-dev`). Update every workflow that contains the apt install block when the dep list changes.
 - **Rust toolchain is pinned to 1.95.0** in `full-ci.yml` and `release.yml`. Bump in a dedicated PR alongside any lint fixes.
@@ -39,7 +41,8 @@ just act-pr         # simulate the pull_request fast lane
 ### `ci.yml` — Fast CI pipeline
 
 - **Triggers:** `pull_request`, `push` to `main`/`develop`, `workflow_dispatch`.
-- **Jobs:** changes, agent-check, docs-consistency, format-quality, python-quality, shell-quality, toml-quality, and the aggregate `ci-gate`.
+- **Jobs:** changes, agent-check, docs-consistency, format-quality, python-quality, shell-quality, toml-quality, conditional `ui-e2e`, and the aggregate `ci-gate`.
+- **UI contract:** `ui-e2e` runs only for pull requests with `changes.ui == true`. `ci-gate.sh` requires `success` when the job is expected and `skipped` when it is not, so a failure, cancellation, or unexpected skip cannot produce a green required check.
 - **agent-check** runs `bash parish/scripts/agent-check.sh --source=pr "$PR_NUMBER"`. Skipped for dependabot.
 - **Concurrency:** `ci-${{ github.workflow }}-${{ github.ref }}`, cancel-in-progress.
 
@@ -63,8 +66,9 @@ just act-pr         # simulate the pull_request fast lane
 
 ### `audit.yml` — Security audit (cargo-audit)
 
-- **Triggers:** `schedule` (daily 06:17 UTC), `push` to `main` on `Cargo.lock`/`Cargo.toml` changes, `workflow_dispatch`.
+- **Triggers:** `schedule` (daily 06:17 UTC), dependency-changing `pull_request`, `push` to `main` on Cargo manifest/lock changes, and `workflow_dispatch`.
 - Installs `cargo-audit` via `cargo install --locked`; caches binary with `Swatinem/rust-cache` (no target dir).
+- While the temporary xcb/wayland-scanner security pins remain, verifies they are unreachable on supported macOS, Linux, and Windows target triples.
 - **Concurrency:** `audit-${{ github.workflow }}-${{ github.ref }}`, cancel-in-progress.
 
 ### `osv-scanner.yml` — OSV vulnerability scanner
@@ -88,7 +92,7 @@ just act-pr         # simulate the pull_request fast lane
 ### `publish-bench-site.yml` — Publish the v2 (promptfoo) bench site
 
 - **Triggers:** `push` to `main` when `promptfoo/leaderboard/**`, `promptfoo/bench-site/**`, `promptfoo/catalog/**`, `promptfoo/v2/MANIFEST.json`, `promptfoo/config/judge.yaml`, or the workflow itself changes; `workflow_dispatch`.
-- The Astro site reads `promptfoo/leaderboard/leaderboard.jsonl` directly at build time (no Python data step). Builds `promptfoo/bench-site` with pnpm (`--frozen-lockfile`), deploys `dist/` to GitHub Pages via `actions/deploy-pages@v4`. Uses `pnpm/action-setup@v4`. (Retired v1 site lived in `rundale-bench/bench-site`.)
+- The Astro site reads `promptfoo/leaderboard/leaderboard.jsonl` directly at build time (no Python data step). Installs `promptfoo/bench-site` with pnpm (`--frozen-lockfile`), runs `pnpm check` before `pnpm build`, then deploys `dist/` to GitHub Pages via `actions/deploy-pages@v4`. Uses `pnpm/action-setup@v6`. (Retired v1 site lived in `rundale-bench/bench-site`.)
 - **Concurrency:** `pages`, cancel-in-progress.
 
 ### `release.yml` — Tag-driven release pipeline
@@ -106,6 +110,6 @@ just act-pr         # simulate the pull_request fast lane
 
 ### `triage-audit.yml` — Portfolio and issue triage audit
 
-- **Triggers:** `schedule` (weekly Monday 09:00 UTC), issue lifecycle/label changes after creation, `workflow_dispatch`, and ordinary pull-request lifecycle/label changes on `main`.
+- **Triggers:** `schedule` (weekly Monday 09:00 UTC), issue creation, lifecycle, and label changes, `workflow_dispatch`, and ordinary pull-request lifecycle/label changes on `main`.
 - Checks open issues against `triage-labels.json` for missing P0-P3 severity or theme labels, audits active-item readiness and authoritative closing PR linkage, requires unblock triggers, compares explicitly mapped epic state to roadmap rows, and reports the 3/3 implementation/review buffers. Reports via CI step summary and warning annotations while the reset backlog is reconciled.
 - **Permissions:** `contents: read`, `issues: read`, `pull-requests: read`.

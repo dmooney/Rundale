@@ -1,6 +1,7 @@
 # Roadmap: Illustrated Notebook UI
 
-Status: Active roadmap after the Pixi notebook foundation pass.
+Status: Integrated default play surface complete; deferred follow-on slices are
+tracked with their residual risks below.
 
 This is the source of truth for finishing the Rundale illustrated notebook play
 surface. GitHub issues should track executable slices; this document preserves
@@ -19,7 +20,10 @@ Non-negotiables:
   toolbar, or debug toolbar in the first viewport.
 - No visible `InputField.svelte`, `.input-wrapper`, `.input-form`, rectangular
   text box, or old SEND button in the first viewport.
-- Runtime notebook UI is primarily bitmap/Pixi asset composition, not CSS boxes.
+- Runtime notebook UI combines bitmap plates/cutouts with fine Pixi-drawn
+  ink/parchment controls, not dashboard-style CSS boxes.
+- The right-hand page is hand-sewn; binding rings, ring holes, and paperclips are
+  outside the concept.
 - Backgrounds and runtime visual-scene metadata come from written descriptions,
   not historical map image references.
 - Prompts/metadata use wide elevated oblique storybook language, not strict
@@ -28,29 +32,43 @@ Non-negotiables:
 
 ## Current Baseline
 
-The foundation pass added:
+The fresh #1630 baseline adds:
 
 - A PixiJS play surface hosted by
   `IllustratedNotebookGame.svelte`.
-- A runtime bitmap asset kit under
-  `parish/apps/ui/static/rundale/notebook-ui/`.
-- Initial depth-scaled markers, in-world labels, Nearby rail, notebook page,
-  action stamps, command strip, Map/Time cards, and Active Intents card.
+- A new renderer/layout/interaction boundary under
+  `parish/apps/ui/src/lib/illustrated-parish/`; it does not inherit the rejected
+  `src/lib/illustrated-notebook/` visual implementation.
+- A fresh asset kit under
+  `parish/apps/ui/static/rundale/illustrated-notebook-v2/`: desktop/mobile parish
+  plates, concept-referenced raster parchment/ink cutouts, approved person
+  portraits and markers, and the explicitly approved hand-sewn page. The kit
+  does not import either rejected `notebook-ui` asset set.
+- Concept-aligned scene people and labels, Nearby rail, sewn notebook page,
+  contiguous action strip, command strip, Map/Time cards, and Active Intents
+  card.
 - A hidden native input for keyboard/accessibility with Pixi-rendered visible
-  command treatment.
+  command treatment, including Enter/send/stamp submission, busy/error states,
+  and session command-history navigation.
+- A single notebook-styled overlay coordinator/host for Journal, People,
+  Focail, Map, Save/Load, Debug, Mod, Bug Report, and supporting utility
+  surfaces.
 - Visual-scene metadata/tests rejecting historical map reference language and
-  strict isometric/isomorphic runtime requirements.
-- Proof screenshots at 1440x900 and 390x844.
+  strict isometric/isomorphic runtime requirements, plus screenshot, selector,
+  and asset-provenance regression coverage.
 
-Known gaps:
+Deferred follow-on slices:
 
-- Portrait and marker art is still simple placeholder linework.
-- Marker/tabs/cards/stamps need complete hover, focus, click, and keyboard
-  affordances.
-- Command editing lacks polished caret/selection/history/autocomplete behavior.
-- Most secondary overlays still need notebook-styled wrappers.
-- Scene anchors/depth bands need per-location coverage.
-- Mobile layout is acceptable but not yet deeply tuned.
+- **#1631 — location scene metadata and anchors.** Deferred until the next
+  location-expansion product slot is explicitly scheduled. Residual risk: beyond
+  the starter loop, shared fallback anchors can weaken scene-specific placement.
+- **#1632 — mobile layout hardening.** Deferred until a device-matrix hardening
+  slot is explicitly scheduled. Residual risk: uncommon short or extreme mobile
+  viewports have less focused layout coverage than the proven 390x844 surface.
+- **#1633 — visual regression and provenance gates.** Deferred until the
+  cross-slice visual-quality slot is explicitly scheduled. Residual risk:
+  notebook-specific safeguards remain distributed across the shipped slice tests
+  and provenance checks rather than one coordinator-owned gate.
 
 ## Epic And Slice Issues
 
@@ -88,10 +106,10 @@ independently usable and documented.
 
 ### 2. Person and marker art system
 
-- Replace generic placeholder portraits with approved tiny notebook portrait
-  assets for the initial Rundale cast shown in the Nearby rail/notebook page.
-- Replace simple body markers with a small readable sprite/marker set using
-  depth-scale rules and selection-ring readability.
+- Extend the four initial notebook portrait cutouts to the Rundale cast shown in
+  the Nearby rail/notebook page.
+- Keep scene people readable through depth/placement rules and a thin selection
+  callout, without geometric body-marker chrome.
 - Add manifest/provenance entries for portraits and markers.
 - Tests verify fallback behavior for NPCs without approved art.
 - Screenshots prove people read as sketched notebook/game assets, not web icons.
@@ -149,6 +167,8 @@ independently usable and documented.
 - Add selector regression checks for legacy first-viewport chrome.
 - Add asset manifest/provenance checks so runtime assets are documented and not
   concept-image slices.
+- Reject imports from visual namespaces/assets that a fresh rebuild explicitly
+  excluded.
 - Add visual-scene metadata checks for banned source-map/projection language.
 - Document how to regenerate or replace each asset class.
 

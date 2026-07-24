@@ -1,0 +1,112 @@
+{
+	"schema_version": 1,
+	"record_type": "notebook-person-art-human-review-decision",
+	"candidate_receipt_path": "parish/apps/ui/art/notebook-person-art/candidates/objects/c4/c47f36dcd61921175f396dd12ac6a5e90526a9f21c35cefe8f627e7320765b16/receipt.json",
+	"candidate_receipt_sha256": "c20f379e15892cc707d2a049d2758473328c38b220e1d42b34815ff743e5a9a2",
+	"candidate_sha256": "0c2f11aee2bf48135a73fe8d73fa82e381e9ff15f45e98c837ead1caef827807",
+	"raw_sha256": "7e8a7e1fd73574625d87898ba567d982350d9a17a2a20482c2dbcb9d2918bf61",
+	"subject": {
+		"kind": "npc",
+		"npc_id": 3,
+		"name": "Fr. Declan Tierney",
+		"input_record_sha256": "f4adfa68aaa23fb5f7ede1f6df75a70ab7e2e29c1533d42b5f740db841aa80b6"
+	},
+	"asset": {
+		"kind": "pair",
+		"candidate_index": 1,
+		"children": [
+			"portrait",
+			"marker"
+		]
+	},
+	"hair_topology": {
+		"schema_version": 4,
+		"subject_key": "npc:3",
+		"vector": {
+			"color_and_texture": "fine silver hair",
+			"front": {
+				"family": "receding-close-brushback",
+				"description": "receding temples with fine hair brushed straight back"
+			},
+			"rear": {
+				"family": "longer-over-ears",
+				"description": "close rear with slight length retained over the ears"
+			},
+			"covering": {
+				"family": "clerical-uncovered",
+				"description": "uncovered head without cap or hat"
+			},
+			"silhouette": {
+				"family": "fine-receding-profile",
+				"description": "narrow close-haired silhouette with clearly receding temples"
+			},
+			"loose_details": "a few fine silver strands above each ear"
+		},
+		"sha256": "f5e1a2394322fa450eaadde4ff541ee452811a43857250061d64d58c11088726"
+	},
+	"marker_identity": {
+		"schema_version": 4,
+		"subject_key": "npc:3",
+		"marker_identity": {
+			"composition": "character-only",
+			"silhouette": "slender early-sixties man in a dark long coat with a small white collar and close silver hair; no object/scenery",
+			"stance": "gentle slight stoop with hands clasped at the waist; no object/scenery",
+			"empty_hand_pose": "hands-clasped",
+			"readability_cues": [
+				{
+					"kind": "clothing",
+					"description": "long dark coat and small white collar"
+				},
+				{
+					"kind": "hair-or-headwear",
+					"description": "receding silver hair"
+				},
+				{
+					"kind": "body-shape",
+					"description": "slender stooped frame"
+				}
+			],
+			"tiny_readability_notes": [
+				"Keep the silhouette narrow and contemplative without adding ceremonial objects."
+			]
+		},
+		"sha256": "9ac7bcb82b6cf5c435c06a741a7520487a6c46c2b214e7bf3de839d1a2a7263a"
+	},
+	"decision": "approved",
+	"promotion_eligible": true,
+	"reviewer": "dmooney",
+	"reviewed_at": "2026-07-17T01:52:56.005Z",
+	"notes": "Approved by dmooney after reviewing the final 24-pair whole-cast sheet in Codex on 2026-07-16.",
+	"checklist": {
+		"identity_specific": true,
+		"concept_style_match": true,
+		"period_appropriate": true,
+		"no_prohibited_content": true,
+		"key_removal_clean": true,
+		"production_quality": true,
+		"diegetic_player_sketch": true,
+		"uncolored_pen_and_ink": true,
+		"sparse_open_linework": true,
+		"no_baked_background": true,
+		"framing_complete": true,
+		"selected_size_readable": true,
+		"nearby_size_readable": true,
+		"restrained_world_color": true,
+		"full_body_complete": true,
+		"silhouette_readable": true,
+		"character_only_marker": true,
+		"empty_hands": true,
+		"no_contextual_props_or_scenery": true,
+		"no_ground_plane": true,
+		"scene_size_readable": true,
+		"cross_asset_identity": true,
+		"hair_front_matches": true,
+		"hair_rear_matches": true,
+		"hair_covering_matches": true,
+		"hair_silhouette_matches": true,
+		"correct_surface_split": true,
+		"atomic_rerender_understood": true
+	},
+	"source_template_path": "parish/apps/ui/art/notebook-person-art/candidates/review-packets/identity-v8-character-only-full-cast-a-20260716/3-pair-0c2f11aee2bf-review.json",
+	"review_id": "0777847f0bca6cf72b170b23"
+}
