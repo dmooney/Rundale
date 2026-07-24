@@ -1,4 +1,5 @@
 # LEARNINGS — gotchas for future maintainers
+
 Brief notes worth a future agent's time. Append new entries at the
 bottom; don't lengthen items past 2-3 lines.
 

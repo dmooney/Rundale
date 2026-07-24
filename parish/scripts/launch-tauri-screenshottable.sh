@@ -24,18 +24,24 @@ npm run build
 node "$UI_DIR/scripts/static-ui-server.mjs" --root "$UI_DIR/dist" --port 0 >"$STATIC_LOG" 2>&1 &
 STATIC_PID=$!
 cleanup() {
-  kill "$STATIC_PID" 2>/dev/null || true
-  wait "$STATIC_PID" 2>/dev/null || true
-  rm -f "$STATIC_LOG"
+    kill "$STATIC_PID" 2>/dev/null || true
+    wait "$STATIC_PID" 2>/dev/null || true
+    rm -f "$STATIC_LOG"
 }
 trap cleanup EXIT INT TERM
 for _ in $(seq 1 50); do
-  if grep -q '^READY ' "$STATIC_LOG"; then break; fi
-  if ! kill -0 "$STATIC_PID" 2>/dev/null; then cat "$STATIC_LOG" >&2; exit 1; fi
-  sleep 0.1
+    if grep -q '^READY ' "$STATIC_LOG"; then break; fi
+    if ! kill -0 "$STATIC_PID" 2>/dev/null; then
+        cat "$STATIC_LOG" >&2
+        exit 1
+    fi
+    sleep 0.1
 done
 STATIC_URL="$(sed -n 's/^READY //p' "$STATIC_LOG" | head -n 1)"
-if [ -z "$STATIC_URL" ]; then echo 'static UI server did not become ready' >&2; exit 1; fi
+if [ -z "$STATIC_URL" ]; then
+    echo 'static UI server did not become ready' >&2
+    exit 1
+fi
 
 # Tauri's build script merges this JSON into tauri.conf.json, pointing the
 # debug webview at the worktree-owned static server.
