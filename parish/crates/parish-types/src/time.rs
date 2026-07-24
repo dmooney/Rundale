@@ -85,9 +85,9 @@ fn default_ludicrous() -> f64 {
 pub enum TimeOfDay {
     /// 5:00–6:59
     Dawn,
-    /// 7:00–9:59
+    /// 7:00–11:59
     Morning,
-    /// 10:00–13:59
+    /// 12:00–13:59
     Midday,
     /// 14:00–16:59
     Afternoon,
@@ -532,8 +532,8 @@ impl GameClock {
 pub fn time_of_day_from_hour(hour: u32) -> TimeOfDay {
     match hour {
         5..=6 => TimeOfDay::Dawn,
-        7..=9 => TimeOfDay::Morning,
-        10..=13 => TimeOfDay::Midday,
+        7..=11 => TimeOfDay::Morning,
+        12..=13 => TimeOfDay::Midday,
         14..=16 => TimeOfDay::Afternoon,
         17..=18 => TimeOfDay::Dusk,
         19..=22 => TimeOfDay::Night,
@@ -590,7 +590,9 @@ mod tests {
         assert_eq!(time_of_day_from_hour(6), TimeOfDay::Dawn);
         assert_eq!(time_of_day_from_hour(7), TimeOfDay::Morning);
         assert_eq!(time_of_day_from_hour(9), TimeOfDay::Morning);
-        assert_eq!(time_of_day_from_hour(10), TimeOfDay::Midday);
+        assert_eq!(time_of_day_from_hour(10), TimeOfDay::Morning);
+        assert_eq!(time_of_day_from_hour(11), TimeOfDay::Morning);
+        assert_eq!(time_of_day_from_hour(12), TimeOfDay::Midday);
         assert_eq!(time_of_day_from_hour(13), TimeOfDay::Midday);
         assert_eq!(time_of_day_from_hour(14), TimeOfDay::Afternoon);
         assert_eq!(time_of_day_from_hour(16), TimeOfDay::Afternoon);

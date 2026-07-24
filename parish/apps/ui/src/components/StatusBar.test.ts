@@ -9,10 +9,14 @@ import type { WorldSnapshot } from '$lib/types';
  * Build a UTC epoch for 08:00 today so the StatusBar's rAF-driven clock
  * computes the correct time. speed_factor=0 freezes the interpolation.
  */
-function morningEpoch(): number {
+function epochAt(hour: number): number {
 	const d = new Date();
-	d.setUTCHours(8, 0, 0, 0);
+	d.setUTCHours(hour, 0, 0, 0);
 	return d.getTime();
+}
+
+function morningEpoch(): number {
+	return epochAt(8);
 }
 
 const snapshot: WorldSnapshot = {
@@ -82,6 +86,22 @@ describe('StatusBar', () => {
 		const { container } = render(StatusBar);
 		const clock = container.querySelector('.clock');
 		expect(clock).toBeTruthy();
+	});
+
+	it.each([
+		[10, 'Morning'],
+		[11, 'Morning'],
+		[12, 'Midday'],
+	])('labels %i:00 as %s', (hour, expected) => {
+		worldState.set({
+			...snapshot,
+			paused: true,
+			game_epoch_ms: epochAt(hour),
+			hour,
+			time_label: expected,
+		});
+		const { container } = render(StatusBar);
+		expect(container.querySelector('.time-label')?.textContent).toBe(expected);
 	});
 
 	it('keeps Ledger visible but hides dev tools behind the ⋯ menu', () => {
