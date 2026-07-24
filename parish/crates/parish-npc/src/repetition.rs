@@ -3165,7 +3165,7 @@ pub fn guard_direct_evidence_evasion(dialogue: &str, player_input: &str) -> Stri
     }
 
     tracing::warn!("answer-first guard replaced an evidence-question evasion (#1788)");
-    "I cannot say I saw it myself; I have only another person's word for it.".to_string()
+    "I cannot say I saw it myself.".to_string()
 }
 
 #[derive(Clone, Copy)]
@@ -3334,6 +3334,10 @@ fn dialogue_recommends_person(dialogue: &str, name: &str) -> bool {
         format!("{name} might"),
         format!("{name} could"),
         format!("{name} needs"),
+        format!("{name} is your man"),
+        format!("{name} is your woman"),
+        format!("{name} is the person"),
+        format!("{name} is the one"),
     ]
     .iter()
     .any(|pattern| dialogue.contains(pattern))
@@ -8113,9 +8117,10 @@ mod tests {
         let dialogue = "There are many whispers on the road. What have you heard?";
         let result = guard_direct_evidence_evasion(dialogue, player);
 
-        assert!(result.contains("another person's word"));
+        assert_eq!(result, "I cannot say I saw it myself.");
         assert!(!result.contains("tale"));
         assert!(!result.contains("sighting"));
+        assert!(!result.contains("another person"));
     }
 
     #[test]
@@ -8167,6 +8172,32 @@ mod tests {
             ),
             dialogue
         );
+    }
+
+    #[test]
+    fn your_man_work_referral_is_checked_against_authored_occupation() {
+        let roster = vec![
+            (
+                "Mick Flanagan".to_string(),
+                "Retired Constable".to_string(),
+                None,
+            ),
+            (
+                "Siobhan Murphy".to_string(),
+                "Farmer".to_string(),
+                Some("Murphy's Farm".to_string()),
+            ),
+        ];
+        let dialogue = "Mick Flanagan is your man for farm work.";
+        let result = guard_work_recommendation(
+            dialogue,
+            "Who might have farm work for another pair of hands?",
+            &roster,
+        );
+
+        assert!(!result.contains("Mick Flanagan"));
+        assert!(result.contains("Siobhan Murphy"));
+        assert!(result.contains("Farmer"));
     }
 
     #[test]

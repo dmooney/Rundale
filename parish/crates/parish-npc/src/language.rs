@@ -384,7 +384,7 @@ pub fn validate_language_hints(
                 .iter()
                 .find(|record| record.word.eq_ignore_ascii_case(nominated))?;
             let key = record.word.to_lowercase();
-            if !delivered_lower.contains(&key) || !seen.insert(key) {
+            if !contains_phrase_at_token_boundaries(&delivered_lower, &key) || !seen.insert(key) {
                 return None;
             }
             Some(LanguageHint {
@@ -395,6 +395,23 @@ pub fn validate_language_hints(
         })
         .take(1)
         .collect()
+}
+
+/// Returns whether `phrase` occurs as one or more complete Unicode words.
+///
+/// A raw substring check lets short hints such as Irish `sí` match inside
+/// names such as `Róisín` (or inside the longer word `sídhe`). Both sides of
+/// the phrase must therefore be absent or non-alphanumeric; punctuation and
+/// whitespace remain valid phrase boundaries.
+fn contains_phrase_at_token_boundaries(text: &str, phrase: &str) -> bool {
+    !phrase.is_empty()
+        && text.match_indices(phrase).any(|(start, matched)| {
+            let before = text[..start].chars().next_back();
+            let end = start + matched.len();
+            let after = text[end..].chars().next();
+            before.is_none_or(|character| !character.is_alphanumeric())
+                && after.is_none_or(|character| !character.is_alphanumeric())
+        })
 }
 
 #[cfg(test)]
@@ -455,6 +472,27 @@ mod tests {
             &language,
         );
         assert_eq!(result, vec![canonical_dia_dhuit()]);
+    }
+
+    #[test]
+    fn short_hint_does_not_match_inside_an_irish_name_or_longer_word() {
+        let language = LanguageSettings::new("en-IE", Some("ga-IE".to_string()));
+
+        for dialogue in ["Róisín is at the cottage.", "They spoke of the sídhe."] {
+            let result = validate_language_hints(&[hint("sí", "SHEE")], dialogue, &language);
+            assert!(
+                result.is_empty(),
+                "the hint must be a complete word in {dialogue:?}"
+            );
+        }
+
+        let result = validate_language_hints(
+            &[hint("sí", "SHEE")],
+            "They stopped beside the sí.",
+            &language,
+        );
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].word, "sí");
     }
 
     #[test]

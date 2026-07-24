@@ -6,7 +6,7 @@
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use std::collections::VecDeque;
+use std::collections::{BTreeSet, VecDeque};
 
 use crate::ids::{LocationId, NpcId};
 
@@ -45,6 +45,14 @@ pub struct ConversationExchange {
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 pub struct ConversationLog {
     exchanges: VecDeque<ConversationExchange>,
+    /// NPCs the player has spoken with at least once during this save.
+    ///
+    /// This is deliberately independent of the bounded exchange ring:
+    /// evicting old dialogue must not make a later meeting look like first
+    /// contact again (#1786). Legacy snapshots recover contacts still present
+    /// in `exchanges` through [`Self::has_exchange_with`].
+    #[serde(default)]
+    contacted_speakers: BTreeSet<NpcId>,
     /// Lifetime count of exchanges added to this log.
     ///
     /// `serde(default)` keeps snapshots written before the cursor was added
@@ -59,6 +67,7 @@ impl ConversationLog {
     pub fn new() -> Self {
         Self {
             exchanges: VecDeque::with_capacity(LOG_CAPACITY),
+            contacted_speakers: BTreeSet::new(),
             total_exchanges: 0,
         }
     }
@@ -69,6 +78,11 @@ impl ConversationLog {
         // to the retained length before advancing so the first post-load delta
         // does not accidentally include the whole historical buffer.
         self.total_exchanges = self.cursor().saturating_add(1);
+        // Likewise, hydrate the durable contact set from a legacy snapshot's
+        // retained ring before an old exchange can be evicted.
+        self.contacted_speakers
+            .extend(self.exchanges.iter().map(|retained| retained.speaker_id));
+        self.contacted_speakers.insert(exchange.speaker_id);
         if self.exchanges.len() >= LOG_CAPACITY {
             self.exchanges.pop_front();
         }
@@ -128,16 +142,17 @@ impl ConversationLog {
             .any(|e| e.speaker_id == speaker_id)
     }
 
-    /// Checks whether the retained conversation history contains an exchange
-    /// with `speaker_id` at any location.
+    /// Checks whether this save has ever recorded an exchange with `speaker_id`.
     ///
     /// Contact history is person-scoped, not place-scoped: meeting an NPC at
     /// the farm still means a later encounter at the crossroads is not first
     /// contact (#1786).
     pub fn has_exchange_with(&self, speaker_id: NpcId) -> bool {
-        self.exchanges
-            .iter()
-            .any(|exchange| exchange.speaker_id == speaker_id)
+        self.contacted_speakers.contains(&speaker_id)
+            || self
+                .exchanges
+                .iter()
+                .any(|exchange| exchange.speaker_id == speaker_id)
     }
 
     /// Formats recent conversation history at a location for prompt injection.
@@ -307,6 +322,70 @@ mod tests {
             !log.has_recent_exchange_with(LocationId(9), NpcId(1), 2),
             "location-scoped continuity remains separate from person-scoped contact"
         );
+    }
+
+    #[test]
+    fn contact_history_survives_exchange_ring_eviction_and_serde() {
+        let mut log = ConversationLog::new();
+        log.add(make_exchange(
+            8,
+            77,
+            "Earlier acquaintance",
+            "Hello",
+            "Good day.",
+            7,
+        ));
+        for index in 0..LOG_CAPACITY {
+            log.add(make_exchange(
+                9,
+                1,
+                "Padraig",
+                &format!("Later message {index}"),
+                "Reply",
+                1,
+            ));
+        }
+
+        assert!(
+            log.all().all(|exchange| exchange.speaker_id != NpcId(77)),
+            "the acquaintance's exchange should have left the bounded ring"
+        );
+        assert!(log.has_exchange_with(NpcId(77)));
+
+        let restored: ConversationLog =
+            serde_json::from_str(&serde_json::to_string(&log).unwrap()).unwrap();
+        assert!(restored.has_exchange_with(NpcId(77)));
+    }
+
+    #[test]
+    fn legacy_retained_contact_is_hydrated_before_eviction() {
+        let legacy = serde_json::json!({
+            "exchanges": [
+                make_exchange(
+                    8,
+                    77,
+                    "Earlier acquaintance",
+                    "Hello",
+                    "Good day.",
+                    7
+                )
+            ]
+        });
+        let mut log: ConversationLog = serde_json::from_value(legacy).unwrap();
+
+        for index in 0..LOG_CAPACITY {
+            log.add(make_exchange(
+                9,
+                1,
+                "Padraig",
+                &format!("Later message {index}"),
+                "Reply",
+                1,
+            ));
+        }
+
+        assert!(log.all().all(|exchange| exchange.speaker_id != NpcId(77)));
+        assert!(log.has_exchange_with(NpcId(77)));
     }
 
     #[test]
