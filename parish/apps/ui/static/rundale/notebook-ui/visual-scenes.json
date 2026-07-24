@@ -2,7 +2,7 @@
 	"version": 1,
 	"scenes": [
 		{
-			"location_ids": [1, 15],
+			"location_ids": [1],
 			"plate_asset": "/rundale/notebook-ui/scene-crossroads.png",
 			"written_visual_summary": "Rural Ireland in 1820 after rain: a parish crossroads with whitewashed cottages, a chapel lane, a shop road, a stone bridge, wet grass, hedgerows, muddy tracks, and quiet villagers.",
 			"camera_hint": "wide elevated oblique illustrated storybook game scene",
@@ -80,6 +80,165 @@
 						"x": 0.77,
 						"y": 0.58,
 						"depth": 0.64
+					}
+				]
+			}
+		},
+		{
+			"location_ids": [15],
+			"plate_asset": "/rundale/notebook-ui/scene-kilteevan-village.png",
+			"written_visual_summary": "Kilteevan Village in 1820: whitewashed thatched cottages around a stone well, an old low bridge over a shallow stream, dry-stone walls, hedged fields, chimney smoke, and the ruined church beyond.",
+			"camera_hint": "wide elevated oblique illustrated storybook game scene",
+			"background_generation_source": "Generated from the written world description; the existing crossroads plate supplied style and palette only.",
+			"depth_bands": [
+				{
+					"name": "far",
+					"min_depth": 0,
+					"max_depth": 0.35,
+					"marker_scale": 0.5
+				},
+				{
+					"name": "mid",
+					"min_depth": 0.35,
+					"max_depth": 0.7,
+					"marker_scale": 0.72
+				},
+				{
+					"name": "near",
+					"min_depth": 0.7,
+					"max_depth": 1,
+					"marker_scale": 0.95
+				}
+			],
+			"anchors": {
+				"player": {
+					"x": 0.52,
+					"y": 0.57,
+					"depth": 0.69
+				},
+				"npcs": [
+					{
+						"id": "nearby-1",
+						"x": 0.56,
+						"y": 0.55,
+						"depth": 0.67
+					},
+					{
+						"id": "nearby-2",
+						"x": 0.42,
+						"y": 0.49,
+						"depth": 0.58
+					},
+					{
+						"id": "nearby-3",
+						"x": 0.67,
+						"y": 0.6,
+						"depth": 0.74
+					},
+					{
+						"id": "nearby-4",
+						"x": 0.32,
+						"y": 0.63,
+						"depth": 0.78
+					}
+				],
+				"exits": [
+					{
+						"id": "crossroads",
+						"label": "Crossroads Road",
+						"x": 0.2,
+						"y": 0.39,
+						"depth": 0.38
+					},
+					{
+						"id": "mill",
+						"label": "Mill Track",
+						"x": 0.83,
+						"y": 0.42,
+						"depth": 0.4
+					},
+					{
+						"id": "farm",
+						"label": "Farm Lane",
+						"x": 0.72,
+						"y": 0.7,
+						"depth": 0.8
+					}
+				]
+			}
+		},
+		{
+			"location_ids": [9],
+			"plate_asset": "/rundale/notebook-ui/scene-murphys-farm.png",
+			"written_visual_summary": "Murphy's Farm in 1820: one whitewashed thatched farmhouse, stone byre and outbuildings around a muddy working yard, cattle in the near field, dry-stone walls, an open timber gate, and a watchful sheepdog.",
+			"camera_hint": "wide elevated oblique illustrated storybook game scene",
+			"background_generation_source": "Generated from the written world description; the existing crossroads plate supplied style and palette only.",
+			"depth_bands": [
+				{
+					"name": "far",
+					"min_depth": 0,
+					"max_depth": 0.35,
+					"marker_scale": 0.5
+				},
+				{
+					"name": "mid",
+					"min_depth": 0.35,
+					"max_depth": 0.7,
+					"marker_scale": 0.72
+				},
+				{
+					"name": "near",
+					"min_depth": 0.7,
+					"max_depth": 1,
+					"marker_scale": 0.95
+				}
+			],
+			"anchors": {
+				"player": {
+					"x": 0.6,
+					"y": 0.69,
+					"depth": 0.82
+				},
+				"npcs": [
+					{
+						"id": "nearby-1",
+						"x": 0.55,
+						"y": 0.51,
+						"depth": 0.62
+					},
+					{
+						"id": "nearby-2",
+						"x": 0.66,
+						"y": 0.45,
+						"depth": 0.55
+					},
+					{
+						"id": "nearby-3",
+						"x": 0.43,
+						"y": 0.48,
+						"depth": 0.58
+					},
+					{
+						"id": "nearby-4",
+						"x": 0.72,
+						"y": 0.63,
+						"depth": 0.76
+					}
+				],
+				"exits": [
+					{
+						"id": "village",
+						"label": "Village Lane",
+						"x": 0.72,
+						"y": 0.79,
+						"depth": 0.9
+					},
+					{
+						"id": "fields",
+						"label": "Near Field",
+						"x": 0.2,
+						"y": 0.41,
+						"depth": 0.39
 					}
 				]
 			}

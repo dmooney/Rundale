@@ -26,6 +26,7 @@ import {
 	scaleForDepth,
 	sortAnchorsByDepth,
 } from './layout';
+import { currentNotebookLocationId, selectVisualScene } from './scene';
 import { notebookNpcLabel } from './view-model';
 import type {
 	NotebookLayout,
@@ -61,7 +62,7 @@ export interface IllustratedNotebookRendererOptions {
 }
 
 const FALLBACK_SCENE: VisualScene = {
-	location_ids: [1, 15],
+	location_ids: [1],
 	plate_asset: NOTEBOOK_ASSETS.scenePlate,
 	written_visual_summary:
 		'Rural Ireland in 1820 after rain, drawn as a wide elevated oblique illustrated storybook game scene.',
@@ -91,6 +92,7 @@ const FALLBACK_SCENE: VisualScene = {
 export class IllustratedNotebookRenderer {
 	private app: Application | null = null;
 	private readonly textures = new Map<string, Texture>();
+	private scenes: VisualScene[] = [FALLBACK_SCENE];
 	private scene: VisualScene = FALLBACK_SCENE;
 	private lastState: NotebookRenderState | null = null;
 	private hitTargets: NotebookHitTarget[] = [];
@@ -155,6 +157,11 @@ export class IllustratedNotebookRenderer {
 		);
 		const layout = computeNotebookLayout(width, height);
 		this.lastState = state;
+		this.scene = selectVisualScene(
+			this.scenes,
+			currentNotebookLocationId(state.map, state.world),
+			FALLBACK_SCENE,
+		);
 		this.clearAll();
 		this.beginHitTargetPass();
 		this.drawBackground(width, height);
@@ -199,10 +206,13 @@ export class IllustratedNotebookRenderer {
 			const response = await fetch(NOTEBOOK_ASSETS.visualScenes);
 			if (response.ok) {
 				const file = (await response.json()) as VisualScenesFile;
-				this.scene = file.scenes[0] ?? FALLBACK_SCENE;
+				this.scenes =
+					Array.isArray(file.scenes) && file.scenes.length > 0
+						? file.scenes
+						: [FALLBACK_SCENE];
 			}
 		} catch {
-			this.scene = FALLBACK_SCENE;
+			this.scenes = [FALLBACK_SCENE];
 		}
 	}
 
@@ -389,7 +399,7 @@ export class IllustratedNotebookRenderer {
 	}
 
 	private drawBackground(width: number, height: number): void {
-		const sprite = this.sprite(NOTEBOOK_ASSETS.scenePlate);
+		const sprite = this.sprite(this.scene.plate_asset);
 		const texture = sprite.texture;
 		const scale = Math.max(width / texture.width, height / texture.height);
 		sprite.width = texture.width * scale;

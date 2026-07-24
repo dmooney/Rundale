@@ -4,6 +4,11 @@ export const NOTEBOOK_ASSETS = {
 	manifest: `${NOTEBOOK_ASSET_BASE}asset-manifest.json`,
 	visualScenes: `${NOTEBOOK_ASSET_BASE}visual-scenes.json`,
 	scenePlate: `${NOTEBOOK_ASSET_BASE}scene-crossroads.png`,
+	scenePlates: {
+		crossroads: `${NOTEBOOK_ASSET_BASE}scene-crossroads.png`,
+		kilteevanVillage: `${NOTEBOOK_ASSET_BASE}scene-kilteevan-village.png`,
+		murphysFarm: `${NOTEBOOK_ASSET_BASE}scene-murphys-farm.png`,
+	},
 	topRibbon: `${NOTEBOOK_ASSET_BASE}top-ribbon.png`,
 	spiralNotebookPage: `${NOTEBOOK_ASSET_BASE}spiral-notebook-page.png`,
 	notebookBindingRings: `${NOTEBOOK_ASSET_BASE}notebook-binding-rings.png`,
@@ -53,7 +58,7 @@ export const NOTEBOOK_ASSETS = {
 } as const;
 
 export const NOTEBOOK_ASSET_URLS = [
-	NOTEBOOK_ASSETS.scenePlate,
+	...Object.values(NOTEBOOK_ASSETS.scenePlates),
 	NOTEBOOK_ASSETS.topRibbon,
 	NOTEBOOK_ASSETS.spiralNotebookPage,
 	NOTEBOOK_ASSETS.notebookBindingRings,
