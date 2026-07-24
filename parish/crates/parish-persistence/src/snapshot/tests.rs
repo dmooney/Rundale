@@ -7,7 +7,7 @@ use parish_npc::Npc;
 use parish_npc::manager::NpcManager;
 use parish_npc::memory::{LongTermMemory, ShortTermMemory};
 use parish_npc::types::{Intelligence, NpcState};
-use parish_types::{LocationId, NpcId};
+use parish_types::{LocationId, NpcId, TaskStatus};
 use parish_world::WorldState;
 
 use super::types::{ClockSnapshot, GameSnapshot, NpcSnapshot};
@@ -262,6 +262,94 @@ fn test_game_snapshot_restore() {
     assert_eq!(new_world.text_log[0], "Test entry");
     assert_eq!(new_npcs.npc_count(), 1);
     assert!(new_npcs.get(NpcId(1)).is_some());
+}
+
+#[test]
+fn test_player_progress_capture_and_restore() {
+    let mut world = WorldState::new();
+    let assigned_at = Utc.with_ymd_and_hms(1820, 3, 20, 10, 0, 0).unwrap();
+    let started_at = Utc.with_ymd_and_hms(1820, 3, 20, 11, 0, 0).unwrap();
+    let task_id = world
+        .player_progress
+        .assign_task(
+            "Dig over the potato patch.",
+            NpcId(7),
+            LocationId(1),
+            assigned_at,
+        )
+        .unwrap();
+    assert_eq!(
+        world.player_progress.advance_assigned_task(
+            "I set to work digging the potato patch.",
+            LocationId(1),
+            started_at,
+        ),
+        Some(task_id)
+    );
+    let npc_manager = NpcManager::new();
+
+    let snapshot = GameSnapshot::capture(&world, &npc_manager);
+    let json = serde_json::to_string(&snapshot).unwrap();
+    let restored_snapshot: GameSnapshot = serde_json::from_str(&json).unwrap();
+    let mut restored_world = WorldState::new();
+    let mut restored_npcs = NpcManager::new();
+    restored_snapshot.restore(&mut restored_world, &mut restored_npcs);
+
+    let restored = restored_world.player_progress.task(task_id).unwrap();
+    assert_eq!(restored.description, "Dig over the potato patch.");
+    assert_eq!(restored.assigned_by, NpcId(7));
+    assert_eq!(restored.location, LocationId(1));
+    assert_eq!(restored.assigned_at, assigned_at);
+    assert_eq!(restored.status, TaskStatus::InProgress);
+    assert_eq!(restored.started_at, Some(started_at));
+    assert_eq!(
+        restored.last_matching_action.as_deref(),
+        Some("I set to work digging the potato patch.")
+    );
+    assert_eq!(
+        restored_world
+            .player_progress
+            .assign_task(
+                "A later task.",
+                NpcId(8),
+                LocationId(1),
+                Utc.with_ymd_and_hms(1820, 3, 20, 12, 0, 0).unwrap(),
+            )
+            .unwrap()
+            .0,
+        task_id.0 + 1,
+        "save/load must preserve the monotonic task id counter"
+    );
+}
+
+#[test]
+fn test_old_snapshot_without_player_progress_restores_empty_ledger() {
+    let json = r#"{
+        "player_location": 1,
+        "weather": "Clear",
+        "text_log": [],
+        "clock": {"game_time": "1820-03-20T08:00:00Z", "speed_factor": 36.0, "paused": false},
+        "npcs": [],
+        "last_tier2_game_time": null
+    }"#;
+    let snapshot: GameSnapshot =
+        serde_json::from_str(json).expect("legacy snapshot without progress must parse");
+    assert!(snapshot.player_progress.is_empty());
+
+    let mut world = WorldState::new();
+    world
+        .player_progress
+        .assign_task(
+            "This task must be replaced by the loaded save.",
+            NpcId(1),
+            LocationId(1),
+            Utc.with_ymd_and_hms(1820, 3, 20, 7, 0, 0).unwrap(),
+        )
+        .unwrap();
+    let mut npcs = NpcManager::new();
+    snapshot.restore(&mut world, &mut npcs);
+
+    assert!(world.player_progress.is_empty());
 }
 
 #[test]

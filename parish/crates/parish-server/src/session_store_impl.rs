@@ -397,6 +397,7 @@ mod tests {
             gossip_network: Default::default(),
             conversation_log: Default::default(),
             player_name: None,
+            player_progress: Default::default(),
             npcs_who_know_player_name: Default::default(),
         }
     }

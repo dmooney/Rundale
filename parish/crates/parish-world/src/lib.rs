@@ -26,7 +26,9 @@ pub use parish_types::{DEFAULT_START_LOCATION, Location, LocationId, Weather};
 use std::collections::{HashMap, HashSet};
 use std::path::Path;
 
-use parish_types::{ConversationLog, EventBus, GameClock, GossipNetwork, ParishError};
+use parish_types::{
+    ConversationLog, EventBus, GameClock, GossipNetwork, ParishError, PlayerProgress,
+};
 
 use graph::{LocationData, WorldGraph};
 use weather::WeatherEngine;
@@ -75,6 +77,8 @@ pub struct WorldState {
     /// The player's name, learned from dialogue (e.g. "My name is Ciaran").
     /// `None` until the player introduces themselves.
     pub player_name: Option<String>,
+    /// Durable task assignments and progression for the player.
+    pub player_progress: PlayerProgress,
     /// Monotonically increasing counter incremented once per background tick.
     ///
     /// Used by `handle_game_input` to detect TOCTOU races: the generation is
@@ -137,6 +141,7 @@ impl WorldState {
             gossip_network: GossipNetwork::new(),
             conversation_log: ConversationLog::new(),
             player_name: None,
+            player_progress: PlayerProgress::default(),
             tick_generation: 0,
         }
     }
@@ -390,6 +395,7 @@ mod tests {
         assert!(world.visited_locations.contains(&LocationId(1)));
         assert_eq!(world.visited_locations.len(), 1);
         assert!(world.player_name.is_none());
+        assert!(world.player_progress.is_empty());
     }
 
     #[test]

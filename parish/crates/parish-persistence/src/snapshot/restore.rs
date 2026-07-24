@@ -37,6 +37,7 @@ impl GameSnapshot {
             gossip_network: world.gossip_network.clone(),
             conversation_log: world.conversation_log.clone(),
             player_name: world.player_name.clone(),
+            player_progress: world.player_progress.clone(),
             npcs_who_know_player_name: npc_manager.player_name_known_set(),
         }
     }
@@ -201,6 +202,7 @@ impl GameSnapshot {
         world.gossip_network = self.gossip_network;
         world.conversation_log = self.conversation_log;
         world.player_name = self.player_name;
+        world.player_progress = self.player_progress;
 
         // `restore_npcs` rebuilds the manager from scratch, which wipes
         // the in-memory `tier_assignments` map. Silently re-seed it
