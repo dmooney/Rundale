@@ -153,7 +153,7 @@ pub async fn do_new_game_inner(state: &Arc<AppState>) -> Result<(), String> {
     use parish_core::game_loop::{NewGameParams, do_new_game};
 
     let emitter = AppStateEmitter::new(Arc::clone(state));
-    do_new_game(NewGameParams {
+    let result = do_new_game(NewGameParams {
         world: &state.world,
         npc_manager: &state.npc_manager,
         conversation: &state.conversation,
@@ -168,7 +168,14 @@ pub async fn do_new_game_inner(state: &Arc<AppState>) -> Result<(), String> {
         emitter: &emitter,
         game_events: &state.game_events,
     })
-    .await
+    .await;
+    if result.is_ok() {
+        let retained_after_reset = state.game_events.lock().await.len();
+        state
+            .total_game_events
+            .store(retained_after_reset, std::sync::atomic::Ordering::Relaxed);
+    }
+    result
 }
 
 // ── Persistence endpoints ────────────────────────────────────────────────────

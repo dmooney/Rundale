@@ -315,6 +315,8 @@ pub(super) fn spawn_session_ticks(
                                 buf.pop_front();
                             }
                             buf.push_back(event);
+                            s.total_game_events
+                                .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
                         }
                         Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => continue,
                         Err(tokio::sync::broadcast::error::RecvError::Closed) => break,

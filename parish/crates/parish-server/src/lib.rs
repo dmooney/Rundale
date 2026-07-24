@@ -533,6 +533,7 @@ fn build_router(
         .route("/api/app-icon.png", get(routes::get_app_icon))
         .route("/api/favicon.png", get(routes::get_favicon))
         .route("/api/debug-snapshot", get(routes::get_debug_snapshot))
+        .route("/api/turn", get(routes::get_turn))
         .route("/api/submit-input", post(routes::submit_input))
         .route("/api/react-to-message", post(routes::react_to_message))
         .route("/api/discover-save-files", get(routes::discover_save_files))

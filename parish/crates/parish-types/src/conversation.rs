@@ -13,6 +13,14 @@ use crate::ids::{LocationId, NpcId};
 /// Maximum number of exchanges retained globally.
 const LOG_CAPACITY: usize = 30;
 
+/// Monotonic position immediately after an exchange in a [`ConversationLog`].
+///
+/// Capture a cursor before dispatching a turn, then pass it to
+/// [`ConversationLog::exchanges_since`] to read only the canonical exchanges
+/// recorded by that turn. Unlike a ring-buffer length, this keeps advancing
+/// after the log reaches capacity and wraps.
+pub type ConversationCursor = u64;
+
 /// A single player–NPC exchange.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ConversationExchange {
@@ -37,6 +45,13 @@ pub struct ConversationExchange {
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 pub struct ConversationLog {
     exchanges: VecDeque<ConversationExchange>,
+    /// Lifetime count of exchanges added to this log.
+    ///
+    /// `serde(default)` keeps snapshots written before the cursor was added
+    /// loadable. [`Self::cursor`] normalises such legacy values to at least
+    /// the number of retained exchanges.
+    #[serde(default)]
+    total_exchanges: ConversationCursor,
 }
 
 impl ConversationLog {
@@ -44,15 +59,47 @@ impl ConversationLog {
     pub fn new() -> Self {
         Self {
             exchanges: VecDeque::with_capacity(LOG_CAPACITY),
+            total_exchanges: 0,
         }
     }
 
     /// Records a new exchange, evicting the oldest if at capacity.
     pub fn add(&mut self, exchange: ConversationExchange) {
+        // A legacy snapshot has no `total_exchanges` field. Rebase its cursor
+        // to the retained length before advancing so the first post-load delta
+        // does not accidentally include the whole historical buffer.
+        self.total_exchanges = self.cursor().saturating_add(1);
         if self.exchanges.len() >= LOG_CAPACITY {
             self.exchanges.pop_front();
         }
         self.exchanges.push_back(exchange);
+    }
+
+    /// Returns the monotonic position immediately after the newest exchange.
+    ///
+    /// Legacy snapshots that predate `total_exchanges` deserialize it as zero;
+    /// using the retained length as a floor gives those logs a valid starting
+    /// cursor without a custom deserializer.
+    pub fn cursor(&self) -> ConversationCursor {
+        self.total_exchanges.max(self.exchanges.len() as u64)
+    }
+
+    /// Returns canonical exchanges added at or after `cursor`, oldest first.
+    ///
+    /// If the requested cursor is older than the retained ring window, all
+    /// retained exchanges are returned. If it is ahead of the current cursor
+    /// (for example, a cursor from a prior new game), it is treated as stale
+    /// and the retained exchanges are returned from the start.
+    pub fn exchanges_since(&self, cursor: ConversationCursor) -> Vec<&ConversationExchange> {
+        let current = self.cursor();
+        let retained = self.exchanges.len() as u64;
+        let oldest_cursor = current.saturating_sub(retained);
+        let skip = if cursor > current {
+            0
+        } else {
+            cursor.saturating_sub(oldest_cursor).min(retained) as usize
+        };
+        self.exchanges.iter().skip(skip).collect()
     }
 
     /// Returns the last `n` exchanges at a specific location, oldest first.
@@ -198,7 +245,9 @@ impl ConversationLog {
     /// Returns all stored exchanges in chronological order (oldest first).
     ///
     /// Used by the debug panel to surface the full ring buffer.
-    pub fn all(&self) -> impl Iterator<Item = &ConversationExchange> {
+    pub fn all(
+        &self,
+    ) -> impl DoubleEndedIterator<Item = &ConversationExchange> + ExactSizeIterator {
         self.exchanges.iter()
     }
 }
@@ -273,6 +322,74 @@ mod tests {
         assert_eq!(inputs.len(), LOG_CAPACITY);
         assert_eq!(inputs.first(), Some(&"msg 5"));
         assert_eq!(inputs.last(), Some(&"msg 34"));
+    }
+
+    #[test]
+    fn cursor_delta_keeps_advancing_after_ring_wrap() {
+        let mut log = ConversationLog::new();
+        for i in 0..LOG_CAPACITY {
+            log.add(make_exchange(
+                8,
+                1,
+                "Padraig",
+                &format!("msg {i}"),
+                "reply",
+                1,
+            ));
+        }
+        let before = log.cursor();
+        assert_eq!(before, LOG_CAPACITY as u64);
+
+        // The retained length stays fixed at capacity, but the monotonic
+        // cursor advances and the delta contains exactly the new exchange.
+        log.add(make_exchange(9, 2, "Niamh", "new turn", "new reply", 1));
+
+        assert_eq!(log.len(), LOG_CAPACITY);
+        assert_eq!(log.cursor(), before + 1);
+        let delta = log.exchanges_since(before);
+        assert_eq!(delta.len(), 1);
+        assert_eq!(delta[0].player_input, "new turn");
+        assert_eq!(delta[0].npc_dialogue, "new reply");
+    }
+
+    #[test]
+    fn cursor_older_than_retained_window_returns_retained_history() {
+        let mut log = ConversationLog::new();
+        for i in 0..LOG_CAPACITY + 5 {
+            log.add(make_exchange(
+                8,
+                1,
+                "Padraig",
+                &format!("msg {i}"),
+                "reply",
+                1,
+            ));
+        }
+
+        let retained = log.exchanges_since(0);
+        assert_eq!(retained.len(), LOG_CAPACITY);
+        assert_eq!(retained[0].player_input, "msg 5");
+        assert_eq!(retained.last().unwrap().player_input, "msg 34");
+    }
+
+    #[test]
+    fn legacy_serialized_log_rebases_cursor_before_next_add() {
+        let legacy = serde_json::json!({
+            "exchanges": [
+                make_exchange(8, 1, "Padraig", "first", "reply 1", 1),
+                make_exchange(9, 2, "Niamh", "second", "reply 2", 1)
+            ]
+        });
+        let mut log: ConversationLog = serde_json::from_value(legacy).unwrap();
+
+        assert_eq!(log.cursor(), 2);
+        let before = log.cursor();
+        log.add(make_exchange(10, 1, "Padraig", "third", "reply 3", 1));
+
+        assert_eq!(log.cursor(), 3);
+        let delta = log.exchanges_since(before);
+        assert_eq!(delta.len(), 1);
+        assert_eq!(delta[0].player_input, "third");
     }
 
     #[test]

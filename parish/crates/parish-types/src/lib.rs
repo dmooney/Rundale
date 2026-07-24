@@ -12,7 +12,7 @@ pub mod ids;
 pub mod theme;
 pub mod time;
 
-pub use conversation::{ConversationExchange, ConversationLog};
+pub use conversation::{ConversationCursor, ConversationExchange, ConversationLog};
 pub use dice::{DiceRoll, fixed_n, roll_n};
 pub use error::ParishError;
 pub use events::{EventBus, GameEvent};

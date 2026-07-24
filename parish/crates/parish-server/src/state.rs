@@ -196,6 +196,11 @@ pub struct AppState {
     pub debug_events: MeteredMutex<std::collections::VecDeque<DebugEvent>>,
     /// Rolling ring buffer of `GameEvent`s captured from the world event bus.
     pub game_events: MeteredMutex<std::collections::VecDeque<GameEvent>>,
+    /// Monotonic lifetime count of events pushed into `game_events`.
+    ///
+    /// `GET /api/turn?since=N` uses this counter rather than the bounded ring
+    /// length so its cursor keeps advancing after the ring wraps.
+    pub total_game_events: std::sync::atomic::AtomicUsize,
     /// Broadcast channel for pushing events to WebSocket clients.
     pub event_bus: BroadcastEventBus,
     /// Transport mode configuration from the loaded game mod.
@@ -490,6 +495,7 @@ pub fn build_app_state(parts: AppStateParts) -> Arc<AppState> {
             "game_events",
             std::collections::VecDeque::with_capacity(DEBUG_EVENT_CAPACITY),
         ),
+        total_game_events: std::sync::atomic::AtomicUsize::new(0),
         event_bus: BroadcastEventBus::new(256),
         transport,
         ui_config,

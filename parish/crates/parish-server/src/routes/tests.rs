@@ -48,6 +48,13 @@ fn submit_input_request_with_addressed_to() {
 }
 
 #[test]
+fn submit_input_request_accepts_mcp_snake_case_addressed_to() {
+    let json = r#"{"text": "hello", "addressed_to": ["Padraig"]}"#;
+    let req: SubmitInputRequest = serde_json::from_str(json).unwrap();
+    assert_eq!(req.addressed_to, vec!["Padraig"]);
+}
+
+#[test]
 fn parse_admin_emails_basic_list() {
     let set = parse_admin_emails("alice@example.com,bob@example.com");
     assert!(set.contains("alice@example.com"));
@@ -227,6 +234,98 @@ async fn install_scripted_inference_queue(
 
     *state.inference.inference_queue.lock().await = Some(InferenceQueue::new(tx, bg_tx, batch_tx));
     (prompts, handle)
+}
+
+/// #1778: `/api/turn` must project each historical exchange from the
+/// canonical log. A later `last_player_input` cannot rewrite earlier inputs.
+#[tokio::test]
+async fn get_turn_preserves_each_canonical_player_input() {
+    use chrono::Utc;
+    use parish_core::npc::conversation::ConversationExchange;
+
+    let state = test_app_state();
+    {
+        let mut world = state.world.lock().await;
+        let location = world.player_location;
+        world.conversation_log.add(ConversationExchange {
+            timestamp: Utc::now(),
+            speaker_id: NpcId(1),
+            speaker_name: "Peig".to_string(),
+            player_input: "first question".to_string(),
+            npc_dialogue: "first answer".to_string(),
+            location,
+        });
+        world.conversation_log.add(ConversationExchange {
+            timestamp: Utc::now(),
+            speaker_id: NpcId(2),
+            speaker_name: "Sean".to_string(),
+            player_input: "second question".to_string(),
+            npc_dialogue: "second answer".to_string(),
+            location,
+        });
+    }
+    state.conversation.lock().await.last_player_input =
+        Some("examine the potato patch".to_string());
+
+    let Json(result) = super::get_turn(
+        axum::extract::Extension(state),
+        axum::extract::Query(parish_core::ipc::TurnReadParams::default()),
+    )
+    .await;
+
+    assert_eq!(result.exchanges.len(), 2);
+    assert_eq!(result.exchanges[0].player_input, "first question");
+    assert_eq!(result.exchanges[1].player_input, "second question");
+    assert!(
+        result
+            .exchanges
+            .iter()
+            .all(|exchange| exchange.player_input != "examine the potato patch")
+    );
+}
+
+/// #1777: the web route used by the MCP backend returns one canonical
+/// exchange for a dialogue turn, never the presentation-only `"You"` line.
+#[tokio::test]
+async fn submit_input_returns_only_canonical_npc_exchange() {
+    let state = test_app_state();
+    add_introduced_npc(&state, 1, "Siobhan Murphy", "Teacher").await;
+    {
+        let mut config = state.config.lock().await;
+        config.model_name = "test-model".to_string();
+        config.max_follow_up_turns = 0;
+    }
+    let (_prompts, worker) = install_scripted_inference_queue(
+        &state,
+        vec![r#"{"dialogue":"Aye, what would ye know?","action":"speaks","mood":"curious"}"#],
+    )
+    .await;
+    let auth = crate::cf_auth::AuthContext {
+        account_id: uuid::Uuid::new_v4(),
+        email: "player@example.com".to_string(),
+    };
+
+    let response = super::submit_input(
+        axum::extract::Extension(state),
+        axum::extract::Extension(auth),
+        Json(SubmitInputRequest {
+            text: "Good morning, Siobhan.".to_string(),
+            addressed_to: vec!["Siobhan Murphy".to_string()],
+        }),
+    )
+    .await;
+
+    assert_eq!(response.status(), axum::http::StatusCode::OK);
+    let body = axum::body::to_bytes(response.into_body(), 16 * 1024)
+        .await
+        .unwrap();
+    let result: parish_core::ipc::SubmitInputResult = serde_json::from_slice(&body).unwrap();
+    assert_eq!(result.exchanges.len(), 1, "{result:?}");
+    assert_eq!(result.exchanges[0].speaker_name, "Siobhan Murphy");
+    assert_eq!(result.exchanges[0].player_input, "Good morning, Siobhan.");
+    assert_ne!(result.exchanges[0].speaker_name, "You");
+
+    worker.abort();
 }
 
 fn drain_text_logs(stream: &mut parish_core::event_bus::EventStream) -> Vec<TextLogPayload> {

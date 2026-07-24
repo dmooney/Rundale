@@ -270,7 +270,7 @@ pub async fn do_new_game(state: &Arc<AppState>, app: &tauri::AppHandle) -> Resul
     // Rule 9 (#1197): use the mod resolved once at startup and stored on
     // AppState, not a per-call cwd-walk via find_default_mod().
     let emitter = crate::events::TauriEmitter::new(app.clone());
-    core_do_new_game(NewGameParams {
+    let result = core_do_new_game(NewGameParams {
         world: &state.world,
         npc_manager: &state.npc_manager,
         conversation: &state.conversation,
@@ -285,7 +285,14 @@ pub async fn do_new_game(state: &Arc<AppState>, app: &tauri::AppHandle) -> Resul
         emitter: &emitter,
         game_events: &state.game_events,
     })
-    .await
+    .await;
+    if result.is_ok() {
+        let retained_after_reset = state.game_events.lock().await.len();
+        state
+            .total_game_events
+            .store(retained_after_reset, std::sync::atomic::Ordering::Relaxed);
+    }
+    result
 }
 
 /// Starts a brand new game: reloads world and NPCs from data files,

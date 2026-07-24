@@ -20,6 +20,7 @@ pub mod mods;
 pub mod reactions;
 pub mod saves;
 pub mod session_token;
+pub mod turn;
 pub mod world;
 
 // ── Re-exports — keep lib.rs route registration unchanged ────────────────────
@@ -38,6 +39,9 @@ pub use input::{
     rebuild_inference_inner, spawn_loading_animation, submit_input, tick_inactivity,
     touch_player_activity,
 };
+
+// turn
+pub use turn::get_turn;
 
 // reactions
 pub use reactions::{emit_npc_reactions, react_to_message};

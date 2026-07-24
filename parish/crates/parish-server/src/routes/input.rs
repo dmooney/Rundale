@@ -13,10 +13,11 @@ use std::sync::Arc;
 use axum::Json;
 use axum::extract::Extension;
 use axum::http::StatusCode;
-use axum::response::IntoResponse;
+use axum::response::{IntoResponse, Response};
 
 use parish_core::event_bus::{EventBus as EventBusTrait, Topic};
 use parish_core::input::{InputResult, classify_input, is_player_dialogue};
+pub use parish_core::ipc::SubmitInputRequest;
 use parish_core::ipc::{LoadingPayload, text_log};
 
 use crate::state::AppState;
@@ -26,80 +27,78 @@ use super::reactions::emit_npc_reactions;
 
 // ── Input endpoint ──────────────────────────────────────────────────────────
 
-/// Request body for `POST /api/submit-input`.
-#[derive(serde::Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct SubmitInputRequest {
-    /// The player's input text.
-    pub text: String,
-    /// Real names of NPCs explicitly addressed via chip selection (chip-first order).
-    #[serde(default)]
-    pub addressed_to: Vec<String>,
-}
-
 /// `POST /api/submit-input` — processes player text input.
 pub async fn submit_input(
     Extension(state): Extension<Arc<AppState>>,
     Extension(auth): Extension<crate::cf_auth::AuthContext>,
     Json(body): Json<SubmitInputRequest>,
-) -> impl IntoResponse {
+) -> Response {
     let text = body.text.trim().to_string();
-    if text.is_empty() {
-        return StatusCode::OK;
-    }
     if text.len() > 2000 {
-        return StatusCode::BAD_REQUEST;
+        return StatusCode::BAD_REQUEST.into_response();
     }
     // #752 — cap addressed_to to prevent unbounded memory/allocation via the
     // NPC-addressing chip list.  Max 10 entries; each name ≤ 100 chars.
     if let Err(status) = validate_addressed_to(&body.addressed_to) {
-        return status;
+        return status.into_response();
     }
 
-    touch_player_activity(&state).await;
+    let before_turn = {
+        let world = state.world.lock().await;
+        parish_core::ipc::conversation_cursor(&world)
+    };
 
-    match classify_input(&text) {
-        InputResult::SystemCommand(cmd) => {
-            // #332 — admin command gate: provider/key/model commands are operator-only.
-            if is_admin_command(&cmd)
-                && let Err(status) = check_admin(&auth.email, &text, admin_emails())
-            {
-                return status;
+    if !text.is_empty() {
+        touch_player_activity(&state).await;
+
+        match classify_input(&text) {
+            InputResult::SystemCommand(cmd) => {
+                // #332 — admin command gate: provider/key/model commands are operator-only.
+                if is_admin_command(&cmd)
+                    && let Err(status) = check_admin(&auth.email, &text, admin_emails())
+                {
+                    return status.into_response();
+                }
+                handle_system_command(cmd, &state, &text).await;
             }
-            handle_system_command(cmd, &state, &text).await;
-        }
-        InputResult::GameInput(raw) => {
-            // #1351 — only surface a player speech bubble + NPC reactions for
-            // genuine dialogue. Deterministic non-dialogue actions (a bare
-            // `look`, `look around`, movement phrases) must not render as player
-            // speech or provoke NPC reactions. `handle_game_input` still runs so
-            // the look/move action itself executes.
-            let dispatch = if is_player_dialogue(&raw) {
-                let player_msg = text_log("player", format!("> {}", raw));
-                let player_msg_id = player_msg.id.clone();
-                state
-                    .event_bus
-                    .emit_named(Topic::TextLog, "text-log", &player_msg);
-                Some((player_msg_id, raw.clone()))
-            } else {
-                None
-            };
-            // Capture location before handle_game_input (which may move the player).
-            let reaction_location = state.world.lock().await.player_location;
-            handle_game_input(raw, body.addressed_to, &state).await;
-            // Generate NPC reactions to the player's message in the background.
-            if let Some((player_msg_id, raw_for_reactions)) = dispatch {
-                emit_npc_reactions(
-                    &player_msg_id,
-                    &raw_for_reactions,
-                    reaction_location,
-                    &state,
-                );
+            InputResult::GameInput(raw) => {
+                // #1351 — only surface a player speech bubble + NPC reactions for
+                // genuine dialogue. Deterministic non-dialogue actions (a bare
+                // `look`, `look around`, movement phrases) must not render as player
+                // speech or provoke NPC reactions. `handle_game_input` still runs so
+                // the look/move action itself executes.
+                let dispatch = if is_player_dialogue(&raw) {
+                    let player_msg = text_log("player", format!("> {}", raw));
+                    let player_msg_id = player_msg.id.clone();
+                    state
+                        .event_bus
+                        .emit_named(Topic::TextLog, "text-log", &player_msg);
+                    Some((player_msg_id, raw.clone()))
+                } else {
+                    None
+                };
+                // Capture location before handle_game_input (which may move the player).
+                let reaction_location = state.world.lock().await.player_location;
+                handle_game_input(raw, body.addressed_to, &state).await;
+                // Generate NPC reactions to the player's message in the background.
+                if let Some((player_msg_id, raw_for_reactions)) = dispatch {
+                    emit_npc_reactions(
+                        &player_msg_id,
+                        &raw_for_reactions,
+                        reaction_location,
+                        &state,
+                    );
+                }
             }
         }
     }
 
-    StatusCode::OK
+    let result = {
+        let world = state.world.lock().await;
+        let npc_manager = state.npc_manager.lock().await;
+        parish_core::ipc::build_submit_input_result(&world, &npc_manager, before_turn)
+    };
+    Json(result).into_response()
 }
 
 // ── Internal helpers ────────────────────────────────────────────────────────
