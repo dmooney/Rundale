@@ -15,6 +15,27 @@ export interface ScreenshotInfo {
 	size_bytes: number;
 }
 
+export interface GraphicalReadiness {
+	launch_token: string;
+	ready: boolean;
+}
+
+/** Reads the per-process token used to bind UI readiness to this Tauri launch. */
+export const getGraphicalReadiness = () =>
+	command<GraphicalReadiness>('get_graphical_readiness');
+
+/** Reports that the mounted graphical surface can receive screenshot requests. */
+export const reportGraphicalReady = (launchToken: string) =>
+	command<void>('report_graphical_ready', { launchToken });
+
+/** Reports why the mounted renderer could not produce a graphical frame. */
+export const reportGraphicalError = (launchToken: string, error: string) =>
+	command<void>('report_graphical_error', { launchToken, error });
+
+/** Invalidates graphical capture readiness when the mounted surface is removed. */
+export const reportGraphicalUnready = (launchToken: string) =>
+	command<void>('report_graphical_unready', { launchToken });
+
 /**
  * Persists a screenshot captured by `captureScreen()` (in `lib/screenshot.ts`).
  *
@@ -81,6 +102,10 @@ export const notifyScreenshotCaptured = (
 	request_id: string,
 	info: ScreenshotInfo,
 ) => command<void>('notify_screenshot_captured', { request_id, info });
+
+/** Acknowledges that the live UI received an MCP screenshot request. */
+export const notifyScreenshotStarted = (request_id: string) =>
+	command<void>('notify_screenshot_started', { request_id });
 
 /**
  * Reports a screenshot capture failure back to the MCP bridge so it can
