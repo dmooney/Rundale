@@ -76,5 +76,5 @@ pub use save::{
 pub use system_command::{BoxFuture, SystemCommandHost, handle_system_command};
 pub use world_pump::{
     AdvanceOptions, AdvanceReport, GossipMode, WeatherMode, advance_world, budgeted_round_robin,
-    mint_tier2_gossip,
+    build_tier2_groups, mint_tier2_gossip,
 };

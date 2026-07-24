@@ -11,7 +11,7 @@ use crate::memory::{MemoryEntry, try_promote};
 use crate::types::{Tier2Event, Tier2Response};
 use crate::{LanguageSettings, Npc, NpcId};
 use parish_config::{NpcConfig, RelationshipLabelConfig};
-use parish_types::ParishError;
+use parish_types::{DayType, ParishError, Season};
 use parish_world::LocationId;
 
 use super::prompt::format_relationships_natural;
@@ -45,6 +45,9 @@ pub struct NpcSnapshot {
     /// Natural-language relationship summary
     /// (e.g. "friendly with Mary McKenna, cool toward Sean Doyle"). May be empty.
     pub relationship_summary: String,
+    /// Authored schedule activity for the NPC at their canonical current
+    /// location and time. `None` when no matching schedule entry exists.
+    pub current_activity: Option<String>,
 }
 
 /// A group of NPC snapshots at a single location, for Tier 2 processing.
@@ -54,6 +57,9 @@ pub struct Tier2Group {
     pub location: LocationId,
     /// Location name for prompt context.
     pub location_name: String,
+    /// Every other canonical location name in the loaded world. Used to
+    /// reject summaries that silently relocate participants.
+    pub other_location_names: Vec<String>,
     /// Snapshots of NPCs at this location.
     pub npcs: Vec<NpcSnapshot>,
 }
@@ -101,7 +107,31 @@ pub fn npc_snapshot_from_npc(npc: &Npc, npc_names: &HashMap<NpcId, String>) -> N
             npc_names,
             &RelationshipLabelConfig::default(),
         ),
+        current_activity: None,
     }
+}
+
+/// Creates a Tier-2 snapshot grounded in the NPC's authored activity at the
+/// canonical current location and game-time context.
+///
+/// A schedule entry is included only when its location still matches
+/// `npc.location`; weather diversions and cuaird visits can legitimately put an
+/// NPC somewhere other than the raw schedule destination.
+pub fn npc_snapshot_from_npc_at(
+    npc: &Npc,
+    npc_names: &HashMap<NpcId, String>,
+    hour: u8,
+    season: Season,
+    day_type: DayType,
+) -> NpcSnapshot {
+    let mut snapshot = npc_snapshot_from_npc(npc, npc_names);
+    snapshot.current_activity = npc
+        .schedule_entry(hour, season, day_type)
+        .filter(|entry| entry.location == npc.location)
+        .map(|entry| entry.activity.trim())
+        .filter(|activity| !activity.is_empty())
+        .map(str::to_owned);
+    snapshot
 }
 
 // ── inference helpers ──────────────────────────────────────────────────────
@@ -244,6 +274,16 @@ pub fn build_tier2_prompt(
                 line.push_str(&snap.relationship_summary);
                 line.push('.');
             }
+            if let Some(activity) = &snap.current_activity {
+                line.push_str(" Authored activity at this exact location: ");
+                line.push_str(activity);
+                line.push('.');
+            } else {
+                line.push_str(
+                    " No authored activity is available here; keep their action generic and \
+                     compatible with this location.",
+                );
+            }
             line
         })
         .collect();
@@ -257,6 +297,11 @@ pub fn build_tier2_prompt(
         "You are simulating background interactions between characters in a small \
         Irish parish in 1820.\n\n\
         Location: {location}\n\
+        CANONICAL LOCATION — every listed character is physically at {location}. \
+        Do not move them elsewhere in the summary, do not say they are \"at home\", \
+        and do not mention a different mill, forge, shop, farm, road, or village. \
+        Their actions must fit this exact location and the authored current activity \
+        shown for them below; occupation alone is not evidence that they are at work.\n\
         Time: {time}\n\
         Weather: {weather}.{weather_commentary}\n\n\
         Dramatis personae (id in brackets — reuse these in your JSON):\n\
@@ -287,6 +332,63 @@ pub fn build_tier2_prompt(
 }
 
 // ── event predicates ───────────────────────────────────────────────────────
+
+fn mentions_other_location(summary: &str, location_name: &str) -> bool {
+    let summary = summary.to_lowercase();
+    let location = location_name.trim().to_lowercase();
+    if location.is_empty() {
+        return false;
+    }
+    if summary.contains(&location) {
+        return true;
+    }
+
+    let without_article = location
+        .strip_prefix("the ")
+        .or_else(|| location.strip_prefix("a "))
+        .unwrap_or(&location);
+    without_article != location
+        && [
+            "at ", "by ", "in ", "near ", "beside ", "outside ", "inside ",
+        ]
+        .iter()
+        .any(|prefix| summary.contains(&format!("{prefix}{without_article}")))
+}
+
+/// Returns a concise reason when a Tier-2 summary contradicts its canonical
+/// group location.
+///
+/// The check is deliberately narrow: it rejects explicit names of other
+/// loaded locations and the generic relocation phrase "at home". Ordinary
+/// dialogue about a person or object is left untouched.
+pub fn tier2_summary_location_conflict(group: &Tier2Group, summary: &str) -> Option<String> {
+    let lower = summary.to_lowercase();
+    if lower.contains(" at home")
+        || lower.starts_with("at home")
+        || lower.contains(" in their home")
+        || lower.contains(" in his home")
+        || lower.contains(" in her home")
+    {
+        return Some("summary relocates a participant home".to_string());
+    }
+
+    let current = group.location_name.trim();
+    group
+        .other_location_names
+        .iter()
+        .filter(|name| !name.trim().eq_ignore_ascii_case(current))
+        .find(|name| mentions_other_location(summary, name))
+        .map(|name| format!("summary names other location '{name}'"))
+}
+
+fn tier2_grounding_error(group: &Tier2Group, summary: &str) -> Option<ParishError> {
+    tier2_summary_location_conflict(group, summary)
+        .map(|reason| ParishError::Inference(format!("Tier 2 location grounding failed: {reason}")))
+}
+
+fn is_tier2_grounding_failure(msg: &str) -> bool {
+    msg.contains("Tier 2 location grounding failed")
+}
 
 /// Returns the name of an NPC mentioned in `summary` who is not one of the
 /// scene `participants`, if any. Used to drop Tier 2 narrative beats that
@@ -381,28 +483,47 @@ pub async fn run_tier2_for_group(
     let mut last_err: ParishError =
         match try_tier2_inference(client, model, &prompt, None, cancel.clone()).await {
             Ok(resp) => {
-                return Some(Tier2Event {
-                    location: group.location,
-                    summary: resp.summary,
-                    participants: participant_ids,
-                    mood_changes: resp.mood_changes,
-                    relationship_changes: resp.relationship_changes,
-                });
+                if let Some(error) = tier2_grounding_error(group, &resp.summary) {
+                    error
+                } else {
+                    return Some(Tier2Event {
+                        location: group.location,
+                        summary: resp.summary,
+                        participants: participant_ids,
+                        mood_changes: resp.mood_changes,
+                        relationship_changes: resp.relationship_changes,
+                    });
+                }
             }
             Err(e) => e,
         };
 
-    // Retry exactly once on JSON parse failure (see #27). Cancellation
-    // and non-parse errors fall through to the diagnostic block below.
+    // Retry exactly once on malformed JSON (see #27) or a canonical-location
+    // conflict (#1785). Cancellation and transport errors fall through to the
+    // diagnostic block below.
     let msg = last_err.to_string();
-    if !is_intentional_cancellation(&msg) && is_tier2_json_parse_failure(&msg) {
-        record_tier2_parse_failure(); // see #29
+    let parse_failure = is_tier2_json_parse_failure(&msg);
+    let grounding_failure = is_tier2_grounding_failure(&msg);
+    if !is_intentional_cancellation(&msg) && (parse_failure || grounding_failure) {
+        if parse_failure {
+            record_tier2_parse_failure(); // see #29
+        }
         tracing::debug!(
-            "Tier 2 JSON parse failed at {}, retrying once with strict-JSON reminder: {}",
+            "Tier 2 response rejected at {}, retrying once: {}",
             group.location_name,
             msg
         );
-        let retry_prompt = format!("{}{}", prompt, TIER2_STRICT_JSON_REMINDER);
+        let grounding_reminder = format!(
+            "\n\nCANONICAL LOCATION CORRECTION — every participant is at {}. \
+             Describe only actions possible there and consistent with the authored \
+             activities above. Do not say anyone is at home and do not name another place.",
+            group.location_name
+        );
+        let retry_prompt = if parse_failure {
+            format!("{}{}", prompt, TIER2_STRICT_JSON_REMINDER)
+        } else {
+            format!("{prompt}{grounding_reminder}")
+        };
         // TD-033: the retry's whole premise is the small model emitting
         // malformed JSON, so pull the strongest lever the `_with_format`
         // variant exists for — set a provider-side JSON response format so
@@ -418,14 +539,18 @@ pub async fn run_tier2_for_group(
         .await
         {
             Ok(resp) => {
-                tracing::debug!("Tier 2 retry succeeded at {}", group.location_name);
-                return Some(Tier2Event {
-                    location: group.location,
-                    summary: resp.summary,
-                    participants: participant_ids,
-                    mood_changes: resp.mood_changes,
-                    relationship_changes: resp.relationship_changes,
-                });
+                if let Some(error) = tier2_grounding_error(group, &resp.summary) {
+                    last_err = error;
+                } else {
+                    tracing::debug!("Tier 2 retry succeeded at {}", group.location_name);
+                    return Some(Tier2Event {
+                        location: group.location,
+                        summary: resp.summary,
+                        participants: participant_ids,
+                        mood_changes: resp.mood_changes,
+                        relationship_changes: resp.relationship_changes,
+                    });
+                }
             }
             Err(e) => {
                 // Retry also failed — count again if it was another parse
@@ -619,7 +744,7 @@ pub(crate) fn apply_tier2_event(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_helpers::{make_named_npc, make_test_npc};
+    use crate::test_helpers::{make_named_npc, make_scheduled_npc, make_test_npc};
     use crate::types::{MoodChange, Relationship, RelationshipChange, RelationshipKind};
     use chrono::TimeZone;
     use parish_types::events::{EventBus, GameEvent};
@@ -708,6 +833,7 @@ mod tests {
         let group = Tier2Group {
             location: LocationId(2),
             location_name: "Darcy's Pub".to_string(),
+            other_location_names: vec!["The Mill".to_string()],
             npcs: vec![
                 NpcSnapshot {
                     id: NpcId(1),
@@ -718,6 +844,7 @@ mod tests {
                     intelligence_prose: "Perceptive, wise, quick-witted.".to_string(),
                     mood: "content".to_string(),
                     relationship_summary: "friendly with Tommy".to_string(),
+                    current_activity: Some("tending bar".to_string()),
                 },
                 NpcSnapshot {
                     id: NpcId(5),
@@ -728,6 +855,7 @@ mod tests {
                     intelligence_prose: "Well-spoken and brilliantly creative.".to_string(),
                     mood: "reflective".to_string(),
                     relationship_summary: String::new(),
+                    current_activity: Some("sharing a story".to_string()),
                 },
             ],
         };
@@ -744,11 +872,44 @@ mod tests {
         assert!(prompt.contains("Currently content"));
         assert!(prompt.contains("Perceptive, wise"));
         assert!(prompt.contains("friendly with Tommy"));
+        assert!(prompt.contains("CANONICAL LOCATION"));
+        assert!(prompt.contains("Authored activity at this exact location: tending bar"));
+        assert!(prompt.contains("occupation alone is not evidence that they are at work"));
         assert!(prompt.contains("Evening"));
         assert!(prompt.contains("Overcast"));
         assert!(prompt.contains("summary"));
         // No more cryptic encoding
         assert!(!prompt.contains("INT["));
+
+        assert!(
+            tier2_summary_location_conflict(
+                &group,
+                "At Darcy's Pub, Padraig tends bar while Tommy shares a story."
+            )
+            .is_none()
+        );
+        assert!(
+            tier2_summary_location_conflict(
+                &group,
+                "Padraig pours a drink while Tommy waits by The Mill."
+            )
+            .is_some()
+        );
+        assert!(tier2_summary_location_conflict(&group, "Tommy rests at home.").is_some());
+    }
+
+    #[test]
+    fn tier2_snapshot_uses_only_activity_at_actual_location() {
+        let mut npc = make_scheduled_npc(1, 1, 2);
+        let names = HashMap::from([(npc.id, npc.name.clone())]);
+
+        npc.location = LocationId(2);
+        let at_work = npc_snapshot_from_npc_at(&npc, &names, 10, Season::Spring, DayType::Weekday);
+        assert_eq!(at_work.current_activity.as_deref(), Some("working"));
+
+        npc.location = LocationId(3);
+        let diverted = npc_snapshot_from_npc_at(&npc, &names, 10, Season::Spring, DayType::Weekday);
+        assert_eq!(diverted.current_activity, None);
     }
 
     #[test]
@@ -1021,6 +1182,7 @@ mod tests {
         let group = Tier2Group {
             location: LocationId(2),
             location_name: "Darcy's Pub".to_string(),
+            other_location_names: vec!["The Mill".to_string()],
             npcs: vec![NpcSnapshot {
                 id: NpcId(1),
                 name: "Padraig".to_string(),
@@ -1030,6 +1192,7 @@ mod tests {
                 intelligence_prose: "Perceptive, wise, quick-witted.".to_string(),
                 mood: "content".to_string(),
                 relationship_summary: String::new(),
+                current_activity: Some("tending bar".to_string()),
             }],
         };
 
@@ -1053,6 +1216,7 @@ mod tests {
         let group = Tier2Group {
             location: LocationId(2),
             location_name: "Darcy's Pub".to_string(),
+            other_location_names: Vec::new(),
             npcs: Vec::new(),
         };
 
@@ -1100,6 +1264,7 @@ mod tests {
         let group = Tier2Group {
             location: LocationId(2),
             location_name: "The Crossroads".to_string(),
+            other_location_names: vec!["The Mill".to_string(), "The Forge".to_string()],
             npcs: vec![
                 NpcSnapshot {
                     id: NpcId(1),
@@ -1110,6 +1275,7 @@ mod tests {
                     intelligence_prose: String::new(),
                     mood: "calm".to_string(),
                     relationship_summary: String::new(),
+                    current_activity: Some("waiting at the crossroads".to_string()),
                 },
                 NpcSnapshot {
                     id: NpcId(2),
@@ -1120,6 +1286,7 @@ mod tests {
                     intelligence_prose: "Plain-spoken.".to_string(),
                     mood: "tired".to_string(),
                     relationship_summary: String::new(),
+                    current_activity: Some("resting by the wall".to_string()),
                 },
             ],
         };
@@ -1139,6 +1306,7 @@ mod tests {
         let group = Tier2Group {
             location: LocationId(2),
             location_name: "Darcy's Pub".to_string(),
+            other_location_names: Vec::new(),
             npcs: vec![NpcSnapshot {
                 id: NpcId(1),
                 name: "Padraig".to_string(),
@@ -1148,6 +1316,7 @@ mod tests {
                 intelligence_prose: String::new(),
                 mood: "content".to_string(),
                 relationship_summary: String::new(),
+                current_activity: None,
             }],
         };
         let lang = LanguageSettings::english_only();

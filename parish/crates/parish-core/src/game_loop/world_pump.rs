@@ -21,8 +21,9 @@
 //! the frontend [`EventEmitter`](crate::ipc::EventEmitter) — runtimes forward
 //! bus events to their frontends separately, exactly as before.
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
+use chrono::Timelike;
 use rand::Rng;
 
 use crate::npc::banshee::BansheeReport;
@@ -107,6 +108,71 @@ pub struct AdvanceReport {
     ///
     /// [`GameEvent`]: parish_types::events::GameEvent
     pub tier4_game_events: Vec<parish_types::events::GameEvent>,
+}
+
+/// Builds canonical Tier-2 inference groups from the current world and NPC
+/// state.
+///
+/// This shared projection keeps Tauri, server, and headless simulation prompts
+/// in mode parity. Each snapshot carries only an authored activity whose
+/// schedule location still matches the NPC's actual location.
+pub fn build_tier2_groups(
+    world: &WorldState,
+    npc: &NpcManager,
+) -> Vec<crate::npc::ticks::Tier2Group> {
+    use crate::npc::ticks::{Tier2Group, npc_snapshot_from_npc_at};
+
+    let groups_map = npc.tier2_groups();
+    if groups_map.is_empty() {
+        return Vec::new();
+    }
+
+    let npc_names: HashMap<_, _> = npc
+        .all_npcs()
+        .map(|person| (person.id, person.name.clone()))
+        .collect();
+    let now = world.clock.now();
+    let hour = now.hour() as u8;
+    let season = world.clock.season();
+    let day_type = world.clock.day_type();
+    let mut location_names: Vec<String> = world
+        .graph
+        .location_ids()
+        .into_iter()
+        .filter_map(|id| world.graph.get(id).map(|location| location.name.clone()))
+        .collect();
+    location_names.sort();
+
+    let mut groups: Vec<Tier2Group> = groups_map
+        .into_iter()
+        .filter_map(|(location, npc_ids)| {
+            let location_name = world
+                .graph
+                .get(location)
+                .map(|data| data.name.clone())
+                .unwrap_or_else(|| format!("Location {}", location.0));
+            let snapshots: Vec<_> = npc_ids
+                .iter()
+                .filter_map(|id| npc.get(*id))
+                .map(|person| npc_snapshot_from_npc_at(person, &npc_names, hour, season, day_type))
+                .collect();
+            if snapshots.is_empty() {
+                return None;
+            }
+            Some(Tier2Group {
+                location,
+                other_location_names: location_names
+                    .iter()
+                    .filter(|name| !name.eq_ignore_ascii_case(&location_name))
+                    .cloned()
+                    .collect(),
+                location_name,
+                npcs: snapshots,
+            })
+        })
+        .collect();
+    groups.sort_by_key(|group| group.location.0);
+    groups
 }
 
 /// Advances the world one pump: weather → schedules → tiers → banshee → gossip

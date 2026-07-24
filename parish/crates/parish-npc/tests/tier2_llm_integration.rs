@@ -19,6 +19,7 @@ fn two_npc_group() -> Tier2Group {
     Tier2Group {
         location: LocationId(2),
         location_name: "Darcy's Pub".to_string(),
+        other_location_names: vec!["The Mill".to_string(), "The Forge".to_string()],
         npcs: vec![
             NpcSnapshot {
                 id: NpcId(1),
@@ -29,6 +30,7 @@ fn two_npc_group() -> Tier2Group {
                 intelligence_prose: "Perceptive, wise, quick-witted.".to_string(),
                 mood: "content".to_string(),
                 relationship_summary: String::new(),
+                current_activity: Some("tending bar".to_string()),
             },
             NpcSnapshot {
                 id: NpcId(2),
@@ -39,6 +41,7 @@ fn two_npc_group() -> Tier2Group {
                 intelligence_prose: "Plain-spoken and sharp-minded.".to_string(),
                 mood: "tired".to_string(),
                 relationship_summary: String::new(),
+                current_activity: Some("having a quiet drink".to_string()),
             },
         ],
     }
@@ -108,6 +111,41 @@ async fn tier2_multi_npc_success_returns_event() {
     assert!(event.summary.contains("Padraig"));
     assert!(event.mood_changes.is_empty());
     assert!(event.relationship_changes.is_empty());
+}
+
+#[tokio::test]
+async fn tier2_location_conflict_retries_once_then_drops_event() {
+    let server = MockServer::start().await;
+    mount_tier2_response(
+        &server,
+        r#"{"summary":"Padraig and Tommy wait by The Mill.","mood_changes":[],"relationship_changes":[]}"#,
+    )
+    .await;
+
+    let client = mock_client(&server.uri());
+    let group = two_npc_group();
+    let lang = LanguageSettings::english_only();
+    let event = run_tier2_for_group(
+        &client,
+        "test-model",
+        &group,
+        "Afternoon",
+        "Clear",
+        &lang,
+        None,
+    )
+    .await;
+
+    assert!(
+        event.is_none(),
+        "an event that still names another canonical location after retry must be dropped"
+    );
+    let requests = server.received_requests().await.unwrap();
+    assert_eq!(
+        requests.len(),
+        2,
+        "location conflict should trigger exactly one corrective retry"
+    );
 }
 
 #[tokio::test]

@@ -20,8 +20,8 @@ mod truncate;
 // Relationship helpers (used by parish-core and callers building prompts)
 pub use prompt::{
     Tier1ContextParams, build_enhanced_context_with_config,
-    build_enhanced_system_prompt_with_config, format_relationships_natural, relationship_label,
-    relationship_label_with_config,
+    build_enhanced_system_prompt_with_config, format_relationships_natural,
+    live_turn_contract_block, relationship_label, relationship_label_with_config,
 };
 
 // Tier 1 — response application + witness memory
@@ -30,8 +30,8 @@ pub use tier1::{apply_tier1_response_with_config, record_witness_memories};
 // Tier 2 — snapshot types, prompt, inference, event application
 pub use tier2::{
     NpcSnapshot, Tier2Group, apply_tier2_event_with_config, build_tier2_prompt,
-    npc_snapshot_from_npc, run_tier2_for_group, tier2_parse_failures_total,
-    tier2_summary_mentions_absent_npc,
+    npc_snapshot_from_npc, npc_snapshot_from_npc_at, run_tier2_for_group,
+    tier2_parse_failures_total, tier2_summary_location_conflict, tier2_summary_mentions_absent_npc,
 };
 
 // Tier 3 — snapshot types, prompt, inference, update application

@@ -1115,129 +1115,95 @@ async fn dispatch_tier2(
     // Submits one LLM call per location group via the priority queue
     // (Background lane, yields to Tier 1 dialogue).
     if npc_mgr.needs_tier2_tick(now) && !npc_mgr.tier2_in_flight() {
-        use parish_core::npc::ticks::{Tier2Group, npc_snapshot_from_npc};
+        let groups = parish_core::game_loop::build_tier2_groups(world, npc_mgr);
+        if !groups.is_empty() {
+            let time_desc = world.clock.time_of_day().to_string();
+            let weather_str = world.weather.to_string();
 
-        let groups_map = npc_mgr.tier2_groups();
-        if !groups_map.is_empty() {
-            let npc_names: std::collections::HashMap<_, _> =
-                npc_mgr.all_npcs().map(|n| (n.id, n.name.clone())).collect();
-            // Build owned snapshots inside the lock scope.
-            let groups: Vec<Tier2Group> = groups_map
-                .into_iter()
-                .filter_map(|(loc, npc_ids)| {
-                    let location_name = world
-                        .graph
-                        .get(loc)
-                        .map(|d| d.name.clone())
-                        .unwrap_or_else(|| format!("Location {}", loc.0));
-                    let npcs: Vec<_> = npc_ids
-                        .iter()
-                        .filter_map(|id| npc_mgr.get(*id))
-                        .map(|npc| npc_snapshot_from_npc(npc, &npc_names))
-                        .collect();
-                    if npcs.is_empty() {
-                        return None;
+            npc_mgr.set_tier2_in_flight(true);
+
+            let state_t2 = Arc::clone(state);
+            // #9 — snapshot the sim-preemption token (same
+            // semantics as the Tier 3 site above).
+            let cancel_t2 = state_t2.sim_cancel.lock().await.clone();
+            tokio::spawn(async move {
+                // Resolve the per-category Simulation client +
+                // model. Direct-client dispatch is what makes
+                // the two-slot loadout actually hit the small
+                // slot for Simulation. Matches the Tier 3 site
+                // above.
+                let (client_opt, model) = {
+                    let cfg = state_t2.config.lock().await;
+                    let base_client = state_t2.client.lock().await;
+                    cfg.resolve_category_client(InferenceCategory::Simulation, base_client.as_ref())
+                };
+                let Some(sim_client) = client_opt else {
+                    state_t2.npc_manager.lock().await.set_tier2_in_flight(false);
+                    return;
+                };
+
+                // Submit each group sequentially (one LLM call
+                // per group, single connection).
+                let mut events = Vec::new();
+                for group in &groups {
+                    if let Some(evt) = parish_core::npc::ticks::run_tier2_for_group(
+                        &sim_client,
+                        &model,
+                        group,
+                        &time_desc,
+                        &weather_str,
+                        &state_t2.language_settings,
+                        Some(cancel_t2.clone()),
+                    )
+                    .await
+                    {
+                        events.push(evt);
                     }
-                    Some(Tier2Group {
-                        location: loc,
-                        location_name,
-                        npcs,
-                    })
-                })
-                .collect();
-
-            if !groups.is_empty() {
-                let time_desc = world.clock.time_of_day().to_string();
-                let weather_str = world.weather.to_string();
-
-                npc_mgr.set_tier2_in_flight(true);
-
-                let state_t2 = Arc::clone(state);
-                // #9 — snapshot the sim-preemption token (same
-                // semantics as the Tier 3 site above).
-                let cancel_t2 = state_t2.sim_cancel.lock().await.clone();
-                tokio::spawn(async move {
-                    // Resolve the per-category Simulation client +
-                    // model. Direct-client dispatch is what makes
-                    // the two-slot loadout actually hit the small
-                    // slot for Simulation. Matches the Tier 3 site
-                    // above.
-                    let (client_opt, model) = {
-                        let cfg = state_t2.config.lock().await;
-                        let base_client = state_t2.client.lock().await;
-                        cfg.resolve_category_client(
-                            InferenceCategory::Simulation,
-                            base_client.as_ref(),
-                        )
-                    };
-                    let Some(sim_client) = client_opt else {
-                        state_t2.npc_manager.lock().await.set_tier2_in_flight(false);
-                        return;
-                    };
-
-                    // Submit each group sequentially (one LLM call
-                    // per group, single connection).
-                    let mut events = Vec::new();
-                    for group in &groups {
-                        if let Some(evt) = parish_core::npc::ticks::run_tier2_for_group(
-                            &sim_client,
-                            &model,
-                            group,
-                            &time_desc,
-                            &weather_str,
-                            &state_t2.language_settings,
-                            Some(cancel_t2.clone()),
-                        )
-                        .await
-                        {
-                            events.push(evt);
-                        }
-                        // If the player turn fired during the
-                        // previous group's call, the snapshotted
-                        // token is now cancelled — bail rather
-                        // than burn the queue running every
-                        // remaining group through a cancellation
-                        // error.
-                        if cancel_t2.is_cancelled() {
-                            break;
-                        }
+                    // If the player turn fired during the
+                    // previous group's call, the snapshotted
+                    // token is now cancelled — bail rather
+                    // than burn the queue running every
+                    // remaining group through a cancellation
+                    // error.
+                    if cancel_t2.is_cancelled() {
+                        break;
                     }
+                }
 
-                    // Re-acquire locks to apply events.
-                    // Lock ordering: `world` → `npc_manager`
-                    // (matches the documented contract and the
-                    // main tick at setup.rs:779-780).  Acquiring
-                    // npc_manager first while a concurrent main
-                    // tick holds world would deadlock (#337).
-                    let mut world = state_t2.world.lock().await;
-                    let mut npc_mgr = state_t2.npc_manager.lock().await;
-                    let game_time = world.clock.now();
+                // Re-acquire locks to apply events.
+                // Lock ordering: `world` → `npc_manager`
+                // (matches the documented contract and the
+                // main tick at setup.rs:779-780).  Acquiring
+                // npc_manager first while a concurrent main
+                // tick holds world would deadlock (#337).
+                let mut world = state_t2.world.lock().await;
+                let mut npc_mgr = state_t2.npc_manager.lock().await;
+                let game_time = world.clock.now();
 
-                    let _dbg = parish_core::game_loop::mint_tier2_gossip(
-                        &events,
-                        npc_mgr.npcs_mut(),
-                        game_time,
-                        &parish_core::config::NpcConfig::default(),
-                        &mut world,
-                    );
-                    npc_mgr.record_tier2_tick(game_time);
-                    npc_mgr.set_tier2_in_flight(false);
+                let _dbg = parish_core::game_loop::mint_tier2_gossip(
+                    &events,
+                    npc_mgr.npcs_mut(),
+                    game_time,
+                    &parish_core::config::NpcConfig::default(),
+                    &mut world,
+                );
+                npc_mgr.record_tier2_tick(game_time);
+                npc_mgr.set_tier2_in_flight(false);
 
-                    let mut debug_events = state_t2.debug_events.lock().await;
-                    if debug_events.len() >= DEBUG_EVENT_CAPACITY {
-                        debug_events.pop_front();
-                    }
-                    debug_events.push_back(DebugEvent {
-                        timestamp: String::new(),
-                        category: "tier2".to_string(),
-                        message: format!(
-                            "Tier 2 tick: {} events from {} groups",
-                            events.len(),
-                            groups.len()
-                        ),
-                    });
+                let mut debug_events = state_t2.debug_events.lock().await;
+                if debug_events.len() >= DEBUG_EVENT_CAPACITY {
+                    debug_events.pop_front();
+                }
+                debug_events.push_back(DebugEvent {
+                    timestamp: String::new(),
+                    category: "tier2".to_string(),
+                    message: format!(
+                        "Tier 2 tick: {} events from {} groups",
+                        events.len(),
+                        groups.len()
+                    ),
                 });
-            }
+            });
         }
     }
 }

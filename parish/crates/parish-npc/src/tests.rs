@@ -856,6 +856,7 @@ fn test_tier2_system_no_unsubstituted_placeholders() {
     let group = Tier2Group {
         location: LocationId(2),
         location_name: "Darcy's Pub".to_string(),
+        other_location_names: vec!["The Mill".to_string()],
         npcs: vec![
             NpcSnapshot {
                 id: NpcId(1),
@@ -866,6 +867,7 @@ fn test_tier2_system_no_unsubstituted_placeholders() {
                 intelligence_prose: "Sharp-minded and perceptive.".to_string(),
                 mood: "thoughtful".to_string(),
                 relationship_summary: String::new(),
+                current_activity: Some("weaving by the hearth".to_string()),
             },
             NpcSnapshot {
                 id: NpcId(7),
@@ -876,6 +878,7 @@ fn test_tier2_system_no_unsubstituted_placeholders() {
                 intelligence_prose: "Plain-spoken and blunt.".to_string(),
                 mood: "tired".to_string(),
                 relationship_summary: String::new(),
+                current_activity: Some("waiting for a drink".to_string()),
             },
         ],
     };

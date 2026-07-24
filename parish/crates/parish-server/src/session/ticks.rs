@@ -575,37 +575,7 @@ pub(super) fn spawn_session_ticks(
                     if !npc_mgr.needs_tier2_tick(now) || npc_mgr.tier2_in_flight() {
                         continue;
                     }
-                    use parish_core::npc::ticks::{Tier2Group, npc_snapshot_from_npc};
-                    let groups_map = npc_mgr.tier2_groups();
-                    if groups_map.is_empty() {
-                        continue;
-                    }
-                    let npc_names: std::collections::HashMap<_, _> =
-                        npc_mgr.all_npcs().map(|n| (n.id, n.name.clone())).collect();
-                    let groups: Vec<Tier2Group> = groups_map
-                        .into_iter()
-                        .filter_map(|(loc, npc_ids)| {
-                            let location_name = world
-                                .graph
-                                .get(loc)
-                                .map(|d| d.name.clone())
-                                .unwrap_or_else(|| format!("Location {}", loc.0));
-                            let npcs: Vec<_> = npc_ids
-                                .iter()
-                                .filter_map(|id| npc_mgr.get(*id))
-                                .map(|npc| npc_snapshot_from_npc(npc, &npc_names))
-                                .collect();
-                            if npcs.is_empty() {
-                                None
-                            } else {
-                                Some(Tier2Group {
-                                    location: loc,
-                                    location_name,
-                                    npcs,
-                                })
-                            }
-                        })
-                        .collect();
+                    let groups = parish_core::game_loop::build_tier2_groups(&world, &npc_mgr);
                     if groups.is_empty() {
                         continue;
                     }

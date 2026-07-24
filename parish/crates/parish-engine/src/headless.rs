@@ -916,6 +916,7 @@ fn apply_npc_response(
     // conversation-log record, witness memories, and the `DialogueOccurred`
     // publish (headless previously skipped this last step). Forward the returned
     // debug-event strings to the headless debug sink.
+    let language = app.language_settings();
     let outcome = parish_core::game_session::apply_npc_dialogue_turn(
         &mut app.world,
         &mut app.npc_manager,
@@ -929,6 +930,7 @@ fn apply_npc_response(
         npc_actual_name,
         None,
         &[],
+        &language,
     );
     for event in outcome.debug_events {
         app.debug_event(event);
@@ -1673,80 +1675,46 @@ async fn dispatch_headless_tier2_tick(app: &mut App) {
         && !app.npc_manager.tier2_in_flight()
         && let Some(sim_client) = app.simulation.client.as_ref()
     {
-        let groups_map = app.npc_manager.tier2_groups();
-        if !groups_map.is_empty() {
-            use parish_core::npc::ticks::{Tier2Group, npc_snapshot_from_npc};
+        let groups = parish_core::game_loop::build_tier2_groups(&app.world, &app.npc_manager);
+        if !groups.is_empty() {
+            let sim_model = app.simulation.model.clone();
 
-            let npc_names: std::collections::HashMap<_, _> = app
-                .npc_manager
-                .all_npcs()
-                .map(|n| (n.id, n.name.clone()))
-                .collect();
-            let groups: Vec<Tier2Group> = groups_map
-                .into_iter()
-                .filter_map(|(loc, npc_ids)| {
-                    let location_name = app
-                        .world
-                        .graph
-                        .get(loc)
-                        .map(|d| d.name.clone())
-                        .unwrap_or_else(|| format!("Location {}", loc.0));
-                    let npcs: Vec<_> = npc_ids
-                        .iter()
-                        .filter_map(|id| app.npc_manager.get(*id))
-                        .map(|npc| npc_snapshot_from_npc(npc, &npc_names))
-                        .collect();
-                    if npcs.is_empty() {
-                        return None;
-                    }
-                    Some(Tier2Group {
-                        location: loc,
-                        location_name,
-                        npcs,
-                    })
-                })
-                .collect();
+            app.npc_manager.set_tier2_in_flight(true);
 
-            if !groups.is_empty() {
-                let sim_model = app.simulation.model.clone();
-
-                app.npc_manager.set_tier2_in_flight(true);
-
-                let lang = app.language_settings();
-                let mut events = Vec::new();
-                for group in &groups {
-                    if let Some(evt) = parish_core::npc::ticks::run_tier2_for_group(
-                        sim_client,
-                        &sim_model,
-                        group,
-                        &app.world.clock.time_of_day().to_string(),
-                        &app.world.weather.to_string(),
-                        &lang,
-                        None,
-                    )
-                    .await
-                    {
-                        events.push(evt);
-                    }
+            let lang = app.language_settings();
+            let mut events = Vec::new();
+            for group in &groups {
+                if let Some(evt) = parish_core::npc::ticks::run_tier2_for_group(
+                    sim_client,
+                    &sim_model,
+                    group,
+                    &app.world.clock.time_of_day().to_string(),
+                    &app.world.weather.to_string(),
+                    &lang,
+                    None,
+                )
+                .await
+                {
+                    events.push(evt);
                 }
-
-                let game_time = app.world.clock.now();
-                let _dbg = parish_core::game_loop::mint_tier2_gossip(
-                    &events,
-                    app.npc_manager.npcs_mut(),
-                    game_time,
-                    &NpcConfig::default(),
-                    &mut app.world,
-                );
-                app.npc_manager.record_tier2_tick(game_time);
-                app.debug_event(format!(
-                    "[tier2] {} events from {} groups",
-                    events.len(),
-                    groups.len()
-                ));
-
-                app.npc_manager.set_tier2_in_flight(false);
             }
+
+            let game_time = app.world.clock.now();
+            let _dbg = parish_core::game_loop::mint_tier2_gossip(
+                &events,
+                app.npc_manager.npcs_mut(),
+                game_time,
+                &NpcConfig::default(),
+                &mut app.world,
+            );
+            app.npc_manager.record_tier2_tick(game_time);
+            app.debug_event(format!(
+                "[tier2] {} events from {} groups",
+                events.len(),
+                groups.len()
+            ));
+
+            app.npc_manager.set_tier2_in_flight(false);
         }
     }
 }
