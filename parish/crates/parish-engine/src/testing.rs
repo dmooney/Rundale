@@ -1476,6 +1476,7 @@ impl GameTestHarness {
             // consolidation removes.
             let location = self.app.world.player_location;
             let player_line = strip_dialogue_verb(text);
+            let language = self.app.language_settings();
             let outcome = parish_core::game_session::apply_npc_dialogue_turn(
                 &mut self.app.world,
                 &mut self.app.npc_manager,
@@ -1489,6 +1490,7 @@ impl GameTestHarness {
                 &name,
                 None,
                 &[],
+                &language,
             );
             for event in outcome.debug_events {
                 self.app.debug_event(event);
@@ -1689,6 +1691,7 @@ impl GameTestHarness {
         // line is verb-stripped for the journal entry.
         let location = self.app.world.player_location;
         let player_line = strip_dialogue_verb(text);
+        let language = self.app.language_settings();
         let outcome = parish_core::game_session::apply_npc_dialogue_turn(
             &mut self.app.world,
             &mut self.app.npc_manager,
@@ -1702,6 +1705,7 @@ impl GameTestHarness {
             &name,
             None,
             &[],
+            &language,
         );
         for event in outcome.debug_events {
             self.app.debug_event(event);

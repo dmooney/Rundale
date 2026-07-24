@@ -81,19 +81,24 @@ fn harness_with_one_npc() -> (GameTestHarness, parish_core::npc::NpcId, String) 
 
 // ── #1491 — mood-aware sentence cap ──────────────────────────────────────────
 
-/// AC-1 (#1491, real-loop): When the mock model responds with a "busy" mood
-/// and 5 sentences of dialogue, the player-visible output must be capped at
-/// 2 sentences by `guard_verbosity_runons_with_mood` inside `run_npc_turn`.
+/// AC-1 (#1491, real-loop): When the NPC's canonical starting mood is "busy"
+/// and the mock model returns 5 sentences, the player-visible output must be
+/// capped at 2 sentences by `guard_verbosity_runons_with_mood`.
 ///
-/// Uses `push_json_for` (not `push_for`) so the `mood` field is preserved
-/// through the JSON parse path inside `run_npc_turn`.
+/// The model's self-reported JSON mood is not authoritative for the current
+/// spoken turn (#1779).
 #[test]
 fn real_loop_busy_mood_caps_at_two_sentences() {
-    let (mut h, _, speaker_name) = harness_with_one_npc();
+    let (mut h, speaker_id, speaker_name) = harness_with_one_npc();
+    h.app
+        .npc_manager
+        .get_mut(speaker_id)
+        .expect("speaker exists")
+        .mood = "busy".to_string();
 
-    // 5 distinct sentences, mood=busy. Use push_json_for so the mood field
-    // survives through parse_npc_stream_response.
-    let json_reply = r#"{"dialogue": "Aye, I heard ye. The rents are fierce high. The harvest was poor. The landlord takes no pity. God help us all.", "action": "wipes hands on apron", "mood": "busy", "internal_thought": null, "language_hints": []}"#;
+    // Five distinct sentences. The JSON mood deliberately disagrees so this
+    // test proves the authored pre-turn state wins.
+    let json_reply = r#"{"dialogue": "Aye, I heard ye. The rents are fierce high. The harvest was poor. The landlord takes no pity. God help us all.", "action": "wipes hands on apron", "mood": "friendly", "internal_thought": null, "language_hints": []}"#;
     h.mock().push_json_for(&speaker_name, json_reply);
 
     let mut rx = h.app.world.event_bus.subscribe();
@@ -131,6 +136,39 @@ fn real_loop_busy_mood_caps_at_two_sentences() {
     assert!(
         joined.to_lowercase().contains("heard ye") || joined.to_lowercase().contains("aye"),
         "first sentence must survive the 2-sentence cap: {joined:?}"
+    );
+}
+
+#[test]
+fn real_loop_bitter_mood_is_expressed_in_exact_harness_reply() {
+    let (mut h, speaker_id, speaker_name) = harness_with_one_npc();
+    h.app
+        .npc_manager
+        .get_mut(speaker_id)
+        .expect("speaker exists")
+        .mood = "bitter".to_string();
+
+    let json_reply = r#"{"dialogue": "Aye. Stick to Siobhan's lead, she knows the patch better'n I do. What's your trade?", "action": "nods", "mood": "friendly", "internal_thought": null, "language_hints": []}"#;
+    h.mock().push_json_for(&speaker_name, json_reply);
+
+    let mut rx = h.app.world.event_bus.subscribe();
+    let _events = h.execute_via_real_loop(&format!("talk to {speaker_name}"));
+    let joined = drain(&mut rx)
+        .iter()
+        .filter_map(|event| match event {
+            GameEvent::DialogueOccurred { npc_said, .. } => npc_said.as_deref(),
+            _ => None,
+        })
+        .collect::<Vec<_>>()
+        .join(" ");
+
+    assert!(
+        joined.starts_with("If ye must know—"),
+        "authored bitter mood must be audible even when model metadata says friendly: {joined:?}"
+    );
+    assert!(
+        joined.contains("Stick to Siobhan's lead"),
+        "mood correction must preserve the substantive answer: {joined:?}"
     );
 }
 

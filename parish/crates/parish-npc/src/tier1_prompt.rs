@@ -24,10 +24,9 @@ const IMPROV_CRAFT_SECTION: &str = "\n\
 /// to demonstrate the expected output format to the LLM.
 const EXAMPLE_RESPONSE_BLOCK: &str = "\
 Example response:\n\
-{\"dialogue\": \"Ah, good morning to ye! Fine day for it, so it is. \
-Will ye have a drop of something to warm the bones?\", \
-\"action\": \"looks up from polishing glass, speaks warmly\", \"mood\": \"friendly\", \
-\"internal_thought\": \"New face around here\", \
+{\"dialogue\": \"Aye. The road beyond the ford is passable. What news have ye from there?\", \
+\"action\": \"rests both hands on the table\", \"mood\": \"attentive\", \
+\"internal_thought\": \"There may be more to this visit\", \
 \"language_hints\": []}";
 
 /// Builds the Tier 1 system prompt for an NPC.
@@ -72,22 +71,17 @@ pub fn build_tier1_system_prompt(npc: &Npc, improv: bool, language: &LanguageSet
         Travel is by foot, horse, or cart. News arrives by mail coach or word of mouth. \
         Do not reference anything that does not exist in 1820 Ireland.\n\
         \n\
-        CULTURAL GUIDELINES: Portray Irish characters with dignity, warmth, and complexity. \
+        CULTURAL GUIDELINES: Portray Irish characters with dignity and complexity. \
         Never portray Irish characters as excessively drunk, violent as a cultural trait, \
         foolishly superstitious, or speaking in exaggerated stage-Irish dialect. \
         Avoid phrases like \"Top o' the mornin'\" or \"begorrah.\" \
-        Show the wit, intelligence, resilience, and warmth of rural Irish people.\n\
+        Show the wit, intelligence, and resilience of rural Irish people. Warmth belongs \
+        only where the character's CURRENT MOOD and relationship call for it; do not \
+        make friendliness the default tone of every reply.\n\
         \n\
-        ALLOWED IRISH PHRASES — you MAY use these verbatim, and ONLY these:\n\
-        - \"Slán abhaile\" (safe home)\n\
-        - \"Slán leat\" (goodbye)\n\
-        - \"Dia dhuit\" (hello, lit. God to you)\n\
-        - \"Go raibh maith agat\" (thank you)\n\
-        - \"Céad míle fáilte\" (hundred thousand welcomes)\n\
-        - \"Sláinte\" (cheers / health)\n\
-        - \"mo chara\" (my friend)\n\
-        - \"sídhe\" (the fairies)\n\
-        Do NOT invent or extend Irish phrases. Do NOT improvise Irish grammar. \
+        ALLOWED IRISH PHRASES: when the LANGUAGE section below enables ga-IE, use ONLY \
+        its curated phrase inventory. Do NOT invent or extend Irish phrases and do NOT \
+        improvise Irish grammar. \
         If unsure, stay in Hiberno-English. Sprinkle dialect markers \
         (\"ye\", \"yer\", \"'tis\", \"mornin'\", \"Mayhap\", \"Aye\", \"sure\") \
         instead of confabulating Irish.\n\
@@ -133,7 +127,7 @@ pub fn build_tier1_system_prompt(npc: &Npc, improv: bool, language: &LanguageSet
         \n\
         JSON fields (in required order):\n\
         - \"dialogue\": your spoken words (this is shown to the player) — MUST BE FIRST\n\
-        - \"action\": what you physically do (e.g. \"speaks warmly\", \"nods\", \"sighs\")\n\
+        - \"action\": what you physically do (e.g. \"folds their hands\", \"nods\", \"sighs\")\n\
         - \"mood\": your mood after this interaction\n\
         - \"internal_thought\": what you're thinking but not saying (optional) — MUST BE LAST\n\
         - \"language_hints\": array of any secondary-language words you used, each with:\n\

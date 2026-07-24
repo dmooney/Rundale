@@ -949,6 +949,14 @@ pub struct NpcConversationSetup {
     /// Passed through to post-generation guards so the player's own name is
     /// never treated as a fabricated third-party person (#1553).
     pub player_name: Option<String>,
+    /// Whether this NPC already had a canonical conversation exchange with the
+    /// player before the current turn. Kept separate from identity knowledge:
+    /// an NPC can have met the player without having said their name (#1776,
+    /// #1786).
+    pub had_prior_exchange: bool,
+    /// Canonical authored work facts for post-generation referral validation:
+    /// `(name, occupation, workplace name)`.
+    pub work_roster: Vec<(String, String, Option<String>)>,
 }
 
 /// Prepares a specific NPC's turn in an ongoing conversation.
@@ -973,15 +981,14 @@ pub fn prepare_npc_conversation_turn(
     npc_cfg: &crate::config::NpcConfig,
 ) -> Option<NpcConversationSetup> {
     let npc = npc_manager.get(speaker_id)?.clone();
-    // Capture introduced state BEFORE marking. The dialogue context builder
-    // uses was_introduced to decide: first turn (no anchor, NPC introduces
-    // themselves naturally) vs follow-up (anchor injected, forbids mid-reply
-    // self-recitation). mark_introduced is called before the context builder
-    // so display_name returns the real name, not the anonymous description.
+    // Identity knowledge and prior contact are separate. Merely beginning an
+    // exchange must not reveal the NPC's authored name (#1776); the shared
+    // apply seam marks identity only after the delivered dialogue explicitly
+    // establishes it. Prior-contact grounding uses the conversation log
+    // independently so an unnamed NPC does not claim this is a first meeting
+    // forever (#1786).
     let was_introduced = npc_manager.is_introduced(speaker_id);
-    // Mark NPC as introduced before computing display_name so first conversation
-    // shows their name, not their anonymous description.
-    npc_manager.mark_introduced(speaker_id);
+    let had_prior_exchange = world.conversation_log.has_exchange_with(speaker_id);
     let display_name = npc_manager.display_name(&npc).to_string();
     let other_npcs: Vec<&Npc> = npc_manager
         .npcs_at(world.player_location)
@@ -1036,12 +1043,35 @@ pub fn prepare_npc_conversation_turn(
     // real parish NPC as a "real parish person" entry so the model may
     // recognise the name without claiming close acquaintance.
     let mut prompt_roster = roster.clone();
+    for (id, _, descriptor) in &mut prompt_roster {
+        if id.0 == 0 {
+            continue;
+        }
+        if let Some(workplace_name) = npc_manager
+            .get(*id)
+            .and_then(|person| person.workplace)
+            .and_then(|location_id| world.graph.get(location_id))
+            .map(|location| location.name.as_str())
+        {
+            descriptor.push_str(&format!("; workplace: {workplace_name}"));
+        }
+    }
     if npc_cfg.grounding_enabled {
         let mut parish_people: Vec<(NpcId, String, String)> = npc_manager
             .all_npcs()
             .filter(|other| other.id != npc.id)
             .filter(|other| !prompt_roster.iter().any(|(id, _, _)| *id == other.id))
-            .map(|other| (other.id, other.name.clone(), other.occupation.clone()))
+            .map(|other| {
+                let mut descriptor = other.occupation.clone();
+                if let Some(workplace_name) = other
+                    .workplace
+                    .and_then(|location_id| world.graph.get(location_id))
+                    .map(|location| location.name.as_str())
+                {
+                    descriptor.push_str(&format!("; workplace: {workplace_name}"));
+                }
+                (other.id, other.name.clone(), descriptor)
+            })
             .collect();
         parish_people.sort_by_key(|(id, _, _)| id.0);
         prompt_roster.extend(parish_people);
@@ -1099,6 +1129,12 @@ pub fn prepare_npc_conversation_turn(
          same reply, and do NOT mix farewells with ongoing chat. One addressee, \
          one tone, one beat.\n",
     );
+    context.push_str(&ticks::live_turn_contract_block(
+        &npc,
+        had_prior_exchange,
+        was_introduced,
+        player_input,
+    ));
 
     // Extract plain name strings for the person-confirmation guard (#1459, #1488).
     //
@@ -1151,6 +1187,27 @@ pub fn prepare_npc_conversation_turn(
         names
     });
 
+    let mut work_roster_with_ids: Vec<(NpcId, String, String, Option<String>)> = npc_manager
+        .all_npcs()
+        .map(|person| {
+            let workplace = person
+                .workplace
+                .and_then(|location_id| world.graph.get(location_id))
+                .map(|location| location.name.clone());
+            (
+                person.id,
+                person.name.clone(),
+                person.occupation.clone(),
+                workplace,
+            )
+        })
+        .collect();
+    work_roster_with_ids.sort_by_key(|(id, _, _, _)| id.0);
+    let work_roster = work_roster_with_ids
+        .into_iter()
+        .map(|(_, name, occupation, workplace)| (name, occupation, workplace))
+        .collect();
+
     Some(NpcConversationSetup {
         display_name,
         npc_name: npc.name.clone(),
@@ -1162,6 +1219,8 @@ pub fn prepare_npc_conversation_turn(
         location_name,
         known_location_names,
         player_name: world.player_name.clone(),
+        had_prior_exchange,
+        work_roster,
     })
 }
 
@@ -2304,5 +2363,67 @@ mod tests {
             "person-confirmation guard must NOT fire on a real parish NPC (Roisin Malone) \
              after #1488 fix; got: {guarded:?}"
         );
+    }
+
+    #[test]
+    fn conversation_setup_keeps_contact_and_identity_as_separate_state() {
+        use crate::config::NpcConfig;
+        use crate::npc::{LanguageSettings, Npc, manager::NpcManager};
+        use parish_types::conversation::ConversationExchange;
+
+        let mut world = WorldState::new();
+        let mut npc_mgr = NpcManager::new();
+        let mut peig = Npc::new_test_npc();
+        peig.id = NpcId(22);
+        peig.name = "Peig Hannigan".to_string();
+        peig.brief_description = "an elderly widow".to_string();
+        peig.occupation = "Widow".to_string();
+        peig.location = world.player_location;
+        npc_mgr.add_npc(peig);
+
+        let setup = prepare_npc_conversation_turn(
+            &world,
+            &mut npc_mgr,
+            "Might I ask your name?",
+            NpcId(22),
+            &[],
+            false,
+            &LanguageSettings::english_only(),
+            &NpcConfig::default(),
+        )
+        .expect("speaker exists");
+        assert_eq!(setup.display_name, "an elderly widow");
+        assert!(!setup.had_prior_exchange);
+        assert!(setup.context.contains("FIRST CONTACT"));
+        assert!(
+            !npc_mgr.is_introduced(NpcId(22)),
+            "prompt preparation alone must not reveal identity"
+        );
+
+        world.conversation_log.add(ConversationExchange {
+            timestamp: world.clock.now(),
+            speaker_id: NpcId(22),
+            speaker_name: "Peig Hannigan".to_string(),
+            player_input: "Might I ask your name?".to_string(),
+            npc_dialogue: "Good morning. What brings ye here?".to_string(),
+            // Contact follows the person across locations. This deliberately
+            // differs from the player's current location (#1786).
+            location: LocationId(999),
+        });
+        let follow_up = prepare_npc_conversation_turn(
+            &world,
+            &mut npc_mgr,
+            "Ye never gave me your name.",
+            NpcId(22),
+            &[],
+            false,
+            &LanguageSettings::english_only(),
+            &NpcConfig::default(),
+        )
+        .expect("speaker exists");
+        assert!(follow_up.had_prior_exchange);
+        assert_eq!(follow_up.display_name, "an elderly widow");
+        assert!(!follow_up.context.contains("FIRST CONTACT"));
+        assert!(!npc_mgr.is_introduced(NpcId(22)));
     }
 }

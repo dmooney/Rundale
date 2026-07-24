@@ -687,23 +687,39 @@ fn real_loop_cooper_work_answer_is_not_truncated_to_greeting() {
         "Work for a cooper?",
         "there's always work",
         "barrels for ale and salt",
-        "Ye know yer trade?",
     ] {
         assert!(
             joined.contains(phrase),
             "cooper-work answer lost phrase {phrase:?}: {joined:?}"
         );
     }
+    assert!(
+        !joined.contains("Ye know yer trade?"),
+        "the fourth sentence must be dropped by the shared three-sentence cap: {joined:?}"
+    );
 }
 
 // ── #1566 — watchful sacred-place run-on must be terse ──────────────────────
 
-/// AC-1 (#1566, real-loop): when the mock model emits the raw watchful Brigid
-/// sacred-place loop, the mood-aware verbosity guard inside `run_npc_turn` must
-/// clip it before the repeated question/tail reaches `DialogueOccurred`.
+/// AC-1 (#1566, real-loop): when the NPC's canonical mood is watchful and the
+/// mock model emits the raw sacred-place loop, the mood-aware verbosity guard
+/// inside `run_npc_turn` must clip it before the repeated question/tail reaches
+/// `DialogueOccurred`, even if model metadata claims a friendlier mood (#1779).
 #[test]
 fn real_loop_watchful_sacred_place_runon_is_clipped() {
     let (mut h, speaker_name) = harness_with_one_npc();
+    let speaker_id = h
+        .app
+        .npc_manager
+        .all_npcs()
+        .find(|npc| npc.name == speaker_name)
+        .map(|npc| npc.id)
+        .expect("speaker exists");
+    h.app
+        .npc_manager
+        .get_mut(speaker_id)
+        .expect("speaker exists")
+        .mood = "watchful".to_string();
 
     let raw_dialogue = "Aye, 'tis said the sidhe live in the mounds and the forts. \
         But the power here at the well, that's a different matter. \
@@ -727,7 +743,7 @@ fn real_loop_watchful_sacred_place_runon_is_clipped() {
     let json_reply = serde_json::json!({
         "dialogue": raw_dialogue,
         "action": "watches carefully",
-        "mood": "watchful",
+        "mood": "friendly",
         "internal_thought": null,
         "language_hints": []
     })

@@ -161,8 +161,12 @@ fn dialogue_context_introduced_anchor_fires_only_after_first_turn() {
         setup1.context
     );
 
-    // Turn 2 — NPC was marked introduced inside the turn-1 call. Now
-    // the anchor must appear and name the NPC + their occupation.
+    // A delivered self-identification is what marks identity known. Prompt
+    // preparation alone no longer does so (#1776); simulate the shared apply
+    // seam accepting the NPC's spoken full name before building turn 2.
+    npc_manager.mark_introduced(speaker_id);
+
+    // Turn 2 — now the anchor must appear and name the NPC + occupation.
     let setup2 = prepare_npc_conversation_turn(
         &world,
         &mut npc_manager,

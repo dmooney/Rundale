@@ -148,6 +148,15 @@ pub fn build_enhanced_system_prompt_with_config(
                 appearance \u{2014} never invent a name, and never refer to a \
                 person (he/she/they/her/him) who has not been mentioned.\n",
             );
+            prompt.push_str(
+                "WORK REFERRALS: When asked who might offer a particular kind of \
+                work, compare the request with the authored occupation and workplace \
+                shown for each person. Prefer an exact relevant trade or workplace. \
+                Friendship is not evidence that someone employs farm hands, runs a \
+                shop, or practises another trade. Never invent duties, a business, or \
+                a workplace for an unrelated person; if no grounded match exists, say \
+                plainly that you do not know whom to ask.\n",
+            );
         }
     } else if !npc.relationships.is_empty() {
         // Fallback: legacy behavior for callers that don't pass a roster
@@ -477,6 +486,7 @@ fn continuity_block(
     npc: &Npc,
     player_name_for_npc: Option<&str>,
     add_no_reask: bool,
+    identity_known: bool,
 ) -> Option<String> {
     if !world
         .conversation_log
@@ -492,9 +502,14 @@ fn continuity_block(
     } else {
         ""
     };
+    let identity_cue = if identity_known {
+        " Do not re-introduce yourself or greet them again."
+    } else {
+        " Do not greet them again. They still do not know your name; if they \
+         ask who you are, answer with your actual name."
+    };
     Some(format!(
-        "\n\nYou are already in conversation with {name}. \
-         Do not re-introduce yourself or greet them again.{no_reask}"
+        "\n\nYou are already in conversation with {name}.{identity_cue}{no_reask}"
     ))
 }
 
@@ -678,6 +693,104 @@ fn mood_tone_directive(mood: &str) -> &'static str {
     "Let your mood colour your register naturally."
 }
 
+/// Builds the final, live-turn contract appended after transcript and memory
+/// context.
+///
+/// Important behavioral constraints near the start of a long context can lose
+/// to recent dialogue or examples on smaller models. This compact block repeats
+/// only facts that apply to the current exchange: canonical starting mood,
+/// first-contact state, and answer-first handling for explicit questions.
+pub fn live_turn_contract_block(
+    npc: &Npc,
+    had_prior_exchange: bool,
+    identity_known: bool,
+    player_input: &str,
+) -> String {
+    let mood = npc.mood.trim().trim_end_matches('.');
+    let input = player_input.trim().to_lowercase();
+    let mut block = String::from("\n\nLIVE TURN CONTRACT:\n");
+    if !mood.is_empty() {
+        block.push_str(&format!(
+            "- CANONICAL STARTING MOOD: {mood}. {tone} This authored state, not \
+             the mood label you later emit in JSON, governs the spoken reply.\n",
+            tone = mood_tone_directive(mood)
+        ));
+    }
+
+    if !had_prior_exchange {
+        block.push_str(
+            "- FIRST CONTACT: this is your first exchange with this person. Do \
+             not claim to have seen them around, spoken before, met previously, \
+             welcomed them back, or otherwise imply prior familiarity.\n",
+        );
+    }
+
+    // An NPC can remain anonymous after an earlier exchange. A later direct
+    // name question must still produce a spoken identity rather than relying on
+    // the first-contact branch (#1776).
+    if !identity_known
+        && (input.contains("your name")
+            || input.contains("who are you")
+            || input.contains("who're you")
+            || input.contains("might i ask your name"))
+    {
+        block.push_str(
+            "- IDENTITY: the player directly asked who you are. Say your \
+             actual name aloud in the dialogue; identity is not revealed by \
+             metadata or by the mere fact that this exchange occurred.\n",
+        );
+    }
+
+    let direct_question = player_input.contains('?')
+        || [
+            "who ",
+            "what ",
+            "when ",
+            "where ",
+            "why ",
+            "how ",
+            "have you ",
+            "have ye ",
+            "did you ",
+            "did ye ",
+            "is it ",
+            "is that ",
+            "are you ",
+            "are ye ",
+            "can you ",
+            "can ye ",
+            "could you ",
+            "could ye ",
+        ]
+        .iter()
+        .any(|prefix| input.starts_with(prefix));
+    if direct_question {
+        block.push_str(
+            "- ANSWER FIRST: answer the player's explicit question in the first \
+             sentence. If they ask for firsthand evidence, give one concrete \
+             observation or plainly admit that you did not see it / do not know. \
+             Do not merely repeat the premise, hide behind vague talk, or turn \
+             the same question back on the player.\n",
+        );
+    }
+
+    if input.contains("work")
+        || input.contains("job")
+        || input.contains("hire")
+        || input.contains("pair of hands")
+        || input.contains("another hand")
+    {
+        block.push_str(
+            "- WORK REQUEST: any person you recommend must have an authored \
+             occupation or workplace that actually matches the requested work. \
+             Do not assign farm, shop, forge, school, or other duties to someone \
+             whose roster entry says otherwise.\n",
+        );
+    }
+
+    block
+}
+
 /// Gossip context from the gossip network.
 fn gossip_block(world: &WorldState, npc: &Npc) -> Option<String> {
     let ctx = world.gossip_network.gossip_context_string(npc.id, 2);
@@ -764,7 +877,13 @@ pub fn build_enhanced_context_with_config(params: Tier1ContextParams<'_>) -> Str
         context.push_str(&block);
     }
 
-    if let Some(block) = continuity_block(world, npc, player_name_for_npc, quality_continuity) {
+    if let Some(block) = continuity_block(
+        world,
+        npc,
+        player_name_for_npc,
+        quality_continuity,
+        was_introduced,
+    ) {
         context.push_str(&block);
     }
 
@@ -1786,7 +1905,7 @@ mod tests {
                 location: world.player_location,
             });
         }
-        let block = continuity_block(&world, &npc, None, true);
+        let block = continuity_block(&world, &npc, None, true, true);
         assert!(
             block.is_some(),
             "continuity_block must render when NPC has prior exchanges"
@@ -1798,6 +1917,11 @@ mod tests {
                 || text.contains("settled"),
             "continuity block must contain no-reask directive when add_no_reask=true:\n{text}"
         );
+
+        let anonymous = continuity_block(&world, &npc, None, true, false).unwrap();
+        assert!(!anonymous.contains("Do not re-introduce yourself"));
+        assert!(anonymous.contains("still do not know your name"));
+        assert!(anonymous.contains("answer with your actual name"));
     }
 
     #[test]
@@ -1818,7 +1942,7 @@ mod tests {
                 location: world.player_location,
             });
         }
-        let block = continuity_block(&world, &npc, None, false);
+        let block = continuity_block(&world, &npc, None, false, true);
         let text = block.unwrap_or_default();
         assert!(
             !text.contains("already established") && !text.contains("do not re-ask"),
@@ -2112,5 +2236,79 @@ mod tests {
             !prompt.contains("ACQUAINTANCE vs IDENTITY"),
             "acquaintance-vs-identity directive must be absent when grounding is disabled:\n{prompt}"
         );
+    }
+
+    #[test]
+    fn live_turn_contract_grounds_first_contact_mood_and_direct_answer() {
+        let mut npc = make_test_npc(1, "Tommy O'Brien", 1);
+        npc.mood = "reflective".to_string();
+        let block = live_turn_contract_block(
+            &npc,
+            false,
+            false,
+            "Have you seen something here yourself, or is that only an old tale?",
+        );
+
+        assert!(block.contains("CANONICAL STARTING MOOD: reflective"));
+        assert!(block.contains("FIRST CONTACT"));
+        assert!(block.contains("ANSWER FIRST"));
+        assert!(block.contains("one concrete observation"));
+        assert!(block.contains("Do not merely repeat the premise"));
+    }
+
+    #[test]
+    fn live_turn_contract_requires_spoken_identity_when_name_is_asked() {
+        let npc = make_test_npc(1, "Peig Hannigan", 1);
+        let block =
+            live_turn_contract_block(&npc, false, false, "Good morning. Might I ask your name?");
+        assert!(block.contains("Say your actual name aloud"));
+        assert!(block.contains("not revealed by metadata"));
+    }
+
+    #[test]
+    fn later_name_question_still_requires_spoken_identity() {
+        let npc = make_test_npc(1, "Peig Hannigan", 1);
+        let block =
+            live_turn_contract_block(&npc, true, false, "We spoke before, but who are you?");
+        assert!(!block.contains("FIRST CONTACT"));
+        assert!(block.contains("Say your actual name aloud"));
+    }
+
+    #[test]
+    fn known_identity_is_not_forced_to_repeat_on_name_question() {
+        let npc = make_test_npc(1, "Peig Hannigan", 1);
+        let block = live_turn_contract_block(&npc, true, true, "We spoke before, but who are you?");
+        assert!(!block.contains("Say your actual name aloud"));
+    }
+
+    #[test]
+    fn enhanced_prompt_requires_occupation_grounded_work_referrals() {
+        let npc = make_test_npc(1, "Peig Hannigan", 1);
+        let config = NpcConfig::default();
+        let names: HashMap<NpcId, String> = HashMap::new();
+        let roster = vec![
+            (
+                NpcId(2),
+                "Siobhan Murphy".to_string(),
+                "she/her, 45, Farmer; workplace: Murphy's Farm".to_string(),
+            ),
+            (
+                NpcId(7),
+                "Mick Flanagan".to_string(),
+                "he/him, 65, Retired Constable".to_string(),
+            ),
+        ];
+        let prompt = build_enhanced_system_prompt_with_config(
+            &npc,
+            false,
+            &LanguageSettings::english_only(),
+            &config,
+            &names,
+            Some(&roster),
+            None,
+        );
+        assert!(prompt.contains("WORK REFERRALS"));
+        assert!(prompt.contains("authored occupation and workplace"));
+        assert!(prompt.contains("Never invent duties"));
     }
 }

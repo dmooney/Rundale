@@ -446,11 +446,6 @@ pub async fn run_npc_turn(
     }
 
     let mut parsed = parse_npc_stream_response(&response.text);
-    let hints = parsed
-        .metadata
-        .as_ref()
-        .map(|meta| meta.language_hints.clone())
-        .unwrap_or_default();
 
     // Snapshot the raw model dialogue before any guard runs.  After all guards
     // complete we compare against this snapshot to determine whether any guard
@@ -644,6 +639,39 @@ pub async fn run_npc_turn(
         }
     }
 
+    // Canonical semantic contracts from quality-harness run #1776–#1790.
+    // These are independent of the older dialogue-polish kill switch and run
+    // before the UI correction event, matching the unconditional shared apply
+    // seam. Streamed text, stored dialogue, and projected events therefore
+    // cannot diverge when dialogue polish is disabled.
+    if !parsed.dialogue.trim().is_empty() {
+        if let Some(speaker) = speaker_context.as_ref() {
+            let guarded = crate::npc::guard_mood_register(&parsed.dialogue, &speaker.mood);
+            if guarded != parsed.dialogue {
+                parsed.dialogue = guarded;
+            }
+        }
+        let guarded = crate::npc::guard_unfounded_first_contact_familiarity(
+            &parsed.dialogue,
+            setup.had_prior_exchange,
+        );
+        if guarded != parsed.dialogue {
+            parsed.dialogue = guarded;
+        }
+        let guarded = crate::npc::guard_direct_evidence_evasion(&parsed.dialogue, prompt_input);
+        if guarded != parsed.dialogue {
+            parsed.dialogue = guarded;
+        }
+        let guarded = crate::npc::guard_work_recommendation(
+            &parsed.dialogue,
+            prompt_input,
+            &setup.work_roster,
+        );
+        if guarded != parsed.dialogue {
+            parsed.dialogue = guarded;
+        }
+    }
+
     // Post-generation verbosity / run-on guard (#1460, #1491): strip bare leaked
     // mood-adjective, trim mid-sentence truncation ellipsis to the last
     // complete sentence, and cap trailing question stacks to at most one.
@@ -653,7 +681,11 @@ pub async fn run_npc_turn(
     // gets stored in the conversation log and event bus — same effect for
     // every runtime (Tauri, server, headless) via the shared npc_turn path.
     if verbosity_guard_enabled && !parsed.dialogue.trim().is_empty() {
-        let mood_str = parsed.metadata.as_ref().map(|m| m.mood.as_str());
+        // Sentence style is governed by the authored mood at the start of the
+        // turn, not by the model's self-reported JSON mood (#1779).
+        let mood_str = speaker_context
+            .as_ref()
+            .map(|speaker| speaker.mood.as_str());
         let guarded = if mood_sentence_cap_enabled {
             crate::npc::guard_verbosity_runons_with_mood(&parsed.dialogue, mood_str)
         } else {
@@ -771,6 +803,7 @@ pub async fn run_npc_turn(
 
     // Player-visible dialogue, set from the shared pipeline's `display_text`.
     let captured_display_text;
+    let captured_hints;
     {
         let mut world = ctx.world.lock().await;
         let game_time = world.clock.now();
@@ -803,8 +836,10 @@ pub async fn run_npc_turn(
             &setup.npc_name,
             Some(req_id),
             &setup.known_person_names,
+            &ctx.language,
         );
         captured_display_text = outcome.display_text;
+        captured_hints = outcome.language_hints;
     }
 
     // NPC action narration (#1490): if the model supplied a non-empty `action`
@@ -862,7 +897,10 @@ pub async fn run_npc_turn(
         })
     };
 
-    Some(TurnOutcome { line, hints })
+    Some(TurnOutcome {
+        line,
+        hints: captured_hints,
+    })
 }
 
 /// Runs an autonomous NPC conversation chain for up to `chain_cap` turns.

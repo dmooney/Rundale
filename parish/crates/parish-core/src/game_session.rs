@@ -54,9 +54,9 @@ pub fn reaction_req_id_peek() -> u64 {
 /// when the player addresses them. Enable with `/flag enable npc-arrival-greetings`
 /// to restore the lively-arrival behavior.
 ///
-/// Muting greetings does **not** leave NPCs anonymous — the dialogue path marks
-/// an NPC introduced on first conversation (`ipc::handlers`), independent of the
-/// arrival path. The background social simulation (Tier 2 gossip, mood drift,
+/// Muting greetings can leave NPCs anonymous until they actually say their name
+/// in dialogue; merely beginning a conversation does not reveal identity
+/// (#1776). The background social simulation (Tier 2 gossip, mood drift,
 /// schedules) is likewise untouched; only the visible arrival lines are gated.
 pub const NPC_ARRIVAL_GREETINGS_FLAG: &str = "npc-arrival-greetings";
 
@@ -446,6 +446,9 @@ pub struct DialogueTurnOutcome {
     /// written to the conversation log and the `DialogueOccurred` event. May be
     /// empty when the model returned no usable dialogue.
     pub display_text: String,
+    /// Secondary-language hints validated against `display_text` and the active
+    /// setting's curated native-language inventory (#1789).
+    pub language_hints: Vec<crate::npc::LanguageHint>,
 }
 
 /// Applies a parsed NPC dialogue response — the per-turn cross-cutting steps
@@ -504,12 +507,57 @@ pub fn apply_npc_dialogue_turn(
     speaker_actual_name: &str,
     request_id: Option<u64>,
     grounded_person_names: &[String],
+    language: &LanguageSettings,
 ) -> DialogueTurnOutcome {
     let mut debug_events = Vec::new();
 
     // 1. Learn the player's name from a self-introduction *before* recording
     //    memory, so the addressed speaker's memory uses the real name (#1028).
     crate::ipc::detect_and_record_player_name(world, npc_manager, player_input, speaker_id);
+
+    // Canonical semantic guards run before memory/state application so every
+    // runtime records the same grounded text. These checks use authored state
+    // and the canonical conversation log rather than trusting model metadata.
+    let had_prior_exchange = world.conversation_log.has_exchange_with(speaker_id);
+    let canonical_mood = npc_manager
+        .get(speaker_id)
+        .map(|npc| npc.mood.clone())
+        .unwrap_or_default();
+    let mut work_roster_with_ids: Vec<(NpcId, String, String, Option<String>)> = npc_manager
+        .all_npcs()
+        .map(|person| {
+            let workplace = person
+                .workplace
+                .and_then(|location_id| world.graph.get(location_id))
+                .map(|location| location.name.clone());
+            (
+                person.id,
+                person.name.clone(),
+                person.occupation.clone(),
+                workplace,
+            )
+        })
+        .collect();
+    work_roster_with_ids.sort_by_key(|(id, _, _, _)| id.0);
+    let work_roster: Vec<(String, String, Option<String>)> = work_roster_with_ids
+        .into_iter()
+        .map(|(_, name, occupation, workplace)| (name, occupation, workplace))
+        .collect();
+
+    let mut canonical_response = parsed.clone();
+    canonical_response.dialogue =
+        crate::npc::guard_mood_register(&canonical_response.dialogue, &canonical_mood);
+    canonical_response.dialogue = crate::npc::guard_unfounded_first_contact_familiarity(
+        &canonical_response.dialogue,
+        had_prior_exchange,
+    );
+    canonical_response.dialogue =
+        crate::npc::guard_direct_evidence_evasion(&canonical_response.dialogue, player_input);
+    canonical_response.dialogue = crate::npc::guard_work_recommendation(
+        &canonical_response.dialogue,
+        player_input,
+        &work_roster,
+    );
 
     // 2. Tier-1 state update on the speaker.
     let player_name_for_mem = if npc_manager.knows_player_name(speaker_id) {
@@ -520,7 +568,7 @@ pub fn apply_npc_dialogue_turn(
     if let Some(npc) = npc_manager.get_mut(speaker_id) {
         debug_events.extend(crate::npc::ticks::apply_tier1_response_with_config(
             npc,
-            parsed,
+            &canonical_response,
             player_input,
             game_time,
             &Default::default(),
@@ -549,7 +597,7 @@ pub fn apply_npc_dialogue_turn(
     // varies across NPCs and turns.
     let repetition_seed = speaker_id.0 as u64 ^ (game_time.timestamp() as u64);
     let deduped_dialogue = crate::npc::guard_against_repetition(
-        &parsed.dialogue,
+        &canonical_response.dialogue,
         previous_line.as_deref(),
         npc_cfg.dialogue_repetition_threshold,
         repetition_seed,
@@ -570,6 +618,31 @@ pub fn apply_npc_dialogue_turn(
         display_cap,
         npc_cfg.dialogue_sentence_boundary_trim,
     );
+    let language_hints = canonical_response
+        .metadata
+        .as_ref()
+        .map(|metadata| {
+            crate::npc::validate_language_hints(
+                &metadata.language_hints,
+                &capped_dialogue,
+                language,
+            )
+        })
+        .unwrap_or_default();
+
+    // Identity becomes known only when the final delivered line explicitly
+    // establishes the speaker's authored full name (#1776). Doing this after
+    // every text guard prevents a name removed by post-processing from leaking
+    // through the notebook/card state.
+    if !npc_manager.is_introduced(speaker_id)
+        && crate::npc::dialogue_self_identifies_speaker(&capped_dialogue, speaker_actual_name)
+    {
+        npc_manager.mark_introduced(speaker_id);
+        debug_events.push(format!(
+            "{} introduced themselves to the player",
+            speaker_actual_name
+        ));
+    }
 
     // 3. Record the conversation exchange for scene awareness.
     world
@@ -615,6 +688,7 @@ pub fn apply_npc_dialogue_turn(
     DialogueTurnOutcome {
         debug_events,
         display_text: capped_dialogue.into_owned(),
+        language_hints,
     }
 }
 
@@ -1955,6 +2029,7 @@ mod tests {
             "Padraig O'Brien",
             None,
             &[],
+            &LanguageSettings::english_only(),
         );
 
         // The DialogueOccurred event published to the bus must carry the
@@ -1976,5 +2051,126 @@ mod tests {
         } else {
             panic!("Expected DialogueOccurred event, got something else");
         }
+    }
+
+    #[test]
+    fn dialogue_turn_reveals_identity_only_after_spoken_full_name() {
+        use crate::npc::manager::NpcManager;
+        use crate::npc::{LanguageSettings, NpcId, NpcStreamResponse};
+        use chrono::{Duration, TimeZone};
+        use parish_world::WorldState;
+
+        let mut world = WorldState::new();
+        let mut npc_manager = NpcManager::new();
+        let mut npc = crate::npc::Npc::new_test_npc();
+        npc.id = NpcId(22);
+        npc.name = "Peig Hannigan".to_string();
+        npc.brief_description = "an elderly widow".to_string();
+        npc.location = world.player_location;
+        npc_manager.add_npc(npc);
+        let location = world.player_location;
+        let game_time = chrono::Utc.with_ymd_and_hms(1820, 3, 20, 8, 0, 0).unwrap();
+
+        let unnamed = NpcStreamResponse {
+            dialogue: "Good morning. What brings ye here?".to_string(),
+            metadata: None,
+        };
+        crate::game_session::apply_npc_dialogue_turn(
+            &mut world,
+            &mut npc_manager,
+            NpcId(22),
+            &unnamed,
+            "Might I ask your name?",
+            "Might I ask your name?",
+            game_time,
+            location,
+            "an elderly widow",
+            "Peig Hannigan",
+            None,
+            &[],
+            &LanguageSettings::english_only(),
+        );
+        assert!(
+            !npc_manager.is_introduced(NpcId(22)),
+            "an exchange with no spoken identity must not reveal the NPC"
+        );
+
+        let named = NpcStreamResponse {
+            dialogue: "Peig Hannigan's the name. What brings ye here?".to_string(),
+            metadata: None,
+        };
+        crate::game_session::apply_npc_dialogue_turn(
+            &mut world,
+            &mut npc_manager,
+            NpcId(22),
+            &named,
+            "I did ask your name.",
+            "I did ask your name.",
+            game_time + Duration::minutes(10),
+            location,
+            "an elderly widow",
+            "Peig Hannigan",
+            None,
+            &[],
+            &LanguageSettings::english_only(),
+        );
+        assert!(
+            npc_manager.is_introduced(NpcId(22)),
+            "the canonical delivered self-identification must reveal the NPC"
+        );
+    }
+
+    #[test]
+    fn dialogue_turn_validates_hints_against_final_delivered_text() {
+        use crate::npc::manager::NpcManager;
+        use crate::npc::{LanguageHint, LanguageSettings, NpcId, NpcMetadata, NpcStreamResponse};
+        use chrono::TimeZone;
+        use parish_world::WorldState;
+
+        let mut world = WorldState::new();
+        let mut npc_manager = NpcManager::new();
+        let mut npc = crate::npc::Npc::new_test_npc();
+        npc.location = world.player_location;
+        npc_manager.add_npc(npc);
+        let location = world.player_location;
+        let parsed = NpcStreamResponse {
+            dialogue: "Dia dhuit. Listen for the whispers on the road.".to_string(),
+            metadata: Some(NpcMetadata {
+                action: String::new(),
+                mood: "calm".to_string(),
+                internal_thought: None,
+                language_hints: vec![
+                    LanguageHint {
+                        word: "whispers".to_string(),
+                        pronunciation: "WISP-urs".to_string(),
+                        meaning: Some("murmurs".to_string()),
+                    },
+                    LanguageHint {
+                        word: "Dia dhuit".to_string(),
+                        pronunciation: "DEE-ah GHWIT".to_string(),
+                        meaning: Some("hello".to_string()),
+                    },
+                ],
+                mentioned_people: Vec::new(),
+            }),
+        };
+        let game_time = chrono::Utc.with_ymd_and_hms(1820, 3, 20, 8, 0, 0).unwrap();
+        let outcome = crate::game_session::apply_npc_dialogue_turn(
+            &mut world,
+            &mut npc_manager,
+            NpcId(1),
+            &parsed,
+            "Good day.",
+            "Good day.",
+            game_time,
+            location,
+            "Padraig",
+            "Padraig O'Brien",
+            None,
+            &[],
+            &LanguageSettings::new("en-IE", Some("ga-IE".to_string())),
+        );
+        assert_eq!(outcome.language_hints.len(), 1);
+        assert_eq!(outcome.language_hints[0].word, "Dia dhuit");
     }
 }

@@ -128,6 +128,18 @@ impl ConversationLog {
             .any(|e| e.speaker_id == speaker_id)
     }
 
+    /// Checks whether the retained conversation history contains an exchange
+    /// with `speaker_id` at any location.
+    ///
+    /// Contact history is person-scoped, not place-scoped: meeting an NPC at
+    /// the farm still means a later encounter at the crossroads is not first
+    /// contact (#1786).
+    pub fn has_exchange_with(&self, speaker_id: NpcId) -> bool {
+        self.exchanges
+            .iter()
+            .any(|exchange| exchange.speaker_id == speaker_id)
+    }
+
     /// Formats recent conversation history at a location for prompt injection.
     ///
     /// `current_npc_id` is the NPC being prompted — their own lines are
@@ -282,6 +294,19 @@ mod tests {
 
         log.add(make_exchange(8, 1, "Padraig", "Hello", "Dia dhuit!", 1));
         assert_eq!(log.len(), 1);
+    }
+
+    #[test]
+    fn contact_history_follows_npc_across_locations() {
+        let mut log = ConversationLog::new();
+        log.add(make_exchange(8, 1, "Padraig", "Hello", "Dia dhuit!", 7));
+
+        assert!(log.has_exchange_with(NpcId(1)));
+        assert!(!log.has_exchange_with(NpcId(2)));
+        assert!(
+            !log.has_recent_exchange_with(LocationId(9), NpcId(1), 2),
+            "location-scoped continuity remains separate from person-scoped contact"
+        );
     }
 
     #[test]

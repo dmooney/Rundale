@@ -901,7 +901,12 @@ fn apply_npc_response(
         }
     }
     if cfg.verbosity_guard_enabled && !parsed.dialogue.trim().is_empty() {
-        let mood_str = parsed.metadata.as_ref().map(|m| m.mood.as_str());
+        // The authored pre-turn mood governs spoken style. The model's JSON
+        // mood describes its proposed post-turn state and cannot retroactively
+        // relax the current reply (#1779).
+        let mood_str = speaker_context
+            .as_ref()
+            .map(|speaker| speaker.mood.as_str());
         let guarded = if app.flags.is_disabled("npc-mood-aware-sentence-cap") {
             crate::npc::guard_verbosity_runons(&parsed.dialogue)
         } else {
