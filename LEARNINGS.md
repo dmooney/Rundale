@@ -206,3 +206,4 @@ bottom; don't lengthen items past 2-3 lines.
 - **Cold session construction must persist before workers start.** Lock before SQLite, commit the active marker and registry row, and only then publish state or spawn inference/tick/log workers.
 - **A failed save-identity commit must remove the exact unpublished SQLite candidate and sidecars.** Otherwise retry silently advances filenames while leaving orphan ledgers.
 - **Tier-2 activity grounding must identify authored interval instances.** Fingerprint schedule variant/entry and game date so a bulk wait cannot skip B and land on text-identical A.
+- **Never hand off with a known verification error just because it predates the branch.** If an in-scope gate exposes an existing failure, repair it before publishing or keep the work explicitly blocked; “already on main” is context, not an acceptable final state.

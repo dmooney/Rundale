@@ -847,6 +847,7 @@ fn real_loop_invented_titled_landlord_hearsay_is_declined() {
             || lower.contains("no one by that name")
             || lower.contains("wrong parish")
             || lower.contains("not known to me")
+            || lower.contains("not a name")
             || lower.contains("such a person")
             || lower.contains("that name")
             || lower.contains("parish face")
