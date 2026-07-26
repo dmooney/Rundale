@@ -13,12 +13,12 @@ from longer-term visual-client alternatives so agents do not mix their constrain
 
 | If you need to...                                           | Read this first                                                                         | Then use                                                                                                                                                 |
 | ----------------------------------------------------------- | --------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Work on the shipped web/Tauri notebook surface              | [Illustrated Notebook Real Play Screen](../design/illustrated-notebook-real.md)         | [implementation plan](../plans/illustrated-notebook-real.md) and [roadmap](../plans/illustrated-notebook-roadmap.md)                                     |
+| Work on responsive art in the shipped chat surface          | [Chat-first stabilization contract](../../parish/apps/ui/CHAT_FIRST_STABILIZATION.md)   | [GUI features](../features.md#chat-first-illustrated-viewport)                                                                                           |
 | Understand the earlier Svelte notebook proposal             | [Parish Notebook UI](../design/parish-notebook-ui.md)                                   | Treat it as superseded in implementation detail by the Pixi-oriented real-play-screen plan above.                                                        |
 | Resume a background-plate experiment                        | [current Q/M handover](handover-2026-06-28-notebook-qm.md)                              | [reproducible BU-style pipeline](map-to-bu-style-reproducible-pipeline.md) and the [Kilteevan run template](kilteevan-exterior-pipeline-run-template.md) |
 | Interpret a historic map before rendering                   | [map-reader stage template](map-reader-stage-template.md)                               | [map annotator](map-annotator/README.md) and [OS map-key references](web-references/os-6inch-map-key/README.md)                                          |
 | Build a playable visual location rather than another render | [runtime layers and independent variables](runtime-layers-and-independent-variables.md) | [Interactive Parish Diorama RFC](../design/ideas/parish-diorama.md) and its [implementation plan](../plans/parish-diorama-implementation.md)             |
-| Explore a separate Godot presentation client                | [Godot-based Rundale plan](../design/godot-parish-game-plan.md)                         | This is a proposed client direction, not the current Pixi implementation plan.                                                                           |
+| Explore a separate Godot presentation client                | [Godot-based Rundale plan](../design/godot-parish-game-plan.md)                         | This is a proposed client direction, not the current chat implementation.                                                                                |
 
 ## Research map
 
@@ -31,9 +31,9 @@ from longer-term visual-client alternatives so agents do not mix their constrain
 
 ## Decision boundaries
 
-- The current default client work is the Pixi notebook screen. The Parish
-  Diorama and Godot documents are related proposals, not implementation authority
-  for that work.
+- The current default client is the semantic chat shell. The retired Pixi
+  notebook, Parish Diorama, and Godot documents are historical or related
+  proposals, not implementation authority for that work.
 - Historic maps are provenance and geometry evidence for exterior research. The
   current runtime notebook design explicitly disallows using them as runtime
   image references.

@@ -1,11 +1,10 @@
 /**
  * Screenshot helper — captures the current Svelte app shell as a PNG data URL.
  *
- * The illustrated game is already a complete Pixi canvas, so that surface is
- * captured directly. Other routes fall back to `html-to-image`, keeping the
- * helper portable across Tauri and web modes. The returned data URL is handed
- * to `saveScreenshot` in `ipc.ts`, which posts it to the backend so the PNG
- * lands under `<saves_dir>/screenshots/`.
+ * The chat shell and coordinated surfaces are ordinary DOM, so the capture
+ * includes the entire app root. The returned data URL is handed to
+ * `saveScreenshot` in `ipc.ts`, which posts it to the backend so the PNG lands
+ * under `<saves_dir>/screenshots/`.
  */
 
 import { toPng } from 'html-to-image';
@@ -13,30 +12,17 @@ import { toPng } from 'html-to-image';
 /**
  * Captures the visible app shell and returns a `data:image/png;base64,...` URL.
  *
- * Targets `.app-shell` first (the top-level wrapper in `+page.svelte`); falls
- * back to `document.body` if that selector is absent (e.g. the editor route).
+ * Targets `[data-testid="app-root"]` first so active dialog/sheet state and the
+ * shell beneath it are captured together; falls back to `.chat-game-shell`,
+ * then `document.body` for other routes.
  * Throws on rendering failure so the caller can surface it via the error log.
  */
 export async function captureScreen(): Promise<string> {
-	const illustratedCanvas = document.querySelector<HTMLCanvasElement>(
-		'[data-testid="illustrated-notebook-pixi-host"] canvas',
-	);
-	if (
-		illustratedCanvas &&
-		!document.querySelector('[role="dialog"]') &&
-		illustratedCanvas.width > 1 &&
-		illustratedCanvas.height > 1
-	) {
-		try {
-			const dataUrl = illustratedCanvas.toDataURL('image/png');
-			if (dataUrl.startsWith('data:image/png')) return dataUrl;
-		} catch {
-			// A tainted/unavailable canvas still gets the portable DOM fallback.
-		}
-	}
-
 	const target =
-		(document.querySelector('.app-shell') as HTMLElement | null) ??
+		(document.querySelector(
+			'[data-testid="app-root"]',
+		) as HTMLElement | null) ??
+		(document.querySelector('.chat-game-shell') as HTMLElement | null) ??
 		document.body;
 	if (!target) {
 		throw new Error('No DOM target available to screenshot.');

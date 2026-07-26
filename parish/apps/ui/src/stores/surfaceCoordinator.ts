@@ -1,7 +1,6 @@
 import { tick } from 'svelte';
 import { get, writable } from 'svelte/store';
 import type { BugContext } from '$lib/types';
-import type { NotebookSurface } from '$lib/illustrated-parish/types';
 import { getDebugSnapshot } from '$lib/ipc';
 import {
 	bugReportVisible,
@@ -13,9 +12,10 @@ import { debugSnapshot, debugVisible } from './debug';
 import { fullMapOpen, uiConfig } from './game';
 import { modSelectorVisible, savePickerVisible } from './save';
 
-export const notebookOverlay = writable<NotebookSurface | null>(null);
-export const notebookOverlayTransitioning = writable(false);
-export const notebookPersonSelection = writable<string | null>(null);
+export type Surface = 'map' | 'save' | 'debug' | 'mod' | 'bug' | 'shortcuts';
+
+export const activeSurface = writable<Surface | null>(null);
+export const surfaceTransitioning = writable(false);
 
 let restoreFocusTarget: HTMLElement | null = null;
 let routeRevision = 0;
@@ -35,11 +35,11 @@ function defaultInvoker(): HTMLElement | null {
 
 function requiredModIsOpen(): boolean {
 	return (
-		get(notebookOverlay) === 'mod' && Boolean(get(uiConfig)?.base_mod_required)
+		get(activeSurface) === 'mod' && Boolean(get(uiConfig)?.base_mod_required)
 	);
 }
 
-function hideLegacySurfaces(except: NotebookSurface | null = null): void {
+function hideLegacySurfaces(except: Surface | null = null): void {
 	if (except !== 'map') fullMapOpen.set(false);
 	if (except !== 'save') savePickerVisible.set(false);
 	if (except !== 'debug') debugVisible.set(false);
@@ -55,21 +55,21 @@ async function settleViewport(): Promise<void> {
 	);
 }
 
-export async function openNotebookOverlay(
-	surface: NotebookSurface,
+export async function openSurface(
+	surface: Surface,
 	invoker: HTMLElement | null = defaultInvoker(),
 	bugContext?: BugContext,
 ): Promise<boolean> {
 	if (requiredModIsOpen() && surface !== 'mod') return false;
 	const revision = ++routeRevision;
-	// A route opened from inside another notebook sheet replaces that sheet.
+	// A route opened from inside another surface replaces that surface.
 	// Keep the original viewport control as the restoration target because the
 	// nested invoker is about to be unmounted.
-	if (invoker && get(notebookOverlay) === null) restoreFocusTarget = invoker;
+	if (invoker && get(activeSurface) === null) restoreFocusTarget = invoker;
 
 	if (surface === 'bug') {
-		notebookOverlayTransitioning.set(true);
-		notebookOverlay.set(null);
+		surfaceTransitioning.set(true);
+		activeSurface.set(null);
 		hideLegacySurfaces();
 		try {
 			await settleViewport();
@@ -77,18 +77,18 @@ export async function openNotebookOverlay(
 			const preparedReport = await prepareBugReport(bugContext);
 			if (revision !== routeRevision) return false;
 			showPreparedBugReport(preparedReport);
-			notebookOverlay.set('bug');
+			activeSurface.set('bug');
 			return true;
 		} finally {
 			if (revision === routeRevision) {
-				notebookOverlayTransitioning.set(false);
+				surfaceTransitioning.set(false);
 			}
 		}
 	}
 
-	notebookOverlayTransitioning.set(false);
+	surfaceTransitioning.set(false);
 	hideLegacySurfaces(surface);
-	notebookOverlay.set(surface);
+	activeSurface.set(surface);
 	switch (surface) {
 		case 'map':
 			fullMapOpen.set(true);
@@ -109,26 +109,23 @@ export async function openNotebookOverlay(
 	return true;
 }
 
-export async function toggleNotebookOverlay(
-	surface: NotebookSurface,
+export async function toggleSurface(
+	surface: Surface,
 	invoker?: HTMLElement | null,
 ): Promise<boolean> {
-	if (get(notebookOverlay) === surface) return closeNotebookOverlay(surface);
-	return openNotebookOverlay(surface, invoker);
+	if (get(activeSurface) === surface) return closeSurface(surface);
+	return openSurface(surface, invoker);
 }
 
-export function closeNotebookOverlay(
-	expected?: NotebookSurface,
+export function closeSurface(
+	expected?: Surface,
 	options: { force?: boolean; restoreFocus?: boolean } = {},
 ): boolean {
-	const current = get(notebookOverlay);
+	const current = get(activeSurface);
 	if (!current) {
-		if (
-			get(notebookOverlayTransitioning) &&
-			(!expected || expected === 'bug')
-		) {
+		if (get(surfaceTransitioning) && (!expected || expected === 'bug')) {
 			routeRevision += 1;
-			notebookOverlayTransitioning.set(false);
+			surfaceTransitioning.set(false);
 			hideLegacySurfaces();
 			restoreViewportFocus(options.restoreFocus !== false);
 			return true;
@@ -139,9 +136,9 @@ export function closeNotebookOverlay(
 	if (current === 'mod' && requiredModIsOpen() && !options.force) return false;
 
 	routeRevision += 1;
-	notebookOverlayTransitioning.set(false);
+	surfaceTransitioning.set(false);
 	hideLegacySurfaces();
-	notebookOverlay.set(null);
+	activeSurface.set(null);
 	restoreViewportFocus(options.restoreFocus !== false);
 	return true;
 }
@@ -156,34 +153,35 @@ function restoreViewportFocus(shouldRestore: boolean): void {
 			if (document.activeElement === target) return;
 		}
 		document
-			.querySelector<HTMLElement>('[aria-label="Player intent"]')
+			.querySelector<HTMLElement>(
+				'[data-testid="input-field"], [aria-label="Player input"]',
+			)
 			?.focus({ preventScroll: true });
 	});
 }
 
 /**
  * Keeps direct legacy close actions (for example SavePicker finishing a load)
- * synchronized with the notebook frame without remounting the game viewport.
+ * synchronized with the active presentation surface.
  */
-export function legacyNotebookSurfaceClosed(surface: NotebookSurface): void {
-	if (get(notebookOverlay) !== surface) return;
+export function legacySurfaceClosed(surface: Surface): void {
+	if (get(activeSurface) !== surface) return;
 	if (surface === 'mod' && requiredModIsOpen()) return;
-	closeNotebookOverlay(surface);
+	closeSurface(surface);
 }
 
-export function adoptLegacyNotebookSurface(surface: NotebookSurface): void {
+export function adoptLegacySurface(surface: Surface): void {
 	if (requiredModIsOpen() && surface !== 'mod') return;
 	routeRevision += 1;
-	notebookOverlayTransitioning.set(false);
+	surfaceTransitioning.set(false);
 	hideLegacySurfaces(surface);
-	notebookOverlay.set(surface);
+	activeSurface.set(surface);
 }
 
-export function resetNotebookOverlayForTests(): void {
+export function resetSurfaceCoordinatorForTests(): void {
 	routeRevision += 1;
-	notebookOverlayTransitioning.set(false);
+	surfaceTransitioning.set(false);
 	restoreFocusTarget = null;
 	hideLegacySurfaces();
-	notebookOverlay.set(null);
-	notebookPersonSelection.set(null);
+	activeSurface.set(null);
 }

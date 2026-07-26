@@ -18,26 +18,25 @@ beforeEach(() => {
 });
 
 describe('captureScreen()', () => {
-	it('captures the complete illustrated Pixi canvas directly', async () => {
-		const host = document.createElement('div');
-		host.dataset.testid = 'illustrated-notebook-pixi-host';
-		const canvas = document.createElement('canvas');
-		canvas.width = 1440;
-		canvas.height = 900;
-		const toDataURL = vi.fn(() => 'data:image/png;base64,PIXIFRAME');
-		canvas.toDataURL = toDataURL;
-		host.appendChild(canvas);
-		document.body.appendChild(host);
+	it('captures the complete app root, including an open dialog', async () => {
+		const root = document.createElement('div');
+		root.dataset.testid = 'app-root';
+		const shell = document.createElement('div');
+		shell.className = 'chat-game-shell';
+		const dialog = document.createElement('div');
+		dialog.setAttribute('role', 'dialog');
+		root.append(shell, dialog);
+		document.body.appendChild(root);
 
 		const { captureScreen } = await import('./screenshot');
-		expect(await captureScreen()).toBe('data:image/png;base64,PIXIFRAME');
-		expect(toDataURL).toHaveBeenCalledWith('image/png');
-		expect(toPngMock).not.toHaveBeenCalled();
+		expect(await captureScreen()).toBe('data:image/png;base64,FAKE');
+		expect(toPngMock).toHaveBeenCalledTimes(1);
+		expect(toPngMock.mock.calls[0]?.[0]).toBe(root);
 	});
 
-	it('targets .app-shell when present', async () => {
+	it('targets .chat-game-shell when the app root is absent', async () => {
 		const shell = document.createElement('div');
-		shell.className = 'app-shell';
+		shell.className = 'chat-game-shell';
 		document.body.appendChild(shell);
 
 		const { captureScreen } = await import('./screenshot');
@@ -47,7 +46,7 @@ describe('captureScreen()', () => {
 		expect(toPngMock.mock.calls[0]?.[0]).toBe(shell);
 	});
 
-	it('falls back to document.body when .app-shell is absent', async () => {
+	it('falls back to document.body when the app root and chat shell are absent', async () => {
 		const { captureScreen } = await import('./screenshot');
 		await captureScreen();
 		expect(toPngMock.mock.calls[0]?.[0]).toBe(document.body);

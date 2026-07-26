@@ -1,6 +1,12 @@
 # Illustrated Notebook Real Play Screen
 
-Status: Implemented foundation; refreshed for issue #1630
+Status: Retired experiment; superseded by the chat-first stabilization contract
+
+> Historical design record. The Pixi renderer, canvas host, notebook overlay
+> coordinator, and default-route contracts described below were removed. The
+> approved scene plates and portraits were retained for responsive DOM use by
+> the chat shell. See
+> [`parish/apps/ui/CHAT_FIRST_STABILIZATION.md`](../../parish/apps/ui/CHAT_FIRST_STABILIZATION.md).
 
 ## Player Experience
 

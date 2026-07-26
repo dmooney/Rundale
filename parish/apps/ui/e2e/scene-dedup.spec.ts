@@ -14,38 +14,17 @@ import { test, expect, installTauriMock, emitEvent } from './fixtures';
 import type { Page } from '@playwright/test';
 import { SNAPSHOTS } from './mock-data';
 
-const PIXI_CANVAS = '[data-testid="illustrated-notebook-pixi-host"] canvas';
-
 function journalSection(page: Page) {
-	return page.getByTestId('notebook-active-section');
+	return page.getByTestId('chat-panel');
 }
 
 async function openJournal(page: Page) {
-	await expect(page.getByTestId('illustrated-notebook-game')).toBeVisible();
-	await expect(page.locator(PIXI_CANVAS)).toBeVisible();
-	await expect(page.locator('.app-shell')).toHaveAttribute(
+	await expect(page.getByTestId('app-root')).toHaveAttribute(
 		'data-controller-ready',
 		'true',
 	);
-	await expect(
-		page.getByRole('button', { name: 'Ask action', exact: true }),
-	).toHaveCount(1);
-
-	const control = page.getByRole('button', {
-		name: 'Open Journal notebook tab',
-		exact: true,
-	});
-	await expect(control).toHaveCount(1);
-	await expect(control).toBeEnabled();
-	await control.focus();
-	await expect(control).toBeFocused();
-	await page.keyboard.press('Enter');
-
 	const journal = journalSection(page);
 	await expect(journal).toBeVisible();
-	await expect(journal).toHaveAttribute('data-section', 'journal');
-	await expect(journal).toContainText('Parish Journal');
-	await expect(page.getByTestId('notebook-overlay-backdrop')).toHaveCount(0);
 	return journal;
 }
 

@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { openNotebookOverlay } from '../stores/notebookOverlay';
+	import { openSurface } from '../stores/surfaceCoordinator';
 
 	let {
 		kind,
@@ -11,7 +11,7 @@
 		// Don't trigger the surrounding row's own click handler (e.g. inference
 		// log-row selection).
 		e.stopPropagation();
-		void openNotebookOverlay('bug', e.currentTarget as HTMLButtonElement, {
+		void openSurface('bug', e.currentTarget as HTMLButtonElement, {
 			kind,
 			label,
 			detail,

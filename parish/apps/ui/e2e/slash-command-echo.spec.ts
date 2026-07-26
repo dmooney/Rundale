@@ -12,49 +12,17 @@
 
 import { test, expect, installTauriMock, emitEvent } from './fixtures';
 import type { Page } from '@playwright/test';
-import * as path from 'path';
-import * as fs from 'fs';
-import { fileURLToPath } from 'url';
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-// Proof bundle lives at repo-root/.proofs/fix-1423-slash-echo (gitignored).
-// __dirname is parish/apps/ui/e2e → up four to the repo root.
-const PROOF_DIR = path.resolve(
-	__dirname,
-	'../../../../.proofs/fix-1423-slash-echo',
-);
-const PIXI_CANVAS = '[data-testid="illustrated-notebook-pixi-host"] canvas';
-
 function journalSection(page: Page) {
-	return page.getByTestId('notebook-active-section');
+	return page.getByTestId('chat-panel');
 }
 
 async function openJournal(page: Page) {
-	await expect(page.getByTestId('illustrated-notebook-game')).toBeVisible();
-	await expect(page.locator(PIXI_CANVAS)).toBeVisible();
-	await expect(page.locator('.app-shell')).toHaveAttribute(
+	await expect(page.getByTestId('app-root')).toHaveAttribute(
 		'data-controller-ready',
 		'true',
 	);
-	await expect(
-		page.getByRole('button', { name: 'Ask action', exact: true }),
-	).toHaveCount(1);
-
-	const control = page.getByRole('button', {
-		name: 'Open Journal notebook tab',
-		exact: true,
-	});
-	await expect(control).toHaveCount(1);
-	await expect(control).toBeEnabled();
-	await control.focus();
-	await expect(control).toBeFocused();
-	await page.keyboard.press('Enter');
-
 	const journal = journalSection(page);
 	await expect(journal).toBeVisible();
-	await expect(journal).toHaveAttribute('data-section', 'journal');
-	await expect(journal).toContainText('Parish Journal');
-	await expect(page.getByTestId('notebook-overlay-backdrop')).toHaveCount(0);
 	return journal;
 }
 
@@ -86,7 +54,7 @@ test.describe('slash-command echo rendering (#1423)', () => {
 			content: 'The clocks of the parish stand still. Time is now paused.',
 		});
 
-		const entries = journal.locator('p');
+		const entries = journal.locator('.entry');
 		await expect(entries.filter({ hasText: '/pause' })).toHaveCount(1);
 		await expect(
 			entries.filter({ hasText: 'clocks of the parish' }),
@@ -99,16 +67,6 @@ test.describe('slash-command echo rendering (#1423)', () => {
 		expect(pauseIndex).toBeGreaterThan(-1);
 		expect(narrationIndex).toBeGreaterThan(-1);
 		expect(pauseIndex).toBeLessThan(narrationIndex);
-
-		// Capture proof screenshot
-		await expect(journal).toHaveAttribute('data-section', 'journal');
-		fs.mkdirSync(PROOF_DIR, { recursive: true });
-		// Keep the full viewport so the artifact shows the command history
-		// contained inside the illustrated notebook's Journal sheet.
-		await page.screenshot({
-			path: path.join(PROOF_DIR, 'command-echo.png'),
-			fullPage: false,
-		});
 	});
 
 	test('#1423 /resume and /wait remain ordered with their narration', async ({
@@ -139,7 +97,7 @@ test.describe('slash-command echo rendering (#1423)', () => {
 			content: 'Ten minutes pass quietly.',
 		});
 
-		const entries = journal.locator('p');
+		const entries = journal.locator('.entry');
 		await expect(entries.filter({ hasText: '/resume' })).toHaveCount(1);
 		await expect(entries.filter({ hasText: '/wait 10' })).toHaveCount(1);
 		const lines = await entries.allTextContents();

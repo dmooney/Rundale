@@ -16,21 +16,14 @@ test.describe('Bug report modal — hotkey isolation', () => {
 	test('typing "m" in the description does not open the map', async ({
 		parishPage: page,
 	}) => {
-		// Open the report sheet from the illustrated notebook's More page.
-		const moreButton = page.getByRole('button', {
-			name: 'Open notebook tools',
-		});
-		await moreButton.focus();
-		await page.keyboard.press('Enter');
-		const bugButton = page
-			.getByRole('dialog', { name: 'More from the Notebook' })
-			.getByRole('button', { name: /^Bug Report/ });
+		await page.getByRole('button', { name: 'Developer tools menu' }).click();
+		const bugButton = page.getByRole('menuitem', { name: 'Report a bug' });
 		await expect(bugButton).toBeVisible();
 		await bugButton.click();
 		await expect(page.locator('[data-testid="bug-report-modal"]')).toBeVisible({
 			timeout: 10_000,
 		});
-		await expect(page.locator('[data-testid="full-map"]')).toBeHidden();
+		await expect(page.getByTestId('surface-map')).toHaveCount(0);
 
 		// Type text containing "m"/"M" into the description textarea.
 		const description = page.locator('#bug-description');
@@ -39,19 +32,19 @@ test.describe('Bug report modal — hotkey isolation', () => {
 
 		// The "M" hotkey must NOT have toggled the map, and every character
 		// must have landed in the field.
-		await expect(page.locator('[data-testid="full-map"]')).toBeHidden();
+		await expect(page.getByTestId('surface-map')).toHaveCount(0);
 		await expect(description).toHaveValue('Map breaks when I press m');
 	});
 
 	test('"m" still toggles the map when not typing in a field', async ({
 		parishPage: page,
 	}) => {
-		await expect(page.locator('[data-testid="full-map"]')).toBeHidden();
+		await expect(page.getByTestId('surface-map')).toHaveCount(0);
 		// Ensure focus is not in any input/textarea.
 		await page.evaluate(() =>
 			(document.activeElement as HTMLElement | null)?.blur(),
 		);
 		await page.keyboard.press('m');
-		await expect(page.locator('[data-testid="full-map"]')).toBeVisible();
+		await expect(page.getByTestId('surface-map')).toBeVisible();
 	});
 });
