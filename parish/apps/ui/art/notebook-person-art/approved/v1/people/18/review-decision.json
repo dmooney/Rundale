@@ -1,0 +1,108 @@
+{
+	"schema_version": 1,
+	"record_type": "notebook-person-art-human-review-decision",
+	"candidate_receipt_path": "parish/apps/ui/art/notebook-person-art/candidates/objects/98/9860a50ffe6ae4833eff18e5c798b7428394b721a2624b77c29c78a603049f94/receipt.json",
+	"candidate_receipt_sha256": "abd277e72c59d28e968fa98253d1ee19ef94294e8e5d904f1caacc5ca459018d",
+	"candidate_sha256": "2403106efed60a7ff954e02fc070cbd5d48992e0136d5c912786575c905ae97e",
+	"raw_sha256": "d2b3878e3303b46945cf71b934f48ae5c1308089a7ea6b2bd7c69b8c57a67689",
+	"subject": {
+		"kind": "npc",
+		"npc_id": 18,
+		"name": "Liam Murphy",
+		"input_record_sha256": "b014e63763f6265f888678eda910452c27a52e39c45611934155307323393769"
+	},
+	"asset": {
+		"kind": "pair",
+		"candidate_index": 1,
+		"children": [
+			"portrait",
+			"marker"
+		]
+	},
+	"hair_topology": {
+		"schema_version": 4,
+		"subject_key": "npc:18",
+		"vector": {
+			"color_and_texture": "straight medium-brown adolescent hair",
+			"front": {
+				"family": "flat-fringe-under-cap",
+				"description": "straight uneven fringe pressed flat beneath the cap"
+			},
+			"rear": {
+				"family": "uneven-around-ears-and-nape",
+				"description": "straight rough cut around both ears and the nape"
+			},
+			"covering": {
+				"family": "worn-low-crowned-cap",
+				"description": "worn low-crowned cap sitting close to the head"
+			},
+			"silhouette": {
+				"family": "low-cap-with-straight-edge",
+				"description": "flat low cap crown over a straight broken hair edge"
+			},
+			"loose_details": "one straight lock projects below the cap behind the left ear"
+		},
+		"sha256": "f5b6ec7f9c5764b94b27f8183e0cb1c820c6f19d1be55f6751258155ce422291"
+	},
+	"marker_identity": {
+		"schema_version": 4,
+		"subject_key": "npc:18",
+		"marker_identity": {
+			"composition": "character-only",
+			"silhouette": "quiet mid-teen boy with a worn low-crowned cap, straight brown hair at the ears, patched vest, muddy boots, and a slender frame; no object/scenery",
+			"stance": "slightly apart, lowered-shoulder stance with hands in pockets; no object/scenery",
+			"empty_hand_pose": "hands-in-pockets",
+			"readability_cues": [
+				{
+					"kind": "hair-or-headwear",
+					"description": "worn low-crowned cap with straight hair visible at ears and nape"
+				},
+				{
+					"kind": "body-shape",
+					"description": "slender teenage proportions"
+				}
+			],
+			"tiny_readability_notes": [
+				"Keep the lowered, reserved adolescent posture distinct from adult figures and Ciaran."
+			]
+		},
+		"sha256": "fad2d0dc95bc19915bba91350bee38713ce6baf58bf89375dcb36f31f77ba1c7"
+	},
+	"decision": "approved",
+	"promotion_eligible": true,
+	"reviewer": "dmooney",
+	"reviewed_at": "2026-07-17T01:52:56.080Z",
+	"notes": "Approved by dmooney after reviewing the final 24-pair whole-cast sheet in Codex on 2026-07-16.",
+	"checklist": {
+		"identity_specific": true,
+		"concept_style_match": true,
+		"period_appropriate": true,
+		"no_prohibited_content": true,
+		"key_removal_clean": true,
+		"production_quality": true,
+		"diegetic_player_sketch": true,
+		"uncolored_pen_and_ink": true,
+		"sparse_open_linework": true,
+		"no_baked_background": true,
+		"framing_complete": true,
+		"selected_size_readable": true,
+		"nearby_size_readable": true,
+		"restrained_world_color": true,
+		"full_body_complete": true,
+		"silhouette_readable": true,
+		"character_only_marker": true,
+		"empty_hands": true,
+		"no_contextual_props_or_scenery": true,
+		"no_ground_plane": true,
+		"scene_size_readable": true,
+		"cross_asset_identity": true,
+		"hair_front_matches": true,
+		"hair_rear_matches": true,
+		"hair_covering_matches": true,
+		"hair_silhouette_matches": true,
+		"correct_surface_split": true,
+		"atomic_rerender_understood": true
+	},
+	"source_template_path": "parish/apps/ui/art/notebook-person-art/candidates/review-packets/identity-v8-character-only-full-cast-c-20260716/18-pair-2403106efed6-review.json",
+	"review_id": "d45e826e42544c42b4ae17b7"
+}

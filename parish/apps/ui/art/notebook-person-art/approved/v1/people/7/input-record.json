@@ -1,0 +1,243 @@
+{
+	"npc_id": 7,
+	"name": "Mick Flanagan",
+	"age": 65,
+	"pronouns": "he/him",
+	"occupation": "Retired Constable",
+	"mood": "watchful",
+	"brief_description": "an older man",
+	"home": {
+		"id": 15,
+		"name": "Kilteevan Village",
+		"description": "The small village of Kilteevan — a handful of whitewashed cottages clustered around a well and an old stone bridge over a shallow stream. Smoke drifts from chimneys. A rooster crows from behind a low wall. The weather sky hangs over the quiet street. It is daylight."
+	},
+	"workplace": null,
+	"source_personality_summary": "A retired constable who served in the local barracks for thirty years.",
+	"source_knowledge": [
+		"Knows every smuggling route, poteen still, and hidden meeting place in the parish.",
+		"Has contacts in the barracks in Roscommon town who tell him things.",
+		"Noticed strangers passing through last month — men who asked too many questions.",
+		"Knows which families have Whiteboy connections, though he would never say."
+	],
+	"source_relationships": [
+		{
+			"target_id": 1,
+			"target_name": "Padraig Darcy",
+			"kind": "Friend",
+			"strength": 0.4
+		},
+		{
+			"target_id": 5,
+			"target_name": "Tommy O'Brien",
+			"kind": "Friend",
+			"strength": 0.5
+		},
+		{
+			"target_id": 3,
+			"target_name": "Fr. Declan Tierney",
+			"kind": "Friend",
+			"strength": 0.3
+		},
+		{
+			"target_id": 4,
+			"target_name": "Roisin Connolly",
+			"kind": "Rival",
+			"strength": -0.2
+		},
+		{
+			"target_id": 15,
+			"target_name": "Eamon Walsh",
+			"kind": "Neighbor",
+			"strength": -0.2
+		}
+	],
+	"source_schedule_cues": [
+		{
+			"location_id": 1,
+			"location_name": "The Crossroads",
+			"activity": "a short watch at the crossroads if the weather allows, otherwise the pub"
+		},
+		{
+			"location_id": 1,
+			"location_name": "The Crossroads",
+			"activity": "at the crossroads after Mass, observing the gathered parish"
+		},
+		{
+			"location_id": 1,
+			"location_name": "The Crossroads",
+			"activity": "watching the crossroads from the wall, the habit of a lifetime"
+		},
+		{
+			"location_id": 2,
+			"location_name": "Darcy's Pub",
+			"activity": "Sunday dinner pint at the pub"
+		},
+		{
+			"location_id": 2,
+			"location_name": "Darcy's Pub",
+			"activity": "Sunday evening at the pub"
+		},
+		{
+			"location_id": 2,
+			"location_name": "Darcy's Pub",
+			"activity": "nursing a pint at Darcy's Pub, listening more than talking"
+		},
+		{
+			"location_id": 2,
+			"location_name": "Darcy's Pub",
+			"activity": "the evening at the pub, listening to the talk"
+		},
+		{
+			"location_id": 2,
+			"location_name": "Darcy's Pub",
+			"activity": "to the pub for warmth — walks are shorter in the cold months"
+		},
+		{
+			"location_id": 3,
+			"location_name": "St. Brigid's Church",
+			"activity": "attending Mass — he sits near the back, old habit"
+		},
+		{
+			"location_id": 12,
+			"location_name": "The Bog Road",
+			"activity": "his Sunday walk along the Bog Road, thinking of old cases"
+		},
+		{
+			"location_id": 12,
+			"location_name": "The Bog Road",
+			"activity": "walking the Bog Road — old patrol routes die hard"
+		},
+		{
+			"location_id": 14,
+			"location_name": "The Lime Kiln",
+			"activity": "sitting by the lime kiln, watching who comes and goes"
+		},
+		{
+			"location_id": 15,
+			"location_name": "Kilteevan Village",
+			"activity": "home early, the dark pressing in"
+		},
+		{
+			"location_id": 15,
+			"location_name": "Kilteevan Village",
+			"activity": "home for dinner"
+		},
+		{
+			"location_id": 15,
+			"location_name": "Kilteevan Village",
+			"activity": "home for the evening, a last pipe at the door in the long twilight"
+		},
+		{
+			"location_id": 15,
+			"location_name": "Kilteevan Village",
+			"activity": "home for the night"
+		},
+		{
+			"location_id": 15,
+			"location_name": "Kilteevan Village",
+			"activity": "morning routine — slow in winter, the cold in his joints"
+		},
+		{
+			"location_id": 15,
+			"location_name": "Kilteevan Village",
+			"activity": "morning routine — tea, pipe, watching the lane from his half-door"
+		},
+		{
+			"location_id": 15,
+			"location_name": "Kilteevan Village",
+			"activity": "sleeping at his cottage"
+		},
+		{
+			"location_id": 15,
+			"location_name": "Kilteevan Village",
+			"activity": "sleeping at his cottage in Kilteevan"
+		},
+		{
+			"location_id": 15,
+			"location_name": "Kilteevan Village",
+			"activity": "sleeping at his cottage, the fire kept alive through the night"
+		}
+	],
+	"source_visual_cues": [
+		"age: 65",
+		"occupation: Retired Constable",
+		"brief_description: an older man"
+	],
+	"source_metadata_status": {
+		"canonical_npc_data_sufficient_for_production_art": false,
+		"status": "weak-partial",
+		"reason": "The canonical NPC data identifies the character but does not provide enough structured appearance, clothing, or tiny-marker guidance for production art."
+	},
+	"art_direction": {
+		"npc_id": 7,
+		"npc_name": "Mick Flanagan",
+		"portrait_identity": {
+			"visual_identity_seed": "rundale-person-v2:7",
+			"identity_cohort": "man",
+			"apparent_age": "mid sixties",
+			"facial_geometry": {
+				"face_shape": "compact square face with straight sides and a broad lower edge",
+				"proportions": "low forehead; compact midface; jaw and cheek width nearly equal",
+				"brow_and_eyes": "thick low straight brows; close-to-medium-set hooded eyes",
+				"nose": "medium-length straight nose with a squared, moderately broad tip",
+				"mouth": "long upper-lip area largely defined by the moustache; narrow level lower lip",
+				"jaw_and_chin": "strong square jaw and short broad chin with a shallow central cleft",
+				"cheekbones": "flat broad cheek planes rather than prominent points",
+				"hairline": "low but receded in clean wedges at both temples",
+				"age_detail": "mid-sixties brow furrows, under-eye folds, and restrained cheek creases"
+			},
+			"distinguishing_features": [
+				"trim horizontal grey moustache",
+				"shallow cleft in the chin",
+				"left brow angles upward near its outer end"
+			],
+			"hair": "close-cropped iron-grey hair following the skull, short at the sides, paired with a neat broad grey moustache and otherwise clean-shaven face",
+			"clothing": "old dark civilian coat, worn waistcoat, plain shirt, no uniform",
+			"pose_expression": "watchful retired constable, measuring the room",
+			"props": [
+				"walking cane",
+				"small folded notebook"
+			],
+			"palette_notes": [
+				"faded dark coat",
+				"cool grey moustache",
+				"muted brown cane"
+			]
+		},
+		"marker_identity": {
+			"composition": "character-only",
+			"silhouette": "upright mid-sixties man with a square torso, close iron-grey hair, broad grey moustache, and old dark civilian coat; no object/scenery",
+			"stance": "still, rigid stance with hands behind the back and head slightly turned; no object/scenery",
+			"empty_hand_pose": "hands-behind-back",
+			"readability_cues": [
+				{
+					"kind": "body-shape",
+					"description": "square upright build"
+				},
+				{
+					"kind": "face",
+					"description": "broad horizontal grey moustache"
+				},
+				{
+					"kind": "hair-or-headwear",
+					"description": "close-cropped iron-grey hair"
+				}
+			],
+			"tiny_readability_notes": [
+				"Contrast Tommy with a straight vertical posture and a contained arm silhouette."
+			]
+		},
+		"avoid": [
+			"police uniform",
+			"badge emphasis",
+			"weapon focus",
+			"modern constable"
+		],
+		"authoring_notes": [
+			"The role is retired constable; production art should imply habit and bearing, not official uniform."
+		]
+	},
+	"pair_prompt": "Identity contract for Mick Flanagan, age 65, Retired Constable: visual identity seed rundale-person-v2:7; apparent age mid sixties; Explicit facial geometry: face shape compact square face with straight sides and a broad lower edge; proportions low forehead; compact midface; jaw and cheek width nearly equal; brow and eyes thick low straight brows; close-to-medium-set hooded eyes; nose medium-length straight nose with a squared, moderately broad tip; mouth long upper-lip area largely defined by the moustache; narrow level lower lip; jaw and chin strong square jaw and short broad chin with a shallow central cleft; cheekbones flat broad cheek planes rather than prominent points; hairline low but receded in clean wedges at both temples; age detail mid-sixties brow furrows, under-eye folds, and restrained cheek creases. Distinguishing features: trim horizontal grey moustache, shallow cleft in the chin, left brow angles upward near its outer end. Hair: close-cropped iron-grey hair following the skull, short at the sides, paired with a neat broad grey moustache and otherwise clean-shaven face. Production task: create one identity-locked portrait-and-marker pair in Rundale, rural County Roscommon, Ireland, 1820, ordinary parish life, period-appropriate work clothing, under this visual authority: Illustrated Parish Notebook concept art only. The two renderings must unmistakably be the same person by reproducing every stated identity fact. Clothing: old dark civilian coat, worn waistcoat, plain shirt, no uniform; canonical biography cue for clothing and expression only, never for setting, activity, or objects: an older man; current mood watchful. Left asset, notebook portrait: a quick observational head-and-shoulders sketch the player character drew in their working notebook after meeting this person. Use sparse uncolored sepia/graphite contours, open unfilled shapes, and only a few isolated short structural hatch marks; optional lower-edge prop walking cane, simply outlined and confined to the left cell. Do not cross-hatch or shade any broad region of the face, hair, neck, scarf, waistcoat, coat, dress, or apron, and do not render a dark garment as a filled or densely hatched mass. Keep the complete ink drawing between 40 and 60 percent of the left cell height with generous empty padding; every uninked interior region must remain provider key, never white, cream, parchment, skin tone, gray, or any other fill. It must not read as a formal illustration or painted portrait. Right asset, painted-world marker: one tiny static full-body transparent character-only cutout designed for compositing into the painted parish scene; silhouette upright mid-sixties man with a square torso, close iron-grey hair, broad grey moustache, and old dark civilian coat; no object/scenery; stance still, rigid stance with hands behind the back and head slightly turned; no object/scenery; empty-hand pose both empty hands held behind the back; tiny-readability cues from the person's body, hair or headwear, clothing, and stance alone: body shape: square upright build; face: broad horizontal grey moustache; hair or headwear: close-cropped iron-grey hair; complete figure roughly 45 percent of the right cell height, acceptable range 40 to 60 percent, with generous key-visible margins; restrained translucent watercolor within loose sepia/graphite contours, simplified face, and complete feet. The right cell must contain the person only: both hands empty; no held or carried objects, tools, books, containers, bundles, furniture, counters, architecture, vegetation, scenery fragments, ground plane, shadow, or extra person. Worn clothing and headwear are allowed. Do not illustrate the canonical biography's occupation, workplace, activity, or narrative context around the marker. Limit painted color to muted wool gray, bog green, weathered tan, dull brick red, peat brown, and faded indigo; no saturated primary colors. Shared constraints: one depiction in each assigned cell, ordinary 1820 rural County Roscommon clothing, no modern or fantasy elements, no text, labels, frames, contact-sheet furniture, or sprite-sheet poses. Never copy a left-cell portrait prop into the marker. Character-specific avoid list: police uniform, badge emphasis, weapon focus, modern constable.",
+	"portrait_prompt": "Subject identity: Mick Flanagan, age 65, Retired Constable; visual identity seed rundale-person-v2:7; apparent age mid sixties; Explicit facial geometry: face shape compact square face with straight sides and a broad lower edge; proportions low forehead; compact midface; jaw and cheek width nearly equal; brow and eyes thick low straight brows; close-to-medium-set hooded eyes; nose medium-length straight nose with a squared, moderately broad tip; mouth long upper-lip area largely defined by the moustache; narrow level lower lip; jaw and chin strong square jaw and short broad chin with a shallow central cleft; cheekbones flat broad cheek planes rather than prominent points; hairline low but receded in clean wedges at both temples; age detail mid-sixties brow furrows, under-eye folds, and restrained cheek creases. Distinguishing features: trim horizontal grey moustache, shallow cleft in the chin, left brow angles upward near its outer end. Hair: close-cropped iron-grey hair following the skull, short at the sides, paired with a neat broad grey moustache and otherwise clean-shaven face. Artifact and lore: this is a quick observational sketch the player character drew by hand in the margin of their working parish notebook after meeting the subject. It is diegetic notebook ephemera, not a commissioned illustration, formal portrait study, character card, or polished concept painting. Non-negotiable drawing language: sparse, uncolored pen-and-ink line drawing under this visual authority: Illustrated Parish Notebook concept art only. Use one irregular sepia/graphite ink line, economical contours, open shapes, and only a few short loose hatch marks where structurally necessary. Leave most of the face, hair, clothing, and canvas unfilled. No skin-tone fill, white underpainting, cream fill, solid dark garment, gray wash, watercolor, smooth tonal modeling, dense cross-hatching, photorealistic rendering, or glamour. Delivery composition: 1024x1024 transparent-background PNG source, portrait line art occupies roughly 45 percent of source height, centered head-and-shoulders drawing with generous transparent padding on all sides, top of hair/head covering and shoulders fully visible, no baked parchment, paper texture, wash, card, border, label, or UI furniture; keep the complete inked drawing between roughly 40 and 60 percent of canvas height with generous empty space on every side. Uninked areas are transparent in the delivery asset so the UI-controlled notebook paper shows through. Setting: Rundale, rural County Roscommon, Ireland, 1820, ordinary parish life, period-appropriate work clothing. Clothing: old dark civilian coat, worn waistcoat, plain shirt, no uniform, indicated only with contour, seam, and a few fold lines; expression and pose watchful retired constable, measuring the room; current mood watchful. Optional lower-edge identity cue: walking cane, at most one simply outlined prop. Canonical context: an older man; home at Kilteevan Village. Hard constraints: one character, head and shoulders only, period-appropriate rural County Roscommon clothing, no text, no label, no border, no card, no UI chrome. Character-specific avoid list: police uniform, badge emphasis, weapon focus, modern constable.",
+	"marker_prompt": "Subject identity: Mick Flanagan, age 65, Retired Constable; visual identity seed rundale-person-v2:7; apparent age mid sixties; Explicit facial geometry: face shape compact square face with straight sides and a broad lower edge; proportions low forehead; compact midface; jaw and cheek width nearly equal; brow and eyes thick low straight brows; close-to-medium-set hooded eyes; nose medium-length straight nose with a squared, moderately broad tip; mouth long upper-lip area largely defined by the moustache; narrow level lower lip; jaw and chin strong square jaw and short broad chin with a shallow central cleft; cheekbones flat broad cheek planes rather than prominent points; hairline low but receded in clean wedges at both temples; age detail mid-sixties brow furrows, under-eye folds, and restrained cheek creases. Distinguishing features: trim horizontal grey moustache, shallow cleft in the chin, left brow angles upward near its outer end. Hair: close-cropped iron-grey hair following the skull, short at the sides, paired with a neat broad grey moustache and otherwise clean-shaven face. Asset role: one tiny static full-body NPC marker delivered as a transparent character-only cutout for compositing over Rundale's painted world surface. It is not a UI portrait, paper doll, animation sheet, formal character illustration, vignette, or sprite-sheet panel. Visual language: loose hand-inked watercolor miniature under this visual authority: Illustrated Parish Notebook concept art only. Use irregular sepia/graphite contours, a simple readable human silhouette, restrained translucent washes, low facial detail, and only enough clothing folds to identify the person at scene size. Keep the treatment handmade and subordinate to the environment, never glossy, photorealistic, densely rendered, or cut out with a broad halo. Delivery composition: 1024x1024 flat #ff00ff chroma-key PNG source, full-body figure occupies roughly 45 percent of source height, centered figure with feet fully visible and generous flat background margins, one single static in-world marker pose per NPC for this slice, no ground shadow, floor plane, label, border, or extra figure. Palette: sepia/graphite line with muted wool gray, bog green, weathered tan, dull brick red, peat brown, and faded indigo only; no saturated primary colors. Setting: Rundale, rural County Roscommon, Ireland, 1820, ordinary parish life, period-appropriate work clothing. Character-only silhouette: upright mid-sixties man with a square torso, close iron-grey hair, broad grey moustache, and old dark civilian coat; no object/scenery. Stance: still, rigid stance with hands behind the back and head slightly turned; no object/scenery. Empty-hand pose: both empty hands held behind the back. Tiny-readability cues from the person's body, hair or headwear, clothing, and stance alone: body shape: square upright build; face: broad horizontal grey moustache; hair or headwear: close-cropped iron-grey hair. Tiny-readability requirements: Contrast Tommy with a straight vertical posture and a contained arm silhouette.. Hard constraints: one character only, both hands empty, period-appropriate ordinary rural clothing, simplified face, complete feet, no held or carried objects, tools, books, containers, bundles, furniture, architecture, vegetation, scenery fragments, ground plane, shadow, text, label, border, or UI chrome. Worn clothing and headwear are allowed. Do not illustrate an occupation, workplace, activity, or narrative context around the person. Character-specific avoid list: police uniform, badge emphasis, weapon focus, modern constable."
+}

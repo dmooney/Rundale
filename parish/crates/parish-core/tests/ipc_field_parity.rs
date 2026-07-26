@@ -198,6 +198,7 @@ fn ipc_field_parity() {
     assert_keys_contain_manifest(
         "NpcInfo",
         &NpcInfo {
+            npc_id: 7,
             name: "Seán".into(),
             real_name: "Seán Ó Briain".into(),
             occupation: "Farmer".into(),
@@ -242,6 +243,20 @@ fn ipc_field_parity() {
             context_epoch: 0,
         },
         &manifest,
+    );
+
+    assert!(
+        keys(&NpcInfo {
+            npc_id: 7,
+            name: "Seán".into(),
+            real_name: "Seán Ó Briain".into(),
+            occupation: "Farmer".into(),
+            mood: "content".into(),
+            introduced: true,
+            mood_emoji: "😌".into(),
+        })
+        .contains("npc_id"),
+        "NpcInfo must carry its stable numeric identity across IPC"
     );
 
     assert_keys_contain_manifest(

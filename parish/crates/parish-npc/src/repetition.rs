@@ -44,19 +44,53 @@ fn text_seed(s: &str) -> u64 {
     hash
 }
 
+/// Returns whether `period_index` terminates a known abbreviated honorific
+/// followed by an uppercase name token.
+///
+/// `HONORIFIC_PAIRS` is the shared source of truth for abbreviations. The
+/// uppercase look-ahead keeps ordinary lowercase prose such as `"fr. declan"`
+/// on the normal sentence-boundary path instead of treating every known token
+/// as an unconditional exception.
+fn period_belongs_to_honorific(s: &str, period_index: usize) -> bool {
+    let before = &s[..period_index];
+    let token_start = before
+        .char_indices()
+        .rev()
+        .find(|(_, ch)| !ch.is_alphabetic())
+        .map_or(0, |(index, ch)| index + ch.len_utf8());
+    let token = &before[token_start..];
+    let is_abbreviated_honorific = HONORIFIC_PAIRS
+        .iter()
+        .any(|&(_, short)| token.eq_ignore_ascii_case(short));
+
+    is_abbreviated_honorific
+        && s[period_index + '.'.len_utf8()..]
+            .chars()
+            .find(|ch| !ch.is_whitespace())
+            .is_some_and(char::is_uppercase)
+}
+
 /// Splits a dialogue body into sentence-ish units on terminal punctuation,
-/// keeping the delimiter with each piece. Used by [`collapse_repeated_sentences`].
+/// keeping the delimiter with each piece. Periods in known abbreviated
+/// honorifics are not terminal when the next non-space character begins an
+/// uppercase name. Used by [`collapse_repeated_sentences`].
 fn split_sentences(s: &str) -> Vec<String> {
     let mut out = Vec::new();
-    let mut current = String::new();
-    for ch in s.chars() {
-        current.push(ch);
-        if matches!(ch, '.' | '!' | '?' | '…') {
-            out.push(std::mem::take(&mut current));
+    let mut start = 0;
+    for (index, ch) in s.char_indices() {
+        let is_boundary = match ch {
+            '.' => !period_belongs_to_honorific(s, index),
+            '!' | '?' | '…' => true,
+            _ => false,
+        };
+        if is_boundary {
+            let end = index + ch.len_utf8();
+            out.push(s[start..end].to_string());
+            start = end;
         }
     }
-    if !current.trim().is_empty() {
-        out.push(current);
+    if !s[start..].trim().is_empty() {
+        out.push(s[start..].to_string());
     }
     out
 }
@@ -4946,6 +4980,82 @@ mod tests {
     fn extract_normalized_opener_returns_first_sentence() {
         let opener = extract_normalized_opener("Good morning to ye. How can I help?");
         assert_eq!(opener, "good morning to ye");
+    }
+
+    /// #1706: the shared splitter keeps an abbreviated honorific attached to
+    /// the uppercase name that follows it and preserves the original byte
+    /// slices, including multibyte Irish text and inter-sentence whitespace.
+    #[test]
+    fn sentence_splitter_preserves_honorific_name_and_utf8_slices() {
+        let dialogue = "Éist le Fr. Declan Tierney. Slán abhaile.";
+        assert_eq!(
+            split_sentences(dialogue),
+            vec!["Éist le Fr. Declan Tierney.", " Slán abhaile."]
+        );
+    }
+
+    /// #1706: every abbreviated form in the existing honorific table follows
+    /// the same sentence-boundary rule rather than relying on a `Fr.` special
+    /// case.
+    #[test]
+    fn sentence_splitter_reuses_all_known_honorific_abbreviations() {
+        for &(_, short) in HONORIFIC_PAIRS {
+            let dialogue = format!(
+                "{}. Áine Byrne knows the road. Ask her.",
+                short.to_uppercase()
+            );
+            let sentences = split_sentences(&dialogue);
+            assert_eq!(
+                sentences.len(),
+                2,
+                "honorific {short:?} must stay attached to the uppercase name: {sentences:?}"
+            );
+            assert_eq!(
+                sentences.concat(),
+                dialogue,
+                "sentence slices must preserve every input byte"
+            );
+        }
+    }
+
+    /// #1706 risk boundary: ordinary periods, long-form words, and abbreviated
+    /// honorifics followed by lowercase prose remain sentence terminators.
+    #[test]
+    fn sentence_splitter_keeps_ordinary_period_boundaries() {
+        assert_eq!(
+            split_sentences("The doctor. Declan waited."),
+            vec!["The doctor.", " Declan waited."]
+        );
+        assert_eq!(
+            split_sentences("Fr. declan waited."),
+            vec!["Fr.", " declan waited."]
+        );
+        assert_eq!(
+            split_sentences("That was brief. Declan agreed."),
+            vec!["That was brief.", " Declan agreed."]
+        );
+    }
+
+    /// #1706: opener extraction includes the complete titled first sentence;
+    /// it must never reduce `Fr. Declan Tierney ...` to the token `fr`.
+    #[test]
+    fn extract_normalized_opener_keeps_full_titled_opener() {
+        let opener = extract_normalized_opener(
+            "Fr. Declan Tierney knows the north road. He walks it daily.",
+        );
+        assert_eq!(opener, "fr. declan tierney knows the north road");
+    }
+
+    /// #1706: two distinct titled openers share a name but are not stock-opener
+    /// duplicates, so cross-NPC dedupe must preserve the visible honorific.
+    #[test]
+    fn cross_npc_opener_dedup_preserves_distinct_titled_reply() {
+        let prior = vec![extract_normalized_opener(
+            "Fr. Declan Tierney knows the north road. He walks it daily.",
+        )];
+        let reply = "Fr. Declan Tierney keeps the parish books. Ask him after Mass.";
+
+        assert_eq!(dedupe_cross_npc_openers(&prior, reply), reply);
     }
 
     // ── #1228 existing guard ──────────────────────────────────────────────────

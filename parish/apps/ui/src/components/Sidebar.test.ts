@@ -15,6 +15,7 @@ const NAME_HINTS: LanguageHint[] = [
 
 const NPCS: NpcInfo[] = [
 	{
+		npc_id: 1,
 		name: 'Bridget Kelly',
 		real_name: 'Bridget Kelly',
 		occupation: 'Weaver',
@@ -23,6 +24,7 @@ const NPCS: NpcInfo[] = [
 		mood_emoji: '😊',
 	},
 	{
+		npc_id: 2,
 		name: 'a stern priest',
 		real_name: 'Fr. Tiernan',
 		occupation: 'Priest',

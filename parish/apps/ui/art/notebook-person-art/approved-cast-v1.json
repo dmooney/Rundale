@@ -1,0 +1,204 @@
+{
+	"version": 1,
+	"issue": 1628,
+	"runtime_base": "parish/apps/ui/static/rundale/notebook-ui",
+	"contact_sheet": "person-art-contact-sheet.png",
+	"portrait_size": {
+		"width": 144,
+		"height": 164
+	},
+	"marker_size": {
+		"width": 120,
+		"height": 170
+	},
+	"source_sheets": {
+		"portraits": {
+			"path": "sources/approved-cast-portraits-v1.png",
+			"prompt": "prompts/portraits-v1.md",
+			"columns": 4,
+			"rows": 2,
+			"row_bounds": [
+				{
+					"y": 0,
+					"height": 512
+				},
+				{
+					"y": 480,
+					"height": 544
+				}
+			],
+			"approval_status": "approved",
+			"review_notes": "Visual review passed in-session for tiny notebook-margin head icons: sparse sepia ink on warm paper, identity-specific faces, no labels, and no finished portrait-card treatment."
+		},
+		"markers": {
+			"path": "sources/approved-cast-markers-v1-keyed.png",
+			"prompt": "prompts/markers-v1.md",
+			"columns": 4,
+			"rows": 2,
+			"row_bounds": [
+				{
+					"y": 0,
+					"height": 512
+				},
+				{
+					"y": 480,
+					"height": 544
+				}
+			],
+			"key_color": "#ff00ff",
+			"approval_status": "approved",
+			"review_notes": "Visual review passed for tiny in-scene notebook figures: readable period silhouettes, clean chroma-key background, no labels, no selection rings, and no polished sprite-sheet styling."
+		}
+	},
+	"fallback": {
+		"slug": "unknown-neighbour",
+		"display_name": "Unknown parish neighbour",
+		"portrait": "people/portrait-unknown-neighbour.png",
+		"marker": "people/marker-unknown-neighbour.png",
+		"portrait_cell": {
+			"column": 3,
+			"row": 1
+		},
+		"marker_cell": {
+			"column": 3,
+			"row": 1
+		},
+		"approval_status": "approved",
+		"review_notes": "Fallback art is intentionally identity-ambiguous but production quality; used only when an NPC has no approved entry."
+	},
+	"people": [
+		{
+			"npc_id": 19,
+			"real_name": "Brigid Ni Fhatharta",
+			"slug": "brigid-ni-fhatharta",
+			"display_name": "Brigid Ni Fhatharta",
+			"occupation": "Midwife",
+			"portrait": "people/portrait-brigid-ni-fhatharta.png",
+			"marker": "people/marker-brigid-ni-fhatharta.png",
+			"portrait_cell": {
+				"column": 0,
+				"row": 0
+			},
+			"marker_cell": {
+				"column": 0,
+				"row": 0
+			},
+			"approval_status": "approved",
+			"review_notes": "Sharp-eyed older healer with linen cap, dark shawl, and herb cue."
+		},
+		{
+			"npc_id": 21,
+			"real_name": "Sean Ruadh Kelly",
+			"slug": "sean-ruadh-kelly",
+			"display_name": "Sean Ruadh Kelly",
+			"occupation": "Labourer",
+			"portrait": "people/portrait-sean-ruadh-kelly.png",
+			"marker": "people/marker-sean-ruadh-kelly.png",
+			"portrait_cell": {
+				"column": 1,
+				"row": 0
+			},
+			"marker_cell": {
+				"column": 1,
+				"row": 0
+			},
+			"approval_status": "approved",
+			"review_notes": "Lean red-haired labourer with worn coat and tense stance."
+		},
+		{
+			"npc_id": 22,
+			"real_name": "Peig Hannigan",
+			"slug": "peig-hannigan",
+			"display_name": "Peig Hannigan",
+			"occupation": "Widow",
+			"portrait": "people/portrait-peig-hannigan.png",
+			"marker": "people/marker-peig-hannigan.png",
+			"portrait_cell": {
+				"column": 2,
+				"row": 0
+			},
+			"marker_cell": {
+				"column": 2,
+				"row": 0
+			},
+			"approval_status": "approved",
+			"review_notes": "Small sharp-eyed older widow wrapped in a dark shawl."
+		},
+		{
+			"npc_id": 4,
+			"real_name": "Roisin Connolly",
+			"slug": "roisin-connolly",
+			"display_name": "Roisin Connolly",
+			"occupation": "Shopkeeper",
+			"portrait": "people/portrait-roisin-connolly.png",
+			"marker": "people/marker-roisin-connolly.png",
+			"portrait_cell": {
+				"column": 3,
+				"row": 0
+			},
+			"marker_cell": {
+				"column": 3,
+				"row": 0
+			},
+			"approval_status": "approved",
+			"review_notes": "Composed shopkeeper with neat hair and practical dark dress."
+		},
+		{
+			"npc_id": 6,
+			"real_name": "Aoife Brennan",
+			"slug": "aoife-brennan",
+			"display_name": "Aoife Brennan",
+			"occupation": "Hedge School Teacher",
+			"portrait": "people/portrait-aoife-brennan.png",
+			"marker": "people/marker-aoife-brennan.png",
+			"portrait_cell": {
+				"column": 0,
+				"row": 1
+			},
+			"marker_cell": {
+				"column": 0,
+				"row": 1
+			},
+			"approval_status": "approved",
+			"review_notes": "Young teacher with alert posture and period shawl."
+		},
+		{
+			"npc_id": 7,
+			"real_name": "Mick Flanagan",
+			"slug": "mick-flanagan",
+			"display_name": "Mick Flanagan",
+			"occupation": "Retired Constable",
+			"portrait": "people/portrait-mick-flanagan.png",
+			"marker": "people/marker-mick-flanagan.png",
+			"portrait_cell": {
+				"column": 1,
+				"row": 1
+			},
+			"marker_cell": {
+				"column": 1,
+				"row": 1
+			},
+			"approval_status": "approved",
+			"review_notes": "Grey-haired older man in plain coat, watchful without uniform insignia."
+		},
+		{
+			"npc_id": 8,
+			"real_name": "Niamh Darcy",
+			"slug": "niamh-darcy",
+			"display_name": "Niamh Darcy",
+			"occupation": "Publican's Daughter",
+			"portrait": "people/portrait-niamh-darcy.png",
+			"marker": "people/marker-niamh-darcy.png",
+			"portrait_cell": {
+				"column": 2,
+				"row": 1
+			},
+			"marker_cell": {
+				"column": 2,
+				"row": 1
+			},
+			"approval_status": "approved",
+			"review_notes": "Young publican's daughter in apron, bright and restless."
+		}
+	]
+}

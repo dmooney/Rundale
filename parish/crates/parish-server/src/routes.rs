@@ -28,9 +28,9 @@ pub mod world;
 // world
 pub use world::{
     build_full_debug_snapshot, get_app_icon, get_available_providers, get_debug_snapshot,
-    get_engine_state, get_favicon, get_health, get_map, get_npcs_here, get_reconnect_state,
-    get_setup_snapshot, get_theme, get_ui_config, get_world_snapshot, redact_call_log,
-    serve_mod_icon, submit_bug_report,
+    get_engine_state, get_favicon, get_health, get_map, get_npcs_here, get_playwright_ready,
+    get_reconnect_state, get_setup_snapshot, get_theme, get_ui_config, get_world_snapshot,
+    redact_call_log, serve_mod_icon, submit_bug_report,
 };
 
 // input

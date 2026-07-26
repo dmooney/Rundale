@@ -1,7 +1,7 @@
 {
 	"name": "rundale-illustrated-notebook-ui",
-	"version": 1,
-	"source": "Generated/coded bitmap runtime kit. Concept art is visual reference only.",
+	"version": 3,
+	"source": "Generated bitmap runtime kit plus approved notebook person art. Concept art is visual reference only.",
 	"assets": {
 		"scenePlate": "scene-crossroads.png",
 		"scenePlates": {
@@ -37,10 +37,30 @@
 		"nearbyPortraitStrip": "nearby-portrait-strip.png",
 		"nearbyPortraitCardFrame": "nearby-portrait-card-frame.png",
 		"portraits": [
-			"portrait-placeholder-1.png",
-			"portrait-placeholder-2.png",
-			"portrait-placeholder-3.png",
-			"portrait-placeholder-4.png"
+			"people/portrait-padraig-darcy.png",
+			"people/portrait-siobhan-murphy.png",
+			"people/portrait-fr-declan-tierney.png",
+			"people/portrait-roisin-connolly.png",
+			"people/portrait-tommy-o-brien.png",
+			"people/portrait-aoife-brennan.png",
+			"people/portrait-mick-flanagan.png",
+			"people/portrait-niamh-darcy.png",
+			"people/portrait-seamus-gallagher.png",
+			"people/portrait-maire-gallagher.png",
+			"people/portrait-colm-gallagher.png",
+			"people/portrait-cormac-duffy.png",
+			"people/portrait-nora-duffy.png",
+			"people/portrait-brendan-duffy.png",
+			"people/portrait-eamon-walsh.png",
+			"people/portrait-kathleen-walsh.png",
+			"people/portrait-ciaran-walsh.png",
+			"people/portrait-liam-murphy.png",
+			"people/portrait-brigid-ni-fhatharta.png",
+			"people/portrait-una-malone.png",
+			"people/portrait-sean-ruadh-kelly.png",
+			"people/portrait-peig-hannigan.png",
+			"people/portrait-martin-concannon.png",
+			"people/portrait-unknown-neighbour.png"
 		],
 		"activeIntentsCard": "active-intents-card.png",
 		"mapCard": "map-card.png",
@@ -50,6 +70,761 @@
 		"paperExitLabel": "paper-exit-label.png",
 		"npcSelectionRing": "npc-selection-ring.png",
 		"playerMarker": "player-marker.png",
-		"npcMarkers": ["npc-marker-1.png", "npc-marker-2.png", "npc-marker-3.png"]
+		"npcMarkers": [
+			"people/marker-padraig-darcy.png",
+			"people/marker-siobhan-murphy.png",
+			"people/marker-fr-declan-tierney.png",
+			"people/marker-roisin-connolly.png",
+			"people/marker-tommy-o-brien.png",
+			"people/marker-aoife-brennan.png",
+			"people/marker-mick-flanagan.png",
+			"people/marker-niamh-darcy.png",
+			"people/marker-seamus-gallagher.png",
+			"people/marker-maire-gallagher.png",
+			"people/marker-colm-gallagher.png",
+			"people/marker-cormac-duffy.png",
+			"people/marker-nora-duffy.png",
+			"people/marker-brendan-duffy.png",
+			"people/marker-eamon-walsh.png",
+			"people/marker-kathleen-walsh.png",
+			"people/marker-ciaran-walsh.png",
+			"people/marker-liam-murphy.png",
+			"people/marker-brigid-ni-fhatharta.png",
+			"people/marker-una-malone.png",
+			"people/marker-sean-ruadh-kelly.png",
+			"people/marker-peig-hannigan.png",
+			"people/marker-martin-concannon.png",
+			"people/marker-unknown-neighbour.png"
+		],
+		"personArt": {
+			"release_id": "41ddb06811e2bcda004421314e01560423b0986f990477c65592ac2b19576049",
+			"release_manifest": "parish/apps/ui/art/notebook-person-art/approved/v1/release-manifest.json",
+			"release_manifest_sha256": "bdca2745a14421ecc5e9ef44ddc847c8d25a93d539c9714968bea4433b00267b",
+			"approval_status": "approved",
+			"contact_sheet": "person-art-contact-sheet.png",
+			"contact_sheet_html": "person-art-contact-sheet.html",
+			"fallback": {
+				"npc_id": null,
+				"real_name": "Unknown parish neighbour",
+				"display_name": "Unknown parish neighbour",
+				"portrait": "people/portrait-unknown-neighbour.png",
+				"marker": "people/marker-unknown-neighbour.png",
+				"approval_status": "approved",
+				"provenance": {
+					"release_manifest": "parish/apps/ui/art/notebook-person-art/approved/v1/release-manifest.json",
+					"release_manifest_sha256": "bdca2745a14421ecc5e9ef44ddc847c8d25a93d539c9714968bea4433b00267b",
+					"release_id": "41ddb06811e2bcda004421314e01560423b0986f990477c65592ac2b19576049",
+					"job_id": "cec1a6b19fc858734e528a729b971f6a01f44477eea9abc021e31bb3b0ad4113",
+					"input_record_sha256": "2a644e9712dbf7565ace688bc9ac26d0ccebd57e2a7ac6ee3bc5bb22bd2886e5",
+					"review_id": "6c8eeedf15efce93ac8cf9b5",
+					"portrait": {
+						"master_path": "people/fallback/portrait.png",
+						"master_sha256": "e51c8c2a29bce2a465e3199e89393c10fc4422dcea248e508a0f07c57d8ecd35",
+						"source_candidate_path": "parish/apps/ui/art/notebook-person-art/candidates/objects/ce/cec1a6b19fc858734e528a729b971f6a01f44477eea9abc021e31bb3b0ad4113/attempts/identity-v8-character-only-full-cast-20260716-a-20260716145528138-f843a30d-a766-405c-924d-b78dd17b8152/portrait-candidate.png",
+						"source_raw_path": "parish/apps/ui/art/notebook-person-art/candidates/objects/ce/cec1a6b19fc858734e528a729b971f6a01f44477eea9abc021e31bb3b0ad4113/attempts/identity-v8-character-only-full-cast-20260716-a-20260716145528138-f843a30d-a766-405c-924d-b78dd17b8152/portrait-raw.png",
+						"source_raw_sha256": "47c6e537c729de0530f05bb42e844ebccb10f8329b0377fc10da988a941457a6"
+					},
+					"marker": {
+						"master_path": "people/fallback/marker.png",
+						"master_sha256": "80dda8eec6e0b56b8e0caea8a1b9aed75c98a1df2a61b921f8ed931f448b3253",
+						"source_candidate_path": "parish/apps/ui/art/notebook-person-art/candidates/objects/ce/cec1a6b19fc858734e528a729b971f6a01f44477eea9abc021e31bb3b0ad4113/attempts/identity-v8-character-only-full-cast-20260716-a-20260716145528138-f843a30d-a766-405c-924d-b78dd17b8152/marker-candidate.png",
+						"source_raw_path": "parish/apps/ui/art/notebook-person-art/candidates/objects/ce/cec1a6b19fc858734e528a729b971f6a01f44477eea9abc021e31bb3b0ad4113/attempts/identity-v8-character-only-full-cast-20260716-a-20260716145528138-f843a30d-a766-405c-924d-b78dd17b8152/marker-raw.png",
+						"source_raw_sha256": "c316d80b62a909cf458a2360b65a0a37756bfc4c26c572e7a34d26e981f397cb"
+					}
+				}
+			},
+			"people": [
+				{
+					"npc_id": 1,
+					"real_name": "Padraig Darcy",
+					"display_name": "Padraig Darcy",
+					"portrait": "people/portrait-padraig-darcy.png",
+					"marker": "people/marker-padraig-darcy.png",
+					"approval_status": "approved",
+					"provenance": {
+						"release_manifest": "parish/apps/ui/art/notebook-person-art/approved/v1/release-manifest.json",
+						"release_manifest_sha256": "bdca2745a14421ecc5e9ef44ddc847c8d25a93d539c9714968bea4433b00267b",
+						"release_id": "41ddb06811e2bcda004421314e01560423b0986f990477c65592ac2b19576049",
+						"job_id": "fd28737520bcf113842ed6f1c09c253d793f413fcff255ce0bdf46c30221145a",
+						"input_record_sha256": "e894fdd569f7e6e272465f45d0393f47270ed77d8487401ea65d24531cac1933",
+						"review_id": "9a2bbb71fb6c9b12b82d70f5",
+						"portrait": {
+							"master_path": "people/1/portrait.png",
+							"master_sha256": "cd8495cedea645984f005bbfe9acb4de472c2f7ed6dcfd530d78ff32b92d7297",
+							"source_candidate_path": "parish/apps/ui/art/notebook-person-art/candidates/objects/fd/fd28737520bcf113842ed6f1c09c253d793f413fcff255ce0bdf46c30221145a/attempts/identity-v8-character-only-padraig-canary-2-20260715-20260715225047349-e84d3239-3434-4fe5-a54d-9793a3badcce/portrait-candidate.png",
+							"source_raw_path": "parish/apps/ui/art/notebook-person-art/candidates/objects/fd/fd28737520bcf113842ed6f1c09c253d793f413fcff255ce0bdf46c30221145a/attempts/identity-v8-character-only-padraig-canary-2-20260715-20260715225047349-e84d3239-3434-4fe5-a54d-9793a3badcce/portrait-raw.png",
+							"source_raw_sha256": "34144ccac5e421c1360310e445f8e978cf2bb3043513dc69eb7bcd6bfcafd63e"
+						},
+						"marker": {
+							"master_path": "people/1/marker.png",
+							"master_sha256": "38d6e6b9190e812329b538a34510390919859d1f82cfcd1855533879aa434df6",
+							"source_candidate_path": "parish/apps/ui/art/notebook-person-art/candidates/objects/fd/fd28737520bcf113842ed6f1c09c253d793f413fcff255ce0bdf46c30221145a/attempts/identity-v8-character-only-padraig-canary-2-20260715-20260715225047349-e84d3239-3434-4fe5-a54d-9793a3badcce/marker-candidate.png",
+							"source_raw_path": "parish/apps/ui/art/notebook-person-art/candidates/objects/fd/fd28737520bcf113842ed6f1c09c253d793f413fcff255ce0bdf46c30221145a/attempts/identity-v8-character-only-padraig-canary-2-20260715-20260715225047349-e84d3239-3434-4fe5-a54d-9793a3badcce/marker-raw.png",
+							"source_raw_sha256": "2249c9f6e246882db42836f8ad7385898f3bcea2e279488bda8b5d0541d563db"
+						}
+					}
+				},
+				{
+					"npc_id": 2,
+					"real_name": "Siobhan Murphy",
+					"display_name": "Siobhan Murphy",
+					"portrait": "people/portrait-siobhan-murphy.png",
+					"marker": "people/marker-siobhan-murphy.png",
+					"approval_status": "approved",
+					"provenance": {
+						"release_manifest": "parish/apps/ui/art/notebook-person-art/approved/v1/release-manifest.json",
+						"release_manifest_sha256": "bdca2745a14421ecc5e9ef44ddc847c8d25a93d539c9714968bea4433b00267b",
+						"release_id": "41ddb06811e2bcda004421314e01560423b0986f990477c65592ac2b19576049",
+						"job_id": "011092f480b0e23b26da10420861167f1060d2030dad6fe02af1253c74ab40b5",
+						"input_record_sha256": "18babe0507888c411132124ee3add55c39fabfd7a069dc7cfc444b6d692a2902",
+						"review_id": "2e84d72b43c553df83244948",
+						"portrait": {
+							"master_path": "people/2/portrait.png",
+							"master_sha256": "f4283b9d3ba86bc62e18451bfa70480a64423f2b41b8ed359e1442f43cc86337",
+							"source_candidate_path": "parish/apps/ui/art/notebook-person-art/candidates/objects/01/011092f480b0e23b26da10420861167f1060d2030dad6fe02af1253c74ab40b5/attempts/identity-v8-character-only-full-cast-20260716-a-20260716135607024-c058d6d4-5461-4853-b9de-c9ec192dadab/portrait-candidate.png",
+							"source_raw_path": "parish/apps/ui/art/notebook-person-art/candidates/objects/01/011092f480b0e23b26da10420861167f1060d2030dad6fe02af1253c74ab40b5/attempts/identity-v8-character-only-full-cast-20260716-a-20260716135607024-c058d6d4-5461-4853-b9de-c9ec192dadab/portrait-raw.png",
+							"source_raw_sha256": "2d4f1f283ccaa12221059a9c2cf50a2891f4fa54b76b8918afc4c082c4cd70f4"
+						},
+						"marker": {
+							"master_path": "people/2/marker.png",
+							"master_sha256": "61163eba45498f450a298534aa5f662fe962d2dcbe0b442d64b3132b4d282df2",
+							"source_candidate_path": "parish/apps/ui/art/notebook-person-art/candidates/objects/01/011092f480b0e23b26da10420861167f1060d2030dad6fe02af1253c74ab40b5/attempts/identity-v8-character-only-full-cast-20260716-a-20260716135607024-c058d6d4-5461-4853-b9de-c9ec192dadab/marker-candidate.png",
+							"source_raw_path": "parish/apps/ui/art/notebook-person-art/candidates/objects/01/011092f480b0e23b26da10420861167f1060d2030dad6fe02af1253c74ab40b5/attempts/identity-v8-character-only-full-cast-20260716-a-20260716135607024-c058d6d4-5461-4853-b9de-c9ec192dadab/marker-raw.png",
+							"source_raw_sha256": "40f95b15dd4e34f4140a38a56e08dec0f9f20753e3460409e916ae0ac9c162b2"
+						}
+					}
+				},
+				{
+					"npc_id": 3,
+					"real_name": "Fr. Declan Tierney",
+					"display_name": "Fr. Declan Tierney",
+					"portrait": "people/portrait-fr-declan-tierney.png",
+					"marker": "people/marker-fr-declan-tierney.png",
+					"approval_status": "approved",
+					"provenance": {
+						"release_manifest": "parish/apps/ui/art/notebook-person-art/approved/v1/release-manifest.json",
+						"release_manifest_sha256": "bdca2745a14421ecc5e9ef44ddc847c8d25a93d539c9714968bea4433b00267b",
+						"release_id": "41ddb06811e2bcda004421314e01560423b0986f990477c65592ac2b19576049",
+						"job_id": "c47f36dcd61921175f396dd12ac6a5e90526a9f21c35cefe8f627e7320765b16",
+						"input_record_sha256": "f4adfa68aaa23fb5f7ede1f6df75a70ab7e2e29c1533d42b5f740db841aa80b6",
+						"review_id": "0777847f0bca6cf72b170b23",
+						"portrait": {
+							"master_path": "people/3/portrait.png",
+							"master_sha256": "bb6050f8f4684f2159a58516c2ee8c4ce2d1ac764b69f080a5ea1c2d8ee967cc",
+							"source_candidate_path": "parish/apps/ui/art/notebook-person-art/candidates/objects/c4/c47f36dcd61921175f396dd12ac6a5e90526a9f21c35cefe8f627e7320765b16/attempts/identity-v8-character-only-full-cast-20260716-b-20260716203457499-25c7204b-bc63-4dc2-95a2-146b98183889/portrait-candidate.png",
+							"source_raw_path": "parish/apps/ui/art/notebook-person-art/candidates/objects/c4/c47f36dcd61921175f396dd12ac6a5e90526a9f21c35cefe8f627e7320765b16/attempts/identity-v8-character-only-full-cast-20260716-b-20260716203457499-25c7204b-bc63-4dc2-95a2-146b98183889/portrait-raw.png",
+							"source_raw_sha256": "0e9999658f5fbd9806cb426ba7e5290e44f6d25237f86a193869fc2aa33cef6e"
+						},
+						"marker": {
+							"master_path": "people/3/marker.png",
+							"master_sha256": "7a89a518013054cde7f3c37abddcdca730363b2d694965b1e50fe4ee368c6f2b",
+							"source_candidate_path": "parish/apps/ui/art/notebook-person-art/candidates/objects/c4/c47f36dcd61921175f396dd12ac6a5e90526a9f21c35cefe8f627e7320765b16/attempts/identity-v8-character-only-full-cast-20260716-b-20260716203457499-25c7204b-bc63-4dc2-95a2-146b98183889/marker-candidate.png",
+							"source_raw_path": "parish/apps/ui/art/notebook-person-art/candidates/objects/c4/c47f36dcd61921175f396dd12ac6a5e90526a9f21c35cefe8f627e7320765b16/attempts/identity-v8-character-only-full-cast-20260716-b-20260716203457499-25c7204b-bc63-4dc2-95a2-146b98183889/marker-raw.png",
+							"source_raw_sha256": "4c4a7077334d4d699e3f140a0ef99aff72b1c4fdb32ae0a522f7785e41b6a73f"
+						}
+					}
+				},
+				{
+					"npc_id": 4,
+					"real_name": "Roisin Connolly",
+					"display_name": "Roisin Connolly",
+					"portrait": "people/portrait-roisin-connolly.png",
+					"marker": "people/marker-roisin-connolly.png",
+					"approval_status": "approved",
+					"provenance": {
+						"release_manifest": "parish/apps/ui/art/notebook-person-art/approved/v1/release-manifest.json",
+						"release_manifest_sha256": "bdca2745a14421ecc5e9ef44ddc847c8d25a93d539c9714968bea4433b00267b",
+						"release_id": "41ddb06811e2bcda004421314e01560423b0986f990477c65592ac2b19576049",
+						"job_id": "80595d7965b2ec7967a3608244bf2b2582932785ea87934fae4d38464fa438af",
+						"input_record_sha256": "8ad5fcee06124d3c9eab95161fac3baf2723b42e66b72ea7dc2865bf1690228a",
+						"review_id": "1465f7d9bad09d1b1dabf1fd",
+						"portrait": {
+							"master_path": "people/4/portrait.png",
+							"master_sha256": "ea6056803aa5e2e389a76ec184d587de8db3fa2a021fd8dcc662700661ab5eff",
+							"source_candidate_path": "parish/apps/ui/art/notebook-person-art/candidates/objects/80/80595d7965b2ec7967a3608244bf2b2582932785ea87934fae4d38464fa438af/attempts/identity-v8-character-only-full-cast-20260716-a-20260716143303484-5f53824b-aa63-4d0c-b9af-ceaea4f3b2d8/portrait-candidate.png",
+							"source_raw_path": "parish/apps/ui/art/notebook-person-art/candidates/objects/80/80595d7965b2ec7967a3608244bf2b2582932785ea87934fae4d38464fa438af/attempts/identity-v8-character-only-full-cast-20260716-a-20260716143303484-5f53824b-aa63-4d0c-b9af-ceaea4f3b2d8/portrait-raw.png",
+							"source_raw_sha256": "8f20408d0811a075289d5f8775acb98f2a4c71dbbab889ad70febc4ef4fcc046"
+						},
+						"marker": {
+							"master_path": "people/4/marker.png",
+							"master_sha256": "943f6eca969037d93508ab979beb9f571ed899b3e9532b39c44fa3869bf1f437",
+							"source_candidate_path": "parish/apps/ui/art/notebook-person-art/candidates/objects/80/80595d7965b2ec7967a3608244bf2b2582932785ea87934fae4d38464fa438af/attempts/identity-v8-character-only-full-cast-20260716-a-20260716143303484-5f53824b-aa63-4d0c-b9af-ceaea4f3b2d8/marker-candidate.png",
+							"source_raw_path": "parish/apps/ui/art/notebook-person-art/candidates/objects/80/80595d7965b2ec7967a3608244bf2b2582932785ea87934fae4d38464fa438af/attempts/identity-v8-character-only-full-cast-20260716-a-20260716143303484-5f53824b-aa63-4d0c-b9af-ceaea4f3b2d8/marker-raw.png",
+							"source_raw_sha256": "3039aa5cf37ce07f9c6e5c919873913ee0f306934cb14f3714934eff20deb3f5"
+						}
+					}
+				},
+				{
+					"npc_id": 5,
+					"real_name": "Tommy O'Brien",
+					"display_name": "Tommy O'Brien",
+					"portrait": "people/portrait-tommy-o-brien.png",
+					"marker": "people/marker-tommy-o-brien.png",
+					"approval_status": "approved",
+					"provenance": {
+						"release_manifest": "parish/apps/ui/art/notebook-person-art/approved/v1/release-manifest.json",
+						"release_manifest_sha256": "bdca2745a14421ecc5e9ef44ddc847c8d25a93d539c9714968bea4433b00267b",
+						"release_id": "41ddb06811e2bcda004421314e01560423b0986f990477c65592ac2b19576049",
+						"job_id": "9b6d40bef136cef2135a01df195d83ce9c07986fb7492e6a4552ab70ffc9126d",
+						"input_record_sha256": "2ba604dd220bfbd678a9ee780b49255a628a693f17989cd44c9073b06a94cd77",
+						"review_id": "2a748da490b31b3148d65932",
+						"portrait": {
+							"master_path": "people/5/portrait.png",
+							"master_sha256": "5afbc64563506ba6d7a82fd71926ee15b89738cd56d39e5f140920cc238e6c0c",
+							"source_candidate_path": "parish/apps/ui/art/notebook-person-art/candidates/objects/9b/9b6d40bef136cef2135a01df195d83ce9c07986fb7492e6a4552ab70ffc9126d/attempts/identity-v8-character-only-full-cast-20260716-a-20260716145105183-223f0dc3-0a3e-4f16-b063-19b0b7018277/portrait-candidate.png",
+							"source_raw_path": "parish/apps/ui/art/notebook-person-art/candidates/objects/9b/9b6d40bef136cef2135a01df195d83ce9c07986fb7492e6a4552ab70ffc9126d/attempts/identity-v8-character-only-full-cast-20260716-a-20260716145105183-223f0dc3-0a3e-4f16-b063-19b0b7018277/portrait-raw.png",
+							"source_raw_sha256": "0481002affd6e17bcabf46baee1f66979d4d5dc42cc1253b572e442d7a97c9fe"
+						},
+						"marker": {
+							"master_path": "people/5/marker.png",
+							"master_sha256": "077c1677f7627936822ac9e13dafa7a476a93a6b4e35ac7c310de1820261e2b7",
+							"source_candidate_path": "parish/apps/ui/art/notebook-person-art/candidates/objects/9b/9b6d40bef136cef2135a01df195d83ce9c07986fb7492e6a4552ab70ffc9126d/attempts/identity-v8-character-only-full-cast-20260716-a-20260716145105183-223f0dc3-0a3e-4f16-b063-19b0b7018277/marker-candidate.png",
+							"source_raw_path": "parish/apps/ui/art/notebook-person-art/candidates/objects/9b/9b6d40bef136cef2135a01df195d83ce9c07986fb7492e6a4552ab70ffc9126d/attempts/identity-v8-character-only-full-cast-20260716-a-20260716145105183-223f0dc3-0a3e-4f16-b063-19b0b7018277/marker-raw.png",
+							"source_raw_sha256": "0f0a19a5cd3cd4122eb2cf6354e04d02ca1313b1b073d5a6e43099bb91ab4bef"
+						}
+					}
+				},
+				{
+					"npc_id": 6,
+					"real_name": "Aoife Brennan",
+					"display_name": "Aoife Brennan",
+					"portrait": "people/portrait-aoife-brennan.png",
+					"marker": "people/marker-aoife-brennan.png",
+					"approval_status": "approved",
+					"provenance": {
+						"release_manifest": "parish/apps/ui/art/notebook-person-art/approved/v1/release-manifest.json",
+						"release_manifest_sha256": "bdca2745a14421ecc5e9ef44ddc847c8d25a93d539c9714968bea4433b00267b",
+						"release_id": "41ddb06811e2bcda004421314e01560423b0986f990477c65592ac2b19576049",
+						"job_id": "3c847699f3a5baa3b921c1cab81dc3bcd3d4535116aa428fe19f59b78615d0f7",
+						"input_record_sha256": "44bf147901fafcd1fc133d161419625d66c10e4842390a6fef94cb4f972d9fba",
+						"review_id": "390930eadaed8ab2645d153c",
+						"portrait": {
+							"master_path": "people/6/portrait.png",
+							"master_sha256": "a412255130a3f0f14e6575b9287ec58b9425b07b67d13fac8399e46c130bfa54",
+							"source_candidate_path": "parish/apps/ui/art/notebook-person-art/candidates/objects/3c/3c847699f3a5baa3b921c1cab81dc3bcd3d4535116aa428fe19f59b78615d0f7/attempts/identity-v8-character-only-full-cast-20260716-a-20260716142735684-b12a3e32-a922-4108-ac92-48a0071b504a/portrait-candidate.png",
+							"source_raw_path": "parish/apps/ui/art/notebook-person-art/candidates/objects/3c/3c847699f3a5baa3b921c1cab81dc3bcd3d4535116aa428fe19f59b78615d0f7/attempts/identity-v8-character-only-full-cast-20260716-a-20260716142735684-b12a3e32-a922-4108-ac92-48a0071b504a/portrait-raw.png",
+							"source_raw_sha256": "10598ed73f551b744a10ea6d49af5e998d8a8766bfbdfb9c6bdbd26484e84ff4"
+						},
+						"marker": {
+							"master_path": "people/6/marker.png",
+							"master_sha256": "aaef777a93156580b626609ffe2e487f4972a64fdb112c36580aaf89dacaab14",
+							"source_candidate_path": "parish/apps/ui/art/notebook-person-art/candidates/objects/3c/3c847699f3a5baa3b921c1cab81dc3bcd3d4535116aa428fe19f59b78615d0f7/attempts/identity-v8-character-only-full-cast-20260716-a-20260716142735684-b12a3e32-a922-4108-ac92-48a0071b504a/marker-candidate.png",
+							"source_raw_path": "parish/apps/ui/art/notebook-person-art/candidates/objects/3c/3c847699f3a5baa3b921c1cab81dc3bcd3d4535116aa428fe19f59b78615d0f7/attempts/identity-v8-character-only-full-cast-20260716-a-20260716142735684-b12a3e32-a922-4108-ac92-48a0071b504a/marker-raw.png",
+							"source_raw_sha256": "c84ae474bfa34ecdbd8895bff219bf1985d45c20a13d1fb271b339e57dd867fd"
+						}
+					}
+				},
+				{
+					"npc_id": 7,
+					"real_name": "Mick Flanagan",
+					"display_name": "Mick Flanagan",
+					"portrait": "people/portrait-mick-flanagan.png",
+					"marker": "people/marker-mick-flanagan.png",
+					"approval_status": "approved",
+					"provenance": {
+						"release_manifest": "parish/apps/ui/art/notebook-person-art/approved/v1/release-manifest.json",
+						"release_manifest_sha256": "bdca2745a14421ecc5e9ef44ddc847c8d25a93d539c9714968bea4433b00267b",
+						"release_id": "41ddb06811e2bcda004421314e01560423b0986f990477c65592ac2b19576049",
+						"job_id": "de18afa2260b6d43dd52c6d6055f2c9e878146f3bfe0ed02a8ca023d8c50de58",
+						"input_record_sha256": "d93722bd799c79d16b7834b7801a6f9aa5cd3c8dc1c27218eb28b529cdb9fe92",
+						"review_id": "a4ac0d22d53c0b7e314cdaf2",
+						"portrait": {
+							"master_path": "people/7/portrait.png",
+							"master_sha256": "6ee6cfa731753563203112554bb377531335b0991077d1106d8d465dd89ec64e",
+							"source_candidate_path": "parish/apps/ui/art/notebook-person-art/candidates/objects/de/de18afa2260b6d43dd52c6d6055f2c9e878146f3bfe0ed02a8ca023d8c50de58/attempts/identity-v8-character-only-full-cast-20260716-a-20260716145716161-ab5c79c1-3e65-4ce3-8e8d-bd1a1604bb4e/portrait-candidate.png",
+							"source_raw_path": "parish/apps/ui/art/notebook-person-art/candidates/objects/de/de18afa2260b6d43dd52c6d6055f2c9e878146f3bfe0ed02a8ca023d8c50de58/attempts/identity-v8-character-only-full-cast-20260716-a-20260716145716161-ab5c79c1-3e65-4ce3-8e8d-bd1a1604bb4e/portrait-raw.png",
+							"source_raw_sha256": "caee085c73f1b3cc22de178a04274bef5f6f2f8700255b446ffc7550734be5b6"
+						},
+						"marker": {
+							"master_path": "people/7/marker.png",
+							"master_sha256": "e29ad24b03ff434e359993b18104af4bdf9b9b5dd90fbd89072b7e6131018bd5",
+							"source_candidate_path": "parish/apps/ui/art/notebook-person-art/candidates/objects/de/de18afa2260b6d43dd52c6d6055f2c9e878146f3bfe0ed02a8ca023d8c50de58/attempts/identity-v8-character-only-full-cast-20260716-a-20260716145716161-ab5c79c1-3e65-4ce3-8e8d-bd1a1604bb4e/marker-candidate.png",
+							"source_raw_path": "parish/apps/ui/art/notebook-person-art/candidates/objects/de/de18afa2260b6d43dd52c6d6055f2c9e878146f3bfe0ed02a8ca023d8c50de58/attempts/identity-v8-character-only-full-cast-20260716-a-20260716145716161-ab5c79c1-3e65-4ce3-8e8d-bd1a1604bb4e/marker-raw.png",
+							"source_raw_sha256": "2df25cc8a38200556de939d63e4915e03d3993711778edb5d499921b20d6bf80"
+						}
+					}
+				},
+				{
+					"npc_id": 8,
+					"real_name": "Niamh Darcy",
+					"display_name": "Niamh Darcy",
+					"portrait": "people/portrait-niamh-darcy.png",
+					"marker": "people/marker-niamh-darcy.png",
+					"approval_status": "approved",
+					"provenance": {
+						"release_manifest": "parish/apps/ui/art/notebook-person-art/approved/v1/release-manifest.json",
+						"release_manifest_sha256": "bdca2745a14421ecc5e9ef44ddc847c8d25a93d539c9714968bea4433b00267b",
+						"release_id": "41ddb06811e2bcda004421314e01560423b0986f990477c65592ac2b19576049",
+						"job_id": "382c4cfead75ef8641c445caa2ac3daccd731e6496bd730b0fd2b9139fdfee3a",
+						"input_record_sha256": "45073b7f153ed602384da0494fb7b2bb1736273c8f37ee4664c15badd7daf8a1",
+						"review_id": "a5b5c3e8971d0529cb8eebde",
+						"portrait": {
+							"master_path": "people/8/portrait.png",
+							"master_sha256": "33646a05b63274361e00d354d88dd4e3b231372ca5101b892f3c9967d39894e9",
+							"source_candidate_path": "parish/apps/ui/art/notebook-person-art/candidates/objects/38/382c4cfead75ef8641c445caa2ac3daccd731e6496bd730b0fd2b9139fdfee3a/attempts/identity-v8-character-only-full-cast-20260716-a-20260716140228869-f7cb280f-8145-4030-86a7-eb0bbeb029ec/portrait-candidate.png",
+							"source_raw_path": "parish/apps/ui/art/notebook-person-art/candidates/objects/38/382c4cfead75ef8641c445caa2ac3daccd731e6496bd730b0fd2b9139fdfee3a/attempts/identity-v8-character-only-full-cast-20260716-a-20260716140228869-f7cb280f-8145-4030-86a7-eb0bbeb029ec/portrait-raw.png",
+							"source_raw_sha256": "1a9c353dc146e14282f1439920037d9b9bc0a22e23fa76257ea98532429cfe06"
+						},
+						"marker": {
+							"master_path": "people/8/marker.png",
+							"master_sha256": "1689d7ab2d5aa9746890e407f3ac5bd7b3592de3b37529039803fd663c0aa46b",
+							"source_candidate_path": "parish/apps/ui/art/notebook-person-art/candidates/objects/38/382c4cfead75ef8641c445caa2ac3daccd731e6496bd730b0fd2b9139fdfee3a/attempts/identity-v8-character-only-full-cast-20260716-a-20260716140228869-f7cb280f-8145-4030-86a7-eb0bbeb029ec/marker-candidate.png",
+							"source_raw_path": "parish/apps/ui/art/notebook-person-art/candidates/objects/38/382c4cfead75ef8641c445caa2ac3daccd731e6496bd730b0fd2b9139fdfee3a/attempts/identity-v8-character-only-full-cast-20260716-a-20260716140228869-f7cb280f-8145-4030-86a7-eb0bbeb029ec/marker-raw.png",
+							"source_raw_sha256": "8d550093a0a8cb9ddefb9679fe6c7622c9821ab18eb5aef34d2d48165883332b"
+						}
+					}
+				},
+				{
+					"npc_id": 9,
+					"real_name": "Seamus Gallagher",
+					"display_name": "Seamus Gallagher",
+					"portrait": "people/portrait-seamus-gallagher.png",
+					"marker": "people/marker-seamus-gallagher.png",
+					"approval_status": "approved",
+					"provenance": {
+						"release_manifest": "parish/apps/ui/art/notebook-person-art/approved/v1/release-manifest.json",
+						"release_manifest_sha256": "bdca2745a14421ecc5e9ef44ddc847c8d25a93d539c9714968bea4433b00267b",
+						"release_id": "41ddb06811e2bcda004421314e01560423b0986f990477c65592ac2b19576049",
+						"job_id": "cc7e1e80c8eced1466b0682adfac695c3d3a0b96cbddb668c4d8fbc87f647fe8",
+						"input_record_sha256": "98ee5aed19ae29bca8e99f5cca5a4e414a3b3d08bc86a19a1edbd9d06da2ac59",
+						"review_id": "9e5baaf3a57a67b87d09e9e2",
+						"portrait": {
+							"master_path": "people/9/portrait.png",
+							"master_sha256": "52844ac3f596f044a26f5e91248aae0892ef81ea6291dc955ef7ca3379629d4f",
+							"source_candidate_path": "parish/apps/ui/art/notebook-person-art/candidates/objects/cc/cc7e1e80c8eced1466b0682adfac695c3d3a0b96cbddb668c4d8fbc87f647fe8/attempts/identity-v8-character-only-full-cast-20260716-a-20260716145356920-f9d8f256-de20-44f4-b276-64066b3c7c15/portrait-candidate.png",
+							"source_raw_path": "parish/apps/ui/art/notebook-person-art/candidates/objects/cc/cc7e1e80c8eced1466b0682adfac695c3d3a0b96cbddb668c4d8fbc87f647fe8/attempts/identity-v8-character-only-full-cast-20260716-a-20260716145356920-f9d8f256-de20-44f4-b276-64066b3c7c15/portrait-raw.png",
+							"source_raw_sha256": "e768d771ac7d866a1f004ed8f6b25615cf4f2c11e1dac5fadd1849bd19ab87cc"
+						},
+						"marker": {
+							"master_path": "people/9/marker.png",
+							"master_sha256": "de913c31e48748d5642547aa5a15985495a966045dcda40a5538b45bcd5db491",
+							"source_candidate_path": "parish/apps/ui/art/notebook-person-art/candidates/objects/cc/cc7e1e80c8eced1466b0682adfac695c3d3a0b96cbddb668c4d8fbc87f647fe8/attempts/identity-v8-character-only-full-cast-20260716-a-20260716145356920-f9d8f256-de20-44f4-b276-64066b3c7c15/marker-candidate.png",
+							"source_raw_path": "parish/apps/ui/art/notebook-person-art/candidates/objects/cc/cc7e1e80c8eced1466b0682adfac695c3d3a0b96cbddb668c4d8fbc87f647fe8/attempts/identity-v8-character-only-full-cast-20260716-a-20260716145356920-f9d8f256-de20-44f4-b276-64066b3c7c15/marker-raw.png",
+							"source_raw_sha256": "d7fda92cc80af4652089e90d9865792b1224b08b664a1ba773391fb8c47ac5a7"
+						}
+					}
+				},
+				{
+					"npc_id": 10,
+					"real_name": "Maire Gallagher",
+					"display_name": "Maire Gallagher",
+					"portrait": "people/portrait-maire-gallagher.png",
+					"marker": "people/marker-maire-gallagher.png",
+					"approval_status": "approved",
+					"provenance": {
+						"release_manifest": "parish/apps/ui/art/notebook-person-art/approved/v1/release-manifest.json",
+						"release_manifest_sha256": "bdca2745a14421ecc5e9ef44ddc847c8d25a93d539c9714968bea4433b00267b",
+						"release_id": "41ddb06811e2bcda004421314e01560423b0986f990477c65592ac2b19576049",
+						"job_id": "dd703e7db150cbc465210eca4abd80ae5e5a072d6cc6be8323143171b5f792bf",
+						"input_record_sha256": "3829bd5f3e45e3ccbfcf0966df5be24dfcfb62c23da13d63cfeed2fb6a21d482",
+						"review_id": "5f4f830b442f69ef92968eb2",
+						"portrait": {
+							"master_path": "people/10/portrait.png",
+							"master_sha256": "e2c97b6e7c7de8c0a5411e2890de6bd09289eae35a113b96c333df50ff9475bb",
+							"source_candidate_path": "parish/apps/ui/art/notebook-person-art/candidates/objects/dd/dd703e7db150cbc465210eca4abd80ae5e5a072d6cc6be8323143171b5f792bf/attempts/identity-v8-character-only-full-cast-20260716-a-20260716145543140-aab1a3b2-05e3-4350-bdc7-ff505fc873b5/portrait-candidate.png",
+							"source_raw_path": "parish/apps/ui/art/notebook-person-art/candidates/objects/dd/dd703e7db150cbc465210eca4abd80ae5e5a072d6cc6be8323143171b5f792bf/attempts/identity-v8-character-only-full-cast-20260716-a-20260716145543140-aab1a3b2-05e3-4350-bdc7-ff505fc873b5/portrait-raw.png",
+							"source_raw_sha256": "8b1d95c90d4996c19364c11b10778acf9add6fd55549ce78291697023c9e3958"
+						},
+						"marker": {
+							"master_path": "people/10/marker.png",
+							"master_sha256": "de8607e17bb563b06dd465099ff412e729c9d408c85669df135a647d5798223c",
+							"source_candidate_path": "parish/apps/ui/art/notebook-person-art/candidates/objects/dd/dd703e7db150cbc465210eca4abd80ae5e5a072d6cc6be8323143171b5f792bf/attempts/identity-v8-character-only-full-cast-20260716-a-20260716145543140-aab1a3b2-05e3-4350-bdc7-ff505fc873b5/marker-candidate.png",
+							"source_raw_path": "parish/apps/ui/art/notebook-person-art/candidates/objects/dd/dd703e7db150cbc465210eca4abd80ae5e5a072d6cc6be8323143171b5f792bf/attempts/identity-v8-character-only-full-cast-20260716-a-20260716145543140-aab1a3b2-05e3-4350-bdc7-ff505fc873b5/marker-raw.png",
+							"source_raw_sha256": "2344fab1a029bb80940f8062cd876bdb91d3fcabb63209ab5172bbed06dcf391"
+						}
+					}
+				},
+				{
+					"npc_id": 11,
+					"real_name": "Colm Gallagher",
+					"display_name": "Colm Gallagher",
+					"portrait": "people/portrait-colm-gallagher.png",
+					"marker": "people/marker-colm-gallagher.png",
+					"approval_status": "approved",
+					"provenance": {
+						"release_manifest": "parish/apps/ui/art/notebook-person-art/approved/v1/release-manifest.json",
+						"release_manifest_sha256": "bdca2745a14421ecc5e9ef44ddc847c8d25a93d539c9714968bea4433b00267b",
+						"release_id": "41ddb06811e2bcda004421314e01560423b0986f990477c65592ac2b19576049",
+						"job_id": "6af307be20073d9107cd8911ba1070ee5d83c11d64cab1a16cac13ad7d7bd59c",
+						"input_record_sha256": "7495a8c4a5320b656fced7d085a76963aeb46fcde5aea0c821c38400dc5fae86",
+						"review_id": "5b9e1115c319227b646c4df7",
+						"portrait": {
+							"master_path": "people/11/portrait.png",
+							"master_sha256": "27d67dd7ddeba57975960a44db36e28b037fbc50d757959a79978f0e91f5c33e",
+							"source_candidate_path": "parish/apps/ui/art/notebook-person-art/candidates/objects/6a/6af307be20073d9107cd8911ba1070ee5d83c11d64cab1a16cac13ad7d7bd59c/attempts/identity-v8-character-only-full-cast-20260716-a-20260716142916832-0fefd271-3efd-477e-ad1f-637e6b290ae3/portrait-candidate.png",
+							"source_raw_path": "parish/apps/ui/art/notebook-person-art/candidates/objects/6a/6af307be20073d9107cd8911ba1070ee5d83c11d64cab1a16cac13ad7d7bd59c/attempts/identity-v8-character-only-full-cast-20260716-a-20260716142916832-0fefd271-3efd-477e-ad1f-637e6b290ae3/portrait-raw.png",
+							"source_raw_sha256": "23d0a520b4f2c03b3e0771ad0143906cf3a0333fce036243dbec9457968fa302"
+						},
+						"marker": {
+							"master_path": "people/11/marker.png",
+							"master_sha256": "608e1c30eeedd610b629c5ddd1555b4ae1cf00e62611d3a251fa3f1bf0fecdfe",
+							"source_candidate_path": "parish/apps/ui/art/notebook-person-art/candidates/objects/6a/6af307be20073d9107cd8911ba1070ee5d83c11d64cab1a16cac13ad7d7bd59c/attempts/identity-v8-character-only-full-cast-20260716-a-20260716142916832-0fefd271-3efd-477e-ad1f-637e6b290ae3/marker-candidate.png",
+							"source_raw_path": "parish/apps/ui/art/notebook-person-art/candidates/objects/6a/6af307be20073d9107cd8911ba1070ee5d83c11d64cab1a16cac13ad7d7bd59c/attempts/identity-v8-character-only-full-cast-20260716-a-20260716142916832-0fefd271-3efd-477e-ad1f-637e6b290ae3/marker-raw.png",
+							"source_raw_sha256": "c1fa737fc775a05252789f977ec2bfb0010eddaaf2ecc9d62da0f6efbe259b69"
+						}
+					}
+				},
+				{
+					"npc_id": 12,
+					"real_name": "Cormac Duffy",
+					"display_name": "Cormac Duffy",
+					"portrait": "people/portrait-cormac-duffy.png",
+					"marker": "people/marker-cormac-duffy.png",
+					"approval_status": "approved",
+					"provenance": {
+						"release_manifest": "parish/apps/ui/art/notebook-person-art/approved/v1/release-manifest.json",
+						"release_manifest_sha256": "bdca2745a14421ecc5e9ef44ddc847c8d25a93d539c9714968bea4433b00267b",
+						"release_id": "41ddb06811e2bcda004421314e01560423b0986f990477c65592ac2b19576049",
+						"job_id": "b18f862dfd72044e0898f2244dd1852230d1be7714321e921390e78849cfe1d8",
+						"input_record_sha256": "58e690b412718939d3e0d113474a4d383eb064f197a49abb42b72e6b1ff405f3",
+						"review_id": "e61fbc283b6ac89b7024fec3",
+						"portrait": {
+							"master_path": "people/12/portrait.png",
+							"master_sha256": "70681dd2d6aa21cf3f0e2316b7006e7175132456d2d77019f650cdd8650b0e6f",
+							"source_candidate_path": "parish/apps/ui/art/notebook-person-art/candidates/objects/b1/b18f862dfd72044e0898f2244dd1852230d1be7714321e921390e78849cfe1d8/attempts/identity-v8-character-only-full-cast-20260716-a-20260716145120186-25a56afa-9f7e-4dcb-9b64-d36b89f92c0d/portrait-candidate.png",
+							"source_raw_path": "parish/apps/ui/art/notebook-person-art/candidates/objects/b1/b18f862dfd72044e0898f2244dd1852230d1be7714321e921390e78849cfe1d8/attempts/identity-v8-character-only-full-cast-20260716-a-20260716145120186-25a56afa-9f7e-4dcb-9b64-d36b89f92c0d/portrait-raw.png",
+							"source_raw_sha256": "ec784a2a00a49542460078ad9c5ad4d9e88e44152c701cc4e007ebfd2b760bc7"
+						},
+						"marker": {
+							"master_path": "people/12/marker.png",
+							"master_sha256": "d41fe5eb15d556fc58962a94c0f0c6d65b1fc542e4eae28914079a65db097da5",
+							"source_candidate_path": "parish/apps/ui/art/notebook-person-art/candidates/objects/b1/b18f862dfd72044e0898f2244dd1852230d1be7714321e921390e78849cfe1d8/attempts/identity-v8-character-only-full-cast-20260716-a-20260716145120186-25a56afa-9f7e-4dcb-9b64-d36b89f92c0d/marker-candidate.png",
+							"source_raw_path": "parish/apps/ui/art/notebook-person-art/candidates/objects/b1/b18f862dfd72044e0898f2244dd1852230d1be7714321e921390e78849cfe1d8/attempts/identity-v8-character-only-full-cast-20260716-a-20260716145120186-25a56afa-9f7e-4dcb-9b64-d36b89f92c0d/marker-raw.png",
+							"source_raw_sha256": "a774eac5ac06230d68f0f9e9ad5d18c4105ae50872097f0617c85099b0e7bd28"
+						}
+					}
+				},
+				{
+					"npc_id": 13,
+					"real_name": "Nora Duffy",
+					"display_name": "Nora Duffy",
+					"portrait": "people/portrait-nora-duffy.png",
+					"marker": "people/marker-nora-duffy.png",
+					"approval_status": "approved",
+					"provenance": {
+						"release_manifest": "parish/apps/ui/art/notebook-person-art/approved/v1/release-manifest.json",
+						"release_manifest_sha256": "bdca2745a14421ecc5e9ef44ddc847c8d25a93d539c9714968bea4433b00267b",
+						"release_id": "41ddb06811e2bcda004421314e01560423b0986f990477c65592ac2b19576049",
+						"job_id": "097f465d61912f0ece8c01325a0231f3599183ed658568d4969b510ce448f098",
+						"input_record_sha256": "6dc238dd0983ccf1b0ec80da45e8c253b1b8ce82946317e13f190dd97d1c5ace",
+						"review_id": "db180a5582399553e5d38a78",
+						"portrait": {
+							"master_path": "people/13/portrait.png",
+							"master_sha256": "d1354afc2bb7140203509b5978e1455c2f55ac63fefebf11989fb400872da6ec",
+							"source_candidate_path": "parish/apps/ui/art/notebook-person-art/candidates/objects/09/097f465d61912f0ece8c01325a0231f3599183ed658568d4969b510ce448f098/attempts/identity-v8-character-only-full-cast-20260716-a-20260716135740088-71207b5d-2b35-45c0-87c8-4e50447f84d3/portrait-candidate.png",
+							"source_raw_path": "parish/apps/ui/art/notebook-person-art/candidates/objects/09/097f465d61912f0ece8c01325a0231f3599183ed658568d4969b510ce448f098/attempts/identity-v8-character-only-full-cast-20260716-a-20260716135740088-71207b5d-2b35-45c0-87c8-4e50447f84d3/portrait-raw.png",
+							"source_raw_sha256": "249ecb5cfa239aa70eeaf5367bc7300e6d906e0d66ca19241ddbcefbab34aeb2"
+						},
+						"marker": {
+							"master_path": "people/13/marker.png",
+							"master_sha256": "0d0869a1f14f60542d0c4be8ef42be5b5ddb7be6cdff539c11fe83c3b7c8cd7a",
+							"source_candidate_path": "parish/apps/ui/art/notebook-person-art/candidates/objects/09/097f465d61912f0ece8c01325a0231f3599183ed658568d4969b510ce448f098/attempts/identity-v8-character-only-full-cast-20260716-a-20260716135740088-71207b5d-2b35-45c0-87c8-4e50447f84d3/marker-candidate.png",
+							"source_raw_path": "parish/apps/ui/art/notebook-person-art/candidates/objects/09/097f465d61912f0ece8c01325a0231f3599183ed658568d4969b510ce448f098/attempts/identity-v8-character-only-full-cast-20260716-a-20260716135740088-71207b5d-2b35-45c0-87c8-4e50447f84d3/marker-raw.png",
+							"source_raw_sha256": "43f30977508c0679a8aec9ffa4a6b119dff657e30dc19298f834434c15849165"
+						}
+					}
+				},
+				{
+					"npc_id": 14,
+					"real_name": "Brendan Duffy",
+					"display_name": "Brendan Duffy",
+					"portrait": "people/portrait-brendan-duffy.png",
+					"marker": "people/marker-brendan-duffy.png",
+					"approval_status": "approved",
+					"provenance": {
+						"release_manifest": "parish/apps/ui/art/notebook-person-art/approved/v1/release-manifest.json",
+						"release_manifest_sha256": "bdca2745a14421ecc5e9ef44ddc847c8d25a93d539c9714968bea4433b00267b",
+						"release_id": "41ddb06811e2bcda004421314e01560423b0986f990477c65592ac2b19576049",
+						"job_id": "6e26afbecd411eefce3ba64e4b927c489d328fa2cd3c168a77a3de33b781c506",
+						"input_record_sha256": "6937f2f81af2246c2b5ed771e43ba25596ccc65e01f226c0992b887da5f3bfed",
+						"review_id": "51ca7044b8ab8fd7467b136c",
+						"portrait": {
+							"master_path": "people/14/portrait.png",
+							"master_sha256": "2f1c334a4fcee20cd238864a87c14153f4add28bb41dfce3741b6ee16b852029",
+							"source_candidate_path": "parish/apps/ui/art/notebook-person-art/candidates/objects/6e/6e26afbecd411eefce3ba64e4b927c489d328fa2cd3c168a77a3de33b781c506/attempts/identity-v8-character-only-full-cast-20260716-a-20260716142931834-5dda68ed-05ac-4afd-9321-5b223d393058/portrait-candidate.png",
+							"source_raw_path": "parish/apps/ui/art/notebook-person-art/candidates/objects/6e/6e26afbecd411eefce3ba64e4b927c489d328fa2cd3c168a77a3de33b781c506/attempts/identity-v8-character-only-full-cast-20260716-a-20260716142931834-5dda68ed-05ac-4afd-9321-5b223d393058/portrait-raw.png",
+							"source_raw_sha256": "6e81c3afb64d0e8102faf966e708541cc6c05ca6e21bf6a9ac5609b8468fbd54"
+						},
+						"marker": {
+							"master_path": "people/14/marker.png",
+							"master_sha256": "8f9ae66b1ceb5fac63e8af2cde6d50b9cd589e6cf64e95f559ec817d66364f3d",
+							"source_candidate_path": "parish/apps/ui/art/notebook-person-art/candidates/objects/6e/6e26afbecd411eefce3ba64e4b927c489d328fa2cd3c168a77a3de33b781c506/attempts/identity-v8-character-only-full-cast-20260716-a-20260716142931834-5dda68ed-05ac-4afd-9321-5b223d393058/marker-candidate.png",
+							"source_raw_path": "parish/apps/ui/art/notebook-person-art/candidates/objects/6e/6e26afbecd411eefce3ba64e4b927c489d328fa2cd3c168a77a3de33b781c506/attempts/identity-v8-character-only-full-cast-20260716-a-20260716142931834-5dda68ed-05ac-4afd-9321-5b223d393058/marker-raw.png",
+							"source_raw_sha256": "7ddfe5dc37e1a449a892f1afb1cd425e9bd97bb5c695670ea1019b75354c4310"
+						}
+					}
+				},
+				{
+					"npc_id": 15,
+					"real_name": "Eamon Walsh",
+					"display_name": "Eamon Walsh",
+					"portrait": "people/portrait-eamon-walsh.png",
+					"marker": "people/marker-eamon-walsh.png",
+					"approval_status": "approved",
+					"provenance": {
+						"release_manifest": "parish/apps/ui/art/notebook-person-art/approved/v1/release-manifest.json",
+						"release_manifest_sha256": "bdca2745a14421ecc5e9ef44ddc847c8d25a93d539c9714968bea4433b00267b",
+						"release_id": "41ddb06811e2bcda004421314e01560423b0986f990477c65592ac2b19576049",
+						"job_id": "0e7cc6dc011bc0d2672143318687d3a6bdc0aa914d49a4ef38a96a2f07875f6e",
+						"input_record_sha256": "5a5f03f76fb410ca6db2a4bb4a5b865ffb7b14b917e6e542361166308b670b4f",
+						"review_id": "fcd8b91efa3590be1e52192f",
+						"portrait": {
+							"master_path": "people/15/portrait.png",
+							"master_sha256": "f5982964d5cbcb081ad8138b931a5c0640d046b028e950b4feb4e3a2c5568abd",
+							"source_candidate_path": "parish/apps/ui/art/notebook-person-art/candidates/objects/0e/0e7cc6dc011bc0d2672143318687d3a6bdc0aa914d49a4ef38a96a2f07875f6e/attempts/identity-v8-character-only-full-cast-20260716-a-20260716135755090-85fdab55-7f45-479b-aec1-ccea11338dd9/portrait-candidate.png",
+							"source_raw_path": "parish/apps/ui/art/notebook-person-art/candidates/objects/0e/0e7cc6dc011bc0d2672143318687d3a6bdc0aa914d49a4ef38a96a2f07875f6e/attempts/identity-v8-character-only-full-cast-20260716-a-20260716135755090-85fdab55-7f45-479b-aec1-ccea11338dd9/portrait-raw.png",
+							"source_raw_sha256": "8db10f58475a83c027b09aa05a14c45fa932a313359eefc8722c8c4a9b9b4a37"
+						},
+						"marker": {
+							"master_path": "people/15/marker.png",
+							"master_sha256": "dfdb146580131da928385c46df1a0090fbb78661420a4b57b0cede56031fa37f",
+							"source_candidate_path": "parish/apps/ui/art/notebook-person-art/candidates/objects/0e/0e7cc6dc011bc0d2672143318687d3a6bdc0aa914d49a4ef38a96a2f07875f6e/attempts/identity-v8-character-only-full-cast-20260716-a-20260716135755090-85fdab55-7f45-479b-aec1-ccea11338dd9/marker-candidate.png",
+							"source_raw_path": "parish/apps/ui/art/notebook-person-art/candidates/objects/0e/0e7cc6dc011bc0d2672143318687d3a6bdc0aa914d49a4ef38a96a2f07875f6e/attempts/identity-v8-character-only-full-cast-20260716-a-20260716135755090-85fdab55-7f45-479b-aec1-ccea11338dd9/marker-raw.png",
+							"source_raw_sha256": "8cf2da0cd3e95a89c2db1bf1123c6ba8383e1933fc697574e78e185cff1c3502"
+						}
+					}
+				},
+				{
+					"npc_id": 16,
+					"real_name": "Kathleen Walsh",
+					"display_name": "Kathleen Walsh",
+					"portrait": "people/portrait-kathleen-walsh.png",
+					"marker": "people/marker-kathleen-walsh.png",
+					"approval_status": "approved",
+					"provenance": {
+						"release_manifest": "parish/apps/ui/art/notebook-person-art/approved/v1/release-manifest.json",
+						"release_manifest_sha256": "bdca2745a14421ecc5e9ef44ddc847c8d25a93d539c9714968bea4433b00267b",
+						"release_id": "41ddb06811e2bcda004421314e01560423b0986f990477c65592ac2b19576049",
+						"job_id": "0285f99b83736d1c1fe681b0b4fd41b10bd7c6b0c059549a33bed4a0d46a6e18",
+						"input_record_sha256": "3da2498090e1c03a1107614e4b4994cbaf9e58109f4ba8899a6a0a6bf08e1e28",
+						"review_id": "c6df82134bdecad41c90a5a7",
+						"portrait": {
+							"master_path": "people/16/portrait.png",
+							"master_sha256": "1878651565c63244c5ca751bc34f4b4278ee9c4326c3031a662c408a85be0ab6",
+							"source_candidate_path": "parish/apps/ui/art/notebook-person-art/candidates/objects/02/0285f99b83736d1c1fe681b0b4fd41b10bd7c6b0c059549a33bed4a0d46a6e18/attempts/identity-v8-character-only-full-cast-20260716-a-20260716135552023-8e1764f8-60b4-406e-9527-6169a1514606/portrait-candidate.png",
+							"source_raw_path": "parish/apps/ui/art/notebook-person-art/candidates/objects/02/0285f99b83736d1c1fe681b0b4fd41b10bd7c6b0c059549a33bed4a0d46a6e18/attempts/identity-v8-character-only-full-cast-20260716-a-20260716135552023-8e1764f8-60b4-406e-9527-6169a1514606/portrait-raw.png",
+							"source_raw_sha256": "1be917cd15e0881dd56c59db93f9548bc90acfe2aa24f20baa1abb6df7e0573f"
+						},
+						"marker": {
+							"master_path": "people/16/marker.png",
+							"master_sha256": "e69ce62f60967bf98bbdef0af3fac2589d0018af92f32079b3cf97d46efcfc90",
+							"source_candidate_path": "parish/apps/ui/art/notebook-person-art/candidates/objects/02/0285f99b83736d1c1fe681b0b4fd41b10bd7c6b0c059549a33bed4a0d46a6e18/attempts/identity-v8-character-only-full-cast-20260716-a-20260716135552023-8e1764f8-60b4-406e-9527-6169a1514606/marker-candidate.png",
+							"source_raw_path": "parish/apps/ui/art/notebook-person-art/candidates/objects/02/0285f99b83736d1c1fe681b0b4fd41b10bd7c6b0c059549a33bed4a0d46a6e18/attempts/identity-v8-character-only-full-cast-20260716-a-20260716135552023-8e1764f8-60b4-406e-9527-6169a1514606/marker-raw.png",
+							"source_raw_sha256": "263fce615e1d7d69bade8991476ee1665e6d61257205322ec19ddaefb1b1820a"
+						}
+					}
+				},
+				{
+					"npc_id": 17,
+					"real_name": "Ciaran Walsh",
+					"display_name": "Ciaran Walsh",
+					"portrait": "people/portrait-ciaran-walsh.png",
+					"marker": "people/marker-ciaran-walsh.png",
+					"approval_status": "approved",
+					"provenance": {
+						"release_manifest": "parish/apps/ui/art/notebook-person-art/approved/v1/release-manifest.json",
+						"release_manifest_sha256": "bdca2745a14421ecc5e9ef44ddc847c8d25a93d539c9714968bea4433b00267b",
+						"release_id": "41ddb06811e2bcda004421314e01560423b0986f990477c65592ac2b19576049",
+						"job_id": "17700f50a6738ee50c993c5cbe5ddbf3db7f019cbc799368b280ff5c9ad89741",
+						"input_record_sha256": "23546174b52d3255268dc3de3af7edaa4f4a05277df3336392c96b283f724388",
+						"review_id": "8146968c3dd9ebd42b0432fc",
+						"portrait": {
+							"master_path": "people/17/portrait.png",
+							"master_sha256": "96fe58e82563e5d41987e64c6063cf6b136da2cbecf29c9cf164e7805c9d6904",
+							"source_candidate_path": "parish/apps/ui/art/notebook-person-art/candidates/objects/17/17700f50a6738ee50c993c5cbe5ddbf3db7f019cbc799368b280ff5c9ad89741/attempts/identity-v8-character-only-full-cast-20260716-a-20260716140021235-dc6a79f5-b873-4217-a536-d908267bab59/portrait-candidate.png",
+							"source_raw_path": "parish/apps/ui/art/notebook-person-art/candidates/objects/17/17700f50a6738ee50c993c5cbe5ddbf3db7f019cbc799368b280ff5c9ad89741/attempts/identity-v8-character-only-full-cast-20260716-a-20260716140021235-dc6a79f5-b873-4217-a536-d908267bab59/portrait-raw.png",
+							"source_raw_sha256": "9077f7faec54a78f4ca2fd6fb7a587796bcdc389106e2c91e6d1379376b6588d"
+						},
+						"marker": {
+							"master_path": "people/17/marker.png",
+							"master_sha256": "bb1a2ad72252f401d394e72a4d4ab865aa985cbfcb579b3fbc534c26a0abe929",
+							"source_candidate_path": "parish/apps/ui/art/notebook-person-art/candidates/objects/17/17700f50a6738ee50c993c5cbe5ddbf3db7f019cbc799368b280ff5c9ad89741/attempts/identity-v8-character-only-full-cast-20260716-a-20260716140021235-dc6a79f5-b873-4217-a536-d908267bab59/marker-candidate.png",
+							"source_raw_path": "parish/apps/ui/art/notebook-person-art/candidates/objects/17/17700f50a6738ee50c993c5cbe5ddbf3db7f019cbc799368b280ff5c9ad89741/attempts/identity-v8-character-only-full-cast-20260716-a-20260716140021235-dc6a79f5-b873-4217-a536-d908267bab59/marker-raw.png",
+							"source_raw_sha256": "75f1e35fb7235dbfb9934a24f350d9e225556608a879a1e8ecea1b8debe17f0d"
+						}
+					}
+				},
+				{
+					"npc_id": 18,
+					"real_name": "Liam Murphy",
+					"display_name": "Liam Murphy",
+					"portrait": "people/portrait-liam-murphy.png",
+					"marker": "people/marker-liam-murphy.png",
+					"approval_status": "approved",
+					"provenance": {
+						"release_manifest": "parish/apps/ui/art/notebook-person-art/approved/v1/release-manifest.json",
+						"release_manifest_sha256": "bdca2745a14421ecc5e9ef44ddc847c8d25a93d539c9714968bea4433b00267b",
+						"release_id": "41ddb06811e2bcda004421314e01560423b0986f990477c65592ac2b19576049",
+						"job_id": "9860a50ffe6ae4833eff18e5c798b7428394b721a2624b77c29c78a603049f94",
+						"input_record_sha256": "b014e63763f6265f888678eda910452c27a52e39c45611934155307323393769",
+						"review_id": "d45e826e42544c42b4ae17b7",
+						"portrait": {
+							"master_path": "people/18/portrait.png",
+							"master_sha256": "5f2472a32c8a2e7b8fc6bb38dc8b59dbb87dc9f4c37b3af9b2772f508906b918",
+							"source_candidate_path": "parish/apps/ui/art/notebook-person-art/candidates/objects/98/9860a50ffe6ae4833eff18e5c798b7428394b721a2624b77c29c78a603049f94/attempts/identity-v8-character-only-full-cast-20260716-a-20260716143318487-7e159c40-1d55-4d86-97a0-d5e2bd530e89/portrait-candidate.png",
+							"source_raw_path": "parish/apps/ui/art/notebook-person-art/candidates/objects/98/9860a50ffe6ae4833eff18e5c798b7428394b721a2624b77c29c78a603049f94/attempts/identity-v8-character-only-full-cast-20260716-a-20260716143318487-7e159c40-1d55-4d86-97a0-d5e2bd530e89/portrait-raw.png",
+							"source_raw_sha256": "3ffaa59b3541de4628ffcf01dac6509ad74b352355c5ab95b4583bad0e6edf7b"
+						},
+						"marker": {
+							"master_path": "people/18/marker.png",
+							"master_sha256": "3ad8664a660953a419a166e48fce34087ee3dd258a55a4ab152a3b0e17b8c8f0",
+							"source_candidate_path": "parish/apps/ui/art/notebook-person-art/candidates/objects/98/9860a50ffe6ae4833eff18e5c798b7428394b721a2624b77c29c78a603049f94/attempts/identity-v8-character-only-full-cast-20260716-a-20260716143318487-7e159c40-1d55-4d86-97a0-d5e2bd530e89/marker-candidate.png",
+							"source_raw_path": "parish/apps/ui/art/notebook-person-art/candidates/objects/98/9860a50ffe6ae4833eff18e5c798b7428394b721a2624b77c29c78a603049f94/attempts/identity-v8-character-only-full-cast-20260716-a-20260716143318487-7e159c40-1d55-4d86-97a0-d5e2bd530e89/marker-raw.png",
+							"source_raw_sha256": "744f6aaa6dc321c65e0a5129124f72589816c1dfe4987ad0edcffa67a6b55fb8"
+						}
+					}
+				},
+				{
+					"npc_id": 19,
+					"real_name": "Brigid Ni Fhatharta",
+					"display_name": "Brigid Ni Fhatharta",
+					"portrait": "people/portrait-brigid-ni-fhatharta.png",
+					"marker": "people/marker-brigid-ni-fhatharta.png",
+					"approval_status": "approved",
+					"provenance": {
+						"release_manifest": "parish/apps/ui/art/notebook-person-art/approved/v1/release-manifest.json",
+						"release_manifest_sha256": "bdca2745a14421ecc5e9ef44ddc847c8d25a93d539c9714968bea4433b00267b",
+						"release_id": "41ddb06811e2bcda004421314e01560423b0986f990477c65592ac2b19576049",
+						"job_id": "3c36c58324fde8b65d79242425be29a085077658d64072e87dd70716c0a696bc",
+						"input_record_sha256": "62d78b27c9dced1b4bfb88f9750eb7fc7a7a577fc7214241ace8e60ebff3b353",
+						"review_id": "dd7106eb69d42270246703d4",
+						"portrait": {
+							"master_path": "people/19/portrait.png",
+							"master_sha256": "2afeaf0bbe2821688ec56a20cbc2fbff46b2bcb847ed952b9c39cd288e32811b",
+							"source_candidate_path": "parish/apps/ui/art/notebook-person-art/candidates/objects/3c/3c36c58324fde8b65d79242425be29a085077658d64072e87dd70716c0a696bc/attempts/identity-v8-character-only-full-cast-20260716-a-20260716142720682-2f974274-9f16-48b6-a6ac-d2860a636fbb/portrait-candidate.png",
+							"source_raw_path": "parish/apps/ui/art/notebook-person-art/candidates/objects/3c/3c36c58324fde8b65d79242425be29a085077658d64072e87dd70716c0a696bc/attempts/identity-v8-character-only-full-cast-20260716-a-20260716142720682-2f974274-9f16-48b6-a6ac-d2860a636fbb/portrait-raw.png",
+							"source_raw_sha256": "e8c825520d169fae4b4635e41d875f910f8c9476f598e4188585cd1fc24d4d67"
+						},
+						"marker": {
+							"master_path": "people/19/marker.png",
+							"master_sha256": "4510d7c98b0a0de1cfeea89d72dfcce022a5ee5ad44d786223db7d0a31f6791c",
+							"source_candidate_path": "parish/apps/ui/art/notebook-person-art/candidates/objects/3c/3c36c58324fde8b65d79242425be29a085077658d64072e87dd70716c0a696bc/attempts/identity-v8-character-only-full-cast-20260716-a-20260716142720682-2f974274-9f16-48b6-a6ac-d2860a636fbb/marker-candidate.png",
+							"source_raw_path": "parish/apps/ui/art/notebook-person-art/candidates/objects/3c/3c36c58324fde8b65d79242425be29a085077658d64072e87dd70716c0a696bc/attempts/identity-v8-character-only-full-cast-20260716-a-20260716142720682-2f974274-9f16-48b6-a6ac-d2860a636fbb/marker-raw.png",
+							"source_raw_sha256": "013cbcf2ddd172d332587a6f37c28e16dd06a1ac6e20a7ce338eca409da179c2"
+						}
+					}
+				},
+				{
+					"npc_id": 20,
+					"real_name": "Una Malone",
+					"display_name": "Una Malone",
+					"portrait": "people/portrait-una-malone.png",
+					"marker": "people/marker-una-malone.png",
+					"approval_status": "approved",
+					"provenance": {
+						"release_manifest": "parish/apps/ui/art/notebook-person-art/approved/v1/release-manifest.json",
+						"release_manifest_sha256": "bdca2745a14421ecc5e9ef44ddc847c8d25a93d539c9714968bea4433b00267b",
+						"release_id": "41ddb06811e2bcda004421314e01560423b0986f990477c65592ac2b19576049",
+						"job_id": "15ec1d8097028c69f932ea840e8e513fbe7bdd48110278a727ad90a215e81fe4",
+						"input_record_sha256": "b30223abbfd7d7aae11799b735b23fbd1767599dc49bbcb442990416eca2f9e4",
+						"review_id": "fdb88d0c4fbd40d5bf33c411",
+						"portrait": {
+							"master_path": "people/20/portrait.png",
+							"master_sha256": "9ae25cd105a85bfc846ce72e7514924109821016f478eb1ed732c6864d18f55c",
+							"source_candidate_path": "parish/apps/ui/art/notebook-person-art/candidates/objects/15/15ec1d8097028c69f932ea840e8e513fbe7bdd48110278a727ad90a215e81fe4/attempts/identity-v8-character-only-full-cast-20260716-a-20260716140006233-ed1bf596-80f7-476a-a452-a2e681135718/portrait-candidate.png",
+							"source_raw_path": "parish/apps/ui/art/notebook-person-art/candidates/objects/15/15ec1d8097028c69f932ea840e8e513fbe7bdd48110278a727ad90a215e81fe4/attempts/identity-v8-character-only-full-cast-20260716-a-20260716140006233-ed1bf596-80f7-476a-a452-a2e681135718/portrait-raw.png",
+							"source_raw_sha256": "67f10eb37a90878a14f28f9d3a356ed54749104fa50c676372c272280e8387d3"
+						},
+						"marker": {
+							"master_path": "people/20/marker.png",
+							"master_sha256": "6f6aa20f7dcd325c45350aa160d97df79e4e0be32534b8ac6269a156cbc8afc1",
+							"source_candidate_path": "parish/apps/ui/art/notebook-person-art/candidates/objects/15/15ec1d8097028c69f932ea840e8e513fbe7bdd48110278a727ad90a215e81fe4/attempts/identity-v8-character-only-full-cast-20260716-a-20260716140006233-ed1bf596-80f7-476a-a452-a2e681135718/marker-candidate.png",
+							"source_raw_path": "parish/apps/ui/art/notebook-person-art/candidates/objects/15/15ec1d8097028c69f932ea840e8e513fbe7bdd48110278a727ad90a215e81fe4/attempts/identity-v8-character-only-full-cast-20260716-a-20260716140006233-ed1bf596-80f7-476a-a452-a2e681135718/marker-raw.png",
+							"source_raw_sha256": "b42bfc28b832ba2edcaec91e8f4ae5d3b40a71694c9f9b783d96fcf50b8358ee"
+						}
+					}
+				},
+				{
+					"npc_id": 21,
+					"real_name": "Sean Ruadh Kelly",
+					"display_name": "Sean Ruadh Kelly",
+					"portrait": "people/portrait-sean-ruadh-kelly.png",
+					"marker": "people/marker-sean-ruadh-kelly.png",
+					"approval_status": "approved",
+					"provenance": {
+						"release_manifest": "parish/apps/ui/art/notebook-person-art/approved/v1/release-manifest.json",
+						"release_manifest_sha256": "bdca2745a14421ecc5e9ef44ddc847c8d25a93d539c9714968bea4433b00267b",
+						"release_id": "41ddb06811e2bcda004421314e01560423b0986f990477c65592ac2b19576049",
+						"job_id": "6e650eb2d64708787d4e35a3919754f5be60ebcc559af56e1a5f5b92be602c6c",
+						"input_record_sha256": "4efec93b235ef837658866cc23620009304fadc9aaed228957a87cfe40fd9d30",
+						"review_id": "a48efdb5c7b8bdd0eedded2f",
+						"portrait": {
+							"master_path": "people/21/portrait.png",
+							"master_sha256": "16dd355c45613027128eb0f3cfa9841f98a4cb7aef952197c3f32a11b97b1ac3",
+							"source_candidate_path": "parish/apps/ui/art/notebook-person-art/candidates/objects/6e/6e650eb2d64708787d4e35a3919754f5be60ebcc559af56e1a5f5b92be602c6c/attempts/identity-v8-character-only-full-cast-20260716-a-20260716143111973-39c073ba-d2db-43d9-9724-606df6c1c71a/portrait-candidate.png",
+							"source_raw_path": "parish/apps/ui/art/notebook-person-art/candidates/objects/6e/6e650eb2d64708787d4e35a3919754f5be60ebcc559af56e1a5f5b92be602c6c/attempts/identity-v8-character-only-full-cast-20260716-a-20260716143111973-39c073ba-d2db-43d9-9724-606df6c1c71a/portrait-raw.png",
+							"source_raw_sha256": "2169a598f45d4a2b7c8176794cd96d21c98a4eb219b7ee5b8417273ce39a86be"
+						},
+						"marker": {
+							"master_path": "people/21/marker.png",
+							"master_sha256": "7ad27639d655e2cfd4f13349e4f06c2738c8882739ac666c0d3c7d6456c06236",
+							"source_candidate_path": "parish/apps/ui/art/notebook-person-art/candidates/objects/6e/6e650eb2d64708787d4e35a3919754f5be60ebcc559af56e1a5f5b92be602c6c/attempts/identity-v8-character-only-full-cast-20260716-a-20260716143111973-39c073ba-d2db-43d9-9724-606df6c1c71a/marker-candidate.png",
+							"source_raw_path": "parish/apps/ui/art/notebook-person-art/candidates/objects/6e/6e650eb2d64708787d4e35a3919754f5be60ebcc559af56e1a5f5b92be602c6c/attempts/identity-v8-character-only-full-cast-20260716-a-20260716143111973-39c073ba-d2db-43d9-9724-606df6c1c71a/marker-raw.png",
+							"source_raw_sha256": "a19e17ff8270c294cc7b9bf6c6ebc37aed31f7ba3119190effc8a73838e93d1f"
+						}
+					}
+				},
+				{
+					"npc_id": 22,
+					"real_name": "Peig Hannigan",
+					"display_name": "Peig Hannigan",
+					"portrait": "people/portrait-peig-hannigan.png",
+					"marker": "people/marker-peig-hannigan.png",
+					"approval_status": "approved",
+					"provenance": {
+						"release_manifest": "parish/apps/ui/art/notebook-person-art/approved/v1/release-manifest.json",
+						"release_manifest_sha256": "bdca2745a14421ecc5e9ef44ddc847c8d25a93d539c9714968bea4433b00267b",
+						"release_id": "41ddb06811e2bcda004421314e01560423b0986f990477c65592ac2b19576049",
+						"job_id": "2497c08d92194e108d4737df3e0acad75d6a469f240b0b2d2a171eeba2766135",
+						"input_record_sha256": "38b9a7cb5fec4e16924e07ac84ef586909f7e76066e9062750b0a3f503ca104a",
+						"review_id": "347e43ec62c3709b362e4246",
+						"portrait": {
+							"master_path": "people/22/portrait.png",
+							"master_sha256": "750ef6927aadb336d48dbb74f8608fa168eb085566d669a8bcedddd91af06dcb",
+							"source_candidate_path": "parish/apps/ui/art/notebook-person-art/candidates/objects/24/2497c08d92194e108d4737df3e0acad75d6a469f240b0b2d2a171eeba2766135/attempts/identity-v8-character-only-full-cast-20260716-b-20260716203512500-cc5f7950-a892-4ff1-8608-b67ae3c02d9c/portrait-candidate.png",
+							"source_raw_path": "parish/apps/ui/art/notebook-person-art/candidates/objects/24/2497c08d92194e108d4737df3e0acad75d6a469f240b0b2d2a171eeba2766135/attempts/identity-v8-character-only-full-cast-20260716-b-20260716203512500-cc5f7950-a892-4ff1-8608-b67ae3c02d9c/portrait-raw.png",
+							"source_raw_sha256": "b36aede59654e8f57e13d1dd337189d9bf3fdcb3b56d5e5b6a7bc61d4b84e71c"
+						},
+						"marker": {
+							"master_path": "people/22/marker.png",
+							"master_sha256": "29a037d98897936f26212f3766a20d3755eea3d609984800f82d8e909db01374",
+							"source_candidate_path": "parish/apps/ui/art/notebook-person-art/candidates/objects/24/2497c08d92194e108d4737df3e0acad75d6a469f240b0b2d2a171eeba2766135/attempts/identity-v8-character-only-full-cast-20260716-b-20260716203512500-cc5f7950-a892-4ff1-8608-b67ae3c02d9c/marker-candidate.png",
+							"source_raw_path": "parish/apps/ui/art/notebook-person-art/candidates/objects/24/2497c08d92194e108d4737df3e0acad75d6a469f240b0b2d2a171eeba2766135/attempts/identity-v8-character-only-full-cast-20260716-b-20260716203512500-cc5f7950-a892-4ff1-8608-b67ae3c02d9c/marker-raw.png",
+							"source_raw_sha256": "e54e36e86741f3c657c7e4b3feb7342655fbe61137a57c1f11586e6730a1c21f"
+						}
+					}
+				},
+				{
+					"npc_id": 23,
+					"real_name": "Martin Concannon",
+					"display_name": "Martin Concannon",
+					"portrait": "people/portrait-martin-concannon.png",
+					"marker": "people/marker-martin-concannon.png",
+					"approval_status": "approved",
+					"provenance": {
+						"release_manifest": "parish/apps/ui/art/notebook-person-art/approved/v1/release-manifest.json",
+						"release_manifest_sha256": "bdca2745a14421ecc5e9ef44ddc847c8d25a93d539c9714968bea4433b00267b",
+						"release_id": "41ddb06811e2bcda004421314e01560423b0986f990477c65592ac2b19576049",
+						"job_id": "78e489c167dd4679ea39f15cf711ef8e1974f11e1445ffb9f9875ca5dac790bc",
+						"input_record_sha256": "74a5a43404cb2e54138f8186ccc33358ae5eda8757988469e4cd0b04c4b13764",
+						"review_id": "3452ba69978e20b95745cece",
+						"portrait": {
+							"master_path": "people/23/portrait.png",
+							"master_sha256": "6a664ca9b2f675679b1734f165b54dfc8334aba71b8099f7733ad4b4f1428e4d",
+							"source_candidate_path": "parish/apps/ui/art/notebook-person-art/candidates/objects/78/78e489c167dd4679ea39f15cf711ef8e1974f11e1445ffb9f9875ca5dac790bc/attempts/identity-v8-character-only-full-cast-20260716-a-20260716143126974-8d7f03b4-bef7-45e3-aa3c-02c8f9b5b634/portrait-candidate.png",
+							"source_raw_path": "parish/apps/ui/art/notebook-person-art/candidates/objects/78/78e489c167dd4679ea39f15cf711ef8e1974f11e1445ffb9f9875ca5dac790bc/attempts/identity-v8-character-only-full-cast-20260716-a-20260716143126974-8d7f03b4-bef7-45e3-aa3c-02c8f9b5b634/portrait-raw.png",
+							"source_raw_sha256": "3dc4ae137e01d6cc84044cda24e616514dfb31dd73db77458996b421765f71f7"
+						},
+						"marker": {
+							"master_path": "people/23/marker.png",
+							"master_sha256": "7ce1515ee48da6ecf0a90587d40bbecc6dd30aa1e896e9d96616fe6a3005c9c3",
+							"source_candidate_path": "parish/apps/ui/art/notebook-person-art/candidates/objects/78/78e489c167dd4679ea39f15cf711ef8e1974f11e1445ffb9f9875ca5dac790bc/attempts/identity-v8-character-only-full-cast-20260716-a-20260716143126974-8d7f03b4-bef7-45e3-aa3c-02c8f9b5b634/marker-candidate.png",
+							"source_raw_path": "parish/apps/ui/art/notebook-person-art/candidates/objects/78/78e489c167dd4679ea39f15cf711ef8e1974f11e1445ffb9f9875ca5dac790bc/attempts/identity-v8-character-only-full-cast-20260716-a-20260716143126974-8d7f03b4-bef7-45e3-aa3c-02c8f9b5b634/marker-raw.png",
+							"source_raw_sha256": "0c57a03d77816c766e8e628c83212ff591e5b89881e42691c85efab2e56dc8f5"
+						}
+					}
+				}
+			]
+		}
 	}
 }

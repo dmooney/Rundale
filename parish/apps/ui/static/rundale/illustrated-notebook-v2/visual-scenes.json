@@ -1,0 +1,89 @@
+{
+	"version": 2,
+	"scenes": [
+		{
+			"location_ids": [1, 15],
+			"plate_asset": "/rundale/illustrated-notebook-v2/parish-crossroads-watercolor.png",
+			"mobile_plate_asset": "/rundale/illustrated-notebook-v2/parish-crossroads-watercolor-mobile.png",
+			"written_visual_summary": "Rural Ireland in 1820 after rain: a parish crossroads with whitewashed cottages, chapel and shop roads, a stone bridge, wet grass, hedgerows, muddy tracks, and quiet villagers.",
+			"camera_hint": "wide elevated oblique illustrated storybook game scene",
+			"background_generation_source": "Freshly generated from the written 1820 rural-Irish, fine-ink, muted-watercolor direction derived from docs/graphics-v2/illustrated-parish-notebook-prompt.md; the canonical concept was a comparison target, not a runtime image source.",
+			"depth_bands": [
+				{
+					"name": "far",
+					"min_depth": 0,
+					"max_depth": 0.35,
+					"marker_scale": 0.5
+				},
+				{
+					"name": "mid",
+					"min_depth": 0.35,
+					"max_depth": 0.7,
+					"marker_scale": 0.72
+				},
+				{
+					"name": "near",
+					"min_depth": 0.7,
+					"max_depth": 1,
+					"marker_scale": 0.95
+				}
+			],
+			"anchors": {
+				"player": {
+					"x": 0.49,
+					"y": 0.57,
+					"depth": 0.72
+				},
+				"npcs": [
+					{
+						"id": "nearby-1",
+						"x": 0.491,
+						"y": 0.57,
+						"depth": 0.72
+					},
+					{
+						"id": "nearby-2",
+						"x": 0.585,
+						"y": 0.391,
+						"depth": 0.58
+					},
+					{
+						"id": "nearby-3",
+						"x": 0.664,
+						"y": 0.58,
+						"depth": 0.66
+					},
+					{
+						"id": "nearby-4",
+						"x": 0.505,
+						"y": 0.727,
+						"depth": 0.82
+					}
+				],
+				"exits": [
+					{
+						"id": "chapel",
+						"label": "Chapel Lane",
+						"x": 0.128,
+						"y": 0.119,
+						"depth": 0.18
+					},
+					{
+						"id": "shop",
+						"label": "Shop Road",
+						"x": 0.64,
+						"y": 0.425,
+						"depth": 0.46
+					},
+					{
+						"id": "bridge",
+						"label": "Bridge",
+						"x": 0.7,
+						"y": 0.565,
+						"depth": 0.64
+					}
+				]
+			}
+		}
+	]
+}

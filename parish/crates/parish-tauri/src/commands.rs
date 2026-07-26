@@ -59,10 +59,14 @@ pub use admin::{open_url, rebuild_inference_inner, submit_bug_report};
 
 // ── Re-exports: screenshot ────────────────────────────────────────────────────
 pub use screenshot::{
-    ScreenshotInfo, decode_data_url_png, get_latest_screenshot, notify_screenshot_captured,
-    notify_screenshot_error, save_screenshot, take_screenshot, write_screenshot_to_disk,
+    GraphicalReadiness, ScreenshotInfo, decode_data_url_png, get_graphical_readiness,
+    get_latest_screenshot, notify_screenshot_captured, notify_screenshot_error,
+    notify_screenshot_started, report_graphical_error, report_graphical_ready,
+    report_graphical_unready, save_screenshot, take_screenshot, write_screenshot_to_disk,
 };
-pub(crate) use screenshot::{do_get_latest_screenshot, do_take_screenshot};
+pub(crate) use screenshot::{
+    PendingScreenshot, do_get_latest_screenshot, do_take_screenshot, graphical_readiness,
+};
 
 // ── Re-exports: reactions ─────────────────────────────────────────────────────
 pub use reactions::{is_snippet_injection_char, react_to_message};

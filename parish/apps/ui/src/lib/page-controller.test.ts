@@ -57,6 +57,7 @@ function map(playerLocation: string): MapData {
 }
 
 const oldNpc = {
+	npc_id: 7,
 	name: 'Old neighbour',
 	real_name: 'Old neighbour',
 	occupation: 'Farmer',

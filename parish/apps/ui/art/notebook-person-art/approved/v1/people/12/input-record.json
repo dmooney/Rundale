@@ -1,0 +1,212 @@
+{
+	"npc_id": 12,
+	"name": "Cormac Duffy",
+	"age": 50,
+	"pronouns": "he/him",
+	"occupation": "Miller",
+	"mood": "calculating",
+	"brief_description": "a well-fed man dusted in flour",
+	"home": {
+		"id": 18,
+		"name": "The Mill",
+		"description": "A sturdy stone mill built beside a weir on the stream. The great wooden wheel turns slowly in the current. Sacks of grain and flour are stacked against the walls. The air is thick with white dust. It is daylight. The weather is weather."
+	},
+	"workplace": {
+		"id": 18,
+		"name": "The Mill",
+		"description": "A sturdy stone mill built beside a weir on the stream. The great wooden wheel turns slowly in the current. Sacks of grain and flour are stacked against the walls. The air is thick with white dust. It is daylight. The weather is weather."
+	},
+	"source_personality_summary": "The prosperous miller who controls the only mill in the parish.",
+	"source_knowledge": [
+		"Knows exactly how much grain every farm in the parish produces — and what they owe.",
+		"Has been quietly buying up IOUs from struggling farmers, building leverage.",
+		"Heard that the landlord may sell the estate, which could mean new terms for everyone.",
+		"Knows the stream level is dropping — a dry summer could stop the mill wheel."
+	],
+	"source_relationships": [
+		{
+			"target_id": 13,
+			"target_name": "Nora Duffy",
+			"kind": "Family",
+			"strength": 0.85
+		},
+		{
+			"target_id": 14,
+			"target_name": "Brendan Duffy",
+			"kind": "Family",
+			"strength": 0.8
+		},
+		{
+			"target_id": 4,
+			"target_name": "Roisin Connolly",
+			"kind": "Rival",
+			"strength": 0.2
+		},
+		{
+			"target_id": 2,
+			"target_name": "Siobhan Murphy",
+			"kind": "Professional",
+			"strength": 0.4
+		}
+	],
+	"source_schedule_cues": [
+		{
+			"location_id": 1,
+			"location_name": "The Crossroads",
+			"activity": "at the crossroads after Mass, talking business despite the day"
+		},
+		{
+			"location_id": 2,
+			"location_name": "Darcy's Pub",
+			"activity": "Sunday evening at the pub"
+		},
+		{
+			"location_id": 2,
+			"location_name": "Darcy's Pub",
+			"activity": "at Darcy's Pub for a drink, keeping his ear to the ground"
+		},
+		{
+			"location_id": 3,
+			"location_name": "St. Brigid's Church",
+			"activity": "attending Mass at St. Brigid's in his good coat"
+		},
+		{
+			"location_id": 13,
+			"location_name": "Connolly's Shop",
+			"activity": "at Connolly's Shop, discussing prices and supplies with Roisin"
+		},
+		{
+			"location_id": 15,
+			"location_name": "Kilteevan Village",
+			"activity": "walking about the village, surveying his standing"
+		},
+		{
+			"location_id": 18,
+			"location_name": "The Mill",
+			"activity": "Sunday dinner at home — Nora's best cooking"
+		},
+		{
+			"location_id": 18,
+			"location_name": "The Mill",
+			"activity": "afternoon milling, weighing sacks, settling accounts"
+		},
+		{
+			"location_id": 18,
+			"location_name": "The Mill",
+			"activity": "dinner at the mill house with Nora and Brendan"
+		},
+		{
+			"location_id": 18,
+			"location_name": "The Mill",
+			"activity": "grinding grain — oats, barley, whatever the farmers bring"
+		},
+		{
+			"location_id": 18,
+			"location_name": "The Mill",
+			"activity": "home for the night"
+		},
+		{
+			"location_id": 18,
+			"location_name": "The Mill",
+			"activity": "home to the mill house for the night"
+		},
+		{
+			"location_id": 18,
+			"location_name": "The Mill",
+			"activity": "rising early, checking the mill wheel and the sluice"
+		},
+		{
+			"location_id": 18,
+			"location_name": "The Mill",
+			"activity": "sleeping at the mill house"
+		},
+		{
+			"location_id": 18,
+			"location_name": "The Mill",
+			"activity": "sleeping at the mill — even the wheel rests on Sunday"
+		}
+	],
+	"source_visual_cues": [
+		"age: 50",
+		"occupation: Miller",
+		"brief_description: a well-fed man dusted in flour",
+		"prop/activity"
+	],
+	"source_metadata_status": {
+		"canonical_npc_data_sufficient_for_production_art": false,
+		"status": "weak-partial",
+		"reason": "The canonical NPC data identifies the character but does not provide enough structured appearance, clothing, or tiny-marker guidance for production art."
+	},
+	"art_direction": {
+		"npc_id": 12,
+		"npc_name": "Cormac Duffy",
+		"portrait_identity": {
+			"visual_identity_seed": "rundale-person-v2:12",
+			"identity_cohort": "man",
+			"apparent_age": "around fifty",
+			"facial_geometry": {
+				"face_shape": "broad round-square face with full lower cheeks",
+				"proportions": "wide forehead, compact midface, broad lower face",
+				"brow_and_eyes": "low straight brows; medium-set, deep-set eyes with heavy upper lids",
+				"nose": "medium broad bridge with a prominent rounded tip and narrow nostril wings",
+				"mouth": "small-to-medium mouth with a flat upper lip and fuller lower lip",
+				"jaw_and_chin": "broad rounded jaw, soft submental line, and short cleft chin",
+				"cheekbones": "high-set cheekbones softened by cheek fullness",
+				"hairline": "neat hairline with clear recession at the temples",
+				"age_detail": "around-fifty forehead lines, lower-lid creases, and defined folds beside the mouth"
+			},
+			"distinguishing_features": [
+				"shallow vertical cleft in the chin",
+				"right upper eyelid sits slightly lower",
+				"rounded nose tip projects clearly in three-quarter view"
+			],
+			"hair": "medium brown threaded with grey, short, orderly, and brushed back from the receding temples",
+			"clothing": "respectable miller's waistcoat, clean apron with flour dust, good shirt",
+			"pose_expression": "controlled half-smile, weighing profit and reputation",
+			"props": [
+				"flour sack sample",
+				"small account slip",
+				"dusting of flour"
+			],
+			"palette_notes": [
+				"flour white",
+				"miller stone grey",
+				"respectable dark waistcoat"
+			]
+		},
+		"marker_identity": {
+			"composition": "character-only",
+			"silhouette": "rounder around-fifty man with orderly receding brown-grey hair, a respectable waistcoat, clean pale apron, and full torso; no object/scenery",
+			"stance": "self-contained stance with hands near the waistcoat front; no object/scenery",
+			"empty_hand_pose": "hands-near-coat-front",
+			"readability_cues": [
+				{
+					"kind": "body-shape",
+					"description": "round full torso"
+				},
+				{
+					"kind": "hair-or-headwear",
+					"description": "orderly receding brown-grey hair"
+				},
+				{
+					"kind": "clothing",
+					"description": "respectable waistcoat and pale apron"
+				}
+			],
+			"tiny_readability_notes": [
+				"Read him as rounded and tidy rather than broad-shouldered like Seamus."
+			]
+		},
+		"avoid": [
+			"villain caricature",
+			"top hat",
+			"modern banker look"
+		],
+		"authoring_notes": [
+			"Canonical brief gives useful flour cue; supplement defines exact posture and class signal."
+		]
+	},
+	"pair_prompt": "Identity contract for Cormac Duffy, age 50, Miller: visual identity seed rundale-person-v2:12; apparent age around fifty; Explicit facial geometry: face shape broad round-square face with full lower cheeks; proportions wide forehead, compact midface, broad lower face; brow and eyes low straight brows; medium-set, deep-set eyes with heavy upper lids; nose medium broad bridge with a prominent rounded tip and narrow nostril wings; mouth small-to-medium mouth with a flat upper lip and fuller lower lip; jaw and chin broad rounded jaw, soft submental line, and short cleft chin; cheekbones high-set cheekbones softened by cheek fullness; hairline neat hairline with clear recession at the temples; age detail around-fifty forehead lines, lower-lid creases, and defined folds beside the mouth. Distinguishing features: shallow vertical cleft in the chin, right upper eyelid sits slightly lower, rounded nose tip projects clearly in three-quarter view. Hair: medium brown threaded with grey, short, orderly, and brushed back from the receding temples. Production task: create one identity-locked portrait-and-marker pair in Rundale, rural County Roscommon, Ireland, 1820, ordinary parish life, period-appropriate work clothing, under this visual authority: Illustrated Parish Notebook concept art only. The two renderings must unmistakably be the same person by reproducing every stated identity fact. Clothing: respectable miller's waistcoat, clean apron with flour dust, good shirt; canonical biography cue for clothing and expression only, never for setting, activity, or objects: a well-fed man dusted in flour; current mood calculating. Left asset, notebook portrait: a quick observational head-and-shoulders sketch the player character drew in their working notebook after meeting this person. Use sparse uncolored sepia/graphite contours, open unfilled shapes, and only a few isolated short structural hatch marks; optional lower-edge prop flour sack sample, simply outlined and confined to the left cell. Do not cross-hatch or shade any broad region of the face, hair, neck, scarf, waistcoat, coat, dress, or apron, and do not render a dark garment as a filled or densely hatched mass. Keep the complete ink drawing between 40 and 60 percent of the left cell height with generous empty padding; every uninked interior region must remain provider key, never white, cream, parchment, skin tone, gray, or any other fill. It must not read as a formal illustration or painted portrait. Right asset, painted-world marker: one tiny static full-body transparent character-only cutout designed for compositing into the painted parish scene; silhouette rounder around-fifty man with orderly receding brown-grey hair, a respectable waistcoat, clean pale apron, and full torso; no object/scenery; stance self-contained stance with hands near the waistcoat front; no object/scenery; empty-hand pose both empty hands resting near the coat front; tiny-readability cues from the person's body, hair or headwear, clothing, and stance alone: body shape: round full torso; hair or headwear: orderly receding brown-grey hair; clothing: respectable waistcoat and pale apron; complete figure roughly 45 percent of the right cell height, acceptable range 40 to 60 percent, with generous key-visible margins; restrained translucent watercolor within loose sepia/graphite contours, simplified face, and complete feet. The right cell must contain the person only: both hands empty; no held or carried objects, tools, books, containers, bundles, furniture, counters, architecture, vegetation, scenery fragments, ground plane, shadow, or extra person. Worn clothing and headwear are allowed. Do not illustrate the canonical biography's occupation, workplace, activity, or narrative context around the marker. Limit painted color to muted wool gray, bog green, weathered tan, dull brick red, peat brown, and faded indigo; no saturated primary colors. Shared constraints: one depiction in each assigned cell, ordinary 1820 rural County Roscommon clothing, no modern or fantasy elements, no text, labels, frames, contact-sheet furniture, or sprite-sheet poses. Never copy a left-cell portrait prop into the marker. Character-specific avoid list: villain caricature, top hat, modern banker look.",
+	"portrait_prompt": "Subject identity: Cormac Duffy, age 50, Miller; visual identity seed rundale-person-v2:12; apparent age around fifty; Explicit facial geometry: face shape broad round-square face with full lower cheeks; proportions wide forehead, compact midface, broad lower face; brow and eyes low straight brows; medium-set, deep-set eyes with heavy upper lids; nose medium broad bridge with a prominent rounded tip and narrow nostril wings; mouth small-to-medium mouth with a flat upper lip and fuller lower lip; jaw and chin broad rounded jaw, soft submental line, and short cleft chin; cheekbones high-set cheekbones softened by cheek fullness; hairline neat hairline with clear recession at the temples; age detail around-fifty forehead lines, lower-lid creases, and defined folds beside the mouth. Distinguishing features: shallow vertical cleft in the chin, right upper eyelid sits slightly lower, rounded nose tip projects clearly in three-quarter view. Hair: medium brown threaded with grey, short, orderly, and brushed back from the receding temples. Artifact and lore: this is a quick observational sketch the player character drew by hand in the margin of their working parish notebook after meeting the subject. It is diegetic notebook ephemera, not a commissioned illustration, formal portrait study, character card, or polished concept painting. Non-negotiable drawing language: sparse, uncolored pen-and-ink line drawing under this visual authority: Illustrated Parish Notebook concept art only. Use one irregular sepia/graphite ink line, economical contours, open shapes, and only a few short loose hatch marks where structurally necessary. Leave most of the face, hair, clothing, and canvas unfilled. No skin-tone fill, white underpainting, cream fill, solid dark garment, gray wash, watercolor, smooth tonal modeling, dense cross-hatching, photorealistic rendering, or glamour. Delivery composition: 1024x1024 transparent-background PNG source, portrait line art occupies roughly 45 percent of source height, centered head-and-shoulders drawing with generous transparent padding on all sides, top of hair/head covering and shoulders fully visible, no baked parchment, paper texture, wash, card, border, label, or UI furniture; keep the complete inked drawing between roughly 40 and 60 percent of canvas height with generous empty space on every side. Uninked areas are transparent in the delivery asset so the UI-controlled notebook paper shows through. Setting: Rundale, rural County Roscommon, Ireland, 1820, ordinary parish life, period-appropriate work clothing. Clothing: respectable miller's waistcoat, clean apron with flour dust, good shirt, indicated only with contour, seam, and a few fold lines; expression and pose controlled half-smile, weighing profit and reputation; current mood calculating. Optional lower-edge identity cue: flour sack sample, at most one simply outlined prop. Canonical context: a well-fed man dusted in flour; home/workplace at The Mill. Hard constraints: one character, head and shoulders only, period-appropriate rural County Roscommon clothing, no text, no label, no border, no card, no UI chrome. Character-specific avoid list: villain caricature, top hat, modern banker look.",
+	"marker_prompt": "Subject identity: Cormac Duffy, age 50, Miller; visual identity seed rundale-person-v2:12; apparent age around fifty; Explicit facial geometry: face shape broad round-square face with full lower cheeks; proportions wide forehead, compact midface, broad lower face; brow and eyes low straight brows; medium-set, deep-set eyes with heavy upper lids; nose medium broad bridge with a prominent rounded tip and narrow nostril wings; mouth small-to-medium mouth with a flat upper lip and fuller lower lip; jaw and chin broad rounded jaw, soft submental line, and short cleft chin; cheekbones high-set cheekbones softened by cheek fullness; hairline neat hairline with clear recession at the temples; age detail around-fifty forehead lines, lower-lid creases, and defined folds beside the mouth. Distinguishing features: shallow vertical cleft in the chin, right upper eyelid sits slightly lower, rounded nose tip projects clearly in three-quarter view. Hair: medium brown threaded with grey, short, orderly, and brushed back from the receding temples. Asset role: one tiny static full-body NPC marker delivered as a transparent character-only cutout for compositing over Rundale's painted world surface. It is not a UI portrait, paper doll, animation sheet, formal character illustration, vignette, or sprite-sheet panel. Visual language: loose hand-inked watercolor miniature under this visual authority: Illustrated Parish Notebook concept art only. Use irregular sepia/graphite contours, a simple readable human silhouette, restrained translucent washes, low facial detail, and only enough clothing folds to identify the person at scene size. Keep the treatment handmade and subordinate to the environment, never glossy, photorealistic, densely rendered, or cut out with a broad halo. Delivery composition: 1024x1024 flat #ff00ff chroma-key PNG source, full-body figure occupies roughly 45 percent of source height, centered figure with feet fully visible and generous flat background margins, one single static in-world marker pose per NPC for this slice, no ground shadow, floor plane, label, border, or extra figure. Palette: sepia/graphite line with muted wool gray, bog green, weathered tan, dull brick red, peat brown, and faded indigo only; no saturated primary colors. Setting: Rundale, rural County Roscommon, Ireland, 1820, ordinary parish life, period-appropriate work clothing. Character-only silhouette: rounder around-fifty man with orderly receding brown-grey hair, a respectable waistcoat, clean pale apron, and full torso; no object/scenery. Stance: self-contained stance with hands near the waistcoat front; no object/scenery. Empty-hand pose: both empty hands resting near the coat front. Tiny-readability cues from the person's body, hair or headwear, clothing, and stance alone: body shape: round full torso; hair or headwear: orderly receding brown-grey hair; clothing: respectable waistcoat and pale apron. Tiny-readability requirements: Read him as rounded and tidy rather than broad-shouldered like Seamus.. Hard constraints: one character only, both hands empty, period-appropriate ordinary rural clothing, simplified face, complete feet, no held or carried objects, tools, books, containers, bundles, furniture, architecture, vegetation, scenery fragments, ground plane, shadow, text, label, border, or UI chrome. Worn clothing and headwear are allowed. Do not illustrate an occupation, workplace, activity, or narrative context around the person. Character-specific avoid list: villain caricature, top hat, modern banker look."
+}

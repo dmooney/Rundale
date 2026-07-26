@@ -1,26 +1,24 @@
-name: "Dependabot auto-merge"
+name: "Dependabot review"
 
-# Auto-enables squash auto-merge for Dependabot PRs that are patch/minor
-# (incl. dev-deps). Major bumps are left open for human review - they're the
-# breaking ones. `gh pr merge --auto` queues the merge so GitHub completes it
-# only once required status checks pass; this requires repo "Allow auto-merge"
-# to be ON and branch protection on main requiring the CI checks (otherwise
-# --auto merges as soon as the PR is mergeable, without waiting for CI).
+# Classifies Dependabot updates and flags major versions for coordinator review.
+# This workflow deliberately never enables or executes a merge: the portfolio
+# coordinator lands every dependency PR only after its proof, risk, CI, and
+# review gates have cleared.
 
 on:
   pull_request_target:
     types: [opened, reopened, synchronize]
 
 permissions:
-  contents: write
+  contents: read
   pull-requests: write
 
 concurrency:
-  group: "dependabot-automerge-${{ github.event.pull_request.number }}"
+  group: "dependabot-review-${{ github.event.pull_request.number }}"
   cancel-in-progress: true
 
 jobs:
-  auto-merge:
+  classify:
     runs-on: ubuntu-latest
     if: github.event.pull_request.user.login == 'dependabot[bot]'
     timeout-minutes: 5
@@ -29,17 +27,14 @@ jobs:
         id: meta
         uses: dependabot/fetch-metadata@25dd0e34f4fe68f24cc83900b1fe3fe149efef98 # v3.1.0
 
-      - name: "Enable auto-merge for patch + minor"
+      - name: "Leave patch and minor updates for the coordinator"
         if: steps.meta.outputs.update-type == 'version-update:semver-patch' || steps.meta.outputs.update-type == 'version-update:semver-minor'
-        run: gh pr merge --auto --squash "$PR_URL"
-        env:
-          PR_URL: ${{ github.event.pull_request.html_url }}
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: echo "Patch/minor update classified; merge remains coordinator-owned."
 
-      - name: "Flag majors for human review"
+      - name: "Flag majors for coordinator review"
         if: steps.meta.outputs.update-type == 'version-update:semver-major'
         run: |
-          gh pr comment "$PR_URL" --body "Major version bump - left for human review (auto-merge applies to patch/minor only)."
+          gh pr comment "$PR_URL" --body "Major version bump - coordinator review required. This workflow never enables merge; all Dependabot updates remain open until proof, risk, CI, and review gates clear."
         env:
           PR_URL: ${{ github.event.pull_request.html_url }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

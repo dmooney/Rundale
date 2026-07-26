@@ -77,6 +77,7 @@ fn build_router(bridge: BridgeState) -> Router {
     Router::new()
         // ── reads ────────────────────────────────────────────────────────────
         .route("/api/health", get(health))
+        .route("/api/graphical-ready", get(graphical_ready))
         .route("/api/world-snapshot", get(world_snapshot))
         .route("/api/map", get(map))
         .route("/api/npcs-here", get(npcs_here))
@@ -139,6 +140,15 @@ fn build_router(bridge: BridgeState) -> Router {
 #[allow(clippy::unused_async)]
 async fn health() -> &'static str {
     "ok"
+}
+
+/// Graphical readiness is deliberately distinct from bridge health: the MCP
+/// listener comes up before the Svelte/Pixi surface has mounted so onboarding
+/// remains driveable, but screenshot capture requires a presented UI frame.
+async fn graphical_ready(
+    State(b): State<BridgeState>,
+) -> Json<crate::commands::GraphicalReadiness> {
+    Json(crate::commands::graphical_readiness(&b.state))
 }
 
 async fn debug_snapshot(
@@ -391,62 +401,10 @@ async fn latest_screenshot(
     Ok(Json(info))
 }
 
-#[derive(Debug, Serialize)]
-struct ScreenshotMcpResponse {
-    #[serde(flatten)]
-    info: ScreenshotInfo,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    fallback: Option<&'static str>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    warning: Option<String>,
-}
-
-impl ScreenshotMcpResponse {
-    fn fresh(info: ScreenshotInfo) -> Self {
-        Self {
-            info,
-            fallback: None,
-            warning: None,
-        }
-    }
-
-    fn latest_after_error(info: ScreenshotInfo, capture_error: String) -> Self {
-        Self {
-            info,
-            fallback: Some("latest_screenshot"),
-            warning: Some(format!(
-                "fresh screenshot capture failed; returning the latest verified screenshot: {capture_error}"
-            )),
-        }
-    }
-}
-
 async fn take_screenshot_mcp(State(b): State<BridgeState>) -> axum::response::Response {
     match crate::commands::do_take_screenshot(&b.state, &b.app).await {
-        Ok(info) => Json(ScreenshotMcpResponse::fresh(info)).into_response(),
-        Err(e) => screenshot_response_for_capture_error(&b.state, e).await,
-    }
-}
-
-async fn screenshot_response_for_capture_error(
-    state: &Arc<AppState>,
-    capture_error: String,
-) -> axum::response::Response {
-    match crate::commands::do_get_latest_screenshot(state).await {
-        Ok(Some(info)) => {
-            tracing::warn!(
-                error = %capture_error,
-                fallback_path = %info.path,
-                "fresh screenshot failed; returning latest verified screenshot"
-            );
-            Json(ScreenshotMcpResponse::latest_after_error(
-                info,
-                capture_error,
-            ))
-            .into_response()
-        }
-        Ok(None) => screenshot_unavailable_response(capture_error, None),
-        Err(latest_error) => screenshot_unavailable_response(capture_error, Some(latest_error)),
+        Ok(info) => Json(info).into_response(),
+        Err(e) => screenshot_unavailable_response(e, None),
     }
 }
 
@@ -457,7 +415,7 @@ fn screenshot_unavailable_response(
     let mut body = serde_json::json!({
         "error": "screenshot capture unavailable",
         "detail": capture_error,
-        "hint": "Bring the desktop window to the foreground, or capture once with F2 so a verified latest screenshot is available, then retry.",
+        "hint": "Wait for the graphical UI readiness signal, then retry the fresh capture.",
     });
     if let Some(latest_error) = latest_error {
         body["latest_error"] = serde_json::Value::String(latest_error);
@@ -766,6 +724,9 @@ mod tests {
             user_config_dir: dir.path().to_path_buf(),
             secret_store: Arc::new(InMemorySecretStore::new()),
             latest_screenshot_path: Mutex::new(None),
+            graphical_launch_token: uuid::Uuid::new_v4().to_string(),
+            graphical_ready: std::sync::atomic::AtomicBool::new(false),
+            graphical_error: std::sync::Mutex::new(None),
             pending_screenshots: Mutex::new(std::collections::HashMap::new()),
             inference_file_log: parish_core::inference::file_log::InferenceFileLog::disabled(),
             chat_transcript_log: parish_core::chat_transcript::ChatTranscriptLog::disabled(),
@@ -974,41 +935,22 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn screenshot_capture_error_returns_latest_verified_path() {
-        let dir = TempDir::new().unwrap();
-        let state = byok_test_state(&dir);
-        let screenshot_path = dir.path().join("verified-latest.png");
-        std::fs::write(&screenshot_path, b"verified screenshot bytes").unwrap();
-        *state.latest_screenshot_path.lock().await = Some(screenshot_path.clone());
-
+    async fn screenshot_capture_error_never_returns_a_stale_latest_path() {
         let response =
-            screenshot_response_for_capture_error(&state, "capture window: no window".to_string())
-                .await;
+            screenshot_unavailable_response("capture window: no window".to_string(), None);
         let (status, body) = response_json(response).await;
 
-        assert_eq!(status, StatusCode::OK);
-        assert_eq!(
-            body["path"].as_str(),
-            Some(screenshot_path.to_string_lossy().as_ref())
-        );
-        assert_eq!(body["size_bytes"].as_u64(), Some(25));
-        assert_eq!(body["fallback"].as_str(), Some("latest_screenshot"));
+        assert_eq!(status, StatusCode::SERVICE_UNAVAILABLE);
         assert!(
-            body["warning"]
-                .as_str()
-                .is_some_and(|w| w.contains("fresh screenshot capture failed")),
-            "fallback response should explain why it reused the latest screenshot: {body}",
+            body.get("path").is_none(),
+            "capture errors must never reuse a stale screenshot: {body}"
         );
     }
 
     #[tokio::test]
     async fn screenshot_capture_error_without_latest_is_structured_503() {
-        let dir = TempDir::new().unwrap();
-        let state = byok_test_state(&dir);
-
         let response =
-            screenshot_response_for_capture_error(&state, "capture window: no window".to_string())
-                .await;
+            screenshot_unavailable_response("capture window: no window".to_string(), None);
         let (status, body) = response_json(response).await;
 
         assert_eq!(status, StatusCode::SERVICE_UNAVAILABLE);
@@ -1017,7 +959,11 @@ mod tests {
             Some("screenshot capture unavailable")
         );
         assert_eq!(body["detail"].as_str(), Some("capture window: no window"));
-        assert!(body["hint"].as_str().is_some_and(|h| h.contains("F2")));
+        assert!(
+            body["hint"]
+                .as_str()
+                .is_some_and(|h| h.contains("readiness"))
+        );
         assert!(
             body.get("path").is_none(),
             "no latest screenshot should mean no fallback path: {body}",

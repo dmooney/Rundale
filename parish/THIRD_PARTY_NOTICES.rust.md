@@ -5,7 +5,7 @@ regenerate after dependency changes.
 
 ## Overview
 
-- [MIT License](#MIT) — 636 crates
+- [MIT License](#MIT) — 637 crates
 - [Apache License 2.0](#Apache-2.0) — 24 crates
 - [Unicode License v3](#Unicode-3.0) — 19 crates
 - [BSD 3-Clause &quot;New&quot; or &quot;Revised&quot; License](#BSD-3-Clause) — 9 crates
@@ -3104,7 +3104,7 @@ DEALINGS IN THE SOFTWARE.
 **Used by:**
 
 - [bitflags 1.3.2](https://github.com/bitflags/bitflags)
-- [bitflags 2.11.1](https://github.com/bitflags/bitflags)
+- [bitflags 2.13.1](https://github.com/bitflags/bitflags)
 - [glob 0.3.3](https://github.com/rust-lang/glob)
 - [log 0.4.29](https://github.com/rust-lang/log)
 - [num-bigint-dig 0.8.6](https://github.com/dignifiedquire/num-bigint)
@@ -3113,8 +3113,8 @@ DEALINGS IN THE SOFTWARE.
 - [num-iter 0.1.45](https://github.com/rust-num/num-iter)
 - [num-traits 0.2.19](https://github.com/rust-num/num-traits)
 - [regex-automata 0.4.14](https://github.com/rust-lang/regex)
-- [regex-syntax 0.8.10](https://github.com/rust-lang/regex)
-- [regex 1.12.3](https://github.com/rust-lang/regex)
+- [regex-syntax 0.8.11](https://github.com/rust-lang/regex)
+- [regex 1.13.0](https://github.com/rust-lang/regex)
 
 ```
 Copyright (c) 2014 The Rust Project Developers
@@ -3148,7 +3148,7 @@ DEALINGS IN THE SOFTWARE.
 
 **Used by:**
 
-- [uuid 1.23.2](https://github.com/uuid-rs/uuid)
+- [uuid 1.23.5](https://github.com/uuid-rs/uuid)
 
 ```
 Copyright (c) 2014 The Rust Project Developers
@@ -3219,6 +3219,35 @@ DEALINGS IN THE SOFTWARE.
 
 **Used by:**
 
+- [libsqlite3-sys 0.38.1](https://github.com/rusqlite/rusqlite)
+- [rusqlite 0.40.1](https://github.com/rusqlite/rusqlite)
+
+```
+Copyright (c) 2014 The rusqlite developers
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the &quot;Software&quot;), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED &quot;AS IS&quot;, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.
+
+```
+
+
+**Used by:**
+
 - [dbus 0.9.11](https://github.com/diwic/dbus-rs)
 - [libdbus-sys 0.2.7](https://github.com/diwic/dbus-rs)
 
@@ -3271,35 +3300,6 @@ NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
 LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
 OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-
-```
-
-
-**Used by:**
-
-- [libsqlite3-sys 0.30.1](https://github.com/rusqlite/rusqlite)
-- [rusqlite 0.32.1](https://github.com/rusqlite/rusqlite)
-
-```
-Copyright (c) 2014-2021 The rusqlite developers
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the &quot;Software&quot;), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in
-all copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED &quot;AS IS&quot;, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
-THE SOFTWARE.
 
 ```
 
@@ -3399,8 +3399,8 @@ THE SOFTWARE.
 
 - [either 1.15.0](https://github.com/rayon-rs/either)
 - [itertools 0.13.0](https://github.com/rust-itertools/itertools)
-- [serde_with 3.20.0](https://github.com/jonasbb/serde_with/)
-- [serde_with_macros 3.20.0](https://github.com/jonasbb/serde_with/)
+- [serde_with 3.21.0](https://github.com/jonasbb/serde_with/)
+- [serde_with_macros 3.21.0](https://github.com/jonasbb/serde_with/)
 
 ```
 Copyright (c) 2015
@@ -3434,7 +3434,7 @@ DEALINGS IN THE SOFTWARE.
 
 **Used by:**
 
-- [plist 1.9.0](https://github.com/ebarnard/rust-plist/)
+- [plist 1.10.0](https://github.com/ebarnard/rust-plist/)
 
 ```
 Copyright (c) 2015 Edward Barnard
@@ -3461,11 +3461,11 @@ SOFTWARE.
 
 **Used by:**
 
+- [wayland-scanner 0.31.10](https://github.com/smithay/wayland-rs)
 - [wayland-backend 0.3.15](https://github.com/smithay/wayland-rs)
 - [wayland-client 0.31.14](https://github.com/smithay/wayland-rs)
 - [wayland-protocols-wlr 0.3.12](https://github.com/smithay/wayland-rs)
 - [wayland-protocols 0.32.12](https://github.com/smithay/wayland-rs)
-- [wayland-scanner 0.31.10](https://github.com/smithay/wayland-rs)
 - [wayland-server 0.31.13](https://github.com/smithay/wayland-rs)
 - [wayland-sys 0.31.11](https://github.com/smithay/wayland-rs)
 
@@ -5189,40 +5189,6 @@ DEALINGS IN THE SOFTWARE.
 
 **Used by:**
 
-- [ahash 0.8.12](https://github.com/tkaitchuck/ahash)
-
-```
-Copyright (c) 2018 Tom Kaitchuck
-
-Permission is hereby granted, free of charge, to any
-person obtaining a copy of this software and associated
-documentation files (the &quot;Software&quot;), to deal in the
-Software without restriction, including without
-limitation the rights to use, copy, modify, merge,
-publish, distribute, sublicense, and/or sell copies of
-the Software, and to permit persons to whom the Software
-is furnished to do so, subject to the following
-conditions:
-
-The above copyright notice and this permission notice
-shall be included in all copies or substantial portions
-of the Software.
-
-THE SOFTWARE IS PROVIDED &quot;AS IS&quot;, WITHOUT WARRANTY OF
-ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED
-TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
-PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT
-SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
-CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
-OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
-IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
-DEALINGS IN THE SOFTWARE.
-
-```
-
-
-**Used by:**
-
 - [want 0.3.1](https://github.com/seanmonstar/want)
 
 ```
@@ -5892,6 +5858,7 @@ DEALINGS IN THE SOFTWARE.
 **Used by:**
 
 - [tower-http 0.6.11](https://github.com/tower-rs/tower-http)
+- [tower-http 0.7.0](https://github.com/tower-rs/tower-http)
 
 ```
 Copyright (c) 2019-2021 Tower Contributors
@@ -6606,7 +6573,7 @@ DEALINGS IN THE SOFTWARE.
 
 **Used by:**
 
-- [cmov 0.5.3](https://github.com/RustCrypto/utils)
+- [cmov 0.5.4](https://github.com/RustCrypto/utils)
 - [hybrid-array 0.4.12](https://github.com/RustCrypto/hybrid-array)
 
 ```
@@ -6946,14 +6913,14 @@ DEALINGS IN THE SOFTWARE.
 - [serde_spanned 1.1.1](https://github.com/toml-rs/toml)
 - [toml 0.8.2](https://github.com/toml-rs/toml)
 - [toml 0.9.12+spec-1.1.0](https://github.com/toml-rs/toml)
-- [toml 1.1.2+spec-1.1.0](https://github.com/toml-rs/toml)
+- [toml 1.1.3+spec-1.1.0](https://github.com/toml-rs/toml)
 - [toml_datetime 0.7.5+spec-1.1.0](https://github.com/toml-rs/toml)
 - [toml_datetime 1.1.1+spec-1.1.0](https://github.com/toml-rs/toml)
 - [toml_edit 0.19.15](https://github.com/toml-rs/toml)
 - [toml_edit 0.20.2](https://github.com/toml-rs/toml)
 - [toml_edit 0.25.11+spec-1.1.0](https://github.com/toml-rs/toml)
 - [toml_parser 1.1.2+spec-1.1.0](https://github.com/toml-rs/toml)
-- [toml_writer 1.1.1+spec-1.1.0](https://github.com/toml-rs/toml)
+- [toml_writer 1.1.2+spec-1.1.0](https://github.com/toml-rs/toml)
 
 ```
 Copyright (c) Individual contributors
@@ -7139,7 +7106,7 @@ THE SOFTWARE IS PROVIDED &quot;AS IS&quot;, WITHOUT WARRANTY OF ANY KIND, EXPRES
 
 **Used by:**
 
-- [rand 0.10.1](https://github.com/rust-random/rand)
+- [rand 0.10.2](https://github.com/rust-random/rand)
 - [rand 0.8.6](https://github.com/rust-random/rand)
 - [rand 0.9.4](https://github.com/rust-random/rand)
 - [rand_chacha 0.3.1](https://github.com/rust-random/rand)
@@ -7311,7 +7278,7 @@ DEALINGS IN THE SOFTWARE.
 
 **Used by:**
 
-- [lru 0.18.0](https://github.com/jeromefroe/lru-rs.git)
+- [lru 0.18.1](https://github.com/jeromefroe/lru-rs.git)
 
 ```
 MIT License
@@ -8473,6 +8440,36 @@ SOFTWARE.
 
 **Used by:**
 
+- [sqlite-wasm-rs 0.5.5](https://github.com/Spxg/sqlite-wasm-rs)
+
+```
+MIT License
+
+Copyright (c) 2024 Spxg
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the &quot;Software&quot;), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED &quot;AS IS&quot;, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+```
+
+
+**Used by:**
+
 - [convert_case 0.8.0](https://github.com/rutrum/convert-case)
 
 ```
@@ -8547,15 +8544,16 @@ SOFTWARE.
 - [objc2 0.6.4](https://github.com/madsmtm/objc2)
 - [r-efi 5.3.0](https://github.com/r-efi/r-efi)
 - [r-efi 6.0.0](https://github.com/r-efi/r-efi)
+- [rsqlite-vfs 0.1.1](https://crates.io/crates/rsqlite-vfs)
 - [siphasher 1.0.3](https://github.com/jedisct1/rust-siphash)
 - [tao-macros 0.1.3](https://github.com/tauri-apps/tao)
-- [tauri-build 2.6.2](https://github.com/tauri-apps/tauri)
-- [tauri-codegen 2.6.2](https://github.com/tauri-apps/tauri)
-- [tauri-macros 2.6.2](https://github.com/tauri-apps/tauri)
-- [tauri-runtime-wry 2.11.2](https://github.com/tauri-apps/tauri)
-- [tauri-runtime 2.11.2](https://github.com/tauri-apps/tauri)
-- [tauri-utils 2.9.2](https://github.com/tauri-apps/tauri)
-- [tauri 2.11.2](https://github.com/tauri-apps/tauri)
+- [tauri-build 2.6.3](https://github.com/tauri-apps/tauri)
+- [tauri-codegen 2.6.3](https://github.com/tauri-apps/tauri)
+- [tauri-macros 2.6.3](https://github.com/tauri-apps/tauri)
+- [tauri-runtime-wry 2.11.4](https://github.com/tauri-apps/tauri)
+- [tauri-runtime 2.11.3](https://github.com/tauri-apps/tauri)
+- [tauri-utils 2.9.3](https://github.com/tauri-apps/tauri)
+- [tauri 2.11.5](https://github.com/tauri-apps/tauri)
 - [tower-sessions-core 0.15.0](https://github.com/maxcountryman/tower-sessions)
 - [tower-sessions-memory-store 0.15.0](https://github.com/maxcountryman/tower-sessions)
 - [unic-char-property 0.9.0](https://github.com/open-i18n/rust-unic/)
@@ -8841,7 +8839,7 @@ DEALINGS IN THE SOFTWARE.
 **Used by:**
 
 - [adler2 2.0.1](https://github.com/oyvindln/adler2)
-- [anyhow 1.0.102](https://github.com/dtolnay/anyhow)
+- [anyhow 1.0.103](https://github.com/dtolnay/anyhow)
 - [async-channel 2.5.0](https://github.com/smol-rs/async-channel)
 - [async-executor 1.14.0](https://github.com/smol-rs/async-executor)
 - [async-io 2.6.0](https://github.com/smol-rs/async-io)
@@ -9064,7 +9062,7 @@ SOFTWARE
 - [glib-sys 0.18.1](https://github.com/gtk-rs/gtk-rs-core)
 - [glib-sys 0.22.6](https://github.com/gtk-rs/gtk-rs-core)
 - [glib 0.18.5](https://github.com/gtk-rs/gtk-rs-core)
-- [glib 0.22.7](https://github.com/gtk-rs/gtk-rs-core)
+- [glib 0.22.8](https://github.com/gtk-rs/gtk-rs-core)
 - [gobject-sys 0.18.0](https://github.com/gtk-rs/gtk-rs-core)
 - [gobject-sys 0.22.6](https://github.com/gtk-rs/gtk-rs-core)
 - [gtk-sys 0.18.2](https://github.com/gtk-rs/gtk3-rs)
@@ -10166,8 +10164,7 @@ SOFTWARE.
 
 **Used by:**
 
-- [quick-xml 0.30.0](https://github.com/tafia/quick-xml)
-- [quick-xml 0.39.4](https://github.com/tafia/quick-xml)
+- [quick-xml 0.41.0](https://github.com/tafia/quick-xml)
 
 ```
 The MIT License (MIT)
@@ -10199,7 +10196,7 @@ THE SOFTWARE.
 
 **Used by:**
 
-- [hashlink 0.9.1](https://github.com/kyren/hashlink)
+- [hashlink 0.12.0](https://github.com/djc/hashlink)
 
 ```
 This work is derived in part from the &#x60;linked-hash-map&#x60; crate, Copyright (c)

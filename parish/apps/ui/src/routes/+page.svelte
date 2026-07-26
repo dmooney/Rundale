@@ -1,23 +1,22 @@
 <script lang="ts">
 	import { onMount, onDestroy } from 'svelte';
 	import { get } from 'svelte/store';
-	import FullMapOverlay from '../components/FullMapOverlay.svelte';
-	import DebugPanel from '../components/DebugPanel.svelte';
 	import DemoBanner from '../components/DemoBanner.svelte';
 	import DemoPanel from '../components/DemoPanel.svelte';
-	import SavePicker from '../components/SavePicker.svelte';
-	import BugReportModal from '../components/BugReportModal.svelte';
 	import SetupOverlay from '../components/SetupOverlay.svelte';
-	import ModSelectorOverlay from '../components/ModSelectorOverlay.svelte';
-	import ShortcutsOverlay from '../components/ShortcutsOverlay.svelte';
 	import IllustratedNotebookGame from '../components/illustrated-notebook/IllustratedNotebookGame.svelte';
+	import NotebookOverlayHost from '../components/illustrated-notebook/NotebookOverlayHost.svelte';
 
-	import { uiConfig, fullMapOpen } from '../stores/game';
 	import { demoVisible, demoEnabled } from '../stores/demo';
 	import { stopDemo } from '../lib/demo-player';
 
-	import { debugVisible, debugSnapshot, debugDockLeft } from '../stores/debug';
-	import { savePickerVisible, modSelectorVisible } from '../stores/save';
+	import { debugVisible, debugSnapshot } from '../stores/debug';
+	import {
+		closeNotebookOverlay,
+		notebookOverlay,
+		notebookOverlayTransitioning,
+		toggleNotebookOverlay,
+	} from '../stores/notebookOverlay';
 	import { cancelTravel } from '../stores/travel';
 	import {
 		getDebugSnapshot,
@@ -52,9 +51,6 @@
 		}
 	}
 
-	/** Keyboard-shortcuts help overlay, toggled with `?`. */
-	let shortcutsOpen = $state(false);
-
 	/** True when the keystroke originated in a text-entry context where
 	 *  single-letter shortcuts (M, ?) must not fire. */
 	function isTypingContext(): boolean {
@@ -70,6 +66,13 @@
 	// F11 toggle fullscreen (desktop), F12 toggle for debug panel, M toggle for map,
 	// ? = keyboard-shortcuts overlay
 	function handleKeydown(e: KeyboardEvent) {
+		if ($notebookOverlayTransitioning) {
+			if (e.key === 'Escape') {
+				e.preventDefault();
+				closeNotebookOverlay('bug');
+			}
+			return;
+		}
 		if (e.key === 'Escape' && get(demoEnabled)) {
 			e.preventDefault();
 			stopDemo();
@@ -81,10 +84,11 @@
 		}
 		if (e.key === 'F5') {
 			e.preventDefault();
-			savePickerVisible.update((v) => !v);
+			void toggleNotebookOverlay('save');
 		}
 		if (e.key === 'F10') {
 			e.preventDefault();
+			if ($notebookOverlay) return;
 			demoVisible.update((v) => !v);
 		}
 		if (e.key === 'F11') {
@@ -99,24 +103,17 @@
 		}
 		if (e.key === 'F12') {
 			e.preventDefault();
-			const nowVisible = !get(debugVisible);
-			debugVisible.set(nowVisible);
-			// Fetch initial snapshot when opening
-			if (nowVisible) {
-				getDebugSnapshot()
-					.then((s) => debugSnapshot.set(s))
-					.catch(() => {});
-			}
+			void toggleNotebookOverlay('debug');
 		}
 		// Toggle full map with M key, but only when not typing in an input/textarea/contenteditable
 		if ((e.key === 'm' || e.key === 'M') && !isTypingContext()) {
 			e.preventDefault();
-			fullMapOpen.update((v) => !v);
+			void toggleNotebookOverlay('map');
 		}
 		// `?` opens the shortcuts overlay (the overlay handles its own close)
-		if (e.key === '?' && !shortcutsOpen && !isTypingContext()) {
+		if (e.key === '?' && !isTypingContext()) {
 			e.preventDefault();
-			shortcutsOpen = true;
+			void toggleNotebookOverlay('shortcuts');
 		}
 	}
 
@@ -146,6 +143,7 @@
 	});
 
 	let mountCleanup: (() => void) | null = null;
+	let controllerReady = $state(false);
 	// Disposed-before-mount-resolves flag for #348. setupMount is async
 	// and onMount kicks it off in a detached IIFE, so a fast unmount
 	// (HMR, navigate-away during initial fetch) can fire onDestroy
@@ -157,11 +155,12 @@
 	let cancelled = false;
 	onMount(() => {
 		(async () => {
-			const cleanup = await createPageController(() => cancelled);
+			const cleanup = await createPageController();
 			if (cancelled) {
 				cleanup();
 			} else {
 				mountCleanup = cleanup;
+				controllerReady = true;
 			}
 		})();
 	});
@@ -180,35 +179,18 @@
 
 <svelte:window onkeydown={handleKeydown} />
 
-<div
-	class="app-shell"
-	class:debug-open-bottom={$debugVisible && !$debugDockLeft}
-	class:debug-open-left={$debugVisible && $debugDockLeft}
->
+<div class="app-shell" data-controller-ready={controllerReady}>
 	<IllustratedNotebookGame />
-
-	{#if $fullMapOpen}
-		<FullMapOverlay onclose={() => fullMapOpen.set(false)} />
-	{/if}
 </div>
 
-<DebugPanel />
-<DemoBanner />
-{#if $demoVisible}
-	<DemoPanel />
+<NotebookOverlayHost />
+{#if !$notebookOverlay && !$notebookOverlayTransitioning}
+	<DemoBanner />
+	{#if $demoVisible}
+		<DemoPanel />
+	{/if}
 {/if}
-<SavePicker />
-<BugReportModal />
 <SetupOverlay />
-{#if $modSelectorVisible}
-	<ModSelectorOverlay
-		onclose={() => modSelectorVisible.set(false)}
-		required={$uiConfig?.base_mod_required}
-	/>
-{/if}
-{#if shortcutsOpen}
-	<ShortcutsOverlay onclose={() => (shortcutsOpen = false)} />
-{/if}
 
 {#if screenshotToast}
 	<div class="screenshot-toast" role="status" aria-live="polite">
@@ -224,17 +206,6 @@
 		overflow: hidden;
 		transition: height 0.15s ease;
 		padding-bottom: env(safe-area-inset-bottom);
-	}
-
-	.app-shell.debug-open-bottom {
-		height: 60vh;
-	}
-
-	@media (min-width: 1200px) {
-		.app-shell.debug-open-left {
-			margin-left: min(28rem, 36vw);
-			width: calc(100vw - min(28rem, 36vw));
-		}
 	}
 
 	/* ── Screenshot toast ── */

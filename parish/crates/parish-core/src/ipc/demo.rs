@@ -341,6 +341,7 @@ mod tests {
 
     fn unintroduced_widow() -> NpcInfo {
         NpcInfo {
+            npc_id: 22,
             name: "a small, sharp-eyed old woman wrapped in a shawl".to_string(),
             real_name: "Peig Hannigan".to_string(),
             occupation: "Widow".to_string(),
@@ -352,6 +353,7 @@ mod tests {
 
     fn introduced_publican() -> NpcInfo {
         NpcInfo {
+            npc_id: 4,
             name: "Padraig O'Brien".to_string(),
             real_name: "Padraig O'Brien".to_string(),
             occupation: "Publican".to_string(),

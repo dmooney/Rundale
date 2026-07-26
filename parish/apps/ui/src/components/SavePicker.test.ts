@@ -376,9 +376,7 @@ describe('SavePicker', () => {
 			await flush();
 
 			expect(container.querySelector('[role="dialog"]')).toBeTruthy();
-			expect(get(textLog)[0]?.content).toBe(
-				'The still-active branch remains.',
-			);
+			expect(get(textLog)[0]?.content).toBe('The still-active branch remains.');
 		});
 
 		it('shows fork error text when createBranch IPC fails', async () => {

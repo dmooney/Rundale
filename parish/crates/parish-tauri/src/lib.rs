@@ -523,6 +523,15 @@ pub struct AppState {
     /// `get_latest_screenshot` (and the matching MCP tool) so the path can be
     /// reported without rescanning `<saves_dir>/screenshots/`.
     pub latest_screenshot_path: Mutex<Option<PathBuf>>,
+    /// Per-process token the graphical frontend must echo before it can mark
+    /// itself capture-ready. Prevents a stale webview from satisfying a new
+    /// desktop launch's readiness contract.
+    pub graphical_launch_token: String,
+    /// True only after the live frontend has registered its screenshot listener
+    /// and the illustrated Pixi canvas has presented its first frame.
+    pub graphical_ready: std::sync::atomic::AtomicBool,
+    /// Last renderer failure reported by the current graphical frontend.
+    pub graphical_error: std::sync::Mutex<Option<String>>,
     /// In-flight MCP screenshot requests.
     ///
     /// The MCP bridge's `/api/take-screenshot` handler inserts a `(request_id,
@@ -531,12 +540,8 @@ pub struct AppState {
     /// frontend after capture) looks up the sender by `request_id`, sends the
     /// `ScreenshotInfo` through it, and removes the entry. Entries are also
     /// removed on timeout inside the bridge handler.
-    pub pending_screenshots: Mutex<
-        std::collections::HashMap<
-            String,
-            tokio::sync::oneshot::Sender<Result<crate::commands::ScreenshotInfo, String>>,
-        >,
-    >,
+    pub(crate) pending_screenshots:
+        Mutex<std::collections::HashMap<String, crate::commands::PendingScreenshot>>,
     /// Handle for the active inference worker task; used to abort it on rebuild.
     pub worker_handle: Mutex<Option<JoinHandle<()>>>,
     /// Editor session — separate from gameplay state, may be empty.
@@ -1335,6 +1340,9 @@ pub fn run() {
         saves_dir,
         game_mod,
         latest_screenshot_path: Mutex::new(None),
+        graphical_launch_token: uuid::Uuid::new_v4().to_string(),
+        graphical_ready: std::sync::atomic::AtomicBool::new(false),
+        graphical_error: std::sync::Mutex::new(None),
         pending_screenshots: Mutex::new(std::collections::HashMap::new()),
         worker_handle: Mutex::new(None),
         editor: std::sync::Mutex::new(parish_core::ipc::editor::EditorSession::default()),
@@ -1415,8 +1423,13 @@ pub fn run() {
             commands::demo::get_demo_context,
             commands::demo::get_llm_player_action,
             commands::screenshot::save_screenshot,
+            commands::screenshot::get_graphical_readiness,
+            commands::screenshot::report_graphical_ready,
+            commands::screenshot::report_graphical_error,
+            commands::screenshot::report_graphical_unready,
             commands::screenshot::get_latest_screenshot,
             commands::screenshot::take_screenshot,
+            commands::screenshot::notify_screenshot_started,
             commands::screenshot::notify_screenshot_captured,
             commands::screenshot::notify_screenshot_error,
             editor_commands::editor_list_mods,

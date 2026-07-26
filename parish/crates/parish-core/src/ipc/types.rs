@@ -182,9 +182,11 @@ pub struct MapData {
 /// Minimal NPC info for the sidebar.
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct NpcInfo {
+    /// Stable numeric identity from the NPC roster.
+    pub npc_id: u32,
     /// Display name (full name if introduced, brief description otherwise).
     pub name: String,
-    /// Canonical real name, used as a stable id for chip dispatch.
+    /// Canonical real name, retained for display and compatibility lookups.
     #[serde(default)]
     pub real_name: String,
     /// NPC's occupation.
@@ -590,6 +592,7 @@ mod tests {
     #[test]
     fn npc_info_serialization() {
         let info = NpcInfo {
+            npc_id: 7,
             name: "Seán".to_string(),
             real_name: "Seán Ó Briain".to_string(),
             occupation: "Farmer".to_string(),
@@ -601,6 +604,7 @@ mod tests {
         let deser: NpcInfo = serde_json::from_str(&json).unwrap();
         assert_eq!(deser.name, "Seán");
         assert_eq!(deser.real_name, "Seán Ó Briain");
+        assert_eq!(deser.npc_id, 7);
     }
 
     #[test]

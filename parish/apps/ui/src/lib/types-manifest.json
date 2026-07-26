@@ -39,6 +39,7 @@
 		"transport_id"
 	],
 	"NpcInfo": [
+		"npc_id",
 		"name",
 		"real_name",
 		"occupation",

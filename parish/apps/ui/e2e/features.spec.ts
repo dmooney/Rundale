@@ -1,17 +1,15 @@
-import {
-	test,
-	expect,
-	installTauriMock,
-	emitEvent,
-	updateMockResponse,
-} from './fixtures';
-import { SNAPSHOTS } from './mock-data';
+import { test, expect, installTauriMock, emitEvent } from './fixtures';
+import type { Page } from '@playwright/test';
 
 /**
  * Dispatch a KeyboardEvent with the given key.
  * More reliable than page.keyboard.press() for Svelte <svelte:window> handlers.
  */
 async function pressKey(page: import('@playwright/test').Page, key: string) {
+	await expect(page.locator('.app-shell')).toHaveAttribute(
+		'data-controller-ready',
+		'true',
+	);
 	await page.evaluate(
 		({ key }) => {
 			window.dispatchEvent(
@@ -20,6 +18,46 @@ async function pressKey(page: import('@playwright/test').Page, key: string) {
 		},
 		{ key },
 	);
+}
+
+async function activateNotebookControl(page: Page, name: string) {
+	await expect(page.locator('.app-shell')).toHaveAttribute(
+		'data-controller-ready',
+		'true',
+	);
+	const control = page.getByRole('button', { name, exact: true });
+	await expect(control).toHaveCount(1);
+	await control.focus();
+	await expect(control).toBeFocused();
+	await page.keyboard.press('Enter');
+	return control;
+}
+
+async function openJournal(page: Page) {
+	await activateNotebookControl(page, 'Open Journal notebook tab');
+	const journal = page.getByRole('dialog', {
+		name: 'Parish Journal',
+		exact: true,
+	});
+	await expect(journal).toBeVisible();
+	return journal;
+}
+
+async function openFocail(page: Page) {
+	await activateNotebookControl(page, 'Open notebook tools');
+	const tools = page.getByRole('dialog', {
+		name: 'More from the Notebook',
+		exact: true,
+	});
+	await expect(tools).toBeVisible();
+	await tools.getByRole('button', { name: /^Focail/ }).click();
+
+	const focail = page.getByRole('dialog', {
+		name: 'Focail — Irish Words',
+		exact: true,
+	});
+	await expect(focail).toBeVisible();
+	return focail;
 }
 
 test.describe('Debug panel', () => {
@@ -62,24 +100,21 @@ test.describe('Debug panel', () => {
 		}
 	});
 
-	test('dock toggle and close work', async ({ page }) => {
+	test('notebook wrapper and close work', async ({ page }) => {
 		await pressKey(page, 'F12');
 		const debugPanel = page.locator('[data-testid="debug-panel"]');
+		const wrapper = page.getByRole('dialog', { name: 'Parish Records' });
+		await expect(wrapper).toBeVisible();
+		await expect(debugPanel.locator('.debug-dock-toggle')).toBeHidden();
 
-		await debugPanel.locator('.debug-dock-toggle').click();
-		await expect(debugPanel).toHaveClass(/left-dock/);
-
-		await debugPanel.locator('.debug-dock-toggle').click();
-		await expect(debugPanel).not.toHaveClass(/left-dock/);
-
-		await debugPanel.locator('.debug-close').click();
+		await wrapper.getByRole('button', { name: 'Close Parish Records' }).click();
 		await expect(debugPanel).not.toBeVisible();
 	});
 
 	test('reopens after close with F12', async ({ page }) => {
 		await pressKey(page, 'F12');
 		const debugPanel = page.locator('[data-testid="debug-panel"]');
-		await debugPanel.locator('.debug-close').click();
+		await page.getByRole('button', { name: 'Close Parish Records' }).click();
 		await expect(debugPanel).not.toBeVisible();
 
 		await pressKey(page, 'F12');
@@ -171,98 +206,44 @@ test.describe('Save picker', () => {
 		await picker.locator('.node-name').click();
 		await expect(picker).not.toBeVisible();
 	});
-
-	test('branch and new-game refreshes replace prior narrative context', async ({
-		page,
-	}) => {
-		const chronicle = page.getByLabel('Live chronicle');
-		await emitEvent(page, 'text-log', {
-			id: 'prior-branch-player',
-			source: 'player',
-			content: 'Words belonging only to the prior branch.',
-		});
-		await emitEvent(page, 'text-log', {
-			id: 'prior-branch-reply',
-			source: 'Old neighbour',
-			content: 'A reply belonging only to the prior branch.',
-		});
-		await expect(chronicle).toContainText('prior branch');
-
-		const loadedScene = {
-			...SNAPSHOTS.morning,
-			location_id: 15,
-			location_name: 'Kilteevan Village',
-			location_description: 'The loaded branch opens at the village well.',
-		};
-		await updateMockResponse(page, 'get_world_snapshot', loadedScene);
-		await pressKey(page, 'F5');
-		const picker = page.locator('[data-testid="save-picker"]');
-		await expect(picker.locator('.node-body')).toBeVisible({ timeout: 5000 });
-		await picker.locator('.node-body').click();
-		await expect(picker).not.toBeVisible();
-		await expect(chronicle).not.toContainText('prior branch');
-		await expect(chronicle).toContainText(loadedScene.location_description);
-
-		await emitEvent(page, 'text-log', {
-			id: 'loaded-branch-only',
-			source: 'player',
-			content: 'Words belonging only to the loaded branch.',
-		});
-		const freshScene = {
-			...SNAPSHOTS.morning,
-			location_id: 1,
-			location_name: 'The Crossroads',
-			location_description: 'A fresh game begins at the quiet crossroads.',
-		};
-		await updateMockResponse(page, 'get_world_snapshot', freshScene);
-		await pressKey(page, 'F5');
-		await picker.getByText('Ledgers').click();
-		await picker.getByText('New Game').click();
-		await expect(picker).not.toBeVisible();
-		await expect(chronicle).not.toContainText('loaded branch');
-		await expect(chronicle).toContainText(freshScene.location_description);
-	});
 });
 
-test.describe('People notebook', () => {
+test.describe('Focail notebook overlay', () => {
 	test.beforeEach(async ({ page }) => {
 		await installTauriMock(page, 'morning');
 		await page.goto('/');
 		await page.waitForLoadState('networkidle');
 	});
 
-	test('people drawer can be opened and closed', async ({ page }) => {
-		const peopleControl = page.getByRole('button', {
-			name: 'Open People notebook tab',
-		});
-		await peopleControl.focus();
-		await page.keyboard.press('Enter');
-		const drawer = page.getByLabel('people drawer');
-		await expect(drawer).toBeVisible();
+	test('opens from notebook tools and closes back to the clean parish view', async ({
+		page,
+	}) => {
+		await expect(page.getByTestId('sidebar')).toHaveCount(0);
+		const focail = await openFocail(page);
+		await expect(focail.locator('.focail-panel')).toBeVisible();
 
-		await drawer.getByRole('button', { name: 'Close notebook drawer' }).click();
-		await expect(drawer).not.toBeVisible();
-
-		await peopleControl.focus();
-		await page.keyboard.press('Enter');
-		await expect(drawer).toBeVisible();
+		await focail
+			.getByRole('button', { name: 'Close Focail — Irish Words' })
+			.click();
+		await expect(focail).not.toBeVisible();
+		await expect(page.getByTestId('illustrated-notebook-game')).toHaveAttribute(
+			'aria-hidden',
+			'false',
+		);
 	});
 
-	test('people drawer shows nearby names and occupations', async ({ page }) => {
-		const peopleControl = page.getByRole('button', {
-			name: 'Open People notebook tab',
-		});
-		await peopleControl.focus();
-		await page.keyboard.press('Enter');
-		const drawer = page.getByLabel('people drawer');
-		await expect(drawer.getByText('Séamas Ó Briain')).toBeVisible();
-		await expect(drawer.getByText('Publican')).toBeVisible();
-		await expect(drawer.getByText('Aoife Ní Cheallaigh')).toBeVisible();
-		await expect(drawer.getByText('Scholar')).toBeVisible();
+	test('shows language hints when opened', async ({ page }) => {
+		const focail = await openFocail(page);
+		await expect(focail.getByText('Baile Átha Cliath')).toBeVisible();
+		await expect(focail.getByText('[EE-fa]')).toBeVisible();
 	});
 });
 
-test.describe('Reactions', () => {
+// #1755 retired the modal ChatPanel route from the player-facing Journal tab.
+// These two browser tests exercise controls that only exist inside that legacy
+// component; ChatPanel.test.ts retains the picker, IPC, and reaction-bar
+// contracts until reactions receive an in-page notebook interaction design.
+test.describe.skip('Legacy ChatPanel reactions', () => {
 	test.beforeEach(async ({ page }) => {
 		await installTauriMock(page, 'morning');
 		await page.goto('/');
@@ -272,6 +253,7 @@ test.describe('Reactions', () => {
 	test('reaction bar appears for NPC messages with reactions', async ({
 		page,
 	}) => {
+		const journal = await openJournal(page);
 		await emitEvent(page, 'text-log', {
 			id: 'npc-msg-1',
 			source: 'Séamas Ó Briain',
@@ -284,34 +266,23 @@ test.describe('Reactions', () => {
 			source: 'player',
 		});
 
-		await expect(page.getByLabel('Live chronicle')).toContainText(
-			'Séamas Ó Briain: Welcome to the tavern!',
-		);
-		const reactionBar = page
-			.locator('.notebook-reaction-strip')
-			.getByTestId('reaction-bar');
+		const reactionBar = journal.locator('[data-testid="reaction-bar"]');
 		await expect(reactionBar).toBeVisible();
 		await expect(reactionBar).toContainText('\u{1F44D}');
 	});
 
 	test('reaction picker appears on NPC message hover', async ({ page }) => {
+		const journal = await openJournal(page);
 		await emitEvent(page, 'text-log', {
 			id: 'npc-msg-2',
 			source: 'Séamas Ó Briain',
 			content: 'Good day to you!',
 		});
 
-		const chronicle = page.getByLabel('Live chronicle');
-		await expect(chronicle).toContainText('Séamas Ó Briain: Good day to you!');
-		const toggle = page.getByRole('button', {
-			name: 'React to message from Séamas Ó Briain',
-		});
-		await expect(toggle).toBeVisible();
-		await toggle.hover();
+		const bubbleAnchor = journal.locator('.bubble-anchor').first();
+		await bubbleAnchor.hover();
 
-		const picker = page
-			.locator('.notebook-reaction-strip')
-			.getByTestId('reaction-picker');
+		const picker = journal.locator('[data-testid="reaction-picker"]');
 		await expect(picker).toBeVisible();
 	});
 });
@@ -361,5 +332,8 @@ test.describe('Editor', () => {
 		await page.locator('.back-link').click();
 		await page.waitForLoadState('networkidle');
 		await expect(page.getByTestId('illustrated-notebook-game')).toBeVisible();
+		await expect(
+			page.getByRole('button', { name: 'Ask action', exact: true }),
+		).toHaveCount(1);
 	});
 });

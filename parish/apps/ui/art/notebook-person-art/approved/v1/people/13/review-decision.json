@@ -1,0 +1,108 @@
+{
+	"schema_version": 1,
+	"record_type": "notebook-person-art-human-review-decision",
+	"candidate_receipt_path": "parish/apps/ui/art/notebook-person-art/candidates/objects/09/097f465d61912f0ece8c01325a0231f3599183ed658568d4969b510ce448f098/receipt.json",
+	"candidate_receipt_sha256": "6c0906fad680024ef0678ca74ed0c1aaa681c116234eee626439fb5808292601",
+	"candidate_sha256": "a0119964af21100c36d3b40caa7916bb5cc56711e1f7233492f0bf696de1d4ae",
+	"raw_sha256": "ae22c952fa462ed72313f22812218563a32a8be75790fcef7706ee0dfa754a76",
+	"subject": {
+		"kind": "npc",
+		"npc_id": 13,
+		"name": "Nora Duffy",
+		"input_record_sha256": "6dc238dd0983ccf1b0ec80da45e8c253b1b8ce82946317e13f190dd97d1c5ace"
+	},
+	"asset": {
+		"kind": "pair",
+		"candidate_index": 1,
+		"children": [
+			"portrait",
+			"marker"
+		]
+	},
+	"hair_topology": {
+		"schema_version": 4,
+		"subject_key": "npc:13",
+		"vector": {
+			"color_and_texture": "smooth dark brown hair with visible grey at both temples",
+			"front": {
+				"family": "precise-part-with-rope-rolls",
+				"description": "exact centre part with a tight rope roll running above each ear"
+			},
+			"rear": {
+				"family": "crossed-flat-nape-rolls",
+				"description": "the two side rolls cross flat at the nape without becoming a rounded knot"
+			},
+			"covering": {
+				"family": "crisp-close-frilled-cap",
+				"description": "well-bleached close linen cap with narrow face frill and neat ties"
+			},
+			"silhouette": {
+				"family": "wide-ear-rolls-under-close-cap",
+				"description": "controlled width at the ears under a close cap, with no rear projection"
+			},
+			"loose_details": "no flyaways; visible grey is deliberately symmetrical at the temples"
+		},
+		"sha256": "74ffa1147118028c06c933bba4545598b83d468025f182063e7c05cdceede4a8"
+	},
+	"marker_identity": {
+		"schema_version": 4,
+		"subject_key": "npc:13",
+		"marker_identity": {
+			"composition": "character-only",
+			"silhouette": "thin mid-forties woman with a crisp close white cap, narrow twisted rolls, neat shawl, clean apron, and drawn-in shoulders; no object/scenery",
+			"stance": "inward-facing stance with hands clasped at the waist; no object/scenery",
+			"empty_hand_pose": "hands-clasped",
+			"readability_cues": [
+				{
+					"kind": "hair-or-headwear",
+					"description": "close white cap with narrow face frill over twisted rolls above the ears"
+				},
+				{
+					"kind": "body-shape",
+					"description": "thin inward shoulders"
+				}
+			],
+			"tiny_readability_notes": [
+				"Show quiet tension through the narrow outline without exaggerating the pose."
+			]
+		},
+		"sha256": "30046f8b6f84a56d9eb9694afb321925ec2062d42b40fb839a1e35a200395e85"
+	},
+	"decision": "approved",
+	"promotion_eligible": true,
+	"reviewer": "dmooney",
+	"reviewed_at": "2026-07-17T01:52:56.054Z",
+	"notes": "Approved by dmooney after reviewing the final 24-pair whole-cast sheet in Codex on 2026-07-16.",
+	"checklist": {
+		"identity_specific": true,
+		"concept_style_match": true,
+		"period_appropriate": true,
+		"no_prohibited_content": true,
+		"key_removal_clean": true,
+		"production_quality": true,
+		"diegetic_player_sketch": true,
+		"uncolored_pen_and_ink": true,
+		"sparse_open_linework": true,
+		"no_baked_background": true,
+		"framing_complete": true,
+		"selected_size_readable": true,
+		"nearby_size_readable": true,
+		"restrained_world_color": true,
+		"full_body_complete": true,
+		"silhouette_readable": true,
+		"character_only_marker": true,
+		"empty_hands": true,
+		"no_contextual_props_or_scenery": true,
+		"no_ground_plane": true,
+		"scene_size_readable": true,
+		"cross_asset_identity": true,
+		"hair_front_matches": true,
+		"hair_rear_matches": true,
+		"hair_covering_matches": true,
+		"hair_silhouette_matches": true,
+		"correct_surface_split": true,
+		"atomic_rerender_understood": true
+	},
+	"source_template_path": "parish/apps/ui/art/notebook-person-art/candidates/review-packets/identity-v8-character-only-full-cast-b-20260716/13-pair-a0119964af21-review.json",
+	"review_id": "db180a5582399553e5d38a78"
+}

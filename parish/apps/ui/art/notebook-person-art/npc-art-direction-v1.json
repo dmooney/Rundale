@@ -1,0 +1,1944 @@
+{
+	"schema_version": 4,
+	"global_style": {
+		"style_reference": "Illustrated Parish Notebook concept art only. Definitive surface split: the actual world/scene layer is the painted watercolor surface; UI portraits, notebook tabs, notes, icons, and other UI furniture are uncolored pen-and-ink line art on paper with minimal value shading. In-world NPC markers may use restrained watercolor because they live on the painted world surface. Do not use prior experimental portrait sheets, marker concept sheets, procedural busts, or unrelated graphics cycles as authority.",
+		"source_assets": {
+			"portrait_source": [
+				"1024x1024 transparent-background PNG source",
+				"portrait line art occupies roughly 45 percent of source height",
+				"centered head-and-shoulders drawing with generous transparent padding on all sides",
+				"top of hair/head covering and shoulders fully visible",
+				"no baked parchment, paper texture, wash, card, border, label, or UI furniture"
+			],
+			"marker_source": [
+				"1024x1024 flat #ff00ff chroma-key PNG source",
+				"full-body figure occupies roughly 45 percent of source height",
+				"centered figure with feet fully visible and generous flat background margins",
+				"one single static in-world marker pose per NPC for this slice",
+				"no ground shadow, floor plane, label, border, or extra figure"
+			],
+			"runtime_derivatives": [
+				"approved portrait sources are converted to transparent PNGs and composited over UI-controlled parchment",
+				"selected-person portrait target is approximately 99x112 px on desktop and 58x66 px on mobile",
+				"nearby-rail portrait target is approximately 51x57 px on desktop and 36x41 px on mobile",
+				"approved marker sources are chroma-keyed to transparent PNGs and depth-scaled by the notebook renderer"
+			],
+			"sheet_policy": [
+				"do not require a per-character animation sprite sheet for the current marker slice",
+				"pack approved static runtime portraits and markers into a shared runtime atlas only after review if renderer performance needs it",
+				"add per-NPC pose or facing sheets only when gameplay explicitly needs animated movement, directional facing, or state-specific work poses"
+			]
+		},
+		"medium": [
+			"tiny uncolored pen-and-ink notebook portrait",
+			"hand-drawn watercolor in-world game marker",
+			"sepia or graphite linework with minimal value shading for UI art",
+			"transparent portrait line art composited over UI-controlled paper",
+			"paper-native texture supplied by the UI, not baked into portrait art"
+		],
+		"setting": [
+			"Rundale",
+			"rural County Roscommon",
+			"Ireland",
+			"1820",
+			"ordinary parish life",
+			"period-appropriate work clothing"
+		],
+		"palette": [
+			"concept palette anchor: parchment #deccae, #d7c6a7, #c7b393",
+			"concept palette anchor: sepia/graphite ink #36362e, #454339, #5c5747",
+			"concept palette anchor: olive-grey and weathered tan #6e634e, #807661, #9e8e75, #b5a285",
+			"concept palette anchor: umber/shadow #4c4c40, #766c56",
+			"UI portraits: transparent background plus sepia or graphite ink only",
+			"UI portraits: no colored wash or color fill",
+			"UI portraits: minimal monochrome value shading only",
+			"world/marker art: restrained watercolor only where the asset sits in the painted world",
+			"world/marker art: muted wool grey, bog green, dull brick red, peat brown, faded indigo only as subordinate accents",
+			"avoid saturated primaries; #ff00ff is allowed only as marker chroma key"
+		],
+		"common_constraints": [
+			"identity-specific named NPC, not a generic color variant",
+			"render each supplied hair topology literally: front arrangement, rear anchor, head covering, and overall silhouette are identity data, not optional styling",
+			"do not default women to a repeated center-parted low bun or low coil; preserve the record-specific plait, roll, crown, loop, cap, kerchief, or uncovered construction",
+			"readable at Nearby rail portrait size and tiny in-scene marker size",
+			"NPC UI portraits must be uncolored pen-and-ink line art with minimal shading; no colored wash, no color fill, no painted clothing blocks",
+			"NPC UI portraits must be transparent-background assets so the notebook UI controls the paper surface",
+			"no modern clothing",
+			"no Victorian bustle, top hat, bowler, police uniform, photography-era styling, fantasy costume, weapon focus, text, labels, icons, decorative border, watermark, or abstract placeholder bust",
+			"show dignity, warmth, and specificity without caricature"
+		]
+	},
+	"fallback": {
+		"portrait_identity": {
+			"visual_identity_seed": "rundale-fallback-v2",
+			"identity_cohort": "man",
+			"apparent_age": "middle-aged anonymous man, roughly late thirties",
+			"facial_geometry": {
+				"face_shape": "narrow rectangular face with parallel sides and a blunt base",
+				"proportions": "long upper face, unusually wide eye spacing, short lower third",
+				"brow_and_eyes": "shallow widely separated brows over small round eyes",
+				"nose": "short broad straight nose with a flattened bridge",
+				"mouth": "broad mouth with a pronounced upper-lip bow and narrow lower lip",
+				"jaw_and_chin": "straight shallow jaw ending in a wide blunt chin",
+				"cheekbones": "flat low cheekbones without hollows",
+				"hairline": "high rounded hairline exposed beneath a low felt cap",
+				"age_detail": "one horizontal forehead line and sparse creases beside the nose"
+			},
+			"distinguishing_features": [
+				"left ear projects clearly beyond the side of the cap",
+				"unusually wide-set small round eyes",
+				"short broad nose above a wide blunt chin"
+			],
+			"hair": "light straight hair cropped close, with one short side lock visible below the left edge of a low soft felt cap",
+			"hair_topology": {
+				"color_and_texture": "light straight hair",
+				"front": {
+					"family": "side-lock-under-cap",
+					"description": "mostly hidden front with one short lock visible at the left temple"
+				},
+				"rear": {
+					"family": "close-cropped-nape",
+					"description": "close crop with no rear mass below the cap"
+				},
+				"covering": {
+					"family": "low-felt-cap",
+					"description": "plain low soft felt cap"
+				},
+				"silhouette": {
+					"family": "low-soft-cap-profile",
+					"description": "low rounded cap crown with one projecting ear and no hair volume"
+				},
+				"loose_details": "one short side lock below the cap at the left temple"
+			},
+			"clothing": "plain weathered gray-indigo frieze coat over an undyed linen shirt and dull neckerchief; no shawl, apron, clerical collar, or trade uniform",
+			"pose_expression": "neutral three-quarter profile, reserved and approachable, without a named character's expression cues",
+			"props": ["none"],
+			"palette_notes": [
+				"describe clothing with ink texture and line weight only",
+				"use paper tone plus sepia/graphite value",
+				"no colored wash"
+			]
+		},
+		"marker_identity": {
+			"composition": "character-only",
+			"silhouette": "narrow-shouldered adult in a low felt cap and knee-length plain frieze coat; no object/scenery",
+			"stance": "small three-quarter standing figure with hands near the coat front; no object/scenery",
+			"empty_hand_pose": "hands-near-coat-front",
+			"readability_cues": [
+				{ "kind": "hair-or-headwear", "description": "low soft felt cap" },
+				{ "kind": "body-shape", "description": "narrow shoulders" },
+				{ "kind": "clothing", "description": "long plain frieze coat" }
+			],
+			"tiny_readability_notes": [
+				"Keep the face subdued and non-specific so it remains anonymous among named NPCs."
+			]
+		},
+		"avoid": [
+			"distinctive named-NPC props",
+			"the attached female reference subject's face, pinned dark hair, kerchief, shawl, brick-red wrap, apron, or ledger",
+			"woman or feminine dress silhouette",
+			"blank mannequin",
+			"coded placeholder face",
+			"single-color cloak variant"
+		],
+		"authoring_notes": [
+			"Fallback exists only for NPCs without approved art at runtime; named NPCs still require their own art direction."
+		]
+	},
+	"npcs": [
+		{
+			"npc_id": 1,
+			"npc_name": "Padraig Darcy",
+			"portrait_identity": {
+				"visual_identity_seed": "rundale-person-v2:1",
+				"identity_cohort": "man",
+				"apparent_age": "late fifties",
+				"facial_geometry": {
+					"face_shape": "broad rounded-square face with a slightly heavier lower half",
+					"proportions": "wide forehead and cheek span; compact midface; face nearly as wide as it is long",
+					"brow_and_eyes": "heavy mostly straight brows; medium-set, slightly hooded eyes",
+					"nose": "stout straight bridge with a broad rounded tip",
+					"mouth": "wide mouth with a defined upper lip and heavier lower lip",
+					"jaw_and_chin": "broad jaw with softened corners and a short blunt chin",
+					"cheekbones": "low, broad cheek structure with weathered cheek folds",
+					"hairline": "mature high-temple hairline without a pronounced central peak",
+					"age_detail": "late-fifties lines at the outer eyes, brow, and mouth; sparse rough beard shadow"
+				},
+				"distinguishing_features": [
+					"thick greying sideburns",
+					"left brow slightly more broken than the right",
+					"single strong crease beside the right cheek"
+				],
+				"hair": "short coarse dark-grey hair, brushed back unevenly, with prominent greying sideburns and trimmed grey whiskers",
+				"hair_topology": {
+					"color_and_texture": "coarse dark-grey hair with grey whiskers",
+					"front": {
+						"family": "uneven-brushed-back-front",
+						"description": "short front brushed back unevenly from a mature high-temple hairline"
+					},
+					"rear": {
+						"family": "short-rough-nape",
+						"description": "short rough crop at the crown and nape"
+					},
+					"covering": {
+						"family": "uncovered",
+						"description": "no cap or other head covering"
+					},
+					"silhouette": {
+						"family": "broad-sideburn-profile",
+						"description": "broad brushed-back outline anchored by prominent sideburns"
+					},
+					"loose_details": "prominent greying sideburns and trimmed grey whiskers"
+				},
+				"clothing": "rolled linen sleeves, dark worn waistcoat, plain neckcloth, publican's apron hinted low in frame",
+				"pose_expression": "gruff but warm, looking up from work as if ready with dry advice",
+				"props": ["bar rag", "small pewter cup", "key ring"],
+				"palette_notes": ["dark waistcoat", "warm pub umber", "turf-smoke grey"]
+			},
+			"marker_identity": {
+				"composition": "character-only",
+				"silhouette": "stocky late-fifties man with square shoulders, broad sideburns, worn dark waistcoat, and rolled sleeves; no object/scenery",
+				"stance": "grounded square stance with both hands near the waistcoat front; no object/scenery",
+				"empty_hand_pose": "hands-near-coat-front",
+				"readability_cues": [
+					{ "kind": "body-shape", "description": "compact broad build" },
+					{
+						"kind": "hair-or-headwear",
+						"description": "prominent greying sideburns"
+					},
+					{
+						"kind": "clothing",
+						"description": "dark waistcoat over pale rolled sleeves"
+					}
+				],
+				"tiny_readability_notes": [
+					"Make the broad, low center of gravity readable before facial detail."
+				]
+			},
+			"avoid": [
+				"modern bartender",
+				"stage-Irish drunk caricature",
+				"large foaming beer stein",
+				"top hat"
+			],
+			"authoring_notes": [
+				"Canonical data gives age, publican role, pub location, and behind-the-bar cue, but not stable hair, clothing, or marker silhouette."
+			]
+		},
+		{
+			"npc_id": 2,
+			"npc_name": "Siobhan Murphy",
+			"portrait_identity": {
+				"visual_identity_seed": "rundale-person-v2:2",
+				"identity_cohort": "woman",
+				"apparent_age": "mid forties",
+				"facial_geometry": {
+					"face_shape": "long rectangular face with firm cheek and jaw planes",
+					"proportions": "moderately high forehead; long midface; substantial lower face",
+					"brow_and_eyes": "level medium-heavy brows; deep-set, evenly spaced eyes with strong upper lids",
+					"nose": "long straight bridge, broad at the root and gently rounded at the tip",
+					"mouth": "wide level mouth with a thin upper lip and fuller lower lip",
+					"jaw_and_chin": "firm nearly vertical jaw tapering slightly to a broad rounded chin",
+					"cheekbones": "high, plainly defined cheekbones with shallow hollows beneath",
+					"hairline": "mostly concealed; visible front edge is broad and gently curved",
+					"age_detail": "mid-forties lines between the brows, beneath the eyes, and at the mouth corners"
+				},
+				"distinguishing_features": [
+					"short vertical crease between the brows",
+					"left upper lid folds slightly lower",
+					"one strong line from nose to left mouth corner"
+				],
+				"hair": "ABSOLUTE VISIBLE SILHOUETTE: a close dark triangular work kerchief covers the entire front hairline, both sides, and every strand at the rear; no braid, bun, loose hair, or long tail may project outside it. The hidden hair is secured as crossed flat plaits, but only the close kerchief silhouette is visible. Portrait line economy: outline the cloth and face with sparse open contours and only a few direction strokes; leave hair, cloth, and skin unfilled, with no black masses, dense hatching, or engraving texture. The marker must repeat the same fully covered head silhouette.",
+				"hair_topology": {
+					"color_and_texture": "dark brown practical working hair",
+					"front": {
+						"family": "fully-covered-front",
+						"description": "front hairline and part completely hidden by the kerchief"
+					},
+					"rear": {
+						"family": "concealed-crossed-plaits",
+						"description": "two flat plaits crossed horizontally and fully concealed, never a rounded bun"
+					},
+					"covering": {
+						"family": "full-work-kerchief",
+						"description": "plain dark repaired work kerchief tied securely at the nape"
+					},
+					"silhouette": {
+						"family": "close-triangular-kerchief",
+						"description": "close triangular cloth silhouette with no exposed side or rear hair mass"
+					},
+					"loose_details": "no decorative curl, ribbon, or loose lock"
+				},
+				"clothing": "plain wool dress or bodice, sturdy apron, muddy hem, work shawl pinned tight",
+				"pose_expression": "determined and no-nonsense, slightly forward posture; portrait and marker must show the same mid-forties face, firm jaw, long nose, and brow creases without smoothing or rejuvenation",
+				"props": [
+					"small farm ledger",
+					"milk pail handle",
+					"folded field cloth"
+				],
+				"palette_notes": [
+					"field brown",
+					"dark kerchief",
+					"muted green-grey shawl"
+				]
+			},
+			"marker_identity": {
+				"composition": "character-only",
+				"silhouette": "sturdy mid-forties woman with a close triangular dark kerchief, pinned shawl, sturdy apron, and broad skirt; no object/scenery",
+				"stance": "forward-set stance with one hand on hip and the other at her side; no object/scenery",
+				"empty_hand_pose": "one-on-hip-one-at-side",
+				"readability_cues": [
+					{
+						"kind": "hair-or-headwear",
+						"description": "fully covered triangular kerchief"
+					},
+					{ "kind": "body-shape", "description": "firm forward shoulders" },
+					{ "kind": "clothing", "description": "broad apron-and-skirt outline" }
+				],
+				"tiny_readability_notes": [
+					"The close kerchief silhouette must remain distinct from caps, bonnets, and loose hair."
+				]
+			},
+			"avoid": [
+				"glamour portrait",
+				"modern rubber boots",
+				"cartoon farmer stereotype",
+				"visible centre part, loose side curls, or rounded low bun instead of the fully covered work-kerchief construction"
+			],
+			"authoring_notes": [
+				"Canonical data is weak visually: it says middle-aged farmer, schedules and farm context add work cues, but appearance needs supplement."
+			]
+		},
+		{
+			"npc_id": 3,
+			"npc_name": "Fr. Declan Tierney",
+			"portrait_identity": {
+				"visual_identity_seed": "rundale-person-v2:3",
+				"identity_cohort": "man",
+				"apparent_age": "early sixties",
+				"facial_geometry": {
+					"face_shape": "long narrow oval face with a tapered lower third",
+					"proportions": "high forehead; long nose-led midface; relatively short mouth-to-chin distance",
+					"brow_and_eyes": "fine descending brows; deep-set almond-shaped eyes with pronounced upper lids",
+					"nose": "long narrow bridge with a modest convex turn and downturned tip",
+					"mouth": "small horizontal mouth with a thin upper lip and softly defined lower lip",
+					"jaw_and_chin": "narrow jaw ending in a rounded, slightly forward chin",
+					"cheekbones": "high narrow cheekbones, lightly hollowed beneath",
+					"hairline": "clearly receded at both temples with a shallow central forelock",
+					"age_detail": "early-sixties forehead lines, outer-eye fans, and light folds beside the mouth"
+				},
+				"distinguishing_features": [
+					"left brow descends more sharply toward the nose",
+					"shallow notch in the left earlobe",
+					"two clear horizontal forehead lines"
+				],
+				"hair": "fine silver hair, receding at the temples and brushed back close to the head, slightly longer over the ears",
+				"hair_topology": {
+					"color_and_texture": "fine silver hair",
+					"front": {
+						"family": "receding-close-brushback",
+						"description": "receding temples with fine hair brushed straight back"
+					},
+					"rear": {
+						"family": "longer-over-ears",
+						"description": "close rear with slight length retained over the ears"
+					},
+					"covering": {
+						"family": "clerical-uncovered",
+						"description": "uncovered head without cap or hat"
+					},
+					"silhouette": {
+						"family": "fine-receding-profile",
+						"description": "narrow close-haired silhouette with clearly receding temples"
+					},
+					"loose_details": "a few fine silver strands above each ear"
+				},
+				"clothing": "plain black priest's coat or cassock-like dark clerical dress, simple white collar or neckcloth",
+				"pose_expression": "contemplative, gentle, slightly stooped from walking the parish",
+				"props": ["small worn prayer book", "plain rosary tucked in hand"],
+				"palette_notes": ["soft black", "linen white", "quiet sepia shadows"]
+			},
+			"marker_identity": {
+				"composition": "character-only",
+				"silhouette": "slender early-sixties man in a dark long coat with a small white collar and close silver hair; no object/scenery",
+				"stance": "gentle slight stoop with hands clasped at the waist; no object/scenery",
+				"empty_hand_pose": "hands-clasped",
+				"readability_cues": [
+					{
+						"kind": "clothing",
+						"description": "long dark coat and small white collar"
+					},
+					{ "kind": "hair-or-headwear", "description": "receding silver hair" },
+					{ "kind": "body-shape", "description": "slender stooped frame" }
+				],
+				"tiny_readability_notes": [
+					"Keep the silhouette narrow and contemplative without adding ceremonial objects."
+				]
+			},
+			"avoid": [
+				"bishop mitre",
+				"ornate vestments outside Mass",
+				"Victorian clerical costume",
+				"saint iconography"
+			],
+			"authoring_notes": [
+				"Canonical data says priest and church schedule but only brief_description 'a priest'; production identity needs clothing and marker details."
+			]
+		},
+		{
+			"npc_id": 4,
+			"npc_name": "Roisin Connolly",
+			"portrait_identity": {
+				"visual_identity_seed": "rundale-person-v2:4",
+				"identity_cohort": "woman",
+				"apparent_age": "late thirties",
+				"facial_geometry": {
+					"face_shape": "long oval face tapering gently to a small rounded chin",
+					"proportions": "high open forehead; balanced long midface; narrow lower face",
+					"brow_and_eyes": "softly arched dark brows; deep-set almond eyes with strong upper-lid contours",
+					"nose": "long straight narrow nose with a softly rounded tip",
+					"mouth": "compact mouth with a defined cupid's bow and fuller lower lip",
+					"jaw_and_chin": "fine jawline narrowing continuously to a small rounded chin",
+					"cheekbones": "high smooth cheekbones with restrained hollowing beneath",
+					"hairline": "high smooth centre-parted hairline with softly curved temple edges",
+					"age_detail": "late-thirties face with light under-eye definition and restrained mouth-corner lines"
+				},
+				"distinguishing_features": [
+					"left brow sits subtly higher",
+					"prominent clean upper-lid line",
+					"small loose curl immediately before the left ear"
+				],
+				"hair": "ABSOLUTE VISIBLE SILHOUETTE in three-quarter view: a narrow-frilled white linen day cap hugs the head while leaving a clean centre part and two small side rolls visible; one compact braided coil sits at mid-back height, clearly above the nape and partly enclosed by the cap. No hanging ringlet, bulky ear-level braid, uncovered rounded bun, or low nape coil. Portrait line economy: use the outer contour plus only a few directional strands, leaving hair, cap, and face open and unfilled; no black masses, dense hatching, or engraving texture. The marker must repeat the same cap, side rolls, and raised compact coil.",
+				"hair_topology": {
+					"color_and_texture": "smooth dark brown hair",
+					"front": {
+						"family": "clean-part-with-side-rolls",
+						"description": "clean centre part framed by one gentle controlled roll on each side"
+					},
+					"rear": {
+						"family": "mid-back-braided-coil",
+						"description": "compact braided coil centered at mid-back height, clearly above the nape"
+					},
+					"covering": {
+						"family": "narrow-frilled-day-cap",
+						"description": "neat white linen day cap with a narrow face frill, leaving the part and side rolls visible"
+					},
+					"silhouette": {
+						"family": "rolled-mid-back-cap",
+						"description": "tidy side width and a compact raised rear coil under a close cap"
+					},
+					"loose_details": "two fine temple wisps only; no hanging ringlets"
+				},
+				"clothing": "respectable practical dark dress, tidy shawl at shoulders, shop apron hinted at the lower edge",
+				"pose_expression": "composed and watchful behind the counter; portrait and marker must show the same late-thirties long oval face, narrow nose, small chin, and light age lines without glamour smoothing or rejuvenation",
+				"props": [
+					"small ledger",
+					"pencil stub",
+					"folded cloth or candle packet"
+				],
+				"palette_notes": ["dark dress", "shop ochre", "muted red-brown accent"]
+			},
+			"marker_identity": {
+				"composition": "character-only",
+				"silhouette": "neat late-thirties woman with a narrow-frilled linen cap, visible side rolls, raised compact rear coil, and tidy dark dress; no object/scenery",
+				"stance": "upright three-quarter stance with hands clasped low; no object/scenery",
+				"empty_hand_pose": "hands-clasped",
+				"readability_cues": [
+					{
+						"kind": "hair-or-headwear",
+						"description": "narrow-frilled white cap over side rolls and a raised compact rear coil"
+					},
+					{ "kind": "stance", "description": "tidy upright outline" }
+				],
+				"tiny_readability_notes": [
+					"Preserve the cap, side rolls, and raised coil as one clean small-scale profile."
+				]
+			},
+			"avoid": [
+				"modern retail clerk",
+				"cash register",
+				"polished Victorian shop fashion",
+				"uncovered generic low bun instead of the side rolls, raised braided coil, and narrow-frilled day cap"
+			],
+			"authoring_notes": [
+				"Canonical data gives shopkeeper role and counter cue, but the usable portrait/marker identity is supplied here."
+			]
+		},
+		{
+			"npc_id": 5,
+			"npc_name": "Tommy O'Brien",
+			"portrait_identity": {
+				"visual_identity_seed": "rundale-person-v2:5",
+				"identity_cohort": "man",
+				"apparent_age": "around seventy",
+				"facial_geometry": {
+					"face_shape": "narrow irregular diamond-shaped face with hollow cheeks",
+					"proportions": "short cap-covered forehead; long folded midface; narrow lower jaw",
+					"brow_and_eyes": "thin uneven brows; small deep-set eyes with heavy upper folds",
+					"nose": "long prominent nose with a slight leftward bend and broad tip",
+					"mouth": "broad mobile mouth with thin lips and deeply marked corners",
+					"jaw_and_chin": "narrow softened jaw with a projecting rounded chin",
+					"cheekbones": "high prominent cheekbones with clear hollows below",
+					"hairline": "mostly hidden beneath the cap; visibly sparse at the temples",
+					"age_detail": "deep forehead, eye, cheek, and mouth lines appropriate to age seventy; patchy white stubble"
+				},
+				"distinguishing_features": [
+					"right eye slightly narrower",
+					"nose bends subtly left",
+					"patch of longer white stubble beneath the chin"
+				],
+				"hair": "sparse white hair at the temples and nape beneath a battered soft wool cap, with thin white whiskers and uneven chin stubble",
+				"hair_topology": {
+					"color_and_texture": "sparse white hair and thin whiskers",
+					"front": {
+						"family": "sparse-temples-under-cap",
+						"description": "mostly hidden front with sparse white temple hair visible"
+					},
+					"rear": {
+						"family": "white-nape-wisps",
+						"description": "thin uneven white wisps at the nape"
+					},
+					"covering": {
+						"family": "battered-wool-cap",
+						"description": "soft battered wool cap sitting unevenly"
+					},
+					"silhouette": {
+						"family": "collapsed-cap-and-whiskers",
+						"description": "collapsed cap crown over sparse hair with narrow whisker points"
+					},
+					"loose_details": "uneven chin stubble and thin white whiskers"
+				},
+				"clothing": "old wool coat, patched waistcoat, soft cap, weathered scarf",
+				"pose_expression": "reflective and lively, about to start a story",
+				"props": ["walking stick", "clay pipe unlit or tucked away"],
+				"palette_notes": ["old wool grey", "peat brown", "cap shadow"]
+			},
+			"marker_identity": {
+				"composition": "character-only",
+				"silhouette": "lean around-seventy man with a battered soft cap, weathered scarf, rounded stoop, and long old coat; no object/scenery",
+				"stance": "stooped three-quarter stance with one empty hand gesturing and the other at his side; no object/scenery",
+				"empty_hand_pose": "one-hand-gesturing",
+				"readability_cues": [
+					{ "kind": "hair-or-headwear", "description": "soft battered cap" },
+					{ "kind": "body-shape", "description": "pronounced stoop" },
+					{ "kind": "face", "description": "thin white whiskers" }
+				],
+				"tiny_readability_notes": [
+					"Separate him from Mick through his rounded stoop and softer, more animated arm line."
+				]
+			},
+			"avoid": ["wizard-like old man", "fantasy cloak", "comic drunk elder"],
+			"authoring_notes": [
+				"Canonical data gives age, storyteller role, and retired farmer context; art supplement fixes stable silhouette."
+			]
+		},
+		{
+			"npc_id": 6,
+			"npc_name": "Aoife Brennan",
+			"portrait_identity": {
+				"visual_identity_seed": "rundale-person-v2:6",
+				"identity_cohort": "woman",
+				"apparent_age": "late twenties",
+				"facial_geometry": {
+					"face_shape": "long oval with a gentle taper from cheekbones to chin",
+					"proportions": "high forehead, balanced midface, slightly short lower face",
+					"brow_and_eyes": "fine arched brows; close-to-medium-set almond eyes with visible upper-lid folds",
+					"nose": "narrow straight bridge with a subtly left-offset rounded tip",
+					"mouth": "medium-wide mouth, shallow cupid's bow, thinner upper lip",
+					"jaw_and_chin": "slender jaw and small rounded-pointed chin",
+					"cheekbones": "high, softly angular cheekbones",
+					"hairline": "soft widow's peak with a slightly higher right temple",
+					"age_detail": "smooth late-twenties structure with faint under-eye lines"
+				},
+				"distinguishing_features": [
+					"slight offset at the nose tip",
+					"small notch in the outer left eyebrow",
+					"one shallow line beside the right corner of the mouth"
+				],
+				"hair": "ABSOLUTE VISIBLE SILHOUETTE in three-quarter view: uncovered dark hair with two pencil-thin braids beginning visibly at the temples and joining as one shallow narrow braided band across the upper rear head above the ears. No bulky crown braid, nape mass, rounded bun, cap, kerchief, or long tendril; only two fine short wisps. Portrait line economy: show the braid path with sparse open contours and a few strand marks, leaving hair and face unfilled; no black masses, dense hatching, or engraving texture. The marker must preserve the visible temple origins and narrow upper-rear band.",
+				"hair_topology": {
+					"color_and_texture": "dark brown hair with fine narrow braids",
+					"front": {
+						"family": "visible-temple-braids",
+						"description": "clean near-centre part with one narrow braid beginning at each temple"
+					},
+					"rear": {
+						"family": "shallow-upper-coronet",
+						"description": "two braids pinned as a shallow coronet across the upper rear head"
+					},
+					"covering": {
+						"family": "uncovered-indoors",
+						"description": "uncovered for teaching indoors; a plain bonnet is reserved for travel or church"
+					},
+					"silhouette": {
+						"family": "visible-crown-band",
+						"description": "a slim braided band rises behind and above the ears with no nape mass"
+					},
+					"loose_details": "two very fine temple wisps beneath the braids"
+				},
+				"clothing": "plain modest dress, practical shawl or short jacket, linen collar",
+				"pose_expression": "passionate and attentive, as if about to explain a lesson; portrait and marker must show the same late-twenties diamond face, pointed chin, wide-set eyes, and long narrow nose without generic beautification",
+				"props": ["small slate", "chalk", "thin school book"],
+				"palette_notes": [
+					"slate grey",
+					"soft blue-grey shawl",
+					"warm parchment"
+				]
+			},
+			"marker_identity": {
+				"composition": "character-only",
+				"silhouette": "slim late-twenties woman with uncovered dark hair, fine temple braids, a shallow upper-rear coronet, and a short jacket; no object/scenery",
+				"stance": "upright stance with one empty hand gesturing and the other at her side; no object/scenery",
+				"empty_hand_pose": "one-hand-gesturing",
+				"readability_cues": [
+					{
+						"kind": "hair-or-headwear",
+						"description": "visible temple-braid origins joining a slim raised coronet band"
+					},
+					{ "kind": "face", "description": "pointed-chin profile" }
+				],
+				"tiny_readability_notes": [
+					"The fine braids need a clear, sparse outline at marker scale."
+				]
+			},
+			"avoid": [
+				"modern schoolteacher",
+				"secret-school outlaw styling",
+				"large open book hiding body",
+				"low bun, cap, or kerchief hiding the visible temple braids and shallow coronet"
+			],
+			"authoring_notes": [
+				"World prompt clarifies hedge schools are open in 1820; do not show secretive outlaw education cues."
+			]
+		},
+		{
+			"npc_id": 7,
+			"npc_name": "Mick Flanagan",
+			"portrait_identity": {
+				"visual_identity_seed": "rundale-person-v2:7",
+				"identity_cohort": "man",
+				"apparent_age": "mid sixties",
+				"facial_geometry": {
+					"face_shape": "compact square face with straight sides and a broad lower edge",
+					"proportions": "low forehead; compact midface; jaw and cheek width nearly equal",
+					"brow_and_eyes": "thick low straight brows; close-to-medium-set hooded eyes",
+					"nose": "medium-length straight nose with a squared, moderately broad tip",
+					"mouth": "long upper-lip area largely defined by the moustache; narrow level lower lip",
+					"jaw_and_chin": "strong square jaw and short broad chin with a shallow central cleft",
+					"cheekbones": "flat broad cheek planes rather than prominent points",
+					"hairline": "low but receded in clean wedges at both temples",
+					"age_detail": "mid-sixties brow furrows, under-eye folds, and restrained cheek creases"
+				},
+				"distinguishing_features": [
+					"trim horizontal grey moustache",
+					"shallow cleft in the chin",
+					"left brow angles upward near its outer end"
+				],
+				"hair": "close-cropped iron-grey hair following the skull, short at the sides, paired with a neat broad grey moustache and otherwise clean-shaven face",
+				"hair_topology": {
+					"color_and_texture": "close iron-grey hair with a broad grey moustache",
+					"front": {
+						"family": "close-cropped-front",
+						"description": "short iron-grey front following the skull without a part"
+					},
+					"rear": {
+						"family": "close-cropped-rear",
+						"description": "uniform close crop at crown, sides, and nape"
+					},
+					"covering": {
+						"family": "uncovered",
+						"description": "no cap or head covering"
+					},
+					"silhouette": {
+						"family": "close-skull-with-moustache",
+						"description": "close skull outline contrasted by a wide horizontal moustache"
+					},
+					"loose_details": "neat broad moustache; no beard or side locks"
+				},
+				"clothing": "old dark civilian coat, worn waistcoat, plain shirt, no uniform",
+				"pose_expression": "watchful retired constable, measuring the room",
+				"props": ["walking cane", "small folded notebook"],
+				"palette_notes": [
+					"faded dark coat",
+					"cool grey moustache",
+					"muted brown cane"
+				]
+			},
+			"marker_identity": {
+				"composition": "character-only",
+				"silhouette": "upright mid-sixties man with a square torso, close iron-grey hair, broad grey moustache, and old dark civilian coat; no object/scenery",
+				"stance": "still, rigid stance with hands behind the back and head slightly turned; no object/scenery",
+				"empty_hand_pose": "hands-behind-back",
+				"readability_cues": [
+					{ "kind": "body-shape", "description": "square upright build" },
+					{ "kind": "face", "description": "broad horizontal grey moustache" },
+					{
+						"kind": "hair-or-headwear",
+						"description": "close-cropped iron-grey hair"
+					}
+				],
+				"tiny_readability_notes": [
+					"Contrast Tommy with a straight vertical posture and a contained arm silhouette."
+				]
+			},
+			"avoid": [
+				"police uniform",
+				"badge emphasis",
+				"weapon focus",
+				"modern constable"
+			],
+			"authoring_notes": [
+				"The role is retired constable; production art should imply habit and bearing, not official uniform."
+			]
+		},
+		{
+			"npc_id": 8,
+			"npc_name": "Niamh Darcy",
+			"portrait_identity": {
+				"visual_identity_seed": "rundale-person-v2:8",
+				"identity_cohort": "woman",
+				"apparent_age": "early twenties",
+				"facial_geometry": {
+					"face_shape": "rounded triangular face, broad across the upper cheeks and tapering below",
+					"proportions": "broad Darcy forehead and cheek placement retained, with a longer youthful midface than Padraig",
+					"brow_and_eyes": "strong straight-to-softly-arched brows; wide-set open eyes with clear upper-lid lines",
+					"nose": "straight medium-width bridge with the family's rounded tip, narrower than Padraig's",
+					"mouth": "medium-wide mouth with an uneven mobile lip line",
+					"jaw_and_chin": "lightly angled jaw tapering to a small rounded chin",
+					"cheekbones": "broad-set but lightly drawn cheekbones",
+					"hairline": "low rounded hairline with a small off-centre peak",
+					"age_detail": "early-twenties face with minimal linework and slight under-eye definition"
+				},
+				"distinguishing_features": [
+					"right brow sits subtly higher",
+					"slight notch in the upper-lip contour",
+					"one loose temple curl framing the left side"
+				],
+				"hair": "ABSOLUTE VISIBLE SILHOUETTE: uncovered auburn-brown hair with exactly two short practical temple ringlets ending above the cheekbones and one small looped knot high at the back, no larger than an ear and clearly separated from the nape. No voluminous updo, halo of curls, jaw-length ringlets, low bun, cap, or bonnet. Portrait line economy: outline the small loop and two ringlets with sparse open lines, leaving hair and face unfilled; no black masses, dense hatching, or engraving texture. The marker must repeat the same small high loop and exactly two short ringlets.",
+				"hair_topology": {
+					"color_and_texture": "thick auburn-brown hair with a soft natural wave",
+					"front": {
+						"family": "short-front-ringlets",
+						"description": "soft near-centre part with one short practical ringlet at each temple"
+					},
+					"rear": {
+						"family": "small-high-loop",
+						"description": "small looped knot pinned high at the back, well above the nape"
+					},
+					"covering": {
+						"family": "uncovered-while-serving",
+						"description": "uncovered indoors while serving; modest bonnet only outdoors"
+					},
+					"silhouette": {
+						"family": "high-back-loop-and-ringlets",
+						"description": "small raised rear loop with two visible front ringlets and no low bun"
+					},
+					"loose_details": "several practical flyaways near the high loop"
+				},
+				"clothing": "simple dress with working apron, rolled sleeves, small shawl loose at shoulders",
+				"pose_expression": "restless and alert, half turned toward the door; portrait and marker must show the same early-twenties heart-shaped face, broad forehead, narrow chin, and small upturned nose without changing her age",
+				"props": ["serving tray", "small cup"],
+				"palette_notes": ["apron linen", "warm brown hair", "pub amber wash"]
+			},
+			"marker_identity": {
+				"composition": "character-only",
+				"silhouette": "slender early-twenties woman with two short temple ringlets, a small high rear loop, loose shoulder shawl, and narrow apron; no object/scenery",
+				"stance": "light half-turn with one hand at her hip and the other at her side; no object/scenery",
+				"empty_hand_pose": "one-on-hip-one-at-side",
+				"readability_cues": [
+					{
+						"kind": "hair-or-headwear",
+						"description": "exactly two short temple ringlets with a small high rear hair loop"
+					},
+					{ "kind": "stance", "description": "restless half-turned line" }
+				],
+				"tiny_readability_notes": [
+					"Keep the high loop and short ringlets visible without enlarging the head."
+				]
+			},
+			"avoid": [
+				"barmaid glamour",
+				"modern server outfit",
+				"generic young woman without pub cue",
+				"low nape bun or cap hiding the short front ringlets and small high loop"
+			],
+			"authoring_notes": [
+				"Canonical data gives age, family, pub work, and restlessness; supplement makes the portrait identity stable."
+			]
+		},
+		{
+			"npc_id": 9,
+			"npc_name": "Seamus Gallagher",
+			"portrait_identity": {
+				"visual_identity_seed": "rundale-person-v2:9",
+				"identity_cohort": "man",
+				"apparent_age": "early forties",
+				"facial_geometry": {
+					"face_shape": "broad square face with a short, wide lower half",
+					"proportions": "broad forehead, short midface, substantial lower face",
+					"brow_and_eyes": "thick nearly level brows; wide-set, slightly hooded almond eyes",
+					"nose": "broad bridge, short body, blunt rounded tip",
+					"mouth": "wide mouth with a straight upper contour and full lower lip",
+					"jaw_and_chin": "strong square jaw and broad flat-ended chin",
+					"cheekbones": "wide but low-set cheekbones",
+					"hairline": "low uneven hairline with modest recession at both temples",
+					"age_detail": "early-forties forehead creases, outer-eye lines, and coarse beard shadow"
+				},
+				"distinguishing_features": [
+					"short diagonal notch through the right eyebrow",
+					"slightly flattened upper rim of the left ear",
+					"deep beard boundary around the square chin"
+				],
+				"hair": "dark auburn-brown, thick and short with a coarse wave; close dark beard or heavy stubble",
+				"hair_topology": {
+					"color_and_texture": "thick coarse auburn-brown wave with dark stubble",
+					"front": {
+						"family": "forward-coarse-wave",
+						"description": "coarse short waves pushed irregularly forward without a clean part"
+					},
+					"rear": {
+						"family": "short-heavy-crown",
+						"description": "thick short crown tapering roughly at the nape"
+					},
+					"covering": {
+						"family": "uncovered",
+						"description": "no cap or head covering"
+					},
+					"silhouette": {
+						"family": "thick-wave-and-beard",
+						"description": "heavy irregular hair crown balanced by close beard mass"
+					},
+					"loose_details": "one broken wave over the right brow and close heavy stubble"
+				},
+				"clothing": "rolled linen sleeves, heavy leather apron, dark work trousers",
+				"pose_expression": "cheerful strength, relaxed after work at the anvil",
+				"props": ["blacksmith hammer", "tongs", "soot marks"],
+				"palette_notes": [
+					"charcoal black",
+					"leather brown",
+					"forge orange kept subtle"
+				]
+			},
+			"marker_identity": {
+				"composition": "character-only",
+				"silhouette": "broad-shouldered early-forties man with thick coarse auburn waves, close dark beard, rolled sleeves, and a heavy leather apron; no object/scenery",
+				"stance": "planted broad stance with both empty hands at his sides; no object/scenery",
+				"empty_hand_pose": "both-at-sides",
+				"readability_cues": [
+					{ "kind": "body-shape", "description": "broad shoulder span" },
+					{
+						"kind": "face",
+						"description": "thick auburn hair and close beard"
+					},
+					{ "kind": "clothing", "description": "heavy leather apron" }
+				],
+				"tiny_readability_notes": [
+					"Let the wide shoulder-and-apron silhouette carry the read at tiny scale."
+				]
+			},
+			"avoid": [
+				"fantasy dwarf blacksmith",
+				"oversized weapon hammer",
+				"modern welding gear"
+			],
+			"authoring_notes": [
+				"Canonical brief is visually strong; supplement locks clothing, prop scale, and non-fantasy constraints."
+			]
+		},
+		{
+			"npc_id": 10,
+			"npc_name": "Maire Gallagher",
+			"portrait_identity": {
+				"visual_identity_seed": "rundale-person-v2:10",
+				"identity_cohort": "woman",
+				"apparent_age": "late thirties",
+				"facial_geometry": {
+					"face_shape": "softly rectangular oval with a mild taper below the cheekbones",
+					"proportions": "moderately high forehead, balanced midface, slightly broad lower face",
+					"brow_and_eyes": "level medium-thick brows; medium-wide-set almond eyes with clear upper-lid folds",
+					"nose": "straight narrow-to-medium bridge with a subtly left-offset rounded tip",
+					"mouth": "medium-wide mouth, shallow cupid's bow, full lower lip",
+					"jaw_and_chin": "rounded-square jaw and compact rounded chin",
+					"cheekbones": "high, softly angular cheekbones with fuller lower cheeks",
+					"hairline": "gentle widow's peak beneath a centered part",
+					"age_detail": "late-thirties outer-eye lines and light nasolabial definition"
+				},
+				"distinguishing_features": [
+					"small round mark below the right cheekbone",
+					"slightly higher left eyebrow",
+					"shallow central chin crease"
+				],
+				"hair": "ABSOLUTE VISIBLE SILHOUETTE: deep auburn-brown hair brushes straight back from the brow with no visible part and disappears completely into a roomy gathered unbleached linen work cap with a full soft rear caul. The hidden plait is folded vertically flat; no exposed rear hair, rounded bun, side coil, centre part, or loose tendril may appear. Portrait line economy: outline the brushed-back front and caul with sparse open contours, leaving hair, cap, and face unfilled; no black masses, dense hatching, or engraving texture. The marker must repeat the no-part front and full unbleached caul.",
+				"hair_topology": {
+					"color_and_texture": "deep auburn-brown strong working hair",
+					"front": {
+						"family": "brushed-back-under-cap",
+						"description": "hair brushed directly back from the brow with no visible centre part"
+					},
+					"rear": {
+						"family": "vertical-folded-plait",
+						"description": "one long plait folded vertically upward and pinned flat, not coiled"
+					},
+					"covering": {
+						"family": "full-caul-work-cap",
+						"description": "roomy gathered unbleached linen cap with a full rear caul tied behind"
+					},
+					"silhouette": {
+						"family": "rounded-caul-with-flat-rear",
+						"description": "full soft cap silhouette around a flat vertical rear anchor"
+					},
+					"loose_details": "only a few flour-dusted wisps at the temples"
+				},
+				"clothing": "clean but work-worn apron over plain dress, sleeves rolled for household work",
+				"pose_expression": "busy and capable, kind but not idle; portrait and marker must show the same late-thirties broad heart-shaped face, wide jaw, heavy cheeks, and age treatment, never a younger narrow-oval substitute",
+				"props": ["flour on hands", "small bowl", "folded cloth"],
+				"palette_notes": ["flour white", "soft brown dress", "linen cap"]
+			},
+			"marker_identity": {
+				"composition": "character-only",
+				"silhouette": "late-thirties woman with a full unbleached linen caul, brushed-back auburn hair, wide jaw, rolled sleeves, and clean pale apron; no object/scenery",
+				"stance": "ready upright stance with hands near the apron front; no object/scenery",
+				"empty_hand_pose": "hands-near-coat-front",
+				"readability_cues": [
+					{
+						"kind": "hair-or-headwear",
+						"description": "full rounded linen caul over brushed-back hair without a part"
+					},
+					{ "kind": "body-shape", "description": "wide-jawed compact build" }
+				],
+				"tiny_readability_notes": [
+					"Use the full caul and broad face-body proportion to separate her from Siobhan."
+				]
+			},
+			"avoid": [
+				"generic housewife stereotype",
+				"bakery shop uniform",
+				"modern kitchen tools",
+				"visible centre part or rounded bun instead of the brushed-back front, vertical folded plait, and full-caul work cap"
+			],
+			"authoring_notes": [
+				"Brief description gives flour hands; supplement sets the full visual identity."
+			]
+		},
+		{
+			"npc_id": 11,
+			"npc_name": "Colm Gallagher",
+			"portrait_identity": {
+				"visual_identity_seed": "rundale-person-v2:11",
+				"identity_cohort": "boy",
+				"apparent_age": "mid teens",
+				"facial_geometry": {
+					"face_shape": "long narrow wedge-shaped adolescent face",
+					"proportions": "broad upper face, long midface, narrow underdeveloped lower face",
+					"brow_and_eyes": "straight medium-thick brows; wide-set, slightly hooded almond eyes",
+					"nose": "long straight bridge with a narrow rounded tip",
+					"mouth": "wide mouth with a straight upper contour and narrow lips",
+					"jaw_and_chin": "slim angular jaw and small square-ended chin",
+					"cheekbones": "high cheekbones with little cheek fullness",
+					"hairline": "low irregular hairline with a pronounced left-front cowlick",
+					"age_detail": "smooth mid-teen skin with no beard growth beyond the faintest upper-lip shadow"
+				},
+				"distinguishing_features": [
+					"light freckles crossing the nose bridge",
+					"slightly projecting ears",
+					"long shallow philtrum"
+				],
+				"hair": "muted copper-red, thick, wavy, and unevenly cropped with the left cowlick left visible",
+				"hair_topology": {
+					"color_and_texture": "thick muted copper-red waves",
+					"front": {
+						"family": "left-cowlick-front",
+						"description": "uneven front with a distinct raised cowlick on the left"
+					},
+					"rear": {
+						"family": "uneven-short-crop",
+						"description": "thick uneven crop ending well above the collar"
+					},
+					"covering": {
+						"family": "uncovered",
+						"description": "no cap or head covering"
+					},
+					"silhouette": {
+						"family": "rounded-tousled-copper-crop",
+						"description": "rounded youthful wave mass broken by the left cowlick"
+					},
+					"loose_details": "one stray lock points outward above the left ear"
+				},
+				"clothing": "too-large leather apron, rolled sleeves, patched shirt",
+				"pose_expression": "eager apprentice trying to look capable",
+				"props": ["small hammer", "tongs too large for him"],
+				"palette_notes": ["red hair", "soot grey", "worn leather"]
+			},
+			"marker_identity": {
+				"composition": "character-only",
+				"silhouette": "lanky mid-teen boy with muted copper-red waves, a raised left cowlick, rolled sleeves, and an oversized leather apron; no object/scenery",
+				"stance": "eager slight forward lean with both empty hands at his sides; no object/scenery",
+				"empty_hand_pose": "both-at-sides",
+				"readability_cues": [
+					{
+						"kind": "body-shape",
+						"description": "long adolescent proportions"
+					},
+					{ "kind": "hair-or-headwear", "description": "raised left cowlick" },
+					{
+						"kind": "clothing",
+						"description": "oversized apron over narrow frame"
+					}
+				],
+				"tiny_readability_notes": [
+					"Keep him visibly lankier and less broad than Seamus."
+				]
+			},
+			"avoid": [
+				"adult blacksmith build",
+				"modern teenage clothing",
+				"comic soot gag"
+			],
+			"authoring_notes": [
+				"Canonical brief is visually strong; supplement ensures age and scale are preserved."
+			]
+		},
+		{
+			"npc_id": 12,
+			"npc_name": "Cormac Duffy",
+			"portrait_identity": {
+				"visual_identity_seed": "rundale-person-v2:12",
+				"identity_cohort": "man",
+				"apparent_age": "around fifty",
+				"facial_geometry": {
+					"face_shape": "broad round-square face with full lower cheeks",
+					"proportions": "wide forehead, compact midface, broad lower face",
+					"brow_and_eyes": "low straight brows; medium-set, deep-set eyes with heavy upper lids",
+					"nose": "medium broad bridge with a prominent rounded tip and narrow nostril wings",
+					"mouth": "small-to-medium mouth with a flat upper lip and fuller lower lip",
+					"jaw_and_chin": "broad rounded jaw, soft submental line, and short cleft chin",
+					"cheekbones": "high-set cheekbones softened by cheek fullness",
+					"hairline": "neat hairline with clear recession at the temples",
+					"age_detail": "around-fifty forehead lines, lower-lid creases, and defined folds beside the mouth"
+				},
+				"distinguishing_features": [
+					"shallow vertical cleft in the chin",
+					"right upper eyelid sits slightly lower",
+					"rounded nose tip projects clearly in three-quarter view"
+				],
+				"hair": "medium brown threaded with grey, short, orderly, and brushed back from the receding temples",
+				"hair_topology": {
+					"color_and_texture": "orderly medium brown hair threaded with grey",
+					"front": {
+						"family": "orderly-receding-brushback",
+						"description": "carefully brushed back from two receding temple corners"
+					},
+					"rear": {
+						"family": "short-tapered-nape",
+						"description": "short orderly crown tapered cleanly at the nape"
+					},
+					"covering": {
+						"family": "uncovered",
+						"description": "no cap or head covering"
+					},
+					"silhouette": {
+						"family": "neat-receding-profile",
+						"description": "controlled low hair outline with symmetrical temple recession"
+					},
+					"loose_details": "no stray locks; grey most visible at the temples"
+				},
+				"clothing": "respectable miller's waistcoat, clean apron with flour dust, good shirt",
+				"pose_expression": "controlled half-smile, weighing profit and reputation",
+				"props": [
+					"flour sack sample",
+					"small account slip",
+					"dusting of flour"
+				],
+				"palette_notes": [
+					"flour white",
+					"miller stone grey",
+					"respectable dark waistcoat"
+				]
+			},
+			"marker_identity": {
+				"composition": "character-only",
+				"silhouette": "rounder around-fifty man with orderly receding brown-grey hair, a respectable waistcoat, clean pale apron, and full torso; no object/scenery",
+				"stance": "self-contained stance with hands near the waistcoat front; no object/scenery",
+				"empty_hand_pose": "hands-near-coat-front",
+				"readability_cues": [
+					{ "kind": "body-shape", "description": "round full torso" },
+					{
+						"kind": "hair-or-headwear",
+						"description": "orderly receding brown-grey hair"
+					},
+					{
+						"kind": "clothing",
+						"description": "respectable waistcoat and pale apron"
+					}
+				],
+				"tiny_readability_notes": [
+					"Read him as rounded and tidy rather than broad-shouldered like Seamus."
+				]
+			},
+			"avoid": ["villain caricature", "top hat", "modern banker look"],
+			"authoring_notes": [
+				"Canonical brief gives useful flour cue; supplement defines exact posture and class signal."
+			]
+		},
+		{
+			"npc_id": 13,
+			"npc_name": "Nora Duffy",
+			"portrait_identity": {
+				"visual_identity_seed": "rundale-person-v2:13",
+				"identity_cohort": "woman",
+				"apparent_age": "mid forties",
+				"facial_geometry": {
+					"face_shape": "long narrow diamond with a marked taper below the cheekbones",
+					"proportions": "tall forehead, long midface, short narrow lower face",
+					"brow_and_eyes": "low straight brows; medium-set, deep-set eyes with heavy upper lids",
+					"nose": "long narrow bridge ending in a defined rounded tip",
+					"mouth": "narrow mouth with a flat upper contour and fuller lower lip",
+					"jaw_and_chin": "fine jaw and narrow rounded-pointed chin",
+					"cheekbones": "high, prominent cheekbones with shallow cheeks",
+					"hairline": "high centered hairline with mild temple recession",
+					"age_detail": "mid-forties forehead lines, fine outer-eye creases, and light vertical lip lines"
+				},
+				"distinguishing_features": [
+					"small dark mark below the left cheekbone",
+					"left eyebrow sits slightly higher",
+					"fine vertical crease centered above the nose bridge"
+				],
+				"hair": "ABSOLUTE VISIBLE SILHOUETTE: dark brown hair greying at both temples has an exact centre part and two narrow tight rope rolls running immediately above the ears. A crisp close white linen cap with narrow face frill and neat ties follows the skull tightly; the rolls cross flat beneath it with no rear pouch, projection, bun, loose strand, or broad smooth side mass. Portrait line economy: use sparse open contours and a few rope-direction marks, leaving hair, cap, and face unfilled; no black masses, dense hatching, or engraving texture. The marker must repeat the narrow rolls and close non-projecting cap.",
+				"hair_topology": {
+					"color_and_texture": "smooth dark brown hair with visible grey at both temples",
+					"front": {
+						"family": "precise-part-with-rope-rolls",
+						"description": "exact centre part with a tight rope roll running above each ear"
+					},
+					"rear": {
+						"family": "crossed-flat-nape-rolls",
+						"description": "the two side rolls cross flat at the nape without becoming a rounded knot"
+					},
+					"covering": {
+						"family": "crisp-close-frilled-cap",
+						"description": "well-bleached close linen cap with narrow face frill and neat ties"
+					},
+					"silhouette": {
+						"family": "wide-ear-rolls-under-close-cap",
+						"description": "controlled width at the ears under a close cap, with no rear projection"
+					},
+					"loose_details": "no flyaways; visible grey is deliberately symmetrical at the temples"
+				},
+				"clothing": "very clean apron over plain dark dress, neat shawl held close",
+				"pose_expression": "anxious and devout, hands held together; portrait and marker must show the same mid-forties narrow oblong face, hollow cheeks, pointed chin, and restrained age lines, with neither an elderly portrait nor a rejuvenated marker",
+				"props": ["small rosary or prayer book", "clean apron edge"],
+				"palette_notes": [
+					"clean linen white",
+					"subdued dark dress",
+					"pale flour dust"
+				]
+			},
+			"marker_identity": {
+				"composition": "character-only",
+				"silhouette": "thin mid-forties woman with a crisp close white cap, narrow twisted rolls, neat shawl, clean apron, and drawn-in shoulders; no object/scenery",
+				"stance": "inward-facing stance with hands clasped at the waist; no object/scenery",
+				"empty_hand_pose": "hands-clasped",
+				"readability_cues": [
+					{
+						"kind": "hair-or-headwear",
+						"description": "close white cap with narrow face frill over twisted rolls above the ears"
+					},
+					{ "kind": "body-shape", "description": "thin inward shoulders" }
+				],
+				"tiny_readability_notes": [
+					"Show quiet tension through the narrow outline without exaggerating the pose."
+				]
+			},
+			"avoid": [
+				"melodramatic fear",
+				"nun habit",
+				"generic pale ghost look",
+				"plain low coil instead of the precise side rope rolls, crossed flat nape rolls, and crisp frilled cap"
+			],
+			"authoring_notes": [
+				"Canonical data provides thin, anxious, clean apron; supplement turns it into stable production cues."
+			]
+		},
+		{
+			"npc_id": 14,
+			"npc_name": "Brendan Duffy",
+			"portrait_identity": {
+				"visual_identity_seed": "rundale-person-v2:14",
+				"identity_cohort": "man",
+				"apparent_age": "late teens",
+				"facial_geometry": {
+					"face_shape": "rectangular oval with a broad lower face",
+					"proportions": "wide forehead, balanced midface, long developing lower face",
+					"brow_and_eyes": "low straight brows; medium-set, deep-set eyes with slightly heavy upper lids",
+					"nose": "broad straight bridge with a rounded projecting tip",
+					"mouth": "medium-wide mouth with a flat upper contour and full lower lip",
+					"jaw_and_chin": "broad youthful jaw and rounded chin with a shallow central cleft",
+					"cheekbones": "high-set cheekbones with moderate cheek fullness",
+					"hairline": "low straight hairline with a small central irregularity",
+					"age_detail": "late-teen smoothness, minimal under-eye definition, and light early beard shadow"
+				},
+				"distinguishing_features": [
+					"shallow central chin cleft",
+					"slightly lower right upper eyelid",
+					"small irregular dip at the center of the hairline"
+				],
+				"hair": "medium brown, dense and loosely wavy, cut above the collar with flour catching in the front waves",
+				"hair_topology": {
+					"color_and_texture": "dense loose medium-brown waves dusted with flour",
+					"front": {
+						"family": "flour-dusted-forward-waves",
+						"description": "loose front waves fall forward with flour caught along their ridges"
+					},
+					"rear": {
+						"family": "wavy-above-collar",
+						"description": "dense loose wave ends just above the collar"
+					},
+					"covering": {
+						"family": "uncovered-baker",
+						"description": "uncovered head with no cap in the chosen observation"
+					},
+					"silhouette": {
+						"family": "soft-collar-wave-profile",
+						"description": "soft youthful wave mass broader at the front and tapering above the collar"
+					},
+					"loose_details": "one flour-brightened wave falls toward the left brow"
+				},
+				"clothing": "rolled sleeves, plain work shirt, floury apron or sackcloth shoulder pad",
+				"pose_expression": "quiet restless strength, not boastful",
+				"props": ["grain sack over one shoulder", "flour dust"],
+				"palette_notes": ["flour white", "plain linen", "muted mill brown"]
+			},
+			"marker_identity": {
+				"composition": "character-only",
+				"silhouette": "tall late-teen boy with dense loose brown waves, a long young frame, rolled sleeves, and a plain pale apron; no object/scenery",
+				"stance": "restless weight-shifted stance with one hand on hip and the other at his side; no object/scenery",
+				"empty_hand_pose": "one-on-hip-one-at-side",
+				"readability_cues": [
+					{ "kind": "body-shape", "description": "tall adolescent build" },
+					{
+						"kind": "hair-or-headwear",
+						"description": "dense loose brown waves catching pale flour"
+					},
+					{ "kind": "clothing", "description": "long rolled-sleeve line" }
+				],
+				"tiny_readability_notes": [
+					"His tall youth and lifted hair texture must carry the marker read."
+				]
+			},
+			"avoid": ["adult strongman", "heroic warrior pose", "modern workwear"],
+			"authoring_notes": [
+				"Canonical brief has strong visual seeds; supplement fixes age and marker prop."
+			]
+		},
+		{
+			"npc_id": 15,
+			"npc_name": "Eamon Walsh",
+			"portrait_identity": {
+				"visual_identity_seed": "rundale-person-v2:15",
+				"identity_cohort": "man",
+				"apparent_age": "mid thirties",
+				"facial_geometry": {
+					"face_shape": "long tapered oval with a narrow lower face",
+					"proportions": "broad upper third, long midface, compact lower third",
+					"brow_and_eyes": "low straight brows over close-set deep-lidded eyes",
+					"nose": "long straight narrow nose with a slight leftward bend",
+					"mouth": "wide closed mouth with a thin upper lip and fuller lower lip",
+					"jaw_and_chin": "lean jaw narrowing to a short squared chin",
+					"cheekbones": "high flat cheekbones with shallow hollows beneath",
+					"hairline": "low uneven hairline with a small central point",
+					"age_detail": "light eye-corner lines and two short weather lines across the cheeks"
+				},
+				"distinguishing_features": [
+					"slight leftward bend in the nose",
+					"short squared chin beneath a long midface",
+					"one loose curl falling at the right temple"
+				],
+				"hair": "dark coarse wavy hair, cropped at the neck and mostly covered by a rough wool cap",
+				"hair_topology": {
+					"color_and_texture": "dark coarse wavy hair",
+					"front": {
+						"family": "cap-flattened-wave-front",
+						"description": "coarse front waves flattened unevenly beneath the cap edge"
+					},
+					"rear": {
+						"family": "cropped-working-nape",
+						"description": "practical coarse crop at the neck"
+					},
+					"covering": {
+						"family": "rough-working-wool-cap",
+						"description": "low rough wool cap worn firmly for fishing work"
+					},
+					"silhouette": {
+						"family": "firm-cap-with-wave-edge",
+						"description": "firm low cap outline with a dark broken wave edge below it"
+					},
+					"loose_details": "one coarse lock escapes near the right ear"
+				},
+				"clothing": "patched dark coat, rough wool cap, rolled sleeves or cuffs damp from water work",
+				"pose_expression": "quiet and careful, listening toward the shore",
+				"props": ["coiled rope", "short oar", "net cord"],
+				"palette_notes": ["lake blue-grey", "rope tan", "weathered coat brown"]
+			},
+			"marker_identity": {
+				"composition": "character-only",
+				"silhouette": "lean mid-thirties man with a rough low wool cap, dark cropped waves, patched coat, rolled cuffs, and narrow shoulders; no object/scenery",
+				"stance": "contained angled stance with both empty hands at his sides; no object/scenery",
+				"empty_hand_pose": "both-at-sides",
+				"readability_cues": [
+					{ "kind": "hair-or-headwear", "description": "rough low wool cap" },
+					{ "kind": "body-shape", "description": "lean narrow frame" },
+					{
+						"kind": "clothing",
+						"description": "patched dark coat with rolled cuffs"
+					}
+				],
+				"tiny_readability_notes": [
+					"Use the cap, long narrow silhouette, and quiet angle as character-intrinsic cues."
+				]
+			},
+			"avoid": ["modern sailor stripes", "naval uniform", "pirate styling"],
+			"authoring_notes": [
+				"Canonical data gives weathered hands and boat work; supplement sets period clothing and marker shape."
+			]
+		},
+		{
+			"npc_id": 16,
+			"npc_name": "Kathleen Walsh",
+			"portrait_identity": {
+				"visual_identity_seed": "rundale-person-v2:16",
+				"identity_cohort": "woman",
+				"apparent_age": "around thirty",
+				"facial_geometry": {
+					"face_shape": "soft heart-shaped face, broad at the temples and narrow below",
+					"proportions": "short midface, wide eye spacing, gently lengthened lower third",
+					"brow_and_eyes": "fine arched brows over wide-set almond-shaped eyes",
+					"nose": "short straight nose with a rounded tip",
+					"mouth": "small bow-shaped upper lip and distinctly full lower lip",
+					"jaw_and_chin": "lightly angled jaw ending in a narrow rounded chin",
+					"cheekbones": "high rounded cheekbones without hollowing",
+					"hairline": "smooth high curved hairline with even temples",
+					"age_detail": "faint lower-lid lines and a single light crease beside the mouth"
+				},
+				"distinguishing_features": [
+					"left eyebrow sits slightly higher than the right",
+					"full lower lip beneath a compact bow-shaped upper lip",
+					"small dimple in the right cheek"
+				],
+				"hair": "ABSOLUTE VISIBLE SILHOUETTE: dark softly waved hair with an uneven left-of-centre part lies flat beneath a short compact triangular linen kerchief tied with two short nape ends. The single plait is doubled upward flat under the cloth, so there is no rounded nape mass, bun, coil, large trailing kerchief tail, or long facial tendril; only two short temple wisps. Portrait line economy: use sparse open contours and a few wave marks, leaving hair, cloth, and face unfilled; no black masses, dense hatching, or engraving texture. The marker must repeat the compact flat kerchief silhouette.",
+				"hair_topology": {
+					"color_and_texture": "dark softly waved hair",
+					"front": {
+						"family": "uneven-left-part",
+						"description": "practical uneven part left of centre with hair smoothed close around the face"
+					},
+					"rear": {
+						"family": "single-doubled-up-plait",
+						"description": "one plait doubled upward once and tied flat, not wound into a coil"
+					},
+					"covering": {
+						"family": "short-triangular-kerchief",
+						"description": "soft undyed triangular linen kerchief with short ends tied securely at the nape"
+					},
+					"silhouette": {
+						"family": "compact-flat-kerchief-profile",
+						"description": "compact flat rear profile under a triangular cloth, safe from a baby's grasp"
+					},
+					"loose_details": "two short practical wisps at the right temple"
+				},
+				"clothing": "plain dress, shawl wrapped for wind, working apron",
+				"pose_expression": "steady and protective, baby balanced naturally at hip; portrait and marker must show the same around-thirty softly square face, full cheeks, straight brows, and blunt chin without making her younger or more glamorous",
+				"props": ["baby bundle on hip", "small fish basket or net edge"],
+				"palette_notes": ["shore grey", "soft shawl brown", "linen baby wrap"]
+			},
+			"marker_identity": {
+				"composition": "character-only",
+				"silhouette": "around-thirty woman with a compact triangular linen kerchief, softly waved dark hair, wind-wrapped shawl, plain dress, and broad steady skirt line; no object/scenery",
+				"stance": "steady protective stance with one hand on hip and the other at her side; no object/scenery",
+				"empty_hand_pose": "one-on-hip-one-at-side",
+				"readability_cues": [
+					{
+						"kind": "hair-or-headwear",
+						"description": "compact flat triangular kerchief"
+					},
+					{ "kind": "clothing", "description": "wind-wrapped shawl" },
+					{ "kind": "face", "description": "softly square face" },
+					{ "kind": "body-shape", "description": "broad steady outline" }
+				],
+				"tiny_readability_notes": [
+					"Keep Kathleen as a solo character cutout; her readable protection comes from stance and clothing."
+				]
+			},
+			"avoid": [
+				"sentimental Madonna iconography",
+				"modern pram",
+				"glamour mother portrait",
+				"rounded bun, loose long hair, or full head shawl instead of the doubled flat plait and short triangular kerchief"
+			],
+			"authoring_notes": [
+				"Brief description gives baby cue; supplement defines readable tiny-marker treatment."
+			]
+		},
+		{
+			"npc_id": 17,
+			"npc_name": "Ciaran Walsh",
+			"portrait_identity": {
+				"visual_identity_seed": "rundale-person-v2:17",
+				"identity_cohort": "boy",
+				"apparent_age": "about eight",
+				"facial_geometry": {
+					"face_shape": "small rounded triangle with full child cheeks",
+					"proportions": "large upper face, wide eye spacing, short child-sized lower third",
+					"brow_and_eyes": "light uneven brows over wide-set almond eyes resembling Kathleen's",
+					"nose": "small straight nose carrying Eamon's slight leftward bend",
+					"mouth": "short soft mouth with equal upper and lower lips",
+					"jaw_and_chin": "undeveloped rounded jaw and tiny blunt chin",
+					"cheekbones": "low cheek structure concealed by rounded cheeks",
+					"hairline": "irregular low child hairline with a shallow central point",
+					"age_detail": "smooth child face with no adult creases"
+				},
+				"distinguishing_features": [
+					"one front lock rises above the rest of the hair",
+					"left ear projects slightly beyond the hair",
+					"small leftward bend in an otherwise child-sized nose"
+				],
+				"hair": "medium-dark fine hair in uneven wind-tossed layers, with one upright front lock",
+				"hair_topology": {
+					"color_and_texture": "fine medium-dark child hair",
+					"front": {
+						"family": "upright-front-lock",
+						"description": "one fine lock stands upright above an uneven child fringe"
+					},
+					"rear": {
+						"family": "wind-layered-child-crop",
+						"description": "short wind-tossed layers around crown, ears, and nape"
+					},
+					"covering": {
+						"family": "uncovered-child",
+						"description": "no cap or head covering"
+					},
+					"silhouette": {
+						"family": "airy-upright-child-profile",
+						"description": "small airy outline broken by the single upright lock"
+					},
+					"loose_details": "several fine points lift at the crown in the wind"
+				},
+				"clothing": "ragged linen shirt, patched short breeches, bare feet",
+				"pose_expression": "curious and ready to bolt toward the shore",
+				"props": ["reed", "small fishing line", "pebble or shell"],
+				"palette_notes": [
+					"bare-foot earth tones",
+					"shore grey",
+					"soft child-size wash"
+				]
+			},
+			"marker_identity": {
+				"composition": "character-only",
+				"silhouette": "small eight-year-old boy with uneven wind-tossed dark hair, one upright front lock, ragged linen shirt, short breeches, and bare feet; no object/scenery",
+				"stance": "lively forward-leaning stance with both empty hands at his sides; no object/scenery",
+				"empty_hand_pose": "both-at-sides",
+				"readability_cues": [
+					{ "kind": "body-shape", "description": "child-sized proportions" },
+					{
+						"kind": "hair-or-headwear",
+						"description": "single upright front lock"
+					},
+					{ "kind": "clothing", "description": "short breeches and bare feet" }
+				],
+				"tiny_readability_notes": [
+					"Keep the whole body visibly child-sized beside adult markers."
+				]
+			},
+			"avoid": ["adult proportions", "modern shorts", "urchin caricature"],
+			"authoring_notes": [
+				"Canonical brief is visually useful; supplement preserves child scale and shoreline cue."
+			]
+		},
+		{
+			"npc_id": 18,
+			"npc_name": "Liam Murphy",
+			"portrait_identity": {
+				"visual_identity_seed": "rundale-person-v2:18",
+				"identity_cohort": "boy",
+				"apparent_age": "mid teens",
+				"facial_geometry": {
+					"face_shape": "narrow youthful oblong face with a softly squared lower outline",
+					"proportions": "Murphy long midface and broad nose root retained; jaw and cheeks not yet fully developed",
+					"brow_and_eyes": "level brows matching Siobhan's line; deep-set medium-spaced eyes with lighter adolescent contours",
+					"nose": "straight developing nose, broad at the root and narrower through the tip than Siobhan's",
+					"mouth": "medium-wide level mouth with a fuller lower lip",
+					"jaw_and_chin": "slender jaw with a short softly squared chin",
+					"cheekbones": "high-set but understated cheek planes",
+					"hairline": "low irregular hairline, mostly hidden by his cap",
+					"age_detail": "mid-teen face with smooth planes, slight under-eye shadow, and no adult beard line"
+				},
+				"distinguishing_features": [
+					"left ear more exposed beneath the cap",
+					"subtle central notch in the lower lip",
+					"right eyelid opens slightly wider"
+				],
+				"hair": "straight medium-brown hair cut unevenly around the ears and nape, flattened beneath a worn low-crowned cap",
+				"hair_topology": {
+					"color_and_texture": "straight medium-brown adolescent hair",
+					"front": {
+						"family": "flat-fringe-under-cap",
+						"description": "straight uneven fringe pressed flat beneath the cap"
+					},
+					"rear": {
+						"family": "uneven-around-ears-and-nape",
+						"description": "straight rough cut around both ears and the nape"
+					},
+					"covering": {
+						"family": "worn-low-crowned-cap",
+						"description": "worn low-crowned cap sitting close to the head"
+					},
+					"silhouette": {
+						"family": "low-cap-with-straight-edge",
+						"description": "flat low cap crown over a straight broken hair edge"
+					},
+					"loose_details": "one straight lock projects below the cap behind the left ear"
+				},
+				"clothing": "patched farm coat or vest, muddy boots, plain shirt",
+				"pose_expression": "reserved and hard-working, shoulders slightly hunched",
+				"props": ["hay fork handle", "rope halter", "muddy boots"],
+				"palette_notes": ["mud brown", "worn cap grey", "field green wash"]
+			},
+			"marker_identity": {
+				"composition": "character-only",
+				"silhouette": "quiet mid-teen boy with a worn low-crowned cap, straight brown hair at the ears, patched vest, muddy boots, and a slender frame; no object/scenery",
+				"stance": "slightly apart, lowered-shoulder stance with hands in pockets; no object/scenery",
+				"empty_hand_pose": "hands-in-pockets",
+				"readability_cues": [
+					{
+						"kind": "hair-or-headwear",
+						"description": "worn low-crowned cap with straight hair visible at ears and nape"
+					},
+					{ "kind": "body-shape", "description": "slender teenage proportions" }
+				],
+				"tiny_readability_notes": [
+					"Keep the lowered, reserved adolescent posture distinct from adult figures and Ciaran."
+				]
+			},
+			"avoid": [
+				"adult farmer build",
+				"modern work boots",
+				"overly heroic farm tool pose"
+			],
+			"authoring_notes": [
+				"Canonical data gives farm boy and muddy boots; supplement completes face, clothing, and marker identity."
+			]
+		},
+		{
+			"npc_id": 19,
+			"npc_name": "Brigid Ni Fhatharta",
+			"portrait_identity": {
+				"visual_identity_seed": "rundale-person-v2:19",
+				"identity_cohort": "woman",
+				"apparent_age": "mid fifties",
+				"facial_geometry": {
+					"face_shape": "long angular oblong with nearly straight sides",
+					"proportions": "long central third, level eye line, substantial lower face",
+					"brow_and_eyes": "level medium brows over close-set hooded eyes",
+					"nose": "prominent narrow nose with a gently convex bridge",
+					"mouth": "long thin-lipped mouth with a shallow downward turn at the corners",
+					"jaw_and_chin": "firm straight jaw ending in a broad squared chin",
+					"cheekbones": "high pronounced cheekbones with narrow planes below",
+					"hairline": "mature hairline receded evenly at both temples",
+					"age_detail": "fine radiating eye lines, paired brow furrows, and clear nasolabial folds"
+				},
+				"distinguishing_features": [
+					"two short parallel furrows between the brows",
+					"broad squared chin beneath a narrow convex nose",
+					"left nasolabial fold is deeper than the right"
+				],
+				"hair": "ABSOLUTE VISIBLE SILHOUETTE: coarse grey hair sweeps straight back with no centre part; twin braids rise from behind the ears and cross over the crown, creating one modest raised ridge beneath a broad washable unbleached linen cap. A narrow grey band remains visible around the face. No sagging rear caul, ordinary low cap, low bun, loose side hair, or decorative fantasy braids. Portrait line economy: use sparse open contours and only a few braid-direction marks, leaving hair, cap, and face unfilled; no black masses, dense hatching, or engraving texture. The marker must repeat the raised-crown cap silhouette.",
+				"hair_topology": {
+					"color_and_texture": "coarse grey hair with darker strands beneath",
+					"front": {
+						"family": "swept-back-grey-front",
+						"description": "coarse grey hair swept directly back with no centre part and visible grey at the temples"
+					},
+					"rear": {
+						"family": "crown-crossed-twin-braids",
+						"description": "twin braids rise from behind the ears and cross over the crown"
+					},
+					"covering": {
+						"family": "broad-caul-linen-cap",
+						"description": "broad-cauld washable unbleached linen cap accommodating the raised braids"
+					},
+					"silhouette": {
+						"family": "raised-crown-under-broad-cap",
+						"description": "broad cap with a visibly raised crown and close sides, not a nape bun"
+					},
+					"loose_details": "one coarse grey strand visible above the left temple; no ornamental braid ends"
+				},
+				"clothing": "dark practical shawl, plain dress, herb-stained fingers visible",
+				"pose_expression": "watchful and quietly authoritative, hands near herbs; portrait and marker must show the same mid-fifties long bony face, deep-set eyes, hooked narrow nose, and age lines without smoothing into a younger healer",
+				"props": [
+					"small herb bundle",
+					"mortar or stoppered bottle",
+					"stained fingertips"
+				],
+				"palette_notes": ["dark shawl", "herb green", "linen cap white"]
+			},
+			"marker_identity": {
+				"composition": "character-only",
+				"silhouette": "long-boned mid-fifties woman with a broad raised-crown linen cap, visible grey temple band, dark shawl, and straight practical dress; no object/scenery",
+				"stance": "slight forward lean with hands near the shawl front; no object/scenery",
+				"empty_hand_pose": "hands-near-coat-front",
+				"readability_cues": [
+					{
+						"kind": "hair-or-headwear",
+						"description": "raised-crown broad linen cap"
+					},
+					{ "kind": "face", "description": "long angular face profile" },
+					{ "kind": "clothing", "description": "dark close-wrapped shawl" }
+				],
+				"tiny_readability_notes": [
+					"The raised cap crown and bony vertical outline must carry the small-scale identity."
+				]
+			},
+			"avoid": [
+				"witch caricature",
+				"fantasy magic glow",
+				"doctor costume",
+				"stage crone",
+				"low grey bun or occult braid ornament instead of the crown-crossed twin braids under a broad washable cap"
+			],
+			"authoring_notes": [
+				"Canonical brief is strong, but production art needs explicit anti-caricature and marker constraints."
+			]
+		},
+		{
+			"npc_id": 20,
+			"npc_name": "Una Malone",
+			"portrait_identity": {
+				"visual_identity_seed": "rundale-person-v2:20",
+				"identity_cohort": "woman",
+				"apparent_age": "late forties",
+				"facial_geometry": {
+					"face_shape": "broad balanced oval with a full lower face",
+					"proportions": "even facial thirds, medium eye spacing, broad central plane",
+					"brow_and_eyes": "low softly curved brows over medium-set heavy-lidded eyes",
+					"nose": "short broad nose with a straight bridge and rounded nostrils",
+					"mouth": "medium-width mouth with a full upper lip and shallow central notch",
+					"jaw_and_chin": "rounded jaw flowing into a broad softly cleft chin",
+					"cheekbones": "low broad cheekbones with full cheeks",
+					"hairline": "straight medium-height hairline with a slight dip over the left temple",
+					"age_detail": "soft lower-eye creases and light vertical lines above the upper lip"
+				},
+				"distinguishing_features": [
+					"shallow cleft in the broad chin",
+					"slight dip in the hairline above the left temple",
+					"short broad nose against an otherwise evenly proportioned face"
+				],
+				"hair": "ABSOLUTE VISIBLE SILHOUETTE: dark hair streaked with grey has a soft off-centre front and narrow rope twists at both temples joining a broad flat braided coronet across the upper rear head. A narrow folded woven-linen kerchief crosses only the crown and knots at the nape, visibly narrower than the coronet. No low coil, full cap, rounded bun, or loose ends near the loom. Portrait line economy: use sparse open contours and a few twist marks, leaving hair, cloth, and face unfilled; no black masses, dense hatching, or engraving texture. The marker must repeat the broad coronet and narrower crown cloth.",
+				"hair_topology": {
+					"color_and_texture": "dark hair lightly streaked with grey and kept smooth for loom work",
+					"front": {
+						"family": "off-centre-temple-twists",
+						"description": "soft off-centre front with a rope twist beginning at each temple"
+					},
+					"rear": {
+						"family": "broad-flat-upper-coronet",
+						"description": "broad flat braided coronet spanning the upper rear head"
+					},
+					"covering": {
+						"family": "narrow-crown-kerchief",
+						"description": "narrow folded woven-linen kerchief laid across the crown and knotted at the nape"
+					},
+					"silhouette": {
+						"family": "broad-visible-coronet-band",
+						"description": "wide horizontal braided band remains visible behind the narrower crown cloth"
+					},
+					"loose_details": "all loose ends are contained away from the loom; one grey temple wave remains visible"
+				},
+				"clothing": "plain dress with woven shawl, apron with thread flecks",
+				"pose_expression": "content and absorbed in fine work; portrait and marker must show the same late-forties broad trapezoid face, heavy jaw, broad nose, small eyes, and visible age lines, never a smooth young narrow-oval woman",
+				"props": [
+					"weaving shuttle",
+					"colored wool skeins",
+					"thread across fingers"
+				],
+				"palette_notes": [
+					"dyed wool greens",
+					"deep red thread",
+					"warm cottage brown"
+				]
+			},
+			"marker_identity": {
+				"composition": "character-only",
+				"silhouette": "broad late-forties woman with a visible flat braided coronet, narrow crown kerchief, woven shawl, apron, and broad heavy-jawed outline; no object/scenery",
+				"stance": "calm upright stance with hands clasped at the waist; no object/scenery",
+				"empty_hand_pose": "hands-clasped",
+				"readability_cues": [
+					{
+						"kind": "hair-or-headwear",
+						"description": "broad flat braided coronet under a narrow crown kerchief"
+					},
+					{ "kind": "face", "description": "broad jaw and full cheeks" }
+				],
+				"tiny_readability_notes": [
+					"Keep the visible coronet wider than the narrow crown cloth at marker scale."
+				]
+			},
+			"avoid": [
+				"modern textile studio",
+				"large loom filling the marker",
+				"fashion-model shawl",
+				"compact low coil or full cap hiding the broad visible coronet and narrow crown kerchief"
+			],
+			"authoring_notes": [
+				"Canonical data gives loom, thread, and cultural craft detail; supplement converts it into compact portrait/marker cues."
+			]
+		},
+		{
+			"npc_id": 21,
+			"npc_name": "Sean Ruadh Kelly",
+			"portrait_identity": {
+				"visual_identity_seed": "rundale-person-v2:21",
+				"identity_cohort": "man",
+				"apparent_age": "mid twenties",
+				"facial_geometry": {
+					"face_shape": "narrow diamond-shaped face with a sharply tapered lower half",
+					"proportions": "long upper and central thirds, close eye spacing, narrow lower third",
+					"brow_and_eyes": "thick nearly horizontal brows over narrow deep-set eyes",
+					"nose": "long convex nose with a narrow tip",
+					"mouth": "thin asymmetrical mouth, lower at the left corner",
+					"jaw_and_chin": "tight angular jaw ending in a pointed projecting chin",
+					"cheekbones": "very high sharp cheekbones with deep hollows beneath",
+					"hairline": "low irregular hairline broken by several forward curls",
+					"age_detail": "young face with light under-eye lines and work-weathered cheek texture"
+				},
+				"distinguishing_features": [
+					"small natural gap in the outer left eyebrow",
+					"left corner of the mouth rests lower than the right",
+					"three strong curls crossing the forehead"
+				],
+				"hair": "thick muted red hair in unruly tight waves, longer over the forehead and ears",
+				"hair_topology": {
+					"color_and_texture": "thick muted red tight waves",
+					"front": {
+						"family": "forward-tight-red-waves",
+						"description": "tight unruly waves fall forward over the forehead without a part"
+					},
+					"rear": {
+						"family": "long-wave-over-ears",
+						"description": "tight waves remain longer over the ears and upper nape"
+					},
+					"covering": {
+						"family": "uncovered-red-head",
+						"description": "no cap or head covering"
+					},
+					"silhouette": {
+						"family": "unruly-tight-curl-halo",
+						"description": "broken tight-wave outline around forehead, ears, and crown"
+					},
+					"loose_details": "one longer wave hangs over the right brow"
+				},
+				"clothing": "patched coat, rough shirt, worn trousers, frayed scarf or neckcloth",
+				"pose_expression": "bitter and guarded, weight held ready but not violent",
+				"props": ["spade handle", "small cloth bundle"],
+				"palette_notes": ["red hair", "patched brown coat", "cold grey shadow"]
+			},
+			"marker_identity": {
+				"composition": "character-only",
+				"silhouette": "lean mid-twenties man with unruly muted-red tight waves, a narrow diamond face, patched coat, frayed neckcloth, and worn trousers; no object/scenery",
+				"stance": "narrow tense stance with arms folded; no object/scenery",
+				"empty_hand_pose": "arms-folded",
+				"readability_cues": [
+					{
+						"kind": "hair-or-headwear",
+						"description": "unruly muted-red hair"
+					},
+					{ "kind": "face", "description": "very narrow diamond-shaped head" },
+					{
+						"kind": "clothing",
+						"description": "patched coat and frayed neckcloth"
+					}
+				],
+				"tiny_readability_notes": [
+					"Keep the red hair natural and muted while preserving the tight, closed silhouette."
+				]
+			},
+			"avoid": [
+				"criminal caricature",
+				"weaponized spade",
+				"revolutionary uniform",
+				"stage-villain scowl"
+			],
+			"authoring_notes": [
+				"Canonical brief supplies lean red-haired hard-eyed cue; supplement prevents caricature and locks marker prop."
+			]
+		},
+		{
+			"npc_id": 22,
+			"npc_name": "Peig Hannigan",
+			"portrait_identity": {
+				"visual_identity_seed": "rundale-person-v2:22",
+				"identity_cohort": "woman",
+				"apparent_age": "late sixties",
+				"facial_geometry": {
+					"face_shape": "small pentagonal face, broad above and sharply narrowed below",
+					"proportions": "short upper face, close eye spacing, long narrow lower third",
+					"brow_and_eyes": "high broken-arched brows over small deep-set eyes",
+					"nose": "short upturned nose with a broad tip",
+					"mouth": "narrow compressed mouth with an uneven upper edge",
+					"jaw_and_chin": "slender jaw ending in a pointed forward chin",
+					"cheekbones": "prominent rounded cheekbones above hollow cheeks",
+					"hairline": "deeply receded temples beneath the head covering",
+					"age_detail": "dense fine eye lines, vertical lip lines, and loose folds beneath the chin"
+				},
+				"distinguishing_features": [
+					"left eye is more hooded than the right",
+					"pointed forward chin",
+					"single deep crease running from the right side of the nose"
+				],
+				"hair": "ABSOLUTE VISIBLE SILHOUETTE: fine sparse silver-grey hair has a soft centre part and one small upward roll over each ear; both rolls disappear into a full gathered old linen cap with rounded rear caul, deep face frill, and ties under the chin. No visible rear knot, bun, uncovered nape, or loose long hair. Portrait line economy: use sparse open contours and only a few grey-hair and cap-fold marks, leaving hair, cap, face, and shawl unfilled; no black masses, dense hatching, or engraving texture. The marker must repeat the full rounded chin-tied elder cap.",
+				"hair_topology": {
+					"color_and_texture": "fine sparse silver-grey hair",
+					"front": {
+						"family": "soft-part-with-grey-side-rolls",
+						"description": "soft centre part with sparse grey hair rolled upward once over each ear"
+					},
+					"rear": {
+						"family": "fully-cap-contained-rear",
+						"description": "side rolls disappear into the cap with no visible rear knot or coil"
+					},
+					"covering": {
+						"family": "deep-frilled-chin-tied-cap",
+						"description": "old full gathered linen cap with rounded caul, deeper face frill, and ties under the chin"
+					},
+					"silhouette": {
+						"family": "full-rounded-elder-cap",
+						"description": "full rounded cap silhouette framing the ears and chin, with no projecting bun"
+					},
+					"loose_details": "visible silver temples and a repeatedly mended cap edge"
+				},
+				"clothing": "dark shawl wrapped close, plain old dress, small bonnet or kerchief under shawl",
+				"pose_expression": "sharp, alert, and amused by what she knows; portrait and marker must show the same late-sixties narrow triangular face, sunken cheeks, hooked nose, and deep age lines without smoothing or rejuvenation",
+				"props": [
+					"small basket",
+					"walking stick",
+					"shawl edge near mouth as if about to share news"
+				],
+				"palette_notes": ["dark shawl", "old linen", "muted berry-brown accent"]
+			},
+			"marker_identity": {
+				"composition": "character-only",
+				"silhouette": "small late-sixties woman with a full rounded chin-tied linen cap, visible silver temple rolls, dark close-wrapped shawl, and narrow old-dress line; no object/scenery",
+				"stance": "small forward lean with hands clasped beneath the shawl line; no object/scenery",
+				"empty_hand_pose": "hands-clasped",
+				"readability_cues": [
+					{
+						"kind": "hair-or-headwear",
+						"description": "full rounded chin-tied cap"
+					},
+					{
+						"kind": "body-shape",
+						"description": "small scale and pointed chin"
+					},
+					{ "kind": "clothing", "description": "dark close-wrapped shawl" }
+				],
+				"tiny_readability_notes": [
+					"Separate her from Brigid through smaller scale, a rounded elder cap, and a sharper forward tilt."
+				]
+			},
+			"avoid": [
+				"witch or crone caricature",
+				"comic gossip stereotype",
+				"fantasy hood",
+				"visible rear bun instead of cap-contained side rolls and the full rounded chin-tied elder cap"
+			],
+			"authoring_notes": [
+				"Canonical brief is strong; supplement separates Peig from Brigid using basket/stick and livelier gossip posture."
+			]
+		},
+		{
+			"npc_id": 23,
+			"npc_name": "Martin Concannon",
+			"portrait_identity": {
+				"visual_identity_seed": "rundale-person-v2:23",
+				"identity_cohort": "man",
+				"apparent_age": "early thirties",
+				"facial_geometry": {
+					"face_shape": "narrow smooth oval with a lengthened lower face",
+					"proportions": "high forehead, even eye spacing, long lower third",
+					"brow_and_eyes": "fine straight brows over medium-set slightly hooded eyes",
+					"nose": "long narrow nose with a high straight bridge and fine tip",
+					"mouth": "small level mouth with a defined upper-lip notch",
+					"jaw_and_chin": "tapered clean jaw ending in a rounded shallow-cleft chin",
+					"cheekbones": "subtle high cheekbones with smooth planes beneath",
+					"hairline": "high M-shaped hairline with deeper recession on the right",
+					"age_detail": "minimal facial lines, limited to faint creases beneath the eyes"
+				},
+				"distinguishing_features": [
+					"right eyelid hangs slightly lower than the left",
+					"shallow cleft in a narrow rounded chin",
+					"right temple recedes farther than the left"
+				],
+				"hair": "dark fine wavy hair, side-parted and kept close around the ears and neck",
+				"hair_topology": {
+					"color_and_texture": "dark fine orderly waves",
+					"front": {
+						"family": "clean-side-parted-wave",
+						"description": "clean side part with one controlled wave over the forehead"
+					},
+					"rear": {
+						"family": "close-around-neck",
+						"description": "fine waves kept close around both ears and the neck"
+					},
+					"covering": {
+						"family": "uncovered-clerk",
+						"description": "no cap or head covering"
+					},
+					"silhouette": {
+						"family": "neat-side-part-profile",
+						"description": "slim orderly outline with one distinct side-part wave"
+					},
+					"loose_details": "a single fine wave rests above the left temple"
+				},
+				"clothing": "better-quality dark coat, waistcoat, clean cravat or neckcloth, polished but practical shoes",
+				"pose_expression": "guarded and administrative, holding himself apart from field labour",
+				"props": [
+					"ledger under arm",
+					"quill or folded letter",
+					"small leather document case"
+				],
+				"palette_notes": [
+					"dark clerk coat",
+					"ledger brown",
+					"clean linen accent"
+				]
+			},
+			"marker_identity": {
+				"composition": "character-only",
+				"silhouette": "slim early-thirties man with a neat dark side part, high forehead, better-quality dark coat, fitted waistcoat, and clean cravat; no object/scenery",
+				"stance": "formal upright stance with hands behind the back and head slightly turned; no object/scenery",
+				"empty_hand_pose": "hands-behind-back",
+				"readability_cues": [
+					{
+						"kind": "hair-or-headwear",
+						"description": "neat side-parted dark hair"
+					},
+					{
+						"kind": "clothing",
+						"description": "fitted formal coat and waistcoat"
+					},
+					{ "kind": "stance", "description": "restrained upright posture" }
+				],
+				"tiny_readability_notes": [
+					"Make his formal vertical tailoring distinct from Roisin without using documents."
+				]
+			},
+			"avoid": [
+				"English aristocrat costume",
+				"top hat",
+				"modern office clerk",
+				"villain moustache"
+			],
+			"authoring_notes": [
+				"Canonical brief gives neat dress and ledger; supplement sets class signal without caricature."
+			]
+		}
+	]
+}

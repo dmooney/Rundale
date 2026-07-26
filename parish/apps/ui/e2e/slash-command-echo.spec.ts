@@ -1,15 +1,17 @@
 /**
  * E2E proof for slash-command echo rendering (#1423).
  *
- * Verifies that a text-log entry with source:"player" and subtype:"command"
- * renders as a distinct command line (`.entry.command`) above the narration
- * that follows it, NOT as a gold dialogue bubble.
+ * Verifies that command echoes and their narration remain ordered on the
+ * in-page Journal introduced by #1755. ChatPanel.test.ts retains the detailed
+ * `.entry.command` versus dialogue-bubble presentation contract for the
+ * reusable legacy component.
  *
  * Captures a screenshot saved to `.proofs/fix-1423-slash-echo/` as the
  * live-proof artifact.
  */
 
 import { test, expect, installTauriMock, emitEvent } from './fixtures';
+import type { Page } from '@playwright/test';
 import * as path from 'path';
 import * as fs from 'fs';
 import { fileURLToPath } from 'url';
@@ -21,17 +23,54 @@ const PROOF_DIR = path.resolve(
 	__dirname,
 	'../../../../.proofs/fix-1423-slash-echo',
 );
+const PIXI_CANVAS = '[data-testid="illustrated-notebook-pixi-host"] canvas';
+
+function journalSection(page: Page) {
+	return page.getByTestId('notebook-active-section');
+}
+
+async function openJournal(page: Page) {
+	await expect(page.getByTestId('illustrated-notebook-game')).toBeVisible();
+	await expect(page.locator(PIXI_CANVAS)).toBeVisible();
+	await expect(page.locator('.app-shell')).toHaveAttribute(
+		'data-controller-ready',
+		'true',
+	);
+	await expect(
+		page.getByRole('button', { name: 'Ask action', exact: true }),
+	).toHaveCount(1);
+
+	const control = page.getByRole('button', {
+		name: 'Open Journal notebook tab',
+		exact: true,
+	});
+	await expect(control).toHaveCount(1);
+	await expect(control).toBeEnabled();
+	await control.focus();
+	await expect(control).toBeFocused();
+	await page.keyboard.press('Enter');
+
+	const journal = journalSection(page);
+	await expect(journal).toBeVisible();
+	await expect(journal).toHaveAttribute('data-section', 'journal');
+	await expect(journal).toContainText('Parish Journal');
+	await expect(page.getByTestId('notebook-overlay-backdrop')).toHaveCount(0);
+	return journal;
+}
 
 test.describe('slash-command echo rendering (#1423)', () => {
 	test.beforeEach(async ({ page }) => {
 		await installTauriMock(page, 'morning');
 		await page.goto('/');
 		await page.waitForLoadState('networkidle');
+		await openJournal(page);
 	});
 
-	test('#1423 /pause shows as .entry.command, not a dialogue bubble', async ({
+	test('#1423 /pause remains ordered before its narration', async ({
 		page,
 	}) => {
+		const journal = journalSection(page);
+
 		// Emit the command echo (source:player, subtype:command)
 		await emitEvent(page, 'text-log', {
 			id: 'cmd-pause',
@@ -47,32 +86,36 @@ test.describe('slash-command echo rendering (#1423)', () => {
 			content: 'The clocks of the parish stand still. Time is now paused.',
 		});
 
-		// AC-3: command entry remains distinct in the notebook chronicle.
-		const commandEntry = page.locator('[data-testid="command-entry"]');
-		await expect(commandEntry).toBeAttached();
-		await expect(commandEntry).toContainText('/pause');
-		await expect(commandEntry).toContainText('Command:');
-
-		// AC-3: NOT rendered as a player dialogue bubble.
-		await expect(page.locator('.bubble-row.player')).toHaveCount(0);
-
-		// System narration follows in the accessible live chronicle.
-		const narration = page
-			.getByLabel('Live chronicle')
-			.getByText(/clocks of the parish/);
-		await expect(narration).toContainText('clocks of the parish');
+		const entries = journal.locator('p');
+		await expect(entries.filter({ hasText: '/pause' })).toHaveCount(1);
+		await expect(
+			entries.filter({ hasText: 'clocks of the parish' }),
+		).toHaveCount(1);
+		const lines = await entries.allTextContents();
+		const pauseIndex = lines.findIndex((line) => line.includes('/pause'));
+		const narrationIndex = lines.findIndex((line) =>
+			line.includes('clocks of the parish'),
+		);
+		expect(pauseIndex).toBeGreaterThan(-1);
+		expect(narrationIndex).toBeGreaterThan(-1);
+		expect(pauseIndex).toBeLessThan(narrationIndex);
 
 		// Capture proof screenshot
+		await expect(journal).toHaveAttribute('data-section', 'journal');
 		fs.mkdirSync(PROOF_DIR, { recursive: true });
+		// Keep the full viewport so the artifact shows the command history
+		// contained inside the illustrated notebook's Journal sheet.
 		await page.screenshot({
 			path: path.join(PROOF_DIR, 'command-echo.png'),
 			fullPage: false,
 		});
 	});
 
-	test('#1423 /resume and /wait also render as command entries', async ({
+	test('#1423 /resume and /wait remain ordered with their narration', async ({
 		page,
 	}) => {
+		const journal = journalSection(page);
+
 		await emitEvent(page, 'text-log', {
 			id: 'cmd-r',
 			source: 'player',
@@ -96,11 +139,24 @@ test.describe('slash-command echo rendering (#1423)', () => {
 			content: 'Ten minutes pass quietly.',
 		});
 
-		const commandEntries = page.locator('[data-testid="command-entry"]');
-		await expect(commandEntries).toHaveCount(2);
-		await expect(commandEntries.nth(0)).toContainText('/resume');
-		await expect(commandEntries.nth(1)).toContainText('/wait 10');
-		// No player bubbles
-		await expect(page.locator('.bubble-row.player')).toHaveCount(0);
+		const entries = journal.locator('p');
+		await expect(entries.filter({ hasText: '/resume' })).toHaveCount(1);
+		await expect(entries.filter({ hasText: '/wait 10' })).toHaveCount(1);
+		const lines = await entries.allTextContents();
+		const resumeIndex = lines.findIndex((line) => line.includes('/resume'));
+		const resumedIndex = lines.findIndex((line) =>
+			line.includes('Time flows once more'),
+		);
+		const waitIndex = lines.findIndex((line) => line.includes('/wait 10'));
+		const waitedIndex = lines.findIndex((line) =>
+			line.includes('Ten minutes pass'),
+		);
+		expect(resumeIndex).toBeGreaterThan(-1);
+		expect(resumedIndex).toBeGreaterThan(-1);
+		expect(waitIndex).toBeGreaterThan(-1);
+		expect(waitedIndex).toBeGreaterThan(-1);
+		expect(resumeIndex).toBeLessThan(resumedIndex);
+		expect(resumedIndex).toBeLessThan(waitIndex);
+		expect(waitIndex).toBeLessThan(waitedIndex);
 	});
 });

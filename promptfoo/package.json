@@ -9,6 +9,6 @@
     "test": "python3 scripts/test_v2.py"
   },
   "devDependencies": {
-    "promptfoo": "^0.121.17"
+    "promptfoo": "^0.121.19"
   }
 }

@@ -3,7 +3,7 @@ use std::collections::BTreeSet;
 use std::path::PathBuf;
 
 const VISUAL_SCENES: &str =
-    include_str!("../../../apps/ui/static/rundale/notebook-ui/visual-scenes.json");
+    include_str!("../../../apps/ui/static/rundale/illustrated-notebook-v2/visual-scenes.json");
 
 const BANNED_SOURCE_TERMS: &[&str] = &[
     "historical map",
@@ -52,6 +52,18 @@ fn runtime_visual_scene_metadata_declares_oblique_storybook_camera_and_depth_ban
     assert!(!scenes.is_empty(), "at least one visual scene is declared");
 
     for scene in scenes {
+        assert!(
+            scene["plate_asset"]
+                .as_str()
+                .is_some_and(|asset| asset.starts_with("/rundale/illustrated-notebook-v2/")),
+            "runtime plate must come from the fresh illustrated-notebook-v2 boundary"
+        );
+        assert!(
+            scene["mobile_plate_asset"]
+                .as_str()
+                .is_some_and(|asset| asset.starts_with("/rundale/illustrated-notebook-v2/")),
+            "mobile runtime plate must come from the fresh illustrated-notebook-v2 boundary"
+        );
         assert_eq!(
             scene["camera_hint"].as_str(),
             Some("wide elevated oblique illustrated storybook game scene")

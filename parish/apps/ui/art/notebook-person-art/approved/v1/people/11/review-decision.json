@@ -1,0 +1,112 @@
+{
+	"schema_version": 1,
+	"record_type": "notebook-person-art-human-review-decision",
+	"candidate_receipt_path": "parish/apps/ui/art/notebook-person-art/candidates/objects/6a/6af307be20073d9107cd8911ba1070ee5d83c11d64cab1a16cac13ad7d7bd59c/receipt.json",
+	"candidate_receipt_sha256": "010266133d47781fb00989c62ffc175e923023c7028d5ab1ee5d579cbe6ee3e3",
+	"candidate_sha256": "a932230d2cfce5b74f5167fb81fa26f4f9696b65b378cb89f5f90de680b13b00",
+	"raw_sha256": "e60bd1f67b3ca2ee8aac4c44e386ce331c96aeb554f1c7787c2cbf24c799b6c6",
+	"subject": {
+		"kind": "npc",
+		"npc_id": 11,
+		"name": "Colm Gallagher",
+		"input_record_sha256": "7495a8c4a5320b656fced7d085a76963aeb46fcde5aea0c821c38400dc5fae86"
+	},
+	"asset": {
+		"kind": "pair",
+		"candidate_index": 1,
+		"children": [
+			"portrait",
+			"marker"
+		]
+	},
+	"hair_topology": {
+		"schema_version": 4,
+		"subject_key": "npc:11",
+		"vector": {
+			"color_and_texture": "thick muted copper-red waves",
+			"front": {
+				"family": "left-cowlick-front",
+				"description": "uneven front with a distinct raised cowlick on the left"
+			},
+			"rear": {
+				"family": "uneven-short-crop",
+				"description": "thick uneven crop ending well above the collar"
+			},
+			"covering": {
+				"family": "uncovered",
+				"description": "no cap or head covering"
+			},
+			"silhouette": {
+				"family": "rounded-tousled-copper-crop",
+				"description": "rounded youthful wave mass broken by the left cowlick"
+			},
+			"loose_details": "one stray lock points outward above the left ear"
+		},
+		"sha256": "6cc4eb1d95867e0ba80aae8f5e24bb6a2d8e7db34cbe1cb1f165df508ad174e8"
+	},
+	"marker_identity": {
+		"schema_version": 4,
+		"subject_key": "npc:11",
+		"marker_identity": {
+			"composition": "character-only",
+			"silhouette": "lanky mid-teen boy with muted copper-red waves, a raised left cowlick, rolled sleeves, and an oversized leather apron; no object/scenery",
+			"stance": "eager slight forward lean with both empty hands at his sides; no object/scenery",
+			"empty_hand_pose": "both-at-sides",
+			"readability_cues": [
+				{
+					"kind": "body-shape",
+					"description": "long adolescent proportions"
+				},
+				{
+					"kind": "hair-or-headwear",
+					"description": "raised left cowlick"
+				},
+				{
+					"kind": "clothing",
+					"description": "oversized apron over narrow frame"
+				}
+			],
+			"tiny_readability_notes": [
+				"Keep him visibly lankier and less broad than Seamus."
+			]
+		},
+		"sha256": "c8d55138cb5cc6bd3655a0bf7066d71af1b40bfd2b04135bf5c9f8d76ec69dc5"
+	},
+	"decision": "approved",
+	"promotion_eligible": true,
+	"reviewer": "dmooney",
+	"reviewed_at": "2026-07-17T01:52:56.044Z",
+	"notes": "Approved by dmooney after reviewing the final 24-pair whole-cast sheet in Codex on 2026-07-16.",
+	"checklist": {
+		"identity_specific": true,
+		"concept_style_match": true,
+		"period_appropriate": true,
+		"no_prohibited_content": true,
+		"key_removal_clean": true,
+		"production_quality": true,
+		"diegetic_player_sketch": true,
+		"uncolored_pen_and_ink": true,
+		"sparse_open_linework": true,
+		"no_baked_background": true,
+		"framing_complete": true,
+		"selected_size_readable": true,
+		"nearby_size_readable": true,
+		"restrained_world_color": true,
+		"full_body_complete": true,
+		"silhouette_readable": true,
+		"character_only_marker": true,
+		"empty_hands": true,
+		"no_contextual_props_or_scenery": true,
+		"no_ground_plane": true,
+		"scene_size_readable": true,
+		"cross_asset_identity": true,
+		"hair_front_matches": true,
+		"hair_rear_matches": true,
+		"hair_covering_matches": true,
+		"hair_silhouette_matches": true,
+		"correct_surface_split": true,
+		"atomic_rerender_understood": true
+	},
+	"source_template_path": "parish/apps/ui/art/notebook-person-art/candidates/review-packets/identity-v8-character-only-full-cast-b-20260716/11-pair-a932230d2cfc-review.json",
+	"review_id": "5b9e1115c319227b646c4df7"
+}

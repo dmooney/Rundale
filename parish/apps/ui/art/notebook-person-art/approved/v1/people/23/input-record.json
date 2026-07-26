@@ -1,0 +1,214 @@
+{
+	"npc_id": 23,
+	"name": "Martin Concannon",
+	"age": 33,
+	"pronouns": "he/him",
+	"occupation": "Land Agent's Clerk",
+	"mood": "guarded",
+	"brief_description": "a neatly dressed young man with a ledger under his arm",
+	"home": {
+		"id": 4,
+		"name": "The Letter Office",
+		"description": "A small stone building where the mail coach leaves correspondence for the parish. A hand-lettered sign reads 'Letters' above the door. Notices and handbills flutter on the board outside. It is daylight. The weather is weather."
+	},
+	"workplace": {
+		"id": 4,
+		"name": "The Letter Office",
+		"description": "A small stone building where the mail coach leaves correspondence for the parish. A hand-lettered sign reads 'Letters' above the door. Notices and handbills flutter on the board outside. It is daylight. The weather is weather."
+	},
+	"source_personality_summary": "The local representative of the absentee landlord — polite, educated, and thoroughly distrusted.",
+	"source_knowledge": [
+		"Knows the exact rental value of every holding in the parish — and who is behind.",
+		"The landlord in London is considering selling the estate, which could mean new terms.",
+		"Has noticed Eamon Walsh's boat moving at night and wonders what he is carrying.",
+		"Received a threatening note under his door last month — unsigned, in crude Irish."
+	],
+	"source_relationships": [
+		{
+			"target_id": 21,
+			"target_name": "Sean Ruadh Kelly",
+			"kind": "Rival",
+			"strength": -0.4
+		},
+		{
+			"target_id": 3,
+			"target_name": "Fr. Declan Tierney",
+			"kind": "Professional",
+			"strength": 0.3
+		},
+		{
+			"target_id": 1,
+			"target_name": "Padraig Darcy",
+			"kind": "Professional",
+			"strength": -0.1
+		},
+		{
+			"target_id": 2,
+			"target_name": "Siobhan Murphy",
+			"kind": "Professional",
+			"strength": 0.1
+		}
+	],
+	"source_schedule_cues": [
+		{
+			"location_id": 1,
+			"location_name": "The Crossroads",
+			"activity": "at the crossroads, exchanging polite nods with people who avoid him"
+		},
+		{
+			"location_id": 2,
+			"location_name": "Darcy's Pub",
+			"activity": "a solitary drink at Darcy's Pub, reading by the window"
+		},
+		{
+			"location_id": 2,
+			"location_name": "Darcy's Pub",
+			"activity": "at the pub, alone at his usual table"
+		},
+		{
+			"location_id": 4,
+			"location_name": "The Letter Office",
+			"activity": "Sunday dinner, such as it is"
+		},
+		{
+			"location_id": 4,
+			"location_name": "The Letter Office",
+			"activity": "Sunday morning — no Protestant church nearby, reads scripture alone"
+		},
+		{
+			"location_id": 4,
+			"location_name": "The Letter Office",
+			"activity": "at the letter office, receiving rents, writing to the landlord"
+		},
+		{
+			"location_id": 4,
+			"location_name": "The Letter Office",
+			"activity": "breakfast, reviewing the day's accounts and correspondence"
+		},
+		{
+			"location_id": 4,
+			"location_name": "The Letter Office",
+			"activity": "dinner at his desk, reading"
+		},
+		{
+			"location_id": 4,
+			"location_name": "The Letter Office",
+			"activity": "home for the night"
+		},
+		{
+			"location_id": 4,
+			"location_name": "The Letter Office",
+			"activity": "home to the letter office, writing by candlelight"
+		},
+		{
+			"location_id": 4,
+			"location_name": "The Letter Office",
+			"activity": "sleeping"
+		},
+		{
+			"location_id": 4,
+			"location_name": "The Letter Office",
+			"activity": "sleeping in the room above the letter office"
+		},
+		{
+			"location_id": 7,
+			"location_name": "Lough Ree Shore",
+			"activity": "walking by the lough shore, watching the boats"
+		},
+		{
+			"location_id": 9,
+			"location_name": "Murphy's Farm",
+			"activity": "visiting farms, inspecting the land, assessing the harvest prospects"
+		},
+		{
+			"location_id": 22,
+			"location_name": "Knockcroghery Village",
+			"activity": "walking the Knockcroghery road, a solitary constitutional"
+		}
+	],
+	"source_visual_cues": [
+		"age: 33",
+		"occupation: Land Agent's Clerk",
+		"brief_description: a neatly dressed young man with a ledger under his arm",
+		"clothing",
+		"prop/activity"
+	],
+	"source_metadata_status": {
+		"canonical_npc_data_sufficient_for_production_art": false,
+		"status": "strong-partial",
+		"reason": "The canonical NPC data has useful visual cues, but still lacks a structured production portrait/marker contract."
+	},
+	"art_direction": {
+		"npc_id": 23,
+		"npc_name": "Martin Concannon",
+		"portrait_identity": {
+			"visual_identity_seed": "rundale-person-v2:23",
+			"identity_cohort": "man",
+			"apparent_age": "early thirties",
+			"facial_geometry": {
+				"face_shape": "narrow smooth oval with a lengthened lower face",
+				"proportions": "high forehead, even eye spacing, long lower third",
+				"brow_and_eyes": "fine straight brows over medium-set slightly hooded eyes",
+				"nose": "long narrow nose with a high straight bridge and fine tip",
+				"mouth": "small level mouth with a defined upper-lip notch",
+				"jaw_and_chin": "tapered clean jaw ending in a rounded shallow-cleft chin",
+				"cheekbones": "subtle high cheekbones with smooth planes beneath",
+				"hairline": "high M-shaped hairline with deeper recession on the right",
+				"age_detail": "minimal facial lines, limited to faint creases beneath the eyes"
+			},
+			"distinguishing_features": [
+				"right eyelid hangs slightly lower than the left",
+				"shallow cleft in a narrow rounded chin",
+				"right temple recedes farther than the left"
+			],
+			"hair": "dark fine wavy hair, side-parted and kept close around the ears and neck",
+			"clothing": "better-quality dark coat, waistcoat, clean cravat or neckcloth, polished but practical shoes",
+			"pose_expression": "guarded and administrative, holding himself apart from field labour",
+			"props": [
+				"ledger under arm",
+				"quill or folded letter",
+				"small leather document case"
+			],
+			"palette_notes": [
+				"dark clerk coat",
+				"ledger brown",
+				"clean linen accent"
+			]
+		},
+		"marker_identity": {
+			"composition": "character-only",
+			"silhouette": "slim early-thirties man with a neat dark side part, high forehead, better-quality dark coat, fitted waistcoat, and clean cravat; no object/scenery",
+			"stance": "formal upright stance with hands behind the back and head slightly turned; no object/scenery",
+			"empty_hand_pose": "hands-behind-back",
+			"readability_cues": [
+				{
+					"kind": "hair-or-headwear",
+					"description": "neat side-parted dark hair"
+				},
+				{
+					"kind": "clothing",
+					"description": "fitted formal coat and waistcoat"
+				},
+				{
+					"kind": "stance",
+					"description": "restrained upright posture"
+				}
+			],
+			"tiny_readability_notes": [
+				"Make his formal vertical tailoring distinct from Roisin without using documents."
+			]
+		},
+		"avoid": [
+			"English aristocrat costume",
+			"top hat",
+			"modern office clerk",
+			"villain moustache"
+		],
+		"authoring_notes": [
+			"Canonical brief gives neat dress and ledger; supplement sets class signal without caricature."
+		]
+	},
+	"pair_prompt": "Identity contract for Martin Concannon, age 33, Land Agent's Clerk: visual identity seed rundale-person-v2:23; apparent age early thirties; Explicit facial geometry: face shape narrow smooth oval with a lengthened lower face; proportions high forehead, even eye spacing, long lower third; brow and eyes fine straight brows over medium-set slightly hooded eyes; nose long narrow nose with a high straight bridge and fine tip; mouth small level mouth with a defined upper-lip notch; jaw and chin tapered clean jaw ending in a rounded shallow-cleft chin; cheekbones subtle high cheekbones with smooth planes beneath; hairline high M-shaped hairline with deeper recession on the right; age detail minimal facial lines, limited to faint creases beneath the eyes. Distinguishing features: right eyelid hangs slightly lower than the left, shallow cleft in a narrow rounded chin, right temple recedes farther than the left. Hair: dark fine wavy hair, side-parted and kept close around the ears and neck. Production task: create one identity-locked portrait-and-marker pair in Rundale, rural County Roscommon, Ireland, 1820, ordinary parish life, period-appropriate work clothing, under this visual authority: Illustrated Parish Notebook concept art only. The two renderings must unmistakably be the same person by reproducing every stated identity fact. Clothing: better-quality dark coat, waistcoat, clean cravat or neckcloth, polished but practical shoes; canonical biography cue for clothing and expression only, never for setting, activity, or objects: a neatly dressed young man with a ledger under his arm; current mood guarded. Left asset, notebook portrait: a quick observational head-and-shoulders sketch the player character drew in their working notebook after meeting this person. Use sparse uncolored sepia/graphite contours, open unfilled shapes, and only a few isolated short structural hatch marks; optional lower-edge prop ledger under arm, simply outlined and confined to the left cell. Do not cross-hatch or shade any broad region of the face, hair, neck, scarf, waistcoat, coat, dress, or apron, and do not render a dark garment as a filled or densely hatched mass. Keep the complete ink drawing between 40 and 60 percent of the left cell height with generous empty padding; every uninked interior region must remain provider key, never white, cream, parchment, skin tone, gray, or any other fill. It must not read as a formal illustration or painted portrait. Right asset, painted-world marker: one tiny static full-body transparent character-only cutout designed for compositing into the painted parish scene; silhouette slim early-thirties man with a neat dark side part, high forehead, better-quality dark coat, fitted waistcoat, and clean cravat; no object/scenery; stance formal upright stance with hands behind the back and head slightly turned; no object/scenery; empty-hand pose both empty hands held behind the back; tiny-readability cues from the person's body, hair or headwear, clothing, and stance alone: hair or headwear: neat side-parted dark hair; clothing: fitted formal coat and waistcoat; stance: restrained upright posture; complete figure roughly 45 percent of the right cell height, acceptable range 40 to 60 percent, with generous key-visible margins; restrained translucent watercolor within loose sepia/graphite contours, simplified face, and complete feet. The right cell must contain the person only: both hands empty; no held or carried objects, tools, books, containers, bundles, furniture, counters, architecture, vegetation, scenery fragments, ground plane, shadow, or extra person. Worn clothing and headwear are allowed. Do not illustrate the canonical biography's occupation, workplace, activity, or narrative context around the marker. Limit painted color to muted wool gray, bog green, weathered tan, dull brick red, peat brown, and faded indigo; no saturated primary colors. Shared constraints: one depiction in each assigned cell, ordinary 1820 rural County Roscommon clothing, no modern or fantasy elements, no text, labels, frames, contact-sheet furniture, or sprite-sheet poses. Never copy a left-cell portrait prop into the marker. Character-specific avoid list: English aristocrat costume, top hat, modern office clerk, villain moustache.",
+	"portrait_prompt": "Subject identity: Martin Concannon, age 33, Land Agent's Clerk; visual identity seed rundale-person-v2:23; apparent age early thirties; Explicit facial geometry: face shape narrow smooth oval with a lengthened lower face; proportions high forehead, even eye spacing, long lower third; brow and eyes fine straight brows over medium-set slightly hooded eyes; nose long narrow nose with a high straight bridge and fine tip; mouth small level mouth with a defined upper-lip notch; jaw and chin tapered clean jaw ending in a rounded shallow-cleft chin; cheekbones subtle high cheekbones with smooth planes beneath; hairline high M-shaped hairline with deeper recession on the right; age detail minimal facial lines, limited to faint creases beneath the eyes. Distinguishing features: right eyelid hangs slightly lower than the left, shallow cleft in a narrow rounded chin, right temple recedes farther than the left. Hair: dark fine wavy hair, side-parted and kept close around the ears and neck. Artifact and lore: this is a quick observational sketch the player character drew by hand in the margin of their working parish notebook after meeting the subject. It is diegetic notebook ephemera, not a commissioned illustration, formal portrait study, character card, or polished concept painting. Non-negotiable drawing language: sparse, uncolored pen-and-ink line drawing under this visual authority: Illustrated Parish Notebook concept art only. Use one irregular sepia/graphite ink line, economical contours, open shapes, and only a few short loose hatch marks where structurally necessary. Leave most of the face, hair, clothing, and canvas unfilled. No skin-tone fill, white underpainting, cream fill, solid dark garment, gray wash, watercolor, smooth tonal modeling, dense cross-hatching, photorealistic rendering, or glamour. Delivery composition: 1024x1024 transparent-background PNG source, portrait line art occupies roughly 45 percent of source height, centered head-and-shoulders drawing with generous transparent padding on all sides, top of hair/head covering and shoulders fully visible, no baked parchment, paper texture, wash, card, border, label, or UI furniture; keep the complete inked drawing between roughly 40 and 60 percent of canvas height with generous empty space on every side. Uninked areas are transparent in the delivery asset so the UI-controlled notebook paper shows through. Setting: Rundale, rural County Roscommon, Ireland, 1820, ordinary parish life, period-appropriate work clothing. Clothing: better-quality dark coat, waistcoat, clean cravat or neckcloth, polished but practical shoes, indicated only with contour, seam, and a few fold lines; expression and pose guarded and administrative, holding himself apart from field labour; current mood guarded. Optional lower-edge identity cue: ledger under arm, at most one simply outlined prop. Canonical context: a neatly dressed young man with a ledger under his arm; home/workplace at The Letter Office. Hard constraints: one character, head and shoulders only, period-appropriate rural County Roscommon clothing, no text, no label, no border, no card, no UI chrome. Character-specific avoid list: English aristocrat costume, top hat, modern office clerk, villain moustache.",
+	"marker_prompt": "Subject identity: Martin Concannon, age 33, Land Agent's Clerk; visual identity seed rundale-person-v2:23; apparent age early thirties; Explicit facial geometry: face shape narrow smooth oval with a lengthened lower face; proportions high forehead, even eye spacing, long lower third; brow and eyes fine straight brows over medium-set slightly hooded eyes; nose long narrow nose with a high straight bridge and fine tip; mouth small level mouth with a defined upper-lip notch; jaw and chin tapered clean jaw ending in a rounded shallow-cleft chin; cheekbones subtle high cheekbones with smooth planes beneath; hairline high M-shaped hairline with deeper recession on the right; age detail minimal facial lines, limited to faint creases beneath the eyes. Distinguishing features: right eyelid hangs slightly lower than the left, shallow cleft in a narrow rounded chin, right temple recedes farther than the left. Hair: dark fine wavy hair, side-parted and kept close around the ears and neck. Asset role: one tiny static full-body NPC marker delivered as a transparent character-only cutout for compositing over Rundale's painted world surface. It is not a UI portrait, paper doll, animation sheet, formal character illustration, vignette, or sprite-sheet panel. Visual language: loose hand-inked watercolor miniature under this visual authority: Illustrated Parish Notebook concept art only. Use irregular sepia/graphite contours, a simple readable human silhouette, restrained translucent washes, low facial detail, and only enough clothing folds to identify the person at scene size. Keep the treatment handmade and subordinate to the environment, never glossy, photorealistic, densely rendered, or cut out with a broad halo. Delivery composition: 1024x1024 flat #ff00ff chroma-key PNG source, full-body figure occupies roughly 45 percent of source height, centered figure with feet fully visible and generous flat background margins, one single static in-world marker pose per NPC for this slice, no ground shadow, floor plane, label, border, or extra figure. Palette: sepia/graphite line with muted wool gray, bog green, weathered tan, dull brick red, peat brown, and faded indigo only; no saturated primary colors. Setting: Rundale, rural County Roscommon, Ireland, 1820, ordinary parish life, period-appropriate work clothing. Character-only silhouette: slim early-thirties man with a neat dark side part, high forehead, better-quality dark coat, fitted waistcoat, and clean cravat; no object/scenery. Stance: formal upright stance with hands behind the back and head slightly turned; no object/scenery. Empty-hand pose: both empty hands held behind the back. Tiny-readability cues from the person's body, hair or headwear, clothing, and stance alone: hair or headwear: neat side-parted dark hair; clothing: fitted formal coat and waistcoat; stance: restrained upright posture. Tiny-readability requirements: Make his formal vertical tailoring distinct from Roisin without using documents.. Hard constraints: one character only, both hands empty, period-appropriate ordinary rural clothing, simplified face, complete feet, no held or carried objects, tools, books, containers, bundles, furniture, architecture, vegetation, scenery fragments, ground plane, shadow, text, label, border, or UI chrome. Worn clothing and headwear are allowed. Do not illustrate an occupation, workplace, activity, or narrative context around the person. Character-specific avoid list: English aristocrat costume, top hat, modern office clerk, villain moustache."
+}

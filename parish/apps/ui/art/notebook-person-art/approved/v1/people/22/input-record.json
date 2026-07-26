@@ -1,0 +1,215 @@
+{
+	"npc_id": 22,
+	"name": "Peig Hannigan",
+	"age": 67,
+	"pronouns": "she/her",
+	"occupation": "Widow",
+	"mood": "sharp",
+	"brief_description": "a small, sharp-eyed old woman wrapped in a shawl",
+	"home": {
+		"id": 15,
+		"name": "Kilteevan Village",
+		"description": "The small village of Kilteevan — a handful of whitewashed cottages clustered around a well and an old stone bridge over a shallow stream. Smoke drifts from chimneys. A rooster crows from behind a low wall. The weather sky hangs over the quiet street. It is daylight."
+	},
+	"workplace": null,
+	"source_personality_summary": "The parish gossip — though she would say she is merely well-informed.",
+	"source_knowledge": [
+		"Knows the history of every family in the parish — births, deaths, scandals, secrets.",
+		"Her son in Boston sends letters about life in America — the parish hangs on every word.",
+		"Noticed that Brendan Duffy is sweet on Niamh Darcy and predicts trouble from Padraig.",
+		"Remembers the rebellion of 1798 and knows who in the parish had pikes hidden."
+	],
+	"source_relationships": [
+		{
+			"target_id": 5,
+			"target_name": "Tommy O'Brien",
+			"kind": "Friend",
+			"strength": 0.7
+		},
+		{
+			"target_id": 4,
+			"target_name": "Roisin Connolly",
+			"kind": "Friend",
+			"strength": 0.5
+		},
+		{
+			"target_id": 19,
+			"target_name": "Brigid Ni Fhatharta",
+			"kind": "Friend",
+			"strength": 0.5
+		},
+		{
+			"target_id": 3,
+			"target_name": "Fr. Declan Tierney",
+			"kind": "Friend",
+			"strength": 0.4
+		}
+	],
+	"source_schedule_cues": [
+		{
+			"location_id": 1,
+			"location_name": "The Crossroads",
+			"activity": "at the crossroads, sitting on the wall, watching who comes and goes"
+		},
+		{
+			"location_id": 1,
+			"location_name": "The Crossroads",
+			"activity": "the crossroads after Mass — peak gossip hours"
+		},
+		{
+			"location_id": 2,
+			"location_name": "Darcy's Pub",
+			"activity": "Sunday evening at the pub"
+		},
+		{
+			"location_id": 2,
+			"location_name": "Darcy's Pub",
+			"activity": "a sup of whiskey at Darcy's, holding court in the corner"
+		},
+		{
+			"location_id": 3,
+			"location_name": "St. Brigid's Church",
+			"activity": "at Mass — front pew, watching everyone arrive"
+		},
+		{
+			"location_id": 3,
+			"location_name": "St. Brigid's Church",
+			"activity": "visiting the graveyard at St. Brigid's, tending her husband's grave"
+		},
+		{
+			"location_id": 10,
+			"location_name": "O'Brien's Farm",
+			"activity": "visiting Tommy O'Brien, trading stories of the old times"
+		},
+		{
+			"location_id": 13,
+			"location_name": "Connolly's Shop",
+			"activity": "at Connolly's Shop — the morning's intelligence-gathering begins"
+		},
+		{
+			"location_id": 15,
+			"location_name": "Kilteevan Village",
+			"activity": "Sunday dinner"
+		},
+		{
+			"location_id": 15,
+			"location_name": "Kilteevan Village",
+			"activity": "home for dinner"
+		},
+		{
+			"location_id": 15,
+			"location_name": "Kilteevan Village",
+			"activity": "home for the night"
+		},
+		{
+			"location_id": 15,
+			"location_name": "Kilteevan Village",
+			"activity": "home for the night, the cat on her lap"
+		},
+		{
+			"location_id": 15,
+			"location_name": "Kilteevan Village",
+			"activity": "home, receiving visitors, dispensing opinions"
+		},
+		{
+			"location_id": 15,
+			"location_name": "Kilteevan Village",
+			"activity": "rising slowly, stirabout by the fire, feeding her cat"
+		},
+		{
+			"location_id": 15,
+			"location_name": "Kilteevan Village",
+			"activity": "sleeping"
+		},
+		{
+			"location_id": 15,
+			"location_name": "Kilteevan Village",
+			"activity": "sleeping at her cottage"
+		}
+	],
+	"source_visual_cues": [
+		"age: 67",
+		"occupation: Widow",
+		"brief_description: a small, sharp-eyed old woman wrapped in a shawl",
+		"body/build",
+		"clothing"
+	],
+	"source_metadata_status": {
+		"canonical_npc_data_sufficient_for_production_art": false,
+		"status": "strong-partial",
+		"reason": "The canonical NPC data has useful visual cues, but still lacks a structured production portrait/marker contract."
+	},
+	"art_direction": {
+		"npc_id": 22,
+		"npc_name": "Peig Hannigan",
+		"portrait_identity": {
+			"visual_identity_seed": "rundale-person-v2:22",
+			"identity_cohort": "woman",
+			"apparent_age": "late sixties",
+			"facial_geometry": {
+				"face_shape": "small pentagonal face, broad above and sharply narrowed below",
+				"proportions": "short upper face, close eye spacing, long narrow lower third",
+				"brow_and_eyes": "high broken-arched brows over small deep-set eyes",
+				"nose": "short upturned nose with a broad tip",
+				"mouth": "narrow compressed mouth with an uneven upper edge",
+				"jaw_and_chin": "slender jaw ending in a pointed forward chin",
+				"cheekbones": "prominent rounded cheekbones above hollow cheeks",
+				"hairline": "deeply receded temples beneath the head covering",
+				"age_detail": "dense fine eye lines, vertical lip lines, and loose folds beneath the chin"
+			},
+			"distinguishing_features": [
+				"left eye is more hooded than the right",
+				"pointed forward chin",
+				"single deep crease running from the right side of the nose"
+			],
+			"hair": "ABSOLUTE VISIBLE SILHOUETTE: fine sparse silver-grey hair has a soft centre part and one small upward roll over each ear; both rolls disappear into a full gathered old linen cap with rounded rear caul, deep face frill, and ties under the chin. No visible rear knot, bun, uncovered nape, or loose long hair. Portrait line economy: use sparse open contours and only a few grey-hair and cap-fold marks, leaving hair, cap, face, and shawl unfilled; no black masses, dense hatching, or engraving texture. The marker must repeat the full rounded chin-tied elder cap.",
+			"clothing": "dark shawl wrapped close, plain old dress, small bonnet or kerchief under shawl",
+			"pose_expression": "sharp, alert, and amused by what she knows; portrait and marker must show the same late-sixties narrow triangular face, sunken cheeks, hooked nose, and deep age lines without smoothing or rejuvenation",
+			"props": [
+				"small basket",
+				"walking stick",
+				"shawl edge near mouth as if about to share news"
+			],
+			"palette_notes": [
+				"dark shawl",
+				"old linen",
+				"muted berry-brown accent"
+			]
+		},
+		"marker_identity": {
+			"composition": "character-only",
+			"silhouette": "small late-sixties woman with a full rounded chin-tied linen cap, visible silver temple rolls, dark close-wrapped shawl, and narrow old-dress line; no object/scenery",
+			"stance": "small forward lean with hands clasped beneath the shawl line; no object/scenery",
+			"empty_hand_pose": "hands-clasped",
+			"readability_cues": [
+				{
+					"kind": "hair-or-headwear",
+					"description": "full rounded chin-tied cap"
+				},
+				{
+					"kind": "body-shape",
+					"description": "small scale and pointed chin"
+				},
+				{
+					"kind": "clothing",
+					"description": "dark close-wrapped shawl"
+				}
+			],
+			"tiny_readability_notes": [
+				"Separate her from Brigid through smaller scale, a rounded elder cap, and a sharper forward tilt."
+			]
+		},
+		"avoid": [
+			"witch or crone caricature",
+			"comic gossip stereotype",
+			"fantasy hood",
+			"visible rear bun instead of cap-contained side rolls and the full rounded chin-tied elder cap"
+		],
+		"authoring_notes": [
+			"Canonical brief is strong; supplement separates Peig from Brigid using basket/stick and livelier gossip posture."
+		]
+	},
+	"pair_prompt": "Identity contract for Peig Hannigan, age 67, Widow: visual identity seed rundale-person-v2:22; apparent age late sixties; Explicit facial geometry: face shape small pentagonal face, broad above and sharply narrowed below; proportions short upper face, close eye spacing, long narrow lower third; brow and eyes high broken-arched brows over small deep-set eyes; nose short upturned nose with a broad tip; mouth narrow compressed mouth with an uneven upper edge; jaw and chin slender jaw ending in a pointed forward chin; cheekbones prominent rounded cheekbones above hollow cheeks; hairline deeply receded temples beneath the head covering; age detail dense fine eye lines, vertical lip lines, and loose folds beneath the chin. Distinguishing features: left eye is more hooded than the right, pointed forward chin, single deep crease running from the right side of the nose. Hair: ABSOLUTE VISIBLE SILHOUETTE: fine sparse silver-grey hair has a soft centre part and one small upward roll over each ear; both rolls disappear into a full gathered old linen cap with rounded rear caul, deep face frill, and ties under the chin. No visible rear knot, bun, uncovered nape, or loose long hair. Portrait line economy: use sparse open contours and only a few grey-hair and cap-fold marks, leaving hair, cap, face, and shawl unfilled; no black masses, dense hatching, or engraving texture. The marker must repeat the full rounded chin-tied elder cap.. Production task: create one identity-locked portrait-and-marker pair in Rundale, rural County Roscommon, Ireland, 1820, ordinary parish life, period-appropriate work clothing, under this visual authority: Illustrated Parish Notebook concept art only. The two renderings must unmistakably be the same person by reproducing every stated identity fact. Clothing: dark shawl wrapped close, plain old dress, small bonnet or kerchief under shawl; canonical biography cue for clothing and expression only, never for setting, activity, or objects: a small, sharp-eyed old woman wrapped in a shawl; current mood sharp. Left asset, notebook portrait: a quick observational head-and-shoulders sketch the player character drew in their working notebook after meeting this person. Use sparse uncolored sepia/graphite contours, open unfilled shapes, and only a few isolated short structural hatch marks; optional lower-edge prop small basket, simply outlined and confined to the left cell. Do not cross-hatch or shade any broad region of the face, hair, neck, scarf, waistcoat, coat, dress, or apron, and do not render a dark garment as a filled or densely hatched mass. Keep the complete ink drawing between 40 and 60 percent of the left cell height with generous empty padding; every uninked interior region must remain provider key, never white, cream, parchment, skin tone, gray, or any other fill. It must not read as a formal illustration or painted portrait. Right asset, painted-world marker: one tiny static full-body transparent character-only cutout designed for compositing into the painted parish scene; silhouette small late-sixties woman with a full rounded chin-tied linen cap, visible silver temple rolls, dark close-wrapped shawl, and narrow old-dress line; no object/scenery; stance small forward lean with hands clasped beneath the shawl line; no object/scenery; empty-hand pose both empty hands clasped together; tiny-readability cues from the person's body, hair or headwear, clothing, and stance alone: hair or headwear: full rounded chin-tied cap; body shape: small scale and pointed chin; clothing: dark close-wrapped shawl; complete figure roughly 45 percent of the right cell height, acceptable range 40 to 60 percent, with generous key-visible margins; restrained translucent watercolor within loose sepia/graphite contours, simplified face, and complete feet. The right cell must contain the person only: both hands empty; no held or carried objects, tools, books, containers, bundles, furniture, counters, architecture, vegetation, scenery fragments, ground plane, shadow, or extra person. Worn clothing and headwear are allowed. Do not illustrate the canonical biography's occupation, workplace, activity, or narrative context around the marker. Limit painted color to muted wool gray, bog green, weathered tan, dull brick red, peat brown, and faded indigo; no saturated primary colors. Shared constraints: one depiction in each assigned cell, ordinary 1820 rural County Roscommon clothing, no modern or fantasy elements, no text, labels, frames, contact-sheet furniture, or sprite-sheet poses. Never copy a left-cell portrait prop into the marker. Character-specific avoid list: witch or crone caricature, comic gossip stereotype, fantasy hood, visible rear bun instead of cap-contained side rolls and the full rounded chin-tied elder cap.",
+	"portrait_prompt": "Subject identity: Peig Hannigan, age 67, Widow; visual identity seed rundale-person-v2:22; apparent age late sixties; Explicit facial geometry: face shape small pentagonal face, broad above and sharply narrowed below; proportions short upper face, close eye spacing, long narrow lower third; brow and eyes high broken-arched brows over small deep-set eyes; nose short upturned nose with a broad tip; mouth narrow compressed mouth with an uneven upper edge; jaw and chin slender jaw ending in a pointed forward chin; cheekbones prominent rounded cheekbones above hollow cheeks; hairline deeply receded temples beneath the head covering; age detail dense fine eye lines, vertical lip lines, and loose folds beneath the chin. Distinguishing features: left eye is more hooded than the right, pointed forward chin, single deep crease running from the right side of the nose. Hair: ABSOLUTE VISIBLE SILHOUETTE: fine sparse silver-grey hair has a soft centre part and one small upward roll over each ear; both rolls disappear into a full gathered old linen cap with rounded rear caul, deep face frill, and ties under the chin. No visible rear knot, bun, uncovered nape, or loose long hair. Portrait line economy: use sparse open contours and only a few grey-hair and cap-fold marks, leaving hair, cap, face, and shawl unfilled; no black masses, dense hatching, or engraving texture. The marker must repeat the full rounded chin-tied elder cap.. Artifact and lore: this is a quick observational sketch the player character drew by hand in the margin of their working parish notebook after meeting the subject. It is diegetic notebook ephemera, not a commissioned illustration, formal portrait study, character card, or polished concept painting. Non-negotiable drawing language: sparse, uncolored pen-and-ink line drawing under this visual authority: Illustrated Parish Notebook concept art only. Use one irregular sepia/graphite ink line, economical contours, open shapes, and only a few short loose hatch marks where structurally necessary. Leave most of the face, hair, clothing, and canvas unfilled. No skin-tone fill, white underpainting, cream fill, solid dark garment, gray wash, watercolor, smooth tonal modeling, dense cross-hatching, photorealistic rendering, or glamour. Delivery composition: 1024x1024 transparent-background PNG source, portrait line art occupies roughly 45 percent of source height, centered head-and-shoulders drawing with generous transparent padding on all sides, top of hair/head covering and shoulders fully visible, no baked parchment, paper texture, wash, card, border, label, or UI furniture; keep the complete inked drawing between roughly 40 and 60 percent of canvas height with generous empty space on every side. Uninked areas are transparent in the delivery asset so the UI-controlled notebook paper shows through. Setting: Rundale, rural County Roscommon, Ireland, 1820, ordinary parish life, period-appropriate work clothing. Clothing: dark shawl wrapped close, plain old dress, small bonnet or kerchief under shawl, indicated only with contour, seam, and a few fold lines; expression and pose sharp, alert, and amused by what she knows; portrait and marker must show the same late-sixties narrow triangular face, sunken cheeks, hooked nose, and deep age lines without smoothing or rejuvenation; current mood sharp. Optional lower-edge identity cue: small basket, at most one simply outlined prop. Canonical context: a small, sharp-eyed old woman wrapped in a shawl; home at Kilteevan Village. Hard constraints: one character, head and shoulders only, period-appropriate rural County Roscommon clothing, no text, no label, no border, no card, no UI chrome. Character-specific avoid list: witch or crone caricature, comic gossip stereotype, fantasy hood, visible rear bun instead of cap-contained side rolls and the full rounded chin-tied elder cap.",
+	"marker_prompt": "Subject identity: Peig Hannigan, age 67, Widow; visual identity seed rundale-person-v2:22; apparent age late sixties; Explicit facial geometry: face shape small pentagonal face, broad above and sharply narrowed below; proportions short upper face, close eye spacing, long narrow lower third; brow and eyes high broken-arched brows over small deep-set eyes; nose short upturned nose with a broad tip; mouth narrow compressed mouth with an uneven upper edge; jaw and chin slender jaw ending in a pointed forward chin; cheekbones prominent rounded cheekbones above hollow cheeks; hairline deeply receded temples beneath the head covering; age detail dense fine eye lines, vertical lip lines, and loose folds beneath the chin. Distinguishing features: left eye is more hooded than the right, pointed forward chin, single deep crease running from the right side of the nose. Hair: ABSOLUTE VISIBLE SILHOUETTE: fine sparse silver-grey hair has a soft centre part and one small upward roll over each ear; both rolls disappear into a full gathered old linen cap with rounded rear caul, deep face frill, and ties under the chin. No visible rear knot, bun, uncovered nape, or loose long hair. Portrait line economy: use sparse open contours and only a few grey-hair and cap-fold marks, leaving hair, cap, face, and shawl unfilled; no black masses, dense hatching, or engraving texture. The marker must repeat the full rounded chin-tied elder cap.. Asset role: one tiny static full-body NPC marker delivered as a transparent character-only cutout for compositing over Rundale's painted world surface. It is not a UI portrait, paper doll, animation sheet, formal character illustration, vignette, or sprite-sheet panel. Visual language: loose hand-inked watercolor miniature under this visual authority: Illustrated Parish Notebook concept art only. Use irregular sepia/graphite contours, a simple readable human silhouette, restrained translucent washes, low facial detail, and only enough clothing folds to identify the person at scene size. Keep the treatment handmade and subordinate to the environment, never glossy, photorealistic, densely rendered, or cut out with a broad halo. Delivery composition: 1024x1024 flat #ff00ff chroma-key PNG source, full-body figure occupies roughly 45 percent of source height, centered figure with feet fully visible and generous flat background margins, one single static in-world marker pose per NPC for this slice, no ground shadow, floor plane, label, border, or extra figure. Palette: sepia/graphite line with muted wool gray, bog green, weathered tan, dull brick red, peat brown, and faded indigo only; no saturated primary colors. Setting: Rundale, rural County Roscommon, Ireland, 1820, ordinary parish life, period-appropriate work clothing. Character-only silhouette: small late-sixties woman with a full rounded chin-tied linen cap, visible silver temple rolls, dark close-wrapped shawl, and narrow old-dress line; no object/scenery. Stance: small forward lean with hands clasped beneath the shawl line; no object/scenery. Empty-hand pose: both empty hands clasped together. Tiny-readability cues from the person's body, hair or headwear, clothing, and stance alone: hair or headwear: full rounded chin-tied cap; body shape: small scale and pointed chin; clothing: dark close-wrapped shawl. Tiny-readability requirements: Separate her from Brigid through smaller scale, a rounded elder cap, and a sharper forward tilt.. Hard constraints: one character only, both hands empty, period-appropriate ordinary rural clothing, simplified face, complete feet, no held or carried objects, tools, books, containers, bundles, furniture, architecture, vegetation, scenery fragments, ground plane, shadow, text, label, border, or UI chrome. Worn clothing and headwear are allowed. Do not illustrate an occupation, workplace, activity, or narrative context around the person. Character-specific avoid list: witch or crone caricature, comic gossip stereotype, fantasy hood, visible rear bun instead of cap-contained side rolls and the full rounded chin-tied elder cap."
+}

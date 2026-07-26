@@ -1,0 +1,73 @@
+{
+	"art_direction": {
+		"portrait_identity": {
+			"visual_identity_seed": "rundale-fallback-v2",
+			"identity_cohort": "man",
+			"apparent_age": "middle-aged anonymous man, roughly late thirties",
+			"facial_geometry": {
+				"face_shape": "narrow rectangular face with parallel sides and a blunt base",
+				"proportions": "long upper face, unusually wide eye spacing, short lower third",
+				"brow_and_eyes": "shallow widely separated brows over small round eyes",
+				"nose": "short broad straight nose with a flattened bridge",
+				"mouth": "broad mouth with a pronounced upper-lip bow and narrow lower lip",
+				"jaw_and_chin": "straight shallow jaw ending in a wide blunt chin",
+				"cheekbones": "flat low cheekbones without hollows",
+				"hairline": "high rounded hairline exposed beneath a low felt cap",
+				"age_detail": "one horizontal forehead line and sparse creases beside the nose"
+			},
+			"distinguishing_features": [
+				"left ear projects clearly beyond the side of the cap",
+				"unusually wide-set small round eyes",
+				"short broad nose above a wide blunt chin"
+			],
+			"hair": "light straight hair cropped close, with one short side lock visible below the left edge of a low soft felt cap",
+			"clothing": "plain weathered gray-indigo frieze coat over an undyed linen shirt and dull neckerchief; no shawl, apron, clerical collar, or trade uniform",
+			"pose_expression": "neutral three-quarter profile, reserved and approachable, without a named character's expression cues",
+			"props": [
+				"none"
+			],
+			"palette_notes": [
+				"describe clothing with ink texture and line weight only",
+				"use paper tone plus sepia/graphite value",
+				"no colored wash"
+			]
+		},
+		"marker_identity": {
+			"composition": "character-only",
+			"silhouette": "narrow-shouldered adult in a low felt cap and knee-length plain frieze coat; no object/scenery",
+			"stance": "small three-quarter standing figure with hands near the coat front; no object/scenery",
+			"empty_hand_pose": "hands-near-coat-front",
+			"readability_cues": [
+				{
+					"kind": "hair-or-headwear",
+					"description": "low soft felt cap"
+				},
+				{
+					"kind": "body-shape",
+					"description": "narrow shoulders"
+				},
+				{
+					"kind": "clothing",
+					"description": "long plain frieze coat"
+				}
+			],
+			"tiny_readability_notes": [
+				"Keep the face subdued and non-specific so it remains anonymous among named NPCs."
+			]
+		},
+		"avoid": [
+			"distinctive named-NPC props",
+			"the attached female reference subject's face, pinned dark hair, kerchief, shawl, brick-red wrap, apron, or ledger",
+			"woman or feminine dress silhouette",
+			"blank mannequin",
+			"coded placeholder face",
+			"single-color cloak variant"
+		],
+		"authoring_notes": [
+			"Fallback exists only for NPCs without approved art at runtime; named NPCs still require their own art direction."
+		]
+	},
+	"pair_prompt": "Identity contract for an unknown Rundale parish neighbour: visual identity seed rundale-fallback-v2; apparent age middle-aged anonymous man, roughly late thirties; Explicit facial geometry: face shape narrow rectangular face with parallel sides and a blunt base; proportions long upper face, unusually wide eye spacing, short lower third; brow and eyes shallow widely separated brows over small round eyes; nose short broad straight nose with a flattened bridge; mouth broad mouth with a pronounced upper-lip bow and narrow lower lip; jaw and chin straight shallow jaw ending in a wide blunt chin; cheekbones flat low cheekbones without hollows; hairline high rounded hairline exposed beneath a low felt cap; age detail one horizontal forehead line and sparse creases beside the nose. Distinguishing features: left ear projects clearly beyond the side of the cap, unusually wide-set small round eyes, short broad nose above a wide blunt chin. Hair: light straight hair cropped close, with one short side lock visible below the left edge of a low soft felt cap. Production task: create one identity-locked portrait-and-marker pair in Rundale, rural County Roscommon, Ireland, 1820, ordinary parish life, period-appropriate work clothing, under this visual authority: Illustrated Parish Notebook concept art only. Both renderings must unmistakably depict the same anonymous person by reproducing every stated identity fact without resembling a named NPC. Clothing: plain weathered gray-indigo frieze coat over an undyed linen shirt and dull neckerchief; no shawl, apron, clerical collar, or trade uniform; expression neutral three-quarter profile, reserved and approachable, without a named character's expression cues. Left asset, notebook portrait: quick sparse uncolored sepia/graphite head-and-shoulders observation drawn by the player character, open unfilled shapes, only a few isolated short structural hatch marks, optional simply outlined lower-edge prop none confined to the left cell. Do not cross-hatch or shade any broad region of the face, hair, neck, scarf, waistcoat, coat, dress, or apron, and do not render a dark garment as a filled or densely hatched mass. Keep the complete ink drawing between 40 and 60 percent of the left cell height with generous empty padding; every uninked interior region must remain provider key, never white, cream, parchment, skin tone, gray, or any other fill. Right asset, painted-world marker: one tiny static full-body transparent character-only cutout, silhouette narrow-shouldered adult in a low felt cap and knee-length plain frieze coat; no object/scenery; stance small three-quarter standing figure with hands near the coat front; no object/scenery; empty-hand pose both empty hands resting near the coat front; tiny-readability cues from body, hair or headwear, clothing, and stance alone: hair or headwear: low soft felt cap; body shape: narrow shoulders; clothing: long plain frieze coat; complete figure roughly 45 percent of the right cell height, acceptable range 40 to 60 percent, with generous key-visible margins; restrained translucent watercolor within loose sepia/graphite contours, simplified face, complete feet. The right cell must contain the person only: both hands empty; no held or carried objects, tools, books, containers, bundles, furniture, counters, architecture, vegetation, scenery fragments, ground plane, shadow, or extra person. Worn clothing and headwear are allowed. Limit painted color to muted wool gray, bog green, weathered tan, dull brick red, peat brown, and faded indigo; no saturated primary colors. Shared constraints: one depiction in each assigned cell, ordinary 1820 rural County Roscommon clothing, no modern or fantasy elements, no text, labels, frames, contact-sheet furniture, or sprite-sheet poses. Never copy a left-cell portrait prop into the marker. Character-specific avoid list: distinctive named-NPC props, the attached female reference subject's face, pinned dark hair, kerchief, shawl, brick-red wrap, apron, or ledger, woman or feminine dress silhouette, blank mannequin, coded placeholder face, single-color cloak variant.",
+	"portrait_prompt": "Subject identity: unknown Rundale parish neighbour fallback; visual identity seed rundale-fallback-v2; apparent age middle-aged anonymous man, roughly late thirties; Explicit facial geometry: face shape narrow rectangular face with parallel sides and a blunt base; proportions long upper face, unusually wide eye spacing, short lower third; brow and eyes shallow widely separated brows over small round eyes; nose short broad straight nose with a flattened bridge; mouth broad mouth with a pronounced upper-lip bow and narrow lower lip; jaw and chin straight shallow jaw ending in a wide blunt chin; cheekbones flat low cheekbones without hollows; hairline high rounded hairline exposed beneath a low felt cap; age detail one horizontal forehead line and sparse creases beside the nose. Distinguishing features: left ear projects clearly beyond the side of the cap, unusually wide-set small round eyes, short broad nose above a wide blunt chin. Hair: light straight hair cropped close, with one short side lock visible below the left edge of a low soft felt cap. Artifact and lore: this is a quick observational sketch the player character drew by hand in the margin of their working parish notebook after meeting the subject. It is diegetic notebook ephemera, not a commissioned illustration, formal portrait study, character card, or polished concept painting. Non-negotiable drawing language: sparse, uncolored pen-and-ink line drawing under this visual authority: Illustrated Parish Notebook concept art only. Use one irregular sepia/graphite ink line, economical contours, open shapes, and only a few short loose hatch marks where structurally necessary. Leave most of the face, hair, clothing, and canvas unfilled. No skin-tone fill, white underpainting, cream fill, solid dark garment, gray wash, watercolor, smooth tonal modeling, dense cross-hatching, photorealistic rendering, or glamour. Delivery composition: 1024x1024 transparent-background PNG source, portrait line art occupies roughly 45 percent of source height, centered head-and-shoulders drawing with generous transparent padding on all sides, top of hair/head covering and shoulders fully visible, no baked parchment, paper texture, wash, card, border, label, or UI furniture; keep the complete inked drawing between roughly 40 and 60 percent of canvas height with generous empty space on every side. Uninked areas are transparent in the delivery asset so the UI-controlled notebook paper shows through. Setting: Rundale, rural County Roscommon, Ireland, 1820, ordinary parish life, period-appropriate work clothing. Clothing: plain weathered gray-indigo frieze coat over an undyed linen shirt and dull neckerchief; no shawl, apron, clerical collar, or trade uniform, indicated only with contour, seam, and a few fold lines; expression and pose neutral three-quarter profile, reserved and approachable, without a named character's expression cues. Optional lower-edge identity cue: none, at most one simply outlined prop. Hard constraints: one anonymous character, head and shoulders only, period-appropriate rural County Roscommon clothing, no text, no label, no border, no card, no UI chrome. Character-specific avoid list: distinctive named-NPC props, the attached female reference subject's face, pinned dark hair, kerchief, shawl, brick-red wrap, apron, or ledger, woman or feminine dress silhouette, blank mannequin, coded placeholder face, single-color cloak variant.",
+	"marker_prompt": "Subject identity: unknown Rundale parish neighbour fallback; visual identity seed rundale-fallback-v2; apparent age middle-aged anonymous man, roughly late thirties; Explicit facial geometry: face shape narrow rectangular face with parallel sides and a blunt base; proportions long upper face, unusually wide eye spacing, short lower third; brow and eyes shallow widely separated brows over small round eyes; nose short broad straight nose with a flattened bridge; mouth broad mouth with a pronounced upper-lip bow and narrow lower lip; jaw and chin straight shallow jaw ending in a wide blunt chin; cheekbones flat low cheekbones without hollows; hairline high rounded hairline exposed beneath a low felt cap; age detail one horizontal forehead line and sparse creases beside the nose. Distinguishing features: left ear projects clearly beyond the side of the cap, unusually wide-set small round eyes, short broad nose above a wide blunt chin. Hair: light straight hair cropped close, with one short side lock visible below the left edge of a low soft felt cap. Asset role: one tiny static full-body NPC marker delivered as a transparent character-only cutout for compositing over Rundale's painted world surface. It is not a UI portrait, paper doll, animation sheet, formal character illustration, vignette, or sprite-sheet panel. Visual language: loose hand-inked watercolor miniature under this visual authority: Illustrated Parish Notebook concept art only. Use irregular sepia/graphite contours, a simple readable human silhouette, restrained translucent washes, low facial detail, and only enough clothing folds to identify the person at scene size. Keep the treatment handmade and subordinate to the environment, never glossy, photorealistic, densely rendered, or cut out with a broad halo. Delivery composition: 1024x1024 flat #ff00ff chroma-key PNG source, full-body figure occupies roughly 45 percent of source height, centered figure with feet fully visible and generous flat background margins, one single static in-world marker pose per NPC for this slice, no ground shadow, floor plane, label, border, or extra figure. Palette: sepia/graphite line with muted wool gray, bog green, weathered tan, dull brick red, peat brown, and faded indigo only; no saturated primary colors. Setting: Rundale, rural County Roscommon, Ireland, 1820, ordinary parish life, period-appropriate work clothing. Character-only silhouette: narrow-shouldered adult in a low felt cap and knee-length plain frieze coat; no object/scenery. Stance: small three-quarter standing figure with hands near the coat front; no object/scenery. Empty-hand pose: both empty hands resting near the coat front. Tiny-readability cues from the person's body, hair or headwear, clothing, and stance alone: hair or headwear: low soft felt cap; body shape: narrow shoulders; clothing: long plain frieze coat. Tiny-readability requirements: Keep the face subdued and non-specific so it remains anonymous among named NPCs.. Hard constraints: one anonymous character only, both hands empty, period-appropriate ordinary rural clothing, simplified face, complete feet, no held or carried objects, tools, books, containers, bundles, furniture, architecture, vegetation, scenery fragments, ground plane, shadow, text, label, border, or UI chrome. Worn clothing and headwear are allowed. Character-specific avoid list: distinctive named-NPC props, the attached female reference subject's face, pinned dark hair, kerchief, shawl, brick-red wrap, apron, or ledger, woman or feminine dress silhouette, blank mannequin, coded placeholder face, single-color cloak variant."
+}

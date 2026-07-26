@@ -1,0 +1,250 @@
+{
+	"npc_id": 6,
+	"name": "Aoife Brennan",
+	"age": 29,
+	"pronouns": "she/her",
+	"occupation": "Hedge School Teacher",
+	"mood": "passionate",
+	"brief_description": "a young woman",
+	"home": {
+		"id": 15,
+		"name": "Kilteevan Village",
+		"description": "The small village of Kilteevan — a handful of whitewashed cottages clustered around a well and an old stone bridge over a shallow stream. Smoke drifts from chimneys. A rooster crows from behind a low wall. The weather sky hangs over the quiet street. It is daylight."
+	},
+	"workplace": {
+		"id": 6,
+		"name": "The Hedge School",
+		"description": "A low thatched cabin where the schoolmaster teaches Latin, Irish, and arithmetic to the children of the parish. A rough bench sits outside where classes are held in fine weather. It is daylight. The sky is weather."
+	},
+	"source_personality_summary": "An idealistic young teacher who runs the hedge school with fierce dedication.",
+	"source_knowledge": [
+		"Knows the hedge school could be shut down at any time by the authorities.",
+		"Has been teaching children to read and write in Irish despite the law.",
+		"Heard that a new school inspector has been appointed for County Roscommon.",
+		"Corresponds secretly with other hedge school teachers across the county."
+	],
+	"source_relationships": [
+		{
+			"target_id": 8,
+			"target_name": "Niamh Darcy",
+			"kind": "Friend",
+			"strength": 0.7
+		},
+		{
+			"target_id": 3,
+			"target_name": "Fr. Declan Tierney",
+			"kind": "Professional",
+			"strength": 0.5
+		},
+		{
+			"target_id": 2,
+			"target_name": "Siobhan Murphy",
+			"kind": "Friend",
+			"strength": 0.5
+		},
+		{
+			"target_id": 4,
+			"target_name": "Roisin Connolly",
+			"kind": "Neighbor",
+			"strength": 0.3
+		},
+		{
+			"target_id": 10,
+			"target_name": "Maire Gallagher",
+			"kind": "Family",
+			"strength": 0.8
+		},
+		{
+			"target_id": 20,
+			"target_name": "Una Malone",
+			"kind": "Friend",
+			"strength": 0.6
+		}
+	],
+	"source_schedule_cues": [
+		{
+			"location_id": 1,
+			"location_name": "The Crossroads",
+			"activity": "at the crossroads after Mass, speaking with parents about their children"
+		},
+		{
+			"location_id": 2,
+			"location_name": "Darcy's Pub",
+			"activity": "Sunday evening at the pub — music and conversation"
+		},
+		{
+			"location_id": 2,
+			"location_name": "Darcy's Pub",
+			"activity": "an evening at Darcy's Pub, debating with anyone who will listen"
+		},
+		{
+			"location_id": 2,
+			"location_name": "Darcy's Pub",
+			"activity": "the evening cuaird — visiting or the pub"
+		},
+		{
+			"location_id": 3,
+			"location_name": "St. Brigid's Church",
+			"activity": "attending Mass at St. Brigid's Church"
+		},
+		{
+			"location_id": 6,
+			"location_name": "The Hedge School",
+			"activity": "dinner with the children before they scatter home"
+		},
+		{
+			"location_id": 6,
+			"location_name": "The Hedge School",
+			"activity": "teaching at the hedge school — shorter hours in winter, the children shivering"
+		},
+		{
+			"location_id": 6,
+			"location_name": "The Hedge School",
+			"activity": "teaching at the hedge school — the long summer days allow more lessons"
+		},
+		{
+			"location_id": 7,
+			"location_name": "Lough Ree Shore",
+			"activity": "a long Sunday walk by Lough Ree, composing poetry in Irish"
+		},
+		{
+			"location_id": 7,
+			"location_name": "Lough Ree Shore",
+			"activity": "walking by Lough Ree to clear her head and compose her thoughts"
+		},
+		{
+			"location_id": 15,
+			"location_name": "Kilteevan Village",
+			"activity": "Sunday dinner at her lodgings"
+		},
+		{
+			"location_id": 15,
+			"location_name": "Kilteevan Village",
+			"activity": "home for dinner and marking work"
+		},
+		{
+			"location_id": 15,
+			"location_name": "Kilteevan Village",
+			"activity": "home to bed, the week ahead in her mind"
+		},
+		{
+			"location_id": 15,
+			"location_name": "Kilteevan Village",
+			"activity": "marking work and preparing for tomorrow"
+		},
+		{
+			"location_id": 15,
+			"location_name": "Kilteevan Village",
+			"activity": "preparing lessons by rushlight, the mornings dark and bitter"
+		},
+		{
+			"location_id": 15,
+			"location_name": "Kilteevan Village",
+			"activity": "preparing lessons by the morning light, copying texts"
+		},
+		{
+			"location_id": 15,
+			"location_name": "Kilteevan Village",
+			"activity": "reading and writing by the fire, too dark for walking"
+		},
+		{
+			"location_id": 15,
+			"location_name": "Kilteevan Village",
+			"activity": "reading by the fire — poetry, pamphlets, whatever she can find"
+		},
+		{
+			"location_id": 15,
+			"location_name": "Kilteevan Village",
+			"activity": "reading late into the night, her one indulgence"
+		},
+		{
+			"location_id": 15,
+			"location_name": "Kilteevan Village",
+			"activity": "sleeping at her lodgings in Kilteevan"
+		},
+		{
+			"location_id": 15,
+			"location_name": "Kilteevan Village",
+			"activity": "sleeping late — no school on the Lord's day"
+		}
+	],
+	"source_visual_cues": [
+		"age: 29",
+		"occupation: Hedge School Teacher",
+		"brief_description: a young woman"
+	],
+	"source_metadata_status": {
+		"canonical_npc_data_sufficient_for_production_art": false,
+		"status": "weak-partial",
+		"reason": "The canonical NPC data identifies the character but does not provide enough structured appearance, clothing, or tiny-marker guidance for production art."
+	},
+	"art_direction": {
+		"npc_id": 6,
+		"npc_name": "Aoife Brennan",
+		"portrait_identity": {
+			"visual_identity_seed": "rundale-person-v2:6",
+			"identity_cohort": "woman",
+			"apparent_age": "late twenties",
+			"facial_geometry": {
+				"face_shape": "long oval with a gentle taper from cheekbones to chin",
+				"proportions": "high forehead, balanced midface, slightly short lower face",
+				"brow_and_eyes": "fine arched brows; close-to-medium-set almond eyes with visible upper-lid folds",
+				"nose": "narrow straight bridge with a subtly left-offset rounded tip",
+				"mouth": "medium-wide mouth, shallow cupid's bow, thinner upper lip",
+				"jaw_and_chin": "slender jaw and small rounded-pointed chin",
+				"cheekbones": "high, softly angular cheekbones",
+				"hairline": "soft widow's peak with a slightly higher right temple",
+				"age_detail": "smooth late-twenties structure with faint under-eye lines"
+			},
+			"distinguishing_features": [
+				"slight offset at the nose tip",
+				"small notch in the outer left eyebrow",
+				"one shallow line beside the right corner of the mouth"
+			],
+			"hair": "ABSOLUTE VISIBLE SILHOUETTE in three-quarter view: uncovered dark hair with two pencil-thin braids beginning visibly at the temples and joining as one shallow narrow braided band across the upper rear head above the ears. No bulky crown braid, nape mass, rounded bun, cap, kerchief, or long tendril; only two fine short wisps. Portrait line economy: show the braid path with sparse open contours and a few strand marks, leaving hair and face unfilled; no black masses, dense hatching, or engraving texture. The marker must preserve the visible temple origins and narrow upper-rear band.",
+			"clothing": "plain modest dress, practical shawl or short jacket, linen collar",
+			"pose_expression": "passionate and attentive, as if about to explain a lesson; portrait and marker must show the same late-twenties diamond face, pointed chin, wide-set eyes, and long narrow nose without generic beautification",
+			"props": [
+				"small slate",
+				"chalk",
+				"thin school book"
+			],
+			"palette_notes": [
+				"slate grey",
+				"soft blue-grey shawl",
+				"warm parchment"
+			]
+		},
+		"marker_identity": {
+			"composition": "character-only",
+			"silhouette": "slim late-twenties woman with uncovered dark hair, fine temple braids, a shallow upper-rear coronet, and a short jacket; no object/scenery",
+			"stance": "upright stance with one empty hand gesturing and the other at her side; no object/scenery",
+			"empty_hand_pose": "one-hand-gesturing",
+			"readability_cues": [
+				{
+					"kind": "hair-or-headwear",
+					"description": "visible temple-braid origins joining a slim raised coronet band"
+				},
+				{
+					"kind": "face",
+					"description": "pointed-chin profile"
+				}
+			],
+			"tiny_readability_notes": [
+				"The fine braids need a clear, sparse outline at marker scale."
+			]
+		},
+		"avoid": [
+			"modern schoolteacher",
+			"secret-school outlaw styling",
+			"large open book hiding body",
+			"low bun, cap, or kerchief hiding the visible temple braids and shallow coronet"
+		],
+		"authoring_notes": [
+			"World prompt clarifies hedge schools are open in 1820; do not show secretive outlaw education cues."
+		]
+	},
+	"pair_prompt": "Identity contract for Aoife Brennan, age 29, Hedge School Teacher: visual identity seed rundale-person-v2:6; apparent age late twenties; Explicit facial geometry: face shape long oval with a gentle taper from cheekbones to chin; proportions high forehead, balanced midface, slightly short lower face; brow and eyes fine arched brows; close-to-medium-set almond eyes with visible upper-lid folds; nose narrow straight bridge with a subtly left-offset rounded tip; mouth medium-wide mouth, shallow cupid's bow, thinner upper lip; jaw and chin slender jaw and small rounded-pointed chin; cheekbones high, softly angular cheekbones; hairline soft widow's peak with a slightly higher right temple; age detail smooth late-twenties structure with faint under-eye lines. Distinguishing features: slight offset at the nose tip, small notch in the outer left eyebrow, one shallow line beside the right corner of the mouth. Hair: ABSOLUTE VISIBLE SILHOUETTE in three-quarter view: uncovered dark hair with two pencil-thin braids beginning visibly at the temples and joining as one shallow narrow braided band across the upper rear head above the ears. No bulky crown braid, nape mass, rounded bun, cap, kerchief, or long tendril; only two fine short wisps. Portrait line economy: show the braid path with sparse open contours and a few strand marks, leaving hair and face unfilled; no black masses, dense hatching, or engraving texture. The marker must preserve the visible temple origins and narrow upper-rear band.. Production task: create one identity-locked portrait-and-marker pair in Rundale, rural County Roscommon, Ireland, 1820, ordinary parish life, period-appropriate work clothing, under this visual authority: Illustrated Parish Notebook concept art only. The two renderings must unmistakably be the same person by reproducing every stated identity fact. Clothing: plain modest dress, practical shawl or short jacket, linen collar; canonical biography cue for clothing and expression only, never for setting, activity, or objects: a young woman; current mood passionate. Left asset, notebook portrait: a quick observational head-and-shoulders sketch the player character drew in their working notebook after meeting this person. Use sparse uncolored sepia/graphite contours, open unfilled shapes, and only a few isolated short structural hatch marks; optional lower-edge prop small slate, simply outlined and confined to the left cell. Do not cross-hatch or shade any broad region of the face, hair, neck, scarf, waistcoat, coat, dress, or apron, and do not render a dark garment as a filled or densely hatched mass. Keep the complete ink drawing between 40 and 60 percent of the left cell height with generous empty padding; every uninked interior region must remain provider key, never white, cream, parchment, skin tone, gray, or any other fill. It must not read as a formal illustration or painted portrait. Right asset, painted-world marker: one tiny static full-body transparent character-only cutout designed for compositing into the painted parish scene; silhouette slim late-twenties woman with uncovered dark hair, fine temple braids, a shallow upper-rear coronet, and a short jacket; no object/scenery; stance upright stance with one empty hand gesturing and the other at her side; no object/scenery; empty-hand pose one empty hand making a small gesture and the other relaxed; tiny-readability cues from the person's body, hair or headwear, clothing, and stance alone: hair or headwear: visible temple-braid origins joining a slim raised coronet band; face: pointed-chin profile; complete figure roughly 45 percent of the right cell height, acceptable range 40 to 60 percent, with generous key-visible margins; restrained translucent watercolor within loose sepia/graphite contours, simplified face, and complete feet. The right cell must contain the person only: both hands empty; no held or carried objects, tools, books, containers, bundles, furniture, counters, architecture, vegetation, scenery fragments, ground plane, shadow, or extra person. Worn clothing and headwear are allowed. Do not illustrate the canonical biography's occupation, workplace, activity, or narrative context around the marker. Limit painted color to muted wool gray, bog green, weathered tan, dull brick red, peat brown, and faded indigo; no saturated primary colors. Shared constraints: one depiction in each assigned cell, ordinary 1820 rural County Roscommon clothing, no modern or fantasy elements, no text, labels, frames, contact-sheet furniture, or sprite-sheet poses. Never copy a left-cell portrait prop into the marker. Character-specific avoid list: modern schoolteacher, secret-school outlaw styling, large open book hiding body, low bun, cap, or kerchief hiding the visible temple braids and shallow coronet.",
+	"portrait_prompt": "Subject identity: Aoife Brennan, age 29, Hedge School Teacher; visual identity seed rundale-person-v2:6; apparent age late twenties; Explicit facial geometry: face shape long oval with a gentle taper from cheekbones to chin; proportions high forehead, balanced midface, slightly short lower face; brow and eyes fine arched brows; close-to-medium-set almond eyes with visible upper-lid folds; nose narrow straight bridge with a subtly left-offset rounded tip; mouth medium-wide mouth, shallow cupid's bow, thinner upper lip; jaw and chin slender jaw and small rounded-pointed chin; cheekbones high, softly angular cheekbones; hairline soft widow's peak with a slightly higher right temple; age detail smooth late-twenties structure with faint under-eye lines. Distinguishing features: slight offset at the nose tip, small notch in the outer left eyebrow, one shallow line beside the right corner of the mouth. Hair: ABSOLUTE VISIBLE SILHOUETTE in three-quarter view: uncovered dark hair with two pencil-thin braids beginning visibly at the temples and joining as one shallow narrow braided band across the upper rear head above the ears. No bulky crown braid, nape mass, rounded bun, cap, kerchief, or long tendril; only two fine short wisps. Portrait line economy: show the braid path with sparse open contours and a few strand marks, leaving hair and face unfilled; no black masses, dense hatching, or engraving texture. The marker must preserve the visible temple origins and narrow upper-rear band.. Artifact and lore: this is a quick observational sketch the player character drew by hand in the margin of their working parish notebook after meeting the subject. It is diegetic notebook ephemera, not a commissioned illustration, formal portrait study, character card, or polished concept painting. Non-negotiable drawing language: sparse, uncolored pen-and-ink line drawing under this visual authority: Illustrated Parish Notebook concept art only. Use one irregular sepia/graphite ink line, economical contours, open shapes, and only a few short loose hatch marks where structurally necessary. Leave most of the face, hair, clothing, and canvas unfilled. No skin-tone fill, white underpainting, cream fill, solid dark garment, gray wash, watercolor, smooth tonal modeling, dense cross-hatching, photorealistic rendering, or glamour. Delivery composition: 1024x1024 transparent-background PNG source, portrait line art occupies roughly 45 percent of source height, centered head-and-shoulders drawing with generous transparent padding on all sides, top of hair/head covering and shoulders fully visible, no baked parchment, paper texture, wash, card, border, label, or UI furniture; keep the complete inked drawing between roughly 40 and 60 percent of canvas height with generous empty space on every side. Uninked areas are transparent in the delivery asset so the UI-controlled notebook paper shows through. Setting: Rundale, rural County Roscommon, Ireland, 1820, ordinary parish life, period-appropriate work clothing. Clothing: plain modest dress, practical shawl or short jacket, linen collar, indicated only with contour, seam, and a few fold lines; expression and pose passionate and attentive, as if about to explain a lesson; portrait and marker must show the same late-twenties diamond face, pointed chin, wide-set eyes, and long narrow nose without generic beautification; current mood passionate. Optional lower-edge identity cue: small slate, at most one simply outlined prop. Canonical context: a young woman; home at Kilteevan Village; works at The Hedge School. Hard constraints: one character, head and shoulders only, period-appropriate rural County Roscommon clothing, no text, no label, no border, no card, no UI chrome. Character-specific avoid list: modern schoolteacher, secret-school outlaw styling, large open book hiding body, low bun, cap, or kerchief hiding the visible temple braids and shallow coronet.",
+	"marker_prompt": "Subject identity: Aoife Brennan, age 29, Hedge School Teacher; visual identity seed rundale-person-v2:6; apparent age late twenties; Explicit facial geometry: face shape long oval with a gentle taper from cheekbones to chin; proportions high forehead, balanced midface, slightly short lower face; brow and eyes fine arched brows; close-to-medium-set almond eyes with visible upper-lid folds; nose narrow straight bridge with a subtly left-offset rounded tip; mouth medium-wide mouth, shallow cupid's bow, thinner upper lip; jaw and chin slender jaw and small rounded-pointed chin; cheekbones high, softly angular cheekbones; hairline soft widow's peak with a slightly higher right temple; age detail smooth late-twenties structure with faint under-eye lines. Distinguishing features: slight offset at the nose tip, small notch in the outer left eyebrow, one shallow line beside the right corner of the mouth. Hair: ABSOLUTE VISIBLE SILHOUETTE in three-quarter view: uncovered dark hair with two pencil-thin braids beginning visibly at the temples and joining as one shallow narrow braided band across the upper rear head above the ears. No bulky crown braid, nape mass, rounded bun, cap, kerchief, or long tendril; only two fine short wisps. Portrait line economy: show the braid path with sparse open contours and a few strand marks, leaving hair and face unfilled; no black masses, dense hatching, or engraving texture. The marker must preserve the visible temple origins and narrow upper-rear band.. Asset role: one tiny static full-body NPC marker delivered as a transparent character-only cutout for compositing over Rundale's painted world surface. It is not a UI portrait, paper doll, animation sheet, formal character illustration, vignette, or sprite-sheet panel. Visual language: loose hand-inked watercolor miniature under this visual authority: Illustrated Parish Notebook concept art only. Use irregular sepia/graphite contours, a simple readable human silhouette, restrained translucent washes, low facial detail, and only enough clothing folds to identify the person at scene size. Keep the treatment handmade and subordinate to the environment, never glossy, photorealistic, densely rendered, or cut out with a broad halo. Delivery composition: 1024x1024 flat #ff00ff chroma-key PNG source, full-body figure occupies roughly 45 percent of source height, centered figure with feet fully visible and generous flat background margins, one single static in-world marker pose per NPC for this slice, no ground shadow, floor plane, label, border, or extra figure. Palette: sepia/graphite line with muted wool gray, bog green, weathered tan, dull brick red, peat brown, and faded indigo only; no saturated primary colors. Setting: Rundale, rural County Roscommon, Ireland, 1820, ordinary parish life, period-appropriate work clothing. Character-only silhouette: slim late-twenties woman with uncovered dark hair, fine temple braids, a shallow upper-rear coronet, and a short jacket; no object/scenery. Stance: upright stance with one empty hand gesturing and the other at her side; no object/scenery. Empty-hand pose: one empty hand making a small gesture and the other relaxed. Tiny-readability cues from the person's body, hair or headwear, clothing, and stance alone: hair or headwear: visible temple-braid origins joining a slim raised coronet band; face: pointed-chin profile. Tiny-readability requirements: The fine braids need a clear, sparse outline at marker scale.. Hard constraints: one character only, both hands empty, period-appropriate ordinary rural clothing, simplified face, complete feet, no held or carried objects, tools, books, containers, bundles, furniture, architecture, vegetation, scenery fragments, ground plane, shadow, text, label, border, or UI chrome. Worn clothing and headwear are allowed. Do not illustrate an occupation, workplace, activity, or narrative context around the person. Character-specific avoid list: modern schoolteacher, secret-school outlaw styling, large open book hiding body, low bun, cap, or kerchief hiding the visible temple braids and shallow coronet."
+}

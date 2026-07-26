@@ -24,7 +24,6 @@ import {
 	loadingColor,
 	nameHints,
 	uiConfig,
-	fullMapOpen,
 	addReaction,
 	trimTextLog,
 	pushErrorLog,
@@ -39,7 +38,10 @@ import { demoConfig } from '../stores/demo';
 import { startDemoLoop } from './demo-player';
 import { SceneDeduplicator } from './scene-dedup';
 import { debugSnapshot } from '../stores/debug';
-import { savePickerVisible, modSelectorVisible } from '../stores/save';
+import {
+	openNotebookOverlay,
+	toggleNotebookOverlay,
+} from '../stores/notebookOverlay';
 import { palette } from '../stores/theme';
 import { tiles } from '../stores/tiles';
 import { startTravel } from '../stores/travel';
@@ -595,7 +597,7 @@ export async function createPageController(
 			cfg.map_overlay === 'grid',
 		);
 		if (cfg.base_mod_required) {
-			modSelectorVisible.set(true);
+			void openNotebookOverlay('mod');
 		}
 		if (cfg.splash_text) {
 			textLog.update((log) => [
@@ -869,7 +871,7 @@ export async function createPageController(
 
 		listeners.push(
 			await onToggleFullMap(() => {
-				fullMapOpen.update((v) => !v);
+				void toggleNotebookOverlay('map');
 			}),
 		);
 
@@ -887,7 +889,7 @@ export async function createPageController(
 
 		listeners.push(
 			await onSavePicker(() => {
-				savePickerVisible.set(true);
+				void openNotebookOverlay('save');
 			}),
 		);
 

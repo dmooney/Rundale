@@ -289,6 +289,7 @@ pub fn build_npcs_here(world: &WorldState, npc_manager: &NpcManager) -> Vec<NpcI
         .map(|npc| {
             let introduced = npc_manager.is_introduced(npc.id);
             NpcInfo {
+                npc_id: npc.id.0,
                 name: npc_manager.display_name(npc).to_string(),
                 real_name: npc.name.clone(),
                 occupation: npc.occupation.clone(),
@@ -1570,6 +1571,21 @@ mod tests {
         let npc_mgr = NpcManager::new();
         let npcs = build_npcs_here(&world, &npc_mgr);
         assert!(npcs.is_empty());
+    }
+
+    #[test]
+    fn build_npcs_here_carries_numeric_npc_identity() {
+        let world = WorldState::new();
+        let mut npc_mgr = NpcManager::new();
+        let mut npc = Npc::new_test_npc();
+        npc.id = NpcId(42);
+        npc.location = world.player_location;
+        npc_mgr.add_npc(npc);
+
+        let npcs = build_npcs_here(&world, &npc_mgr);
+
+        assert_eq!(npcs.len(), 1);
+        assert_eq!(npcs[0].npc_id, 42);
     }
 
     #[test]

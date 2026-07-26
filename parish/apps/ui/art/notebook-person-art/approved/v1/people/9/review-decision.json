@@ -1,0 +1,112 @@
+{
+	"schema_version": 1,
+	"record_type": "notebook-person-art-human-review-decision",
+	"candidate_receipt_path": "parish/apps/ui/art/notebook-person-art/candidates/objects/cc/cc7e1e80c8eced1466b0682adfac695c3d3a0b96cbddb668c4d8fbc87f647fe8/receipt.json",
+	"candidate_receipt_sha256": "f58d455028be2ba49ff72f94663eddad0281cb601e7194c8c9fa1e1431acb862",
+	"candidate_sha256": "30d7b6635b06688091c4f2f0ab5f24fbf15e996554b6fd550ca4df4c1ee3222e",
+	"raw_sha256": "2298547d95ec065bd6cce356bf9faa6568b700a9a5834668210b83ae4f967d95",
+	"subject": {
+		"kind": "npc",
+		"npc_id": 9,
+		"name": "Seamus Gallagher",
+		"input_record_sha256": "98ee5aed19ae29bca8e99f5cca5a4e414a3b3d08bc86a19a1edbd9d06da2ac59"
+	},
+	"asset": {
+		"kind": "pair",
+		"candidate_index": 1,
+		"children": [
+			"portrait",
+			"marker"
+		]
+	},
+	"hair_topology": {
+		"schema_version": 4,
+		"subject_key": "npc:9",
+		"vector": {
+			"color_and_texture": "thick coarse auburn-brown wave with dark stubble",
+			"front": {
+				"family": "forward-coarse-wave",
+				"description": "coarse short waves pushed irregularly forward without a clean part"
+			},
+			"rear": {
+				"family": "short-heavy-crown",
+				"description": "thick short crown tapering roughly at the nape"
+			},
+			"covering": {
+				"family": "uncovered",
+				"description": "no cap or head covering"
+			},
+			"silhouette": {
+				"family": "thick-wave-and-beard",
+				"description": "heavy irregular hair crown balanced by close beard mass"
+			},
+			"loose_details": "one broken wave over the right brow and close heavy stubble"
+		},
+		"sha256": "c02b2973a3932d7ee8eb1d94449bbe601516119a3cbe1982d355199abe065be3"
+	},
+	"marker_identity": {
+		"schema_version": 4,
+		"subject_key": "npc:9",
+		"marker_identity": {
+			"composition": "character-only",
+			"silhouette": "broad-shouldered early-forties man with thick coarse auburn waves, close dark beard, rolled sleeves, and a heavy leather apron; no object/scenery",
+			"stance": "planted broad stance with both empty hands at his sides; no object/scenery",
+			"empty_hand_pose": "both-at-sides",
+			"readability_cues": [
+				{
+					"kind": "body-shape",
+					"description": "broad shoulder span"
+				},
+				{
+					"kind": "face",
+					"description": "thick auburn hair and close beard"
+				},
+				{
+					"kind": "clothing",
+					"description": "heavy leather apron"
+				}
+			],
+			"tiny_readability_notes": [
+				"Let the wide shoulder-and-apron silhouette carry the read at tiny scale."
+			]
+		},
+		"sha256": "c7a71e5fe416e31532d3e6f680b969c356402e5fcb2c04338c5aaa987edc7206"
+	},
+	"decision": "approved",
+	"promotion_eligible": true,
+	"reviewer": "dmooney",
+	"reviewed_at": "2026-07-17T01:52:56.035Z",
+	"notes": "Approved by dmooney after reviewing the final 24-pair whole-cast sheet in Codex on 2026-07-16.",
+	"checklist": {
+		"identity_specific": true,
+		"concept_style_match": true,
+		"period_appropriate": true,
+		"no_prohibited_content": true,
+		"key_removal_clean": true,
+		"production_quality": true,
+		"diegetic_player_sketch": true,
+		"uncolored_pen_and_ink": true,
+		"sparse_open_linework": true,
+		"no_baked_background": true,
+		"framing_complete": true,
+		"selected_size_readable": true,
+		"nearby_size_readable": true,
+		"restrained_world_color": true,
+		"full_body_complete": true,
+		"silhouette_readable": true,
+		"character_only_marker": true,
+		"empty_hands": true,
+		"no_contextual_props_or_scenery": true,
+		"no_ground_plane": true,
+		"scene_size_readable": true,
+		"cross_asset_identity": true,
+		"hair_front_matches": true,
+		"hair_rear_matches": true,
+		"hair_covering_matches": true,
+		"hair_silhouette_matches": true,
+		"correct_surface_split": true,
+		"atomic_rerender_understood": true
+	},
+	"source_template_path": "parish/apps/ui/art/notebook-person-art/candidates/review-packets/identity-v8-character-only-full-cast-b-20260716/9-pair-30d7b6635b06-review.json",
+	"review_id": "9e5baaf3a57a67b87d09e9e2"
+}

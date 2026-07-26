@@ -24,8 +24,9 @@
 //! apply_npc_dialogue_turn` path via `execute_via_real_loop` with a mock client.
 //!
 //! **Test 1 (false-positive prevention)**: two near-identical correct replies
-//! about an in-roster person ("Roisin Connolly, aye, she's a fine weaver…")
-//! must NOT be substituted by a fallback.
+//! are run against explicit titled (`Fr. Declan Tierney`) and untitled
+//! (`Una Malone`) roster fixtures. Both exact visible names must survive and
+//! neither reply may be substituted by a fallback.
 //!
 //! **Test 2 (true-positive: real degenerate loop still fires)**: two
 //! near-identical replies with no person-name grounding (about the weather)
@@ -47,6 +48,10 @@ const REPETITION_FALLBACK_POOL: &[&str] = &[
     "I've said my piece on that, so.",
 ];
 
+const SPEAKER_NAME: &str = "Roisin Connolly";
+const TITLED_GROUNDED_PERSON: &str = "Fr. Declan Tierney";
+const UNTITLED_GROUNDED_PERSON: &str = "Una Malone";
+
 /// Drain all broadcast events from the receiver.
 fn drain(rx: &mut tokio::sync::broadcast::Receiver<GameEvent>) -> Vec<GameEvent> {
     let mut out = Vec::new();
@@ -65,28 +70,47 @@ fn is_repetition_fallback(text: &str) -> bool {
     REPETITION_FALLBACK_POOL.iter().any(|f| text.contains(f))
 }
 
+fn shown_dialogue_for(events: &[GameEvent], npc_id: parish_core::npc::NpcId) -> String {
+    events
+        .iter()
+        .filter_map(|event| {
+            if let GameEvent::DialogueOccurred {
+                npc_id: event_npc_id,
+                npc_said,
+                ..
+            } = event
+                && *event_npc_id == npc_id
+            {
+                npc_said.as_deref()
+            } else {
+                None
+            }
+        })
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
 /// Set up a harness with a single NPC at the player location.
 ///
-/// Finds an NPC by name from the Rundale roster (Roisin Connolly if available,
-/// otherwise the first available NPC), places them at the player location, moves
-/// all others away, and marks the NPC as introduced.
+/// Finds the explicit `Roisin Connolly` fixture, places her at the player
+/// location, moves all others away, and marks her as introduced. Semantic test
+/// fixtures must never depend on randomized `HashMap` iteration order.
 ///
 /// Returns `(harness, npc_id, npc_name)`.
 fn harness_with_single_npc() -> (GameTestHarness, parish_core::npc::NpcId, String) {
     let mut h = GameTestHarness::new();
     let player_loc = h.app.world.player_location;
 
-    // Prefer Roisin Connolly (used in the original run-17 bug report), fall
-    // back to any NPC available. The guard is roster-aware: any in-roster name
-    // that appears in both lines causes the guard to skip the fallback.
+    // Roisin Connolly is the stable speaking fixture from the original run-17
+    // report. Missing fixture data is a hard test failure, never an invitation
+    // to select an arbitrary NPC from unordered iteration.
     let npc_id = h
         .app
         .npc_manager
         .all_npcs()
-        .find(|n| n.name == "Roisin Connolly")
-        .or_else(|| h.app.npc_manager.all_npcs().next())
+        .find(|n| n.name == SPEAKER_NAME)
         .map(|n| n.id)
-        .expect("Rundale mod must contain at least one NPC");
+        .unwrap_or_else(|| panic!("Rundale mod must contain speaking fixture {SPEAKER_NAME:?}"));
 
     let npc_name = {
         let npc = h.app.npc_manager.get_mut(npc_id).expect("NPC exists");
@@ -121,22 +145,6 @@ fn harness_with_single_npc() -> (GameTestHarness, parish_core::npc::NpcId, Strin
     (h, npc_id, npc_name)
 }
 
-/// Find any in-roster full name (≥2 tokens) from the NPC manager.
-///
-/// Returns `None` if there are no multi-token names (should not happen in
-/// Rundale, where all NPCs have First + Last names).
-fn find_roster_full_name(
-    h: &GameTestHarness,
-    exclude_id: parish_core::npc::NpcId,
-) -> Option<String> {
-    h.app
-        .npc_manager
-        .all_npcs()
-        .filter(|n| n.id != exclude_id)
-        .find(|n| n.name.split_whitespace().count() >= 2)
-        .map(|n| n.name.clone())
-}
-
 // ── Test 1: false-positive prevention ────────────────────────────────────────
 
 /// The repetition guard must NOT fire when near-identical NPC lines are both
@@ -147,28 +155,20 @@ fn find_roster_full_name(
 /// - Turn 2: NPC gives a near-identical reply about the same person (≥0.92 Jaccard).
 /// - Expected: the second reply reaches the player unchanged, NOT replaced by a
 ///   fallback, because the shared full name explains the high word similarity.
-#[test]
-fn guard_does_not_fire_on_grounded_person_name_topic_continuity() {
+fn assert_grounded_fixture_survives(roster_name: &str) {
     let (mut h, npc_id, npc_name) = harness_with_single_npc();
 
-    // Find a full name from the roster to use as the grounding anchor.
-    let roster_name = match find_roster_full_name(&h, npc_id) {
-        Some(n) => n,
-        None => {
-            // No multi-token roster name available — skip silently.
-            // This should never happen in Rundale; if it does, the harness
-            // doesn't have the mod loaded correctly.
-            return;
-        }
-    };
+    assert!(
+        h.app
+            .npc_manager
+            .all_npcs()
+            .any(|npc| npc.name == roster_name),
+        "Rundale mod must contain explicit grounded-person fixture {roster_name:?}"
+    );
 
     // Build two near-identical lines that both mention the roster name.
     // These are intentionally very similar (≥0.92 Jaccard) because they're
     // both factually correct replies about the same person.
-    //
-    // Jaccard math: both lines share a 25-token base (including the 2-token
-    // roster name) and each appends exactly ONE unique word ("indeed" vs
-    // "surely"). Union = 27, intersection = 25, J = 25/27 ≈ 0.926 ≥ 0.92.
     let base = format!(
         "{roster_name} aye a fine weaver and a good woman known to all by her hard diligent work through every season every passing year in the townland"
     );
@@ -180,8 +180,21 @@ fn guard_does_not_fire_on_grounded_person_name_topic_continuity() {
     let mut rx = h.app.world.event_bus.subscribe();
     let _ = h.execute_via_real_loop("Do you know anyone skilled at weaving?");
 
-    // Drain first turn events (we don't assert on them).
-    let _ = drain(&mut rx);
+    let first_events = drain(&mut rx);
+    let first_shown = shown_dialogue_for(&first_events, npc_id);
+    assert!(
+        !first_shown.is_empty(),
+        "expected DialogueOccurred for NPC {npc_name} (id {npc_id:?}) on turn 1; \
+         events: {first_events:?}"
+    );
+    assert!(
+        !is_repetition_fallback(&first_shown),
+        "turn 1 must not fall back for grounded fixture {roster_name:?}; got: {first_shown:?}"
+    );
+    assert!(
+        first_shown.contains(roster_name),
+        "turn 1 must preserve exact visible grounded name {roster_name:?}; got: {first_shown:?}"
+    );
 
     // ── Turn 2: push the near-identical second line. ──────────────────────────
     h.mock().push_any(&second_line);
@@ -189,42 +202,30 @@ fn guard_does_not_fire_on_grounded_person_name_topic_continuity() {
     let _ = h.execute_via_real_loop("Tell me more about the weaver.");
 
     let events = drain(&mut rx2);
-    let shown: Vec<String> = events
-        .iter()
-        .filter_map(|ev| {
-            if let GameEvent::DialogueOccurred {
-                npc_id: ev_npc,
-                npc_said,
-                ..
-            } = ev
-                && *ev_npc == npc_id
-            {
-                npc_said.clone()
-            } else {
-                None
-            }
-        })
-        .collect();
-
+    let shown = shown_dialogue_for(&events, npc_id);
     assert!(
         !shown.is_empty(),
         "expected DialogueOccurred for NPC {npc_name} (id {npc_id:?}) on turn 2; \
          events: {events:?}"
     );
 
-    let joined = shown.join(" ");
     assert!(
-        !is_repetition_fallback(&joined),
+        !is_repetition_fallback(&shown),
         "repetition guard must NOT fire when near-identical lines are grounded \
          in a real roster person ({roster_name:?}); \
-         got: {joined:?}"
+         got: {shown:?}"
     );
-    // The actual second line should reach the player (possibly capped/processed).
     assert!(
-        joined.to_lowercase().contains(&roster_name.to_lowercase()),
-        "the grounded person name must appear in the player-visible output; \
-         got: {joined:?}"
+        shown.contains(roster_name),
+        "turn 2 must preserve exact visible grounded name {roster_name:?}; got: {shown:?}"
     );
+}
+
+#[test]
+fn guard_does_not_fire_on_grounded_person_name_topic_continuity() {
+    for roster_name in [TITLED_GROUNDED_PERSON, UNTITLED_GROUNDED_PERSON] {
+        assert_grounded_fixture_survives(roster_name);
+    }
 }
 
 // ── Test 2: true-positive (degenerate loop still fires) ───────────────────────

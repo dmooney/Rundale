@@ -24,6 +24,101 @@ pub struct ScreenshotInfo {
     pub size_bytes: u64,
 }
 
+/// The graphical webview's identity and current capture readiness.
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct GraphicalReadiness {
+    pub launch_token: String,
+    pub ready: bool,
+    pub error: Option<String>,
+}
+
+/// Channels for one agent-requested capture. Receipt is acknowledged separately
+/// from completion so a missing frontend fails promptly instead of consuming
+/// the full rasterization timeout.
+pub(crate) struct PendingScreenshot {
+    pub started: Option<tokio::sync::oneshot::Sender<()>>,
+    pub completion: tokio::sync::oneshot::Sender<Result<ScreenshotInfo, String>>,
+}
+
+/// Reads the current desktop graphical-session token. The frontend must echo
+/// this value when reporting that its screenshot listener and first Pixi frame
+/// are ready; a token is unique to each native process launch.
+#[tauri::command]
+pub async fn get_graphical_readiness(
+    state: tauri::State<'_, Arc<AppState>>,
+) -> Result<GraphicalReadiness, String> {
+    Ok(graphical_readiness(state.inner()))
+}
+
+pub(crate) fn graphical_readiness(state: &Arc<AppState>) -> GraphicalReadiness {
+    GraphicalReadiness {
+        launch_token: state.graphical_launch_token.clone(),
+        ready: state
+            .graphical_ready
+            .load(std::sync::atomic::Ordering::Acquire),
+        error: state
+            .graphical_error
+            .lock()
+            .expect("graphical error lock poisoned")
+            .clone(),
+    }
+}
+
+/// Marks the active graphical webview ready for MCP screenshots.
+#[tauri::command]
+pub async fn report_graphical_ready(
+    launch_token: String,
+    state: tauri::State<'_, Arc<AppState>>,
+) -> Result<(), String> {
+    if launch_token != state.graphical_launch_token {
+        return Err("graphical readiness token belongs to a different launch".into());
+    }
+    state
+        .graphical_ready
+        .store(true, std::sync::atomic::Ordering::Release);
+    *state
+        .graphical_error
+        .lock()
+        .expect("graphical error lock poisoned") = None;
+    Ok(())
+}
+
+/// Records a frontend initialization failure so MCP readiness explains why a
+/// graphical session cannot produce a trustworthy capture.
+#[tauri::command]
+pub async fn report_graphical_error(
+    launch_token: String,
+    error: String,
+    state: tauri::State<'_, Arc<AppState>>,
+) -> Result<(), String> {
+    if launch_token != state.graphical_launch_token {
+        return Err("graphical readiness token belongs to a different launch".into());
+    }
+    state
+        .graphical_ready
+        .store(false, std::sync::atomic::Ordering::Release);
+    *state
+        .graphical_error
+        .lock()
+        .expect("graphical error lock poisoned") = Some(error);
+    Ok(())
+}
+
+/// Invalidates graphical readiness when the mounted frontend is torn down.
+#[tauri::command]
+pub async fn report_graphical_unready(
+    launch_token: String,
+    state: tauri::State<'_, Arc<AppState>>,
+) -> Result<(), String> {
+    if launch_token != state.graphical_launch_token {
+        return Err("graphical readiness token belongs to a different launch".into());
+    }
+    state
+        .graphical_ready
+        .store(false, std::sync::atomic::Ordering::Release);
+    Ok(())
+}
+
 /// Decodes a `data:image/png;base64,...` URL into the raw PNG byte payload.
 ///
 /// Returns `Err` if the URL is malformed, has the wrong MIME type, or the
@@ -269,6 +364,8 @@ fn screenshot_timeout() -> std::time::Duration {
         .unwrap_or(45);
     std::time::Duration::from_secs(secs)
 }
+
+const SCREENSHOT_RECEIPT_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(3);
 
 /// Decides whether a late-completing capture can still be returned after the
 /// oneshot deadline expired.
@@ -691,6 +788,12 @@ pub(crate) async fn do_take_screenshot(
     state: &Arc<AppState>,
     app: &tauri::AppHandle,
 ) -> Result<ScreenshotInfo, String> {
+    if !state
+        .graphical_ready
+        .load(std::sync::atomic::Ordering::Acquire)
+    {
+        return Err("graphical UI is not ready for screenshots".into());
+    }
     // Fail fast when the OS cannot composite the window at all (screen locked /
     // logged out). Otherwise the native path errors quickly but the html-to-image
     // fallback waits on a webview that can't render while locked, hanging for the
@@ -749,10 +852,17 @@ async fn do_take_screenshot_frontend(
     let started_at = chrono::Utc::now();
     let timeout = screenshot_timeout();
     let request_id = uuid::Uuid::new_v4().to_string();
-    let (tx, rx) = oneshot::channel();
+    let (started_tx, started_rx) = oneshot::channel();
+    let (completion_tx, completion_rx) = oneshot::channel();
     {
         let mut pending = state.pending_screenshots.lock().await;
-        pending.insert(request_id.clone(), tx);
+        pending.insert(
+            request_id.clone(),
+            PendingScreenshot {
+                started: Some(started_tx),
+                completion: completion_tx,
+            },
+        );
     }
     if let Err(e) = app.emit(
         crate::events::EVENT_REQUEST_SCREENSHOT,
@@ -762,7 +872,23 @@ async fn do_take_screenshot_frontend(
         pending.remove(&request_id);
         return Err(e.to_string());
     }
-    match tokio::time::timeout(timeout, rx).await {
+    match tokio::time::timeout(SCREENSHOT_RECEIPT_TIMEOUT, started_rx).await {
+        Ok(Ok(())) => {}
+        Ok(Err(_)) => {
+            state.pending_screenshots.lock().await.remove(&request_id);
+            return Err(
+                "graphical UI cancelled the screenshot request before acknowledging it".into(),
+            );
+        }
+        Err(_) => {
+            state.pending_screenshots.lock().await.remove(&request_id);
+            return Err(format!(
+                "graphical UI did not acknowledge the screenshot request within {} s",
+                SCREENSHOT_RECEIPT_TIMEOUT.as_secs()
+            ));
+        }
+    }
+    match tokio::time::timeout(timeout, completion_rx).await {
         Ok(Ok(result)) => result,
         Ok(Err(_)) => Err("screenshot request cancelled".into()),
         Err(_) => {
@@ -785,6 +911,23 @@ async fn do_take_screenshot_frontend(
     }
 }
 
+/// Called as soon as the frontend receives a screenshot request. This is a
+/// receipt, not a success response; rasterization remains covered by the
+/// normal capture deadline.
+#[tauri::command]
+pub async fn notify_screenshot_started(
+    request_id: String,
+    state: tauri::State<'_, Arc<AppState>>,
+) -> Result<(), String> {
+    let mut pending = state.pending_screenshots.lock().await;
+    if let Some(request) = pending.get_mut(&request_id)
+        && let Some(tx) = request.started.take()
+    {
+        let _ = tx.send(());
+    }
+    Ok(())
+}
+
 /// Called by the frontend after successfully capturing a screenshot in
 /// response to a `request-screenshot` Tauri event. Delivers the
 /// `ScreenshotInfo` through the pending oneshot channel so the waiting
@@ -798,8 +941,8 @@ pub async fn notify_screenshot_captured(
     state: tauri::State<'_, Arc<AppState>>,
 ) -> Result<(), String> {
     let mut pending = state.pending_screenshots.lock().await;
-    if let Some(tx) = pending.remove(&request_id) {
-        let _ = tx.send(Ok(info));
+    if let Some(request) = pending.remove(&request_id) {
+        let _ = request.completion.send(Ok(info));
     }
     Ok(())
 }
@@ -816,8 +959,8 @@ pub async fn notify_screenshot_error(
     state: tauri::State<'_, Arc<AppState>>,
 ) -> Result<(), String> {
     let mut pending = state.pending_screenshots.lock().await;
-    if let Some(tx) = pending.remove(&request_id) {
-        let _ = tx.send(Err(error));
+    if let Some(request) = pending.remove(&request_id) {
+        let _ = request.completion.send(Err(error));
     }
     Ok(())
 }

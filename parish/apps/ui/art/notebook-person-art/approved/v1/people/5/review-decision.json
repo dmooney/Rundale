@@ -1,0 +1,112 @@
+{
+	"schema_version": 1,
+	"record_type": "notebook-person-art-human-review-decision",
+	"candidate_receipt_path": "parish/apps/ui/art/notebook-person-art/candidates/objects/9b/9b6d40bef136cef2135a01df195d83ce9c07986fb7492e6a4552ab70ffc9126d/receipt.json",
+	"candidate_receipt_sha256": "78c478d6ba46171c41a5354e6ed9ba43f88ae57d81da612cf5f4f6a9c11e26a2",
+	"candidate_sha256": "47f6a038e5a30f4292f777a2c8de7c8f7799ed441d93a7c2b42e7bee5fbb9186",
+	"raw_sha256": "42616d2e7e29b7b0151f0111c7771c87cf4715d8e2c8ffcc3e723fd7e45c9510",
+	"subject": {
+		"kind": "npc",
+		"npc_id": 5,
+		"name": "Tommy O'Brien",
+		"input_record_sha256": "2ba604dd220bfbd678a9ee780b49255a628a693f17989cd44c9073b06a94cd77"
+	},
+	"asset": {
+		"kind": "pair",
+		"candidate_index": 1,
+		"children": [
+			"portrait",
+			"marker"
+		]
+	},
+	"hair_topology": {
+		"schema_version": 4,
+		"subject_key": "npc:5",
+		"vector": {
+			"color_and_texture": "sparse white hair and thin whiskers",
+			"front": {
+				"family": "sparse-temples-under-cap",
+				"description": "mostly hidden front with sparse white temple hair visible"
+			},
+			"rear": {
+				"family": "white-nape-wisps",
+				"description": "thin uneven white wisps at the nape"
+			},
+			"covering": {
+				"family": "battered-wool-cap",
+				"description": "soft battered wool cap sitting unevenly"
+			},
+			"silhouette": {
+				"family": "collapsed-cap-and-whiskers",
+				"description": "collapsed cap crown over sparse hair with narrow whisker points"
+			},
+			"loose_details": "uneven chin stubble and thin white whiskers"
+		},
+		"sha256": "45c06b6e837090109a8af762c2e2df14236892ef493fa9aaeddf1d103655dfe9"
+	},
+	"marker_identity": {
+		"schema_version": 4,
+		"subject_key": "npc:5",
+		"marker_identity": {
+			"composition": "character-only",
+			"silhouette": "lean around-seventy man with a battered soft cap, weathered scarf, rounded stoop, and long old coat; no object/scenery",
+			"stance": "stooped three-quarter stance with one empty hand gesturing and the other at his side; no object/scenery",
+			"empty_hand_pose": "one-hand-gesturing",
+			"readability_cues": [
+				{
+					"kind": "hair-or-headwear",
+					"description": "soft battered cap"
+				},
+				{
+					"kind": "body-shape",
+					"description": "pronounced stoop"
+				},
+				{
+					"kind": "face",
+					"description": "thin white whiskers"
+				}
+			],
+			"tiny_readability_notes": [
+				"Separate him from Mick through his rounded stoop and softer, more animated arm line."
+			]
+		},
+		"sha256": "1b78b43624c7d7bbd86249b6a887eaceb67abd76a31c6b235e5369ad726803f7"
+	},
+	"decision": "approved",
+	"promotion_eligible": true,
+	"reviewer": "dmooney",
+	"reviewed_at": "2026-07-17T01:52:56.016Z",
+	"notes": "Approved by dmooney after reviewing the final 24-pair whole-cast sheet in Codex on 2026-07-16.",
+	"checklist": {
+		"identity_specific": true,
+		"concept_style_match": true,
+		"period_appropriate": true,
+		"no_prohibited_content": true,
+		"key_removal_clean": true,
+		"production_quality": true,
+		"diegetic_player_sketch": true,
+		"uncolored_pen_and_ink": true,
+		"sparse_open_linework": true,
+		"no_baked_background": true,
+		"framing_complete": true,
+		"selected_size_readable": true,
+		"nearby_size_readable": true,
+		"restrained_world_color": true,
+		"full_body_complete": true,
+		"silhouette_readable": true,
+		"character_only_marker": true,
+		"empty_hands": true,
+		"no_contextual_props_or_scenery": true,
+		"no_ground_plane": true,
+		"scene_size_readable": true,
+		"cross_asset_identity": true,
+		"hair_front_matches": true,
+		"hair_rear_matches": true,
+		"hair_covering_matches": true,
+		"hair_silhouette_matches": true,
+		"correct_surface_split": true,
+		"atomic_rerender_understood": true
+	},
+	"source_template_path": "parish/apps/ui/art/notebook-person-art/candidates/review-packets/identity-v8-character-only-full-cast-a-20260716/5-pair-47f6a038e5a3-review.json",
+	"review_id": "2a748da490b31b3148d65932"
+}

@@ -1,0 +1,112 @@
+{
+	"schema_version": 1,
+	"record_type": "notebook-person-art-human-review-decision",
+	"candidate_receipt_path": "parish/apps/ui/art/notebook-person-art/candidates/objects/78/78e489c167dd4679ea39f15cf711ef8e1974f11e1445ffb9f9875ca5dac790bc/receipt.json",
+	"candidate_receipt_sha256": "0bbd8519d2f2dae1d68d287ffbbbdaa56eccfcea85b0bf9a7d505dadcc7e4df6",
+	"candidate_sha256": "8d6be68b51f7a1b8d1066bb15bc63a75751298026cb486159e29f50181fff9f9",
+	"raw_sha256": "b55a479b2dadb65974bc27f1fc8ad08cf028b48c2a2de1001cb7b1b2b823dcbd",
+	"subject": {
+		"kind": "npc",
+		"npc_id": 23,
+		"name": "Martin Concannon",
+		"input_record_sha256": "74a5a43404cb2e54138f8186ccc33358ae5eda8757988469e4cd0b04c4b13764"
+	},
+	"asset": {
+		"kind": "pair",
+		"candidate_index": 1,
+		"children": [
+			"portrait",
+			"marker"
+		]
+	},
+	"hair_topology": {
+		"schema_version": 4,
+		"subject_key": "npc:23",
+		"vector": {
+			"color_and_texture": "dark fine orderly waves",
+			"front": {
+				"family": "clean-side-parted-wave",
+				"description": "clean side part with one controlled wave over the forehead"
+			},
+			"rear": {
+				"family": "close-around-neck",
+				"description": "fine waves kept close around both ears and the neck"
+			},
+			"covering": {
+				"family": "uncovered-clerk",
+				"description": "no cap or head covering"
+			},
+			"silhouette": {
+				"family": "neat-side-part-profile",
+				"description": "slim orderly outline with one distinct side-part wave"
+			},
+			"loose_details": "a single fine wave rests above the left temple"
+		},
+		"sha256": "77d49f6410e614713b8083c7eeadb04f2068bc2978f3150d5b5e78deee16cc38"
+	},
+	"marker_identity": {
+		"schema_version": 4,
+		"subject_key": "npc:23",
+		"marker_identity": {
+			"composition": "character-only",
+			"silhouette": "slim early-thirties man with a neat dark side part, high forehead, better-quality dark coat, fitted waistcoat, and clean cravat; no object/scenery",
+			"stance": "formal upright stance with hands behind the back and head slightly turned; no object/scenery",
+			"empty_hand_pose": "hands-behind-back",
+			"readability_cues": [
+				{
+					"kind": "hair-or-headwear",
+					"description": "neat side-parted dark hair"
+				},
+				{
+					"kind": "clothing",
+					"description": "fitted formal coat and waistcoat"
+				},
+				{
+					"kind": "stance",
+					"description": "restrained upright posture"
+				}
+			],
+			"tiny_readability_notes": [
+				"Make his formal vertical tailoring distinct from Roisin without using documents."
+			]
+		},
+		"sha256": "0a3f5791b8b72abd5a637462efa8db037168858a1f74b90b344356e810be5f79"
+	},
+	"decision": "approved",
+	"promotion_eligible": true,
+	"reviewer": "dmooney",
+	"reviewed_at": "2026-07-17T01:52:56.103Z",
+	"notes": "Approved by dmooney after reviewing the final 24-pair whole-cast sheet in Codex on 2026-07-16.",
+	"checklist": {
+		"identity_specific": true,
+		"concept_style_match": true,
+		"period_appropriate": true,
+		"no_prohibited_content": true,
+		"key_removal_clean": true,
+		"production_quality": true,
+		"diegetic_player_sketch": true,
+		"uncolored_pen_and_ink": true,
+		"sparse_open_linework": true,
+		"no_baked_background": true,
+		"framing_complete": true,
+		"selected_size_readable": true,
+		"nearby_size_readable": true,
+		"restrained_world_color": true,
+		"full_body_complete": true,
+		"silhouette_readable": true,
+		"character_only_marker": true,
+		"empty_hands": true,
+		"no_contextual_props_or_scenery": true,
+		"no_ground_plane": true,
+		"scene_size_readable": true,
+		"cross_asset_identity": true,
+		"hair_front_matches": true,
+		"hair_rear_matches": true,
+		"hair_covering_matches": true,
+		"hair_silhouette_matches": true,
+		"correct_surface_split": true,
+		"atomic_rerender_understood": true
+	},
+	"source_template_path": "parish/apps/ui/art/notebook-person-art/candidates/review-packets/identity-v8-character-only-full-cast-c-20260716/23-pair-8d6be68b51f7-review.json",
+	"review_id": "3452ba69978e20b95745cece"
+}

@@ -1,0 +1,209 @@
+{
+	"npc_id": 20,
+	"name": "Una Malone",
+	"age": 48,
+	"pronouns": "she/her",
+	"occupation": "Weaver",
+	"mood": "content",
+	"brief_description": "a woman at a great loom, surrounded by coloured thread",
+	"home": {
+		"id": 19,
+		"name": "The Weaver's Cottage",
+		"description": "A neat whitewashed cottage with a half-door and a garden of herbs and dye-plants. Inside, a great wooden loom takes up most of the front room. Skeins of dyed wool hang from the rafters in greens, browns, and deep reds. It is daylight. The sky is weather."
+	},
+	"workplace": {
+		"id": 19,
+		"name": "The Weaver's Cottage",
+		"description": "A neat whitewashed cottage with a half-door and a garden of herbs and dye-plants. Inside, a great wooden loom takes up most of the front room. Skeins of dyed wool hang from the rafters in greens, browns, and deep reds. It is daylight. The sky is weather."
+	},
+	"source_personality_summary": "A talented weaver who produces the finest cloth in the parish from her cottage loom.",
+	"source_knowledge": [
+		"Keeps the old weaving patterns that have been passed down for generations.",
+		"Knows dozens of songs in Irish — lullabies, work songs, laments for the dead.",
+		"Her husband drowned in Lough Ree and she has never fully forgiven the lake.",
+		"Heard from Niamh Darcy that the girl dreams of leaving — Una understands but worries."
+	],
+	"source_relationships": [
+		{
+			"target_id": 6,
+			"target_name": "Aoife Brennan",
+			"kind": "Friend",
+			"strength": 0.6
+		},
+		{
+			"target_id": 8,
+			"target_name": "Niamh Darcy",
+			"kind": "Friend",
+			"strength": 0.4
+		},
+		{
+			"target_id": 16,
+			"target_name": "Kathleen Walsh",
+			"kind": "Friend",
+			"strength": 0.5
+		},
+		{
+			"target_id": 4,
+			"target_name": "Roisin Connolly",
+			"kind": "Professional",
+			"strength": 0.4
+		}
+	],
+	"source_schedule_cues": [
+		{
+			"location_id": 1,
+			"location_name": "The Crossroads",
+			"activity": "at the crossroads after Mass"
+		},
+		{
+			"location_id": 3,
+			"location_name": "St. Brigid's Church",
+			"activity": "at Mass at St. Brigid's"
+		},
+		{
+			"location_id": 6,
+			"location_name": "The Hedge School",
+			"activity": "visiting Aoife at the hedge school, sharing songs and stories"
+		},
+		{
+			"location_id": 13,
+			"location_name": "Connolly's Shop",
+			"activity": "at Connolly's Shop, selling cloth and buying supplies"
+		},
+		{
+			"location_id": 19,
+			"location_name": "The Weaver's Cottage",
+			"activity": "Kathleen Walsh visits for singing and tea"
+		},
+		{
+			"location_id": 19,
+			"location_name": "The Weaver's Cottage",
+			"activity": "Sunday dinner"
+		},
+		{
+			"location_id": 19,
+			"location_name": "The Weaver's Cottage",
+			"activity": "at the loom, weaving — the shuttle clicking back and forth"
+		},
+		{
+			"location_id": 19,
+			"location_name": "The Weaver's Cottage",
+			"activity": "dinner, a quiet meal alone"
+		},
+		{
+			"location_id": 19,
+			"location_name": "The Weaver's Cottage",
+			"activity": "dyeing wool or spinning thread, women from the village come to help"
+		},
+		{
+			"location_id": 19,
+			"location_name": "The Weaver's Cottage",
+			"activity": "evening weaving by candlelight, singing to herself"
+		},
+		{
+			"location_id": 19,
+			"location_name": "The Weaver's Cottage",
+			"activity": "quiet evening at home"
+		},
+		{
+			"location_id": 19,
+			"location_name": "The Weaver's Cottage",
+			"activity": "rising, tending her dye-garden, breakfast"
+		},
+		{
+			"location_id": 19,
+			"location_name": "The Weaver's Cottage",
+			"activity": "sleeping"
+		},
+		{
+			"location_id": 19,
+			"location_name": "The Weaver's Cottage",
+			"activity": "sleeping at the cottage"
+		},
+		{
+			"location_id": 19,
+			"location_name": "The Weaver's Cottage",
+			"activity": "to bed"
+		}
+	],
+	"source_visual_cues": [
+		"age: 48",
+		"occupation: Weaver",
+		"brief_description: a woman at a great loom, surrounded by coloured thread",
+		"prop/activity"
+	],
+	"source_metadata_status": {
+		"canonical_npc_data_sufficient_for_production_art": false,
+		"status": "weak-partial",
+		"reason": "The canonical NPC data identifies the character but does not provide enough structured appearance, clothing, or tiny-marker guidance for production art."
+	},
+	"art_direction": {
+		"npc_id": 20,
+		"npc_name": "Una Malone",
+		"portrait_identity": {
+			"visual_identity_seed": "rundale-person-v2:20",
+			"identity_cohort": "woman",
+			"apparent_age": "late forties",
+			"facial_geometry": {
+				"face_shape": "broad balanced oval with a full lower face",
+				"proportions": "even facial thirds, medium eye spacing, broad central plane",
+				"brow_and_eyes": "low softly curved brows over medium-set heavy-lidded eyes",
+				"nose": "short broad nose with a straight bridge and rounded nostrils",
+				"mouth": "medium-width mouth with a full upper lip and shallow central notch",
+				"jaw_and_chin": "rounded jaw flowing into a broad softly cleft chin",
+				"cheekbones": "low broad cheekbones with full cheeks",
+				"hairline": "straight medium-height hairline with a slight dip over the left temple",
+				"age_detail": "soft lower-eye creases and light vertical lines above the upper lip"
+			},
+			"distinguishing_features": [
+				"shallow cleft in the broad chin",
+				"slight dip in the hairline above the left temple",
+				"short broad nose against an otherwise evenly proportioned face"
+			],
+			"hair": "ABSOLUTE VISIBLE SILHOUETTE: dark hair streaked with grey has a soft off-centre front and narrow rope twists at both temples joining a broad flat braided coronet across the upper rear head. A narrow folded woven-linen kerchief crosses only the crown and knots at the nape, visibly narrower than the coronet. No low coil, full cap, rounded bun, or loose ends near the loom. Portrait line economy: use sparse open contours and a few twist marks, leaving hair, cloth, and face unfilled; no black masses, dense hatching, or engraving texture. The marker must repeat the broad coronet and narrower crown cloth.",
+			"clothing": "plain dress with woven shawl, apron with thread flecks",
+			"pose_expression": "content and absorbed in fine work; portrait and marker must show the same late-forties broad trapezoid face, heavy jaw, broad nose, small eyes, and visible age lines, never a smooth young narrow-oval woman",
+			"props": [
+				"weaving shuttle",
+				"colored wool skeins",
+				"thread across fingers"
+			],
+			"palette_notes": [
+				"dyed wool greens",
+				"deep red thread",
+				"warm cottage brown"
+			]
+		},
+		"marker_identity": {
+			"composition": "character-only",
+			"silhouette": "broad late-forties woman with a visible flat braided coronet, narrow crown kerchief, woven shawl, apron, and broad heavy-jawed outline; no object/scenery",
+			"stance": "calm upright stance with hands clasped at the waist; no object/scenery",
+			"empty_hand_pose": "hands-clasped",
+			"readability_cues": [
+				{
+					"kind": "hair-or-headwear",
+					"description": "broad flat braided coronet under a narrow crown kerchief"
+				},
+				{
+					"kind": "face",
+					"description": "broad jaw and full cheeks"
+				}
+			],
+			"tiny_readability_notes": [
+				"Keep the visible coronet wider than the narrow crown cloth at marker scale."
+			]
+		},
+		"avoid": [
+			"modern textile studio",
+			"large loom filling the marker",
+			"fashion-model shawl",
+			"compact low coil or full cap hiding the broad visible coronet and narrow crown kerchief"
+		],
+		"authoring_notes": [
+			"Canonical data gives loom, thread, and cultural craft detail; supplement converts it into compact portrait/marker cues."
+		]
+	},
+	"pair_prompt": "Identity contract for Una Malone, age 48, Weaver: visual identity seed rundale-person-v2:20; apparent age late forties; Explicit facial geometry: face shape broad balanced oval with a full lower face; proportions even facial thirds, medium eye spacing, broad central plane; brow and eyes low softly curved brows over medium-set heavy-lidded eyes; nose short broad nose with a straight bridge and rounded nostrils; mouth medium-width mouth with a full upper lip and shallow central notch; jaw and chin rounded jaw flowing into a broad softly cleft chin; cheekbones low broad cheekbones with full cheeks; hairline straight medium-height hairline with a slight dip over the left temple; age detail soft lower-eye creases and light vertical lines above the upper lip. Distinguishing features: shallow cleft in the broad chin, slight dip in the hairline above the left temple, short broad nose against an otherwise evenly proportioned face. Hair: ABSOLUTE VISIBLE SILHOUETTE: dark hair streaked with grey has a soft off-centre front and narrow rope twists at both temples joining a broad flat braided coronet across the upper rear head. A narrow folded woven-linen kerchief crosses only the crown and knots at the nape, visibly narrower than the coronet. No low coil, full cap, rounded bun, or loose ends near the loom. Portrait line economy: use sparse open contours and a few twist marks, leaving hair, cloth, and face unfilled; no black masses, dense hatching, or engraving texture. The marker must repeat the broad coronet and narrower crown cloth.. Production task: create one identity-locked portrait-and-marker pair in Rundale, rural County Roscommon, Ireland, 1820, ordinary parish life, period-appropriate work clothing, under this visual authority: Illustrated Parish Notebook concept art only. The two renderings must unmistakably be the same person by reproducing every stated identity fact. Clothing: plain dress with woven shawl, apron with thread flecks; canonical biography cue for clothing and expression only, never for setting, activity, or objects: a woman at a great loom, surrounded by coloured thread; current mood content. Left asset, notebook portrait: a quick observational head-and-shoulders sketch the player character drew in their working notebook after meeting this person. Use sparse uncolored sepia/graphite contours, open unfilled shapes, and only a few isolated short structural hatch marks; optional lower-edge prop weaving shuttle, simply outlined and confined to the left cell. Do not cross-hatch or shade any broad region of the face, hair, neck, scarf, waistcoat, coat, dress, or apron, and do not render a dark garment as a filled or densely hatched mass. Keep the complete ink drawing between 40 and 60 percent of the left cell height with generous empty padding; every uninked interior region must remain provider key, never white, cream, parchment, skin tone, gray, or any other fill. It must not read as a formal illustration or painted portrait. Right asset, painted-world marker: one tiny static full-body transparent character-only cutout designed for compositing into the painted parish scene; silhouette broad late-forties woman with a visible flat braided coronet, narrow crown kerchief, woven shawl, apron, and broad heavy-jawed outline; no object/scenery; stance calm upright stance with hands clasped at the waist; no object/scenery; empty-hand pose both empty hands clasped together; tiny-readability cues from the person's body, hair or headwear, clothing, and stance alone: hair or headwear: broad flat braided coronet under a narrow crown kerchief; face: broad jaw and full cheeks; complete figure roughly 45 percent of the right cell height, acceptable range 40 to 60 percent, with generous key-visible margins; restrained translucent watercolor within loose sepia/graphite contours, simplified face, and complete feet. The right cell must contain the person only: both hands empty; no held or carried objects, tools, books, containers, bundles, furniture, counters, architecture, vegetation, scenery fragments, ground plane, shadow, or extra person. Worn clothing and headwear are allowed. Do not illustrate the canonical biography's occupation, workplace, activity, or narrative context around the marker. Limit painted color to muted wool gray, bog green, weathered tan, dull brick red, peat brown, and faded indigo; no saturated primary colors. Shared constraints: one depiction in each assigned cell, ordinary 1820 rural County Roscommon clothing, no modern or fantasy elements, no text, labels, frames, contact-sheet furniture, or sprite-sheet poses. Never copy a left-cell portrait prop into the marker. Character-specific avoid list: modern textile studio, large loom filling the marker, fashion-model shawl, compact low coil or full cap hiding the broad visible coronet and narrow crown kerchief.",
+	"portrait_prompt": "Subject identity: Una Malone, age 48, Weaver; visual identity seed rundale-person-v2:20; apparent age late forties; Explicit facial geometry: face shape broad balanced oval with a full lower face; proportions even facial thirds, medium eye spacing, broad central plane; brow and eyes low softly curved brows over medium-set heavy-lidded eyes; nose short broad nose with a straight bridge and rounded nostrils; mouth medium-width mouth with a full upper lip and shallow central notch; jaw and chin rounded jaw flowing into a broad softly cleft chin; cheekbones low broad cheekbones with full cheeks; hairline straight medium-height hairline with a slight dip over the left temple; age detail soft lower-eye creases and light vertical lines above the upper lip. Distinguishing features: shallow cleft in the broad chin, slight dip in the hairline above the left temple, short broad nose against an otherwise evenly proportioned face. Hair: ABSOLUTE VISIBLE SILHOUETTE: dark hair streaked with grey has a soft off-centre front and narrow rope twists at both temples joining a broad flat braided coronet across the upper rear head. A narrow folded woven-linen kerchief crosses only the crown and knots at the nape, visibly narrower than the coronet. No low coil, full cap, rounded bun, or loose ends near the loom. Portrait line economy: use sparse open contours and a few twist marks, leaving hair, cloth, and face unfilled; no black masses, dense hatching, or engraving texture. The marker must repeat the broad coronet and narrower crown cloth.. Artifact and lore: this is a quick observational sketch the player character drew by hand in the margin of their working parish notebook after meeting the subject. It is diegetic notebook ephemera, not a commissioned illustration, formal portrait study, character card, or polished concept painting. Non-negotiable drawing language: sparse, uncolored pen-and-ink line drawing under this visual authority: Illustrated Parish Notebook concept art only. Use one irregular sepia/graphite ink line, economical contours, open shapes, and only a few short loose hatch marks where structurally necessary. Leave most of the face, hair, clothing, and canvas unfilled. No skin-tone fill, white underpainting, cream fill, solid dark garment, gray wash, watercolor, smooth tonal modeling, dense cross-hatching, photorealistic rendering, or glamour. Delivery composition: 1024x1024 transparent-background PNG source, portrait line art occupies roughly 45 percent of source height, centered head-and-shoulders drawing with generous transparent padding on all sides, top of hair/head covering and shoulders fully visible, no baked parchment, paper texture, wash, card, border, label, or UI furniture; keep the complete inked drawing between roughly 40 and 60 percent of canvas height with generous empty space on every side. Uninked areas are transparent in the delivery asset so the UI-controlled notebook paper shows through. Setting: Rundale, rural County Roscommon, Ireland, 1820, ordinary parish life, period-appropriate work clothing. Clothing: plain dress with woven shawl, apron with thread flecks, indicated only with contour, seam, and a few fold lines; expression and pose content and absorbed in fine work; portrait and marker must show the same late-forties broad trapezoid face, heavy jaw, broad nose, small eyes, and visible age lines, never a smooth young narrow-oval woman; current mood content. Optional lower-edge identity cue: weaving shuttle, at most one simply outlined prop. Canonical context: a woman at a great loom, surrounded by coloured thread; home/workplace at The Weaver's Cottage. Hard constraints: one character, head and shoulders only, period-appropriate rural County Roscommon clothing, no text, no label, no border, no card, no UI chrome. Character-specific avoid list: modern textile studio, large loom filling the marker, fashion-model shawl, compact low coil or full cap hiding the broad visible coronet and narrow crown kerchief.",
+	"marker_prompt": "Subject identity: Una Malone, age 48, Weaver; visual identity seed rundale-person-v2:20; apparent age late forties; Explicit facial geometry: face shape broad balanced oval with a full lower face; proportions even facial thirds, medium eye spacing, broad central plane; brow and eyes low softly curved brows over medium-set heavy-lidded eyes; nose short broad nose with a straight bridge and rounded nostrils; mouth medium-width mouth with a full upper lip and shallow central notch; jaw and chin rounded jaw flowing into a broad softly cleft chin; cheekbones low broad cheekbones with full cheeks; hairline straight medium-height hairline with a slight dip over the left temple; age detail soft lower-eye creases and light vertical lines above the upper lip. Distinguishing features: shallow cleft in the broad chin, slight dip in the hairline above the left temple, short broad nose against an otherwise evenly proportioned face. Hair: ABSOLUTE VISIBLE SILHOUETTE: dark hair streaked with grey has a soft off-centre front and narrow rope twists at both temples joining a broad flat braided coronet across the upper rear head. A narrow folded woven-linen kerchief crosses only the crown and knots at the nape, visibly narrower than the coronet. No low coil, full cap, rounded bun, or loose ends near the loom. Portrait line economy: use sparse open contours and a few twist marks, leaving hair, cloth, and face unfilled; no black masses, dense hatching, or engraving texture. The marker must repeat the broad coronet and narrower crown cloth.. Asset role: one tiny static full-body NPC marker delivered as a transparent character-only cutout for compositing over Rundale's painted world surface. It is not a UI portrait, paper doll, animation sheet, formal character illustration, vignette, or sprite-sheet panel. Visual language: loose hand-inked watercolor miniature under this visual authority: Illustrated Parish Notebook concept art only. Use irregular sepia/graphite contours, a simple readable human silhouette, restrained translucent washes, low facial detail, and only enough clothing folds to identify the person at scene size. Keep the treatment handmade and subordinate to the environment, never glossy, photorealistic, densely rendered, or cut out with a broad halo. Delivery composition: 1024x1024 flat #ff00ff chroma-key PNG source, full-body figure occupies roughly 45 percent of source height, centered figure with feet fully visible and generous flat background margins, one single static in-world marker pose per NPC for this slice, no ground shadow, floor plane, label, border, or extra figure. Palette: sepia/graphite line with muted wool gray, bog green, weathered tan, dull brick red, peat brown, and faded indigo only; no saturated primary colors. Setting: Rundale, rural County Roscommon, Ireland, 1820, ordinary parish life, period-appropriate work clothing. Character-only silhouette: broad late-forties woman with a visible flat braided coronet, narrow crown kerchief, woven shawl, apron, and broad heavy-jawed outline; no object/scenery. Stance: calm upright stance with hands clasped at the waist; no object/scenery. Empty-hand pose: both empty hands clasped together. Tiny-readability cues from the person's body, hair or headwear, clothing, and stance alone: hair or headwear: broad flat braided coronet under a narrow crown kerchief; face: broad jaw and full cheeks. Tiny-readability requirements: Keep the visible coronet wider than the narrow crown cloth at marker scale.. Hard constraints: one character only, both hands empty, period-appropriate ordinary rural clothing, simplified face, complete feet, no held or carried objects, tools, books, containers, bundles, furniture, architecture, vegetation, scenery fragments, ground plane, shadow, text, label, border, or UI chrome. Worn clothing and headwear are allowed. Do not illustrate an occupation, workplace, activity, or narrative context around the person. Character-specific avoid list: modern textile studio, large loom filling the marker, fashion-model shawl, compact low coil or full cap hiding the broad visible coronet and narrow crown kerchief."
+}

@@ -1,8 +1,11 @@
 import { fireEvent, render, waitFor } from '@testing-library/svelte';
 import { get } from 'svelte/store';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { NotebookHitTarget } from '$lib/illustrated-notebook/interactions';
-import type { NotebookRenderState } from '$lib/illustrated-notebook/types';
+import type { Mock } from 'vitest';
+import type {
+	ParishHitTarget,
+	ParishRenderState,
+} from '$lib/illustrated-parish/types';
 import IllustratedNotebookGame from './IllustratedNotebookGame.svelte';
 import {
 	flushStream,
@@ -14,34 +17,42 @@ import {
 	textLog,
 	worldState,
 } from '../../stores/game';
+import {
+	closeNotebookOverlay,
+	notebookOverlay,
+	resetNotebookOverlayForTests,
+} from '../../stores/notebookOverlay';
 
-let lastRenderState: NotebookRenderState | null = null;
+let lastRenderState: ParishRenderState | null = null;
 let lastRenderer: {
-	activateTarget: (id: string) => unknown;
-	setFocusedTarget: (id: string | null) => unknown;
+	activateTarget: Mock<(id: string) => boolean>;
+	setFocusedTarget: Mock<(id: string | null) => void>;
 } | null = null;
-let mockHitTargets: NotebookHitTarget[] = [];
+let mockHitTargets: ParishHitTarget[] = [];
+let rendererConstructCount = 0;
 const mockSubmitInput = vi.fn(async (..._args: unknown[]) => {});
 const mockReactToMessage = vi.fn(async (..._args: unknown[]) => {});
 
 vi.mock('$lib/ipc', () => ({
 	submitInput: (...args: unknown[]) => mockSubmitInput(...args),
 	reactToMessage: (...args: unknown[]) => mockReactToMessage(...args),
+	getDebugSnapshot: vi.fn(async () => ({})),
 }));
 
-vi.mock('$lib/illustrated-notebook/renderer', () => ({
-	IllustratedNotebookRenderer: class {
+vi.mock('$lib/illustrated-parish/renderer', () => ({
+	IllustratedParishRenderer: class {
 		private readonly options?: {
-			onHitTargetsChanged?: (targets: NotebookHitTarget[]) => void;
+			onHitTargetsChanged?: (targets: ParishHitTarget[]) => void;
 		};
 
 		constructor(
 			_host: HTMLElement,
 			options?: {
-				onHitTargetsChanged?: (targets: NotebookHitTarget[]) => void;
+				onHitTargetsChanged?: (targets: ParishHitTarget[]) => void;
 			},
 		) {
 			this.options = options;
+			rendererConstructCount += 1;
 			lastRenderer = {
 				activateTarget: vi.fn((_id: string) => true),
 				setFocusedTarget: vi.fn((_id: string | null) => undefined),
@@ -49,15 +60,19 @@ vi.mock('$lib/illustrated-notebook/renderer', () => ({
 		}
 
 		async init() {}
-		render(state: NotebookRenderState) {
+
+		render(state: ParishRenderState) {
 			lastRenderState = state;
 			this.options?.onHitTargetsChanged?.(mockHitTargets);
 		}
+
 		resize() {}
 		destroy() {}
+
 		activateTarget(id: string) {
 			return lastRenderer?.activateTarget(id);
 		}
+
 		setFocusedTarget(id: string | null) {
 			return lastRenderer?.setFocusedTarget(id);
 		}
@@ -65,6 +80,7 @@ vi.mock('$lib/illustrated-notebook/renderer', () => ({
 }));
 
 const roisin = {
+	npc_id: 6,
 	name: 'Roisin Connolly',
 	real_name: 'Roisin Connolly',
 	occupation: 'shopkeeper',
@@ -73,6 +89,7 @@ const roisin = {
 	mood_emoji: '•',
 };
 const aoife = {
+	npc_id: 7,
 	name: 'Aoife Kelly',
 	real_name: 'Aoife Kelly',
 	occupation: 'weaver',
@@ -81,10 +98,10 @@ const aoife = {
 	mood_emoji: '•',
 };
 
-function target(id: string, label: string, order: number): NotebookHitTarget {
+function target(id: string, label: string, order: number): ParishHitTarget {
 	return {
 		id,
-		kind: 'action-stamp',
+		kind: 'action',
 		label,
 		rect: { x: order, y: order, width: 20, height: 20 },
 		order,
@@ -92,7 +109,23 @@ function target(id: string, label: string, order: number): NotebookHitTarget {
 	};
 }
 
+function tabTarget(
+	tab: 'notes' | 'people' | 'places' | 'rumours' | 'journal',
+	order: number,
+): ParishHitTarget {
+	return {
+		id: `tab:${tab}`,
+		kind: 'tab',
+		label: `Open ${tab.charAt(0).toUpperCase()}${tab.slice(1)} notebook tab`,
+		rect: { x: order, y: order, width: 44, height: 44 },
+		order,
+		activation: { type: 'open-tab', tab },
+	};
+}
+
 function seedStores() {
+	sessionStorage.clear();
+	resetNotebookOverlayForTests();
 	worldState.set({
 		location_id: 15,
 		location_name: 'Kilteevan Village',
@@ -108,8 +141,8 @@ function seedStores() {
 		game_epoch_ms: Date.UTC(1820, 3, 1, 15, 40),
 		speed_factor: 36,
 		name_hints: [],
-		day_of_week: 'Monday',
 		active_tasks: [],
+		day_of_week: 'Monday',
 	});
 	npcsHere.set([roisin]);
 	mapData.set({
@@ -143,28 +176,48 @@ function seedStores() {
 	fullMapOpen.set(false);
 	lastRenderState = null;
 	lastRenderer = null;
+	rendererConstructCount = 0;
 	mockHitTargets = [
 		target('nearby:roisin', 'Select nearby person Roisin Connolly', 10),
-		target('action:ask', 'Ask action stamp', 40),
-		target('tab:people', 'Open People notebook tab', 50),
-		target('time-card', 'Open time details', 60),
-		target('active-intents-card', 'Open active tasks', 70),
+		target('action:ask', 'Ask action', 40),
+		tabTarget('notes', 50),
+		tabTarget('people', 51),
+		tabTarget('places', 52),
+		tabTarget('rumours', 53),
+		tabTarget('journal', 54),
+		target('time-card', 'Open time and weather', 60),
+		target('active-intents', 'Open active intents', 70),
 	];
-	mockSubmitInput.mockClear();
+	mockSubmitInput.mockReset();
+	mockSubmitInput.mockResolvedValue(undefined);
 	mockReactToMessage.mockReset();
 	mockReactToMessage.mockResolvedValue(undefined);
 }
 
-describe('IllustratedNotebookGame', () => {
+describe('IllustratedNotebookGame fresh parish bridge', () => {
 	beforeEach(seedStores);
 
-	it('mounts a Pixi host without old dashboard or InputField chrome', async () => {
-		const { container, getByTestId, queryByText } = render(
+	it('mounts one Pixi viewport without dashboard chrome', async () => {
+		const { container, getByRole, getByTestId, queryByText } = render(
 			IllustratedNotebookGame,
 		);
 
-		expect(getByTestId('illustrated-notebook-game')).toBeTruthy();
+		expect(
+			getByRole('region', {
+				name: 'Rundale illustrated parish notebook',
+			}),
+		).toBe(getByTestId('illustrated-notebook-game'));
 		expect(getByTestId('illustrated-notebook-pixi-host')).toBeTruthy();
+		expect(getByTestId('illustrated-notebook-pixi-host')).toHaveAttribute(
+			'aria-hidden',
+			'true',
+		);
+		expect(getByRole('status', { name: 'Parish status' })).toHaveTextContent(
+			'Location: Kilteevan Village',
+		);
+		expect(getByRole('status', { name: 'Parish status' })).toHaveTextContent(
+			'Selected person: Roisin Connolly, shopkeeper, mood wary',
+		);
 		expect(container.querySelector('.input-wrapper')).toBeNull();
 		expect(container.querySelector('.input-form')).toBeNull();
 		expect(container.querySelector('[data-testid="chat-panel"]')).toBeNull();
@@ -175,9 +228,88 @@ describe('IllustratedNotebookGame', () => {
 		);
 	});
 
-	it('keeps default selected-person behavior stable when nearby people change', async () => {
-		render(IllustratedNotebookGame);
+	it('keeps intent editable while exposing the streaming state', async () => {
+		const { getByLabelText } = render(IllustratedNotebookGame);
+		const input = getByLabelText('Player intent') as HTMLInputElement;
 
+		expect(input.disabled).toBe(false);
+		expect(input).not.toHaveAttribute('aria-disabled');
+		expect(input).toHaveAttribute('aria-busy', 'false');
+
+		streamingActive.set(true);
+		await waitFor(() => expect(input).toHaveAttribute('aria-busy', 'true'));
+		expect(input.disabled).toBe(false);
+		expect(input).not.toHaveAttribute('aria-disabled');
+	});
+
+	it('flushes streaming on the first character and keeps that draft', async () => {
+		const flush = vi.fn(() => {
+			streamingActive.set(false);
+			return 1;
+		});
+		flushStream.set(flush);
+		streamingActive.set(true);
+		const { getByLabelText } = render(IllustratedNotebookGame);
+		const input = getByLabelText('Player intent') as HTMLInputElement;
+
+		await fireEvent.keyDown(input, { key: 'x' });
+		input.value = 'x';
+		await fireEvent.input(input);
+
+		expect(flush).toHaveBeenCalledOnce();
+		await waitFor(() => expect(lastRenderState?.command.text).toBe('x'));
+		expect(mockSubmitInput).not.toHaveBeenCalled();
+	});
+
+	it('flushes but does not submit when Enter ends a stream', async () => {
+		const flush = vi.fn(() => {
+			streamingActive.set(false);
+			return 1;
+		});
+		flushStream.set(flush);
+		streamingActive.set(true);
+		const { getByLabelText } = render(IllustratedNotebookGame);
+		const input = getByLabelText('Player intent') as HTMLInputElement;
+		input.value = 'ask Roisin';
+		await fireEvent.input(input);
+
+		await fireEvent.keyDown(input, { key: 'Enter' });
+
+		expect(flush).toHaveBeenCalledOnce();
+		expect(mockSubmitInput).not.toHaveBeenCalled();
+		expect(input.value).toBe('ask Roisin');
+	});
+
+	it.each(['ArrowUp', 'ArrowDown'])(
+		'flushes streaming without recalling command history on %s',
+		async (key) => {
+			const { getByLabelText } = render(IllustratedNotebookGame);
+			const input = getByLabelText('Player intent') as HTMLInputElement;
+
+			await fireEvent.input(input, { target: { value: 'look around' } });
+			await fireEvent.keyDown(input, { key: 'Enter' });
+			await waitFor(() => expect(input.value).toBe(''));
+
+			await fireEvent.input(input, {
+				target: { value: 'draft during stream' },
+			});
+			const flush = vi.fn(() => {
+				streamingActive.set(false);
+				return 1;
+			});
+			flushStream.set(flush);
+			streamingActive.set(true);
+
+			await fireEvent.keyDown(input, { key });
+
+			expect(flush).toHaveBeenCalledOnce();
+			expect(input.value).toBe('draft during stream');
+			expect(mockSubmitInput).toHaveBeenCalledTimes(1);
+		},
+	);
+
+	it('keeps the selected person stable as nearby people change', async () => {
+		render(IllustratedNotebookGame);
 		await waitFor(() =>
 			expect(lastRenderState?.selectedNpc?.name).toBe('Roisin Connolly'),
 		);
@@ -198,52 +330,7 @@ describe('IllustratedNotebookGame', () => {
 		);
 	});
 
-	it('reactively forwards live commands, narration, and streaming dialogue to Pixi', async () => {
-		const { getByLabelText } = render(IllustratedNotebookGame);
-
-		textLog.set([
-			{ id: 'p1', source: 'player', content: 'look around the crossroads' },
-			{
-				id: 's1',
-				source: 'system',
-				content: 'A cart rattles along the eastern road.',
-			},
-			{
-				id: 'n1',
-				source: 'Roisin Connolly',
-				content: 'There is rain coming',
-				streaming: true,
-			},
-		]);
-		streamingActive.set(true);
-
-		await waitFor(() =>
-			expect(lastRenderState?.view.liveLines).toMatchObject([
-				{
-					kind: 'player',
-					speaker: 'You',
-					content: 'look around the crossroads',
-				},
-				{
-					kind: 'narration',
-					speaker: 'Parish',
-					content: 'A cart rattles along the eastern road.',
-				},
-				{
-					kind: 'npc',
-					speaker: 'Roisin Connolly',
-					content: 'There is rain coming',
-					streaming: true,
-				},
-			]),
-		);
-		expect(lastRenderState?.busy).toBe(true);
-		expect(getByLabelText('Live chronicle · listening').textContent).toContain(
-			'There is rain coming',
-		);
-	});
-
-	it('seeds and submits through the new hidden command input', async () => {
+	it('seeds and submits through the hidden command input', async () => {
 		const { getByLabelText } = render(IllustratedNotebookGame);
 		const input = getByLabelText('Player intent') as HTMLInputElement;
 
@@ -257,165 +344,161 @@ describe('IllustratedNotebookGame', () => {
 		);
 	});
 
-	it('routes notebook tabs and cards through overlay state', async () => {
-		const { getByLabelText, getByText } = render(IllustratedNotebookGame);
-
-		await waitFor(() => expect(lastRenderState).not.toBeNull());
-
-		lastRenderState?.callbacks.onOpenTab('people');
-		await waitFor(() => expect(getByLabelText('people drawer')).toBeTruthy());
-
-		lastRenderState?.callbacks.onOpenTime();
-		await waitFor(() => expect(getByText('Clock')).toBeTruthy());
-
-		lastRenderState?.callbacks.onOpenActiveIntents();
-		await waitFor(() => expect(getByText('No active task.')).toBeTruthy());
-
-		lastRenderState?.callbacks.onOpenMap();
-		expect(get(fullMapOpen)).toBe(true);
-	});
-
-	it('shows every live reaction and submits a notebook-native player reaction', async () => {
-		textLog.set([
-			{
-				id: 'npc-reaction-target',
-				source: 'Roisin Connolly',
-				content: 'Mind the shallow row by the wall.',
-				reactions: [
-					{ emoji: '🤔', source: 'Aoife Kelly' },
-					{ emoji: '👀', source: 'Roisin Connolly' },
-				],
-			},
-		]);
-		const { getByLabelText, getByTestId } = render(IllustratedNotebookGame);
-
-		await waitFor(() =>
-			expect(getByTestId('reaction-bar').textContent).toContain('🤔'),
-		);
-		expect(getByTestId('reaction-bar').textContent).toContain('👀');
-
-		await fireEvent.click(
-			getByLabelText('React to message from Roisin Connolly'),
-		);
-		await fireEvent.click(getByLabelText('React with smiled warmly'));
-
-		await waitFor(() =>
-			expect(mockReactToMessage).toHaveBeenCalledWith(
-				'Roisin Connolly',
-				'Mind the shallow row by the wall.',
-				'😊',
-			),
-		);
-		expect(
-			get(textLog)[0].reactions?.find(
-				(reaction) => reaction.source === 'player',
-			),
-		).toEqual({ emoji: '😊', source: 'player' });
-	});
-
-	it('restores the previous player reaction when persistence rejects a replacement', async () => {
-		textLog.set([
-			{
-				id: 'npc-reaction-target',
-				source: 'Roisin Connolly',
-				content: 'Mind the shallow row by the wall.',
-				reactions: [{ emoji: '😠', source: 'player' }],
-			},
-		]);
-		mockReactToMessage.mockRejectedValueOnce(new Error('journal unavailable'));
+	it('recalls successful notebook commands and restores the in-progress draft', async () => {
 		const { getByLabelText } = render(IllustratedNotebookGame);
+		const input = getByLabelText('Player intent') as HTMLInputElement;
 
-		await waitFor(() =>
-			expect(
-				getByLabelText('React to message from Roisin Connolly'),
-			).toBeTruthy(),
-		);
-		await fireEvent.click(
-			getByLabelText('React to message from Roisin Connolly'),
-		);
-		await fireEvent.click(getByLabelText('React with smiled warmly'));
+		await fireEvent.input(input, { target: { value: 'look around' } });
+		await fireEvent.keyDown(input, { key: 'Enter' });
+		await waitFor(() => expect(input.value).toBe(''));
 
-		await waitFor(() =>
-			expect(
-				get(textLog)
-					.find((entry) => entry.id === 'npc-reaction-target')
-					?.reactions?.find((reaction) => reaction.source === 'player'),
-			).toEqual({ emoji: '😠', source: 'player' }),
-		);
+		await fireEvent.input(input, { target: { value: 'talk to Roisin' } });
+		await fireEvent.keyDown(input, { key: 'Enter' });
+		await waitFor(() => expect(input.value).toBe(''));
+
+		await fireEvent.input(input, { target: { value: 'my new draft' } });
+		await fireEvent.keyDown(input, { key: 'ArrowUp' });
+		expect(input.value).toBe('talk to Roisin');
+		await fireEvent.keyDown(input, { key: 'ArrowUp' });
+		expect(input.value).toBe('look around');
+		await fireEvent.keyDown(input, { key: 'ArrowDown' });
+		expect(input.value).toBe('talk to Roisin');
+		await fireEvent.keyDown(input, { key: 'ArrowDown' });
+		expect(input.value).toBe('my new draft');
+
+		expect(mockSubmitInput).toHaveBeenNthCalledWith(1, 'look around');
+		expect(mockSubmitInput).toHaveBeenNthCalledWith(2, 'talk to Roisin');
 	});
 
-	it('keeps an unsent draft separate while canonical task status updates', async () => {
-		const { getByLabelText, getByText, queryByText } = render(
+	it('renders focus and streaming as distinct command states while the hidden input stays editable', async () => {
+		const { getByLabelText, getByRole } = render(IllustratedNotebookGame);
+		const input = getByLabelText('Player intent') as HTMLInputElement;
+
+		await waitFor(() => expect(lastRenderState?.command.focused).toBe(true));
+		expect(input.dataset.commandState).toBe('focused');
+		expect(input.disabled).toBe(false);
+
+		streamingActive.set(true);
+		await waitFor(() => expect(lastRenderState?.command.busy).toBe(true));
+		expect(lastRenderState?.command.disabled).toBe(false);
+		expect(input.dataset.commandState).toBe('busy');
+		expect(input.hasAttribute('aria-disabled')).toBe(false);
+		expect(input.disabled).toBe(false);
+		expect(input.readOnly).toBe(false);
+		const status = getByRole('status', { name: 'Command status' });
+		expect(status.hasAttribute('aria-live')).toBe(false);
+	});
+
+	it('renders the local pending submit as disabled without clearing the draft early', async () => {
+		const deferred = { resolve: () => {} };
+		mockSubmitInput.mockImplementationOnce(
+			() =>
+				new Promise<void>((resolve) => {
+					deferred.resolve = resolve;
+				}),
+		);
+		const { getByLabelText } = render(IllustratedNotebookGame);
+		const input = getByLabelText('Player intent') as HTMLInputElement;
+
+		await fireEvent.input(input, { target: { value: 'look around' } });
+		await fireEvent.keyDown(input, { key: 'Enter' });
+
+		await waitFor(() => expect(lastRenderState?.command.disabled).toBe(true));
+		expect(lastRenderState?.command.busy).toBe(false);
+		expect(input.dataset.commandState).toBe('disabled');
+		expect(input.getAttribute('aria-disabled')).toBe('true');
+		expect(input.readOnly).toBe(true);
+		expect(input.value).toBe('look around');
+		lastRenderState?.callbacks.onAction('ask');
+		await waitFor(() => expect(input.value).toBe('look around'));
+
+		deferred.resolve();
+		await waitFor(() => expect(input.value).toBe(''));
+		expect(input.hasAttribute('aria-disabled')).toBe(false);
+		expect(input.readOnly).toBe(false);
+	});
+
+	it('renders a failed submit as an accessible Pixi error and preserves the draft for retry', async () => {
+		mockSubmitInput.mockRejectedValueOnce(new Error('bridge unavailable'));
+		const { container, getByLabelText, getByRole, getByText } = render(
 			IllustratedNotebookGame,
 		);
 		const input = getByLabelText('Player intent') as HTMLInputElement;
-		const draft = 'ask whether the lower field needs another pair of hands';
 
-		await fireEvent.input(input, { target: { value: draft } });
-		await waitFor(() => expect(input.value).toBe(draft));
-		lastRenderState?.callbacks.onOpenActiveIntents();
-		await waitFor(() => expect(getByText('No active task.')).toBeTruthy());
-		expect(queryByText(draft)).toBeNull();
-		expect(lastRenderState?.view.currentTask).toBeNull();
+		await fireEvent.input(input, { target: { value: 'look around' } });
+		await fireEvent.keyDown(input, { key: 'Enter' });
 
-		const assignedTask = {
-			id: 21,
-			description: 'Help with the potato patch',
-			assigned_by: 4,
-			location_id: 9,
-			status: 'assigned' as const,
-			assigned_at: '1820-04-01T15:30:00Z',
-			started_at: null,
-			completed_at: null,
-			last_matching_action: null,
-		};
-		worldState.update((world) =>
-			world ? { ...world, active_tasks: [assignedTask] } : world,
-		);
+		await waitFor(() => expect(input.dataset.commandState).toBe('error'));
+		expect(lastRenderState?.command.error).toContain('bridge unavailable');
+		expect(input.value).toBe('look around');
+		expect(input.getAttribute('aria-invalid')).toBe('true');
+		expect(getByText(/Ink blotted — Could not send input/)).toBeTruthy();
+		expect(getByRole('alert').hasAttribute('aria-live')).toBe(false);
+		expect(container.querySelector('.input-wrapper')).toBeNull();
+		expect(container.querySelector('.input-form')).toBeNull();
 
-		await waitFor(() =>
-			expect(lastRenderState?.view.currentTask).toMatchObject({
-				description: 'Help with the potato patch',
-				status: 'assigned',
-			}),
-		);
-		expect(getByText('Help with the potato patch')).toBeTruthy();
-		expect(getByText('Assigned')).toBeTruthy();
-		expect(input.value).toBe(draft);
-		expect(queryByText(draft)).toBeNull();
-
-		worldState.update((world) =>
-			world
-				? {
-						...world,
-						active_tasks: [
-							{
-								...assignedTask,
-								status: 'in_progress' as const,
-								started_at: '1820-04-01T15:40:00Z',
-								last_matching_action: 'I set to work in the potato patch.',
-							},
-						],
-					}
-				: world,
-		);
-
-		await waitFor(() =>
-			expect(lastRenderState?.view.currentTask?.status).toBe('in_progress'),
-		);
-		expect(getByText('In progress')).toBeTruthy();
-		expect(input.value).toBe(draft);
-		expect(queryByText(draft)).toBeNull();
+		await fireEvent.input(input, { target: { value: 'look' } });
+		await waitFor(() => expect(input.dataset.commandState).toBe('typing'));
+		expect(input.getAttribute('aria-invalid')).toBe('false');
 	});
 
-	it('exposes renderer hit targets for keyboard focus and activation', async () => {
+	it('turns tabs in place while cards use the overlay coordinator', async () => {
+		const { getByRole, getByTestId } = render(IllustratedNotebookGame);
+		await waitFor(() => expect(lastRenderState).not.toBeNull());
+		const section = getByTestId('notebook-active-section');
+		expect(section).toHaveAttribute('data-section', 'notes');
+		expect(
+			getByRole('button', { name: 'Open Notes notebook tab' }),
+		).toHaveAttribute('aria-pressed', 'true');
+
+		lastRenderState?.callbacks.onOpenTab('places');
+		await waitFor(() => {
+			expect(lastRenderState?.activeTab).toBe('places');
+			expect(section).toHaveAttribute('data-section', 'places');
+			expect(section).toHaveTextContent('Places in this Parish');
+			expect(section).toHaveTextContent('The Crossroads');
+		});
+		expect(get(notebookOverlay)).toBeNull();
+		expect(get(fullMapOpen)).toBe(false);
+		expect(
+			getByRole('button', { name: 'Open Places notebook tab' }),
+		).toHaveAttribute('aria-pressed', 'true');
+
+		lastRenderState?.callbacks.onOpenSurface('time');
+		await waitFor(() => expect(get(notebookOverlay)).toBe('time'));
+
+		lastRenderState?.callbacks.onOpenSurface('map');
+		await waitFor(() => {
+			expect(get(notebookOverlay)).toBe('map');
+			expect(get(fullMapOpen)).toBe(true);
+		});
+		closeNotebookOverlay('map');
+	});
+
+	it('keeps the same Pixi host mounted and inert while an overlay is open', async () => {
+		const { getByTestId } = render(IllustratedNotebookGame);
+		const game = getByTestId('illustrated-notebook-game');
+		const host = getByTestId('illustrated-notebook-pixi-host');
+		await waitFor(() => expect(rendererConstructCount).toBe(1));
+
+		lastRenderState?.callbacks.onOpenSurface('time');
+		await waitFor(() => expect(game.getAttribute('aria-hidden')).toBe('true'));
+		expect(game.classList.contains('overlay-open')).toBe(true);
+		expect(getByTestId('illustrated-notebook-pixi-host')).toBe(host);
+		expect(rendererConstructCount).toBe(1);
+
+		closeNotebookOverlay('time');
+		await waitFor(() => expect(game.getAttribute('aria-hidden')).toBe('false'));
+		expect(game.classList.contains('overlay-open')).toBe(false);
+		expect(getByTestId('illustrated-notebook-pixi-host')).toBe(host);
+		expect(rendererConstructCount).toBe(1);
+	});
+
+	it('exposes fresh renderer hit targets for focus and activation', async () => {
 		const { getByLabelText } = render(IllustratedNotebookGame);
+		await waitFor(() => expect(getByLabelText('Ask action')).toBeTruthy());
 
-		await waitFor(() =>
-			expect(getByLabelText('Ask action stamp')).toBeTruthy(),
-		);
-
-		const targetButton = getByLabelText('Ask action stamp');
+		const targetButton = getByLabelText('Ask action');
 		await fireEvent.focus(targetButton);
 		expect(lastRenderer?.setFocusedTarget).toHaveBeenCalledWith('action:ask');
 
@@ -424,5 +507,35 @@ describe('IllustratedNotebookGame', () => {
 
 		await fireEvent.blur(targetButton);
 		expect(lastRenderer?.setFocusedTarget).toHaveBeenCalledWith(null);
+	});
+
+	it('shows and persists reactions on the latest NPC journal entry', async () => {
+		textLog.set([
+			{
+				id: 'npc-reaction-target',
+				source: 'Roisin Connolly',
+				content: 'That field will need another pass.',
+				reactions: [{ emoji: '🤔', source: 'Aoife Kelly' }],
+			},
+		]);
+		const { getByLabelText, getByTestId } = render(IllustratedNotebookGame);
+
+		expect(getByTestId('reaction-bar')).toHaveTextContent('🤔');
+		await fireEvent.click(
+			getByLabelText('React to message from Roisin Connolly'),
+		);
+		await fireEvent.click(getByLabelText('React with smiled warmly'));
+
+		await waitFor(() =>
+			expect(mockReactToMessage).toHaveBeenCalledWith(
+				'Roisin Connolly',
+				'That field will need another pass.',
+				'😊',
+			),
+		);
+		expect(get(textLog)[0].reactions).toContainEqual({
+			emoji: '😊',
+			source: 'player',
+		});
 	});
 });

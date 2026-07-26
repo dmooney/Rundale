@@ -112,6 +112,58 @@ async fn seed_stale_branch_runtime(state: &Arc<crate::state::AppState>) {
         .store(41, std::sync::atomic::Ordering::Relaxed);
 }
 
+#[test]
+fn playwright_readiness_requires_run_build_and_validation_marker() {
+    let build_id = "pw-worktree-ui";
+    let run_id = "0123456789abcdef";
+    let marker = format!("{run_id}\n{build_id}\n");
+
+    assert_eq!(
+        super::world::playwright_readiness_status(
+            run_id,
+            Some(run_id),
+            Some(build_id),
+            Some(build_id),
+            None,
+        ),
+        (axum::http::StatusCode::SERVICE_UNAVAILABLE, true),
+    );
+    assert_eq!(
+        super::world::playwright_readiness_status(
+            run_id,
+            Some(run_id),
+            Some(build_id),
+            Some(build_id),
+            Some(&marker),
+        ),
+        (axum::http::StatusCode::OK, true),
+    );
+}
+
+#[test]
+fn playwright_readiness_hides_identity_from_another_run_or_build() {
+    assert_eq!(
+        super::world::playwright_readiness_status(
+            "run-b",
+            Some("run-a"),
+            Some("build-a"),
+            Some("build-a"),
+            None,
+        ),
+        (axum::http::StatusCode::NOT_FOUND, false),
+    );
+    assert_eq!(
+        super::world::playwright_readiness_status(
+            "run-a",
+            Some("run-a"),
+            Some("build-a"),
+            Some("build-b"),
+            None,
+        ),
+        (axum::http::StatusCode::NOT_FOUND, false),
+    );
+}
+
 /// Helper to build a minimal AppState from the real game data.
 pub fn test_app_state() -> Arc<crate::state::AppState> {
     let data_dir =

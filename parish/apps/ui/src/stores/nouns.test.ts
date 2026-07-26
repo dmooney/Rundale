@@ -33,6 +33,7 @@ function map(locations: MapLocation[]): MapData {
 
 function npc(name: string): NpcInfo {
 	return {
+		npc_id: name.length,
 		name,
 		real_name: name,
 		occupation: 'Tenant Farmer',
