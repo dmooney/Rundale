@@ -920,10 +920,10 @@ pub async fn notify_screenshot_started(
     state: tauri::State<'_, Arc<AppState>>,
 ) -> Result<(), String> {
     let mut pending = state.pending_screenshots.lock().await;
-    if let Some(request) = pending.get_mut(&request_id) {
-        if let Some(tx) = request.started.take() {
-            let _ = tx.send(());
-        }
+    if let Some(request) = pending.get_mut(&request_id)
+        && let Some(tx) = request.started.take()
+    {
+        let _ = tx.send(());
     }
     Ok(())
 }
