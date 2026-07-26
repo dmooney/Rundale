@@ -1,6 +1,10 @@
 # Plan: Illustrated Notebook Real Play Screen
 
-Status: In progress — fresh concept-aligned rebuild for issue #1630
+Status: Retired historical plan
+
+The renderer and interaction architecture described below were removed by the
+chat-first stabilization migration. Approved scene and portrait assets were
+retained for responsive DOM use.
 
 This implementation plan follows the canonical
 [`illustrated-parish-notebook.png`](../graphics-v2/illustrated-parish-notebook.png)

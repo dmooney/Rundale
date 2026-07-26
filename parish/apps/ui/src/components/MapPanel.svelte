@@ -1,7 +1,13 @@
 <script lang="ts">
 	import { onMount, untrack } from 'svelte';
 	import { SvelteMap, SvelteSet } from 'svelte/reactivity';
-	import { mapData, fullMapOpen, pushErrorLog, formatIpcError, uiConfig } from '../stores/game';
+	import {
+		mapData,
+		pushErrorLog,
+		formatIpcError,
+		uiConfig,
+	} from '../stores/game';
+	import { toggleSurface } from '../stores/surfaceCoordinator';
 	import { travelState } from '../stores/travel';
 	import { tiles, currentTileSource } from '../stores/tiles';
 	import { submitInput } from '$lib/ipc';
@@ -12,7 +18,7 @@
 
 	let {
 		fitHalfSpan = 0.008,
-		fitPadding = 16
+		fitPadding = 16,
 	}: {
 		fitHalfSpan?: number;
 		fitPadding?: number;
@@ -27,16 +33,16 @@
 	/** Current pixel size of the container, updated when MapLibre resizes. */
 	let containerSize = $state({ width: 0, height: 0 });
 	/** Screen-space continuation stubs, recomputed on every map 'move' event. */
-	let stubs = $state<
-		Array<{ x1: number; y1: number; x2: number; y2: number }>
-	>([]);
+	let stubs = $state<Array<{ x1: number; y1: number; x2: number; y2: number }>>(
+		[],
+	);
 
 	let tooltip: MapTooltipInfo | null = $state(null);
 
 	/** Computes the set of location IDs visible on the minimap. */
 	function visibleIdSet(locations: MapLocation[]): Set<string> {
 		return new Set(
-			locations.filter((l) => l.hops <= MINIMAP_HOP_RADIUS).map((l) => l.id)
+			locations.filter((l) => l.hops <= MINIMAP_HOP_RADIUS).map((l) => l.id),
 		);
 	}
 
@@ -54,14 +60,14 @@
 	 */
 	function computePlayerCenteredBounds(
 		player: MapLocation,
-		neighbors: MapLocation[]
+		neighbors: MapLocation[],
 	): Array<{ lat: number; lon: number }> {
 		if (neighbors.length === 0) {
 			// No neighbors — construct a small fixed box around the player.
 			const pad = Math.min(0.003, fitHalfSpan); // ~300m at the default framing.
 			return [
 				{ lat: player.lat - pad, lon: player.lon - pad },
-				{ lat: player.lat + pad, lon: player.lon + pad }
+				{ lat: player.lat + pad, lon: player.lon + pad },
 			];
 		}
 		let maxDLat = 0.001;
@@ -77,7 +83,7 @@
 		maxDLon *= 1.4;
 		return [
 			{ lat: player.lat - maxDLat, lon: player.lon - maxDLon },
-			{ lat: player.lat + maxDLat, lon: player.lon + maxDLon }
+			{ lat: player.lat + maxDLat, lon: player.lon + maxDLon },
 		];
 	}
 
@@ -123,7 +129,7 @@
 				x1: x + Math.cos(angle) * STUB_INNER,
 				y1: y + Math.sin(angle) * STUB_INNER,
 				x2: x + Math.cos(angle) * STUB_OUTER,
-				y2: y + Math.sin(angle) * STUB_OUTER
+				y2: y + Math.sin(angle) * STUB_OUTER,
 			});
 		}
 
@@ -136,7 +142,7 @@
 			container,
 			variant: 'minimap',
 			interactive: false,
-			tileSource: currentTileSource($tiles)
+			tileSource: currentTileSource($tiles),
 		});
 
 		controller.onLocationClick(async (info) => {
@@ -145,7 +151,7 @@
 				await submitInput(`go to ${info.name}`);
 			} catch (err) {
 				pushErrorLog(
-					`Could not travel to ${info.name}: ${formatIpcError(err)}`
+					`Could not travel to ${info.name}: ${formatIpcError(err)}`,
 				);
 			}
 		});
@@ -156,12 +162,12 @@
 					name: info.name,
 					indoor: info.indoor,
 					travel_minutes: info.travelMinutes,
-					visited: info.visited
+					visited: info.visited,
 				};
 			},
 			() => {
 				tooltip = null;
-			}
+			},
 		);
 
 		// Recompute stubs once on mount and then only when the camera
@@ -206,11 +212,11 @@
 		const player = m.locations.find((l) => l.id === m.player_location);
 		if (!player) return;
 		const neighbors = m.locations.filter(
-			(l) => visible.has(l.id) && l.id !== player.id
+			(l) => visible.has(l.id) && l.id !== player.id,
 		);
 		controller.fitBounds(
 			computePlayerCenteredBounds(player, neighbors),
-			fitPadding
+			fitPadding,
 		);
 	});
 
@@ -240,7 +246,7 @@
 	 * post-travel view is already in place when the dot arrives.
 	 */
 	function destinationBounds(
-		destId: string
+		destId: string,
 	): Array<{ lat: number; lon: number }> | undefined {
 		const m = $mapData;
 		if (!m) return undefined;
@@ -255,17 +261,32 @@
 		return computePlayerCenteredBounds(dest, neighbors);
 	}
 
-	function toggleFullMap() {
-		fullMapOpen.update((v) => !v);
+	function toggleFullMap(invoker: HTMLElement) {
+		void toggleSurface('map', invoker);
 	}
 </script>
 
 <div class="map-panel" data-testid="map-panel">
 	<div class="map-header">
 		<span class="map-title">Map</span>
-		<button type="button" class="expand-btn" onclick={toggleFullMap} title="Toggle full map (M)" aria-label="Toggle full map">
-			<svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor" aria-hidden="true" focusable="false">
-				<path d="M1 1h5v2H3v3H1V1zm9 0h5v5h-2V3h-3V1zM1 10h2v3h3v2H1v-5zm12 3h-3v2h5v-5h-2v3z" />
+		<button
+			type="button"
+			class="expand-btn"
+			onclick={(event) => toggleFullMap(event.currentTarget as HTMLElement)}
+			title="Toggle full map (M)"
+			aria-label="Toggle full map"
+		>
+			<svg
+				viewBox="0 0 16 16"
+				width="14"
+				height="14"
+				fill="currentColor"
+				aria-hidden="true"
+				focusable="false"
+			>
+				<path
+					d="M1 1h5v2H3v3H1V1zm9 0h5v5h-2V3h-3V1zM1 10h2v3h3v2H1v-5zm12 3h-3v2h5v-5h-2v3z"
+				/>
 			</svg>
 		</button>
 	</div>
@@ -275,7 +296,7 @@
 	{#if $mapData}
 		<nav aria-label="Nearby locations">
 			<ul class="sr-only-list" role="list">
-				{#each $mapData.locations.filter(l => l.id !== $mapData?.player_location) as loc (loc.id)}
+				{#each $mapData.locations.filter((l) => l.id !== $mapData?.player_location) as loc (loc.id)}
 					<li>
 						<button
 							tabindex="0"
@@ -285,18 +306,22 @@
 							onclick={() => {
 								if (!loc.adjacent) return;
 								submitInput(`go to ${loc.name}`).catch((err) => {
-									pushErrorLog(`Could not travel to ${loc.name}: ${formatIpcError(err)}`);
+									pushErrorLog(
+										`Could not travel to ${loc.name}: ${formatIpcError(err)}`,
+									);
 								});
 							}}
 							onkeydown={(e) => {
 								if ((e.key === 'Enter' || e.key === ' ') && loc.adjacent) {
 									e.preventDefault();
 									submitInput(`go to ${loc.name}`).catch((err) => {
-										pushErrorLog(`Could not travel to ${loc.name}: ${formatIpcError(err)}`);
+										pushErrorLog(
+											`Could not travel to ${loc.name}: ${formatIpcError(err)}`,
+										);
 									});
 								}
-							}}
-						>{loc.name}</button>
+							}}>{loc.name}</button
+						>
 					</li>
 				{/each}
 			</ul>

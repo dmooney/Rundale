@@ -1,31 +1,45 @@
 <script lang="ts">
-import { streamingActive, npcsHere, mapData, pushErrorLog, formatIpcError, worldState, flushStream, playerSubmittedCount, intentDraft } from '../stores/game';
+	import {
+		streamingActive,
+		npcsHere,
+		mapData,
+		pushErrorLog,
+		formatIpcError,
+		worldState,
+		flushStream,
+		playerSubmittedCount,
+		intentDraft,
+	} from '../stores/game';
 	import { submitInput } from '$lib/ipc';
 	import { filterCommands, type SlashCommand } from '$lib/slash-commands';
 	import {
 		detectModelTrigger,
 		filterModels,
-		type ModelSuggestion
+		type ModelSuggestion,
 	} from '$lib/model-catalog';
 	import { knownNouns, findMatches } from '../stores/nouns';
 	import { get } from 'svelte/store';
 	import MoodIcon from './MoodIcon.svelte';
-import MentionDropdown from './MentionDropdown.svelte';
-import SlashDropdown from './SlashDropdown.svelte';
-import ModelDropdown from './ModelDropdown.svelte';
+	import MentionDropdown from './MentionDropdown.svelte';
+	import SlashDropdown from './SlashDropdown.svelte';
+	import ModelDropdown from './ModelDropdown.svelte';
 	import {
 		getPlainText,
 		clearEditor,
 		setEditorText,
 		isCursorOnFirstLine,
-		isCursorOnLastLine
+		isCursorOnLastLine,
 	} from '$lib/input-field/contenteditable';
-	import { HISTORY_MAX, loadHistory, saveHistory } from '$lib/input-field/history';
+	import {
+		HISTORY_MAX,
+		loadHistory,
+		saveHistory,
+	} from '$lib/input-field/history';
 	import {
 		type CompletionState,
 		resetCompletion as makeEmptyCompletion,
 		extractPrefix,
-		applyCompletion as applyCompletionState
+		applyCompletion as applyCompletionState,
 	} from '$lib/input-field/completion';
 
 	let { autoFocus = true }: { autoFocus?: boolean } = $props();
@@ -48,8 +62,8 @@ import ModelDropdown from './ModelDropdown.svelte';
 		mentionQuery === ''
 			? $npcsHere
 			: $npcsHere.filter((npc) =>
-					npc.name.toLowerCase().startsWith(mentionQuery.toLowerCase())
-				)
+					npc.name.toLowerCase().startsWith(mentionQuery.toLowerCase()),
+				),
 	);
 
 	const filteredCommands = $derived(filterCommands(slashQuery));
@@ -59,12 +73,14 @@ import ModelDropdown from './ModelDropdown.svelte';
 	/** Computes the id of the currently-highlighted dropdown option for
 	 *  `aria-activedescendant`. Returns undefined when no dropdown is open. */
 	const activeDescendantId = $derived(
-		dropdownMode !== null ? `${dropdownMode}-option-${selectedIndex}` : undefined
+		dropdownMode !== null
+			? `${dropdownMode}-option-${selectedIndex}`
+			: undefined,
 	);
 
 	/** The id of the currently-open listbox, for `aria-controls`. */
 	const dropdownListboxId = $derived(
-		dropdownMode !== null ? `${dropdownMode}-listbox` : undefined
+		dropdownMode !== null ? `${dropdownMode}-listbox` : undefined,
 	);
 
 	// ── Input history ───────────────────────────────────────────────────────
@@ -76,7 +92,7 @@ import ModelDropdown from './ModelDropdown.svelte';
 	const adjacentLocations = $derived(
 		($mapData?.locations ?? [])
 			.filter((loc) => loc.adjacent && loc.id !== $mapData?.player_location)
-			.sort((a, b) => a.name.localeCompare(b.name))
+			.sort((a, b) => a.name.localeCompare(b.name)),
 	);
 
 	// Chip selection is keyed by `real_name` (the canonical id) so unintroduced
@@ -266,7 +282,10 @@ import ModelDropdown from './ModelDropdown.svelte';
 
 		if (!textNode) {
 			for (const child of editorEl.childNodes) {
-				if (child.nodeType === Node.TEXT_NODE && (child.textContent ?? '').includes('@')) {
+				if (
+					child.nodeType === Node.TEXT_NODE &&
+					(child.textContent ?? '').includes('@')
+				) {
 					textNode = child as Text;
 					cursorOffset = (child.textContent ?? '').length;
 					break;
@@ -376,7 +395,7 @@ import ModelDropdown from './ModelDropdown.svelte';
 		walking:
 			'M152,80a32,32,0,1,0-32-32A32,32,0,0,0,152,80Zm0-48a16,16,0,1,1-16,16A16,16,0,0,1,152,32Zm64,112a8,8,0,0,1-8,8c-35.31,0-52.95-17.81-67.12-32.12-2.74-2.77-5.36-5.4-8-7.84l-13.43,30.88,37.2,26.57A8,8,0,0,1,160,176v56a8,8,0,0,1-16,0V180.12l-31.07-22.2L79.34,235.19A8,8,0,0,1,72,240a7.84,7.84,0,0,1-3.19-.67,8,8,0,0,1-4.15-10.52l54.08-124.37c-9.31-1.65-20.92,1.2-34.7,8.58a163.88,163.88,0,0,0-30.57,21.77,8,8,0,0,1-10.95-11.66c2.5-2.35,61.69-57.23,98.72-25.08,3.83,3.32,7.48,7,11,10.57C166.19,122.7,179.36,136,208,136A8,8,0,0,1,216,144Z',
 		jaunting_car:
-			'M232,136a8,8,0,0,0-8-8H195.7L133.86,59.06A16,16,0,0,0,121,52H40A16,16,0,0,0,24,68V172a8,8,0,0,0,8,8H49a36,36,0,0,0,70,0h58a36,36,0,0,0,70,0h7a8,8,0,0,0,8-8V152A16.09,16.09,0,0,0,232,136ZM121,68l55.93,72H121ZM84,196a20,20,0,1,1-20-20A20,20,0,0,1,84,196Zm128,0a20,20,0,1,1-20-20A20,20,0,0,1,212,196Z'
+			'M232,136a8,8,0,0,0-8-8H195.7L133.86,59.06A16,16,0,0,0,121,52H40A16,16,0,0,0,24,68V172a8,8,0,0,0,8,8H49a36,36,0,0,0,70,0h58a36,36,0,0,0,70,0h7a8,8,0,0,0,8-8V152A16.09,16.09,0,0,0,232,136ZM121,68l55.93,72H121ZM84,196a20,20,0,1,1-20-20A20,20,0,0,1,84,196Zm128,0a20,20,0,1,1-20-20A20,20,0,0,1,212,196Z',
 	};
 
 	function transportIconPath(id: string | undefined): string | undefined {
@@ -399,7 +418,7 @@ import ModelDropdown from './ModelDropdown.svelte';
 		syncEditorText();
 		if (!isEditorEmpty()) {
 			pushErrorLog(
-				`Send or clear the draft in the input before travelling to ${locationName}.`
+				`Send or clear the draft in the input before travelling to ${locationName}.`,
 			);
 			return;
 		}
@@ -408,7 +427,7 @@ import ModelDropdown from './ModelDropdown.svelte';
 			await submitInput(`go to ${locationName}`);
 		} catch (err) {
 			pushErrorLog(
-				`Could not travel to ${locationName}: ${formatIpcError(err)}`
+				`Could not travel to ${locationName}: ${formatIpcError(err)}`,
 			);
 		}
 	}
@@ -427,7 +446,11 @@ import ModelDropdown from './ModelDropdown.svelte';
 		const trailing = document.createTextNode('\u00A0');
 		const sel = window.getSelection();
 
-		if (sel && sel.rangeCount > 0 && editorEl.contains(sel.getRangeAt(0).startContainer)) {
+		if (
+			sel &&
+			sel.rangeCount > 0 &&
+			editorEl.contains(sel.getRangeAt(0).startContainer)
+		) {
 			const range = sel.getRangeAt(0);
 			range.deleteContents();
 			range.insertNode(trailing);
@@ -598,14 +621,16 @@ import ModelDropdown from './ModelDropdown.svelte';
 				if (!sel2 || sel2.rangeCount === 0) return;
 				const range2 = sel2.getRangeAt(0);
 				const prefixStart =
-					range2.startContainer.nodeType === Node.TEXT_NODE ? range2.startOffset : 0;
+					range2.startContainer.nodeType === Node.TEXT_NODE
+						? range2.startOffset
+						: 0;
 				completion = {
 					active: true,
 					prefix: '',
 					matches: locationNouns,
 					currentIndex: 0,
 					prefixStart,
-					replacedLength: 0
+					replacedLength: 0,
 				};
 				applyCompletion();
 				return;
@@ -620,7 +645,7 @@ import ModelDropdown from './ModelDropdown.svelte';
 				matches,
 				currentIndex: 0,
 				prefixStart: extracted.start,
-				replacedLength: 0
+				replacedLength: 0,
 			};
 			applyCompletion();
 			return;
@@ -632,7 +657,11 @@ import ModelDropdown from './ModelDropdown.svelte';
 		}
 
 		// Input history (only when no dropdown is open)
-		if (dropdownMode === null && e.key === 'ArrowUp' && isCursorOnFirstLine(editorEl, editorText)) {
+		if (
+			dropdownMode === null &&
+			e.key === 'ArrowUp' &&
+			isCursorOnFirstLine(editorEl, editorText)
+		) {
 			if (history.length > 0) {
 				e.preventDefault();
 				if (historyIndex === -1) {
@@ -646,7 +675,12 @@ import ModelDropdown from './ModelDropdown.svelte';
 				return;
 			}
 		}
-		if (dropdownMode === null && e.key === 'ArrowDown' && historyIndex >= 0 && isCursorOnLastLine(editorEl, editorText)) {
+		if (
+			dropdownMode === null &&
+			e.key === 'ArrowDown' &&
+			historyIndex >= 0 &&
+			isCursorOnLastLine(editorEl, editorText)
+		) {
 			e.preventDefault();
 			if (historyIndex < history.length - 1) {
 				historyIndex++;
@@ -665,7 +699,11 @@ import ModelDropdown from './ModelDropdown.svelte';
 			const sel = window.getSelection();
 			if (sel && sel.rangeCount > 0) {
 				const range = sel.getRangeAt(0);
-				if (range.collapsed && range.startOffset === 0 && range.startContainer.nodeType === Node.TEXT_NODE) {
+				if (
+					range.collapsed &&
+					range.startOffset === 0 &&
+					range.startContainer.nodeType === Node.TEXT_NODE
+				) {
 					const prev = range.startContainer.previousSibling;
 					if (prev instanceof HTMLElement && prev.dataset.npc) {
 						e.preventDefault();
@@ -692,7 +730,10 @@ import ModelDropdown from './ModelDropdown.svelte';
 				const range = sel.getRangeAt(0);
 				if (range.collapsed) {
 					const node = range.startContainer;
-					if (node.nodeType === Node.TEXT_NODE && range.startOffset === (node.textContent?.length ?? 0)) {
+					if (
+						node.nodeType === Node.TEXT_NODE &&
+						range.startOffset === (node.textContent?.length ?? 0)
+					) {
 						const next = node.nextSibling;
 						if (next instanceof HTMLElement && next.dataset.npc) {
 							e.preventDefault();
@@ -798,13 +839,28 @@ import ModelDropdown from './ModelDropdown.svelte';
 
 <div class="input-wrapper">
 	{#if dropdownMode === 'mention' && filteredNpcs.length > 0}
-		<MentionDropdown npcs={filteredNpcs} {selectedIndex} onSelect={selectNpc} onHighlight={(i) => selectedIndex = i} />
+		<MentionDropdown
+			npcs={filteredNpcs}
+			{selectedIndex}
+			onSelect={selectNpc}
+			onHighlight={(i) => (selectedIndex = i)}
+		/>
 	{/if}
 	{#if dropdownMode === 'slash' && filteredCommands.length > 0}
-		<SlashDropdown commands={filteredCommands} {selectedIndex} onSelect={selectSlashCommand} onHighlight={(i) => selectedIndex = i} />
+		<SlashDropdown
+			commands={filteredCommands}
+			{selectedIndex}
+			onSelect={selectSlashCommand}
+			onHighlight={(i) => (selectedIndex = i)}
+		/>
 	{/if}
 	{#if dropdownMode === 'model' && filteredModels.length > 0}
-		<ModelDropdown models={filteredModels} {selectedIndex} onSelect={selectModelSuggestion} onHighlight={(i) => selectedIndex = i} />
+		<ModelDropdown
+			models={filteredModels}
+			{selectedIndex}
+			onSelect={selectModelSuggestion}
+			onHighlight={(i) => (selectedIndex = i)}
+		/>
 	{/if}
 	{#if $npcsHere.length > 0}
 		<div class="npc-chips" data-testid="npc-chips">
@@ -835,7 +891,9 @@ import ModelDropdown from './ModelDropdown.svelte';
 			{#each adjacentLocations as loc (loc.id)}
 				<button
 					class="travel-chip"
-					aria-label="Travel to {loc.name}{loc.travel_minutes !== undefined ? `, ${loc.travel_minutes} minute walk` : ''}"
+					aria-label="Travel to {loc.name}{loc.travel_minutes !== undefined
+						? `, ${loc.travel_minutes} minute walk`
+						: ''}"
 					onclick={() => quickTravel(loc.name)}
 					disabled={$streamingActive}
 				>
@@ -844,7 +902,11 @@ import ModelDropdown from './ModelDropdown.svelte';
 						<span class="chip-meta">
 							{loc.travel_minutes}m
 							{#if transportIconPath($mapData?.transport_id)}
-								<svg viewBox="0 0 256 256" class="transport-icon" aria-hidden="true">
+								<svg
+									viewBox="0 0 256 256"
+									class="transport-icon"
+									aria-hidden="true"
+								>
 									<path d={transportIconPath($mapData?.transport_id)} />
 								</svg>
 							{/if}
@@ -868,12 +930,15 @@ import ModelDropdown from './ModelDropdown.svelte';
 				aria-expanded={dropdownMode !== null}
 				aria-controls={dropdownListboxId}
 				aria-activedescendant={activeDescendantId}
+				aria-busy={$streamingActive}
 				data-testid="input-field"
 				onkeydown={handleKeydown}
 				oninput={handleInput}
 				onpaste={handlePaste}
 				onpointerdown={() => flushInFlightStream()}
-				data-placeholder={$streamingActive ? 'Type to skip ahead…' : 'What do you do? (@ to mention NPC)'}
+				data-placeholder={$streamingActive
+					? 'Type to skip ahead…'
+					: 'What do you do? (@ to mention NPC)'}
 			></div>
 		</div>
 		<button
@@ -881,8 +946,16 @@ import ModelDropdown from './ModelDropdown.svelte';
 			onclick={handleSubmit}
 			disabled={$streamingActive || isEditorEmpty()}
 			class="send-btn"
-			title={$streamingActive ? 'Waiting for response…' : isEditorEmpty() ? 'Type a message to send' : 'Send message (Enter)'}
-			aria-label={$streamingActive ? 'Waiting for response…' : isEditorEmpty() ? 'Type a message to send' : 'Send message (Enter)'}
+			title={$streamingActive
+				? 'Waiting for response…'
+				: isEditorEmpty()
+					? 'Type a message to send'
+					: 'Send message (Enter)'}
+			aria-label={$streamingActive
+				? 'Waiting for response…'
+				: isEditorEmpty()
+					? 'Type a message to send'
+					: 'Send message (Enter)'}
 		>
 			Send
 		</button>
@@ -990,7 +1063,6 @@ import ModelDropdown from './ModelDropdown.svelte';
 		outline-offset: 2px;
 	}
 
-
 	/* ── Quick-travel chips ────────────────────────────────────────────────── */
 
 	/* Single-line, horizontally-scrollable rows: with one NPC and many
@@ -1004,8 +1076,11 @@ import ModelDropdown from './ModelDropdown.svelte';
 		align-items: center;
 		gap: 0.45rem;
 		padding: 0.45rem 0.75rem;
-		background:
-			linear-gradient(180deg, color-mix(in srgb, var(--color-panel-bg) 88%, var(--color-accent) 12%), var(--color-panel-bg));
+		background: linear-gradient(
+			180deg,
+			color-mix(in srgb, var(--color-panel-bg) 88%, var(--color-accent) 12%),
+			var(--color-panel-bg)
+		);
 		border-top: 1px solid var(--color-border);
 	}
 
@@ -1027,18 +1102,27 @@ import ModelDropdown from './ModelDropdown.svelte';
 		flex: 0 0 auto;
 		white-space: nowrap;
 		padding: 0.35rem 0.55rem;
-		border: 1px solid color-mix(in srgb, var(--color-accent) 30%, var(--color-border));
+		border: 1px solid
+			color-mix(in srgb, var(--color-accent) 30%, var(--color-border));
 		border-radius: 999px;
 		background: color-mix(in srgb, var(--color-panel-bg) 80%, var(--color-bg));
 		color: var(--color-fg);
 		cursor: pointer;
 		text-align: left;
-		transition: background 0.15s, border-color 0.15s, transform 0.15s, color 0.15s;
+		transition:
+			background 0.15s,
+			border-color 0.15s,
+			transform 0.15s,
+			color 0.15s;
 	}
 
 	.npc-chip:hover:not(:disabled),
 	.npc-chip:focus-visible:not(:disabled) {
-		border-color: color-mix(in srgb, var(--color-accent) 60%, var(--color-border));
+		border-color: color-mix(
+			in srgb,
+			var(--color-accent) 60%,
+			var(--color-border)
+		);
 		transform: translateY(-1px);
 	}
 
@@ -1110,7 +1194,10 @@ import ModelDropdown from './ModelDropdown.svelte';
 		letter-spacing: 0.06em;
 		text-transform: uppercase;
 		cursor: pointer;
-		transition: background 0.15s, color 0.15s, border-color 0.15s;
+		transition:
+			background 0.15s,
+			color 0.15s,
+			border-color 0.15s;
 	}
 
 	.travel-chip:hover:not(:disabled),

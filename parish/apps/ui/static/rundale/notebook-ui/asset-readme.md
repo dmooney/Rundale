@@ -1,6 +1,9 @@
-# Rundale Illustrated Notebook Runtime UI Assets
+# Rundale Approved Portrait and Marker Assets
 
-This directory is the production runtime asset kit for the illustrated notebook.
+This directory preserves the approved portrait/marker release and provenance.
+The chat-first shell uses portraits as responsive DOM images. Markers and other
+notebook-era assets are archival unless a current component explicitly imports
+them; no Pixi renderer consumes this directory.
 
 Approved portraits and complete in-world markers are built from the deterministic
 approved-release manifest at `parish/apps/ui/art/notebook-person-art/approved/v1/release-manifest.json`. The builder verifies the release,

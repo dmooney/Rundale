@@ -110,6 +110,24 @@ describe('Sidebar (desktop branch — no onclose prop)', () => {
 		expect(getByText('Weaver')).toBeTruthy();
 	});
 
+	it('renders approved portrait art through ordinary DOM images', () => {
+		npcsHere.set([
+			{
+				...NPCS[0],
+				name: 'Padraig Darcy',
+				real_name: 'Padraig Darcy',
+			},
+		]);
+		const { container } = render(Sidebar);
+		const portrait = container.querySelector(
+			'img.npc-portrait',
+		) as HTMLImageElement;
+		expect(portrait.src).toContain(
+			'/rundale/notebook-ui/people/portrait-padraig-darcy.png',
+		);
+		expect(container.querySelector('canvas')).toBeNull();
+	});
+
 	it('hides the occupation for unintroduced NPCs', () => {
 		npcsHere.set(NPCS);
 		const { getByText, queryByText } = render(Sidebar);
@@ -142,6 +160,16 @@ describe('Sidebar (mobile overlay branch — onclose prop provided)', () => {
 		const { getByText } = render(Sidebar, { props: { onclose: () => {} } });
 		expect(getByText('sláinte')).toBeTruthy();
 		expect(getByText('craic')).toBeTruthy();
+	});
+
+	it('keeps nearby people reachable in the mobile panel', () => {
+		npcsHere.set(NPCS);
+		const { getByText, getByTestId } = render(Sidebar, {
+			props: { onclose: () => {} },
+		});
+		expect(getByText('Present')).toBeTruthy();
+		expect(getByTestId('npcs-present')).toBeTruthy();
+		expect(getByText('Bridget Kelly')).toBeTruthy();
 	});
 
 	it('renders name hints in mobile overlay', () => {

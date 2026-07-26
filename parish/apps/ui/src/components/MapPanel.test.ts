@@ -1,7 +1,11 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render } from '@testing-library/svelte';
 import { get } from 'svelte/store';
-import { mapData, fullMapOpen } from '../stores/game';
+import { mapData } from '../stores/game';
+import {
+	activeSurface,
+	resetSurfaceCoordinatorForTests,
+} from '../stores/surfaceCoordinator';
 import MapPanel from './MapPanel.svelte';
 
 // MapLibre GL JS requires WebGL, which jsdom doesn't provide. Mock the
@@ -36,7 +40,7 @@ const testMap = {
 describe('MapPanel', () => {
 	beforeEach(() => {
 		mapData.set(null);
-		fullMapOpen.set(false);
+		resetSurfaceCoordinatorForTests();
 	});
 
 	it('shows loading when no map data', () => {
@@ -62,7 +66,7 @@ describe('MapPanel', () => {
 		const btn = container.querySelector('.expand-btn') as HTMLButtonElement;
 		expect(btn).toBeTruthy();
 		btn.click();
-		expect(get(fullMapOpen)).toBe(true);
+		expect(get(activeSurface)).toBe('map');
 	});
 
 	it('shows the map panel wrapper element', () => {

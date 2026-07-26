@@ -1,7 +1,11 @@
 # Roadmap: Illustrated Notebook UI
 
-Status: Integrated default play surface complete; deferred follow-on slices are
-tracked with their residual risks below.
+Status: Closed and retired. Preserved as a historical implementation record.
+
+The Pixi notebook experiment was removed by the chat-first stabilization
+migration. Approved scene and portrait assets remain available to the semantic
+DOM chat shell; the renderer, interaction adapters, and notebook-only contracts
+described below no longer ship.
 
 This is the source of truth for finishing the Rundale illustrated notebook play
 surface. GitHub issues should track executable slices; this document preserves

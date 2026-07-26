@@ -4,19 +4,19 @@
 	import DemoBanner from '../components/DemoBanner.svelte';
 	import DemoPanel from '../components/DemoPanel.svelte';
 	import SetupOverlay from '../components/SetupOverlay.svelte';
-	import IllustratedNotebookGame from '../components/illustrated-notebook/IllustratedNotebookGame.svelte';
-	import NotebookOverlayHost from '../components/illustrated-notebook/NotebookOverlayHost.svelte';
+	import ChatGameShell from '../components/ChatGameShell.svelte';
+	import SurfaceHost from '../components/SurfaceHost.svelte';
 
 	import { demoVisible, demoEnabled } from '../stores/demo';
 	import { stopDemo } from '../lib/demo-player';
 
 	import { debugVisible, debugSnapshot } from '../stores/debug';
 	import {
-		closeNotebookOverlay,
-		notebookOverlay,
-		notebookOverlayTransitioning,
-		toggleNotebookOverlay,
-	} from '../stores/notebookOverlay';
+		activeSurface,
+		closeSurface,
+		surfaceTransitioning,
+		toggleSurface,
+	} from '../stores/surfaceCoordinator';
 	import { cancelTravel } from '../stores/travel';
 	import {
 		getDebugSnapshot,
@@ -66,10 +66,10 @@
 	// F11 toggle fullscreen (desktop), F12 toggle for debug panel, M toggle for map,
 	// ? = keyboard-shortcuts overlay
 	function handleKeydown(e: KeyboardEvent) {
-		if ($notebookOverlayTransitioning) {
+		if ($surfaceTransitioning) {
 			if (e.key === 'Escape') {
 				e.preventDefault();
-				closeNotebookOverlay('bug');
+				closeSurface('bug');
 			}
 			return;
 		}
@@ -84,11 +84,11 @@
 		}
 		if (e.key === 'F5') {
 			e.preventDefault();
-			void toggleNotebookOverlay('save');
+			void toggleSurface('save');
 		}
 		if (e.key === 'F10') {
 			e.preventDefault();
-			if ($notebookOverlay) return;
+			if ($activeSurface) return;
 			demoVisible.update((v) => !v);
 		}
 		if (e.key === 'F11') {
@@ -103,17 +103,17 @@
 		}
 		if (e.key === 'F12') {
 			e.preventDefault();
-			void toggleNotebookOverlay('debug');
+			void toggleSurface('debug');
 		}
 		// Toggle full map with M key, but only when not typing in an input/textarea/contenteditable
 		if ((e.key === 'm' || e.key === 'M') && !isTypingContext()) {
 			e.preventDefault();
-			void toggleNotebookOverlay('map');
+			void toggleSurface('map');
 		}
 		// `?` opens the shortcuts overlay (the overlay handles its own close)
 		if (e.key === '?' && !isTypingContext()) {
 			e.preventDefault();
-			void toggleNotebookOverlay('shortcuts');
+			void toggleSurface('shortcuts');
 		}
 	}
 
@@ -179,33 +179,33 @@
 
 <svelte:window onkeydown={handleKeydown} />
 
-<div class="app-shell" data-controller-ready={controllerReady}>
-	<IllustratedNotebookGame />
+<div
+	class="app-root"
+	data-testid="app-root"
+	data-controller-ready={controllerReady}
+>
+	<ChatGameShell />
+	<SurfaceHost />
+	{#if !$activeSurface && !$surfaceTransitioning}
+		<DemoBanner />
+		{#if $demoVisible}
+			<DemoPanel />
+		{/if}
+	{/if}
+	<SetupOverlay />
+
+	{#if screenshotToast}
+		<div class="screenshot-toast" role="status" aria-live="polite">
+			{screenshotToast}
+		</div>
+	{/if}
 </div>
 
-<NotebookOverlayHost />
-{#if !$notebookOverlay && !$notebookOverlayTransitioning}
-	<DemoBanner />
-	{#if $demoVisible}
-		<DemoPanel />
-	{/if}
-{/if}
-<SetupOverlay />
-
-{#if screenshotToast}
-	<div class="screenshot-toast" role="status" aria-live="polite">
-		{screenshotToast}
-	</div>
-{/if}
-
 <style>
-	.app-shell {
-		display: flex;
-		flex-direction: column;
+	.app-root {
+		position: relative;
 		height: 100dvh;
 		overflow: hidden;
-		transition: height 0.15s ease;
-		padding-bottom: env(safe-area-inset-bottom);
 	}
 
 	/* ── Screenshot toast ── */

@@ -11,7 +11,7 @@
 		saveScreenshot,
 		notifyScreenshotStarted,
 		notifyScreenshotCaptured,
-		notifyScreenshotError
+		notifyScreenshotError,
 	} from '$lib/ipc';
 
 	let { children } = $props();
@@ -35,8 +35,14 @@
 	}
 
 	function reportGraphicalFailure(event: Event) {
-		const detail = event instanceof CustomEvent ? String(event.detail) : 'unknown renderer failure';
-		console.warn('Illustrated renderer failed before graphical readiness:', detail);
+		const detail =
+			event instanceof CustomEvent
+				? String(event.detail)
+				: 'unknown renderer failure';
+		console.warn(
+			'Illustrated renderer failed before graphical readiness:',
+			detail,
+		);
 		if (graphicalLaunchToken) {
 			void reportGraphicalError(graphicalLaunchToken, detail).catch(() => {});
 		}
@@ -44,7 +50,10 @@
 
 	onMount(async () => {
 		window.addEventListener('parish:graphical-frame-ready', markGraphicalReady);
-		window.addEventListener('parish:graphical-frame-failed', reportGraphicalFailure);
+		window.addEventListener(
+			'parish:graphical-frame-failed',
+			reportGraphicalFailure,
+		);
 		if (
 			(window as typeof window & { __parishGraphicalFrameReady?: boolean })
 				.__parishGraphicalFrameReady
@@ -65,15 +74,21 @@
 		});
 		// Listener registration is the readiness boundary for the MCP protocol:
 		// any later capture has a live receipt path, and the capture command still
-		// rejects a blank/unpresented frame before it can report success. The Pixi
-		// first-frame event above remains useful diagnostic evidence, but must not
+		// rejects a blank/unpresented frame before it can report success. The
+		// graphical-frame event remains useful diagnostic evidence, but must not
 		// race the handler registration that the bridge depends on.
 		void markGraphicalReady();
 	});
 
 	onDestroy(() => {
-		window.removeEventListener('parish:graphical-frame-ready', markGraphicalReady);
-		window.removeEventListener('parish:graphical-frame-failed', reportGraphicalFailure);
+		window.removeEventListener(
+			'parish:graphical-frame-ready',
+			markGraphicalReady,
+		);
+		window.removeEventListener(
+			'parish:graphical-frame-failed',
+			reportGraphicalFailure,
+		);
 		unlistenScreenshot?.();
 		if (graphicalLaunchToken) {
 			void reportGraphicalUnready(graphicalLaunchToken).catch(() => {});

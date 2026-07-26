@@ -447,38 +447,33 @@ For dev iteration on `cargo tauri dev`, skip the bundle build — the runtime fa
 
 ## GUI (Tauri 2 + Svelte 5)
 
-### Illustrated Parish Viewport
+### Chat-First Illustrated Viewport
 
-- The default play view closely follows the illustrated parish notebook concept: a full-bleed,
-  oblique rural scene rendered in Pixi, a restrained top status ribbon, a nearby-people strip,
-  and a right-edge sewn notebook page
-- Action stamps and the single-line **Player intent** field stay near the lower centre of the
-  scene; Map, Time & Weather, active-intent, and utility cards sit at the edges
-- The game canvas remains visually stable while notebook sheets are open; closing a sheet
-  restores focus to the control that opened it without shifting the viewport
-- There is no persistent dashboard or default content overlay. A semantic live summary exposes
-  location, time phase, weather, season, pause/festival state, the selected nearby person, and
-  response readiness to assistive technology
+- The default play view is semantic Svelte DOM: `StatusBar`, a responsive scene
+  header, the readable `ChatPanel`, enriched `InputField`, `Sidebar`, and map
+  context.
+- Approved watercolor plates, NPC portraits, and selected icons are responsive
+  DOM images; the retired Pixi/notebook renderer is not shipped.
+- Desktop keeps map, nearby people, and language hints beside chat. Mobile keeps
+  the transcript and input primary with explicit Map and People & Words controls.
+- Transcript attribution, streaming, reactions, sticky scrolling, history,
+  mentions, slash/model/location completion, and quick travel remain in the
+  primary interaction model.
 
-### Notebook Sheets
+### Coordinated Surfaces
 
-- **Journal:** scrolling conversation history with player, NPC, and system speaker labels,
-  asterisk-wrapped emote styling, real-time NPC streaming, auto-scroll, and the Celtic-knot
-  loading treatment
-- **People:** nearby parish residents and their current identity/state details
-- **Focail:** the Irish-word and pronunciation guide
-- **Map:** the full parish map, opened from its illustrated card or with M
-- **Time & Weather:** clock, weather, season, simulation/reply state, and active festival
-- **Ledger:** save/load branch picker, opened from the notebook utility tabs or with F5
-- **Debug, Mod, Bug Report, and Shortcuts:** contained utility sheets opened from the notebook's
-  **More** tab or their shortcuts
-- Only one sheet is open at a time. Escape, the close control, or the backdrop dismisses a
-  dismissible sheet; a required Mod selection remains open until the player chooses a mod.
-  Notebook wrappers isolate the existing feature internals from the concept-faithful first view
+- **Map:** the full parish map, opened from the mobile/desktop control or M.
+- **Ledger:** save/load branch picker, opened from the status bar or F5.
+- **Debug:** eight diagnostic tabs, opened from Developer tools or F12.
+- **Mod, Bug Report, and Shortcuts:** contained utility surfaces opened from
+  Developer tools or their shortcuts.
+- One presentation-neutral coordinator owns these surfaces. It prevents overlap,
+  blocks dismissal of required mod selection, cancels in-flight bug preparation
+  safely, and restores focus to the invoking control or player input.
 
 ### Map
 
-- **Full notebook map sheet** — complete parish map with zoom and pan, custom SVG icons per location type, traversal-weighted edges, and click-to-travel (toggled with the M hotkey)
+- **Full coordinated map surface** — complete parish map with zoom and pan, custom SVG icons per location type, traversal-weighted edges, and click-to-travel (toggled with the M hotkey)
 - **Animated travel** — when the player moves between locations, the map smoothly pans and zooms to the destination, interpolating both center and zoom level across the journey's duration so the post-travel view is already framed when the player arrives
 - **Tile sources:** `/map` lists configured tile sources; `/map <id>` switches to one (requires the `period-map-tiles` flag)
 - Fixed-scale Mercator projection from real lat/lon coordinates
@@ -493,7 +488,7 @@ For dev iteration on `cargo tauri dev`, skip the bundle build — the runtime fa
 
 ### Save Picker
 
-- Ledger-style notebook sheet (F5 hotkey)
+- Coordinated Ledger surface (F5 hotkey)
 - Branch DAG tree visualization with hierarchical layout
 - Create, load, fork, and manage save branches visually
 - Auto-zoom bounding box for branch tree viewport
@@ -501,7 +496,7 @@ For dev iteration on `cargo tauri dev`, skip the bundle build — the runtime fa
 ### Debug Panel
 
 - **8 tabs:** Overview, NPCs, World, Weather, Gossip, Conversations, Events, Inference
-- Contained in a notebook utility sheet, opened with F12 or from More
+- Contained in a coordinated utility surface, opened with F12 or Developer tools
 - **Overview:** Game clock, time of day, season, weather, speed, pause state, festival, location, tier summary (T1-T4 NPC counts and names)
 - **NPCs:** Selectable NPC list with detailed view (age, occupation, personality, relationships, memory)
 - **World:** World state inspection

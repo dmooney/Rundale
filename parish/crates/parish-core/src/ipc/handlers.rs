@@ -1579,7 +1579,7 @@ mod tests {
         let mut npc_mgr = NpcManager::new();
         let mut npc = Npc::new_test_npc();
         npc.id = NpcId(42);
-        npc.location = world.player_location;
+        npc.set_location(world.player_location);
         npc_mgr.add_npc(npc);
 
         let npcs = build_npcs_here(&world, &npc_mgr);
