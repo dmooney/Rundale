@@ -15,13 +15,52 @@ import {
 } from './fixtures';
 import type { Page } from '@playwright/test';
 import { PALETTES, SNAPSHOTS } from './mock-data';
+import type { NpcInfo } from '../src/lib/types';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const TIMES_OF_DAY = ['morning', 'midday', 'dusk', 'night'] as const;
-// Path is relative to apps/ui/e2e/screenshots.spec.ts → repo root → docs/screenshots/.
+// Path is relative to apps/ui/e2e/screenshots.spec.ts → parish/docs/screenshots/.
 const SCREENSHOT_DIR = path.resolve(__dirname, '../../../docs/screenshots');
+const SCREENSHOT_NPCS: NpcInfo[] = [
+	{
+		npc_id: 4,
+		name: 'Roisin Connolly',
+		real_name: 'Roisin Connolly',
+		occupation: 'Shopkeeper',
+		mood: 'wary',
+		introduced: true,
+		mood_emoji: '•',
+	},
+	{
+		npc_id: 1,
+		name: 'Padraig Darcy',
+		real_name: 'Padraig Darcy',
+		occupation: 'Publican',
+		mood: 'content',
+		introduced: true,
+		mood_emoji: '•',
+	},
+	{
+		npc_id: 2,
+		name: 'Siobhan Murphy',
+		real_name: 'Siobhan Murphy',
+		occupation: 'Farmer',
+		mood: 'determined',
+		introduced: true,
+		mood_emoji: '•',
+	},
+	{
+		npc_id: 3,
+		name: 'Fr. Declan Tierney',
+		real_name: 'Fr. Declan Tierney',
+		occupation: 'Parish Priest',
+		mood: 'contemplative',
+		introduced: true,
+		mood_emoji: '•',
+	},
+];
 
 async function expectRenderedNotebookScreenshot(
 	page: Page,
@@ -74,7 +113,16 @@ async function setupScreenshotPage(
 	page: Page,
 	time: (typeof TIMES_OF_DAY)[number],
 ): Promise<void> {
-	await installTauriMock(page, time);
+	await installTauriMock(page, time, {
+		npcs: SCREENSHOT_NPCS,
+		snapshot: {
+			...SNAPSHOTS[time],
+			location_name: 'Kilteevan Village',
+			location_description:
+				'The crossroads at Kilteevan are damp after rain, with cottages, low walls, and neighbours moving through the morning.',
+			name_hints: [],
+		},
+	});
 	await page.goto('/');
 	await page.waitForLoadState('networkidle');
 
@@ -87,6 +135,12 @@ async function setupScreenshotPage(
 	);
 	await expect(
 		page.getByRole('button', { name: 'Ask action', exact: true }),
+	).toHaveCount(1);
+	await expect(
+		page.getByRole('button', {
+			name: 'Select nearby person Roisin Connolly',
+			exact: true,
+		}),
 	).toHaveCount(1);
 	await applyTheme(page, PALETTES[time]);
 
