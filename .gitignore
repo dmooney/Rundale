@@ -1,4 +1,5 @@
 parish/target/
+.parish-graphical-harness-target/
 # Node modules anywhere (root tooling package, ui app, bench site)
 node_modules/
 parish/node_modules/

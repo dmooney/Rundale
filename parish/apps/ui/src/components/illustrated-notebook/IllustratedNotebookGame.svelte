@@ -160,10 +160,30 @@
 					resizeObserver.observe(hostEl);
 				}
 				renderer.resize();
+				// The harness must not infer readiness from document load or a timing
+				// delay: assets and Pixi initialization are asynchronous. Announce only
+				// after this renderer has composed a frame into its real canvas.
+				requestAnimationFrame(() => {
+					requestAnimationFrame(() => {
+						// Pixi has completed initialization, `resize`, and two browser frames.
+						// Do not use a document-level timer: this is tied to the renderer that
+						// owns the surface the screenshot path will capture.
+						if (hostEl?.querySelector('canvas')) {
+							(window as typeof window & { __parishGraphicalFrameReady?: boolean })
+								.__parishGraphicalFrameReady = true;
+							window.dispatchEvent(new Event('parish:graphical-frame-ready'));
+						}
+					});
+				});
 				if (!get(notebookOverlay)) focusInput();
 			} catch (error) {
 				next?.destroy();
 				if (!cancelled) {
+					window.dispatchEvent(
+						new CustomEvent('parish:graphical-frame-failed', {
+							detail: formatIpcError(error),
+						}),
+					);
 					pushErrorLog(
 						`Failed to initialize illustrated parish: ${formatIpcError(error)}`,
 					);
