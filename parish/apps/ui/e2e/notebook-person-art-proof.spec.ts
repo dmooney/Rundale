@@ -102,6 +102,7 @@ const approvedCast: NpcInfo[] = [
 ];
 
 const kilteevanSnapshot: WorldSnapshot = {
+	location_id: 15,
 	location_name: 'Kilteevan Village',
 	location_description:
 		'The crossroads at Kilteevan are damp after rain, with cottages, low walls, and neighbours moving through the morning.',
@@ -117,6 +118,7 @@ const kilteevanSnapshot: WorldSnapshot = {
 	speed_factor: 0,
 	name_hints: [],
 	day_of_week: 'Monday',
+	active_tasks: [],
 };
 
 function notebookAssetUrl(asset: string): string {

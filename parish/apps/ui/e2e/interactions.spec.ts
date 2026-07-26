@@ -5,8 +5,27 @@
 import { test, expect, installTauriMock, emitEvent } from './fixtures';
 import type { Locator, Page } from '@playwright/test';
 import { SNAPSHOTS, IRISH_HINTS } from './mock-data';
+import type { NpcInfo } from '../src/lib/types';
 
 const PIXI_CANVAS = '[data-testid="illustrated-notebook-pixi-host"] canvas';
+const STREAM_NPCS: NpcInfo[] = [
+	{
+		name: 'Siobhan Murphy',
+		real_name: 'Siobhan Murphy',
+		occupation: 'Farmer',
+		mood: 'determined',
+		introduced: true,
+		mood_emoji: '•',
+	},
+	{
+		name: 'Padraig Darcy',
+		real_name: 'Padraig Darcy',
+		occupation: 'Publican',
+		mood: 'content',
+		introduced: true,
+		mood_emoji: '•',
+	},
+];
 
 async function waitForNotebook(page: Page): Promise<void> {
 	await expect(page.getByTestId('illustrated-notebook-game')).toBeVisible();
@@ -255,7 +274,7 @@ test.describe('Streaming simulation', () => {
 	test('keeps overlapping multi-npc streams attached to the right speaker', async ({
 		page,
 	}) => {
-		await installTauriMock(page, 'morning');
+		await installTauriMock(page, 'morning', { npcs: STREAM_NPCS });
 		await page.goto('/');
 		await page.waitForLoadState('networkidle');
 		await waitForNotebook(page);

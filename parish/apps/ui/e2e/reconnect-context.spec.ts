@@ -41,8 +41,16 @@ test('web reconnect commits one epoch aggregate or preserves the whole presentat
 		page.locator('[data-testid="illustrated-notebook-game"]'),
 	).toBeVisible();
 	await expect.poll(() => sockets.length).toBe(1);
-	const chronicle = page.getByLabel('Live chronicle');
-	const input = page.getByLabel('Player intent');
+	const journalTab = page.getByRole('button', {
+		name: 'Open Journal notebook tab',
+		exact: true,
+	});
+	await expect(journalTab).toBeVisible();
+	await journalTab.focus();
+	await page.keyboard.press('Enter');
+	const chronicle = page.getByTestId('notebook-active-section');
+	await expect(chronicle).toHaveAttribute('data-section', 'journal');
+	const input = page.getByLabel('Player intent', { exact: true });
 	await expect(chronicle).toContainText(
 		'The old branch opens beside the gate.',
 	);
