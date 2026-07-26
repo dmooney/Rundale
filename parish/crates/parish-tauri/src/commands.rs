@@ -30,8 +30,9 @@ pub mod snapshot;
 
 // ── Re-exports: snapshot ──────────────────────────────────────────────────────
 pub use snapshot::{
-    get_debug_snapshot, get_engine_state, get_map, get_npcs_here, get_setup_snapshot, get_theme,
-    get_ui_config, get_world_snapshot, get_world_snapshot_inner, toggle_fullscreen,
+    get_debug_snapshot, get_engine_state, get_map, get_npcs_here, get_reconnect_state,
+    get_setup_snapshot, get_theme, get_ui_config, get_world_snapshot, get_world_snapshot_inner,
+    toggle_fullscreen,
 };
 
 // ── Re-exports: setup ─────────────────────────────────────────────────────────
@@ -43,7 +44,6 @@ pub use setup::{
 pub(crate) use setup::{do_get_onboarding_options, do_start_local_inference_setup};
 
 // ── Re-exports: input ─────────────────────────────────────────────────────────
-pub(crate) use input::do_submit_input;
 pub use input::{submit_input, validate_addressed_to, validate_input_text};
 
 // ── Re-exports: saves ─────────────────────────────────────────────────────────

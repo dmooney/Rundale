@@ -15,7 +15,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use super::types::{MapData, NpcInfo, WorldSnapshot};
+use super::types::{MapData, NpcInfo, PlayerTaskSnapshot, WorldSnapshot};
 
 /// One NPC co-located with the player, shaped for the demo prompt.
 ///
@@ -65,6 +65,9 @@ pub struct DemoContextSnapshot {
     pub weather: String,
     pub npcs_here: Vec<DemoNpcInfo>,
     pub adjacent: Vec<DemoAdjacentLocation>,
+    /// Active durable work visible in the same world snapshot as the GUI.
+    #[serde(default)]
+    pub active_tasks: Vec<PlayerTaskSnapshot>,
     /// Recent text-log entries. The Tauri command leaves this empty; the
     /// frontend fills it from its `textLog` store before invoking the LLM.
     pub recent_log: Vec<String>,
@@ -131,6 +134,7 @@ pub fn build_demo_context(
         weather: snapshot.weather.clone(),
         npcs_here,
         adjacent,
+        active_tasks: snapshot.active_tasks.clone(),
         recent_log: Vec::new(),
         recent_actions: Vec::new(),
         extra_prompt,
@@ -214,6 +218,22 @@ pub fn render_user_prompt(ctx: &DemoContextSnapshot) -> String {
         parts.push(format!("Adjacent locations:\n{}", lines.join("\n")));
     }
 
+    if !ctx.active_tasks.is_empty() {
+        let lines: Vec<String> = ctx
+            .active_tasks
+            .iter()
+            .map(|task| {
+                format!(
+                    "  - #{} [{}] {}",
+                    task.id,
+                    task.status_label().replace('_', " "),
+                    task.description
+                )
+            })
+            .collect();
+        parts.push(format!("Active tasks:\n{}", lines.join("\n")));
+    }
+
     let collapsed = collapse_consecutive_actions(&ctx.recent_actions);
     if !collapsed.is_empty() {
         let lines: Vec<String> = collapsed
@@ -245,6 +265,7 @@ mod tests {
 
     fn world_snapshot() -> WorldSnapshot {
         WorldSnapshot {
+            location_id: 15,
             location_name: "Kilteevan".to_string(),
             location_description: "A handful of whitewashed cottages.".to_string(),
             time_label: "morning".to_string(),
@@ -258,6 +279,7 @@ mod tests {
             game_epoch_ms: 0.0,
             speed_factor: 1.0,
             name_hints: vec![],
+            active_tasks: vec![],
             day_of_week: "Wednesday".to_string(),
             turn_in_flight: false,
         }
@@ -458,6 +480,39 @@ mod tests {
         let prompt = render_user_prompt(&ctx);
         assert!(prompt.contains("The Mill — about 8 min away, unexplored"));
         assert!(prompt.contains("The Crossroads — 12 min away, visited"));
+    }
+
+    #[test]
+    fn active_tasks_are_visible_to_demo_player() {
+        use chrono::{TimeZone, Utc};
+
+        let mut snapshot = world_snapshot();
+        snapshot.active_tasks.push(PlayerTaskSnapshot {
+            id: 7,
+            description: "weed the potato patch".to_string(),
+            assigned_by: 11,
+            location_id: 0,
+            status: parish_types::TaskStatus::InProgress,
+            assigned_at: Utc.with_ymd_and_hms(1820, 5, 14, 8, 0, 0).unwrap(),
+            started_at: Some(Utc.with_ymd_and_hms(1820, 5, 14, 8, 30, 0).unwrap()),
+            completed_at: None,
+            last_matching_action: Some("I weed the potato patch".to_string()),
+        });
+        let ctx = build_demo_context(
+            &snapshot,
+            &[],
+            &map_data(vec![], vec![]),
+            "Wednesday".to_string(),
+            "spring".to_string(),
+            None,
+        );
+
+        assert_eq!(ctx.active_tasks, snapshot.active_tasks);
+        let prompt = render_user_prompt(&ctx);
+        assert!(
+            prompt.contains("Active tasks:\n  - #7 [in progress] weed the potato patch"),
+            "active task missing from demo prompt:\n{prompt}"
+        );
     }
 
     #[test]

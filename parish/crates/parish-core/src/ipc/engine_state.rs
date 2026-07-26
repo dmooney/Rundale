@@ -20,7 +20,8 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::ipc::handlers::weekday_name;
+use crate::ipc::handlers::{active_task_snapshots, weekday_name};
+use crate::ipc::types::PlayerTaskSnapshot;
 use crate::npc::manager::NpcManager;
 use crate::world::WorldState;
 use chrono::{Datelike, Timelike};
@@ -71,6 +72,9 @@ pub struct PlayerState {
     pub visited_count: usize,
     /// Player's name, once introduced (else null).
     pub name: Option<String>,
+    /// Active durable tasks, oldest assignment first.
+    #[serde(default)]
+    pub active_tasks: Vec<PlayerTaskSnapshot>,
 }
 
 /// A single co-located NPC, identity-resolved.
@@ -134,7 +138,7 @@ pub struct EngineState {
 }
 
 /// Current schema version of [`EngineState`]. Bump on any breaking change.
-pub const ENGINE_STATE_SCHEMA_VERSION: u32 = 1;
+pub const ENGINE_STATE_SCHEMA_VERSION: u32 = 2;
 
 /// Builds the canonical engine state from live world + NPC references.
 ///
@@ -170,6 +174,7 @@ pub fn build_engine_state(world: &WorldState, npc_manager: &NpcManager) -> Engin
         location_id: world.player_location.0,
         visited_count: world.visited_locations.len(),
         name: world.player_name.clone(),
+        active_tasks: active_task_snapshots(world),
     };
 
     let here: Vec<NpcStatus> = npc_manager
@@ -215,6 +220,8 @@ mod tests {
     use super::*;
     use crate::npc::manager::NpcManager;
     use crate::world::WorldState;
+    use chrono::{Duration, TimeZone, Utc};
+    use parish_types::{NpcId, TaskStatus};
 
     #[test]
     fn engine_state_has_canonical_shape() {
@@ -237,6 +244,7 @@ mod tests {
         // Player state.
         assert_eq!(state.player.location_id, world.player_location.0);
         assert!(state.player.name.is_none());
+        assert!(state.player.active_tasks.is_empty());
 
         // NPC roster is empty in a bare world.
         assert!(state.npcs.here.is_empty());
@@ -278,6 +286,110 @@ mod tests {
         }
         assert!(v["active_scene"].get("location_name").is_some());
         assert!(v["clock"].get("day_of_week").is_some());
+        assert!(v["player"].get("active_tasks").is_some());
         assert!(v["grapevine"].get("item_count").is_some());
+    }
+
+    #[test]
+    fn engine_state_projects_active_tasks_in_assignment_order() {
+        let mut world = WorldState::new();
+        let npc_manager = NpcManager::new();
+        let location = world.player_location;
+        let assigned_at = Utc.with_ymd_and_hms(1820, 5, 14, 8, 0, 0).unwrap();
+
+        let assigned_id = world
+            .player_progress
+            .assign_task("weed the potato patch", NpcId(11), location, assigned_at)
+            .unwrap();
+        let in_progress_id = world
+            .player_progress
+            .assign_task(
+                "mend the western wall",
+                NpcId(12),
+                location,
+                assigned_at + Duration::minutes(1),
+            )
+            .unwrap();
+        let completed_id = world
+            .player_progress
+            .assign_task(
+                "carry the peat baskets",
+                NpcId(13),
+                location,
+                assigned_at + Duration::minutes(2),
+            )
+            .unwrap();
+
+        let started_at = assigned_at + Duration::minutes(30);
+        assert_eq!(
+            world.player_progress.advance_assigned_task(
+                "I mend the western wall",
+                location,
+                started_at
+            ),
+            Some(in_progress_id)
+        );
+        assert_eq!(
+            world.player_progress.advance_assigned_task(
+                "I carry the peat baskets",
+                location,
+                started_at + Duration::minutes(1)
+            ),
+            Some(completed_id)
+        );
+        assert!(world.player_progress.complete_task_explicitly(
+            completed_id,
+            "The peat baskets are delivered",
+            location,
+            started_at + Duration::minutes(5),
+        ));
+
+        let state = build_engine_state(&world, &npc_manager);
+        assert_eq!(state.schema_version, 2);
+        assert_eq!(state.player.active_tasks.len(), 2);
+
+        let assigned = &state.player.active_tasks[0];
+        assert_eq!(assigned.id, assigned_id.0);
+        assert_eq!(assigned.description, "weed the potato patch");
+        assert_eq!(assigned.assigned_by, 11);
+        assert_eq!(assigned.location_id, location.0);
+        assert_eq!(assigned.status, TaskStatus::Assigned);
+        assert_eq!(assigned.assigned_at, assigned_at);
+        assert_eq!(assigned.started_at, None);
+        assert_eq!(assigned.completed_at, None);
+        assert_eq!(assigned.last_matching_action, None);
+
+        let in_progress = &state.player.active_tasks[1];
+        assert_eq!(in_progress.id, in_progress_id.0);
+        assert_eq!(in_progress.description, "mend the western wall");
+        assert_eq!(in_progress.assigned_by, 12);
+        assert_eq!(in_progress.location_id, location.0);
+        assert_eq!(in_progress.status, TaskStatus::InProgress);
+        assert_eq!(in_progress.assigned_at, assigned_at + Duration::minutes(1));
+        assert_eq!(in_progress.started_at, Some(started_at));
+        assert_eq!(in_progress.completed_at, None);
+        assert_eq!(
+            in_progress.last_matching_action.as_deref(),
+            Some("I mend the western wall")
+        );
+        assert!(
+            state
+                .player
+                .active_tasks
+                .iter()
+                .all(|task| task.id != completed_id.0),
+            "completed tasks must stay out of the live projection"
+        );
+    }
+
+    #[test]
+    fn engine_state_v1_player_defaults_active_tasks() {
+        let player: PlayerState = serde_json::from_value(serde_json::json!({
+            "location_id": 7,
+            "visited_count": 3,
+            "name": null
+        }))
+        .unwrap();
+        assert!(player.active_tasks.is_empty());
     }
 }

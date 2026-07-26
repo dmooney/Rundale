@@ -342,6 +342,19 @@ impl CharacterLogManager {
                 };
                 append_journal_entry(&self.player_log_path(), ts, Some(&heading), &body)?;
             }
+            GameEvent::PlayerTaskAssigned { task, .. } => {
+                let assigner = name_of(task.assigned_by);
+                let location = loc_of(task.location);
+                let body = format!("*{}*\n", task.description);
+                let heading = format!("Task from {} at {}", assigner, location);
+                append_journal_entry(&self.player_log_path(), ts, Some(&heading), &body)?;
+            }
+            GameEvent::PlayerTaskProgressed { task, action, .. } => {
+                let location = loc_of(task.location);
+                let body = format!("*{}*\n\nAction: {}\n", task.description, action);
+                let heading = format!("Task in progress at {}", location);
+                append_journal_entry(&self.player_log_path(), ts, Some(&heading), &body)?;
+            }
             GameEvent::WeatherChanged { new_weather, .. } => {
                 let body = format!("*Weather: {}*\n", new_weather);
                 append_journal_entry(&self.player_log_path(), ts, Some("Weather"), &body)?;
@@ -481,7 +494,7 @@ pub fn format_npc_profile(
     }
 
     out.push_str("## Schedule\n\n");
-    if let Some(schedule) = npc.schedule.as_ref() {
+    if let Some(schedule) = npc.schedule() {
         out.push_str(&format_schedule(schedule, world));
     } else {
         out.push_str("*(no schedule recorded)*\n\n");
@@ -906,9 +919,7 @@ mod tests {
     use super::*;
     use chrono::TimeZone;
     use parish_npc::manager::NpcManager;
-    use parish_npc::memory::{LongTermMemory, ShortTermMemory};
-    use parish_npc::reactions::ReactionLog;
-    use parish_npc::types::{Intelligence, NpcState, Relationship, RelationshipKind};
+    use parish_npc::types::{Intelligence, Relationship, RelationshipKind};
     use parish_world::WorldState;
     use std::collections::HashMap;
 
@@ -917,32 +928,18 @@ mod tests {
     }
 
     fn make_npc(id: u32, name: &str) -> Npc {
-        Npc {
-            id: NpcId(id),
-            name: name.to_string(),
-            brief_description: format!("a person called {}", name),
-            age: 40,
-            occupation: "Publican".to_string(),
-            personality: "Warm-hearted".to_string(),
-            pronouns: "they/them".to_string(),
-            intelligence: Intelligence::new(3, 3, 3, 3, 3, 3),
-            location: LocationId(1),
-            mood: "content".to_string(),
-            home: None,
-            workplace: None,
-            schedule: None,
-            relationships: HashMap::new(),
-            memory: ShortTermMemory::new(),
-            long_term_memory: LongTermMemory::new(),
-            knowledge: Vec::new(),
-            state: NpcState::default(),
-            deflated_summary: None,
-            reaction_log: ReactionLog::default(),
-            last_activity: None,
-            is_ill: false,
-            doom: None,
-            banshee_heralded: false,
-        }
+        let mut npc = Npc::new_test_npc();
+        npc.id = NpcId(id);
+        npc.name = name.to_string();
+        npc.brief_description = format!("a person called {}", name);
+        npc.age = 40;
+        npc.occupation = "Publican".to_string();
+        npc.personality = "Warm-hearted".to_string();
+        npc.pronouns = "they/them".to_string();
+        npc.intelligence = Intelligence::new(3, 3, 3, 3, 3, 3);
+        npc.set_location(LocationId(1));
+        npc.mood = "content".to_string();
+        npc
     }
 
     #[test]

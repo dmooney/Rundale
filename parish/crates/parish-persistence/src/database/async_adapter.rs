@@ -8,7 +8,7 @@ use parish_types::ParishError;
 
 use super::Database;
 use super::branches::BranchInfo;
-use super::journal::SnapshotInfo;
+use super::journal::{RecoveryData, SnapshotInfo};
 use super::schema::lock_recovered;
 
 /// Async wrapper around [`Database`] for use with Tokio.
@@ -66,6 +66,15 @@ impl AsyncDatabase {
             .await
     }
 
+    /// Loads the latest snapshot and its journal tail in one read transaction.
+    pub async fn load_recovery_data(
+        &self,
+        branch_id: i64,
+    ) -> Result<Option<RecoveryData>, ParishError> {
+        self.run_blocking(move |db| db.load_recovery_data(branch_id))
+            .await
+    }
+
     /// Creates a new branch.
     pub async fn create_branch(
         &self,
@@ -74,6 +83,27 @@ impl AsyncDatabase {
     ) -> Result<i64, ParishError> {
         let name = name.to_string();
         self.run_blocking(move |db| db.create_branch(&name, parent_branch_id))
+            .await
+    }
+
+    /// Creates a branch and initial snapshot in one SQLite transaction.
+    pub async fn create_branch_with_snapshot(
+        &self,
+        name: &str,
+        parent_branch_id: Option<i64>,
+        snapshot: &GameSnapshot,
+    ) -> Result<(i64, i64), ParishError> {
+        let name = name.to_string();
+        let snapshot = snapshot.clone();
+        self.run_blocking(move |db| {
+            db.create_branch_with_snapshot(&name, parent_branch_id, &snapshot)
+        })
+        .await
+    }
+
+    /// Deletes a branch and its cascade-owned state.
+    pub async fn delete_branch(&self, branch_id: i64) -> Result<(), ParishError> {
+        self.run_blocking(move |db| db.delete_branch(branch_id))
             .await
     }
 
@@ -99,6 +129,17 @@ impl AsyncDatabase {
         let event = event.clone();
         let game_time = game_time.to_string();
         self.run_blocking(move |db| db.append_event(branch_id, snapshot_id, &event, &game_time))
+            .await
+    }
+
+    /// Appends a batch to the latest snapshot in one SQLite transaction.
+    pub async fn append_events_to_latest_snapshot(
+        &self,
+        branch_id: i64,
+        events: &[(WorldEvent, String)],
+    ) -> Result<Option<i64>, ParishError> {
+        let events = events.to_vec();
+        self.run_blocking(move |db| db.append_events_to_latest_snapshot(branch_id, &events))
             .await
     }
 

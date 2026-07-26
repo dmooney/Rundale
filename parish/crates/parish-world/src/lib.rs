@@ -26,7 +26,9 @@ pub use parish_types::{DEFAULT_START_LOCATION, Location, LocationId, Weather};
 use std::collections::{HashMap, HashSet};
 use std::path::Path;
 
-use parish_types::{ConversationLog, EventBus, GameClock, GossipNetwork, ParishError};
+use parish_types::{
+    ConversationLog, EventBus, GameClock, GossipNetwork, ParishError, PlayerProgress,
+};
 
 use graph::{LocationData, WorldGraph};
 use weather::WeatherEngine;
@@ -39,6 +41,7 @@ const MAX_TEXT_LOG: usize = 500;
 ///
 /// Holds the game clock, player position, the world graph, weather,
 /// and the scrollback text log displayed in the UI.
+#[derive(Clone)]
 pub struct WorldState {
     /// The game clock mapping real time to game time.
     pub clock: GameClock,
@@ -75,6 +78,8 @@ pub struct WorldState {
     /// The player's name, learned from dialogue (e.g. "My name is Ciaran").
     /// `None` until the player introduces themselves.
     pub player_name: Option<String>,
+    /// Durable task assignments and progression for the player.
+    pub player_progress: PlayerProgress,
     /// Monotonically increasing counter incremented once per background tick.
     ///
     /// Used by `handle_game_input` to detect TOCTOU races: the generation is
@@ -86,6 +91,14 @@ pub struct WorldState {
 }
 
 impl WorldState {
+    /// Clones canonical state for a pending player turn while isolating all
+    /// semantic events until the turn's durable commit succeeds.
+    pub fn clone_for_staged_turn(&self) -> Self {
+        let mut staged = self.clone();
+        staged.event_bus = EventBus::new();
+        staged
+    }
+
     /// Creates a new world state with a single test location ("The Crossroads").
     ///
     /// The game clock starts at 8:00 AM on March 20, 1820 (spring morning).
@@ -137,6 +150,7 @@ impl WorldState {
             gossip_network: GossipNetwork::new(),
             conversation_log: ConversationLog::new(),
             player_name: None,
+            player_progress: PlayerProgress::default(),
             tick_generation: 0,
         }
     }
@@ -390,6 +404,7 @@ mod tests {
         assert!(world.visited_locations.contains(&LocationId(1)));
         assert_eq!(world.visited_locations.len(), 1);
         assert!(world.player_name.is_none());
+        assert!(world.player_progress.is_empty());
     }
 
     #[test]

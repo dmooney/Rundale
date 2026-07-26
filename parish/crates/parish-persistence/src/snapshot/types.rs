@@ -11,7 +11,7 @@ use serde::{Deserialize, Serialize};
 
 use parish_npc::memory::{LongTermMemory, ShortTermMemory};
 use parish_npc::types::{Intelligence, NpcState, Relationship, SeasonalSchedule};
-use parish_types::{ConversationLog, GossipNetwork, LocationId, NpcId};
+use parish_types::{ConversationLog, GossipNetwork, LocationId, NpcId, PlayerProgress};
 
 /// Serde helpers for `edge_traversals: HashMap<(LocationId, LocationId), u32>`.
 ///
@@ -192,6 +192,9 @@ pub struct GameSnapshot {
     /// The player's name, learned from dialogue.
     #[serde(default)]
     pub player_name: Option<String>,
+    /// Durable player task assignments and progression.
+    #[serde(default)]
+    pub player_progress: PlayerProgress,
     /// Set of NPC ids that know the player's name.
     #[serde(default)]
     pub npcs_who_know_player_name: HashSet<NpcId>,

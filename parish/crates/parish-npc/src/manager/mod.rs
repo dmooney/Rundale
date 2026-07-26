@@ -41,6 +41,7 @@ pub struct TierTickState {
 /// caught within a handful of player turns.
 pub const REACTION_EMOJI_BUFFER_CAPACITY: usize = 8;
 
+#[derive(Clone)]
 pub struct NpcManager {
     /// All NPCs keyed by their unique id.
     npcs: HashMap<NpcId, Npc>,

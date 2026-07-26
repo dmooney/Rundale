@@ -51,8 +51,10 @@ export function buildNotebookSectionContent(
 								.join(' · ') || 'Not recorded',
 					},
 					{
-						label: 'Next',
-						text: 'Write an intent below, or choose an action stamp.',
+						label: state.world?.active_tasks?.[0] ? 'Work' : 'Next',
+						text: state.world?.active_tasks?.[0]
+							? `${state.world.active_tasks[0].description} (${state.world.active_tasks[0].status.replace('_', ' ')})`
+							: 'Write an intent below, or choose an action stamp.',
 					},
 				],
 			};
@@ -130,7 +132,7 @@ export function buildNotebookSectionContent(
 			return {
 				tab: 'journal',
 				title: 'Parish Journal',
-				lines: journalLines(state.journalEntries),
+				lines: journalLines(state.journalEntries, state.npcs),
 			};
 	}
 }
@@ -143,15 +145,52 @@ function nearbyPeople(npcs: ParishRenderState['npcs']): string {
 		.join(' · ');
 }
 
-function journalLines(entries: TextLogEntry[]): NotebookSectionLine[] {
-	const recent = entries
-		.filter((entry) => entry.content.trim().length > 0)
-		.slice(-4);
+function journalLines(
+	entries: TextLogEntry[],
+	npcs: ParishRenderState['npcs'],
+): NotebookSectionLine[] {
+	const substantive = entries.filter(
+		(entry) => entry.content.trim().length > 0,
+	);
+	const recent = substantive.slice(-4);
+	const latestPlayer = [...substantive]
+		.reverse()
+		.find((entry) => entry.source.trim().toLowerCase() === 'player');
+	if (latestPlayer && !recent.includes(latestPlayer) && recent.length > 0) {
+		recent[0] = latestPlayer;
+		recent.sort(
+			(left, right) => substantive.indexOf(left) - substantive.indexOf(right),
+		);
+	}
 	if (recent.length === 0) {
 		return [{ label: 'Latest', text: EMPTY_NOTE }];
 	}
 	return recent.map((entry) => ({
-		label: entry.source || 'Parish',
-		text: entry.content,
+		label: journalSource(entry, npcs),
+		text:
+			entry.content +
+			(entry.reactions?.length
+				? ` · ${entry.reactions.map((reaction) => reaction.emoji).join(' ')}`
+				: ''),
 	}));
+}
+
+function journalSource(
+	entry: TextLogEntry,
+	npcs: ParishRenderState['npcs'],
+): string {
+	const source = entry.source.trim();
+	const normalized = source.toLowerCase();
+	if (normalized === 'player') return 'You';
+	if (
+		entry.subtype === 'action' ||
+		['system', 'action', 'location', 'parish'].includes(normalized)
+	) {
+		return 'Parish';
+	}
+	const npc = npcs.find(
+		(candidate) => candidate.real_name === source || candidate.name === source,
+	);
+	if (!npc) return 'Parish';
+	return npc.introduced ? npc.name : `a ${npc.occupation?.trim() || 'local'}`;
 }

@@ -15,6 +15,7 @@ pub mod event_emitter;
 pub mod handlers;
 pub mod state;
 pub mod streaming;
+pub mod turn;
 pub mod types;
 
 pub use bug_report::{
@@ -26,8 +27,16 @@ pub use commands::{
 };
 pub use config::GameConfig;
 pub use engine_state::{ENGINE_STATE_SCHEMA_VERSION, EngineState, build_engine_state};
-pub use event_emitter::{CapturingEmitter, EventEmitter};
+pub use event_emitter::{
+    CapturingEmitter, EVENT_GAME_CONTEXT_RESET, EventEmitter,
+    emit_game_context_reset_then_world_update,
+};
 pub use handlers::*;
 pub use state::{ConversationRuntimeState, SaveState, UiConfigSnapshot};
 pub use streaming::{TOKEN_CHANNEL_CAPACITY, stream_npc_tokens};
+pub use turn::{
+    SubmitInputRequest, SubmitInputResult, TurnClock, TurnEvent, TurnExchange, TurnReadParams,
+    TurnReadResult, build_submit_input_result, build_turn_read_result, conversation_cursor,
+    events_since, recent_exchanges,
+};
 pub use types::*;

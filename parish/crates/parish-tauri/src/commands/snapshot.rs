@@ -30,6 +30,7 @@ pub fn get_world_snapshot_inner(
 pub(super) fn snapshot_from_world(world: &parish_core::world::WorldState) -> WorldSnapshot {
     let core = parish_core::ipc::snapshot_from_world(world);
     WorldSnapshot {
+        location_id: core.location_id,
         location_name: core.location_name,
         location_description: core.location_description,
         time_label: core.time_label,
@@ -43,6 +44,7 @@ pub(super) fn snapshot_from_world(world: &parish_core::world::WorldState) -> Wor
         game_epoch_ms: core.game_epoch_ms,
         speed_factor: core.speed_factor,
         name_hints: vec![],
+        active_tasks: core.active_tasks,
         day_of_week: core.day_of_week,
         turn_in_flight: core.turn_in_flight,
     }
@@ -67,6 +69,26 @@ pub async fn get_world_snapshot(
     let npc_manager = state.npc_manager.lock().await;
     let snapshot = get_world_snapshot_inner(&world, Some(&npc_manager), &state.pronunciations);
     Ok(snapshot)
+}
+
+/// Returns one source-consistent reconnect replacement payload.
+#[tauri::command]
+pub async fn get_reconnect_state(
+    state: tauri::State<'_, Arc<AppState>>,
+) -> Result<parish_core::ipc::ReconnectState, String> {
+    let _persistence_guard = state.persistence_gate.lock().await;
+    let world = state.world.lock().await;
+    let npc_manager = state.npc_manager.lock().await;
+    let conversation = state.conversation.lock().await;
+    let config = state.config.lock().await;
+    Ok(parish_core::ipc::build_reconnect_state(
+        &world,
+        &npc_manager,
+        state.transport.default_mode(),
+        config.reveal_unexplored_locations,
+        &state.pronunciations,
+        conversation.conversation_in_progress,
+    ))
 }
 
 /// Returns the map data: visited locations with coordinates, edges, and player position.

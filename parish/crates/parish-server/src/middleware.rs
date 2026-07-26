@@ -48,8 +48,8 @@ use tower_sessions::Session;
 use uuid::Uuid;
 
 use crate::session::{
-    CachedResponse, GlobalState, IDEMPOTENCY_TTL, IdempotencyCache, IdempotencyKey,
-    get_or_create_session,
+    CachedResponse, CapacityExceededError, GlobalState, IDEMPOTENCY_TTL, IdempotencyCache,
+    IdempotencyKey, get_or_create_session,
 };
 
 // ── Request-ID header name (stable, #621) ───────────────────────────────────
@@ -57,6 +57,26 @@ use crate::session::{
 /// HTTP response header that echoes the per-request UUID back to the client.
 pub static X_REQUEST_ID: std::sync::LazyLock<HeaderName> =
     std::sync::LazyLock::new(|| HeaderName::from_static("x-request-id"));
+
+/// Converts a cold-session resolution error into an honest HTTP response.
+///
+/// Capacity rejections carry `Retry-After`; persistence, marker, and save-lock
+/// failures do not masquerade as admission-control failures.
+pub(crate) fn session_resolution_failure_response(error: CapacityExceededError) -> Response {
+    if let Some(message) = error.message {
+        return (StatusCode::SERVICE_UNAVAILABLE, message).into_response();
+    }
+
+    (
+        StatusCode::SERVICE_UNAVAILABLE,
+        [(header::RETRY_AFTER, "30")],
+        format!(
+            "Server at capacity ({}/{} sessions). Retry after 30 seconds.",
+            error.current, error.cap
+        ),
+    )
+        .into_response()
+}
 
 /// Per-request UUID injected into Axum extensions by [`request_id_layer`].
 ///
@@ -241,18 +261,7 @@ pub async fn session_middleware_tower(
     let session_result = get_or_create_session(&global, cookie_id.as_deref()).await;
     let (session_id, entry, is_new) = match session_result {
         Ok(tuple) => tuple,
-        Err(e) => {
-            // Admission control: server is at capacity.
-            return (
-                StatusCode::SERVICE_UNAVAILABLE,
-                [(header::RETRY_AFTER, "30")],
-                format!(
-                    "Server at capacity ({}/{} sessions). Retry after 30 seconds.",
-                    e.current, e.cap
-                ),
-            )
-                .into_response();
-        }
+        Err(error) => return session_resolution_failure_response(error),
     };
 
     // If this request created (or replaced) the parish session, persist
@@ -316,18 +325,7 @@ pub async fn session_middleware(
     let session_result = get_or_create_session(&global, cookie_id.as_deref()).await;
     let (session_id, entry, is_new) = match session_result {
         Ok(tuple) => tuple,
-        Err(e) => {
-            // Admission control: server is at capacity.
-            return (
-                StatusCode::SERVICE_UNAVAILABLE,
-                [(header::RETRY_AFTER, "30")],
-                format!(
-                    "Server at capacity ({}/{} sessions). Retry after 30 seconds.",
-                    e.current, e.cap
-                ),
-            )
-                .into_response();
-        }
+        Err(error) => return session_resolution_failure_response(error),
     };
 
     // Inject the per-session AppState and session id as Axum extensions.
@@ -576,6 +574,40 @@ mod tests {
         SessionRegistry,
     };
     use crate::session_store_impl::{SqliteIdentityStore, open_sessions_db};
+
+    #[tokio::test]
+    async fn cold_session_failure_is_not_reported_as_capacity() {
+        let response = session_resolution_failure_response(CapacityExceededError {
+            current: 3,
+            cap: 50,
+            message: Some("Session unavailable: save file is locked".to_string()),
+        });
+
+        assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
+        assert!(
+            response.headers().get(header::RETRY_AFTER).is_none(),
+            "a lock/persistence failure must not carry capacity retry semantics"
+        );
+        let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
+        assert_eq!(
+            std::str::from_utf8(&body).unwrap(),
+            "Session unavailable: save file is locked"
+        );
+    }
+
+    #[tokio::test]
+    async fn capacity_failure_retains_retry_after() {
+        let response = session_resolution_failure_response(CapacityExceededError {
+            current: 50,
+            cap: 50,
+            message: None,
+        });
+
+        assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
+        assert_eq!(response.headers().get(header::RETRY_AFTER).unwrap(), "30");
+        let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
+        assert!(std::str::from_utf8(&body).unwrap().contains("at capacity"));
+    }
 
     // ── Helper: minimal GlobalState for idempotency tests ───────────────────
 

@@ -25,6 +25,10 @@
 //! - **`parish-engine`**: `StdoutEmitter` → prints `text-log` content to stdout;
 //!   no-ops on `world-update`, `stream-token`, `loading`, etc.
 
+/// Lifecycle event emitted before replacing the frontend's canonical game
+/// context during new-game and branch-load operations.
+pub const EVENT_GAME_CONTEXT_RESET: &str = "game-context-reset";
+
 /// Backend-agnostic event emission.
 ///
 /// Implementors bridge the generic `(name, json_payload)` call to whatever
@@ -39,6 +43,15 @@ pub trait EventEmitter: Send + Sync {
     /// `"world-update"`).  `payload` is the serialised form of whichever IPC
     /// type corresponds to that event.
     fn emit_event(&self, name: &str, payload: serde_json::Value);
+}
+
+/// Emits the canonical lifecycle reset immediately before its world snapshot.
+pub fn emit_game_context_reset_then_world_update(
+    emitter: &dyn EventEmitter,
+    world_update: serde_json::Value,
+) {
+    emitter.emit_event(EVENT_GAME_CONTEXT_RESET, serde_json::Value::Null);
+    emitter.emit_event("world-update", world_update);
 }
 
 /// An [`EventEmitter`] that records every emitted `(name, payload)` in order
@@ -115,5 +128,22 @@ mod tests {
         let drained = emitter.drain();
         assert_eq!(drained, events);
         assert!(emitter.is_empty());
+    }
+
+    #[test]
+    fn game_context_reset_precedes_world_update() {
+        let emitter = CapturingEmitter::new();
+        emit_game_context_reset_then_world_update(&emitter, json!({ "location": "fresh-context" }));
+
+        let events = emitter.events();
+        assert_eq!(
+            events[0],
+            (
+                EVENT_GAME_CONTEXT_RESET.to_string(),
+                serde_json::Value::Null
+            )
+        );
+        assert_eq!(events[1].0, "world-update");
+        assert_eq!(events[1].1["location"], "fresh-context");
     }
 }

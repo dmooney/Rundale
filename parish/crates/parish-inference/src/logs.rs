@@ -5,6 +5,7 @@ use std::sync::Arc;
 
 use tokio::sync::Mutex;
 
+use crate::file_log::InferenceFileLog;
 use crate::queue::InferencePriority;
 
 /// A single logged inference call for the debug panel.
@@ -103,6 +104,121 @@ impl BoundedInferenceLog {
 
 /// Shared bounded ring buffer of inference call log entries.
 pub type InferenceLog = Arc<Mutex<BoundedInferenceLog>>;
+
+/// Request-scoped buffer for inference audit records.
+///
+/// Atomic player turns run provider calls against cloned game state before
+/// their durable journal commit. Their debug-ring and JSONL records must not
+/// become observable unless that candidate is installed. A scoped
+/// [`InferenceQueue`](crate::InferenceQueue) attaches this buffer to each
+/// request; the worker records here instead of the live sinks, and the turn
+/// coordinator calls [`Self::commit`] only after journal commit and canonical
+/// state installation.
+#[derive(Clone, Default)]
+pub struct DeferredInferenceAudit {
+    inner: Arc<Mutex<DeferredInferenceAuditInner>>,
+}
+
+#[derive(Default)]
+struct DeferredInferenceAuditInner {
+    status: DeferredInferenceAuditStatus,
+    records: Vec<DeferredInferenceAuditRecord>,
+}
+
+#[derive(Default)]
+enum DeferredInferenceAuditStatus {
+    #[default]
+    Pending,
+    Committed,
+    Discarded,
+}
+
+struct DeferredInferenceAuditRecord {
+    entry: InferenceLogEntry,
+    log: InferenceLog,
+    file_log: InferenceFileLog,
+    provider: parish_config::Provider,
+    priority: InferencePriority,
+}
+
+impl DeferredInferenceAudit {
+    /// Buffers one completed provider call while the surrounding turn is
+    /// pending. If the coordinator has already committed or discarded the
+    /// scope, late records are respectively delivered or ignored.
+    pub async fn record(
+        &self,
+        entry: InferenceLogEntry,
+        log: InferenceLog,
+        file_log: InferenceFileLog,
+        provider: parish_config::Provider,
+        priority: InferencePriority,
+    ) {
+        let mut inner = self.inner.lock().await;
+        match inner.status {
+            DeferredInferenceAuditStatus::Pending => {
+                inner.records.push(DeferredInferenceAuditRecord {
+                    entry,
+                    log,
+                    file_log,
+                    provider,
+                    priority,
+                });
+            }
+            DeferredInferenceAuditStatus::Committed => {
+                drop(inner);
+                deliver_inference_audit(entry, log, file_log, provider, priority).await;
+            }
+            DeferredInferenceAuditStatus::Discarded => {}
+        }
+    }
+
+    /// Makes every buffered record visible after the staged turn is durable
+    /// and installed. Idempotent so adapter cleanup can safely retry it.
+    pub async fn commit(&self) {
+        let records = {
+            let mut inner = self.inner.lock().await;
+            match inner.status {
+                DeferredInferenceAuditStatus::Committed => return,
+                DeferredInferenceAuditStatus::Discarded => return,
+                DeferredInferenceAuditStatus::Pending => {
+                    inner.status = DeferredInferenceAuditStatus::Committed;
+                    std::mem::take(&mut inner.records)
+                }
+            }
+        };
+        for record in records {
+            deliver_inference_audit(
+                record.entry,
+                record.log,
+                record.file_log,
+                record.provider,
+                record.priority,
+            )
+            .await;
+        }
+    }
+
+    /// Explicitly rejects the pending records. Dropping an uncommitted scope
+    /// is also safe, but this closes the door on a late worker completion.
+    pub async fn discard(&self) {
+        let mut inner = self.inner.lock().await;
+        if matches!(inner.status, DeferredInferenceAuditStatus::Pending) {
+            inner.status = DeferredInferenceAuditStatus::Discarded;
+            inner.records.clear();
+        }
+    }
+}
+
+async fn deliver_inference_audit(
+    entry: InferenceLogEntry,
+    log: InferenceLog,
+    file_log: InferenceFileLog,
+    provider: parish_config::Provider,
+    priority: InferencePriority,
+) {
+    file_log.record(&entry, &provider, priority);
+    log.lock().await.push(entry);
+}
 
 /// Creates a new empty inference log with capacity from config.
 pub fn new_inference_log_with_config(config: &parish_config::InferenceConfig) -> InferenceLog {

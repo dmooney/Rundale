@@ -716,4 +716,38 @@ mod tests {
             failures.join("\n")
         );
     }
+
+    /// The two compact turn tools are intentionally supported by both HTTP
+    /// runtimes: the embedded desktop bridge and the standalone Axum server.
+    /// The MCP backend may point at either one, so a route present in only one
+    /// mode is a shipped parity failure (#1777 / #1778).
+    #[test]
+    fn compact_turn_tools_have_routes_in_desktop_and_server() {
+        use std::fs;
+        use std::path::PathBuf;
+
+        let ws = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .parent()
+            .and_then(|p| p.parent())
+            .and_then(|p| p.parent())
+            .expect("workspace root is three levels above parish-mcp crate root")
+            .to_path_buf();
+        let runtime_sources = [
+            ws.join("parish/crates/parish-tauri/src/mcp_bridge.rs"),
+            ws.join("parish/crates/parish-server/src/lib.rs"),
+        ];
+        let required_routes = ["/api/submit-input", "/api/turn"];
+
+        for source_path in runtime_sources {
+            let source = fs::read_to_string(&source_path)
+                .unwrap_or_else(|e| panic!("could not read {}: {e}", source_path.display()));
+            for route in required_routes {
+                assert!(
+                    source.contains(&format!(".route(\"{route}\"")),
+                    "{} is missing {route}; parish_submit_input/parish_turn must work against both runtimes",
+                    source_path.display(),
+                );
+            }
+        }
+    }
 }

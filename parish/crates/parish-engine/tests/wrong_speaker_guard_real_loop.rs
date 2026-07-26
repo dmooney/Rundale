@@ -93,8 +93,7 @@ fn wrong_speaker_guard_fires_through_real_game_loop() {
     //       to fire (roster.len() < 2 → no-op).
     {
         let nora = h.app.npc_manager.get_mut(nora_id).expect("Nora exists");
-        nora.location = player_loc;
-        nora.state = NpcState::Present;
+        nora.set_location_and_state(player_loc, NpcState::Present);
     }
     {
         let brendan = h
@@ -102,8 +101,7 @@ fn wrong_speaker_guard_fires_through_real_game_loop() {
             .npc_manager
             .get_mut(brendan_id)
             .expect("Brendan exists");
-        brendan.location = player_loc;
-        brendan.state = NpcState::Present;
+        brendan.set_location_and_state(player_loc, NpcState::Present);
     }
     // Mark Nora as introduced so the harness treats her as a named NPC
     // (not an anonymous figure) and routes the "talk to Nora" input to her.
@@ -201,8 +199,7 @@ fn wrong_speaker_guard_passes_legitimate_dialogue_through_real_loop() {
 
     {
         let nora = h.app.npc_manager.get_mut(nora_id).expect("Nora exists");
-        nora.location = player_loc;
-        nora.state = NpcState::Present;
+        nora.set_location_and_state(player_loc, NpcState::Present);
     }
     h.app.npc_manager.mark_introduced(nora_id);
 

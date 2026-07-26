@@ -576,6 +576,7 @@ async fn run_one(
         json_mode: sample.json_mode && !force_no_json && json_schema.is_none(),
         json_schema,
         cancel: None,
+        deferred_audit: None,
     })
     .await?;
     let resp = rrx.await?;

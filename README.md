@@ -104,6 +104,7 @@ A four-tier simulation that scales hundreds of NPCs at varying fidelity based on
 - **Message reactions** — emoji palette persisted with the save and shown in the Journal.
 - **Notebook command strip** — plain text and slash commands submit through the existing engine path; five action stamps seed Talk, Ask, Help, Observe, and Leave intents. Notebook-native autocomplete, history, and multiline editing remain deferred.
 - **Focail sheet** — Irish vocabulary and NPC names accumulate with pronunciation hints as you encounter them.
+- **Durable assigned work** — concrete NPC jobs enter an authoritative task ledger; matching physical actions advance them from assigned to in progress, publish semantic events, survive save/load and journal recovery, and appear independently of the input draft. Gated by the default-on `player-task-progression` flag.
 
 ### Persistence & branching
 

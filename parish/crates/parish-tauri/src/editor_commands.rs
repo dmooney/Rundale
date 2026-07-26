@@ -152,12 +152,22 @@ async fn reload_live_world_from_disk(
     state: &Arc<AppState>,
     app: &tauri::AppHandle,
 ) -> Result<(), String> {
+    let snapshot = reload_live_world_state_from_disk(state).await?;
+    let _ = app.emit(EVENT_WORLD_UPDATE, snapshot);
+    Ok(())
+}
+
+async fn reload_live_world_state_from_disk(
+    state: &Arc<AppState>,
+) -> Result<parish_core::ipc::WorldSnapshot, String> {
     // Rule 9 (#1197): reload from the startup-resolved mod, not a cwd-walk.
     let game_mod = state
         .game_mod
         .as_ref()
         .ok_or_else(|| "active game mod not found".to_string())?;
 
+    // Serialize graph replacement with staged-turn clone/install.
+    let _persistence_guard = state.persistence_gate.lock().await;
     let snapshot = {
         let mut world = state.world.lock().await;
         parish_core::editor::reload_world_graph_preserving_runtime(&mut world, game_mod)
@@ -168,9 +178,7 @@ async fn reload_live_world_from_disk(
         npc_manager.invalidate_bfs_cache();
         get_world_snapshot_inner(&world, Some(&npc_manager), &state.pronunciations)
     };
-
-    let _ = app.emit(EVENT_WORLD_UPDATE, snapshot);
-    Ok(())
+    Ok(snapshot)
 }
 
 // ── Save inspector (read-only) ──────────────────────────────────────────────
@@ -217,6 +225,7 @@ pub async fn editor_read_snapshot(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::commands::cmd_tests::test_app_state;
     use std::path::Path;
 
     fn load_rundale() -> parish_core::game_mod::GameMod {
@@ -258,5 +267,26 @@ mod tests {
     #[test]
     fn mods_root_none_uses_fallback() {
         let _ = mods_root_from_mod(None);
+    }
+
+    #[tokio::test]
+    async fn live_reload_waits_for_staged_turn_barrier() {
+        let mut state = test_app_state();
+        Arc::get_mut(&mut state).unwrap().game_mod = Some(load_rundale());
+        let held = state.persistence_gate.lock().await;
+        let state_for_reload = Arc::clone(&state);
+        let reload =
+            tokio::spawn(async move { reload_live_world_state_from_disk(&state_for_reload).await });
+        tokio::task::yield_now().await;
+        assert!(
+            !reload.is_finished(),
+            "live graph reload must wait while a staged turn owns persistence_gate"
+        );
+        drop(held);
+        tokio::time::timeout(std::time::Duration::from_secs(2), reload)
+            .await
+            .expect("reload should finish once candidate installation is complete")
+            .unwrap()
+            .unwrap();
     }
 }

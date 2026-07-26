@@ -26,16 +26,18 @@ use super::{
 
 // ── Public error type ─────────────────────────────────────────────────────────
 
-/// Error returned by [`get_or_create_session`] when the server is at capacity.
+/// Error returned when [`get_or_create_session`] cannot resolve a session.
 ///
-/// The middleware maps this to `503 Service Unavailable` with a
-/// `Retry-After: 30` header.  Existing sessions (returning visitors with a
-/// valid cookie) are never refused — capacity is only checked when a brand-new
-/// session would be created.
+/// `message == None` denotes admission-capacity rejection. `Some(message)`
+/// denotes a cold restore/create failure such as an unavailable save lock or a
+/// persistence error; middleware deliberately reports those without
+/// capacity-specific retry semantics.
 #[derive(Debug)]
 pub struct CapacityExceededError {
     pub current: usize,
     pub cap: usize,
+    /// Non-capacity cold-start failure, still surfaced as 503.
+    pub message: Option<String>,
 }
 
 // ── Public session resolution ─────────────────────────────────────────────────
@@ -45,49 +47,62 @@ pub struct CapacityExceededError {
 /// Returns `Ok((session_id, entry, is_new))` where `is_new` is `true` when a
 /// fresh `parish_sid` cookie must be set on the response.
 ///
-/// Returns `Err(CapacityExceededError)` when `global.max_concurrent_sessions`
-/// is set and the server is already at capacity.  Only new-session creation is
-/// gated — returning visitors whose session is already in memory or can be
-/// restored from the DB are never rejected.
+/// Returns `Err(CapacityExceededError)` when a cold restore/create fails or
+/// when `global.max_concurrent_sessions` is set and a brand-new session would
+/// exceed capacity.
 pub async fn get_or_create_session(
     global: &Arc<GlobalState>,
     cookie_id: Option<&str>,
 ) -> Result<(String, Arc<SessionEntry>, bool), CapacityExceededError> {
-    // 1. Hot path: session already in memory.
-    //    Reject malformed cookie values before any DB lookup or path join.
-    if let Some(id) = cookie_id {
-        if !is_valid_session_id(id) {
-            tracing::warn!(
-                cookie_value = %id,
-                "get_or_create_session: invalid session ID format, treating as no session"
-            );
-            // Fall through to step 3: create a fresh session.
-        } else {
-            // 1a. Hot path: session already in memory.
-            if let Some(entry) = global.sessions.get_in_memory(id) {
-                entry
-                    .last_active
-                    .store(SessionRegistry::now_unix(), Ordering::Relaxed);
-                global.sessions.update_last_active(id);
-                return Ok((id.to_string(), entry, false));
-            }
-            // 2. Session known in DB but evicted from memory — restore it.
-            if global.sessions.exists_in_db(id) {
-                match restore_session(global, id).await {
-                    Ok(entry) => {
-                        global.sessions.insert(id.to_string(), Arc::clone(&entry));
-                        global.sessions.update_last_active(id);
-                        return Ok((id.to_string(), entry, false));
-                    }
-                    Err(e) => {
-                        tracing::warn!(session_id = %id, "Session restore failed: {}. Starting fresh.", e);
-                    }
+    let valid_cookie_id = cookie_id.filter(|id| is_valid_session_id(id));
+    if cookie_id.is_some() && valid_cookie_id.is_none() {
+        tracing::warn!(
+            cookie_value = %cookie_id.unwrap_or_default(),
+            "get_or_create_session: invalid session ID format, treating as no session"
+        );
+    }
+
+    // Hot path stays lock-free.
+    if let Some(id) = valid_cookie_id
+        && let Some(entry) = global.sessions.get_in_memory(id)
+    {
+        entry
+            .last_active
+            .store(SessionRegistry::now_unix(), Ordering::Relaxed);
+        global.sessions.update_last_active(id);
+        return Ok((id.to_string(), entry, false));
+    }
+
+    // Serialize only cold restore/create work, then recheck. This guarantees
+    // one runtime/tick owner for an evicted cookie and makes the capacity
+    // decision atomic with fresh-session insertion.
+    let _lifecycle_guard = global.sessions.lifecycle_gate.lock().await;
+    if let Some(id) = valid_cookie_id {
+        if let Some(entry) = global.sessions.get_in_memory(id) {
+            entry
+                .last_active
+                .store(SessionRegistry::now_unix(), Ordering::Relaxed);
+            global.sessions.update_last_active(id);
+            return Ok((id.to_string(), entry, false));
+        }
+        if global.sessions.exists_in_db(id) {
+            let entry = restore_session(global, id).await.map_err(|error| {
+                tracing::warn!(session_id = %id, %error, "session restore failed closed");
+                CapacityExceededError {
+                    current: global.sessions.active_count(),
+                    cap: global
+                        .max_concurrent_sessions
+                        .unwrap_or_else(|| global.sessions.active_count()),
+                    message: Some(format!("Session unavailable: {error}")),
                 }
-            }
+            })?;
+            global.sessions.insert(id.to_string(), Arc::clone(&entry));
+            global.sessions.update_last_active(id);
+            return Ok((id.to_string(), entry, false));
         }
     }
 
-    // 3. No usable session — admission control check before creating a new one.
+    // No usable session — admission control check before creating a new one.
     if let Some(cap) = global.max_concurrent_sessions {
         let current = global.sessions.active_count();
         if global.sessions.is_at_capacity(cap) {
@@ -98,14 +113,27 @@ pub async fn get_or_create_session(
                 rejection_count,
                 "admission-control: session capacity exceeded, rejecting new session"
             );
-            return Err(CapacityExceededError { current, cap });
+            return Err(CapacityExceededError {
+                current,
+                cap,
+                message: None,
+            });
         }
     }
 
-    // 4. Create a new session.
+    // Create a new session. A persistence/lock failure is not registered as a
+    // usable session and is returned to the caller.
     let session_id = uuid::Uuid::new_v4().to_string();
-    let entry = create_session(global, &session_id).await;
-    global.sessions.persist_new(&session_id);
+    let entry =
+        create_session(global, &session_id)
+            .await
+            .map_err(|error| CapacityExceededError {
+                current: global.sessions.active_count(),
+                cap: global
+                    .max_concurrent_sessions
+                    .unwrap_or_else(|| global.sessions.active_count()),
+                message: Some(format!("Session unavailable: {error}")),
+            })?;
     global
         .sessions
         .insert(session_id.clone(), Arc::clone(&entry));
@@ -119,9 +147,57 @@ pub async fn get_or_create_session(
 
 // ── Session creation ──────────────────────────────────────────────────────────
 
-async fn create_session(global: &Arc<GlobalState>, session_id: &str) -> Arc<SessionEntry> {
+#[cfg(test)]
+static INSTALLED_PERSISTENT_LOG_WORKERS: std::sync::LazyLock<
+    std::sync::Mutex<std::collections::HashSet<PathBuf>>,
+> = std::sync::LazyLock::new(|| std::sync::Mutex::new(std::collections::HashSet::new()));
+
+#[cfg(test)]
+fn persistent_log_workers_installed(session_saves: &std::path::Path) -> bool {
+    INSTALLED_PERSISTENT_LOG_WORKERS
+        .lock()
+        .unwrap()
+        .contains(session_saves)
+}
+
+/// Attaches the two persistent log writers after the save/session commit.
+///
+/// `app_state` is deliberately built with detached handles first. The Arc is
+/// still uniquely owned here, so installing the live handles is an infallible
+/// publication step and no writer task exists on any earlier failure path.
+fn install_persistent_log_workers(
+    app_state: &mut Arc<crate::state::AppState>,
+    session_saves: &std::path::Path,
+    log_to_disk: bool,
+    base_url: &str,
+) {
+    let state = Arc::get_mut(app_state)
+        .expect("session AppState must remain uniquely owned before runtime publication");
+    let inference_file_log = parish_core::inference::file_log::InferenceFileLog::spawn(
+        session_saves,
+        log_to_disk,
+        Some(base_url),
+    );
+    let chat_transcript_log = parish_core::chat_transcript::ChatTranscriptLog::spawn_with_flag(
+        session_saves,
+        inference_file_log.session_id().to_string(),
+        inference_file_log.enabled_flag(),
+    );
+    state.inference_file_log = inference_file_log;
+    state.chat_transcript_log = chat_transcript_log;
+    #[cfg(test)]
+    INSTALLED_PERSISTENT_LOG_WORKERS
+        .lock()
+        .unwrap()
+        .insert(session_saves.to_path_buf());
+}
+
+async fn create_session(
+    global: &Arc<GlobalState>,
+    session_id: &str,
+) -> Result<Arc<SessionEntry>, String> {
     let session_saves = global.saves_dir.join(session_id);
-    std::fs::create_dir_all(&session_saves).ok();
+    std::fs::create_dir_all(&session_saves).map_err(|error| error.to_string())?;
 
     let world_path = global.world_path.clone();
     let data_dir = global.data_dir.clone();
@@ -140,31 +216,22 @@ async fn create_session(global: &Arc<GlobalState>, session_id: &str) -> Arc<Sess
         (world, npc_manager)
     })
     .await
-    .expect("session init blocking task panicked");
+    .map_err(|error| error.to_string())?;
 
     let (client, config) = build_session_client(global);
     let cloud_client = build_session_cloud_client(global);
     let game_mod = global.game_mod.clone();
 
     let flags_path = global.data_dir.join("parish-flags.json");
-    let session_store = Arc::new(DbSessionStore::new(session_saves.clone()));
+    let session_store = Arc::new(DbSessionStore::new(global.saves_dir.clone()));
 
     let log_to_disk = parish_core::inference::file_log::resolve_enabled(
         false,
         global.inference_config.log_to_disk,
     );
-    let inference_file_log = parish_core::inference::file_log::InferenceFileLog::spawn(
-        &session_saves,
-        log_to_disk,
-        Some(&config.base_url),
-    );
-    let chat_transcript_log = parish_core::chat_transcript::ChatTranscriptLog::spawn_with_flag(
-        &session_saves,
-        inference_file_log.session_id().to_string(),
-        inference_file_log.enabled_flag(),
-    );
+    let log_base_url = config.base_url.clone();
 
-    let app_state = build_app_state(AppStateParts {
+    let mut app_state = build_app_state(AppStateParts {
         session_id: session_id.to_string(),
         world,
         npc_manager,
@@ -180,15 +247,22 @@ async fn create_session(global: &Arc<GlobalState>, session_id: &str) -> Arc<Sess
         flags_path,
         inference_config: global.inference_config.clone(), // (#417) propagate TOML-configured timeouts
         session_store,
-        inference_file_log,
-        chat_transcript_log,
+        inference_file_log: parish_core::inference::file_log::InferenceFileLog::disabled(),
+        chat_transcript_log: parish_core::chat_transcript::ChatTranscriptLog::disabled(),
     });
 
-    if let Err(e) = init_session_save(&app_state, &session_saves).await {
-        tracing::warn!("Session initial save failed: {}", e);
-    }
+    init_session_save(&app_state, &session_saves).await?;
 
-    finalize_session_entry(app_state, client).await
+    // Register the durable session only after its initial save + active marker
+    // committed, but before inference/tick workers are started. A sessions.db
+    // failure must never leave an unregistered in-process runtime running.
+    global
+        .sessions
+        .try_persist_new(session_id)
+        .map_err(|error| format!("failed to register session: {error}"))?;
+
+    install_persistent_log_workers(&mut app_state, &session_saves, log_to_disk, &log_base_url);
+    Ok(finalize_session_entry(app_state, client).await)
 }
 
 /// Shared tail of session entry construction: starts the inference queue
@@ -215,6 +289,53 @@ pub(super) async fn finalize_session_entry(
 
 // ── Session restoration ───────────────────────────────────────────────────────
 
+#[derive(Debug)]
+struct SessionResumeCandidate {
+    db_path: PathBuf,
+    remembered_branch: Option<(i64, String)>,
+}
+
+fn select_session_resume_candidate(
+    session_saves: &std::path::Path,
+) -> Result<SessionResumeCandidate, String> {
+    match parish_core::persistence::read_active_save_identity_candidate(session_saves) {
+        Ok(Some(identity)) => {
+            return Ok(SessionResumeCandidate {
+                db_path: identity.save_path,
+                remembered_branch: Some((identity.branch_id, identity.branch_name)),
+            });
+        }
+        Ok(None) => {}
+        Err(error) => {
+            return Err(format!(
+                "invalid active-save marker in {}: {error}",
+                session_saves.display()
+            ));
+        }
+    }
+
+    let mut entries: Vec<(PathBuf, std::time::SystemTime)> = std::fs::read_dir(session_saves)
+        .map_err(|e| e.to_string())?
+        .filter_map(|e| e.ok())
+        .filter(|e| e.path().extension().is_some_and(|ext| ext == "db"))
+        .filter_map(|e| {
+            let meta = e.metadata().ok()?;
+            let mtime = meta.modified().ok()?;
+            Some((e.path(), mtime))
+        })
+        .collect();
+    entries.sort_by_key(|b| std::cmp::Reverse(b.1));
+    let db_path = entries
+        .into_iter()
+        .next()
+        .map(|(p, _)| p)
+        .ok_or_else(|| "no save files found".to_string())?;
+    Ok(SessionResumeCandidate {
+        db_path,
+        remembered_branch: None,
+    })
+}
+
 async fn restore_session(
     global: &Arc<GlobalState>,
     session_id: &str,
@@ -227,47 +348,57 @@ async fn restore_session(
         ));
     }
 
-    // Select the most recently modified `.db` file.  In normal play there is
-    // only one save per session, but branching can create additional files.
-    // Using mtime rather than alphabetical order avoids restoring a stale
-    // branch when newer ones exist (#632).
+    // Prefer the exact save+branch committed by the last successful lifecycle
+    // operation. Older installations have no marker, so retain the mtime +
+    // first-branch fallback for compatibility.
     let saves_for_scan = session_saves.clone();
-    let db_path = tokio::task::spawn_blocking(move || -> Result<PathBuf, String> {
-        let mut entries: Vec<(PathBuf, std::time::SystemTime)> = std::fs::read_dir(&saves_for_scan)
-            .map_err(|e| e.to_string())?
-            .filter_map(|e| e.ok())
-            .filter(|e| e.path().extension().is_some_and(|ext| ext == "db"))
-            .filter_map(|e| {
-                let meta = e.metadata().ok()?;
-                let mtime = meta.modified().ok()?;
-                Some((e.path(), mtime))
-            })
-            .collect();
-        entries.sort_by_key(|b| std::cmp::Reverse(b.1));
-        entries
-            .into_iter()
-            .next()
-            .map(|(p, _)| p)
-            .ok_or_else(|| "no save files found".to_string())
-    })
-    .await
-    .map_err(|e| e.to_string())??;
+    let candidate =
+        tokio::task::spawn_blocking(move || select_session_resume_candidate(&saves_for_scan))
+            .await
+            .map_err(|e| e.to_string())??;
+    let db_path = candidate.db_path;
 
-    // Load snapshot from the first branch.
-    let db_path_clone = db_path.clone();
-    let (snapshot, branch_id, branch_name) = tokio::task::spawn_blocking(move || {
-        use parish_core::persistence::Database;
-        let db = Database::open(&db_path_clone).map_err(|e| e.to_string())?;
-        let branches = db.list_branches().map_err(|e| e.to_string())?;
-        let branch = branches.into_iter().next().ok_or("no branches")?;
-        let (_, snapshot) = db
-            .load_latest_snapshot(branch.id)
-            .map_err(|e| e.to_string())?
-            .ok_or("no snapshots")?;
-        Ok::<_, String>((snapshot, branch.id, branch.name))
-    })
+    // Lock the selected path before any SQLite open, migration, branch read,
+    // snapshot read, or journal recovery. A locked remembered save is
+    // unavailable; never fall through to a different ledger.
+    let candidate_lock =
+        parish_core::persistence::SaveFileLock::try_acquire(&db_path).ok_or_else(|| {
+            format!(
+                "save file {} is locked by another Parish instance",
+                db_path.display()
+            )
+        })?;
+    let branch_path = db_path.clone();
+    let remembered_branch = candidate.remembered_branch.clone();
+    let (branch_id, branch_name) =
+        tokio::task::spawn_blocking(move || -> Result<(i64, String), String> {
+            let db = parish_core::persistence::Database::open(&branch_path)
+                .map_err(|e| e.to_string())?;
+            let branches = db.list_branches().map_err(|e| e.to_string())?;
+            let branch = if let Some((remembered_id, remembered_name)) = remembered_branch {
+                branches
+                    .into_iter()
+                    .find(|branch| branch.id == remembered_id && branch.name == remembered_name)
+                    .ok_or_else(|| {
+                        format!("remembered branch {remembered_name} ({remembered_id}) is missing")
+                    })?
+            } else {
+                branches.into_iter().next().ok_or("no branches")?
+            };
+            Ok((branch.id, branch.name))
+        })
+        .await
+        .map_err(|e| e.to_string())??;
+    let session_store = Arc::new(DbSessionStore::new(global.saves_dir.clone()));
+    let recovery = parish_core::session_store::load_recovery_bundle(
+        session_store.as_ref(),
+        session_id,
+        &db_path,
+        branch_id,
+    )
     .await
-    .map_err(|e| e.to_string())??;
+    .map_err(|error| error.to_string())?
+    .ok_or_else(|| "no snapshots".to_string())?;
 
     // Load fresh static world data, then apply the saved snapshot.
     let world_path = global.world_path.clone();
@@ -282,7 +413,7 @@ async fn restore_session(
     .await
     .map_err(|e| e.to_string())?;
 
-    snapshot.restore(&mut world, &mut npc_manager);
+    recovery.restore(&mut world, &mut npc_manager);
     // Gate: clear in-memory introduced set so NPCs must be re-introduced each
     // session (#1396, npc-dialogue-grounding flag, default-on).
     if !global
@@ -299,26 +430,15 @@ async fn restore_session(
     let game_mod: Option<GameMod> = global.game_mod.clone();
 
     let flags_path = global.data_dir.join("parish-flags.json");
-    let session_store = Arc::new(DbSessionStore::new(session_saves.clone()));
-
     // Persistent inference + transcript logs for this session. Same
     // session_id is embedded in both filenames so they pair on disk.
     let log_to_disk = parish_core::inference::file_log::resolve_enabled(
         false, // server has no --no-inference-log flag; env var wins
         global.inference_config.log_to_disk,
     );
-    let inference_file_log = parish_core::inference::file_log::InferenceFileLog::spawn(
-        &session_saves,
-        log_to_disk,
-        Some(&config.base_url),
-    );
-    let chat_transcript_log = parish_core::chat_transcript::ChatTranscriptLog::spawn_with_flag(
-        &session_saves,
-        inference_file_log.session_id().to_string(),
-        inference_file_log.enabled_flag(),
-    );
+    let log_base_url = config.base_url.clone();
 
-    let app_state = build_app_state(AppStateParts {
+    let mut app_state = build_app_state(AppStateParts {
         session_id: session_id.to_string(),
         world,
         npc_manager,
@@ -334,33 +454,352 @@ async fn restore_session(
         flags_path,
         inference_config: global.inference_config.clone(), // (#417) propagate TOML-configured timeouts
         session_store,
-        inference_file_log,
-        chat_transcript_log,
+        inference_file_log: parish_core::inference::file_log::InferenceFileLog::disabled(),
+        chat_transcript_log: parish_core::chat_transcript::ChatTranscriptLog::disabled(),
     });
 
-    if let Some(ref c) = client {
-        init_inference_queue(&app_state, c.clone()).await;
+    let prepared_binding = app_state
+        .session_store
+        .prepare_active_save(session_id, &db_path)
+        .map_err(|error| error.to_string())?;
+    // A valid marker is already the commit record and is deliberately not
+    // rewritten on resume. Legacy selection creates the marker before live
+    // publication and fails closed if it cannot be persisted.
+    if candidate.remembered_branch.is_none() {
+        parish_core::persistence::write_active_save_identity(
+            &session_saves,
+            &db_path,
+            branch_id,
+            &branch_name,
+        )
+        .map_err(|error| error.to_string())?;
+    }
+    prepared_binding.commit();
+    *app_state.save_lock.lock().await = Some(candidate_lock);
+    app_state
+        .save_identity
+        .replace(db_path.clone(), branch_id, branch_name.clone())
+        .await;
+
+    install_persistent_log_workers(&mut app_state, &session_saves, log_to_disk, &log_base_url);
+    Ok(finalize_session_entry(app_state, client).await)
+}
+
+#[cfg(test)]
+mod resume_identity_tests {
+    use super::*;
+    use std::num::NonZeroUsize;
+
+    use lru::LruCache;
+    use parish_core::npc::manager::NpcManager;
+    use parish_core::persistence::{Database, GameSnapshot, write_active_save_identity};
+    use parish_core::world::WorldState;
+
+    #[test]
+    fn exact_marker_beats_legacy_file_and_branch_order() {
+        let temp = tempfile::tempdir().unwrap();
+        let first_path = temp.path().join("parish_001.db");
+        let second_path = temp.path().join("parish_002.db");
+        let first_db = Database::open(&first_path).unwrap();
+        let first_main = first_db.find_branch("main").unwrap().unwrap();
+        let fork_id = first_db
+            .create_branch("remembered-fork", Some(first_main.id))
+            .unwrap();
+        first_db
+            .save_snapshot(
+                fork_id,
+                &GameSnapshot::capture(&WorldState::new(), &NpcManager::new()),
+            )
+            .unwrap();
+        Database::open(&second_path).unwrap();
+        write_active_save_identity(temp.path(), &first_path, fork_id, "remembered-fork").unwrap();
+
+        let selected = select_session_resume_candidate(temp.path()).unwrap();
+        let (selected_branch, selected_name) = selected.remembered_branch.unwrap();
+
+        assert_eq!(
+            std::fs::canonicalize(selected.db_path).unwrap(),
+            std::fs::canonicalize(first_path).unwrap()
+        );
+        assert_eq!(selected_branch, fork_id);
+        assert_eq!(selected_name, "remembered-fork");
     }
 
-    // Acquire advisory lock on the restored save file so another server
-    // instance (or a headless CLI) cannot concurrently write to it (#425).
-    // If a peer already holds the lock we log a warning and continue:
-    // refusing to start would leave the user with no session at all, and
-    // per-process ownership makes strict mutual exclusion across
-    // containers out of scope for this handler. The lock is stored on
-    // AppState.save_lock so it lives for the session's lifetime.
-    let locked = parish_core::persistence::SaveFileLock::try_acquire(&db_path);
-    if locked.is_none() {
-        tracing::warn!(
-            path = %db_path.display(),
-            session_id = %session_id,
-            "SaveFileLock::try_acquire returned None on session resume — save file appears in use by another instance",
+    #[test]
+    fn malformed_present_marker_never_uses_legacy_resume_selection() {
+        let temp = tempfile::tempdir().unwrap();
+        Database::open(&temp.path().join("parish_001.db")).unwrap();
+        std::fs::write(temp.path().join(".active-save.json"), b"{malformed").unwrap();
+
+        let error = select_session_resume_candidate(temp.path())
+            .expect_err("a present invalid marker must fail closed");
+
+        assert!(error.contains("invalid active-save marker"));
+    }
+
+    fn test_global_state(saves_dir: &std::path::Path) -> Arc<GlobalState> {
+        std::fs::create_dir_all(saves_dir).unwrap();
+        let sessions = SessionRegistry::open(saves_dir).unwrap();
+        let identity_conn = crate::session_store_impl::open_sessions_db(saves_dir).unwrap();
+        let identity_store: Arc<dyn parish_core::identity::IdentityStore> = Arc::new(
+            crate::session_store_impl::SqliteIdentityStore::new(identity_conn),
+        );
+        let data_dir =
+            std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../mods/rundale");
+        let ui_config = crate::state::UiConfigSnapshot {
+            hints_label: "test".to_string(),
+            default_accent: "#000".to_string(),
+            splash_text: String::new(),
+            active_tile_source: String::new(),
+            tile_sources: Vec::new(),
+            auto_pause_timeout_seconds: 300,
+            app_icon_url: None,
+            favicon_url: None,
+            map_overlay: None,
+            base_mod_required: false,
+        };
+        let mut flags = parish_core::config::FeatureFlags::default();
+        flags.disable(parish_core::character_log::FEATURE_FLAG);
+        flags.disable(parish_core::location_log::FEATURE_FLAG);
+        let template_config = crate::state::GameConfig {
+            provider_name: String::new(),
+            base_url: String::new(),
+            api_key: None,
+            model_name: String::new(),
+            cloud_provider_name: None,
+            cloud_model_name: None,
+            cloud_api_key: None,
+            cloud_base_url: None,
+            improv_enabled: false,
+            max_follow_up_turns: 2,
+            idle_banter_after_secs: 25,
+            auto_pause_after_secs: 60,
+            category_provider: Default::default(),
+            category_model: Default::default(),
+            category_api_key: Default::default(),
+            category_base_url: Default::default(),
+            flags,
+            category_rate_limit: Default::default(),
+            active_tile_source: String::new(),
+            tile_sources: Vec::new(),
+            reveal_unexplored_locations: false,
+            auto_setup_model: None,
+        };
+
+        Arc::new(GlobalState {
+            sessions,
+            identity_store,
+            oauth_config: None,
+            data_dir: data_dir.clone(),
+            world_path: data_dir.join("world.json"),
+            saves_dir: saves_dir.to_path_buf(),
+            game_mod: None,
+            pronunciations: Vec::new(),
+            ui_config,
+            theme_palette: parish_core::game_mod::default_theme_palette(),
+            transport: parish_core::world::transport::TransportConfig::default(),
+            template_config,
+            inference_config: parish_core::config::InferenceConfig::default(),
+            runtime_processes: tokio::sync::Mutex::new(
+                parish_core::inference::client::RuntimeProcesses::none(),
+            ),
+            tile_cache: parish_core::tile_cache::TileCache::new(
+                saves_dir.join("tile-cache"),
+                Default::default(),
+            ),
+            idempotency_cache: tokio::sync::Mutex::new(LruCache::new(
+                NonZeroUsize::new(crate::session::IDEMPOTENCY_CACHE_CAPACITY).unwrap(),
+            )),
+            max_concurrent_sessions: None,
+        })
+    }
+
+    fn create_snapshot_db(path: &std::path::Path) -> (i64, String) {
+        let db = Database::open(path).unwrap();
+        let branch = db.find_branch("main").unwrap().unwrap();
+        db.save_snapshot(
+            branch.id,
+            &GameSnapshot::capture(&WorldState::new(), &NpcManager::new()),
+        )
+        .unwrap();
+        (branch.id, branch.name)
+    }
+
+    fn seed_restorable_session(global: &Arc<GlobalState>, session_id: &str) -> std::path::PathBuf {
+        let session_saves = global.saves_dir.join(session_id);
+        std::fs::create_dir_all(&session_saves).unwrap();
+        let save_path = session_saves.join("parish_001.db");
+        let (branch_id, branch_name) = create_snapshot_db(&save_path);
+        write_active_save_identity(&session_saves, &save_path, branch_id, &branch_name).unwrap();
+        global.sessions.try_persist_new(session_id).unwrap();
+        save_path
+    }
+
+    #[cfg(unix)]
+    struct ExternalSaveLock {
+        child: std::process::Child,
+        lock_path: std::path::PathBuf,
+    }
+
+    #[cfg(unix)]
+    impl ExternalSaveLock {
+        fn acquire(save_path: &std::path::Path) -> Self {
+            let child = std::process::Command::new("sleep")
+                .arg("60")
+                .spawn()
+                .expect("spawn external lock owner");
+            let lock_path = parish_core::persistence::SaveFileLock::lock_path_for(save_path);
+            std::fs::write(&lock_path, child.id().to_string()).unwrap();
+            Self { child, lock_path }
+        }
+    }
+
+    #[cfg(unix)]
+    impl Drop for ExternalSaveLock {
+        fn drop(&mut self) {
+            let _ = self.child.kill();
+            let _ = self.child.wait();
+            let _ = std::fs::remove_file(&self.lock_path);
+        }
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn externally_locked_remembered_save_fails_closed_without_fallback_or_write() {
+        let temp = tempfile::tempdir().unwrap();
+        let global = test_global_state(temp.path());
+        let session_id = "aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa";
+        let remembered_path = seed_restorable_session(&global, session_id);
+        let fallback_path = global.saves_dir.join(session_id).join("parish_002.db");
+        create_snapshot_db(&fallback_path);
+
+        let marker_path = global.saves_dir.join(session_id).join(".active-save.json");
+        // Make the remembered ledger unreadable. The externally-held lock must
+        // still be the observed failure, proving SQLite is not opened first.
+        std::fs::write(&remembered_path, b"locked candidate must not be opened").unwrap();
+        let remembered_before = std::fs::read(&remembered_path).unwrap();
+        let fallback_before = std::fs::read(&fallback_path).unwrap();
+        let marker_before = std::fs::read(&marker_path).unwrap();
+        let _external_lock = ExternalSaveLock::acquire(&remembered_path);
+
+        let error = match get_or_create_session(&global, Some(session_id)).await {
+            Ok(_) => panic!("locked remembered save must not fall back"),
+            Err(error) => error,
+        };
+
+        assert!(
+            error
+                .message
+                .as_deref()
+                .is_some_and(|message| message.contains("locked")),
+            "cold restore should report the save lock failure: {error:?}"
+        );
+        assert!(global.sessions.get_in_memory(session_id).is_none());
+        assert_eq!(global.sessions.active_count(), 0);
+        assert!(
+            !persistent_log_workers_installed(&global.saves_dir.join(session_id)),
+            "failed cold restore must not spawn persistent log workers"
+        );
+        assert_eq!(std::fs::read(&remembered_path).unwrap(), remembered_before);
+        assert_eq!(std::fs::read(&fallback_path).unwrap(), fallback_before);
+        assert_eq!(std::fs::read(&marker_path).unwrap(), marker_before);
+    }
+
+    #[tokio::test]
+    async fn concurrent_same_cookie_cold_restores_share_one_runtime_owner() {
+        let temp = tempfile::tempdir().unwrap();
+        let global = test_global_state(temp.path());
+        let session_id = "bbbbbbbb-bbbb-4bbb-bbbb-bbbbbbbbbbbb";
+        seed_restorable_session(&global, session_id);
+
+        let first = get_or_create_session(&global, Some(session_id));
+        let second = get_or_create_session(&global, Some(session_id));
+        let (first, second) = tokio::join!(first, second);
+        let (_, first_entry, first_is_new) = first.unwrap();
+        let (_, second_entry, second_is_new) = second.unwrap();
+
+        assert!(!first_is_new);
+        assert!(!second_is_new);
+        assert!(
+            Arc::ptr_eq(&first_entry, &second_entry),
+            "the cold lifecycle gate must publish one shared SessionEntry"
+        );
+        assert_eq!(global.sessions.active_count(), 1);
+        assert!(
+            !first_entry._tick_handles.is_empty(),
+            "the one published runtime owns its background tick set"
+        );
+        assert!(
+            persistent_log_workers_installed(&global.saves_dir.join(session_id)),
+            "persistent log workers start only for the committed runtime"
+        );
+
+        first_entry._shutdown_token.cancel();
+        global.sessions.sessions.remove(session_id);
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn fresh_session_lock_failure_registers_no_session_and_starts_no_runtime() {
+        let temp = tempfile::tempdir().unwrap();
+        let global = test_global_state(temp.path());
+        let session_id = "cccccccc-cccc-4ccc-cccc-cccccccccccc";
+        let session_saves = global.saves_dir.join(session_id);
+        std::fs::create_dir_all(&session_saves).unwrap();
+        let save_path = session_saves.join("parish_001.db");
+        let _external_lock = ExternalSaveLock::acquire(&save_path);
+
+        let result = create_session(&global, session_id).await;
+
+        assert!(result.is_err());
+        assert!(!global.sessions.exists_in_db(session_id));
+        assert!(global.sessions.get_in_memory(session_id).is_none());
+        assert_eq!(global.sessions.active_count(), 0);
+        assert!(!persistent_log_workers_installed(&session_saves));
+    }
+
+    #[tokio::test]
+    async fn fresh_session_marker_failure_registers_no_session_and_starts_no_runtime() {
+        let temp = tempfile::tempdir().unwrap();
+        let global = test_global_state(temp.path());
+        let session_id = "dddddddd-dddd-4ddd-dddd-dddddddddddd";
+        let session_saves = global.saves_dir.join(session_id);
+        std::fs::create_dir_all(session_saves.join(".active-save.json")).unwrap();
+
+        let result = create_session(&global, session_id).await;
+
+        assert!(result.is_err(), "marker rename over a directory must fail");
+        assert!(!global.sessions.exists_in_db(session_id));
+        assert!(global.sessions.get_in_memory(session_id).is_none());
+        assert_eq!(global.sessions.active_count(), 0);
+        assert!(!persistent_log_workers_installed(&session_saves));
+    }
+
+    #[tokio::test]
+    async fn session_registry_failure_occurs_before_runtime_publication() {
+        let temp = tempfile::tempdir().unwrap();
+        let global = test_global_state(temp.path());
+        let session_id = "eeeeeeee-eeee-4eee-eeee-eeeeeeeeeeee";
+        global
+            .sessions
+            .db
+            .lock()
+            .unwrap()
+            .execute("DROP TABLE sessions", [])
+            .unwrap();
+
+        let result = create_session(&global, session_id).await;
+
+        let error = match result {
+            Ok(_) => panic!("unpersistable session must not become live"),
+            Err(error) => error,
+        };
+        assert!(error.contains("failed to register session"));
+        assert!(global.sessions.get_in_memory(session_id).is_none());
+        assert_eq!(global.sessions.active_count(), 0);
+        assert!(
+            !persistent_log_workers_installed(&global.saves_dir.join(session_id)),
+            "registry failure must occur before any persistent log worker"
         );
     }
-    *app_state.save_lock.lock().await = locked;
-    *app_state.save_identity.save_path.lock().await = Some(db_path);
-    *app_state.save_identity.current_branch_id.lock().await = Some(branch_id);
-    *app_state.save_identity.current_branch_name.lock().await = Some(branch_name);
-
-    Ok(finalize_session_entry(app_state, client).await)
 }

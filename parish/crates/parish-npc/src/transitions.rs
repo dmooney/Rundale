@@ -154,7 +154,9 @@ fn event_involves_npc(npc_id: NpcId, event: &GameEvent) -> bool {
         | GameEvent::AddressedAbsentNpc { .. }
         | GameEvent::WeatherChanged { .. }
         | GameEvent::FestivalStarted { .. }
-        | GameEvent::PlayerMoved { .. } => false,
+        | GameEvent::PlayerMoved { .. }
+        | GameEvent::PlayerTaskAssigned { .. }
+        | GameEvent::PlayerTaskProgressed { .. } => false,
     }
 }
 
@@ -200,7 +202,9 @@ fn summarize_event_for_npc(npc_id: NpcId, event: &GameEvent) -> String {
         }
         GameEvent::WeatherChanged { .. }
         | GameEvent::FestivalStarted { .. }
-        | GameEvent::PlayerMoved { .. } => String::new(),
+        | GameEvent::PlayerMoved { .. }
+        | GameEvent::PlayerTaskAssigned { .. }
+        | GameEvent::PlayerTaskProgressed { .. } => String::new(),
     }
 }
 
@@ -283,7 +287,7 @@ mod tests {
     fn test_deflate_captures_state() {
         let mut npc = make_test_npc(1, 1);
         npc.mood = "anxious".to_string();
-        npc.location = LocationId(5);
+        npc.set_location(LocationId(5));
 
         // Add some memories
         use crate::memory::MemoryEntry;

@@ -85,7 +85,15 @@ export function draftForNotebookAction(
 	action: NotebookAction,
 	selectedNpc: NpcInfo | null,
 ): string {
-	return notebookActionDraft(action, selectedNpc);
+	if (!selectedNpc) return notebookActionDraft(action, null);
+	const visibleLabel = selectedNpc.introduced
+		? selectedNpc.name
+		: `the ${selectedNpc.occupation?.trim() || 'local'}`;
+	return notebookActionDraft(action, {
+		...selectedNpc,
+		name: visibleLabel,
+		real_name: visibleLabel,
+	});
 }
 
 export function windowNotebookCommandText(

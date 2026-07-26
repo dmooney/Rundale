@@ -43,8 +43,7 @@ fn real_loop_prompt_grounds_known_npc_pronouns() {
             .npc_manager
             .get_mut(speaker_id)
             .expect("speaker exists");
-        n.location = player_loc;
-        n.state = NpcState::Present;
+        n.set_location_and_state(player_loc, NpcState::Present);
         n.home = Some(player_loc);
         n.name.clone()
     };

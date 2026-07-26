@@ -238,31 +238,60 @@ impl SystemCommandHost for CliCommandHost {
             if app.db.is_some() {
                 let snapshot = GameSnapshot::capture(&app.world, &app.npc_manager);
                 let _ = app.capture_and_save_async(branch_id).await;
-                let db = app.db.as_ref().unwrap();
-                match db.create_branch(&name, Some(branch_id)).await {
-                    Ok(new_branch_id) => match db.save_snapshot(new_branch_id, &snapshot).await {
-                        Ok(snap_id) => {
-                            app.active_branch_id = new_branch_id;
-                            app.latest_snapshot_id = snap_id;
-                            app.last_autosave = Some(std::time::Instant::now());
-                            format!("Forked to branch '{}'.", name)
-                        }
-                        Err(e) => format!("Failed to save fork snapshot: {}", e),
-                    },
-                    Err(e) => format!("Failed to create branch '{}': {}", name, e),
+                let db = Arc::clone(app.db.as_ref().unwrap());
+                let (new_branch_id, snap_id) = match db
+                    .create_branch_with_snapshot(&name, Some(branch_id), &snapshot)
+                    .await
+                {
+                    Ok(created) => created,
+                    Err(e) => return format!("Failed to create branch '{}': {}", name, e),
+                };
+                let (Some(saves_dir), Some(save_path)) =
+                    (app.saves_dir.clone(), app.save_file_path.clone())
+                else {
+                    let _ = db.delete_branch(new_branch_id).await;
+                    return "Persistence identity unavailable.".to_string();
+                };
+                let prepared_binding = match app.session_store.prepare_active_save("", &save_path) {
+                    Ok(binding) => binding,
+                    Err(error) => {
+                        let _ = db.delete_branch(new_branch_id).await;
+                        return format!("Failed to bind fork: {error}");
+                    }
+                };
+                if let Err(error) = parish_core::persistence::write_active_save_identity(
+                    &saves_dir,
+                    &save_path,
+                    new_branch_id,
+                    &name,
+                ) {
+                    let rollback = db.delete_branch(new_branch_id).await;
+                    return match rollback {
+                        Ok(()) => format!("Failed to record fork identity: {error}"),
+                        Err(rollback_error) => format!(
+                            "Failed to record fork identity: {error}; rollback failed: {rollback_error}"
+                        ),
+                    };
                 }
+                prepared_binding.commit();
+                app.active_branch_id = new_branch_id;
+                app.latest_snapshot_id = snap_id;
+                app.last_autosave = Some(std::time::Instant::now());
+                app.world.event_bus.advance_context_epoch();
+                crate::headless::reset_headless_context_receivers(&mut app);
+                format!("Forked to branch '{}'.", name)
             } else {
                 "Persistence not available.".to_string()
             }
         })
     }
 
-    fn load_branch(&self, name: String) -> BoxFuture<'_, ()> {
+    fn load_branch(&self, name: String) -> BoxFuture<'_, Result<(), String>> {
         Box::pin(async move {
             let mut app = self.app.lock().await;
-            if let Err(e) = crate::headless::handle_headless_load(&mut app, &name).await {
-                eprintln!("{e}");
-            }
+            crate::headless::handle_headless_load(&mut app, &name)
+                .await
+                .map_err(|error| error.to_string())
         })
     }
 
@@ -356,9 +385,8 @@ impl SystemCommandHost for CliCommandHost {
         Box::pin(async move {
             let mut app = self.app.lock().await;
             // Delegate to the existing new-game helper which handles
-            // world/NPC reload, branch creation, and location arrival.
-            crate::headless::handle_headless_new_game(&mut app).await;
-            Ok(())
+            // candidate persistence, identity swap, and location arrival.
+            crate::headless::handle_headless_new_game(&mut app).await
         })
     }
 

@@ -234,7 +234,7 @@ fn test_full_world_state_roundtrip() {
     let new_loc = h.app.world.player_location;
     let expected_npc_loc = new_loc;
     if let Some(npc) = h.app.npc_manager.get_mut(moved_npc_id) {
-        npc.location = new_loc;
+        npc.set_location(new_loc);
     }
 
     // ----- 2. Save -----
@@ -252,7 +252,7 @@ fn test_full_world_state_roundtrip() {
     h.app.world.clock.resume();
     h.app.world.clock.set_speed(GameSpeed::Normal);
     if let Some(npc) = h.app.npc_manager.get_mut(moved_npc_id) {
-        npc.location = LocationId(999);
+        npc.set_location(LocationId(999));
     }
 
     // ----- 4. Load -----
@@ -324,7 +324,8 @@ fn test_full_world_state_roundtrip() {
         .get(moved_npc_id)
         .expect("NPC should still exist after load");
     assert_eq!(
-        moved_npc.location, expected_npc_loc,
+        moved_npc.location(),
+        expected_npc_loc,
         "moved NPC's location must round-trip"
     );
 }

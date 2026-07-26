@@ -19,7 +19,10 @@ use std::sync::Arc;
 
 use tokio::sync::Mutex;
 
-use parish_core::game_loop::{GameLoopContext, handle_game_input, handle_system_command};
+use parish_core::game_loop::{
+    GameLoopContext, handle_game_input, handle_staged_game_input_with_journal,
+    handle_system_command, input_may_mutate_tasks,
+};
 use parish_core::ipc::{CapturingEmitter, EventEmitter};
 use parish_core::npc::reactions::ReactionTemplates;
 
@@ -144,6 +147,7 @@ impl GameTestHarness {
                     CliCommandHost::new_capturing(Arc::clone(&app_arc), Arc::clone(&emitter));
                 let outcome = std::panic::catch_unwind(AssertUnwindSafe(|| {
                     rt.block_on(handle_system_command(&host, cmd, trimmed))
+                        .expect("real-loop system command failed")
                 }));
                 drop(host);
                 self.app = Arc::into_inner(app_arc)
@@ -189,6 +193,8 @@ impl GameTestHarness {
             None => (Vec::new(), Vec::new(), Vec::new()),
         };
         let config_snapshot = self.app.snapshot_config();
+        let active_branch_id = self.app.active_branch_id;
+        let db_sync = self.db_sync.as_ref();
 
         // Move the live world / NPC state into Mutex containers for the borrow
         // struct.
@@ -243,7 +249,7 @@ impl GameTestHarness {
                     config: &config,
                     conversation: &conversation,
                     inference_queue: &inference_queue,
-                    emitter: dyn_emitter,
+                    emitter: Arc::clone(&dyn_emitter),
                     inference_config: &inference_config,
                     pronunciations: &pronunciations,
                     client: &client,
@@ -252,15 +258,49 @@ impl GameTestHarness {
                     inference_failure_messages: &failure_messages,
                     idle_messages: &idle_messages,
                 };
-                handle_game_input(
-                    &ctx,
-                    text.to_string(),
-                    Vec::new(),
-                    &transport,
-                    &templates,
-                    || None,
-                )
-                .await;
+                let must_stage = {
+                    let world = world.lock().await;
+                    input_may_mutate_tasks(&world, text)
+                };
+                if must_stage {
+                    let result = handle_staged_game_input_with_journal(
+                        &ctx,
+                        Vec::new(),
+                        text.to_string(),
+                        Vec::new(),
+                        &transport,
+                        &templates,
+                        move |tasks| async move {
+                            crate::testing::persist_task_mutation_batch(
+                                db_sync,
+                                active_branch_id,
+                                &tasks,
+                            )
+                            .map_err(parish_core::error::ParishError::Database)
+                        },
+                    )
+                    .await;
+                    if let Err(error) = result {
+                        dyn_emitter.emit_event(
+                            "text-log",
+                            serde_json::to_value(parish_core::ipc::text_log(
+                                "system",
+                                format!("Failed to persist player task changes: {error}"),
+                            ))
+                            .unwrap_or(serde_json::Value::Null),
+                        );
+                    }
+                } else {
+                    handle_game_input(
+                        &ctx,
+                        text.to_string(),
+                        Vec::new(),
+                        &transport,
+                        &templates,
+                        || None,
+                    )
+                    .await;
+                }
 
                 // Tear down the worker: drop the queue (closing the sender side)
                 // and abort the spawned task so it never outlives the call.

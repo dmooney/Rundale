@@ -18,6 +18,7 @@ use tower_sessions::Session;
 
 use crate::middleware::{
     SESSION_COOKIE, TOWER_OAUTH_STATE_KEY, TOWER_SESSION_ID_KEY, extract_cookie_value,
+    session_resolution_failure_response,
 };
 use crate::session::{GlobalState, get_or_create_session};
 
@@ -191,14 +192,7 @@ pub async fn callback_google(
 pub async fn logout(State(global): State<Arc<GlobalState>>) -> Response {
     let (new_session_id, _, _) = match get_or_create_session(&global, None).await {
         Ok(t) => t,
-        Err(_) => {
-            return (
-                StatusCode::SERVICE_UNAVAILABLE,
-                [(header::RETRY_AFTER, "30")],
-                "Server at capacity",
-            )
-                .into_response();
-        }
+        Err(error) => return session_resolution_failure_response(error),
     };
     global.sessions.persist_new(&new_session_id);
 
@@ -386,14 +380,7 @@ pub async fn callback_google_tower(
 pub async fn logout_tower(State(global): State<Arc<GlobalState>>, session: Session) -> Response {
     let (new_session_id, _, _) = match get_or_create_session(&global, None).await {
         Ok(t) => t,
-        Err(_) => {
-            return (
-                StatusCode::SERVICE_UNAVAILABLE,
-                [(header::RETRY_AFTER, "30")],
-                "Server at capacity",
-            )
-                .into_response();
-        }
+        Err(error) => return session_resolution_failure_response(error),
     };
     global.sessions.persist_new(&new_session_id);
 
@@ -474,14 +461,7 @@ async fn resolve_oauth_link(
     {
         let (resolved_id, _, is_new) = match get_or_create_session(global, Some(&existing)).await {
             Ok(t) => t,
-            Err(_) => {
-                return Err((
-                    StatusCode::SERVICE_UNAVAILABLE,
-                    [(header::RETRY_AFTER, "30")],
-                    "Server at capacity",
-                )
-                    .into_response());
-            }
+            Err(error) => return Err(session_resolution_failure_response(error)),
         };
         if !is_new {
             resolved_id
@@ -501,14 +481,7 @@ async fn resolve_oauth_link(
             _ => {
                 let (new_id, _, _) = match get_or_create_session(global, None).await {
                     Ok(t) => t,
-                    Err(_) => {
-                        return Err((
-                            StatusCode::SERVICE_UNAVAILABLE,
-                            [(header::RETRY_AFTER, "30")],
-                            "Server at capacity",
-                        )
-                            .into_response());
-                    }
+                    Err(error) => return Err(session_resolution_failure_response(error)),
                 };
                 global.sessions.persist_new(&new_id);
                 new_id

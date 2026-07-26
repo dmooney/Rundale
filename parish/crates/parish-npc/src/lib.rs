@@ -11,7 +11,6 @@ pub mod data;
 pub mod manager;
 pub mod memory;
 pub mod mood;
-pub mod overhear;
 pub mod quality;
 pub mod reactions;
 pub mod schedule;
@@ -20,6 +19,9 @@ pub mod tier4;
 pub mod tier_assign;
 pub mod transitions;
 pub mod types;
+
+#[cfg(test)]
+mod overhear;
 
 /// Re-export conversation types from parish-types for cross-crate path compatibility.
 pub mod conversation {

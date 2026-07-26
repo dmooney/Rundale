@@ -389,6 +389,17 @@
 					</div>
 				{:else if activeSurface === 'intents'}
 					<div class="ink-notes">
+						{#if ($worldState?.active_tasks?.length ?? 0) > 0}
+							{#each $worldState?.active_tasks ?? [] as task (task.id)}
+								<p>
+									<strong>{task.description}</strong><span
+										>{task.status.replace('_', ' ')}</span
+									>
+								</p>
+							{/each}
+						{:else}
+							<p><strong>Assigned work</strong><span>none</span></p>
+						{/if}
 						<p>
 							<strong>Parish reply</strong><span
 								>{$streamingActive ? 'pending' : 'idle'}</span

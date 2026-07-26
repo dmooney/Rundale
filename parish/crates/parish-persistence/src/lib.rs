@@ -4,6 +4,7 @@
 //! and named branches (git-like save model).
 //! Uses SQLite in WAL mode via rusqlite.
 
+pub mod active_identity;
 pub mod database;
 pub mod journal;
 pub mod journal_bridge;
@@ -33,7 +34,11 @@ impl<T> IntoParishDbError<T> for Result<T, rusqlite::Error> {
     }
 }
 
-pub use database::{AsyncDatabase, BranchInfo, Database, SnapshotInfo};
+pub use active_identity::{
+    ActiveSaveIdentity, read_active_save_identity, read_active_save_identity_candidate,
+    write_active_save_identity,
+};
+pub use database::{AsyncDatabase, BranchInfo, Database, RecoveryData, SnapshotInfo};
 pub use journal::{WorldEvent, replay_journal};
 pub use lock::SaveFileLock;
 pub use snapshot::{ClockSnapshot, GameSnapshot, NpcSnapshot};

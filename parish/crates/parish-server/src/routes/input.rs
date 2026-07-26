@@ -13,10 +13,11 @@ use std::sync::Arc;
 use axum::Json;
 use axum::extract::Extension;
 use axum::http::StatusCode;
-use axum::response::IntoResponse;
+use axum::response::{IntoResponse, Response};
 
 use parish_core::event_bus::{EventBus as EventBusTrait, Topic};
 use parish_core::input::{InputResult, classify_input, is_player_dialogue};
+pub use parish_core::ipc::SubmitInputRequest;
 use parish_core::ipc::{LoadingPayload, text_log};
 
 use crate::state::AppState;
@@ -26,80 +27,95 @@ use super::reactions::emit_npc_reactions;
 
 // ── Input endpoint ──────────────────────────────────────────────────────────
 
-/// Request body for `POST /api/submit-input`.
-#[derive(serde::Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct SubmitInputRequest {
-    /// The player's input text.
-    pub text: String,
-    /// Real names of NPCs explicitly addressed via chip selection (chip-first order).
-    #[serde(default)]
-    pub addressed_to: Vec<String>,
-}
-
 /// `POST /api/submit-input` — processes player text input.
 pub async fn submit_input(
     Extension(state): Extension<Arc<AppState>>,
     Extension(auth): Extension<crate::cf_auth::AuthContext>,
     Json(body): Json<SubmitInputRequest>,
-) -> impl IntoResponse {
+) -> Response {
     let text = body.text.trim().to_string();
-    if text.is_empty() {
-        return StatusCode::OK;
-    }
     if text.len() > 2000 {
-        return StatusCode::BAD_REQUEST;
+        return StatusCode::BAD_REQUEST.into_response();
     }
     // #752 — cap addressed_to to prevent unbounded memory/allocation via the
     // NPC-addressing chip list.  Max 10 entries; each name ≤ 100 chars.
     if let Err(status) = validate_addressed_to(&body.addressed_to) {
-        return status;
+        return status.into_response();
     }
 
-    touch_player_activity(&state).await;
+    // Outermost per-session barrier: cursor capture, dispatch, task journal
+    // commit/rollback, and result projection are one request-bound operation.
+    let _persistence_guard = state.persistence_gate.lock().await;
+    let before_turn = {
+        let world = state.world.lock().await;
+        parish_core::ipc::conversation_cursor(&world)
+    };
 
-    match classify_input(&text) {
-        InputResult::SystemCommand(cmd) => {
-            // #332 — admin command gate: provider/key/model commands are operator-only.
-            if is_admin_command(&cmd)
-                && let Err(status) = check_admin(&auth.email, &text, admin_emails())
-            {
-                return status;
+    if !text.is_empty() {
+        match classify_input(&text) {
+            InputResult::SystemCommand(cmd) => {
+                touch_player_activity(&state).await;
+                // #332 — admin command gate: provider/key/model commands are operator-only.
+                if is_admin_command(&cmd)
+                    && let Err(status) = check_admin(&auth.email, &text, admin_emails())
+                {
+                    return status.into_response();
+                }
+                let _ = handle_system_command(cmd, &state, &text).await;
             }
-            handle_system_command(cmd, &state, &text).await;
-        }
-        InputResult::GameInput(raw) => {
-            // #1351 — only surface a player speech bubble + NPC reactions for
-            // genuine dialogue. Deterministic non-dialogue actions (a bare
-            // `look`, `look around`, movement phrases) must not render as player
-            // speech or provoke NPC reactions. `handle_game_input` still runs so
-            // the look/move action itself executes.
-            let dispatch = if is_player_dialogue(&raw) {
-                let player_msg = text_log("player", format!("> {}", raw));
-                let player_msg_id = player_msg.id.clone();
-                state
-                    .event_bus
-                    .emit_named(Topic::TextLog, "text-log", &player_msg);
-                Some((player_msg_id, raw.clone()))
-            } else {
-                None
-            };
-            // Capture location before handle_game_input (which may move the player).
-            let reaction_location = state.world.lock().await.player_location;
-            handle_game_input(raw, body.addressed_to, &state).await;
-            // Generate NPC reactions to the player's message in the background.
-            if let Some((player_msg_id, raw_for_reactions)) = dispatch {
-                emit_npc_reactions(
-                    &player_msg_id,
-                    &raw_for_reactions,
-                    reaction_location,
-                    &state,
-                );
+            InputResult::GameInput(raw) => {
+                // #1351 — only surface a player speech bubble + NPC reactions for
+                // genuine dialogue. Deterministic non-dialogue actions (a bare
+                // `look`, `look around`, movement phrases) must not render as player
+                // speech or provoke NPC reactions. `handle_game_input` still runs so
+                // the look/move action itself executes.
+                let (dispatch, prelude_emissions) = if is_player_dialogue(&raw) {
+                    let player_msg = text_log("player", format!("> {}", raw));
+                    let player_msg_id = player_msg.id.clone();
+                    let payload =
+                        serde_json::to_value(player_msg).unwrap_or(serde_json::Value::Null);
+                    (
+                        Some((player_msg_id, raw.clone())),
+                        vec![("text-log".to_string(), payload)],
+                    )
+                } else {
+                    (None, Vec::new())
+                };
+                // Capture location before handle_game_input (which may move the player).
+                let reaction_location = state.world.lock().await.player_location;
+                if let Err(error) =
+                    handle_game_input(raw, body.addressed_to, &state, prelude_emissions).await
+                {
+                    tracing::error!(
+                        session_id = %state.session_id,
+                        %error,
+                        "player task journal append failed"
+                    );
+                    return (
+                        StatusCode::INTERNAL_SERVER_ERROR,
+                        format!("failed to persist player task: {error}"),
+                    )
+                        .into_response();
+                }
+                // Generate NPC reactions to the player's message in the background.
+                if let Some((player_msg_id, raw_for_reactions)) = dispatch {
+                    emit_npc_reactions(
+                        &player_msg_id,
+                        &raw_for_reactions,
+                        reaction_location,
+                        &state,
+                    );
+                }
             }
         }
     }
 
-    StatusCode::OK
+    let result = {
+        let world = state.world.lock().await;
+        let npc_manager = state.npc_manager.lock().await;
+        parish_core::ipc::build_submit_input_result(&world, &npc_manager, before_turn)
+    };
+    Json(result).into_response()
 }
 
 // ── Internal helpers ────────────────────────────────────────────────────────
@@ -161,6 +177,15 @@ pub async fn emit_world_update(state: &Arc<AppState>) {
         .emit_named(Topic::WorldUpdate, "world-update", &ws);
 }
 
+async fn world_update_payload(state: &Arc<AppState>) -> serde_json::Value {
+    let world = state.world.lock().await;
+    let npc_manager = state.npc_manager.lock().await;
+    let mut snapshot = parish_core::ipc::snapshot_from_world(&world);
+    snapshot.name_hints =
+        parish_core::ipc::compute_name_hints(&world, &npc_manager, &state.pronunciations);
+    serde_json::to_value(snapshot).unwrap_or(serde_json::Value::Null)
+}
+
 /// Handles `/command` system inputs.
 ///
 /// Delegates to [`parish_core::game_loop::handle_system_command`] via the
@@ -169,12 +194,12 @@ pub async fn handle_system_command(
     cmd: parish_core::input::Command,
     state: &Arc<AppState>,
     raw_text: &str,
-) {
+) -> Result<(), String> {
     use crate::command_host::AppStateCommandHost;
     use parish_core::game_loop::handle_system_command as shared_handle;
 
     let host = AppStateCommandHost::new(Arc::clone(state));
-    shared_handle(&host, cmd, raw_text).await;
+    shared_handle(&host, cmd, raw_text).await
 }
 
 /// Handles free-form game input: parses intent (with LLM fallback) then dispatches.
@@ -183,7 +208,17 @@ pub async fn handle_system_command(
 /// logic (#696 slice 4).  Emits a world-update snapshot before and after
 /// NPC-conversation paths so the frontend inference-pause indicator stays
 /// accurate during long inference calls.
-pub async fn handle_game_input(raw: String, addressed_to: Vec<String>, state: &Arc<AppState>) {
+pub async fn handle_game_input(
+    raw: String,
+    addressed_to: Vec<String>,
+    state: &Arc<AppState>,
+    mut prelude_emissions: Vec<(String, serde_json::Value)>,
+) -> Result<(), parish_core::error::ParishError> {
+    let must_stage = {
+        let world = state.world.lock().await;
+        parish_core::game_loop::input_may_mutate_tasks(&world, &raw)
+    };
+    let before_progress = state.world.lock().await.player_progress.clone();
     let emitter: std::sync::Arc<dyn parish_core::ipc::EventEmitter> =
         std::sync::Arc::new(crate::emitter::AppStateEmitter::new(Arc::clone(state)));
     let ctx = make_game_loop_ctx(state, Arc::clone(&emitter));
@@ -193,6 +228,33 @@ pub async fn handle_game_input(raw: String, addressed_to: Vec<String>, state: &A
         .as_ref()
         .map(|gm| gm.reactions.clone())
         .unwrap_or_default();
+
+    if must_stage {
+        let task_target = state
+            .save_identity
+            .task_journal_target(&state.session_id)
+            .await;
+        prelude_emissions.push((
+            "world-update".to_string(),
+            world_update_payload(state).await,
+        ));
+        parish_core::game_loop::handle_staged_game_input(
+            &ctx,
+            state.session_store.as_ref(),
+            task_target.as_ref(),
+            prelude_emissions,
+            raw,
+            addressed_to,
+            &transport,
+            &reaction_templates,
+        )
+        .await?;
+        emit_world_update(state).await;
+        return Ok(());
+    }
+
+    touch_player_activity(state).await;
+    parish_core::game_loop::flush_staged_emissions(emitter.as_ref(), prelude_emissions);
 
     let state_for_loading = Arc::clone(state);
     let spawn_loading = move || {
@@ -205,7 +267,7 @@ pub async fn handle_game_input(raw: String, addressed_to: Vec<String>, state: &A
     // when NPC conversation starts.
     emit_world_update(state).await;
 
-    parish_core::game_loop::handle_game_input(
+    let outcome = parish_core::game_loop::handle_game_input(
         &ctx,
         raw,
         addressed_to,
@@ -214,9 +276,38 @@ pub async fn handle_game_input(raw: String, addressed_to: Vec<String>, state: &A
         spawn_loading,
     )
     .await;
+    let task_target = state
+        .save_identity
+        .task_journal_target(&state.session_id)
+        .await;
+    persist_task_mutations(
+        state,
+        task_target.as_ref(),
+        before_progress,
+        &outcome.task_mutations,
+    )
+    .await?;
 
     // Emit world-update after to clear the inference-pause flag.
     emit_world_update(state).await;
+    Ok(())
+}
+
+async fn persist_task_mutations(
+    state: &Arc<AppState>,
+    target: Option<&parish_core::session_store::TaskJournalTarget>,
+    before: parish_core::session_store::PlayerProgress,
+    tasks: &[parish_core::session_store::PlayerTask],
+) -> Result<(), parish_core::error::ParishError> {
+    parish_core::session_store::append_task_mutations_or_rollback(
+        state.session_store.as_ref(),
+        target,
+        tasks,
+        &state.world,
+        before,
+    )
+    .await?;
+    Ok(())
 }
 
 /// Resolves movement to a named location.
@@ -307,18 +398,48 @@ pub(crate) async fn handle_npc_conversation(
 ///
 /// Delegates to [`parish_core::game_loop::run_idle_banter`] for all shared
 /// logic (#696), then emits a world-update snapshot when the sequence ends.
-pub(crate) async fn run_idle_banter(state: &Arc<AppState>) {
+/// Runs idle banter while the caller holds `persistence_gate`.
+///
+/// Inactivity ticks already own the barrier because they may auto-pause the
+/// canonical clock. Keeping the locked form explicit prevents Tokio's
+/// non-reentrant mutex from being acquired twice on the banter branch.
+pub(crate) async fn run_idle_banter_locked(state: &Arc<AppState>) {
+    let before_progress = state.world.lock().await.player_progress.clone();
+    let task_target = state
+        .save_identity
+        .task_journal_target(&state.session_id)
+        .await;
     let emitter: std::sync::Arc<dyn parish_core::ipc::EventEmitter> =
         std::sync::Arc::new(crate::emitter::AppStateEmitter::new(Arc::clone(state)));
     let ctx = make_game_loop_ctx(state, Arc::clone(&emitter));
 
     // Idle banter does not show loading animation (no player is waiting).
     emit_world_update(state).await;
-    parish_core::game_loop::run_idle_banter(&ctx, || None).await;
+    let outcome = parish_core::game_loop::run_idle_banter(&ctx, || None).await;
+    if let Err(error) = persist_task_mutations(
+        state,
+        task_target.as_ref(),
+        before_progress,
+        &outcome.task_mutations,
+    )
+    .await
+    {
+        tracing::error!(
+            session_id = %state.session_id,
+            %error,
+            "idle-banter task journal append failed"
+        );
+    }
     emit_world_update(state).await;
 }
 
 pub async fn tick_inactivity(state: &Arc<AppState>) {
+    let _persistence_guard = state.persistence_gate.lock().await;
+    tick_inactivity_locked(state).await;
+}
+
+/// Applies one inactivity tick while the caller holds `persistence_gate`.
+pub(crate) async fn tick_inactivity_locked(state: &Arc<AppState>) {
     let (last_player_activity, last_spoken_at, running) = {
         let conversation = state.conversation.lock().await;
         (
@@ -381,7 +502,7 @@ pub async fn tick_inactivity(state: &Arc<AppState>) {
     }
 
     if player_idle >= idle_after && speech_idle >= idle_after {
-        run_idle_banter(state).await;
+        run_idle_banter_locked(state).await;
     }
 }
 

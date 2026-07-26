@@ -98,18 +98,17 @@ fn acquaintance_intent_guard_fires_through_real_game_loop() {
     for id in &all_ids {
         if *id != seamus_id
             && let Some(npc) = h.app.npc_manager.get_mut(*id)
-            && npc.location == player_loc
+            && npc.location() == player_loc
         {
             // Move to a sentinel location (0) that is not the player's.
-            npc.location = LocationId(0);
+            npc.set_location(LocationId(0));
         }
     }
 
     // Place Seamus at the player's location and mark him as introduced.
     {
         let seamus = h.app.npc_manager.get_mut(seamus_id).expect("Seamus exists");
-        seamus.location = player_loc;
-        seamus.state = NpcState::Present;
+        seamus.set_location_and_state(player_loc, NpcState::Present);
     }
     h.app.npc_manager.mark_introduced(seamus_id);
 
@@ -231,16 +230,15 @@ fn acquaintance_intent_guard_passes_correct_acquaintance_answer_through_real_loo
     for id in &all_ids {
         if *id != seamus_id
             && let Some(npc) = h.app.npc_manager.get_mut(*id)
-            && npc.location == player_loc
+            && npc.location() == player_loc
         {
-            npc.location = LocationId(0);
+            npc.set_location(LocationId(0));
         }
     }
 
     {
         let seamus = h.app.npc_manager.get_mut(seamus_id).expect("Seamus exists");
-        seamus.location = player_loc;
-        seamus.state = NpcState::Present;
+        seamus.set_location_and_state(player_loc, NpcState::Present);
     }
     h.app.npc_manager.mark_introduced(seamus_id);
 

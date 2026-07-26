@@ -405,6 +405,12 @@ async fn do_start_local_inference_setup_inner(
     // vllm-mlx serve process never spawns, no inference queue exists,
     // and the world / autosave ticks never start — leaving the game
     // visibly "ready" but functionally inert until a manual relaunch.
+    let persistence_ready = state_arc.save_path.lock().await.is_some()
+        || crate::setup::init_persistence(&state_arc).await;
+    if !persistence_ready {
+        return Err("persistence initialization failed after wizard".to_string());
+    }
+
     let (provider_config, _, _, _) = crate::provider_config_from_env(&state_arc.user_config_dir);
     let inference_config_clone = state_arc.inference_config.clone();
     let bootstrapped = crate::setup::bootstrap_inference_provider(
@@ -418,7 +424,6 @@ async fn do_start_local_inference_setup_inner(
         return Err("inference bootstrap failed after wizard".to_string());
     }
     crate::setup::init_inference_queue(&state_arc).await;
-    crate::setup::init_persistence(app, &state_arc).await;
     crate::setup::spawn_event_bus_fanin(&state_arc).await;
     crate::setup::spawn_world_tick(app.clone(), Arc::clone(&state_arc));
     crate::setup::spawn_inactivity_tick(app.clone(), Arc::clone(&state_arc));

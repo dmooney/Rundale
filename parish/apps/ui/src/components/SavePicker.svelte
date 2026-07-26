@@ -2,7 +2,13 @@
 	import { tick } from 'svelte';
 	import { savePickerVisible, saveFiles, currentSaveState } from '../stores/save';
 	import { discoverSaveFiles, loadBranch, newSaveFile, newGame, createBranch, getSaveState, getWorldSnapshot, getMap, getNpcsHere } from '$lib/ipc';
-	import { worldState, mapData, npcsHere, resetTimeRule } from '../stores/game';
+	import {
+		worldState,
+		mapData,
+		npcsHere,
+		resetTimeRule,
+		textLog,
+	} from '../stores/game';
 	import type { SaveFileInfo, SaveBranchDisplay } from '$lib/types';
 	import { layoutTree } from '$lib/save-picker/dag';
 	import LedgerList from '$lib/save-picker/LedgerList.svelte';
@@ -50,6 +56,11 @@
 	}
 
 	async function refreshGameState() {
+		// A ledger/branch is a separate narrative context. Clear immediately
+		// after the backend switch succeeds, before any refresh awaits, so a
+		// partial refresh failure can never leave the previous branch's words
+		// displayed under the new authoritative state.
+		textLog.set([]);
 		try {
 			// New game / branch switch: re-prime time-rule tracking so the
 			// incoming snapshot never emits a separator carried over from the
@@ -63,6 +74,17 @@
 			worldState.set(ws);
 			mapData.set(md);
 			npcsHere.set(npcs);
+			textLog.set(
+				ws.location_description
+					? [
+							{
+								source: 'system',
+								subtype: 'location',
+								content: ws.location_description,
+							},
+						]
+					: [],
+			);
 		} catch (e) {
 			console.error('Failed to refresh game state:', e);
 		}

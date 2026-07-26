@@ -31,6 +31,7 @@ type CanvasBounds = NonNullable<
 const PIXI_CANVAS = '[data-testid="illustrated-notebook-pixi-host"] canvas';
 
 const RUNDALE_PROOF_WORLD: WorldSnapshot = {
+	location_id: 1,
 	location_name: 'The Crossroads',
 	location_description:
 		'A quiet crossroads where four narrow roads meet beneath a clearing spring sky.',
@@ -46,6 +47,7 @@ const RUNDALE_PROOF_WORLD: WorldSnapshot = {
 	speed_factor: 0,
 	name_hints: [],
 	day_of_week: 'Monday',
+	active_tasks: [],
 };
 
 const RUNDALE_PROOF_MAP: MapData = {
@@ -91,6 +93,8 @@ const RUNDALE_PROOF_MAP: MapData = {
 	player_location: '1',
 	player_lat: 53.63621,
 	player_lon: -8.11531,
+	transport_label: 'on foot',
+	transport_id: 'walking',
 };
 
 const RUNDALE_PROOF_NPCS: NpcInfo[] = [

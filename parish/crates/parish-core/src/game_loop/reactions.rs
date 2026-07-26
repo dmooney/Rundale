@@ -26,6 +26,10 @@ use crate::npc::Npc;
 /// to call `reaction_log.add_player_message_reaction` (#403).
 pub type PersistReactionFn = Arc<dyn Fn(String, String, String) + Send + Sync + 'static>;
 
+/// Returns whether the runtime context captured for a detached reaction batch
+/// is still current. Implementations compare the event-bus context epoch.
+pub type ReactionContextValidFn = Arc<dyn Fn() -> bool + Send + Sync + 'static>;
+
 // ── Injection-safety validation ───────────────────────────────────────────────
 
 /// Returns `true` if `c` should be rejected from a reaction's
@@ -95,6 +99,7 @@ pub fn emit_npc_reactions(
     llm_enabled: bool,
     emitter: Arc<dyn EventEmitter>,
     persist: PersistReactionFn,
+    context_is_valid: ReactionContextValidFn,
 ) {
     if npcs_here.is_empty() {
         return;
@@ -159,6 +164,12 @@ pub fn emit_npc_reactions(
                 }
             };
 
+            // Inference can outlive a load/new/fork. Never let an old-turn
+            // result mutate or render in the replacement context.
+            if !context_is_valid() {
+                continue;
+            }
+
             // Delegate persistence to the runtime-supplied callback (#403).
             persist(npc_name.clone(), emoji.clone(), player_input.clone());
 
@@ -169,7 +180,9 @@ pub fn emit_npc_reactions(
                 emoji,
                 source: capitalize_first(&npc_name),
             };
-            if let Ok(json) = serde_json::to_value(&payload) {
+            if context_is_valid()
+                && let Ok(json) = serde_json::to_value(&payload)
+            {
                 emitter.emit_event("npc-reaction", json);
             }
         }
@@ -257,6 +270,7 @@ mod tests {
             false, // llm_enabled = false
             Arc::clone(&emitter_arc),
             noop_persist(),
+            Arc::new(|| true),
         );
 
         // Give the background task time to run.

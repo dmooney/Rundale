@@ -48,6 +48,7 @@ pub const DEBUG_EVENT_CAPACITY: usize = 100;
 /// single `save_identity` node. A reference to a dissolved member maps to its
 /// group node for ordering purposes (see the sensor's `group_of`).
 pub const LOCK_ORDER: &[&str] = &[
+    "persistence_gate",
     "world",
     "npc_manager",
     "conversation",
@@ -172,12 +173,47 @@ pub struct SaveIdentity {
     pub current_branch_name: MeteredMutex<Option<String>>,
 }
 
+impl SaveIdentity {
+    /// Captures the active save file and branch under one lock-order-consistent
+    /// critical section so a concurrent file switch cannot produce a torn pair.
+    pub async fn task_journal_target(
+        &self,
+        session_id: &str,
+    ) -> Option<parish_core::session_store::TaskJournalTarget> {
+        let save_path = self.save_path.lock().await;
+        let branch_id = self.current_branch_id.lock().await;
+        Some(parish_core::session_store::TaskJournalTarget {
+            session_id: session_id.to_string(),
+            save_path: save_path.as_ref()?.clone(),
+            branch_id: (*branch_id)?,
+        })
+    }
+
+    /// Replaces the active save identity atomically in the documented
+    /// `save_path → branch id → branch name` lock order.
+    pub async fn replace(&self, path: PathBuf, branch_id: i64, branch_name: String) {
+        let mut save_path = self.save_path.lock().await;
+        let mut current_branch_id = self.current_branch_id.lock().await;
+        let mut current_branch_name = self.current_branch_name.lock().await;
+        *save_path = Some(path);
+        *current_branch_id = Some(branch_id);
+        *current_branch_name = Some(branch_name);
+    }
+}
+
 pub struct AppState {
     /// Stable identifier for this session — the same UUID that appears in the
     /// `parish_sid` cookie.  Stored here so background tasks (tick loop, etc.)
     /// can emit per-session tracing events without holding the middleware
     /// extensions (#621).
     pub session_id: String,
+    /// Outermost per-session persistence and lifecycle barrier.
+    ///
+    /// Held from before task pre-state/identity capture through journal
+    /// commit (or rollback), and from before snapshot capture through save,
+    /// load, fork, or new-game identity commit. It must always be acquired
+    /// before every other `AppState` coordination lock.
+    pub persistence_gate: MeteredMutex<()>,
     /// The game world (clock, player position, graph, weather).
     pub world: MeteredMutex<WorldState>,
     /// NPC manager (all NPCs, tier assignment, schedule ticking).
@@ -196,6 +232,11 @@ pub struct AppState {
     pub debug_events: MeteredMutex<std::collections::VecDeque<DebugEvent>>,
     /// Rolling ring buffer of `GameEvent`s captured from the world event bus.
     pub game_events: MeteredMutex<std::collections::VecDeque<GameEvent>>,
+    /// Monotonic lifetime count of events pushed into `game_events`.
+    ///
+    /// `GET /api/turn?since=N` uses this counter rather than the bounded ring
+    /// length so its cursor keeps advancing after the ring wraps.
+    pub total_game_events: std::sync::atomic::AtomicUsize,
     /// Broadcast channel for pushing events to WebSocket clients.
     pub event_bus: BroadcastEventBus,
     /// Transport mode configuration from the loaded game mod.
@@ -342,6 +383,7 @@ impl AppState {
     /// lock (#1366 §2 — the evidence base for any future lock splitting).
     pub fn lock_metrics(&self) -> Vec<LockMetricsSnapshot> {
         vec![
+            self.persistence_gate.metrics(),
             self.world.metrics(),
             self.npc_manager.metrics(),
             self.conversation.metrics(),
@@ -472,6 +514,7 @@ pub fn build_app_state(parts: AppStateParts) -> Arc<AppState> {
 
     Arc::new(AppState {
         session_id,
+        persistence_gate: MeteredMutex::new("persistence_gate", ()),
         world: MeteredMutex::new("world", world),
         npc_manager: MeteredMutex::new("npc_manager", npc_manager),
         inference: InferenceClients {
@@ -490,6 +533,7 @@ pub fn build_app_state(parts: AppStateParts) -> Arc<AppState> {
             "game_events",
             std::collections::VecDeque::with_capacity(DEBUG_EVENT_CAPACITY),
         ),
+        total_game_events: std::sync::atomic::AtomicUsize::new(0),
         event_bus: BroadcastEventBus::new(256),
         transport,
         ui_config,
@@ -694,5 +738,54 @@ mod tests {
         }
         let world = metrics.iter().find(|m| m.name == "world").unwrap();
         assert_eq!(world.acquisitions, 1);
+    }
+
+    #[tokio::test]
+    async fn task_journal_target_cannot_tear_during_save_switch() {
+        let identity = Arc::new(SaveIdentity {
+            save_path: MeteredMutex::new(
+                "save_identity.save_path",
+                Some(PathBuf::from("/saves/old.db")),
+            ),
+            current_branch_id: MeteredMutex::new("save_identity.current_branch_id", Some(1)),
+            current_branch_name: MeteredMutex::new(
+                "save_identity.current_branch_name",
+                Some("old".to_string()),
+            ),
+        });
+        let (path_changed_tx, path_changed_rx) = tokio::sync::oneshot::channel();
+        let (finish_switch_tx, finish_switch_rx) = tokio::sync::oneshot::channel();
+        let writer_identity = Arc::clone(&identity);
+        let writer = tokio::spawn(async move {
+            let mut path = writer_identity.save_path.lock().await;
+            *path = Some(PathBuf::from("/saves/new.db"));
+            path_changed_tx.send(()).unwrap();
+            finish_switch_rx.await.unwrap();
+            let mut branch_id = writer_identity.current_branch_id.lock().await;
+            let mut branch_name = writer_identity.current_branch_name.lock().await;
+            *branch_id = Some(2);
+            *branch_name = Some("new".to_string());
+        });
+        path_changed_rx.await.unwrap();
+
+        let reader_identity = Arc::clone(&identity);
+        let mut reader = tokio::spawn(async move {
+            reader_identity
+                .task_journal_target("session")
+                .await
+                .unwrap()
+        });
+        assert!(
+            tokio::time::timeout(std::time::Duration::from_millis(20), &mut reader)
+                .await
+                .is_err(),
+            "target capture must wait while a save switch holds the path guard"
+        );
+
+        finish_switch_tx.send(()).unwrap();
+        writer.await.unwrap();
+        let target = reader.await.unwrap();
+        assert_eq!(target.save_path, PathBuf::from("/saves/new.db"));
+        assert_eq!(target.branch_id, 2);
     }
 }

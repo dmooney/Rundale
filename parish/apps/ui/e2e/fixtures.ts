@@ -187,6 +187,12 @@ export async function installTauriMock(
 				get_world_snapshot: snapshot,
 				get_map: mapData,
 				get_npcs_here: npcs,
+				get_reconnect_state: {
+					world: snapshot,
+					map: mapData,
+					npcs,
+					context_epoch: 0,
+				},
 				get_theme: palette,
 				get_ui_config: uiConfig,
 				get_debug_snapshot: debugSnapshot,
@@ -313,6 +319,26 @@ export async function emitEvent(
 ): Promise<void> {
 	await page.evaluate(
 		({ event, payload }) => {
+			// A real world-update is emitted after canonical state has changed.
+			// Keep the aggregate mock in the same generation so the controller's
+			// all-or-nothing refresh observes the pushed world's authoritative
+			// projection instead of the fixture's initial snapshot.
+			if (event === 'world-update') {
+				const responses = (
+					window as unknown as Record<string, Record<string, unknown>>
+				).__TEST_MOCK_RESPONSES__;
+				const aggregate = responses?.get_reconnect_state;
+				if (
+					aggregate &&
+					typeof aggregate === 'object' &&
+					!Array.isArray(aggregate)
+				) {
+					responses.get_reconnect_state = {
+						...(aggregate as Record<string, unknown>),
+						world: payload,
+					};
+				}
+			}
 			const emit = (
 				window as unknown as Record<string, (e: string, p: unknown) => void>
 			).__TEST_EMIT_EVENT__;

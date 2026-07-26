@@ -68,8 +68,7 @@ fn verbosity_guard_strips_tell_me_repeat_through_real_loop() {
 
     {
         let nora = h.app.npc_manager.get_mut(nora_id).expect("Nora exists");
-        nora.location = player_loc;
-        nora.state = NpcState::Present;
+        nora.set_location_and_state(player_loc, NpcState::Present);
     }
     h.app.npc_manager.mark_introduced(nora_id);
 
@@ -130,8 +129,7 @@ fn verbosity_guard_passes_clean_reply_through_real_loop() {
 
     {
         let nora = h.app.npc_manager.get_mut(nora_id).expect("Nora exists");
-        nora.location = player_loc;
-        nora.state = NpcState::Present;
+        nora.set_location_and_state(player_loc, NpcState::Present);
     }
     h.app.npc_manager.mark_introduced(nora_id);
 
@@ -207,8 +205,7 @@ fn cross_npc_opener_dedup_fires_across_separate_turns() {
 
     {
         let nora = h.app.npc_manager.get_mut(nora_id).expect("Nora exists");
-        nora.location = player_loc;
-        nora.state = NpcState::Present;
+        nora.set_location_and_state(player_loc, NpcState::Present);
     }
     {
         let brendan = h
@@ -216,8 +213,7 @@ fn cross_npc_opener_dedup_fires_across_separate_turns() {
             .npc_manager
             .get_mut(brendan_id)
             .expect("Brendan exists");
-        brendan.location = player_loc;
-        brendan.state = NpcState::Present;
+        brendan.set_location_and_state(player_loc, NpcState::Present);
     }
     h.app.npc_manager.mark_introduced(nora_id);
     h.app.npc_manager.mark_introduced(brendan_id);
