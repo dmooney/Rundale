@@ -78,6 +78,9 @@ function makeSnapshot(
 	weather: string = 'Overcast',
 ): WorldSnapshot {
 	return {
+		// Dublin is deliberately not one of Rundale's three authored plates,
+		// exercising the neutral uncovered-location scene in generic E2E tests.
+		location_id: 404,
 		location_name: 'Baile Átha Cliath',
 		location_description:
 			'The streets of Dublin bustle with life. Georgian buildings line the wide avenues, and the Liffey flows dark beneath its bridges.',
@@ -100,6 +103,7 @@ function makeSnapshot(
 			{ word: 'Aoife', pronunciation: 'EE-fa', meaning: 'beauty, radiance' },
 		],
 		day_of_week: 'Monday',
+		active_tasks: [],
 	};
 }
 
@@ -164,6 +168,8 @@ export const MAP_DATA: MapData = {
 	player_location: 'dublin',
 	player_lat: 53.3498,
 	player_lon: -6.2603,
+	transport_label: 'on foot',
+	transport_id: 'walking',
 };
 
 // ── NPCs ────────────────────────────────────────────────────────────────────

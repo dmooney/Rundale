@@ -273,6 +273,30 @@ impl ChatTranscriptLog {
                     ChatEventMeta::default(),
                 );
             }
+            GameEvent::PlayerTaskAssigned { task, .. } => {
+                self.emit(
+                    ChatEventType::SystemMessage,
+                    &format!("New task: {}", task.description),
+                    ChatEventMeta {
+                        location_id: Some(task.location.0),
+                        npc_id: Some(task.assigned_by.0),
+                        npc_name: npc_name(task.assigned_by),
+                        request_id: None,
+                    },
+                );
+            }
+            GameEvent::PlayerTaskProgressed { task, .. } => {
+                self.emit(
+                    ChatEventType::SystemMessage,
+                    &format!("Task in progress: {}", task.description),
+                    ChatEventMeta {
+                        location_id: Some(task.location.0),
+                        npc_id: Some(task.assigned_by.0),
+                        npc_name: npc_name(task.assigned_by),
+                        request_id: None,
+                    },
+                );
+            }
             // Mechanical / non-chat events are not part of the transcript.
             GameEvent::MoodChanged { .. }
             | GameEvent::RelationshipChanged { .. }

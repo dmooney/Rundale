@@ -1370,7 +1370,13 @@ export class IllustratedParishRenderer {
 		);
 		this.text(
 			this.layers.chrome,
-			state.command.busy ? 'awaiting the parish…' : '(none)',
+			state.world?.active_tasks?.[0]
+				? `${state.world.active_tasks[0].description.slice(0, 28)}${
+						state.world.active_tasks[0].description.length > 28 ? '…' : ''
+					}`
+				: state.command.busy
+					? 'awaiting the parish…'
+					: '(none)',
 			layout.activeIntentsCard.x + layout.activeIntentsCard.width * 0.12,
 			layout.activeIntentsCard.y + layout.activeIntentsCard.height * 0.43,
 			Math.max(10, Math.min(15, layout.activeIntentsCard.height * 0.16)),

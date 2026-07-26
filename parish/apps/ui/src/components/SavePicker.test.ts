@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, fireEvent } from '@testing-library/svelte';
 import { tick } from 'svelte';
+import { get } from 'svelte/store';
 
 /** Flush all pending microtasks + Svelte ticks. */
 async function flush() {
@@ -10,6 +11,7 @@ async function flush() {
 	await tick();
 }
 import { savePickerVisible, saveFiles, currentSaveState } from '../stores/save';
+import { textLog } from '../stores/game';
 import SavePicker from './SavePicker.svelte';
 import type { SaveBranchDisplay, SaveFileInfo, SaveState } from '$lib/types';
 
@@ -121,9 +123,16 @@ beforeEach(() => {
 	// Default: empty saves, null state
 	mockDiscoverSaveFiles.mockResolvedValue([]);
 	mockGetSaveState.mockResolvedValue(null);
+	mockLoadBranch.mockResolvedValue();
+	mockGetWorldSnapshot.mockResolvedValue({});
+	mockGetMap.mockResolvedValue({});
+	mockGetNpcsHere.mockResolvedValue([]);
+	mockNewSaveFile.mockResolvedValue();
+	mockNewGame.mockResolvedValue();
 	savePickerVisible.set(false);
 	saveFiles.set([]);
 	currentSaveState.set(null);
+	textLog.set([]);
 });
 
 // ── Test cases ───────────────────────────────────────────────────────────────
@@ -237,6 +246,31 @@ describe('SavePicker', () => {
 			expect(mockLoadBranch).toHaveBeenCalledOnce();
 			expect(mockLoadBranch).toHaveBeenCalledWith('/saves/parish.db', 1);
 		});
+
+		it('replaces the previous branch log with the loaded scene context', async () => {
+			const branches = [makeBranch('main', null, 1)];
+			mockGetWorldSnapshot.mockResolvedValue({
+				location_description: 'The loaded branch opens at the village well.',
+			});
+			textLog.set([
+				{ source: 'player', content: 'Words from the previous branch.' },
+				{ source: 'Old neighbour', content: 'A reply that must not leak.' },
+			]);
+			const { container } = await mountWithFile(
+				makeFile('parish.db', branches),
+			);
+
+			await fireEvent.click(container.querySelector('.node-body')!);
+			await flush();
+
+			expect(get(textLog)).toEqual([
+				{
+					source: 'system',
+					subtype: 'location',
+					content: 'The loaded branch opens at the village well.',
+				},
+			]);
+		});
 	});
 
 	describe('fork branch flow', () => {
@@ -327,6 +361,9 @@ describe('SavePicker', () => {
 	describe('IPC failure paths', () => {
 		it('keeps dialog open when loadBranch IPC fails', async () => {
 			mockLoadBranch.mockRejectedValue(new Error('Backend unreachable'));
+			textLog.set([
+				{ source: 'player', content: 'The still-active branch remains.' },
+			]);
 			const branches = [makeBranch('main', null, 1)];
 			const { container } = await mountWithFile(
 				makeFile('parish.db', branches),
@@ -339,6 +376,7 @@ describe('SavePicker', () => {
 			await flush();
 
 			expect(container.querySelector('[role="dialog"]')).toBeTruthy();
+			expect(get(textLog)[0]?.content).toBe('The still-active branch remains.');
 		});
 
 		it('shows fork error text when createBranch IPC fails', async () => {
@@ -396,6 +434,37 @@ describe('SavePicker', () => {
 			await flush();
 
 			expect(container.querySelector('[role="dialog"]')).toBeTruthy();
+		});
+	});
+
+	describe('new game context', () => {
+		it('replaces the prior log only after new-game succeeds', async () => {
+			const file = makeFile('parish.db', [makeBranch('main', null, 1)]);
+			mockGetWorldSnapshot.mockResolvedValue({
+				location_description: 'A fresh morning begins at the crossroads.',
+			});
+			textLog.set([
+				{ source: 'player', content: 'Old-game words.' },
+				{ source: 'Old neighbour', content: 'Old-game reply.' },
+			]);
+			const { container, getByText } = await mountWithFile(file);
+
+			await fireEvent.click(getByText('Ledgers'));
+			await tick();
+			const newGameRow = Array.from(
+				container.querySelectorAll('.new-ledger'),
+			).find((row) => row.textContent?.includes('New Game')) as HTMLElement;
+			await fireEvent.click(newGameRow);
+			await flush();
+
+			expect(mockNewGame).toHaveBeenCalledOnce();
+			expect(get(textLog)).toEqual([
+				{
+					source: 'system',
+					subtype: 'location',
+					content: 'A fresh morning begins at the crossroads.',
+				},
+			]);
 		});
 	});
 

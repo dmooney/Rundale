@@ -287,6 +287,25 @@ impl LocationLogManager {
                 let body = format!("*The player called for {} — not present.*\n", name);
                 append_journal_entry(&path, ts, Some(&heading), &body)?;
             }
+            GameEvent::PlayerTaskAssigned { task, .. } => {
+                let Some(path) = path_for(task.location) else {
+                    return Ok(());
+                };
+                let assigner = npc_manager
+                    .get(task.assigned_by)
+                    .map(|npc| npc.name.as_str())
+                    .unwrap_or("An unknown local");
+                let heading = format!("Task assigned by {assigner}");
+                let body = format!("*{}*\n", task.description);
+                append_journal_entry(&path, ts, Some(&heading), &body)?;
+            }
+            GameEvent::PlayerTaskProgressed { task, action, .. } => {
+                let Some(path) = path_for(task.location) else {
+                    return Ok(());
+                };
+                let body = format!("*{}*\n\nAction: {}\n", task.description, action);
+                append_journal_entry(&path, ts, Some("Player began assigned work"), &body)?;
+            }
             GameEvent::WeatherChanged { new_weather, .. } => {
                 // Weather is world-wide — every location experiences the
                 // same shift. Log to every location's journal so the
@@ -376,10 +395,10 @@ impl LocationLogManager {
                 // Log only when both NPCs are co-located — the relationship
                 // shifted because something happened here. Cross-location
                 // shifts (gossip, memory) belong in the character log only.
-                if a.location != b.location {
+                if a.location() != b.location() {
                     return Ok(());
                 }
-                let Some(path) = path_for(a.location) else {
+                let Some(path) = path_for(a.location()) else {
                     return Ok(());
                 };
                 let body = format!("*{} ↔ {}: bond shifted by {:+.2}*\n", a.name, b.name, delta);
@@ -691,9 +710,7 @@ mod tests {
     }
     use parish_npc::Npc;
     use parish_npc::manager::NpcManager;
-    use parish_npc::memory::{LongTermMemory, ShortTermMemory};
-    use parish_npc::reactions::ReactionLog;
-    use parish_npc::types::{Intelligence, NpcState};
+    use parish_npc::types::Intelligence;
     use parish_world::WorldState;
     use parish_world::graph::{Connection, LocationData, WorldGraph};
     use std::collections::HashMap;
@@ -748,32 +765,18 @@ mod tests {
     }
 
     fn make_npc(id: u32, name: &str, loc: LocationId) -> Npc {
-        Npc {
-            id: NpcId(id),
-            name: name.to_string(),
-            brief_description: format!("a person called {}", name),
-            age: 40,
-            occupation: "Publican".to_string(),
-            personality: "Warm-hearted".to_string(),
-            pronouns: "they/them".to_string(),
-            intelligence: Intelligence::new(3, 3, 3, 3, 3, 3),
-            location: loc,
-            mood: "content".to_string(),
-            home: None,
-            workplace: None,
-            schedule: None,
-            relationships: HashMap::new(),
-            memory: ShortTermMemory::new(),
-            long_term_memory: LongTermMemory::new(),
-            knowledge: Vec::new(),
-            state: NpcState::default(),
-            deflated_summary: None,
-            reaction_log: ReactionLog::default(),
-            last_activity: None,
-            is_ill: false,
-            doom: None,
-            banshee_heralded: false,
-        }
+        let mut npc = Npc::new_test_npc();
+        npc.id = NpcId(id);
+        npc.name = name.to_string();
+        npc.brief_description = format!("a person called {}", name);
+        npc.age = 40;
+        npc.occupation = "Publican".to_string();
+        npc.personality = "Warm-hearted".to_string();
+        npc.pronouns = "they/them".to_string();
+        npc.intelligence = Intelligence::new(3, 3, 3, 3, 3, 3);
+        npc.set_location(loc);
+        npc.mood = "content".to_string();
+        npc
     }
 
     #[test]

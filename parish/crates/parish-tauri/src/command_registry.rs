@@ -11,6 +11,7 @@
 pub const EXPECTED_COMMANDS: &[&str] = &[
     // ── core game commands ────────────────────────────────────────────────
     "get_world_snapshot",
+    "get_reconnect_state",
     "get_map",
     "get_npcs_here",
     "get_engine_state",

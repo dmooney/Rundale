@@ -75,7 +75,7 @@ pub trait SystemCommandHost: Send + Sync {
     fn fork_branch(&self, name: String) -> BoxFuture<'_, String>;
 
     /// Handle [`CommandEffect::LoadBranch`] — load a named branch.
-    fn load_branch(&self, name: String) -> BoxFuture<'_, ()>;
+    fn load_branch(&self, name: String) -> BoxFuture<'_, Result<(), String>>;
 
     /// Handle [`CommandEffect::ListBranches`] — list branches; returns formatted text.
     fn list_branches(&self) -> BoxFuture<'_, String>;
@@ -188,7 +188,11 @@ pub fn apply_inference_log_sub(
 /// `parish-server`, `parish-tauri`, and `parish-engine` (with only the effect
 /// dispatch body differing).  Each backend now provides a ~20-line
 /// [`SystemCommandHost`] implementation delegating to this function.
-pub async fn handle_system_command(host: &dyn SystemCommandHost, cmd: Command, raw_text: &str) {
+pub async fn handle_system_command(
+    host: &dyn SystemCommandHost,
+    cmd: Command,
+    raw_text: &str,
+) -> Result<(), String> {
     // Echo the typed command into the transcript (feature-flagged, default-ON).
     if !host.is_echo_commands_disabled() {
         host.emit_command_echo(raw_text);
@@ -200,7 +204,7 @@ pub async fn handle_system_command(host: &dyn SystemCommandHost, cmd: Command, r
         match &effect {
             CommandEffect::Quit => {
                 host.quit().await;
-                return;
+                return Ok(());
             }
             CommandEffect::RebuildInference => {
                 host.rebuild_inference().await;
@@ -211,12 +215,12 @@ pub async fn handle_system_command(host: &dyn SystemCommandHost, cmd: Command, r
             CommandEffect::ToggleMap => {
                 host.toggle_map().await;
                 // No text log for map toggle — return early (match GUI behaviour).
-                return;
+                return Ok(());
             }
             CommandEffect::OpenDesigner => {
                 host.open_designer().await;
                 // No text log — navigation handled by frontend.
-                return;
+                return Ok(());
             }
             CommandEffect::SaveGame => {
                 let msg = host.save_game().await;
@@ -227,7 +231,7 @@ pub async fn handle_system_command(host: &dyn SystemCommandHost, cmd: Command, r
                 host.emit_text_log(msg, TextPresentation::Prose);
             }
             CommandEffect::LoadBranch(name) => {
-                host.load_branch(name.clone()).await;
+                host.load_branch(name.clone()).await?;
             }
             CommandEffect::ListBranches => {
                 let msg = host.list_branches().await;
@@ -289,6 +293,7 @@ pub async fn handle_system_command(host: &dyn SystemCommandHost, cmd: Command, r
 
     // Emit updated world snapshot.
     host.emit_world_update().await;
+    Ok(())
 }
 
 #[cfg(test)]
@@ -430,9 +435,9 @@ mod tests {
             self.record(format!("fork_branch:{name}"));
             Box::pin(async { "Forked branch.".to_string() })
         }
-        fn load_branch(&self, name: String) -> BoxFuture<'_, ()> {
+        fn load_branch(&self, name: String) -> BoxFuture<'_, Result<(), String>> {
             self.record(format!("load_branch:{name}"));
-            Box::pin(async {})
+            Box::pin(async { Ok(()) })
         }
         fn list_branches(&self) -> BoxFuture<'_, String> {
             self.record("list_branches");
@@ -485,7 +490,9 @@ mod tests {
     #[tokio::test]
     async fn dispatches_save_effect_and_emits_world_update() {
         let host = MockHost::new();
-        handle_system_command(&host, Command::Save, "/save").await;
+        handle_system_command(&host, Command::Save, "/save")
+            .await
+            .unwrap();
         host.assert_save_called();
         host.assert_text_emitted("Game saved.");
         host.assert_world_update_called();
@@ -494,7 +501,9 @@ mod tests {
     #[tokio::test]
     async fn quit_effect_returns_early() {
         let host = MockHost::new();
-        handle_system_command(&host, Command::Quit, "/quit").await;
+        handle_system_command(&host, Command::Quit, "/quit")
+            .await
+            .unwrap();
         host.assert_quit_called();
         // world update should NOT be called after quit (early return)
         assert!(!host.world_update_called.load(Ordering::SeqCst));
@@ -515,7 +524,9 @@ mod tests {
             presentation: TextPresentation::Tabular,
         });
 
-        handle_system_command(&host, Command::Help, "/help").await;
+        handle_system_command(&host, Command::Help, "/help")
+            .await
+            .unwrap();
 
         assert_eq!(
             host.calls(),
@@ -542,7 +553,9 @@ mod tests {
             presentation: TextPresentation::Prose,
         });
 
-        handle_system_command(&host, Command::Help, "/map").await;
+        handle_system_command(&host, Command::Help, "/map")
+            .await
+            .unwrap();
 
         assert_eq!(host.calls(), vec!["echo:/map", "toggle_map"]);
     }
@@ -552,7 +565,9 @@ mod tests {
     #[tokio::test]
     async fn system_command_emits_player_command_echo() {
         let host = MockHost::new();
-        handle_system_command(&host, Command::Pause, "/pause").await;
+        handle_system_command(&host, Command::Pause, "/pause")
+            .await
+            .unwrap();
         let echoes = host.echo_calls();
         assert_eq!(echoes, vec!["/pause"]);
     }
@@ -563,7 +578,9 @@ mod tests {
     async fn system_command_echo_suppressed_when_flag_disabled() {
         let mut host = MockHost::new();
         host.echo_disabled = true;
-        handle_system_command(&host, Command::Pause, "/pause").await;
+        handle_system_command(&host, Command::Pause, "/pause")
+            .await
+            .unwrap();
         assert!(
             host.echo_calls().is_empty(),
             "echo must not fire when echo-commands flag is disabled"

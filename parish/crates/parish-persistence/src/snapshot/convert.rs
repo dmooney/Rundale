@@ -5,7 +5,7 @@
 //! exhaustive destructuring so that adding a new field to `Npc` or
 //! `NpcSnapshot` produces a compile error until the mapping is updated.
 
-use parish_npc::Npc;
+use parish_npc::{Npc, NpcPersistedFields};
 
 use super::types::NpcSnapshot;
 
@@ -16,10 +16,10 @@ impl NpcSnapshot {
     /// produces a compile error here until it is either persisted or explicitly
     /// excluded with a `_field: _` binding and a comment explaining why.
     pub fn from_npc(npc: &Npc) -> Self {
-        // Exhaustive destructuring — no `..`. Every field of `Npc` must be
-        // listed. To intentionally exclude a field from persistence, bind it
-        // as `field_name: _` and add an "intentionally not persisted" comment.
-        let Npc {
+        // `Npc::persisted_fields` performs the exhaustive live-state
+        // destructure inside parish-npc, where the grounding-sensitive fields
+        // remain inaccessible to downstream mutation.
+        let NpcPersistedFields {
             id,
             name,
             brief_description,
@@ -39,40 +39,39 @@ impl NpcSnapshot {
             knowledge,
             state,
             deflated_summary,
-            reaction_log: _, // intentionally not persisted: transient runtime state, reset to default on load
             last_activity,
             is_ill,
             doom,
             banshee_heralded,
-        } = npc;
+        } = npc.persisted_fields();
 
         Self {
-            id: *id,
-            name: name.clone(),
-            brief_description: brief_description.clone(),
-            age: *age,
-            occupation: occupation.clone(),
-            personality: personality.clone(),
-            pronouns: pronouns.clone(),
-            intelligence: *intelligence,
-            location: *location,
-            mood: mood.clone(),
-            home: *home,
-            workplace: *workplace,
-            schedule: schedule.clone(),
-            relationships: relationships.clone(),
-            memory: memory.clone(),
-            long_term_memory: long_term_memory.clone(),
-            knowledge: knowledge.clone(),
-            state: state.clone(),
-            last_activity: last_activity.clone(),
-            is_ill: *is_ill,
-            doom: *doom,
-            banshee_heralded: *banshee_heralded,
+            id,
+            name,
+            brief_description,
+            age,
+            occupation,
+            personality,
+            pronouns,
+            intelligence,
+            location,
+            mood,
+            home,
+            workplace,
+            schedule,
+            relationships,
+            memory,
+            long_term_memory,
+            knowledge,
+            state,
+            last_activity,
+            is_ill,
+            doom,
+            banshee_heralded,
             // #338: previously hard-coded to None, erasing the
             // demotion summary on every save/load cycle. Round-tripped
             // through NpcSnapshot.deflated_summary now.
-            deflated_summary: deflated_summary.clone(),
+            deflated_summary,
         }
     }
 
@@ -109,7 +108,7 @@ impl NpcSnapshot {
             deflated_summary,
         } = self;
 
-        Npc {
+        Npc::from_persisted_fields(NpcPersistedFields {
             id,
             name,
             brief_description,
@@ -136,8 +135,6 @@ impl NpcSnapshot {
             // demotion summary on every save/load cycle. Round-tripped
             // through NpcSnapshot.deflated_summary now.
             deflated_summary,
-            // intentionally not persisted: transient runtime state, reset to default on load
-            reaction_log: parish_npc::reactions::ReactionLog::default(),
-        }
+        })
     }
 }

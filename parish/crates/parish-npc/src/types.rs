@@ -431,43 +431,52 @@ pub struct SeasonalSchedule {
 }
 
 impl SeasonalSchedule {
+    /// Resolves the best-matching schedule variant and its authored index.
+    ///
+    /// Keeping the authored index lets asynchronous simulation distinguish
+    /// two otherwise-identical schedule intervals without relying on pointer
+    /// identity.
+    fn resolve_variant_with_index(
+        &self,
+        season: Season,
+        day_type: DayType,
+    ) -> Option<(usize, &ScheduleVariant)> {
+        if let Some(found) = self
+            .variants
+            .iter()
+            .enumerate()
+            .find(|(_, v)| v.season == Some(season) && v.day_type == Some(day_type))
+        {
+            return Some(found);
+        }
+        if let Some(found) = self
+            .variants
+            .iter()
+            .enumerate()
+            .find(|(_, v)| v.season == Some(season) && v.day_type.is_none())
+        {
+            return Some(found);
+        }
+        if let Some(found) = self
+            .variants
+            .iter()
+            .enumerate()
+            .find(|(_, v)| v.season.is_none() && v.day_type == Some(day_type))
+        {
+            return Some(found);
+        }
+        self.variants
+            .iter()
+            .enumerate()
+            .find(|(_, v)| v.season.is_none() && v.day_type.is_none())
+    }
+
     /// Resolves the best-matching schedule entries for the given context.
     ///
     /// Fallback order: exact match → season-only → day-only → default.
     pub fn resolve(&self, season: Season, day_type: DayType) -> Option<&[ScheduleEntry]> {
-        // 1. Exact match: both season and day_type
-        if let Some(v) = self
-            .variants
-            .iter()
-            .find(|v| v.season == Some(season) && v.day_type == Some(day_type))
-        {
-            return Some(&v.entries);
-        }
-        // 2. Season only (any day)
-        if let Some(v) = self
-            .variants
-            .iter()
-            .find(|v| v.season == Some(season) && v.day_type.is_none())
-        {
-            return Some(&v.entries);
-        }
-        // 3. Day type only (any season)
-        if let Some(v) = self
-            .variants
-            .iter()
-            .find(|v| v.season.is_none() && v.day_type == Some(day_type))
-        {
-            return Some(&v.entries);
-        }
-        // 4. Default (both None)
-        if let Some(v) = self
-            .variants
-            .iter()
-            .find(|v| v.season.is_none() && v.day_type.is_none())
-        {
-            return Some(&v.entries);
-        }
-        None
+        self.resolve_variant_with_index(season, day_type)
+            .map(|(_, variant)| variant.entries.as_slice())
     }
 
     /// Returns the schedule entry active at the given hour for the given context.
@@ -475,15 +484,34 @@ impl SeasonalSchedule {
     /// Handles overnight wraparound: an entry with `start_hour > end_hour`
     /// (e.g. 22–06) is active when `hour >= start_hour OR hour <= end_hour`.
     pub fn entry_at(&self, hour: u8, season: Season, day_type: DayType) -> Option<&ScheduleEntry> {
-        let entries = self.resolve(season, day_type)?;
-        entries.iter().find(|e| {
-            if e.start_hour <= e.end_hour {
-                hour >= e.start_hour && hour <= e.end_hour
-            } else {
-                // Overnight: e.g. 22–06
-                hour >= e.start_hour || hour <= e.end_hour
-            }
-        })
+        self.entry_with_index_at(hour, season, day_type)
+            .map(|(_, _, entry)| entry)
+    }
+
+    /// Returns the authored variant index, entry index, and active entry.
+    ///
+    /// The indices are process-independent identities within the loaded mod
+    /// and are used only in transient async-grounding fingerprints.
+    pub(crate) fn entry_with_index_at(
+        &self,
+        hour: u8,
+        season: Season,
+        day_type: DayType,
+    ) -> Option<(usize, usize, &ScheduleEntry)> {
+        let (variant_index, variant) = self.resolve_variant_with_index(season, day_type)?;
+        variant
+            .entries
+            .iter()
+            .enumerate()
+            .find(|(_, entry)| {
+                if entry.start_hour <= entry.end_hour {
+                    hour >= entry.start_hour && hour <= entry.end_hour
+                } else {
+                    // Overnight: e.g. 22–06
+                    hour >= entry.start_hour || hour <= entry.end_hour
+                }
+            })
+            .map(|(entry_index, entry)| (variant_index, entry_index, entry))
     }
 
     /// Returns the desired location at the given hour for the given context.
@@ -539,6 +567,20 @@ pub enum CogTier {
     Tier4,
 }
 
+/// Immutable participant state captured before Tier-2 inference.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Tier2ParticipantGrounding {
+    /// NPC whose snapshotted state this anchor describes.
+    pub npc_id: NpcId,
+    /// Exact canonical location occupied when the inference prompt was built.
+    pub location: LocationId,
+    /// Process-local lineage revision captured for this live NPC incarnation.
+    pub grounding_revision: u64,
+    /// Stable fingerprint of the authored schedule activity (or the explicit
+    /// no-authored-activity sentinel) at snapshot time.
+    pub activity_fingerprint: String,
+}
+
 /// An event produced by a Tier 2 simulation tick.
 ///
 /// Captures what happened at a location during background simulation,
@@ -555,6 +597,10 @@ pub struct Tier2Event {
     pub mood_changes: Vec<MoodChange>,
     /// Relationship strength deltas to apply.
     pub relationship_changes: Vec<RelationshipChange>,
+    /// Immutable canonical state captured before inference. The shared apply
+    /// seam revalidates every participant against these anchors before any
+    /// event, memory, mood, relationship, or gossip side effect is allowed.
+    pub grounding: Vec<Tier2ParticipantGrounding>,
 }
 
 /// A mood change resulting from a Tier 2 event.

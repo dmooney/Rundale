@@ -253,6 +253,30 @@ impl App {
         let snapshot = crate::persistence::GameSnapshot::capture(&self.world, &self.npc_manager);
         match db.save_snapshot(branch_id, &snapshot).await {
             Ok(snap_id) => {
+                if let (Some(saves_dir), Some(save_path)) =
+                    (self.saves_dir.as_ref(), self.save_file_path.as_ref())
+                {
+                    let branch_name = match db
+                        .list_branches()
+                        .await
+                        .ok()?
+                        .into_iter()
+                        .find(|branch| branch.id == branch_id)
+                    {
+                        Some(branch) => branch.name,
+                        None => return None,
+                    };
+                    if parish_core::persistence::write_active_save_identity(
+                        saves_dir,
+                        save_path,
+                        branch_id,
+                        &branch_name,
+                    )
+                    .is_err()
+                    {
+                        return None;
+                    }
+                }
                 self.latest_snapshot_id = snap_id;
                 self.last_autosave = Some(std::time::Instant::now());
                 Some(snap_id)

@@ -27,7 +27,12 @@ impl NpcManager {
     }
 
     /// Adds an NPC to the manager.
-    pub fn add_npc(&mut self, npc: Npc) {
+    pub fn add_npc(&mut self, mut npc: Npc) {
+        // Treat every insertion as a new live incarnation. This is what makes
+        // an identical in-memory snapshot restore distinguishable from the
+        // pre-restore NPC for asynchronous Tier-2 results.
+        npc.reset_authored_activity_observation();
+        npc.refresh_grounding_revision();
         self.npcs.insert(npc.id, npc);
     }
 

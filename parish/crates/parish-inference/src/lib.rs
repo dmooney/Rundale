@@ -51,8 +51,8 @@ pub use rate_limit::InferenceRateLimiter;
 
 pub use any_client::{AnyClient, InferenceClients, TOKEN_CHANNEL_CAPACITY, build_client};
 pub use logs::{
-    BoundedInferenceLog, InferenceLog, InferenceLogEntry, new_inference_log,
-    new_inference_log_with_config,
+    BoundedInferenceLog, DeferredInferenceAudit, InferenceLog, InferenceLogEntry,
+    new_inference_log, new_inference_log_with_config,
 };
 pub use mock_client::{MockClient, MockMatcher};
 pub use openai_client::{GenerateParams, JsonSchemaSpec, ResponseFormat};

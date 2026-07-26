@@ -20,6 +20,15 @@ pub async fn react_to_message(
     emoji: String,
     state: tauri::State<'_, Arc<AppState>>,
 ) -> Result<(), String> {
+    do_react_to_message(&state, npc_name, message_snippet, emoji).await
+}
+
+pub(crate) async fn do_react_to_message(
+    state: &Arc<AppState>,
+    npc_name: String,
+    message_snippet: String,
+    emoji: String,
+) -> Result<(), String> {
     // Validate emoji is in the palette
     if reactions::reaction_description(&emoji).is_none() {
         return Err("Unknown reaction emoji.".to_string());
@@ -30,6 +39,9 @@ pub async fn react_to_message(
         return Err("Message snippet contains disallowed characters.".to_string());
     }
 
+    // Staged turns install a cloned NPC manager. Serialize this mutation with
+    // that install so an accepted reaction cannot be erased.
+    let _persistence_guard = state.persistence_gate.lock().await;
     let mut npc_manager = state.npc_manager.lock().await;
     if let Some(npc) = npc_manager.find_by_name_mut(&npc_name) {
         let now = chrono::Utc::now();
@@ -61,31 +73,11 @@ pub(super) fn emit_npc_reactions(
     let emitter: std::sync::Arc<dyn parish_core::ipc::EventEmitter> =
         std::sync::Arc::new(crate::events::TauriEmitter::new(app.clone()));
 
-    // Persist callback: closes over Arc<AppState> and locks npc_manager to
-    // record each reaction in the NPC's reaction_log (#403).
-    let state_for_persist = Arc::clone(state);
-    let persist: parish_core::game_loop::PersistReactionFn = std::sync::Arc::new(
-        move |npc_name: String, emoji: String, player_input: String| {
-            let state = Arc::clone(&state_for_persist);
-            tokio::spawn(async move {
-                let mut npc_manager = state.npc_manager.lock().await;
-                if let Some(npc_mut) = npc_manager.find_by_name_mut(&npc_name) {
-                    npc_mut.reaction_log.add_player_message_reaction(
-                        &emoji,
-                        &player_input,
-                        chrono::Utc::now(),
-                    );
-                }
-                // Feed the per-session diversity sensor (#995).
-                npc_manager.record_reaction_emoji(&emoji);
-            });
-        },
-    );
-
     tokio::spawn(async move {
         // Pre-capture the NPC list at the given location (the player may have
         // moved by the time the background task runs).
-        let (npcs_here, reaction_client, reaction_model, llm_enabled) = {
+        let (npcs_here, reaction_client, reaction_model, llm_enabled, context_bus, context_epoch) = {
+            let world = state_clone.world.lock().await;
             let npc_manager = state_clone.npc_manager.lock().await;
             let config = state_clone.config.lock().await;
             let base_client = state_clone.client.lock().await;
@@ -97,8 +89,42 @@ pub(super) fn emit_npc_reactions(
             let (client, model) =
                 config.resolve_category_client(InferenceCategory::Reaction, base_client.as_ref());
             let enabled = !config.flags.is_disabled("npc-llm-reactions");
-            (npcs, client, model, enabled)
+            (
+                npcs,
+                client,
+                model,
+                enabled,
+                world.event_bus.clone(),
+                world.event_bus.context_epoch(),
+            )
         };
+        let context_is_valid: parish_core::game_loop::ReactionContextValidFn = {
+            let context_bus = context_bus.clone();
+            std::sync::Arc::new(move || context_bus.context_epoch() == context_epoch)
+        };
+        let state_for_persist = Arc::clone(&state_clone);
+        let persist_context = Arc::clone(&context_is_valid);
+        let persist: parish_core::game_loop::PersistReactionFn = std::sync::Arc::new(
+            move |npc_name: String, emoji: String, player_input: String| {
+                let state = Arc::clone(&state_for_persist);
+                let context_is_valid = Arc::clone(&persist_context);
+                tokio::spawn(async move {
+                    let _persistence_guard = state.persistence_gate.lock().await;
+                    if !context_is_valid() {
+                        return;
+                    }
+                    let mut npc_manager = state.npc_manager.lock().await;
+                    if let Some(npc_mut) = npc_manager.find_by_name_mut(&npc_name) {
+                        npc_mut.reaction_log.add_player_message_reaction(
+                            &emoji,
+                            &player_input,
+                            chrono::Utc::now(),
+                        );
+                    }
+                    npc_manager.record_reaction_emoji(&emoji);
+                });
+            },
+        );
 
         parish_core::game_loop::emit_npc_reactions(
             player_msg_id,
@@ -109,6 +135,7 @@ pub(super) fn emit_npc_reactions(
             llm_enabled,
             emitter,
             persist,
+            context_is_valid,
         );
     });
 }
@@ -116,6 +143,7 @@ pub(super) fn emit_npc_reactions(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::commands::cmd_tests::test_app_state;
 
     // ── is_snippet_injection_char ───────────────────────────────────────────
 
@@ -153,5 +181,52 @@ mod tests {
                 c
             );
         }
+    }
+
+    #[tokio::test]
+    async fn player_reaction_waits_for_staged_turn_barrier() {
+        let state = test_app_state();
+        let location = state.world.lock().await.player_location;
+        let mut molly = parish_core::npc::Npc::new_test_npc();
+        molly.id = parish_core::npc::NpcId(77);
+        molly.name = "Molly".to_string();
+        molly.set_location(location);
+        state.npc_manager.lock().await.add_npc(molly);
+
+        let held = state.persistence_gate.lock().await;
+        let state_for_reaction = Arc::clone(&state);
+        let reaction = tokio::spawn(async move {
+            do_react_to_message(
+                &state_for_reaction,
+                "Molly".to_string(),
+                "Hello there".to_string(),
+                "😊".to_string(),
+            )
+            .await
+        });
+        tokio::task::yield_now().await;
+        assert!(
+            !reaction.is_finished(),
+            "reaction mutation must wait while a staged turn owns persistence_gate"
+        );
+        drop(held);
+        tokio::time::timeout(std::time::Duration::from_secs(1), reaction)
+            .await
+            .expect("reaction should finish once candidate install is complete")
+            .unwrap()
+            .unwrap();
+
+        let location = state.world.lock().await.player_location;
+        assert_eq!(
+            state
+                .npc_manager
+                .lock()
+                .await
+                .find_by_name("Molly", location)
+                .unwrap()
+                .reaction_log
+                .len(),
+            1
+        );
     }
 }

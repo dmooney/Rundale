@@ -204,6 +204,16 @@ impl InMemorySessionStore {
 
 #[cfg(test)]
 impl SessionStore for InMemorySessionStore {
+    fn prepare_active_save<'a>(
+        &'a self,
+        _session_id: &str,
+        _save_path: &Path,
+    ) -> Result<parish_core::session_store::PreparedSaveBinding<'a>, parish_core::error::ParishError>
+    {
+        // The session ID already selects an isolated in-memory namespace.
+        Ok(parish_core::session_store::PreparedSaveBinding::new(|| {}))
+    }
+
     fn load_latest_snapshot(
         &self,
         session_id: &str,
@@ -277,6 +287,36 @@ impl SessionStore for InMemorySessionStore {
             .or_default()
             .push(branch);
         Box::pin(std::future::ready(Ok(branch_id)))
+    }
+
+    fn create_branch_with_snapshot(
+        &self,
+        session_id: &str,
+        name: &str,
+        parent_branch_id: Option<i64>,
+        snapshot: &parish_core::persistence::GameSnapshot,
+    ) -> BoxFuture<'_, Result<(i64, SnapshotId), parish_core::error::ParishError>> {
+        let branch_id = self.next_branch_id();
+        let snapshot_id = self.next_snapshot_id();
+        let branch = parish_core::persistence::BranchInfo {
+            id: branch_id,
+            name: name.to_string(),
+            parent_branch_id,
+            created_at: chrono::Utc::now().to_rfc3339(),
+        };
+        self.branches
+            .lock()
+            .unwrap()
+            .entry(session_id.to_string())
+            .or_default()
+            .push(branch);
+        self.snapshots
+            .lock()
+            .unwrap()
+            .entry((session_id.to_string(), branch_id))
+            .or_default()
+            .push(snapshot.clone());
+        Box::pin(std::future::ready(Ok((branch_id, snapshot_id))))
     }
 
     fn load_branch(
@@ -365,6 +405,46 @@ impl SessionStore for InMemorySessionStore {
             .unwrap_or_default();
         Box::pin(std::future::ready(Ok(events)))
     }
+
+    fn append_task_mutations_exact<'a>(
+        &'a self,
+        target: &'a parish_core::session_store::TaskJournalTarget,
+        tasks: &'a [parish_core::session_store::PlayerTask],
+    ) -> BoxFuture<'a, Result<usize, parish_core::error::ParishError>> {
+        if tasks.is_empty() {
+            return Box::pin(std::future::ready(Ok(0)));
+        }
+
+        let snapshot_id = self
+            .snapshots
+            .lock()
+            .unwrap()
+            .get(&(target.session_id.clone(), target.branch_id))
+            .map(Vec::len)
+            .filter(|count| *count > 0)
+            .map(|count| count as i64);
+        let Some(snapshot_id) = snapshot_id else {
+            return Box::pin(std::future::ready(Err(
+                parish_core::error::ParishError::Database(format!(
+                    "cannot journal player task: save {} branch {} has no snapshot",
+                    target.save_path.display(),
+                    target.branch_id
+                )),
+            )));
+        };
+
+        let events = tasks
+            .iter()
+            .cloned()
+            .map(|task| parish_core::persistence::WorldEvent::PlayerTaskStateChanged { task });
+        self.journal
+            .lock()
+            .unwrap()
+            .entry((target.session_id.clone(), target.branch_id, snapshot_id))
+            .or_default()
+            .extend(events);
+        Box::pin(std::future::ready(Ok(tasks.len())))
+    }
 }
 
 #[cfg(test)]
@@ -397,6 +477,7 @@ mod tests {
             gossip_network: Default::default(),
             conversation_log: Default::default(),
             player_name: None,
+            player_progress: Default::default(),
             npcs_who_know_player_name: Default::default(),
         }
     }

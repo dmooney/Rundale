@@ -526,6 +526,7 @@ fn build_router(
         // #377 — /api/session-init: issues short-lived WS session tokens.
         .route("/api/session-init", post(routes::session_init))
         .route("/api/world-snapshot", get(routes::get_world_snapshot))
+        .route("/api/reconnect-state", get(routes::get_reconnect_state))
         .route("/api/setup-snapshot", get(routes::get_setup_snapshot))
         .route("/api/map", get(routes::get_map))
         .route("/api/npcs-here", get(routes::get_npcs_here))
@@ -539,6 +540,7 @@ fn build_router(
         .route("/api/app-icon.png", get(routes::get_app_icon))
         .route("/api/favicon.png", get(routes::get_favicon))
         .route("/api/debug-snapshot", get(routes::get_debug_snapshot))
+        .route("/api/turn", get(routes::get_turn))
         .route("/api/submit-input", post(routes::submit_input))
         .route("/api/react-to-message", post(routes::react_to_message))
         .route("/api/discover-save-files", get(routes::discover_save_files))

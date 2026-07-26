@@ -15,7 +15,9 @@
 use tokio_util::sync::CancellationToken;
 
 use crate::config::InferenceCategory;
-use crate::game_loop::{GameLoopContext, handle_movement, handle_npc_conversation};
+use crate::game_loop::{
+    GameInputOutcome, GameLoopContext, handle_movement, handle_npc_conversation,
+};
 use crate::input::{
     is_physical_action_shaped, is_player_dialogue, parse_intent, parse_intent_local,
 };
@@ -142,24 +144,24 @@ async fn try_handle_move(
 ///
 /// Extracted so tests can drive the narration branch directly without
 /// requiring an LLM-classified `Interact` intent.
-pub(crate) async fn handle_interact(ctx: &GameLoopContext<'_>, raw: &str) {
-    // Normalize: trim whitespace, strip trailing period, lowercase first character.
-    // This prevents awkward output like "You Tie a strip of cloth.." when the player
-    // types a capitalized sentence with trailing punctuation.
-    let mut chars = raw.trim().trim_end_matches('.').chars();
-    let normalized = match chars.next() {
-        None => String::new(),
-        Some(c) => c.to_lowercase().collect::<String>() + chars.as_str(),
+pub(crate) async fn handle_interact(ctx: &GameLoopContext<'_>, raw: &str) -> GameInputOutcome {
+    let flags = {
+        let config = ctx.config.lock().await;
+        config.flags.clone()
     };
-    // Don't emit anything for blank/empty input after normalization.
-    if normalized.is_empty() {
-        return;
-    }
-    let msg = format!("You {normalized}.");
+    let outcome = {
+        let mut world = ctx.world.lock().await;
+        crate::game_session::apply_player_action(&mut world, raw, &flags)
+    };
+    let Some(outcome) = outcome else {
+        return GameInputOutcome::default();
+    };
     ctx.emitter.emit_event(
         "text-log",
-        serde_json::to_value(text_log("action", msg)).unwrap_or(serde_json::Value::Null),
+        serde_json::to_value(text_log("action", outcome.narration))
+            .unwrap_or(serde_json::Value::Null),
     );
+    GameInputOutcome::from_task(outcome.progressed_task)
 }
 
 // ── Game input dispatch ───────────────────────────────────────────────────────
@@ -186,7 +188,7 @@ pub async fn handle_game_input(
     transport: &TransportMode,
     reaction_templates: &ReactionTemplates,
     spawn_loading: impl Fn() -> Option<CancellationToken>,
-) {
+) -> GameInputOutcome {
     // Record the raw player input before any parsing so a bug report filed
     // mid-turn carries the exact action that triggered the failure (#1331).
     ctx.conversation.lock().await.record_player_input(&raw);
@@ -288,7 +290,7 @@ pub async fn handle_game_input(
     // branch so the input routes to `handle_npc_conversation` instead.
     if is_move && addressed_to.is_empty() {
         match try_handle_move(ctx, move_target, transport, reaction_templates).await {
-            MoveDispatch::Handled => return,
+            MoveDispatch::Handled => return GameInputOutcome::default(),
             // TODO #40/#56: Move-no-target at a populated location falls through
             // to the NPC conversation path below so the co-located NPC has a
             // chance to reply instead of the player getting a silent system
@@ -299,12 +301,12 @@ pub async fn handle_game_input(
 
     if is_look {
         handle_look(ctx, transport).await;
-        return;
+        return GameInputOutcome::default();
     }
 
     if is_examine {
         handle_examine(ctx, examine_target, transport).await;
-        return;
+        return GameInputOutcome::default();
     }
 
     // #1449: physical player actions classified as `Interact` get a narrated
@@ -320,8 +322,7 @@ pub async fn handle_game_input(
             !config.flags.is_disabled("interact-narration")
         };
         if flag_enabled {
-            handle_interact(ctx, &raw).await;
-            return;
+            return handle_interact(ctx, &raw).await;
         }
         // Flag disabled: fall through to NPC conversation (legacy behaviour).
     }
@@ -354,8 +355,7 @@ pub async fn handle_game_input(
             !config.flags.is_disabled("interact-narration")
         };
         if flag_enabled {
-            handle_interact(ctx, &raw).await;
-            return;
+            return handle_interact(ctx, &raw).await;
         }
     }
 
@@ -405,7 +405,7 @@ pub async fn handle_game_input(
         targets.push(target);
     }
 
-    handle_npc_conversation(ctx, mentions.remaining, targets, spawn_loading).await;
+    handle_npc_conversation(ctx, mentions.remaining, targets, spawn_loading).await
 }
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
@@ -885,7 +885,7 @@ mod tests {
         // One co-located NPC: the existing test fixture lives at LocationId(1)
         // which matches the default WorldState::new() player location.
         let mut npc = parish_npc::Npc::new_test_npc();
-        npc.location = player_loc;
+        npc.set_location(player_loc);
         let mut mgr = NpcManager::new();
         mgr.add_npc(npc);
         let npc_manager = tokio::sync::Mutex::new(mgr);
@@ -1324,6 +1324,15 @@ mod tests {
             || None,
         )
         .await;
+        super::handle_game_input(
+            &ctx,
+            "I set to work in the potato patch, breaking clods and planting seed.".to_string(),
+            vec![],
+            &transport,
+            &templates,
+            || None,
+        )
+        .await;
 
         let logs: Vec<String> = emitter
             .events
@@ -1346,6 +1355,12 @@ mod tests {
             logs.iter()
                 .any(|l| l.contains("tie a strip of cloth to the thorn bush")),
             "#1449: narration must reference the original input; got: {logs:?}"
+        );
+        assert!(
+            logs.iter().any(|l| {
+                l == "You set to work in the potato patch, breaking clods and planting seed."
+            }),
+            "#1780: first-person task action must route to narration; got: {logs:?}"
         );
     }
 
@@ -1410,8 +1425,8 @@ mod tests {
 
     // ── Gemini review thread fixes ────────────────────────────────────────────
 
-    /// Thread 1: capitalized input with trailing period must be normalized to
-    /// lowercase-first, no trailing double-period.
+    /// Capitalized imperatives and first-person task actions must be normalized
+    /// into grammatical second-person narration.
     ///
     /// "Tie a strip of cloth." → "You tie a strip of cloth."
     #[tokio::test]
@@ -1444,6 +1459,11 @@ mod tests {
 
         // Capitalized input with trailing period — the Gemini repro case.
         super::handle_interact(&ctx, "Tie a strip of cloth.").await;
+        super::handle_interact(
+            &ctx,
+            "I set to work in the potato patch, breaking clods and planting seed.",
+        )
+        .await;
 
         let logs: Vec<String> = emitter
             .events
@@ -1466,6 +1486,16 @@ mod tests {
         assert!(
             logs.iter().any(|l| l == "You tie a strip of cloth."),
             "expected 'You tie a strip of cloth.' (normalized); got: {logs:?}"
+        );
+        assert!(
+            logs.iter().any(|l| {
+                l == "You set to work in the potato patch, breaking clods and planting seed."
+            }),
+            "first-person task action must become second-person narration; got: {logs:?}"
+        );
+        assert!(
+            !logs.iter().any(|l| l.to_lowercase().starts_with("you i ")),
+            "narration must not retain the first-person pronoun; got: {logs:?}"
         );
         // Must NOT produce a double-period.
         assert!(

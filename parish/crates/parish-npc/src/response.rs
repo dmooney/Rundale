@@ -39,6 +39,13 @@ pub struct NpcJsonResponse {
     /// People the NPC mentioned by name in their dialogue (self-declared by the LLM).
     #[serde(default)]
     pub mentioned_people: Vec<String>,
+    /// Concrete work the NPC assigned in the spoken dialogue, if any.
+    ///
+    /// The model proposes only this natural-language description. The engine
+    /// supplies and validates task identity, assigner, location, timestamps,
+    /// and lifecycle state at the canonical apply seam.
+    #[serde(default)]
+    pub assigned_task: Option<String>,
 }
 
 /// Metadata block from an NPC response.
@@ -59,6 +66,12 @@ pub struct NpcMetadata {
     /// People the NPC mentioned by name in their dialogue (self-declared by the LLM).
     #[serde(default)]
     pub mentioned_people: Vec<String>,
+    /// Bounded description of concrete work the NPC claims to have assigned.
+    ///
+    /// This remains untrusted until the canonical dialogue apply seam confirms
+    /// that the final player-visible line actually conveys the assignment.
+    #[serde(default)]
+    pub assigned_task: Option<String>,
 }
 
 /// Parses a complete NPC response (JSON format) into dialogue and metadata.
@@ -89,6 +102,7 @@ pub fn parse_npc_stream_response(full_text: &str) -> NpcStreamResponse {
             internal_thought: json_resp.internal_thought,
             language_hints: json_resp.language_hints,
             mentioned_people: json_resp.mentioned_people,
+            assigned_task: bounded_assigned_task(json_resp.assigned_task),
         });
         return NpcStreamResponse { dialogue, metadata };
     }
@@ -112,6 +126,20 @@ pub fn parse_npc_stream_response(full_text: &str) -> NpcStreamResponse {
         dialogue: strip_trailing_action_token(trimmed),
         metadata: None,
     }
+}
+
+fn bounded_assigned_task(value: Option<String>) -> Option<String> {
+    let value = value?;
+    let trimmed = value.trim();
+    if trimmed.is_empty() {
+        return None;
+    }
+    Some(
+        trimmed
+            .chars()
+            .take(parish_types::MAX_TASK_DESCRIPTION_CHARS)
+            .collect(),
+    )
 }
 
 /// Strips a trailing unmatched quote character from the end of a dialogue string.

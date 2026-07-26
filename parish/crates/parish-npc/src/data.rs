@@ -265,6 +265,8 @@ pub fn load_npcs_from_str(json: &str) -> Result<Vec<Npc>, ParishError> {
                 long_term_memory: LongTermMemory::new(),
                 knowledge: entry.knowledge.clone(),
                 state: NpcState::default(),
+                grounding_revision: Npc::fresh_grounding_revision(),
+                observed_activity_fingerprint: None,
                 deflated_summary: None,
                 reaction_log: ReactionLog::default(),
                 last_activity: None,

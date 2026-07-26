@@ -24,8 +24,8 @@
 	 *  (e.g. the chat log's time-rule separators). */
 	function timeOfDayLabel(hour: number): string {
 		if (hour >= 5 && hour < 7) return 'Dawn';
-		if (hour >= 7 && hour < 10) return 'Morning';
-		if (hour >= 10 && hour < 14) return 'Midday';
+		if (hour >= 7 && hour < 12) return 'Morning';
+		if (hour >= 12 && hour < 14) return 'Midday';
 		if (hour >= 14 && hour < 17) return 'Afternoon';
 		if (hour >= 17 && hour < 19) return 'Dusk';
 		if (hour >= 19 && hour < 23) return 'Night';

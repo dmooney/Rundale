@@ -20,7 +20,7 @@ mod schema;
 
 pub use async_adapter::AsyncDatabase;
 pub use branches::BranchInfo;
-pub use journal::SnapshotInfo;
+pub use journal::{RecoveryData, SnapshotInfo};
 
 use std::path::Path;
 
@@ -90,6 +90,11 @@ impl Database {
         journal::load_latest_snapshot(&self.conn, branch_id)
     }
 
+    /// Loads the latest snapshot and its journal tail in one read transaction.
+    pub fn load_recovery_data(&self, branch_id: i64) -> Result<Option<RecoveryData>, ParishError> {
+        journal::load_recovery_data(&self.conn, branch_id)
+    }
+
     /// Creates a new branch with the given name.
     ///
     /// Returns the new branch row id.
@@ -99,6 +104,37 @@ impl Database {
         parent_branch_id: Option<i64>,
     ) -> Result<i64, ParishError> {
         branches::create_branch(&self.conn, name, parent_branch_id)
+    }
+
+    /// Creates a branch and its initial snapshot in one SQLite transaction.
+    ///
+    /// A snapshot failure rolls back the branch row as well, so retrying the
+    /// same branch name cannot be blocked by an orphaned partial fork.
+    pub fn create_branch_with_snapshot(
+        &self,
+        name: &str,
+        parent_branch_id: Option<i64>,
+        snapshot: &GameSnapshot,
+    ) -> Result<(i64, i64), ParishError> {
+        let transaction = self.conn.unchecked_transaction().db_err()?;
+        let branch_id = branches::create_branch(&transaction, name, parent_branch_id)?;
+        let snapshot_id = journal::save_snapshot(&transaction, branch_id, snapshot)?;
+        transaction.commit().db_err()?;
+        Ok((branch_id, snapshot_id))
+    }
+
+    /// Deletes a branch and its cascade-owned snapshots/journal rows.
+    pub fn delete_branch(&self, branch_id: i64) -> Result<(), ParishError> {
+        let changed = self
+            .conn
+            .execute("DELETE FROM branches WHERE id = ?1", [branch_id])
+            .db_err()?;
+        if changed != 1 {
+            return Err(ParishError::Database(format!(
+                "branch id {branch_id} does not exist"
+            )));
+        }
+        Ok(())
     }
 
     /// Finds a branch by name.
@@ -125,6 +161,18 @@ impl Database {
         game_time: &str,
     ) -> Result<(), ParishError> {
         journal::append_event(&self.conn, branch_id, snapshot_id, event, game_time)
+    }
+
+    /// Appends a batch to the branch's latest snapshot atomically.
+    ///
+    /// Returns the selected snapshot id, or `None` when the branch has no
+    /// snapshot. Snapshot lookup and all inserts are one transaction.
+    pub fn append_events_to_latest_snapshot(
+        &self,
+        branch_id: i64,
+        events: &[(WorldEvent, String)],
+    ) -> Result<Option<i64>, ParishError> {
+        journal::append_events_to_latest_snapshot(&self.conn, branch_id, events)
     }
 
     /// Returns all journal events after a given snapshot for a branch.

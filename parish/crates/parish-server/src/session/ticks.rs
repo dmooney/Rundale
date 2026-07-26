@@ -82,6 +82,7 @@ pub(super) fn spawn_session_ticks(
         let (tx, writer_rx) = tokio::sync::mpsc::channel::<(
             CharacterLogManager,
             parish_core::world::events::GameEvent,
+            u64,
         )>(LOG_WRITER_QUEUE_CAPACITY);
 
         let writer_state = Arc::clone(&state);
@@ -107,7 +108,7 @@ pub(super) fn spawn_session_ticks(
             let mut manager = CharacterLogManager::new(&app_name, current_branch, true);
             let mut rx = {
                 let world = s.world.lock().await;
-                world.event_bus.subscribe()
+                world.event_bus.subscribe_contextual()
             };
             {
                 let world = s.world.lock().await;
@@ -120,7 +121,15 @@ pub(super) fn spawn_session_ticks(
                 tokio::select! {
                     _ = token.cancelled() => break,
                     result = rx.recv() => match result {
-                        Ok(event) => {
+                        Ok(envelope) => {
+                            let _persistence_guard = s.persistence_gate.lock().await;
+                            let current_epoch = {
+                                let world = s.world.lock().await;
+                                world.event_bus.context_epoch()
+                            };
+                            if envelope.context_epoch != current_epoch {
+                                continue;
+                            }
                             // Rebind manager when the active branch has changed
                             // (e.g. load_branch / create_branch). Without this the
                             // writer keeps appending to the original branch's
@@ -147,7 +156,11 @@ pub(super) fn spawn_session_ticks(
                             // the session is being evicted).
                             tokio::select! {
                                 _ = token.cancelled() => break,
-                                send_res = tx.send((manager.clone(), event)) => {
+                                send_res = tx.send((
+                                    manager.clone(),
+                                    envelope.event,
+                                    envelope.context_epoch,
+                                )) => {
                                     if send_res.is_err() {
                                         break;
                                     }
@@ -175,6 +188,7 @@ pub(super) fn spawn_session_ticks(
         let (tx, writer_rx) = tokio::sync::mpsc::channel::<(
             LocationLogManager,
             parish_core::world::events::GameEvent,
+            u64,
         )>(LOG_WRITER_QUEUE_CAPACITY);
 
         let writer_state = Arc::clone(&state);
@@ -200,7 +214,7 @@ pub(super) fn spawn_session_ticks(
             let mut manager = LocationLogManager::new(&app_name, current_branch, true);
             let mut rx = {
                 let world = s.world.lock().await;
-                world.event_bus.subscribe()
+                world.event_bus.subscribe_contextual()
             };
             {
                 let world = s.world.lock().await;
@@ -213,7 +227,15 @@ pub(super) fn spawn_session_ticks(
                 tokio::select! {
                     _ = token.cancelled() => break,
                     result = rx.recv() => match result {
-                        Ok(event) => {
+                        Ok(envelope) => {
+                            let _persistence_guard = s.persistence_gate.lock().await;
+                            let current_epoch = {
+                                let world = s.world.lock().await;
+                                world.event_bus.context_epoch()
+                            };
+                            if envelope.context_epoch != current_epoch {
+                                continue;
+                            }
                             // Rebind manager when the active branch has changed
                             // (e.g. load_branch / create_branch). Mirrors the
                             // character-log subscriber fix from #1011 (#1034).
@@ -237,7 +259,11 @@ pub(super) fn spawn_session_ticks(
                             // the session is being evicted).
                             tokio::select! {
                                 _ = token.cancelled() => break,
-                                send_res = tx.send((manager.clone(), event)) => {
+                                send_res = tx.send((
+                                    manager.clone(),
+                                    envelope.event,
+                                    envelope.context_epoch,
+                                )) => {
                                     if send_res.is_err() {
                                         break;
                                     }
@@ -269,16 +295,21 @@ pub(super) fn spawn_session_ticks(
             // no-ops internally while the shared flag is off.
             let mut rx = {
                 let world = s.world.lock().await;
-                world.event_bus.subscribe()
+                world.event_bus.subscribe_contextual()
             };
             loop {
                 tokio::select! {
                     _ = token.cancelled() => break,
                     result = rx.recv() => match result {
-                        Ok(event) => {
+                        Ok(envelope) => {
+                            let _persistence_guard = s.persistence_gate.lock().await;
                             let world = s.world.lock().await;
+                            if envelope.context_epoch != world.event_bus.context_epoch() {
+                                continue;
+                            }
                             let npc_mgr = s.npc_manager.lock().await;
-                            s.chat_transcript_log.process_event(&event, &world, &npc_mgr);
+                            s.chat_transcript_log
+                                .process_event(&envelope.event, &world, &npc_mgr);
                         }
                         Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => continue,
                         Err(tokio::sync::broadcast::error::RecvError::Closed) => break,
@@ -303,18 +334,14 @@ pub(super) fn spawn_session_ticks(
         handles.push(tokio::spawn(async move {
             let mut rx = {
                 let world = s.world.lock().await;
-                world.event_bus.subscribe()
+                world.event_bus.subscribe_contextual()
             };
             loop {
                 tokio::select! {
                     _ = token.cancelled() => break,
                     result = rx.recv() => match result {
-                        Ok(event) => {
-                            let mut buf = s.game_events.lock().await;
-                            if buf.len() >= crate::state::DEBUG_EVENT_CAPACITY {
-                                buf.pop_front();
-                            }
-                            buf.push_back(event);
+                        Ok(envelope) => {
+                            record_contextual_game_event(&s, envelope).await;
                         }
                         Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => continue,
                         Err(tokio::sync::broadcast::error::RecvError::Closed) => break,
@@ -338,6 +365,7 @@ pub(super) fn spawn_session_ticks(
                 }
 
                 {
+                    let _persistence_guard = s.persistence_gate.lock().await;
                     let world = s.world.lock().await;
                     let npc_manager = s.npc_manager.lock().await;
                     let mut snap = parish_core::ipc::snapshot_from_world(&world);
@@ -351,6 +379,7 @@ pub(super) fn spawn_session_ticks(
                 }
 
                 {
+                    let _persistence_guard = s.persistence_gate.lock().await;
                     // Snapshot the banshee flag outside the world/npc locks to avoid
                     // nesting config → world, which inverts the project-wide
                     // lock order.
@@ -456,8 +485,17 @@ pub(super) fn spawn_session_ticks(
                     _ = tokio::time::sleep(Duration::from_secs(AUTOSAVE_INTERVAL_SECS)) => {}
                 }
 
-                let save_path = s.save_identity.save_path.lock().await.clone();
-                let branch_id = *s.save_identity.current_branch_id.lock().await;
+                // Capture identity and world state, then commit the snapshot,
+                // under the same outer barrier used by task turns and
+                // lifecycle switches. This prevents a pre-task snapshot from
+                // committing after the task journal append.
+                let _persistence_guard = s.persistence_gate.lock().await;
+                let save_path_guard = s.save_identity.save_path.lock().await;
+                let branch_id_guard = s.save_identity.current_branch_id.lock().await;
+                let save_path = save_path_guard.clone();
+                let branch_id = *branch_id_guard;
+                drop(branch_id_guard);
+                drop(save_path_guard);
 
                 if let (Some(path), Some(bid)) = (save_path, branch_id) {
                     // Snapshot the world state before touching the DB lock.
@@ -568,56 +606,42 @@ pub(super) fn spawn_session_ticks(
                 }
 
                 // ── Check whether a Tier-2 tick is due ───────────────────────
-                let (needs_tick, in_flight, groups, time_desc, weather_str) = {
+                let (needs_tick, in_flight, groups, time_desc, weather_str, context_epoch) = {
+                    let _persistence_guard = s.persistence_gate.lock().await;
                     let world = s.world.lock().await;
                     let npc_mgr = s.npc_manager.lock().await;
                     let now = world.clock.now();
                     if !npc_mgr.needs_tier2_tick(now) || npc_mgr.tier2_in_flight() {
                         continue;
                     }
-                    use parish_core::npc::ticks::{Tier2Group, npc_snapshot_from_npc};
-                    let groups_map = npc_mgr.tier2_groups();
-                    if groups_map.is_empty() {
-                        continue;
-                    }
-                    let npc_names: std::collections::HashMap<_, _> =
-                        npc_mgr.all_npcs().map(|n| (n.id, n.name.clone())).collect();
-                    let groups: Vec<Tier2Group> = groups_map
-                        .into_iter()
-                        .filter_map(|(loc, npc_ids)| {
-                            let location_name = world
-                                .graph
-                                .get(loc)
-                                .map(|d| d.name.clone())
-                                .unwrap_or_else(|| format!("Location {}", loc.0));
-                            let npcs: Vec<_> = npc_ids
-                                .iter()
-                                .filter_map(|id| npc_mgr.get(*id))
-                                .map(|npc| npc_snapshot_from_npc(npc, &npc_names))
-                                .collect();
-                            if npcs.is_empty() {
-                                None
-                            } else {
-                                Some(Tier2Group {
-                                    location: loc,
-                                    location_name,
-                                    npcs,
-                                })
-                            }
-                        })
-                        .collect();
+                    let groups = parish_core::game_loop::build_tier2_groups(&world, &npc_mgr);
                     if groups.is_empty() {
                         continue;
                     }
                     let time_desc = world.clock.time_of_day().to_string();
                     let weather_str = world.weather.to_string();
-                    (true, false, groups, time_desc, weather_str)
+                    (
+                        true,
+                        false,
+                        groups,
+                        time_desc,
+                        weather_str,
+                        world.event_bus.context_epoch(),
+                    )
                 };
                 let _ = (needs_tick, in_flight); // consumed by the checks above
 
                 // Mark in-flight before releasing the lock so a concurrent tick
                 // cannot start a second batch.
                 {
+                    let _persistence_guard = s.persistence_gate.lock().await;
+                    let current_epoch = {
+                        let world = s.world.lock().await;
+                        world.event_bus.context_epoch()
+                    };
+                    if current_epoch != context_epoch {
+                        continue;
+                    }
                     let mut npc_mgr = s.npc_manager.lock().await;
                     npc_mgr.set_tier2_in_flight(true);
                 }
@@ -631,6 +655,14 @@ pub(super) fn spawn_session_ticks(
                 };
 
                 let Some(sim_client) = client_opt else {
+                    let _persistence_guard = s.persistence_gate.lock().await;
+                    let current_epoch = {
+                        let world = s.world.lock().await;
+                        world.event_bus.context_epoch()
+                    };
+                    if current_epoch != context_epoch {
+                        continue;
+                    }
                     s.npc_manager.lock().await.set_tier2_in_flight(false);
                     continue;
                 };
@@ -657,7 +689,11 @@ pub(super) fn spawn_session_ticks(
                 // ── Apply events and mint gossip under game-state locks ───────
                 // Lock ordering: world → npc_manager.
                 {
+                    let _persistence_guard = s.persistence_gate.lock().await;
                     let mut world = s.world.lock().await;
+                    if world.event_bus.context_epoch() != context_epoch {
+                        continue;
+                    }
                     let mut npc_mgr = s.npc_manager.lock().await;
                     let game_time = world.clock.now();
 
@@ -697,6 +733,34 @@ pub(super) fn spawn_session_ticks(
     handles
 }
 
+/// Applies one publish-time-stamped event to the debug/MCP event ring.
+///
+/// Kept as one seam so tests can deterministically queue an old-context
+/// envelope, advance the canonical epoch, and prove it is rejected without
+/// depending on Tokio task scheduling.
+async fn record_contextual_game_event(
+    state: &Arc<AppState>,
+    envelope: parish_core::world::events::ContextEventEnvelope,
+) -> bool {
+    let _persistence_guard = state.persistence_gate.lock().await;
+    let current_epoch = {
+        let world = state.world.lock().await;
+        world.event_bus.context_epoch()
+    };
+    if envelope.context_epoch != current_epoch {
+        return false;
+    }
+    let mut buf = state.game_events.lock().await;
+    if buf.len() >= crate::state::DEBUG_EVENT_CAPACITY {
+        buf.pop_front();
+    }
+    buf.push_back(envelope.event);
+    state
+        .total_game_events
+        .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    true
+}
+
 /// Drains the character-log writer channel serially, running each
 /// `process_event` under the world/npc blocking locks inside one
 /// `spawn_blocking`. Runs until the channel is closed (the subscriber loop
@@ -709,9 +773,18 @@ async fn run_character_log_writer(
     mut rx: tokio::sync::mpsc::Receiver<(
         parish_core::character_log::CharacterLogManager,
         parish_core::world::events::GameEvent,
+        u64,
     )>,
 ) {
-    while let Some((mgr, event)) = rx.recv().await {
+    while let Some((mgr, event, event_epoch)) = rx.recv().await {
+        let persistence_guard = state.persistence_gate.lock().await;
+        let current_epoch = {
+            let world = state.world.lock().await;
+            world.event_bus.context_epoch()
+        };
+        if event_epoch != current_epoch {
+            continue;
+        }
         let st = Arc::clone(&state);
         let handle = tokio::task::spawn_blocking(move || {
             let world = st.world.blocking_lock();
@@ -723,6 +796,7 @@ async fn run_character_log_writer(
             Ok(Err(e)) => tracing::warn!(error = %e, "character-log write failed"),
             Err(e) => tracing::warn!(error = %e, "character-log task panicked"),
         }
+        drop(persistence_guard);
     }
 }
 
@@ -732,9 +806,18 @@ async fn run_location_log_writer(
     mut rx: tokio::sync::mpsc::Receiver<(
         parish_core::location_log::LocationLogManager,
         parish_core::world::events::GameEvent,
+        u64,
     )>,
 ) {
-    while let Some((mgr, event)) = rx.recv().await {
+    while let Some((mgr, event, event_epoch)) = rx.recv().await {
+        let persistence_guard = state.persistence_gate.lock().await;
+        let current_epoch = {
+            let world = state.world.lock().await;
+            world.event_bus.context_epoch()
+        };
+        if event_epoch != current_epoch {
+            continue;
+        }
         let st = Arc::clone(&state);
         let handle = tokio::task::spawn_blocking(move || {
             let world = st.world.blocking_lock();
@@ -746,12 +829,18 @@ async fn run_location_log_writer(
             Ok(Err(e)) => tracing::warn!(error = %e, "location-log write failed"),
             Err(e) => tracing::warn!(error = %e, "location-log task panicked"),
         }
+        drop(persistence_guard);
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{AUTOSAVE_INTERVAL_SECS, LOG_WRITER_QUEUE_CAPACITY};
+    use std::sync::Arc;
+
+    use super::{
+        AUTOSAVE_INTERVAL_SECS, LOG_WRITER_QUEUE_CAPACITY, record_contextual_game_event,
+        run_character_log_writer,
+    };
 
     /// C4: the per-subscriber writer channel is bounded to
     /// `LOG_WRITER_QUEUE_CAPACITY` and its saturation behavior is **block, not
@@ -903,6 +992,125 @@ mod tests {
         token.cancel();
     }
 
+    #[tokio::test]
+    async fn debug_event_fan_in_rejects_queued_prior_context_envelope() {
+        use parish_core::world::events::GameEvent;
+
+        let state = crate::routes::tests::test_app_state();
+        let (mut rx, location, old_epoch, now) = {
+            let world = state.world.lock().await;
+            (
+                world.event_bus.subscribe_contextual(),
+                world.player_location,
+                world.event_bus.context_epoch(),
+                world.clock.now(),
+            )
+        };
+
+        {
+            let world = state.world.lock().await;
+            world.event_bus.publish(GameEvent::AddressedAbsentNpc {
+                name: "Old-context person".to_string(),
+                location,
+                timestamp: now,
+            });
+            world.event_bus.advance_context_epoch();
+        }
+        let old_envelope = rx.recv().await.unwrap();
+        assert_eq!(old_envelope.context_epoch, old_epoch);
+        assert!(
+            !record_contextual_game_event(&state, old_envelope).await,
+            "queued old-context envelope must be discarded"
+        );
+        assert!(state.game_events.lock().await.is_empty());
+        assert_eq!(
+            state
+                .total_game_events
+                .load(std::sync::atomic::Ordering::Relaxed),
+            0
+        );
+
+        {
+            let world = state.world.lock().await;
+            world.event_bus.publish(GameEvent::AddressedAbsentNpc {
+                name: "Current-context person".to_string(),
+                location,
+                timestamp: now,
+            });
+        }
+        let current_envelope = rx.recv().await.unwrap();
+        assert!(
+            record_contextual_game_event(&state, current_envelope).await,
+            "current-context envelope must be retained"
+        );
+        let events = state.game_events.lock().await;
+        assert_eq!(events.len(), 1);
+        assert!(matches!(
+            events.front(),
+            Some(GameEvent::AddressedAbsentNpc { name, .. })
+                if name == "Current-context person"
+        ));
+    }
+
+    #[tokio::test]
+    async fn persistent_character_log_writer_rejects_queued_prior_context_event() {
+        use parish_core::character_log::CharacterLogManager;
+        use parish_core::world::events::GameEvent;
+
+        let state = crate::routes::tests::test_app_state();
+        let temp = tempfile::tempdir().unwrap();
+        let manager = CharacterLogManager::new_at_dir(temp.path().to_path_buf(), true);
+        let player_log = manager.player_log_path();
+        let (location, old_epoch, now) = {
+            let world = state.world.lock().await;
+            (
+                world.player_location,
+                world.event_bus.context_epoch(),
+                world.clock.now(),
+            )
+        };
+        let (tx, rx) = tokio::sync::mpsc::channel(2);
+        let gate = state.persistence_gate.lock().await;
+        let writer_state = Arc::clone(&state);
+        let writer = tokio::spawn(async move {
+            run_character_log_writer(writer_state, rx).await;
+        });
+
+        tx.send((
+            manager.clone(),
+            GameEvent::AddressedAbsentNpc {
+                name: "Old-context person".to_string(),
+                location,
+                timestamp: now,
+            },
+            old_epoch,
+        ))
+        .await
+        .unwrap();
+        let current_epoch = {
+            let world = state.world.lock().await;
+            world.event_bus.advance_context_epoch()
+        };
+        drop(gate);
+        tx.send((
+            manager,
+            GameEvent::AddressedAbsentNpc {
+                name: "Current-context person".to_string(),
+                location,
+                timestamp: now,
+            },
+            current_epoch,
+        ))
+        .await
+        .unwrap();
+        drop(tx);
+        writer.await.unwrap();
+
+        let log = std::fs::read_to_string(player_log).unwrap();
+        assert!(!log.contains("Old-context person"));
+        assert!(log.contains("Current-context person"));
+    }
+
     /// Regression test for #230: the autosave path must reuse a single
     /// `AsyncDatabase` across multiple saves rather than reopening the file
     /// (and re-running `migrate()`) on every tick.
@@ -949,6 +1157,7 @@ mod tests {
                 gossip_network: Default::default(),
                 conversation_log: Default::default(),
                 player_name: None,
+                player_progress: Default::default(),
                 npcs_who_know_player_name: Default::default(),
             }
         }

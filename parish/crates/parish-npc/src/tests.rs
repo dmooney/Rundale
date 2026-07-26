@@ -8,7 +8,59 @@ fn test_npc_test_npc() {
     assert_eq!(npc.name, "Padraig O'Brien");
     assert_eq!(npc.age, 58);
     assert_eq!(npc.occupation, "Publican");
-    assert_eq!(npc.location, LocationId(1));
+    assert_eq!(npc.location(), LocationId(1));
+}
+
+#[test]
+fn grounding_sensitive_setters_advance_lineage_on_location_state_and_schedule_changes() {
+    use crate::types::{ScheduleEntry, ScheduleVariant};
+    use chrono::{TimeZone, Utc};
+
+    let mut npc = Npc::new_test_npc();
+    let initial = npc.grounding_revision();
+
+    npc.set_location(npc.location());
+    assert_eq!(
+        npc.grounding_revision(),
+        initial,
+        "reapplying the same location must be a no-op"
+    );
+    npc.set_location(LocationId(2));
+    let after_location = npc.grounding_revision();
+    assert!(after_location > initial);
+
+    npc.set_state(NpcState::InTransit {
+        from: LocationId(2),
+        to: LocationId(3),
+        arrives_at: Utc.with_ymd_and_hms(1820, 3, 20, 11, 0, 0).unwrap(),
+        activity: None,
+    });
+    let after_state = npc.grounding_revision();
+    assert!(after_state > after_location);
+
+    let schedule = SeasonalSchedule {
+        variants: vec![ScheduleVariant {
+            season: None,
+            day_type: None,
+            entries: vec![ScheduleEntry {
+                start_hour: 10,
+                end_hour: 12,
+                location: LocationId(3),
+                activity: "mending nets".to_string(),
+                cuaird: false,
+            }],
+        }],
+    };
+    npc.set_schedule(Some(schedule.clone()));
+    let after_schedule = npc.grounding_revision();
+    assert!(after_schedule > after_state);
+
+    npc.set_schedule(Some(schedule));
+    assert_eq!(
+        npc.grounding_revision(),
+        after_schedule,
+        "reapplying identical authored schedule data must be a no-op"
+    );
 }
 
 #[test]
@@ -230,7 +282,8 @@ fn test_npc_json_response_deserialize_full() {
             "action": "speaks",
             "mood": "friendly",
             "internal_thought": "Haven't seen this one before.",
-            "irish_words": [{"word": "Dia dhuit", "pronunciation": "DEE-ah gwit", "meaning": "Hello"}]
+            "irish_words": [{"word": "Dia dhuit", "pronunciation": "DEE-ah gwit", "meaning": "Hello"}],
+            "assigned_task": "Dig over the potato patch."
         }"#;
     let resp: NpcJsonResponse = serde_json::from_str(json).unwrap();
     assert_eq!(resp.dialogue, "Ah, good morning to ye!");
@@ -241,6 +294,10 @@ fn test_npc_json_response_deserialize_full() {
         Some("Haven't seen this one before.".to_string())
     );
     assert_eq!(resp.language_hints.len(), 1);
+    assert_eq!(
+        resp.assigned_task.as_deref(),
+        Some("Dig over the potato patch.")
+    );
 }
 
 #[test]
@@ -252,6 +309,7 @@ fn test_npc_json_response_deserialize_minimal() {
     assert_eq!(resp.mood, "");
     assert!(resp.internal_thought.is_none());
     assert!(resp.language_hints.is_empty());
+    assert!(resp.assigned_task.is_none());
 }
 
 #[test]
@@ -262,6 +320,35 @@ fn test_parse_npc_stream_response_json() {
     let meta = parsed.metadata.unwrap();
     assert_eq!(meta.action, "speaks");
     assert_eq!(meta.mood, "friendly");
+    assert!(meta.assigned_task.is_none());
+}
+
+#[test]
+fn test_parse_npc_stream_response_bounds_assigned_task_description() {
+    let oversized = "p".repeat(parish_types::MAX_TASK_DESCRIPTION_CHARS + 17);
+    let text = serde_json::json!({
+        "dialogue": "Start with the potato patch.",
+        "assigned_task": format!("  {oversized}  ")
+    })
+    .to_string();
+
+    let parsed = parse_npc_stream_response(&text);
+    let assigned_task = parsed.metadata.unwrap().assigned_task.unwrap();
+
+    assert_eq!(
+        assigned_task.chars().count(),
+        parish_types::MAX_TASK_DESCRIPTION_CHARS
+    );
+    assert!(!assigned_task.starts_with(char::is_whitespace));
+}
+
+#[test]
+fn test_parse_npc_stream_response_drops_blank_assigned_task() {
+    let parsed = parse_npc_stream_response(
+        r#"{"dialogue":"There is no work for ye today.","assigned_task":" \n\t "}"#,
+    );
+
+    assert!(parsed.metadata.unwrap().assigned_task.is_none());
 }
 
 #[test]
@@ -351,6 +438,7 @@ fn test_parse_npc_stream_response_empty_json() {
     assert_eq!(meta.mood, "");
     assert!(meta.internal_thought.is_none());
     assert!(meta.language_hints.is_empty());
+    assert!(meta.assigned_task.is_none());
 }
 
 #[test]
@@ -856,6 +944,7 @@ fn test_tier2_system_no_unsubstituted_placeholders() {
     let group = Tier2Group {
         location: LocationId(2),
         location_name: "Darcy's Pub".to_string(),
+        other_location_names: vec!["The Mill".to_string()],
         npcs: vec![
             NpcSnapshot {
                 id: NpcId(1),
@@ -866,6 +955,9 @@ fn test_tier2_system_no_unsubstituted_placeholders() {
                 intelligence_prose: "Sharp-minded and perceptive.".to_string(),
                 mood: "thoughtful".to_string(),
                 relationship_summary: String::new(),
+                current_activity: Some("weaving by the hearth".to_string()),
+                grounding_revision: 1,
+                activity_fingerprint: "interval-brigid".to_string(),
             },
             NpcSnapshot {
                 id: NpcId(7),
@@ -876,6 +968,9 @@ fn test_tier2_system_no_unsubstituted_placeholders() {
                 intelligence_prose: "Plain-spoken and blunt.".to_string(),
                 mood: "tired".to_string(),
                 relationship_summary: String::new(),
+                current_activity: Some("waiting for a drink".to_string()),
+                grounding_revision: 2,
+                activity_fingerprint: "interval-seamus".to_string(),
             },
         ],
     };

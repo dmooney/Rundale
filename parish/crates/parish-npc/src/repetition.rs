@@ -16,6 +16,12 @@ use std::sync::OnceLock;
 use crate::types::RelationshipKind;
 use parish_types::time::TimeOfDay;
 
+/// Maximum number of spoken sentences in one NPC reply.
+///
+/// The Tier-1 prompt interpolates this same value so the generation contract
+/// and deterministic post-generation guard cannot drift apart.
+pub(crate) const MAX_DIALOGUE_SENTENCES: usize = 3;
+
 /// Normalizes a dialogue line for repetition comparison.
 ///
 /// Lower-cases, collapses internal whitespace to single spaces, and trims
@@ -255,16 +261,33 @@ pub fn dedup_farewell_tokens(dialogue: &str) -> String {
 ///   trimmed (empty `&str` when there is no second sentence).
 fn split_opener_remainder(dialogue: &str) -> (String, &str) {
     let sentences = split_sentences(dialogue);
-    let normalized = match sentences.first() {
-        Some(first) => normalize_for_repetition(first),
-        None => normalize_for_repetition(dialogue),
+    // A leading title abbreviation is not a standalone opener sentence.
+    // Treat "Fr. Declan …" (and equivalent common titles) as one unit so the
+    // cross-turn opener deduper cannot strip only the honorific (#1228).
+    let opener_sentence_count = sentences
+        .first()
+        .map(|first| normalize_for_repetition(first))
+        .filter(|first| {
+            matches!(
+                first.as_str(),
+                "fr" | "mr" | "mrs" | "ms" | "dr" | "rev" | "sr" | "st"
+            )
+        })
+        .map_or(1, |_| 2)
+        .min(sentences.len());
+    let opener_len: usize = sentences
+        .iter()
+        .take(opener_sentence_count)
+        .map(String::len)
+        .sum();
+    let normalized = match opener_len {
+        0 => normalize_for_repetition(dialogue),
+        len => normalize_for_repetition(&dialogue[..len]),
     };
-    let remainder = if sentences.len() < 2 {
+    let remainder = if sentences.len() <= opener_sentence_count {
         ""
     } else {
-        // The first sentence spans [0, sentences[0].len()) bytes in `dialogue`;
-        // everything after it (leading whitespace trimmed) is the remainder.
-        dialogue[sentences[0].len()..].trim_start()
+        dialogue[opener_len..].trim_start()
     };
     (normalized, remainder)
 }
@@ -1805,7 +1828,8 @@ pub fn strip_consecutive_short_phrase_repeat(dialogue: &str) -> String {
     dialogue.to_string()
 }
 
-/// Trims a multi-sentence NPC reply to at most `MAX_SENTENCE_COUNT` sentences
+/// Trims a multi-sentence NPC reply to at most [`MAX_DIALOGUE_SENTENCES`]
+/// sentences
 /// (#1472 — hard length cap).
 ///
 /// This is the blunt backstop for run-on replies that the surgical dedup guards
@@ -1815,25 +1839,22 @@ pub fn strip_consecutive_short_phrase_repeat(dialogue: &str) -> String {
 ///
 /// Behavior:
 /// - Splits on terminal punctuation (`.`, `!`, `?`, `…`) using [`split_sentences`].
-/// - Keeps the first `MAX_SENTENCE_COUNT` sentence units.
-/// - If the ORIGINAL final sentence is a question (ends with `?`) and would be
-///   cut by the cap, it is preserved as the last sentence of the result — keeping
-///   first (N-1) sentences plus the trailing question — so the NPC remains
-///   interactive. If the kept-N sentences already end with a `?`, no swap is made.
-/// - Short replies (<= `MAX_SENTENCE_COUNT` sentences) are returned unchanged.
-/// - Short replies (<= 45 words) are returned unchanged by the default
-///   4-sentence cap even when they contain 5 terse sentence units (#1561).
+/// - When the reply exceeds the cap and opens with a standalone greeting,
+///   drops that greeting before substantive content.
+/// - Keeps the first N remaining sentence units in their original order. It
+///   never replaces a substantive middle sentence merely to retain a trailing
+///   question.
+/// - Replies already within the cap are returned unchanged.
 ///
-/// The cap is intentionally conservative (4 sentences) — a natural NPC
-/// turn should deliver one thought in 2-3 sentences and optionally ask one
-/// question; 4 gives generous headroom without admitting multi-beat rambles.
+/// Three sentences matches the Tier-1 generation contract: one conversational
+/// beat with enough room for an answer, a supporting detail, and a question.
 pub fn cap_sentence_count(dialogue: &str) -> String {
-    cap_sentence_count_with_limit(dialogue, 4)
+    cap_sentence_count_with_limit(dialogue, MAX_DIALOGUE_SENTENCES)
 }
 
 /// Applies the sentence-count cap at a specific `max` limit (#1491).
 ///
-/// Factored out of `cap_sentence_count` so both the default (4-sentence) cap and
+/// Factored out of `cap_sentence_count` so both the default 3-sentence cap and
 /// the mood-aware tighter cap share one implementation.
 fn cap_sentence_count_with_limit(dialogue: &str, max: usize) -> String {
     let sentences = split_sentences(dialogue);
@@ -1848,32 +1869,91 @@ fn cap_sentence_count_with_limit(dialogue: &str, max: usize) -> String {
         return dialogue.trim().to_string();
     }
 
-    const DEFAULT_SHORT_REPLY_WORD_BUDGET: usize = 45;
-    if max >= 4 && dialogue.split_whitespace().count() <= DEFAULT_SHORT_REPLY_WORD_BUDGET {
-        return dialogue.trim().to_string();
+    if max == 0 {
+        return String::new();
     }
 
-    // Keep the first N sentences.
-    let mut kept: Vec<&str> = sentences[..max].to_vec();
+    let candidates = if is_standalone_greeting(sentences[0]) {
+        &sentences[1..]
+    } else {
+        sentences.as_slice()
+    };
 
-    // If the original reply ends with a question that would be cut, preserve it.
-    // Only do this when the last sentence is genuinely interrogative (ends with '?')
-    // and the already-kept slice does not already end with a question.
-    let original_last = *sentences.last().expect("non-empty checked above");
-    let kept_last = *kept.last().expect("max >= 1");
-    if original_last.ends_with('?') && !kept_last.ends_with('?') {
-        // Swap out the Nth sentence for the trailing question so the reply
-        // stays at exactly max sentences and ends interactively.
-        *kept.last_mut().expect("non-empty") = original_last;
+    candidates[..candidates.len().min(max)].join(" ")
+}
+
+/// Returns true when a sentence is only a salutation, optional polite
+/// addressee, and no substantive clause.
+///
+/// Proper-name tokens retain their initial capital in `sentence`, allowing
+/// replies such as "Ah, good day to you, Aiden Carney." without treating
+/// "Good morning, the road is flooded." as a disposable greeting.
+fn is_standalone_greeting(sentence: &str) -> bool {
+    let words: Vec<(String, bool)> = sentence
+        .split_whitespace()
+        .filter_map(|token| {
+            let stripped =
+                token.trim_matches(|c: char| !c.is_alphabetic() && c != '\'' && c != '\u{2019}');
+            if stripped.is_empty() {
+                None
+            } else {
+                Some((
+                    stripped.to_lowercase(),
+                    stripped.chars().next().is_some_and(char::is_uppercase),
+                ))
+            }
+        })
+        .collect();
+    if words.is_empty() {
+        return false;
     }
 
-    kept.join(" ")
+    let mut index = 0;
+    if matches!(words[index].0.as_str(), "ah" | "aye" | "well" | "sure") {
+        index += 1;
+    }
+    if index >= words.len() {
+        return false;
+    }
+
+    match words[index].0.as_str() {
+        "good"
+            if words.get(index + 1).is_some_and(|(word, _)| {
+                matches!(
+                    word.as_str(),
+                    "morning" | "mornin" | "mornin'" | "day" | "afternoon" | "evening"
+                )
+            }) =>
+        {
+            index += 2;
+        }
+        "dia"
+            if words
+                .get(index + 1)
+                .is_some_and(|(word, _)| word == "dhuit") =>
+        {
+            index += 2;
+        }
+        "hello" | "hullo" => {
+            index += 1;
+        }
+        _ => return false,
+    }
+
+    const POLITE_ADDRESS_WORDS: &[&str] = &[
+        "to", "ye", "you", "there", "friend", "stranger", "sir", "madam", "ma'am", "mister",
+        "mistress", "miss", "widow", "lad", "lass", "child", "mo", "chara",
+    ];
+
+    words[index..].iter().all(|(word, initially_upper)| {
+        *initially_upper || POLITE_ADDRESS_WORDS.contains(&word.as_str())
+    })
 }
 
 // ── #1491 — mood-aware sentence cap ───────────────────────────────────────────
 
 /// Mood keywords that indicate an NPC should get a tighter (2-sentence) cap
-/// instead of the default 4 (#1491, #1566).
+/// instead of the default 3 (#1491, #1566).
 const TERSE_MOOD_KEYWORDS: &[&str] = &[
     "busy",
     "sharp",
@@ -1895,7 +1975,7 @@ const TERSE_MOOD_KEYWORDS: &[&str] = &[
 /// Applies the sentence-count cap with optional mood-aware tightening (#1491).
 ///
 /// For terse moods (matching `TERSE_MOOD_KEYWORDS`), caps at 2 sentences;
-/// otherwise uses the default 4. Exposed for tests.
+/// otherwise uses the shared default. Exposed for tests.
 ///
 /// Gate: `npc-mood-aware-sentence-cap` (default-on; callers check the flag).
 pub fn cap_sentence_count_for_mood(dialogue: &str, mood: Option<&str>) -> String {
@@ -1905,10 +1985,10 @@ pub fn cap_sentence_count_for_mood(dialogue: &str, mood: Option<&str>) -> String
             if TERSE_MOOD_KEYWORDS.iter().any(|kw| m_lower.contains(kw)) {
                 2
             } else {
-                4
+                MAX_DIALOGUE_SENTENCES
             }
         }
-        None => 4,
+        None => MAX_DIALOGUE_SENTENCES,
     };
     cap_sentence_count_with_limit(dialogue, cap)
 }
@@ -2018,7 +2098,7 @@ pub fn collapse_nearby_phrase_repeat(dialogue: &str) -> String {
 /// Runs the full verbosity guard pipeline with optional mood-aware sentence cap (#1491).
 ///
 /// When `mood` is `Some` and contains a "busy" mood keyword, the sentence cap
-/// is reduced to 2 (from the default 4) so a busy NPC stays terse.
+/// is reduced to 2 (from the default 3) so a busy NPC stays terse.
 ///
 /// Gate: `npc-mood-aware-sentence-cap` (default-on; callers check the flag).
 pub fn guard_verbosity_runons_with_mood(dialogue: &str, mood: Option<&str>) -> String {
@@ -2037,10 +2117,12 @@ pub fn guard_verbosity_runons_with_mood(dialogue: &str, mood: Option<&str>) -> S
     // that the consecutive guard (step 5, strictly adjacent) misses.
     let after_nearby = collapse_nearby_phrase_repeat(&after_consec_repeat);
     let after_distributed = collapse_distributed_repeated_sentences(&after_nearby);
-    let after_total_q = cap_total_questions(&after_distributed);
+    // Cap in semantic order before question cleanup. This prevents a trailing
+    // question from displacing a direct answer when the reply is shortened.
+    let after_sentence_cap = cap_sentence_count_for_mood(&after_distributed, mood);
+    let after_total_q = cap_total_questions(&after_sentence_cap);
     let after_trailing_q = cap_trailing_questions(&after_total_q);
-    let after_sentence_cap = cap_sentence_count_for_mood(&after_trailing_q, mood);
-    cap_word_count(&after_sentence_cap)
+    cap_word_count(&after_trailing_q)
 }
 
 /// Known mood adjectives that the Qwen2.5-14B model leaks as bare words at the
@@ -2289,7 +2371,7 @@ pub fn collapse_degenerate_phrase_loop(dialogue: &str) -> String {
 // ── #1489 — word-count cap guard ──────────────────────────────────────────────
 //
 // Some generations run 43–47 s and hit the token cap, producing a reply that
-// may be 200+ words across 4 or fewer sentences (so `cap_sentence_count` does
+// may be 200+ words across 3 or fewer sentences (so `cap_sentence_count` does
 // not trim it). A word-count cap is the deterministic backstop: if the reply
 // exceeds MAX_WORDS words, trim at the last sentence boundary within the first
 // MAX_WORDS words. This bounds time-to-display and forces the NPC to be concise.
@@ -2307,7 +2389,7 @@ pub fn collapse_degenerate_phrase_loop(dialogue: &str) -> String {
 ///   is one long unpunctuated run), the first `MAX_WORDS` words are returned
 ///   with a closing period added.
 ///
-/// Conservative: `MAX_WORDS = 80`. A natural 3–4 sentence NPC reply in
+/// Conservative: `MAX_WORDS = 80`. A natural 2–3 sentence NPC reply in
 /// Hiberno-English is 40–60 words; 80 words gives generous headroom (≈ 5
 /// sentences at normal length) while preventing multi-hundred-word runaways.
 pub fn cap_word_count(dialogue: &str) -> String {
@@ -2382,22 +2464,21 @@ pub fn cap_word_count(dialogue: &str) -> String {
 ///    Catches "tell me, tell me" and similar 2–4 word phrases repeated exactly
 ///    twice in a row with only punctuation between occurrences.
 /// 7. Collapse non-consecutive near-duplicate sentences ([`collapse_distributed_repeated_sentences`]).
-/// 8. Cap total questions in the whole reply to at most 2 ([`cap_total_questions`]).
-/// 9. Cap trailing question stack to one ([`cap_trailing_questions`]).
-/// 10. Hard sentence-count cap: trim to at most 4 sentences ([`cap_sentence_count`], #1472).
-///     This is the blunt backstop for paraphrased multi-beat rambles that the surgical
-///     guards (steps 6-8) cannot catch.
+/// 8. Hard sentence-count cap: trim to at most 3 sentences ([`cap_sentence_count`], #1472).
+///    This is the blunt backstop for paraphrased multi-beat rambles that the surgical
+///    guards (steps 6-7) cannot catch.
+/// 9. Cap total questions in the whole reply to at most 2 ([`cap_total_questions`]).
+/// 10. Cap trailing question stack to one ([`cap_trailing_questions`]).
 /// 11. **Word-count cap**: trim to at most 80 words at a clean sentence boundary
 ///     ([`cap_word_count`], #1489). Final backstop for long-but-few-sentence runs.
 ///
 /// Steps 6 and 7 are the #1460 core fix for distributed / interleaved repetition
 /// that `collapse_repeated_sentences` (which only handles consecutive duplicates,
-/// called upstream by `guard_against_repetition`) does not catch. Step 8 keeps
-/// the earlier trailing-question guard in place as a final cleanup. Step 9 runs
-/// before step 10 so it operates on already-cleaned text, giving the surgical
-/// guards their best shot before the blunt caps apply.
+/// called upstream by `guard_against_repetition`) does not catch. Step 8 caps
+/// semantic content in its original order before steps 9 and 10 clean up excess
+/// questions, so a tail question cannot displace a direct answer.
 ///
-/// Conservative — does not alter legitimate prose within 4 sentences and 80 words.
+/// Conservative — does not alter legitimate prose within 3 sentences and 80 words.
 pub fn guard_verbosity_runons(dialogue: &str) -> String {
     if dialogue.trim().is_empty() {
         return dialogue.to_string();
@@ -2416,10 +2497,12 @@ pub fn guard_verbosity_runons(dialogue: &str) -> String {
     // that the consecutive guard (step 5, strictly adjacent) misses.
     let after_nearby = collapse_nearby_phrase_repeat(&after_consec_repeat);
     let after_distributed = collapse_distributed_repeated_sentences(&after_nearby);
-    let after_total_q = cap_total_questions(&after_distributed);
+    // Cap in semantic order before question cleanup. This prevents a trailing
+    // question from displacing a direct answer when the reply is shortened.
+    let after_sentence_cap = cap_sentence_count(&after_distributed);
+    let after_total_q = cap_total_questions(&after_sentence_cap);
     let after_trailing_q = cap_trailing_questions(&after_total_q);
-    let after_sentence_cap = cap_sentence_count(&after_trailing_q);
-    cap_word_count(&after_sentence_cap)
+    cap_word_count(&after_trailing_q)
 }
 
 // ── #1477 — wrong-location reference guard ────────────────────────────────────
@@ -2656,10 +2739,12 @@ fn dialogue_claims_identity(dialogue: &str, name: &str) -> bool {
     // match regardless of quote style.
     let lower = dialogue.to_lowercase().replace('\u{2019}', "'");
     let name_lower = name.to_lowercase().replace('\u{2019}', "'");
-
-    // Must contain the name at all.
-    if !lower.contains(&name_lower) {
-        return false;
+    let mut name_aliases = vec![name_lower.clone()];
+    if let Some(rest) = name_lower
+        .strip_prefix("fr. ")
+        .or_else(|| name_lower.strip_prefix("fr "))
+    {
+        name_aliases.push(format!("father {rest}"));
     }
 
     // First-person identity claim patterns, case-insensitive.
@@ -2678,13 +2763,42 @@ fn dialogue_claims_identity(dialogue: &str, name: &str) -> bool {
         "'tis ",  // Hiberno-English contraction
     ];
 
-    for prefix in IDENTITY_PREFIXES {
-        let pattern = format!("{}{}", prefix, name_lower);
-        if lower.contains(&pattern) {
-            return true;
+    for name_alias in &name_aliases {
+        for prefix in IDENTITY_PREFIXES {
+            let pattern = format!("{prefix}{name_alias}");
+            let mut search_from = 0;
+            while let Some(relative) = lower[search_from..].find(&pattern) {
+                let end = search_from + relative + pattern.len();
+                let boundary_is_valid = lower[end..]
+                    .chars()
+                    .next()
+                    .is_none_or(|next| !next.is_alphanumeric() && next != '\'');
+                if boundary_is_valid {
+                    return true;
+                }
+                search_from = end;
+            }
+        }
+
+        // Hiberno-English/postfixed forms put the name before the identifying
+        // phrase: "Peig Hannigan's the name" / "Peig Hannigan is the name".
+        for suffix in ["'s the name", " is the name"] {
+            if lower.contains(&format!("{name_alias}{suffix}")) {
+                return true;
+            }
         }
     }
     false
+}
+
+/// Returns whether the delivered dialogue explicitly establishes the
+/// speaker's canonical identity.
+///
+/// The full authored name must be spoken in a first-person identity form. A
+/// metadata field, an exchange occurring, or a third-person mention is not
+/// enough to reveal an anonymous NPC's name (#1776).
+pub fn dialogue_self_identifies_speaker(dialogue: &str, speaker_name: &str) -> bool {
+    dialogue_claims_identity(dialogue, speaker_name)
 }
 
 /// Post-generation guard for wrong-speaker identity (#1475).
@@ -2788,6 +2902,537 @@ pub fn guard_wrong_speaker_identity(
     }
 
     dialogue.to_string()
+}
+
+// ── #1779 / #1786 / #1788 / #1790 — semantic dialogue contracts ─────────────
+
+fn mood_rejects_warm_pleasantry(mood: &str) -> bool {
+    let mood = mood.to_lowercase();
+    [
+        "sharp",
+        "curt",
+        "caustic",
+        "acerbic",
+        "irritat",
+        "frustrat",
+        "annoyed",
+        "grumpy",
+        "angry",
+        "furious",
+        "irate",
+        "bitter",
+        "resentful",
+        "sour",
+        "suspicious",
+        "wary",
+        "distrustful",
+        "busy",
+        "distracted",
+        "preoccupied",
+    ]
+    .iter()
+    .any(|keyword| mood.contains(keyword))
+}
+
+fn is_warm_pleasantry(sentence: &str) -> bool {
+    let sentence = normalize_for_repetition(sentence)
+        .replace('\u{2019}', "'")
+        .trim_start_matches("ah ")
+        .trim_start_matches("well ")
+        .to_string();
+    [
+        "good morning",
+        "good day",
+        "fine morning",
+        "fine day",
+        "welcome",
+        "glad to see ye",
+        "glad to see you",
+        "lovely to see ye",
+        "lovely to see you",
+        "cead mile failte",
+        "céad míle fáilte",
+    ]
+    .iter()
+    .any(|opener| sentence.starts_with(opener))
+}
+
+fn dialogue_expresses_negative_register(dialogue: &str) -> bool {
+    let dialogue = normalize_for_repetition(&dialogue.replace('\u{2019}', "'"));
+    [
+        "make it quick",
+        "quickly then",
+        "plainly then",
+        "if ye must know",
+        "if you must know",
+        "little patience",
+        "no patience",
+        "don't have time",
+        "do not have time",
+        "not in the mood",
+        "mind yourself",
+        "spare me",
+        "don't know ye",
+        "do not know ye",
+        "don't know you",
+        "do not know you",
+        "what do ye want",
+        "what do you want",
+        "leave me be",
+        "enough now",
+    ]
+    .iter()
+    .any(|marker| dialogue.contains(marker))
+}
+
+fn negative_register_prefix(mood: &str) -> &'static str {
+    let mood = mood.to_lowercase();
+    if ["bitter", "resentful", "sour"]
+        .iter()
+        .any(|keyword| mood.contains(keyword))
+    {
+        "If ye must know—"
+    } else if ["suspicious", "wary", "distrustful"]
+        .iter()
+        .any(|keyword| mood.contains(keyword))
+    {
+        "Mind, I don't know ye—"
+    } else if ["busy", "distracted", "preoccupied"]
+        .iter()
+        .any(|keyword| mood.contains(keyword))
+    {
+        "Quickly, then—"
+    } else if [
+        "irritat", "frustrat", "annoyed", "grumpy", "angry", "furious", "irate",
+    ]
+    .iter()
+    .any(|keyword| mood.contains(keyword))
+    {
+        "Make it quick—"
+    } else {
+        "Plainly, then—"
+    }
+}
+
+/// Makes an explicitly negative authored mood audible in the delivered line.
+///
+/// This is intentionally narrower than sentiment analysis. It removes a
+/// contradictory standalone warm opener, preserves every substantive sentence,
+/// and—only when the remainder has no unmistakable negative-register marker—
+/// adds one compact mood-specific spoken cue. The cue has no sentence-ending
+/// punctuation, so it cannot consume a sentence from the reply budget.
+pub fn guard_mood_register(dialogue: &str, canonical_mood: &str) -> String {
+    if dialogue.trim().is_empty() || !mood_rejects_warm_pleasantry(canonical_mood) {
+        return dialogue.to_string();
+    }
+    let sentences = split_sentences(dialogue);
+    let without_warm_opener = if sentences
+        .first()
+        .is_some_and(|sentence| is_warm_pleasantry(sentence))
+    {
+        tracing::warn!(
+            mood = %canonical_mood,
+            "mood-register guard removed contradictory warm pleasantry (#1779)"
+        );
+        sentences[1..]
+            .iter()
+            .map(|sentence| sentence.trim())
+            .collect::<Vec<_>>()
+            .join(" ")
+    } else {
+        dialogue.to_string()
+    };
+    let substantive = if without_warm_opener.trim().is_empty() {
+        "What is it?".to_string()
+    } else {
+        without_warm_opener
+    };
+    if dialogue_expresses_negative_register(&substantive) {
+        return substantive;
+    }
+
+    tracing::warn!(
+        mood = %canonical_mood,
+        "mood-register guard added an authored negative-register cue (#1779)"
+    );
+    format!(
+        "{}{}",
+        negative_register_prefix(canonical_mood),
+        substantive.trim_start()
+    )
+}
+
+fn sentence_claims_prior_contact(sentence: &str) -> bool {
+    let sentence = normalize_for_repetition(&sentence.replace('\u{2019}', "'"));
+    [
+        "i've seen ye around",
+        "i have seen ye around",
+        "i've seen you around",
+        "i have seen you around",
+        "seen ye about",
+        "seen you about",
+        "we haven't spoken",
+        "we have not spoken",
+        "we've spoken before",
+        "we have spoken before",
+        "good to see ye again",
+        "good to see you again",
+        "welcome back",
+        "we meet again",
+        "last time we spoke",
+        "as i told ye",
+        "as i told you",
+        "as we discussed",
+    ]
+    .iter()
+    .any(|claim| sentence.contains(claim))
+}
+
+/// Removes explicit prior-familiarity claims from an NPC's first exchange with
+/// the player (#1786).
+pub fn guard_unfounded_first_contact_familiarity(
+    dialogue: &str,
+    had_prior_exchange: bool,
+) -> String {
+    if dialogue.trim().is_empty() || had_prior_exchange {
+        return dialogue.to_string();
+    }
+    let sentences = split_sentences(dialogue);
+    let kept: Vec<&str> = sentences
+        .iter()
+        .filter(|sentence| !sentence_claims_prior_contact(sentence))
+        .map(|sentence| sentence.trim())
+        .collect();
+    if kept.len() == sentences.len() {
+        return dialogue.to_string();
+    }
+
+    tracing::warn!("first-contact guard removed unfounded prior familiarity (#1786)");
+    if kept.is_empty() {
+        "Aye. What brings ye here?".to_string()
+    } else {
+        kept.join(" ")
+    }
+}
+
+fn player_asks_for_firsthand_evidence(player_input: &str) -> bool {
+    let input = normalize_for_repetition(&player_input.replace('\u{2019}', "'"));
+    (input.contains("have you seen")
+        || input.contains("have ye seen")
+        || input.contains("did you see")
+        || input.contains("did ye see")
+        || input.contains("with your own eyes")
+        || input.contains("with yer own eyes")
+        || input.contains("seen something here yourself"))
+        && (input.contains("or ")
+            || input.contains("yourself")
+            || input.contains("evidence")
+            || input.contains("own eyes"))
+}
+
+fn dialogue_gives_firsthand_or_honest_answer(dialogue: &str) -> bool {
+    let dialogue = normalize_for_repetition(&dialogue.replace('\u{2019}', "'"));
+    let hedged = [
+        "might say",
+        "mayhap",
+        "perhaps",
+        "in a manner",
+        "sort of",
+        "hard to say",
+    ]
+    .iter()
+    .any(|hedge| dialogue.contains(hedge));
+    let concrete_firsthand = [
+        "i saw ",
+        "i've seen ",
+        "i have seen ",
+        "i watched ",
+        "i witnessed ",
+        "i was there",
+        "with my own eyes",
+        "with me own eyes",
+    ]
+    .iter()
+    .any(|marker| dialogue.contains(marker));
+    let honest_limit = [
+        "i haven't seen",
+        "i have not seen",
+        "i never saw",
+        "never seen it",
+        "i don't know",
+        "i do not know",
+        "i cannot say",
+        "i can't say",
+        "only know it from",
+        "only an old tale",
+        "heard the tale",
+        "heard it told",
+    ]
+    .iter()
+    .any(|marker| dialogue.contains(marker));
+    honest_limit || (concrete_firsthand && !hedged)
+}
+
+fn dialogue_turns_question_back(dialogue: &str) -> bool {
+    split_sentences(dialogue).last().is_some_and(|sentence| {
+        let normalized = normalize_for_repetition(sentence);
+        sentence.contains('?')
+            && [" ye ", " you ", " yer ", " your "]
+                .iter()
+                .any(|marker| format!(" {normalized} ").contains(marker))
+    })
+}
+
+/// Replaces a narrow evidence-question evasion with an honest answer rather
+/// than inventing a sighting (#1788).
+///
+/// The guard fires only when the player explicitly contrasts firsthand
+/// evidence with hearsay, the reply supplies neither a concrete claim nor an
+/// honest limit, and it turns a question back on the player.
+pub fn guard_direct_evidence_evasion(dialogue: &str, player_input: &str) -> String {
+    if dialogue.trim().is_empty()
+        || !player_asks_for_firsthand_evidence(player_input)
+        || dialogue_gives_firsthand_or_honest_answer(dialogue)
+        || !dialogue_turns_question_back(dialogue)
+    {
+        return dialogue.to_string();
+    }
+
+    tracing::warn!("answer-first guard replaced an evidence-question evasion (#1788)");
+    "I cannot say I saw it myself.".to_string()
+}
+
+#[derive(Clone, Copy)]
+enum WorkDomain {
+    Farm,
+    Forge,
+    School,
+    Mill,
+    Weaving,
+    Boat,
+    Shop,
+    Pub,
+    Church,
+    Midwifery,
+    ManualHands,
+}
+
+impl WorkDomain {
+    fn label(self) -> &'static str {
+        match self {
+            Self::Farm => "farm work",
+            Self::Forge => "forge work",
+            Self::School => "school work",
+            Self::Mill => "mill work",
+            Self::Weaving => "weaving work",
+            Self::Boat => "boat or fishing work",
+            Self::Shop => "shop work",
+            Self::Pub => "work at the public house",
+            Self::Church => "church matters",
+            Self::Midwifery => "midwifery",
+            Self::ManualHands => "work needing another pair of hands",
+        }
+    }
+
+    fn occupation_keywords(self) -> &'static [&'static str] {
+        match self {
+            Self::Farm => &["farmer", "farm boy", "labourer"],
+            Self::Forge => &["blacksmith", "blacksmith's apprentice"],
+            Self::School => &["hedge school teacher", "teacher"],
+            Self::Mill => &["miller"],
+            Self::Weaving => &["weaver"],
+            Self::Boat => &["boatman", "fisherman"],
+            Self::Shop => &["shopkeeper"],
+            Self::Pub => &["publican"],
+            Self::Church => &["parish priest", "priest"],
+            Self::Midwifery => &["midwife"],
+            Self::ManualHands => &[
+                "farmer",
+                "farm boy",
+                "labourer",
+                "blacksmith",
+                "miller",
+                "weaver",
+                "boatman",
+            ],
+        }
+    }
+
+    fn workplace_keywords(self) -> &'static [&'static str] {
+        match self {
+            Self::Farm | Self::ManualHands => &["farm"],
+            Self::Forge => &["forge"],
+            Self::School => &["school"],
+            Self::Mill => &["mill"],
+            Self::Weaving => &["weaver"],
+            Self::Boat => &["boat", "lough", "bay"],
+            Self::Shop => &["shop"],
+            Self::Pub => &["pub"],
+            Self::Church => &["church"],
+            Self::Midwifery => &[],
+        }
+    }
+}
+
+fn requested_work_domain(player_input: &str) -> Option<WorkDomain> {
+    let input = normalize_for_repetition(&player_input.replace('\u{2019}', "'"));
+    let tokens: Vec<&str> = input.split_whitespace().collect();
+    let has_token = |candidates: &[&str]| {
+        tokens
+            .iter()
+            .any(|token| candidates.iter().any(|candidate| token == candidate))
+    };
+    let has_stem = |stems: &[&str]| {
+        tokens
+            .iter()
+            .any(|token| stems.iter().any(|stem| token.starts_with(stem)))
+    };
+    if !(has_token(&["work", "job", "jobs", "hire", "hired", "hiring"])
+        || input.contains("pair of hands")
+        || input.contains("another hand"))
+    {
+        return None;
+    }
+    if has_token(&[
+        "farm", "farms", "field", "fields", "crop", "crops", "potato", "potatoes", "cattle",
+        "sheep", "beast", "beasts", "harvest", "plough",
+    ]) {
+        return Some(WorkDomain::Farm);
+    }
+    if has_token(&["forge", "iron", "horseshoe", "horseshoes", "anvil"]) {
+        return Some(WorkDomain::Forge);
+    }
+    if has_token(&["school", "pupil", "pupils", "book", "books"]) || has_stem(&["teach"]) {
+        return Some(WorkDomain::School);
+    }
+    if has_token(&["mill", "flour", "grain"]) {
+        return Some(WorkDomain::Mill);
+    }
+    if has_token(&["cloth", "thread"]) || has_stem(&["weav"]) {
+        return Some(WorkDomain::Weaving);
+    }
+    if has_token(&["boat", "boats", "lough"]) || has_stem(&["fish"]) {
+        return Some(WorkDomain::Boat);
+    }
+    if has_token(&["shop", "shops", "shopkeeper", "goods", "counter"]) {
+        return Some(WorkDomain::Shop);
+    }
+    if has_token(&["pub", "ale", "drink", "drinks"]) || input.contains("public house") {
+        return Some(WorkDomain::Pub);
+    }
+    if has_token(&["church", "souls"]) || input.contains("parish priest") {
+        return Some(WorkDomain::Church);
+    }
+    if has_token(&["midwife", "birth", "births", "herb", "herbs"]) {
+        return Some(WorkDomain::Midwifery);
+    }
+    if input.contains("pair of hands") || input.contains("another hand") {
+        return Some(WorkDomain::ManualHands);
+    }
+    None
+}
+
+fn work_entry_matches_domain(
+    occupation: &str,
+    workplace: Option<&str>,
+    domain: WorkDomain,
+) -> bool {
+    let occupation = occupation.to_lowercase();
+    if occupation.contains("retired") {
+        return false;
+    }
+    domain
+        .occupation_keywords()
+        .iter()
+        .any(|keyword| occupation.contains(keyword))
+        || workplace.is_some_and(|workplace| {
+            let workplace = workplace.to_lowercase();
+            domain
+                .workplace_keywords()
+                .iter()
+                .any(|keyword| workplace.contains(keyword))
+        })
+}
+
+fn dialogue_recommends_person(dialogue: &str, name: &str) -> bool {
+    let dialogue = normalize_for_repetition(&dialogue.replace('\u{2019}', "'"));
+    let name = normalize_for_repetition(&name.replace('\u{2019}', "'"));
+    [
+        format!("ask {name}"),
+        format!("asking {name}"),
+        format!("speak to {name}"),
+        format!("speak with {name}"),
+        format!("try {name}"),
+        format!("work for {name}"),
+        format!("help {name}"),
+        format!("{name} might"),
+        format!("{name} could"),
+        format!("{name} needs"),
+        format!("{name} is your man"),
+        format!("{name} is your woman"),
+        format!("{name} is the person"),
+        format!("{name} is the one"),
+    ]
+    .iter()
+    .any(|pattern| dialogue.contains(pattern))
+}
+
+/// Corrects a named work referral that contradicts authored occupation or
+/// workplace data when a grounded matching person is available (#1790).
+pub fn guard_work_recommendation(
+    dialogue: &str,
+    player_input: &str,
+    work_roster: &[(String, String, Option<String>)],
+) -> String {
+    let Some(domain) = requested_work_domain(player_input) else {
+        return dialogue.to_string();
+    };
+    let recommended: Vec<&(String, String, Option<String>)> = work_roster
+        .iter()
+        .filter(|(name, _, _)| dialogue_recommends_person(dialogue, name))
+        .collect();
+    if recommended.is_empty()
+        || recommended.iter().all(|(_, occupation, workplace)| {
+            work_entry_matches_domain(occupation, workplace.as_deref(), domain)
+        })
+    {
+        return dialogue.to_string();
+    }
+
+    let replacement = domain.occupation_keywords().iter().find_map(|keyword| {
+        work_roster.iter().find(|(_, occupation, workplace)| {
+            let occupation_lower = occupation.to_lowercase();
+            !occupation_lower.contains("retired")
+                && occupation_lower.contains(keyword)
+                && work_entry_matches_domain(occupation, workplace.as_deref(), domain)
+        })
+    });
+    let replacement = replacement.or_else(|| {
+        work_roster.iter().find(|(_, occupation, workplace)| {
+            work_entry_matches_domain(occupation, workplace.as_deref(), domain)
+        })
+    });
+    let Some((name, occupation, workplace)) = replacement else {
+        return dialogue.to_string();
+    };
+
+    tracing::warn!(
+        recommended = ?recommended.iter().map(|(name, _, _)| name).collect::<Vec<_>>(),
+        replacement = %name,
+        "work-referral grounding guard corrected an occupation mismatch (#1790)"
+    );
+    let workplace = workplace
+        .as_deref()
+        .filter(|place| !place.trim().is_empty())
+        .map(|place| format!(" at {place}"))
+        .unwrap_or_default();
+    format!(
+        "For {}, ye'd best ask {}, the {}{}.",
+        domain.label(),
+        name,
+        occupation,
+        workplace
+    )
 }
 
 // ── #1504 — acquaintance-question / identity-drift guard ──────────────────────
@@ -5161,7 +5806,7 @@ mod tests {
         // "Brendan, go fetch the tea, as I bid ye" are semantically the same
         // instruction in different words. The surgical distributed-dedup guard cannot
         // catch paraphrases (different word sets). The hard sentence cap must trim to
-        // <=4 sentences regardless of phrasing variation.
+        // the shared contract regardless of phrasing variation.
         let dialogue = "Sit yerself down, friend, and rest yer weary bones. \
             Brendan, bring yer friend a cup of the hot spiced tea. \
             The fire is warm enough and ye look as though the road has tired ye. \
@@ -5177,8 +5822,8 @@ mod tests {
             .filter(|s| !s.trim().is_empty())
             .count();
         assert!(
-            sentence_count <= 4,
-            "reply should be capped to <=4 sentences, got {sentence_count}: {result:?}"
+            sentence_count <= MAX_DIALOGUE_SENTENCES,
+            "reply should be capped to <={MAX_DIALOGUE_SENTENCES} sentences, got {sentence_count}: {result:?}"
         );
         // The paraphrased second repeat ("Brendan, go fetch the tea") must be gone.
         assert!(
@@ -5205,50 +5850,50 @@ mod tests {
     }
 
     #[test]
-    fn four_sentence_reply_unchanged_by_length_cap() {
-        // Boundary: exactly 4 sentences — at the cap limit, must pass through.
-        let dialogue = "Good day to ye. The harvest has been fine this year. \
+    fn three_sentence_reply_unchanged_by_length_cap() {
+        // Boundary: exactly 3 sentences — at the shared cap, must pass through.
+        let dialogue = "The harvest has been fine this year. \
             Brigid was asking after the grain prices. Have ye heard the news from Roscommon?";
         let result = cap_sentence_count(dialogue);
         assert_eq!(
             result.trim(),
             dialogue.trim(),
-            "4-sentence reply at the cap limit should be unchanged: {result:?}"
+            "3-sentence reply at the cap limit should be unchanged: {result:?}"
         );
     }
 
     #[test]
-    fn cap_preserves_trailing_question() {
-        // An 8-sentence reply whose LAST sentence is a question must be capped to
-        // <=4 sentences AND the trailing question must appear at the end of the
-        // result so the NPC remains interactive (#1472 — trailing-question preserve).
-        let dialogue = "Good mornin' to ye, friend. \
-            The roads have been muddy these past few days. \
-            Old Séamus from across the hill was asking after the grain prices. \
-            There's much talk about the rent collectors coming round again. \
-            Mary Brien says the miller raised his prices last Tuesday. \
-            The bishop passed through Strokestown not a fortnight ago. \
-            Sure, the weather has been unkind to us all this season. \
+    fn cap_preserves_semantic_order_instead_of_tail_swapping() {
+        // The old cap replaced the last retained substantive sentence with a
+        // far-later question. Capping must keep the first three beats in order.
+        let dialogue = "The roads have been muddy these past few days. \
+            Old Séamus was asking after the grain prices. \
+            There's much talk about the rent collectors. \
+            Mary says the miller raised his prices. \
             Now, what brings ye here?";
         let result = cap_sentence_count(dialogue);
         let sentence_count = split_sentences(&result)
             .iter()
             .filter(|s| !s.trim().is_empty())
             .count();
-        assert!(
-            sentence_count <= 4,
-            "capped reply should be <=4 sentences, got {sentence_count}: {result:?}"
+        assert_eq!(
+            sentence_count, MAX_DIALOGUE_SENTENCES,
+            "capped reply should contain exactly {MAX_DIALOGUE_SENTENCES} sentences: {result:?}"
         );
         assert!(
-            result.trim_end().ends_with("what brings ye here?"),
-            "trailing question should be preserved at end of capped reply: {result:?}"
+            result.ends_with("There's much talk about the rent collectors."),
+            "the third semantic beat should survive in order: {result:?}"
+        );
+        assert!(
+            !result.contains("what brings ye here"),
+            "a trailing question must not displace substantive content: {result:?}"
         );
     }
 
     #[test]
     fn cap_no_trailing_question_unchanged_behavior() {
         // An 8-sentence reply with NO trailing question must produce the same
-        // result as before: keep the first 4 sentences (head, not tail).
+        // result as before: keep the first sentences (head, not tail).
         let dialogue = "The morning is fine enough today. \
             I was just heading to the market in town. \
             Brigid asked me to pick up some wool thread for her. \
@@ -5263,8 +5908,8 @@ mod tests {
             .filter(|s| !s.trim().is_empty())
             .count();
         assert!(
-            sentence_count <= 4,
-            "capped reply without trailing question should be <=4 sentences, got {sentence_count}: {result:?}"
+            sentence_count <= MAX_DIALOGUE_SENTENCES,
+            "capped reply without trailing question should be <={MAX_DIALOGUE_SENTENCES} sentences, got {sentence_count}: {result:?}"
         );
         // First sentence must survive (head-keep behavior unchanged).
         assert!(
@@ -5275,6 +5920,58 @@ mod tests {
         assert!(
             !result.contains("No doubt things will look better by Easter"),
             "tail sentence should be dropped when no trailing question: {result:?}"
+        );
+    }
+
+    /// Regression (#1775): Peig answered the direct identity question in the
+    /// raw completion, but the old terse cap tail-swapped that answer away.
+    #[test]
+    fn peig_harness_identity_answer_survives_terse_cap() {
+        let dialogue = "Good morning. Peig Hannigan's the name. \
+            New to these parts, eh? What brings ye here?";
+
+        assert_eq!(
+            guard_verbosity_runons_with_mood(dialogue, Some("sharp")),
+            "Peig Hannigan's the name. New to these parts, eh?"
+        );
+    }
+
+    /// Regression (#1787): Tommy's exact four-sentence harness completion
+    /// escaped the former four-sentence guard despite the prompt's cap.
+    #[test]
+    fn tommy_harness_reply_drops_greeting_and_keeps_three_substantive_sentences() {
+        let dialogue = "Ah, good day to you, Aiden Carney. \
+            I've seen ye around, though we haven't spoken much. \
+            As for advice, it's simple enough: listen to the land and the folk here. \
+            The crossroads are a place of power, so pay attention to the tales and the whispers of the past.";
+
+        assert_eq!(
+            guard_verbosity_runons_with_mood(dialogue, Some("reflective")),
+            "I've seen ye around, though we haven't spoken much. \
+             As for advice, it's simple enough: listen to the land and the folk here. \
+             The crossroads are a place of power, so pay attention to the tales and the whispers of the past."
+        );
+    }
+
+    #[test]
+    fn terse_four_sentence_reply_does_not_bypass_shared_cap() {
+        let dialogue = "The gate is shut. The road is wet. The mare is lame. Come again tomorrow.";
+        assert!(dialogue.split_whitespace().count() <= 45);
+
+        assert_eq!(
+            cap_sentence_count(dialogue),
+            "The gate is shut. The road is wet. The mare is lame."
+        );
+    }
+
+    #[test]
+    fn substantive_greeting_sentence_is_not_discarded() {
+        let dialogue = "Good morning, the road is flooded. \
+            Take the upper path. Mind the broken stile. Bring a stout stick.";
+
+        assert_eq!(
+            cap_sentence_count(dialogue),
+            "Good morning, the road is flooded. Take the upper path. Mind the broken stile."
         );
     }
 
@@ -5369,12 +6066,16 @@ mod tests {
             .filter(|s| !s.trim().is_empty())
             .count();
         assert!(
-            sentence_count <= 4,
-            "8-sentence ramble should be capped to <=4 sentences, got {sentence_count}: {result:?}"
+            sentence_count <= MAX_DIALOGUE_SENTENCES,
+            "8-sentence ramble should be capped to <={MAX_DIALOGUE_SENTENCES} sentences, got {sentence_count}: {result:?}"
         );
         assert!(
-            result.contains("Good day to ye"),
-            "first sentence must survive: {result:?}"
+            result.contains("Come in out of the cold"),
+            "first substantive sentence must survive: {result:?}"
+        );
+        assert!(
+            !result.contains("Good day to ye"),
+            "standalone greeting should be discarded before substantive beats: {result:?}"
         );
     }
 
@@ -6069,6 +6770,19 @@ mod tests {
         );
     }
 
+    #[test]
+    fn opener_dedup_does_not_strip_leading_honorific_abbreviation() {
+        let first = "Fr. Declan Tierney spoke plainly about the old road indeed.";
+        let second = "Fr. Declan Tierney spoke plainly about the old road surely.";
+        let priors = vec![extract_normalized_opener(first)];
+
+        assert_eq!(dedupe_cross_npc_openers(&priors, second), second);
+        assert!(
+            extract_normalized_opener(first).starts_with("fr. declan tierney"),
+            "the title abbreviation must be joined to the actual opener"
+        );
+    }
+
     // ── #1491 — mood-aware sentence cap ──────────────────────────────────────
 
     /// AC-1 (#1491): A 5-sentence reply with a "busy" mood is capped at 2.
@@ -6108,13 +6822,13 @@ mod tests {
         );
     }
 
-    /// AC-3 (#1491): A neutral mood keeps the default 4-sentence cap.
+    /// AC-3 (#1491): A neutral mood keeps the shared 3-sentence cap.
     #[test]
-    fn mood_aware_sentence_cap_neutral_mood_keeps_4() {
-        let dialogue = "Good day to ye, friend, and welcome into the house. \
-            The weather has been mild enough for the cattle in the lower meadow. \
+    fn mood_aware_sentence_cap_neutral_mood_keeps_3() {
+        let dialogue = "The weather has been mild enough for the cattle in the lower meadow. \
             The spring grass came early, so every beast has kept a little strength. \
             I saw the priest this morning walking the road toward the chapel. \
+            The chapel bell sounded before he reached the lane. \
             He sent his regards and asked after every family by name.";
         assert!(dialogue.split_whitespace().count() > 45);
         let result = cap_sentence_count_for_mood(dialogue, Some("neutral"));
@@ -6123,16 +6837,16 @@ mod tests {
             .filter(|s| !s.trim().is_empty())
             .count();
         assert!(
-            sentence_count <= 4,
-            "neutral mood must cap at 4; got {sentence_count}: {result:?}"
+            sentence_count <= MAX_DIALOGUE_SENTENCES,
+            "neutral mood must cap at {MAX_DIALOGUE_SENTENCES}; got {sentence_count}: {result:?}"
         );
-        assert!(
-            sentence_count >= 4,
-            "neutral mood with 5 sentences must keep 4; got {sentence_count}: {result:?}"
+        assert_eq!(
+            sentence_count, MAX_DIALOGUE_SENTENCES,
+            "neutral mood with 5 sentences must keep {MAX_DIALOGUE_SENTENCES}; got {sentence_count}: {result:?}"
         );
     }
 
-    /// AC-4 (#1491): None mood uses default 4-sentence cap (no panic).
+    /// AC-4 (#1491): None mood uses the shared 3-sentence cap (no panic).
     #[test]
     fn mood_aware_sentence_cap_none_mood_uses_default() {
         let dialogue = "One long sentence gathers enough words for the default cap to matter. \
@@ -6147,12 +6861,12 @@ mod tests {
             .filter(|s| !s.trim().is_empty())
             .count();
         assert!(
-            sentence_count <= 4,
-            "None mood must cap at 4; got {sentence_count}: {result:?}"
+            sentence_count <= MAX_DIALOGUE_SENTENCES,
+            "None mood must cap at {MAX_DIALOGUE_SENTENCES}; got {sentence_count}: {result:?}"
         );
-        assert!(
-            sentence_count >= 4,
-            "None mood with a long 5-sentence reply must keep 4; got {sentence_count}: {result:?}"
+        assert_eq!(
+            sentence_count, MAX_DIALOGUE_SENTENCES,
+            "None mood with a long 5-sentence reply must keep {MAX_DIALOGUE_SENTENCES}; got {sentence_count}: {result:?}"
         );
     }
 
@@ -7398,8 +8112,9 @@ mod tests {
         );
     }
 
-    /// #1561: The full verbosity pipeline must preserve the same short,
-    /// distinct multi-sentence reply instead of storing only the opener.
+    /// #1561: The full verbosity pipeline must preserve the substantive answer
+    /// instead of storing only the opener. The shared cap may drop the final
+    /// follow-up question.
     #[test]
     fn verbosity_guard_preserves_cooper_work_answer() {
         let input = "Good morning, Aiden Carney. Work for a cooper? Aye, there's \
@@ -7409,13 +8124,198 @@ mod tests {
         assert!(
             result.contains("Work for a cooper?")
                 && result.contains("there's always work")
-                && result.contains("barrels for ale and salt")
-                && result.contains("Ye know yer trade?"),
+                && result.contains("barrels for ale and salt"),
             "verbosity guard must preserve the substantive answer: {result:?}"
+        );
+        assert!(
+            !result.contains("Ye know yer trade?"),
+            "the fourth substantive sentence should be capped in semantic order: {result:?}"
         );
         assert_ne!(
             result, "Good morning, Aiden Carney.",
             "verbosity guard must not collapse to only the greeting"
+        );
+    }
+
+    #[test]
+    fn delivered_full_name_marks_a_real_self_introduction() {
+        assert!(dialogue_self_identifies_speaker(
+            "Peig Hannigan's the name. What brings ye here?",
+            "Peig Hannigan",
+        ));
+        assert!(dialogue_self_identifies_speaker(
+            "I'm Peig Hannigan. What brings ye here?",
+            "Peig Hannigan",
+        ));
+        assert!(!dialogue_self_identifies_speaker(
+            "Good morning. What brings ye here?",
+            "Peig Hannigan",
+        ));
+        assert!(!dialogue_self_identifies_speaker(
+            "Peig Hannigan lives beyond the crossroads.",
+            "Peig Hannigan",
+        ));
+        assert!(!dialogue_self_identifies_speaker(
+            "I'm Peig Hannigan's cousin from beyond the crossroads.",
+            "Peig Hannigan",
+        ));
+        assert!(dialogue_self_identifies_speaker(
+            "I'm Father Declan Tierney, the parish priest.",
+            "Fr. Declan Tierney",
+        ));
+    }
+
+    #[test]
+    fn sharp_mood_drops_only_the_contradictory_warm_opener() {
+        let result = guard_mood_register("Good morning. What brings ye here?", "sharp");
+        assert_eq!(result, "Plainly, then—What brings ye here?");
+        assert_eq!(
+            guard_mood_register("Good morning. What brings ye here?", "friendly"),
+            "Good morning. What brings ye here?"
+        );
+    }
+
+    #[test]
+    fn bitter_mood_is_audible_in_the_exact_harness_reply() {
+        let dialogue = "Aye, I'm Sean Ruadh. Stick to Siobhan's lead, she knows the patch \
+                        better'n I do. What's your trade?";
+        let result = guard_mood_register(dialogue, "bitter");
+
+        assert_eq!(
+            result,
+            "If ye must know—Aye, I'm Sean Ruadh. Stick to Siobhan's lead, she knows the \
+             patch better'n I do. What's your trade?"
+        );
+    }
+
+    #[test]
+    fn already_negative_register_is_not_rewritten() {
+        let dialogue = "I've no patience for idle talk. What is it?";
+        assert_eq!(guard_mood_register(dialogue, "irritated"), dialogue);
+    }
+
+    #[test]
+    fn first_contact_guard_removes_harness_familiarity_claim() {
+        let dialogue = "Ah, good day to you, Aiden Carney. I've seen ye around, \
+                        though we haven't spoken much. Listen to the land and the folk here.";
+        let result = guard_unfounded_first_contact_familiarity(dialogue, false);
+        assert!(!result.contains("seen ye around"));
+        assert!(!result.contains("haven't spoken"));
+        assert!(result.contains("Listen to the land"));
+        assert_eq!(
+            guard_unfounded_first_contact_familiarity(dialogue, true),
+            dialogue
+        );
+    }
+
+    #[test]
+    fn evidence_evasion_is_replaced_with_honest_answer() {
+        let player = "What do you mean by a place of power—have you seen something \
+                      here yourself, or is that only an old tale?";
+        let dialogue = "Aye, it's a place of power, all right. Ye might say I've \
+                        seen it with me own eyes, but it's more the whispers ye hear \
+                        here. What tales have ye heard of this spot?";
+        let result = guard_direct_evidence_evasion(dialogue, player);
+        assert_ne!(result, dialogue);
+        assert!(result.contains("cannot say I saw it myself"));
+        assert!(!result.contains('?'));
+    }
+
+    #[test]
+    fn evidence_evasion_fallback_does_not_invent_folklore_context() {
+        let player = "Did you see who took my cow yourself, or did someone only tell you?";
+        let dialogue = "There are many whispers on the road. What have you heard?";
+        let result = guard_direct_evidence_evasion(dialogue, player);
+
+        assert_eq!(result, "I cannot say I saw it myself.");
+        assert!(!result.contains("tale"));
+        assert!(!result.contains("sighting"));
+        assert!(!result.contains("another person"));
+    }
+
+    #[test]
+    fn concrete_firsthand_answer_is_not_rewritten() {
+        let player = "Have you seen something here yourself, or is that only an old tale?";
+        let dialogue = "I saw a white shape cross the eastern road at midnight with my own eyes.";
+        assert_eq!(guard_direct_evidence_evasion(dialogue, player), dialogue);
+    }
+
+    #[test]
+    fn farm_hands_referral_rejects_retired_constable_and_prefers_farmer() {
+        let roster = vec![
+            (
+                "Mick Flanagan".to_string(),
+                "Retired Constable".to_string(),
+                None,
+            ),
+            (
+                "Siobhan Murphy".to_string(),
+                "Farmer".to_string(),
+                Some("Murphy's Farm".to_string()),
+            ),
+            ("Sean Ruadh Kelly".to_string(), "Labourer".to_string(), None),
+        ];
+        let dialogue = "Might be worth asking Mick Flanagan if ye could help with \
+                        farm duties. He's a man who needs a steady hand, I wager.";
+        let player = "I'm hoping to find honest work. Who nearby might have use for \
+                      another pair of hands?";
+        let result = guard_work_recommendation(dialogue, player, &roster);
+        assert!(!result.contains("Mick Flanagan"));
+        assert!(result.contains("Siobhan Murphy"));
+        assert!(result.contains("Farmer"));
+        assert!(result.contains("Murphy's Farm"));
+    }
+
+    #[test]
+    fn occupation_matched_work_referral_passes_through() {
+        let roster = vec![(
+            "Siobhan Murphy".to_string(),
+            "Farmer".to_string(),
+            Some("Murphy's Farm".to_string()),
+        )];
+        let dialogue = "Ask Siobhan Murphy at the farm; she's the farmer there.";
+        assert_eq!(
+            guard_work_recommendation(
+                dialogue,
+                "Who might have farm work for another pair of hands?",
+                &roster,
+            ),
+            dialogue
+        );
+    }
+
+    #[test]
+    fn your_man_work_referral_is_checked_against_authored_occupation() {
+        let roster = vec![
+            (
+                "Mick Flanagan".to_string(),
+                "Retired Constable".to_string(),
+                None,
+            ),
+            (
+                "Siobhan Murphy".to_string(),
+                "Farmer".to_string(),
+                Some("Murphy's Farm".to_string()),
+            ),
+        ];
+        let dialogue = "Mick Flanagan is your man for farm work.";
+        let result = guard_work_recommendation(
+            dialogue,
+            "Who might have farm work for another pair of hands?",
+            &roster,
+        );
+
+        assert!(!result.contains("Mick Flanagan"));
+        assert!(result.contains("Siobhan Murphy"));
+        assert!(result.contains("Farmer"));
+    }
+
+    #[test]
+    fn work_domain_matching_does_not_use_substrings_inside_unrelated_words() {
+        let input = "I heard a tale about a selfish man in the workshop; is there work elsewhere?";
+        assert!(
+            requested_work_domain(input).is_none(),
+            "tale/selfish/workshop must not be parsed as ale/fish/shop"
         );
     }
 }

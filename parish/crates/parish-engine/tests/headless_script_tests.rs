@@ -1009,14 +1009,12 @@ fn test_harness_time_of_day_boundary_crossing() {
     let mut h = GameTestHarness::new();
     assert_eq!(h.time_of_day(), TimeOfDay::Morning);
 
-    // Advance to midday (starts at ~8am, midday is 10am+)
-    h.advance_time(120);
-    let tod = h.time_of_day();
-    assert_ne!(
-        tod,
-        TimeOfDay::Morning,
-        "After 2 hours should be past Morning"
-    );
+    // The harness starts around 08:00. Ten and eleven are still morning;
+    // midday begins at 12:00.
+    h.advance_time(180);
+    assert_eq!(h.time_of_day(), TimeOfDay::Morning);
+    h.advance_time(60);
+    assert_eq!(h.time_of_day(), TimeOfDay::Midday);
 }
 
 #[test]

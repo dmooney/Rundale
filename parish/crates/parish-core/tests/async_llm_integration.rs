@@ -35,7 +35,7 @@ fn test_npc() -> Npc {
     let mut npc = Npc::new_test_npc();
     npc.id = NpcId(42);
     npc.name = "Padraig Darcy".to_string();
-    npc.location = LocationId(2);
+    npc.set_location(LocationId(2));
     npc.workplace = Some(LocationId(2));
     npc
 }

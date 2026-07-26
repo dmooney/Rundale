@@ -4,7 +4,6 @@ use std::sync::Arc;
 
 use parish_core::input::{InputResult, classify_input, is_player_dialogue};
 use parish_core::ipc::text_log;
-use tauri::Emitter;
 
 use crate::AppState;
 use crate::events::EVENT_TEXT_LOG;
@@ -34,6 +33,20 @@ pub(crate) async fn do_submit_input(
     text: String,
     addressed_to: Vec<String>,
 ) -> Result<(), String> {
+    let _persistence_guard = state.persistence_gate.lock().await;
+    do_submit_input_locked(state, app, text, addressed_to).await
+}
+
+/// Dispatches input while the caller holds [`AppState::persistence_gate`].
+///
+/// The MCP bridge uses this form so its pre-turn cursor and projected response
+/// belong to the same guarded request.
+pub(crate) async fn do_submit_input_locked(
+    state: &Arc<AppState>,
+    app: &tauri::AppHandle,
+    text: String,
+    addressed_to: Vec<String>,
+) -> Result<(), String> {
     let text = validate_input_text(&text)?;
     if text.is_empty() {
         return Ok(());
@@ -41,8 +54,6 @@ pub(crate) async fn do_submit_input(
     // #752 — cap addressed_to to prevent unbounded memory/allocation via the
     // NPC-addressing chip list.  Max 10 entries; each name ≤ 100 chars.
     validate_addressed_to(&addressed_to)?;
-
-    touch_player_activity(state).await;
 
     // #9 — preempt any in-flight Tier 2 / Tier 3 sim call so the player's
     // turn doesn't queue behind a 30 s constrained-decode batch. Cancel the
@@ -57,7 +68,8 @@ pub(crate) async fn do_submit_input(
 
     match classify_input(&text) {
         InputResult::SystemCommand(cmd) => {
-            handle_system_command(cmd, state, app, &text).await;
+            touch_player_activity(state).await;
+            handle_system_command(cmd, state, app, &text).await?;
         }
         InputResult::GameInput(raw) => {
             tracing::info!(input = %raw, "chat [player]");
@@ -66,17 +78,20 @@ pub(crate) async fn do_submit_input(
             // `look`, `look around`, movement phrases) must not render as player
             // speech or provoke NPC reactions. `handle_game_input` still runs so
             // the look/move action itself executes.
-            let dispatch = if is_player_dialogue(&raw) {
+            let (dispatch, prelude_emissions) = if is_player_dialogue(&raw) {
                 let player_msg = text_log("player", format!("> {}", raw));
                 let player_msg_id = player_msg.id.clone();
-                let _ = app.emit(EVENT_TEXT_LOG, player_msg);
-                Some((player_msg_id, raw.clone()))
+                let payload = serde_json::to_value(player_msg).unwrap_or(serde_json::Value::Null);
+                (
+                    Some((player_msg_id, raw.clone())),
+                    vec![(EVENT_TEXT_LOG.to_string(), payload)],
+                )
             } else {
-                None
+                (None, Vec::new())
             };
             // Capture location before handle_game_input (which may move the player).
             let reaction_location = state.world.lock().await.player_location;
-            handle_game_input(raw, addressed_to, state, app.clone()).await;
+            handle_game_input(raw, addressed_to, state, app.clone(), prelude_emissions).await?;
             // Generate NPC reactions to the player's message in the background.
             if let Some((player_msg_id, raw_for_reactions)) = dispatch {
                 super::reactions::emit_npc_reactions(
@@ -139,6 +154,17 @@ pub(crate) async fn touch_player_activity(state: &Arc<AppState>) {
     conversation.last_spoken_at = now;
 }
 
+async fn world_update_payload(state: &Arc<AppState>) -> serde_json::Value {
+    let world = state.world.lock().await;
+    let npc_manager = state.npc_manager.lock().await;
+    let snapshot = super::snapshot::get_world_snapshot_inner(
+        &world,
+        Some(&npc_manager),
+        &state.pronunciations,
+    );
+    serde_json::to_value(snapshot).unwrap_or(serde_json::Value::Null)
+}
+
 /// Handles `/command` inputs.
 ///
 /// Delegates to [`parish_core::game_loop::handle_system_command`] via the
@@ -148,12 +174,12 @@ async fn handle_system_command(
     state: &Arc<AppState>,
     app: &tauri::AppHandle,
     raw_text: &str,
-) {
+) -> Result<(), String> {
     use crate::command_host::TauriCommandHost;
     use parish_core::game_loop::handle_system_command as shared_handle;
 
     let host = TauriCommandHost::new(Arc::clone(state), app.clone());
-    shared_handle(&host, cmd, raw_text).await;
+    shared_handle(&host, cmd, raw_text).await
 }
 
 /// Handles free-form game input: parses intent (with LLM fallback) then dispatches.
@@ -170,7 +196,13 @@ pub(crate) async fn handle_game_input(
     addressed_to: Vec<String>,
     state: &Arc<AppState>,
     app: tauri::AppHandle,
-) {
+    mut prelude_emissions: Vec<(String, serde_json::Value)>,
+) -> Result<(), String> {
+    let must_stage = {
+        let world = state.world.lock().await;
+        parish_core::game_loop::input_may_mutate_tasks(&world, &raw)
+    };
+    let before_progress = state.world.lock().await.player_progress.clone();
     let emitter: std::sync::Arc<dyn parish_core::ipc::EventEmitter> =
         std::sync::Arc::new(crate::events::TauriEmitter::new(app.clone()));
     let ctx = parish_core::game_loop::GameLoopContext {
@@ -191,6 +223,47 @@ pub(crate) async fn handle_game_input(
     let transport = state.transport.default_mode().clone();
     let reaction_templates = state.reaction_templates.clone();
 
+    if must_stage {
+        let task_target = {
+            let save_path = state.save_path.lock().await;
+            let branch_id = state.current_branch_id.lock().await;
+            match (save_path.as_ref(), *branch_id) {
+                (Some(path), Some(branch_id)) => {
+                    Some(parish_core::session_store::TaskJournalTarget {
+                        session_id: String::new(),
+                        save_path: path.clone(),
+                        branch_id,
+                    })
+                }
+                _ => None,
+            }
+        };
+        prelude_emissions.push((
+            crate::events::EVENT_WORLD_UPDATE.to_string(),
+            world_update_payload(state).await,
+        ));
+        parish_core::game_loop::handle_staged_game_input(
+            &ctx,
+            state.session_store.as_ref(),
+            task_target.as_ref(),
+            prelude_emissions,
+            raw,
+            addressed_to,
+            &transport,
+            &reaction_templates,
+        )
+        .await
+        .map_err(|error| {
+            tracing::error!(%error, "player task journal append failed");
+            format!("failed to persist player task: {error}")
+        })?;
+        super::snapshot::emit_world_update(state, &app).await;
+        return Ok(());
+    }
+
+    touch_player_activity(state).await;
+    parish_core::game_loop::flush_staged_emissions(emitter.as_ref(), prelude_emissions);
+
     let app_for_loading = app.clone();
     let spawn_loading = move || {
         let cancel = tokio_util::sync::CancellationToken::new();
@@ -199,7 +272,7 @@ pub(crate) async fn handle_game_input(
     };
 
     super::snapshot::emit_world_update(state, &app).await;
-    parish_core::game_loop::handle_game_input(
+    let outcome = parish_core::game_loop::handle_game_input(
         &ctx,
         raw,
         addressed_to,
@@ -208,12 +281,67 @@ pub(crate) async fn handle_game_input(
         spawn_loading,
     )
     .await;
+    let task_target = {
+        let save_path = state.save_path.lock().await;
+        let branch_id = state.current_branch_id.lock().await;
+        match (save_path.as_ref(), *branch_id) {
+            (Some(path), Some(branch_id)) => Some(parish_core::session_store::TaskJournalTarget {
+                session_id: String::new(),
+                save_path: path.clone(),
+                branch_id,
+            }),
+            _ => None,
+        }
+    };
+    persist_task_mutations(
+        state,
+        task_target.as_ref(),
+        before_progress,
+        &outcome.task_mutations,
+    )
+    .await
+    .map_err(|error| {
+        tracing::error!(%error, "player task journal append failed");
+        format!("failed to persist player task: {error}")
+    })?;
     super::snapshot::emit_world_update(state, &app).await;
+    Ok(())
+}
+
+async fn persist_task_mutations(
+    state: &Arc<AppState>,
+    target: Option<&parish_core::session_store::TaskJournalTarget>,
+    before: parish_core::session_store::PlayerProgress,
+    tasks: &[parish_core::session_store::PlayerTask],
+) -> Result<(), parish_core::error::ParishError> {
+    parish_core::session_store::append_task_mutations_or_rollback(
+        state.session_store.as_ref(),
+        target,
+        tasks,
+        &state.world,
+        before,
+    )
+    .await?;
+    Ok(())
 }
 
 /// Delegates to [`parish_core::game_loop::run_idle_banter`] for all shared
 /// logic (#696), then emits a world-update snapshot when the sequence ends.
-pub(super) async fn run_idle_banter(state: &Arc<AppState>, app: &tauri::AppHandle) {
+/// Runs idle banter while the caller holds `persistence_gate`.
+pub(super) async fn run_idle_banter_locked(state: &Arc<AppState>, app: &tauri::AppHandle) {
+    let before_progress = state.world.lock().await.player_progress.clone();
+    let task_target = {
+        let save_path = state.save_path.lock().await;
+        let branch_id = state.current_branch_id.lock().await;
+        match (save_path.as_ref(), *branch_id) {
+            (Some(path), Some(branch_id)) => Some(parish_core::session_store::TaskJournalTarget {
+                session_id: String::new(),
+                save_path: path.clone(),
+                branch_id,
+            }),
+            _ => None,
+        }
+    };
     let emitter: std::sync::Arc<dyn parish_core::ipc::EventEmitter> =
         std::sync::Arc::new(crate::events::TauriEmitter::new(app.clone()));
     let ctx = parish_core::game_loop::GameLoopContext {
@@ -234,7 +362,17 @@ pub(super) async fn run_idle_banter(state: &Arc<AppState>, app: &tauri::AppHandl
 
     super::snapshot::emit_world_update(state, app).await;
     // Idle banter spawns no loading animation.
-    parish_core::game_loop::run_idle_banter(&ctx, || None).await;
+    let outcome = parish_core::game_loop::run_idle_banter(&ctx, || None).await;
+    if let Err(error) = persist_task_mutations(
+        state,
+        task_target.as_ref(),
+        before_progress,
+        &outcome.task_mutations,
+    )
+    .await
+    {
+        tracing::error!(%error, "idle-banter task journal append failed");
+    }
     super::snapshot::emit_world_update(state, app).await;
 }
 

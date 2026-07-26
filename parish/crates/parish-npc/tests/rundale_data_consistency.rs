@@ -30,10 +30,11 @@ fn validate_npcs_against_world(npcs: &[Npc], world: &WorldGraph) -> Vec<String> 
     let npc_by_id: HashMap<NpcId, &Npc> = npcs.iter().map(|npc| (npc.id, npc)).collect();
 
     for npc in npcs {
-        if !world_has_location(world, npc.location) {
+        if !world_has_location(world, npc.location()) {
             errors.push(format!(
                 "{} starts at missing location {}",
-                npc.name, npc.location.0
+                npc.name,
+                npc.location().0
             ));
         }
 
@@ -54,7 +55,7 @@ fn validate_npcs_against_world(npcs: &[Npc], world: &WorldGraph) -> Vec<String> 
             ));
         }
 
-        let Some(schedule) = &npc.schedule else {
+        let Some(schedule) = npc.schedule() else {
             errors.push(format!("{} has no schedule", npc.name));
             continue;
         };

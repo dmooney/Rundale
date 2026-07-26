@@ -1,9 +1,11 @@
 <script lang="ts">
 	import { onDestroy, onMount } from 'svelte';
+	import { SvelteSet } from 'svelte/reactivity';
 	import { get } from 'svelte/store';
 	import type { NotebookAction } from '$lib/notebook/actions';
-	import type { NpcInfo } from '$lib/types';
-	import { submitInput } from '$lib/ipc';
+	import type { NpcInfo, TextLogEntry } from '$lib/types';
+	import { reactToMessage, submitInput } from '$lib/ipc';
+	import { REACTION_PALETTE } from '$lib/reactions';
 	import {
 		appendNotebookCommandHistory,
 		draftForNotebookAction,
@@ -27,8 +29,10 @@
 		intentDraft,
 		mapData,
 		npcsHere,
+		addReaction,
 		playerSubmittedCount,
 		pushErrorLog,
+		removeReaction,
 		streamingActive,
 		textLog,
 		worldState,
@@ -55,6 +59,8 @@
 	let commandHistoryDraft = $state('');
 	let hitTargets = $state<ParishHitTarget[]>([]);
 	let focusedTargetId = $state<string | null>(null);
+	let reactionPickerMessageId = $state<string | null>(null);
+	const pendingReactions = new SvelteSet<string>();
 
 	const selectedNpc = $derived<NpcInfo | null>(
 		$npcsHere.find((npc) => npc.real_name === selectedRealName) ??
@@ -84,6 +90,19 @@
 			selectedNpc,
 			journalEntries: $textLog,
 		}),
+	);
+	const latestReactableEntry = $derived(
+		[...$textLog]
+			.reverse()
+			.find(
+				(entry) =>
+					Boolean(entry.id) &&
+					!entry.streaming &&
+					$npcsHere.some(
+						(npc) =>
+							npc.real_name === entry.source || npc.name === entry.source,
+					),
+			) ?? null,
 	);
 
 	$effect(() => {
@@ -346,6 +365,45 @@
 			isSubmitting = false;
 		}
 	}
+
+	function reactionSpeaker(entry: TextLogEntry): string {
+		const npc = $npcsHere.find(
+			(candidate) =>
+				candidate.real_name === entry.source || candidate.name === entry.source,
+		);
+		if (!npc) return 'a local';
+		return npc.introduced
+			? npc.name
+			: `a ${npc.occupation?.trim() || 'local'}`;
+	}
+
+	function handleReaction(entry: TextLogEntry, emoji: string) {
+		if (!entry.id) return;
+		const key = `${entry.id}:${emoji}`;
+		if (pendingReactions.has(key)) return;
+		pendingReactions.add(key);
+		const previousPlayerReaction = entry.reactions?.find(
+			(reaction) => reaction.source === 'player',
+		);
+		addReaction(entry.id, emoji, 'player');
+		const messageId = entry.id;
+		reactToMessage(entry.source, entry.content.slice(0, 80), emoji)
+			.catch((error) => {
+				removeReaction(messageId, emoji, 'player');
+				if (previousPlayerReaction) {
+					addReaction(
+						messageId,
+						previousPlayerReaction.emoji,
+						previousPlayerReaction.source,
+					);
+				}
+				pushErrorLog(
+					`Could not record reaction ${emoji}: ${formatIpcError(error)}`,
+				);
+			})
+			.finally(() => pendingReactions.delete(key));
+		reactionPickerMessageId = null;
+	}
 </script>
 
 <section
@@ -400,6 +458,57 @@
 			<p><strong>{line.label}:</strong> {line.text}</p>
 		{/each}
 	</div>
+	{#if latestReactableEntry}
+		<div
+			class="notebook-reaction-strip"
+			aria-label={`Reactions for ${reactionSpeaker(latestReactableEntry)}'s latest message`}
+		>
+			{#if (latestReactableEntry.reactions?.length ?? 0) > 0}
+				<div class="reaction-bar" data-testid="reaction-bar">
+					{#each latestReactableEntry.reactions ?? [] as reaction, index (`${reaction.emoji}:${reaction.source}:${index}`)}
+						<span class="reaction-badge" title={reaction.source}>
+							{reaction.emoji}
+							{#if reaction.source !== 'player'}
+								<span class="reaction-source">{reaction.source}</span>
+							{/if}
+						</span>
+					{/each}
+				</div>
+			{/if}
+			<button
+				type="button"
+				class="reaction-toggle"
+				aria-label={`React to message from ${reactionSpeaker(latestReactableEntry)}`}
+				onclick={() =>
+					(reactionPickerMessageId =
+						reactionPickerMessageId === latestReactableEntry.id
+							? null
+							: (latestReactableEntry.id ?? null))}
+			>
+				React
+			</button>
+			{#if reactionPickerMessageId === latestReactableEntry.id}
+				<div
+					class="reaction-picker"
+					role="toolbar"
+					aria-label="React to message"
+					data-testid="reaction-picker"
+				>
+					{#each REACTION_PALETTE as reaction (reaction.emoji)}
+						<button
+							type="button"
+							aria-label={`React with ${reaction.description}`}
+							title={reaction.description}
+							onclick={() =>
+								handleReaction(latestReactableEntry, reaction.emoji)}
+						>
+							{reaction.emoji}
+						</button>
+					{/each}
+				</div>
+			{/if}
+		</div>
+	{/if}
 	<input
 		bind:this={inputEl}
 		bind:value={intentText}
@@ -508,6 +617,59 @@
 		clip: rect(0, 0, 0, 0);
 		white-space: nowrap;
 		border: 0;
+	}
+
+	.notebook-reaction-strip {
+		position: absolute;
+		right: clamp(1rem, 22vw, 24rem);
+		bottom: 5.25rem;
+		z-index: 5;
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		justify-content: flex-end;
+		gap: 0.3rem;
+		max-width: min(34rem, 70vw);
+		color: #322315;
+		font: 0.78rem Georgia, 'Times New Roman', serif;
+	}
+
+	.reaction-bar,
+	.reaction-picker {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		justify-content: flex-end;
+		gap: 0.3rem;
+	}
+
+	.reaction-badge,
+	.notebook-reaction-strip button {
+		flex-shrink: 0;
+		white-space: nowrap;
+		padding: 0.12rem 0.38rem;
+		color: #322315;
+		background: rgba(255, 246, 216, 0.88);
+		border: 1px solid rgba(55, 38, 20, 0.4);
+		border-radius: 999px;
+		font: inherit;
+	}
+
+	.notebook-reaction-strip button {
+		cursor: pointer;
+	}
+
+	.reaction-source {
+		margin-left: 0.15rem;
+		opacity: 0.75;
+	}
+
+	@media (max-width: 760px) {
+		.notebook-reaction-strip {
+			right: 0.75rem;
+			bottom: 4.6rem;
+			max-width: calc(100vw - 1.5rem);
+		}
 	}
 
 	.notebook-accessibility-targets {

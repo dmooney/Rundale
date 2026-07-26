@@ -113,19 +113,23 @@ impl SystemCommandHost for TauriCommandHost {
 
     fn fork_branch(&self, name: String) -> BoxFuture<'_, String> {
         let state = Arc::clone(&self.state);
+        let app = self.app.clone();
         Box::pin(async move {
             let parent_id = state.current_branch_id.lock().await.unwrap_or(1);
-            match crate::commands::do_create_branch(&state, &name, parent_id).await {
+            let emitter = crate::events::TauriEmitter::new(app);
+            match crate::commands::do_create_branch(&state, &name, parent_id, Some(&emitter)).await
+            {
                 Ok(msg) => msg,
                 Err(e) => format!("Fork failed: {}", e),
             }
         })
     }
 
-    fn load_branch(&self, _name: String) -> BoxFuture<'_, ()> {
+    fn load_branch(&self, _name: String) -> BoxFuture<'_, Result<(), String>> {
         let app = self.app.clone();
         Box::pin(async move {
             let _ = app.emit(EVENT_SAVE_PICKER, ());
+            Ok(())
         })
     }
 

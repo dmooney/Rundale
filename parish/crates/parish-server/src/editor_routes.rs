@@ -530,6 +530,10 @@ async fn reload_live_world_from_disk(state: &Arc<AppState>) -> Result<(), String
         })
         .ok_or_else(|| "active game mod not found".to_string())?;
 
+    // A staged turn clones and later replaces the whole world/NPC cut. Apply
+    // editor reload under the same barrier so neither install can clobber the
+    // other.
+    let _persistence_guard = state.persistence_gate.lock().await;
     let snapshot = {
         let mut world = state.world.lock().await;
         parish_core::editor::reload_world_graph_preserving_runtime(&mut world, &game_mod)
@@ -735,6 +739,26 @@ mod tests {
         assert!(result.is_err());
         let (status, _msg) = result.unwrap_err();
         assert_eq!(status, StatusCode::BAD_REQUEST);
+    }
+
+    #[tokio::test]
+    async fn live_reload_waits_for_staged_turn_barrier() {
+        let state = crate::routes::tests::test_app_state();
+        let held = state.persistence_gate.lock().await;
+        let state_for_reload = Arc::clone(&state);
+        let reload =
+            tokio::spawn(async move { reload_live_world_from_disk(&state_for_reload).await });
+        tokio::task::yield_now().await;
+        assert!(
+            !reload.is_finished(),
+            "live graph reload must wait while a staged turn owns persistence_gate"
+        );
+        drop(held);
+        tokio::time::timeout(std::time::Duration::from_secs(2), reload)
+            .await
+            .expect("reload should finish once candidate installation is complete")
+            .unwrap()
+            .unwrap();
     }
 
     #[tokio::test]

@@ -24,6 +24,7 @@ import type {
 	DemoConfigPayload,
 	AuthStatus,
 	DialogueCorrectedPayload,
+	ReconnectState,
 } from '../types';
 import { command, onEvent, IS_TAURI, COMMAND_TIMEOUT_MS } from './transport';
 
@@ -33,6 +34,9 @@ export const getWorldSnapshot = () =>
 export const getMap = () => command<MapData>('get_map');
 
 export const getNpcsHere = () => command<NpcInfo[]>('get_npcs_here');
+
+export const getReconnectState = () =>
+	command<ReconnectState>('get_reconnect_state');
 
 export const getTheme = () => command<ThemePalette>('get_theme');
 
@@ -140,6 +144,14 @@ export const onTextLog = (cb: (payload: TextLogPayload) => void) =>
 
 export const onWorldUpdate = (cb: (payload: WorldUpdatePayload) => void) =>
 	onEvent<WorldUpdatePayload>('world-update', cb);
+
+/**
+ * Fires immediately before the authoritative world update for a new game or
+ * loaded branch. Consumers must discard view state derived from the previous
+ * game context rather than carrying it into the replacement world.
+ */
+export const onGameContextReset = (cb: () => void) =>
+	onEvent<void>('game-context-reset', () => cb());
 
 export const onLoading = (cb: (payload: LoadingPayload) => void) =>
 	onEvent<LoadingPayload>('loading', cb);

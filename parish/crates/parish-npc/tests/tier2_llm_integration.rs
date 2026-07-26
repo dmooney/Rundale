@@ -19,6 +19,7 @@ fn two_npc_group() -> Tier2Group {
     Tier2Group {
         location: LocationId(2),
         location_name: "Darcy's Pub".to_string(),
+        other_location_names: vec!["The Mill".to_string(), "The Forge".to_string()],
         npcs: vec![
             NpcSnapshot {
                 id: NpcId(1),
@@ -29,6 +30,9 @@ fn two_npc_group() -> Tier2Group {
                 intelligence_prose: "Perceptive, wise, quick-witted.".to_string(),
                 mood: "content".to_string(),
                 relationship_summary: String::new(),
+                current_activity: Some("tending bar".to_string()),
+                grounding_revision: 1,
+                activity_fingerprint: "interval-padraig".to_string(),
             },
             NpcSnapshot {
                 id: NpcId(2),
@@ -39,6 +43,9 @@ fn two_npc_group() -> Tier2Group {
                 intelligence_prose: "Plain-spoken and sharp-minded.".to_string(),
                 mood: "tired".to_string(),
                 relationship_summary: String::new(),
+                current_activity: Some("having a quiet drink".to_string()),
+                grounding_revision: 2,
+                activity_fingerprint: "interval-tommy".to_string(),
             },
         ],
     }
@@ -106,8 +113,126 @@ async fn tier2_multi_npc_success_returns_event() {
     assert_eq!(event.location, LocationId(2));
     assert_eq!(event.participants, vec![NpcId(1), NpcId(2)]);
     assert!(event.summary.contains("Padraig"));
+    assert_eq!(event.grounding.len(), 2);
     assert!(event.mood_changes.is_empty());
     assert!(event.relationship_changes.is_empty());
+}
+
+/// #1785: occupation-flavoured free prose is not authoritative for physical
+/// action. Colm's authored Crossroads activity wins even when the model tries
+/// to put the blacksmith's apprentice back at an anvil.
+#[tokio::test]
+async fn tier2_canonicalizes_adversarial_activity_conflict() {
+    let server = MockServer::start().await;
+    mount_tier2_response(
+        &server,
+        r#"{"summary":"Colm Gallagher hammers away at a horseshoe while Tommy watches.","mood_changes":[],"relationship_changes":[]}"#,
+    )
+    .await;
+
+    let client = mock_client(&server.uri());
+    let group = Tier2Group {
+        location: LocationId(1),
+        location_name: "The Crossroads".to_string(),
+        other_location_names: vec!["The Forge".to_string()],
+        npcs: vec![
+            NpcSnapshot {
+                id: NpcId(11),
+                name: "Colm Gallagher".to_string(),
+                occupation: "Blacksmith's Apprentice".to_string(),
+                personality: "Eager".to_string(),
+                pronouns: "he/him".to_string(),
+                intelligence_prose: String::new(),
+                mood: "restless".to_string(),
+                relationship_summary: String::new(),
+                current_activity: Some("running errands and delivering repaired tools".to_string()),
+                grounding_revision: 11,
+                activity_fingerprint: "interval-colm".to_string(),
+            },
+            NpcSnapshot {
+                id: NpcId(5),
+                name: "Tommy O'Brien".to_string(),
+                occupation: "Retired Farmer".to_string(),
+                personality: "Storyteller".to_string(),
+                pronouns: "he/him".to_string(),
+                intelligence_prose: String::new(),
+                mood: "reflective".to_string(),
+                relationship_summary: String::new(),
+                current_activity: Some("sitting on the wall, telling stories".to_string()),
+                grounding_revision: 5,
+                activity_fingerprint: "interval-tommy".to_string(),
+            },
+        ],
+    };
+    let event = run_tier2_for_group(
+        &client,
+        "test-model",
+        &group,
+        "Morning",
+        "Clear",
+        &LanguageSettings::english_only(),
+        None,
+    )
+    .await
+    .expect("schema-valid response should produce a canonically narrated event");
+
+    assert!(
+        event
+            .summary
+            .contains("running errands and delivering repaired tools"),
+        "canonical authored activity must reach the event: {}",
+        event.summary
+    );
+    assert!(
+        !event.summary.contains("hammers") && !event.summary.contains("horseshoe"),
+        "contradictory model action must not reach memory, gossip, or UI: {}",
+        event.summary
+    );
+    assert_eq!(event.grounding.len(), 2);
+    assert!(
+        event
+            .grounding
+            .iter()
+            .all(|anchor| anchor.location == LocationId(1)
+                && matches!(anchor.grounding_revision, 11 | 5)
+                && !anchor.activity_fingerprint.is_empty()),
+        "every participant must carry stable location/activity/revision anchors"
+    );
+}
+
+#[tokio::test]
+async fn tier2_location_conflict_retries_once_then_drops_event() {
+    let server = MockServer::start().await;
+    mount_tier2_response(
+        &server,
+        r#"{"summary":"Padraig and Tommy wait by The Mill.","mood_changes":[],"relationship_changes":[]}"#,
+    )
+    .await;
+
+    let client = mock_client(&server.uri());
+    let group = two_npc_group();
+    let lang = LanguageSettings::english_only();
+    let event = run_tier2_for_group(
+        &client,
+        "test-model",
+        &group,
+        "Afternoon",
+        "Clear",
+        &lang,
+        None,
+    )
+    .await;
+
+    assert!(
+        event.is_none(),
+        "an event that still names another canonical location after retry must be dropped"
+    );
+    let requests = server.received_requests().await.unwrap();
+    assert_eq!(
+        requests.len(),
+        2,
+        "location conflict should trigger exactly one corrective retry"
+    );
 }
 
 #[tokio::test]
@@ -271,7 +396,10 @@ async fn tier2_missing_optional_fields_defaults_to_empty() {
     .await;
 
     let event = event.expect("missing optional fields should still parse via serde defaults");
-    assert_eq!(event.summary, "They nod at each other.");
+    assert_eq!(
+        event.summary,
+        "At Darcy's Pub — Padraig: tending bar; Tommy: having a quiet drink."
+    );
     assert!(event.mood_changes.is_empty());
     assert!(event.relationship_changes.is_empty());
 }

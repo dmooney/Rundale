@@ -48,6 +48,13 @@ fn submit_input_request_with_addressed_to() {
 }
 
 #[test]
+fn submit_input_request_accepts_mcp_snake_case_addressed_to() {
+    let json = r#"{"text": "hello", "addressed_to": ["Padraig"]}"#;
+    let req: SubmitInputRequest = serde_json::from_str(json).unwrap();
+    assert_eq!(req.addressed_to, vec!["Padraig"]);
+}
+
+#[test]
 fn parse_admin_emails_basic_list() {
     let set = parse_admin_emails("alice@example.com,bob@example.com");
     assert!(set.contains("alice@example.com"));
@@ -71,6 +78,38 @@ fn parse_admin_emails_trims_and_drops_empties() {
 fn parse_admin_emails_empty_string_returns_empty_set() {
     let set = parse_admin_emails("");
     assert!(set.is_empty());
+}
+
+fn stale_branch_event(location: LocationId) -> parish_core::world::events::GameEvent {
+    parish_core::world::events::GameEvent::MoodChanged {
+        npc_id: parish_core::npc::NpcId(7),
+        new_mood: "stale".to_string(),
+        location,
+        timestamp: chrono::Utc::now(),
+    }
+}
+
+async fn seed_stale_branch_runtime(state: &Arc<crate::state::AppState>) {
+    let location = state.world.lock().await.player_location;
+    let mut conversation = state.conversation.lock().await;
+    conversation.location = Some(location);
+    conversation.record_player_input("old branch input");
+    conversation
+        .seen_openers_this_location
+        .push("old opener".to_string());
+    conversation.transcript.push_back(ConversationLine {
+        speaker: "Old NPC".to_string(),
+        text: "Old branch transcript".to_string(),
+    });
+    drop(conversation);
+    state
+        .game_events
+        .lock()
+        .await
+        .push_back(stale_branch_event(location));
+    state
+        .total_game_events
+        .store(41, std::sync::atomic::Ordering::Relaxed);
 }
 
 #[test]
@@ -243,7 +282,7 @@ async fn add_introduced_npc(
     npc.name = name.to_string();
     npc.occupation = occupation.to_string();
     npc.brief_description = format!("a {}", occupation.to_lowercase());
-    npc.location = player_location;
+    npc.set_location(player_location);
 
     let mut npc_manager = state.npc_manager.lock().await;
     npc_manager.add_npc(npc);
@@ -279,6 +318,98 @@ async fn install_scripted_inference_queue(
 
     *state.inference.inference_queue.lock().await = Some(InferenceQueue::new(tx, bg_tx, batch_tx));
     (prompts, handle)
+}
+
+/// #1778: `/api/turn` must project each historical exchange from the
+/// canonical log. A later `last_player_input` cannot rewrite earlier inputs.
+#[tokio::test]
+async fn get_turn_preserves_each_canonical_player_input() {
+    use chrono::Utc;
+    use parish_core::npc::conversation::ConversationExchange;
+
+    let state = test_app_state();
+    {
+        let mut world = state.world.lock().await;
+        let location = world.player_location;
+        world.conversation_log.add(ConversationExchange {
+            timestamp: Utc::now(),
+            speaker_id: NpcId(1),
+            speaker_name: "Peig".to_string(),
+            player_input: "first question".to_string(),
+            npc_dialogue: "first answer".to_string(),
+            location,
+        });
+        world.conversation_log.add(ConversationExchange {
+            timestamp: Utc::now(),
+            speaker_id: NpcId(2),
+            speaker_name: "Sean".to_string(),
+            player_input: "second question".to_string(),
+            npc_dialogue: "second answer".to_string(),
+            location,
+        });
+    }
+    state.conversation.lock().await.last_player_input =
+        Some("examine the potato patch".to_string());
+
+    let Json(result) = super::get_turn(
+        axum::extract::Extension(state),
+        axum::extract::Query(parish_core::ipc::TurnReadParams::default()),
+    )
+    .await;
+
+    assert_eq!(result.exchanges.len(), 2);
+    assert_eq!(result.exchanges[0].player_input, "first question");
+    assert_eq!(result.exchanges[1].player_input, "second question");
+    assert!(
+        result
+            .exchanges
+            .iter()
+            .all(|exchange| exchange.player_input != "examine the potato patch")
+    );
+}
+
+/// #1777: the web route used by the MCP backend returns one canonical
+/// exchange for a dialogue turn, never the presentation-only `"You"` line.
+#[tokio::test]
+async fn submit_input_returns_only_canonical_npc_exchange() {
+    let state = test_app_state();
+    add_introduced_npc(&state, 1, "Siobhan Murphy", "Teacher").await;
+    {
+        let mut config = state.config.lock().await;
+        config.model_name = "test-model".to_string();
+        config.max_follow_up_turns = 0;
+    }
+    let (_prompts, worker) = install_scripted_inference_queue(
+        &state,
+        vec![r#"{"dialogue":"Aye, what would ye know?","action":"speaks","mood":"curious"}"#],
+    )
+    .await;
+    let auth = crate::cf_auth::AuthContext {
+        account_id: uuid::Uuid::new_v4(),
+        email: "player@example.com".to_string(),
+    };
+
+    let response = super::submit_input(
+        axum::extract::Extension(state),
+        axum::extract::Extension(auth),
+        Json(SubmitInputRequest {
+            text: "Good morning, Siobhan.".to_string(),
+            addressed_to: vec!["Siobhan Murphy".to_string()],
+        }),
+    )
+    .await;
+
+    assert_eq!(response.status(), axum::http::StatusCode::OK);
+    let body = axum::body::to_bytes(response.into_body(), 16 * 1024)
+        .await
+        .unwrap();
+    let result: parish_core::ipc::SubmitInputResult = serde_json::from_slice(&body).unwrap();
+    assert_eq!(result.exchanges.len(), 1, "{result:?}");
+    assert_eq!(result.exchanges[0].speaker_name, "Siobhan Murphy");
+    assert_eq!(result.exchanges[0].player_input, "Good morning, Siobhan.");
+    assert_ne!(result.exchanges[0].speaker_name, "You");
+
+    worker.abort();
 }
 
 fn drain_text_logs(stream: &mut parish_core::event_bus::EventStream) -> Vec<TextLogPayload> {
@@ -887,7 +1018,9 @@ async fn tick_inactivity_runs_idle_banter_before_auto_pause() {
         conversation.last_spoken_at = inactive_since;
     }
 
-    tick_inactivity(&state).await;
+    tokio::time::timeout(Duration::from_secs(2), tick_inactivity(&state))
+        .await
+        .expect("idle-banter inactivity tick must not reacquire persistence_gate");
 
     let transcript = {
         let conversation = state.conversation.lock().await;
@@ -955,6 +1088,422 @@ async fn load_branch_rejects_path_traversal() {
     assert!(result.is_err());
     let (status, _msg) = result.unwrap_err();
     assert_eq!(status, axum::http::StatusCode::BAD_REQUEST);
+}
+
+#[tokio::test]
+async fn successful_same_location_branch_restore_clears_ring_but_preserves_lifetime_cursor() {
+    let state = test_app_state();
+    seed_stale_branch_runtime(&state).await;
+    let snapshot = {
+        let world = state.world.lock().await;
+        let npc_manager = state.npc_manager.lock().await;
+        parish_core::persistence::GameSnapshot::capture(&world, &npc_manager)
+    };
+    let recovery = parish_core::session_store::RecoveryBundle {
+        snapshot_id: 1,
+        snapshot,
+        journal: Vec::new(),
+    };
+
+    restore_snapshot_and_emit(
+        &state,
+        recovery,
+        "same-location-fork",
+        2,
+        std::path::Path::new("parish_001.db"),
+    )
+    .await;
+
+    let conversation = state.conversation.lock().await;
+    assert!(conversation.location.is_none());
+    assert!(conversation.transcript.is_empty());
+    assert!(conversation.last_player_input.is_none());
+    assert!(conversation.seen_openers_this_location.is_empty());
+    drop(conversation);
+    assert!(state.game_events.lock().await.is_empty());
+    assert_eq!(
+        state
+            .total_game_events
+            .load(std::sync::atomic::Ordering::Relaxed),
+        41,
+        "context replacement clears retained events without rewinding the lifetime cursor"
+    );
+}
+
+#[tokio::test]
+async fn new_game_preserves_cursor_so_old_client_receives_first_new_context_event() {
+    let temp = tempfile::tempdir().unwrap();
+    let session_saves = temp.path().join("test-session");
+    std::fs::create_dir_all(&session_saves).unwrap();
+
+    let mut state = test_app_state();
+    let state_parts = Arc::get_mut(&mut state).expect("fresh state must be uniquely owned");
+    state_parts.saves_dir = session_saves;
+    state_parts.session_store = Arc::new(parish_core::session_store::DbSessionStore::new(
+        temp.path().to_path_buf(),
+    ));
+    seed_stale_branch_runtime(&state).await;
+    let old_cursor = state
+        .total_game_events
+        .load(std::sync::atomic::Ordering::Relaxed);
+
+    do_new_game_inner(&state)
+        .await
+        .expect("new-game context replacement must succeed");
+
+    assert!(state.game_events.lock().await.is_empty());
+    assert_eq!(
+        state
+            .total_game_events
+            .load(std::sync::atomic::Ordering::Relaxed),
+        old_cursor,
+        "new game must not rewind the lifetime event counter"
+    );
+
+    let location = state.world.lock().await.player_location;
+    state
+        .game_events
+        .lock()
+        .await
+        .push_back(parish_core::world::events::GameEvent::MoodChanged {
+            npc_id: parish_core::npc::NpcId(7),
+            new_mood: "new-context".to_string(),
+            location,
+            timestamp: chrono::Utc::now(),
+        });
+    state
+        .total_game_events
+        .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+
+    let Json(turn) = get_turn(
+        axum::extract::Extension(Arc::clone(&state)),
+        axum::extract::Query(parish_core::ipc::TurnReadParams {
+            since: Some(old_cursor),
+        }),
+    )
+    .await;
+
+    assert_eq!(turn.event_cursor, old_cursor + 1);
+    assert_eq!(turn.events.len(), 1);
+    assert!(turn.events[0].summary.contains("new-context"));
+}
+
+#[tokio::test]
+async fn new_save_marker_failure_preserves_live_identity_cleans_candidate_and_retries() {
+    let temp = tempfile::tempdir().unwrap();
+    let session_saves = temp.path().join("test-session");
+    std::fs::create_dir_all(&session_saves).unwrap();
+    let old_path = session_saves.join("parish_001.db");
+
+    let mut state = test_app_state();
+    let state_parts = Arc::get_mut(&mut state).expect("fresh state must be uniquely owned");
+    state_parts.saves_dir = session_saves.clone();
+    state_parts.session_store = Arc::new(parish_core::session_store::DbSessionStore::new(
+        temp.path().to_path_buf(),
+    ));
+    let snapshot = {
+        let world = state.world.lock().await;
+        let npc_manager = state.npc_manager.lock().await;
+        parish_core::persistence::GameSnapshot::capture(&world, &npc_manager)
+    };
+    let old_branch = {
+        let db = parish_core::persistence::Database::open(&old_path).unwrap();
+        let branch = db.find_branch("main").unwrap().unwrap();
+        db.save_snapshot(branch.id, &snapshot).unwrap();
+        branch
+    };
+    state
+        .session_store
+        .set_active_save(&state.session_id, &old_path)
+        .unwrap();
+    state
+        .save_identity
+        .replace(old_path.clone(), old_branch.id, old_branch.name.clone())
+        .await;
+    *state.save_lock.lock().await = parish_core::persistence::SaveFileLock::try_acquire(&old_path);
+    parish_core::persistence::write_active_save_identity(
+        &session_saves,
+        &old_path,
+        old_branch.id,
+        &old_branch.name,
+    )
+    .unwrap();
+    let marker_path = session_saves.join(".active-save.json");
+    let marker_before = std::fs::read(&marker_path).unwrap();
+    let old_lock_path = parish_core::persistence::SaveFileLock::lock_path_for(&old_path);
+    let candidate_path = session_saves.join("parish_002.db");
+
+    let error = super::saves::do_new_save_file_inner(&state, |_, _, _, _| {
+        Err("injected active marker failure".to_string())
+    })
+    .await
+    .unwrap_err();
+
+    assert!(error.contains("injected active marker failure"));
+    assert_eq!(
+        state.save_identity.save_path.lock().await.as_ref(),
+        Some(&old_path)
+    );
+    assert_eq!(
+        *state.save_identity.current_branch_id.lock().await,
+        Some(old_branch.id)
+    );
+    assert!(state.save_lock.lock().await.is_some());
+    assert!(old_lock_path.exists(), "old live lock must remain held");
+    assert_eq!(std::fs::read(&marker_path).unwrap(), marker_before);
+    assert!(
+        !candidate_path.exists(),
+        "uncommitted candidate database must be removed"
+    );
+    assert!(
+        !parish_core::persistence::SaveFileLock::lock_path_for(&candidate_path).exists(),
+        "uncommitted candidate lock must be released"
+    );
+
+    super::saves::do_new_save_file_inner(&state, |saves_dir, path, branch_id, branch_name| {
+        parish_core::persistence::write_active_save_identity(
+            saves_dir,
+            path,
+            branch_id,
+            branch_name,
+        )
+        .map_err(|error| error.to_string())
+    })
+    .await
+    .expect("retry after marker failure must reuse and commit the candidate path");
+
+    assert_eq!(
+        std::fs::canonicalize(state.save_identity.save_path.lock().await.as_ref().unwrap())
+            .unwrap(),
+        std::fs::canonicalize(&candidate_path).unwrap()
+    );
+    let committed = parish_core::persistence::read_active_save_identity(&session_saves)
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        std::fs::canonicalize(committed.save_path).unwrap(),
+        std::fs::canonicalize(&candidate_path).unwrap()
+    );
+    assert!(!old_lock_path.exists(), "old lock is released after commit");
+    assert!(
+        parish_core::persistence::SaveFileLock::lock_path_for(&candidate_path).exists(),
+        "new committed save lock must be retained"
+    );
+}
+
+#[tokio::test]
+async fn failed_branch_recovery_preserves_runtime_context_and_event_cursor() {
+    let temp = tempfile::tempdir().unwrap();
+    let session_saves = temp.path().join("test-session");
+    std::fs::create_dir_all(&session_saves).unwrap();
+    let candidate_path = session_saves.join("parish_001.db");
+    let db = parish_core::persistence::Database::open(&candidate_path).unwrap();
+    let branch = db.find_branch("main").unwrap().unwrap();
+    drop(db);
+
+    let mut state = test_app_state();
+    let state_parts = Arc::get_mut(&mut state).expect("fresh state must be uniquely owned");
+    state_parts.saves_dir = session_saves;
+    state_parts.session_store = Arc::new(parish_core::session_store::DbSessionStore::new(
+        temp.path().to_path_buf(),
+    ));
+    seed_stale_branch_runtime(&state).await;
+
+    let result = load_branch(
+        axum::extract::Extension(Arc::clone(&state)),
+        axum::extract::Json(LoadBranchRequest {
+            file_path: candidate_path.to_string_lossy().to_string(),
+            branch_id: branch.id,
+        }),
+    )
+    .await;
+
+    assert!(result.is_err(), "empty candidate branch must fail recovery");
+    let conversation = state.conversation.lock().await;
+    assert_eq!(
+        conversation.last_player_input.as_deref(),
+        Some("old branch input")
+    );
+    assert_eq!(conversation.transcript.len(), 1);
+    assert_eq!(conversation.seen_openers_this_location, ["old opener"]);
+    drop(conversation);
+    assert_eq!(state.game_events.lock().await.len(), 1);
+    assert_eq!(
+        state
+            .total_game_events
+            .load(std::sync::atomic::Ordering::Relaxed),
+        41
+    );
+}
+
+#[tokio::test]
+async fn overlapping_task_input_save_and_branch_switch_recover_exactly_one_branch() {
+    use parish_core::session_store::{DbSessionStore, SessionStore};
+
+    let temp = tempfile::tempdir().unwrap();
+    let session_saves = temp.path().join("test-session");
+    std::fs::create_dir_all(&session_saves).unwrap();
+    let save_path = session_saves.join("parish_001.db");
+    let session_store: Arc<dyn SessionStore> =
+        Arc::new(DbSessionStore::new(temp.path().to_path_buf()));
+
+    let mut state = test_app_state();
+    let state_parts = Arc::get_mut(&mut state).expect("fresh state must be uniquely owned");
+    state_parts.saves_dir = session_saves;
+    state_parts.session_store = Arc::clone(&session_store);
+
+    let task_id = {
+        let mut world = state.world.lock().await;
+        let location = world.player_location;
+        let assigned_at = world.clock.now();
+        world
+            .player_progress
+            .assign_task(
+                "Dig over the potato patch.",
+                NpcId(7),
+                location,
+                assigned_at,
+            )
+            .unwrap()
+    };
+    let snapshot = {
+        let world = state.world.lock().await;
+        let npc_manager = state.npc_manager.lock().await;
+        parish_core::persistence::GameSnapshot::capture(&world, &npc_manager)
+    };
+    let (main_branch_id, fork_branch_id) = {
+        let db = parish_core::persistence::Database::open(&save_path).unwrap();
+        let main = db.find_branch("main").unwrap().unwrap();
+        let fork_id = db.create_branch("fork", Some(main.id)).unwrap();
+        db.save_snapshot(main.id, &snapshot).unwrap();
+        db.save_snapshot(fork_id, &snapshot).unwrap();
+        (main.id, fork_id)
+    };
+    let save_path = std::fs::canonicalize(save_path).unwrap();
+    session_store
+        .set_active_save(&state.session_id, &save_path)
+        .unwrap();
+    state
+        .save_identity
+        .replace(save_path.clone(), main_branch_id, "main".to_string())
+        .await;
+    *state.save_lock.lock().await = parish_core::persistence::SaveFileLock::try_acquire(&save_path);
+    assert!(
+        state.save_lock.lock().await.is_some(),
+        "test must retain the active save's advisory lock"
+    );
+
+    // Queue all three request-scoped operations behind the same held barrier.
+    // Once released, their acquisition order is deliberately irrelevant: all
+    // legal serializations must recover the task on exactly one branch.
+    let held = state.persistence_gate.lock().await;
+    let submit_state = Arc::clone(&state);
+    let submit = tokio::spawn(async move {
+        super::submit_input(
+            axum::extract::Extension(submit_state),
+            axum::extract::Extension(crate::cf_auth::AuthContext {
+                account_id: uuid::Uuid::new_v4(),
+                email: "player@example.com".to_string(),
+            }),
+            Json(SubmitInputRequest {
+                text: "I dig over the potato patch.".to_string(),
+                addressed_to: Vec::new(),
+            }),
+        )
+        .await
+        .status()
+    });
+    let save_state = Arc::clone(&state);
+    let save = tokio::spawn(async move {
+        super::save_game(axum::extract::Extension(save_state))
+            .await
+            .map(|_| ())
+    });
+    let load_state = Arc::clone(&state);
+    let load_path = save_path.to_string_lossy().to_string();
+    let load = tokio::spawn(async move {
+        super::load_branch(
+            axum::extract::Extension(load_state),
+            Json(LoadBranchRequest {
+                file_path: load_path,
+                branch_id: fork_branch_id,
+            }),
+        )
+        .await
+    });
+    tokio::task::yield_now().await;
+    drop(held);
+
+    let (submit_result, save_result, load_result) = tokio::join!(submit, save, load);
+    assert_eq!(submit_result.unwrap(), axum::http::StatusCode::OK);
+    save_result.unwrap().expect("overlapping save must succeed");
+    assert_eq!(
+        load_result.unwrap().expect("overlapping load must succeed"),
+        axum::http::StatusCode::OK
+    );
+
+    let main = parish_core::session_store::load_recovery_bundle(
+        session_store.as_ref(),
+        &state.session_id,
+        &save_path,
+        main_branch_id,
+    )
+    .await
+    .unwrap()
+    .unwrap();
+    let fork = parish_core::session_store::load_recovery_bundle(
+        session_store.as_ref(),
+        &state.session_id,
+        &save_path,
+        fork_branch_id,
+    )
+    .await
+    .unwrap()
+    .unwrap();
+    let recover_status = |bundle: parish_core::session_store::RecoveryBundle| {
+        let mut world = WorldState::new();
+        let mut npc_manager = NpcManager::new();
+        bundle.restore(&mut world, &mut npc_manager);
+        serde_json::to_value(
+            world
+                .player_progress
+                .task(task_id)
+                .expect("seeded task must recover")
+                .status,
+        )
+        .unwrap()
+    };
+    let statuses = [recover_status(main), recover_status(fork)];
+    assert_eq!(
+        statuses
+            .iter()
+            .filter(|status| **status == serde_json::json!("in_progress"))
+            .count(),
+        1,
+        "the task transition must recover on exactly one branch: {statuses:?}"
+    );
+    assert_eq!(
+        statuses
+            .iter()
+            .filter(|status| **status == serde_json::json!("assigned"))
+            .count(),
+        1,
+        "the other branch must retain its assigned snapshot: {statuses:?}"
+    );
+
+    let connection = rusqlite::Connection::open(&save_path).unwrap();
+    let task_event_rows: i64 = connection
+        .query_row(
+            "SELECT COUNT(*) FROM journal_events
+             WHERE event_type = 'PlayerTaskStateChanged'",
+            [],
+            |row| row.get(0),
+        )
+        .unwrap();
+    assert_eq!(
+        task_event_rows, 1,
+        "one input must durably append one task transition, never a duplicate"
+    );
 }
 
 /// Regression test for #224 / #231: rebuild_inference must abort the
@@ -1219,7 +1768,7 @@ async fn emit_npc_reactions_uses_precaptured_location() {
     npc.id = NpcId(77);
     npc.name = "Brigid Malone".to_string();
     npc.occupation = "Weaver".to_string();
-    npc.location = start_loc;
+    npc.set_location(start_loc);
     {
         let mut npc_manager = state.npc_manager.lock().await;
         npc_manager.add_npc(npc);
@@ -1291,7 +1840,7 @@ async fn emit_npc_reactions_concurrent_batch_attributes_all_npcs() {
         let mut npc = Npc::new_test_npc();
         npc.id = NpcId(200 + idx as u32);
         npc.name = name.to_string();
-        npc.location = start_loc;
+        npc.set_location(start_loc);
         let mut npc_manager = state.npc_manager.lock().await;
         npc_manager.add_npc(npc);
     }
@@ -1499,6 +2048,47 @@ async fn react_to_message_valid_emoji_returns_ok() {
 }
 
 #[tokio::test]
+async fn react_to_message_waits_for_staged_turn_barrier() {
+    let state = test_app_state();
+    add_introduced_npc(&state, 77, "Molly", "Farmer").await;
+    let held = state.persistence_gate.lock().await;
+    let state_for_reaction = Arc::clone(&state);
+    let reaction = tokio::spawn(async move {
+        super::react_to_message(
+            axum::extract::Extension(state_for_reaction),
+            axum::extract::Json(parish_core::ipc::ReactRequest {
+                npc_name: "Molly".to_string(),
+                message_snippet: "Hello there".to_string(),
+                emoji: "😊".to_string(),
+            }),
+        )
+        .await
+        .into_response()
+    });
+    tokio::task::yield_now().await;
+    assert!(
+        !reaction.is_finished(),
+        "reaction mutation must wait while a staged turn owns persistence_gate"
+    );
+    drop(held);
+    let response = tokio::time::timeout(Duration::from_secs(1), reaction)
+        .await
+        .expect("reaction should finish once candidate install is complete")
+        .unwrap();
+    assert_eq!(response.status(), axum::http::StatusCode::OK);
+    let location = state.world.lock().await.player_location;
+    let npc_manager = state.npc_manager.lock().await;
+    assert_eq!(
+        npc_manager
+            .find_by_name("Molly", location)
+            .unwrap()
+            .reaction_log
+            .len(),
+        1
+    );
+}
+
+#[tokio::test]
 async fn react_to_message_invalid_emoji_returns_bad_request() {
     let state = test_app_state();
     let body = parish_core::ipc::ReactRequest {
@@ -1689,6 +2279,67 @@ async fn engine_state_route_returns_canonical_scene() {
     // Clock + grapevine fields are populated deterministically.
     assert!(!es.clock.day_of_week.is_empty());
     assert_eq!(es.grapevine.item_count, world.gossip_network.len());
+}
+
+#[tokio::test]
+async fn world_and_engine_state_routes_project_the_same_active_tasks() {
+    use chrono::Duration;
+    use parish_core::npc::NpcId;
+
+    let state = test_app_state();
+    let (assigned_id, in_progress_id, assigned_at, started_at) = {
+        let mut world = state.world.lock().await;
+        let location = world.player_location;
+        let assigned_at = world.clock.now();
+        let assigned_id = world
+            .player_progress
+            .assign_task("weed the potato patch", NpcId(11), location, assigned_at)
+            .unwrap();
+        let in_progress_id = world
+            .player_progress
+            .assign_task(
+                "mend the western wall",
+                NpcId(12),
+                location,
+                assigned_at + Duration::minutes(1),
+            )
+            .unwrap();
+        let started_at = assigned_at + Duration::minutes(30);
+        assert_eq!(
+            world.player_progress.advance_assigned_task(
+                "I mend the western wall",
+                location,
+                started_at
+            ),
+            Some(in_progress_id)
+        );
+        (assigned_id, in_progress_id, assigned_at, started_at)
+    };
+
+    let Json(snapshot) =
+        super::get_world_snapshot(axum::extract::Extension(Arc::clone(&state))).await;
+    let Json(engine_state) = super::get_engine_state(axum::extract::Extension(Arc::clone(&state)))
+        .await
+        .expect("engine-state must succeed");
+
+    assert_eq!(snapshot.active_tasks, engine_state.player.active_tasks);
+    assert_eq!(snapshot.active_tasks.len(), 2);
+    assert_eq!(snapshot.active_tasks[0].id, assigned_id.0);
+    assert_eq!(
+        serde_json::to_value(snapshot.active_tasks[0].status).unwrap(),
+        serde_json::json!("assigned")
+    );
+    assert_eq!(snapshot.active_tasks[0].assigned_at, assigned_at);
+    assert_eq!(snapshot.active_tasks[1].id, in_progress_id.0);
+    assert_eq!(
+        serde_json::to_value(snapshot.active_tasks[1].status).unwrap(),
+        serde_json::json!("in_progress")
+    );
+    assert_eq!(snapshot.active_tasks[1].started_at, Some(started_at));
+    assert_eq!(
+        snapshot.active_tasks[1].last_matching_action.as_deref(),
+        Some("I mend the western wall")
+    );
 }
 
 /// The `engine-state` kill switch (rule #6) returns 403 when disabled.

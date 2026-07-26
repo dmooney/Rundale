@@ -85,6 +85,7 @@ pub async fn post_command(
             return (StatusCode::CONFLICT, Json(rejected("command_in_progress")));
         }
     };
+    let _persistence_guard = state.persistence_gate.lock().await;
 
     // Subscribe to relevant topics *before* dispatching so no events are missed.
     let stream = state.event_bus.subscribe(&[
@@ -108,7 +109,7 @@ pub async fn post_command(
     match classified {
         InputResult::SystemCommand(cmd) => {
             let cmd_name = format!("{cmd:?}").to_lowercase();
-            handle_system_command(cmd, &state, &text).await;
+            let _ = handle_system_command(cmd, &state, &text).await;
             let drain = crate::drain::drain_command(stream, deadline).await;
 
             let elapsed_ms = start.elapsed().as_millis() as u64;
@@ -137,7 +138,18 @@ pub async fn post_command(
             )
         }
         InputResult::GameInput(raw) => {
-            handle_game_input(raw, body.addressed_to, &state).await;
+            if let Err(error) = handle_game_input(raw, body.addressed_to, &state, Vec::new()).await
+            {
+                tracing::error!(
+                    session_id = %state.session_id,
+                    %error,
+                    "player task journal append failed"
+                );
+                return (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(rejected("task_persistence_failed")),
+                );
+            }
             let drain = crate::drain::drain_command(stream, deadline).await;
 
             let elapsed_ms = start.elapsed().as_millis() as u64;

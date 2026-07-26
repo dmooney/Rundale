@@ -94,6 +94,12 @@ pub async fn rebuild_inference_inner(state: &Arc<AppState>, app: &tauri::AppHand
 }
 
 pub(crate) async fn tick_inactivity(state: &Arc<AppState>, app: &tauri::AppHandle) {
+    let _persistence_guard = state.persistence_gate.lock().await;
+    tick_inactivity_locked(state, app).await;
+}
+
+/// Applies one inactivity tick while the caller holds `persistence_gate`.
+pub(crate) async fn tick_inactivity_locked(state: &Arc<AppState>, app: &tauri::AppHandle) {
     let (last_player_activity, last_spoken_at, running, idle_after, auto_pause_after) = {
         let conversation = state.conversation.lock().await;
         let config = state.config.lock().await;
@@ -159,7 +165,7 @@ pub(crate) async fn tick_inactivity(state: &Arc<AppState>, app: &tauri::AppHandl
     }
 
     if player_idle >= idle_after && speech_idle >= idle_after {
-        super::input::run_idle_banter(state, app).await;
+        super::input::run_idle_banter_locked(state, app).await;
     }
 }
 

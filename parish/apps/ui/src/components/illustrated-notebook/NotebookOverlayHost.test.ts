@@ -31,6 +31,7 @@ describe('NotebookOverlayHost', () => {
 			},
 		]);
 		worldState.set({
+			location_id: 15,
 			location_name: 'Kilteevan Village',
 			location_description: 'A whitewashed village by the bridge.',
 			time_label: 'Afternoon',
@@ -44,6 +45,7 @@ describe('NotebookOverlayHost', () => {
 			game_epoch_ms: Date.UTC(1820, 3, 1, 15, 40),
 			speed_factor: 36,
 			name_hints: [],
+			active_tasks: [],
 			day_of_week: 'Monday',
 		});
 	});

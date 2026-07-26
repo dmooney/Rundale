@@ -31,9 +31,11 @@ let lastRenderer: {
 let mockHitTargets: ParishHitTarget[] = [];
 let rendererConstructCount = 0;
 const mockSubmitInput = vi.fn(async (..._args: unknown[]) => {});
+const mockReactToMessage = vi.fn(async (..._args: unknown[]) => {});
 
 vi.mock('$lib/ipc', () => ({
 	submitInput: (...args: unknown[]) => mockSubmitInput(...args),
+	reactToMessage: (...args: unknown[]) => mockReactToMessage(...args),
 	getDebugSnapshot: vi.fn(async () => ({})),
 }));
 
@@ -125,6 +127,7 @@ function seedStores() {
 	sessionStorage.clear();
 	resetNotebookOverlayForTests();
 	worldState.set({
+		location_id: 15,
 		location_name: 'Kilteevan Village',
 		location_description: 'A whitewashed village by the bridge.',
 		time_label: 'Afternoon',
@@ -138,6 +141,7 @@ function seedStores() {
 		game_epoch_ms: Date.UTC(1820, 3, 1, 15, 40),
 		speed_factor: 36,
 		name_hints: [],
+		active_tasks: [],
 		day_of_week: 'Monday',
 	});
 	npcsHere.set([roisin]);
@@ -186,6 +190,8 @@ function seedStores() {
 	];
 	mockSubmitInput.mockReset();
 	mockSubmitInput.mockResolvedValue(undefined);
+	mockReactToMessage.mockReset();
+	mockReactToMessage.mockResolvedValue(undefined);
 }
 
 describe('IllustratedNotebookGame fresh parish bridge', () => {
@@ -501,5 +507,35 @@ describe('IllustratedNotebookGame fresh parish bridge', () => {
 
 		await fireEvent.blur(targetButton);
 		expect(lastRenderer?.setFocusedTarget).toHaveBeenCalledWith(null);
+	});
+
+	it('shows and persists reactions on the latest NPC journal entry', async () => {
+		textLog.set([
+			{
+				id: 'npc-reaction-target',
+				source: 'Roisin Connolly',
+				content: 'That field will need another pass.',
+				reactions: [{ emoji: '🤔', source: 'Aoife Kelly' }],
+			},
+		]);
+		const { getByLabelText, getByTestId } = render(IllustratedNotebookGame);
+
+		expect(getByTestId('reaction-bar')).toHaveTextContent('🤔');
+		await fireEvent.click(
+			getByLabelText('React to message from Roisin Connolly'),
+		);
+		await fireEvent.click(getByLabelText('React with smiled warmly'));
+
+		await waitFor(() =>
+			expect(mockReactToMessage).toHaveBeenCalledWith(
+				'Roisin Connolly',
+				'That field will need another pass.',
+				'😊',
+			),
+		);
+		expect(get(textLog)[0].reactions).toContainEqual({
+			emoji: '😊',
+			source: 'player',
+		});
 	});
 });

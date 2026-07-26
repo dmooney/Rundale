@@ -9,15 +9,30 @@
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
+use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
 use tokio::sync::broadcast;
 
 use crate::ids::{LocationId, NpcId};
+use crate::player_progress::{PlayerTask, TaskStatus};
 
 /// Capacity of the broadcast channel.
 ///
 /// Subscribers that fall behind by more than this many events will
 /// receive a `RecvError::Lagged` and skip the dropped messages.
 const BUS_CAPACITY: usize = 256;
+
+/// A game event stamped with the canonical context epoch at publish time.
+///
+/// Runtime fan-in consumers use this envelope to discard events that were
+/// queued before a successful new-game or branch replacement.
+#[derive(Debug, Clone, PartialEq)]
+pub struct ContextEventEnvelope {
+    /// Process-local context generation active when `event` was published.
+    pub context_epoch: u64,
+    /// Semantic game event.
+    pub event: GameEvent,
+}
 
 /// A discrete game event published on the event bus.
 ///
@@ -186,6 +201,31 @@ pub enum GameEvent {
         /// When the arrival happened (game-time).
         timestamp: DateTime<Utc>,
     },
+    /// An NPC assigned concrete work to the player (#1781).
+    ///
+    /// `task` is the authoritative record after insertion into the canonical
+    /// player-progress ledger. Model output never supplies its id, assigner,
+    /// location, timestamps, or lifecycle state.
+    PlayerTaskAssigned {
+        /// Canonical task record at assignment time.
+        task: PlayerTask,
+        /// When the assignment was accepted by the engine.
+        timestamp: DateTime<Utc>,
+    },
+    /// A player action advanced an assigned task to in-progress.
+    ///
+    /// Starting work never implies completion. `task` is the authoritative
+    /// post-mutation record and `previous_status` records the transition source.
+    PlayerTaskProgressed {
+        /// Canonical task record after the action was applied.
+        task: PlayerTask,
+        /// Lifecycle state before this action.
+        previous_status: TaskStatus,
+        /// Bounded player action accepted as relevant to the task.
+        action: String,
+        /// When the action was accepted by the engine.
+        timestamp: DateTime<Utc>,
+    },
     /// A significant life event occurred for an NPC.
     LifeEvent {
         /// Which NPC experienced the event.
@@ -234,6 +274,8 @@ impl GameEvent {
             | GameEvent::WeatherChanged { timestamp, .. }
             | GameEvent::FestivalStarted { timestamp, .. }
             | GameEvent::PlayerMoved { timestamp, .. }
+            | GameEvent::PlayerTaskAssigned { timestamp, .. }
+            | GameEvent::PlayerTaskProgressed { timestamp, .. }
             | GameEvent::LifeEvent { timestamp, .. }
             | GameEvent::NpcInteraction { timestamp, .. } => *timestamp,
         }
@@ -253,6 +295,8 @@ impl GameEvent {
             GameEvent::WeatherChanged { .. } => "WeatherChanged",
             GameEvent::FestivalStarted { .. } => "FestivalStarted",
             GameEvent::PlayerMoved { .. } => "PlayerMoved",
+            GameEvent::PlayerTaskAssigned { .. } => "PlayerTaskAssigned",
+            GameEvent::PlayerTaskProgressed { .. } => "PlayerTaskProgressed",
             GameEvent::LifeEvent { .. } => "LifeEvent",
             GameEvent::NpcInteraction { .. } => "NpcInteraction",
         }
@@ -264,16 +308,26 @@ impl GameEvent {
 /// Wraps `tokio::sync::broadcast` to decouple event producers
 /// (game logic) from consumers (persistence, UI, debug panel).
 /// Multiple subscribers can independently consume the same events.
+#[derive(Clone)]
 pub struct EventBus {
     /// The sending half of the broadcast channel.
     tx: broadcast::Sender<GameEvent>,
+    /// Parallel channel used by context-aware runtime fan-in.
+    context_tx: broadcast::Sender<ContextEventEnvelope>,
+    /// Process-monotonic context generation shared by all bus clones.
+    context_epoch: Arc<AtomicU64>,
 }
 
 impl EventBus {
     /// Creates a new event bus with the default channel capacity.
     pub fn new() -> Self {
         let (tx, _) = broadcast::channel(BUS_CAPACITY);
-        Self { tx }
+        let (context_tx, _) = broadcast::channel(BUS_CAPACITY);
+        Self {
+            tx,
+            context_tx,
+            context_epoch: Arc::new(AtomicU64::new(0)),
+        }
     }
 
     /// Publishes an event to all current subscribers.
@@ -283,7 +337,15 @@ impl EventBus {
     /// events are fire-and-forget).
     pub fn publish(&self, event: GameEvent) -> usize {
         tracing::trace!(event_type = event.event_type(), "Publishing game event");
-        self.tx.send(event).unwrap_or(0)
+        let context_epoch = self.context_epoch();
+        let context_receivers = self
+            .context_tx
+            .send(ContextEventEnvelope {
+                context_epoch,
+                event: event.clone(),
+            })
+            .unwrap_or(0);
+        self.tx.send(event).unwrap_or(0).max(context_receivers)
     }
 
     /// Creates a new subscription to the event bus.
@@ -293,6 +355,32 @@ impl EventBus {
     /// [`BUS_CAPACITY`] events, it will skip the oldest ones.
     pub fn subscribe(&self) -> broadcast::Receiver<GameEvent> {
         self.tx.subscribe()
+    }
+
+    /// Creates a publish-time context-stamped subscription.
+    pub fn subscribe_contextual(&self) -> broadcast::Receiver<ContextEventEnvelope> {
+        self.context_tx.subscribe()
+    }
+
+    /// Returns the active process-local context epoch.
+    pub fn context_epoch(&self) -> u64 {
+        self.context_epoch.load(Ordering::Acquire)
+    }
+
+    /// Advances the context epoch after a durable context replacement commits.
+    ///
+    /// The value is capped at JavaScript's maximum safe integer because it is
+    /// included in reconnect IPC responses. Reaching that cap would require
+    /// more than nine quadrillion context switches in one process.
+    pub fn advance_context_epoch(&self) -> u64 {
+        const MAX_SAFE_INTEGER: u64 = (1_u64 << 53) - 1;
+        self.context_epoch
+            .fetch_update(Ordering::AcqRel, Ordering::Acquire, |current| {
+                Some(current.saturating_add(1).min(MAX_SAFE_INTEGER))
+            })
+            .unwrap_or_else(|current| current)
+            .saturating_add(1)
+            .min(MAX_SAFE_INTEGER)
     }
 
     /// Returns the current number of active subscribers.
@@ -389,6 +477,38 @@ mod tests {
     }
 
     #[test]
+    fn contextual_subscription_preserves_publish_time_epoch() {
+        let bus = EventBus::new();
+        let mut rx = bus.subscribe_contextual();
+        let old = GameEvent::WeatherChanged {
+            new_weather: "Rain".to_string(),
+            timestamp: test_timestamp(),
+        };
+        bus.publish(old.clone());
+        assert_eq!(bus.advance_context_epoch(), 1);
+        let new = GameEvent::WeatherChanged {
+            new_weather: "Clear".to_string(),
+            timestamp: test_timestamp(),
+        };
+        bus.publish(new.clone());
+
+        assert_eq!(
+            rx.try_recv().unwrap(),
+            ContextEventEnvelope {
+                context_epoch: 0,
+                event: old,
+            }
+        );
+        assert_eq!(
+            rx.try_recv().unwrap(),
+            ContextEventEnvelope {
+                context_epoch: 1,
+                event: new,
+            }
+        );
+    }
+
+    #[test]
     fn test_game_event_timestamp() {
         let ts = test_timestamp();
         let event = GameEvent::NpcArrived {
@@ -397,6 +517,38 @@ mod tests {
             timestamp: ts,
         };
         assert_eq!(event.timestamp(), ts);
+    }
+
+    #[test]
+    fn player_task_progress_event_carries_authoritative_post_mutation_record() {
+        let ts = test_timestamp();
+        let task = PlayerTask {
+            id: crate::PlayerTaskId(4),
+            description: "Dig over the potato patch.".to_string(),
+            assigned_by: NpcId(7),
+            location: LocationId(9),
+            assigned_at: ts,
+            status: TaskStatus::InProgress,
+            started_at: Some(ts),
+            completed_at: None,
+            last_matching_action: Some("I dig over the potato patch.".to_string()),
+        };
+        let event = GameEvent::PlayerTaskProgressed {
+            task: task.clone(),
+            previous_status: TaskStatus::Assigned,
+            action: "I dig over the potato patch.".to_string(),
+            timestamp: ts,
+        };
+
+        assert_eq!(event.event_type(), "PlayerTaskProgressed");
+        assert_eq!(event.timestamp(), ts);
+        let json = serde_json::to_value(&event).unwrap();
+        assert_eq!(json["task"]["id"], 4);
+        assert_eq!(json["task"]["assigned_by"], 7);
+        assert_eq!(json["task"]["location"], 9);
+        assert_eq!(json["task"]["status"], "in_progress");
+        assert_eq!(json["previous_status"], "assigned");
+        assert_eq!(json["action"], "I dig over the potato patch.");
     }
 
     #[test]

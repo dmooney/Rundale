@@ -42,6 +42,11 @@ pub async fn react_to_message(
         return StatusCode::BAD_REQUEST;
     }
 
+    // Staged turns clone and later replace the whole NPC manager. Participate
+    // in the same barrier so a reaction accepted during inference cannot be
+    // overwritten by the candidate install.
+    let _persistence_guard = state.persistence_gate.lock().await;
+
     // Store the reaction in the target NPC's reaction log
     let mut npc_manager = state.npc_manager.lock().await;
     if let Some(npc) = npc_manager.find_by_name_mut(&body.npc_name) {
@@ -80,40 +85,51 @@ pub fn emit_npc_reactions(
     let emitter: std::sync::Arc<dyn parish_core::ipc::EventEmitter> =
         std::sync::Arc::new(crate::emitter::AppStateEmitter::new(Arc::clone(state)));
 
-    // Persist callback: closes over Arc<AppState> and locks npc_manager to
-    // record each reaction in the NPC's reaction_log (#403). Uses
-    // `tokio::spawn` to avoid blocking the reaction task while waiting for
-    // the lock — locks are always released at statement-end in this style.
-    let state_for_persist = Arc::clone(state);
-    let persist: parish_core::game_loop::PersistReactionFn = std::sync::Arc::new(
-        move |npc_name: String, emoji: String, player_input: String| {
-            let state = Arc::clone(&state_for_persist);
-            tokio::spawn(async move {
-                let mut npc_manager = state.npc_manager.lock().await;
-                if let Some(npc_mut) = npc_manager.find_by_name_mut(&npc_name) {
-                    npc_mut.reaction_log.add_player_message_reaction(
-                        &emoji,
-                        &player_input,
-                        chrono::Utc::now(),
-                    );
-                }
-                // Feed the per-session diversity sensor (#995).
-                npc_manager.record_reaction_emoji(&emoji);
-            });
-        },
-    );
-
     tokio::spawn(async move {
         // Pre-capture the NPC list at the given location (the player may have
         // moved by the time the background task runs).
-        let npcs_here = {
+        let (npcs_here, context_bus, context_epoch) = {
+            let world = state_clone.world.lock().await;
             let npc_manager = state_clone.npc_manager.lock().await;
-            npc_manager
-                .npcs_at(location)
-                .iter()
-                .map(|npc| (*npc).clone())
-                .collect::<Vec<_>>()
+            (
+                npc_manager
+                    .npcs_at(location)
+                    .iter()
+                    .map(|npc| (*npc).clone())
+                    .collect::<Vec<_>>(),
+                world.event_bus.clone(),
+                world.event_bus.context_epoch(),
+            )
         };
+        let context_is_valid: parish_core::game_loop::ReactionContextValidFn = {
+            let context_bus = context_bus.clone();
+            std::sync::Arc::new(move || context_bus.context_epoch() == context_epoch)
+        };
+        // Re-check under the lifecycle barrier immediately before mutating the
+        // live manager; the shared reaction worker also checks before emitting.
+        let state_for_persist = Arc::clone(&state_clone);
+        let persist_context = Arc::clone(&context_is_valid);
+        let persist: parish_core::game_loop::PersistReactionFn = std::sync::Arc::new(
+            move |npc_name: String, emoji: String, player_input: String| {
+                let state = Arc::clone(&state_for_persist);
+                let context_is_valid = Arc::clone(&persist_context);
+                tokio::spawn(async move {
+                    let _persistence_guard = state.persistence_gate.lock().await;
+                    if !context_is_valid() {
+                        return;
+                    }
+                    let mut npc_manager = state.npc_manager.lock().await;
+                    if let Some(npc_mut) = npc_manager.find_by_name_mut(&npc_name) {
+                        npc_mut.reaction_log.add_player_message_reaction(
+                            &emoji,
+                            &player_input,
+                            chrono::Utc::now(),
+                        );
+                    }
+                    npc_manager.record_reaction_emoji(&emoji);
+                });
+            },
+        );
         let (reaction_client, reaction_model, llm_enabled) = {
             let config = state_clone.config.lock().await;
             let base_client = state_clone.inference.client.lock().await;
@@ -132,6 +148,7 @@ pub fn emit_npc_reactions(
             llm_enabled,
             emitter,
             persist,
+            context_is_valid,
         );
     });
 }

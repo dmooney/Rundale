@@ -4,9 +4,10 @@
 //! [`EngineState`] plus the turn's narrative. Two artifacts come out:
 //!
 //! - an **SVG** (text) — human/judge-readable: the clock, location, co-located
-//!   NPCs with mood, grapevine status, and the narrative. This exposes
-//!   simulation data the *player* never sees (NPC moods, grapevine distortion),
-//!   which is exactly the ground truth the judge needs.
+//!   NPCs with mood, active task progression, grapevine status, and the
+//!   narrative. This exposes simulation data the *player* never sees (NPC
+//!   moods, grapevine distortion), which is exactly the ground truth the judge
+//!   needs.
 //! - a **PNG** (raster) — a compact, deterministic visual encoding of the same
 //!   facts as colored cells/bars, for the dashboard turn gallery. Built with
 //!   the pure-Rust `png` crate (no font/system deps).
@@ -21,6 +22,11 @@ use crate::error::{HarnessError, Result};
 
 const W: u32 = 480;
 const H: u32 = 240;
+const SVG_TASK_Y: u32 = 146;
+const SVG_NPC_FIRST_Y: u32 = 164;
+const SVG_NPC_ROW_STEP: u32 = 14;
+const SVG_MAX_NPC_ROWS: usize = 4;
+const SVG_NARRATIVE_Y: u32 = 224;
 
 /// A rendered state-frame: SVG text + PNG bytes.
 #[derive(Debug, Clone)]
@@ -52,16 +58,48 @@ fn render_svg(state: &EngineState, narrative: &str, turn_index: u32) -> String {
     let clock = &state.clock;
     let scene = &state.active_scene;
     let mut npc_lines = String::new();
-    let mut y = 150;
-    for npc in &state.npcs.here {
+    let visible_npc_count = if state.npcs.here.len() > SVG_MAX_NPC_ROWS {
+        SVG_MAX_NPC_ROWS - 1
+    } else {
+        state.npcs.here.len()
+    };
+    for (row, npc) in state.npcs.here.iter().take(visible_npc_count).enumerate() {
+        let y = SVG_NPC_FIRST_Y + row as u32 * SVG_NPC_ROW_STEP;
         npc_lines.push_str(&format!(
             "<text x=\"16\" y=\"{y}\" font-size=\"12\" fill=\"#cdd6f4\">- {} ({}){}</text>",
             xml_escape(&npc.display_name),
             xml_escape(&npc.mood),
             if npc.introduced { " [known]" } else { "" }
         ));
-        y += 16;
     }
+    let hidden_npc_count = state.npcs.here.len().saturating_sub(visible_npc_count);
+    if hidden_npc_count > 0 {
+        let y = SVG_NPC_FIRST_Y + visible_npc_count as u32 * SVG_NPC_ROW_STEP;
+        let noun = if hidden_npc_count == 1 { "NPC" } else { "NPCs" };
+        npc_lines.push_str(&format!(
+            "<text x=\"16\" y=\"{y}\" font-size=\"12\" fill=\"#cdd6f4\">… +{hidden_npc_count} more {noun}</text>"
+        ));
+    }
+    let task_line = state
+        .player
+        .active_tasks
+        .first()
+        .map(|task| {
+            let description: String = task.description.chars().take(72).collect();
+            let more = state.player.active_tasks.len().saturating_sub(1);
+            format!(
+                "active task: #{} [{}] {}{}",
+                task.id,
+                task.status_label(),
+                description,
+                if more == 0 {
+                    String::new()
+                } else {
+                    format!(" (+{more} more)")
+                }
+            )
+        })
+        .unwrap_or_else(|| "active tasks: none".to_string());
     let narrative_excerpt: String = narrative.chars().take(220).collect();
     format!(
         "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"{W}\" height=\"{H}\" \
@@ -72,8 +110,9 @@ fn render_svg(state: &EngineState, narrative: &str, turn_index: u32) -> String {
          <text x=\"16\" y=\"74\" font-size=\"12\" fill=\"#a6adc8\">player visited {visited} locations{paused}</text>\
          <text x=\"16\" y=\"104\" font-size=\"13\" fill=\"#94e2d5\">NPCs here: {here} / {total} roster ({introduced} known)</text>\
          <text x=\"16\" y=\"126\" font-size=\"12\" fill=\"#f9e2af\">grapevine: {items} items, {distorted} distorted (max level {maxd})</text>\
+         <text x=\"16\" y=\"{SVG_TASK_Y}\" font-size=\"12\" fill=\"#cba6f7\">{task_line}</text>\
          {npc_lines}\
-         <text x=\"16\" y=\"220\" font-size=\"11\" fill=\"#bac2de\">{narrative}</text>\
+         <text x=\"16\" y=\"{SVG_NARRATIVE_Y}\" font-size=\"11\" fill=\"#bac2de\">{narrative}</text>\
          </svg>",
         loc = xml_escape(&scene.location_name),
         hh = clock.hour,
@@ -91,6 +130,7 @@ fn render_svg(state: &EngineState, narrative: &str, turn_index: u32) -> String {
         items = state.grapevine.item_count,
         distorted = state.grapevine.distorted_item_count,
         maxd = state.grapevine.max_distortion,
+        task_line = xml_escape(&task_line),
         narrative = xml_escape(&narrative_excerpt),
     )
 }
@@ -125,6 +165,17 @@ fn render_pixels(state: &EngineState) -> Vec<u8> {
         let frac = state.npcs.introduced as f64 / state.npcs.total as f64;
         let r_w = (frac * f64::from(W)) as u32;
         fill_rect(&mut buf, 0, 140, r_w.max(1), 12, (166, 227, 161));
+    }
+    // One compact cell per active task, keyed by id + status so a lifecycle
+    // transition changes the frame even when location/NPC facts stay static.
+    let mut task_x = 8;
+    for task in &state.player.active_tasks {
+        let color = color_for(&format!("task:{}:{}", task.id, task.status_label()));
+        fill_rect(&mut buf, task_x, 164, 28, 18, color);
+        task_x += 34;
+        if task_x + 28 > W {
+            break;
+        }
     }
     buf
 }
@@ -192,14 +243,37 @@ fn xml_escape(s: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use parish_core::ipc::build_engine_state;
     use parish_core::ipc::engine_state::{
         ActiveScene, EngineClock, GrapevineStatus, NpcStateSummary, NpcStatus, PlayerState,
     };
+    use parish_core::npc::{NpcId, manager::NpcManager};
+    use parish_core::world::WorldState;
     use std::io::Cursor;
 
     fn sample_state() -> EngineState {
+        let active_tasks = {
+            let mut world = WorldState::new();
+            let location = world.player_location;
+            let assigned_at = world.clock.now();
+            let task_id = world
+                .player_progress
+                .assign_task("weed the potato patch", NpcId(11), location, assigned_at)
+                .unwrap();
+            assert_eq!(
+                world.player_progress.advance_assigned_task(
+                    "I weed the potato patch",
+                    location,
+                    assigned_at
+                ),
+                Some(task_id)
+            );
+            build_engine_state(&world, &NpcManager::new())
+                .player
+                .active_tasks
+        };
         EngineState {
-            schema_version: 1,
+            schema_version: 2,
             active_scene: ActiveScene {
                 location_id: 3,
                 location_name: "Darcy's Pub".into(),
@@ -221,6 +295,7 @@ mod tests {
                 location_id: 3,
                 visited_count: 4,
                 name: Some("Sean".into()),
+                active_tasks,
             },
             npcs: NpcStateSummary {
                 here: vec![NpcStatus {
@@ -239,6 +314,32 @@ mod tests {
                 distorted_item_count: 1,
             },
         }
+    }
+
+    fn state_with_npcs(count: usize) -> EngineState {
+        let mut state = sample_state();
+        state.npcs.here = (1..=count)
+            .map(|index| NpcStatus {
+                id: index as u32,
+                real_name: format!("NPC {index}"),
+                display_name: format!("NPC {index}"),
+                mood: "steady".into(),
+                introduced: false,
+            })
+            .collect();
+        state.npcs.total = count;
+        state.npcs.introduced = 0;
+        state
+    }
+
+    fn assert_npc_line(svg: &str, name: &str, y: u32) {
+        let expected = format!(
+            "<text x=\"16\" y=\"{y}\" font-size=\"12\" fill=\"#cdd6f4\">- {name} (steady)</text>"
+        );
+        assert!(
+            svg.contains(&expected),
+            "expected NPC line `{expected}` in SVG: {svg}"
+        );
     }
 
     #[test]
@@ -267,6 +368,60 @@ mod tests {
         // SVG carries the readable ground truth.
         assert!(frame.svg.contains("Darcy&#39;s Pub") || frame.svg.contains("Darcy's Pub"));
         assert!(frame.svg.contains("grapevine"));
+        assert!(
+            frame
+                .svg
+                .contains("active task: #1 [in_progress] weed the potato patch")
+        );
+    }
+
+    #[test]
+    fn svg_layout_with_no_npcs_retains_task_and_narrative_rows() {
+        let svg = render_svg(&state_with_npcs(0), "The room is empty.", 8);
+
+        assert!(svg.contains(
+            "<text x=\"16\" y=\"146\" font-size=\"12\" fill=\"#cba6f7\">active task: #1 [in_progress] weed the potato patch</text>"
+        ));
+        assert!(svg.contains(
+            "<text x=\"16\" y=\"224\" font-size=\"11\" fill=\"#bac2de\">The room is empty.</text>"
+        ));
+        assert!(!svg.contains("fill=\"#cdd6f4\""));
+    }
+
+    #[test]
+    fn svg_layout_fits_four_npcs_above_narrative() {
+        let svg = render_svg(&state_with_npcs(4), "Four neighbours are gathered.", 9);
+
+        assert_npc_line(&svg, "NPC 1", 164);
+        assert_npc_line(&svg, "NPC 2", 178);
+        assert_npc_line(&svg, "NPC 3", 192);
+        assert_npc_line(&svg, "NPC 4", 206);
+        assert!(svg.contains(
+            "<text x=\"16\" y=\"224\" font-size=\"11\" fill=\"#bac2de\">Four neighbours are gathered.</text>"
+        ));
+        assert!(!svg.contains("more NPC"));
+        assert_eq!(
+            SVG_NARRATIVE_Y - (SVG_NPC_FIRST_Y + 3 * SVG_NPC_ROW_STEP),
+            18
+        );
+    }
+
+    #[test]
+    fn svg_layout_caps_large_npc_groups_with_summary_row() {
+        let svg = render_svg(&state_with_npcs(7), "The gathering fills the room.", 10);
+
+        assert_npc_line(&svg, "NPC 1", 164);
+        assert_npc_line(&svg, "NPC 2", 178);
+        assert_npc_line(&svg, "NPC 3", 192);
+        assert!(svg.contains(
+            "<text x=\"16\" y=\"206\" font-size=\"12\" fill=\"#cdd6f4\">… +4 more NPCs</text>"
+        ));
+        assert!(!svg.contains("- NPC 4 (steady)"));
+        assert!(!svg.contains("- NPC 7 (steady)"));
+        assert_eq!(svg.matches("fill=\"#cdd6f4\"").count(), 4);
+        assert!(svg.contains(
+            "<text x=\"16\" y=\"224\" font-size=\"11\" fill=\"#bac2de\">The gathering fills the room.</text>"
+        ));
     }
 
     #[test]

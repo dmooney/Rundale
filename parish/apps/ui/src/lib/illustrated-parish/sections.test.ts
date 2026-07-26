@@ -6,6 +6,7 @@ const state = (activeTab: ParishTab) =>
 	({
 		activeTab,
 		world: {
+			location_id: 1,
 			location_name: 'The Crossroads',
 			location_description: 'Four roads meet beside the old bridge.',
 			time_label: 'Afternoon',
@@ -19,6 +20,7 @@ const state = (activeTab: ParishTab) =>
 			game_epoch_ms: 0,
 			speed_factor: 0,
 			name_hints: [],
+			active_tasks: [],
 			day_of_week: 'Monday',
 		},
 		map: {
@@ -67,7 +69,7 @@ const state = (activeTab: ParishTab) =>
 		},
 		journalEntries: [
 			{ source: 'system', content: 'You arrive at the crossroads.' },
-			{ source: 'Roisin', content: 'The road is quiet today.' },
+			{ source: 'Roisin Connolly', content: 'The road is quiet today.' },
 		],
 	}) satisfies Pick<
 		ParishRenderState,
@@ -105,8 +107,8 @@ describe('illustrated parish notebook sections', () => {
 	it('uses recent conversation lines for the Journal section', () => {
 		const journal = buildNotebookSectionContent(state('journal'));
 		expect(journal.lines).toEqual([
-			{ label: 'system', text: 'You arrive at the crossroads.' },
-			{ label: 'Roisin', text: 'The road is quiet today.' },
+			{ label: 'Parish', text: 'You arrive at the crossroads.' },
+			{ label: 'Roisin Connolly', text: 'The road is quiet today.' },
 		]);
 	});
 

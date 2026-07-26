@@ -6,8 +6,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use parish_types::LocationId;
-use parish_types::NpcId;
+use parish_types::{LocationId, NpcId, PlayerTask};
 
 /// A discrete state mutation in the game world.
 ///
@@ -80,6 +79,15 @@ pub enum WorldEvent {
         /// Number of game minutes advanced.
         minutes: i64,
     },
+    /// The canonical post-mutation state of one player task.
+    ///
+    /// Carrying the complete task record makes replay deterministic: it does
+    /// not need to re-run natural-language matching or infer which lifecycle
+    /// transition originally occurred.
+    PlayerTaskStateChanged {
+        /// Authoritative task record after the mutation was applied.
+        task: PlayerTask,
+    },
 }
 
 impl WorldEvent {
@@ -94,6 +102,7 @@ impl WorldEvent {
             WorldEvent::WeatherChanged { .. } => "WeatherChanged",
             WorldEvent::MemoryAdded { .. } => "MemoryAdded",
             WorldEvent::ClockAdvanced { .. } => "ClockAdvanced",
+            WorldEvent::PlayerTaskStateChanged { .. } => "PlayerTaskStateChanged",
         }
     }
 }
@@ -146,7 +155,7 @@ fn apply_memory_added(
             timestamp: clock.now(),
             content: content.to_string(),
             participants: vec![npc_id],
-            location: npc.location,
+            location: npc.location(),
             kind: None,
         });
     }
@@ -161,6 +170,9 @@ fn apply_memory_added(
 /// `ClockAdvanced` events with non-positive or out-of-range minutes are
 /// skipped with a warning so a corrupted journal cannot brick a save by
 /// moving the clock backward or jumping weeks into the future.
+///
+/// Invalid `PlayerTaskStateChanged` payloads are likewise skipped with a
+/// warning. Exact duplicates and stale lifecycle payloads are harmless no-ops.
 ///
 /// `PlayerMoved` events additionally:
 /// - record an edge traversal in `world.edge_traversals` when `from` and
@@ -182,8 +194,7 @@ pub fn replay_journal(
             }
             WorldEvent::NpcMoved { npc_id, to, .. } => {
                 if let Some(npc) = npc_manager.get_mut(*npc_id) {
-                    npc.location = *to;
-                    npc.state = parish_npc::types::NpcState::Present;
+                    npc.set_location_and_state(*to, parish_npc::types::NpcState::Present);
                 }
             }
             WorldEvent::NpcMoodChanged { npc_id, mood } => {
@@ -225,6 +236,15 @@ pub fn replay_journal(
                     );
                 }
             }
+            WorldEvent::PlayerTaskStateChanged { task } => {
+                if let Err(error) = world.player_progress.apply_replayed_task(task.clone()) {
+                    tracing::warn!(
+                        task_id = task.id.0,
+                        %error,
+                        "skipping invalid player-task journal event"
+                    );
+                }
+            }
             WorldEvent::DialogueOccurred { .. } => {}
         }
     }
@@ -237,6 +257,26 @@ pub fn replay_journal(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use chrono::{TimeZone, Utc};
+    use parish_types::{PlayerTaskId, TaskStatus};
+
+    fn task_time(hour: u32) -> chrono::DateTime<Utc> {
+        Utc.with_ymd_and_hms(1820, 3, 20, hour, 0, 0).unwrap()
+    }
+
+    fn assigned_task() -> PlayerTask {
+        PlayerTask {
+            id: PlayerTaskId(1),
+            description: "Dig over the potato patch.".to_string(),
+            assigned_by: NpcId(7),
+            location: LocationId(9),
+            assigned_at: task_time(10),
+            status: TaskStatus::Assigned,
+            started_at: None,
+            completed_at: None,
+            last_matching_action: None,
+        }
+    }
 
     #[test]
     fn test_world_event_type_names() {
@@ -283,6 +323,192 @@ mod tests {
         };
         let json = serde_json::to_string(&event).unwrap();
         assert!(json.contains("\"type\":\"PlayerMoved\""));
+    }
+
+    #[test]
+    fn player_task_state_changed_deserializes_legacy_defaulted_task_fields() {
+        let legacy_json = r#"{
+            "type": "PlayerTaskStateChanged",
+            "task": {
+                "id": 1,
+                "description": "Dig over the potato patch.",
+                "assigned_by": 7,
+                "location": 9,
+                "assigned_at": "1820-03-20T10:00:00Z"
+            }
+        }"#;
+
+        let event: WorldEvent = serde_json::from_str(legacy_json).unwrap();
+        assert_eq!(
+            event,
+            WorldEvent::PlayerTaskStateChanged {
+                task: assigned_task(),
+            }
+        );
+    }
+
+    #[test]
+    fn replay_assigned_task_after_empty_snapshot_restores_exact_state() {
+        let empty_world = parish_world::WorldState::new();
+        let empty_npcs = parish_npc::manager::NpcManager::new();
+        let snapshot = crate::snapshot::GameSnapshot::capture(&empty_world, &empty_npcs);
+        let task = assigned_task();
+
+        let mut recovered_world = parish_world::WorldState::new();
+        let mut recovered_npcs = parish_npc::manager::NpcManager::new();
+        snapshot.restore(&mut recovered_world, &mut recovered_npcs);
+        replay_journal(
+            &mut recovered_world,
+            &mut recovered_npcs,
+            &[WorldEvent::PlayerTaskStateChanged { task: task.clone() }],
+        );
+
+        assert_eq!(recovered_world.player_progress.tasks(), &[task]);
+        assert_eq!(
+            recovered_world
+                .player_progress
+                .assign_task(
+                    "Mend the west wall.",
+                    NpcId(8),
+                    LocationId(9),
+                    task_time(11),
+                )
+                .unwrap(),
+            PlayerTaskId(2),
+            "replay must also advance the monotonic task id"
+        );
+    }
+
+    #[test]
+    fn replay_progressed_task_after_assigned_snapshot_restores_exact_state() {
+        let mut assigned_world = parish_world::WorldState::new();
+        let assigned_npcs = parish_npc::manager::NpcManager::new();
+        let task_id = assigned_world
+            .player_progress
+            .assign_task(
+                "Dig over the potato patch.",
+                NpcId(7),
+                LocationId(9),
+                task_time(10),
+            )
+            .unwrap();
+        let task = assigned_world
+            .player_progress
+            .task(task_id)
+            .unwrap()
+            .clone();
+        let snapshot = crate::snapshot::GameSnapshot::capture(&assigned_world, &assigned_npcs);
+        let progressed = PlayerTask {
+            status: TaskStatus::InProgress,
+            started_at: Some(task_time(11)),
+            last_matching_action: Some("I dig over the potato patch.".to_string()),
+            ..task
+        };
+
+        let mut recovered_world = parish_world::WorldState::new();
+        let mut recovered_npcs = parish_npc::manager::NpcManager::new();
+        snapshot.restore(&mut recovered_world, &mut recovered_npcs);
+        replay_journal(
+            &mut recovered_world,
+            &mut recovered_npcs,
+            &[WorldEvent::PlayerTaskStateChanged {
+                task: progressed.clone(),
+            }],
+        );
+
+        assert_eq!(
+            recovered_world.player_progress.task(PlayerTaskId(1)),
+            Some(&progressed)
+        );
+    }
+
+    #[test]
+    fn replay_duplicate_task_events_is_idempotent() {
+        let mut world = parish_world::WorldState::new();
+        let mut npcs = parish_npc::manager::NpcManager::new();
+        let assigned = assigned_task();
+        let progressed = PlayerTask {
+            status: TaskStatus::InProgress,
+            started_at: Some(task_time(11)),
+            last_matching_action: Some("I dig over the potato patch.".to_string()),
+            ..assigned.clone()
+        };
+        let assigned_event = WorldEvent::PlayerTaskStateChanged { task: assigned };
+        let progressed_event = WorldEvent::PlayerTaskStateChanged {
+            task: progressed.clone(),
+        };
+
+        replay_journal(
+            &mut world,
+            &mut npcs,
+            &[
+                assigned_event.clone(),
+                assigned_event,
+                progressed_event.clone(),
+                progressed_event,
+                WorldEvent::PlayerTaskStateChanged {
+                    task: assigned_task(),
+                },
+            ],
+        );
+
+        assert_eq!(world.player_progress.len(), 1);
+        assert_eq!(
+            world.player_progress.task(PlayerTaskId(1)),
+            Some(&progressed)
+        );
+    }
+
+    #[test]
+    fn replay_completed_post_state_preserves_completion_fields() {
+        let mut in_progress_world = parish_world::WorldState::new();
+        let in_progress_npcs = parish_npc::manager::NpcManager::new();
+        let task_id = in_progress_world
+            .player_progress
+            .assign_task(
+                "Dig over the potato patch.",
+                NpcId(7),
+                LocationId(9),
+                task_time(10),
+            )
+            .unwrap();
+        assert_eq!(
+            in_progress_world.player_progress.advance_assigned_task(
+                "I dig over the potato patch.",
+                LocationId(9),
+                task_time(11),
+            ),
+            Some(task_id)
+        );
+        let in_progress = in_progress_world
+            .player_progress
+            .task(task_id)
+            .unwrap()
+            .clone();
+        let snapshot =
+            crate::snapshot::GameSnapshot::capture(&in_progress_world, &in_progress_npcs);
+        let completed = PlayerTask {
+            status: TaskStatus::Completed,
+            completed_at: Some(task_time(12)),
+            last_matching_action: Some("The engine confirms the patch is dug.".to_string()),
+            ..in_progress
+        };
+
+        let mut recovered_world = parish_world::WorldState::new();
+        let mut recovered_npcs = parish_npc::manager::NpcManager::new();
+        snapshot.restore(&mut recovered_world, &mut recovered_npcs);
+        replay_journal(
+            &mut recovered_world,
+            &mut recovered_npcs,
+            &[WorldEvent::PlayerTaskStateChanged {
+                task: completed.clone(),
+            }],
+        );
+
+        assert_eq!(
+            recovered_world.player_progress.task(PlayerTaskId(1)),
+            Some(&completed)
+        );
     }
 
     #[test]
@@ -337,38 +563,13 @@ mod tests {
 
     #[test]
     fn test_replay_npc_mood_changed() {
-        use parish_npc::memory::{LongTermMemory, ShortTermMemory};
-        use parish_npc::types::NpcState;
-        use std::collections::HashMap;
-
         let mut world = parish_world::WorldState::new();
         let mut npcs = parish_npc::manager::NpcManager::new();
-        npcs.add_npc(parish_npc::Npc {
-            id: NpcId(1),
-            name: "Test".to_string(),
-            brief_description: "a person".to_string(),
-            age: 30,
-            occupation: "Test".to_string(),
-            personality: "Test".to_string(),
-            pronouns: "they/them".to_string(),
-            intelligence: parish_npc::types::Intelligence::default(),
-            location: LocationId(1),
-            mood: "calm".to_string(),
-            home: None,
-            workplace: None,
-            schedule: None,
-            relationships: HashMap::new(),
-            memory: ShortTermMemory::new(),
-            long_term_memory: LongTermMemory::new(),
-            knowledge: Vec::new(),
-            state: NpcState::Present,
-            deflated_summary: None,
-            reaction_log: parish_npc::reactions::ReactionLog::default(),
-            last_activity: None,
-            is_ill: false,
-            doom: None,
-            banshee_heralded: false,
-        });
+        let mut npc = parish_npc::Npc::new_test_npc();
+        npc.id = NpcId(1);
+        npc.name = "Test".to_string();
+        npc.mood = "calm".to_string();
+        npcs.add_npc(npc);
 
         let events = vec![WorldEvent::NpcMoodChanged {
             npc_id: NpcId(1),
@@ -619,6 +820,7 @@ mod tests {
     fn test_replay_npc_moved_updates_location_and_state() {
         let mut world = parish_world::WorldState::new();
         let mut npcs = make_single_test_npc();
+        let before_replay = npcs.get(NpcId(1)).unwrap().grounding_revision();
         let events = vec![WorldEvent::NpcMoved {
             npc_id: NpcId(1),
             from: LocationId(1),
@@ -626,8 +828,13 @@ mod tests {
         }];
         replay_journal(&mut world, &mut npcs, &events);
         let npc = npcs.get(NpcId(1)).unwrap();
-        assert_eq!(npc.location, LocationId(3));
-        assert_eq!(npc.state, parish_npc::types::NpcState::Present);
+        assert_eq!(npc.location(), LocationId(3));
+        assert_eq!(npc.state(), &parish_npc::types::NpcState::Present);
+        assert_ne!(
+            npc.grounding_revision(),
+            before_replay,
+            "journal relocation must invalidate asynchronous grounding"
+        );
     }
 
     #[test]
@@ -729,36 +936,12 @@ mod tests {
 
     /// Basic NPC fixture with default fields.
     fn npc_fixture(id: u32, location: u32) -> parish_npc::Npc {
-        use parish_npc::memory::{LongTermMemory, ShortTermMemory};
-        use parish_npc::types::{Intelligence, NpcState};
-        use std::collections::HashMap;
-
-        parish_npc::Npc {
-            id: NpcId(id),
-            name: format!("NPC {}", id),
-            brief_description: "a person".to_string(),
-            age: 30,
-            occupation: "Test".to_string(),
-            personality: "Test".to_string(),
-            pronouns: "they/them".to_string(),
-            intelligence: Intelligence::default(),
-            location: LocationId(location),
-            mood: "calm".to_string(),
-            home: None,
-            workplace: None,
-            schedule: None,
-            relationships: HashMap::new(),
-            memory: ShortTermMemory::new(),
-            long_term_memory: LongTermMemory::new(),
-            knowledge: Vec::new(),
-            state: NpcState::Present,
-            deflated_summary: None,
-            reaction_log: parish_npc::reactions::ReactionLog::default(),
-            last_activity: None,
-            is_ill: false,
-            doom: None,
-            banshee_heralded: false,
-        }
+        let mut npc = parish_npc::Npc::new_test_npc();
+        npc.id = NpcId(id);
+        npc.name = format!("NPC {}", id);
+        npc.set_location(LocationId(location));
+        npc.mood = "calm".to_string();
+        npc
     }
 
     #[test]
@@ -797,6 +980,9 @@ mod tests {
                 content: "test".to_string(),
             },
             WorldEvent::ClockAdvanced { minutes: 10 },
+            WorldEvent::PlayerTaskStateChanged {
+                task: assigned_task(),
+            },
         ];
         for event in &events {
             assert!(!event.event_type().is_empty());

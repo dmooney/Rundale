@@ -369,7 +369,7 @@ mod tests {
         assert_ne!(ta[&NpcId(1)], CogTier::Tier1);
 
         // Move NPC to player's location.
-        npcs.get_mut(&NpcId(1)).unwrap().location = LocationId(1);
+        npcs.get_mut(&NpcId(1)).unwrap().set_location(LocationId(1));
         let events = vec![GameEvent::MoodChanged {
             npc_id: NpcId(1),
             new_mood: "excited".to_string(),
@@ -402,7 +402,9 @@ mod tests {
         assert_eq!(ta[&NpcId(1)], CogTier::Tier1);
 
         // Move NPC far away.
-        npcs.get_mut(&NpcId(1)).unwrap().location = LocationId(11);
+        npcs.get_mut(&NpcId(1))
+            .unwrap()
+            .set_location(LocationId(11));
         let mut cache = None;
         assign_tiers(&mut npcs, &mut ta, &mut cache, &world, &[]);
 

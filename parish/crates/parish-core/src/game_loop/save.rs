@@ -12,7 +12,7 @@
 //! Slice 8: `do_new_game` — full new-game orchestration via
 //! `Arc<dyn SessionStore>`.  Server and Tauri delegate to this; the CLI
 //! continues using `handle_headless_new_game` (structurally different:
-//! creates a new branch on an existing `AsyncDatabase` and calls print
+//! owns an `AsyncDatabase` directly and calls print
 //! helpers that are not part of the shared EventEmitter surface).
 //!
 //! TD-008: `render_branches_text` / `render_branch_log_text` — pure
@@ -26,18 +26,70 @@
 //! `FORBIDDEN_FOR_BACKEND_AGNOSTIC`.
 
 use std::collections::VecDeque;
+use std::ffi::OsString;
+use std::fs;
 use std::path::{Path, PathBuf};
 
 use tokio::sync::Mutex;
 
 use crate::game_mod::{GameMod, PronunciationEntry};
-use crate::ipc::{ConversationRuntimeState, EventEmitter, compute_name_hints, snapshot_from_world};
+use crate::ipc::{
+    ConversationRuntimeState, EventEmitter, compute_name_hints,
+    emit_game_context_reset_then_world_update, snapshot_from_world,
+};
 use crate::npc::manager::NpcManager;
 use crate::persistence::picker::new_save_path;
-use crate::persistence::{Database, GameSnapshot};
+use crate::persistence::{Database, GameSnapshot, SaveFileLock, write_active_save_identity};
+use crate::session_store::SessionStore;
 use crate::world::events::GameEvent;
 use crate::world::transport::TransportMode;
 use crate::world::{DEFAULT_START_LOCATION, WorldState};
+
+fn path_with_suffix(path: &Path, suffix: &str) -> PathBuf {
+    let mut suffixed = OsString::from(path.as_os_str());
+    suffixed.push(suffix);
+    PathBuf::from(suffixed)
+}
+
+/// Removes every file that SQLite or the advisory-lock layer can create for a
+/// save candidate that never reached its active-identity commit record.
+///
+/// This is deliberately restricted to a newly-generated exact save path. It
+/// must never be called for an already-published save because removing that
+/// database would destroy canonical state.
+fn abort_uncommitted_save_candidate(
+    save_path: &Path,
+    candidate_lock: &mut Option<SaveFileLock>,
+    primary_error: impl Into<String>,
+) -> String {
+    // Release the advisory guard before removing its sidecar.
+    drop(candidate_lock.take());
+
+    let mut cleanup_errors = Vec::new();
+    for path in [
+        save_path.to_path_buf(),
+        path_with_suffix(save_path, "-wal"),
+        path_with_suffix(save_path, "-shm"),
+        path_with_suffix(save_path, "-journal"),
+        SaveFileLock::lock_path_for(save_path),
+    ] {
+        if let Err(error) = fs::remove_file(&path)
+            && error.kind() != std::io::ErrorKind::NotFound
+        {
+            cleanup_errors.push(format!("{}: {error}", path.display()));
+        }
+    }
+
+    let primary_error = primary_error.into();
+    if cleanup_errors.is_empty() {
+        primary_error
+    } else {
+        format!(
+            "{primary_error}; additionally failed to clean uncommitted save candidate: {}",
+            cleanup_errors.join(", ")
+        )
+    }
+}
 
 /// Loads a fresh [`WorldState`] and [`NpcManager`] for a new game.
 ///
@@ -112,8 +164,14 @@ pub struct NewGameParams<'a> {
     pub current_branch_id: &'a Mutex<Option<i64>>,
     /// Active branch name (Mutex-wrapped, updated after save).
     pub current_branch_name: &'a Mutex<Option<String>>,
+    /// Advisory lock for the active save file.
+    pub save_lock: &'a Mutex<Option<SaveFileLock>>,
     /// Resolved saves directory (used to create a new save file).
     pub saves_dir: &'a Path,
+    /// Persistence backend rebound to the newly-created exact save file.
+    pub session_store: &'a dyn SessionStore,
+    /// UUID session key on the server; empty in single-user runtimes.
+    pub session_id: &'a str,
     /// Active game mod, if any (used by `load_fresh_world_and_npcs`).
     pub game_mod: Option<&'a GameMod>,
     /// Legacy data directory fallback.
@@ -139,51 +197,18 @@ pub struct NewGameParams<'a> {
 ///
 /// # CLI note
 ///
-/// The headless CLI uses its own `handle_headless_new_game` because it
-/// creates a new branch on an existing `AsyncDatabase` (rather than creating
-/// a fresh save file) and calls print helpers (`print_location_arrival`,
+/// The headless CLI uses its own `handle_headless_new_game` because it owns
+/// an `AsyncDatabase` directly and calls print helpers (`print_location_arrival`,
 /// `print_arrival_reactions`) that are not part of the `EventEmitter` surface.
 pub async fn do_new_game(p: NewGameParams<'_>) -> Result<(), String> {
     // Load fresh world and NPCs.
     let (mut fresh_world, mut fresh_npcs) = load_fresh_world_and_npcs(p.game_mod, p.data_dir)?;
     fresh_npcs.assign_tiers(&fresh_world, &[]);
 
-    // Swap live state — hold both locks together to prevent a window where a
-    // handler sees the new world with the old NPC manager (#696).
-    //
-    // The old WorldState's event_bus is transplanted into fresh_world so that
-    // all subscribers (character-log, location-log, game-events) survive the
-    // reset without seeing a `Closed` error and exiting (#1222). Discarding the
-    // old bus would silently kill all background tasks that subscribed to it.
-    let snapshot = {
-        let mut world = p.world.lock().await;
-        let mut npc_manager = p.npc_manager.lock().await;
-        // Move the live event bus into the fresh world before swapping so that
-        // active subscribers see new-game events rather than `Closed`.
-        fresh_world.event_bus = std::mem::take(&mut world.event_bus);
-        *world = fresh_world;
-        *npc_manager = fresh_npcs;
-        GameSnapshot::capture(&world, &npc_manager)
-    };
-
-    // Reset conversation transcript so stale dialogue from the previous game
-    // does not bleed into NPC conversations in the new game (#281).
-    {
-        let mut conv = p.conversation.lock().await;
-        *conv = ConversationRuntimeState::new();
-    }
-
-    // Clear the world-event ring buffer so stale events from the prior game
-    // do not bleed into `parish_turn` / `GET /api/turn` responses in the new
-    // game (#1395).  Clearing the VecDeque also resets the `len()`-based cursor
-    // used by `read_events_since` to zero, so `?since=0` on the next call
-    // correctly starts from the beginning of game B.
-    {
-        let mut events = p.game_events.lock().await;
-        events.clear();
-    }
-
-    // Create a new save file and persist the initial snapshot.
+    // Persist a complete candidate before touching any live state or identity.
+    // A failed open/save/bind therefore leaves the old world, save identity,
+    // and advisory lock intact.
+    let snapshot = GameSnapshot::capture(&fresh_world, &fresh_npcs);
     //
     // NOTE: We use `Database::open` directly (not `session_store.save_snapshot`)
     // because `new_save_path` creates a DIFFERENT file from the one `DbSessionStore`
@@ -193,8 +218,12 @@ pub async fn do_new_game(p: NewGameParams<'_>) -> Result<(), String> {
     // future use by load/branch/journal paths; the new-game file-creation step remains
     // a direct `Database::open` call.
     let new_path = new_save_path(p.saves_dir);
+    let mut candidate_lock = Some(
+        SaveFileLock::try_acquire(&new_path)
+            .ok_or_else(|| format!("Could not lock new save file {}", new_path.display()))?,
+    );
     let new_path_clone = new_path.clone();
-    let branch_id = tokio::task::spawn_blocking(move || -> Result<i64, String> {
+    let branch_id_result = tokio::task::spawn_blocking(move || -> Result<i64, String> {
         let db = Database::open(&new_path_clone).map_err(|e| e.to_string())?;
         let branch = db
             .find_branch("main")
@@ -205,12 +234,69 @@ pub async fn do_new_game(p: NewGameParams<'_>) -> Result<(), String> {
         Ok(branch.id)
     })
     .await
-    .map_err(|e| e.to_string())??;
+    .map_err(|e| e.to_string())
+    .and_then(|result| result);
+    let branch_id = match branch_id_result {
+        Ok(branch_id) => branch_id,
+        Err(error) => {
+            return Err(abort_uncommitted_save_candidate(
+                &new_path,
+                &mut candidate_lock,
+                error,
+            ));
+        }
+    };
 
-    // Update save state slots.
-    *p.save_path.lock().await = Some(new_path);
-    *p.current_branch_id.lock().await = Some(branch_id);
-    *p.current_branch_name.lock().await = Some("main".to_string());
+    let prepared_binding = match p.session_store.prepare_active_save(p.session_id, &new_path) {
+        Ok(prepared_binding) => prepared_binding,
+        Err(error) => {
+            return Err(abort_uncommitted_save_candidate(
+                &new_path,
+                &mut candidate_lock,
+                error.to_string(),
+            ));
+        }
+    };
+    if let Err(error) = write_active_save_identity(p.saves_dir, &new_path, branch_id, "main") {
+        return Err(abort_uncommitted_save_candidate(
+            &new_path,
+            &mut candidate_lock,
+            error.to_string(),
+        ));
+    }
+
+    // The marker above is the commit record. Everything below is an
+    // infallible in-process publication of the already-durable candidate.
+    prepared_binding.commit();
+
+    // Commit the candidate under both canonical locks. The retained event bus
+    // advances exactly once so queued prior-context envelopes can be rejected.
+    {
+        let mut world = p.world.lock().await;
+        let mut npc_manager = p.npc_manager.lock().await;
+        let retained_event_bus = std::mem::take(&mut world.event_bus);
+        retained_event_bus.advance_context_epoch();
+        fresh_world.event_bus = retained_event_bus;
+        *world = fresh_world;
+        *npc_manager = fresh_npcs;
+    }
+
+    // Reset conversation and event cursors only after persistence succeeded.
+    *p.conversation.lock().await = ConversationRuntimeState::new();
+    p.game_events.lock().await.clear();
+
+    // Update the identity triple while holding the save-path guard so readers
+    // cannot combine the new file with the previous branch id.
+    let mut save_path = p.save_path.lock().await;
+    let mut current_branch_id = p.current_branch_id.lock().await;
+    let mut current_branch_name = p.current_branch_name.lock().await;
+    *save_path = Some(new_path.clone());
+    *current_branch_id = Some(branch_id);
+    *current_branch_name = Some("main".to_string());
+    drop(current_branch_name);
+    drop(current_branch_id);
+    drop(save_path);
+    *p.save_lock.lock().await = candidate_lock.take();
 
     // Emit world-update so the frontend reflects the reset state.
     {
@@ -218,8 +304,8 @@ pub async fn do_new_game(p: NewGameParams<'_>) -> Result<(), String> {
         let npc_manager = p.npc_manager.lock().await;
         let mut ws = snapshot_from_world(&world);
         ws.name_hints = compute_name_hints(&world, &npc_manager, p.pronunciations);
-        p.emitter.emit_event(
-            "world-update",
+        emit_game_context_reset_then_world_update(
+            p.emitter,
             serde_json::to_value(&ws).unwrap_or(serde_json::Value::Null),
         );
     }
@@ -228,6 +314,33 @@ pub async fn do_new_game(p: NewGameParams<'_>) -> Result<(), String> {
 }
 
 // ── do_save_game ──────────────────────────────────────────────────────────────
+
+/// Parameters for [`do_save_game`].
+///
+/// Groups the canonical world state, save identity, advisory lock, and
+/// persistence backend that must participate in one outer save operation.
+/// Runtime callers hold their per-session persistence barrier while passing
+/// these borrowed fields.
+pub struct SaveGameParams<'a> {
+    /// Game world captured into the durable snapshot.
+    pub world: &'a Mutex<WorldState>,
+    /// NPC manager captured into the durable snapshot.
+    pub npc_manager: &'a Mutex<NpcManager>,
+    /// Active save-file path.
+    pub save_path: &'a Mutex<Option<PathBuf>>,
+    /// Active branch database id.
+    pub current_branch_id: &'a Mutex<Option<i64>>,
+    /// Active branch display name.
+    pub current_branch_name: &'a Mutex<Option<String>>,
+    /// Advisory lock retained for a newly-created save file.
+    pub save_lock: &'a Mutex<Option<SaveFileLock>>,
+    /// Directory in which new save files and the active-identity marker live.
+    pub saves_dir: &'a Path,
+    /// Session-scoped persistence backend.
+    pub session_store: &'a dyn SessionStore,
+    /// Session identity used to bind the persistence backend.
+    pub session_id: &'a str,
+}
 
 /// Shared save-game implementation for Axum server and Tauri desktop.
 ///
@@ -241,63 +354,136 @@ pub async fn do_new_game(p: NewGameParams<'_>) -> Result<(), String> {
 /// The headless CLI retains its own inline `do_autosave_if_needed` because it
 /// uses `AsyncDatabase` directly (via `app.db`) rather than going through the
 /// `SessionStore` trait.
-pub async fn do_save_game(
-    world: &Mutex<WorldState>,
-    npc_manager: &Mutex<NpcManager>,
-    save_path: &Mutex<Option<PathBuf>>,
-    current_branch_id: &Mutex<Option<i64>>,
-    current_branch_name: &Mutex<Option<String>>,
-    saves_dir: &Path,
-) -> Result<String, String> {
+pub async fn do_save_game(p: SaveGameParams<'_>) -> Result<String, String> {
     let snapshot = {
-        let world = world.lock().await;
-        let npc_manager = npc_manager.lock().await;
+        let world = p.world.lock().await;
+        let npc_manager = p.npc_manager.lock().await;
         GameSnapshot::capture(&world, &npc_manager)
     };
 
-    let mut save_path_guard = save_path.lock().await;
-    let mut branch_id_guard = current_branch_id.lock().await;
-    let mut branch_name_guard = current_branch_name.lock().await;
-
-    let db_path = if let Some(ref path) = *save_path_guard {
-        path.clone()
+    let (existing_path, existing_branch_id, existing_branch_name) = {
+        let save_path_guard = p.save_path.lock().await;
+        let branch_id_guard = p.current_branch_id.lock().await;
+        let branch_name_guard = p.current_branch_name.lock().await;
+        (
+            save_path_guard.clone(),
+            *branch_id_guard,
+            branch_name_guard.clone(),
+        )
+    };
+    let db_path = existing_path
+        .clone()
+        .unwrap_or_else(|| new_save_path(p.saves_dir));
+    let mut candidate_lock = if existing_path.is_none() {
+        Some(
+            SaveFileLock::try_acquire(&db_path)
+                .ok_or_else(|| format!("Could not lock new save file {}", db_path.display()))?,
+        )
     } else {
-        let path = new_save_path(saves_dir);
-        *save_path_guard = Some(path.clone());
-        path
+        None
+    };
+    let db_path_for_save = db_path.clone();
+    let save_result = tokio::task::spawn_blocking(move || -> Result<(i64, String), String> {
+        let db = Database::open(&db_path_for_save).map_err(|e| e.to_string())?;
+        let branch = if let Some(id) = existing_branch_id {
+            db.list_branches()
+                .map_err(|e| e.to_string())?
+                .into_iter()
+                .find(|branch| branch.id == id)
+                .ok_or_else(|| format!("Branch id {id} does not exist"))?
+        } else {
+            db.find_branch("main")
+                .map_err(|e| e.to_string())?
+                .ok_or_else(|| "main branch missing from save file".to_string())?
+        };
+        db.save_snapshot(branch.id, &snapshot)
+            .map_err(|e| e.to_string())?;
+        Ok((branch.id, branch.name))
+    })
+    .await
+    .map_err(|e| e.to_string())
+    .and_then(|result| result);
+    let (resolved_branch_id, resolved_branch_name) = match save_result {
+        Ok(identity) => identity,
+        Err(error) if existing_path.is_none() => {
+            return Err(abort_uncommitted_save_candidate(
+                &db_path,
+                &mut candidate_lock,
+                error,
+            ));
+        }
+        Err(error) => return Err(error),
     };
 
-    let existing_branch_id = *branch_id_guard;
-    let (resolved_branch_id, resolved_branch_name) =
-        tokio::task::spawn_blocking(move || -> Result<(i64, String), String> {
-            let db = Database::open(&db_path).map_err(|e| e.to_string())?;
-            let branch_id = if let Some(id) = existing_branch_id {
-                id
+    // Verify the identity observed before persistence is still current, then
+    // bind and commit all identity fields. Production callers hold their
+    // outer persistence barrier; this check keeps the shared seam defensive.
+    let mut save_path_guard = p.save_path.lock().await;
+    let mut branch_id_guard = p.current_branch_id.lock().await;
+    let mut branch_name_guard = p.current_branch_name.lock().await;
+    if *save_path_guard != existing_path
+        || *branch_id_guard != existing_branch_id
+        || *branch_name_guard != existing_branch_name
+    {
+        drop(branch_name_guard);
+        drop(branch_id_guard);
+        drop(save_path_guard);
+        let error = "save identity changed while the snapshot was being persisted; retry";
+        return Err(if existing_path.is_none() {
+            abort_uncommitted_save_candidate(&db_path, &mut candidate_lock, error)
+        } else {
+            error.to_string()
+        });
+    }
+    let prepared_binding = match p.session_store.prepare_active_save(p.session_id, &db_path) {
+        Ok(prepared_binding) => prepared_binding,
+        Err(error) => {
+            drop(branch_name_guard);
+            drop(branch_id_guard);
+            drop(save_path_guard);
+            return Err(if existing_path.is_none() {
+                abort_uncommitted_save_candidate(&db_path, &mut candidate_lock, error.to_string())
             } else {
-                let branch = db.find_branch("main").map_err(|e| e.to_string())?;
-                branch.map(|b| b.id).unwrap_or(1)
-            };
-            db.save_snapshot(branch_id, &snapshot)
-                .map_err(|e| e.to_string())?;
-            Ok((branch_id, "main".to_string()))
-        })
-        .await
-        .map_err(|e| e.to_string())??;
-
-    if branch_id_guard.is_none() {
-        *branch_id_guard = Some(resolved_branch_id);
-        *branch_name_guard = Some(resolved_branch_name.clone());
+                error.to_string()
+            });
+        }
+    };
+    if let Err(error) = write_active_save_identity(
+        p.saves_dir,
+        &db_path,
+        resolved_branch_id,
+        &resolved_branch_name,
+    ) {
+        drop(branch_name_guard);
+        drop(branch_id_guard);
+        drop(save_path_guard);
+        return Err(if existing_path.is_none() {
+            abort_uncommitted_save_candidate(&db_path, &mut candidate_lock, error.to_string())
+        } else {
+            error.to_string()
+        });
     }
 
-    let filename = save_path_guard
-        .as_ref()
-        .and_then(|p| p.file_name())
+    // The marker above is the commit record. Everything below is an
+    // infallible in-process publication of the already-durable candidate.
+    prepared_binding.commit();
+    *save_path_guard = Some(db_path.clone());
+    *branch_id_guard = Some(resolved_branch_id);
+    *branch_name_guard = Some(resolved_branch_name.clone());
+
+    let filename = db_path
+        .file_name()
         .map(|n| n.to_string_lossy().to_string())
         .unwrap_or_else(|| "save".to_string());
-    let branch_name = branch_name_guard.as_deref().unwrap_or("main");
+    drop(branch_name_guard);
+    drop(branch_id_guard);
+    drop(save_path_guard);
+    if let Some(candidate_lock) = candidate_lock.take() {
+        *p.save_lock.lock().await = Some(candidate_lock);
+    }
     Ok(format!(
         "Game saved to {} (branch: {}).",
-        filename, branch_name
+        filename, resolved_branch_name
     ))
 }
 
