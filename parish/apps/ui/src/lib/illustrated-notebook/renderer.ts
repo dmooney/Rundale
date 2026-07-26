@@ -27,12 +27,17 @@ import {
 	sortAnchorsByDepth,
 } from './layout';
 import { currentNotebookLocationId, selectVisualScene } from './scene';
-import { notebookNpcLabel } from './view-model';
+import {
+	notebookNpcLabel,
+	notebookReactionSummary,
+	selectVisibleNotebookLines,
+} from './view-model';
 import type {
 	NotebookLayout,
 	NotebookRect,
 	NotebookRenderState,
 	NotebookTab,
+	SceneAnchor,
 	VisualScene,
 	VisualScenesFile,
 } from './types';
@@ -61,33 +66,200 @@ export interface IllustratedNotebookRendererOptions {
 	onHitTargetsChanged?: (targets: NotebookHitTarget[]) => void;
 }
 
+export interface NotebookRendererAssetState {
+	textures: Map<string, Texture>;
+	scenes: VisualScene[];
+	degraded: boolean;
+}
+
+export interface NearbyPortraitPlacement {
+	frameRect: NotebookRect;
+	portraitRect: NotebookRect;
+	size: number;
+}
+
+/**
+ * Returns the real Pixi/browser hit rectangle for an authored NPC marker.
+ *
+ * Marker art deliberately scales for depth and can visually overlap at the
+ * mobile breakpoint. Interaction regions stay anchor-centred and narrow
+ * enough for the closest authored crossroads anchors to remain disjoint.
+ */
+export function computeNpcMarkerHitRect(
+	layout: NotebookLayout,
+	anchor: SceneAnchor,
+): NotebookRect {
+	const point = pointFromAnchor(anchor, layout.width, layout.height);
+	const width =
+		layout.mode === 'desktop'
+			? Math.max(44, Math.min(72, layout.width * 0.05))
+			: Math.max(24, Math.min(44, layout.width * 0.075));
+	const height = width * 1.35;
+	const x = Math.max(0, Math.min(layout.width - width, point.x - width / 2));
+	const y = Math.max(
+		0,
+		Math.min(layout.height - height, point.y + 10 - height),
+	);
+	return { x, y, width, height };
+}
+
+/**
+ * Computes the actual interactive portrait frames used by the renderer.
+ *
+ * Desktop portraits form a vertical rail beneath the "Nearby" heading;
+ * mobile portraits form one horizontal row. Both variants derive their size
+ * from the available strip and use a positive gap, so the hit rectangles are
+ * fully contained and pairwise disjoint at breakpoint edges.
+ */
+export function computeNearbyPortraitPlacements(
+	layout: NotebookLayout,
+	npcCount: number,
+): NearbyPortraitPlacement[] {
+	const count = Math.max(0, Math.min(4, Math.floor(npcCount)));
+	if (count === 0) return [];
+	const strip = layout.nearbyStrip;
+
+	if (layout.mode === 'desktop') {
+		const gap = 6;
+		const topInset = 52;
+		const bottomInset = 8;
+		const availableHeight = Math.max(
+			1,
+			strip.height - topInset - bottomInset - gap * (count - 1),
+		);
+		const size = Math.max(
+			1,
+			Math.min(82, (strip.width - 16) / 1.12, availableHeight / count / 1.18),
+		);
+		const frameWidth = size * 1.12;
+		const frameHeight = size * 1.18;
+		const frameX = strip.x + (strip.width - frameWidth) / 2;
+		return Array.from({ length: count }, (_, index) => {
+			const frameY = strip.y + topInset + index * (frameHeight + gap);
+			return {
+				size,
+				frameRect: {
+					x: frameX,
+					y: frameY,
+					width: frameWidth,
+					height: frameHeight,
+				},
+				portraitRect: {
+					x: frameX + size * 0.21,
+					y: frameY + size * 0.25,
+					width: size * 0.68,
+					height: size * 0.72,
+				},
+			};
+		});
+	}
+
+	const gap = 4;
+	const availableWidth = Math.max(1, strip.width - 16 - gap * (count - 1));
+	const size = Math.max(
+		1,
+		Math.min(58, availableWidth / count / 1.12, (strip.height - 8) / 1.18),
+	);
+	const frameWidth = size * 1.12;
+	const frameHeight = size * 1.18;
+	const rowWidth = count * frameWidth + (count - 1) * gap;
+	const frameX = strip.x + (strip.width - rowWidth) / 2;
+	const frameY = strip.y + (strip.height - frameHeight) / 2;
+	return Array.from({ length: count }, (_, index) => {
+		const x = frameX + index * (frameWidth + gap);
+		return {
+			size,
+			frameRect: {
+				x,
+				y: frameY,
+				width: frameWidth,
+				height: frameHeight,
+			},
+			portraitRect: {
+				x: x + size * 0.21,
+				y: frameY + size * 0.25,
+				width: size * 0.68,
+				height: size * 0.72,
+			},
+		};
+	});
+}
+
 const FALLBACK_SCENE: VisualScene = {
-	location_ids: [1],
-	plate_asset: NOTEBOOK_ASSETS.scenePlate,
+	location_ids: [],
+	plate_asset: null,
 	written_visual_summary:
-		'Rural Ireland in 1820 after rain, drawn as a wide elevated oblique illustrated storybook game scene.',
-	camera_hint: 'wide elevated oblique illustrated storybook game scene',
-	background_generation_source: 'Generated from written description only.',
-	depth_bands: [
-		{ name: 'far', min_depth: 0, max_depth: 0.35, marker_scale: 0.5 },
-		{ name: 'mid', min_depth: 0.35, max_depth: 0.7, marker_scale: 0.72 },
-		{ name: 'near', min_depth: 0.7, max_depth: 1, marker_scale: 0.95 },
-	],
+		'Neutral notebook paper; no location-specific illustration is available.',
+	camera_hint: 'neutral notebook paper',
+	background_generation_source: 'Code-native neutral fallback.',
+	depth_bands: [],
 	anchors: {
-		player: { x: 0.48, y: 0.55, depth: 0.72 },
-		npcs: [
-			{ id: 'nearby-1', x: 0.51, y: 0.55, depth: 0.72 },
-			{ id: 'nearby-2', x: 0.43, y: 0.48, depth: 0.58 },
-			{ id: 'nearby-3', x: 0.68, y: 0.58, depth: 0.66 },
-			{ id: 'nearby-4', x: 0.33, y: 0.69, depth: 0.82 },
-		],
-		exits: [
-			{ id: 'chapel', label: 'Chapel Lane', x: 0.16, y: 0.15, depth: 0.18 },
-			{ id: 'shop', label: 'Shop Road', x: 0.68, y: 0.43, depth: 0.46 },
-			{ id: 'bridge', label: 'Bridge', x: 0.77, y: 0.58, depth: 0.64 },
-		],
+		player: null,
+		npcs: [],
+		exits: [],
 	},
 };
+
+type NotebookAssetBundleLoader = (
+	urls: readonly string[],
+) => Promise<Record<string, Texture>>;
+type NotebookSceneLoader = () => Promise<VisualScenesFile>;
+
+async function loadVisualScenesFile(): Promise<VisualScenesFile> {
+	const response = await fetch(NOTEBOOK_ASSETS.visualScenes);
+	if (!response.ok) {
+		throw new Error(`visual scene manifest returned ${response.status}`);
+	}
+	return (await response.json()) as VisualScenesFile;
+}
+
+/**
+ * Loads renderer art without making renderer availability depend on it.
+ *
+ * A bundle rejection or incomplete bundle returns a structural neutral state:
+ * code-native paper, no authored plate, and no scene markers. Scene-manifest
+ * failure keeps successfully loaded UI chrome but still selects only the
+ * neutral scene.
+ */
+export async function loadNotebookRendererAssets(
+	loadBundle: NotebookAssetBundleLoader = async (urls) =>
+		(await Assets.load([...urls])) as Record<string, Texture>,
+	loadScenes: NotebookSceneLoader = loadVisualScenesFile,
+): Promise<NotebookRendererAssetState> {
+	let loaded: Record<string, Texture>;
+	try {
+		loaded = await loadBundle(NOTEBOOK_ASSET_URLS);
+	} catch {
+		return {
+			textures: new Map(),
+			scenes: [FALLBACK_SCENE],
+			degraded: true,
+		};
+	}
+
+	const textures = new Map<string, Texture>();
+	for (const url of NOTEBOOK_ASSET_URLS) {
+		const texture = loaded[url];
+		if (!texture) {
+			return {
+				textures: new Map(),
+				scenes: [FALLBACK_SCENE],
+				degraded: true,
+			};
+		}
+		textures.set(url, texture);
+	}
+
+	try {
+		const file = await loadScenes();
+		if (!Array.isArray(file.scenes) || file.scenes.length === 0) {
+			throw new Error('visual scene manifest has no scenes');
+		}
+		return { textures, scenes: file.scenes, degraded: false };
+	} catch {
+		return { textures, scenes: [FALLBACK_SCENE], degraded: true };
+	}
+}
 
 export class IllustratedNotebookRenderer {
 	private app: Application | null = null;
@@ -99,6 +271,7 @@ export class IllustratedNotebookRenderer {
 	private hoveredTargetId: string | null = null;
 	private focusedTargetId: string | null = null;
 	private hoverRenderFrame: number | null = null;
+	private assetLoadDegraded = false;
 	private readonly layers = {
 		background: new Container(),
 		wash: new Container(),
@@ -157,11 +330,18 @@ export class IllustratedNotebookRenderer {
 		);
 		const layout = computeNotebookLayout(width, height);
 		this.lastState = state;
-		this.scene = selectVisualScene(
-			this.scenes,
-			currentNotebookLocationId(state.map, state.world),
-			FALLBACK_SCENE,
-		);
+		const locationId = currentNotebookLocationId(state.map, state.world);
+		this.scene = selectVisualScene(this.scenes, locationId, FALLBACK_SCENE);
+		this.host.dataset.sceneLocationId =
+			locationId === null ? '' : String(locationId);
+		this.host.dataset.scenePlate = this.scene.plate_asset ?? '';
+		this.host.dataset.sceneMode = this.scene.plate_asset
+			? 'authored'
+			: 'neutral';
+		this.host.dataset.assetMode = this.assetLoadDegraded
+			? 'degraded'
+			: 'loaded';
+		this.host.dataset.selectedRealName = state.selectedRealName ?? '';
 		this.clearAll();
 		this.beginHitTargetPass();
 		this.drawBackground(width, height);
@@ -198,22 +378,13 @@ export class IllustratedNotebookRenderer {
 	}
 
 	private async loadAssets(): Promise<void> {
-		const loaded = await Assets.load(NOTEBOOK_ASSET_URLS);
-		for (const url of NOTEBOOK_ASSET_URLS) {
-			this.textures.set(url, loaded[url] ?? Texture.from(url));
+		const assets = await loadNotebookRendererAssets();
+		this.textures.clear();
+		for (const [url, texture] of assets.textures) {
+			this.textures.set(url, texture);
 		}
-		try {
-			const response = await fetch(NOTEBOOK_ASSETS.visualScenes);
-			if (response.ok) {
-				const file = (await response.json()) as VisualScenesFile;
-				this.scenes =
-					Array.isArray(file.scenes) && file.scenes.length > 0
-						? file.scenes
-						: [FALLBACK_SCENE];
-			}
-		} catch {
-			this.scenes = [FALLBACK_SCENE];
-		}
+		this.scenes = assets.scenes;
+		this.assetLoadDegraded = assets.degraded;
 	}
 
 	private clearAll(): void {
@@ -399,6 +570,18 @@ export class IllustratedNotebookRenderer {
 	}
 
 	private drawBackground(width: number, height: number): void {
+		if (!this.scene.plate_asset) {
+			const paper = new Graphics();
+			paper.rect(0, 0, width, height).fill({ color: 0xe8d7ad, alpha: 1 });
+			paper
+				.rect(0, 0, width, height * 0.18)
+				.fill({ color: 0xf4e7c6, alpha: 0.42 });
+			paper
+				.rect(0, height * 0.82, width, height * 0.18)
+				.fill({ color: 0xcdbb91, alpha: 0.2 });
+			this.layers.background.addChild(paper);
+			return;
+		}
 		const sprite = this.sprite(this.scene.plate_asset);
 		const texture = sprite.texture;
 		const scale = Math.max(width / texture.width, height / texture.height);
@@ -462,7 +645,15 @@ export class IllustratedNotebookRenderer {
 		state: NotebookRenderState,
 	): void {
 		const actors = [
-			{ kind: 'player' as const, anchor: this.scene.anchors.player, npc: null },
+			...(this.scene.anchors.player
+				? [
+						{
+							kind: 'player' as const,
+							anchor: this.scene.anchors.player,
+							npc: null,
+						},
+					]
+				: []),
 			...state.npcs.slice(0, this.scene.anchors.npcs.length).map((npc, i) => ({
 				kind: 'npc' as const,
 				anchor: this.scene.anchors.npcs[i],
@@ -501,12 +692,7 @@ export class IllustratedNotebookRenderer {
 			marker.y = p.y + 10;
 			marker.scale.set(scale);
 			if (actor.actor.npc) {
-				const targetRect = {
-					x: marker.x - marker.width / 2 - 8,
-					y: marker.y - marker.height - 8,
-					width: marker.width + 16,
-					height: marker.height + 18,
-				};
+				const targetRect = computeNpcMarkerHitRect(layout, actor);
 				const target = this.target(
 					`marker:${targetIdPart(actor.actor.npc.real_name)}`,
 					'npc-marker',
@@ -519,7 +705,16 @@ export class IllustratedNotebookRenderer {
 					100 + safeNpcIndex,
 				);
 				this.drawTargetTreatment(target);
-				this.bindTarget(marker, target);
+				this.bindTarget(
+					marker,
+					target,
+					new Rectangle(
+						(targetRect.x - marker.x) / scale,
+						(targetRect.y - marker.y) / scale,
+						targetRect.width / scale,
+						targetRect.height / scale,
+					),
+				);
 			}
 			this.layers.markers.addChild(marker);
 			if (selected && actor.actor.npc && layout.mode === 'desktop') {
@@ -551,9 +746,17 @@ export class IllustratedNotebookRenderer {
 	): void {
 		const ribbon = this.sprite(NOTEBOOK_ASSETS.topRibbon, layout.topRibbon);
 		this.layers.ui.addChild(ribbon);
-		const location = state.view.locationName;
-		const weather = state.view.weather;
-		const time = state.view.time;
+		const festival = state.world?.festival?.trim() ?? '';
+		const location =
+			layout.mode === 'mobile' && festival
+				? `${state.view.locationName} · ${festival}`
+				: state.view.locationName;
+		const weather = festival
+			? `${state.view.weather} · ${festival}`
+			: state.view.weather;
+		const time = state.world?.paused
+			? `${state.view.time} · PAUSED`
+			: state.view.time;
 		const y = layout.topRibbon.y + 12;
 		const titleSize = layout.mode === 'mobile' ? 20 : 28;
 		this.addText(this.layers.ui, 'RUNDALE', 24, y - 2, titleSize, {
@@ -601,6 +804,8 @@ export class IllustratedNotebookRenderer {
 	}
 
 	private drawNearby(layout: NotebookLayout, state: NotebookRenderState): void {
+		const npcs = state.npcs.slice(0, 4);
+		const placements = computeNearbyPortraitPlacements(layout, npcs.length);
 		if (layout.mode === 'desktop') {
 			this.layers.ui.addChild(
 				this.sprite(NOTEBOOK_ASSETS.nearbyPortraitStrip, layout.nearbyStrip),
@@ -615,17 +820,8 @@ export class IllustratedNotebookRenderer {
 					fill: INK,
 				},
 			);
-			const itemHeight = (layout.nearbyStrip.height - 70) / 4.6;
-			state.npcs.slice(0, 4).forEach((npc, i) => {
-				this.drawNearbyPerson(
-					layout,
-					state,
-					npc,
-					layout.nearbyStrip.x + 26,
-					layout.nearbyStrip.y + 58 + i * itemHeight,
-					82,
-					i,
-				);
+			npcs.forEach((npc, index) => {
+				this.drawNearbyPerson(layout, state, npc, placements[index], index);
 			});
 		} else {
 			const back = new Graphics();
@@ -650,16 +846,8 @@ export class IllustratedNotebookRenderer {
 				13,
 				{ fill: INK },
 			);
-			state.npcs.slice(0, 4).forEach((npc, i) => {
-				this.drawNearbyPerson(
-					layout,
-					state,
-					npc,
-					layout.nearbyStrip.x + 58 + i * 78,
-					layout.nearbyStrip.y + 18,
-					58,
-					i,
-				);
+			npcs.forEach((npc, index) => {
+				this.drawNearbyPerson(layout, state, npc, placements[index], index);
 			});
 		}
 	}
@@ -668,18 +856,11 @@ export class IllustratedNotebookRenderer {
 		layout: NotebookLayout,
 		state: NotebookRenderState,
 		npc: NonNullable<NotebookRenderState['selectedNpc']>,
-		x: number,
-		y: number,
-		size: number,
+		placement: NearbyPortraitPlacement,
 		index: number,
 	): void {
+		const { frameRect, portraitRect, size } = placement;
 		const selected = npc.real_name === state.selectedRealName;
-		const frameRect = {
-			x: x - size * 0.55,
-			y: y - size * 0.25,
-			width: size * 1.12,
-			height: size * 1.18,
-		};
 		const target = this.target(
 			`nearby:${targetIdPart(npc.real_name)}`,
 			'nearby-portrait',
@@ -698,12 +879,7 @@ export class IllustratedNotebookRenderer {
 		this.layers.ui.addChild(frame);
 		const portrait = this.sprite(
 			NOTEBOOK_ASSETS.portraits[index % NOTEBOOK_ASSETS.portraits.length],
-			{
-				x: x - size * 0.34,
-				y,
-				width: size * 0.68,
-				height: size * 0.72,
-			},
+			portraitRect,
 		);
 		this.bindTarget(portrait, target);
 		this.layers.ui.addChild(portrait);
@@ -711,8 +887,8 @@ export class IllustratedNotebookRenderer {
 			this.addText(
 				this.layers.ui,
 				shortNpcName(notebookNpcLabel(npc), 20),
-				x - size * 0.55,
-				y + size * 0.73,
+				frameRect.x,
+				portraitRect.y + size * 0.73,
 				11,
 				{
 					fill: INK,
@@ -768,8 +944,9 @@ export class IllustratedNotebookRenderer {
 		});
 		const person = state.view.person;
 		const page = layout.notebookPage;
-		const inset = layout.mode === 'mobile' ? 18 : 46;
-		const titleSize = layout.mode === 'mobile' ? 16 : 25;
+		const compactPage = layout.mode === 'mobile' && page.height < 180;
+		const inset = compactPage ? 12 : layout.mode === 'mobile' ? 18 : 46;
+		const titleSize = compactPage ? 13 : layout.mode === 'mobile' ? 16 : 25;
 		const title = person?.label ?? state.view.locationName;
 		const adjustedTitleSize =
 			title.length > 36
@@ -781,7 +958,7 @@ export class IllustratedNotebookRenderer {
 			this.layers.ui,
 			shortText(title, layout.mode === 'mobile' ? 58 : 72),
 			page.x + inset,
-			page.y + 42,
+			page.y + (compactPage ? 12 : 42),
 			adjustedTitleSize,
 			{
 				fill: INK,
@@ -790,11 +967,15 @@ export class IllustratedNotebookRenderer {
 			},
 		);
 		if (person) {
-			const portraitSize = layout.mode === 'mobile' ? 66 : 112;
+			const portraitSize = compactPage
+				? 36
+				: layout.mode === 'mobile'
+					? 66
+					: 112;
 			this.layers.ui.addChild(
 				this.sprite(NOTEBOOK_ASSETS.portraits[0], {
 					x: page.x + inset + 6,
-					y: page.y + (layout.mode === 'mobile' ? 82 : 108),
+					y: page.y + (compactPage ? 38 : layout.mode === 'mobile' ? 82 : 108),
 					width: portraitSize,
 					height: portraitSize,
 				}),
@@ -803,24 +984,25 @@ export class IllustratedNotebookRenderer {
 				this.layers.ui,
 				person.mood,
 				page.x + page.width * 0.56,
-				page.y + (layout.mode === 'mobile' ? 96 : 128),
-				layout.mode === 'mobile' ? 15 : 20,
+				page.y + (compactPage ? 40 : layout.mode === 'mobile' ? 96 : 128),
+				compactPage ? 11 : layout.mode === 'mobile' ? 15 : 20,
 				{
 					fill: INK_RED,
 				},
 			);
 			this.addText(
 				this.layers.ui,
-				person.detail,
+				shortText(person.detail, compactPage ? 32 : person.detail.length),
 				page.x + page.width * 0.55,
-				page.y + (layout.mode === 'mobile' ? 122 : 158),
-				layout.mode === 'mobile' ? 11 : 15,
+				page.y + (compactPage ? 60 : layout.mode === 'mobile' ? 122 : 158),
+				compactPage ? 9 : layout.mode === 'mobile' ? 11 : 15,
 				{
 					fill: INK_SOFT,
 					wordWrap: true,
 					wordWrapWidth: page.width * 0.34,
 				},
 			);
+			if (compactPage) return;
 			this.addText(
 				this.layers.ui,
 				'Recent exchange',
@@ -833,11 +1015,14 @@ export class IllustratedNotebookRenderer {
 				},
 			);
 			const recentLine = person.recentLines.at(-1);
+			const recentReactionSummary = recentLine
+				? notebookReactionSummary(recentLine.reactions)
+				: '';
 			this.addText(
 				this.layers.ui,
 				recentLine
 					? `${shortText(
-							recentLine.content,
+							`${recentLine.content}${recentReactionSummary ? ` · ${recentReactionSummary}` : ''}`,
 							layout.mode === 'mobile' ? 42 : 56,
 						)}${recentLine.streaming ? ' …' : ''}`
 					: person.emptyNote,
@@ -884,10 +1069,12 @@ export class IllustratedNotebookRenderer {
 		} else {
 			this.addText(
 				this.layers.ui,
-				state.view.locationDescription,
+				compactPage
+					? shortText(state.view.locationDescription, 72)
+					: state.view.locationDescription,
 				page.x + inset,
-				page.y + 100,
-				layout.mode === 'mobile' ? 12 : 16,
+				page.y + (compactPage ? 38 : 100),
+				compactPage ? 10 : layout.mode === 'mobile' ? 12 : 16,
 				{
 					fill: INK,
 					wordWrap: true,
@@ -902,18 +1089,12 @@ export class IllustratedNotebookRenderer {
 		state: NotebookRenderState,
 	): void {
 		const mobile = layout.mode === 'mobile';
-		const panelHeight = mobile ? 172 : 178;
-		const stampTop = Math.min(...layout.actionStamps.map((stamp) => stamp.y));
-		const panelX = mobile
-			? 10
-			: layout.nearbyStrip.x + layout.nearbyStrip.width + 24;
-		const panelWidth = mobile
-			? layout.width - 20
-			: Math.max(260, layout.notebookPage.x - panelX - 24);
-		const minimumY = mobile
-			? layout.nearbyStrip.y + layout.nearbyStrip.height + 12
-			: layout.topRibbon.height + 18;
-		const panelY = Math.max(minimumY, stampTop - panelHeight - 16);
+		const {
+			x: panelX,
+			y: panelY,
+			width: panelWidth,
+			height: panelHeight,
+		} = layout.liveChronicle;
 		const panel = new Graphics();
 		panel
 			.roundRect(panelX, panelY, panelWidth, panelHeight, 12)
@@ -929,7 +1110,20 @@ export class IllustratedNotebookRenderer {
 			{ fill: INK, fontStyle: 'normal', fontWeight: '600' },
 		);
 
-		const lines = state.view.liveLines.slice(mobile ? -3 : -4);
+		const mobileHeightLimit =
+			panelHeight >= 150 ? 3 : panelHeight >= 76 ? 2 : 1;
+		const mobileWidthLimit = panelWidth >= 340 ? 3 : panelWidth >= 160 ? 2 : 1;
+		const mobileLineLimit = Math.min(mobileHeightLimit, mobileWidthLimit);
+		const lines = selectVisibleNotebookLines(
+			state.view.liveLines,
+			mobile ? mobileLineLimit : 4,
+		);
+		this.host.dataset.visibleLiveLineKeys = lines
+			.map((line) => line.key)
+			.join(',');
+		this.host.dataset.visibleLiveLineKinds = lines
+			.map((line) => line.kind)
+			.join(',');
 		if (lines.length === 0) {
 			this.addText(
 				this.layers.ui,
@@ -949,10 +1143,11 @@ export class IllustratedNotebookRenderer {
 		const contentTop = panelY + 42;
 		const lineHeight = (panelHeight - 50) / lines.length;
 		lines.forEach((line, index) => {
+			const reactionSummary = notebookReactionSummary(line.reactions);
 			this.addText(
 				this.layers.ui,
 				`${line.speaker}: ${shortText(
-					line.content,
+					`${line.content}${reactionSummary ? ` · ${reactionSummary}` : ''}`,
 					mobile ? 78 : 158,
 				)}${line.streaming ? ' …' : ''}`,
 				panelX + 18,
@@ -966,6 +1161,7 @@ export class IllustratedNotebookRenderer {
 								? INK
 								: INK_SOFT,
 					fontStyle: line.kind === 'player' ? 'italic' : 'normal',
+					fontWeight: line.kind === 'command' ? '600' : 'normal',
 					wordWrap: true,
 					wordWrapWidth: panelWidth - 36,
 				},
@@ -1205,42 +1401,60 @@ export class IllustratedNotebookRenderer {
 			);
 		}
 		if (layout.activeIntentsCard) {
+			const card = layout.activeIntentsCard;
+			const mobile = layout.mode === 'mobile';
 			const target = this.target(
 				'active-intents-card',
 				'active-intents-card',
-				'Open active intents',
-				layout.activeIntentsCard,
+				'Open active tasks',
+				card,
 				{ type: 'open-active-intents' },
 				620,
 			);
 			this.drawTargetTreatment(target);
-			const active = this.sprite(
-				NOTEBOOK_ASSETS.activeIntentsCard,
-				layout.activeIntentsCard,
-			);
+			const active = this.sprite(NOTEBOOK_ASSETS.activeIntentsCard, card);
 			this.bindTarget(active, target);
 			this.layers.ui.addChild(active);
+			const textX = card.x + (mobile ? 12 : 35);
+			const titleY = card.y + (mobile ? card.height * 0.11 : 20);
 			this.addText(
 				this.layers.ui,
-				'Current Intent',
-				layout.activeIntentsCard.x + 35,
-				layout.activeIntentsCard.y + 20,
-				16,
+				'Active Task',
+				textX,
+				titleY,
+				mobile ? 11 : 16,
 				{ fill: INK },
 			);
+			const stampSize = mobile ? Math.min(32, card.height * 0.58) : 42;
+			const taskTextLength = mobile
+				? Math.max(12, Math.floor((card.width - stampSize - 26) / 5.4))
+				: 34;
 			this.addText(
 				this.layers.ui,
-				shortText(state.view.draftSummary, 34),
-				layout.activeIntentsCard.x + 42,
-				layout.activeIntentsCard.y + 52,
-				13,
+				shortText(
+					state.view.currentTask?.description ?? 'No active task',
+					taskTextLength,
+				),
+				card.x + (mobile ? 12 : 42),
+				card.y + (mobile ? card.height * 0.39 : 52),
+				mobile ? 10 : 13,
 				{ fill: INK },
 			);
+			if (state.view.currentTask) {
+				this.addText(
+					this.layers.ui,
+					state.view.currentTask.statusLabel,
+					card.x + (mobile ? 12 : 42),
+					card.y + (mobile ? card.height * 0.68 : 72),
+					mobile ? 9 : 11,
+					{ fill: INK_SOFT, fontStyle: 'normal' },
+				);
+			}
 			const stamp = this.sprite(NOTEBOOK_ASSETS.inkStampSend, {
-				x: layout.activeIntentsCard.x + layout.activeIntentsCard.width - 68,
-				y: layout.activeIntentsCard.y + 35,
-				width: 42,
-				height: 42,
+				x: card.x + card.width - stampSize - (mobile ? 7 : 26),
+				y: card.y + (card.height - stampSize) / 2,
+				width: stampSize,
+				height: stampSize,
 			});
 			this.bindTarget(stamp, target);
 			this.layers.ui.addChild(stamp);

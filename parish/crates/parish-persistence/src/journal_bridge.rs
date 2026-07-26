@@ -5,9 +5,7 @@
 //! for the persistence journal. This allows the journal to record
 //! crash-recoverable mutations from the higher-level game events.
 
-#[cfg(test)]
 use crate::journal::WorldEvent;
-#[cfg(test)]
 use parish_types::GameEvent;
 
 /// Converts a game event into a persistence journal event, if applicable.
@@ -15,8 +13,7 @@ use parish_types::GameEvent;
 /// Not all game events map to journal events. Returns `None` for events
 /// that are informational and don't represent a state mutation that needs
 /// to be replayed during crash recovery.
-#[cfg(test)]
-pub(crate) fn to_journal_event(event: &GameEvent) -> Option<WorldEvent> {
+pub fn to_journal_event(event: &GameEvent) -> Option<WorldEvent> {
     match event {
         GameEvent::DialogueOccurred {
             npc_id,
@@ -48,11 +45,14 @@ pub(crate) fn to_journal_event(event: &GameEvent) -> Option<WorldEvent> {
         GameEvent::WeatherChanged { new_weather, .. } => Some(WorldEvent::WeatherChanged {
             new_weather: new_weather.clone(),
         }),
-        // Festival, life events, NPC arrival/departure, and player
-        // movement are informational on the broadcast bus — no state
-        // mutation here needs crash-recovery replay. The persistence
-        // journal already has its own `PlayerMoved` event sourced from
-        // the movement applier.
+        GameEvent::PlayerTaskAssigned { task, .. }
+        | GameEvent::PlayerTaskProgressed { task, .. } => {
+            Some(WorldEvent::PlayerTaskStateChanged { task: task.clone() })
+        }
+        // Festival, life events, NPC arrival/departure, and player movement
+        // are informational on the broadcast bus.
+        // The persistence journal already has its own `PlayerMoved` event
+        // sourced from the movement applier.
         GameEvent::FestivalStarted { .. }
         | GameEvent::LifeEvent { .. }
         | GameEvent::NpcArrived { .. }
@@ -88,6 +88,7 @@ mod tests {
     use chrono::{TimeZone, Utc};
     use parish_types::LocationId;
     use parish_types::NpcId;
+    use parish_types::{PlayerTask, PlayerTaskId, TaskStatus};
 
     fn test_time() -> chrono::DateTime<Utc> {
         Utc.with_ymd_and_hms(1820, 3, 20, 10, 0, 0).unwrap()
@@ -161,6 +162,52 @@ mod tests {
             timestamp: test_time(),
         };
         assert!(to_journal_event(&event).is_none());
+    }
+
+    #[test]
+    fn player_task_events_capture_canonical_post_mutation_state() {
+        let task = PlayerTask {
+            id: PlayerTaskId(1),
+            description: "Dig over the potato patch.".to_string(),
+            assigned_by: NpcId(7),
+            location: LocationId(9),
+            assigned_at: test_time(),
+            status: TaskStatus::Assigned,
+            started_at: None,
+            completed_at: None,
+            last_matching_action: None,
+        };
+        let assigned = GameEvent::PlayerTaskAssigned {
+            task: task.clone(),
+            timestamp: test_time(),
+        };
+        let progressed = GameEvent::PlayerTaskProgressed {
+            task: PlayerTask {
+                status: TaskStatus::InProgress,
+                started_at: Some(test_time()),
+                last_matching_action: Some("I dig over the potato patch.".to_string()),
+                ..task.clone()
+            },
+            previous_status: TaskStatus::Assigned,
+            action: "I dig over the potato patch.".to_string(),
+            timestamp: test_time(),
+        };
+
+        assert_eq!(
+            to_journal_event(&assigned),
+            Some(WorldEvent::PlayerTaskStateChanged { task: task.clone() })
+        );
+        assert_eq!(
+            to_journal_event(&progressed),
+            Some(WorldEvent::PlayerTaskStateChanged {
+                task: PlayerTask {
+                    status: TaskStatus::InProgress,
+                    started_at: Some(test_time()),
+                    last_matching_action: Some("I dig over the potato patch.".to_string()),
+                    ..task
+                },
+            })
+        );
     }
 
     #[test]

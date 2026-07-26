@@ -547,7 +547,7 @@ pub fn apply_tier3_updates(
                         npc.name, npc.location, new_loc
                     ));
                     let from = npc.location;
-                    npc.location = new_loc;
+                    npc.set_location(new_loc);
                     event_bus.publish(parish_types::events::GameEvent::NpcDeparted {
                         npc_id: update.npc_id,
                         location: from,

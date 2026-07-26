@@ -18,7 +18,10 @@ use crate::world::description::render_description;
 use crate::world::transport::TransportMode;
 use crate::world::{LocationId, WorldState};
 
-use super::types::{MapData, MapLocation, NpcInfo, TextLogPayload, WorldSnapshot};
+use super::types::{
+    MapData, MapLocation, NpcInfo, PlayerTaskSnapshot, ReconnectState, TextLogPayload,
+    WorldSnapshot,
+};
 
 /// Convert a chrono weekday to its English name.
 ///
@@ -26,6 +29,19 @@ use super::types::{MapData, MapLocation, NpcInfo, TextLogPayload, WorldSnapshot}
 /// its existing `crate::ipc::handlers::weekday_name` path; the implementation
 /// lives in the lowest leaf crate, shared with `parish-diagnostics`.
 pub(crate) use parish_types::time::weekday_name;
+
+/// Projects non-completed tasks into the shared player-facing IPC shape.
+///
+/// [`PlayerProgress::active_tasks`](parish_types::PlayerProgress::active_tasks)
+/// preserves assignment order, so every runtime and QA surface sees the same
+/// deterministic ordering.
+pub fn active_task_snapshots(world: &WorldState) -> Vec<PlayerTaskSnapshot> {
+    world
+        .player_progress
+        .active_tasks()
+        .map(PlayerTaskSnapshot::from)
+        .collect()
+}
 
 /// Builds a [`WorldSnapshot`] from the current world state.
 pub fn snapshot_from_world(world: &WorldState) -> WorldSnapshot {
@@ -47,6 +63,7 @@ pub fn snapshot_from_world(world: &WorldState) -> WorldSnapshot {
     let day_of_week = weekday_name(now.weekday()).to_string();
 
     WorldSnapshot {
+        location_id: world.player_location.0,
         location_name: loc.name.clone(),
         location_description: description,
         time_label: tod.to_string(),
@@ -60,12 +77,33 @@ pub fn snapshot_from_world(world: &WorldState) -> WorldSnapshot {
         game_epoch_ms: now.timestamp_millis() as f64,
         speed_factor: world.clock.speed_factor(),
         name_hints: vec![],
+        active_tasks: active_task_snapshots(world),
         day_of_week,
         // The world alone does not know whether an NPC conversation turn is in
         // flight — that lives in `ConversationRuntimeState`. The reconnect-
         // resync snapshot endpoint (`GET /api/world-snapshot`) overrides this
         // from `conversation_in_progress`; everywhere else it stays `false`.
         turn_in_flight: false,
+    }
+}
+
+/// Builds an all-or-nothing reconnect replacement from one state generation.
+pub fn build_reconnect_state(
+    world: &WorldState,
+    npc_manager: &NpcManager,
+    transport: &TransportMode,
+    reveal_unexplored_locations: bool,
+    pronunciations: &[PronunciationEntry],
+    turn_in_flight: bool,
+) -> ReconnectState {
+    let mut world_snapshot = snapshot_from_world(world);
+    world_snapshot.name_hints = compute_name_hints(world, npc_manager, pronunciations);
+    world_snapshot.turn_in_flight = turn_in_flight;
+    ReconnectState {
+        world: world_snapshot,
+        map: build_map_data(world, transport, reveal_unexplored_locations),
+        npcs: build_npcs_here(world, npc_manager),
+        context_epoch: world.event_bus.context_epoch(),
     }
 }
 
@@ -1383,6 +1421,7 @@ mod tests {
     fn snapshot_from_default_world() {
         let world = WorldState::new();
         let snap = snapshot_from_world(&world);
+        assert_eq!(snap.location_id, world.player_location.0);
         assert!(!snap.location_name.is_empty());
         assert!(snap.hour <= 23);
         assert!(snap.minute <= 59);
@@ -1538,7 +1577,7 @@ mod tests {
         let world = WorldState::new();
         let mut npc_mgr = NpcManager::new();
         let mut npc = Npc::new_test_npc();
-        npc.location = world.player_location;
+        npc.set_location(world.player_location);
         npc_mgr.add_npc(npc);
         npc_mgr.mark_introduced(NpcId(1));
 
@@ -1557,7 +1596,7 @@ mod tests {
         let world = WorldState::new();
         let mut npc_mgr = NpcManager::new();
         let mut npc = Npc::new_test_npc();
-        npc.location = world.player_location;
+        npc.set_location(world.player_location);
         npc.brief_description = "an older man behind the bar".to_string();
         npc_mgr.add_npc(npc);
 
@@ -1579,7 +1618,7 @@ mod tests {
         let world = WorldState::new();
         let mut npc_mgr = NpcManager::new();
         let mut npc = Npc::new_test_npc();
-        npc.location = world.player_location;
+        npc.set_location(world.player_location);
         npc.name = "Padraig O'Brien".to_string();
         npc.brief_description = "an older man behind the bar".to_string();
         npc_mgr.add_npc(npc);
@@ -1599,12 +1638,12 @@ mod tests {
         let mut npc1 = Npc::new_test_npc();
         npc1.id = NpcId(1);
         npc1.name = "Mary Byrne".to_string();
-        npc1.location = world.player_location;
+        npc1.set_location(world.player_location);
 
         let mut npc2 = Npc::new_test_npc();
         npc2.id = NpcId(2);
         npc2.name = "Mary Kelly".to_string();
-        npc2.location = world.player_location;
+        npc2.set_location(world.player_location);
 
         npc_mgr.add_npc(npc1);
         npc_mgr.add_npc(npc2);
@@ -1626,12 +1665,12 @@ mod tests {
         let mut npc1 = Npc::new_test_npc();
         npc1.id = NpcId(1);
         npc1.name = "Padraig Darcy".to_string();
-        npc1.location = world.player_location;
+        npc1.set_location(world.player_location);
 
         let mut npc2 = Npc::new_test_npc();
         npc2.id = NpcId(2);
         npc2.name = "Niamh Darcy".to_string();
-        npc2.location = world.player_location;
+        npc2.set_location(world.player_location);
 
         npc_mgr.add_npc(npc1);
         npc_mgr.add_npc(npc2);
@@ -1655,7 +1694,7 @@ mod tests {
         let mut npc = Npc::new_test_npc();
         npc.id = NpcId(1);
         npc.name = "Padraig Darcy".to_string();
-        npc.location = LocationId(world.player_location.0 + 1);
+        npc.set_location(LocationId(world.player_location.0 + 1));
         npc_mgr.add_npc(npc);
         npc_mgr.mark_introduced(NpcId(1));
 
@@ -1674,7 +1713,7 @@ mod tests {
         priest.id = NpcId(10);
         priest.name = "Fr. Declan Tierney".to_string();
         priest.occupation = "Parish Priest".to_string();
-        priest.location = LocationId(world.player_location.0 + 1);
+        priest.set_location(LocationId(world.player_location.0 + 1));
         npc_mgr.add_npc(priest);
 
         let raw = "Is Father Declan here? I should like to introduce myself to the parish priest.";
@@ -1697,7 +1736,7 @@ mod tests {
         let world = WorldState::new();
         let mut npc_mgr = NpcManager::new();
         let mut npc = Npc::new_test_npc();
-        npc.location = world.player_location;
+        npc.set_location(world.player_location);
         npc.brief_description = "an older man behind the bar".to_string();
         npc_mgr.add_npc(npc);
 
@@ -1719,12 +1758,12 @@ mod tests {
         let mut npc1 = Npc::new_test_npc();
         npc1.id = NpcId(1);
         npc1.name = "Padraig Darcy".to_string();
-        npc1.location = world.player_location;
+        npc1.set_location(world.player_location);
 
         let mut npc2 = Npc::new_test_npc();
         npc2.id = NpcId(2);
         npc2.name = "Niamh Darcy".to_string();
-        npc2.location = world.player_location;
+        npc2.set_location(world.player_location);
 
         npc_mgr.add_npc(npc1);
         npc_mgr.add_npc(npc2);
@@ -1746,7 +1785,7 @@ mod tests {
         let mut npc_mgr = NpcManager::new();
         let mut npc = Npc::new_test_npc();
         npc.name = "A".to_string();
-        npc.location = world.player_location;
+        npc.set_location(world.player_location);
         npc_mgr.add_npc(npc);
         npc_mgr.mark_introduced(NpcId(1));
 
@@ -1765,12 +1804,12 @@ mod tests {
         let mut npc1 = Npc::new_test_npc();
         npc1.id = NpcId(1);
         npc1.name = "Padraig Darcy".to_string();
-        npc1.location = world.player_location;
+        npc1.set_location(world.player_location);
 
         let mut npc2 = Npc::new_test_npc();
         npc2.id = NpcId(2);
         npc2.name = "Siobhan Murphy".to_string();
-        npc2.location = world.player_location;
+        npc2.set_location(world.player_location);
 
         npc_mgr.add_npc(npc1);
         npc_mgr.add_npc(npc2);
@@ -1798,12 +1837,12 @@ mod tests {
         let mut peig = Npc::new_test_npc();
         peig.id = NpcId(1);
         peig.name = "Peig Hannigan".to_string();
-        peig.location = world.player_location;
+        peig.set_location(world.player_location);
 
         let mut aoife = Npc::new_test_npc();
         aoife.id = NpcId(2);
         aoife.name = "Aoife Brennan".to_string();
-        aoife.location = LocationId(world.player_location.0 + 99);
+        aoife.set_location(LocationId(world.player_location.0 + 99));
 
         npc_mgr.add_npc(peig);
         npc_mgr.add_npc(aoife);
@@ -1831,7 +1870,7 @@ mod tests {
         let mut peig = Npc::new_test_npc();
         peig.id = NpcId(1);
         peig.name = "Peig Hannigan".to_string();
-        peig.location = world.player_location;
+        peig.set_location(world.player_location);
         npc_mgr.add_npc(peig);
         npc_mgr.mark_introduced(NpcId(1));
 
@@ -1866,7 +1905,7 @@ mod tests {
         let mut npc = Npc::new_test_npc();
         npc.id = NpcId(1);
         npc.name = "Peig Hannigan".to_string();
-        npc.location = world.player_location;
+        npc.set_location(world.player_location);
         npc_mgr.add_npc(npc);
         npc_mgr.mark_introduced(NpcId(1));
 
@@ -1885,7 +1924,7 @@ mod tests {
         let mut peig = Npc::new_test_npc();
         peig.id = NpcId(1);
         peig.name = "Peig Hannigan".to_string();
-        peig.location = world.player_location;
+        peig.set_location(world.player_location);
         npc_mgr.add_npc(peig);
         npc_mgr.mark_introduced(NpcId(1));
 
@@ -1904,7 +1943,7 @@ mod tests {
         peig.id = NpcId(1);
         peig.name = "Peig Hannigan".to_string();
         peig.occupation = "Widow".to_string();
-        peig.location = world.player_location;
+        peig.set_location(world.player_location);
         npc_mgr.add_npc(peig);
 
         let targets = resolve_npc_targets(&world, &npc_mgr, &["Widow".to_string()]);
@@ -1921,13 +1960,13 @@ mod tests {
         a.id = NpcId(1);
         a.name = "Siobhan Murphy".to_string();
         a.occupation = "Farmer".to_string();
-        a.location = world.player_location;
+        a.set_location(world.player_location);
 
         let mut b = Npc::new_test_npc();
         b.id = NpcId(2);
         b.name = "Liam Murphy".to_string();
         b.occupation = "Farmer".to_string();
-        b.location = world.player_location;
+        b.set_location(world.player_location);
 
         npc_mgr.add_npc(a);
         npc_mgr.add_npc(b);
@@ -1948,7 +1987,7 @@ mod tests {
         tierney.id = NpcId(1);
         tierney.name = "Fr. Declan Tierney".to_string();
         tierney.occupation = "Parish Priest".to_string();
-        tierney.location = world.player_location;
+        tierney.set_location(world.player_location);
         npc_mgr.add_npc(tierney);
 
         let targets = resolve_npc_targets(&world, &npc_mgr, &["parish priest".to_string()]);
@@ -2065,7 +2104,7 @@ mod tests {
         let mut world = WorldState::new();
         let mut npc_mgr = NpcManager::new();
         let mut npc = Npc::new_test_npc();
-        npc.location = world.player_location;
+        npc.set_location(world.player_location);
         let speaker = npc.id;
         npc_mgr.add_npc(npc);
 
@@ -2081,7 +2120,7 @@ mod tests {
         world.player_name = Some("Aoife".to_string());
         let mut npc_mgr = NpcManager::new();
         let mut npc = Npc::new_test_npc();
-        npc.location = world.player_location;
+        npc.set_location(world.player_location);
         let speaker = npc.id;
         npc_mgr.add_npc(npc);
 
@@ -2096,7 +2135,7 @@ mod tests {
         let mut world = WorldState::new();
         let mut npc_mgr = NpcManager::new();
         let mut npc = Npc::new_test_npc();
-        npc.location = world.player_location;
+        npc.set_location(world.player_location);
         let speaker = npc.id;
         npc_mgr.add_npc(npc);
 
@@ -2138,7 +2177,7 @@ mod tests {
         let world = WorldState::new();
         let mut npc_mgr = NpcManager::new();
         let mut npc = Npc::new_test_npc();
-        npc.location = world.player_location;
+        npc.set_location(world.player_location);
         npc.name = "Siobhan".to_string();
         let npc_id = npc.id;
         npc_mgr.add_npc(npc);
@@ -2187,7 +2226,7 @@ mod tests {
         priest.id = NpcId(10);
         priest.name = "Fr. Declan Tierney".to_string();
         priest.occupation = "Parish Priest".to_string();
-        priest.location = world.player_location;
+        priest.set_location(world.player_location);
         npc_mgr.add_npc(priest);
 
         // "Father" vocative via built-in alias — must resolve, not absent.
@@ -2213,7 +2252,7 @@ mod tests {
         npc.id = NpcId(11);
         npc.name = "Peig Hannigan".to_string();
         npc.occupation = "Widow".to_string();
-        npc.location = world.player_location;
+        npc.set_location(world.player_location);
         npc_mgr.add_npc(npc);
 
         let result = resolve_addressed_targets(&world, &npc_mgr, &["Widow".to_string()]);
@@ -2232,7 +2271,7 @@ mod tests {
         priest.id = NpcId(10);
         priest.name = "Fr. Declan Tierney".to_string();
         priest.occupation = "Parish Priest".to_string();
-        priest.location = LocationId(999); // different loc
+        priest.set_location(LocationId(999)); // different loc
         npc_mgr.add_npc(priest);
 
         let result = resolve_addressed_targets(&world, &npc_mgr, &["Father".to_string()]);
@@ -2254,7 +2293,7 @@ mod tests {
             p.id = NpcId(id);
             p.name = format!("Priest {id}");
             p.occupation = "Parish Priest".to_string();
-            p.location = world.player_location;
+            p.set_location(world.player_location);
             npc_mgr.add_npc(p);
         }
 
@@ -2291,7 +2330,7 @@ mod tests {
         priest.id = NpcId(1);
         priest.name = "Father Brennan".to_string();
         priest.occupation = "Parish Priest".to_string();
-        priest.location = world.player_location;
+        priest.set_location(world.player_location);
         npc_mgr.add_npc(priest);
         npc_mgr.mark_introduced(NpcId(1));
 
@@ -2302,12 +2341,14 @@ mod tests {
         roisin.occupation = "Shopkeeper".to_string();
         // Roisin is at a different location — not co-located with the priest.
         // So she would NOT appear in the priest's `known_roster`.
-        roisin.location = world
-            .graph
-            .location_ids()
-            .into_iter()
-            .find(|l| *l != world.player_location)
-            .unwrap_or(world.player_location);
+        roisin.set_location(
+            world
+                .graph
+                .location_ids()
+                .into_iter()
+                .find(|l| *l != world.player_location)
+                .unwrap_or(world.player_location),
+        );
         npc_mgr.add_npc(roisin);
 
         let npc_cfg = NpcConfig::default();
@@ -2378,7 +2419,7 @@ mod tests {
         peig.name = "Peig Hannigan".to_string();
         peig.brief_description = "an elderly widow".to_string();
         peig.occupation = "Widow".to_string();
-        peig.location = world.player_location;
+        peig.set_location(world.player_location);
         npc_mgr.add_npc(peig);
 
         let setup = prepare_npc_conversation_turn(

@@ -35,6 +35,8 @@ pub fn make_test_npc(id: u32, location: u32) -> Npc {
         long_term_memory: LongTermMemory::new(),
         knowledge: Vec::new(),
         state: NpcState::Present,
+        grounding_revision: Npc::fresh_grounding_revision(),
+        observed_activity_fingerprint: None,
         deflated_summary: None,
         reaction_log: ReactionLog::default(),
         last_activity: None,
@@ -103,7 +105,7 @@ pub fn make_aged_occupation_npc(id: u32, age: u8, occupation: &str) -> Npc {
 /// NPC with a three-slot daily schedule: sleep at home, work, evening at home.
 pub fn make_scheduled_npc(id: u32, home: u32, work: u32) -> Npc {
     let mut npc = make_test_npc(id, home);
-    npc.schedule = Some(SeasonalSchedule {
+    npc.set_schedule(Some(SeasonalSchedule {
         variants: vec![ScheduleVariant {
             season: None,
             day_type: None,
@@ -131,7 +133,7 @@ pub fn make_scheduled_npc(id: u32, home: u32, work: u32) -> Npc {
                 },
             ],
         }],
-    });
+    }));
     npc
 }
 

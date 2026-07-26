@@ -1,9 +1,11 @@
 <script lang="ts">
 	import { onDestroy, onMount } from 'svelte';
+	import { SvelteSet } from 'svelte/reactivity';
 	import { get } from 'svelte/store';
 	import type { NotebookAction } from '$lib/notebook/actions';
 	import type { NpcInfo } from '$lib/types';
-	import { submitInput } from '$lib/ipc';
+	import { reactToMessage, submitInput } from '$lib/ipc';
+	import { REACTION_PALETTE } from '$lib/reactions';
 	import { openBugReport } from '../../stores/bugReport';
 	import { debugVisible } from '../../stores/debug';
 	import {
@@ -13,8 +15,10 @@
 		intentDraft,
 		mapData,
 		npcsHere,
+		addReaction,
 		playerSubmittedCount,
 		pushErrorLog,
+		removeReaction,
 		streamingActive,
 		textLog,
 		worldState,
@@ -28,11 +32,17 @@
 		sortNotebookHitTargetsForFocus,
 		type NotebookHitTarget,
 	} from '$lib/illustrated-notebook/interactions';
+	import { computeNotebookLayout } from '$lib/illustrated-notebook/layout';
 	import { IllustratedNotebookRenderer } from '$lib/illustrated-notebook/renderer';
-	import type { NotebookTab } from '$lib/illustrated-notebook/types';
+	import type {
+		NotebookLiveLine,
+		NotebookRect,
+		NotebookTab,
+	} from '$lib/illustrated-notebook/types';
 	import {
 		buildNotebookViewModel,
 		notebookNpcLabel,
+		notebookReactionSummary,
 	} from '$lib/illustrated-notebook/view-model';
 
 	let hostEl: HTMLDivElement;
@@ -46,6 +56,9 @@
 	let drawer = $state<NotebookTab | 'tools' | 'time' | 'intents' | null>(null);
 	let hitTargets = $state<NotebookHitTarget[]>([]);
 	let focusedHitTargetId = $state<string | null>(null);
+	let reactionPickerMessageId = $state<string | null>(null);
+	let liveChronicleRect = $state<NotebookRect | null>(null);
+	const pendingReactions = new SvelteSet<string>();
 
 	const selectedNpc = $derived<NpcInfo | null>(
 		$npcsHere.find((npc) => npc.real_name === selectedRealName) ??
@@ -62,8 +75,19 @@
 			selectedNpc,
 			textLog: $textLog,
 			busy: $streamingActive || isSubmitting,
-			intentText,
 		}),
+	);
+	const reactionLine = $derived(
+		[...notebookView.liveLines]
+			.reverse()
+			.find((line) => line.reactions.length > 0) ??
+			[...notebookView.liveLines]
+				.reverse()
+				.find(
+					(line) =>
+						line.kind === 'npc' && Boolean(line.messageId) && !line.streaming,
+				) ??
+			null,
 	);
 
 	$effect(() => {
@@ -128,10 +152,14 @@
 				}
 				renderer = next;
 				if (typeof ResizeObserver !== 'undefined') {
-					resizeObserver = new ResizeObserver(() => renderer?.resize());
+					resizeObserver = new ResizeObserver(() => {
+						renderer?.resize();
+						updateLiveChronicleRect();
+					});
 					resizeObserver.observe(hostEl);
 				}
 				renderer.resize();
+				updateLiveChronicleRect();
 				focusInput();
 			} catch (err) {
 				next?.destroy();
@@ -160,6 +188,15 @@
 		window.setTimeout(() => {
 			inputEl?.focus({ preventScroll: true });
 		}, 0);
+	}
+
+	function updateLiveChronicleRect() {
+		if (!hostEl) return;
+		const layout = computeNotebookLayout(
+			hostEl.clientWidth || window.innerWidth,
+			hostEl.clientHeight || window.innerHeight,
+		);
+		liveChronicleRect = layout.liveChronicle;
 	}
 
 	function selectNpc(realName: string) {
@@ -236,6 +273,36 @@
 		}
 	}
 
+	function handleReaction(line: NotebookLiveLine, emoji: string) {
+		if (!line.messageId || line.kind !== 'npc') return;
+		const entry = get(textLog).find((candidate) => candidate.id === line.messageId);
+		if (!entry) return;
+		const key = `${line.messageId}:${emoji}`;
+		if (pendingReactions.has(key)) return;
+		pendingReactions.add(key);
+		const previousPlayerReaction = entry.reactions?.find(
+			(reaction) => reaction.source === 'player',
+		);
+		addReaction(line.messageId, emoji, 'player');
+		const messageId = line.messageId;
+		reactToMessage(entry.source, entry.content.slice(0, 80), emoji)
+			.catch((err) => {
+				removeReaction(messageId, emoji, 'player');
+				if (previousPlayerReaction) {
+					addReaction(
+						messageId,
+						previousPlayerReaction.emoji,
+						previousPlayerReaction.source,
+					);
+				}
+				pushErrorLog(
+					`Could not record reaction ${emoji}: ${formatIpcError(err)}`,
+				);
+			})
+			.finally(() => pendingReactions.delete(key));
+		reactionPickerMessageId = null;
+	}
+
 	function openTools(which: 'save' | 'debug' | 'mod' | 'bug') {
 		drawer = null;
 		switch (which) {
@@ -273,17 +340,89 @@
 			<p>{notebookView.liveEmpty}</p>
 		{:else}
 			{#each notebookView.liveLines as line (line.key)}
-				<p>{line.speaker}: {line.content}</p>
+				<p data-testid={line.kind === 'command' ? 'command-entry' : undefined}>
+					{line.speaker}: {line.content}
+					{#if line.reactions.length > 0}
+						<span aria-label="Reactions">
+							· {notebookReactionSummary(line.reactions)}
+						</span>
+					{/if}
+				</p>
 			{/each}
 		{/if}
 	</div>
+	<p class="notebook-status-summary" data-testid="notebook-status-summary">
+		Location: {notebookView.locationName}. Time: {notebookView.time}
+		{$worldState?.time_label ?? ''}. Weather: {notebookView.weather}. Season:
+		{$worldState?.season ?? 'unknown'}.
+		{#if $worldState?.paused}Paused.{/if}
+		{#if $worldState?.festival}Festival: {$worldState.festival}.{/if}
+	</p>
+	{#if reactionLine && liveChronicleRect}
+		<div
+			class="notebook-reaction-strip"
+			class:player={reactionLine.kind === 'player' ||
+				reactionLine.kind === 'command'}
+			style={`left:${liveChronicleRect.x + 18}px;top:${liveChronicleRect.y + liveChronicleRect.height - 8}px;width:${Math.max(1, liveChronicleRect.width - 36)}px;`}
+			aria-label={`Reactions for ${reactionLine.speaker}'s latest message`}
+		>
+			{#if reactionLine.reactions.length > 0}
+				<div class="reaction-bar" data-testid="reaction-bar">
+					{#each reactionLine.reactions as reaction (reaction.emoji + reaction.source)}
+						<span class="reaction-badge" title={reaction.source}>
+							<span>{reaction.emoji}</span>
+							{#if reaction.source !== 'player'}
+								<span class="reaction-source">{reaction.source}</span>
+							{/if}
+						</span>
+					{/each}
+				</div>
+			{/if}
+			{#if reactionLine.kind === 'npc' && reactionLine.messageId && !reactionLine.streaming}
+				<button
+					type="button"
+					class="reaction-toggle"
+					aria-label={`React to message from ${reactionLine.speaker}`}
+					onmouseenter={() =>
+						(reactionPickerMessageId = reactionLine.messageId)}
+					onfocus={() => (reactionPickerMessageId = reactionLine.messageId)}
+					onclick={() =>
+						(reactionPickerMessageId =
+							reactionPickerMessageId === reactionLine.messageId
+								? null
+								: reactionLine.messageId)}
+				>
+					React
+				</button>
+				{#if reactionPickerMessageId === reactionLine.messageId}
+					<div
+						class="reaction-picker"
+						role="toolbar"
+						aria-label="React to message"
+						data-testid="reaction-picker"
+					>
+						{#each REACTION_PALETTE as reaction (reaction.emoji)}
+							<button
+								type="button"
+								aria-label={`React with ${reaction.description}`}
+								title={reaction.description}
+								onclick={() => handleReaction(reactionLine, reaction.emoji)}
+							>
+								{reaction.emoji}
+							</button>
+						{/each}
+					</div>
+				{/if}
+			{/if}
+		</div>
+	{/if}
 	<input
 		bind:this={inputEl}
 		bind:value={intentText}
 		class="notebook-native-input"
 		type="text"
 		aria-label="Player intent"
-		aria-disabled={$streamingActive || isSubmitting}
+		aria-busy={$streamingActive || isSubmitting}
 		autocomplete="off"
 		spellcheck="false"
 		onfocus={() => (inputFocused = true)}
@@ -315,9 +454,18 @@
 	</button>
 
 	{#if drawer}
-		<aside class="notebook-drawer" aria-label={`${drawer} drawer`}>
+		<aside
+			class="notebook-drawer"
+			aria-label={`${drawer === 'intents' ? 'active tasks' : drawer} drawer`}
+		>
 			<header>
-				<strong>{drawer === 'tools' ? 'Tools' : drawer}</strong>
+				<strong
+					>{drawer === 'tools'
+						? 'Tools'
+						: drawer === 'intents'
+							? 'Active tasks'
+							: drawer}</strong
+				>
 				<button
 					type="button"
 					aria-label="Close notebook drawer"
@@ -348,12 +496,79 @@
 			{:else if drawer === 'journal' || drawer === 'notes'}
 				<div class="journal-lines">
 					{#each notebookView.liveLines as line (line.key)}
-						<p class:error={line.kind === 'error'}>
-							<strong>{line.speaker}</strong>: {line.content}
-						</p>
+						<div class:player={line.kind === 'player' || line.kind === 'command'} class="journal-entry">
+							<p
+								class:error={line.kind === 'error'}
+								class:command={line.kind === 'command'}
+								data-testid={line.kind === 'command' ? 'command-entry' : undefined}
+							>
+								<strong>{line.speaker}</strong>: {line.content}
+							</p>
+							{#if line.reactions.length > 0}
+								<div
+									class="reaction-bar"
+									data-testid="reaction-bar"
+									aria-label={`Reactions to ${line.speaker}'s message`}
+								>
+									{#each line.reactions as reaction (reaction.emoji + reaction.source)}
+										<span class="reaction-badge" title={reaction.source}>
+											<span>{reaction.emoji}</span>
+											{#if reaction.source !== 'player'}
+												<span class="reaction-source">{reaction.source}</span>
+											{/if}
+										</span>
+									{/each}
+								</div>
+							{/if}
+							{#if line.kind === 'npc' && line.messageId && !line.streaming}
+								<button
+									type="button"
+									class="reaction-toggle"
+									aria-label={`React to message from ${line.speaker}`}
+									onclick={() =>
+										(reactionPickerMessageId =
+											reactionPickerMessageId === line.messageId
+												? null
+												: line.messageId)}
+								>
+									React
+								</button>
+								{#if reactionPickerMessageId === line.messageId}
+									<div
+										class="reaction-picker"
+										role="toolbar"
+										aria-label="React to message"
+										data-testid="reaction-picker"
+									>
+										{#each REACTION_PALETTE as reaction (reaction.emoji)}
+											<button
+												type="button"
+												aria-label={`React with ${reaction.description}`}
+												title={reaction.description}
+												onclick={() => handleReaction(line, reaction.emoji)}
+											>
+												{reaction.emoji}
+											</button>
+										{/each}
+									</div>
+								{/if}
+							{/if}
+						</div>
 					{/each}
 					{#if notebookView.liveLines.length === 0}
 						<p>{notebookView.liveEmpty}</p>
+					{/if}
+					{#if drawer === 'notes' && ($worldState?.name_hints?.length ?? 0) > 0}
+						<h4>Pronunciation notes</h4>
+						<ul aria-label="Pronunciation notes">
+							{#each $worldState?.name_hints ?? [] as hint (hint.word)}
+								<li>
+									<strong>{hint.word}</strong>
+									<span>{hint.pronunciation}</span>
+									{#if hint.meaning}<span>{hint.meaning}</span>{/if}
+								</li>
+							{/each}
+						</ul>
 					{/if}
 				</div>
 			{:else if drawer === 'rumours'}
@@ -369,15 +584,25 @@
 					</p>
 					<p><strong>Weather</strong>: {$worldState?.weather ?? 'unknown'}</p>
 					<p><strong>Season</strong>: {$worldState?.season ?? 'unknown'}</p>
+					{#if $worldState?.paused}<p><strong>State</strong>: Paused</p>{/if}
+					{#if $worldState?.festival}
+						<p><strong>Festival</strong>: {$worldState.festival}</p>
+					{/if}
 				</div>
 			{:else if drawer === 'intents'}
 				<div class="journal-lines">
-					<p><strong>Current line</strong>: {intentText || '(none)'}</p>
-					<p>
-						<strong>Parish reply</strong>: {$streamingActive
-							? 'pending'
-							: 'idle'}
-					</p>
+					{#if notebookView.activeTasks.length === 0}
+						<p>No active task.</p>
+					{:else}
+						<ul class="task-list" aria-label="Active tasks">
+							{#each notebookView.activeTasks as task (task.id)}
+								<li>
+									<strong>{task.description}</strong>
+									<span>{task.statusLabel}</span>
+								</li>
+							{/each}
+						</ul>
+					{/if}
 				</div>
 			{:else if drawer === 'tools'}
 				<div class="tool-grid">
@@ -432,6 +657,18 @@
 		border: 0;
 	}
 
+	.notebook-status-summary {
+		position: absolute;
+		width: 1px;
+		height: 1px;
+		padding: 0;
+		margin: -1px;
+		overflow: hidden;
+		clip: rect(0, 0, 0, 0);
+		white-space: nowrap;
+		border: 0;
+	}
+
 	.notebook-native-input {
 		position: fixed;
 		left: 1px;
@@ -442,6 +679,43 @@
 		border: 0;
 		opacity: 0;
 		pointer-events: none;
+	}
+
+	.notebook-reaction-strip {
+		position: absolute;
+		z-index: 5;
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 0.35rem;
+		transform: translateY(-100%);
+		pointer-events: auto;
+		color: #322315;
+		font-family: Georgia, 'Times New Roman', serif;
+		font-size: 0.78rem;
+	}
+
+	.notebook-reaction-strip.player {
+		justify-content: flex-end;
+	}
+
+	.notebook-reaction-strip .reaction-bar {
+		flex: 1 1 auto;
+		min-width: 0;
+	}
+
+	.notebook-reaction-strip.player .reaction-bar {
+		justify-content: flex-end;
+	}
+
+	.notebook-reaction-strip button {
+		color: #322315;
+		background: rgba(255, 246, 216, 0.88);
+		border: 1px solid rgba(55, 38, 20, 0.42);
+		border-radius: 999px;
+		padding: 0.15rem 0.4rem;
+		font: inherit;
+		cursor: pointer;
 	}
 
 	.notebook-accessibility-targets {
@@ -541,8 +815,53 @@
 		margin: 0;
 	}
 
+	.journal-entry {
+		display: grid;
+		gap: 0.3rem;
+	}
+
+	.reaction-bar,
+	.reaction-picker {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 0.3rem;
+		justify-content: flex-start;
+	}
+
+	.journal-entry.player .reaction-bar {
+		justify-content: flex-end;
+	}
+
+	.reaction-badge {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.2rem;
+		flex-shrink: 0;
+		white-space: nowrap;
+		padding: 0.1rem 0.35rem;
+		border: 1px solid rgba(55, 38, 20, 0.35);
+		border-radius: 999px;
+		background: rgba(255, 246, 216, 0.48);
+	}
+
+	.reaction-source {
+		font-size: 0.78rem;
+		opacity: 0.78;
+	}
+
+	.reaction-toggle {
+		justify-self: start;
+		font-size: 0.78rem;
+	}
+
 	.journal-lines .error {
 		color: #7e2f28;
+	}
+
+	.journal-lines .command {
+		font-variant: small-caps;
+		letter-spacing: 0.035em;
 	}
 
 	.tool-grid {

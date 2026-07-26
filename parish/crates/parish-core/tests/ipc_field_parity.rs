@@ -7,14 +7,16 @@
 //!
 //! Companion TypeScript test: `parish/apps/ui/src/lib/types.test.ts`
 //! parses `types.ts` source text and asserts each TypeScript interface
-//! declares all required fields from the same manifest — so drift in either
-//! direction fails CI.
+//! declares all required fields from the same manifest. The task-progression
+//! contracts added in #1781 use exact matching because they have no
+//! frontend-only compatibility fields.
 //!
 //! TD-053 / #1202
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::PathBuf;
 
+use chrono::{TimeZone, Utc};
 use serde_json::Value;
 
 fn workspace_root() -> PathBuf {
@@ -85,6 +87,24 @@ fn assert_keys_contain_manifest(
     );
 }
 
+fn assert_keys_match_manifest(
+    struct_name: &str,
+    value: &impl serde::Serialize,
+    manifest: &BTreeMap<String, Vec<String>>,
+) {
+    let expected: BTreeSet<String> = manifest
+        .get(struct_name)
+        .unwrap_or_else(|| panic!("struct {struct_name} not found in manifest"))
+        .iter()
+        .cloned()
+        .collect();
+    let actual = keys(value);
+    assert_eq!(
+        actual, expected,
+        "Rust struct {struct_name} must exactly match its manifest entry"
+    );
+}
+
 use parish_core::debug_snapshot::{
     AuthDebug, ClockDebug, ConversationExchangeDebug, ConversationsDebug, DebugEvent,
     DebugSnapshot, DeflatedSummaryDebug, EdgeTraversalDebug, EventBusDebug, GameEventDebug,
@@ -95,9 +115,9 @@ use parish_core::debug_snapshot::{
 };
 use parish_core::ipc::{
     BugContext, BugReportRequest, BugReportResult, DialogueCorrectedPayload, LoadingPayload,
-    MapData, MapLocation, NpcInfo, NpcReactionPayload, SaveState, StreamEndPayload,
-    StreamTokenPayload, StreamTurnEndPayload, TextLogPayload, TileSourceSnapshot,
-    TravelStartPayload, TravelWaypoint, WorldSnapshot,
+    MapData, MapLocation, NpcInfo, NpcReactionPayload, PlayerTaskSnapshot, ReconnectState,
+    SaveState, StreamEndPayload, StreamTokenPayload, StreamTurnEndPayload, TextLogPayload,
+    TileSourceSnapshot, TravelStartPayload, TravelWaypoint, WorldSnapshot,
 };
 
 #[test]
@@ -106,9 +126,10 @@ fn ipc_field_parity() {
 
     // ── IPC core types ──────────────────────────────────────────────────────
 
-    assert_keys_contain_manifest(
+    assert_keys_match_manifest(
         "WorldSnapshot",
         &WorldSnapshot {
+            location_id: 1,
             location_name: "Crossroads".into(),
             location_description: "A dusty crossroads.".into(),
             time_label: "Morning".into(),
@@ -122,8 +143,25 @@ fn ipc_field_parity() {
             game_epoch_ms: 1_234_567_890.0,
             speed_factor: 36.0,
             name_hints: vec![],
+            active_tasks: vec![],
             day_of_week: "Monday".into(),
             turn_in_flight: false,
+        },
+        &manifest,
+    );
+
+    assert_keys_match_manifest(
+        "PlayerTaskSnapshot",
+        &PlayerTaskSnapshot {
+            id: 7,
+            description: "weed the potato patch".into(),
+            assigned_by: 11,
+            location_id: 3,
+            status: parish_types::TaskStatus::InProgress,
+            assigned_at: Utc.with_ymd_and_hms(1820, 5, 14, 8, 0, 0).unwrap(),
+            started_at: Some(Utc.with_ymd_and_hms(1820, 5, 14, 8, 30, 0).unwrap()),
+            completed_at: None,
+            last_matching_action: Some("I weed the potato patch".into()),
         },
         &manifest,
     );
@@ -166,6 +204,42 @@ fn ipc_field_parity() {
             mood: "content".into(),
             introduced: true,
             mood_emoji: "😌".into(),
+        },
+        &manifest,
+    );
+
+    assert_keys_match_manifest(
+        "ReconnectState",
+        &ReconnectState {
+            world: WorldSnapshot {
+                location_id: 1,
+                location_name: "Crossroads".into(),
+                location_description: "A dusty crossroads.".into(),
+                time_label: "Morning".into(),
+                hour: 8,
+                minute: 30,
+                weather: "Clear".into(),
+                season: "Spring".into(),
+                festival: None,
+                paused: false,
+                inference_paused: false,
+                game_epoch_ms: 0.0,
+                speed_factor: 36.0,
+                name_hints: vec![],
+                active_tasks: vec![],
+                day_of_week: "Monday".into(),
+                turn_in_flight: false,
+            },
+            map: MapData {
+                locations: vec![],
+                edges: vec![],
+                player_location: "1".into(),
+                edge_traversals: vec![],
+                transport_label: "on foot".into(),
+                transport_id: "walking".into(),
+            },
+            npcs: vec![],
+            context_epoch: 0,
         },
         &manifest,
     );
@@ -765,7 +839,7 @@ fn ipc_field_parity() {
         &manifest,
     );
 
-    assert_keys_contain_manifest(
+    assert_keys_match_manifest(
         "DemoContextSnapshot",
         &parish_core::ipc::demo::DemoContextSnapshot {
             location_name: "Crossroads".into(),
@@ -775,6 +849,7 @@ fn ipc_field_parity() {
             weather: "Clear".into(),
             npcs_here: vec![],
             adjacent: vec![],
+            active_tasks: vec![],
             recent_log: vec![],
             recent_actions: vec![],
             extra_prompt: None,

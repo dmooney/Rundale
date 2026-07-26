@@ -15,7 +15,9 @@
 use tokio_util::sync::CancellationToken;
 
 use crate::config::InferenceCategory;
-use crate::game_loop::{GameLoopContext, handle_movement, handle_npc_conversation};
+use crate::game_loop::{
+    GameInputOutcome, GameLoopContext, handle_movement, handle_npc_conversation,
+};
 use crate::input::{
     is_physical_action_shaped, is_player_dialogue, parse_intent, parse_intent_local,
 };
@@ -142,30 +144,24 @@ async fn try_handle_move(
 ///
 /// Extracted so tests can drive the narration branch directly without
 /// requiring an LLM-classified `Interact` intent.
-pub(crate) async fn handle_interact(ctx: &GameLoopContext<'_>, raw: &str) {
-    // Normalize: trim whitespace and trailing punctuation, then translate a
-    // first-person action ("I set to work") into second-person narration
-    // ("You set to work"). Otherwise lowercase the first character so a
-    // capitalized imperative does not render as "You Tie ...".
-    let trimmed = raw.trim().trim_end_matches('.');
-    let action = trimmed
-        .get(..2)
-        .filter(|prefix| prefix.eq_ignore_ascii_case("i "))
-        .map_or(trimmed, |_| trimmed[2..].trim_start());
-    let mut chars = action.chars();
-    let normalized = match chars.next() {
-        None => String::new(),
-        Some(c) => c.to_lowercase().collect::<String>() + chars.as_str(),
+pub(crate) async fn handle_interact(ctx: &GameLoopContext<'_>, raw: &str) -> GameInputOutcome {
+    let flags = {
+        let config = ctx.config.lock().await;
+        config.flags.clone()
     };
-    // Don't emit anything for blank/empty input after normalization.
-    if normalized.is_empty() {
-        return;
-    }
-    let msg = format!("You {normalized}.");
+    let outcome = {
+        let mut world = ctx.world.lock().await;
+        crate::game_session::apply_player_action(&mut world, raw, &flags)
+    };
+    let Some(outcome) = outcome else {
+        return GameInputOutcome::default();
+    };
     ctx.emitter.emit_event(
         "text-log",
-        serde_json::to_value(text_log("action", msg)).unwrap_or(serde_json::Value::Null),
+        serde_json::to_value(text_log("action", outcome.narration))
+            .unwrap_or(serde_json::Value::Null),
     );
+    GameInputOutcome::from_task(outcome.progressed_task)
 }
 
 // ── Game input dispatch ───────────────────────────────────────────────────────
@@ -192,7 +188,7 @@ pub async fn handle_game_input(
     transport: &TransportMode,
     reaction_templates: &ReactionTemplates,
     spawn_loading: impl Fn() -> Option<CancellationToken>,
-) {
+) -> GameInputOutcome {
     // Record the raw player input before any parsing so a bug report filed
     // mid-turn carries the exact action that triggered the failure (#1331).
     ctx.conversation.lock().await.record_player_input(&raw);
@@ -294,7 +290,7 @@ pub async fn handle_game_input(
     // branch so the input routes to `handle_npc_conversation` instead.
     if is_move && addressed_to.is_empty() {
         match try_handle_move(ctx, move_target, transport, reaction_templates).await {
-            MoveDispatch::Handled => return,
+            MoveDispatch::Handled => return GameInputOutcome::default(),
             // TODO #40/#56: Move-no-target at a populated location falls through
             // to the NPC conversation path below so the co-located NPC has a
             // chance to reply instead of the player getting a silent system
@@ -305,12 +301,12 @@ pub async fn handle_game_input(
 
     if is_look {
         handle_look(ctx, transport).await;
-        return;
+        return GameInputOutcome::default();
     }
 
     if is_examine {
         handle_examine(ctx, examine_target, transport).await;
-        return;
+        return GameInputOutcome::default();
     }
 
     // #1449: physical player actions classified as `Interact` get a narrated
@@ -326,8 +322,7 @@ pub async fn handle_game_input(
             !config.flags.is_disabled("interact-narration")
         };
         if flag_enabled {
-            handle_interact(ctx, &raw).await;
-            return;
+            return handle_interact(ctx, &raw).await;
         }
         // Flag disabled: fall through to NPC conversation (legacy behaviour).
     }
@@ -360,8 +355,7 @@ pub async fn handle_game_input(
             !config.flags.is_disabled("interact-narration")
         };
         if flag_enabled {
-            handle_interact(ctx, &raw).await;
-            return;
+            return handle_interact(ctx, &raw).await;
         }
     }
 
@@ -411,7 +405,7 @@ pub async fn handle_game_input(
         targets.push(target);
     }
 
-    handle_npc_conversation(ctx, mentions.remaining, targets, spawn_loading).await;
+    handle_npc_conversation(ctx, mentions.remaining, targets, spawn_loading).await
 }
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
@@ -891,7 +885,7 @@ mod tests {
         // One co-located NPC: the existing test fixture lives at LocationId(1)
         // which matches the default WorldState::new() player location.
         let mut npc = parish_npc::Npc::new_test_npc();
-        npc.location = player_loc;
+        npc.set_location(player_loc);
         let mut mgr = NpcManager::new();
         mgr.add_npc(npc);
         let npc_manager = tokio::sync::Mutex::new(mgr);

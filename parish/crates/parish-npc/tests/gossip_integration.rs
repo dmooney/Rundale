@@ -2,7 +2,7 @@
 //!
 //! Closes the "gossip propagation across NPCs" regression gap identified
 //! in the engine audit. The individual pieces (`GossipNetwork::create`,
-//! `GossipNetwork::propagate`, `create_gossip_from_tier2_event`,
+//! `GossipNetwork::propagate`, the grounded Tier-2 apply seam,
 //! `propagate_gossip_at_location`) all have unit tests, but nothing
 //! asserted that a Tier 2 event from NPC A actually surfaces in NPC B's
 //! known-gossip set via the wiring these functions are supposed to form.
@@ -11,8 +11,16 @@
 //! event originating at NPC A materialises in NPC B's `known_by` set after
 //! a co-located propagation pass.
 
-use parish_npc::ticks::{create_gossip_from_tier2_event, propagate_gossip_at_location};
-use parish_npc::types::{RelationshipChange, Tier2Event};
+use std::collections::HashMap;
+
+use parish_config::NpcConfig;
+use parish_npc::Npc;
+use parish_npc::ticks::{
+    GroundedTier2ApplyOutcome, apply_grounded_tier2_event_with_config,
+    propagate_gossip_at_location, tier2_activity_fingerprint_from_npc_at,
+};
+use parish_npc::types::{RelationshipChange, Tier2Event, Tier2ParticipantGrounding};
+use parish_types::events::{EventBus, GameEvent};
 use parish_types::{GossipNetwork, LocationId, NpcId};
 use rand::SeedableRng;
 use rand::rngs::StdRng;
@@ -20,6 +28,49 @@ use rand::rngs::StdRng;
 fn game_time() -> chrono::DateTime<chrono::Utc> {
     use chrono::TimeZone;
     chrono::Utc.with_ymd_and_hms(1820, 3, 20, 10, 0, 0).unwrap()
+}
+
+fn apply_grounded_event(
+    event: &Tier2Event,
+    network: &mut GossipNetwork,
+    event_bus: &EventBus,
+) -> GroundedTier2ApplyOutcome {
+    let game_time = game_time();
+    let mut npcs: HashMap<NpcId, Npc> = event
+        .participants
+        .iter()
+        .copied()
+        .map(|id| {
+            let mut npc = Npc::new_test_npc();
+            npc.id = id;
+            npc.name = format!("NPC {}", id.0);
+            npc.set_location(event.location);
+            (id, npc)
+        })
+        .collect();
+    let mut grounded = event.clone();
+    grounded.grounding = grounded
+        .participants
+        .iter()
+        .map(|id| {
+            let npc = &npcs[id];
+            Tier2ParticipantGrounding {
+                npc_id: *id,
+                location: grounded.location,
+                grounding_revision: npc.grounding_revision(),
+                activity_fingerprint: tier2_activity_fingerprint_from_npc_at(npc, game_time),
+            }
+        })
+        .collect();
+
+    apply_grounded_tier2_event_with_config(
+        &grounded,
+        &mut npcs,
+        game_time,
+        &NpcConfig::default(),
+        event_bus,
+        network,
+    )
 }
 
 /// A notable Tier 2 event (big relationship change) originating at NPC A
@@ -48,8 +99,10 @@ fn tier2_event_seeds_gossip_and_propagates_to_colocated_npc() {
             to: NpcId(99),
             delta: 0.5, // > 0.3 → notable
         }],
+        grounding: Vec::new(),
     };
-    create_gossip_from_tier2_event(&event, &mut network, game_time());
+    let outcome = apply_grounded_event(&event, &mut network, &EventBus::new());
+    assert!(matches!(outcome, GroundedTier2ApplyOutcome::Applied(_)));
 
     assert_eq!(
         network.len(),
@@ -136,17 +189,15 @@ fn trivial_tier2_event_does_not_seed_gossip() {
             to: NpcId(2),
             delta: 0.05, // below the 0.3 notability threshold
         }],
+        grounding: Vec::new(),
     };
-    let returned = create_gossip_from_tier2_event(&event, &mut network, game_time());
+    let outcome = apply_grounded_event(&event, &mut network, &EventBus::new());
     assert_eq!(
         network.len(),
         0,
         "trivial events must not seed gossip items"
     );
-    assert!(
-        returned.is_none(),
-        "trivial events must not return a GossipSpread event"
-    );
+    assert!(matches!(outcome, GroundedTier2ApplyOutcome::Applied(_)));
 }
 
 /// Empty-participants guard (TD-031): a Tier 2 event with no participants is
@@ -173,12 +224,13 @@ fn empty_participants_tier2_event_does_not_seed_gossip() {
             to: NpcId(2),
             delta: 0.9,
         }],
+        grounding: Vec::new(),
     };
-    let returned = create_gossip_from_tier2_event(&event, &mut network, game_time());
-    assert!(
-        returned.is_none(),
-        "events without participants must not return a GossipSpread event"
-    );
+    let outcome = apply_grounded_event(&event, &mut network, &EventBus::new());
+    assert!(matches!(
+        outcome,
+        GroundedTier2ApplyOutcome::Rejected(reason) if reason == "event has no participants"
+    ));
     assert_eq!(
         network.len(),
         0,
@@ -192,8 +244,9 @@ fn empty_participants_tier2_event_does_not_seed_gossip() {
 /// became gossip.
 #[test]
 fn notable_tier2_event_returns_gossip_spread_event() {
-    use parish_types::events::GameEvent;
     let mut network = GossipNetwork::new();
+    let event_bus = EventBus::new();
+    let mut events = event_bus.subscribe();
     let alice = NpcId(1);
     let event = Tier2Event {
         location: LocationId(7),
@@ -205,21 +258,30 @@ fn notable_tier2_event_returns_gossip_spread_event() {
             to: NpcId(99),
             delta: 0.5,
         }],
+        grounding: Vec::new(),
     };
-    let returned = create_gossip_from_tier2_event(&event, &mut network, game_time());
-    match returned {
-        Some(GameEvent::GossipSpread {
+    let outcome = apply_grounded_event(&event, &mut network, &event_bus);
+    assert!(matches!(outcome, GroundedTier2ApplyOutcome::Applied(_)));
+    let mut gossip_spread = None;
+    while let Ok(published) = events.try_recv() {
+        if let GameEvent::GossipSpread {
             source,
             location,
             content,
             ..
-        }) => {
-            assert_eq!(source, alice);
-            assert_eq!(location, LocationId(7));
-            assert_eq!(content, "Alice confronted the landlord about the rent");
+        } = published
+        {
+            gossip_spread = Some((source, location, content));
         }
-        other => panic!("expected Some(GossipSpread), got {:?}", other),
     }
+    assert_eq!(
+        gossip_spread,
+        Some((
+            alice,
+            LocationId(7),
+            "Alice confronted the landlord about the rent".to_string()
+        ))
+    );
 }
 
 /// Empty-participants guard: a Tier 2 event with no participants must not mint gossip.
@@ -244,19 +306,20 @@ fn gossip_empty_participants_does_not_mint_gossip() {
             to: NpcId(2),
             delta: 0.8, // well above 0.3 notability threshold
         }],
+        grounding: Vec::new(),
     };
 
-    let returned = create_gossip_from_tier2_event(&event, &mut network, game_time());
+    let outcome = apply_grounded_event(&event, &mut network, &EventBus::new());
 
     assert_eq!(
         network.len(),
         0,
         "no gossip must be minted when participants is empty"
     );
-    assert!(
-        returned.is_none(),
-        "return value must be None when participants is empty"
-    );
+    assert!(matches!(
+        outcome,
+        GroundedTier2ApplyOutcome::Rejected(reason) if reason == "event has no participants"
+    ));
 }
 
 /// Transitive propagation: A → B → C across two separate Tier 2 rounds.
@@ -280,8 +343,10 @@ fn gossip_propagates_transitively_across_two_rounds() {
         participants: vec![alice],
         mood_changes: Vec::new(),
         relationship_changes: Vec::new(),
+        grounding: Vec::new(),
     };
-    create_gossip_from_tier2_event(&event, &mut network, game_time());
+    let outcome = apply_grounded_event(&event, &mut network, &EventBus::new());
+    assert!(matches!(outcome, GroundedTier2ApplyOutcome::Applied(_)));
     assert_eq!(network.len(), 1);
 
     // Round 1: Alice and Bob co-located.

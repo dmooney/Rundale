@@ -88,6 +88,41 @@ fn test_create_branch_rejects_dangling_parent() {
 }
 
 #[test]
+fn create_branch_with_snapshot_rolls_back_orphan_and_same_name_retries() {
+    let db = Database::open_memory().unwrap();
+    let main = db.find_branch("main").unwrap().unwrap();
+    db.conn
+        .execute_batch(
+            "CREATE TRIGGER fail_initial_fork_snapshot
+             BEFORE INSERT ON snapshots
+             BEGIN
+                 SELECT RAISE(FAIL, 'injected snapshot failure');
+             END;",
+        )
+        .unwrap();
+
+    let error = db
+        .create_branch_with_snapshot("retryable-fork", Some(main.id), &make_test_snapshot())
+        .unwrap_err();
+    assert!(error.to_string().contains("injected snapshot failure"));
+    assert!(
+        db.find_branch("retryable-fork").unwrap().is_none(),
+        "failed initial snapshot must roll back the branch row"
+    );
+
+    db.conn
+        .execute_batch("DROP TRIGGER fail_initial_fork_snapshot;")
+        .unwrap();
+    let (branch_id, snapshot_id) = db
+        .create_branch_with_snapshot("retryable-fork", Some(main.id), &make_test_snapshot())
+        .unwrap();
+    assert_eq!(
+        db.load_latest_snapshot(branch_id).unwrap().unwrap().0,
+        snapshot_id
+    );
+}
+
+#[test]
 fn test_branch_parent_foreign_key_rejects_dangling_parent() {
     let db = Database::open_memory().unwrap();
     let result = db.conn.execute(
@@ -659,6 +694,81 @@ fn test_corrupt_journal_event_json_is_recoverable() {
     assert!(
         result.is_err(),
         "corrupt journal JSON should produce a recoverable error"
+    );
+}
+
+#[test]
+fn test_batch_append_rolls_back_first_insert_when_second_insert_fails_then_retries() {
+    let db = Database::open_memory().unwrap();
+    let branch = db.find_branch("main").unwrap().unwrap();
+    let snap_id = db.save_snapshot(branch.id, &make_test_snapshot()).unwrap();
+    db.conn
+        .execute_batch(
+            "CREATE TRIGGER fail_second_journal_insert
+             BEFORE INSERT ON journal_events
+             WHEN NEW.sequence = 2
+             BEGIN
+                 SELECT RAISE(ABORT, 'injected second insert failure');
+             END;",
+        )
+        .unwrap();
+    let events = vec![
+        (
+            WorldEvent::ClockAdvanced { minutes: 1 },
+            "1820-03-20T08:01:00Z".to_string(),
+        ),
+        (
+            WorldEvent::ClockAdvanced { minutes: 2 },
+            "1820-03-20T08:02:00Z".to_string(),
+        ),
+    ];
+
+    let error = db
+        .append_events_to_latest_snapshot(branch.id, &events)
+        .expect_err("the trigger must reject the second insert");
+    assert!(error.to_string().contains("injected second insert failure"));
+    assert_eq!(
+        db.journal_count(branch.id, snap_id).unwrap(),
+        0,
+        "the first insert must roll back with the failed second insert"
+    );
+
+    db.conn
+        .execute_batch("DROP TRIGGER fail_second_journal_insert;")
+        .unwrap();
+    assert_eq!(
+        db.append_events_to_latest_snapshot(branch.id, &events)
+            .unwrap(),
+        Some(snap_id)
+    );
+    assert_eq!(
+        db.events_since_snapshot(branch.id, snap_id).unwrap(),
+        vec![
+            WorldEvent::ClockAdvanced { minutes: 1 },
+            WorldEvent::ClockAdvanced { minutes: 2 },
+        ],
+        "the unchanged batch must succeed on retry"
+    );
+}
+
+#[test]
+fn test_recovery_data_returns_snapshot_and_exact_tail() {
+    let db = Database::open_memory().unwrap();
+    let branch = db.find_branch("main").unwrap().unwrap();
+    let first = db.save_snapshot(branch.id, &make_test_snapshot()).unwrap();
+    db.append_event(
+        branch.id,
+        first,
+        &WorldEvent::ClockAdvanced { minutes: 3 },
+        "1820-03-20T08:03:00Z",
+    )
+    .unwrap();
+
+    let recovery = db.load_recovery_data(branch.id).unwrap().unwrap();
+    assert_eq!(recovery.snapshot_id, first);
+    assert_eq!(
+        recovery.journal,
+        vec![WorldEvent::ClockAdvanced { minutes: 3 }]
     );
 }
 

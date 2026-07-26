@@ -240,7 +240,9 @@ pub fn spawn_inference_worker(client: AnyClient, config: InferenceWorkerConfig) 
                 ),
             };
 
-            // Record log entry
+            // Record the completed call. Atomic staged turns attach a
+            // request-scoped buffer so neither the debug ring nor JSONL file
+            // exposes a rejected candidate.
             {
                 let entry = InferenceLogEntry {
                     request_id: req_id,
@@ -260,9 +262,21 @@ pub fn spawn_inference_worker(client: AnyClient, config: InferenceWorkerConfig) 
                     temperature,
                     priority,
                 };
-                file_log.record(&entry, &provider, priority);
-                let mut log = log.lock().await;
-                log.push(entry);
+                if let Some(deferred) = request.deferred_audit.as_ref() {
+                    deferred
+                        .record(
+                            entry,
+                            log.clone(),
+                            file_log.clone(),
+                            provider.clone(),
+                            priority,
+                        )
+                        .await;
+                } else {
+                    file_log.record(&entry, &provider, priority);
+                    let mut log = log.lock().await;
+                    log.push(entry);
+                }
             }
 
             // Ignore send error — the caller may have dropped the receiver
@@ -274,8 +288,105 @@ pub fn spawn_inference_worker(client: AnyClient, config: InferenceWorkerConfig) 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::logs::new_inference_log;
-    use crate::queue::InferencePriority;
+    use crate::logs::{DeferredInferenceAudit, new_inference_log};
+    use crate::queue::{InferencePriority, InferenceQueue, QueueRequest};
+
+    #[tokio::test]
+    async fn staged_audit_is_hidden_until_commit_in_memory_and_on_disk() {
+        let temp = tempfile::tempdir().unwrap();
+        let (interactive_tx, interactive_rx) = mpsc::channel::<InferenceRequest>(4);
+        let (background_tx, background_rx) = mpsc::channel::<InferenceRequest>(4);
+        let (batch_tx, batch_rx) = mpsc::channel::<InferenceRequest>(4);
+        let log = new_inference_log();
+        let file_log = crate::file_log::InferenceFileLog::spawn(temp.path(), true, None);
+        let file_path = file_log.path().to_path_buf();
+        let worker = spawn_inference_worker(
+            AnyClient::simulator(),
+            InferenceWorkerConfig {
+                interactive_rx,
+                background_rx,
+                batch_rx,
+                log: log.clone(),
+                file_log,
+                provider: parish_config::Provider::simulator(),
+                timeout_config: InferenceConfig::default(),
+            },
+        );
+        let queue = InferenceQueue::new(interactive_tx, background_tx, batch_tx);
+        let audit = DeferredInferenceAudit::default();
+        let scoped = queue.with_deferred_audit(audit.clone());
+
+        let response = scoped
+            .send(QueueRequest {
+                id: 7,
+                model: "simulator".to_string(),
+                prompt: "Say hello.".to_string(),
+                system: None,
+                token_tx: None,
+                max_tokens: Some(8),
+                temperature: None,
+                frequency_penalty: None,
+                priority: InferencePriority::Interactive,
+                json_mode: false,
+                json_schema: None,
+                cancel: None,
+            })
+            .await
+            .unwrap()
+            .await
+            .unwrap();
+        assert!(response.error.is_none());
+        assert!(log.lock().await.is_empty());
+        assert!(
+            !file_path.exists(),
+            "pending staged call must not create the JSONL audit file"
+        );
+
+        audit.commit().await;
+        assert_eq!(log.lock().await.len(), 1);
+        tokio::time::timeout(std::time::Duration::from_secs(2), async {
+            loop {
+                if std::fs::read_to_string(&file_path)
+                    .is_ok_and(|contents| contents.lines().count() == 1)
+                {
+                    break;
+                }
+                tokio::task::yield_now().await;
+            }
+        })
+        .await
+        .expect("committed JSONL audit should become visible");
+
+        let rejected_audit = DeferredInferenceAudit::default();
+        let rejected_queue = queue.with_deferred_audit(rejected_audit.clone());
+        let _ = rejected_queue
+            .send(QueueRequest {
+                id: 8,
+                model: "simulator".to_string(),
+                prompt: "Say goodbye.".to_string(),
+                system: None,
+                token_tx: None,
+                max_tokens: Some(8),
+                temperature: None,
+                frequency_penalty: None,
+                priority: InferencePriority::Interactive,
+                json_mode: false,
+                json_schema: None,
+                cancel: None,
+            })
+            .await
+            .unwrap()
+            .await
+            .unwrap();
+        rejected_audit.discard().await;
+        assert_eq!(log.lock().await.len(), 1);
+        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+        assert_eq!(
+            std::fs::read_to_string(&file_path).unwrap().lines().count(),
+            1
+        );
+        worker.abort();
+    }
 
     /// Verifies that aborting the JoinHandle from `spawn_inference_worker` actually
     /// stops the worker task, preventing orphaned tasks from accumulating across
@@ -327,6 +438,7 @@ mod tests {
             json_mode: false,
             json_schema: None,
             cancel: None,
+            deferred_audit: None,
         };
         // send returns Err when the receiver has been dropped by the aborted task.
         let send_result = interactive_tx.send(req).await;
@@ -377,6 +489,7 @@ mod tests {
                 json_mode: false,
                 json_schema: None,
                 cancel: None,
+                deferred_audit: None,
             })
             .await
             .expect("send");
@@ -452,6 +565,7 @@ mod tests {
                 json_mode: false,
                 json_schema: None,
                 cancel: Some(cancel_for_request),
+                deferred_audit: None,
             })
             .await
             .expect("send");
@@ -521,6 +635,7 @@ mod tests {
                 json_mode: false,
                 json_schema: None,
                 cancel: None,
+                deferred_audit: None,
                 response_tx: resp_tx,
                 max_tokens: None,
                 temperature: None,
@@ -549,6 +664,7 @@ mod tests {
                 json_mode: false,
                 json_schema: None,
                 cancel: None,
+                deferred_audit: None,
                 response_tx: resp_tx2,
                 max_tokens: None,
                 temperature: None,

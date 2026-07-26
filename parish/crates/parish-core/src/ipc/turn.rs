@@ -183,18 +183,20 @@ pub fn events_since(
 ) -> (Vec<TurnEvent>, usize) {
     let total = total_events.max(events.len());
     let evicted = total.saturating_sub(events.len());
-    let skip = if since_cursor > total {
-        0
+    let first_unseen = if since_cursor > total {
+        evicted
     } else {
-        since_cursor.saturating_sub(evicted)
+        since_cursor.max(evicted)
     };
-    let projected = events
+    let skip = first_unseen.saturating_sub(evicted);
+    let projected: Vec<_> = events
         .iter()
         .skip(skip)
         .take(TURN_MAX_EVENTS)
         .map(project_event)
         .collect();
-    (projected, total)
+    let next_cursor = first_unseen.saturating_add(projected.len()).min(total);
+    (projected, next_cursor)
 }
 
 fn project_current_state(
@@ -281,6 +283,18 @@ fn project_event(event: &GameEvent) -> TurnEvent {
         }
         GameEvent::PlayerMoved { from, to, .. } => {
             format!("Player moved loc #{} → #{}", from.0, to.0)
+        }
+        GameEvent::PlayerTaskAssigned { task, .. } => {
+            format!(
+                "Task #{} assigned: {} (loc #{})",
+                task.id.0, task.description, task.location.0
+            )
+        }
+        GameEvent::PlayerTaskProgressed { task, .. } => {
+            format!(
+                "Task #{} → {:?}: {}",
+                task.id.0, task.status, task.description
+            )
         }
         GameEvent::LifeEvent {
             npc_id,
@@ -423,5 +437,72 @@ mod tests {
         assert_eq!(cursor, 5);
         assert_eq!(projected.len(), 1);
         assert_eq!(projected[0].summary, "Weather → Rain");
+    }
+
+    #[test]
+    fn event_projection_cursor_advances_one_bounded_page_at_a_time() {
+        let events: VecDeque<_> = (0..(TURN_MAX_EVENTS + 7))
+            .map(|index| GameEvent::WeatherChanged {
+                new_weather: format!("Weather {index}"),
+                timestamp: Utc::now(),
+            })
+            .collect();
+
+        let (first_page, first_cursor) = events_since(&events, events.len(), 0);
+        let (second_page, second_cursor) = events_since(&events, events.len(), first_cursor);
+
+        assert_eq!(first_page.len(), TURN_MAX_EVENTS);
+        assert_eq!(first_cursor, TURN_MAX_EVENTS);
+        assert_eq!(first_page[0].summary, "Weather → Weather 0");
+        assert_eq!(
+            first_page.last().map(|event| event.summary.as_str()),
+            Some("Weather → Weather 19")
+        );
+        assert_eq!(second_page.len(), 7);
+        assert_eq!(second_cursor, events.len());
+        assert_eq!(second_page[0].summary, "Weather → Weather 20");
+    }
+
+    #[test]
+    fn old_context_cursor_catches_first_event_after_ring_clear() {
+        let old_context_cursor = 5;
+        let mut new_context_events = VecDeque::new();
+        new_context_events.push_back(GameEvent::WeatherChanged {
+            new_weather: "Clear".to_string(),
+            timestamp: Utc::now(),
+        });
+
+        // The lifetime total is deliberately not reset when the old ring is
+        // cleared. The first new-context event therefore has offset 5 and is
+        // visible to a client holding the old context's terminal cursor.
+        let (projected, cursor) = events_since(
+            &new_context_events,
+            old_context_cursor + 1,
+            old_context_cursor,
+        );
+
+        assert_eq!(projected.len(), 1);
+        assert_eq!(projected[0].summary, "Weather → Clear");
+        assert_eq!(cursor, old_context_cursor + 1);
+    }
+
+    #[test]
+    fn future_cursor_restarts_at_oldest_retained_event() {
+        let mut events = VecDeque::new();
+        events.push_back(GameEvent::WeatherChanged {
+            new_weather: "Mist".to_string(),
+            timestamp: Utc::now(),
+        });
+        events.push_back(GameEvent::WeatherChanged {
+            new_weather: "Rain".to_string(),
+            timestamp: Utc::now(),
+        });
+
+        let (projected, cursor) = events_since(&events, 5, 99);
+
+        assert_eq!(cursor, 5);
+        assert_eq!(projected.len(), 2);
+        assert_eq!(projected[0].summary, "Weather → Mist");
+        assert_eq!(projected[1].summary, "Weather → Rain");
     }
 }

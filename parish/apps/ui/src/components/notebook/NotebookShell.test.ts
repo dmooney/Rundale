@@ -31,6 +31,7 @@ const roisin = {
 
 function seedNotebookStores() {
 	worldState.set({
+		location_id: 1,
 		location_name: "Connolly's Crossroads",
 		location_description: 'A muddy crossing by the shop and chapel road.',
 		time_label: 'Afternoon',
@@ -45,6 +46,7 @@ function seedNotebookStores() {
 		speed_factor: 36,
 		name_hints: [],
 		day_of_week: 'Monday',
+		active_tasks: [],
 	});
 	npcsHere.set([roisin]);
 	textLog.set([

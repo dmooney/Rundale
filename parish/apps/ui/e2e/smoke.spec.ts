@@ -9,78 +9,83 @@ test.describe('Parish Web UI', () => {
 	test('page loads with game state', async ({ page }) => {
 		await page.goto('/');
 
-		// Status bar should show a time-of-day label
-		const statusBar = page.locator('[data-testid="status-bar"]');
-		await expect(statusBar).toBeVisible({ timeout: 10_000 });
-		await expect(statusBar).toContainText(
-			/Morning|Midday|Afternoon|Dusk|Night|Dawn/,
+		const notebook = page.locator(
+			'[data-testid="illustrated-notebook-game"]',
 		);
+		await expect(notebook).toBeVisible({ timeout: 10_000 });
+		await expect(
+			page.locator('[data-testid="illustrated-notebook-pixi-host"] canvas'),
+		).toBeVisible();
 
-		// Chat panel should have the initial location description
-		const chatPanel = page.locator('[data-testid="chat-panel"]');
-		await expect(chatPanel).toBeVisible();
-		await expect(chatPanel).not.toBeEmpty();
+		// The accessible chronicle mirrors the Pixi-rendered live text.
+		const chronicle = page.getByLabel('Live chronicle');
+		await expect(chronicle).toBeAttached();
+		await expect(chronicle).not.toBeEmpty();
 
-		// Input field should be present
-		const inputField = page.locator('[data-testid="input-field"]');
-		await expect(inputField).toBeVisible();
+		// The native input and canvas controls back the illustrated surface.
+		await expect(page.getByLabel('Player intent')).toBeEnabled();
+		await expect(
+			page.getByRole('button', { name: 'Open parish map' }),
+		).toHaveCount(1);
+		await expect(
+			page.getByRole('button', { name: 'Open time details' }),
+		).toHaveCount(1);
 
-		// Map panel should render
-		const mapPanel = page.locator('[data-testid="map-panel"]');
-		await expect(mapPanel).toBeVisible();
-
-		// Sidebar should render
-		const sidebar = page.locator('[data-testid="sidebar"]');
-		await expect(sidebar).toBeVisible();
+		await page.getByRole('button', { name: 'Open time details' }).focus();
+		await page.keyboard.press('Enter');
+		await expect(page.getByLabel('time drawer')).toContainText('Clock');
 	});
 
 	test('player can type a command', async ({ page }) => {
 		await page.goto('/');
 
 		// Wait for initial load
-		await expect(page.locator('[data-testid="status-bar"]')).toBeVisible({
-			timeout: 10_000,
-		});
+		await expect(
+			page.locator('[data-testid="illustrated-notebook-game"]'),
+		).toBeVisible({ timeout: 10_000 });
 
 		// Type a look command
-		const input = page.locator('[data-testid="input-field"]');
+		const input = page.getByLabel('Player intent');
+		const chronicle = page.getByLabel('Live chronicle');
+		const initialLineCount = await chronicle.locator('p').count();
 		await input.fill('look');
 		await input.press('Enter');
 
-		// Since #1351, a bare `look` is routed as a game action, NOT echoed as
-		// a player speech bubble. The chat panel should receive a new system
-		// message (the location description) rather than a `> look` speech line.
-		// The real web server always produces exactly 3 system entries after a look:
-		//   1. splash_text — prepended by getUiConfig() on page load; the server
-		//      always returns a non-empty splash (game title + copyright line).
-		//   2. initial location description — from getWorldSnapshot().location_description
-		//      on page load.
-		//   3. look result — text-log {source:"system"} emitted by handle_look.
-		// Timeout is 30 s, not 5 s, because the chat panel only updates after
-		// the backend's first round-trip — which on a cold-start CI runner
-		// can exceed 5 s when the inference worker hasn't warmed up (#1086).
-		const chatPanel = page.locator('[data-testid="chat-panel"]');
-		const systemEntries = chatPanel.locator('.entry.system');
-		await expect(systemEntries).toHaveCount(3, { timeout: 30_000 });
+		// A bare `look` is an action, and its canonical result must add a new
+		// line to the notebook chronicle after the backend round-trip.
+		await expect
+			.poll(() => chronicle.locator('p').count(), { timeout: 30_000 })
+			.toBeGreaterThan(initialLineCount);
+		await expect(page.locator('.bubble-row.player')).toHaveCount(0);
 	});
 
 	test('player can move to a location', async ({ page }) => {
 		await page.goto('/');
-		await expect(page.locator('[data-testid="status-bar"]')).toBeVisible({
-			timeout: 10_000,
-		});
+		await expect(
+			page.locator('[data-testid="illustrated-notebook-game"]'),
+		).toBeVisible({ timeout: 10_000 });
 
-		const input = page.locator('[data-testid="input-field"]');
-		await input.fill('go to church');
+		const host = page.getByTestId('illustrated-notebook-pixi-host');
+		await expect(host).toHaveAttribute('data-scene-location-id', '15');
+		await expect(host).toHaveAttribute(
+			'data-scene-plate',
+			'/rundale/notebook-ui/scene-kilteevan-village.png',
+		);
+
+		const input = page.getByLabel('Player intent');
+		await input.fill('go to The Crossroads');
 		await input.press('Enter');
 
-		// Should see travel narration or "not found" message in the chat.
-		// Timeout is 30 s for the same cold-start reason as the sibling
-		// 'player can type a command' test above (#1086).
-		const chatPanel = page.locator('[data-testid="chat-panel"]');
-		await expect(chatPanel).toContainText(/church|faintest notion/i, {
+		// This is a real backend movement (not a mocked world-update). The
+		// authoritative world snapshot must change the Pixi scene identity even
+		// before its independently-refreshed map catches up.
+		await expect(host).toHaveAttribute('data-scene-location-id', '1', {
 			timeout: 30_000,
 		});
+		await expect(host).toHaveAttribute(
+			'data-scene-plate',
+			'/rundale/notebook-ui/scene-crossroads.png',
+		);
 	});
 
 	test('API endpoints return valid JSON', async ({ request }) => {
@@ -88,6 +93,7 @@ test.describe('Parish Web UI', () => {
 		const snap = await request.get('/api/world-snapshot');
 		expect(snap.ok()).toBeTruthy();
 		const snapData = await snap.json();
+		expect(snapData.location_id).toBeGreaterThan(0);
 		expect(snapData.location_name).toBeTruthy();
 		expect(snapData.hour).toBeGreaterThanOrEqual(0);
 		expect(snapData.hour).toBeLessThanOrEqual(23);
@@ -114,9 +120,9 @@ test.describe('Parish Web UI', () => {
 
 	test('screenshot at different states', async ({ page }) => {
 		await page.goto('/');
-		await expect(page.locator('[data-testid="status-bar"]')).toBeVisible({
-			timeout: 10_000,
-		});
+		await expect(
+			page.locator('[data-testid="illustrated-notebook-game"]'),
+		).toBeVisible({ timeout: 10_000 });
 
 		// Wait for the app shell to be fully rendered before taking the screenshot.
 		await expect(page.locator('.app-shell')).toBeVisible();
@@ -126,10 +132,10 @@ test.describe('Parish Web UI', () => {
 		});
 
 		// After a command
-		const input = page.locator('[data-testid="input-field"]');
+		const input = page.getByLabel('Player intent');
 		await input.fill('/status');
 		await input.press('Enter');
-		await expect(page.locator('[data-testid="chat-panel"]')).toContainText(
+		await expect(page.getByLabel('Live chronicle')).toContainText(
 			'Location:',
 			{ timeout: 5_000 },
 		);

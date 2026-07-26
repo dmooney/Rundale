@@ -3,13 +3,14 @@ use std::path::Path;
 use std::path::PathBuf;
 
 use parish_core::game_loop::save::{
-    NewGameParams, do_new_game, do_save_game, load_fresh_world_and_npcs,
+    NewGameParams, SaveGameParams, do_new_game, do_save_game, load_fresh_world_and_npcs,
 };
 use parish_core::game_mod::GameMod;
 use parish_core::ipc::ConversationRuntimeState;
 use parish_core::ipc::event_emitter::EventEmitter;
 use parish_core::npc::manager::NpcManager;
 use parish_core::persistence::Database;
+use parish_core::session_store::DbSessionStore;
 use parish_core::world::events::GameEvent;
 use parish_core::world::transport::TransportMode;
 use parish_core::world::{LocationId, WorldState};
@@ -28,6 +29,26 @@ struct NoopEmitter;
 
 impl EventEmitter for NoopEmitter {
     fn emit_event(&self, _name: &str, _payload: serde_json::Value) {}
+}
+
+#[derive(Default)]
+struct RecordingEmitter(std::sync::Mutex<Vec<String>>);
+
+impl EventEmitter for RecordingEmitter {
+    fn emit_event(&self, name: &str, _payload: serde_json::Value) {
+        self.0.lock().unwrap().push(name.to_string());
+    }
+}
+
+fn save_files(dir: &Path) -> Vec<PathBuf> {
+    let mut paths: Vec<_> = std::fs::read_dir(dir)
+        .unwrap()
+        .filter_map(Result::ok)
+        .map(|entry| entry.path())
+        .filter(|path| path.extension().is_some_and(|extension| extension == "db"))
+        .collect();
+    paths.sort();
+    paths
 }
 
 // ── load_fresh_world_and_npcs ────────────────────────────────────────────────
@@ -125,8 +146,10 @@ async fn do_new_game_creates_save_file_and_updates_state() {
     let save_path: Mutex<Option<PathBuf>> = Mutex::new(None);
     let current_branch_id: Mutex<Option<i64>> = Mutex::new(None);
     let current_branch_name: Mutex<Option<String>> = Mutex::new(None);
+    let save_lock = Mutex::new(None);
     let game_events: Mutex<VecDeque<GameEvent>> = Mutex::new(VecDeque::new());
     let emitter = NoopEmitter;
+    let session_store = DbSessionStore::new(tmp.path().to_path_buf());
 
     let params = NewGameParams {
         world: &world,
@@ -135,7 +158,10 @@ async fn do_new_game_creates_save_file_and_updates_state() {
         save_path: &save_path,
         current_branch_id: &current_branch_id,
         current_branch_name: &current_branch_name,
+        save_lock: &save_lock,
         saves_dir: tmp.path(),
+        session_store: &session_store,
+        session_id: "",
         game_mod: Some(&game_mod),
         data_dir: &mod_dir,
         pronunciations: &game_mod.pronunciations,
@@ -204,8 +230,10 @@ async fn do_new_game_resets_conversation_state() {
     let save_path: Mutex<Option<PathBuf>> = Mutex::new(None);
     let current_branch_id: Mutex<Option<i64>> = Mutex::new(None);
     let current_branch_name: Mutex<Option<String>> = Mutex::new(None);
+    let save_lock = Mutex::new(None);
     let game_events: Mutex<VecDeque<GameEvent>> = Mutex::new(VecDeque::new());
     let emitter = NoopEmitter;
+    let session_store = DbSessionStore::new(tmp.path().to_path_buf());
 
     let params = NewGameParams {
         world: &world,
@@ -214,7 +242,10 @@ async fn do_new_game_resets_conversation_state() {
         save_path: &save_path,
         current_branch_id: &current_branch_id,
         current_branch_name: &current_branch_name,
+        save_lock: &save_lock,
         saves_dir: tmp.path(),
+        session_store: &session_store,
+        session_id: "",
         game_mod: Some(&game_mod),
         data_dir: &mod_dir,
         pronunciations: &game_mod.pronunciations,
@@ -255,8 +286,10 @@ async fn do_new_game_clears_game_events_ring_buffer() {
     let save_path: Mutex<Option<PathBuf>> = Mutex::new(None);
     let current_branch_id: Mutex<Option<i64>> = Mutex::new(None);
     let current_branch_name: Mutex<Option<String>> = Mutex::new(None);
+    let save_lock = Mutex::new(None);
     let game_events: Mutex<VecDeque<GameEvent>> = Mutex::new(VecDeque::new());
     let emitter = NoopEmitter;
+    let session_store = DbSessionStore::new(tmp.path().to_path_buf());
 
     // Pre-populate game_events with stale events from "game A".
     {
@@ -280,7 +313,10 @@ async fn do_new_game_clears_game_events_ring_buffer() {
         save_path: &save_path,
         current_branch_id: &current_branch_id,
         current_branch_name: &current_branch_name,
+        save_lock: &save_lock,
         saves_dir: tmp.path(),
+        session_store: &session_store,
+        session_id: "",
         game_mod: Some(&game_mod),
         data_dir: &mod_dir,
         pronunciations: &game_mod.pronunciations,
@@ -317,8 +353,10 @@ async fn do_new_game_without_mod_fallback_to_data_dir_errors() {
     let save_path: Mutex<Option<PathBuf>> = Mutex::new(None);
     let current_branch_id: Mutex<Option<i64>> = Mutex::new(None);
     let current_branch_name: Mutex<Option<String>> = Mutex::new(None);
+    let save_lock = Mutex::new(None);
     let game_events: Mutex<VecDeque<GameEvent>> = Mutex::new(VecDeque::new());
     let emitter = NoopEmitter;
+    let session_store = DbSessionStore::new(tmp.path().to_path_buf());
 
     let params = NewGameParams {
         world: &world,
@@ -327,7 +365,10 @@ async fn do_new_game_without_mod_fallback_to_data_dir_errors() {
         save_path: &save_path,
         current_branch_id: &current_branch_id,
         current_branch_name: &current_branch_name,
+        save_lock: &save_lock,
         saves_dir: tmp.path(),
+        session_store: &session_store,
+        session_id: "",
         game_mod: None,
         data_dir: data_dir.path(),
         pronunciations: &[],
@@ -342,6 +383,97 @@ async fn do_new_game_without_mod_fallback_to_data_dir_errors() {
     assert!(
         err.contains("Failed to load world"),
         "error should mention world load failure: {err}"
+    );
+}
+
+#[tokio::test]
+async fn do_new_game_marker_failure_removes_candidate_and_preserves_live_context_for_retry() {
+    let tmp = TempDir::new().unwrap();
+    let mod_dir = rundale_mod_dir();
+    let game_mod = GameMod::load(&mod_dir).unwrap();
+
+    let old_path = tmp.path().join("parish_001.db");
+    Database::open(&old_path).unwrap();
+    let old_lock = parish_core::persistence::SaveFileLock::try_acquire(&old_path).unwrap();
+    let marker_obstruction = tmp.path().join(".active-save.json");
+    std::fs::create_dir(&marker_obstruction).unwrap();
+
+    let mut old_world = WorldState::new();
+    old_world.player_location = LocationId(777);
+    let world = Mutex::new(old_world);
+    let npc_manager = Mutex::new(NpcManager::new());
+    let mut old_conversation = ConversationRuntimeState::new();
+    old_conversation.location = Some(LocationId(777));
+    let conversation = Mutex::new(old_conversation);
+    let save_path = Mutex::new(Some(old_path.clone()));
+    let current_branch_id = Mutex::new(Some(1));
+    let current_branch_name = Mutex::new(Some("main".to_string()));
+    let save_lock = Mutex::new(Some(old_lock));
+    let mut old_events = VecDeque::new();
+    old_events.push_back(GameEvent::WeatherChanged {
+        new_weather: "Rain".to_string(),
+        timestamp: chrono::Utc::now(),
+    });
+    let game_events = Mutex::new(old_events);
+    let emitter = RecordingEmitter::default();
+    let session_store = DbSessionStore::new(tmp.path().to_path_buf());
+
+    let result = do_new_game(NewGameParams {
+        world: &world,
+        npc_manager: &npc_manager,
+        conversation: &conversation,
+        save_path: &save_path,
+        current_branch_id: &current_branch_id,
+        current_branch_name: &current_branch_name,
+        save_lock: &save_lock,
+        saves_dir: tmp.path(),
+        session_store: &session_store,
+        session_id: "",
+        game_mod: Some(&game_mod),
+        data_dir: &mod_dir,
+        pronunciations: &game_mod.pronunciations,
+        default_transport: game_mod.transport.default_mode(),
+        emitter: &emitter,
+        game_events: &game_events,
+    })
+    .await;
+
+    assert!(result.is_err(), "the obstructed marker must fail closed");
+    assert_eq!(save_files(tmp.path()), vec![old_path.clone()]);
+    assert_eq!(world.lock().await.player_location, LocationId(777));
+    assert_eq!(conversation.lock().await.location, Some(LocationId(777)));
+    assert_eq!(save_path.lock().await.as_ref(), Some(&old_path));
+    assert_eq!(*current_branch_id.lock().await, Some(1));
+    assert_eq!(current_branch_name.lock().await.as_deref(), Some("main"));
+    assert!(save_lock.lock().await.is_some());
+    assert_eq!(game_events.lock().await.len(), 1);
+    assert!(emitter.0.lock().unwrap().is_empty());
+
+    std::fs::remove_dir(&marker_obstruction).unwrap();
+    do_new_game(NewGameParams {
+        world: &world,
+        npc_manager: &npc_manager,
+        conversation: &conversation,
+        save_path: &save_path,
+        current_branch_id: &current_branch_id,
+        current_branch_name: &current_branch_name,
+        save_lock: &save_lock,
+        saves_dir: tmp.path(),
+        session_store: &session_store,
+        session_id: "",
+        game_mod: Some(&game_mod),
+        data_dir: &mod_dir,
+        pronunciations: &game_mod.pronunciations,
+        default_transport: game_mod.transport.default_mode(),
+        emitter: &emitter,
+        game_events: &game_events,
+    })
+    .await
+    .expect("retry should reuse and publish the cleaned candidate path");
+
+    assert_eq!(
+        save_path.lock().await.as_deref(),
+        Some(tmp.path().join("parish_002.db").as_path())
     );
 }
 
@@ -360,15 +492,20 @@ async fn do_save_game_without_existing_path_creates_new_save() {
     let save_path: Mutex<Option<PathBuf>> = Mutex::new(None);
     let current_branch_id: Mutex<Option<i64>> = Mutex::new(None);
     let current_branch_name: Mutex<Option<String>> = Mutex::new(None);
+    let save_lock = Mutex::new(None);
+    let session_store = DbSessionStore::new(tmp.path().to_path_buf());
 
-    let msg = do_save_game(
-        &world,
-        &npc_manager,
-        &save_path,
-        &current_branch_id,
-        &current_branch_name,
-        tmp.path(),
-    )
+    let msg = do_save_game(SaveGameParams {
+        world: &world,
+        npc_manager: &npc_manager,
+        save_path: &save_path,
+        current_branch_id: &current_branch_id,
+        current_branch_name: &current_branch_name,
+        save_lock: &save_lock,
+        saves_dir: tmp.path(),
+        session_store: &session_store,
+        session_id: "",
+    })
     .await
     .expect("do_save_game failed");
 
@@ -382,6 +519,10 @@ async fn do_save_game_without_existing_path_creates_new_save() {
         assert!(sp.is_some(), "save_path should be set");
         assert!(sp.as_ref().unwrap().exists(), "save file should exist");
     }
+    assert!(
+        save_lock.lock().await.is_some(),
+        "new saves must retain their advisory lock"
+    );
 }
 
 #[tokio::test]
@@ -403,15 +544,20 @@ async fn do_save_game_with_existing_path_writes_snapshot() {
     let save_path: Mutex<Option<PathBuf>> = Mutex::new(Some(db_path.clone()));
     let current_branch_id: Mutex<Option<i64>> = Mutex::new(Some(1));
     let current_branch_name: Mutex<Option<String>> = Mutex::new(Some("main".to_string()));
+    let save_lock = Mutex::new(None);
+    let session_store = DbSessionStore::new(tmp.path().to_path_buf());
 
-    let msg = do_save_game(
-        &world,
-        &npc_manager,
-        &save_path,
-        &current_branch_id,
-        &current_branch_name,
-        tmp.path(),
-    )
+    let msg = do_save_game(SaveGameParams {
+        world: &world,
+        npc_manager: &npc_manager,
+        save_path: &save_path,
+        current_branch_id: &current_branch_id,
+        current_branch_name: &current_branch_name,
+        save_lock: &save_lock,
+        saves_dir: tmp.path(),
+        session_store: &session_store,
+        session_id: "",
+    })
     .await
     .expect("do_save_game with existing path failed");
 
@@ -443,26 +589,34 @@ async fn do_save_game_multiple_saves_accumulate_snapshots() {
     let save_path: Mutex<Option<PathBuf>> = Mutex::new(Some(db_path.clone()));
     let current_branch_id: Mutex<Option<i64>> = Mutex::new(Some(1));
     let current_branch_name: Mutex<Option<String>> = Mutex::new(Some("main".to_string()));
+    let save_lock = Mutex::new(None);
+    let session_store = DbSessionStore::new(tmp.path().to_path_buf());
 
-    do_save_game(
-        &world,
-        &npc_manager,
-        &save_path,
-        &current_branch_id,
-        &current_branch_name,
-        tmp.path(),
-    )
+    do_save_game(SaveGameParams {
+        world: &world,
+        npc_manager: &npc_manager,
+        save_path: &save_path,
+        current_branch_id: &current_branch_id,
+        current_branch_name: &current_branch_name,
+        save_lock: &save_lock,
+        saves_dir: tmp.path(),
+        session_store: &session_store,
+        session_id: "",
+    })
     .await
     .unwrap();
 
-    do_save_game(
-        &world,
-        &npc_manager,
-        &save_path,
-        &current_branch_id,
-        &current_branch_name,
-        tmp.path(),
-    )
+    do_save_game(SaveGameParams {
+        world: &world,
+        npc_manager: &npc_manager,
+        save_path: &save_path,
+        current_branch_id: &current_branch_id,
+        current_branch_name: &current_branch_name,
+        save_lock: &save_lock,
+        saves_dir: tmp.path(),
+        session_store: &session_store,
+        session_id: "",
+    })
     .await
     .unwrap();
 
@@ -489,15 +643,20 @@ async fn do_save_game_without_existing_branch_auto_resolves_main() {
     let save_path: Mutex<Option<PathBuf>> = Mutex::new(Some(db_path.clone()));
     let current_branch_id: Mutex<Option<i64>> = Mutex::new(None);
     let current_branch_name: Mutex<Option<String>> = Mutex::new(None);
+    let save_lock = Mutex::new(None);
+    let session_store = DbSessionStore::new(tmp.path().to_path_buf());
 
-    let msg = do_save_game(
-        &world,
-        &npc_manager,
-        &save_path,
-        &current_branch_id,
-        &current_branch_name,
-        tmp.path(),
-    )
+    let msg = do_save_game(SaveGameParams {
+        world: &world,
+        npc_manager: &npc_manager,
+        save_path: &save_path,
+        current_branch_id: &current_branch_id,
+        current_branch_name: &current_branch_name,
+        save_lock: &save_lock,
+        saves_dir: tmp.path(),
+        session_store: &session_store,
+        session_id: "",
+    })
     .await
     .expect("do_save_game with no branch should auto-resolve");
 
@@ -505,6 +664,93 @@ async fn do_save_game_without_existing_branch_auto_resolves_main() {
 
     let bid = current_branch_id.lock().await;
     assert!(bid.is_some(), "branch_id should be populated after save");
+}
+
+#[tokio::test]
+async fn do_save_game_failure_does_not_publish_partial_identity() {
+    let tmp = TempDir::new().unwrap();
+    let invalid_saves_dir = tmp.path().join("not-a-directory");
+    std::fs::write(&invalid_saves_dir, b"file").unwrap();
+    let world = Mutex::new(WorldState::new());
+    let npc_manager = Mutex::new(NpcManager::new());
+    let save_path: Mutex<Option<PathBuf>> = Mutex::new(None);
+    let current_branch_id: Mutex<Option<i64>> = Mutex::new(None);
+    let current_branch_name: Mutex<Option<String>> = Mutex::new(None);
+    let save_lock = Mutex::new(None);
+    let session_store = DbSessionStore::new(tmp.path().to_path_buf());
+
+    let result = do_save_game(SaveGameParams {
+        world: &world,
+        npc_manager: &npc_manager,
+        save_path: &save_path,
+        current_branch_id: &current_branch_id,
+        current_branch_name: &current_branch_name,
+        save_lock: &save_lock,
+        saves_dir: &invalid_saves_dir,
+        session_store: &session_store,
+        session_id: "",
+    })
+    .await;
+
+    assert!(result.is_err());
+    assert!(save_path.lock().await.is_none());
+    assert!(current_branch_id.lock().await.is_none());
+    assert!(current_branch_name.lock().await.is_none());
+    assert!(save_lock.lock().await.is_none());
+}
+
+#[tokio::test]
+async fn do_save_game_marker_failure_removes_candidate_and_retry_reuses_filename() {
+    let tmp = TempDir::new().unwrap();
+    let marker_obstruction = tmp.path().join(".active-save.json");
+    std::fs::create_dir(&marker_obstruction).unwrap();
+    let world = Mutex::new(WorldState::new());
+    let npc_manager = Mutex::new(NpcManager::new());
+    let save_path: Mutex<Option<PathBuf>> = Mutex::new(None);
+    let current_branch_id: Mutex<Option<i64>> = Mutex::new(None);
+    let current_branch_name: Mutex<Option<String>> = Mutex::new(None);
+    let save_lock = Mutex::new(None);
+    let session_store = DbSessionStore::new(tmp.path().to_path_buf());
+
+    let result = do_save_game(SaveGameParams {
+        world: &world,
+        npc_manager: &npc_manager,
+        save_path: &save_path,
+        current_branch_id: &current_branch_id,
+        current_branch_name: &current_branch_name,
+        save_lock: &save_lock,
+        saves_dir: tmp.path(),
+        session_store: &session_store,
+        session_id: "",
+    })
+    .await;
+
+    assert!(result.is_err(), "the obstructed marker must fail closed");
+    assert!(save_files(tmp.path()).is_empty());
+    assert!(save_path.lock().await.is_none());
+    assert!(current_branch_id.lock().await.is_none());
+    assert!(current_branch_name.lock().await.is_none());
+    assert!(save_lock.lock().await.is_none());
+
+    std::fs::remove_dir(&marker_obstruction).unwrap();
+    do_save_game(SaveGameParams {
+        world: &world,
+        npc_manager: &npc_manager,
+        save_path: &save_path,
+        current_branch_id: &current_branch_id,
+        current_branch_name: &current_branch_name,
+        save_lock: &save_lock,
+        saves_dir: tmp.path(),
+        session_store: &session_store,
+        session_id: "",
+    })
+    .await
+    .expect("retry should reuse the cleaned candidate filename");
+
+    assert_eq!(
+        save_path.lock().await.as_deref(),
+        Some(tmp.path().join("parish_001.db").as_path())
+    );
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────

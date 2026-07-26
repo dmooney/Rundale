@@ -32,14 +32,17 @@ use super::admin::validate_branch_name;
 
 /// Saves the current game state — delegates to the shared canonical impl (#696).
 pub async fn do_save_game_inner(state: &Arc<AppState>) -> Result<String, String> {
-    parish_core::game_loop::do_save_game(
-        &state.world,
-        &state.npc_manager,
-        &state.save_identity.save_path,
-        &state.save_identity.current_branch_id,
-        &state.save_identity.current_branch_name,
-        &state.saves_dir,
-    )
+    parish_core::game_loop::do_save_game(parish_core::game_loop::SaveGameParams {
+        world: &state.world,
+        npc_manager: &state.npc_manager,
+        save_path: &state.save_identity.save_path,
+        current_branch_id: &state.save_identity.current_branch_id,
+        current_branch_name: &state.save_identity.current_branch_name,
+        save_lock: &state.save_lock,
+        saves_dir: &state.saves_dir,
+        session_store: state.session_store.as_ref(),
+        session_id: &state.session_id,
+    })
     .await
 }
 
@@ -61,37 +64,70 @@ pub async fn do_fork_branch_inner(
         .clone();
     drop(save_path_guard);
 
-    let name_owned = name.to_string();
-    let db_path_clone = db_path.clone();
-
-    let new_id = tokio::task::spawn_blocking(move || -> Result<i64, String> {
-        let db = Database::open(&db_path_clone).map_err(|e| e.to_string())?;
-        db.create_branch(&name_owned, Some(parent_branch_id))
-            .map_err(|e| e.to_string())
-    })
-    .await
-    .map_err(|e| e.to_string())?
-    .map_err(|e| e.to_string())?;
-
     let snapshot = {
         let world = state.world.lock().await;
         let npc_manager = state.npc_manager.lock().await;
         GameSnapshot::capture(&world, &npc_manager)
     };
-
-    let db_path_clone2 = db_path;
-    tokio::task::spawn_blocking(move || -> Result<(), String> {
-        let db = Database::open(&db_path_clone2).map_err(|e| e.to_string())?;
-        db.save_snapshot(new_id, &snapshot)
-            .map_err(|e| e.to_string())?;
-        Ok(())
+    let name_owned = name.to_string();
+    let db_path_clone = db_path.clone();
+    let new_id = tokio::task::spawn_blocking(move || -> Result<i64, String> {
+        let db = Database::open(&db_path_clone).map_err(|e| e.to_string())?;
+        db.create_branch_with_snapshot(&name_owned, Some(parent_branch_id), &snapshot)
+            .map(|(branch_id, _)| branch_id)
+            .map_err(|e| e.to_string())
     })
     .await
-    .map_err(|e| e.to_string())?
-    .map_err(|e| e.to_string())?;
+    .map_err(|e| e.to_string())??;
 
-    *state.save_identity.current_branch_id.lock().await = Some(new_id);
-    *state.save_identity.current_branch_name.lock().await = Some(name.to_string());
+    let prepared_binding = state
+        .session_store
+        .prepare_active_save(&state.session_id, &db_path)
+        .map_err(|error| error.to_string())?;
+    if let Err(error) = parish_core::persistence::write_active_save_identity(
+        &state.saves_dir,
+        &db_path,
+        new_id,
+        name,
+    ) {
+        let rollback_path = db_path.clone();
+        let rollback = tokio::task::spawn_blocking(move || {
+            Database::open(&rollback_path)
+                .and_then(|db| db.delete_branch(new_id))
+                .map_err(|rollback_error| rollback_error.to_string())
+        })
+        .await
+        .map_err(|join_error| join_error.to_string())?;
+        rollback.map_err(|rollback_error| {
+            format!(
+                "failed to commit active branch marker ({error}); rollback also failed: {rollback_error}"
+            )
+        })?;
+        return Err(error.to_string());
+    }
+
+    // Marker is durable; publish the branch context without fallible steps.
+    prepared_binding.commit();
+    state
+        .save_identity
+        .replace(db_path, new_id, name.to_string())
+        .await;
+    let ws = {
+        let world = state.world.lock().await;
+        world.event_bus.advance_context_epoch();
+        let npc_manager = state.npc_manager.lock().await;
+        let mut ws = parish_core::ipc::snapshot_from_world(&world);
+        ws.name_hints =
+            parish_core::ipc::compute_name_hints(&world, &npc_manager, &state.pronunciations);
+        ws
+    };
+    *state.conversation.lock().await = parish_core::ipc::ConversationRuntimeState::new();
+    state.game_events.lock().await.clear();
+    let emitter = crate::emitter::AppStateEmitter::new(Arc::clone(state));
+    parish_core::ipc::emit_game_context_reset_then_world_update(
+        &emitter,
+        serde_json::to_value(&ws).unwrap_or(serde_json::Value::Null),
+    );
 
     Ok(format!("Created new branch '{}'.", name))
 }
@@ -153,14 +189,17 @@ pub async fn do_new_game_inner(state: &Arc<AppState>) -> Result<(), String> {
     use parish_core::game_loop::{NewGameParams, do_new_game};
 
     let emitter = AppStateEmitter::new(Arc::clone(state));
-    let result = do_new_game(NewGameParams {
+    do_new_game(NewGameParams {
         world: &state.world,
         npc_manager: &state.npc_manager,
         conversation: &state.conversation,
         save_path: &state.save_identity.save_path,
         current_branch_id: &state.save_identity.current_branch_id,
         current_branch_name: &state.save_identity.current_branch_name,
+        save_lock: &state.save_lock,
         saves_dir: &state.saves_dir,
+        session_store: state.session_store.as_ref(),
+        session_id: &state.session_id,
         game_mod: state.game_mod.as_ref(),
         data_dir: &state.data_dir,
         pronunciations: &state.pronunciations,
@@ -168,14 +207,7 @@ pub async fn do_new_game_inner(state: &Arc<AppState>) -> Result<(), String> {
         emitter: &emitter,
         game_events: &state.game_events,
     })
-    .await;
-    if result.is_ok() {
-        let retained_after_reset = state.game_events.lock().await.len();
-        state
-            .total_game_events
-            .store(retained_after_reset, std::sync::atomic::Ordering::Relaxed);
-    }
-    result
+    .await
 }
 
 // ── Persistence endpoints ────────────────────────────────────────────────────
@@ -201,6 +233,7 @@ pub async fn discover_save_files(
 pub async fn save_game(
     Extension(state): Extension<Arc<AppState>>,
 ) -> Result<Json<String>, (StatusCode, String)> {
+    let _persistence_guard = state.persistence_gate.lock().await;
     let msg = do_save_game_inner(&state)
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e))?;
@@ -223,16 +256,49 @@ pub async fn load_branch(
     Extension(state): Extension<Arc<AppState>>,
     Json(body): Json<LoadBranchRequest>,
 ) -> Result<StatusCode, (StatusCode, String)> {
-    let (path, branch_id) = validate_and_acquire_lock(&state, &body).await?;
+    let _persistence_guard = state.persistence_gate.lock().await;
+    let (path, branch_id, candidate_lock) = validate_and_acquire_lock(&state, &body).await?;
 
     let path_clone = path.clone();
-    let (snapshot, branch_name) =
-        tokio::task::spawn_blocking(move || load_branch_snapshot(&path_clone, branch_id))
-            .await
-            .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
-            .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e))?;
+    let branch_name = tokio::task::spawn_blocking(move || load_branch_name(&path_clone, branch_id))
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e))?;
+    let recovery = parish_core::session_store::load_recovery_bundle(
+        state.session_store.as_ref(),
+        &state.session_id,
+        &path,
+        branch_id,
+    )
+    .await
+    .map_err(|error| (StatusCode::INTERNAL_SERVER_ERROR, error.to_string()))?
+    .ok_or_else(|| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "No snapshots found on this branch.".to_string(),
+        )
+    })?;
 
-    restore_snapshot_and_emit(&state, snapshot, &branch_name, branch_id, &path).await;
+    // Bind only after the candidate branch has been fully read and validated.
+    // A corrupt candidate must leave the live store routing untouched.
+    let prepared_binding = state
+        .session_store
+        .prepare_active_save(&state.session_id, &path)
+        .map_err(|error| (StatusCode::INTERNAL_SERVER_ERROR, error.to_string()))?;
+    parish_core::persistence::write_active_save_identity(
+        &state.saves_dir,
+        &path,
+        branch_id,
+        &branch_name,
+    )
+    .map_err(|error| (StatusCode::INTERNAL_SERVER_ERROR, error.to_string()))?;
+
+    // Marker is the commit record; all remaining publication is infallible.
+    prepared_binding.commit();
+    restore_snapshot_and_emit(&state, recovery, &branch_name, branch_id, &path).await;
+    if let Some(lock) = candidate_lock {
+        *state.save_lock.lock().await = Some(lock);
+    }
 
     Ok(StatusCode::OK)
 }
@@ -242,7 +308,7 @@ pub async fn load_branch(
 pub async fn validate_and_acquire_lock(
     state: &Arc<AppState>,
     body: &LoadBranchRequest,
-) -> Result<(PathBuf, i64), (StatusCode, String)> {
+) -> Result<(PathBuf, i64, Option<parish_core::persistence::SaveFileLock>), (StatusCode, String)> {
     use parish_core::persistence::SaveFileLock;
 
     let path = std::path::PathBuf::from(&body.file_path);
@@ -271,46 +337,38 @@ pub async fn validate_and_acquire_lock(
 
     let current_path = state.save_identity.save_path.lock().await.clone();
     let switching_files = current_path.as_ref() != Some(&path);
-    if switching_files {
-        let lock = SaveFileLock::try_acquire(&path).ok_or_else(|| {
+    let candidate_lock = if switching_files {
+        Some(SaveFileLock::try_acquire(&path).ok_or_else(|| {
             (
                 StatusCode::CONFLICT,
                 "This save file is in use by another instance.".to_string(),
             )
-        })?;
-        *state.save_lock.lock().await = Some(lock);
-    }
+        })?)
+    } else {
+        None
+    };
 
-    Ok((path, branch_id))
+    Ok((path, branch_id, candidate_lock))
 }
 
-/// Opens the database file, loads the latest snapshot for the given branch,
-/// and resolves the branch display name.
-pub fn load_branch_snapshot(
-    path: &std::path::Path,
-    branch_id: i64,
-) -> Result<(GameSnapshot, String), String> {
+/// Opens the database file and resolves the branch display name.
+pub fn load_branch_name(path: &std::path::Path, branch_id: i64) -> Result<String, String> {
     use parish_core::persistence::Database;
 
     let db = Database::open(path).map_err(|e| e.to_string())?;
-    let (_, snapshot) = db
-        .load_latest_snapshot(branch_id)
-        .map_err(|e| e.to_string())?
-        .ok_or_else(|| "No snapshots found on this branch.".to_string())?;
     let branches = db.list_branches().map_err(|e| e.to_string())?;
-    let branch_name = branches
+    branches
         .iter()
         .find(|b| b.id == branch_id)
         .map(|b| b.name.clone())
-        .unwrap_or_else(|| "unknown".to_string());
-    Ok((snapshot, branch_name))
+        .ok_or_else(|| format!("Branch id {branch_id} does not exist"))
 }
 
 /// Restores the snapshot into the world/NPC manager, emits a world-update
 /// event, updates session state, and logs the load.
 pub async fn restore_snapshot_and_emit(
     state: &Arc<AppState>,
-    snapshot: GameSnapshot,
+    recovery: parish_core::session_store::RecoveryBundle,
     branch_name: &str,
     branch_id: i64,
     path: &std::path::Path,
@@ -322,7 +380,8 @@ pub async fn restore_snapshot_and_emit(
         };
         let mut world = state.world.lock().await;
         let mut npc_manager = state.npc_manager.lock().await;
-        snapshot.restore(&mut world, &mut npc_manager);
+        world.event_bus.advance_context_epoch();
+        recovery.restore(&mut world, &mut npc_manager);
         if grounding_enabled {
             npc_manager.clear_introduced_for_session();
         }
@@ -333,9 +392,13 @@ pub async fn restore_snapshot_and_emit(
             parish_core::ipc::compute_name_hints(&world, &npc_manager, &state.pronunciations);
         drop(npc_manager);
         drop(world);
-        state
-            .event_bus
-            .emit_named(Topic::WorldUpdate, "world-update", &ws);
+        *state.conversation.lock().await = parish_core::ipc::ConversationRuntimeState::new();
+        state.game_events.lock().await.clear();
+        let emitter = crate::emitter::AppStateEmitter::new(Arc::clone(state));
+        parish_core::ipc::emit_game_context_reset_then_world_update(
+            &emitter,
+            serde_json::to_value(&ws).unwrap_or(serde_json::Value::Null),
+        );
     }
 
     let filename = path
@@ -352,9 +415,10 @@ pub async fn restore_snapshot_and_emit(
         ),
     );
 
-    *state.save_identity.save_path.lock().await = Some(path.to_path_buf());
-    *state.save_identity.current_branch_id.lock().await = Some(branch_id);
-    *state.save_identity.current_branch_name.lock().await = Some(branch_name.to_string());
+    state
+        .save_identity
+        .replace(path.to_path_buf(), branch_id, branch_name.to_string())
+        .await;
 }
 
 /// Request body for `POST /api/create-branch`.
@@ -372,6 +436,7 @@ pub async fn create_branch(
     Extension(state): Extension<Arc<AppState>>,
     Json(body): Json<CreateBranchRequest>,
 ) -> Result<Json<String>, (StatusCode, String)> {
+    let _persistence_guard = state.persistence_gate.lock().await;
     // #335 — validate branch name before touching the database.
     validate_branch_name(&body.name).map_err(|s| (s, "Invalid branch name".to_string()))?;
     let msg = do_fork_branch_inner(&state, &body.name, body.parent_branch_id)
@@ -384,19 +449,59 @@ pub async fn create_branch(
 pub async fn new_save_file(
     Extension(state): Extension<Arc<AppState>>,
 ) -> Result<StatusCode, (StatusCode, String)> {
+    let _persistence_guard = state.persistence_gate.lock().await;
+    do_new_save_file_inner(&state, |saves_dir, path, branch_id, branch_name| {
+        parish_core::persistence::write_active_save_identity(
+            saves_dir,
+            path,
+            branch_id,
+            branch_name,
+        )
+        .map_err(|error| error.to_string())
+    })
+    .await
+    .map_err(|error| (StatusCode::INTERNAL_SERVER_ERROR, error))?;
+    Ok(StatusCode::OK)
+}
+
+async fn remove_failed_save_candidate(path: PathBuf, primary_error: String) -> String {
+    let cleanup_path = path.clone();
+    match tokio::task::spawn_blocking(move || std::fs::remove_file(cleanup_path)).await {
+        Ok(Ok(())) => primary_error,
+        Ok(Err(cleanup_error)) if cleanup_error.kind() == std::io::ErrorKind::NotFound => {
+            primary_error
+        }
+        Ok(Err(cleanup_error)) => format!(
+            "{primary_error}; additionally failed to remove candidate save {}: {cleanup_error}",
+            path.display()
+        ),
+        Err(join_error) => format!(
+            "{primary_error}; additionally failed to join candidate cleanup for {}: {join_error}",
+            path.display()
+        ),
+    }
+}
+
+/// Creates and durably commits a new save before publishing it as live state.
+///
+/// The marker writer is injected so failure ordering is deterministic in
+/// tests. Production passes [`parish_core::persistence::write_active_save_identity`].
+pub(super) async fn do_new_save_file_inner<F>(
+    state: &Arc<AppState>,
+    write_marker: F,
+) -> Result<(), String>
+where
+    F: FnOnce(&std::path::Path, &std::path::Path, i64, &str) -> Result<(), String>,
+{
     use parish_core::persistence::SaveFileLock;
 
     let saves_dir = state.saves_dir.clone();
     let path = new_save_path(&saves_dir);
 
-    // Acquire lock on the new save file, releasing any previous lock.
-    let lock = SaveFileLock::try_acquire(&path).ok_or_else(|| {
-        (
-            StatusCode::CONFLICT,
-            "Could not lock the new save file.".to_string(),
-        )
-    })?;
-    *state.save_lock.lock().await = Some(lock);
+    // Keep the candidate lock local until the snapshot and store binding have
+    // both succeeded; failures must preserve the old active-file lock.
+    let candidate_lock = SaveFileLock::try_acquire(&path)
+        .ok_or_else(|| "Could not lock the new save file.".to_string())?;
 
     let snapshot = {
         let world = state.world.lock().await;
@@ -405,7 +510,7 @@ pub async fn new_save_file(
     };
 
     let path_clone = path.clone();
-    let branch_id = tokio::task::spawn_blocking(move || -> Result<i64, String> {
+    let branch_result = tokio::task::spawn_blocking(move || -> Result<i64, String> {
         let db = Database::open(&path_clone).map_err(|e| e.to_string())?;
         let branch = db
             .find_branch("main")
@@ -416,20 +521,55 @@ pub async fn new_save_file(
         Ok(branch.id)
     })
     .await
-    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
-    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e))?;
+    .map_err(|e| e.to_string())
+    .and_then(|result| result);
+    let branch_id = match branch_result {
+        Ok(branch_id) => branch_id,
+        Err(error) => {
+            drop(candidate_lock);
+            return Err(remove_failed_save_candidate(path, error).await);
+        }
+    };
 
-    *state.save_identity.save_path.lock().await = Some(path);
-    *state.save_identity.current_branch_id.lock().await = Some(branch_id);
-    *state.save_identity.current_branch_name.lock().await = Some("main".to_string());
+    let prepared_binding = match state
+        .session_store
+        .prepare_active_save(&state.session_id, &path)
+    {
+        Ok(binding) => binding,
+        Err(error) => {
+            drop(candidate_lock);
+            return Err(remove_failed_save_candidate(
+                path,
+                format!("failed to prepare save: {error}"),
+            )
+            .await);
+        }
+    };
+    if let Err(marker_error) = write_marker(&state.saves_dir, &path, branch_id, "main") {
+        // Prepared bindings retain an open candidate database until consumed
+        // or dropped. Release it before unlinking so cleanup also works on
+        // platforms that forbid removing open SQLite files.
+        drop(prepared_binding);
+        drop(candidate_lock);
+        return Err(remove_failed_save_candidate(path, marker_error).await);
+    }
 
-    Ok(StatusCode::OK)
+    // The active marker is the commit record. Publication below is infallible.
+    prepared_binding.commit();
+    state
+        .save_identity
+        .replace(path.clone(), branch_id, "main".to_string())
+        .await;
+    *state.save_lock.lock().await = Some(candidate_lock);
+
+    Ok(())
 }
 
 /// `POST /api/new-game` — reloads world/NPCs from data files and saves fresh state.
 pub async fn new_game(
     Extension(state): Extension<Arc<AppState>>,
 ) -> Result<StatusCode, (StatusCode, String)> {
+    let _persistence_guard = state.persistence_gate.lock().await;
     do_new_game_inner(&state)
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e))?;

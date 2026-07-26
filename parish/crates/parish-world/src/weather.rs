@@ -83,6 +83,7 @@ fn seasonal_bias(season: Season) -> SeasonalBias {
 /// Weather changes are evaluated once per game-hour after a minimum
 /// duration has elapsed. Transitions follow adjacency rules — no
 /// jumping from Clear directly to Storm.
+#[derive(Clone)]
 pub struct WeatherEngine {
     /// Current weather state.
     current: Weather,

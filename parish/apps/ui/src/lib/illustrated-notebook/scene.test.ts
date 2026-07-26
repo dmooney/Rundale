@@ -35,19 +35,39 @@ describe('illustrated notebook scene selection', () => {
 		).toBe(expected);
 	});
 
-	it('falls back instead of retaining a stale previous-location plate', () => {
-		expect(selectVisualScene([farm, village], 404, crossroads)).toBe(
-			crossroads,
+	it('uses a neutral, identity-bearing fallback without false exit labels', () => {
+		const uncovered = selectVisualScene([farm, village], 404, crossroads);
+		const unresolved = selectVisualScene([farm, village], null, crossroads);
+		const authoredAssets = [crossroads, farm, village].map(
+			(candidate) => candidate.plate_asset,
 		);
-		expect(selectVisualScene([farm, village], null, crossroads)).toBe(
-			crossroads,
-		);
+
+		expect(uncovered).not.toBe(crossroads);
+		expect(uncovered.location_ids).toEqual([404]);
+		expect(uncovered.plate_asset).toBeNull();
+		expect(authoredAssets).not.toContain(uncovered.plate_asset);
+		expect(uncovered.anchors.player).toBeNull();
+		expect(uncovered.anchors.npcs).toEqual([]);
+		expect(uncovered.anchors.exits).toEqual([]);
+		expect(unresolved.location_ids).toEqual([]);
+		expect(unresolved.plate_asset).toBeNull();
+		expect(unresolved.anchors.player).toBeNull();
+		expect(unresolved.anchors.npcs).toEqual([]);
+		expect(unresolved.anchors.exits).toEqual([]);
 	});
 
-	it('resolves the canonical numeric map location and a name-based resync', () => {
+	it('prefers the authoritative world id over a stale map location', () => {
 		const map = {
-			player_location: '15',
+			player_location: '1',
 			locations: [
+				{
+					id: '1',
+					name: 'The Crossroads',
+					lat: 0,
+					lon: 0,
+					adjacent: false,
+					hops: 0,
+				},
 				{
 					id: '15',
 					name: 'Kilteevan Village',
@@ -62,16 +82,74 @@ describe('illustrated notebook scene selection', () => {
 			transport_id: 'walking',
 		} satisfies MapData;
 		const world = {
+			location_id: 15,
 			location_name: 'Kilteevan Village',
 		} as WorldSnapshot;
 
 		expect(currentNotebookLocationId(map, world)).toBe(15);
-		expect(
-			currentNotebookLocationId(
-				{ ...map, player_location: 'kilteevan' },
-				world,
-			),
-		).toBe(15);
+	});
+
+	it('uses a name match before the map player id for legacy snapshots', () => {
+		const map = {
+			player_location: '1',
+			locations: [
+				{
+					id: '1',
+					name: 'The Crossroads',
+					lat: 0,
+					lon: 0,
+					adjacent: false,
+					hops: 0,
+				},
+				{
+					id: '15',
+					name: 'Kilteevan Village',
+					lat: 0,
+					lon: 0,
+					adjacent: false,
+					hops: 0,
+				},
+			],
+			edges: [],
+			transport_label: 'on foot',
+			transport_id: 'walking',
+		} satisfies MapData;
+		const legacyWorld = {
+			location_name: 'Kilteevan Village',
+		} as WorldSnapshot;
+
+		expect(currentNotebookLocationId(map, legacyWorld)).toBe(15);
+	});
+
+	it('changes authored scene identity when canonical movement changes location', () => {
+		const staleMap = {
+			player_location: '1',
+			locations: [],
+			edges: [],
+			transport_label: 'on foot',
+			transport_id: 'walking',
+		} satisfies MapData;
+		const scenes = [crossroads, farm, village];
+		const before = selectVisualScene(
+			scenes,
+			currentNotebookLocationId(staleMap, {
+				location_id: 1,
+				location_name: 'The Crossroads',
+			} as WorldSnapshot),
+			crossroads,
+		);
+		const after = selectVisualScene(
+			scenes,
+			currentNotebookLocationId(staleMap, {
+				location_id: 15,
+				location_name: 'Kilteevan Village',
+			} as WorldSnapshot),
+			crossroads,
+		);
+
+		expect(before.plate_asset).toBe('scene-crossroads.png');
+		expect(after.plate_asset).toBe('scene-kilteevan-village.png');
+		expect(after).not.toBe(before);
 	});
 
 	it('preloads every authored harness scene plate', () => {

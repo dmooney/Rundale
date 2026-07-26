@@ -4,15 +4,76 @@
 //! All fields use `snake_case` (serde defaults) to match the TypeScript
 //! interfaces in `ui/src/lib/types.ts`.
 
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
 use crate::npc::LanguageHint;
 
 // ── World snapshot ──────────────────────────────────────────────────────────
 
+/// Authoritative, player-visible projection of one durable task.
+///
+/// The domain ledger owns lifecycle transitions and bounds text; this DTO only
+/// converts stable IDs into frontend-friendly primitives. Completed tasks are
+/// intentionally omitted from live snapshots.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
+pub struct PlayerTaskSnapshot {
+    /// Stable task identifier.
+    pub id: u64,
+    /// Bounded description of the assigned work.
+    pub description: String,
+    /// Stable ID of the NPC who assigned the task.
+    pub assigned_by: u32,
+    /// Stable location ID where the task can be advanced.
+    pub location_id: u32,
+    /// Current authoritative lifecycle status.
+    pub status: parish_types::TaskStatus,
+    /// Game time when the task was assigned.
+    pub assigned_at: DateTime<Utc>,
+    /// Game time when the task first entered `in_progress`.
+    pub started_at: Option<DateTime<Utc>>,
+    /// Game time when the task was explicitly completed.
+    pub completed_at: Option<DateTime<Utc>>,
+    /// Most recent bounded player action accepted as relevant to this task.
+    pub last_matching_action: Option<String>,
+}
+
+impl From<&parish_types::PlayerTask> for PlayerTaskSnapshot {
+    fn from(task: &parish_types::PlayerTask) -> Self {
+        Self {
+            id: task.id.0,
+            description: task.description.clone(),
+            assigned_by: task.assigned_by.0,
+            location_id: task.location.0,
+            status: task.status,
+            assigned_at: task.assigned_at,
+            started_at: task.started_at,
+            completed_at: task.completed_at,
+            last_matching_action: task.last_matching_action.clone(),
+        }
+    }
+}
+
+impl PlayerTaskSnapshot {
+    /// Canonical status label used by text-only IPC consumers.
+    pub const fn status_label(&self) -> &'static str {
+        match self.status {
+            parish_types::TaskStatus::Assigned => "assigned",
+            parish_types::TaskStatus::InProgress => "in_progress",
+            parish_types::TaskStatus::Completed => "completed",
+        }
+    }
+}
+
 /// A serializable snapshot of the world state sent to the frontend.
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct WorldSnapshot {
+    /// Canonical ID of the player's current location.
+    ///
+    /// This travels with the prose snapshot so presentation clients do not
+    /// have to infer scene identity from an independently-refreshed map.
+    #[serde(default)]
+    pub location_id: u32,
     /// Name of the player's current location.
     pub location_name: String,
     /// Short prose description of the current location.
@@ -41,6 +102,12 @@ pub struct WorldSnapshot {
     /// Pronunciation hints for Irish names relevant to the current location.
     #[serde(default)]
     pub name_hints: Vec<LanguageHint>,
+    /// Active durable tasks, oldest assignment first.
+    ///
+    /// Completed history remains in authoritative state/save data but is not
+    /// projected into the live player-status surface.
+    #[serde(default)]
+    pub active_tasks: Vec<PlayerTaskSnapshot>,
     /// Current day of week (e.g. "Monday", "Saturday").
     pub day_of_week: String,
     /// Whether an NPC conversation turn is currently being processed by the
@@ -128,6 +195,21 @@ pub struct NpcInfo {
     pub introduced: bool,
     /// Emoji representation of the mood.
     pub mood_emoji: String,
+}
+
+/// One source-consistent replacement payload for reconnecting clients.
+///
+/// All fields are projected from the same locked world/NPC generation.
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct ReconnectState {
+    /// Canonical player-visible world snapshot.
+    pub world: WorldSnapshot,
+    /// Map projection from the same world generation.
+    pub map: MapData,
+    /// Co-located NPC projection from the same world/NPC generation.
+    pub npcs: Vec<NpcInfo>,
+    /// Process-local context generation used to reject stale presentation data.
+    pub context_epoch: u64,
 }
 
 // ── Theme palette ───────────────────────────────────────────────────────────
@@ -441,6 +523,7 @@ mod tests {
     #[test]
     fn world_snapshot_serialization_round_trip() {
         let snap = WorldSnapshot {
+            location_id: 1,
             location_name: "Crossroads".to_string(),
             location_description: "A dusty crossroads.".to_string(),
             time_label: "Morning".to_string(),
@@ -454,14 +537,30 @@ mod tests {
             game_epoch_ms: 1234567890.0,
             speed_factor: 36.0,
             name_hints: vec![],
+            active_tasks: vec![],
             day_of_week: "Monday".to_string(),
             turn_in_flight: false,
         };
         let json = serde_json::to_string(&snap).unwrap();
         let deser: WorldSnapshot = serde_json::from_str(&json).unwrap();
+        assert_eq!(deser.location_id, 1);
         assert_eq!(deser.location_name, "Crossroads");
         assert_eq!(deser.hour, 8);
         assert!(!deser.turn_in_flight);
+        assert!(deser.active_tasks.is_empty());
+
+        let mut legacy: serde_json::Value = serde_json::from_str(&json).unwrap();
+        legacy.as_object_mut().unwrap().remove("location_id");
+        legacy.as_object_mut().unwrap().remove("active_tasks");
+        let legacy: WorldSnapshot = serde_json::from_value(legacy).unwrap();
+        assert_eq!(
+            legacy.location_id, 0,
+            "pre-location-id snapshots must deserialize with the neutral sentinel"
+        );
+        assert!(
+            legacy.active_tasks.is_empty(),
+            "pre-task snapshots must deserialize with an empty ledger"
+        );
     }
 
     #[test]

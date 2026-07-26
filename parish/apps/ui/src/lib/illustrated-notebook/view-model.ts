@@ -1,9 +1,10 @@
 import { isNotebookLogEntry } from '$lib/notebook/log';
 import { notebookPersonLabel } from '$lib/notebook/people';
-import type { NpcInfo, TextLogEntry } from '$lib/types';
+import type { NpcInfo, Reaction, TextLogEntry } from '$lib/types';
 import type {
 	NotebookLiveLine,
 	NotebookLiveLineKind,
+	NotebookTaskView,
 	NotebookViewModel,
 	NotebookViewModelInput,
 } from './types';
@@ -42,8 +43,12 @@ export function buildNotebookViewModel(
 	const classified = input.textLog
 		.map((entry, index) => classifyLine(entry, index, input.npcs))
 		.filter((entry): entry is ClassifiedLine => entry !== null);
-	const liveLines = selectLiveLines(classified.map(({ line }) => line));
+	const liveLines = selectVisibleNotebookLines(
+		classified.map(({ line }) => line),
+		MAX_NOTEBOOK_LIVE_LINES,
+	);
 	const selectedNpc = input.selectedNpc;
+	const activeTasks = selectActiveTasks(input.world?.active_tasks ?? []);
 	const locationName =
 		cleanText(input.world?.location_name) || 'Location not yet known';
 	const locationDescription =
@@ -92,8 +97,35 @@ export function buildNotebookViewModel(
 				: input.world
 					? `What do you do at ${locationName}?`
 					: 'Write what you do next…',
-		draftSummary: cleanText(input.intentText) || 'No draft written',
+		currentTask: activeTasks[0] ?? null,
+		activeTasks,
 	};
+}
+
+function selectActiveTasks(
+	tasks: NonNullable<NotebookViewModelInput['world']>['active_tasks'],
+): NotebookTaskView[] {
+	return tasks
+		.filter(
+			(
+				task,
+			): task is typeof task & {
+				status: 'assigned' | 'in_progress';
+			} =>
+				(task.status === 'in_progress' || task.status === 'assigned') &&
+				Boolean(cleanText(task.description)),
+		)
+		.map<NotebookTaskView>((task) => ({
+			id: task.id,
+			description: cleanText(task.description),
+			status: task.status,
+			statusLabel: task.status === 'in_progress' ? 'In progress' : 'Assigned',
+		}))
+		.sort((left, right) => {
+			const leftPriority = left.status === 'in_progress' ? 0 : 1;
+			const rightPriority = right.status === 'in_progress' ? 0 : 1;
+			return leftPriority - rightPriority;
+		});
 }
 
 function classifyLine(
@@ -106,14 +138,18 @@ function classifyLine(
 	if (!content) return null;
 
 	const normalizedSource = cleanText(entry.source).toLocaleLowerCase();
-	const npc = findNpcForSource(entry.source, npcs);
+	const actionNarration = entry.subtype === 'action';
+	const npc = actionNarration ? null : findNpcForSource(entry.source, npcs);
 	let kind: NotebookLiveLineKind;
 	let speaker: string;
 
-	if (normalizedSource === 'player' || normalizedSource === 'you') {
-		kind = 'player';
-		speaker = 'You';
-	} else if (normalizedSource === 'system') {
+	if (actionNarration) {
+		kind = 'narration';
+		speaker = 'Parish';
+	} else if (normalizedSource === 'player' || normalizedSource === 'you') {
+		kind = entry.subtype === 'command' ? 'command' : 'player';
+		speaker = kind === 'command' ? 'Command' : 'You';
+	} else if (normalizedSource === 'system' || normalizedSource === 'action') {
 		kind =
 			entry.subtype === 'location'
 				? 'location'
@@ -132,30 +168,102 @@ function classifyLine(
 		line: {
 			key:
 				entry.id ||
-				`${index}:${normalizedSource || 'unknown'}:${content.slice(0, 32)}`,
+				`${index}:${cleanText(speaker).toLocaleLowerCase() || 'unknown'}:${content.slice(0, 32)}`,
 			kind,
 			speaker,
 			content,
 			streaming: Boolean(entry.streaming),
+			messageId: cleanText(entry.id) || null,
+			reactions: (entry.reactions ?? []).map((reaction) => ({
+				...reaction,
+				source:
+					reaction.source === 'player'
+						? 'player'
+						: sanitizeUnintroducedNames(reaction.source, npcs),
+			})),
 		},
 	};
 }
 
-function selectLiveLines(lines: NotebookLiveLine[]): NotebookLiveLine[] {
-	if (lines.length <= MAX_NOTEBOOK_LIVE_LINES) return lines;
+/** Compact player-visible reaction text shared by Pixi and the DOM drawer. */
+export function notebookReactionSummary(reactions: Reaction[]): string {
+	return reactions
+		.map((reaction) => {
+			const source = cleanText(reaction.source);
+			return source && source !== 'player'
+				? `${reaction.emoji} ${source}`
+				: reaction.emoji;
+		})
+		.join(' · ');
+}
+
+/**
+ * Budgets the visible chronicle without losing the latest player input.
+ *
+ * The view model uses this for its five-line cap and the Pixi renderer uses
+ * it again for its smaller responsive panels. A plain tail slice at either
+ * layer would hide the command that caused a long multi-line response.
+ */
+export function selectVisibleNotebookLines(
+	lines: NotebookLiveLine[],
+	limit: number,
+): NotebookLiveLine[] {
+	if (limit <= 0) return [];
+	if (lines.length <= limit) return lines;
 
 	let latestPlayerIndex = -1;
 	for (let i = lines.length - 1; i >= 0; i -= 1) {
-		if (lines[i].kind === 'player') {
+		if (lines[i].kind === 'player' || lines[i].kind === 'command') {
 			latestPlayerIndex = i;
 			break;
 		}
 	}
 
-	if (latestPlayerIndex < 0) return lines.slice(-MAX_NOTEBOOK_LIVE_LINES);
+	if (latestPlayerIndex < 0) {
+		return selectPrioritizedOutputs(lines, limit);
+	}
+
 	const currentTurn = lines.slice(latestPlayerIndex);
-	if (currentTurn.length <= MAX_NOTEBOOK_LIVE_LINES) return currentTurn;
-	return [currentTurn[0], ...currentTurn.slice(-(MAX_NOTEBOOK_LIVE_LINES - 1))];
+	if (currentTurn.length <= limit) return currentTurn;
+	if (limit === 1) return [lines[latestPlayerIndex]];
+	return [
+		currentTurn[0],
+		...selectPrioritizedOutputs(currentTurn.slice(1), limit - 1),
+	];
+}
+
+/**
+ * Select newest authoritative output while retaining an actively streamed NPC
+ * line even if a later status/event arrives during the same player turn.
+ */
+function selectPrioritizedOutputs(
+	lines: NotebookLiveLine[],
+	limit: number,
+): NotebookLiveLine[] {
+	if (limit <= 0 || lines.length === 0) return [];
+	if (lines.length <= limit) return lines;
+
+	let activeStreamIndex = -1;
+	for (let index = lines.length - 1; index >= 0; index -= 1) {
+		if (lines[index].kind === 'npc' && lines[index].streaming) {
+			activeStreamIndex = index;
+			break;
+		}
+	}
+	if (activeStreamIndex < 0) return lines.slice(-limit);
+	if (limit === 1) return [lines[activeStreamIndex]];
+
+	const selectedIndexes = new Set<number>([activeStreamIndex]);
+	for (
+		let index = lines.length - 1;
+		index >= 0 && selectedIndexes.size < limit;
+		index -= 1
+	) {
+		selectedIndexes.add(index);
+	}
+	return [...selectedIndexes]
+		.sort((left, right) => left - right)
+		.map((index) => lines[index]);
 }
 
 function findNpcForSource(source: string, npcs: NpcInfo[]): NpcInfo | null {

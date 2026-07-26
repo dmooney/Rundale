@@ -4,14 +4,15 @@
 //! necessarily the player's). Inference is lighter than Tier 1 and runs in a
 //! background task so it does not block player turns.
 
-use chrono::{DateTime, Utc};
-use std::collections::HashMap;
+use chrono::{DateTime, Timelike, Utc};
+use std::collections::{HashMap, HashSet};
 
 use crate::memory::{MemoryEntry, try_promote};
-use crate::types::{Tier2Event, Tier2Response};
+use crate::types::{NpcState, Tier2Event, Tier2ParticipantGrounding, Tier2Response};
 use crate::{LanguageSettings, Npc, NpcId};
 use parish_config::{NpcConfig, RelationshipLabelConfig};
-use parish_types::{DayType, ParishError, Season};
+use parish_types::events::EventBus;
+use parish_types::{DayType, GossipNetwork, ParishError, Season};
 use parish_world::LocationId;
 
 use super::prompt::format_relationships_natural;
@@ -48,6 +49,10 @@ pub struct NpcSnapshot {
     /// Authored schedule activity for the NPC at their canonical current
     /// location and time. `None` when no matching schedule entry exists.
     pub current_activity: Option<String>,
+    /// Process-local lineage token captured with this asynchronous snapshot.
+    pub grounding_revision: u64,
+    /// Exact authored schedule-interval fingerprint captured at snapshot time.
+    pub activity_fingerprint: String,
 }
 
 /// A group of NPC snapshots at a single location, for Tier 2 processing.
@@ -85,6 +90,12 @@ pub(super) fn top_relationships(npc: &Npc, n: usize) -> Vec<(NpcId, f64)> {
     rels
 }
 
+/// Recomputes the stable authored-activity fingerprint used by Tier-2
+/// snapshots and apply-time freshness validation.
+pub fn tier2_activity_fingerprint_from_npc_at(npc: &Npc, game_time: DateTime<Utc>) -> String {
+    format!("{:016x}", npc.authored_activity_fingerprint_at(game_time))
+}
+
 /// Creates an `NpcSnapshot` from a live NPC for Tier 2 background inference.
 ///
 /// The snapshot is a lightweight owned copy that can be passed to a background
@@ -108,6 +119,8 @@ pub fn npc_snapshot_from_npc(npc: &Npc, npc_names: &HashMap<NpcId, String>) -> N
             &RelationshipLabelConfig::default(),
         ),
         current_activity: None,
+        grounding_revision: npc.grounding_revision(),
+        activity_fingerprint: String::new(),
     }
 }
 
@@ -120,18 +133,26 @@ pub fn npc_snapshot_from_npc(npc: &Npc, npc_names: &HashMap<NpcId, String>) -> N
 pub fn npc_snapshot_from_npc_at(
     npc: &Npc,
     npc_names: &HashMap<NpcId, String>,
-    hour: u8,
-    season: Season,
-    day_type: DayType,
-) -> NpcSnapshot {
+    game_time: DateTime<Utc>,
+) -> Option<NpcSnapshot> {
+    if !npc.authored_activity_observation_is_current(game_time) {
+        tracing::warn!(
+            npc_id = npc.id.0,
+            location = npc.location().0,
+            "Tier 2 snapshot skipped before schedule activity synchronization"
+        );
+        return None;
+    }
+
     let mut snapshot = npc_snapshot_from_npc(npc, npc_names);
-    snapshot.current_activity = npc
-        .schedule_entry(hour, season, day_type)
-        .filter(|entry| entry.location == npc.location)
-        .map(|entry| entry.activity.trim())
-        .filter(|activity| !activity.is_empty())
-        .map(str::to_owned);
-    snapshot
+    let game_date = game_time.date_naive();
+    let hour = game_time.hour() as u8;
+    let season = Season::from_date(game_date);
+    let day_type = DayType::from_date(game_date);
+    let entry = npc.authored_activity_entry_at(hour, season, day_type);
+    snapshot.current_activity = entry.map(|entry| entry.activity.trim().to_owned());
+    snapshot.activity_fingerprint = tier2_activity_fingerprint_from_npc_at(npc, game_time);
+    Some(snapshot)
 }
 
 // ── inference helpers ──────────────────────────────────────────────────────
@@ -274,13 +295,18 @@ pub fn build_tier2_prompt(
                 line.push_str(&snap.relationship_summary);
                 line.push('.');
             }
+            line.push_str(&format!(
+                " Canonical location [location_id={}]: {}. \
+                 Authored activity anchor [activity_fingerprint={}]:",
+                group.location.0, group.location_name, snap.activity_fingerprint
+            ));
             if let Some(activity) = &snap.current_activity {
-                line.push_str(" Authored activity at this exact location: ");
+                line.push(' ');
                 line.push_str(activity);
                 line.push('.');
             } else {
                 line.push_str(
-                    " No authored activity is available here; keep their action generic and \
+                    " NONE. No authored activity is available here; keep their action generic and \
                      compatible with this location.",
                 );
             }
@@ -329,6 +355,38 @@ pub fn build_tier2_prompt(
     prompt.push_str("\n\n");
     prompt.push_str(&language_directive(language));
     prompt
+}
+
+fn tier2_participant_grounding(group: &Tier2Group) -> Vec<Tier2ParticipantGrounding> {
+    group
+        .npcs
+        .iter()
+        .map(|snapshot| Tier2ParticipantGrounding {
+            npc_id: snapshot.id,
+            location: group.location,
+            grounding_revision: snapshot.grounding_revision,
+            activity_fingerprint: snapshot.activity_fingerprint.clone(),
+        })
+        .collect()
+}
+
+/// Renders the player-visible Tier-2 beat exclusively from canonical snapshot
+/// activities. Model prose is useful for choosing structured mood and
+/// relationship deltas, but is not an authority for physical actions.
+fn canonical_tier2_summary(group: &Tier2Group) -> String {
+    let clauses: Vec<String> = group
+        .npcs
+        .iter()
+        .map(|snapshot| match snapshot.current_activity.as_deref() {
+            Some(activity) => format!(
+                "{}: {}",
+                snapshot.name,
+                activity.trim().trim_end_matches(['.', ';'])
+            ),
+            None => format!("{}: present at {}", snapshot.name, group.location_name),
+        })
+        .collect();
+    format!("At {} — {}.", group.location_name, clauses.join("; "))
 }
 
 // ── event predicates ───────────────────────────────────────────────────────
@@ -405,7 +463,7 @@ fn is_tier2_grounding_failure(msg: &str) -> bool {
 /// e.g. skipping `create_gossip_from_tier2_event` so a hallucinated name can't
 /// spread through the gossip network (#1027), mirroring the in-function guard
 /// that suppresses the `NpcInteraction` publish and the memory write.
-pub fn tier2_summary_mentions_absent_npc(event: &Tier2Event, npcs: &HashMap<NpcId, Npc>) -> bool {
+fn tier2_summary_mentions_absent_npc(event: &Tier2Event, npcs: &HashMap<NpcId, Npc>) -> bool {
     summary_mentions_absent_npc(&event.summary, &event.participants, npcs).is_some()
 }
 
@@ -430,6 +488,90 @@ fn summary_mentions_absent_npc(
         .collect();
     absent.sort();
     absent.into_iter().next()
+}
+
+/// Returns a reason when an inferred Tier-2 event no longer matches canonical
+/// NPC state at apply time.
+///
+/// This check must run while the caller holds the same world/NPC locks used for
+/// applying side effects. A missing/duplicate anchor is rejected as strictly as
+/// movement or a changed schedule activity: an ungrounded event is not safe to
+/// apply after asynchronous inference.
+fn tier2_event_grounding_conflict(
+    event: &Tier2Event,
+    npcs: &HashMap<NpcId, Npc>,
+    game_time: DateTime<Utc>,
+) -> Option<String> {
+    if event.participants.is_empty() {
+        return Some("event has no participants".to_string());
+    }
+    if event.participants.len() != event.grounding.len() {
+        return Some(format!(
+            "participant/grounding count mismatch ({} participants, {} anchors)",
+            event.participants.len(),
+            event.grounding.len()
+        ));
+    }
+
+    let mut participant_ids = HashSet::new();
+    for participant in &event.participants {
+        if !participant_ids.insert(*participant) {
+            return Some(format!("duplicate participant {}", participant.0));
+        }
+    }
+
+    let mut anchored_ids = HashSet::new();
+    for anchor in &event.grounding {
+        if !anchored_ids.insert(anchor.npc_id) {
+            return Some(format!("duplicate grounding anchor {}", anchor.npc_id.0));
+        }
+        if !participant_ids.contains(&anchor.npc_id) {
+            return Some(format!(
+                "grounding anchor {} is not a participant",
+                anchor.npc_id.0
+            ));
+        }
+        if anchor.location != event.location {
+            return Some(format!(
+                "participant {} snapshot location {} differs from event location {}",
+                anchor.npc_id.0, anchor.location.0, event.location.0
+            ));
+        }
+
+        let Some(npc) = npcs.get(&anchor.npc_id) else {
+            return Some(format!("participant {} no longer exists", anchor.npc_id.0));
+        };
+        if !matches!(npc.state(), NpcState::Present) {
+            return Some(format!(
+                "participant {} is no longer present",
+                anchor.npc_id.0
+            ));
+        }
+        if npc.location() != event.location {
+            return Some(format!(
+                "participant {} moved from {} to {}",
+                anchor.npc_id.0,
+                event.location.0,
+                npc.location().0
+            ));
+        }
+        if npc.grounding_revision() != anchor.grounding_revision {
+            return Some(format!(
+                "participant {} grounding revision changed",
+                anchor.npc_id.0
+            ));
+        }
+
+        let current = tier2_activity_fingerprint_from_npc_at(npc, game_time);
+        if current != anchor.activity_fingerprint {
+            return Some(format!(
+                "participant {} activity fingerprint changed",
+                anchor.npc_id.0
+            ));
+        }
+    }
+
+    None
 }
 
 // ── main inference entry point ─────────────────────────────────────────────
@@ -465,13 +607,11 @@ pub async fn run_tier2_for_group(
         if let Some(snap) = group.npcs.first() {
             return Some(Tier2Event {
                 location: group.location,
-                summary: format!(
-                    "{} goes about their business at {}.",
-                    snap.name, group.location_name
-                ),
+                summary: canonical_tier2_summary(group),
                 participants: vec![snap.id],
                 mood_changes: Vec::new(),
                 relationship_changes: Vec::new(),
+                grounding: tier2_participant_grounding(group),
             });
         }
         return None;
@@ -488,10 +628,11 @@ pub async fn run_tier2_for_group(
                 } else {
                     return Some(Tier2Event {
                         location: group.location,
-                        summary: resp.summary,
+                        summary: canonical_tier2_summary(group),
                         participants: participant_ids,
                         mood_changes: resp.mood_changes,
                         relationship_changes: resp.relationship_changes,
+                        grounding: tier2_participant_grounding(group),
                     });
                 }
             }
@@ -545,10 +686,11 @@ pub async fn run_tier2_for_group(
                     tracing::debug!("Tier 2 retry succeeded at {}", group.location_name);
                     return Some(Tier2Event {
                         location: group.location,
-                        summary: resp.summary,
+                        summary: canonical_tier2_summary(group),
                         participants: participant_ids,
                         mood_changes: resp.mood_changes,
                         relationship_changes: resp.relationship_changes,
+                        grounding: tier2_participant_grounding(group),
                     });
                 }
             }
@@ -582,13 +724,56 @@ pub async fn run_tier2_for_group(
 
 // ── event application ──────────────────────────────────────────────────────
 
+/// Result of the single production-facing Tier-2 mutation seam.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum GroundedTier2ApplyOutcome {
+    /// Grounding was current and all allowed effects were applied.
+    Applied(Vec<String>),
+    /// Grounding was missing, malformed, or stale; no effect was applied.
+    Rejected(String),
+}
+
+/// Validates and applies one Tier-2 event, including optional gossip creation.
+///
+/// This is the only production-facing mutation seam for inferred Tier-2
+/// events. Grounding is checked before narrative events, memory, mood,
+/// relationship, or gossip state can change.
+pub fn apply_grounded_tier2_event_with_config(
+    event: &Tier2Event,
+    npcs: &mut HashMap<NpcId, Npc>,
+    game_time: DateTime<Utc>,
+    config: &NpcConfig,
+    event_bus: &EventBus,
+    gossip_network: &mut GossipNetwork,
+) -> GroundedTier2ApplyOutcome {
+    if let Some(reason) = tier2_event_grounding_conflict(event, npcs, game_time) {
+        tracing::warn!(
+            location = event.location.0,
+            reason = %reason,
+            "dropping stale Tier 2 event before apply"
+        );
+        return GroundedTier2ApplyOutcome::Rejected(reason);
+    }
+
+    let summary_clean = !tier2_summary_mentions_absent_npc(event, npcs);
+    let debug_events = apply_tier2_event_with_config(event, npcs, game_time, config, event_bus);
+    if summary_clean
+        && let Some(gossip_event) =
+            super::gossip::create_gossip_from_tier2_event(event, gossip_network, game_time)
+    {
+        event_bus.publish(gossip_event);
+    }
+
+    GroundedTier2ApplyOutcome::Applied(debug_events)
+}
+
 /// Applies a Tier 2 event's effects to the relevant NPCs using the given config.
 ///
 /// Updates moods, adjusts relationship strengths, and records memories
 /// for all participating NPCs.
 ///
 /// Returns debug event strings describing what happened.
-pub fn apply_tier2_event_with_config(
+fn apply_tier2_event_with_config(
     event: &Tier2Event,
     npcs: &mut HashMap<NpcId, Npc>,
     game_time: DateTime<Utc>,
@@ -845,6 +1030,8 @@ mod tests {
                     mood: "content".to_string(),
                     relationship_summary: "friendly with Tommy".to_string(),
                     current_activity: Some("tending bar".to_string()),
+                    grounding_revision: 1,
+                    activity_fingerprint: "interval-padraig".to_string(),
                 },
                 NpcSnapshot {
                     id: NpcId(5),
@@ -856,6 +1043,8 @@ mod tests {
                     mood: "reflective".to_string(),
                     relationship_summary: String::new(),
                     current_activity: Some("sharing a story".to_string()),
+                    grounding_revision: 2,
+                    activity_fingerprint: "interval-tommy".to_string(),
                 },
             ],
         };
@@ -873,7 +1062,9 @@ mod tests {
         assert!(prompt.contains("Perceptive, wise"));
         assert!(prompt.contains("friendly with Tommy"));
         assert!(prompt.contains("CANONICAL LOCATION"));
-        assert!(prompt.contains("Authored activity at this exact location: tending bar"));
+        assert!(prompt.contains("Canonical location [location_id=2]: Darcy's Pub"));
+        assert!(prompt.contains("Authored activity anchor [activity_fingerprint="));
+        assert!(prompt.contains("]: tending bar"));
         assert!(prompt.contains("occupation alone is not evidence that they are at work"));
         assert!(prompt.contains("Evening"));
         assert!(prompt.contains("Overcast"));
@@ -902,14 +1093,31 @@ mod tests {
     fn tier2_snapshot_uses_only_activity_at_actual_location() {
         let mut npc = make_scheduled_npc(1, 1, 2);
         let names = HashMap::from([(npc.id, npc.name.clone())]);
+        let game_time = Utc.with_ymd_and_hms(1820, 3, 20, 10, 0, 0).unwrap();
 
-        npc.location = LocationId(2);
-        let at_work = npc_snapshot_from_npc_at(&npc, &names, 10, Season::Spring, DayType::Weekday);
+        npc.set_location(LocationId(2));
+        npc.observe_authored_activity_at(game_time);
+        let at_work = npc_snapshot_from_npc_at(&npc, &names, game_time)
+            .expect("schedule tick observation should permit a snapshot");
         assert_eq!(at_work.current_activity.as_deref(), Some("working"));
 
-        npc.location = LocationId(3);
-        let diverted = npc_snapshot_from_npc_at(&npc, &names, 10, Season::Spring, DayType::Weekday);
+        npc.set_location(LocationId(3));
+        npc.observe_authored_activity_at(game_time);
+        let diverted = npc_snapshot_from_npc_at(&npc, &names, game_time)
+            .expect("diverted activity observation should permit a snapshot");
         assert_eq!(diverted.current_activity, None);
+    }
+
+    #[test]
+    fn tier2_snapshot_rejects_unsynchronized_activity() {
+        let npc = make_scheduled_npc(1, 1, 2);
+        let names = HashMap::from([(npc.id, npc.name.clone())]);
+        let game_time = Utc.with_ymd_and_hms(1820, 3, 20, 10, 0, 0).unwrap();
+
+        assert!(
+            npc_snapshot_from_npc_at(&npc, &names, game_time).is_none(),
+            "a Tier-2 snapshot must not bypass the production schedule observation seam"
+        );
     }
 
     #[test]
@@ -934,6 +1142,7 @@ mod tests {
                 to: NpcId(5),
                 delta: 0.1,
             }],
+            grounding: Vec::new(),
         };
 
         let game_time = chrono::Utc.with_ymd_and_hms(1820, 3, 20, 20, 0, 0).unwrap();
@@ -989,6 +1198,7 @@ mod tests {
                 new_mood: "furious".to_string(),
             }],
             relationship_changes: vec![],
+            grounding: Vec::new(),
         };
         assert!(
             tier2_summary_mentions_absent_npc(&hallucinated, &npcs),
@@ -1023,6 +1233,7 @@ mod tests {
             participants: vec![NpcId(1), NpcId(5)],
             mood_changes: vec![],
             relationship_changes: vec![],
+            grounding: Vec::new(),
         };
         assert!(
             !tier2_summary_mentions_absent_npc(&clean, &npcs),
@@ -1053,6 +1264,7 @@ mod tests {
             participants: vec![NpcId(1)],
             mood_changes: Vec::new(),
             relationship_changes: Vec::new(),
+            grounding: Vec::new(),
         };
 
         let game_time = chrono::Utc.with_ymd_and_hms(1820, 3, 20, 20, 0, 0).unwrap();
@@ -1091,6 +1303,7 @@ mod tests {
                 to: NpcId(1),
                 delta: 0.1,
             }],
+            grounding: Vec::new(),
         };
 
         let game_time = chrono::Utc.with_ymd_and_hms(1820, 3, 20, 20, 0, 0).unwrap();
@@ -1113,6 +1326,7 @@ mod tests {
             participants: Vec::new(),
             mood_changes: Vec::new(),
             relationship_changes: Vec::new(),
+            grounding: Vec::new(),
         };
 
         let game_time = chrono::Utc.with_ymd_and_hms(1820, 3, 20, 20, 0, 0).unwrap();
@@ -1138,6 +1352,7 @@ mod tests {
                 new_mood: "calm".to_string(), // same as current
             }],
             relationship_changes: Vec::new(),
+            grounding: Vec::new(),
         };
 
         let game_time = chrono::Utc.with_ymd_and_hms(1820, 3, 20, 20, 0, 0).unwrap();
@@ -1165,6 +1380,7 @@ mod tests {
                 to: NpcId(5),
                 delta: 0.1,
             }],
+            grounding: Vec::new(),
         };
 
         let game_time = chrono::Utc.with_ymd_and_hms(1820, 3, 20, 20, 0, 0).unwrap();
@@ -1193,6 +1409,8 @@ mod tests {
                 mood: "content".to_string(),
                 relationship_summary: String::new(),
                 current_activity: Some("tending bar".to_string()),
+                grounding_revision: 1,
+                activity_fingerprint: "interval-padraig".to_string(),
             }],
         };
 
@@ -1276,6 +1494,8 @@ mod tests {
                     mood: "calm".to_string(),
                     relationship_summary: String::new(),
                     current_activity: Some("waiting at the crossroads".to_string()),
+                    grounding_revision: 1,
+                    activity_fingerprint: "interval-padraig".to_string(),
                 },
                 NpcSnapshot {
                     id: NpcId(2),
@@ -1287,6 +1507,8 @@ mod tests {
                     mood: "tired".to_string(),
                     relationship_summary: String::new(),
                     current_activity: Some("resting by the wall".to_string()),
+                    grounding_revision: 2,
+                    activity_fingerprint: "interval-tommy".to_string(),
                 },
             ],
         };
@@ -1317,6 +1539,8 @@ mod tests {
                 mood: "content".to_string(),
                 relationship_summary: String::new(),
                 current_activity: None,
+                grounding_revision: 1,
+                activity_fingerprint: "interval-none".to_string(),
             }],
         };
         let lang = LanguageSettings::english_only();
@@ -1343,6 +1567,7 @@ mod tests {
             participants: vec![PADRAIG, TOMMY],
             mood_changes: vec![],
             relationship_changes: vec![],
+            grounding: Vec::new(),
         };
 
         let game_time = chrono::Utc.with_ymd_and_hms(1820, 3, 20, 14, 0, 0).unwrap();

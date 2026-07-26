@@ -16,7 +16,7 @@ pub mod time;
 pub use conversation::{ConversationCursor, ConversationExchange, ConversationLog};
 pub use dice::{DiceRoll, fixed_n, roll_n};
 pub use error::ParishError;
-pub use events::{EventBus, GameEvent};
+pub use events::{ContextEventEnvelope, EventBus, GameEvent};
 pub use gossip::{GossipItem, GossipNetwork};
 pub use ids::{
     DEFAULT_START_LOCATION, LanguageHint, Location, LocationId, NpcId, Weather,

@@ -1,4 +1,10 @@
-import type { MapData, NpcInfo, TextLogEntry, WorldSnapshot } from '$lib/types';
+import type {
+	MapData,
+	NpcInfo,
+	Reaction,
+	TextLogEntry,
+	WorldSnapshot,
+} from '$lib/types';
 import type { NotebookAction } from '$lib/notebook/actions';
 
 export type NotebookTab = 'notes' | 'people' | 'places' | 'rumours' | 'journal';
@@ -20,13 +26,14 @@ export interface SceneAnchor {
 
 export interface VisualScene {
 	location_ids: number[];
-	plate_asset: string;
+	/** Authored location art, or null for the code-native neutral state. */
+	plate_asset: string | null;
 	written_visual_summary: string;
 	camera_hint: string;
 	background_generation_source: string;
 	depth_bands: DepthBand[];
 	anchors: {
-		player: SceneAnchor;
+		player: SceneAnchor | null;
 		npcs: SceneAnchor[];
 		exits: SceneAnchor[];
 	};
@@ -52,6 +59,7 @@ export interface NotebookLayout {
 	nearbyStrip: NotebookRect;
 	notebookPage: NotebookRect;
 	tabs: NotebookRect[];
+	liveChronicle: NotebookRect;
 	actionStamps: NotebookRect[];
 	intentStrip: NotebookRect;
 	mapCard: NotebookRect | null;
@@ -72,6 +80,7 @@ export interface RenderCallbacks {
 
 export type NotebookLiveLineKind =
 	| 'player'
+	| 'command'
 	| 'npc'
 	| 'location'
 	| 'narration'
@@ -83,6 +92,8 @@ export interface NotebookLiveLine {
 	speaker: string;
 	content: string;
 	streaming: boolean;
+	messageId: string | null;
+	reactions: Reaction[];
 }
 
 export interface NotebookPersonView {
@@ -91,6 +102,13 @@ export interface NotebookPersonView {
 	detail: string;
 	recentLines: NotebookLiveLine[];
 	emptyNote: string;
+}
+
+export interface NotebookTaskView {
+	id: number;
+	description: string;
+	status: 'assigned' | 'in_progress';
+	statusLabel: 'Assigned' | 'In progress';
 }
 
 export interface NotebookViewModel {
@@ -103,7 +121,8 @@ export interface NotebookViewModel {
 	liveEmpty: string;
 	liveLines: NotebookLiveLine[];
 	intentPlaceholder: string;
-	draftSummary: string;
+	currentTask: NotebookTaskView | null;
+	activeTasks: NotebookTaskView[];
 }
 
 export interface NotebookViewModelInput {
@@ -112,7 +131,6 @@ export interface NotebookViewModelInput {
 	selectedNpc: NpcInfo | null;
 	textLog: TextLogEntry[];
 	busy: boolean;
-	intentText: string;
 }
 
 export interface NotebookRenderState {

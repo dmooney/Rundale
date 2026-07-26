@@ -49,8 +49,7 @@ fn harness_with_one_npc() -> (GameTestHarness, parish_core::npc::NpcId, String) 
             .npc_manager
             .get_mut(speaker_id)
             .expect("speaker exists");
-        npc.location = player_loc;
-        npc.state = NpcState::Present;
+        npc.set_location_and_state(player_loc, NpcState::Present);
         npc.name.clone()
     };
     h.app.npc_manager.mark_introduced(speaker_id);
@@ -67,12 +66,12 @@ fn harness_with_one_npc() -> (GameTestHarness, parish_core::npc::NpcId, String) 
         .app
         .npc_manager
         .all_npcs()
-        .filter(|n| n.location == player_loc && n.id != speaker_id)
+        .filter(|n| n.location() == player_loc && n.id != speaker_id)
         .map(|n| n.id)
         .collect();
     for id in others {
         if let Some(n) = h.app.npc_manager.get_mut(id) {
-            n.location = other_loc;
+            n.set_location(other_loc);
         }
     }
 
@@ -305,7 +304,7 @@ fn real_loop_farewell_to_absent_npc_emits_player_line() {
         .find(|l| *l != h.app.world.player_location)
         .expect("graph has at least two locations");
     if let Some(npc) = h.app.npc_manager.get_mut(speaker_id) {
-        npc.location = other_loc;
+        npc.set_location(other_loc);
     }
 
     // Player says goodbye to the departed NPC by name.

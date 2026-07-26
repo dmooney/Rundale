@@ -1,20 +1,19 @@
 /**
  * Proof screenshots for #1431 items 2, 4, and 5.
  *
- * Item 2: NPC gesture / action subtype renders as italic system narration
- *         (entry.subtype === "action" → entryType() returns "system"),
- *         not as a speech bubble.
+ * Item 2: NPC gesture / action subtype renders as Parish narration in the
+ *         illustrated notebook chronicle, not as NPC speech.
  *
- * Item 4: Sending a player message auto-scrolls the chat panel to the bottom
- *         so the echoed bubble is always visible.
+ * Item 4: Sending a player message keeps the echoed line in the bounded Pixi
+ *         chronicle, even after enough output to exceed its line budget.
  *
- * Item 5: The "⋯" developer menu opens fully visible below the status bar —
- *         not clipped by overflow:hidden on .status-bar (now overflow-x:clip).
+ * Item 5: The notebook tools drawer opens fully visible inside the viewport.
  *
  * Saves PNG proof artifacts to .proofs/1431-render/ (repo-root relative).
  */
 
 import { test, expect, installTauriMock, emitEvent } from './fixtures';
+import { SNAPSHOTS } from './mock-data';
 import * as path from 'path';
 import * as fs from 'fs';
 import { fileURLToPath } from 'url';
@@ -33,73 +32,63 @@ async function setupPage(page: import('@playwright/test').Page) {
 	await installTauriMock(page, 'morning');
 	await page.goto('/');
 	await page.waitForLoadState('networkidle');
-	// Seed a world-update so the status bar renders with real content.
+	// Seed a valid world update so the notebook renders with real content.
 	await emitEvent(page, 'world-update', {
+		...SNAPSHOTS.morning,
+		location_id: 15,
 		location_name: 'Kilteevan Village',
 		location_description: 'The small village of Kilteevan.',
-		time_label: 'Morning',
-		hour: 8,
-		minute: 0,
-		weather: 'Clear',
-		season: 'Spring',
-		festival: null,
-		paused: false,
-		inference_paused: false,
-		game_epoch_ms: 0,
-		speed_factor: 0,
-		name_hints: [],
-		day_of_week: 'Monday',
 	});
 }
 
-// ── Item 5: dev menu visible, not clipped ────────────────────────────────────
+// ── Item 5: tools drawer visible, not clipped ────────────────────────────────
 
-test('item5 — dev menu opens below status bar (not clipped)', async ({
+test('item5 — notebook tools drawer opens inside the viewport', async ({
 	page,
 }) => {
 	await setupPage(page);
 
-	// Click the ⋯ dev-tools button to open the menu.
-	const devToggle = page.getByRole('button', { name: 'Developer tools menu' });
-	await expect(devToggle).toBeVisible();
-	await devToggle.click();
+	const toolsToggle = page.getByRole('button', { name: 'Notebook tools' });
+	await expect(toolsToggle).toBeVisible();
+	await toolsToggle.click();
 
-	const devMenu = page.getByTestId('dev-menu');
-	await expect(devMenu).toBeVisible();
+	const toolsDrawer = page.getByLabel('tools drawer');
+	await expect(toolsDrawer).toBeVisible();
 
-	// The menu must be visible with positive dimensions — prior to the fix,
-	// overflow:hidden on .status-bar clipped the absolutely-positioned dropdown
-	// to zero height and it was rendered but invisible. After the fix
-	// (overflow-x:clip + overflow-y:visible) the menu has real painted area.
-	const menuBox = await devMenu.boundingBox();
-	expect(menuBox).not.toBeNull();
-	if (menuBox) {
-		expect(menuBox.height).toBeGreaterThan(0);
-		expect(menuBox.width).toBeGreaterThan(0);
-	}
-
-	// The menu must contain the expected items (Designer, Dbg).
-	// The Designer link has role="menuitem"; the Dbg toggle has role="menuitemcheckbox"
-	// but we locate it by text to avoid role-resolution quirks in headless Chromium.
-	await expect(
-		devMenu.getByRole('menuitem', { name: /Designer/i }),
-	).toBeVisible();
-	await expect(devMenu.locator('text=Dbg')).toBeVisible();
-
-	// The toggle button itself must be inside the status bar.
-	const statusBarBox = await page.getByTestId('status-bar').boundingBox();
-	const toggleBox = await devToggle.boundingBox();
-	expect(statusBarBox).not.toBeNull();
-	expect(toggleBox).not.toBeNull();
-	if (statusBarBox && toggleBox) {
-		// Toggle sits within status bar vertical bounds.
-		expect(toggleBox.y).toBeGreaterThanOrEqual(statusBarBox.y - 1);
-		expect(toggleBox.y + toggleBox.height).toBeLessThanOrEqual(
-			statusBarBox.y + statusBarBox.height + 1,
+	const drawerBox = await toolsDrawer.boundingBox();
+	expect(drawerBox).not.toBeNull();
+	if (drawerBox) {
+		expect(drawerBox.height).toBeGreaterThan(0);
+		expect(drawerBox.width).toBeGreaterThan(0);
+		expect(drawerBox.x).toBeGreaterThanOrEqual(0);
+		expect(drawerBox.y).toBeGreaterThanOrEqual(0);
+		expect(drawerBox.x + drawerBox.width).toBeLessThanOrEqual(
+			page.viewportSize()?.width ?? Number.POSITIVE_INFINITY,
+		);
+		expect(drawerBox.y + drawerBox.height).toBeLessThanOrEqual(
+			page.viewportSize()?.height ?? Number.POSITIVE_INFINITY,
 		);
 	}
 
-	// Capture a full-app screenshot showing the menu open and unclipped.
+	for (const label of ['Save/Load', 'Map', 'Debug', 'Mod', 'Bug Report']) {
+		await expect(
+			toolsDrawer.getByRole('button', { name: label }),
+		).toBeVisible();
+	}
+
+	const notebookBox = await page
+		.getByTestId('illustrated-notebook-game')
+		.boundingBox();
+	const toggleBox = await toolsToggle.boundingBox();
+	expect(notebookBox).not.toBeNull();
+	expect(toggleBox).not.toBeNull();
+	if (notebookBox && toggleBox) {
+		expect(toggleBox.y).toBeGreaterThanOrEqual(notebookBox.y - 1);
+		expect(toggleBox.y + toggleBox.height).toBeLessThanOrEqual(
+			notebookBox.y + notebookBox.height + 1,
+		);
+	}
+
 	await page.screenshot({
 		path: path.join(PROOF_DIR, 'item5-dev-menu-visible.png'),
 		fullPage: false,
@@ -116,7 +105,7 @@ test('item2 — action subtype renders as system narration, not NPC bubble', asy
 	// Seed a regular NPC speech bubble first (regression guard).
 	await emitEvent(page, 'text-log', {
 		id: 'npc-greeting',
-		source: 'Brigid Flanagan',
+		source: 'Séamas Ó Briain',
 		content: 'Good morrow to ye.',
 	});
 
@@ -128,22 +117,14 @@ test('item2 — action subtype renders as system narration, not NPC bubble', asy
 		subtype: 'action',
 	});
 
-	// The greeting must be a speech bubble.
-	const greetingBubble = page.locator('.bubble-row.npc').first();
-	await expect(greetingBubble).toBeVisible();
-
-	// The gesture must render as a system entry, not a bubble.
-	const systemEntries = page.locator('.entry.system');
-	// There should be at least one system entry (gesture + any splash).
-	await expect(systemEntries.last()).toBeVisible();
-
-	// The gesture text must appear in a system entry, NOT in an NPC bubble.
-	await expect(
-		page.locator('.entry.system').filter({ hasText: 'nods silently' }),
-	).toBeVisible();
-	await expect(
-		page.locator('.bubble-row.npc').filter({ hasText: 'nods silently' }),
-	).toHaveCount(0);
+	const chronicle = page.getByLabel('Live chronicle');
+	await expect(chronicle).toContainText('Séamas Ó Briain: Good morrow to ye.');
+	await expect(chronicle).toContainText(
+		'Parish: A tall stranger nods silently in your direction.',
+	);
+	await expect(chronicle).not.toContainText(
+		'Someone: A tall stranger nods silently in your direction.',
+	);
 
 	await page.screenshot({
 		path: path.join(PROOF_DIR, 'item2-gesture-as-system.png'),
@@ -151,14 +132,14 @@ test('item2 — action subtype renders as system narration, not NPC bubble', asy
 	});
 });
 
-// ── Item 4: player submit auto-scrolls chat to bottom ────────────────────────
+// ── Item 4: player submit remains in bounded live chronicle ─────────────────
 
-test('item4 — submitting a message scrolls chat to bottom', async ({
+test('item4 — submitting a message keeps its echo in the live chronicle', async ({
 	page,
 }) => {
 	await setupPage(page);
 
-	// Fill the chat with enough entries to make it scrollable.
+	// Fill the transcript past the notebook's fixed line budget.
 	for (let i = 1; i <= 20; i++) {
 		await emitEvent(page, 'text-log', {
 			id: `entry-${i}`,
@@ -167,46 +148,22 @@ test('item4 — submitting a message scrolls chat to bottom', async ({
 		});
 	}
 
-	// Wait for entries to render, then scroll the panel to the top to simulate
-	// a user who has scrolled up to read back through history.
-	const chatPanel = page.getByTestId('chat-panel');
-	await page.waitForTimeout(100);
-	await chatPanel.evaluate((el) => {
-		el.scrollTop = 0;
-	});
-
-	// Confirm we are NOT at the bottom before submitting.
-	const scrolledAway = await chatPanel.evaluate((el) => el.scrollTop === 0);
-	expect(scrolledAway).toBe(true);
-
-	// Type a message and press Enter — this triggers handleSubmit in InputField,
-	// which increments playerSubmittedCount before the backend echo arrives.
-	// The submit_input mock call returns null (no-op in the Tauri mock), so the
-	// IPC round-trip completes silently. We then emit the player echo manually
-	// (as the backend would) to drive the text-log update that triggers the
-	// ChatPanel $effect scroll.
-	const inputField = page.getByTestId('input-field');
-	await inputField.click();
+	const inputField = page.getByLabel('Player intent');
 	await inputField.fill('What shall I do here?');
 	await inputField.press('Enter');
 
-	// Emit the backend echo that normally arrives after submit_input returns.
 	await emitEvent(page, 'text-log', {
 		id: 'player-submit',
 		source: 'player',
 		content: 'What shall I do here?',
 	});
 
-	// Allow the Svelte tick + scroll effect to settle.
-	await page.waitForTimeout(200);
-
-	// The chat panel must now be scrolled to the bottom — the player-submitted
-	// flag bypasses the near-bottom guard (#1431 item 4).
-	const isAtBottom = await chatPanel.evaluate((el) => {
-		const delta = el.scrollHeight - el.scrollTop - el.clientHeight;
-		return delta < 10;
-	});
-	expect(isAtBottom).toBe(true);
+	await expect(page.getByLabel('Live chronicle')).toContainText(
+		'You: What shall I do here?',
+	);
+	await expect(
+		page.getByTestId('illustrated-notebook-pixi-host'),
+	).toHaveAttribute('data-visible-live-line-keys', /player-submit/);
 
 	await page.screenshot({
 		path: path.join(PROOF_DIR, 'item4-auto-scroll.png'),
@@ -229,16 +186,15 @@ test('combined — action narration + dev menu visible in one view', async ({
 		subtype: 'action',
 	});
 
-	// Seed a regular NPC bubble for contrast.
+	// Seed a regular NPC line for contrast.
 	await emitEvent(page, 'text-log', {
 		id: 'npc-greeting-combined',
-		source: 'Brigid Flanagan',
+		source: 'Séamas Ó Briain',
 		content: 'Good morrow to ye.',
 	});
 
-	// Open the dev menu.
-	await page.getByRole('button', { name: 'Developer tools menu' }).click();
-	await expect(page.getByTestId('dev-menu')).toBeVisible();
+	await page.getByRole('button', { name: 'Notebook tools' }).click();
+	await expect(page.getByLabel('tools drawer')).toBeVisible();
 
 	await page.screenshot({
 		path: path.join(PROOF_DIR, 'combined-proof.png'),

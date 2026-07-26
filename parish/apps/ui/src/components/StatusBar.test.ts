@@ -20,6 +20,7 @@ function morningEpoch(): number {
 }
 
 const snapshot: WorldSnapshot = {
+	location_id: 1,
 	location_name: 'Baile Átha Cliath',
 	location_description: 'A bustling city.',
 	time_label: 'Morning',
@@ -34,6 +35,7 @@ const snapshot: WorldSnapshot = {
 	speed_factor: 0,
 	name_hints: [],
 	day_of_week: 'Monday',
+	active_tasks: [],
 };
 
 describe('StatusBar', () => {

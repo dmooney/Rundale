@@ -27,7 +27,10 @@ pub use commands::{
 };
 pub use config::GameConfig;
 pub use engine_state::{ENGINE_STATE_SCHEMA_VERSION, EngineState, build_engine_state};
-pub use event_emitter::{CapturingEmitter, EventEmitter};
+pub use event_emitter::{
+    CapturingEmitter, EVENT_GAME_CONTEXT_RESET, EventEmitter,
+    emit_game_context_reset_then_world_update,
+};
 pub use handlers::*;
 pub use state::{ConversationRuntimeState, SaveState, UiConfigSnapshot};
 pub use streaming::{TOKEN_CHANNEL_CAPACITY, stream_npc_tokens};

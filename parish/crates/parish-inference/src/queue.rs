@@ -3,6 +3,7 @@
 use tokio::sync::{mpsc, oneshot};
 pub use tokio_util::sync::CancellationToken;
 
+use crate::logs::DeferredInferenceAudit;
 pub use crate::openai_client::JsonSchemaSpec;
 
 /// Priority lane for inference requests. Higher priority lanes are drained first.
@@ -67,6 +68,8 @@ pub struct InferenceRequest {
     /// without waiting for them to drain. The response carries
     /// `error: Some("cancelled")` when this fires.
     pub cancel: Option<CancellationToken>,
+    /// Request-scoped audit buffer used by atomic staged turns.
+    pub deferred_audit: Option<DeferredInferenceAudit>,
 }
 
 /// The response from an inference request.
@@ -124,6 +127,7 @@ pub struct InferenceQueue {
     interactive_tx: mpsc::Sender<InferenceRequest>,
     background_tx: mpsc::Sender<InferenceRequest>,
     batch_tx: mpsc::Sender<InferenceRequest>,
+    deferred_audit: Option<DeferredInferenceAudit>,
 }
 
 impl InferenceQueue {
@@ -137,6 +141,18 @@ impl InferenceQueue {
             interactive_tx,
             background_tx,
             batch_tx,
+            deferred_audit: None,
+        }
+    }
+
+    /// Returns a queue handle whose requests buffer inference audit records
+    /// until the supplied scope is committed.
+    pub fn with_deferred_audit(&self, audit: DeferredInferenceAudit) -> Self {
+        Self {
+            interactive_tx: self.interactive_tx.clone(),
+            background_tx: self.background_tx.clone(),
+            batch_tx: self.batch_tx.clone(),
+            deferred_audit: Some(audit),
         }
     }
 
@@ -166,6 +182,7 @@ impl InferenceQueue {
             json_mode: req.json_mode,
             json_schema: req.json_schema,
             cancel: req.cancel,
+            deferred_audit: self.deferred_audit.clone(),
         };
         let lane = match priority {
             InferencePriority::Interactive => &self.interactive_tx,

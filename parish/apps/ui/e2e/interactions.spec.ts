@@ -13,54 +13,52 @@ test.describe('Input field interactions', () => {
 	});
 
 	test('can type and submit text via Enter key', async ({ page }) => {
-		const input = page.locator('[data-testid="input-field"]');
+		const input = page.getByLabel('Player intent');
 		await input.fill('go to Howth');
 		await input.press('Enter');
 
 		// Input should be cleared after submission
-		await expect(input).toHaveText('');
+		await expect(input).toHaveValue('');
 	});
 
-	// #1379: the input is always editable — no aria-disabled toggling.
-	// During streaming the field is dimmed (css class "streaming") to signal
-	// the in-flight reply, but it remains contenteditable so the first
-	// keystroke can flush the stream to completion.
+	// #1379: the native notebook input remains physically editable so the
+	// first keystroke can flush an in-flight reply. aria-busy communicates
+	// the busy state without using the HTML disabled attribute.
 	test('input stays editable during streaming (flush-on-interaction, #1379)', async ({
 		page,
 	}) => {
-		const input = page.locator('[data-testid="input-field"]');
+		const input = page.getByLabel('Player intent');
 
 		// Simulate loading/streaming state
 		await emitEvent(page, 'loading', { active: true });
 
-		// Field must never become aria-disabled; it should have the streaming class.
-		await expect(input).not.toHaveAttribute('aria-disabled', 'true');
-		await expect(input).toHaveAttribute('contenteditable', 'true');
-		await expect(input).toHaveClass(/streaming/);
+		await expect(input).toBeEditable();
+		await expect(input).toHaveAttribute('aria-busy', 'true');
+		await expect(page.getByLabel('Live chronicle · listening')).toBeAttached();
+		await input.press('x');
+		await expect(input).toHaveValue('x');
 
 		// End loading
 		await emitEvent(page, 'loading', { active: false });
-		await expect(input).not.toHaveClass(/streaming/);
-		await expect(input).not.toHaveAttribute('aria-disabled', 'true');
+		await expect(input).toHaveAttribute('aria-busy', 'false');
+		await expect(page.getByLabel('Live chronicle')).toBeAttached();
 	});
 
 	// Regression for #991: the backend's handle_npc_conversation cancels
 	// and re-spawns the loading animation per addressed NPC turn, so
 	// `loading {active:false}` arrives mid-chain (between phase-1 NPC
 	// turns, or between phase-1 and the autonomous follow-up chain).
-	// #1379: the input is never aria-disabled; instead streamingActive is
-	// reflected by the "streaming" CSS class. The mid-chain loading=false
-	// must NOT remove the streaming class — only the terminal `stream-end` may.
+	// The mid-chain loading=false must NOT clear the notebook's busy state —
+	// only the terminal `stream-end` may.
 	test('input stays in streaming state across mid-chain loading=false (#991)', async ({
 		page,
 	}) => {
-		const input = page.locator('[data-testid="input-field"]');
+		const input = page.getByLabel('Player intent');
 
 		// Chain begins.
 		await emitEvent(page, 'loading', { active: true });
-		// #1379: always editable, never aria-disabled; streaming class is the signal.
-		await expect(input).not.toHaveAttribute('aria-disabled', 'true');
-		await expect(input).toHaveClass(/streaming/);
+		await expect(input).toBeEditable();
+		await expect(input).toHaveAttribute('aria-busy', 'true');
 
 		// NPC 1 streams a reply and the per-turn cancel fires.
 		await emitEvent(page, 'stream-token', {
@@ -73,8 +71,8 @@ test.describe('Input field interactions', () => {
 
 		// Input must remain in streaming state even though loading=false has
 		// arrived, because the chain has not yet emitted `stream-end`.
-		await expect(input).toHaveClass(/streaming/);
-		await expect(input).not.toHaveAttribute('aria-disabled', 'true');
+		await expect(input).toHaveAttribute('aria-busy', 'true');
+		await expect(page.getByLabel('Live chronicle · listening')).toBeAttached();
 
 		// Capture the mid-chain state as proof for #991 (rule #10 screenshot tier).
 		await page.screenshot({
@@ -91,19 +89,21 @@ test.describe('Input field interactions', () => {
 		await emitEvent(page, 'stream-turn-end', { turn_id: 1002 });
 
 		// Still streaming — chain still alive.
-		await expect(input).toHaveClass(/streaming/);
+		await expect(input).toHaveAttribute('aria-busy', 'true');
 
 		// Chain terminates.
 		await emitEvent(page, 'stream-end', { hints: [] });
 
-		// Only now does the streaming class clear and the field return to idle.
-		await expect(input).not.toHaveClass(/streaming/);
-		await expect(input).not.toHaveAttribute('aria-disabled', 'true');
+		// Only now does the busy state clear and the field return to idle.
+		await expect(input).toHaveAttribute('aria-busy', 'false');
+		await expect(page.getByLabel('Live chronicle')).toBeAttached();
 	});
 });
 
 test.describe('Streaming simulation', () => {
-	test('stream tokens appear incrementally in chat', async ({ page }) => {
+	test('stream tokens appear incrementally in the live chronicle', async ({
+		page,
+	}) => {
 		await installTauriMock(page, 'morning');
 		await page.goto('/');
 		await page.waitForLoadState('networkidle');
@@ -129,7 +129,9 @@ test.describe('Streaming simulation', () => {
 		});
 		await emitEvent(page, 'stream-turn-end', { turn_id: 1 });
 
-		await expect(page.getByText("Ah, you're welcome!")).toBeVisible();
+		await expect(page.getByLabel(/Live chronicle/)).toContainText(
+			"Ah, you're welcome!",
+		);
 
 		// End stream
 		await emitEvent(page, 'stream-end', { hints: IRISH_HINTS });
@@ -146,56 +148,55 @@ test.describe('Streaming simulation', () => {
 
 		await emitEvent(page, 'text-log', {
 			id: 'msg-1',
-			source: 'Siobhan Murphy',
+			source: 'Séamas Ó Briain',
 			content: '',
 			stream_turn_id: 11,
 		});
 		await emitEvent(page, 'stream-token', {
 			token: 'I heard the fair will be lively tonight ',
 			turn_id: 11,
-			source: 'Siobhan Murphy',
+			source: 'Séamas Ó Briain',
 		});
-		await expect(
-			page.locator('.bubble-row.npc').nth(0).locator('.label'),
-		).toHaveText('Siobhan Murphy');
+		await expect(page.getByLabel(/Live chronicle/)).toContainText(
+			'Séamas Ó Briain: I heard the fair will be lively tonight',
+		);
 
-		// Queue Padraig before Siobhan has finished animating.
+		// Queue Aoife before Séamas has finished animating.
 		await emitEvent(page, 'text-log', {
 			id: 'msg-2',
-			source: 'Padraig Darcy',
+			source: 'Aoife Ní Cheallaigh',
 			content: '',
 			stream_turn_id: 12,
 		});
 		await emitEvent(page, 'stream-token', {
 			token: "If it is, I'll bring the cart before sunset.",
 			turn_id: 12,
-			source: 'Padraig Darcy',
+			source: 'Aoife Ní Cheallaigh',
 		});
 
 		await emitEvent(page, 'stream-token', {
 			token: 'with music by the square.',
 			turn_id: 11,
-			source: 'Siobhan Murphy',
+			source: 'Séamas Ó Briain',
 		});
 		await emitEvent(page, 'stream-turn-end', { turn_id: 11 });
 		await emitEvent(page, 'stream-turn-end', { turn_id: 12 });
 		await emitEvent(page, 'stream-end', { hints: IRISH_HINTS });
 
-		const npcRows = page.locator('.bubble-row.npc');
-		await expect(npcRows).toHaveCount(2);
-		await expect(npcRows.nth(0).locator('.label')).toHaveText('Siobhan Murphy');
-		await expect(npcRows.nth(0).locator('.content')).toContainText(
-			'I heard the fair will be lively tonight with music by the square.',
+		const chronicle = page.getByLabel('Live chronicle');
+		await expect(chronicle).toContainText(
+			'Séamas Ó Briain: I heard the fair will be lively tonight with music by the square.',
 		);
-		await expect(npcRows.nth(1).locator('.label')).toHaveText('Padraig Darcy');
-		await expect(npcRows.nth(1).locator('.content')).toContainText(
-			"If it is, I'll bring the cart before sunset.",
+		await expect(chronicle).toContainText(
+			"Aoife Ní Cheallaigh: If it is, I'll bring the cart before sunset.",
 		);
 	});
 });
 
 test.describe('Paused state', () => {
-	test('shows paused indicator when game is paused', async ({ page }) => {
+	test('resumes a paused game before submitting a player action', async ({
+		page,
+	}) => {
 		const pausedSnapshot = { ...SNAPSHOTS.morning, paused: true };
 		await installTauriMock(page, 'morning');
 
@@ -205,7 +206,13 @@ test.describe('Paused state', () => {
 				const responses = (
 					window as unknown as Record<string, Record<string, unknown>>
 				).__TEST_MOCK_RESPONSES__;
-				if (responses) responses['get_world_snapshot'] = snapshot;
+				if (responses) {
+					responses['get_world_snapshot'] = snapshot;
+					responses['get_reconnect_state'] = {
+						...(responses['get_reconnect_state'] as Record<string, unknown>),
+						world: snapshot,
+					};
+				}
 			},
 			{ snapshot: pausedSnapshot },
 		);
@@ -213,12 +220,47 @@ test.describe('Paused state', () => {
 		await page.goto('/');
 		await page.waitForLoadState('networkidle');
 
-		await expect(page.getByText('Paused')).toBeVisible();
+		await page.evaluate(() => {
+			const target = window as unknown as Record<string, unknown>;
+			const tauri = target.__TAURI_INTERNALS__ as {
+				invoke: (
+					command: string,
+					args?: Record<string, unknown>,
+				) => Promise<unknown>;
+			};
+			const originalInvoke = tauri.invoke.bind(tauri);
+			const submitted: string[] = [];
+			target.__TEST_SUBMITTED_INPUTS__ = submitted;
+			tauri.invoke = async (
+				command: string,
+				args?: Record<string, unknown>,
+			) => {
+				if (command === 'submit_input' && typeof args?.text === 'string') {
+					submitted.push(args.text);
+				}
+				return originalInvoke(command, args);
+			};
+		});
+
+		const input = page.getByLabel('Player intent');
+		await input.fill('look around the yard');
+		await input.press('Enter');
+		await expect
+			.poll(() =>
+				page.evaluate(
+					() =>
+						(window as unknown as Record<string, string[]>)
+							.__TEST_SUBMITTED_INPUTS__,
+				),
+			)
+			.toEqual(['/resume', 'look around the yard']);
 	});
 });
 
 test.describe('Festival badge', () => {
-	test('shows festival badge when festival is active', async ({ page }) => {
+	test('shows an active festival in notebook time details', async ({
+		page,
+	}) => {
 		const festivalSnapshot = { ...SNAPSHOTS.morning, festival: 'Samhain' };
 		await installTauriMock(page, 'morning');
 
@@ -227,7 +269,13 @@ test.describe('Festival badge', () => {
 				const responses = (
 					window as unknown as Record<string, Record<string, unknown>>
 				).__TEST_MOCK_RESPONSES__;
-				if (responses) responses['get_world_snapshot'] = snapshot;
+				if (responses) {
+					responses['get_world_snapshot'] = snapshot;
+					responses['get_reconnect_state'] = {
+						...(responses['get_reconnect_state'] as Record<string, unknown>),
+						world: snapshot,
+					};
+				}
 			},
 			{ snapshot: festivalSnapshot },
 		);
@@ -235,6 +283,11 @@ test.describe('Festival badge', () => {
 		await page.goto('/');
 		await page.waitForLoadState('networkidle');
 
-		await expect(page.getByText('Samhain')).toBeVisible();
+		const timeControl = page.getByRole('button', {
+			name: 'Open time details',
+		});
+		await timeControl.focus();
+		await page.keyboard.press('Enter');
+		await expect(page.getByLabel('time drawer')).toContainText('Samhain');
 	});
 });

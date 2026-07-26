@@ -126,7 +126,7 @@ async fn run_headless_repl_loop(
 
         match classify_input(&trimmed) {
             InputResult::SystemCommand(cmd) => {
-                let (quit, rebuild) = handle_headless_command(app, cmd, &trimmed).await;
+                let (quit, rebuild) = handle_headless_command(app, cmd, &trimmed).await?;
                 if rebuild {
                     let any = if app.provider_name == "simulator" {
                         Some(AnyClient::simulator())
@@ -417,51 +417,38 @@ pub async fn run_headless(
     app.session_store = std::sync::Arc::new(parish_core::session_store::DbSessionStore::new(
         saves_dir.clone(),
     ));
-    let db_path = crate::persistence::picker::run_picker(&saves_dir, &app.world.graph);
+    let remembered_identity =
+        parish_core::persistence::read_active_save_identity_candidate(&saves_dir)
+            .map_err(|error| anyhow::anyhow!("invalid active-save marker: {error}"))?;
+    let (db_path, save_lock) = if let Some(identity) = remembered_identity.as_ref() {
+        let lock = crate::persistence::SaveFileLock::try_acquire(&identity.save_path).ok_or_else(
+            || {
+                anyhow::anyhow!(
+                    "save file {} is locked or has an invalid lock owner",
+                    identity.save_path.display()
+                )
+            },
+        )?;
+        (identity.save_path.clone(), lock)
+    } else {
+        // The legacy picker opens every listed SQLite file for display
+        // metadata. Lock every candidate first and retain the selected guard.
+        let mut picker_locks = lock_existing_save_candidates(&saves_dir)?;
+        let path = crate::persistence::picker::run_picker(&saves_dir, &app.world.graph);
+        let lock = take_or_acquire_save_lock(&mut picker_locks, &path)?;
+        (path, lock)
+    };
     app.save_file_path = Some(db_path.clone());
+    app.save_lock = Some(save_lock);
 
-    // Acquire advisory lock so other instances know this save is in use.
-    // If try_acquire returns None the file is already locked by another
-    // instance; make that visible instead of silently continuing to write
-    // into the same database (#426). The server and Tauri backends fail
-    // closed on the same condition.
-    //
-    // In interactive mode we warn and proceed, giving the user a chance to
-    // cancel with ^C.  In script (non-interactive) mode there is nobody to
-    // read that warning, so we fail closed instead — concurrent writes could
-    // silently corrupt the database with no operator awareness (#608).
-    app.save_lock = crate::persistence::SaveFileLock::try_acquire(&db_path);
-    if app.save_lock.is_none() {
-        if script_mode {
-            anyhow::bail!(
-                "error: save file {} is locked by another Parish instance; \
-                 refusing to proceed in non-interactive (script) mode to avoid \
-                 data corruption. Stop the other instance first.",
-                db_path.display()
-            );
-        }
-        eprintln!(
-            "Warning: save file {} is locked by another Parish instance; \
-             opening anyway — concurrent writes may corrupt it.",
-            db_path.display()
-        );
-        tracing::warn!(
-            path = %db_path.display(),
-            "SaveFileLock::try_acquire returned None on startup — save file in use by another instance",
-        );
-    }
-
-    match crate::persistence::Database::open(&db_path) {
-        Ok(db) => {
-            let async_db = Arc::new(crate::persistence::AsyncDatabase::new(db));
-            restore_from_db(&mut app, &async_db).await;
-            app.db = Some(async_db);
-            app.last_autosave = Some(std::time::Instant::now());
-        }
-        Err(e) => {
-            eprintln!("Warning: Persistence unavailable: {}", e);
-        }
-    }
+    let db = crate::persistence::Database::open(&db_path)?;
+    let async_db = Arc::new(crate::persistence::AsyncDatabase::new(db));
+    let preferred_branch = remembered_identity
+        .as_ref()
+        .map(|identity| (identity.branch_id, identity.branch_name.clone()));
+    restore_from_db(&mut app, &async_db, &db_path, preferred_branch).await?;
+    app.db = Some(async_db);
+    app.last_autosave = Some(std::time::Instant::now());
 
     // Character logs — gated by `character-logs` flag (default on).
     // Subscribe BEFORE writing profiles so the rx doesn't miss any
@@ -524,30 +511,126 @@ pub async fn run_headless(
 ///
 /// Shared by `restore_from_db`, `handle_headless_load` (named-branch path),
 /// and simulation of the same sequence in test helpers.
+fn fresh_headless_world_and_npcs(
+    app: &App,
+) -> Result<(crate::world::WorldState, NpcManager), String> {
+    let Some(game_mod) = app.game_mod.as_ref() else {
+        // Unit-test and legacy fallback: recovery replaces every dynamic
+        // field, but it needs the current static graph in which to restore.
+        let mut world = crate::world::WorldState::new();
+        world.graph = app.world.graph.clone();
+        world.locations = app.world.locations.clone();
+        return Ok((world, NpcManager::new()));
+    };
+
+    let world = parish_core::game_mod::world_state_from_mod(game_mod)
+        .map_err(|error| format!("Failed to load world from mod: {error}"))?;
+    let npcs_path = game_mod.npcs_path();
+    let npc_manager = NpcManager::load_from_file(&npcs_path).unwrap_or_else(|error| {
+        tracing::warn!(
+            path = %npcs_path.display(),
+            %error,
+            "failed to load NPCs for a headless save candidate; using an empty manager",
+        );
+        NpcManager::new()
+    });
+    Ok((world, npc_manager))
+}
+
+fn lock_existing_save_candidates(
+    saves_dir: &std::path::Path,
+) -> anyhow::Result<Vec<(std::path::PathBuf, crate::persistence::SaveFileLock)>> {
+    let mut paths = std::fs::read_dir(saves_dir)?
+        .filter_map(Result::ok)
+        .map(|entry| entry.path())
+        .filter(|path| path.extension().is_some_and(|extension| extension == "db"))
+        .collect::<Vec<_>>();
+    paths.sort();
+    paths
+        .into_iter()
+        .map(|path| {
+            crate::persistence::SaveFileLock::try_acquire(&path)
+                .map(|lock| (path.clone(), lock))
+                .ok_or_else(|| {
+                    anyhow::anyhow!(
+                        "save file {} is locked or has an invalid lock owner",
+                        path.display()
+                    )
+                })
+        })
+        .collect()
+}
+
+fn take_or_acquire_save_lock(
+    locks: &mut Vec<(std::path::PathBuf, crate::persistence::SaveFileLock)>,
+    selected_path: &std::path::Path,
+) -> anyhow::Result<crate::persistence::SaveFileLock> {
+    if let Some(index) = locks
+        .iter()
+        .position(|(path, _)| path.as_path() == selected_path)
+    {
+        return Ok(locks.swap_remove(index).1);
+    }
+    crate::persistence::SaveFileLock::try_acquire(selected_path).ok_or_else(|| {
+        anyhow::anyhow!(
+            "save file {} is locked or has an invalid lock owner",
+            selected_path.display()
+        )
+    })
+}
+
 async fn load_and_restore_snapshot(
     app: &mut App,
-    db: &crate::persistence::AsyncDatabase,
+    save_path: &std::path::Path,
     branch_id: i64,
-) -> Result<(), String> {
-    match db.load_latest_snapshot(branch_id).await {
-        Ok(Some((snap_id, snapshot))) => {
-            let events = db
-                .events_since_snapshot(branch_id, snap_id)
-                .await
-                .unwrap_or_default();
-            snapshot.restore(&mut app.world, &mut app.npc_manager);
+    branch_name: &str,
+) -> Result<bool, String> {
+    match parish_core::session_store::load_recovery_bundle(
+        app.session_store.as_ref(),
+        "",
+        save_path,
+        branch_id,
+    )
+    .await
+    {
+        Ok(Some(recovery)) => {
+            let snap_id = recovery.snapshot_id;
+            let (mut candidate_world, mut candidate_npcs) = fresh_headless_world_and_npcs(app)?;
+            recovery.restore(&mut candidate_world, &mut candidate_npcs);
             // Gate: clear in-memory introduced set so NPCs must be re-introduced
             // each session (#1396, npc-dialogue-grounding flag, default-on).
             if !app.flags.is_disabled("npc-dialogue-grounding") {
-                app.npc_manager.clear_introduced_for_session();
+                candidate_npcs.clear_introduced_for_session();
             }
-            crate::persistence::replay_journal(&mut app.world, &mut app.npc_manager, &events);
+            candidate_npcs.assign_tiers(&candidate_world, &[]);
+            let prepared_binding = app
+                .session_store
+                .prepare_active_save("", save_path)
+                .map_err(|error| error.to_string())?;
+            if let Some(saves_dir) = app.saves_dir.as_ref() {
+                parish_core::persistence::write_active_save_identity(
+                    saves_dir,
+                    save_path,
+                    branch_id,
+                    branch_name,
+                )
+                .map_err(|error| error.to_string())?;
+            }
+
+            // Commit only after the exact recovery bundle and active-store
+            // binding and active marker all succeed.
+            prepared_binding.commit();
+            candidate_world.event_bus = std::mem::take(&mut app.world.event_bus);
+            candidate_world.event_bus.advance_context_epoch();
+            app.world = candidate_world;
+            app.npc_manager = candidate_npcs;
+            app.save_file_path = Some(save_path.to_path_buf());
             app.active_branch_id = branch_id;
             app.latest_snapshot_id = snap_id;
-            app.npc_manager.assign_tiers(&app.world, &[]);
-            Ok(())
+            reset_headless_context_receivers(app);
+            Ok(true)
         }
-        Ok(None) => Err("No saves on this branch".to_string()),
+        Ok(None) => Ok(false),
         Err(e) => Err(e.to_string()),
     }
 }
@@ -557,22 +640,81 @@ async fn load_and_restore_snapshot(
 /// Finds the "main" branch, loads the latest snapshot, replays any journal
 /// events since that snapshot, and reassigns NPC tiers. If no snapshot exists
 /// (fresh database), captures and saves an initial snapshot.
-async fn restore_from_db(app: &mut App, async_db: &Arc<crate::persistence::AsyncDatabase>) {
-    if let Ok(Some(branch)) = async_db.find_branch("main").await {
-        app.active_branch_id = branch.id;
+async fn restore_from_db(
+    app: &mut App,
+    async_db: &Arc<crate::persistence::AsyncDatabase>,
+    save_path: &std::path::Path,
+    preferred_branch: Option<(i64, String)>,
+) -> Result<()> {
+    let branch = if let Some((branch_id, branch_name)) = preferred_branch {
+        async_db
+            .list_branches()
+            .await?
+            .into_iter()
+            .find(|branch| branch.id == branch_id && branch.name == branch_name)
+            .ok_or_else(|| {
+                anyhow::anyhow!(
+                    "remembered branch {branch_name} ({branch_id}) is missing from active save"
+                )
+            })?
+    } else {
+        async_db
+            .find_branch("main")
+            .await?
+            .ok_or_else(|| anyhow::anyhow!("main branch missing from active save"))?
+    };
 
-        if load_and_restore_snapshot(app, async_db, branch.id)
-            .await
-            .is_ok()
-        {
-            println!("Restored from save.");
-        } else {
-            // First run — save initial snapshot
-            let snapshot = crate::persistence::GameSnapshot::capture(&app.world, &app.npc_manager);
-            if let Ok(snap_id) = async_db.save_snapshot(branch.id, &snapshot).await {
-                app.latest_snapshot_id = snap_id;
+    match load_and_restore_snapshot(app, save_path, branch.id, &branch.name)
+        .await
+        .map_err(anyhow::Error::msg)?
+    {
+        true => println!("Restored from save."),
+        false => {
+            // First run — save initial snapshot. Recovery errors propagate
+            // above instead of being mistaken for an empty save and overwritten.
+            let (mut candidate_world, mut candidate_npcs) =
+                fresh_headless_world_and_npcs(app).map_err(anyhow::Error::msg)?;
+            candidate_npcs.assign_tiers(&candidate_world, &[]);
+            let snapshot =
+                crate::persistence::GameSnapshot::capture(&candidate_world, &candidate_npcs);
+            let snapshot_id = async_db.save_snapshot(branch.id, &snapshot).await?;
+            let prepared_binding = app.session_store.prepare_active_save("", save_path)?;
+            if let Some(saves_dir) = app.saves_dir.as_ref() {
+                parish_core::persistence::write_active_save_identity(
+                    saves_dir,
+                    save_path,
+                    branch.id,
+                    &branch.name,
+                )?;
             }
+            prepared_binding.commit();
+            candidate_world.event_bus = std::mem::take(&mut app.world.event_bus);
+            candidate_world.event_bus.advance_context_epoch();
+            app.world = candidate_world;
+            app.npc_manager = candidate_npcs;
+            app.save_file_path = Some(save_path.to_path_buf());
+            app.active_branch_id = branch.id;
+            app.latest_snapshot_id = snapshot_id;
+            reset_headless_context_receivers(app);
         }
+    }
+    app.db = Some(Arc::clone(async_db));
+    Ok(())
+}
+
+/// Drops every pre-switch queued event and subscribes afresh to the retained
+/// bus. Headless drains receivers synchronously, so resetting them at the
+/// successful commit seam is the deterministic equivalent of contextual
+/// envelope filtering in the async runtimes.
+pub(crate) fn reset_headless_context_receivers(app: &mut App) {
+    if app.character_log_rx.is_some() {
+        app.character_log_rx = Some(app.world.event_bus.subscribe());
+    }
+    if app.location_log_rx.is_some() {
+        app.location_log_rx = Some(app.world.event_bus.subscribe());
+    }
+    if app.chat_transcript_rx.is_some() {
+        app.chat_transcript_rx = Some(app.world.event_bus.subscribe());
     }
 }
 
@@ -659,7 +801,11 @@ fn drain_chat_transcript_events(app: &mut App) {
 /// Delegates to [`parish_core::game_loop::handle_system_command`] via the
 /// [`CliCommandHost`] adapter (#696 slice 7).  The `App` is temporarily moved
 /// into an `Arc<Mutex<App>>` for the duration of the call, then moved back.
-async fn handle_headless_command(app: &mut App, cmd: Command, raw_text: &str) -> (bool, bool) {
+async fn handle_headless_command(
+    app: &mut App,
+    cmd: Command,
+    raw_text: &str,
+) -> anyhow::Result<(bool, bool)> {
     use crate::command_host::CliCommandHost;
     use parish_core::game_loop::handle_system_command as shared_handle;
     use std::sync::Arc;
@@ -669,7 +815,9 @@ async fn handle_headless_command(app: &mut App, cmd: Command, raw_text: &str) ->
     let app_arc = Arc::new(tokio::sync::Mutex::new(app_val));
     let (should_quit, rebuild) = {
         let host = CliCommandHost::new(Arc::clone(&app_arc));
-        shared_handle(&host, cmd, raw_text).await;
+        shared_handle(&host, cmd, raw_text)
+            .await
+            .map_err(anyhow::Error::msg)?;
         let q = host.did_quit();
         let r = host.did_rebuild_inference();
         // `host` is dropped here, releasing its Arc clone so app_arc has exactly 1 ref.
@@ -679,7 +827,7 @@ async fn handle_headless_command(app: &mut App, cmd: Command, raw_text: &str) ->
     *app = Arc::into_inner(app_arc)
         .expect("CliCommandHost dropped: Arc should have exactly 1 reference")
         .into_inner();
-    (should_quit, rebuild)
+    Ok((should_quit, rebuild))
 }
 
 /// Handles /load in headless mode (both bare /load and /load <branch_name>).
@@ -698,94 +846,124 @@ pub(crate) async fn handle_headless_load(app: &mut App, name: &str) -> anyhow::R
                 return Ok(());
             }
         };
+        let mut picker_locks = lock_existing_save_candidates(&saves_dir)?;
         if let Some(new_path) =
             crate::persistence::picker::run_load_picker(&saves_dir, &app.world.graph)
         {
-            let _ = app.capture_and_save_async(app.active_branch_id).await;
-            if let Err(e) = app.reload_mod_world_and_npcs() {
-                eprintln!("Failed to reload world: {}", e);
+            if app.save_file_path.as_deref() == Some(new_path.as_path()) {
+                println!("That save file is already active.");
+                return Ok(());
             }
-            // Release old lock and acquire lock on the new save file.
-            // Mirror the startup policy (#608): in script mode a lock failure is
-            // a hard error — there is no operator present to read the warning,
-            // and concurrent writes could silently corrupt the database.
-            app.save_lock = crate::persistence::SaveFileLock::try_acquire(&new_path);
-            if app.save_lock.is_none() {
-                if app.script_mode {
-                    anyhow::bail!(
-                        "error: save file {} is locked by another Parish instance; \
-                         refusing to switch save in non-interactive (script) mode to avoid \
-                         data corruption. Stop the other instance first.",
-                        new_path.display()
-                    );
-                }
-                eprintln!(
-                    "Warning: save file {} is locked by another Parish instance; \
-                     opening anyway — concurrent writes may corrupt it.",
-                    new_path.display()
-                );
-                tracing::warn!(
-                    path = %new_path.display(),
-                    "SaveFileLock::try_acquire returned None during save-switch — save file in use by another instance",
-                );
+            if app.db.is_some()
+                && app
+                    .capture_and_save_async(app.active_branch_id)
+                    .await
+                    .is_none()
+            {
+                anyhow::bail!("failed to save the current game before switching save files");
             }
 
-            match crate::persistence::Database::open(&new_path) {
-                Ok(new_db) => {
-                    let async_db = Arc::new(crate::persistence::AsyncDatabase::new(new_db));
-                    restore_from_db(app, &async_db).await;
-                    app.db = Some(async_db);
-                    app.save_file_path = Some(new_path);
-                    app.last_autosave = Some(std::time::Instant::now());
-                    print_location_arrival(app);
-                    print_arrival_reactions(app).await;
-                }
-                Err(e) => eprintln!("Failed to open save file: {}", e),
-            }
+            // Picker metadata was read only while every candidate was locked.
+            // Keep the old live guard until the selected candidate recovers.
+            let candidate_lock = take_or_acquire_save_lock(&mut picker_locks, &new_path)?;
+            let new_db = crate::persistence::Database::open(&new_path)?;
+            let async_db = Arc::new(crate::persistence::AsyncDatabase::new(new_db));
+            restore_from_db(app, &async_db, &new_path, None).await?;
+            app.save_lock = Some(candidate_lock);
+            app.last_autosave = Some(std::time::Instant::now());
+            print_location_arrival(app);
+            print_arrival_reactions(app).await;
         }
     } else if let Some(ref db) = app.db {
         match db.find_branch(name).await {
             Ok(Some(branch)) => {
-                let db = db.clone();
-                if branch.id != app.active_branch_id {
-                    let _ = app.capture_and_save_async(app.active_branch_id).await;
+                if branch.id != app.active_branch_id
+                    && app
+                        .capture_and_save_async(app.active_branch_id)
+                        .await
+                        .is_none()
+                {
+                    anyhow::bail!("failed to save the current branch before loading '{name}'");
                 }
-                match load_and_restore_snapshot(app, &db, branch.id).await {
-                    Ok(()) => {
+                let Some(save_path) = app.save_file_path.clone() else {
+                    println!("Branch '{}': active save file is unavailable", name);
+                    return Ok(());
+                };
+                match load_and_restore_snapshot(app, &save_path, branch.id, &branch.name).await {
+                    Ok(true) => {
                         app.last_autosave = Some(std::time::Instant::now());
                         let time = app.world.clock.time_of_day();
                         let season = app.world.clock.season();
                         let loc = app.world.current_location().name.clone();
                         println!("Loaded branch '{}'. {} — {}, {}.", name, loc, season, time);
                     }
-                    Err(msg) => println!("Branch '{}': {}", name, msg),
+                    Ok(false) => anyhow::bail!("branch '{name}' has no snapshots"),
+                    Err(msg) => anyhow::bail!("failed to load branch '{name}': {msg}"),
                 }
             }
-            Ok(None) => println!("No branch named '{}' found.", name),
-            Err(e) => eprintln!("Failed to find branch '{}': {}", name, e),
+            Ok(None) => anyhow::bail!("no branch named '{name}' found"),
+            Err(e) => anyhow::bail!("failed to find branch '{name}': {e}"),
         }
     } else {
-        println!("Persistence not available.");
+        anyhow::bail!("persistence not available");
     }
     Ok(())
 }
 
 /// Handles /new in headless mode — resets world and NPCs.
-pub(crate) async fn handle_headless_new_game(app: &mut App) {
-    if let Err(e) = app.reload_mod_world_and_npcs() {
-        eprintln!("{}", e);
-        return;
+pub(crate) async fn handle_headless_new_game(app: &mut App) -> Result<(), String> {
+    let saves_dir = app
+        .saves_dir
+        .clone()
+        .ok_or_else(|| "Cannot start a new game without a saves directory.".to_string())?;
+    let (mut candidate_world, mut candidate_npcs) = fresh_headless_world_and_npcs(app)?;
+    candidate_npcs.assign_tiers(&candidate_world, &[]);
+    let snapshot = crate::persistence::GameSnapshot::capture(&candidate_world, &candidate_npcs);
+    let new_path = crate::persistence::picker::new_save_path(&saves_dir);
+    let candidate_lock = crate::persistence::SaveFileLock::try_acquire(&new_path)
+        .ok_or_else(|| format!("Could not lock new save file {}", new_path.display()))?;
+    let db = crate::persistence::Database::open(&new_path).map_err(|error| error.to_string())?;
+    let branch = db
+        .find_branch("main")
+        .map_err(|error| error.to_string())?
+        .ok_or_else(|| "main branch missing from new save file".to_string())?;
+    let snapshot_id = db
+        .save_snapshot(branch.id, &snapshot)
+        .map_err(|error| error.to_string())?;
+    let async_db = Arc::new(crate::persistence::AsyncDatabase::new(db));
+    let prepared_binding = app
+        .session_store
+        .prepare_active_save("", &new_path)
+        .map_err(|error| error.to_string())?;
+    if let Err(marker_error) = parish_core::persistence::write_active_save_identity(
+        &saves_dir, &new_path, branch.id, "main",
+    ) {
+        drop(candidate_lock);
+        drop(async_db);
+        std::fs::remove_file(&new_path).map_err(|cleanup_error| {
+            format!("{marker_error}; additionally failed to remove candidate save: {cleanup_error}")
+        })?;
+        return Err(marker_error.to_string());
     }
-    if let Some(ref db) = app.db
-        && let Ok(branch_id) = db.create_branch("main", None).await
-        && let Some(_snap_id) = app.capture_and_save_async(branch_id).await
-    {
-        app.active_branch_id = branch_id;
-    }
+
+    prepared_binding.commit();
+    candidate_world.event_bus = std::mem::take(&mut app.world.event_bus);
+    candidate_world.event_bus.advance_context_epoch();
+    app.world = candidate_world;
+    app.npc_manager = candidate_npcs;
+    app.db = Some(async_db);
+    app.save_file_path = Some(new_path);
+    app.active_branch_id = branch.id;
+    app.latest_snapshot_id = snapshot_id;
+    app.last_autosave = Some(std::time::Instant::now());
+    app.save_lock = Some(candidate_lock);
+    reset_headless_context_receivers(app);
+
     println!("A new day dawns in the parish.");
     println!();
     print_location_arrival(app);
     print_arrival_reactions(app).await;
+    Ok(())
 }
 
 /// Applies a parsed NPC dialogue response — tier-1 state update, conversation
@@ -804,7 +982,7 @@ fn apply_npc_response(
     known_person_names: &[String],
     known_location_names: &[String],
     player_name: Option<&str>,
-) {
+) -> Option<parish_core::session_store::PlayerTask> {
     let mut parsed = parse_npc_stream_response(response_text);
     if let Some(meta) = &parsed.metadata {
         tracing::debug!("NPC metadata: action={}, mood={}", meta.action, meta.mood);
@@ -936,10 +1114,12 @@ fn apply_npc_response(
         None,
         &[],
         &language,
+        &app.flags,
     );
     for event in outcome.debug_events {
         app.debug_event(event);
     }
+    outcome.assigned_task
 }
 
 /// Streams NPC dialogue to stdout with loading animation, then applies
@@ -951,7 +1131,7 @@ async fn stream_headless_npc_dialogue(
     text: &str,
     setup: parish_core::ipc::NpcConversationSetup,
     request_id: &mut u64,
-) {
+) -> Option<parish_core::session_store::PlayerTask> {
     let npc_id = setup.npc_id;
     let system_prompt = setup.system_prompt;
     let context = setup.context;
@@ -959,6 +1139,7 @@ async fn stream_headless_npc_dialogue(
     let known_location_names = setup.known_location_names.clone();
     let setup_player_name = setup.player_name.clone();
 
+    let mut assigned_task = None;
     if let Some(queue) = &app.inference_queue {
         app.world.clock.inference_pause();
 
@@ -1038,7 +1219,7 @@ async fn stream_headless_npc_dialogue(
                         } else {
                             let game_time = app.world.clock.now();
                             let location = app.world.player_location;
-                            apply_npc_response(
+                            assigned_task = apply_npc_response(
                                 app,
                                 npc_id,
                                 &response.text,
@@ -1070,6 +1251,37 @@ async fn stream_headless_npc_dialogue(
     } else {
         println!("[No storyteller could be found in the parish today.]");
     }
+    assigned_task
+}
+
+async fn persist_headless_task_mutations(
+    app: &mut App,
+    target: Option<&parish_core::session_store::TaskJournalTarget>,
+    before: parish_core::session_store::PlayerProgress,
+    tasks: &[parish_core::session_store::PlayerTask],
+) -> Result<()> {
+    if tasks.is_empty() {
+        return Ok(());
+    }
+    let result = match target {
+        Some(target) => parish_core::session_store::append_task_mutations(
+            app.session_store.as_ref(),
+            target,
+            tasks,
+        )
+        .await
+        .map(|_| ()),
+        None => Err(parish_core::error::ParishError::Database(
+            "cannot journal player task without an active save and branch".to_string(),
+        )),
+    };
+    match result {
+        Ok(()) => Ok(()),
+        Err(error) => {
+            app.world.player_progress = before;
+            Err(error.into())
+        }
+    }
 }
 
 /// Handles game input (NPC interaction or intent parsing) in headless mode.
@@ -1080,6 +1292,24 @@ async fn handle_headless_game_input(
     text: &str,
     request_id: &mut u64,
 ) -> Result<()> {
+    if parish_core::game_loop::input_may_mutate_tasks(&app.world, text) {
+        return handle_headless_staged_game_input(app, client, text).await;
+    }
+
+    // Headless input is serialized by the `&mut App` REPL borrow. Capture
+    // both the rollback state and exact journal identity before any action
+    // can mutate the task ledger.
+    let task_progress_before = app.world.player_progress.clone();
+    let task_target =
+        app.save_file_path
+            .clone()
+            .map(|save_path| parish_core::session_store::TaskJournalTarget {
+                session_id: String::new(),
+                save_path,
+                branch_id: app.active_branch_id,
+            });
+    let mut task_mutations = Vec::new();
+    let mut delayed_action_narration = None;
     // Parse intent: try local keyword matching first, fall back to LLM.
     let intent = if let Some(local) = crate::input::parse_intent_local(text) {
         local
@@ -1127,6 +1357,14 @@ async fn handle_headless_game_input(
                 }
             }
         }
+        crate::input::IntentKind::Interact if !app.flags.is_disabled("interact-narration") => {
+            if let Some(outcome) =
+                parish_core::game_session::apply_player_action(&mut app.world, text, &app.flags)
+            {
+                delayed_action_narration = Some(outcome.narration);
+                task_mutations.extend(outcome.progressed_task);
+            }
+        }
         _ => {
             // Extract @mention for NPC targeting, if present
             let (target_name, dialogue) = match extract_mention(text) {
@@ -1164,7 +1402,8 @@ async fn handle_headless_game_input(
                     app.npc_manager.teach_player_name(setup.npc_id);
                 }
 
-                stream_headless_npc_dialogue(app, text, setup, request_id).await;
+                task_mutations
+                    .extend(stream_headless_npc_dialogue(app, text, setup, request_id).await);
             } else {
                 // `fetch_add` returns the pre-increment value, so the first
                 // idle turn reads index 0 — i.e. `IDLE_MESSAGES[0]` /
@@ -1183,8 +1422,201 @@ async fn handle_headless_game_input(
         }
     }
 
+    persist_headless_task_mutations(
+        app,
+        task_target.as_ref(),
+        task_progress_before,
+        &task_mutations,
+    )
+    .await?;
+    if let Some(narration) = delayed_action_narration {
+        println!("{narration}");
+    }
     println!();
     Ok(())
+}
+
+/// Drives a task-capable headless turn through the shared whole-turn staging
+/// seam, then renders its captured terminal output only after durable commit.
+async fn handle_headless_staged_game_input(
+    app: &mut App,
+    intent_client: Option<&AnyClient>,
+    text: &str,
+) -> Result<()> {
+    use parish_core::game_loop::{GameLoopContext, handle_staged_game_input};
+    use parish_core::ipc::{CapturingEmitter, EventEmitter};
+    use tokio::sync::Mutex;
+
+    let task_target =
+        app.save_file_path
+            .clone()
+            .map(|save_path| parish_core::session_store::TaskJournalTarget {
+                session_id: String::new(),
+                save_path,
+                branch_id: app.active_branch_id,
+            });
+    let transport = default_transport(app);
+    let reaction_templates = app
+        .game_mod
+        .as_ref()
+        .map(|game_mod| game_mod.reactions.clone())
+        .unwrap_or_default();
+    let language = app.language_settings();
+    let config_snapshot = app.snapshot_config();
+    let inference_config = app.inference_config.clone();
+    let (pronunciations, idle_messages, inference_failure_messages) = app
+        .game_mod
+        .as_ref()
+        .map(|game_mod| {
+            (
+                game_mod.pronunciations.clone(),
+                game_mod.loading.idle_messages.clone(),
+                game_mod.loading.inference_failure_messages.clone(),
+            )
+        })
+        .unwrap_or_default();
+    let store = Arc::clone(&app.session_store);
+
+    let world = Mutex::new(std::mem::take(&mut app.world));
+    let npc_manager = Mutex::new(std::mem::take(&mut app.npc_manager));
+    let config = Mutex::new(config_snapshot);
+    let conversation = Mutex::new(parish_core::ipc::ConversationRuntimeState::new());
+    let inference_queue = Mutex::new(app.inference_queue.clone());
+    let client = Mutex::new(intent_client.cloned());
+    let cloud_client = Mutex::new(app.cloud_client.clone());
+    let transport_emitter = Arc::new(CapturingEmitter::new());
+    let emitter: Arc<dyn EventEmitter> = transport_emitter.clone();
+
+    let result = {
+        let ctx = GameLoopContext {
+            world: &world,
+            npc_manager: &npc_manager,
+            config: &config,
+            conversation: &conversation,
+            inference_queue: &inference_queue,
+            emitter,
+            inference_config: &inference_config,
+            pronunciations: &pronunciations,
+            client: &client,
+            cloud_client: &cloud_client,
+            language,
+            inference_failure_messages: &inference_failure_messages,
+            idle_messages: &idle_messages,
+        };
+        handle_staged_game_input(
+            &ctx,
+            store.as_ref(),
+            task_target.as_ref(),
+            Vec::new(),
+            text.to_string(),
+            Vec::new(),
+            &transport,
+            &reaction_templates,
+        )
+        .await
+    };
+
+    app.world = world.into_inner();
+    app.npc_manager = npc_manager.into_inner();
+
+    let commit = result?;
+    render_committed_headless_emissions(&commit.emissions);
+    println!();
+    Ok(())
+}
+
+/// Reconstructs terminal dialogue from the live stream protocol after a staged
+/// turn commits. The desktop consumes the same frames incrementally; headless
+/// can render them in one pass because every frame is already buffered.
+fn render_committed_headless_emissions(emissions: &[(String, serde_json::Value)]) {
+    for line in committed_headless_lines(emissions) {
+        println!("{line}");
+    }
+}
+
+fn committed_headless_lines(emissions: &[(String, serde_json::Value)]) -> Vec<String> {
+    use std::collections::HashMap;
+
+    #[derive(Default)]
+    struct TurnText {
+        source: String,
+        streamed: String,
+        corrected: Option<String>,
+    }
+
+    let mut turns: HashMap<u64, TurnText> = HashMap::new();
+    for (name, payload) in emissions {
+        match name.as_str() {
+            "text-log" => {
+                if let Some(turn_id) = payload
+                    .get("stream_turn_id")
+                    .and_then(|value| value.as_u64())
+                {
+                    turns.entry(turn_id).or_default().source = payload
+                        .get("source")
+                        .and_then(|value| value.as_str())
+                        .unwrap_or_default()
+                        .to_string();
+                }
+            }
+            "stream-token" => {
+                if let Some(turn_id) = payload.get("turn_id").and_then(|value| value.as_u64()) {
+                    turns.entry(turn_id).or_default().streamed.push_str(
+                        payload
+                            .get("token")
+                            .and_then(|value| value.as_str())
+                            .unwrap_or_default(),
+                    );
+                }
+            }
+            "dialogue-corrected" => {
+                if let Some(turn_id) = payload.get("turn_id").and_then(|value| value.as_u64()) {
+                    turns.entry(turn_id).or_default().corrected = payload
+                        .get("corrected_text")
+                        .and_then(|value| value.as_str())
+                        .map(str::to_string);
+                }
+            }
+            _ => {}
+        }
+    }
+
+    let mut lines = Vec::new();
+    for (name, payload) in emissions {
+        match name.as_str() {
+            "text-log" => {
+                let is_stream_placeholder = payload
+                    .get("stream_turn_id")
+                    .is_some_and(|value| !value.is_null());
+                if !is_stream_placeholder
+                    && let Some(content) = payload.get("content").and_then(|value| value.as_str())
+                    && !content.is_empty()
+                {
+                    lines.push(content.to_string());
+                }
+            }
+            "stream-turn-end" => {
+                let Some(turn_id) = payload.get("turn_id").and_then(|value| value.as_u64()) else {
+                    continue;
+                };
+                let Some(turn) = turns.get(&turn_id) else {
+                    continue;
+                };
+                let dialogue = turn.corrected.clone().unwrap_or_else(|| {
+                    parish_core::npc::parse_npc_stream_response(&turn.streamed).dialogue
+                });
+                if !dialogue.trim().is_empty() {
+                    if turn.source.is_empty() {
+                        lines.push(dialogue);
+                    } else {
+                        lines.push(format!("{}: {dialogue}", turn.source));
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+    lines
 }
 
 /// Prints the current location with description, NPCs, and exits (headless).
@@ -1755,9 +2187,77 @@ mod tests {
     #[tokio::test]
     async fn test_handle_headless_command_quit() {
         let mut app = App::new();
-        let (quit, _rebuild) = handle_headless_command(&mut app, Command::Quit, "").await;
+        let (quit, _rebuild) = handle_headless_command(&mut app, Command::Quit, "")
+            .await
+            .unwrap();
         assert!(quit);
         assert!(app.should_quit);
+    }
+
+    #[test]
+    fn committed_headless_renderer_preserves_buffered_protocol_order() {
+        let emissions = vec![
+            (
+                "text-log".to_string(),
+                serde_json::json!({"source": "player", "content": "> Have ye work for me?"}),
+            ),
+            (
+                "text-log".to_string(),
+                serde_json::json!({
+                    "source": "Brigid",
+                    "content": "",
+                    "stream_turn_id": 7
+                }),
+            ),
+            (
+                "stream-token".to_string(),
+                serde_json::json!({
+                    "turn_id": 7,
+                    "token": "{\"dialogue\":\"raw answer\",\"action\":\"\",\"mood\":\"busy\",\"language_hints\":[]}"
+                }),
+            ),
+            (
+                "stream-turn-end".to_string(),
+                serde_json::json!({"turn_id": 7}),
+            ),
+            (
+                "dialogue-corrected".to_string(),
+                serde_json::json!({"turn_id": 7, "corrected_text": "guarded answer"}),
+            ),
+            (
+                "text-log".to_string(),
+                serde_json::json!({"source": "system", "content": "*Brigid offers a spade.*"}),
+            ),
+            (
+                "text-log".to_string(),
+                serde_json::json!({
+                    "source": "Máire",
+                    "content": "",
+                    "stream_turn_id": 8
+                }),
+            ),
+            (
+                "stream-token".to_string(),
+                serde_json::json!({
+                    "turn_id": 8,
+                    "token": "{\"dialogue\":\"fetch water\",\"action\":\"\",\"mood\":\"busy\",\"language_hints\":[]}"
+                }),
+            ),
+            (
+                "stream-turn-end".to_string(),
+                serde_json::json!({"turn_id": 8}),
+            ),
+        ];
+
+        assert_eq!(
+            committed_headless_lines(&emissions),
+            vec![
+                "> Have ye work for me?",
+                "Brigid: guarded answer",
+                "*Brigid offers a spade.*",
+                "Máire: fetch water",
+            ]
+        );
     }
 
     /// TD-037: the idle-message rotation is 0-based — the first idle turn
@@ -1800,7 +2300,9 @@ mod tests {
     #[tokio::test]
     async fn test_handle_headless_command_pause() {
         let mut app = App::new();
-        let (quit, _rebuild) = handle_headless_command(&mut app, Command::Pause, "").await;
+        let (quit, _rebuild) = handle_headless_command(&mut app, Command::Pause, "")
+            .await
+            .unwrap();
         assert!(!quit);
         assert!(app.world.clock.is_paused());
     }
@@ -1809,7 +2311,9 @@ mod tests {
     async fn test_handle_headless_command_resume() {
         let mut app = App::new();
         app.world.clock.pause();
-        let (quit, _rebuild) = handle_headless_command(&mut app, Command::Resume, "").await;
+        let (quit, _rebuild) = handle_headless_command(&mut app, Command::Resume, "")
+            .await
+            .unwrap();
         assert!(!quit);
         assert!(!app.world.clock.is_paused());
     }
@@ -1817,21 +2321,27 @@ mod tests {
     #[tokio::test]
     async fn test_handle_headless_command_help() {
         let mut app = App::new();
-        let (quit, _rebuild) = handle_headless_command(&mut app, Command::Help, "").await;
+        let (quit, _rebuild) = handle_headless_command(&mut app, Command::Help, "")
+            .await
+            .unwrap();
         assert!(!quit);
     }
 
     #[tokio::test]
     async fn test_handle_headless_command_status() {
         let mut app = App::new();
-        let (quit, _rebuild) = handle_headless_command(&mut app, Command::Status, "").await;
+        let (quit, _rebuild) = handle_headless_command(&mut app, Command::Status, "")
+            .await
+            .unwrap();
         assert!(!quit);
     }
 
     #[tokio::test]
     async fn test_handle_headless_command_save_no_db() {
         let mut app = App::new();
-        let (quit, rebuild) = handle_headless_command(&mut app, Command::Save, "").await;
+        let (quit, rebuild) = handle_headless_command(&mut app, Command::Save, "")
+            .await
+            .unwrap();
         assert!(!quit);
         assert!(!rebuild);
     }
@@ -1848,7 +2358,9 @@ mod tests {
         app.active_branch_id = branch.id;
         app.latest_snapshot_id = snap_id;
 
-        let (quit, rebuild) = handle_headless_command(&mut app, Command::Save, "").await;
+        let (quit, rebuild) = handle_headless_command(&mut app, Command::Save, "")
+            .await
+            .unwrap();
         assert!(!quit);
         assert!(!rebuild);
         assert!(app.latest_snapshot_id > snap_id);
@@ -1856,19 +2368,27 @@ mod tests {
 
     #[tokio::test]
     async fn test_handle_headless_command_fork_and_branches() {
+        let temp = tempfile::tempdir().unwrap();
+        let save_path = temp.path().join("parish_001.db");
         let mut app = App::new();
-        let db = crate::persistence::Database::open_memory().unwrap();
+        let db = crate::persistence::Database::open(&save_path).unwrap();
         let async_db = Arc::new(crate::persistence::AsyncDatabase::new(db));
         let branch = async_db.find_branch("main").await.unwrap().unwrap();
         let snapshot = crate::persistence::GameSnapshot::capture(&app.world, &app.npc_manager);
         let snap_id = async_db.save_snapshot(branch.id, &snapshot).await.unwrap();
         app.db = Some(async_db.clone());
+        app.saves_dir = Some(temp.path().to_path_buf());
+        app.save_file_path = Some(save_path);
+        app.session_store = Arc::new(parish_core::session_store::DbSessionStore::new(
+            temp.path().to_path_buf(),
+        ));
         app.active_branch_id = branch.id;
         app.latest_snapshot_id = snap_id;
 
         // Fork
-        let (quit, _) =
-            handle_headless_command(&mut app, Command::Fork("test".to_string()), "").await;
+        let (quit, _) = handle_headless_command(&mut app, Command::Fork("test".to_string()), "")
+            .await
+            .unwrap();
         assert!(!quit);
         assert_ne!(app.active_branch_id, branch.id);
 
@@ -1890,8 +2410,9 @@ mod tests {
         app.latest_snapshot_id = snap_id;
 
         // Load main
-        let (quit, _) =
-            handle_headless_command(&mut app, Command::Load("main".to_string()), "").await;
+        let (quit, _) = handle_headless_command(&mut app, Command::Load("main".to_string()), "")
+            .await
+            .unwrap();
         assert!(!quit);
     }
 
@@ -1901,16 +2422,19 @@ mod tests {
         let db = crate::persistence::Database::open_memory().unwrap();
         let async_db = Arc::new(crate::persistence::AsyncDatabase::new(db));
         app.db = Some(async_db);
-        let (quit, _) =
-            handle_headless_command(&mut app, Command::Load("bogus".to_string()), "").await;
-        assert!(!quit);
+        let error = handle_headless_command(&mut app, Command::Load("bogus".to_string()), "")
+            .await
+            .unwrap_err();
+        assert!(error.to_string().contains("no branch named 'bogus'"));
     }
 
     #[tokio::test]
     async fn test_handle_headless_command_show_provider() {
         let mut app = App::new();
         app.provider_name = "openrouter".to_string();
-        let (quit, rebuild) = handle_headless_command(&mut app, Command::ShowProvider, "").await;
+        let (quit, rebuild) = handle_headless_command(&mut app, Command::ShowProvider, "")
+            .await
+            .unwrap();
         assert!(!quit);
         assert!(!rebuild);
     }
@@ -1920,7 +2444,8 @@ mod tests {
         let mut app = App::new();
         let (quit, rebuild) =
             handle_headless_command(&mut app, Command::SetProvider("openrouter".to_string()), "")
-                .await;
+                .await
+                .unwrap();
         assert!(!quit);
         assert!(rebuild);
         assert_eq!(app.provider_name, "openrouter");
@@ -1931,7 +2456,9 @@ mod tests {
     async fn test_handle_headless_command_set_provider_invalid() {
         let mut app = App::new();
         let (quit, rebuild) =
-            handle_headless_command(&mut app, Command::SetProvider("bogus".to_string()), "").await;
+            handle_headless_command(&mut app, Command::SetProvider("bogus".to_string()), "")
+                .await
+                .unwrap();
         assert!(!quit);
         assert!(!rebuild);
     }
@@ -1940,7 +2467,9 @@ mod tests {
     async fn test_handle_headless_command_show_model() {
         let mut app = App::new();
         app.model_name = "test-model".to_string();
-        let (quit, rebuild) = handle_headless_command(&mut app, Command::ShowModel, "").await;
+        let (quit, rebuild) = handle_headless_command(&mut app, Command::ShowModel, "")
+            .await
+            .unwrap();
         assert!(!quit);
         assert!(!rebuild);
     }
@@ -1949,7 +2478,9 @@ mod tests {
     async fn test_handle_headless_command_set_model() {
         let mut app = App::new();
         let (quit, rebuild) =
-            handle_headless_command(&mut app, Command::SetModel("new-model".to_string()), "").await;
+            handle_headless_command(&mut app, Command::SetModel("new-model".to_string()), "")
+                .await
+                .unwrap();
         assert!(!quit);
         // A base model change now rebinds the worker (#1365) — a model change
         // is a routing change, so it must rebuild for parity with the
@@ -1961,7 +2492,9 @@ mod tests {
     #[tokio::test]
     async fn test_handle_headless_command_show_key_none() {
         let mut app = App::new();
-        let (quit, rebuild) = handle_headless_command(&mut app, Command::ShowKey, "").await;
+        let (quit, rebuild) = handle_headless_command(&mut app, Command::ShowKey, "")
+            .await
+            .unwrap();
         assert!(!quit);
         assert!(!rebuild);
     }
@@ -1970,7 +2503,9 @@ mod tests {
     async fn test_handle_headless_command_show_key_masked() {
         let mut app = App::new();
         app.api_key = Some("sk-or-v1-abcdef1234".to_string());
-        let (quit, rebuild) = handle_headless_command(&mut app, Command::ShowKey, "").await;
+        let (quit, rebuild) = handle_headless_command(&mut app, Command::ShowKey, "")
+            .await
+            .unwrap();
         assert!(!quit);
         assert!(!rebuild);
     }
@@ -1984,7 +2519,8 @@ mod tests {
             Command::SetKey("sk-new-key-12345678".to_string()),
             "",
         )
-        .await;
+        .await
+        .unwrap();
         assert!(!quit);
         assert!(rebuild);
         assert_eq!(app.api_key, Some("sk-new-key-12345678".to_string()));
@@ -1994,7 +2530,9 @@ mod tests {
     #[tokio::test]
     async fn test_handle_headless_command_show_speed() {
         let mut app = App::new();
-        let (quit, rebuild) = handle_headless_command(&mut app, Command::ShowSpeed, "").await;
+        let (quit, rebuild) = handle_headless_command(&mut app, Command::ShowSpeed, "")
+            .await
+            .unwrap();
         assert!(!quit);
         assert!(!rebuild);
     }
@@ -2003,7 +2541,9 @@ mod tests {
     async fn test_handle_headless_command_set_speed() {
         let mut app = App::new();
         let (quit, rebuild) =
-            handle_headless_command(&mut app, Command::SetSpeed(GameSpeed::Fast), "").await;
+            handle_headless_command(&mut app, Command::SetSpeed(GameSpeed::Fast), "")
+                .await
+                .unwrap();
         assert!(!quit);
         assert!(!rebuild);
         assert!(
@@ -2020,7 +2560,8 @@ mod tests {
             Command::SetCategoryModel(InferenceCategory::Dialogue, "gpt-4".to_string()),
             "",
         )
-        .await;
+        .await
+        .unwrap();
         assert!(!quit);
         // Per-category model change now rebinds the worker (#1365).
         assert!(rebuild);
@@ -2036,7 +2577,8 @@ mod tests {
             Command::SetCategoryModel(InferenceCategory::Intent, "qwen3:1.5b".to_string()),
             "",
         )
-        .await;
+        .await
+        .unwrap();
         assert!(!quit);
         // Per-category model change now rebinds the worker (#1365).
         assert!(rebuild);
@@ -2051,7 +2593,8 @@ mod tests {
             Command::SetCategoryModel(InferenceCategory::Simulation, "qwen3:8b".to_string()),
             "",
         )
-        .await;
+        .await
+        .unwrap();
         assert!(!quit);
         // Per-category model change now rebinds the worker (#1365).
         assert!(rebuild);
@@ -2067,7 +2610,8 @@ mod tests {
             Command::SetCategoryProvider(InferenceCategory::Intent, "openrouter".to_string()),
             "",
         )
-        .await;
+        .await
+        .unwrap();
         assert!(!quit);
         assert!(
             rebuild,
@@ -2084,7 +2628,8 @@ mod tests {
             Command::SetCategoryKey(InferenceCategory::Dialogue, "sk-test-key".to_string()),
             "",
         )
-        .await;
+        .await
+        .unwrap();
         assert!(!quit);
         assert!(rebuild, "Setting a category key should trigger rebuild");
         assert_eq!(app.cloud_api_key.as_deref(), Some("sk-test-key"));
@@ -2100,7 +2645,8 @@ mod tests {
             Command::SetCloudProvider("openrouter".to_string()),
             "",
         )
-        .await;
+        .await
+        .unwrap();
         assert!(!quit);
         assert!(rebuild);
         assert_eq!(app.cloud_provider_name.as_deref(), Some("openrouter"));
@@ -2117,20 +2663,29 @@ mod tests {
 
     #[tokio::test]
     async fn test_restore_from_db_fresh_database() {
+        let tmp = tempfile::tempdir().unwrap();
+        let save_path = tmp.path().join("parish_001.db");
         let mut app = App::new();
-        let db = crate::persistence::Database::open_memory().unwrap();
+        app.session_store = Arc::new(parish_core::session_store::DbSessionStore::new(
+            tmp.path().to_path_buf(),
+        ));
+        let db = crate::persistence::Database::open(&save_path).unwrap();
         let async_db = Arc::new(crate::persistence::AsyncDatabase::new(db));
 
         // Fresh DB — should create initial snapshot
-        restore_from_db(&mut app, &async_db).await;
+        restore_from_db(&mut app, &async_db, &save_path, None)
+            .await
+            .unwrap();
         assert_eq!(app.active_branch_id, 1);
         assert!(app.latest_snapshot_id > 0);
     }
 
     #[tokio::test]
     async fn test_restore_from_db_with_existing_snapshot() {
+        let tmp = tempfile::tempdir().unwrap();
+        let save_path = tmp.path().join("parish_001.db");
         let app = App::new();
-        let db = crate::persistence::Database::open_memory().unwrap();
+        let db = crate::persistence::Database::open(&save_path).unwrap();
         let async_db = Arc::new(crate::persistence::AsyncDatabase::new(db));
 
         // Save a snapshot first
@@ -2140,17 +2695,190 @@ mod tests {
 
         // Now restore — should load the existing snapshot
         let mut app2 = App::new();
-        restore_from_db(&mut app2, &async_db).await;
+        app2.session_store = Arc::new(parish_core::session_store::DbSessionStore::new(
+            tmp.path().to_path_buf(),
+        ));
+        restore_from_db(&mut app2, &async_db, &save_path, None)
+            .await
+            .unwrap();
         assert_eq!(app2.active_branch_id, branch.id);
         assert_eq!(app2.latest_snapshot_id, snap_id);
+    }
+
+    #[tokio::test]
+    async fn failed_exact_recovery_preserves_headless_world_identity_and_lock() {
+        let tmp = tempfile::tempdir().unwrap();
+        let old_path = tmp.path().join("parish_001.db");
+        let bad_path = tmp.path().join("parish_002.db");
+        let old_db = crate::persistence::Database::open(&old_path).unwrap();
+        let old_branch = old_db.find_branch("main").unwrap().unwrap();
+        old_db
+            .save_snapshot(
+                old_branch.id,
+                &crate::persistence::GameSnapshot::capture(&App::new().world, &NpcManager::new()),
+            )
+            .unwrap();
+        std::fs::write(&bad_path, b"not a sqlite database").unwrap();
+
+        let mut app = App::new();
+        app.world.log("old live world".to_string());
+        app.save_file_path = Some(old_path.clone());
+        app.active_branch_id = old_branch.id;
+        app.latest_snapshot_id = 77;
+        app.save_lock = crate::persistence::SaveFileLock::try_acquire(&old_path);
+        app.session_store = Arc::new(parish_core::session_store::DbSessionStore::new(
+            tmp.path().to_path_buf(),
+        ));
+        app.session_store.set_active_save("", &old_path).unwrap();
+
+        let error = load_and_restore_snapshot(&mut app, &bad_path, 1, "main")
+            .await
+            .unwrap_err();
+
+        assert!(!error.is_empty());
+        assert_eq!(app.save_file_path.as_deref(), Some(old_path.as_path()));
+        assert_eq!(app.active_branch_id, old_branch.id);
+        assert_eq!(app.latest_snapshot_id, 77);
+        assert!(app.save_lock.is_some());
+        assert!(
+            app.world
+                .text_log
+                .iter()
+                .any(|line| line == "old live world")
+        );
+        assert_eq!(
+            std::fs::canonicalize(app.session_store.save_path("").unwrap()).unwrap(),
+            std::fs::canonicalize(&old_path).unwrap()
+        );
+    }
+
+    #[tokio::test]
+    async fn failed_headless_new_game_preserves_live_identity_and_lock() {
+        let tmp = tempfile::tempdir().unwrap();
+        let old_path = tmp.path().join("parish_001.db");
+        crate::persistence::Database::open(&old_path).unwrap();
+        let invalid_saves_dir = tmp.path().join("not-a-directory");
+        std::fs::write(&invalid_saves_dir, b"file").unwrap();
+
+        let mut app = App::new();
+        app.world.log("old live world".to_string());
+        app.saves_dir = Some(invalid_saves_dir);
+        app.save_file_path = Some(old_path.clone());
+        app.active_branch_id = 42;
+        app.latest_snapshot_id = 77;
+        app.save_lock = crate::persistence::SaveFileLock::try_acquire(&old_path);
+
+        let error = handle_headless_new_game(&mut app).await.unwrap_err();
+
+        assert!(!error.is_empty());
+        assert_eq!(app.save_file_path.as_deref(), Some(old_path.as_path()));
+        assert_eq!(app.active_branch_id, 42);
+        assert_eq!(app.latest_snapshot_id, 77);
+        assert!(app.save_lock.is_some());
+        assert!(
+            app.world
+                .text_log
+                .iter()
+                .any(|line| line == "old live world")
+        );
+    }
+
+    #[tokio::test]
+    async fn headless_action_progress_survives_snapshot_only_crash_via_journal() {
+        let tmp = tempfile::tempdir().unwrap();
+        let save_path = tmp.path().join("parish_001.db");
+        let mut app = App::new();
+        let assigned_at = app.world.clock.now();
+        let task_id = app
+            .world
+            .player_progress
+            .assign_task(
+                "Dig over the potato patch.",
+                parish_core::npc::NpcId(7),
+                app.world.player_location,
+                assigned_at,
+            )
+            .unwrap();
+        let db = crate::persistence::Database::open(&save_path).unwrap();
+        let branch = db.find_branch("main").unwrap().unwrap();
+        let snapshot = crate::persistence::GameSnapshot::capture(&app.world, &app.npc_manager);
+        db.save_snapshot(branch.id, &snapshot).unwrap();
+        drop(db);
+
+        app.session_store = Arc::new(parish_core::session_store::DbSessionStore::new(
+            tmp.path().to_path_buf(),
+        ));
+        app.save_file_path = Some(save_path.clone());
+        app.active_branch_id = branch.id;
+        let mut request_id = 0;
+        handle_headless_game_input(
+            &mut app,
+            None,
+            "",
+            "I set to work in the potato patch, breaking clods and planting seed.",
+            &mut request_id,
+        )
+        .await
+        .unwrap();
+        let progressed = app.world.player_progress.task(task_id).unwrap().clone();
+        assert_eq!(progressed.status, parish_types::TaskStatus::InProgress);
+        drop(app);
+
+        let reopened = parish_core::session_store::DbSessionStore::new(tmp.path().to_path_buf());
+        let recovery =
+            parish_core::session_store::load_recovery_bundle(&reopened, "", &save_path, branch.id)
+                .await
+                .unwrap()
+                .unwrap();
+        let mut restored_world = crate::world::WorldState::new();
+        let mut restored_npcs = crate::npc::manager::NpcManager::new();
+        recovery.restore(&mut restored_world, &mut restored_npcs);
+        assert_eq!(
+            restored_world.player_progress.task(task_id),
+            Some(&progressed)
+        );
+    }
+
+    #[tokio::test]
+    async fn headless_interact_flag_off_routes_to_legacy_fallback_without_task_mutation() {
+        let mut app = App::new();
+        let task_id = app
+            .world
+            .player_progress
+            .assign_task(
+                "Dig over the potato patch.",
+                parish_core::npc::NpcId(7),
+                app.world.player_location,
+                app.world.clock.now(),
+            )
+            .unwrap();
+        app.flags.disable("interact-narration");
+
+        let mut request_id = 0;
+        handle_headless_game_input(
+            &mut app,
+            None,
+            "",
+            "I set to work in the potato patch, breaking clods and planting seed.",
+            &mut request_id,
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(
+            app.world.player_progress.task(task_id).unwrap().status,
+            parish_types::TaskStatus::Assigned,
+            "flag-off interact must retain the pre-narration dialogue/fallback behavior"
+        );
     }
 
     #[tokio::test]
     async fn test_handle_load_bare_no_db() {
         // Bare /load without a DB should not crash
         let mut app = App::new();
-        let (quit, _rebuild) =
-            handle_headless_command(&mut app, Command::Load(String::new()), "").await;
+        let (quit, _rebuild) = handle_headless_command(&mut app, Command::Load(String::new()), "")
+            .await
+            .unwrap();
         assert!(!quit);
     }
 
@@ -2161,7 +2889,9 @@ mod tests {
         let mut app = App::new();
         app.world.clock.pause(); // freeze for determinism
         let hour_before = app.world.clock.now().hour();
-        let (quit, rebuild) = handle_headless_command(&mut app, Command::Wait(60), "").await;
+        let (quit, rebuild) = handle_headless_command(&mut app, Command::Wait(60), "")
+            .await
+            .unwrap();
         assert!(!quit);
         assert!(!rebuild);
         // Time should have advanced by 60 minutes
@@ -2172,7 +2902,9 @@ mod tests {
     #[tokio::test]
     async fn test_handle_headless_command_debug_none() {
         let mut app = App::new();
-        let (quit, rebuild) = handle_headless_command(&mut app, Command::Debug(None), "").await;
+        let (quit, rebuild) = handle_headless_command(&mut app, Command::Debug(None), "")
+            .await
+            .unwrap();
         assert!(!quit);
         assert!(!rebuild);
     }
@@ -2181,7 +2913,9 @@ mod tests {
     async fn test_handle_headless_command_debug_with_subcommand() {
         let mut app = App::new();
         let (quit, rebuild) =
-            handle_headless_command(&mut app, Command::Debug(Some("clock".to_string())), "").await;
+            handle_headless_command(&mut app, Command::Debug(Some("clock".to_string())), "")
+                .await
+                .unwrap();
         assert!(!quit);
         assert!(!rebuild);
     }
@@ -2190,7 +2924,9 @@ mod tests {
     async fn test_handle_headless_command_toggle_sidebar() {
         // In headless mode, ToggleSidebar just prints a message (not available)
         let mut app = App::new();
-        let (quit, rebuild) = handle_headless_command(&mut app, Command::ToggleSidebar, "").await;
+        let (quit, rebuild) = handle_headless_command(&mut app, Command::ToggleSidebar, "")
+            .await
+            .unwrap();
         assert!(!quit);
         assert!(!rebuild);
     }
@@ -2199,7 +2935,9 @@ mod tests {
     async fn test_handle_headless_command_toggle_improv() {
         let mut app = App::new();
         let was_improv = app.improv_enabled;
-        let (quit, rebuild) = handle_headless_command(&mut app, Command::ToggleImprov, "").await;
+        let (quit, rebuild) = handle_headless_command(&mut app, Command::ToggleImprov, "")
+            .await
+            .unwrap();
         assert!(!quit);
         assert!(!rebuild);
         assert_ne!(app.improv_enabled, was_improv);
@@ -2208,7 +2946,9 @@ mod tests {
     #[tokio::test]
     async fn test_handle_headless_command_about() {
         let mut app = App::new();
-        let (quit, rebuild) = handle_headless_command(&mut app, Command::About, "").await;
+        let (quit, rebuild) = handle_headless_command(&mut app, Command::About, "")
+            .await
+            .unwrap();
         assert!(!quit);
         assert!(!rebuild);
     }
@@ -2216,7 +2956,9 @@ mod tests {
     #[tokio::test]
     async fn test_handle_headless_command_map() {
         let mut app = App::new();
-        let (quit, rebuild) = handle_headless_command(&mut app, Command::Map(None), "").await;
+        let (quit, rebuild) = handle_headless_command(&mut app, Command::Map(None), "")
+            .await
+            .unwrap();
         assert!(!quit);
         assert!(!rebuild);
     }
@@ -2224,7 +2966,9 @@ mod tests {
     #[tokio::test]
     async fn test_handle_headless_command_npcs_here() {
         let mut app = App::new();
-        let (quit, rebuild) = handle_headless_command(&mut app, Command::NpcsHere, "").await;
+        let (quit, rebuild) = handle_headless_command(&mut app, Command::NpcsHere, "")
+            .await
+            .unwrap();
         assert!(!quit);
         assert!(!rebuild);
     }
@@ -2232,7 +2976,9 @@ mod tests {
     #[tokio::test]
     async fn test_handle_headless_command_time() {
         let mut app = App::new();
-        let (quit, rebuild) = handle_headless_command(&mut app, Command::Time, "").await;
+        let (quit, rebuild) = handle_headless_command(&mut app, Command::Time, "")
+            .await
+            .unwrap();
         assert!(!quit);
         assert!(!rebuild);
     }
@@ -2241,7 +2987,9 @@ mod tests {
     async fn test_handle_headless_command_invalid_speed() {
         let mut app = App::new();
         let (quit, rebuild) =
-            handle_headless_command(&mut app, Command::InvalidSpeed("bogus".to_string()), "").await;
+            handle_headless_command(&mut app, Command::InvalidSpeed("bogus".to_string()), "")
+                .await
+                .unwrap();
         assert!(!quit);
         assert!(!rebuild);
     }
@@ -2254,7 +3002,8 @@ mod tests {
             Command::InvalidBranchName("Bad name!".to_string()),
             "",
         )
-        .await;
+        .await
+        .unwrap();
         assert!(!quit);
         assert!(!rebuild);
     }
@@ -2262,7 +3011,9 @@ mod tests {
     #[tokio::test]
     async fn test_handle_headless_command_log() {
         let mut app = App::new();
-        let (quit, rebuild) = handle_headless_command(&mut app, Command::Log, "").await;
+        let (quit, rebuild) = handle_headless_command(&mut app, Command::Log, "")
+            .await
+            .unwrap();
         assert!(!quit);
         assert!(!rebuild);
     }
@@ -2270,7 +3021,9 @@ mod tests {
     #[tokio::test]
     async fn test_handle_headless_command_branches_no_db() {
         let mut app = App::new();
-        let (quit, rebuild) = handle_headless_command(&mut app, Command::Branches, "").await;
+        let (quit, rebuild) = handle_headless_command(&mut app, Command::Branches, "")
+            .await
+            .unwrap();
         assert!(!quit);
         assert!(!rebuild);
     }
@@ -2278,7 +3031,9 @@ mod tests {
     #[tokio::test]
     async fn test_handle_headless_command_tick() {
         let mut app = App::new();
-        let (quit, rebuild) = handle_headless_command(&mut app, Command::Tick, "").await;
+        let (quit, rebuild) = handle_headless_command(&mut app, Command::Tick, "")
+            .await
+            .unwrap();
         assert!(!quit);
         assert!(!rebuild);
     }
@@ -2286,7 +3041,9 @@ mod tests {
     #[tokio::test]
     async fn test_handle_headless_command_show_cloud() {
         let mut app = App::new();
-        let (quit, rebuild) = handle_headless_command(&mut app, Command::ShowCloud, "").await;
+        let (quit, rebuild) = handle_headless_command(&mut app, Command::ShowCloud, "")
+            .await
+            .unwrap();
         assert!(!quit);
         assert!(!rebuild);
     }
@@ -2294,7 +3051,9 @@ mod tests {
     #[tokio::test]
     async fn test_handle_headless_command_show_cloud_model() {
         let mut app = App::new();
-        let (quit, rebuild) = handle_headless_command(&mut app, Command::ShowCloudModel, "").await;
+        let (quit, rebuild) = handle_headless_command(&mut app, Command::ShowCloudModel, "")
+            .await
+            .unwrap();
         assert!(!quit);
         assert!(!rebuild);
     }
@@ -2302,7 +3061,9 @@ mod tests {
     #[tokio::test]
     async fn test_handle_headless_command_show_cloud_key() {
         let mut app = App::new();
-        let (quit, rebuild) = handle_headless_command(&mut app, Command::ShowCloudKey, "").await;
+        let (quit, rebuild) = handle_headless_command(&mut app, Command::ShowCloudKey, "")
+            .await
+            .unwrap();
         assert!(!quit);
         assert!(!rebuild);
     }
@@ -2315,7 +3076,8 @@ mod tests {
             Command::SetCloudModel("claude-sonnet".to_string()),
             "",
         )
-        .await;
+        .await
+        .unwrap();
         assert!(!quit);
         assert!(!rebuild); // SetCloudModel doesn't trigger rebuild
         assert_eq!(app.cloud_model_name.as_deref(), Some("claude-sonnet"));
@@ -2329,7 +3091,8 @@ mod tests {
             Command::SetCloudKey("sk-cloud-123".to_string()),
             "",
         )
-        .await;
+        .await
+        .unwrap();
         assert!(!quit);
         assert!(rebuild);
         assert_eq!(app.cloud_api_key.as_deref(), Some("sk-cloud-123"));
@@ -2343,7 +3106,8 @@ mod tests {
             Command::ShowCategoryProvider(InferenceCategory::Dialogue),
             "",
         )
-        .await;
+        .await
+        .unwrap();
         assert!(!quit);
         assert!(!rebuild);
     }
@@ -2356,7 +3120,8 @@ mod tests {
             Command::ShowCategoryModel(InferenceCategory::Intent),
             "",
         )
-        .await;
+        .await
+        .unwrap();
         assert!(!quit);
         assert!(!rebuild);
     }
@@ -2369,7 +3134,8 @@ mod tests {
             Command::ShowCategoryKey(InferenceCategory::Simulation),
             "",
         )
-        .await;
+        .await
+        .unwrap();
         assert!(!quit);
         assert!(!rebuild);
     }

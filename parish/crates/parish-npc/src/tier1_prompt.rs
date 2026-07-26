@@ -26,8 +26,14 @@ const EXAMPLE_RESPONSE_BLOCK: &str = "\
 Example response:\n\
 {\"dialogue\": \"Aye. The road beyond the ford is passable. What news have ye from there?\", \
 \"action\": \"rests both hands on the table\", \"mood\": \"attentive\", \
-\"internal_thought\": \"There may be more to this visit\", \
-\"language_hints\": []}";
+\"language_hints\": [], \"assigned_task\": null, \
+\"internal_thought\": \"There may be more to this visit\"}";
+
+const TASK_ASSIGNMENT_EXAMPLE_BLOCK: &str = "\
+Concrete task-assignment example:\n\
+{\"dialogue\": \"First, help with the potato patch — break the clods and plant seed.\", \
+\"action\": \"points toward the open rows\", \"mood\": \"busy\", \"language_hints\": [], \
+\"assigned_task\": \"Dig over the potato patch.\", \"internal_thought\": null}";
 
 /// Builds the Tier 1 system prompt for an NPC.
 ///
@@ -112,8 +118,9 @@ pub fn build_tier1_system_prompt(npc: &Npc, improv: bool, language: &LanguageSet
         \n\
         Respond in character as {name}. You MUST respond with a JSON object. \
         IMPORTANT — emit the fields in EXACTLY this order: \
-        \"dialogue\" FIRST, then \"action\", then \"mood\", then \"internal_thought\" LAST, \
-        then \"language_hints\". Never put \"internal_thought\" or any other field before \
+        \"dialogue\" FIRST, then \"action\", then \"mood\", then \"language_hints\", \
+        then \"assigned_task\", then \"internal_thought\" LAST. Never put \
+        \"internal_thought\" or any other field before \
         \"dialogue\" — the dialogue field must be the very first key in the JSON object. \
         The dialogue should contain only what you say aloud — \
         pure dialogue, no narration or action descriptions.\n\
@@ -129,11 +136,15 @@ pub fn build_tier1_system_prompt(npc: &Npc, improv: bool, language: &LanguageSet
         - \"dialogue\": your spoken words (this is shown to the player) — MUST BE FIRST\n\
         - \"action\": what you physically do (e.g. \"folds their hands\", \"nods\", \"sighs\")\n\
         - \"mood\": your mood after this interaction\n\
-        - \"internal_thought\": what you're thinking but not saying (optional) — MUST BE LAST\n\
         - \"language_hints\": array of any secondary-language words you used, each with:\n\
           - \"word\": the word as written\n\
           - \"pronunciation\": phonetic guide in English\n\
-          - \"meaning\": English translation\n",
+          - \"meaning\": English translation\n\
+        - \"assigned_task\": a short concrete description ONLY when your spoken \
+          dialogue explicitly assigns the player work they can begin; otherwise null. \
+          Reuse the concrete verbs and objects spoken in \"dialogue\". Do not emit a \
+          task for advice, a general need, an offer, or work assigned to someone else.\n\
+        - \"internal_thought\": what you're thinking but not saying (optional) — MUST BE LAST\n",
         name = npc.name,
         age = npc.age,
         occupation = npc.occupation,
@@ -148,6 +159,8 @@ pub fn build_tier1_system_prompt(npc: &Npc, improv: bool, language: &LanguageSet
     );
 
     prompt.push_str(EXAMPLE_RESPONSE_BLOCK);
+    prompt.push_str("\n\n");
+    prompt.push_str(TASK_ASSIGNMENT_EXAMPLE_BLOCK);
     prompt.push_str("\n\n");
     prompt.push_str(&language_directive(language));
     prompt
@@ -249,6 +262,35 @@ mod tests {
         assert!(
             dialogue_pos < internal_thought_pos,
             "\"dialogue\" field must appear before \"internal_thought\" in the prompt JSON field list"
+        );
+    }
+
+    #[test]
+    fn system_prompt_requires_grounded_optional_task_metadata_without_delaying_dialogue() {
+        let npc = make_named_npc(1, "Siobhan Murphy", 1);
+        let prompt =
+            build_tier1_system_prompt(&npc, false, &crate::LanguageSettings::english_only());
+
+        let dialogue_pos = prompt.find("\"dialogue\" FIRST").unwrap();
+        let assigned_task_pos = prompt.find("\"assigned_task\"").unwrap();
+        let internal_thought_pos = prompt.find("\"internal_thought\" LAST").unwrap();
+        assert!(
+            dialogue_pos < assigned_task_pos && assigned_task_pos < internal_thought_pos,
+            "dialogue must remain first and low-priority internal thought last:\n{prompt}"
+        );
+        assert!(
+            prompt.contains("ONLY when your spoken dialogue explicitly assigns the player work"),
+            "task metadata must be tied to an actual spoken assignment:\n{prompt}"
+        );
+        assert!(
+            prompt.contains("\"assigned_task\": null"),
+            "the example must demonstrate the no-assignment default:\n{prompt}"
+        );
+        assert!(
+            prompt.contains(
+                "\"dialogue\": \"First, help with the potato patch — break the clods and plant seed.\""
+            ) && prompt.contains("\"assigned_task\": \"Dig over the potato patch.\""),
+            "the prompt must demonstrate the exact positive task-assignment contract:\n{prompt}"
         );
     }
 }

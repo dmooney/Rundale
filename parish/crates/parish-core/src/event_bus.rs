@@ -49,7 +49,7 @@ pub struct ServerEvent {
 /// | `Loading`        | `loading`                                 |
 /// | `NpcReaction`    | `npc-reaction`                            |
 /// | `ClockTick`      | (reserved — no current emitter)           |
-/// | `UiControl`      | `toggle-full-map`, `open-designer`, `save-picker`, `theme-switch`, `tiles-switch` |
+/// | `UiControl`      | `toggle-full-map`, `open-designer`, `save-picker`, `theme-switch`, `tiles-switch`, `game-context-reset` |
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum Topic {
@@ -68,9 +68,10 @@ pub enum Topic {
     NpcReaction,
     /// Game-clock tick events (reserved for future use).
     ClockTick,
-    /// UI state controls: map toggle, designer, save picker, theme/tile switches
+    /// UI state controls: map toggle, designer, save picker, theme/tile switches,
+    /// and canonical game-context resets
     /// (`"toggle-full-map"`, `"open-designer"`, `"save-picker"`,
-    /// `"theme-switch"`, `"tiles-switch"`).
+    /// `"theme-switch"`, `"tiles-switch"`, `"game-context-reset"`).
     UiControl,
 }
 
@@ -85,7 +86,7 @@ impl Topic {
             "loading" => Some(Self::Loading),
             "npc-reaction" => Some(Self::NpcReaction),
             "toggle-full-map" | "open-designer" | "save-picker" | "theme-switch"
-            | "tiles-switch" => Some(Self::UiControl),
+            | "tiles-switch" | "game-context-reset" => Some(Self::UiControl),
             _ => None,
         }
     }
@@ -480,6 +481,7 @@ mod tests {
             "save-picker",
             "theme-switch",
             "tiles-switch",
+            "game-context-reset",
         ];
         for name in known {
             assert!(

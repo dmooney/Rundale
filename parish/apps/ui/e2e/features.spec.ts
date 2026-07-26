@@ -1,4 +1,11 @@
-import { test, expect, installTauriMock, emitEvent } from './fixtures';
+import {
+	test,
+	expect,
+	installTauriMock,
+	emitEvent,
+	updateMockResponse,
+} from './fixtures';
+import { SNAPSHOTS } from './mock-data';
 
 /**
  * Dispatch a KeyboardEvent with the given key.
@@ -164,34 +171,94 @@ test.describe('Save picker', () => {
 		await picker.locator('.node-name').click();
 		await expect(picker).not.toBeVisible();
 	});
+
+	test('branch and new-game refreshes replace prior narrative context', async ({
+		page,
+	}) => {
+		const chronicle = page.getByLabel('Live chronicle');
+		await emitEvent(page, 'text-log', {
+			id: 'prior-branch-player',
+			source: 'player',
+			content: 'Words belonging only to the prior branch.',
+		});
+		await emitEvent(page, 'text-log', {
+			id: 'prior-branch-reply',
+			source: 'Old neighbour',
+			content: 'A reply belonging only to the prior branch.',
+		});
+		await expect(chronicle).toContainText('prior branch');
+
+		const loadedScene = {
+			...SNAPSHOTS.morning,
+			location_id: 15,
+			location_name: 'Kilteevan Village',
+			location_description: 'The loaded branch opens at the village well.',
+		};
+		await updateMockResponse(page, 'get_world_snapshot', loadedScene);
+		await pressKey(page, 'F5');
+		const picker = page.locator('[data-testid="save-picker"]');
+		await expect(picker.locator('.node-body')).toBeVisible({ timeout: 5000 });
+		await picker.locator('.node-body').click();
+		await expect(picker).not.toBeVisible();
+		await expect(chronicle).not.toContainText('prior branch');
+		await expect(chronicle).toContainText(loadedScene.location_description);
+
+		await emitEvent(page, 'text-log', {
+			id: 'loaded-branch-only',
+			source: 'player',
+			content: 'Words belonging only to the loaded branch.',
+		});
+		const freshScene = {
+			...SNAPSHOTS.morning,
+			location_id: 1,
+			location_name: 'The Crossroads',
+			location_description: 'A fresh game begins at the quiet crossroads.',
+		};
+		await updateMockResponse(page, 'get_world_snapshot', freshScene);
+		await pressKey(page, 'F5');
+		await picker.getByText('Ledgers').click();
+		await picker.getByText('New Game').click();
+		await expect(picker).not.toBeVisible();
+		await expect(chronicle).not.toContainText('loaded branch');
+		await expect(chronicle).toContainText(freshScene.location_description);
+	});
 });
 
-test.describe('Sidebar toggle', () => {
+test.describe('People notebook', () => {
 	test.beforeEach(async ({ page }) => {
 		await installTauriMock(page, 'morning');
 		await page.goto('/');
 		await page.waitForLoadState('networkidle');
 	});
 
-	test('sidebar details can be toggled open and closed', async ({ page }) => {
-		const sidebar = page.locator('[data-testid="sidebar"]');
-		// Two collapsible sections now (Present + language hints); exercise the first.
-		const details = sidebar.locator('details').first();
+	test('people drawer can be opened and closed', async ({ page }) => {
+		const peopleControl = page.getByRole('button', {
+			name: 'Open People notebook tab',
+		});
+		await peopleControl.focus();
+		await page.keyboard.press('Enter');
+		const drawer = page.getByLabel('people drawer');
+		await expect(drawer).toBeVisible();
 
-		await expect(details).toHaveAttribute('open');
+		await drawer.getByRole('button', { name: 'Close notebook drawer' }).click();
+		await expect(drawer).not.toBeVisible();
 
-		await details.locator('summary').click();
-		await expect(details).not.toHaveAttribute('open');
-
-		await details.locator('summary').click();
-		await expect(details).toHaveAttribute('open');
+		await peopleControl.focus();
+		await page.keyboard.press('Enter');
+		await expect(drawer).toBeVisible();
 	});
 
-	test('sidebar shows language hints on load', async ({ page }) => {
-		await expect(
-			page.getByTestId('sidebar').getByText('Baile Átha Cliath'),
-		).toBeVisible();
-		await expect(page.getByText('[EE-fa]')).toBeVisible();
+	test('people drawer shows nearby names and occupations', async ({ page }) => {
+		const peopleControl = page.getByRole('button', {
+			name: 'Open People notebook tab',
+		});
+		await peopleControl.focus();
+		await page.keyboard.press('Enter');
+		const drawer = page.getByLabel('people drawer');
+		await expect(drawer.getByText('Séamas Ó Briain')).toBeVisible();
+		await expect(drawer.getByText('Publican')).toBeVisible();
+		await expect(drawer.getByText('Aoife Ní Cheallaigh')).toBeVisible();
+		await expect(drawer.getByText('Scholar')).toBeVisible();
 	});
 });
 
@@ -217,7 +284,12 @@ test.describe('Reactions', () => {
 			source: 'player',
 		});
 
-		const reactionBar = page.locator('[data-testid="reaction-bar"]');
+		await expect(page.getByLabel('Live chronicle')).toContainText(
+			'Séamas Ó Briain: Welcome to the tavern!',
+		);
+		const reactionBar = page
+			.locator('.notebook-reaction-strip')
+			.getByTestId('reaction-bar');
 		await expect(reactionBar).toBeVisible();
 		await expect(reactionBar).toContainText('\u{1F44D}');
 	});
@@ -229,10 +301,17 @@ test.describe('Reactions', () => {
 			content: 'Good day to you!',
 		});
 
-		const bubbleAnchor = page.locator('.bubble-anchor').first();
-		await bubbleAnchor.hover();
+		const chronicle = page.getByLabel('Live chronicle');
+		await expect(chronicle).toContainText('Séamas Ó Briain: Good day to you!');
+		const toggle = page.getByRole('button', {
+			name: 'React to message from Séamas Ó Briain',
+		});
+		await expect(toggle).toBeVisible();
+		await toggle.hover();
 
-		const picker = page.locator('[data-testid="reaction-picker"]');
+		const picker = page
+			.locator('.notebook-reaction-strip')
+			.getByTestId('reaction-picker');
 		await expect(picker).toBeVisible();
 	});
 });
@@ -281,6 +360,6 @@ test.describe('Editor', () => {
 
 		await page.locator('.back-link').click();
 		await page.waitForLoadState('networkidle');
-		await expect(page.locator('[data-testid="status-bar"]')).toBeVisible();
+		await expect(page.getByTestId('illustrated-notebook-game')).toBeVisible();
 	});
 });

@@ -29,9 +29,10 @@ pub use tier1::{apply_tier1_response_with_config, record_witness_memories};
 
 // Tier 2 — snapshot types, prompt, inference, event application
 pub use tier2::{
-    NpcSnapshot, Tier2Group, apply_tier2_event_with_config, build_tier2_prompt,
-    npc_snapshot_from_npc, npc_snapshot_from_npc_at, run_tier2_for_group,
-    tier2_parse_failures_total, tier2_summary_location_conflict, tier2_summary_mentions_absent_npc,
+    GroundedTier2ApplyOutcome, NpcSnapshot, Tier2Group, apply_grounded_tier2_event_with_config,
+    build_tier2_prompt, npc_snapshot_from_npc, npc_snapshot_from_npc_at, run_tier2_for_group,
+    tier2_activity_fingerprint_from_npc_at, tier2_parse_failures_total,
+    tier2_summary_location_conflict,
 };
 
 // Tier 3 — snapshot types, prompt, inference, update application
@@ -41,4 +42,4 @@ pub use tier3::{
 };
 
 // Gossip helpers
-pub use gossip::{create_gossip_from_tier2_event, propagate_gossip_at_location};
+pub use gossip::propagate_gossip_at_location;

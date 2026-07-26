@@ -18,6 +18,21 @@ pub struct SnapshotInfo {
     pub real_time: String,
 }
 
+/// One snapshot and the ordered journal tail anchored to it.
+///
+/// Both halves are selected inside one SQLite read transaction so callers
+/// never combine a snapshot with events observed from a different database
+/// view.
+#[derive(Debug, Clone)]
+pub struct RecoveryData {
+    /// Snapshot row id anchoring `journal`.
+    pub snapshot_id: i64,
+    /// Canonical saved state.
+    pub snapshot: GameSnapshot,
+    /// Events recorded after `snapshot_id`, in sequence order.
+    pub journal: Vec<WorldEvent>,
+}
+
 /// Saves a game snapshot to the given branch.
 ///
 /// Returns the snapshot row id.
@@ -68,6 +83,25 @@ pub(super) fn load_latest_snapshot(
     }
 }
 
+/// Loads the latest snapshot and its exact journal tail in one read transaction.
+pub(super) fn load_recovery_data(
+    conn: &Connection,
+    branch_id: i64,
+) -> Result<Option<RecoveryData>, ParishError> {
+    let transaction = conn.unchecked_transaction().db_err()?;
+    let Some((snapshot_id, snapshot)) = load_latest_snapshot(&transaction, branch_id)? else {
+        transaction.commit().db_err()?;
+        return Ok(None);
+    };
+    let journal = events_since_snapshot(&transaction, branch_id, snapshot_id)?;
+    transaction.commit().db_err()?;
+    Ok(Some(RecoveryData {
+        snapshot_id,
+        snapshot,
+        journal,
+    }))
+}
+
 /// Appends a journal event for the given branch and snapshot.
 ///
 /// The sequence number is computed and inserted atomically via a single
@@ -98,6 +132,45 @@ pub(super) fn append_event(
     )
     .db_err()?;
     Ok(())
+}
+
+/// Appends a batch of events to the latest snapshot in one transaction.
+///
+/// Snapshot selection and every insert share the same SQLite transaction, so
+/// a concurrent autosave cannot interpose a newer snapshot between lookup and
+/// append. Any failed insert rolls the entire batch back.
+pub(super) fn append_events_to_latest_snapshot(
+    conn: &Connection,
+    branch_id: i64,
+    events: &[(WorldEvent, String)],
+) -> Result<Option<i64>, ParishError> {
+    use rusqlite::OptionalExtension as _;
+
+    if events.is_empty() {
+        return Ok(None);
+    }
+
+    let transaction = conn.unchecked_transaction().db_err()?;
+    let snapshot_id: Option<i64> = transaction
+        .query_row(
+            "SELECT id FROM snapshots
+             WHERE branch_id = ?1
+             ORDER BY id DESC LIMIT 1",
+            params![branch_id],
+            |row| row.get(0),
+        )
+        .optional()
+        .db_err()?;
+    let Some(snapshot_id) = snapshot_id else {
+        transaction.commit().db_err()?;
+        return Ok(None);
+    };
+
+    for (event, game_time) in events {
+        append_event(&transaction, branch_id, snapshot_id, event, game_time)?;
+    }
+    transaction.commit().db_err()?;
+    Ok(Some(snapshot_id))
 }
 
 /// Returns all journal events after a given snapshot for a branch.

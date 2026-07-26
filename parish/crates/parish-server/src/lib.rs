@@ -520,6 +520,7 @@ fn build_router(
         // #377 — /api/session-init: issues short-lived WS session tokens.
         .route("/api/session-init", post(routes::session_init))
         .route("/api/world-snapshot", get(routes::get_world_snapshot))
+        .route("/api/reconnect-state", get(routes::get_reconnect_state))
         .route("/api/setup-snapshot", get(routes::get_setup_snapshot))
         .route("/api/map", get(routes::get_map))
         .route("/api/npcs-here", get(routes::get_npcs_here))

@@ -87,7 +87,7 @@ A four-tier simulation that scales hundreds of NPCs at varying fidelity based on
 - **Per-category routing** — Dialogue, Simulation, and Intent can each use a different provider/model/key, switchable at runtime via dot-notation commands (`/provider.dialogue`, `/model.intent`, `/key.simulation`).
 - **Three-lane priority queue** — Interactive (player dialogue) preempts Background (Tier 2) preempts Batch (Tier 3); a slow batch call cannot block your conversation.
 - **Token streaming** with bounded back-pressure (1024-token channel) so a slow consumer never OOMs the engine.
-- **Structured JSON output** — NPC turns return `{mood, action, internal_thought, irish_words}`; partial JSON is recovered on truncation.
+- **Structured JSON output** — NPC turns return dialogue plus bounded metadata (`action`, `mood`, `internal_thought`, `language_hints`, and an optional concrete `assigned_task`); partial JSON is recovered on truncation, and gameplay metadata is validated against canonical world state before application.
 - **Reachability + timeout knobs** — request, streaming, model-load, and download timeouts all configurable per-environment.
 - **Bounded inference log** — recent calls (model, latency, sizes, errors) surface in the debug panel without unbounded memory growth.
 - **Five-layer prompt-injection defence** (ADR-010) — role separation, delimited input with "sandwiched" instructions, input sanitisation at the system boundary, strict output parsing/validation, and output filtering before display.
@@ -103,6 +103,7 @@ A four-tier simulation that scales hundreds of NPCs at varying fidelity based on
 - **Mention + slash autocomplete**, tab completion for known nouns, and a 50-entry input history.
 - **Quick-travel chips** for adjacent locations rendered below the input.
 - **Pronunciation sidebar** — Irish vocabulary and NPC names accumulate with IPA hints as you encounter them.
+- **Durable assigned work** — concrete NPC jobs enter an authoritative task ledger; matching physical actions advance them from assigned to in progress, publish semantic events, survive save/load and acknowledged-turn crash recovery, and appear in the illustrated notebook independently of the input draft. Gated by the default-on `player-task-progression` flag.
 
 ### Persistence & branching
 
@@ -122,7 +123,7 @@ A four-tier simulation that scales hundreds of NPCs at varying fidelity based on
 - **Three themes** selectable with `/theme` — default cream/parchment, Solarized Light, Solarized Dark — driven by CSS custom properties and persisted in `localStorage` so reloads don't flash the wrong palette.
 - **Debug panel** (F12) — eight tabs (Overview, NPCs, World, Weather, Gossip, Conversations, Events, Inference) dockable to the side or bottom.
 - **Bug reporter** (🐛) — a toolbar button (and a 🐛 next to every record in the debug panel) captures a screenshot, recent logs, and current game state and files a GitHub issue on the configured repo (`dmooney/rundale` by default), embedding the screenshot inline. Per-record buttons attach the exact inference call / event / conversation as context. Every report also carries a "black box" diagnostic payload — the raw LLM prompt/response history, the canonical `get_engine_state` snapshot, and the last raw user intent — so local-inference drift is reproducible. Also available to auto-QA agents via the `parish_file_bug` MCP tool. Gated by the default-on `bug-report` flag; configured via `PARISH_BUG_REPORT_TOKEN` / `PARISH_BUG_REPORT_REPO`, with `PARISH_BUG_REPORT_DRY_RUN=1` writing the report to disk instead of filing.
-- **MCP automated-QA loop** — the `parish_engine_state` MCP tool exposes the canonical, deterministic engine state (active scene, clock, weather, player, NPCs, gossip grapevine) so an agent can assert the UI resolved each state transition. The `parish/scripts/parish-mcp-audit.sh` lifecycle script wraps a strict Init → Execute → Validate (UI vs `get_engine_state`) → Teardown (file a bug on mismatch, kill the backend cleanly) loop. Gated by the default-on `engine-state` flag.
+- **MCP automated-QA loop** — the `parish_engine_state` MCP tool exposes the canonical, deterministic engine state (active scene, clock, weather, player tasks, NPCs, gossip grapevine) so an agent can assert the UI resolved each state transition. The `parish/scripts/parish-mcp-audit.sh` lifecycle script wraps a strict Init → Execute → Validate (UI vs `get_engine_state`) → Teardown (file a bug on mismatch, kill the backend cleanly) loop. Gated by the default-on `engine-state` flag.
 - **Save picker** (F5) with a DAG visualization of branches and inline fork form.
 - **Keyboard shortcuts** — F5 saves, F12 debug, M map, Up/Down history, Tab autocomplete, Esc cancels travel.
 - **Parish Designer** — integrated GUI editor at `/editor` for authoring NPCs, locations, schedules, and mod data without touching JSON directly; see the [Parish Designer](#parish-designer-gui-editor) section below.

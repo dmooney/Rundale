@@ -1,6 +1,22 @@
 // All fields in snake_case matching Rust serde defaults
 
+export type PlayerTaskStatus = 'assigned' | 'in_progress' | 'completed';
+
+export interface PlayerTaskSnapshot {
+	id: number;
+	description: string;
+	assigned_by: number;
+	location_id: number;
+	status: PlayerTaskStatus;
+	assigned_at: string;
+	started_at: string | null;
+	completed_at: string | null;
+	last_matching_action: string | null;
+}
+
 export interface WorldSnapshot {
+	/** Canonical ID of the player's current location. */
+	location_id: number;
 	location_name: string;
 	location_description: string;
 	time_label: string;
@@ -15,6 +31,7 @@ export interface WorldSnapshot {
 	speed_factor: number;
 	name_hints: LanguageHint[];
 	day_of_week: string;
+	active_tasks: PlayerTaskSnapshot[];
 	/** Whether an NPC conversation turn is being processed by the engine.
 	 *  Set on the `/api/world-snapshot` resync the reconnect handler fetches so
 	 *  the client can re-assert `streamingActive` from authoritative state
@@ -83,6 +100,20 @@ export interface NpcInfo {
 	mood: string;
 	introduced: boolean;
 	mood_emoji: string;
+}
+
+/**
+ * One persistence-gated reconnect snapshot.
+ *
+ * The server and Tauri command capture these fields under the same canonical
+ * state locks. Consumers must validate and commit the envelope as one unit;
+ * independently refreshing its children can mix two game contexts.
+ */
+export interface ReconnectState {
+	world: WorldSnapshot;
+	map: MapData;
+	npcs: NpcInfo[];
+	context_epoch: number;
 }
 
 export interface ThemePalette {
@@ -573,6 +604,7 @@ export interface DemoContextSnapshot {
 	weather: string;
 	npcs_here: DemoNpcInfo[];
 	adjacent: DemoAdjacentLocation[];
+	active_tasks: PlayerTaskSnapshot[];
 	recent_log: string[];
 	recent_actions: string[];
 	extra_prompt: string | null;

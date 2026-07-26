@@ -1668,6 +1668,7 @@ mod tests {
                 internal_thought: None,
                 language_hints: Vec::new(),
                 mentioned_people: Vec::new(),
+                assigned_task: None,
             }),
         };
         let game_time = chrono::Utc.with_ymd_and_hms(1820, 3, 20, 10, 0, 0).unwrap();
@@ -1735,6 +1736,7 @@ mod tests {
                 internal_thought: None,
                 language_hints: Vec::new(),
                 mentioned_people: Vec::new(),
+                assigned_task: None,
             }),
         };
         let game_time = chrono::Utc.with_ymd_and_hms(1820, 3, 20, 10, 0, 0).unwrap();
@@ -1760,6 +1762,7 @@ mod tests {
                 internal_thought: None,
                 language_hints: Vec::new(),
                 mentioned_people: Vec::new(),
+                assigned_task: None,
             }),
         };
         let game_time = chrono::Utc.with_ymd_and_hms(1820, 3, 20, 10, 0, 0).unwrap();

@@ -313,6 +313,7 @@ impl fmt::Display for GameSpeed {
 /// equals 1 in-game day (24 hours). The clock can be paused,
 /// resumed, manually advanced (e.g. during travel), and its speed
 /// changed at runtime via [`GameSpeed`] presets.
+#[derive(Clone)]
 pub struct GameClock {
     /// Wall-clock instant when the clock was created or last resumed.
     start_real: Instant,

@@ -13,11 +13,15 @@ export const NOTEBOOK_ACTIONS = [
 	'leave',
 ] as const;
 
+const DESKTOP_MIN_WIDTH = 1100;
+const DESKTOP_MIN_HEIGHT = 700;
+const COMPACT_LANDSCAPE_MAX_HEIGHT = 500;
+
 export function computeNotebookLayout(
 	width: number,
 	height: number,
 ): NotebookLayout {
-	const mobile = width < 760;
+	const mobile = width < DESKTOP_MIN_WIDTH || height < DESKTOP_MIN_HEIGHT;
 	if (mobile) return mobileLayout(width, height);
 	return desktopLayout(width, height);
 }
@@ -47,7 +51,12 @@ function desktopLayout(width: number, height: number): NotebookLayout {
 		Math.min(150, width * 0.105),
 		Math.min(535, height * 0.62),
 	);
-	const intentWidth = Math.min(700, Math.max(500, width * 0.48));
+	// Keep the centered intent clear of the two lower side-control groups.
+	// At the 1100px desktop boundary this leaves a 14px gutter to the task card.
+	const intentWidth = Math.min(
+		700,
+		Math.max(420, Math.min(width * 0.48, width - 660)),
+	);
 	const intentHeight = Math.min(82, Math.max(64, height * 0.09));
 	const intent = rect(
 		(width - intentWidth) / 2,
@@ -56,14 +65,22 @@ function desktopLayout(width: number, height: number): NotebookLayout {
 		intentHeight,
 	);
 	const stampSize = Math.min(92, Math.max(72, width * 0.064));
-	const gap = -2;
+	const gap = 6;
 	const totalStamps =
 		NOTEBOOK_ACTIONS.length * stampSize + (NOTEBOOK_ACTIONS.length - 1) * gap;
-	const stampY = intent.y - stampSize + 6;
+	const stampY = intent.y - stampSize - 8;
 	const stampX = (width - totalStamps) / 2;
 	const stamps = NOTEBOOK_ACTIONS.map((_, i) =>
 		rect(stampX + i * (stampSize + gap), stampY, stampSize, stampSize),
 	);
+	const chronicleX = nearby.x + nearby.width + 24;
+	const liveChronicle = rect(
+		chronicleX,
+		topHeight + 18,
+		Math.max(260, page.x - chronicleX - 24),
+		178,
+	);
+	const tabX = Math.min(width - 94, page.x + page.width - 4);
 
 	return {
 		mode: 'desktop',
@@ -73,8 +90,9 @@ function desktopLayout(width: number, height: number): NotebookLayout {
 		nearbyStrip: nearby,
 		notebookPage: page,
 		tabs: Array.from({ length: 5 }, (_, i) =>
-			rect(page.x + page.width - 4, page.y + 24 + i * 86, 86, 62),
+			rect(tabX, page.y + 24 + i * 86, 86, 62),
 		),
+		liveChronicle,
 		actionStamps: stamps,
 		intentStrip: intent,
 		mapCard: rect(10, height - 104, 102, 102),
@@ -85,44 +103,99 @@ function desktopLayout(width: number, height: number): NotebookLayout {
 
 function mobileLayout(width: number, height: number): NotebookLayout {
 	const pad = 8;
-	const topHeight = 70;
-	const nearbyHeight = 104;
-	const intentHeight = 88;
-	const stampSize = Math.max(58, Math.min(68, (width - 24) / 5));
+	const compactLandscape =
+		height < COMPACT_LANDSCAPE_MAX_HEIGHT && width > height;
+	const topHeight = compactLandscape ? 58 : 70;
+	const nearbyHeight = compactLandscape ? 78 : 104;
+	const intentHeight = compactLandscape ? 56 : 88;
+	const stampGap = compactLandscape ? 4 : 4;
+	const stampSize = compactLandscape
+		? Math.max(40, Math.min(46, (width - 40) / 5))
+		: Math.max(58, Math.min(68, (width - 24) / 5));
 	const intent = rect(
 		pad,
 		height - intentHeight - 10,
 		width - pad * 2,
 		intentHeight,
 	);
-	const stampY = intent.y - stampSize + 6;
-	const stampX = (width - stampSize * 5) / 2;
-	const pageWidth = Math.min(186, width * 0.48);
-	const pageHeight = Math.min(276, height * 0.34);
+	const totalStamps =
+		NOTEBOOK_ACTIONS.length * stampSize +
+		(NOTEBOOK_ACTIONS.length - 1) * stampGap;
+	const stampY = intent.y - stampSize - 6;
+	const stampX = (width - totalStamps) / 2;
+	const nearby = rect(pad, topHeight + 4, width - pad * 2, nearbyHeight);
+	const pageY = nearby.y + nearby.height + 8;
+	const pageWidth = compactLandscape
+		? Math.min(186, width * 0.3)
+		: Math.min(186, width * 0.48);
+	const compactPageHeight = Math.max(88, stampY - pageY - 8);
+	const pageHeight = compactLandscape
+		? Math.min(112, compactPageHeight)
+		: Math.min(276, height * 0.34);
 	const page = rect(
-		width - pageWidth - 5,
-		topHeight + nearbyHeight - 14,
+		width - pageWidth - (compactLandscape ? 50 : 5),
+		pageY,
 		pageWidth,
 		pageHeight,
 	);
+	const activeTaskGap = 8;
+	const activeTask = rect(
+		pad,
+		pageY,
+		Math.min(184, Math.max(1, page.x - pad - activeTaskGap)),
+		compactLandscape ? 44 : Math.min(64, Math.max(44, height * 0.075)),
+	);
+	let liveChronicle: NotebookRect;
+	if (compactLandscape) {
+		const chronicleX = activeTask.x + activeTask.width + 8;
+		liveChronicle = rect(
+			chronicleX,
+			pageY,
+			Math.max(1, page.x - chronicleX - 8),
+			Math.min(page.height, Math.max(48, stampY - pageY - 8)),
+		);
+	} else {
+		const belowPageY = page.y + page.height + 8;
+		const belowPageHeight = stampY - belowPageY - 8;
+		if (belowPageHeight >= 96) {
+			liveChronicle = rect(
+				10,
+				belowPageY,
+				width - 20,
+				Math.min(172, belowPageHeight),
+			);
+		} else {
+			const chronicleY = activeTask.y + activeTask.height + 8;
+			liveChronicle = rect(
+				pad,
+				chronicleY,
+				Math.max(1, page.x - pad * 3),
+				Math.min(172, Math.max(48, stampY - chronicleY - 8)),
+			);
+		}
+	}
+	const mobileTabX = Math.min(width - 50, page.x + page.width - 3);
 
 	return {
 		mode: 'mobile',
 		width,
 		height,
 		topRibbon: rect(0, 0, width, topHeight),
-		nearbyStrip: rect(pad, topHeight + 4, width - pad * 2, nearbyHeight),
+		nearbyStrip: nearby,
 		notebookPage: page,
-		tabs: Array.from({ length: 5 }, (_, i) =>
-			rect(page.x + page.width - 3, page.y + 12 + i * 45, 48, 34),
-		),
+		tabs: compactLandscape
+			? []
+			: Array.from({ length: 5 }, (_, i) =>
+					rect(mobileTabX, page.y + 12 + i * 40, 48, 30),
+				),
+		liveChronicle,
 		actionStamps: NOTEBOOK_ACTIONS.map((_, i) =>
-			rect(stampX + i * stampSize, stampY, stampSize, stampSize),
+			rect(stampX + i * (stampSize + stampGap), stampY, stampSize, stampSize),
 		),
 		intentStrip: intent,
 		mapCard: null,
 		timeCard: null,
-		activeIntentsCard: null,
+		activeIntentsCard: activeTask,
 	};
 }
 

@@ -75,6 +75,9 @@ pub enum PlayerProgressError {
     /// Whitespace-only descriptions do not create tasks.
     #[error("task description must not be blank")]
     BlankDescription,
+    /// Task id zero is reserved and cannot appear in authoritative state.
+    #[error("task identifier must be nonzero")]
+    InvalidTaskId,
     /// The bounded ledger is full of active tasks, which may not be evicted.
     #[error("task ledger is full with {capacity} active tasks")]
     ActiveTaskCapacity { capacity: usize },
@@ -125,7 +128,7 @@ impl PlayerProgress {
             task.status != TaskStatus::Completed
                 && task.assigned_by == assigned_by
                 && task.location == location
-                && task.description.to_lowercase() == description.to_lowercase()
+                && task_identity_key(&task.description) == task_identity_key(&description)
         }) {
             return Ok(existing.id);
         }
@@ -193,6 +196,68 @@ impl PlayerProgress {
         self.tasks.iter().find(|task| task.id == id)
     }
 
+    /// Hydrates an authoritative post-mutation task payload during journal replay.
+    ///
+    /// Existing ids are replaced in place so replaying the same event is
+    /// idempotent and assignment order is stable. A stale or equal-lifecycle
+    /// payload cannot move a task backwards or rewrite immutable assignment
+    /// fields. Absent ids use the same bounded-ledger policy as
+    /// [`Self::assign_task`], and the monotonic id counter is advanced past
+    /// every accepted replay id.
+    ///
+    /// Returns `true` when retained task state changed and `false` for an exact
+    /// duplicate or a stale lifecycle payload.
+    pub fn apply_replayed_task(
+        &mut self,
+        mut task: PlayerTask,
+    ) -> Result<bool, PlayerProgressError> {
+        if task.id.0 == 0 {
+            return Err(PlayerProgressError::InvalidTaskId);
+        }
+        let following_id = task
+            .id
+            .0
+            .checked_add(1)
+            .ok_or(PlayerProgressError::IdExhausted)?;
+        task.description = bounded_nonblank(&task.description, MAX_TASK_DESCRIPTION_CHARS)
+            .ok_or(PlayerProgressError::BlankDescription)?;
+        task.last_matching_action = task
+            .last_matching_action
+            .as_deref()
+            .and_then(|action| bounded_nonblank(action, MAX_TASK_ACTION_CHARS));
+
+        if let Some(index) = self
+            .tasks
+            .iter()
+            .position(|existing| existing.id == task.id)
+        {
+            self.next_task_id = self.next_task_id.max(following_id);
+            let existing = &mut self.tasks[index];
+            if task_status_rank(task.status) <= task_status_rank(existing.status) {
+                return Ok(false);
+            }
+            *existing = task;
+            return Ok(true);
+        }
+
+        while self.tasks.len() >= MAX_PLAYER_TASKS {
+            let Some(completed_index) = self
+                .tasks
+                .iter()
+                .position(|existing| existing.status == TaskStatus::Completed)
+            else {
+                return Err(PlayerProgressError::ActiveTaskCapacity {
+                    capacity: MAX_PLAYER_TASKS,
+                });
+            };
+            self.tasks.remove(completed_index);
+        }
+
+        self.next_task_id = self.next_task_id.max(following_id);
+        self.tasks.push(task);
+        Ok(true)
+    }
+
     /// Advances one unambiguous, same-location assigned task to in-progress.
     ///
     /// The action must overlap a task description on at least one meaningful
@@ -208,6 +273,7 @@ impl PlayerProgress {
         started_at: DateTime<Utc>,
     ) -> Option<PlayerTaskId> {
         let action = bounded_nonblank(action, MAX_TASK_ACTION_CHARS)?;
+        let action_verb = affirmative_direct_work_verb(&action)?;
         let candidates: Vec<usize> = self
             .tasks
             .iter()
@@ -217,7 +283,8 @@ impl PlayerProgress {
             })
             .collect();
 
-        let selected = select_unique_task_by_overlap(&self.tasks, &candidates, &action)?;
+        let selected =
+            select_unique_task_by_overlap(&self.tasks, &candidates, &action, action_verb)?;
 
         let task = &mut self.tasks[selected];
         task.status = TaskStatus::InProgress;
@@ -265,6 +332,14 @@ impl PlayerProgress {
     }
 }
 
+fn task_status_rank(status: TaskStatus) -> u8 {
+    match status {
+        TaskStatus::Assigned => 0,
+        TaskStatus::InProgress => 1,
+        TaskStatus::Completed => 2,
+    }
+}
+
 fn bounded_nonblank(value: &str, max_chars: usize) -> Option<String> {
     let trimmed = value.trim();
     if trimmed.is_empty() {
@@ -277,6 +352,7 @@ fn select_unique_task_by_overlap(
     tasks: &[PlayerTask],
     candidates: &[usize],
     action: &str,
+    action_verb: &'static str,
 ) -> Option<usize> {
     let action_tokens = meaningful_tokens(action);
     if action_tokens.is_empty() {
@@ -287,18 +363,205 @@ fn select_unique_task_by_overlap(
         .iter()
         .copied()
         .map(|index| {
+            let task_verb = task_work_verb(&tasks[index].description);
             let description_tokens = meaningful_tokens(&tasks[index].description);
-            let score = action_tokens.intersection(&description_tokens).count();
+            let score = if action_verb == "work" || task_verb == Some(action_verb) {
+                action_tokens.intersection(&description_tokens).count()
+            } else {
+                0
+            };
             (index, score)
         })
         .collect();
     scored.sort_by_key(|(_, score)| std::cmp::Reverse(*score));
 
     let (best_index, best_score) = *scored.first()?;
-    if best_score == 0 || scored.get(1).is_some_and(|(_, score)| *score == best_score) {
+    if best_score < 2 || scored.get(1).is_some_and(|(_, score)| *score == best_score) {
         return None;
     }
     Some(best_index)
+}
+
+fn task_identity_key(value: &str) -> String {
+    value
+        .split(|character: char| !character.is_alphanumeric())
+        .filter(|token| !token.is_empty())
+        .map(str::to_lowercase)
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
+fn affirmative_direct_work_verb(value: &str) -> Option<&'static str> {
+    let lower = value.to_lowercase().replace('\u{2019}', "'");
+    let words: Vec<&str> = lower
+        .split(|character: char| !character.is_alphanumeric())
+        .filter(|word| !word.is_empty())
+        .collect();
+    if words.is_empty()
+        || words.iter().any(|word| {
+            matches!(
+                *word,
+                "no" | "not"
+                    | "never"
+                    | "cannot"
+                    | "dont"
+                    | "cant"
+                    | "wont"
+                    | "avoid"
+                    | "avoids"
+                    | "avoided"
+                    | "avoiding"
+            )
+        })
+        || [
+            "don't ",
+            "do not ",
+            "can't ",
+            "cannot ",
+            "won't ",
+            "will not ",
+            "instead of",
+            "rather than",
+            "i break the news",
+            "i break the silence",
+            "i break the ice",
+            "i clear the air",
+            "i bring the matter up",
+        ]
+        .iter()
+        .any(|phrase| lower.contains(phrase))
+        || (words.contains(&"leave") && words.contains(&"alone"))
+    {
+        return None;
+    }
+
+    let mut index = 0;
+    if words.get(index) == Some(&"i") {
+        index += 1;
+    }
+    if words.get(index) == Some(&"please") {
+        index += 1;
+    }
+    let verb = words.get(index).copied()?;
+
+    if verb == "set" {
+        if words.get(index + 1) != Some(&"to") || words.get(index + 2) != Some(&"work") {
+            return None;
+        }
+        return words
+            .get(index + 3)
+            .and_then(|word| canonical_work_gerund(word))
+            .or(Some("work"));
+    }
+    if verb == "see" {
+        return (words.get(index + 1) == Some(&"to")).then_some("see_to");
+    }
+    if verb == "take" {
+        return (words.get(index + 1) == Some(&"care") && words.get(index + 2) == Some(&"of"))
+            .then_some("take_care_of");
+    }
+
+    canonical_work_verb(verb)
+}
+
+fn task_work_verb(value: &str) -> Option<&'static str> {
+    let words: Vec<String> = value
+        .split(|character: char| !character.is_alphanumeric())
+        .filter(|word| !word.is_empty())
+        .map(str::to_lowercase)
+        .collect();
+    let verb = words.first()?.as_str();
+    if verb == "see" && words.get(1).is_some_and(|word| word == "to") {
+        return Some("see_to");
+    }
+    if verb == "take"
+        && words.get(1).is_some_and(|word| word == "care")
+        && words.get(2).is_some_and(|word| word == "of")
+    {
+        return Some("take_care_of");
+    }
+    canonical_work_verb(verb)
+}
+
+fn canonical_work_verb(verb: &str) -> Option<&'static str> {
+    Some(match verb {
+        "mend" | "repair" => "repair",
+        "break" => "break",
+        "bring" => "bring",
+        "carry" => "carry",
+        "clean" => "clean",
+        "clear" => "clear",
+        "collect" => "collect",
+        "cut" => "cut",
+        "dig" => "dig",
+        "draw" => "draw",
+        "drink" => "drink",
+        "drop" => "drop",
+        "feed" => "feed",
+        "fetch" => "fetch",
+        "fill" => "fill",
+        "gather" => "gather",
+        "hang" => "hang",
+        "harvest" => "harvest",
+        "help" => "help",
+        "hoe" => "hoe",
+        "knead" => "knead",
+        "kneel" => "kneel",
+        "light" => "light",
+        "lift" => "lift",
+        "milk" => "milk",
+        "open" => "open",
+        "pick" => "pick",
+        "place" => "place",
+        "plant" => "plant",
+        "pour" => "pour",
+        "pump" => "pump",
+        "put" => "put",
+        "rake" => "rake",
+        "scrub" => "scrub",
+        "sow" => "sow",
+        "stack" => "stack",
+        "stoke" => "stoke",
+        "sweep" => "sweep",
+        "tend" => "tend",
+        "tie" => "tie",
+        "turn" => "turn",
+        "wash" => "wash",
+        "weed" => "weed",
+        _ => return None,
+    })
+}
+
+fn canonical_work_gerund(verb: &str) -> Option<&'static str> {
+    Some(match verb {
+        "mending" | "repairing" => "repair",
+        "breaking" => "break",
+        "bringing" => "bring",
+        "carrying" => "carry",
+        "cleaning" => "clean",
+        "clearing" => "clear",
+        "collecting" => "collect",
+        "cutting" => "cut",
+        "digging" => "dig",
+        "drawing" => "draw",
+        "feeding" => "feed",
+        "fetching" => "fetch",
+        "filling" => "fill",
+        "gathering" => "gather",
+        "harvesting" => "harvest",
+        "helping" => "help",
+        "hoeing" => "hoe",
+        "milking" => "milk",
+        "planting" => "plant",
+        "raking" => "rake",
+        "sowing" => "sow",
+        "stacking" => "stack",
+        "sweeping" => "sweep",
+        "tending" => "tend",
+        "turning" => "turn",
+        "weeding" => "weed",
+        _ => return None,
+    })
 }
 
 fn meaningful_tokens(value: &str) -> HashSet<String> {
@@ -426,6 +689,34 @@ mod tests {
     }
 
     #[test]
+    fn harmless_punctuation_and_whitespace_do_not_duplicate_an_active_assignment() {
+        let mut progress = PlayerProgress::default();
+        let first = progress
+            .assign_task(
+                "Dig over the potato patch.",
+                NpcId(7),
+                LocationId(9),
+                at(10),
+            )
+            .unwrap();
+        let repeated = progress
+            .assign_task(
+                "  DIG   over the potato patch  ",
+                NpcId(7),
+                LocationId(9),
+                at(11),
+            )
+            .unwrap();
+
+        assert_eq!(repeated, first);
+        assert_eq!(progress.len(), 1);
+        assert_eq!(
+            progress.task(first).unwrap().description,
+            "Dig over the potato patch."
+        );
+    }
+
+    #[test]
     fn exact_potato_patch_action_starts_task_without_completing_it() {
         let mut progress = PlayerProgress::default();
         let id = progress
@@ -438,11 +729,7 @@ mod tests {
             .unwrap();
 
         assert_eq!(
-            progress.advance_assigned_task(
-                "I set to work digging over the potato patch.",
-                LocationId(9),
-                at(11),
-            ),
+            progress.advance_assigned_task("I dig over the potato patch.", LocationId(9), at(11),),
             Some(id)
         );
         let task = progress.task(id).unwrap();
@@ -451,12 +738,35 @@ mod tests {
         assert_eq!(task.completed_at, None);
         assert_eq!(
             task.last_matching_action.as_deref(),
-            Some("I set to work digging over the potato patch.")
+            Some("I dig over the potato patch.")
         );
 
         assert_eq!(
             progress.advance_assigned_task("I set to work.", LocationId(9), at(12)),
             None
+        );
+        assert_eq!(progress.task(id).unwrap().status, TaskStatus::InProgress);
+    }
+
+    #[test]
+    fn turning_soil_action_starts_matching_live_shaped_task() {
+        let mut progress = PlayerProgress::default();
+        let id = progress
+            .assign_task(
+                "Turn over the soil in the potato patch.",
+                NpcId(7),
+                LocationId(9),
+                at(10),
+            )
+            .unwrap();
+
+        assert_eq!(
+            progress.advance_assigned_task(
+                "I turn over the soil in the potato patch with the spade.",
+                LocationId(9),
+                at(11),
+            ),
+            Some(id)
         );
         assert_eq!(progress.task(id).unwrap().status, TaskStatus::InProgress);
     }
@@ -501,6 +811,147 @@ mod tests {
     }
 
     #[test]
+    fn incidental_one_token_overlap_does_not_start_a_task() {
+        let mut progress = PlayerProgress::default();
+        let id = progress
+            .assign_task("Mend the west wall.", NpcId(7), LocationId(9), at(10))
+            .unwrap();
+
+        assert_eq!(
+            progress.advance_assigned_task(
+                "I mend the torn coat by the fire.",
+                LocationId(9),
+                at(11),
+            ),
+            None
+        );
+        assert_eq!(progress.task(id).unwrap().status, TaskStatus::Assigned);
+    }
+
+    #[test]
+    fn negated_reported_and_alternative_actions_do_not_start_tasks() {
+        for action in [
+            "I do not dig over the potato patch.",
+            "I don't dig over the potato patch.",
+            "I dig no potato patch.",
+            "I never dig over the potato patch.",
+            "I remember digging over the potato patch.",
+            "I dig the ditch instead of the potato patch.",
+            "I dig the ditch rather than the potato patch.",
+            "I leave the potato patch alone.",
+        ] {
+            let mut progress = PlayerProgress::default();
+            let id = progress
+                .assign_task(
+                    "Dig over the potato patch.",
+                    NpcId(7),
+                    LocationId(9),
+                    at(10),
+                )
+                .unwrap();
+
+            assert_eq!(
+                progress.advance_assigned_task(action, LocationId(9), at(11)),
+                None,
+                "{action:?} must not imply task progression"
+            );
+            assert_eq!(progress.task(id).unwrap().status, TaskStatus::Assigned);
+        }
+    }
+
+    #[test]
+    fn speech_idioms_do_not_start_tasks_even_with_strong_token_overlap() {
+        for (description, action) in [
+            (
+                "Break the news seal by the board.",
+                "I break the news by the seal board.",
+            ),
+            (
+                "Break the stone beside the silence marker.",
+                "I break the silence beside the stone marker.",
+            ),
+            (
+                "Break the ice block by the pond.",
+                "I break the ice with a joke by the block pond.",
+            ),
+            (
+                "Clear the air passage by Liam.",
+                "I clear the air with Liam by the passage.",
+            ),
+            (
+                "Bring the matter ledger to Liam.",
+                "I bring the matter up with Liam and the ledger.",
+            ),
+        ] {
+            let mut progress = PlayerProgress::default();
+            let id = progress
+                .assign_task(description, NpcId(7), LocationId(9), at(10))
+                .unwrap();
+
+            assert_eq!(
+                progress.advance_assigned_task(action, LocationId(9), at(11)),
+                None,
+                "{action:?} is speech, not completed work"
+            );
+            assert_eq!(progress.task(id).unwrap().status, TaskStatus::Assigned);
+        }
+    }
+
+    #[test]
+    fn genuine_physical_break_action_starts_compatible_task() {
+        let mut progress = PlayerProgress::default();
+        let id = progress
+            .assign_task("Break the stone clods.", NpcId(7), LocationId(9), at(10))
+            .unwrap();
+
+        assert_eq!(
+            progress.advance_assigned_task("I break the stone clods.", LocationId(9), at(11),),
+            Some(id)
+        );
+    }
+
+    #[test]
+    fn incompatible_work_verb_does_not_advance_on_shared_object_tokens() {
+        let mut progress = PlayerProgress::default();
+        let id = progress
+            .assign_task("Mend the west wall.", NpcId(7), LocationId(9), at(10))
+            .unwrap();
+
+        assert_eq!(
+            progress.advance_assigned_task("I sweep beside the west wall.", LocationId(9), at(11),),
+            None
+        );
+        assert_eq!(
+            progress.advance_assigned_task(
+                "I set to work sweeping beside the west wall.",
+                LocationId(9),
+                at(11),
+            ),
+            None
+        );
+        assert_eq!(progress.task(id).unwrap().status, TaskStatus::Assigned);
+    }
+
+    #[test]
+    fn genuine_some_object_actions_start_compatible_tasks() {
+        for (description, action) in [
+            ("Carry some turf.", "I carry some turf."),
+            ("Harvest some oats.", "I harvest some oats."),
+            ("Weed some rows.", "I weed some rows."),
+        ] {
+            let mut progress = PlayerProgress::default();
+            let id = progress
+                .assign_task(description, NpcId(7), LocationId(9), at(10))
+                .unwrap();
+            assert_eq!(
+                progress.advance_assigned_task(action, LocationId(9), at(11)),
+                Some(id)
+            );
+            assert_eq!(progress.task(id).unwrap().status, TaskStatus::InProgress);
+        }
+    }
+
+    #[test]
     fn ambiguous_generic_action_does_not_choose_between_tasks() {
         let mut progress = PlayerProgress::default();
         let potato = progress
@@ -538,9 +989,27 @@ mod tests {
     }
 
     #[test]
+    fn equal_nonzero_overlap_does_not_choose_between_tasks() {
+        let mut progress = PlayerProgress::default();
+        let east = progress
+            .assign_task("Mend the east stone wall.", NpcId(7), LocationId(9), at(10))
+            .unwrap();
+        let west = progress
+            .assign_task("Mend the west stone wall.", NpcId(8), LocationId(9), at(10))
+            .unwrap();
+
+        assert_eq!(
+            progress.advance_assigned_task("I mend the stone wall.", LocationId(9), at(11),),
+            None
+        );
+        assert_eq!(progress.task(east).unwrap().status, TaskStatus::Assigned);
+        assert_eq!(progress.task(west).unwrap().status, TaskStatus::Assigned);
+    }
+
+    #[test]
     fn descriptions_actions_and_completed_history_are_bounded() {
         let mut progress = PlayerProgress::default();
-        let long_description = "é".repeat(MAX_TASK_DESCRIPTION_CHARS + 20);
+        let long_description = format!("Dig {}", "é".repeat(MAX_TASK_DESCRIPTION_CHARS + 20));
         let first = progress
             .assign_task(&long_description, NpcId(1), LocationId(1), at(8))
             .unwrap();
@@ -555,7 +1024,7 @@ mod tests {
             } else {
                 progress
                     .assign_task(
-                        &format!("Task number {index}"),
+                        &format!("Dig task plot {index}"),
                         NpcId(1),
                         LocationId(index as u32 + 2),
                         at(8),
@@ -648,5 +1117,149 @@ mod tests {
             .assign_task("Later task", NpcId(3), LocationId(3), at(9))
             .unwrap();
         assert_eq!(id, PlayerTaskId(42));
+    }
+
+    #[test]
+    fn replayed_task_upsert_is_idempotent_monotonic_and_never_regresses() {
+        let mut progress = PlayerProgress::default();
+        let assigned = PlayerTask {
+            id: PlayerTaskId(41),
+            description: "Dig over the potato patch.".to_string(),
+            assigned_by: NpcId(7),
+            location: LocationId(9),
+            assigned_at: at(10),
+            status: TaskStatus::Assigned,
+            started_at: None,
+            completed_at: None,
+            last_matching_action: None,
+        };
+
+        assert_eq!(progress.apply_replayed_task(assigned.clone()), Ok(true));
+        assert_eq!(
+            progress.apply_replayed_task(assigned.clone()),
+            Ok(false),
+            "replaying the same post-state payload must be idempotent"
+        );
+        let same_status_tamper = PlayerTask {
+            description: "Replace the immutable description.".to_string(),
+            assigned_by: NpcId(99),
+            location: LocationId(88),
+            assigned_at: at(7),
+            ..assigned.clone()
+        };
+        assert_eq!(
+            progress.apply_replayed_task(same_status_tamper),
+            Ok(false),
+            "equal-status replay must not rewrite immutable assignment fields"
+        );
+        assert_eq!(progress.task(PlayerTaskId(41)), Some(&assigned));
+
+        let mut in_progress = assigned.clone();
+        in_progress.status = TaskStatus::InProgress;
+        in_progress.started_at = Some(at(11));
+        in_progress.last_matching_action = Some("I dig over the potato patch.".to_string());
+        assert_eq!(progress.apply_replayed_task(in_progress.clone()), Ok(true));
+        assert_eq!(progress.apply_replayed_task(assigned), Ok(false));
+        assert_eq!(
+            progress.task(PlayerTaskId(41)),
+            Some(&in_progress),
+            "a stale assignment event must not regress an in-progress task"
+        );
+
+        let mut completed = in_progress.clone();
+        completed.status = TaskStatus::Completed;
+        completed.completed_at = Some(at(12));
+        completed.last_matching_action = Some("The engine confirms the work.".to_string());
+        assert_eq!(progress.apply_replayed_task(completed.clone()), Ok(true));
+        assert_eq!(progress.apply_replayed_task(in_progress), Ok(false));
+        assert_eq!(progress.task(PlayerTaskId(41)), Some(&completed));
+
+        assert_eq!(
+            progress
+                .assign_task("Mend the west wall.", NpcId(8), LocationId(9), at(13))
+                .unwrap(),
+            PlayerTaskId(42),
+            "journal hydration must advance the monotonic id counter"
+        );
+    }
+
+    #[test]
+    fn replayed_task_enforces_field_and_ledger_bounds() {
+        let mut progress = PlayerProgress::default();
+        let bounded = PlayerTask {
+            id: PlayerTaskId(500),
+            description: format!("Dig {}", "é".repeat(MAX_TASK_DESCRIPTION_CHARS + 20)),
+            assigned_by: NpcId(7),
+            location: LocationId(9),
+            assigned_at: at(10),
+            status: TaskStatus::InProgress,
+            started_at: Some(at(11)),
+            completed_at: None,
+            last_matching_action: Some("x".repeat(MAX_TASK_ACTION_CHARS + 20)),
+        };
+        assert_eq!(progress.apply_replayed_task(bounded), Ok(true));
+        let hydrated = progress.task(PlayerTaskId(500)).unwrap();
+        assert_eq!(
+            hydrated.description.chars().count(),
+            MAX_TASK_DESCRIPTION_CHARS
+        );
+        assert_eq!(
+            hydrated
+                .last_matching_action
+                .as_deref()
+                .unwrap()
+                .chars()
+                .count(),
+            MAX_TASK_ACTION_CHARS
+        );
+
+        let mut full_progress = PlayerProgress::default();
+        for index in 0..MAX_PLAYER_TASKS {
+            full_progress
+                .assign_task(
+                    &format!("Active task {index}"),
+                    NpcId(1),
+                    LocationId(index as u32 + 1),
+                    at(8),
+                )
+                .unwrap();
+        }
+        let extra = PlayerTask {
+            id: PlayerTaskId(500),
+            description: "Replayed task".to_string(),
+            assigned_by: NpcId(2),
+            location: LocationId(2),
+            assigned_at: at(9),
+            status: TaskStatus::Assigned,
+            started_at: None,
+            completed_at: None,
+            last_matching_action: None,
+        };
+        assert_eq!(
+            full_progress.apply_replayed_task(extra.clone()),
+            Err(PlayerProgressError::ActiveTaskCapacity {
+                capacity: MAX_PLAYER_TASKS
+            })
+        );
+        full_progress.tasks[0].status = TaskStatus::Completed;
+        assert_eq!(full_progress.apply_replayed_task(extra), Ok(true));
+        assert_eq!(full_progress.len(), MAX_PLAYER_TASKS);
+        assert!(full_progress.task(PlayerTaskId(1)).is_none());
+        assert!(full_progress.task(PlayerTaskId(500)).is_some());
+
+        assert_eq!(
+            PlayerProgress::default().apply_replayed_task(PlayerTask {
+                id: PlayerTaskId(0),
+                description: "Invalid".to_string(),
+                assigned_by: NpcId(1),
+                location: LocationId(1),
+                assigned_at: at(8),
+                status: TaskStatus::Assigned,
+                started_at: None,
+                completed_at: None,
+                last_matching_action: None,
+            }),
+            Err(PlayerProgressError::InvalidTaskId)
+        );
     }
 }

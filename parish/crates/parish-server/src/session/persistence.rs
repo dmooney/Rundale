@@ -19,6 +19,9 @@ use super::SessionEntry;
 pub struct SessionRegistry {
     pub(super) sessions: DashMap<String, std::sync::Arc<SessionEntry>>,
     pub(super) db: std::sync::Mutex<rusqlite::Connection>,
+    /// Serializes cold restore/create admission. Hot in-memory lookups never
+    /// take this gate; cold callers recheck after acquiring it.
+    pub(super) lifecycle_gate: tokio::sync::Mutex<()>,
     /// Running count of session-creation rejections since process start.
     pub rejection_count: AtomicU64,
 }
@@ -32,6 +35,7 @@ impl SessionRegistry {
         Ok(Self {
             sessions: DashMap::new(),
             db: std::sync::Mutex::new(conn),
+            lifecycle_gate: tokio::sync::Mutex::new(()),
             rejection_count: AtomicU64::new(0),
         })
     }
@@ -76,14 +80,26 @@ impl SessionRegistry {
         .is_ok()
     }
 
-    /// Inserts a new session row into sessions.db.
-    pub fn persist_new(&self, session_id: &str) {
+    /// Inserts a new session row into sessions.db and reports persistence
+    /// failures to lifecycle callers.
+    ///
+    /// Cold-session construction uses this fallible form before it starts any
+    /// runtime workers. That prevents a process-local session from becoming
+    /// live when its durable registry row could not be committed.
+    pub(super) fn try_persist_new(&self, session_id: &str) -> rusqlite::Result<()> {
         let now = Self::now_iso();
         let db = self.db.lock().unwrap();
-        if let Err(e) = db.execute(
+        db.execute(
             "INSERT OR IGNORE INTO sessions (id, created_at, last_active) VALUES (?1, ?2, ?2)",
             rusqlite::params![session_id, now],
-        ) {
+        )
+        .map(|_| ())
+    }
+
+    /// Best-effort compatibility wrapper for legacy callers that already own
+    /// a live session. New lifecycle code must use [`Self::try_persist_new`].
+    pub fn persist_new(&self, session_id: &str) {
+        if let Err(e) = self.try_persist_new(session_id) {
             tracing::warn!(session_id = %session_id, error = %e, "persist_new failed");
         }
     }

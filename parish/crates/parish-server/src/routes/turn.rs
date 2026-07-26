@@ -14,6 +14,7 @@ pub async fn get_turn(
     Extension(state): Extension<Arc<AppState>>,
     Query(params): Query<TurnReadParams>,
 ) -> Json<TurnReadResult> {
+    let _persistence_guard = state.persistence_gate.lock().await;
     let (events, event_cursor) = {
         let events = state.game_events.lock().await;
         let total = state

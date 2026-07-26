@@ -14,7 +14,7 @@ use parish_world::graph::WorldGraph;
 /// location are experienced directly, not overheard.
 ///
 /// Returns formatted atmospheric messages for each overhearable event.
-pub fn check_overhear(
+fn check_overhear(
     events: &[Tier2Event],
     player_location: LocationId,
     graph: &WorldGraph,
@@ -68,6 +68,7 @@ mod tests {
             participants: vec![NpcId(1), NpcId(2)],
             mood_changes: Vec::new(),
             relationship_changes: Vec::new(),
+            grounding: Vec::new(),
         }
     }
 

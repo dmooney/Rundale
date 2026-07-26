@@ -102,6 +102,9 @@ pub(super) async fn init_session_save(
     };
 
     let save_path = new_save_path(session_saves);
+    // Acquire the sidecar before Database::open can create/migrate SQLite.
+    let candidate_lock = parish_core::persistence::SaveFileLock::try_acquire(&save_path)
+        .ok_or_else(|| format!("Could not lock new save file {}", save_path.display()))?;
     let save_path_clone = save_path.clone();
 
     let branch_id = tokio::task::spawn_blocking(move || -> Result<i64, String> {
@@ -122,21 +125,25 @@ pub(super) async fn init_session_save(
     .await
     .map_err(|e| e.to_string())??;
 
-    // Advisory lock on the freshly-initialised save file so peer
-    // instances don't write to it concurrently (#425). For a just-created
-    // save we expect the lock to always succeed, but we stay defensive:
-    // warn if the lock fails rather than silently proceeding.
-    let locked = parish_core::persistence::SaveFileLock::try_acquire(&save_path);
-    if locked.is_none() {
-        tracing::warn!(
-            path = %save_path.display(),
-            "SaveFileLock::try_acquire returned None on init_session_save — new save file unexpectedly locked",
-        );
-    }
-    *app_state.save_lock.lock().await = locked;
-    *app_state.save_identity.save_path.lock().await = Some(save_path);
-    *app_state.save_identity.current_branch_id.lock().await = Some(branch_id);
-    *app_state.save_identity.current_branch_name.lock().await = Some("main".to_string());
+    let prepared_binding = app_state
+        .session_store
+        .prepare_active_save(&app_state.session_id, &save_path)
+        .map_err(|error| error.to_string())?;
+    parish_core::persistence::write_active_save_identity(
+        session_saves,
+        &save_path,
+        branch_id,
+        "main",
+    )
+    .map_err(|error| error.to_string())?;
+
+    // Marker is the commit record; publication below cannot fail.
+    prepared_binding.commit();
+    *app_state.save_lock.lock().await = Some(candidate_lock);
+    app_state
+        .save_identity
+        .replace(save_path.clone(), branch_id, "main".to_string())
+        .await;
 
     Ok(())
 }
@@ -153,10 +160,18 @@ mod tests {
     /// created server session.
     #[tokio::test]
     async fn init_session_save_populates_branch_fields() {
-        let state = crate::routes::tests::test_app_state();
         let tmp = tempfile::tempdir().unwrap();
+        let session_saves = tmp.path().join("test-session");
+        std::fs::create_dir_all(&session_saves).unwrap();
+        let mut state = crate::routes::tests::test_app_state();
+        let state_parts =
+            Arc::get_mut(&mut state).expect("fresh test state must be uniquely owned");
+        state_parts.saves_dir = session_saves.clone();
+        state_parts.session_store = Arc::new(crate::session_store_impl::DbSessionStore::new(
+            tmp.path().to_path_buf(),
+        ));
 
-        init_session_save(&state, tmp.path())
+        init_session_save(&state, &session_saves)
             .await
             .expect("init_session_save must succeed on a fresh save (no UNIQUE-branch panic)");
 

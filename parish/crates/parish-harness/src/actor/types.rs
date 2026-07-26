@@ -71,7 +71,8 @@ impl JudgeVerdict {
 }
 
 /// Build a compact, deterministic one-line ground-truth summary of engine state
-/// for the transcript (location, clock, NPCs present + moods, grapevine).
+/// for the transcript (location, clock, NPCs present + moods, tasks,
+/// grapevine).
 pub fn summarize_state(state: &EngineState) -> String {
     let npcs: Vec<String> = state
         .npcs
@@ -79,8 +80,14 @@ pub fn summarize_state(state: &EngineState) -> String {
         .iter()
         .map(|n| format!("{}({})", n.display_name, n.mood))
         .collect();
+    let active_tasks: Vec<String> = state
+        .player
+        .active_tasks
+        .iter()
+        .map(|task| format!("#{}({}):{}", task.id, task.status_label(), task.description))
+        .collect();
     format!(
-        "loc={}#{} {:02}:{:02} {} {} weather={} npcs_here=[{}] roster={}/{} grapevine={}items/{}distorted/max{}",
+        "loc={}#{} {:02}:{:02} {} {} weather={} npcs_here=[{}] roster={}/{} active_tasks=[{}] grapevine={}items/{}distorted/max{}",
         state.active_scene.location_name,
         state.active_scene.location_id,
         state.clock.hour,
@@ -91,8 +98,46 @@ pub fn summarize_state(state: &EngineState) -> String {
         npcs.join(", "),
         state.npcs.introduced,
         state.npcs.total,
+        active_tasks.join(", "),
         state.grapevine.item_count,
         state.grapevine.distorted_item_count,
         state.grapevine.max_distortion,
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use parish_core::ipc::build_engine_state;
+    use parish_core::npc::{NpcId, manager::NpcManager};
+    use parish_core::world::WorldState;
+
+    #[test]
+    fn summary_includes_active_task_identity_status_and_description() {
+        let mut world = WorldState::new();
+        let location = world.player_location;
+        let assigned_at = world.clock.now();
+        let task_id = world
+            .player_progress
+            .assign_task("weed the potato patch", NpcId(11), location, assigned_at)
+            .unwrap();
+        assert_eq!(
+            world.player_progress.advance_assigned_task(
+                "I weed the potato patch",
+                location,
+                assigned_at
+            ),
+            Some(task_id)
+        );
+        let state = build_engine_state(&world, &NpcManager::new());
+
+        let summary = summarize_state(&state);
+        assert!(
+            summary.contains(&format!(
+                "active_tasks=[#{}(in_progress):weed the potato patch]",
+                task_id.0
+            )),
+            "task progression missing from harness state signature: {summary}"
+        );
+    }
 }

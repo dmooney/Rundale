@@ -444,6 +444,11 @@ pub const DEBUG_EVENT_CAPACITY: usize = 100;
 /// See `background tick` in [`run`] for the canonical example of holding
 /// `world` and `npc_manager` together through a full tick iteration.
 pub struct AppState {
+    /// Outermost barrier for task durability and save lifecycle changes.
+    ///
+    /// A guarded operation holds this from before in-memory/identity capture
+    /// through durable commit, response projection, or task rollback.
+    pub persistence_gate: Mutex<()>,
     /// The game world (clock, player position, graph, weather).
     pub world: Mutex<WorldState>,
     /// NPC manager (all NPCs, tier assignment, schedule ticking).
@@ -562,7 +567,7 @@ pub struct AppState {
     pub shutdown_token: CancellationToken,
     /// Sim-preemption cancel token (#9).
     ///
-    /// Cancelled-and-replaced by [`commands::do_submit_input`] when a player
+    /// Cancelled-and-replaced by [`commands::input::do_submit_input`] when a player
     /// turn arrives, so any in-flight Tier 2 / Tier 3 background inference
     /// drops mid-decode and frees the local model slot for the player's
     /// dialogue call. The token is snapshotted at dispatch time and passed
@@ -1290,34 +1295,16 @@ pub fn run() {
         }
     }
 
-    // Persistent on-disk inference + chat transcript logs (#xxx).
-    //
-    // Both `spawn` constructors internally call `tokio::spawn` to start their
-    // writer tasks. `pub fn run()` is sync and has no Tokio reactor in scope
-    // here, so we route the construction through `tauri::async_runtime::block_on`
-    // which enters the Tauri-managed tokio runtime that the writer tasks will
-    // actually live on. Without this wrap, both calls panic with
-    // "there is no reactor running, must be called from the context of a
-    // Tokio 1.x runtime" before the Tauri builder even starts.
     let log_to_disk = parish_core::inference::file_log::resolve_enabled(
         false, // Tauri does not (yet) expose a --no-inference-log flag; env wins
         engine_config.inference.log_to_disk,
     );
-    let (inference_file_log, chat_transcript_log) = tauri::async_runtime::block_on(async {
-        let inference_file_log = parish_core::inference::file_log::InferenceFileLog::spawn(
-            &saves_dir,
-            log_to_disk,
-            Some(&game_config.base_url),
-        );
-        let chat_transcript_log = parish_core::chat_transcript::ChatTranscriptLog::spawn_with_flag(
-            &saves_dir,
-            inference_file_log.session_id().to_string(),
-            inference_file_log.enabled_flag(),
-        );
-        (inference_file_log, chat_transcript_log)
-    });
+    let log_base_url = game_config.base_url.clone();
 
-    let state = Arc::new(AppState {
+    // Detached log handles spawn no tasks. They are replaced only after
+    // persistence has durably committed below.
+    let mut state = Arc::new(AppState {
+        persistence_gate: Mutex::new(()),
         world: Mutex::new(world),
         npc_manager: Mutex::new(npc_manager),
         inference_queue: Mutex::new(None),
@@ -1364,14 +1351,38 @@ pub fn run() {
         session_store,
         user_config_dir,
         secret_store,
-        inference_file_log,
-        chat_transcript_log,
+        inference_file_log: parish_core::inference::file_log::InferenceFileLog::disabled(),
+        chat_transcript_log: parish_core::chat_transcript::ChatTranscriptLog::disabled(),
     });
+
+    let persistence_ready =
+        tauri::async_runtime::block_on(async { setup::init_persistence(&state).await });
+    if persistence_ready {
+        let (inference_file_log, chat_transcript_log) = tauri::async_runtime::block_on(async {
+            let inference_file_log = parish_core::inference::file_log::InferenceFileLog::spawn(
+                &state.saves_dir,
+                log_to_disk,
+                Some(&log_base_url),
+            );
+            let chat_transcript_log =
+                parish_core::chat_transcript::ChatTranscriptLog::spawn_with_flag(
+                    &state.saves_dir,
+                    inference_file_log.session_id().to_string(),
+                    inference_file_log.enabled_flag(),
+                );
+            (inference_file_log, chat_transcript_log)
+        });
+        let state_mut = Arc::get_mut(&mut state)
+            .expect("Tauri AppState must be unique before builder publication");
+        state_mut.inference_file_log = inference_file_log;
+        state_mut.chat_transcript_log = chat_transcript_log;
+    }
 
     tauri::Builder::default()
         .manage(Arc::clone(&state))
         .invoke_handler(tauri::generate_handler![
             commands::snapshot::get_world_snapshot,
+            commands::snapshot::get_reconnect_state,
             commands::snapshot::get_map,
             commands::snapshot::get_npcs_here,
             commands::snapshot::get_engine_state,
@@ -1449,6 +1460,11 @@ pub fn run() {
                     mcp_bridge::spawn(Arc::clone(&state_setup), handle.clone(), port);
                 }
 
+                if !persistence_ready {
+                    let _ = handle.emit(events::EVENT_SAVE_PICKER, ());
+                    return;
+                }
+
                 if !setup::bootstrap_inference_provider(
                     &handle,
                     &state_setup,
@@ -1461,7 +1477,6 @@ pub fn run() {
                 }
 
                 setup::init_inference_queue(&state_setup).await;
-                setup::init_persistence(&handle, &state_setup).await;
                 setup::spawn_character_log_subscriber(&state_setup, app_name.clone()).await;
                 setup::spawn_location_log_subscriber(&state_setup, app_name.clone()).await;
                 setup::spawn_chat_transcript_subscriber(&state_setup).await;

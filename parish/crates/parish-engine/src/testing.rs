@@ -33,6 +33,28 @@ use std::collections::HashMap;
 use std::path::Path;
 use std::sync::Arc;
 
+fn parse_canned_npc_response(
+    raw_response: String,
+    fallback_mood: String,
+) -> crate::npc::NpcStreamResponse {
+    let parsed = crate::npc::parse_npc_stream_response(&raw_response);
+    if parsed.metadata.is_some() {
+        return parsed;
+    }
+
+    crate::npc::NpcStreamResponse {
+        dialogue: raw_response,
+        metadata: Some(crate::npc::NpcMetadata {
+            action: "responds".to_string(),
+            mood: fallback_mood,
+            internal_thought: None,
+            language_hints: Vec::new(),
+            mentioned_people: Vec::new(),
+            assigned_task: None,
+        }),
+    }
+}
+
 /// The result of executing a command through the test harness.
 ///
 /// Each variant captures the structured outcome of a player action,
@@ -108,7 +130,7 @@ pub struct GameTestHarness {
     /// Queued canned NPC responses, keyed by lowercase NPC name.
     canned_responses: HashMap<String, Vec<String>>,
     /// Synchronous database handle for persistence in tests.
-    db_sync: Option<crate::persistence::Database>,
+    pub(crate) db_sync: Option<crate::persistence::Database>,
     /// Optional offline simulator used as a fallback when no canned response exists.
     simulator: Option<Arc<SimulatorClient>>,
     /// Seeded RNG shared across all weather/gossip calls for deterministic results.
@@ -415,10 +437,73 @@ impl GameTestHarness {
             )
         });
 
-        let result = match input::classify_input(trimmed) {
+        let classified = input::classify_input(trimmed);
+        let staged_pre = match &classified {
+            InputResult::GameInput(text)
+                if parish_core::game_loop::input_may_mutate_tasks(&self.app.world, text) =>
+            {
+                let candidate_world = self.app.world.clone_for_staged_turn();
+                let live_world = std::mem::replace(&mut self.app.world, candidate_world);
+                let candidate_npcs = self.app.npc_manager.clone();
+                let live_npcs = std::mem::replace(&mut self.app.npc_manager, candidate_npcs);
+                let semantic_rx = self.app.world.event_bus.subscribe();
+                Some((
+                    live_world,
+                    live_npcs,
+                    self.canned_responses.clone(),
+                    self.app.debug_log.clone(),
+                    semantic_rx,
+                ))
+            }
+            _ => None,
+        };
+        let result = match classified {
             InputResult::SystemCommand(cmd) => self.handle_system_command(cmd),
             InputResult::GameInput(text) => self.handle_game_input(&text),
         };
+        if let Some((live_world, live_npcs, canned_before, debug_log_before, mut semantic_rx)) =
+            staged_pre
+        {
+            let mut semantic_events = Vec::new();
+            let staging_error = loop {
+                match semantic_rx.try_recv() {
+                    Ok(event) => semantic_events.push(event),
+                    Err(tokio::sync::broadcast::error::TryRecvError::Empty)
+                    | Err(tokio::sync::broadcast::error::TryRecvError::Closed) => break None,
+                    Err(tokio::sync::broadcast::error::TryRecvError::Lagged(dropped)) => {
+                        break Some(format!(
+                            "pending turn semantic event buffer overflowed and dropped {dropped} event(s)"
+                        ));
+                    }
+                }
+            };
+            let persistence_result = staging_error.map_or_else(
+                || self.persist_task_mutations_since(&live_world.player_progress),
+                Err,
+            );
+            match persistence_result {
+                Ok(()) => {
+                    let mut candidate_world = std::mem::replace(&mut self.app.world, live_world);
+                    candidate_world.event_bus = std::mem::take(&mut self.app.world.event_bus);
+                    self.app.world = candidate_world;
+                    drop(live_npcs);
+                    for event in semantic_events {
+                        self.app.world.event_bus.publish(event);
+                    }
+                }
+                Err(error) => {
+                    self.app.world = live_world;
+                    self.app.npc_manager = live_npcs;
+                    self.canned_responses = canned_before;
+                    self.app.debug_log = debug_log_before;
+                    let message = format!("Failed to persist player task changes: {error}");
+                    // A rejected staged turn is not a completed player turn:
+                    // do not run the post-action world pump, log drains, or
+                    // shadow replay against canonical state.
+                    return ActionResult::SystemCommand { response: message };
+                }
+            }
+        }
 
         // Capture the legacy path's player-visible output *before* the
         // post-action pump below appends further lines — the real-loop path
@@ -511,6 +596,29 @@ impl GameTestHarness {
         }
 
         result
+    }
+
+    /// Appends every player-task post-state changed by the just-completed turn.
+    ///
+    /// The harness owns a synchronous in-memory database, so snapshot lookup
+    /// and the whole event batch share one SQLite transaction.
+    fn persist_task_mutations_since(
+        &self,
+        before: &parish_core::session_store::PlayerProgress,
+    ) -> Result<(), String> {
+        let mutations = self
+            .app
+            .world
+            .player_progress
+            .tasks()
+            .iter()
+            .filter(|task| before.task(task.id) != Some(*task))
+            .cloned()
+            .collect::<Vec<_>>();
+        if mutations.is_empty() {
+            return Ok(());
+        }
+        persist_task_mutation_batch(self.db_sync.as_ref(), self.app.active_branch_id, &mutations)
     }
 
     /// Registers a canned NPC response for testing dialogue flows.
@@ -1264,6 +1372,22 @@ impl GameTestHarness {
                         }
                     }
                 }
+                IntentKind::Interact if !self.app.flags.is_disabled("interact-narration") => {
+                    let outcome = parish_core::game_session::apply_player_action(
+                        &mut self.app.world,
+                        text,
+                        &self.app.flags,
+                    );
+                    match outcome {
+                        Some(outcome) => {
+                            self.app.world.log(outcome.narration.clone());
+                            ActionResult::SystemCommand {
+                                response: outcome.narration,
+                            }
+                        }
+                        None => ActionResult::UnknownInput,
+                    }
+                }
                 // Locally parsed intent that is neither Move/Look/Examine — NPC interaction
                 _ => {
                     let r = self.handle_npc_interaction(text);
@@ -1449,25 +1573,16 @@ impl GameTestHarness {
         if let Some(responses) = self.canned_responses.get_mut(&key)
             && !responses.is_empty()
         {
-            let dialogue = responses.remove(0);
+            let fallback_mood = self
+                .app
+                .npc_manager
+                .get(speaker_id)
+                .map(|npc| npc.mood.clone())
+                .unwrap_or_default();
+            let mut response = parse_canned_npc_response(responses.remove(0), fallback_mood);
             let game_time = self.app.world.clock.now();
-            let dialogue = self.guard_canned_npc_dialogue(speaker_id, dialogue, text, game_time);
-
-            let response = crate::npc::NpcStreamResponse {
-                dialogue: dialogue.clone(),
-                metadata: Some(crate::npc::NpcMetadata {
-                    action: "responds".to_string(),
-                    mood: self
-                        .app
-                        .npc_manager
-                        .get(speaker_id)
-                        .map(|n| n.mood.clone())
-                        .unwrap_or_default(),
-                    internal_thought: None,
-                    language_hints: Vec::new(),
-                    mentioned_people: Vec::new(),
-                }),
-            };
+            response.dialogue =
+                self.guard_canned_npc_dialogue(speaker_id, response.dialogue, text, game_time);
             // Shared per-turn pipeline (#1172 / #1173): run the same five steps
             // as every other backend. Previously this addressed path only did
             // name detection + Tier-1 apply, silently dropping the
@@ -1491,6 +1606,7 @@ impl GameTestHarness {
                 None,
                 &[],
                 &language,
+                &self.app.flags,
             );
             for event in outcome.debug_events {
                 self.app.debug_event(event);
@@ -1669,21 +1785,12 @@ impl GameTestHarness {
             return None;
         }
 
-        let dialogue = responses.remove(0);
+        let mut response = parse_canned_npc_response(responses.remove(0), mood);
         let game_time = self.app.world.clock.now();
-        let dialogue = self.guard_canned_npc_dialogue(npc_id, dialogue, text, game_time);
+        response.dialogue =
+            self.guard_canned_npc_dialogue(npc_id, response.dialogue, text, game_time);
 
-        // Build a synthetic NPC response and run it through the memory pipeline
-        let response = crate::npc::NpcStreamResponse {
-            dialogue: dialogue.clone(),
-            metadata: Some(crate::npc::NpcMetadata {
-                action: "responds".to_string(),
-                mood,
-                internal_thought: None,
-                language_hints: Vec::new(),
-                mentioned_people: Vec::new(),
-            }),
-        };
+        // Build a parsed or synthetic NPC response and run it through the memory pipeline.
         // Shared per-turn pipeline (#1172 / #1173): name detection, Tier-1
         // apply, conversation-log record, witness memories, and the
         // `DialogueOccurred` publish — one definition for every backend
@@ -1706,6 +1813,7 @@ impl GameTestHarness {
             None,
             &[],
             &language,
+            &self.app.flags,
         );
         for event in outcome.debug_events {
             self.app.debug_event(event);
@@ -1744,6 +1852,43 @@ impl GameTestHarness {
         } else {
             self.app.world.current_location().description.clone()
         }
+    }
+}
+
+/// Atomically appends a complete task post-state batch to the harness ledger.
+///
+/// Shared by the legacy harness and its real `game_loop` adapter so task-aware
+/// inputs cannot bypass the staged-turn journal seam.
+pub(crate) fn persist_task_mutation_batch(
+    db: Option<&crate::persistence::Database>,
+    branch_id: i64,
+    mutations: &[parish_core::session_store::PlayerTask],
+) -> Result<(), String> {
+    if mutations.is_empty() {
+        return Ok(());
+    }
+    let db = db.ok_or_else(|| "persistence is unavailable".to_string())?;
+    let events = mutations
+        .iter()
+        .cloned()
+        .map(|task| {
+            let game_time = task
+                .completed_at
+                .or(task.started_at)
+                .unwrap_or(task.assigned_at)
+                .to_rfc3339();
+            (
+                crate::persistence::WorldEvent::PlayerTaskStateChanged { task },
+                game_time,
+            )
+        })
+        .collect::<Vec<_>>();
+    match db
+        .append_events_to_latest_snapshot(branch_id, &events)
+        .map_err(|error| error.to_string())?
+    {
+        Some(_) => Ok(()),
+        None => Err(format!("branch {branch_id} has no snapshot")),
     }
 }
 
@@ -3134,7 +3279,6 @@ mod tests {
         use crate::npc::Npc;
         use crate::npc::manager::NpcManager;
         use crate::world::LocationId;
-        use parish_core::npc::types::NpcState;
         use parish_core::world::graph::WorldGraph;
 
         // Build a chain graph long enough that an NPC at the far end is Tier 4
@@ -3168,32 +3312,18 @@ mod tests {
         let graph = WorldGraph::load_from_str(&graph_json).unwrap();
 
         // NPC at distance 6 from player (player at Loc 0) → Tier 4
-        let far_npc = Npc {
-            id: crate::npc::NpcId(42),
-            name: "Far Away Person".to_string(),
-            brief_description: "a distant figure".to_string(),
-            age: 40,
-            occupation: "Farmer".to_string(),
-            personality: "Quiet".to_string(),
-            pronouns: "they/them".to_string(),
-            intelligence: parish_core::npc::types::Intelligence::default(),
-            location: LocationId(6),
-            mood: "calm".to_string(),
-            home: Some(LocationId(6)),
-            workplace: None,
-            schedule: None,
-            relationships: std::collections::HashMap::new(),
-            memory: parish_core::npc::memory::ShortTermMemory::new(),
-            long_term_memory: parish_core::npc::memory::LongTermMemory::new(),
-            knowledge: Vec::new(),
-            state: NpcState::Present,
-            deflated_summary: None,
-            reaction_log: parish_core::npc::reactions::ReactionLog::default(),
-            last_activity: None,
-            is_ill: false,
-            doom: None,
-            banshee_heralded: false,
-        };
+        let mut far_npc = Npc::new_test_npc();
+        far_npc.id = crate::npc::NpcId(42);
+        far_npc.name = "Far Away Person".to_string();
+        far_npc.brief_description = "a distant figure".to_string();
+        far_npc.age = 40;
+        far_npc.occupation = "Farmer".to_string();
+        far_npc.personality = "Quiet".to_string();
+        far_npc.pronouns = "they/them".to_string();
+        far_npc.intelligence = parish_core::npc::types::Intelligence::default();
+        far_npc.set_location(LocationId(6));
+        far_npc.mood = "calm".to_string();
+        far_npc.home = Some(LocationId(6));
 
         let mut app = crate::app::App::new();
         app.world.player_location = LocationId(0);
@@ -3416,6 +3546,147 @@ mod tests {
         assert!(
             h2.app.character_log.as_ref().is_some_and(|m| !m.enabled()),
             "new_from_active_mod() must keep the character-log writer disabled"
+        );
+    }
+
+    #[test]
+    fn harness_task_progress_is_recoverable_from_the_journal() {
+        let mut harness = GameTestHarness::new();
+        let task_id = harness
+            .app
+            .world
+            .player_progress
+            .assign_task(
+                "Dig over the potato patch.",
+                parish_core::npc::NpcId(7),
+                harness.app.world.player_location,
+                harness.app.world.clock.now(),
+            )
+            .unwrap();
+        let db = harness.db_sync.as_ref().unwrap();
+        let snapshot =
+            crate::persistence::GameSnapshot::capture(&harness.app.world, &harness.app.npc_manager);
+        db.save_snapshot(harness.app.active_branch_id, &snapshot)
+            .unwrap();
+
+        harness.execute("I set to work in the potato patch, breaking clods and planting seed.");
+        let progressed = harness
+            .app
+            .world
+            .player_progress
+            .task(task_id)
+            .unwrap()
+            .clone();
+        assert_eq!(progressed.status, parish_types::TaskStatus::InProgress);
+
+        let recovery = harness
+            .db_sync
+            .as_ref()
+            .unwrap()
+            .load_recovery_data(harness.app.active_branch_id)
+            .unwrap()
+            .unwrap();
+        let mut restored_world = crate::world::WorldState::new();
+        restored_world.graph = harness.app.world.graph.clone();
+        restored_world.locations = harness.app.world.locations.clone();
+        let mut restored_npcs = NpcManager::new();
+        recovery
+            .snapshot
+            .restore(&mut restored_world, &mut restored_npcs);
+        crate::persistence::replay_journal(
+            &mut restored_world,
+            &mut restored_npcs,
+            &recovery.journal,
+        );
+        assert_eq!(
+            restored_world.player_progress.task(task_id),
+            Some(&progressed)
+        );
+    }
+
+    #[test]
+    fn harness_failed_task_append_rolls_back_for_retry() {
+        let mut harness = GameTestHarness::new();
+        let task_id = harness
+            .app
+            .world
+            .player_progress
+            .assign_task(
+                "Dig over the potato patch.",
+                parish_core::npc::NpcId(7),
+                harness.app.world.player_location,
+                harness.app.world.clock.now(),
+            )
+            .unwrap();
+        let before =
+            crate::persistence::GameSnapshot::capture(&harness.app.world, &harness.app.npc_manager);
+        harness
+            .app
+            .debug_event("pre-turn debug sentinel".to_string());
+        let debug_before = harness.app.debug_log.clone();
+        let mut semantic_rx = harness.app.world.event_bus.subscribe();
+        harness.db_sync = None;
+
+        let result =
+            harness.execute("I set to work in the potato patch, breaking clods and planting seed.");
+
+        assert!(matches!(
+            result,
+            ActionResult::SystemCommand { ref response }
+                if response.contains("Failed to persist player task changes")
+        ));
+        assert_eq!(
+            harness
+                .app
+                .world
+                .player_progress
+                .task(task_id)
+                .unwrap()
+                .status,
+            parish_types::TaskStatus::Assigned
+        );
+        assert_eq!(
+            crate::persistence::GameSnapshot::capture(&harness.app.world, &harness.app.npc_manager),
+            before,
+            "failed task persistence must restore the entire world and NPC candidate"
+        );
+        assert_eq!(
+            harness.app.debug_log, debug_before,
+            "failed staged turns must restore the legacy App debug audit exactly"
+        );
+        assert!(matches!(
+            semantic_rx.try_recv(),
+            Err(tokio::sync::broadcast::error::TryRecvError::Empty)
+        ));
+
+        let db = crate::persistence::Database::open_memory().unwrap();
+        let branch = db.find_branch("main").unwrap().unwrap();
+        db.save_snapshot(branch.id, &before).unwrap();
+        harness.app.active_branch_id = branch.id;
+        harness.db_sync = Some(db);
+        let retry =
+            harness.execute("I set to work in the potato patch, breaking clods and planting seed.");
+        assert!(!matches!(
+            retry,
+            ActionResult::SystemCommand { ref response }
+                if response.contains("Failed to persist player task changes")
+        ));
+        assert_eq!(
+            harness
+                .app
+                .world
+                .player_progress
+                .task(task_id)
+                .unwrap()
+                .status,
+            parish_types::TaskStatus::InProgress
+        );
+        let progressed_events = std::iter::from_fn(|| semantic_rx.try_recv().ok())
+            .filter(|event| matches!(event, parish_types::GameEvent::PlayerTaskProgressed { .. }))
+            .count();
+        assert_eq!(
+            progressed_events, 1,
+            "retry publishes progress exactly once"
         );
     }
 }

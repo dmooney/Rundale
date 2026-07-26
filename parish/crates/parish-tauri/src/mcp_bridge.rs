@@ -310,12 +310,13 @@ async fn submit_input(
     State(b): State<BridgeState>,
     Json(body): Json<SubmitInputRequest>,
 ) -> Result<Json<SubmitInputResult>, AppError> {
+    let _persistence_guard = b.state.persistence_gate.lock().await;
     let before_turn = {
         let world = b.state.world.lock().await;
         parish_core::ipc::conversation_cursor(&world)
     };
 
-    crate::commands::do_submit_input(&b.state, &b.app, body.text, body.addressed_to)
+    crate::commands::input::do_submit_input_locked(&b.state, &b.app, body.text, body.addressed_to)
         .await
         .map_err(AppError::from)?;
 
@@ -330,11 +331,13 @@ async fn turn_read(
     State(b): State<BridgeState>,
     Query(params): Query<TurnReadParams>,
 ) -> Result<Json<TurnReadResult>, AppError> {
+    let _persistence_guard = b.state.persistence_gate.lock().await;
     let since_cursor = params.since.unwrap_or(0);
     Ok(Json(build_turn_result(&b.state, since_cursor).await))
 }
 
 async fn new_game(State(b): State<BridgeState>) -> Result<StatusCode, AppError> {
+    let _persistence_guard = b.state.persistence_gate.lock().await;
     crate::commands::do_new_game(&b.state, &b.app)
         .await
         .map_err(AppError::from)?;
@@ -355,6 +358,7 @@ async fn new_game(State(b): State<BridgeState>) -> Result<StatusCode, AppError> 
 }
 
 async fn save_game(State(b): State<BridgeState>) -> Result<Json<serde_json::Value>, AppError> {
+    let _persistence_guard = b.state.persistence_gate.lock().await;
     let msg = crate::commands::do_save_game(&b.state)
         .await
         .map_err(AppError::from)?;
@@ -371,6 +375,7 @@ async fn load_branch(
     State(b): State<BridgeState>,
     Json(body): Json<LoadBranchBody>,
 ) -> Result<StatusCode, AppError> {
+    let _persistence_guard = b.state.persistence_gate.lock().await;
     crate::commands::do_load_branch(&b.state, &b.app, body.file_path, body.branch_id)
         .await
         .map_err(AppError::from)?;
@@ -713,6 +718,7 @@ mod tests {
         );
 
         Arc::new(AppState {
+            persistence_gate: Mutex::new(()),
             world: Mutex::new(world),
             npc_manager: Mutex::new(npc_manager),
             inference_queue: Mutex::new(None),

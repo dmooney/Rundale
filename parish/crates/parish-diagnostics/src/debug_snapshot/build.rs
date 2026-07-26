@@ -228,6 +228,21 @@ pub(crate) fn build_event_bus_debug(
                 GameEvent::PlayerMoved { from, to, .. } => {
                     format!("Player: {} → {}", loc_of(*from), loc_of(*to))
                 }
+                GameEvent::PlayerTaskAssigned { task, .. } => format!(
+                    "Task #{} assigned by {} @ {}: {}",
+                    task.id.0,
+                    name_of(task.assigned_by),
+                    loc_of(task.location),
+                    task.description
+                ),
+                GameEvent::PlayerTaskProgressed { task, action, .. } => format!(
+                    "Task #{} → {:?} @ {}: {} ({})",
+                    task.id.0,
+                    task.status,
+                    loc_of(task.location),
+                    task.description,
+                    action
+                ),
                 GameEvent::NpcInteraction {
                     participants,
                     location,
@@ -424,7 +439,7 @@ pub(crate) fn build_npc_debug_list(
                 .map(|t| format!("{:?}", t))
                 .unwrap_or_else(|| "Unassigned".to_string());
 
-            let state_str = match &npc.state {
+            let state_str = match npc.state() {
                 NpcState::Present => "Present".to_string(),
                 NpcState::InTransit { to, arrives_at, .. } => {
                     let dest = loc_name(*to, graph);
@@ -458,8 +473,8 @@ pub(crate) fn build_npc_debug_list(
                 age: npc.age,
                 occupation: npc.occupation.clone(),
                 personality: npc.personality.clone(),
-                location_name: loc_name(npc.location, graph),
-                location_id: npc.location.0,
+                location_name: loc_name(npc.location(), graph),
+                location_id: npc.location().0,
                 home_name: npc.home.map(|h| loc_name(h, graph)),
                 workplace_name: npc.workplace.map(|w| loc_name(w, graph)),
                 mood: npc.mood.clone(),
@@ -499,8 +514,7 @@ pub(crate) fn build_npc_schedule_debug(
     current_season: Season,
     current_day_type: DayType,
 ) -> Vec<ScheduleVariantDebug> {
-    npc.schedule
-        .as_ref()
+    npc.schedule()
         .map(|s| {
             let active_entries = s.resolve(current_season, current_day_type);
             s.variants

@@ -23,6 +23,7 @@ use parish_core::persistence::snapshot::GameSnapshot;
 use parish_core::world::LocationId;
 use parish_core::world::events::GameEvent;
 use parish_engine::testing::GameTestHarness;
+use parish_types::TaskStatus;
 
 /// Drains every event currently buffered on a broadcast receiver. Lagged events
 /// are skipped (the buffer never overflows for a single turn); Empty/Closed end
@@ -72,58 +73,77 @@ fn dialogue_events(events: &[GameEvent]) -> BTreeSet<String> {
         .collect()
 }
 
+fn player_task_events(events: &[GameEvent]) -> Vec<String> {
+    let mut normalized: Vec<String> = events
+        .iter()
+        .filter(|event| {
+            matches!(
+                event,
+                GameEvent::PlayerTaskAssigned { .. } | GameEvent::PlayerTaskProgressed { .. }
+            )
+        })
+        .map(|event| {
+            let mut value = serde_json::to_value(event).expect("GameEvent serializes");
+            strip_incidental(&mut value);
+            serde_json::to_string(&value).expect("value serializes")
+        })
+        .collect();
+    normalized.sort();
+    normalized
+}
+
 fn first_word(s: &str) -> &str {
     s.split_whitespace().next().unwrap_or(s)
 }
 
-#[test]
-fn dialogue_turn_publishes_identical_event_across_legacy_and_real_loop() {
-    let mut h = GameTestHarness::new();
-    let player_loc = h.app.world.player_location;
-
-    // Co-locate exactly one known NPC with the player, Present, so both paths
-    // resolve the same speaker deterministically regardless of the mod schedule.
-    let speaker_id = h
+fn isolate_one_speaker(harness: &mut GameTestHarness) -> (NpcId, String) {
+    let player_location = harness.app.world.player_location;
+    let speaker_id = harness
         .app
         .npc_manager
         .all_npcs()
-        .map(|n| n.id)
+        .map(|npc| npc.id)
         .next()
         .expect("harness loads at least one NPC");
     let speaker_name = {
-        let npc = h
+        let npc = harness
             .app
             .npc_manager
             .get_mut(speaker_id)
             .expect("speaker exists");
-        npc.location = player_loc;
-        npc.state = NpcState::Present;
+        npc.set_location_and_state(player_location, NpcState::Present);
         npc.name.clone()
     };
-    h.app.npc_manager.mark_introduced(speaker_id);
+    harness.app.npc_manager.mark_introduced(speaker_id);
 
-    // Move every other co-located NPC away so "talk to <name>" (and any
-    // no-target fallback) can only resolve to our speaker.
-    let other_loc = h
+    let other_location = harness
         .app
         .world
         .graph
         .location_ids()
         .into_iter()
-        .find(|l| *l != player_loc)
+        .find(|location| *location != player_location)
         .expect("graph has at least two locations");
-    let others: Vec<NpcId> = h
+    let others: Vec<NpcId> = harness
         .app
         .npc_manager
         .all_npcs()
-        .filter(|n| n.location == player_loc && n.id != speaker_id)
-        .map(|n| n.id)
+        .filter(|npc| npc.location() == player_location && npc.id != speaker_id)
+        .map(|npc| npc.id)
         .collect();
     for id in others {
-        if let Some(n) = h.app.npc_manager.get_mut(id) {
-            n.location = other_loc;
+        if let Some(npc) = harness.app.npc_manager.get_mut(id) {
+            npc.set_location(other_location);
         }
     }
+
+    (speaker_id, speaker_name)
+}
+
+#[test]
+fn dialogue_turn_publishes_identical_event_across_legacy_and_real_loop() {
+    let mut h = GameTestHarness::new();
+    let (_speaker_id, speaker_name) = isolate_one_speaker(&mut h);
 
     let input = format!("talk to {speaker_name} about the harvest");
     let reply = "A fair evening to ye, and the harvest looks kind this year.";
@@ -162,6 +182,65 @@ fn dialogue_turn_publishes_identical_event_across_legacy_and_real_loop() {
     );
 }
 
+#[test]
+fn grounded_task_assignment_is_identical_in_legacy_and_real_loops() {
+    let mut harness = GameTestHarness::new();
+    let (speaker_id, speaker_name) = isolate_one_speaker(&mut harness);
+    let input = format!("talk to {speaker_name} about whether ye have work for me");
+    let response = serde_json::json!({
+        "dialogue": "First, help with the potato patch — break the clods and plant seed.",
+        "action": "points toward the field",
+        "mood": "busy",
+        "language_hints": [],
+        "assigned_task": "Dig over the potato patch.",
+        "internal_thought": null
+    })
+    .to_string();
+    let pre = GameSnapshot::capture(&harness.app.world, &harness.app.npc_manager);
+
+    harness.add_canned_response(&speaker_name, &response);
+    let mut legacy_rx = harness.app.world.event_bus.subscribe();
+    let _ = harness.execute(&input);
+    let legacy_events = player_task_events(&drain(&mut legacy_rx));
+    let legacy_task = harness
+        .app
+        .world
+        .player_progress
+        .active_tasks()
+        .next()
+        .cloned()
+        .expect("legacy path assigns the grounded task");
+    assert_eq!(legacy_task.description, "Dig over the potato patch.");
+    assert_eq!(legacy_task.assigned_by, speaker_id);
+
+    pre.restore(&mut harness.app.world, &mut harness.app.npc_manager);
+    harness
+        .mock()
+        .push_json_for(first_word(&speaker_name), &response);
+    let mut real_rx = harness.app.world.event_bus.subscribe();
+    let _ = harness.execute_via_real_loop(&input);
+    let real_events = player_task_events(&drain(&mut real_rx));
+    let real_task = harness
+        .app
+        .world
+        .player_progress
+        .active_tasks()
+        .next()
+        .cloned()
+        .expect("real loop assigns the grounded task");
+
+    assert_eq!(
+        legacy_events.len(),
+        1,
+        "legacy path must publish exactly one assignment event: {legacy_events:?}"
+    );
+    assert_eq!(legacy_task, real_task);
+    assert_eq!(
+        legacy_events, real_events,
+        "legacy harness and real game loop must publish identical task assignment events"
+    );
+}
+
 /// C6: the comparison the parity test relies on must flag a path that drops the
 /// `DialogueOccurred` event (the exact pre-fix addressed-path bug), and must NOT
 /// flag two events that differ only in incidental ids/timestamps.
@@ -194,5 +273,67 @@ fn parity_comparison_catches_a_dropped_dialogue_event() {
         dialogue_events(&with_event),
         dialogue_events(&same_content_other_id),
         "events differing only in request_id/timestamp must compare equal"
+    );
+}
+
+#[test]
+fn potato_patch_action_progresses_identically_in_legacy_and_real_loops() {
+    const ACTION: &str = "I dig over the potato patch.";
+
+    let mut harness = GameTestHarness::new();
+    let location = harness.app.world.player_location;
+    let assigned_at = harness.app.world.clock.now();
+    let task_id = harness
+        .app
+        .world
+        .player_progress
+        .assign_task(
+            "Dig over the potato patch.",
+            NpcId(7),
+            location,
+            assigned_at,
+        )
+        .expect("seed exact potato-patch assignment");
+    let pre = GameSnapshot::capture(&harness.app.world, &harness.app.npc_manager);
+
+    let mut legacy_rx = harness.app.world.event_bus.subscribe();
+    let _ = harness.execute(ACTION);
+    let legacy_events = player_task_events(&drain(&mut legacy_rx));
+    assert_eq!(
+        harness
+            .app
+            .world
+            .player_progress
+            .task(task_id)
+            .expect("legacy task remains")
+            .status,
+        TaskStatus::InProgress,
+        "legacy harness action path must start the assigned task"
+    );
+
+    pre.restore(&mut harness.app.world, &mut harness.app.npc_manager);
+    let mut real_rx = harness.app.world.event_bus.subscribe();
+    let _ = harness.execute_via_real_loop(ACTION);
+    let real_events = player_task_events(&drain(&mut real_rx));
+    assert_eq!(
+        harness
+            .app
+            .world
+            .player_progress
+            .task(task_id)
+            .expect("real-loop task remains")
+            .status,
+        TaskStatus::InProgress,
+        "real game-loop action path must start the assigned task"
+    );
+
+    assert_eq!(
+        legacy_events.len(),
+        1,
+        "legacy path must publish exactly one semantic task transition: {legacy_events:?}"
+    );
+    assert_eq!(
+        legacy_events, real_events,
+        "legacy harness and real game loop must publish identical task progression events"
     );
 }

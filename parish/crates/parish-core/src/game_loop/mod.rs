@@ -26,7 +26,7 @@
 //! ## CLI structural note
 //!
 //! The headless CLI uses its own `handle_headless_new_game` because it
-//! creates a new branch on an existing `AsyncDatabase` and calls print helpers
+//! owns an `AsyncDatabase` directly and calls print helpers
 //! (`print_location_arrival`, `print_arrival_reactions`) that are not part of
 //! the `EventEmitter` surface.  The save equivalent (`do_autosave_if_needed`)
 //! similarly uses `AsyncDatabase` directly.  These diverge structurally, not
@@ -50,6 +50,25 @@
 //! `tauri`, or any crate in `FORBIDDEN_FOR_BACKEND_AGNOSTIC`.  The
 //! `architecture_fitness` test enforces this mechanically.
 
+/// Canonical state mutations produced by one player-input or autonomous turn.
+///
+/// Task records are complete post-mutation values so persistence can append
+/// them directly without observing the lossy broadcast event bus.
+#[derive(Debug, Clone, Default)]
+pub struct GameInputOutcome {
+    /// Player-task post-states in the order they were applied.
+    pub task_mutations: Vec<parish_types::PlayerTask>,
+}
+
+impl GameInputOutcome {
+    /// Creates an outcome containing one task mutation, when present.
+    pub fn from_task(task: Option<parish_types::PlayerTask>) -> Self {
+        Self {
+            task_mutations: task.into_iter().collect(),
+        }
+    }
+}
+
 pub mod context;
 pub mod inference;
 pub mod input;
@@ -57,6 +76,7 @@ pub mod movement;
 pub mod npc_turn;
 pub mod reactions;
 pub mod save;
+pub mod staged_turn;
 pub mod system_command;
 pub mod world_pump;
 
@@ -68,10 +88,16 @@ pub use npc_turn::{
     AUTONOMOUS_NPC_CHAIN_FLAG, NPC_ACTION_NARRATION_FLAG, TurnOutcome, handle_npc_conversation,
     run_idle_banter, run_npc_turn,
 };
-pub use reactions::{PersistReactionFn, emit_npc_reactions, is_snippet_injection_char};
+pub use reactions::{
+    PersistReactionFn, ReactionContextValidFn, emit_npc_reactions, is_snippet_injection_char,
+};
 pub use save::{
-    NewGameParams, do_new_game, do_save_game, load_fresh_world_and_npcs, render_branch_log_text,
-    render_branches_text,
+    NewGameParams, SaveGameParams, do_new_game, do_save_game, load_fresh_world_and_npcs,
+    render_branch_log_text, render_branches_text,
+};
+pub use staged_turn::{
+    StagedGameInputCommit, flush_staged_emissions, handle_staged_game_input,
+    handle_staged_game_input_with_journal, input_may_mutate_tasks,
 };
 pub use system_command::{BoxFuture, SystemCommandHost, handle_system_command};
 pub use world_pump::{

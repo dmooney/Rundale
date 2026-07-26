@@ -60,6 +60,45 @@ pub fn reaction_req_id_peek() -> u64 {
 /// schedules) is likewise untouched; only the visible arrival lines are gated.
 pub const NPC_ARRIVAL_GREETINGS_FLAG: &str = "npc-arrival-greetings";
 
+/// Default-on kill switch for durable player task assignment and progression.
+///
+/// Disable with `/flag disable player-task-progression` to preserve action
+/// narration while suppressing task state mutations and semantic task events.
+pub const PLAYER_TASK_PROGRESSION_FLAG: &str = "player-task-progression";
+
+/// Deterministic player opt-in for accepting a model-proposed task.
+///
+/// Restricting assignment to an explicit work/help request lets runtimes know
+/// before inference which dialogue turns can mutate the durable task ledger,
+/// so those turns can be staged atomically without delaying every ordinary
+/// conversation.
+pub fn is_task_request_input(input: &str) -> bool {
+    let normalized = input.trim().to_ascii_lowercase();
+    [
+        "any work",
+        "have work",
+        "work for me",
+        "need help",
+        "can i help",
+        "how can i help",
+        "what can i do",
+        "what needs doing",
+        "anything needs doing",
+        "anything need doing",
+        "where should i begin",
+        "where do i begin",
+        "give me a task",
+        "have a task",
+        "any tasks",
+        "any jobs",
+        "have a job",
+        "chores",
+        "errand",
+    ]
+    .iter()
+    .any(|phrase| normalized.contains(phrase))
+}
+
 // ── Public types ─────────────────────────────────────────────────────────────
 
 /// A player-visible message produced by movement resolution.
@@ -105,7 +144,81 @@ pub struct GameEffects {
     pub tier_transitions: Vec<TierTransition>,
 }
 
+/// Authoritative result of applying a physical player action.
+#[derive(Debug, Clone)]
+pub struct PlayerActionOutcome {
+    /// Existing second-person narration preserved for every runtime.
+    pub narration: String,
+    /// Canonical post-mutation task record when this action started one
+    /// unambiguous same-location assignment.
+    pub progressed_task: Option<parish_types::PlayerTask>,
+}
+
 // ── Core functions ────────────────────────────────────────────────────────────
+
+/// Applies a physical action through the shared cross-runtime seam.
+///
+/// Action narration is always returned. When [`PLAYER_TASK_PROGRESSION_FLAG`]
+/// is enabled (the default), one uniquely matching same-location assignment may
+/// transition from `Assigned` to `InProgress`; actions never infer completion.
+/// A successful transition publishes exactly one semantic
+/// [`GameEvent::PlayerTaskProgressed`](parish_types::GameEvent::PlayerTaskProgressed)
+/// carrying the authoritative post-mutation task record.
+pub fn apply_player_action(
+    world: &mut WorldState,
+    raw_action: &str,
+    flags: &FeatureFlags,
+) -> Option<PlayerActionOutcome> {
+    let narration = player_action_narration(raw_action)?;
+    let progressed_task = if flags.is_disabled(PLAYER_TASK_PROGRESSION_FLAG) {
+        None
+    } else {
+        let location = world.player_location;
+        let timestamp = world.clock.now();
+        world
+            .player_progress
+            .advance_assigned_task(raw_action, location, timestamp)
+            .and_then(|task_id| world.player_progress.task(task_id).cloned())
+    };
+
+    if let Some(task) = progressed_task.as_ref() {
+        let action = task.last_matching_action.clone().unwrap_or_default();
+        world
+            .event_bus
+            .publish(parish_types::GameEvent::PlayerTaskProgressed {
+                task: task.clone(),
+                previous_status: parish_types::TaskStatus::Assigned,
+                action,
+                timestamp: task.started_at.unwrap_or_else(|| world.clock.now()),
+            });
+    }
+
+    Some(PlayerActionOutcome {
+        narration,
+        progressed_task,
+    })
+}
+
+fn player_action_narration(raw_action: &str) -> Option<String> {
+    // Preserve the existing narration contract: strip a first-person "I ",
+    // lowercase the action's first character, and normalize one trailing full
+    // stop. This keeps #1780's visible result unchanged while progression is
+    // added underneath it.
+    let trimmed = raw_action.trim().trim_end_matches('.');
+    let action = trimmed
+        .get(..2)
+        .filter(|prefix| prefix.eq_ignore_ascii_case("i "))
+        .map_or(trimmed, |_| trimmed[2..].trim_start());
+    let mut chars = action.chars();
+    let normalized = match chars.next() {
+        None => return None,
+        Some(first) => first.to_lowercase().collect::<String>() + chars.as_str(),
+    };
+    if normalized.is_empty() {
+        return None;
+    }
+    Some(format!("You {normalized}."))
+}
 
 /// Resolves a movement intent and applies all post-movement state changes.
 ///
@@ -449,6 +562,447 @@ pub struct DialogueTurnOutcome {
     /// Secondary-language hints validated against `display_text` and the active
     /// setting's curated native-language inventory (#1789).
     pub language_hints: Vec<crate::npc::LanguageHint>,
+    /// Canonical task post-state when the delivered dialogue assigned a task.
+    ///
+    /// Callers persist this exact record before acknowledging the player turn;
+    /// replay never re-runs model-output interpretation.
+    pub assigned_task: Option<parish_types::PlayerTask>,
+}
+
+#[cfg(test)]
+fn task_proposal_is_grounded_in_final_dialogue(proposal: &str, final_dialogue: &str) -> bool {
+    grounded_task_assignment_clause(proposal, final_dialogue).is_some()
+}
+
+fn grounded_task_assignment_clause<'a>(proposal: &str, final_dialogue: &'a str) -> Option<&'a str> {
+    let proposal_verb = positive_task_directive_verb(proposal)?;
+    let proposal_tokens = task_grounding_tokens(proposal);
+    if proposal_tokens.len() < 2 {
+        return None;
+    }
+    let required_overlap = 2.max(proposal_tokens.len().div_ceil(2));
+
+    let direct_clause = final_dialogue
+        .split_inclusive(['.', '!', '?', ';', '\n', '\u{2014}'])
+        .find(|clause| {
+            let clause = clause.trim();
+            let Some(dialogue_verb) = clause_assignment_verb(clause) else {
+                return false;
+            };
+            let matched_verb = if dialogue_verb == proposal_verb || dialogue_verb == "help" {
+                dialogue_verb
+            } else if nested_start_gerund_verb(clause) == Some(proposal_verb) {
+                proposal_verb
+            } else {
+                return false;
+            };
+            let mut dialogue_tokens = task_grounding_tokens(clause);
+            // The assignment grammar already proves that an inflected form
+            // such as "breaking" names the proposal's work verb. Include its
+            // canonical form in the lexical overlap instead of requiring a
+            // second copy of the imperative "break" in the spoken clause.
+            dialogue_tokens.insert(matched_verb.to_string());
+            proposal_tokens.intersection(&dialogue_tokens).count() >= required_overlap
+        });
+    direct_clause.or_else(|| {
+        final_dialogue
+            .split_inclusive(['.', '!', '?', ';', '\n'])
+            .find(|clause| {
+                let clause = clause.trim();
+                if implied_need_assignment_verb(clause) != Some(proposal_verb) {
+                    return false;
+                }
+                let mut dialogue_tokens = task_grounding_tokens(clause);
+                dialogue_tokens.insert(proposal_verb.to_string());
+                proposal_tokens.intersection(&dialogue_tokens).count() >= required_overlap
+            })
+    })
+}
+
+fn nested_start_gerund_verb(clause: &str) -> Option<&'static str> {
+    let lower = clause
+        .trim()
+        .trim_end_matches(['.', '!', '?', ';', '\n', '\u{2014}'])
+        .to_lowercase()
+        .replace('\u{2019}', "'");
+    let body = [" and start ", " then start "]
+        .iter()
+        .find_map(|separator| lower.split_once(separator).map(|(_, body)| body))?;
+    let body = body.strip_prefix("by ").unwrap_or(body);
+    leading_work_gerund(body)
+}
+
+fn implied_need_assignment_verb(clause: &str) -> Option<&'static str> {
+    let trimmed = clause.trim();
+    if trimmed.is_empty()
+        || trimmed.starts_with(['"', '\'', '\u{2018}', '\u{201C}'])
+        || assignment_language_is_negative_or_avoidant(&trimmed.to_lowercase())
+    {
+        return None;
+    }
+    let lower = trimmed
+        .trim_end_matches(['.', '!', '?', ';', '\n'])
+        .to_lowercase()
+        .replace('\u{2019}', "'");
+    let (_, need_body) = lower.split_once(" needs ")?;
+    let verb = leading_work_gerund(need_body)?;
+    [
+        "\u{2014} start there",
+        "- start there",
+        "\u{2014} begin there",
+        "- begin there",
+        ", start there",
+        ", begin there",
+    ]
+    .iter()
+    .any(|directive| need_body.contains(directive))
+    .then_some(verb)
+}
+
+fn positive_task_directive_verb(value: &str) -> Option<&'static str> {
+    let lower = value.trim().to_lowercase();
+    if assignment_language_is_negative_or_avoidant(&lower) {
+        return None;
+    }
+    leading_work_verb(lower.trim_end_matches(['.', '!', ';']))
+}
+
+fn clause_assignment_verb(clause: &str) -> Option<&'static str> {
+    let trimmed = clause.trim();
+    if trimmed.is_empty()
+        || trimmed.starts_with(['"', '\'', '\u{2018}', '\u{201C}'])
+        || assignment_language_is_negative_or_avoidant(&trimmed.to_lowercase())
+    {
+        return None;
+    }
+
+    let is_question = trimmed.ends_with('?');
+    let lower = trimmed
+        .trim_end_matches(['.', '!', '?', ';', '\n', '\u{2014}'])
+        .trim()
+        .to_lowercase()
+        .replace('\u{2019}', "'");
+    let clause_start = lower
+        .strip_prefix("first,")
+        .or_else(|| lower.strip_prefix("first "))
+        .unwrap_or(&lower)
+        .trim_start();
+
+    let request_prefixes = [
+        "could you ",
+        "could ye ",
+        "would you ",
+        "would ye ",
+        "can you ",
+        "can ye ",
+        "will you ",
+        "will ye ",
+        "i need you to ",
+        "i need ye to ",
+        "i'd have you ",
+        "i'd have ye ",
+    ];
+    if let Some(body) = request_prefixes
+        .iter()
+        .find_map(|prefix| clause_start.strip_prefix(prefix))
+    {
+        return requested_work_verb(body);
+    }
+
+    if let Some(body) = clause_start.strip_prefix("please ") {
+        return requested_work_verb(body);
+    }
+
+    let best_start_prefixes = [
+        "you'd best start with ",
+        "you'd best start by ",
+        "ye'd best start with ",
+        "ye'd best start by ",
+    ];
+    if let Some(body) = best_start_prefixes
+        .iter()
+        .find_map(|prefix| clause_start.strip_prefix(prefix))
+    {
+        return leading_work_gerund(body);
+    }
+
+    // A bare imperative is a direct assignment, but a bare question such as
+    // "Dig over the potato patch?" is merely checking/repeating a proposal.
+    if is_question {
+        return None;
+    }
+    if let Some(body) = clause_start.strip_prefix("start by ") {
+        return leading_work_gerund(body);
+    }
+    leading_work_verb(clause_start)
+}
+
+fn requested_work_verb(value: &str) -> Option<&'static str> {
+    let value = value.trim_start();
+    let value = value.strip_prefix("please ").unwrap_or(value);
+    if let Some(body) = value.strip_prefix("mind ") {
+        return leading_work_gerund(body);
+    }
+    if let Some(body) = value.strip_prefix("start by ") {
+        return leading_work_gerund(body);
+    }
+    leading_work_verb(value)
+}
+
+fn leading_work_verb(value: &str) -> Option<&'static str> {
+    let value = value.trim_start();
+    if value.starts_with("see to ") {
+        return Some("see_to");
+    }
+    if value.starts_with("take care of ") {
+        return Some("take_care_of");
+    }
+    if value.starts_with("help with ") {
+        return Some("help");
+    }
+
+    let first_word = value
+        .split(|character: char| !character.is_alphanumeric())
+        .next()
+        .unwrap_or_default();
+    Some(match first_word {
+        "break" => "break",
+        "bring" => "bring",
+        "carry" => "carry",
+        "clean" => "clean",
+        "clear" => "clear",
+        "collect" => "collect",
+        "cut" => "cut",
+        "dig" => "dig",
+        "draw" => "draw",
+        "feed" => "feed",
+        "fetch" => "fetch",
+        "fill" => "fill",
+        "gather" => "gather",
+        "harvest" => "harvest",
+        "hoe" => "hoe",
+        "mend" => "mend",
+        "milk" => "milk",
+        "plant" => "plant",
+        "rake" => "rake",
+        "repair" => "repair",
+        "sow" => "sow",
+        "stack" => "stack",
+        "sweep" => "sweep",
+        "tend" => "tend",
+        "turn" => "turn",
+        "weed" => "weed",
+        _ => return None,
+    })
+}
+
+fn leading_work_gerund(value: &str) -> Option<&'static str> {
+    let value = value.trim_start();
+    if value.starts_with("seeing to ") {
+        return Some("see_to");
+    }
+    if value.starts_with("taking care of ") {
+        return Some("take_care_of");
+    }
+
+    let first_word = value
+        .split(|character: char| !character.is_alphanumeric())
+        .next()
+        .unwrap_or_default();
+    Some(match first_word {
+        "breaking" => "break",
+        "bringing" => "bring",
+        "carrying" => "carry",
+        "cleaning" => "clean",
+        "clearing" => "clear",
+        "collecting" => "collect",
+        "cutting" => "cut",
+        "digging" => "dig",
+        "drawing" => "draw",
+        "feeding" => "feed",
+        "fetching" => "fetch",
+        "filling" => "fill",
+        "gathering" => "gather",
+        "harvesting" => "harvest",
+        "hoeing" => "hoe",
+        "mending" => "mend",
+        "milking" => "milk",
+        "planting" => "plant",
+        "raking" => "rake",
+        "repairing" => "repair",
+        "sowing" => "sow",
+        "stacking" => "stack",
+        "sweeping" => "sweep",
+        "tending" => "tend",
+        "turning" => "turn",
+        "weeding" => "weed",
+        _ => return None,
+    })
+}
+
+fn assignment_language_is_negative_or_avoidant(value: &str) -> bool {
+    let lower = value.to_lowercase().replace('\u{2019}', "'");
+    let words: HashSet<&str> = lower
+        .split(|character: char| !character.is_alphanumeric())
+        .filter(|word| !word.is_empty())
+        .collect();
+
+    words.iter().any(|word| {
+        matches!(
+            *word,
+            "no" | "not"
+                | "never"
+                | "nothing"
+                | "cannot"
+                | "dont"
+                | "cant"
+                | "wont"
+                | "neednt"
+                | "avoid"
+                | "avoids"
+                | "avoided"
+                | "avoiding"
+                | "remember"
+                | "remembers"
+                | "remembered"
+                | "remind"
+                | "reminds"
+                | "reminded"
+                | "report"
+                | "reports"
+                | "reported"
+                | "recall"
+                | "recalls"
+                | "recalled"
+                | "quote"
+                | "quotes"
+                | "quoted"
+                | "finished"
+                | "completed"
+                | "done"
+                | "dug"
+                | "weeded"
+                | "repaired"
+                | "mended"
+                | "cleared"
+                | "carried"
+                | "fetched"
+                | "harvested"
+                | "planted"
+                | "sowed"
+                | "stacked"
+                | "swept"
+                | "tended"
+                | "cleaned"
+                | "collected"
+                | "remembering"
+                | "reminding"
+                | "reporting"
+                | "recalling"
+                | "quoting"
+        )
+    }) || [
+        "no work",
+        "don't ",
+        "do not ",
+        "can't ",
+        "cannot ",
+        "won't ",
+        "will not ",
+        "needn't ",
+        "instead of",
+        "rather than",
+        "move away",
+        "stay away",
+        "keep away",
+        "clear out",
+        "break the news",
+        "break the silence",
+        "break the ice",
+        "clear the air",
+        "bring the matter up",
+    ]
+    .iter()
+    .any(|phrase| lower.contains(phrase))
+        || (words.contains("leave") && words.contains("alone"))
+        || words.contains("already")
+}
+
+fn task_proposal_names_remote_location(
+    world: &WorldState,
+    proposal: &str,
+    authoritative_location: LocationId,
+) -> bool {
+    let normalized_proposal = normalized_phrase(proposal);
+    world.graph.location_ids().into_iter().any(|location_id| {
+        if location_id == authoritative_location {
+            return false;
+        }
+        let Some(location) = world.graph.get(location_id) else {
+            return false;
+        };
+
+        phrase_is_contained(&normalized_proposal, &normalized_phrase(&location.name))
+            || location.aliases.iter().any(|alias| {
+                let normalized_alias = normalized_phrase(alias);
+                if normalized_alias.split_whitespace().count() >= 2 {
+                    return phrase_is_contained(&normalized_proposal, &normalized_alias);
+                }
+                ["at", "in", "inside", "near", "outside", "by", "to", "from"]
+                    .iter()
+                    .any(|preposition| {
+                        phrase_is_contained(
+                            &normalized_proposal,
+                            &format!("{preposition} {normalized_alias}"),
+                        ) || phrase_is_contained(
+                            &normalized_proposal,
+                            &format!("{preposition} the {normalized_alias}"),
+                        )
+                    })
+                    || phrase_is_contained(&normalized_proposal, &format!("the {normalized_alias}"))
+            })
+    })
+}
+
+fn normalized_phrase(value: &str) -> String {
+    value
+        .split(|character: char| !character.is_alphanumeric())
+        .filter(|token| !token.is_empty())
+        .map(str::to_lowercase)
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
+fn phrase_is_contained(haystack: &str, needle: &str) -> bool {
+    !needle.is_empty() && format!(" {haystack} ").contains(&format!(" {needle} "))
+}
+
+fn task_grounding_tokens(value: &str) -> HashSet<String> {
+    value
+        .split(|character: char| !character.is_alphanumeric())
+        .map(str::to_lowercase)
+        .filter(|token| token.chars().count() >= 3)
+        .filter(|token| {
+            !matches!(
+                token.as_str(),
+                "and"
+                    | "for"
+                    | "from"
+                    | "help"
+                    | "into"
+                    | "over"
+                    | "start"
+                    | "the"
+                    | "then"
+                    | "there"
+                    | "this"
+                    | "with"
+                    | "work"
+                    | "you"
+                    | "your"
+            )
+        })
+        .collect()
 }
 
 /// Applies a parsed NPC dialogue response — the per-turn cross-cutting steps
@@ -508,6 +1062,7 @@ pub fn apply_npc_dialogue_turn(
     request_id: Option<u64>,
     grounded_person_names: &[String],
     language: &LanguageSettings,
+    flags: &FeatureFlags,
 ) -> DialogueTurnOutcome {
     let mut debug_events = Vec::new();
 
@@ -629,6 +1184,43 @@ pub fn apply_npc_dialogue_turn(
             )
         })
         .unwrap_or_default();
+    let assigned_task = if flags.is_disabled(PLAYER_TASK_PROGRESSION_FLAG)
+        || !is_task_request_input(player_input)
+    {
+        None
+    } else {
+        canonical_response
+            .metadata
+            .as_ref()
+            .and_then(|metadata| metadata.assigned_task.as_deref())
+            .and_then(|proposal| {
+                let grounding_clause = grounded_task_assignment_clause(proposal, &capped_dialogue)?;
+                let authoritative_location = npc_manager.get(speaker_id)?.location();
+                if authoritative_location != world.player_location
+                    || task_proposal_names_remote_location(world, proposal, authoritative_location)
+                    || task_proposal_names_remote_location(
+                        world,
+                        grounding_clause,
+                        authoritative_location,
+                    )
+                {
+                    return None;
+                }
+                let existing_ids: HashSet<parish_types::PlayerTaskId> = world
+                    .player_progress
+                    .tasks()
+                    .iter()
+                    .map(|task| task.id)
+                    .collect();
+                let task_id = world
+                    .player_progress
+                    .assign_task(proposal, speaker_id, authoritative_location, game_time)
+                    .ok()?;
+                (!existing_ids.contains(&task_id))
+                    .then(|| world.player_progress.task(task_id).cloned())
+                    .flatten()
+            })
+    };
 
     // Identity becomes known only when the final delivered line explicitly
     // establishes the speaker's authored full name (#1776). Doing this after
@@ -684,11 +1276,20 @@ pub fn apply_npc_dialogue_turn(
                 timestamp: game_time,
             });
     }
+    if let Some(task) = assigned_task.as_ref() {
+        world
+            .event_bus
+            .publish(parish_types::GameEvent::PlayerTaskAssigned {
+                timestamp: task.assigned_at,
+                task: task.clone(),
+            });
+    }
 
     DialogueTurnOutcome {
         debug_events,
         display_text: capped_dialogue.into_owned(),
         language_hints,
+        assigned_task,
     }
 }
 
@@ -1999,12 +2600,9 @@ mod tests {
         let mut npc_manager = NpcManager::new();
 
         // Synthesise an NPC at the player's start location.
-        let npc = crate::npc::Npc {
-            id: NpcId(1),
-            location: world.player_location,
-            state: crate::npc::types::NpcState::Present,
-            ..crate::npc::Npc::new_test_npc()
-        };
+        let mut npc = crate::npc::Npc::new_test_npc();
+        npc.id = NpcId(1);
+        npc.set_location(world.player_location);
         npc_manager.add_npc(npc);
 
         let long_dialogue = "word ".repeat(300); // ~1500 chars, well over 800
@@ -2030,6 +2628,7 @@ mod tests {
             None,
             &[],
             &LanguageSettings::english_only(),
+            &FeatureFlags::default(),
         );
 
         // The DialogueOccurred event published to the bus must carry the
@@ -2057,7 +2656,7 @@ mod tests {
     fn dialogue_turn_reveals_identity_only_after_spoken_full_name() {
         use crate::npc::manager::NpcManager;
         use crate::npc::{LanguageSettings, NpcId, NpcStreamResponse};
-        use chrono::{Duration, TimeZone};
+        use chrono::TimeZone;
         use parish_world::WorldState;
 
         let mut world = WorldState::new();
@@ -2066,7 +2665,7 @@ mod tests {
         npc.id = NpcId(22);
         npc.name = "Peig Hannigan".to_string();
         npc.brief_description = "an elderly widow".to_string();
-        npc.location = world.player_location;
+        npc.set_location(world.player_location);
         npc_manager.add_npc(npc);
         let location = world.player_location;
         let game_time = chrono::Utc.with_ymd_and_hms(1820, 3, 20, 8, 0, 0).unwrap();
@@ -2089,6 +2688,7 @@ mod tests {
             None,
             &[],
             &LanguageSettings::english_only(),
+            &FeatureFlags::default(),
         );
         assert!(
             !npc_manager.is_introduced(NpcId(22)),
@@ -2106,13 +2706,14 @@ mod tests {
             &named,
             "I did ask your name.",
             "I did ask your name.",
-            game_time + Duration::minutes(10),
+            game_time + chrono::Duration::minutes(10),
             location,
             "an elderly widow",
             "Peig Hannigan",
             None,
             &[],
             &LanguageSettings::english_only(),
+            &FeatureFlags::default(),
         );
         assert!(
             npc_manager.is_introduced(NpcId(22)),
@@ -2130,7 +2731,7 @@ mod tests {
         let mut world = WorldState::new();
         let mut npc_manager = NpcManager::new();
         let mut npc = crate::npc::Npc::new_test_npc();
-        npc.location = world.player_location;
+        npc.set_location(world.player_location);
         npc_manager.add_npc(npc);
         let location = world.player_location;
         let parsed = NpcStreamResponse {
@@ -2152,6 +2753,7 @@ mod tests {
                     },
                 ],
                 mentioned_people: Vec::new(),
+                assigned_task: None,
             }),
         };
         let game_time = chrono::Utc.with_ymd_and_hms(1820, 3, 20, 8, 0, 0).unwrap();
@@ -2169,8 +2771,837 @@ mod tests {
             None,
             &[],
             &LanguageSettings::new("en-IE", Some("ga-IE".to_string())),
+            &FeatureFlags::default(),
         );
         assert_eq!(outcome.language_hints.len(), 1);
         assert_eq!(outcome.language_hints[0].word, "Dia dhuit");
+    }
+
+    #[test]
+    fn task_proposal_requires_concrete_overlap_and_spoken_assignment() {
+        assert!(task_proposal_is_grounded_in_final_dialogue(
+            "Dig over the potato patch.",
+            "First, help with the potato patch — break the clods and plant seed in the open rows."
+        ));
+        assert!(!task_proposal_is_grounded_in_final_dialogue(
+            "Dig over the potato patch.",
+            "The potato patch has been hard work this spring."
+        ));
+        assert!(!task_proposal_is_grounded_in_final_dialogue(
+            "Dig over the potato patch.",
+            "There is no work for ye in the potato patch today."
+        ));
+        assert!(!task_proposal_is_grounded_in_final_dialogue(
+            "Mend the west wall.",
+            "First, help with the potato patch."
+        ));
+        assert!(!task_proposal_is_grounded_in_final_dialogue(
+            "Ask Siobhan at the farm.",
+            "You can ask Siobhan at the farm about digging the potato patch."
+        ));
+        assert!(!task_proposal_is_grounded_in_final_dialogue(
+            "Help with the potato patch.",
+            "Liam will help with the potato patch."
+        ));
+        assert!(!task_proposal_is_grounded_in_final_dialogue(
+            "See Liam about the potato patch.",
+            "See, Liam has already dug over the potato patch."
+        ));
+        assert!(!task_proposal_is_grounded_in_final_dialogue(
+            "Take seed to the potato patch.",
+            "Take my advice: leave the potato patch alone."
+        ));
+        assert!(task_proposal_is_grounded_in_final_dialogue(
+            "See to the broken west gate.",
+            "First, see to the broken west gate."
+        ));
+        assert!(task_proposal_is_grounded_in_final_dialogue(
+            "Take care of the potato patch.",
+            "Take care of the potato patch before sundown."
+        ));
+        assert!(task_proposal_is_grounded_in_final_dialogue(
+            "Mend the west wall.",
+            "Could ye mend the west wall?"
+        ));
+        assert!(task_proposal_is_grounded_in_final_dialogue(
+            "Weed the potato patch.",
+            "Would you weed the potato patch?"
+        ));
+        assert!(task_proposal_is_grounded_in_final_dialogue(
+            "Carry the turf.",
+            "Please carry the turf."
+        ));
+        assert!(task_proposal_is_grounded_in_final_dialogue(
+            "Mend the west wall.",
+            "Could ye please mend the west wall?"
+        ));
+        assert!(task_proposal_is_grounded_in_final_dialogue(
+            "Mend the west wall.",
+            "Would ye mind mending the west wall?"
+        ));
+        assert!(task_proposal_is_grounded_in_final_dialogue(
+            "Fetch water from the well.",
+            "Plainly, then—Plainly, then—Start by fetching water from the well for the sick woman."
+        ));
+        assert!(task_proposal_is_grounded_in_final_dialogue(
+            "Break stones from the road and carry them to the side.",
+            "Good morning. Ye'd best start with breaking stones from the road — the ford needs clearing. Carry the clods to the side of the path."
+        ));
+        assert!(task_proposal_is_grounded_in_final_dialogue(
+            "Mend the west wall.",
+            "You’d best start by mending the west wall."
+        ));
+        assert!(task_proposal_is_grounded_in_final_dialogue(
+            "Turn over the soil in the potato patch.",
+            "Aye. First, fetch the spade and start turning over the soil in the potato patch."
+        ));
+        assert!(task_proposal_is_grounded_in_final_dialogue(
+            "Turn the potato patch.",
+            "'Tis a fine day for work. The potato patch needs turning — start there. Break up the clods and loosen the soil."
+        ));
+        assert!(!task_proposal_is_grounded_in_final_dialogue(
+            "Mend the west wall.",
+            "Ye'd best start with sweeping beside the west wall."
+        ));
+        assert!(task_proposal_is_grounded_in_final_dialogue(
+            "Break the stone clods.",
+            "Please break the stone clods."
+        ));
+        for non_assignment in [
+            "I need you to remember that Liam already dug over the potato patch.",
+            "I need you to report that Liam repaired the potato patch.",
+            "Help me remember that Liam dug over the potato patch.",
+            "Please carry word that Liam repaired the potato patch.",
+            "He said I need you to dig over the potato patch.",
+            "Start by leaving the potato patch alone.",
+            "I need you to move away from the potato patch.",
+            "I need you to clear out the potato patch.",
+            "\u{201c}Dig over the potato patch,\u{201d} Liam told me yesterday.",
+            "Dig over the potato patch?",
+            "Help me count the rows in the potato patch.",
+            "Please break the news about the potato patch.",
+            "Please break the silence beside the potato patch.",
+            "Please break the ice beside the potato patch.",
+            "Please clear the air about the potato patch.",
+            "Please bring the matter up about the potato patch.",
+            "Start by remembering that Liam dug over the potato patch.",
+            "Ye'd best start with remembering that Liam dug over the potato patch.",
+            "Ye'd best not start with digging over the potato patch.",
+            "Liam said ye'd best start with digging over the potato patch.",
+            "Please dig no potato patch.",
+            "\u{201c}The potato patch needs digging — start there,\u{201d} Liam told me.",
+        ] {
+            assert!(
+                !task_proposal_is_grounded_in_final_dialogue(
+                    "Dig over the potato patch.",
+                    non_assignment,
+                ),
+                "{non_assignment:?} must not be treated as a direct assignment"
+            );
+        }
+        for negative_proposal in [
+            "Leave the potato patch alone.",
+            "Avoid the potato patch.",
+            "Do not dig over the potato patch.",
+            "Dig no potato patch.",
+            "Move away from the potato patch.",
+        ] {
+            assert!(
+                !task_proposal_is_grounded_in_final_dialogue(
+                    negative_proposal,
+                    "Please dig over the potato patch.",
+                ),
+                "{negative_proposal:?} must not become a durable task"
+            );
+        }
+    }
+
+    #[test]
+    fn canonical_dialogue_seam_assigns_grounded_potato_task_and_publishes_payload() {
+        use crate::npc::manager::NpcManager;
+        use crate::npc::{NpcId, NpcMetadata, NpcStreamResponse};
+        use chrono::{Duration as ChronoDuration, TimeZone};
+        use parish_types::{GameEvent, TaskStatus};
+        use parish_world::WorldState;
+
+        let mut world = WorldState::new();
+        let mut rx = world.event_bus.subscribe();
+        let location = world.player_location;
+        let mut npc_manager = NpcManager::new();
+        let mut npc = crate::npc::Npc::new_test_npc();
+        npc.id = NpcId(7);
+        npc.name = "Siobhan Murphy".to_string();
+        npc.set_location(location);
+        npc_manager.add_npc(npc);
+        let game_time = chrono::Utc.with_ymd_and_hms(1820, 3, 20, 10, 0, 0).unwrap();
+        let response = NpcStreamResponse {
+            dialogue: "First, help with the potato patch — break the clods and plant seed in the open rows.".to_string(),
+            metadata: Some(NpcMetadata {
+                action: "points toward the field".to_string(),
+                mood: "busy".to_string(),
+                internal_thought: None,
+                language_hints: Vec::new(),
+                mentioned_people: Vec::new(),
+                assigned_task: Some("Dig over the potato patch.".to_string()),
+            }),
+        };
+
+        apply_npc_dialogue_turn(
+            &mut world,
+            &mut npc_manager,
+            NpcId(7),
+            &response,
+            "Where should I begin the work?",
+            "Where should I begin the work?",
+            game_time,
+            location,
+            "a farmer",
+            "Siobhan Murphy",
+            None,
+            &[],
+            &LanguageSettings::english_only(),
+            &FeatureFlags::default(),
+        );
+        let mut repeated_response = NpcStreamResponse {
+            dialogue: "Begin with the potato patch; dig the clods and plant seed in the open rows."
+                .to_string(),
+            ..response.clone()
+        };
+        repeated_response
+            .metadata
+            .as_mut()
+            .expect("metadata")
+            .assigned_task = Some("  Dig over the potato patch  ".to_string());
+        apply_npc_dialogue_turn(
+            &mut world,
+            &mut npc_manager,
+            NpcId(7),
+            &repeated_response,
+            "I'll make a start there.",
+            "I'll make a start there.",
+            game_time + ChronoDuration::minutes(10),
+            location,
+            "a farmer",
+            "Siobhan Murphy",
+            None,
+            &[],
+            &LanguageSettings::english_only(),
+            &FeatureFlags::default(),
+        );
+
+        let task = world
+            .player_progress
+            .active_tasks()
+            .next()
+            .expect("grounded spoken assignment must create a task");
+        assert_eq!(task.description, "Dig over the potato patch.");
+        assert_eq!(task.assigned_by, NpcId(7));
+        assert_eq!(task.location, location);
+        assert_eq!(task.assigned_at, game_time);
+        assert_eq!(task.status, TaskStatus::Assigned);
+        assert_eq!(
+            world.player_progress.len(),
+            1,
+            "a repeated response proposing the same active task must be idempotent"
+        );
+
+        let events: Vec<GameEvent> = std::iter::from_fn(|| rx.try_recv().ok()).collect();
+        let assignment_events: Vec<_> = events
+            .iter()
+            .filter_map(|event| match event {
+                GameEvent::PlayerTaskAssigned { task, timestamp } => Some((task, timestamp)),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(
+            assignment_events.len(),
+            1,
+            "an idempotent repeat must not publish a duplicate assignment event"
+        );
+        let assigned = assignment_events[0];
+        assert_eq!(assigned.0, task);
+        assert_eq!(*assigned.1, game_time);
+    }
+
+    #[test]
+    fn canonical_dialogue_seam_accepts_live_shaped_start_by_gerund_assignment() {
+        use crate::npc::manager::NpcManager;
+        use crate::npc::{NpcId, NpcMetadata, NpcStreamResponse};
+        use chrono::TimeZone;
+        use parish_types::GameEvent;
+        use parish_world::WorldState;
+
+        let mut world = WorldState::new();
+        let location = world.player_location;
+        let mut rx = world.event_bus.subscribe();
+        let mut npc_manager = NpcManager::new();
+        let mut npc = crate::npc::Npc::new_test_npc();
+        npc.id = NpcId(7);
+        npc.set_location(location);
+        npc_manager.add_npc(npc);
+        let game_time = chrono::Utc.with_ymd_and_hms(1820, 3, 20, 10, 0, 0).unwrap();
+        let response = NpcStreamResponse {
+            dialogue: "Plainly, then—Plainly, then—Start by fetching water from the well for the sick woman.".to_string(),
+            metadata: Some(NpcMetadata {
+                action: "hands over a pail".to_string(),
+                mood: "concerned".to_string(),
+                internal_thought: None,
+                language_hints: Vec::new(),
+                mentioned_people: Vec::new(),
+                assigned_task: Some("Fetch water from the well.".to_string()),
+            }),
+        };
+
+        apply_npc_dialogue_turn(
+            &mut world,
+            &mut npc_manager,
+            NpcId(7),
+            &response,
+            "How can I help?",
+            "How can I help?",
+            game_time,
+            location,
+            "a farmer",
+            "Siobhan Murphy",
+            None,
+            &[],
+            &LanguageSettings::english_only(),
+            &FeatureFlags::default(),
+        );
+
+        let task = world
+            .player_progress
+            .active_tasks()
+            .next()
+            .expect("the grounded start-by-gerund request must create a task");
+        assert_eq!(task.description, "Fetch water from the well.");
+        assert_eq!(
+            std::iter::from_fn(|| rx.try_recv().ok())
+                .filter(|event| matches!(event, GameEvent::PlayerTaskAssigned { .. }))
+                .count(),
+            1
+        );
+    }
+
+    #[test]
+    fn canonical_dialogue_seam_accepts_live_shaped_best_start_with_assignment() {
+        use crate::npc::manager::NpcManager;
+        use crate::npc::{NpcId, NpcMetadata, NpcStreamResponse};
+        use chrono::TimeZone;
+        use parish_types::GameEvent;
+        use parish_world::WorldState;
+
+        let mut world = WorldState::new();
+        let location = world.player_location;
+        let mut rx = world.event_bus.subscribe();
+        let mut npc_manager = NpcManager::new();
+        let mut npc = crate::npc::Npc::new_test_npc();
+        npc.id = NpcId(7);
+        npc.set_location(location);
+        npc_manager.add_npc(npc);
+        let game_time = chrono::Utc.with_ymd_and_hms(1820, 3, 20, 10, 0, 0).unwrap();
+        let response = NpcStreamResponse {
+            dialogue: "Good morning. Ye'd best start with breaking stones from the road — the ford needs clearing. Carry the clods to the side of the path.".to_string(),
+            metadata: Some(NpcMetadata {
+                action: "points towards the ford".to_string(),
+                mood: "practical".to_string(),
+                internal_thought: None,
+                language_hints: Vec::new(),
+                mentioned_people: Vec::new(),
+                assigned_task: Some(
+                    "Break stones from the road and carry them to the side.".to_string(),
+                ),
+            }),
+        };
+
+        apply_npc_dialogue_turn(
+            &mut world,
+            &mut npc_manager,
+            NpcId(7),
+            &response,
+            "Is there work for me?",
+            "Is there work for me?",
+            game_time,
+            location,
+            "a farmer",
+            "Siobhan Murphy",
+            None,
+            &[],
+            &LanguageSettings::english_only(),
+            &FeatureFlags::default(),
+        );
+
+        let task = world
+            .player_progress
+            .active_tasks()
+            .next()
+            .expect("the grounded best-start-with request must create a task");
+        assert_eq!(
+            task.description,
+            "Break stones from the road and carry them to the side."
+        );
+        assert_eq!(
+            std::iter::from_fn(|| rx.try_recv().ok())
+                .filter(|event| matches!(event, GameEvent::PlayerTaskAssigned { .. }))
+                .count(),
+            1
+        );
+    }
+
+    #[test]
+    fn canonical_dialogue_seam_rejects_unspoken_or_disabled_task_metadata() {
+        use crate::npc::manager::NpcManager;
+        use crate::npc::{NpcId, NpcMetadata, NpcStreamResponse};
+        use chrono::{Duration, TimeZone};
+        use parish_types::GameEvent;
+        use parish_world::WorldState;
+
+        let mut world = WorldState::new();
+        let location = world.player_location;
+        let mut rx = world.event_bus.subscribe();
+        let mut npc_manager = NpcManager::new();
+        let mut npc = crate::npc::Npc::new_test_npc();
+        npc.id = NpcId(7);
+        npc.set_location(location);
+        npc_manager.add_npc(npc);
+        let game_time = chrono::Utc.with_ymd_and_hms(1820, 3, 20, 10, 0, 0).unwrap();
+        let response = |dialogue: &str| NpcStreamResponse {
+            dialogue: dialogue.to_string(),
+            metadata: Some(NpcMetadata {
+                action: String::new(),
+                mood: "busy".to_string(),
+                internal_thought: None,
+                language_hints: Vec::new(),
+                mentioned_people: Vec::new(),
+                assigned_task: Some("Dig over the potato patch.".to_string()),
+            }),
+        };
+
+        apply_npc_dialogue_turn(
+            &mut world,
+            &mut npc_manager,
+            NpcId(7),
+            &response("There is no work for ye in the potato patch today."),
+            "Have ye work for another pair of hands?",
+            "Have ye work for another pair of hands?",
+            game_time,
+            location,
+            "a farmer",
+            "Siobhan Murphy",
+            None,
+            &[],
+            &LanguageSettings::english_only(),
+            &FeatureFlags::default(),
+        );
+        assert!(world.player_progress.is_empty());
+
+        let advice = NpcStreamResponse {
+            dialogue: "You can ask Siobhan at the farm about digging the potato patch.".to_string(),
+            metadata: Some(NpcMetadata {
+                action: String::new(),
+                mood: "busy".to_string(),
+                internal_thought: None,
+                language_hints: Vec::new(),
+                mentioned_people: vec!["Siobhan".to_string()],
+                assigned_task: Some("Ask Siobhan at the farm.".to_string()),
+            }),
+        };
+        apply_npc_dialogue_turn(
+            &mut world,
+            &mut npc_manager,
+            NpcId(7),
+            &advice,
+            "Thank you for the advice.",
+            "Thank you for the advice.",
+            game_time + Duration::minutes(5),
+            location,
+            "a farmer",
+            "Siobhan Murphy",
+            None,
+            &[],
+            &LanguageSettings::english_only(),
+            &FeatureFlags::default(),
+        );
+        assert!(
+            world.player_progress.is_empty(),
+            "advice or a referral must not become a durable player task"
+        );
+        apply_npc_dialogue_turn(
+            &mut world,
+            &mut npc_manager,
+            NpcId(7),
+            &response("Liam will help with the potato patch."),
+            "What of Liam?",
+            "What of Liam?",
+            game_time + Duration::minutes(7),
+            location,
+            "a farmer",
+            "Siobhan Murphy",
+            None,
+            &[],
+            &LanguageSettings::english_only(),
+            &FeatureFlags::default(),
+        );
+        assert!(
+            world.player_progress.is_empty(),
+            "third-person work descriptions must not become player assignments"
+        );
+        for (minutes, dialogue) in [
+            (
+                8,
+                "I need you to remember that Liam already dug over the potato patch.",
+            ),
+            (
+                9,
+                "\u{201c}Dig over the potato patch,\u{201d} Liam told me yesterday.",
+            ),
+            (10, "Start by leaving the potato patch alone."),
+        ] {
+            apply_npc_dialogue_turn(
+                &mut world,
+                &mut npc_manager,
+                NpcId(7),
+                &response(dialogue),
+                "What work is there?",
+                "What work is there?",
+                game_time + Duration::minutes(minutes),
+                location,
+                "a farmer",
+                "Siobhan Murphy",
+                None,
+                &[],
+                &LanguageSettings::english_only(),
+                &FeatureFlags::default(),
+            );
+            assert!(
+                world.player_progress.is_empty(),
+                "{dialogue:?} must not mutate the task ledger"
+            );
+        }
+
+        let mut disabled = FeatureFlags::default();
+        disabled.disable(PLAYER_TASK_PROGRESSION_FLAG);
+        apply_npc_dialogue_turn(
+            &mut world,
+            &mut npc_manager,
+            NpcId(7),
+            &response("First, help with the potato patch — break the clods and plant seed."),
+            "Where should I begin?",
+            "Where should I begin?",
+            game_time + Duration::minutes(15),
+            location,
+            "a farmer",
+            "Siobhan Murphy",
+            None,
+            &[],
+            &LanguageSettings::english_only(),
+            &disabled,
+        );
+        assert!(world.player_progress.is_empty());
+        assert!(
+            std::iter::from_fn(|| rx.try_recv().ok())
+                .all(|event| !matches!(event, GameEvent::PlayerTaskAssigned { .. })),
+            "rejected and kill-switched metadata must not publish task events"
+        );
+    }
+
+    #[test]
+    fn canonical_dialogue_seam_rejects_assignment_at_a_known_remote_location() {
+        use crate::npc::manager::NpcManager;
+        use crate::npc::{NpcId, NpcMetadata, NpcStreamResponse};
+        use chrono::TimeZone;
+        use parish_types::GameEvent;
+        use parish_world::WorldState;
+        use parish_world::graph::WorldGraph;
+
+        let mut world = WorldState::new();
+        world.graph = WorldGraph::load_from_str(
+            r#"{
+                "locations": [
+                    {
+                        "id": 1,
+                        "name": "Darcy's Pub",
+                        "description_template": "A public house.",
+                        "indoor": true,
+                        "public": true,
+                        "connections": [{
+                            "target": 2,
+                            "path_description": "the road to the church"
+                        }],
+                        "lat": 53.0,
+                        "lon": -8.0,
+                        "aliases": ["pub", "the pub"]
+                    },
+                    {
+                        "id": 2,
+                        "name": "St. Brigid's Church",
+                        "description_template": "A stone church.",
+                        "indoor": false,
+                        "public": true,
+                        "connections": [{
+                            "target": 1,
+                            "path_description": "the road to the pub"
+                        }],
+                        "lat": 53.1,
+                        "lon": -8.1,
+                        "aliases": ["church", "the church", "chapel"]
+                    }
+                ]
+            }"#,
+        )
+        .unwrap();
+        world.player_location = LocationId(1);
+        let mut rx = world.event_bus.subscribe();
+
+        let mut npc_manager = NpcManager::new();
+        let mut npc = crate::npc::Npc::new_test_npc();
+        npc.id = NpcId(7);
+        npc.set_location(LocationId(1));
+        npc_manager.add_npc(npc);
+        let game_time = chrono::Utc.with_ymd_and_hms(1820, 3, 20, 10, 0, 0).unwrap();
+        let response = NpcStreamResponse {
+            dialogue: "Could ye mend the chapel wall?".to_string(),
+            metadata: Some(NpcMetadata {
+                action: "points down the road".to_string(),
+                mood: "busy".to_string(),
+                internal_thought: None,
+                language_hints: Vec::new(),
+                mentioned_people: Vec::new(),
+                assigned_task: Some("Mend the chapel wall.".to_string()),
+            }),
+        };
+
+        apply_npc_dialogue_turn(
+            &mut world,
+            &mut npc_manager,
+            NpcId(7),
+            &response,
+            "Have ye work for me?",
+            "Have ye work for me?",
+            game_time,
+            LocationId(1),
+            "a publican",
+            "Siobhan Murphy",
+            None,
+            &[],
+            &LanguageSettings::english_only(),
+            &FeatureFlags::default(),
+        );
+
+        assert!(
+            world.player_progress.is_empty(),
+            "a remote-location task must not be assigned at the current location"
+        );
+        assert_eq!(
+            std::iter::from_fn(|| rx.try_recv().ok())
+                .filter(|event| matches!(event, GameEvent::PlayerTaskAssigned { .. }))
+                .count(),
+            0,
+            "a rejected remote assignment must not publish a task event"
+        );
+
+        let best_start_remote_response = NpcStreamResponse {
+            dialogue: "Ye'd best start with mending the chapel wall.".to_string(),
+            metadata: Some(NpcMetadata {
+                action: "points down the road".to_string(),
+                mood: "busy".to_string(),
+                internal_thought: None,
+                language_hints: Vec::new(),
+                mentioned_people: Vec::new(),
+                assigned_task: Some("Mend the chapel wall.".to_string()),
+            }),
+        };
+        apply_npc_dialogue_turn(
+            &mut world,
+            &mut npc_manager,
+            NpcId(7),
+            &best_start_remote_response,
+            "Anything else?",
+            "Anything else?",
+            game_time + chrono::Duration::minutes(2),
+            LocationId(1),
+            "a publican",
+            "Siobhan Murphy",
+            None,
+            &[],
+            &LanguageSettings::english_only(),
+            &FeatureFlags::default(),
+        );
+        assert!(
+            world.player_progress.is_empty(),
+            "the best-start frame must retain the remote-location guard"
+        );
+        assert_eq!(
+            std::iter::from_fn(|| rx.try_recv().ok())
+                .filter(|event| matches!(event, GameEvent::PlayerTaskAssigned { .. }))
+                .count(),
+            0,
+            "the rejected best-start remote assignment must not publish an event"
+        );
+
+        let local_response = NpcStreamResponse {
+            dialogue: "The church roof can wait. Please sweep the pub floor.".to_string(),
+            metadata: Some(NpcMetadata {
+                action: "offers a broom".to_string(),
+                mood: "busy".to_string(),
+                internal_thought: None,
+                language_hints: Vec::new(),
+                mentioned_people: Vec::new(),
+                assigned_task: Some("Sweep the pub floor.".to_string()),
+            }),
+        };
+        apply_npc_dialogue_turn(
+            &mut world,
+            &mut npc_manager,
+            NpcId(7),
+            &local_response,
+            "What needs doing here?",
+            "What needs doing here?",
+            game_time + chrono::Duration::minutes(5),
+            LocationId(1),
+            "a publican",
+            "Siobhan Murphy",
+            None,
+            &[],
+            &LanguageSettings::english_only(),
+            &FeatureFlags::default(),
+        );
+
+        let local_task = world
+            .player_progress
+            .active_tasks()
+            .next()
+            .expect("unrelated remote context must not suppress a grounded local task");
+        assert_eq!(local_task.description, "Sweep the pub floor.");
+        assert_eq!(
+            std::iter::from_fn(|| rx.try_recv().ok())
+                .filter(|event| matches!(event, GameEvent::PlayerTaskAssigned { .. }))
+                .count(),
+            1,
+            "the local grounding clause must publish one task event"
+        );
+    }
+
+    #[test]
+    fn shared_player_action_progresses_once_but_never_completes() {
+        use chrono::TimeZone;
+        use parish_types::{GameEvent, NpcId, TaskStatus};
+        use parish_world::WorldState;
+
+        let mut world = WorldState::new();
+        let location = world.player_location;
+        let assigned_at = chrono::Utc.with_ymd_and_hms(1820, 3, 20, 10, 0, 0).unwrap();
+        let task_id = world
+            .player_progress
+            .assign_task(
+                "Dig over the potato patch.",
+                NpcId(7),
+                location,
+                assigned_at,
+            )
+            .unwrap();
+        let mut rx = world.event_bus.subscribe();
+
+        let outcome = apply_player_action(
+            &mut world,
+            "I set to work in the potato patch, breaking clods and planting seed.",
+            &FeatureFlags::default(),
+        )
+        .expect("nonblank action");
+        assert_eq!(
+            outcome.narration,
+            "You set to work in the potato patch, breaking clods and planting seed."
+        );
+        let task = world.player_progress.task(task_id).unwrap();
+        assert_eq!(task.status, TaskStatus::InProgress);
+        assert_eq!(task.completed_at, None);
+
+        let event = rx.try_recv().expect("task progression event");
+        match event {
+            GameEvent::PlayerTaskProgressed {
+                task,
+                previous_status,
+                action,
+                ..
+            } => {
+                assert_eq!(task.status, TaskStatus::InProgress);
+                assert_eq!(previous_status, TaskStatus::Assigned);
+                assert_eq!(
+                    action,
+                    "I set to work in the potato patch, breaking clods and planting seed."
+                );
+            }
+            other => panic!("expected PlayerTaskProgressed, got {other:?}"),
+        }
+        assert!(
+            matches!(
+                rx.try_recv(),
+                Err(tokio::sync::broadcast::error::TryRecvError::Empty)
+            ),
+            "one action must publish exactly one task-progression event"
+        );
+    }
+
+    #[test]
+    fn shared_player_action_ignores_unrelated_and_kill_switched_actions() {
+        use chrono::TimeZone;
+        use parish_types::{NpcId, TaskStatus};
+        use parish_world::WorldState;
+
+        let seed_world = || {
+            let mut world = WorldState::new();
+            let location = world.player_location;
+            let assigned_at = chrono::Utc.with_ymd_and_hms(1820, 3, 20, 10, 0, 0).unwrap();
+            let task_id = world
+                .player_progress
+                .assign_task(
+                    "Dig over the potato patch.",
+                    NpcId(7),
+                    location,
+                    assigned_at,
+                )
+                .unwrap();
+            (world, task_id)
+        };
+
+        let (mut unrelated_world, unrelated_id) = seed_world();
+        let mut unrelated_rx = unrelated_world.event_bus.subscribe();
+        let outcome = apply_player_action(
+            &mut unrelated_world,
+            "I mend the gate by the road.",
+            &FeatureFlags::default(),
+        )
+        .unwrap();
+        assert!(outcome.progressed_task.is_none());
+        assert_eq!(
+            unrelated_world
+                .player_progress
+                .task(unrelated_id)
+                .unwrap()
+                .status,
+            TaskStatus::Assigned
+        );
+        assert!(unrelated_rx.try_recv().is_err());
+
+        let (mut disabled_world, disabled_id) = seed_world();
+        let mut disabled_rx = disabled_world.event_bus.subscribe();
+        let mut disabled = FeatureFlags::default();
+        disabled.disable(PLAYER_TASK_PROGRESSION_FLAG);
+        let outcome = apply_player_action(
+            &mut disabled_world,
+            "I set to work in the potato patch, breaking clods.",
+            &disabled,
+        )
+        .unwrap();
+        assert!(outcome.progressed_task.is_none());
+        assert_eq!(
+            disabled_world
+                .player_progress
+                .task(disabled_id)
+                .unwrap()
+                .status,
+            TaskStatus::Assigned
+        );
+        assert!(disabled_rx.try_recv().is_err());
     }
 }

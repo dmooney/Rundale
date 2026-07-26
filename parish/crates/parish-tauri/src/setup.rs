@@ -417,50 +417,130 @@ pub(crate) async fn init_inference_queue(state: &Arc<AppState>) {
 
 // ── Persistence: auto-load or create save file ──────────────────────────────
 
-/// Either loads the most-recent unlocked save (and acquires its lock), creates
-/// a brand-new save file if none are present, or emits `EVENT_SAVE_PICKER` when
-/// every save on disk is locked by another instance.
-pub(crate) async fn init_persistence(handle: &AppHandle, state: &Arc<AppState>) {
+/// Loads or creates and durably commits the initial save identity.
+///
+/// Returns `true` only after the save lock, SQLite state, active binding, and
+/// marker are committed. Callers must not start runtime workers on `false`.
+pub(crate) async fn init_persistence(state: &Arc<AppState>) -> bool {
     use parish_core::persistence::Database;
     use parish_core::persistence::SaveFileLock;
-    use parish_core::persistence::picker::{discover_saves, new_save_path};
+    use parish_core::persistence::picker::new_save_path;
     use parish_core::persistence::snapshot::GameSnapshot;
 
+    let _persistence_guard = state.persistence_gate.lock().await;
     let saves_dir = state.saves_dir.clone();
 
-    let world = state.world.lock().await;
-    let saves = discover_saves(&saves_dir, &world.graph);
-    drop(world);
+    let remembered_identity =
+        match parish_core::persistence::read_active_save_identity_candidate(&saves_dir) {
+            Ok(identity) => identity,
+            Err(error) => {
+                tracing::warn!(%error, "active save identity is invalid; failing startup closed");
+                return false;
+            }
+        };
+    // Select by marker or filesystem metadata only. Do not inspect any SQLite
+    // file until the exact selected path is locked.
+    let selected_path = remembered_identity
+        .as_ref()
+        .map(|identity| identity.save_path.clone())
+        .or_else(|| {
+            let mut candidates = std::fs::read_dir(&saves_dir)
+                .ok()?
+                .filter_map(Result::ok)
+                .filter(|entry| entry.path().extension().is_some_and(|ext| ext == "db"))
+                .filter_map(|entry| {
+                    let modified = entry.metadata().ok()?.modified().ok()?;
+                    Some((entry.path(), modified))
+                })
+                .collect::<Vec<_>>();
+            candidates.sort_by_key(|(_, modified)| std::cmp::Reverse(*modified));
+            candidates.into_iter().next().map(|(path, _)| path)
+        });
 
-    // Find the most recent unlocked save (iterate in reverse).
-    let unlocked_save = saves.iter().rev().find(|s| !s.locked);
-
-    if let Some(save) = unlocked_save {
-        // Acquire the advisory lock before loading.
-        let lock = SaveFileLock::try_acquire(&save.path);
-        if lock.is_some() {
-            *state.save_lock.lock().await = lock;
-        }
+    if let Some(selected_path) = selected_path {
+        let selected_filename = selected_path
+            .file_name()
+            .map(|name| name.to_string_lossy().into_owned())
+            .unwrap_or_else(|| selected_path.display().to_string());
+        // Acquire the advisory lock before opening or reading the database.
+        let Some(candidate_lock) = SaveFileLock::try_acquire(&selected_path) else {
+            tracing::warn!(
+                path = %selected_path.display(),
+                "save became locked during startup selection; opening save picker",
+            );
+            return false;
+        };
 
         // Load the most recent unlocked save file
-        match Database::open(&save.path) {
+        match Database::open(&selected_path) {
             Ok(db) => {
-                // Find the "main" branch or first branch
-                let branch = db
-                    .find_branch("main")
-                    .ok()
-                    .flatten()
-                    .or_else(|| db.list_branches().ok().and_then(|b| b.into_iter().next()));
+                // Resume the exact remembered branch when this is the
+                // remembered file; otherwise retain the legacy main/first
+                // fallback.
+                let branch = if let Some(identity) = remembered_identity.as_ref() {
+                    db.list_branches().ok().and_then(|branches| {
+                        branches.into_iter().find(|branch| {
+                            branch.id == identity.branch_id && branch.name == identity.branch_name
+                        })
+                    })
+                } else {
+                    db.find_branch("main")
+                        .ok()
+                        .flatten()
+                        .or_else(|| db.list_branches().ok().and_then(|b| b.into_iter().next()))
+                };
 
                 if let Some(branch) = branch {
-                    if let Ok(Some((_snap_id, snapshot))) = db.load_latest_snapshot(branch.id) {
+                    let recovery = match parish_core::session_store::load_recovery_bundle(
+                        state.session_store.as_ref(),
+                        "",
+                        &selected_path,
+                        branch.id,
+                    )
+                    .await
+                    {
+                        Ok(recovery) => recovery,
+                        Err(error) => {
+                            tracing::warn!(
+                                %error,
+                                path = %selected_path.display(),
+                                "failed to load save recovery bundle"
+                            );
+                            return false;
+                        }
+                    };
+                    if let Some(recovery) = recovery {
+                        let prepared_binding =
+                            match state.session_store.prepare_active_save("", &selected_path) {
+                                Ok(binding) => binding,
+                                Err(error) => {
+                                    tracing::warn!(
+                                        %error,
+                                        path = %selected_path.display(),
+                                        "failed to bind recovered save"
+                                    );
+                                    return false;
+                                }
+                            };
+                        if remembered_identity.is_none()
+                            && let Err(error) = parish_core::persistence::write_active_save_identity(
+                                &saves_dir,
+                                &selected_path,
+                                branch.id,
+                                &branch.name,
+                            )
+                        {
+                            tracing::warn!(%error, "failed to commit legacy startup selection");
+                            return false;
+                        }
+                        prepared_binding.commit();
                         let grounding_enabled = {
                             let cfg = state.config.lock().await;
                             !cfg.flags.is_disabled("npc-dialogue-grounding")
                         };
                         let mut world = state.world.lock().await;
                         let mut npc_mgr = state.npc_manager.lock().await;
-                        snapshot.restore(&mut world, &mut npc_mgr);
+                        recovery.restore(&mut world, &mut npc_mgr);
                         if grounding_enabled {
                             npc_mgr.clear_introduced_for_session();
                         }
@@ -468,10 +548,22 @@ pub(crate) async fn init_persistence(handle: &AppHandle, state: &Arc<AppState>) 
                         drop(npc_mgr);
                         drop(world);
 
-                        *state.save_path.lock().await = Some(save.path.clone());
-                        *state.current_branch_id.lock().await = Some(branch.id);
-                        *state.current_branch_name.lock().await = Some(branch.name.clone());
-                        tracing::info!("Restored from {} (branch: {})", save.filename, branch.name);
+                        let mut save_path = state.save_path.lock().await;
+                        let mut branch_id = state.current_branch_id.lock().await;
+                        let mut branch_name = state.current_branch_name.lock().await;
+                        *save_path = Some(selected_path.clone());
+                        *branch_id = Some(branch.id);
+                        *branch_name = Some(branch.name.clone());
+                        drop(branch_name);
+                        drop(branch_id);
+                        drop(save_path);
+                        *state.save_lock.lock().await = Some(candidate_lock);
+                        tracing::info!(
+                            "Restored from {} (branch: {})",
+                            selected_filename,
+                            branch.name
+                        );
+                        return true;
                     } else {
                         // Save file exists but no snapshots — save initial state
                         let world = state.world.lock().await;
@@ -479,25 +571,69 @@ pub(crate) async fn init_persistence(handle: &AppHandle, state: &Arc<AppState>) 
                         let snap = GameSnapshot::capture(&world, &npc_mgr);
                         drop(npc_mgr);
                         drop(world);
-                        let _ = db.save_snapshot(branch.id, &snap);
+                        if let Err(error) = db.save_snapshot(branch.id, &snap) {
+                            tracing::warn!(%error, "failed to seed empty save");
+                            return false;
+                        }
+                        let prepared_binding =
+                            match state.session_store.prepare_active_save("", &selected_path) {
+                                Ok(binding) => binding,
+                                Err(error) => {
+                                    tracing::warn!(
+                                        %error,
+                                        path = %selected_path.display(),
+                                        "failed to bind active save"
+                                    );
+                                    return false;
+                                }
+                            };
+                        if remembered_identity.is_none()
+                            && let Err(error) = parish_core::persistence::write_active_save_identity(
+                                &saves_dir,
+                                &selected_path,
+                                branch.id,
+                                &branch.name,
+                            )
+                        {
+                            tracing::warn!(%error, "failed to commit seeded startup save");
+                            return false;
+                        }
+                        prepared_binding.commit();
 
-                        *state.save_path.lock().await = Some(save.path.clone());
-                        *state.current_branch_id.lock().await = Some(branch.id);
-                        *state.current_branch_name.lock().await = Some(branch.name);
+                        let mut save_path = state.save_path.lock().await;
+                        let mut branch_id = state.current_branch_id.lock().await;
+                        let mut branch_name = state.current_branch_name.lock().await;
+                        *save_path = Some(selected_path.clone());
+                        *branch_id = Some(branch.id);
+                        *branch_name = Some(branch.name.clone());
+                        drop(branch_name);
+                        drop(branch_id);
+                        drop(save_path);
+                        *state.save_lock.lock().await = Some(candidate_lock);
+                        return true;
                     }
+                } else if remembered_identity.is_some() {
+                    tracing::warn!(
+                        path = %selected_path.display(),
+                        "remembered active branch is missing; opening save picker"
+                    );
+                    return false;
                 }
             }
             Err(e) => {
-                tracing::warn!("Failed to open save file {}: {}", save.filename, e);
+                tracing::warn!("Failed to open save file {}: {}", selected_filename, e);
             }
         }
-    } else if saves.is_empty() {
+    } else {
         // No saves exist — create a new save file
         let path = new_save_path(&saves_dir);
-        let lock = SaveFileLock::try_acquire(&path);
-        if lock.is_some() {
-            *state.save_lock.lock().await = lock;
-        }
+        let Some(candidate_lock) = SaveFileLock::try_acquire(&path) else {
+            tracing::warn!(
+                path = %path.display(),
+                "failed to lock newly-selected save path",
+            );
+            return false;
+        };
         match Database::open(&path) {
             Ok(db) => {
                 if let Ok(Some(branch)) = db.find_branch("main") {
@@ -506,27 +642,50 @@ pub(crate) async fn init_persistence(handle: &AppHandle, state: &Arc<AppState>) 
                     let snap = GameSnapshot::capture(&world, &npc_mgr);
                     drop(npc_mgr);
                     drop(world);
-                    let _ = db.save_snapshot(branch.id, &snap);
+                    if let Err(error) = db.save_snapshot(branch.id, &snap) {
+                        tracing::warn!(%error, "failed to seed newly-created save");
+                        return false;
+                    }
 
-                    *state.save_path.lock().await = Some(path);
-                    *state.current_branch_id.lock().await = Some(branch.id);
-                    *state.current_branch_name.lock().await = Some("main".to_string());
+                    let prepared_binding = match state.session_store.prepare_active_save("", &path)
+                    {
+                        Ok(binding) => binding,
+                        Err(error) => {
+                            tracing::warn!(
+                                %error,
+                                path = %path.display(),
+                                "failed to bind newly-created save"
+                            );
+                            return false;
+                        }
+                    };
+                    if let Err(error) = parish_core::persistence::write_active_save_identity(
+                        &saves_dir, &path, branch.id, "main",
+                    ) {
+                        tracing::warn!(%error, "failed to commit newly-created active save");
+                        return false;
+                    }
+                    prepared_binding.commit();
+                    let mut save_path = state.save_path.lock().await;
+                    let mut branch_id = state.current_branch_id.lock().await;
+                    let mut branch_name = state.current_branch_name.lock().await;
+                    *save_path = Some(path.clone());
+                    *branch_id = Some(branch.id);
+                    *branch_name = Some("main".to_string());
+                    drop(branch_name);
+                    drop(branch_id);
+                    drop(save_path);
+                    *state.save_lock.lock().await = Some(candidate_lock);
                     tracing::info!("Created new save file");
+                    return true;
                 }
             }
             Err(e) => {
                 tracing::warn!("Failed to create save file: {}", e);
             }
         }
-    } else {
-        // All saves are locked by other instances.
-        // Show the save picker so the user can choose or create a new ledger.
-        tracing::info!(
-            "All {} save file(s) are locked by other instances — opening save picker",
-            saves.len()
-        );
-        let _ = handle.emit(events::EVENT_SAVE_PICKER, ());
     }
+    false
 }
 
 // ── Background ticks ────────────────────────────────────────────────────────
@@ -554,7 +713,7 @@ pub(crate) async fn spawn_character_log_subscriber(state: &Arc<AppState>, app_na
     // fired between the profile write and the subscriber task starting.
     let rx = {
         let world = state.world.lock().await;
-        world.event_bus.subscribe()
+        world.event_bus.subscribe_contextual()
     };
 
     // One-shot profile rewrite.
@@ -576,7 +735,16 @@ pub(crate) async fn spawn_character_log_subscriber(state: &Arc<AppState>, app_na
             tokio::select! {
                 _ = token.cancelled() => break,
                 result = rx.recv() => match result {
-                    Ok(event) => {
+                    Ok(envelope) => {
+                        let _persistence_guard =
+                            state_sub.persistence_gate.lock().await;
+                        let current_epoch = {
+                            let world = state_sub.world.lock().await;
+                            world.event_bus.context_epoch()
+                        };
+                        if envelope.context_epoch != current_epoch {
+                            continue;
+                        }
                         // Rebind manager when the active branch has changed
                         // (e.g. load_branch / create_branch). Without this the
                         // writer keeps appending to the original branch's
@@ -595,7 +763,7 @@ pub(crate) async fn spawn_character_log_subscriber(state: &Arc<AppState>, app_na
                         // I/O task in a dedicated thread pool, avoiding lock
                         // contention on the async side (#1012).
                         let mgr_clone = manager.clone();
-                        let evt_clone = event.clone();
+                        let evt_clone = envelope.event;
                         let state_clone = Arc::clone(&state_sub);
                         let handle = tokio::task::spawn_blocking(move || {
                             let world = state_clone.world.blocking_lock();
@@ -634,7 +802,7 @@ pub(crate) async fn spawn_location_log_subscriber(state: &Arc<AppState>, app_nam
 
     let rx = {
         let world = state.world.lock().await;
-        world.event_bus.subscribe()
+        world.event_bus.subscribe_contextual()
     };
 
     {
@@ -655,7 +823,16 @@ pub(crate) async fn spawn_location_log_subscriber(state: &Arc<AppState>, app_nam
             tokio::select! {
                 _ = token.cancelled() => break,
                 result = rx.recv() => match result {
-                    Ok(event) => {
+                    Ok(envelope) => {
+                        let _persistence_guard =
+                            state_sub.persistence_gate.lock().await;
+                        let current_epoch = {
+                            let world = state_sub.world.lock().await;
+                            world.event_bus.context_epoch()
+                        };
+                        if envelope.context_epoch != current_epoch {
+                            continue;
+                        }
                         // Rebind manager when the active branch has changed
                         // (e.g. load_branch / create_branch). Mirrors the
                         // character-log subscriber fix from #1011 (#1034).
@@ -673,7 +850,7 @@ pub(crate) async fn spawn_location_log_subscriber(state: &Arc<AppState>, app_nam
                         // I/O task in a dedicated thread pool, avoiding lock
                         // contention on the async side (#1012).
                         let mgr_clone = manager.clone();
-                        let evt_clone = event.clone();
+                        let evt_clone = envelope.event;
                         let state_clone = Arc::clone(&state_sub);
                         let handle = tokio::task::spawn_blocking(move || {
                             let world = state_clone.world.blocking_lock();
@@ -707,7 +884,7 @@ pub(crate) async fn spawn_chat_transcript_subscriber(state: &Arc<AppState>) {
     // while the shared flag is off.
     let rx = {
         let world = state.world.lock().await;
-        world.event_bus.subscribe()
+        world.event_bus.subscribe_contextual()
     };
     let state_sub = Arc::clone(state);
     let token = state.shutdown_token.clone();
@@ -717,12 +894,17 @@ pub(crate) async fn spawn_chat_transcript_subscriber(state: &Arc<AppState>) {
             tokio::select! {
                 _ = token.cancelled() => break,
                 result = rx.recv() => match result {
-                    Ok(event) => {
+                    Ok(envelope) => {
+                        let _persistence_guard =
+                            state_sub.persistence_gate.lock().await;
                         let world = state_sub.world.lock().await;
+                        if envelope.context_epoch != world.event_bus.context_epoch() {
+                            continue;
+                        }
                         let npc_mgr = state_sub.npc_manager.lock().await;
                         state_sub
                             .chat_transcript_log
-                            .process_event(&event, &world, &npc_mgr);
+                            .process_event(&envelope.event, &world, &npc_mgr);
                     }
                     Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => continue,
                     Err(tokio::sync::broadcast::error::RecvError::Closed) => break,
@@ -741,7 +923,7 @@ pub(crate) async fn spawn_event_bus_fanin(state: &Arc<AppState>) {
     let token_events = state.shutdown_token.clone();
     let mut rx = {
         let world = state_events.world.lock().await;
-        world.event_bus.subscribe()
+        world.event_bus.subscribe_contextual()
     };
     tokio::spawn(async move {
         loop {
@@ -749,12 +931,21 @@ pub(crate) async fn spawn_event_bus_fanin(state: &Arc<AppState>) {
                 _ = token_events.cancelled() => break,
                 result = rx.recv() => {
                     match result {
-                        Ok(evt) => {
+                        Ok(envelope) => {
+                            let _persistence_guard =
+                                state_events.persistence_gate.lock().await;
+                            let current_epoch = {
+                                let world = state_events.world.lock().await;
+                                world.event_bus.context_epoch()
+                            };
+                            if envelope.context_epoch != current_epoch {
+                                continue;
+                            }
                             let mut buf = state_events.game_events.lock().await;
                             if buf.len() >= DEBUG_EVENT_CAPACITY {
                                 buf.pop_front();
                             }
-                            buf.push_back(evt);
+                            buf.push_back(envelope.event);
                             // Increment the monotonic lifetime counter AFTER
                             // the push so `total_game_events` always equals
                             // the total number of events ever enqueued (#1389).
@@ -790,6 +981,7 @@ pub(crate) fn spawn_world_tick(handle: AppHandle, state: Arc<AppState>) {
                 _ = tokio::time::sleep(Duration::from_secs(5)) => {}
             }
 
+            let _persistence_guard = state.persistence_gate.lock().await;
             let mut world = state.world.lock().await;
             let mut npc_mgr = state.npc_manager.lock().await;
 
@@ -1006,6 +1198,7 @@ async fn dispatch_tier3(
             .collect();
 
         if !snapshots.is_empty() {
+            let context_epoch = world.event_bus.context_epoch();
             let time_desc = world.clock.time_of_day().to_string();
             let weather_str = world.weather.to_string();
             let season_str = format!("{:?}", world.clock.season());
@@ -1032,6 +1225,14 @@ async fn dispatch_tier3(
                     cfg.resolve_category_client(InferenceCategory::Simulation, base_client.as_ref())
                 };
                 let Some(sim_client) = client_opt else {
+                    let _persistence_guard = state_t3.persistence_gate.lock().await;
+                    let current_epoch = {
+                        let world = state_t3.world.lock().await;
+                        world.event_bus.context_epoch()
+                    };
+                    if current_epoch != context_epoch {
+                        return;
+                    }
                     state_t3.npc_manager.lock().await.set_tier3_in_flight(false);
                     return;
                 };
@@ -1062,7 +1263,11 @@ async fn dispatch_tier3(
                 // main tick at setup.rs:779-780).  Acquiring
                 // npc_manager first while a concurrent main
                 // tick holds world would deadlock (#337).
+                let _persistence_guard = state_t3.persistence_gate.lock().await;
                 let world = state_t3.world.lock().await;
+                if world.event_bus.context_epoch() != context_epoch {
+                    return;
+                }
                 let mut npc_mgr = state_t3.npc_manager.lock().await;
                 let game_time = world.clock.now();
 
@@ -1117,6 +1322,7 @@ async fn dispatch_tier2(
     if npc_mgr.needs_tier2_tick(now) && !npc_mgr.tier2_in_flight() {
         let groups = parish_core::game_loop::build_tier2_groups(world, npc_mgr);
         if !groups.is_empty() {
+            let context_epoch = world.event_bus.context_epoch();
             let time_desc = world.clock.time_of_day().to_string();
             let weather_str = world.weather.to_string();
 
@@ -1138,6 +1344,14 @@ async fn dispatch_tier2(
                     cfg.resolve_category_client(InferenceCategory::Simulation, base_client.as_ref())
                 };
                 let Some(sim_client) = client_opt else {
+                    let _persistence_guard = state_t2.persistence_gate.lock().await;
+                    let current_epoch = {
+                        let world = state_t2.world.lock().await;
+                        world.event_bus.context_epoch()
+                    };
+                    if current_epoch != context_epoch {
+                        return;
+                    }
                     state_t2.npc_manager.lock().await.set_tier2_in_flight(false);
                     return;
                 };
@@ -1176,7 +1390,11 @@ async fn dispatch_tier2(
                 // main tick at setup.rs:779-780).  Acquiring
                 // npc_manager first while a concurrent main
                 // tick holds world would deadlock (#337).
+                let _persistence_guard = state_t2.persistence_gate.lock().await;
                 let mut world = state_t2.world.lock().await;
+                if world.event_bus.context_epoch() != context_epoch {
+                    return;
+                }
                 let mut npc_mgr = state_t2.npc_manager.lock().await;
                 let game_time = world.clock.now();
 
@@ -1324,9 +1542,16 @@ pub(crate) fn spawn_autosave_tick(state: Arc<AppState>) {
                 _ = tokio::time::sleep(Duration::from_secs(AUTOSAVE_INTERVAL_SECS)) => {}
             }
 
+            // Keep identity capture, world capture, and SQLite commit ordered
+            // with task turns and lifecycle switches.
+            let _persistence_guard = state.persistence_gate.lock().await;
             // Only autosave if a save file and branch are active
-            let save_path = state.save_path.lock().await.clone();
-            let branch_id = *state.current_branch_id.lock().await;
+            let save_path_guard = state.save_path.lock().await;
+            let branch_id_guard = state.current_branch_id.lock().await;
+            let save_path = save_path_guard.clone();
+            let branch_id = *branch_id_guard;
+            drop(branch_id_guard);
+            drop(save_path_guard);
 
             if let (Some(path), Some(bid)) = (save_path, branch_id) {
                 let world = state.world.lock().await;

@@ -41,6 +41,7 @@ const MAX_TEXT_LOG: usize = 500;
 ///
 /// Holds the game clock, player position, the world graph, weather,
 /// and the scrollback text log displayed in the UI.
+#[derive(Clone)]
 pub struct WorldState {
     /// The game clock mapping real time to game time.
     pub clock: GameClock,
@@ -90,6 +91,14 @@ pub struct WorldState {
 }
 
 impl WorldState {
+    /// Clones canonical state for a pending player turn while isolating all
+    /// semantic events until the turn's durable commit succeeds.
+    pub fn clone_for_staged_turn(&self) -> Self {
+        let mut staged = self.clone();
+        staged.event_bus = EventBus::new();
+        staged
+    }
+
     /// Creates a new world state with a single test location ("The Crossroads").
     ///
     /// The game clock starts at 8:00 AM on March 20, 1820 (spring morning).

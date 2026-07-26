@@ -14,7 +14,7 @@ use parish_types::GossipNetwork;
 /// Notable events are those with significant relationship changes (|delta| > 0.3)
 /// or summaries longer than a trivial threshold. The first participant is treated
 /// as the gossip source.
-pub fn create_gossip_from_tier2_event(
+pub(super) fn create_gossip_from_tier2_event(
     event: &Tier2Event,
     gossip_network: &mut GossipNetwork,
     game_time: DateTime<Utc>,

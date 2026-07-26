@@ -110,8 +110,8 @@ fn debug_npcs(app: &App) -> Vec<String> {
             .tier_of(npc.id)
             .map(|t| format!("{:?}", t))
             .unwrap_or_else(|| "?".to_string());
-        let loc_name = location_name(npc.location, &app.world.graph);
-        let state = match &npc.state {
+        let loc_name = location_name(npc.location(), &app.world.graph);
+        let state = match npc.state() {
             NpcState::Present => "Present".to_string(),
             NpcState::InTransit { to, arrives_at, .. } => {
                 let dest = location_name(*to, &app.world.graph);
@@ -280,7 +280,7 @@ fn debug_schedule(app: &App, name: Option<&str>) -> Vec<String> {
 
     let mut lines = vec![format!("[DEBUG SCHEDULE: {}]", npc.name)];
 
-    match &npc.schedule {
+    match npc.schedule() {
         Some(schedule) => {
             let season = app.world.clock.season();
             let day_type = app.world.clock.day_type();

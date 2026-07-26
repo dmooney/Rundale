@@ -22,7 +22,7 @@
       "name": "tauri_invoke"
     },
     {
-      "description": "Reads the current world snapshot (clock, player location, weather, recent log entries).",
+      "description": "Reads the current world snapshot (clock, player location, weather, active durable tasks, recent log entries). `active_tasks` contains non-completed tasks in assignment order with authoritative IDs, status, timestamps, assigning NPC/location, and last matching action.",
       "inputSchema": {
         "additionalProperties": false,
         "properties": {},
@@ -49,7 +49,7 @@
       "name": "parish_npcs_here"
     },
     {
-      "description": "Reads the canonical, deterministic Parish engine state — the authoritative snapshot a QA agent asserts the UI against after each interaction. Returns `active_scene` (player location id + name + indoor), `clock` (game time, day-of-week, day-type, season, festival, paused), `weather`, `player` (location id, visited count, name), `npcs` (co-located NPCs + roster totals), and `grapevine` (gossip-network item count + distortion). Read-only and deterministic: identical engine state yields an identical snapshot. Pair with `parish_world_snapshot` / `parish_npcs_here` to detect UI-vs-engine drift, and attach the result to `parish_file_bug` when a mismatch is found.",
+      "description": "Reads the canonical, deterministic Parish engine state — the authoritative snapshot a QA agent asserts the UI against after each interaction. Returns `active_scene` (player location id + name + indoor), `clock` (game time, day-of-week, day-type, season, festival, paused), `weather`, `player` (location id, visited count, name, active durable tasks with status and timestamps), `npcs` (co-located NPCs + roster totals), and `grapevine` (gossip-network item count + distortion). Read-only and deterministic: identical engine state yields an identical snapshot. Pair with `parish_world_snapshot` / `parish_npcs_here` to detect UI-vs-engine drift, and attach the result to `parish_file_bug` when a mismatch is found.",
       "inputSchema": {
         "additionalProperties": false,
         "properties": {},

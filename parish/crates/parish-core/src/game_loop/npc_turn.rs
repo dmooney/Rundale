@@ -33,7 +33,7 @@ use std::sync::atomic::Ordering;
 use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
 
-use crate::game_loop::GameLoopContext;
+use crate::game_loop::{GameInputOutcome, GameLoopContext};
 use crate::inference::{
     INFERENCE_RESPONSE_TIMEOUT_SECS, InferenceAwaitOutcome, InferencePriority, InferenceQueue,
     QueueRequest, await_inference_response,
@@ -125,6 +125,8 @@ pub struct TurnOutcome {
     pub line: Option<ConversationLine>,
     /// Pronunciation hints extracted from the NPC response.
     pub hints: Vec<crate::npc::LanguageHint>,
+    /// Canonical task post-state when this NPC turn assigned a task.
+    pub assigned_task: Option<parish_types::PlayerTask>,
 }
 
 /// Runs a single NPC inference turn and emits all events via `ctx.emitter`.
@@ -639,39 +641,6 @@ pub async fn run_npc_turn(
         }
     }
 
-    // Canonical semantic contracts from quality-harness run #1776–#1790.
-    // These are independent of the older dialogue-polish kill switch and run
-    // before the UI correction event, matching the unconditional shared apply
-    // seam. Streamed text, stored dialogue, and projected events therefore
-    // cannot diverge when dialogue polish is disabled.
-    if !parsed.dialogue.trim().is_empty() {
-        if let Some(speaker) = speaker_context.as_ref() {
-            let guarded = crate::npc::guard_mood_register(&parsed.dialogue, &speaker.mood);
-            if guarded != parsed.dialogue {
-                parsed.dialogue = guarded;
-            }
-        }
-        let guarded = crate::npc::guard_unfounded_first_contact_familiarity(
-            &parsed.dialogue,
-            setup.had_prior_exchange,
-        );
-        if guarded != parsed.dialogue {
-            parsed.dialogue = guarded;
-        }
-        let guarded = crate::npc::guard_direct_evidence_evasion(&parsed.dialogue, prompt_input);
-        if guarded != parsed.dialogue {
-            parsed.dialogue = guarded;
-        }
-        let guarded = crate::npc::guard_work_recommendation(
-            &parsed.dialogue,
-            prompt_input,
-            &setup.work_roster,
-        );
-        if guarded != parsed.dialogue {
-            parsed.dialogue = guarded;
-        }
-    }
-
     // Post-generation verbosity / run-on guard (#1460, #1491): strip bare leaked
     // mood-adjective, trim mid-sentence truncation ellipsis to the last
     // complete sentence, and cap trailing question stacks to at most one.
@@ -760,30 +729,6 @@ pub async fn run_npc_turn(
         parsed.dialogue = deduped;
     }
 
-    // Post-guard UI replace (#1552): if any guard altered the raw model dialogue,
-    // emit `"dialogue-corrected"` so the frontend can replace the accumulated raw
-    // stream tokens with the canonical post-guard text.  Only fires when the
-    // text actually changed (no-op for clean model output) and the kill-switch is
-    // on (default).  The event is emitted AFTER `stream-turn-end` (already fired
-    // above) so the stream pump has already seen all tokens; the UI handler must
-    // flush any remaining buffered tokens and then overwrite with `corrected_text`.
-    if post_guard_ui_replace_enabled && parsed.dialogue != pre_guard_dialogue {
-        tracing::debug!(
-            npc = %display_label,
-            req_id,
-            "guards altered dialogue — emitting dialogue-corrected (#1552)"
-        );
-        ctx.emitter.emit_event(
-            "dialogue-corrected",
-            serde_json::to_value(DialogueCorrectedPayload {
-                turn_id: req_id,
-                corrected_text: parsed.dialogue.clone(),
-                message_id: Some(message_id.clone()),
-            })
-            .unwrap_or(serde_json::Value::Null),
-        );
-    }
-
     if !parsed.dialogue.trim().is_empty() {
         tracing::info!(
             npc = %display_label,
@@ -804,6 +749,8 @@ pub async fn run_npc_turn(
     // Player-visible dialogue, set from the shared pipeline's `display_text`.
     let captured_display_text;
     let captured_hints;
+    let assigned_task;
+    let progression_flags = ctx.config.lock().await.flags.clone();
     {
         let mut world = ctx.world.lock().await;
         let game_time = world.clock.now();
@@ -814,7 +761,7 @@ pub async fn run_npc_turn(
         // turn location for the whole shared pipeline below.
         let event_location = npc_manager
             .get(speaker_id)
-            .map(|n| n.location)
+            .map(|n| n.location())
             .unwrap_or(world.player_location);
 
         // Shared per-turn pipeline: name detection, Tier-1 apply, conversation
@@ -837,9 +784,35 @@ pub async fn run_npc_turn(
             Some(req_id),
             &setup.known_person_names,
             &ctx.language,
+            &progression_flags,
         );
         captured_display_text = outcome.display_text;
         captured_hints = outcome.language_hints;
+        assigned_task = outcome.assigned_task;
+    }
+
+    // Post-guard UI replace (#1552): compare the raw model dialogue with the
+    // shared apply pipeline's final display text. The canonical pipeline owns
+    // semantic guards, anti-repetition, and the display cap; emitting from its
+    // result prevents live mode from applying semantic mutations twice while
+    // still replacing the already-finished raw token stream. This remains
+    // after `stream-turn-end` and before action narration, preserving the UI
+    // event order.
+    if post_guard_ui_replace_enabled && captured_display_text != pre_guard_dialogue {
+        tracing::debug!(
+            npc = %display_label,
+            req_id,
+            "guards altered dialogue — emitting dialogue-corrected (#1552)"
+        );
+        ctx.emitter.emit_event(
+            "dialogue-corrected",
+            serde_json::to_value(DialogueCorrectedPayload {
+                turn_id: req_id,
+                corrected_text: captured_display_text.clone(),
+                message_id: Some(message_id.clone()),
+            })
+            .unwrap_or(serde_json::Value::Null),
+        );
     }
 
     // NPC action narration (#1490): if the model supplied a non-empty `action`
@@ -900,6 +873,7 @@ pub async fn run_npc_turn(
     Some(TurnOutcome {
         line,
         hints: captured_hints,
+        assigned_task,
     })
 }
 
@@ -921,6 +895,7 @@ async fn run_autonomous_chain(
     chain_cap: usize,
     transcript: &mut Vec<ConversationLine>,
     combined_hints: &mut Vec<crate::npc::LanguageHint>,
+    assigned_tasks: &mut Vec<parish_types::PlayerTask>,
     spoken_this_chain: &mut Vec<NpcId>,
     last_speaker: &mut Option<NpcId>,
     targets: &[NpcId],
@@ -956,6 +931,7 @@ async fn run_autonomous_chain(
         };
 
         combined_hints.extend(outcome.hints);
+        assigned_tasks.extend(outcome.assigned_task);
         if let Some(line) = outcome.line {
             transcript.push(line.clone());
             let mut conversation = ctx.conversation.lock().await;
@@ -986,7 +962,7 @@ pub async fn handle_npc_conversation(
     raw: String,
     target_names: Vec<String>,
     spawn_loading: impl Fn() -> Option<CancellationToken>,
-) {
+) -> GameInputOutcome {
     let trimmed = raw.trim().to_string();
 
     // #1379 — serialize player turns against in-flight NPC streaming.
@@ -1020,7 +996,7 @@ pub async fn handle_npc_conversation(
         tracing::debug!(
             "dropping player turn: an NPC conversation is already streaming (#1379 turn serialization)"
         );
-        return;
+        return GameInputOutcome::default();
     }
 
     let (
@@ -1087,7 +1063,7 @@ pub async fn handle_npc_conversation(
             "text-log",
             serde_json::to_value(text_log("system", &msg)).unwrap_or(serde_json::Value::Null),
         );
-        return;
+        return GameInputOutcome::default();
     }
 
     if trimmed.is_empty() {
@@ -1100,7 +1076,7 @@ pub async fn handle_npc_conversation(
             ))
             .unwrap_or(serde_json::Value::Null),
         );
-        return;
+        return GameInputOutcome::default();
     }
 
     // If the player named one or more absent NPCs, tell them so by name —
@@ -1163,7 +1139,7 @@ pub async fn handle_npc_conversation(
                 );
             }
         }
-        return;
+        return GameInputOutcome::default();
     }
 
     let Some(queue) = queue else {
@@ -1176,7 +1152,7 @@ pub async fn handle_npc_conversation(
             ))
             .unwrap_or(serde_json::Value::Null),
         );
-        return;
+        return GameInputOutcome::default();
     };
 
     let mut transcript = {
@@ -1199,6 +1175,7 @@ pub async fn handle_npc_conversation(
     }
 
     let mut combined_hints: Vec<crate::npc::LanguageHint> = Vec::new();
+    let mut assigned_tasks = Vec::new();
     let mut spoken_this_chain: Vec<NpcId> = Vec::new();
     let mut last_speaker: Option<NpcId> = None;
 
@@ -1227,6 +1204,7 @@ pub async fn handle_npc_conversation(
         };
 
         combined_hints.extend(outcome.hints);
+        assigned_tasks.extend(outcome.assigned_task);
         if let Some(line) = outcome.line {
             transcript.push(line.clone());
             let mut conversation = ctx.conversation.lock().await;
@@ -1253,6 +1231,7 @@ pub async fn handle_npc_conversation(
         chain_cap,
         &mut transcript,
         &mut combined_hints,
+        &mut assigned_tasks,
         &mut spoken_this_chain,
         &mut last_speaker,
         &targets,
@@ -1279,6 +1258,9 @@ pub async fn handle_npc_conversation(
         })
         .unwrap_or(serde_json::Value::Null),
     );
+    GameInputOutcome {
+        task_mutations: assigned_tasks,
+    }
 }
 
 /// Generates spontaneous NPC banter when the player has been idle long enough.
@@ -1297,14 +1279,14 @@ pub async fn handle_npc_conversation(
 pub async fn run_idle_banter(
     ctx: &GameLoopContext<'_>,
     spawn_loading: impl Fn() -> Option<CancellationToken>,
-) {
+) -> GameInputOutcome {
     // Feature gate (default-off). Bail before any inference work, but still
     // bump the idle cooldown so inactivity ticks back off instead of
     // re-entering every second — otherwise the server/Tauri wrappers re-emit
     // world-update snapshots on every tick while the player sits idle.
     if !ctx.config.lock().await.flags.is_enabled("npc-idle-banter") {
         ctx.conversation.lock().await.last_spoken_at = std::time::Instant::now();
-        return;
+        return GameInputOutcome::default();
     }
 
     let (queue, model, player_location, max_follow_up_turns, speakers) = {
@@ -1327,10 +1309,10 @@ pub async fn run_idle_banter(
     };
 
     let Some(queue) = queue else {
-        return;
+        return GameInputOutcome::default();
     };
     if speakers.is_empty() {
-        return;
+        return GameInputOutcome::default();
     }
 
     let mut transcript = {
@@ -1349,6 +1331,7 @@ pub async fn run_idle_banter(
     }
 
     let mut combined_hints: Vec<crate::npc::LanguageHint> = Vec::new();
+    let mut assigned_tasks = Vec::new();
     let mut spoken_this_chain: Vec<NpcId> = Vec::new();
     let mut last_speaker: Option<NpcId> = None;
 
@@ -1368,6 +1351,7 @@ pub async fn run_idle_banter(
         .await
     {
         combined_hints.extend(outcome.hints);
+        assigned_tasks.extend(outcome.assigned_task);
         if let Some(line) = outcome.line {
             transcript.push(line.clone());
             let mut conversation = ctx.conversation.lock().await;
@@ -1386,6 +1370,7 @@ pub async fn run_idle_banter(
         chain_cap,
         &mut transcript,
         &mut combined_hints,
+        &mut assigned_tasks,
         &mut spoken_this_chain,
         &mut last_speaker,
         &[],
@@ -1413,6 +1398,9 @@ pub async fn run_idle_banter(
         })
         .unwrap_or(serde_json::Value::Null),
     );
+    GameInputOutcome {
+        task_mutations: assigned_tasks,
+    }
 }
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
@@ -1526,7 +1514,7 @@ pub mod tests {
         let player_loc = world_state.player_location;
         let mut npc_mgr = NpcManager::new();
         let mut npc = Npc::new_test_npc();
-        npc.location = player_loc;
+        npc.set_location(player_loc);
         npc_mgr.add_npc(npc);
 
         let world = tokio::sync::Mutex::new(world_state);
@@ -1573,7 +1561,7 @@ pub mod tests {
         let player_loc = world_state.player_location;
         let mut npc_mgr = NpcManager::new();
         let mut npc = Npc::new_test_npc();
-        npc.location = player_loc;
+        npc.set_location(player_loc);
         npc_mgr.add_npc(npc);
 
         let world = tokio::sync::Mutex::new(world_state);
@@ -1630,7 +1618,7 @@ pub mod tests {
         let mut peig = Npc::new_test_npc();
         peig.id = crate::npc::NpcId(1);
         peig.name = "Peig Hannigan".to_string();
-        peig.location = player_loc;
+        peig.set_location(player_loc);
         npc_mgr.add_npc(peig);
         npc_mgr.mark_introduced(crate::npc::NpcId(1));
 
@@ -1727,7 +1715,7 @@ pub mod tests {
         priest.id = crate::npc::NpcId(10);
         priest.name = "Fr. Declan Tierney".to_string();
         priest.occupation = "Parish Priest".to_string();
-        priest.location = crate::world::LocationId(player_loc.0 + 1);
+        priest.set_location(crate::world::LocationId(player_loc.0 + 1));
         npc_mgr.add_npc(priest);
 
         let world = tokio::sync::Mutex::new(world_state);
@@ -1801,7 +1789,7 @@ pub mod tests {
         let mut peig = Npc::new_test_npc();
         peig.id = crate::npc::NpcId(1);
         peig.name = "Peig Hannigan".to_string();
-        peig.location = player_loc;
+        peig.set_location(player_loc);
         npc_mgr.add_npc(peig);
         npc_mgr.mark_introduced(crate::npc::NpcId(1));
 
@@ -1916,7 +1904,7 @@ pub mod tests {
         let player_loc = world_state.player_location;
         let mut npc_mgr = NpcManager::new();
         let mut npc = Npc::new_test_npc();
-        npc.location = player_loc;
+        npc.set_location(player_loc);
         npc_mgr.add_npc(npc);
 
         // Closed channels: any inference send fails fast so the test never
@@ -1983,7 +1971,7 @@ pub mod tests {
         let player_loc = world_state.player_location;
         let mut npc_mgr = NpcManager::new();
         let mut npc = Npc::new_test_npc();
-        npc.location = player_loc;
+        npc.set_location(player_loc);
         npc_mgr.add_npc(npc);
 
         let world = tokio::sync::Mutex::new(world_state);
@@ -2034,7 +2022,7 @@ pub mod tests {
         let player_loc = world_state.player_location;
         let mut npc_mgr = NpcManager::new();
         let mut npc = Npc::new_test_npc();
-        npc.location = player_loc;
+        npc.set_location(player_loc);
         npc_mgr.add_npc(npc);
 
         let world = tokio::sync::Mutex::new(world_state);
@@ -2207,7 +2195,7 @@ pub mod tests {
         let player_loc = world_state.player_location;
         let mut npc_mgr = NpcManager::new();
         let mut npc = Npc::new_test_npc();
-        npc.location = player_loc;
+        npc.set_location(player_loc);
         let npc_id = npc.id;
         npc_mgr.add_npc(npc);
 
@@ -2287,7 +2275,7 @@ pub mod tests {
         let player_loc2 = world_state2.player_location;
         let mut npc_mgr2 = NpcManager::new();
         let mut npc2 = Npc::new_test_npc();
-        npc2.location = player_loc2;
+        npc2.set_location(player_loc2);
         let npc_id2 = npc2.id;
         npc_mgr2.add_npc(npc2);
 
@@ -2333,5 +2321,124 @@ pub mod tests {
              got: {:#?}",
             events2.iter().map(|(n, _)| n).collect::<Vec<_>>()
         );
+    }
+
+    /// #1779 regression: live mode must not apply the canonical semantic guards
+    /// before calling the shared apply seam. Doing so made a sharp NPC's compact
+    /// negative-register prefix appear twice, while headless mode showed it once.
+    #[tokio::test]
+    async fn canonical_semantic_guard_runs_once_and_corrects_stream_with_final_text() {
+        use crate::inference::{InferenceQueue, InferenceResponse};
+        use crate::npc::Npc;
+
+        let raw_dialogue = "Good morning. Start by fetching water from the well for the sick \
+                            woman in the next street.";
+        let expected = "Plainly, then—Start by fetching water from the well for the sick woman \
+                        in the next street.";
+        let raw_json = format!(
+            r#"{{"dialogue": "{raw_dialogue}", "action": "folds her arms", "mood": "content", "internal_thought": "", "language_hints": []}}"#
+        );
+
+        let (itx, mut irx) = tokio::sync::mpsc::channel::<crate::inference::InferenceRequest>(4);
+        let (btx, _) = tokio::sync::mpsc::channel(1);
+        let (xtx, _) = tokio::sync::mpsc::channel(1);
+        let queue = InferenceQueue::new(itx, btx, xtx);
+        let raw_json_clone = raw_json.clone();
+        tokio::spawn(async move {
+            while let Some(req) = irx.recv().await {
+                if let Some(tx) = req.token_tx {
+                    let _ = tx.send(raw_json_clone.clone()).await;
+                }
+                let _ = req.response_tx.send(InferenceResponse {
+                    id: req.id,
+                    text: raw_json_clone.clone(),
+                    error: None,
+                });
+            }
+        });
+
+        let emitter = Arc::new(CapturingEmitter::new());
+        let world_state = WorldState::new();
+        let player_loc = world_state.player_location;
+        let mut npc_mgr = NpcManager::new();
+        let mut npc = Npc::new_test_npc();
+        npc.set_location(player_loc);
+        npc.mood = "sharp".to_string();
+        let npc_id = npc.id;
+        npc_mgr.add_npc(npc);
+
+        let world = tokio::sync::Mutex::new(world_state);
+        let npc_manager = tokio::sync::Mutex::new(npc_mgr);
+        let config = tokio::sync::Mutex::new(GameConfig::default());
+        let conversation = tokio::sync::Mutex::new(ConversationRuntimeState::new());
+        let inference_queue = tokio::sync::Mutex::new(Some(queue.clone()));
+        let client = tokio::sync::Mutex::new(None);
+        let cloud_client = tokio::sync::Mutex::new(None);
+        let inference_config = crate::config::InferenceConfig::default();
+
+        let ctx = make_test_ctx!(
+            &world,
+            &npc_manager,
+            &config,
+            &conversation,
+            &inference_queue,
+            &client,
+            &cloud_client,
+            &inference_config,
+            Arc::clone(&emitter) as Arc<dyn EventEmitter>
+        );
+
+        let outcome = super::run_npc_turn(
+            &ctx,
+            &queue,
+            "test-model",
+            npc_id,
+            "Could ye give me one specific job I can begin here now?",
+            &[],
+            true,
+            || None,
+        )
+        .await
+        .expect("canned inference turn should succeed");
+        let displayed = outcome
+            .line
+            .expect("canonical dialogue should be player-visible")
+            .text;
+
+        assert_eq!(displayed, expected);
+        assert_eq!(
+            displayed.matches("Plainly, then—").count(),
+            1,
+            "the canonical mood guard must run exactly once"
+        );
+
+        let events = emitter.events.lock().unwrap();
+        let stream_end_index = events
+            .iter()
+            .position(|(name, _)| name == "stream-turn-end")
+            .expect("stream-turn-end should precede correction");
+        let corrected_index = events
+            .iter()
+            .position(|(name, _)| name == "dialogue-corrected")
+            .expect("canonical semantic change should correct the raw stream");
+        let action_index = events
+            .iter()
+            .position(|(name, payload)| {
+                name == "text-log"
+                    && payload.get("subtype").and_then(serde_json::Value::as_str) == Some("action")
+            })
+            .expect("model action should follow the corrected dialogue event");
+        assert!(
+            stream_end_index < corrected_index && corrected_index < action_index,
+            "event order must remain stream-turn-end → dialogue-corrected → action; got {:#?}",
+            events.iter().map(|(name, _)| name).collect::<Vec<_>>()
+        );
+
+        let corrected_text = events[corrected_index]
+            .1
+            .get("corrected_text")
+            .and_then(serde_json::Value::as_str)
+            .expect("dialogue-corrected should carry canonical text");
+        assert_eq!(corrected_text, displayed);
     }
 }

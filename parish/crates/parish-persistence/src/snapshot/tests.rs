@@ -3,53 +3,59 @@
 use std::collections::HashMap;
 
 use chrono::{TimeZone, Utc};
-use parish_npc::Npc;
 use parish_npc::manager::NpcManager;
 use parish_npc::memory::{LongTermMemory, ShortTermMemory};
-use parish_npc::types::{Intelligence, NpcState};
+use parish_npc::types::Intelligence;
+use parish_npc::{Npc, NpcPersistedFields};
 use parish_types::{LocationId, NpcId, TaskStatus};
 use parish_world::WorldState;
 
 use super::types::{ClockSnapshot, GameSnapshot, NpcSnapshot};
 
 fn make_test_npc(id: u32, location: u32) -> Npc {
-    Npc {
-        id: NpcId(id),
-        name: format!("NPC {}", id),
-        brief_description: "a person".to_string(),
-        age: 30,
-        occupation: "Test".to_string(),
-        personality: "Test personality".to_string(),
-        pronouns: "they/them".to_string(),
-        intelligence: Intelligence::default(),
-        location: LocationId(location),
-        mood: "calm".to_string(),
-        home: Some(LocationId(location)),
-        workplace: None,
-        schedule: None,
-        relationships: HashMap::new(),
-        memory: ShortTermMemory::new(),
-        long_term_memory: LongTermMemory::new(),
-        knowledge: Vec::new(),
-        state: NpcState::Present,
-        deflated_summary: None,
-        reaction_log: parish_npc::reactions::ReactionLog::default(),
-        last_activity: None,
-        is_ill: false,
-        doom: None,
-        banshee_heralded: false,
-    }
+    let mut npc = Npc::new_test_npc();
+    npc.id = NpcId(id);
+    npc.name = format!("NPC {}", id);
+    npc.brief_description = "a person".to_string();
+    npc.age = 30;
+    npc.occupation = "Test".to_string();
+    npc.personality = "Test personality".to_string();
+    npc.pronouns = "they/them".to_string();
+    npc.intelligence = Intelligence::default();
+    npc.set_location(LocationId(location));
+    npc.mood = "calm".to_string();
+    npc.home = Some(LocationId(location));
+    npc
 }
 
 #[test]
 fn test_npc_snapshot_roundtrip() {
     let npc = make_test_npc(1, 2);
+    let original_revision = npc.grounding_revision();
     let snap = NpcSnapshot::from_npc(&npc);
+    let json = serde_json::to_string(&snap).unwrap();
+    assert!(
+        !json.contains("grounding_revision"),
+        "process-local grounding lineage must never enter save data"
+    );
+    assert!(
+        !json.contains("observed_activity_fingerprint"),
+        "schedule-tick activity observations must never enter save data"
+    );
     let restored = snap.into_npc();
     assert_eq!(restored.id, NpcId(1));
     assert_eq!(restored.name, "NPC 1");
-    assert_eq!(restored.location, LocationId(2));
+    assert_eq!(restored.location(), LocationId(2));
     assert_eq!(restored.mood, "calm");
+    assert_ne!(
+        restored.grounding_revision(),
+        original_revision,
+        "deserialization must allocate a fresh live grounding lineage"
+    );
+    assert!(
+        restored.observed_activity_fingerprint().is_none(),
+        "restored NPCs must wait for the production schedule tick to synchronize activity"
+    );
 }
 
 /// Regression guard for #749 — every persisted field must survive a
@@ -71,7 +77,7 @@ fn test_npc_snapshot_roundtrip_all_persisted_fields() {
         key_relationship_changes: vec![],
     };
 
-    let npc = Npc {
+    let npc = Npc::from_persisted_fields(NpcPersistedFields {
         id: NpcId(42),
         name: "Brigid Ní Fhaoláin".to_string(),
         brief_description: "a tall woman in a grey shawl".to_string(),
@@ -105,12 +111,11 @@ fn test_npc_snapshot_roundtrip_all_persisted_fields() {
         knowledge: vec!["The well on Kilmore road is dry.".to_string()],
         state: NpcState::Present,
         deflated_summary: Some(summary.clone()),
-        reaction_log: parish_npc::reactions::ReactionLog::default(),
         last_activity: Some("Delivered a baby at the Burke farm.".to_string()),
         is_ill: true,
         doom: Some(Utc.with_ymd_and_hms(1820, 6, 1, 0, 0, 0).unwrap()),
         banshee_heralded: true,
-    };
+    });
 
     // Round-trip through JSON to exercise the full serialize/deserialize path.
     let snap = NpcSnapshot::from_npc(&npc);
@@ -128,7 +133,7 @@ fn test_npc_snapshot_roundtrip_all_persisted_fields() {
         "Quiet and deliberate, moves with purpose."
     );
     assert_eq!(restored.pronouns, "she/her", "pronouns lost on round-trip");
-    assert_eq!(restored.location, LocationId(7));
+    assert_eq!(restored.location(), LocationId(7));
     assert_eq!(restored.mood, "melancholy");
     assert_eq!(restored.home, Some(LocationId(3)));
     assert_eq!(restored.workplace, Some(LocationId(7)));
@@ -137,7 +142,7 @@ fn test_npc_snapshot_roundtrip_all_persisted_fields() {
     assert!((rel.strength - 0.6).abs() < f64::EPSILON);
     assert_eq!(restored.memory.len(), 1, "short-term memory entry lost");
     assert_eq!(restored.knowledge, vec!["The well on Kilmore road is dry."]);
-    assert!(matches!(restored.state, NpcState::Present));
+    assert!(matches!(restored.state(), NpcState::Present));
     assert_eq!(
         restored.deflated_summary,
         Some(summary),

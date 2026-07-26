@@ -211,12 +211,12 @@ pub fn tick_schedules(
                     let Some(npc_mut) = npcs.get_mut(&id) else {
                         continue;
                     };
-                    npc_mut.state = NpcState::InTransit {
+                    npc_mut.set_state(NpcState::InTransit {
                         from,
                         to: desired,
                         arrives_at,
                         activity: scheduled_activity,
-                    };
+                    });
                 }
             }
             NpcState::InTransit {
@@ -257,11 +257,21 @@ pub fn tick_schedules(
                     let Some(npc_mut) = npcs.get_mut(&id) else {
                         continue;
                     };
-                    npc_mut.location = destination;
-                    npc_mut.state = NpcState::Present;
+                    npc_mut.set_location_and_state(destination, NpcState::Present);
                 }
             }
         }
+    }
+
+    // Authored activity is derived from clock + schedule rather than stored as
+    // a mutable field. Observe it after movement settles so same-location
+    // schedule changes (including A→B→A) advance lineage without bumping on
+    // ordinary ticks whose activity is unchanged.
+    for npc in npcs
+        .values_mut()
+        .filter(|npc| matches!(npc.state, NpcState::Present))
+    {
+        npc.observe_authored_activity_at(now);
     }
 
     events
@@ -290,6 +300,7 @@ mod tests {
         let start = Utc.with_ymd_and_hms(1820, 3, 20, 10, 0, 0).unwrap();
         let mut clock = GameClock::new(start);
         clock.pause();
+        let before_departure = npcs[&NpcId(1)].grounding_revision();
 
         tick_schedules(&mut npcs, &clock, &graph, Weather::Clear, &EventBus::new());
 
@@ -297,6 +308,11 @@ mod tests {
         assert!(
             matches!(npc.state, NpcState::InTransit { to, .. } if to == LocationId(2)),
             "NPC should be in transit to pub"
+        );
+        assert_ne!(
+            npc.grounding_revision(),
+            before_departure,
+            "Present → InTransit must invalidate asynchronous grounding"
         );
     }
 
@@ -320,6 +336,7 @@ mod tests {
             npcs.get(&NpcId(1)).unwrap().state,
             NpcState::InTransit { .. }
         ));
+        let in_transit_revision = npcs[&NpcId(1)].grounding_revision();
 
         // Advance past arrival.
         clock.advance(30);
@@ -331,6 +348,11 @@ mod tests {
             "NPC should have arrived"
         );
         assert_eq!(npc.location, LocationId(2), "NPC should be at pub");
+        assert_ne!(
+            npc.grounding_revision(),
+            in_transit_revision,
+            "InTransit → Present arrival must invalidate asynchronous grounding"
+        );
     }
 
     #[test]
@@ -342,7 +364,7 @@ mod tests {
 
         let mut npcs = HashMap::new();
         let mut npc = make_scheduled_npc(1, 1, 2);
-        npc.location = LocationId(2); // Already at work.
+        npc.set_location(LocationId(2)); // Already at work.
         npcs.insert(NpcId(1), npc);
 
         let start = Utc.with_ymd_and_hms(1820, 3, 20, 10, 0, 0).unwrap();
@@ -355,6 +377,133 @@ mod tests {
             npcs.get(&NpcId(1)).unwrap().state,
             NpcState::Present
         ));
+    }
+
+    #[test]
+    fn same_location_activity_aba_advances_grounding_revision_twice() {
+        use crate::types::{ScheduleEntry, ScheduleVariant, SeasonalSchedule};
+
+        let mut npc = make_test_npc(1, 1);
+        npc.set_schedule(Some(SeasonalSchedule {
+            variants: vec![ScheduleVariant {
+                season: None,
+                day_type: None,
+                entries: vec![
+                    ScheduleEntry {
+                        start_hour: 10,
+                        end_hour: 10,
+                        location: LocationId(1),
+                        activity: "mending nets".to_string(),
+                        cuaird: false,
+                    },
+                    ScheduleEntry {
+                        start_hour: 11,
+                        end_hour: 11,
+                        location: LocationId(1),
+                        activity: "hauling turf".to_string(),
+                        cuaird: false,
+                    },
+                    ScheduleEntry {
+                        start_hour: 12,
+                        end_hour: 12,
+                        location: LocationId(1),
+                        activity: "mending nets".to_string(),
+                        cuaird: false,
+                    },
+                ],
+            }],
+        }));
+        let mut npcs = HashMap::from([(npc.id, npc)]);
+        let graph = WorldGraph::new();
+        let event_bus = EventBus::new();
+        let mut clock = GameClock::new(Utc.with_ymd_and_hms(1820, 3, 20, 10, 0, 0).unwrap());
+        clock.pause();
+
+        assert!(tick_schedules(&mut npcs, &clock, &graph, Weather::Clear, &event_bus).is_empty());
+        let revision_a = npcs[&NpcId(1)].grounding_revision();
+        let fingerprint_a = npcs[&NpcId(1)]
+            .observed_activity_fingerprint()
+            .expect("initial production schedule tick must synchronize activity");
+
+        // Repeating the same production tick is a no-op for grounding.
+        tick_schedules(&mut npcs, &clock, &graph, Weather::Clear, &event_bus);
+        assert_eq!(npcs[&NpcId(1)].grounding_revision(), revision_a);
+
+        clock.advance(60);
+        tick_schedules(&mut npcs, &clock, &graph, Weather::Clear, &event_bus);
+        let revision_b = npcs[&NpcId(1)].grounding_revision();
+        assert!(revision_b > revision_a, "A→B must advance lineage");
+
+        // Repeating B also remains a no-op.
+        tick_schedules(&mut npcs, &clock, &graph, Weather::Clear, &event_bus);
+        assert_eq!(npcs[&NpcId(1)].grounding_revision(), revision_b);
+
+        clock.advance(60);
+        tick_schedules(&mut npcs, &clock, &graph, Weather::Clear, &event_bus);
+        let npc = &npcs[&NpcId(1)];
+        assert!(
+            npc.grounding_revision() > revision_b,
+            "B→A must advance lineage again"
+        );
+        assert_ne!(
+            npc.observed_activity_fingerprint(),
+            Some(fingerprint_a),
+            "separate authored A intervals must have distinct fingerprints"
+        );
+        assert_eq!(npc.location, LocationId(1));
+        assert!(matches!(npc.state, NpcState::Present));
+    }
+
+    #[test]
+    fn authored_interval_fingerprint_is_stable_within_slot_but_changes_next_day() {
+        use crate::types::{ScheduleEntry, ScheduleVariant, SeasonalSchedule};
+
+        let mut npc = make_test_npc(1, 1);
+        npc.set_schedule(Some(SeasonalSchedule {
+            variants: vec![ScheduleVariant {
+                season: None,
+                day_type: None,
+                entries: vec![ScheduleEntry {
+                    start_hour: 10,
+                    end_hour: 12,
+                    location: LocationId(1),
+                    activity: "mending nets".to_string(),
+                    cuaird: false,
+                }],
+            }],
+        }));
+        let mut npcs = HashMap::from([(npc.id, npc)]);
+        let graph = WorldGraph::new();
+        let event_bus = EventBus::new();
+        let mut clock = GameClock::new(Utc.with_ymd_and_hms(1820, 3, 20, 10, 0, 0).unwrap());
+        clock.pause();
+
+        tick_schedules(&mut npcs, &clock, &graph, Weather::Clear, &event_bus);
+        let first_fingerprint = npcs[&NpcId(1)]
+            .observed_activity_fingerprint()
+            .expect("production tick should observe the active interval");
+        let first_revision = npcs[&NpcId(1)].grounding_revision();
+
+        clock.advance(30);
+        tick_schedules(&mut npcs, &clock, &graph, Weather::Clear, &event_bus);
+        assert_eq!(
+            npcs[&NpcId(1)].observed_activity_fingerprint(),
+            Some(first_fingerprint),
+            "ordinary inference latency inside one active interval must remain valid"
+        );
+        assert_eq!(npcs[&NpcId(1)].grounding_revision(), first_revision);
+
+        clock.advance(23 * 60 + 30);
+        tick_schedules(&mut npcs, &clock, &graph, Weather::Clear, &event_bus);
+        assert_ne!(
+            npcs[&NpcId(1)].observed_activity_fingerprint(),
+            Some(first_fingerprint),
+            "the same daily slot on the next game date is a new interval instance"
+        );
+        assert!(
+            npcs[&NpcId(1)].grounding_revision() > first_revision,
+            "crossing to the next day's interval must advance lineage"
+        );
     }
 
     #[test]

@@ -74,6 +74,7 @@ pub fn test_app_state() -> Arc<AppState> {
         ));
 
     Arc::new(AppState {
+        persistence_gate: Mutex::new(()),
         world: Mutex::new(world),
         npc_manager: Mutex::new(npc_manager),
         inference_queue: Mutex::new(None),
@@ -167,4 +168,62 @@ async fn get_world_snapshot_inner_returns_start_location() {
         "location name should be populated"
     );
     assert_eq!(snapshot.location_name, "Kilteevan Village");
+}
+
+#[tokio::test]
+async fn get_world_snapshot_inner_projects_active_tasks() {
+    use chrono::Duration;
+    use parish_core::npc::NpcId;
+
+    let state = test_app_state();
+    let mut world = state.world.lock().await;
+    let location = world.player_location;
+    let assigned_at = world.clock.now();
+    let assigned_id = world
+        .player_progress
+        .assign_task("weed the potato patch", NpcId(11), location, assigned_at)
+        .unwrap();
+    let in_progress_id = world
+        .player_progress
+        .assign_task(
+            "mend the western wall",
+            NpcId(12),
+            location,
+            assigned_at + Duration::minutes(1),
+        )
+        .unwrap();
+    let started_at = assigned_at + Duration::minutes(30);
+    assert_eq!(
+        world.player_progress.advance_assigned_task(
+            "I mend the western wall",
+            location,
+            started_at
+        ),
+        Some(in_progress_id)
+    );
+
+    let npc_manager = state.npc_manager.lock().await;
+    let snapshot = super::snapshot::get_world_snapshot_inner(
+        &world,
+        Some(&npc_manager),
+        &state.pronunciations,
+    );
+
+    assert_eq!(snapshot.active_tasks.len(), 2);
+    assert_eq!(snapshot.active_tasks[0].id, assigned_id.0);
+    assert_eq!(
+        serde_json::to_value(snapshot.active_tasks[0].status).unwrap(),
+        serde_json::json!("assigned")
+    );
+    assert_eq!(snapshot.active_tasks[0].assigned_at, assigned_at);
+    assert_eq!(snapshot.active_tasks[1].id, in_progress_id.0);
+    assert_eq!(
+        serde_json::to_value(snapshot.active_tasks[1].status).unwrap(),
+        serde_json::json!("in_progress")
+    );
+    assert_eq!(snapshot.active_tasks[1].started_at, Some(started_at));
+    assert_eq!(
+        snapshot.active_tasks[1].last_matching_action.as_deref(),
+        Some("I mend the western wall")
+    );
 }

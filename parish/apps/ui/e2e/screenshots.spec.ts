@@ -26,8 +26,8 @@ const SCREENSHOT_DIR = path.resolve(__dirname, '../../../docs/screenshots');
 /**
  * Shared page setup for both the screenshot-generation and visual-regression
  * suites (TD-041): installs the Tauri mock for `time`, navigates, applies the
- * matching theme palette, seeds the chat log, and waits for the last entry to
- * render so the capture/comparison sees stable content.
+ * matching theme palette, seeds the live chronicle, and waits for the last
+ * entry to render so the capture/comparison sees stable content.
  */
 async function setupScreenshotPage(
 	page: Page,
@@ -43,7 +43,7 @@ async function setupScreenshotPage(
 		await addTextLog(page, entry);
 	}
 
-	await expect(page.locator('[data-testid="chat-panel"]')).toContainText(
+	await expect(page.getByLabel('Live chronicle')).toContainText(
 		TEXT_LOG[TEXT_LOG.length - 1].content,
 	);
 }

@@ -86,6 +86,12 @@ function extractInterfaceFields(
 
 // Skip the $comment key that is documentation only.
 const interfaceNames = Object.keys(manifest).filter((k) => !k.startsWith('$'));
+const exactInterfaceNames = new Set([
+	'WorldSnapshot',
+	'PlayerTaskSnapshot',
+	'DemoContextSnapshot',
+	'ReconnectState',
+]);
 
 describe('types.ts ↔ Rust serde field-name parity (TD-053)', () => {
 	it('types-manifest.json is non-empty', () => {
@@ -97,7 +103,7 @@ describe('types.ts ↔ Rust serde field-name parity (TD-053)', () => {
 	});
 
 	for (const iface of interfaceNames) {
-		it(`${iface}: all required fields present`, () => {
+		it(`${iface}: fields match the manifest contract`, () => {
 			const required = manifest[iface];
 			const declared = extractInterfaceFields(typesSource, iface);
 
@@ -107,12 +113,21 @@ describe('types.ts ↔ Rust serde field-name parity (TD-053)', () => {
 			).toBeGreaterThan(0);
 
 			const missing = required.filter((f) => !declared.has(f));
+			const extra = [...declared].filter((f) => !required.includes(f));
 			expect(
 				missing,
 				`interface ${iface} is missing field(s) from the Rust manifest: ` +
 					missing.map((f) => `"${f}"`).join(', ') +
 					'. Add the field to types.ts or update types-manifest.json.',
 			).toHaveLength(0);
+			if (exactInterfaceNames.has(iface)) {
+				expect(
+					extra,
+					`interface ${iface} has field(s) missing from the Rust manifest: ` +
+						extra.map((f) => `"${f}"`).join(', ') +
+						'. Add the field to types-manifest.json or remove it from types.ts.',
+				).toHaveLength(0);
+			}
 		});
 	}
 });

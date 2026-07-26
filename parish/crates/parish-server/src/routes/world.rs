@@ -24,7 +24,7 @@ use axum::http::header::{CACHE_CONTROL, CONTENT_TYPE};
 use axum::response::IntoResponse;
 
 use parish_core::debug_snapshot::{self, AuthDebug, InferenceDebug};
-use parish_core::ipc::{MapData, NpcInfo, ThemePalette, WorldSnapshot};
+use parish_core::ipc::{MapData, NpcInfo, ReconnectState, ThemePalette, WorldSnapshot};
 
 use crate::middleware::SessionId;
 use crate::session::GlobalState;
@@ -52,6 +52,25 @@ pub async fn get_world_snapshot(Extension(state): Extension<Arc<AppState>>) -> J
     // once.
     snapshot.turn_in_flight = state.conversation.lock().await.conversation_in_progress;
     Json(snapshot)
+}
+
+/// `GET /api/reconnect-state` — one source-consistent replacement payload.
+pub async fn get_reconnect_state(
+    Extension(state): Extension<Arc<AppState>>,
+) -> Json<ReconnectState> {
+    let _persistence_guard = state.persistence_gate.lock().await;
+    let world = state.world.lock().await;
+    let npc_manager = state.npc_manager.lock().await;
+    let conversation = state.conversation.lock().await;
+    let config = state.config.lock().await;
+    Json(parish_core::ipc::build_reconnect_state(
+        &world,
+        &npc_manager,
+        state.transport.default_mode(),
+        config.reveal_unexplored_locations,
+        &state.pronunciations,
+        conversation.conversation_in_progress,
+    ))
 }
 
 /// `GET /api/setup-snapshot` — returns the current setup status.

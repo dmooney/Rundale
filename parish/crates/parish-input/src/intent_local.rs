@@ -277,26 +277,70 @@ pub fn parse_intent_local(raw_input: &str) -> Option<PlayerIntent> {
         "i pump the well",
         "i walk to the well",
         "i go to the well",
+        // Direct present-tense task actions missing from the article-specific
+        // forms above. Ambiguous verbs stay article-qualified so conversational
+        // phrases such as "I clear my throat" and the archaic movement phrase
+        // "I repair to the public house" remain Talk.
+        "i dig over ",
+        "i break the ",
+        "i break a ",
+        "i bring the ",
+        "i bring a ",
+        "i bring some ",
+        "i clean the ",
+        "i clean a ",
+        "i clear the ",
+        "i clear a ",
+        "i collect the ",
+        "i collect a ",
+        "i collect some ",
+        "i harvest the ",
+        "i harvest a ",
+        "i help with ",
+        "i hoe the ",
+        "i hoe a ",
+        "i repair the ",
+        "i repair a ",
+        "i weed the ",
+        "i weed a ",
+        // "some" forms are intentionally object-specific. A generic
+        // "i carry some " would turn reports such as "I carry some news" into
+        // physical actions.
+        "i carry some turf",
+        "i harvest some oats",
+        "i weed some rows",
     ];
-    for prefix in fp_interact_prefixes {
-        if lower.starts_with(prefix) {
-            let byte_offset: usize = trimmed
-                .char_indices()
-                .nth(prefix.chars().count())
-                .map(|(i, _)| i)
-                .unwrap_or(trimmed.len());
-            let rest = trimmed[byte_offset..].trim();
-            let target = if rest.is_empty() {
-                None
-            } else {
-                Some(rest.to_string())
-            };
-            return Some(PlayerIntent {
-                intent: IntentKind::Interact,
-                target,
-                dialogue: None,
-                raw: raw_input.to_string(),
-            });
+    let fp_speech_idioms = [
+        "i break the news",
+        "i break the silence",
+        "i break the ice",
+        "i clear the air",
+        "i bring the matter up",
+    ];
+    if !fp_speech_idioms
+        .iter()
+        .any(|idiom| lower.starts_with(idiom))
+    {
+        for prefix in fp_interact_prefixes {
+            if lower.starts_with(prefix) {
+                let byte_offset: usize = trimmed
+                    .char_indices()
+                    .nth(prefix.chars().count())
+                    .map(|(i, _)| i)
+                    .unwrap_or(trimmed.len());
+                let rest = trimmed[byte_offset..].trim();
+                let target = if rest.is_empty() {
+                    None
+                } else {
+                    Some(rest.to_string())
+                };
+                return Some(PlayerIntent {
+                    intent: IntentKind::Interact,
+                    target,
+                    dialogue: None,
+                    raw: raw_input.to_string(),
+                });
+            }
         }
     }
 
@@ -806,6 +850,30 @@ mod tests {
         .unwrap();
         assert_eq!(intent.intent, IntentKind::Interact);
         assert!(intent.dialogue.is_none());
+
+        // Natural present-tense echoes of NPC assignments must reach the
+        // physical-action seam instead of being swallowed by the generic
+        // first-person Talk guard.
+        for action in [
+            "I dig over the potato patch.",
+            "I weed the potato rows.",
+            "I repair the west wall.",
+            "I clear the drainage ditch.",
+            "I carry the turf to the stack.",
+            "I sow the seed in the open rows.",
+            "I break the clods in the potato patch.",
+            "I carry some turf.",
+            "I harvest some oats.",
+            "I weed some rows.",
+        ] {
+            let intent = parse_intent_local(action).unwrap();
+            assert_eq!(
+                intent.intent,
+                IntentKind::Interact,
+                "{action:?} must be a physical action"
+            );
+            assert!(intent.dialogue.is_none());
+        }
     }
 
     /// AC-2 (#1476): First-person narrative without a known action verb stays Talk.
@@ -826,6 +894,31 @@ mod tests {
         // Past-tense first-person stays Talk (not in fp_interact_prefixes).
         let intent = parse_intent_local("I picked up the stone").unwrap();
         assert_eq!(intent.intent, IntentKind::Talk);
+
+        // Reporting, remembering, and discussing work are speech even when a
+        // concrete task verb appears later in the sentence.
+        for speech in [
+            "I remember Liam repaired the west wall.",
+            "I think we should clear the drainage ditch.",
+            "I said I would weed the potato rows.",
+            "I heard they dug over the potato patch.",
+            "I repaired that wall last winter.",
+            "I clear my throat and say hello.",
+            "I repair to the public house.",
+            "I break the news to Liam.",
+            "I break the silence with a question.",
+            "I break the ice with a joke.",
+            "I clear the air with Liam.",
+            "I bring the matter up with Liam.",
+            "I carry some news from the village.",
+        ] {
+            let intent = parse_intent_local(speech).unwrap();
+            assert_eq!(
+                intent.intent,
+                IntentKind::Talk,
+                "{speech:?} must remain speech"
+            );
+        }
     }
 
     /// Regression guard: movement verbs still route as Move, not Interact.
@@ -1538,6 +1631,14 @@ mod tests {
         assert!(is_player_dialogue("hello there"));
         assert!(is_player_dialogue("tell Mary the rent is too high"));
         assert!(is_player_dialogue("good morning, Father"));
+        assert!(is_player_dialogue("I clear my throat and say hello."));
+        assert!(is_player_dialogue("I repair to the public house."));
+        assert!(is_player_dialogue("I break the news to Liam."));
+        assert!(is_player_dialogue("I break the silence with a question."));
+        assert!(is_player_dialogue("I break the ice with a joke."));
+        assert!(is_player_dialogue("I clear the air with Liam."));
+        assert!(is_player_dialogue("I bring the matter up with Liam."));
+        assert!(is_player_dialogue("I carry some news from the village."));
     }
 
     /// Interact-classified inputs are NOT player dialogue — NPCs must not
@@ -1554,5 +1655,15 @@ mod tests {
         assert!(!is_player_dialogue(
             "I set to work in the potato patch, breaking clods and planting seed.",
         ));
+        assert!(!is_player_dialogue("I dig over the potato patch."));
+        assert!(!is_player_dialogue("I weed the potato rows."));
+        assert!(!is_player_dialogue("I repair the west wall."));
+        assert!(!is_player_dialogue("I clear the drainage ditch."));
+        assert!(!is_player_dialogue(
+            "I break the clods in the potato patch."
+        ));
+        assert!(!is_player_dialogue("I carry some turf."));
+        assert!(!is_player_dialogue("I harvest some oats."));
+        assert!(!is_player_dialogue("I weed some rows."));
     }
 }

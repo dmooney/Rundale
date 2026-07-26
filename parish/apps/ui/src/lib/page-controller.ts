@@ -44,13 +44,12 @@ import { palette } from '../stores/theme';
 import { tiles } from '../stores/tiles';
 import { startTravel } from '../stores/travel';
 import {
-	getWorldSnapshot,
-	getMap,
-	getNpcsHere,
+	getReconnectState,
 	getUiConfig,
 	getTheme,
 	getDebugSnapshot,
 	getDemoConfig,
+	onGameContextReset,
 	onWorldUpdate,
 	onStreamToken,
 	onStreamTurnEnd,
@@ -73,6 +72,14 @@ import {
 import { createAutoPauseTracker } from '$lib/auto-pause';
 import { createStreamManager } from '$lib/setup/stream-manager';
 import { applyAppIcon } from '$lib/app-icon';
+import type {
+	LanguageHint,
+	MapData,
+	NpcInfo,
+	PlayerTaskSnapshot,
+	ReconnectState,
+	WorldSnapshot,
+} from '$lib/types';
 
 const MOUSEMOVE_THROTTLE_MS = 1000;
 
@@ -88,11 +95,370 @@ const MOUSEMOVE_THROTTLE_MS = 1000;
  */
 const LOADING_SAFETY_TIMEOUT_MS = 10_000;
 
+export interface ReconnectPresentationState {
+	sceneDedup: SceneDeduplicator;
+	contextEpoch: number | null;
+	/** Invalidates canonical fetches that began against an older presentation. */
+	generation: number;
+	/** False after the owning page has begun teardown. */
+	isActive: () => boolean;
+	resetStream: () => void;
+}
+
+export type ReconnectStateFetcher = () => Promise<unknown>;
+
+/**
+ * Replaces UI state from one persistence-gated reconnect snapshot.
+ *
+ * Nothing is mutated until the complete envelope succeeds and passes runtime
+ * validation. An epoch change (or the first reconnect when the epoch is
+ * unknown) starts a fresh presentation context; an ordinary same-epoch
+ * reconnect retains its transcript/dedup cursor while refreshing canonical
+ * world, map, and NPC state.
+ */
+export async function resyncCanonicalStateAfterReconnect(
+	presentation: ReconnectPresentationState,
+	fetchState: ReconnectStateFetcher = getReconnectState,
+): Promise<boolean> {
+	if (!presentation.isActive()) return false;
+	const requestGeneration = presentation.generation;
+	let candidate: unknown;
+	try {
+		candidate = await fetchState();
+	} catch (error) {
+		console.warn('Reconnect resync failed:', error);
+		return false;
+	}
+
+	if (!isReconnectState(candidate)) {
+		console.warn('Reconnect resync failed: invalid aggregate payload');
+		return false;
+	}
+
+	// A context reset landed while the aggregate was in flight. Its payload can
+	// only describe the presentation that existed before that reset, so it must
+	// not resurrect the old world even when the reset made the epoch unknown.
+	if (
+		!presentation.isActive() ||
+		requestGeneration !== presentation.generation
+	) {
+		return false;
+	}
+
+	const contextChanged =
+		presentation.contextEpoch === null ||
+		presentation.contextEpoch !== candidate.context_epoch;
+
+	// Commit point. Stream cancellation belongs inside the same non-failing
+	// phase as the store replacement: a rejected/malformed aggregate must leave
+	// even a half-streamed presentation exactly as it was.
+	presentation.resetStream();
+	if (contextChanged) {
+		textLog.set([]);
+		presentation.sceneDedup.reset();
+	}
+
+	applyCanonicalAggregate(candidate, presentation);
+	streamingActive.set(Boolean(candidate.world.turn_in_flight));
+	presentation.generation += 1;
+	return true;
+}
+
+/**
+ * Closes the startup gap between the first aggregate read and event-listener
+ * registration.
+ *
+ * Unlike an actual reconnect, a same-context reconciliation does not reset a
+ * stream that may have begun while listeners were being attached. An epoch
+ * change still clears every old-context presentation artifact.
+ */
+export async function resyncCanonicalStateAfterSubscription(
+	presentation: ReconnectPresentationState,
+	fetchState: ReconnectStateFetcher = getReconnectState,
+): Promise<boolean> {
+	if (!presentation.isActive()) return false;
+	const requestGeneration = presentation.generation;
+	let candidate: unknown;
+	try {
+		candidate = await fetchState();
+	} catch (error) {
+		console.warn('Post-subscription resync failed:', error);
+		return false;
+	}
+	if (!isReconnectState(candidate)) {
+		console.warn('Post-subscription resync failed: invalid aggregate payload');
+		return false;
+	}
+	if (
+		!presentation.isActive() ||
+		requestGeneration !== presentation.generation
+	) {
+		return false;
+	}
+
+	const contextChanged =
+		presentation.contextEpoch === null ||
+		presentation.contextEpoch !== candidate.context_epoch;
+	if (contextChanged) {
+		presentation.resetStream();
+		streamingActive.set(false);
+		loadingPhrase.set('');
+		loadingColor.set([72, 199, 142]);
+		textLog.set([]);
+		presentation.sceneDedup.reset();
+	}
+	applyCanonicalAggregate(candidate, presentation);
+	if (contextChanged || candidate.world.turn_in_flight) {
+		streamingActive.set(Boolean(candidate.world.turn_in_flight));
+	}
+	presentation.generation += 1;
+	return true;
+}
+
+/**
+ * Clears every presentation artifact owned by the previous game context.
+ *
+ * The stream manager is reset before the transcript is cleared so pending
+ * token pumps cannot append into the replacement context. The generation bump
+ * invalidates reconnect/world aggregate requests already in flight.
+ */
+export function resetPresentationForNewContext(
+	presentation: ReconnectPresentationState,
+): void {
+	if (!presentation.isActive()) return;
+	presentation.resetStream();
+	streamingActive.set(false);
+	loadingPhrase.set('');
+	loadingColor.set([72, 199, 142]);
+	textLog.set([]);
+	presentation.sceneDedup.reset();
+	presentation.contextEpoch = null;
+	presentation.generation += 1;
+}
+
+/**
+ * Refreshes a pushed world event from one canonical aggregate.
+ *
+ * The event payload is deliberately not committed provisionally: it may have
+ * been queued before a branch reset. Only the persistence-gated aggregate is
+ * allowed to replace world, map, and NPC stores, and all presentation details
+ * are derived from that accepted world.
+ */
+export async function refreshCanonicalStateAfterWorldUpdate(
+	presentation: ReconnectPresentationState,
+	refreshRevision: number,
+	currentRefreshRevision: () => number,
+	fetchState: ReconnectStateFetcher = getReconnectState,
+): Promise<WorldSnapshot | null> {
+	if (!presentation.isActive()) return null;
+	const requestGeneration = presentation.generation;
+	let candidate: unknown;
+	try {
+		candidate = await fetchState();
+	} catch (_) {
+		return null;
+	}
+
+	if (!isReconnectState(candidate)) {
+		console.warn('World-update aggregate refresh ignored: invalid payload');
+		return null;
+	}
+	if (
+		!presentation.isActive() ||
+		requestGeneration !== presentation.generation ||
+		refreshRevision !== currentRefreshRevision()
+	) {
+		return null;
+	}
+	if (
+		presentation.contextEpoch !== null &&
+		presentation.contextEpoch !== candidate.context_epoch
+	) {
+		return null;
+	}
+
+	applyCanonicalAggregate(candidate, presentation);
+	presentation.generation += 1;
+	return candidate.world;
+}
+
+function applyCanonicalAggregate(
+	candidate: ReconnectState,
+	presentation: ReconnectPresentationState,
+): void {
+	const snap = candidate.world;
+	worldState.set(snap);
+	mapData.set(candidate.map);
+	npcsHere.set(candidate.npcs);
+	palette.applyGameHour(snap.hour);
+	nameHints.set(snap.name_hints);
+	if (
+		snap.location_description &&
+		presentation.sceneDedup.shouldShowDescription(snap.location_name)
+	) {
+		textLog.update((log) => [
+			...log,
+			{
+				source: 'system',
+				subtype: 'location',
+				content: snap.location_description,
+			},
+		]);
+	}
+	presentation.contextEpoch = candidate.context_epoch;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+	return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function isString(value: unknown): value is string {
+	return typeof value === 'string';
+}
+
+function isFiniteNumber(value: unknown): value is number {
+	return typeof value === 'number' && Number.isFinite(value);
+}
+
+function isOptionalBoolean(value: unknown): boolean {
+	return value === undefined || typeof value === 'boolean';
+}
+
+function isNullableString(value: unknown): boolean {
+	return value === null || isString(value);
+}
+
+function isLanguageHint(value: unknown): value is LanguageHint {
+	return (
+		isRecord(value) &&
+		isString(value.word) &&
+		isString(value.pronunciation) &&
+		isNullableString(value.meaning)
+	);
+}
+
+function isPlayerTask(value: unknown): value is PlayerTaskSnapshot {
+	return (
+		isRecord(value) &&
+		Number.isSafeInteger(value.id) &&
+		isString(value.description) &&
+		Number.isSafeInteger(value.assigned_by) &&
+		Number.isSafeInteger(value.location_id) &&
+		(value.status === 'assigned' ||
+			value.status === 'in_progress' ||
+			value.status === 'completed') &&
+		isString(value.assigned_at) &&
+		isNullableString(value.started_at) &&
+		isNullableString(value.completed_at) &&
+		isNullableString(value.last_matching_action)
+	);
+}
+
+function isWorldSnapshot(value: unknown): value is WorldSnapshot {
+	return (
+		isRecord(value) &&
+		Number.isSafeInteger(value.location_id) &&
+		isString(value.location_name) &&
+		isString(value.location_description) &&
+		isString(value.time_label) &&
+		isFiniteNumber(value.hour) &&
+		isFiniteNumber(value.minute) &&
+		isString(value.weather) &&
+		isString(value.season) &&
+		isNullableString(value.festival) &&
+		typeof value.paused === 'boolean' &&
+		typeof value.inference_paused === 'boolean' &&
+		isFiniteNumber(value.game_epoch_ms) &&
+		isFiniteNumber(value.speed_factor) &&
+		Array.isArray(value.name_hints) &&
+		value.name_hints.every(isLanguageHint) &&
+		isString(value.day_of_week) &&
+		Array.isArray(value.active_tasks) &&
+		value.active_tasks.every(isPlayerTask) &&
+		isOptionalBoolean(value.turn_in_flight)
+	);
+}
+
+function isMapData(value: unknown): value is MapData {
+	if (
+		!isRecord(value) ||
+		!Array.isArray(value.locations) ||
+		!Array.isArray(value.edges) ||
+		!isString(value.player_location) ||
+		!isString(value.transport_label) ||
+		!isString(value.transport_id)
+	) {
+		return false;
+	}
+
+	const locationsValid = value.locations.every(
+		(location) =>
+			isRecord(location) &&
+			isString(location.id) &&
+			isString(location.name) &&
+			isFiniteNumber(location.lat) &&
+			isFiniteNumber(location.lon) &&
+			typeof location.adjacent === 'boolean' &&
+			isFiniteNumber(location.hops) &&
+			(location.indoor === undefined || typeof location.indoor === 'boolean') &&
+			(location.travel_minutes === undefined ||
+				isFiniteNumber(location.travel_minutes)) &&
+			(location.visited === undefined || typeof location.visited === 'boolean'),
+	);
+	const edgesValid = value.edges.every(
+		(edge) =>
+			Array.isArray(edge) &&
+			edge.length === 2 &&
+			edge.every((endpoint) => isString(endpoint)),
+	);
+	const traversalsValid =
+		value.edge_traversals === undefined ||
+		(Array.isArray(value.edge_traversals) &&
+			value.edge_traversals.every(
+				(edge) =>
+					Array.isArray(edge) &&
+					edge.length === 3 &&
+					isString(edge[0]) &&
+					isString(edge[1]) &&
+					isFiniteNumber(edge[2]),
+			));
+	return locationsValid && edgesValid && traversalsValid;
+}
+
+function isNpcInfo(value: unknown): value is NpcInfo {
+	return (
+		isRecord(value) &&
+		isString(value.name) &&
+		isString(value.real_name) &&
+		isString(value.occupation) &&
+		isString(value.mood) &&
+		typeof value.introduced === 'boolean' &&
+		isString(value.mood_emoji)
+	);
+}
+
+export function isReconnectState(value: unknown): value is ReconnectState {
+	return (
+		isRecord(value) &&
+		isWorldSnapshot(value.world) &&
+		isMapData(value.map) &&
+		Array.isArray(value.npcs) &&
+		value.npcs.every(isNpcInfo) &&
+		Number.isSafeInteger(value.context_epoch) &&
+		(value.context_epoch as number) >= 0
+	);
+}
+
 /**
  * Wires up initial data load + real-time event subscriptions for the app
  * shell and returns a cleanup function that tears them all down.
  */
-export async function createPageController(): Promise<() => void> {
+export async function createPageController(
+	isCancelled: () => boolean = () => false,
+): Promise<() => void> {
+	let disposed = false;
+	const controllerActive = () => !disposed && !isCancelled();
+
 	// Frontend auto-pause tracker — fires /pause after `auto_pause_timeout_seconds` of true UI
 	// inactivity (no key/mouse/touch). The server-side tick_inactivity
 	// backstop in parish-server still runs for the tab-close case.
@@ -158,53 +524,64 @@ export async function createPageController(): Promise<() => void> {
 	// location hasn't changed.
 	const sceneDedup = new SceneDeduplicator();
 
-	// Initial data fetch (theme first to avoid color flash).
-	//
-	// Use `allSettled` so a single failed endpoint doesn't block the
-	// rest of the UI from loading. Any failure is surfaced via
-	// pushErrorLog so the user sees feedback instead of an indefinite
-	// "Loading..." state — see #113.
-	const [snapRes, mapRes, npcsRes, themeRes] = await Promise.allSettled([
-		getWorldSnapshot(),
-		getMap(),
-		getNpcsHere(),
+	// Initial canonical data uses the same persistence-gated aggregate as
+	// reconnect. Startup must not display world/map/NPCs captured from different
+	// generations. Theme remains independently available and best-effort.
+	const [stateRes, themeRes] = await Promise.allSettled([
+		getReconnectState(),
 		getTheme(),
 	]);
-	if (snapRes.status === 'fulfilled') {
-		const snap = snapRes.value;
-		worldState.set(snap);
+	let initialContextEpoch: number | null = null;
+	let initialStateFailure: unknown = null;
+	if (
+		stateRes.status === 'fulfilled' &&
+		isReconnectState(stateRes.value) &&
+		controllerActive()
+	) {
+		const state = stateRes.value;
+		const snap = state.world;
+		worldState.set(state.world);
+		mapData.set(state.map);
+		npcsHere.set(state.npcs);
 		palette.applyGameHour(snap.hour);
-		if (snap.name_hints) nameHints.set(snap.name_hints);
+		nameHints.set(snap.name_hints);
+		streamingActive.set(Boolean(snap.turn_in_flight));
+		initialContextEpoch = state.context_epoch;
 		if (
 			snap.location_description &&
 			sceneDedup.shouldShowDescription(snap.location_name)
 		) {
 			textLog.update((log) => [
 				...log,
-				{ source: 'system', content: snap.location_description },
+				{
+					source: 'system',
+					subtype: 'location',
+					content: snap.location_description,
+				},
 			]);
 		}
+	} else if (stateRes.status === 'rejected') {
+		initialStateFailure = stateRes.reason;
+	} else if (
+		stateRes.status === 'fulfilled' &&
+		!isReconnectState(stateRes.value)
+	) {
+		initialStateFailure = new Error('invalid aggregate payload');
 	}
-	if (mapRes.status === 'fulfilled') mapData.set(mapRes.value);
-	if (npcsRes.status === 'fulfilled') npcsHere.set(npcsRes.value);
-	if (themeRes.status === 'fulfilled')
+	if (themeRes.status === 'fulfilled' && controllerActive())
 		palette.applyServerPalette(themeRes.value);
 
 	const failed: string[] = [];
-	if (snapRes.status === 'rejected')
-		failed.push(`world (${formatIpcError(snapRes.reason)})`);
-	if (mapRes.status === 'rejected')
-		failed.push(`map (${formatIpcError(mapRes.reason)})`);
-	if (npcsRes.status === 'rejected')
-		failed.push(`NPCs (${formatIpcError(npcsRes.reason)})`);
+	if (initialStateFailure !== null)
+		failed.push(`game state (${formatIpcError(initialStateFailure)})`);
 	if (themeRes.status === 'rejected')
 		failed.push(`theme (${formatIpcError(themeRes.reason)})`);
 	if (failed.length > 0) {
 		pushErrorLog(`Failed to load initial game data: ${failed.join(', ')}.`);
-		for (const r of [snapRes, mapRes, npcsRes, themeRes]) {
-			if (r.status === 'rejected')
-				console.warn('Initial fetch failed:', r.reason);
-		}
+		if (initialStateFailure !== null)
+			console.warn('Initial fetch failed:', initialStateFailure);
+		if (themeRes.status === 'rejected')
+			console.warn('Initial fetch failed:', themeRes.reason);
 	}
 
 	// Fetch UI config from mod and show splash text
@@ -239,6 +616,14 @@ export async function createPageController(): Promise<() => void> {
 	}
 
 	const sm = createStreamManager();
+	const reconnectPresentation: ReconnectPresentationState = {
+		sceneDedup,
+		contextEpoch: initialContextEpoch,
+		generation: 0,
+		isActive: controllerActive,
+		resetStream: () => sm.reset(),
+	};
+	let worldRefreshRevision = 0;
 	// Expose the flush so the input field can snap an in-flight reply fully into
 	// view on the player's first keystroke before the next turn lands (#1379).
 	flushStream.set(() => sm.flushAll());
@@ -278,28 +663,24 @@ export async function createPageController(): Promise<() => void> {
 	const listeners: Array<() => void> = [];
 	try {
 		listeners.push(
-			await onWorldUpdate(async (snap) => {
-				worldState.set(snap);
-				tracker.onWorldStateChange(snap.paused);
-				palette.applyGameHour(snap.hour);
-				if (snap.name_hints) nameHints.set(snap.name_hints);
-				// Append scene description only if location has changed
-				if (
-					snap.location_description &&
-					sceneDedup.shouldShowDescription(snap.location_name)
-				) {
-					textLog.update((log) => [
-						...log,
-						{ source: 'system', content: snap.location_description },
-					]);
-				}
-				try {
-					const [map, npcs] = await Promise.all([getMap(), getNpcsHere()]);
-					mapData.set(map);
-					npcsHere.set(npcs);
-				} catch (_) {
-					// ignore: best-effort map/NPC refresh; stale data is acceptable
-				}
+			await onGameContextReset(() => {
+				if (!controllerActive()) return;
+				disarmLoadingSafetyTimer();
+				resetExternalDrive();
+				resetPresentationForNewContext(reconnectPresentation);
+				worldRefreshRevision += 1;
+			}),
+		);
+
+		listeners.push(
+			await onWorldUpdate(async (_snap) => {
+				const refreshRevision = ++worldRefreshRevision;
+				const acceptedWorld = await refreshCanonicalStateAfterWorldUpdate(
+					reconnectPresentation,
+					refreshRevision,
+					() => worldRefreshRevision,
+				);
+				if (acceptedWorld) tracker.onWorldStateChange(acceptedWorld.paused);
 			}),
 		);
 
@@ -510,57 +891,33 @@ export async function createPageController(): Promise<() => void> {
 			}),
 		);
 
-		// Resync authoritative state after a WebSocket reconnect: events
-		// emitted during the gap (e.g. a terminal stream-end) are lost, so
-		// re-fetch snapshot/map/npcs and clear any stuck streaming flag so
-		// the input field and demo loop don't hang (audit M4). No-op in
-		// Tauri (the desktop transport never disconnects).
+		// Resync authoritative state after a WebSocket reconnect. The aggregate
+		// command captures world/map/NPCs plus context epoch under one backend
+		// persistence gate. Its helper validates the whole envelope before it
+		// cancels an orphaned stream or mutates any presentation state.
 		listeners.push(
 			onReconnect(async () => {
-				// Discard the orphaned pre-reconnect stream SYNCHRONOUSLY, before
-				// awaiting anything. The turn that was streaming when the socket
-				// dropped lost its remaining tokens / stream-end during the gap,
-				// so pendingTurnCount()/chainInProgress would otherwise stay
-				// non-zero forever and leave the input disabled. Doing this before
-				// the first await means it runs inside the onopen dispatch — ahead
-				// of any onmessage on the new socket — so a stream the backend
-				// resumes after reconnect queues a fresh turn that this reset can't
-				// clobber (the late-reset race Codex flagged).
-				sm.reset();
-				streamingActive.set(false);
-
-				// allSettled (matching the mount-time fetch): a transient failure
-				// on one endpoint right after reconnect must not discard the
-				// other successful updates.
-				const [snapRes, mapRes, npcsRes] = await Promise.allSettled([
-					getWorldSnapshot(),
-					getMap(),
-					getNpcsHere(),
-				]);
-				if (snapRes.status === 'fulfilled') {
-					const snap = snapRes.value;
-					worldState.set(snap);
-					palette.applyGameHour(snap.hour);
-					if (snap.name_hints) nameHints.set(snap.name_hints);
-					// Re-assert busy state from authoritative server state: if a
-					// turn was still in flight across the gap (slow model, or a
-					// pause before the next stream-token), the reset above wrongly
-					// cleared streamingActive, re-enabling the input field and
-					// quick-travel chips → duplicate-turn window. A resumed
-					// stream-token would re-set it, but only once tokens actually
-					// flow; this closes the pre-token gap immediately (#1164).
-					if (snap.turn_in_flight) streamingActive.set(true);
-				}
-				if (mapRes.status === 'fulfilled') mapData.set(mapRes.value);
-				if (npcsRes.status === 'fulfilled') npcsHere.set(npcsRes.value);
-				for (const r of [snapRes, mapRes, npcsRes]) {
-					if (r.status === 'rejected')
-						console.warn('Reconnect resync partial failure:', r.reason);
+				const applied = await resyncCanonicalStateAfterReconnect(
+					reconnectPresentation,
+				);
+				if (applied && controllerActive()) {
+					worldRefreshRevision += 1;
 				}
 			}),
 		);
 	} catch (e) {
 		console.warn('Failed to set up some event listeners:', e);
+	}
+
+	// An aggregate may have completed before the reset/world listeners above
+	// were attached. Re-read after subscription so a context switch in that gap
+	// cannot strand the page on its initial world. Generation and disposal
+	// guards reject a response overtaken by an event or unmount.
+	if (controllerActive()) {
+		const applied = await resyncCanonicalStateAfterSubscription(
+			reconnectPresentation,
+		);
+		if (applied && controllerActive()) worldRefreshRevision += 1;
 	}
 
 	// Fetch demo config after event listeners are registered so that
@@ -584,6 +941,8 @@ export async function createPageController(): Promise<() => void> {
 	}
 
 	return () => {
+		disposed = true;
+		reconnectPresentation.generation += 1;
 		window.removeEventListener('keydown', onTrackerKey);
 		window.removeEventListener('mousedown', onTrackerMousedown);
 		window.removeEventListener('touchstart', onTrackerTouch);

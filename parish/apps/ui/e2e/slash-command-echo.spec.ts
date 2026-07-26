@@ -47,18 +47,19 @@ test.describe('slash-command echo rendering (#1423)', () => {
 			content: 'The clocks of the parish stand still. Time is now paused.',
 		});
 
-		// AC-3: command entry exists with .entry.command
+		// AC-3: command entry remains distinct in the notebook chronicle.
 		const commandEntry = page.locator('[data-testid="command-entry"]');
-		await expect(commandEntry).toBeVisible();
+		await expect(commandEntry).toBeAttached();
 		await expect(commandEntry).toContainText('/pause');
+		await expect(commandEntry).toContainText('Command:');
 
-		// AC-3: NOT rendered as a player dialogue bubble
+		// AC-3: NOT rendered as a player dialogue bubble.
 		await expect(page.locator('.bubble-row.player')).toHaveCount(0);
 
-		// System narration follows below
+		// System narration follows in the accessible live chronicle.
 		const narration = page
-			.locator('.entry.system')
-			.filter({ hasText: 'clocks of the parish' });
+			.getByLabel('Live chronicle')
+			.getByText(/clocks of the parish/);
 		await expect(narration).toContainText('clocks of the parish');
 
 		// Capture proof screenshot

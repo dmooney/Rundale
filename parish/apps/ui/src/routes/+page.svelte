@@ -24,7 +24,7 @@
 		saveScreenshot,
 		disposeTransport,
 		toggleFullscreen,
-		isTauri
+		isTauri,
 	} from '$lib/ipc';
 	import { captureScreen } from '$lib/screenshot';
 	import { createPageController } from '$lib/page-controller';
@@ -92,7 +92,9 @@
 			// let the native F11 fullscreen behaviour stand.
 			if (isTauri()) {
 				e.preventDefault();
-				toggleFullscreen().catch((err) => console.warn('Fullscreen toggle failed:', err));
+				toggleFullscreen().catch((err) =>
+					console.warn('Fullscreen toggle failed:', err),
+				);
 			}
 		}
 		if (e.key === 'F12') {
@@ -155,7 +157,7 @@
 	let cancelled = false;
 	onMount(() => {
 		(async () => {
-			const cleanup = await createPageController();
+			const cleanup = await createPageController(() => cancelled);
 			if (cancelled) {
 				cleanup();
 			} else {
@@ -174,7 +176,6 @@
 		// orphan socket or a zombie reconnect queued.
 		disposeTransport();
 	});
-
 </script>
 
 <svelte:window onkeydown={handleKeydown} />
@@ -189,7 +190,6 @@
 	{#if $fullMapOpen}
 		<FullMapOverlay onclose={() => fullMapOpen.set(false)} />
 	{/if}
-
 </div>
 
 <DebugPanel />
@@ -201,14 +201,19 @@
 <BugReportModal />
 <SetupOverlay />
 {#if $modSelectorVisible}
-	<ModSelectorOverlay onclose={() => modSelectorVisible.set(false)} required={$uiConfig?.base_mod_required} />
+	<ModSelectorOverlay
+		onclose={() => modSelectorVisible.set(false)}
+		required={$uiConfig?.base_mod_required}
+	/>
 {/if}
 {#if shortcutsOpen}
 	<ShortcutsOverlay onclose={() => (shortcutsOpen = false)} />
 {/if}
 
 {#if screenshotToast}
-	<div class="screenshot-toast" role="status" aria-live="polite">{screenshotToast}</div>
+	<div class="screenshot-toast" role="status" aria-live="polite">
+		{screenshotToast}
+	</div>
 {/if}
 
 <style>
@@ -226,7 +231,7 @@
 	}
 
 	@media (min-width: 1200px) {
-	.app-shell.debug-open-left {
+		.app-shell.debug-open-left {
 			margin-left: min(28rem, 36vw);
 			width: calc(100vw - min(28rem, 36vw));
 		}

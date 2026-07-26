@@ -90,8 +90,7 @@ fn harness_with_single_npc() -> (GameTestHarness, parish_core::npc::NpcId, Strin
 
     let npc_name = {
         let npc = h.app.npc_manager.get_mut(npc_id).expect("NPC exists");
-        npc.location = player_loc;
-        npc.state = NpcState::Present;
+        npc.set_location_and_state(player_loc, NpcState::Present);
         npc.name.clone()
     };
     h.app.npc_manager.mark_introduced(npc_id);
@@ -110,12 +109,12 @@ fn harness_with_single_npc() -> (GameTestHarness, parish_core::npc::NpcId, Strin
         .app
         .npc_manager
         .all_npcs()
-        .filter(|n| n.location == player_loc && n.id != npc_id)
+        .filter(|n| n.location() == player_loc && n.id != npc_id)
         .map(|n| n.id)
         .collect();
     for id in others {
         if let Some(n) = h.app.npc_manager.get_mut(id) {
-            n.location = other_loc;
+            n.set_location(other_loc);
         }
     }
 

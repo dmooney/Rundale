@@ -135,12 +135,13 @@ impl SystemCommandHost for AppStateCommandHost {
         })
     }
 
-    fn load_branch(&self, _name: String) -> BoxFuture<'_, ()> {
+    fn load_branch(&self, _name: String) -> BoxFuture<'_, Result<(), String>> {
         Box::pin(async move {
             // Web server: open the save picker in the frontend.
             self.state
                 .event_bus
                 .emit_named(Topic::UiControl, "save-picker", &());
+            Ok(())
         })
     }
 
