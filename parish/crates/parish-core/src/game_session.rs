@@ -210,10 +210,8 @@ fn player_action_narration(raw_action: &str) -> Option<String> {
         .filter(|prefix| prefix.eq_ignore_ascii_case("i "))
         .map_or(trimmed, |_| trimmed[2..].trim_start());
     let mut chars = action.chars();
-    let normalized = match chars.next() {
-        None => return None,
-        Some(first) => first.to_lowercase().collect::<String>() + chars.as_str(),
-    };
+    let first = chars.next()?;
+    let normalized = first.to_lowercase().collect::<String>() + chars.as_str();
     if normalized.is_empty() {
         return None;
     }

@@ -1,8 +1,10 @@
 <script lang="ts">
 	import { worldState, externalDriveActive } from '../stores/game';
-	import { debugVisible } from '../stores/debug';
-	import { openBugReport } from '../stores/bugReport';
-	import { savePickerVisible, modSelectorVisible } from '../stores/save';
+	import {
+		activeSurface,
+		openSurface,
+		toggleSurface,
+	} from '../stores/surfaceCoordinator';
 	import { onDestroy } from 'svelte';
 	import { resolve } from '$app/paths';
 	import AuthStatus from './AuthStatus.svelte';
@@ -106,7 +108,10 @@
 	}
 </script>
 
-<svelte:window onpointerdown={handleWindowPointerDown} onkeydown={handleDevMenuKeydown} />
+<svelte:window
+	onpointerdown={handleWindowPointerDown}
+	onkeydown={handleDevMenuKeydown}
+/>
 
 <div class="status-bar" data-testid="status-bar">
 	{#if $worldState}
@@ -129,9 +134,24 @@
 		{/if}
 		<span class="spacer"></span>
 		{#if $externalDriveActive}
-			<span class="auto-play-badge" role="status" aria-live="polite" aria-label="Game is being driven by an automated agent" title="An automated agent is driving the game">&#8635; Auto-play</span>
+			<span
+				class="auto-play-badge"
+				role="status"
+				aria-live="polite"
+				aria-label="Game is being driven by an automated agent"
+				title="An automated agent is driving the game">&#8635; Auto-play</span
+			>
 		{/if}
-		<button type="button" class="save-toggle" class:save-active={$savePickerVisible} aria-pressed={$savePickerVisible} aria-label="Save/Load picker" onclick={() => savePickerVisible.update(v => !v)} title="Save/Load picker (F5)">Ledger</button>
+		<button
+			type="button"
+			class="save-toggle"
+			class:save-active={$activeSurface === 'save'}
+			aria-pressed={$activeSurface === 'save'}
+			aria-label="Save/Load picker"
+			onclick={(event) =>
+				void toggleSurface('save', event.currentTarget as HTMLElement)}
+			title="Save/Load picker (F5)">Ledger</button
+		>
 		<div
 			class="dev-menu-wrap"
 			bind:this={devMenuEl}
@@ -152,19 +172,71 @@
 				aria-expanded={devMenuOpen}
 				aria-label="Developer tools menu"
 				title="Developer tools"
-				onclick={() => (devMenuOpen = !devMenuOpen)}
-			>⋯</button>
+				onclick={() => (devMenuOpen = !devMenuOpen)}>⋯</button
+			>
 			{#if devMenuOpen}
-				<div class="dev-menu" role="menu" aria-label="Developer tools" data-testid="dev-menu">
-					<button type="button" role="menuitem" class="dev-item" aria-label="Switch active mod" onclick={() => { devMenuOpen = false; modSelectorVisible.set(true); }} title="Switch mod">Mod</button>
-					<a role="menuitem" class="dev-item" href={resolve('/editor')} title="Parish Designer — edit mod data">Designer</a>
-					<button type="button" role="menuitemcheckbox" class="dev-item" class:debug-active={$debugVisible} aria-checked={$debugVisible} aria-label="Toggle debug panel" onclick={() => { devMenuOpen = false; debugVisible.update(v => !v); }} title="Toggle debug panel (F12)">Dbg</button>
-					<button type="button" role="menuitem" class="dev-item" aria-label="Report a bug" onclick={() => { devMenuOpen = false; void openBugReport(); }} title="Report a bug">🐛 Bug</button>
+				<div
+					class="dev-menu"
+					role="menu"
+					aria-label="Developer tools"
+					data-testid="dev-menu"
+				>
+					<button
+						type="button"
+						role="menuitem"
+						class="dev-item"
+						aria-label="Switch active mod"
+						onclick={(event) => {
+							devMenuOpen = false;
+							void openSurface('mod', event.currentTarget as HTMLElement);
+						}}
+						title="Switch mod">Mod</button
+					>
+					<a
+						role="menuitem"
+						class="dev-item"
+						href={resolve('/editor')}
+						title="Parish Designer — edit mod data">Designer</a
+					>
+					<button
+						type="button"
+						role="menuitemcheckbox"
+						class="dev-item"
+						class:debug-active={$activeSurface === 'debug'}
+						aria-checked={$activeSurface === 'debug'}
+						aria-label="Toggle debug panel"
+						onclick={(event) => {
+							devMenuOpen = false;
+							void toggleSurface('debug', event.currentTarget as HTMLElement);
+						}}
+						title="Toggle debug panel (F12)">Dbg</button
+					>
+					<button
+						type="button"
+						role="menuitem"
+						class="dev-item"
+						aria-label="Report a bug"
+						onclick={(event) => {
+							devMenuOpen = false;
+							void openSurface('bug', event.currentTarget as HTMLElement);
+						}}
+						title="Report a bug">🐛 Bug</button
+					>
 				</div>
 			{/if}
 		</div>
 		<AuthStatus />
-		<span class="clock">{#each displayHour.toString().padStart(2, '0').split('') as d, i (i)}<span class="digit">{d}</span>{/each}<span class="colon">:</span>{#each displayMinute.toString().padStart(2, '0').split('') as d, i (i)}<span class="digit">{d}</span>{/each}</span>
+		<span class="clock"
+			>{#each displayHour
+				.toString()
+				.padStart(2, '0')
+				.split('') as d, i (i)}<span class="digit">{d}</span>{/each}<span
+				class="colon">:</span
+			>{#each displayMinute
+				.toString()
+				.padStart(2, '0')
+				.split('') as d, i (i)}<span class="digit">{d}</span>{/each}</span
+		>
 	{:else}
 		<span class="muted">Loading…</span>
 	{/if}
@@ -268,9 +340,15 @@
 	}
 
 	@keyframes auto-play-pulse {
-		0%   { opacity: 0.85; }
-		50%  { opacity: 0.45; }
-		100% { opacity: 0.85; }
+		0% {
+			opacity: 0.85;
+		}
+		50% {
+			opacity: 0.45;
+		}
+		100% {
+			opacity: 0.85;
+		}
 	}
 
 	.save-toggle,
@@ -283,7 +361,9 @@
 		cursor: pointer;
 		font-family: var(--font-display);
 		letter-spacing: 0.1em;
-		transition: color 0.2s, border-color 0.2s;
+		transition:
+			color 0.2s,
+			border-color 0.2s;
 	}
 
 	.save-toggle:hover,
@@ -330,7 +410,9 @@
 		letter-spacing: 0.1em;
 		text-decoration: none;
 		text-align: left;
-		transition: color 0.2s, background 0.2s;
+		transition:
+			color 0.2s,
+			background 0.2s;
 	}
 
 	.dev-item:last-child {

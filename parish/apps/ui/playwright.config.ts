@@ -18,7 +18,8 @@ const testPort = await resolvePlaywrightPort();
 export default defineConfig({
 	testDir: 'e2e',
 	outputDir: 'e2e/test-results',
-	snapshotPathTemplate: '{testDir}/screenshots/baseline/{testName}/{arg}{ext}',
+	snapshotPathTemplate:
+		'{testDir}/screenshots/baseline/{platform}/{testName}/{arg}{ext}',
 	fullyParallel: false,
 	forbidOnly: !!process.env.CI,
 	retries: process.env.CI ? 1 : 0,

@@ -47,86 +47,6 @@ export async function installTileRouteMock(page: Page): Promise<void> {
 }
 
 /**
- * Wait until Pixi has presented a texture-complete frame, not merely appended
- * its canvas and emitted accessibility hit targets. The renderer loads assets
- * asynchronously and the GPU upload/present can trail those DOM-ready signals;
- * a raw Playwright screenshot taken in that gap contains large black texture
- * rectangles. Sample the presented WebGL canvas from a requestAnimationFrame
- * callback and fail closed unless the authored scene is both predominantly
- * non-black and chromatically varied.
- */
-export async function waitForTextureCompleteNotebookFrame(
-	page: Page,
-): Promise<void> {
-	const canvas = page
-		.getByTestId('illustrated-notebook-pixi-host')
-		.locator('canvas');
-	const preservesPresentedFrame = await canvas.evaluate((element) => {
-		const source = element as HTMLCanvasElement;
-		const context = source.getContext('webgl2') ?? source.getContext('webgl');
-		return context?.getContextAttributes()?.preserveDrawingBuffer ?? null;
-	});
-	expect(
-		preservesPresentedFrame,
-		'Pixi WebGL must preserve its presented frame for product and proof captures',
-	).toBe(true);
-
-	await expect
-		.poll(
-			() =>
-				canvas.evaluate(
-					(element) =>
-						new Promise<boolean>((resolve) => {
-							requestAnimationFrame(() => {
-								const source = element as HTMLCanvasElement;
-								const sample = document.createElement('canvas');
-								sample.width = 32;
-								sample.height = 20;
-								const context = sample.getContext('2d', {
-									willReadFrequently: true,
-								});
-								if (!context) {
-									resolve(false);
-									return;
-								}
-
-								context.drawImage(source, 0, 0, sample.width, sample.height);
-								const pixels = context.getImageData(
-									0,
-									0,
-									sample.width,
-									sample.height,
-								).data;
-								let nonBlack = 0;
-								const colourBuckets = new Set<number>();
-								for (let i = 0; i < pixels.length; i += 4) {
-									const red = pixels[i];
-									const green = pixels[i + 1];
-									const blue = pixels[i + 2];
-									const alpha = pixels[i + 3];
-									if (alpha > 0 && red + green + blue > 60) nonBlack += 1;
-									colourBuckets.add(
-										(red >> 4) * 256 + (green >> 4) * 16 + (blue >> 4),
-									);
-								}
-
-								const pixelCount = pixels.length / 4;
-								resolve(
-									nonBlack / pixelCount >= 0.8 && colourBuckets.size >= 20,
-								);
-							});
-						}),
-				),
-			{
-				message:
-					'Pixi notebook must present a texture-complete, non-degenerate frame',
-				timeout: 10_000,
-			},
-		)
-		.toBe(true);
-}
-
-/**
  * Inject the Tauri IPC mock into a page before navigation.
  * Must be called before `page.goto()`.
  */
@@ -202,10 +122,16 @@ export async function installTauriMock(
 				editor_list_mods: editorMods,
 				editor_open_mod: editorSnapshot,
 			};
+			const invokeCalls: Array<{
+				command: string;
+				args?: Record<string, unknown>;
+			}> = [];
 
 			// Expose for test helpers
 			(window as unknown as Record<string, unknown>).__TEST_MOCK_RESPONSES__ =
 				mockResponses;
+			(window as unknown as Record<string, unknown>).__TEST_INVOKE_CALLS__ =
+				invokeCalls;
 
 			// ── Test event emitter ──────────────────────────────────────────
 			(window as unknown as Record<string, unknown>).__TEST_EMIT_EVENT__ = (
@@ -277,6 +203,7 @@ export async function installTauriMock(
 					}
 
 					// Handle app commands
+					invokeCalls.push({ command: cmd, args });
 					if (cmd in mockResponses) {
 						return mockResponses[cmd];
 					}

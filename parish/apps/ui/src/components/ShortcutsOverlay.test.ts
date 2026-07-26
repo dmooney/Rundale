@@ -12,9 +12,9 @@ describe('ShortcutsOverlay', () => {
 		expect(getByText('Open the Ledger (save / load)')).toBeTruthy();
 		expect(getByText('Toggle the debug panel')).toBeTruthy();
 		expect(getByText('Save a screenshot')).toBeTruthy();
-		expect(getByText('Move through notebook controls')).toBeTruthy();
+		expect(getByText('Move through chat and surface controls')).toBeTruthy();
 		expect(
-			getByText('Activate a control or send the current intent'),
+			getByText('Activate a control or send the current message'),
 		).toBeTruthy();
 		expect(queryByText('Browse input history')).toBeNull();
 		expect(queryByText('New line (Enter sends)')).toBeNull();

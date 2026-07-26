@@ -13,8 +13,8 @@
 		{ keys: 'F11', desc: 'Toggle fullscreen (desktop)' },
 		{ keys: 'F12', desc: 'Toggle the debug panel' },
 		{ keys: '?', desc: 'Show this overlay' },
-		{ keys: 'Tab', desc: 'Move through notebook controls' },
-		{ keys: 'Enter', desc: 'Activate a control or send the current intent' },
+		{ keys: 'Tab', desc: 'Move through chat and surface controls' },
+		{ keys: 'Enter', desc: 'Activate a control or send the current message' },
 		{ keys: 'Esc', desc: 'Close dismissible overlays / stop the demo' },
 	];
 

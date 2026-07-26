@@ -1,8 +1,7 @@
 # Parish Notebook UI
 
-Status: Superseded by the issue #1630 Pixi implementation. The deleted
-`components/notebook` prototype described below is retained as historical
-context only.
+Status: Retired historical experiment. Both the prototype and its successor
+Pixi implementation were removed; this document is retained as context only.
 
 ## Goal
 

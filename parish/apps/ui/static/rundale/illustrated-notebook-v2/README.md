@@ -1,6 +1,11 @@
-# Illustrated Notebook v2 Runtime Assets
+# Retained Illustrated Asset Catalog
 
-This directory is the clean visual boundary for the issue #1630 rebuild. The
+The Pixi notebook experiment has been retired. The chat-first shell uses the
+desktop/mobile scene plates and selected DOM icons from this catalog. Other
+cutouts are retained with provenance pending a separate deletion decision; they
+are not evidence of an active notebook renderer.
+
+This directory was the clean visual boundary for the issue #1630 rebuild. The
 canonical comparison target is
 [`docs/graphics-v2/illustrated-parish-notebook.png`](../../../../../../docs/graphics-v2/illustrated-parish-notebook.png),
 but no runtime file is cut from that concept image.

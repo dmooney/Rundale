@@ -37,20 +37,12 @@ test('web reconnect commits one epoch aggregate or preserves the whole presentat
 
 	await page.goto('/');
 	await page.waitForLoadState('networkidle');
-	await expect(
-		page.locator('[data-testid="illustrated-notebook-game"]'),
-	).toBeVisible();
+	await expect(page.getByTestId('chat-game-shell')).toBeVisible();
 	await expect.poll(() => sockets.length).toBe(1);
-	const journalTab = page.getByRole('button', {
-		name: 'Open Journal notebook tab',
-		exact: true,
-	});
-	await expect(journalTab).toBeVisible();
-	await journalTab.focus();
-	await page.keyboard.press('Enter');
-	const chronicle = page.getByTestId('notebook-active-section');
-	await expect(chronicle).toHaveAttribute('data-section', 'journal');
-	const input = page.getByLabel('Player intent', { exact: true });
+	const chronicle = page.getByTestId('chat-panel');
+	await expect(chronicle).toBeVisible();
+	const input = page.getByRole('combobox', { name: 'Player input' });
+	await expect(input).toBeEditable();
 	await expect(chronicle).toContainText(
 		'The old branch opens beside the gate.',
 	);

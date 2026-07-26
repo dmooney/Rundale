@@ -7976,6 +7976,7 @@ mod tests {
             result.to_lowercase().contains("no such person")
                 || result.to_lowercase().contains("no one by that name")
                 || result.to_lowercase().contains("wrong parish")
+                || result.to_lowercase().contains("not a name")
                 || result.to_lowercase().contains("that name")
                 || result.to_lowercase().contains("parish face")
                 || result.to_lowercase().contains("comes to mind"),

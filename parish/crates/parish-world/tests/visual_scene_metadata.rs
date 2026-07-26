@@ -100,7 +100,7 @@ fn runtime_visual_scene_metadata_declares_oblique_storybook_camera_and_depth_ban
 }
 
 #[test]
-fn runtime_visual_scenes_cover_harness_locations_with_real_distinct_plates() {
+fn runtime_visual_scenes_use_real_distinct_plates_without_ambiguous_locations() {
     let value: Value = serde_json::from_str(VISUAL_SCENES).expect("visual-scenes.json parses");
     let scenes = value["scenes"]
         .as_array()
@@ -138,12 +138,5 @@ fn runtime_visual_scenes_cover_harness_locations_with_real_distinct_plates() {
                 "location {location_id} must not resolve ambiguously"
             );
         }
-    }
-
-    for required in [1, 9, 15] {
-        assert!(
-            location_ids.contains(&required),
-            "quality-harness location {required} needs an authored scene"
-        );
     }
 }

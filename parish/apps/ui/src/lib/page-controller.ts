@@ -38,10 +38,7 @@ import { demoConfig } from '../stores/demo';
 import { startDemoLoop } from './demo-player';
 import { SceneDeduplicator } from './scene-dedup';
 import { debugSnapshot } from '../stores/debug';
-import {
-	openNotebookOverlay,
-	toggleNotebookOverlay,
-} from '../stores/notebookOverlay';
+import { openSurface, toggleSurface } from '../stores/surfaceCoordinator';
 import { palette } from '../stores/theme';
 import { tiles } from '../stores/tiles';
 import { startTravel } from '../stores/travel';
@@ -597,7 +594,7 @@ export async function createPageController(
 			cfg.map_overlay === 'grid',
 		);
 		if (cfg.base_mod_required) {
-			void openNotebookOverlay('mod');
+			void openSurface('mod');
 		}
 		if (cfg.splash_text) {
 			textLog.update((log) => [
@@ -871,7 +868,7 @@ export async function createPageController(
 
 		listeners.push(
 			await onToggleFullMap(() => {
-				void toggleNotebookOverlay('map');
+				void toggleSurface('map');
 			}),
 		);
 
@@ -889,7 +886,7 @@ export async function createPageController(
 
 		listeners.push(
 			await onSavePicker(() => {
-				void openNotebookOverlay('save');
+				void openSurface('save');
 			}),
 		);
 

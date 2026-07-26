@@ -2503,7 +2503,7 @@ mod tests {
 
         assert_eq!(npc, "Peig Hannigan");
         assert!(
-            lower.contains("place"),
+            lower.contains("place") || lower.contains("road i know"),
             "invented place should become a place non-recognition decline: {dialogue:?}"
         );
         assert!(

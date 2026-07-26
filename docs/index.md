@@ -49,7 +49,7 @@ Every design/plan doc carries a `> Status: …` header. See
 | [Player Input](design/player-input.md)                                       | Implemented                          | [006](adr/006-natural-language-input.md)                                                                                                                                        |
 | [Persistence & Save System](design/persistence.md)                           | Implemented                          | [003](adr/003-sqlite-wal-persistence.md), [004](adr/004-git-like-branching-saves.md)                                                                                            |
 | [GUI Design](design/gui-design.md)                                           | Implemented                          | [016](adr/016-tauri-svelte-gui.md)                                                                                                                                              |
-| [Illustrated Notebook Real Play Screen](design/illustrated-notebook-real.md) | In progress (#1630 fresh rebuild)    | [Graphics V2 research index](graphics-v2/README.md)                                                                                                                             |
+| [Illustrated Notebook Real Play Screen](design/illustrated-notebook-real.md) | Retired historical experiment        | [Chat-first stabilization contract](../parish/apps/ui/CHAT_FIRST_STABILIZATION.md)                                                                                              |
 | [Parish Notebook UI](design/parish-notebook-ui.md)                           | Proposed (earlier Svelte direction)  | [Illustrated Notebook plan](plans/illustrated-notebook-real.md)                                                                                                                 |
 | [Godot-Based Rundale](design/godot-parish-game-plan.md)                      | Proposed (separate client direction) | [Interactive Parish Diorama](design/ideas/parish-diorama.md)                                                                                                                    |
 | [Parish Designer (GUI editor)](design/designer-editor.md)                    | Implemented                          | —                                                                                                                                                                               |
@@ -67,16 +67,16 @@ Every design/plan doc carries a `> Status: …` header. See
 
 ## Visual client and graphics research
 
-The visual work has three related but distinct tracks. The active default-client
-direction is the Pixi notebook play screen; the Diorama and Godot documents are
-future presentation approaches, not substitutes for its implementation plan.
+The visual work has three related but distinct tracks. The active default client
+is the semantic chat-first shell with responsive DOM art. The retired Pixi
+notebook, Diorama, and Godot documents remain historical or exploratory records.
 
-| Need                                                                  | Start here                                                                   | Follow with                                                                                                           |
-| --------------------------------------------------------------------- | ---------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
-| Default visual play surface                                           | [Illustrated Notebook Real Play Screen](design/illustrated-notebook-real.md) | [implementation plan](plans/illustrated-notebook-real.md) and [active roadmap](plans/illustrated-notebook-roadmap.md) |
-| Concept art, exterior pipeline, interiors, portraits, or map evidence | [Graphics V2 research index](graphics-v2/README.md)                          | Its task-oriented links and scoped guidance                                                                           |
-| Runtime-composed visual scene system                                  | [Interactive Parish Diorama RFC](design/ideas/parish-diorama.md)             | [Diorama implementation plan](plans/parish-diorama-implementation.md)                                                 |
-| Separate Godot presentation client                                    | [Godot-Based Rundale plan](design/godot-parish-game-plan.md)                 | Treat as an exploratory alternative client                                                                            |
+| Need                                                                  | Start here                                                                         | Follow with                                                           |
+| --------------------------------------------------------------------- | ---------------------------------------------------------------------------------- | --------------------------------------------------------------------- |
+| Default visual play surface                                           | [Chat-first stabilization contract](../parish/apps/ui/CHAT_FIRST_STABILIZATION.md) | [GUI features](features.md#chat-first-illustrated-viewport)           |
+| Concept art, exterior pipeline, interiors, portraits, or map evidence | [Graphics V2 research index](graphics-v2/README.md)                                | Its task-oriented links and scoped guidance                           |
+| Runtime-composed visual scene system                                  | [Interactive Parish Diorama RFC](design/ideas/parish-diorama.md)                   | [Diorama implementation plan](plans/parish-diorama-implementation.md) |
+| Separate Godot presentation client                                    | [Godot-Based Rundale plan](design/godot-parish-game-plan.md)                       | Treat as an exploratory alternative client                            |
 
 ## Design ideas / RFCs
 
@@ -108,8 +108,8 @@ Speculative and forward-looking — not (yet) committed work.
 | Plan                                                                                                     | Status      |
 | -------------------------------------------------------------------------------------------------------- | ----------- |
 | [Interactive Parish Diorama — Runtime Compositor Implementation](plans/parish-diorama-implementation.md) | Proposed    |
-| [Illustrated Notebook Real Play Screen](plans/illustrated-notebook-real.md)                              | In progress |
-| [Illustrated Notebook UI Roadmap](plans/illustrated-notebook-roadmap.md)                                 | In progress |
+| [Illustrated Notebook Real Play Screen](plans/illustrated-notebook-real.md)                              | Retired     |
+| [Illustrated Notebook UI Roadmap](plans/illustrated-notebook-roadmap.md)                                 | Closed      |
 | [Phase 5F — World Graph Expansion](plans/phase-5f-world-expansion.md)                                    | Planned     |
 | [Phase 6 — Polish & Mythology Hooks](plans/phase-6-polish-mythology.md)                                  | Planned     |
 | [Phase 7 — Web & Mobile Apps](plans/phase-7-web-mobile.md)                                               | Partial     |
