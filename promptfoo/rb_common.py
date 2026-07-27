@@ -154,9 +154,50 @@ SLICE_META: dict[str, dict[str, Any]] = {
 }
 
 # Slices whose dataset records carry a captured, runtime-faithful request
-# ({system, user, response_format, max_tokens, temperature, frequency_penalty})
+# ({system, user, response_format, max_tokens, temperature, frequency_penalty,
+# enable_thinking})
 # that the candidate must send VERBATIM — no reconstruction (REQ 2).
 VERBATIM_SLICES = {"dialogue", "reaction", "tier2-sim", "tier3-sim", "intent"}
+
+
+def _parse_bool_override(raw: str) -> bool:
+    normalised = raw.strip().lower()
+    if normalised in {"1", "true", "yes", "on"}:
+        return True
+    if normalised in {"0", "false", "no", "off"}:
+        return False
+    raise ValueError("expected true/false")
+
+
+_DIALOGUE_OVERRIDE_ENV = {
+    "max_tokens": ("RB_DIALOGUE_MAX_TOKENS", int),
+    "temperature": ("RB_DIALOGUE_TEMPERATURE", float),
+    "frequency_penalty": ("RB_DIALOGUE_FREQUENCY_PENALTY", float),
+    "enable_thinking": ("RB_DIALOGUE_ENABLE_THINKING", _parse_bool_override),
+}
+
+
+def effective_dialogue_record(rec: dict) -> dict:
+    """Return the captured request with explicitly declared A/B overrides.
+
+    Frozen prompts stay byte-exact; only generation parameters named in the
+    environment may differ. The effective record is also stamped into runtime
+    metadata, so an exploratory profile can never masquerade as the frozen
+    production request.
+    """
+    effective = dict(rec)
+    for field, (env_name, parser) in _DIALOGUE_OVERRIDE_ENV.items():
+        raw = os.environ.get(env_name)
+        if raw is None:
+            continue
+        try:
+            value = parser(raw)
+        except ValueError as exc:
+            raise ValueError(f"{env_name} must be a valid {parser.__name__}") from exc
+        if field == "max_tokens" and value <= 0:
+            raise ValueError(f"{env_name} must be positive")
+        effective[field] = value
+    return effective
 
 
 def generate_candidate(slice_name: str, target, rec: dict, *, streaming: bool = False) -> dict:
@@ -175,6 +216,9 @@ def generate_candidate(slice_name: str, target, rec: dict, *, streaming: bool = 
         "error": None,
     }
     try:
+        if slice_name in {"dialogue", "multiturn"}:
+            rec = effective_dialogue_record(rec)
+
         if slice_name == "multiturn":
             return _generate_multiturn(target, rec, out)
 
@@ -189,6 +233,7 @@ def generate_candidate(slice_name: str, target, rec: dict, *, streaming: bool = 
             max_tokens = rec.get("max_tokens")
             temperature = rec.get("temperature", 0.7)
             frequency_penalty = rec.get("frequency_penalty")
+            enable_thinking = rec.get("enable_thinking")
         elif slice_name == "gaeilge":
             # gaeilge stays a curated Irish-competence probe (no captured request).
             system, user, schema, response_format, frequency_penalty = (
@@ -199,6 +244,7 @@ def generate_candidate(slice_name: str, target, rec: dict, *, streaming: bool = 
                 None,
             )
             max_tokens, temperature = rec.get("max_tokens", 300), 0.2
+            enable_thinking = None
         else:
             raise ValueError(f"unknown slice: {slice_name}")
 
@@ -212,6 +258,7 @@ def generate_candidate(slice_name: str, target, rec: dict, *, streaming: bool = 
                 temperature=temperature,
                 response_format=response_format,
                 frequency_penalty=frequency_penalty,
+                enable_thinking=enable_thinking,
             )
             text = res["text"]
             pt = res.get("prompt_tokens") or 0
@@ -228,6 +275,7 @@ def generate_candidate(slice_name: str, target, rec: dict, *, streaming: bool = 
                 temperature=temperature,
                 response_format=response_format,
                 frequency_penalty=frequency_penalty,
+                enable_thinking=enable_thinking,
                 max_retries=int(os.environ.get("RB_MAX_RETRIES", "4")),
             )
             pt = usage.get("prompt_tokens", 0)
@@ -237,6 +285,9 @@ def generate_candidate(slice_name: str, target, rec: dict, *, streaming: bool = 
         out["prompt_tokens"] = pt
         out["completion_tokens"] = ct
         out["cost"] = pricing.estimate_cost(target.model, pt, ct)
+        if not text or not text.strip():
+            out["error"] = "empty_output"
+            return out
         if slice_name in ("tier2-sim", "tier3-sim"):
             out["schema_valid"] = rb_grade.grade_schema(text, rec.get("grade_schema") or {}).get(
                 "schema_valid", False
@@ -256,6 +307,7 @@ def _generate_multiturn(target, rec: dict, out: dict) -> dict:
     response_format = rec.get("response_format")
     temperature = rec.get("temperature", 0.7)
     frequency_penalty = rec.get("frequency_penalty")
+    enable_thinking = rec.get("enable_thinking")
     messages: list[dict] = []
     if system:
         messages.append({"role": "system", "content": system})
@@ -272,6 +324,7 @@ def _generate_multiturn(target, rec: dict, out: dict) -> dict:
             response_format=response_format,
             temperature=temperature,
             frequency_penalty=frequency_penalty,
+            enable_thinking=enable_thinking,
         )
         reply = rb_grade.extract_dialogue_for_judging(text) or text
         messages.append({"role": "assistant", "content": reply})

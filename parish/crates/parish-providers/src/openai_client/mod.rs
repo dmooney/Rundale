@@ -29,7 +29,9 @@ mod wire;
 pub use wire::{GenerateParams, JsonSchemaSpec, ResponseFormat};
 
 use sse::read_sse_stream;
-use wire::{ChatCompletionRequest, ChatCompletionResponse, ChatMessage, extract_content};
+use wire::{
+    ChatCompletionRequest, ChatCompletionResponse, ChatMessage, ChatTemplateKwargs, extract_content,
+};
 
 /// Builds a `reqwest::Client` with the given timeout, falling back to a default
 /// client (no timeout) if the builder fails.
@@ -345,6 +347,9 @@ impl OpenAiClient {
             content: prompt,
         });
 
+        let chat_template_kwargs = params
+            .enable_thinking
+            .map(|enable_thinking| ChatTemplateKwargs { enable_thinking });
         ChatCompletionRequest {
             model,
             messages,
@@ -353,6 +358,8 @@ impl OpenAiClient {
             max_tokens: params.max_tokens,
             temperature: params.temperature,
             frequency_penalty: params.frequency_penalty,
+            enable_thinking: params.enable_thinking,
+            chat_template_kwargs,
         }
     }
 
@@ -818,6 +825,41 @@ mod tests {
         );
         let json = serde_json::to_value(&req).unwrap();
         assert!(json.get("frequency_penalty").is_none());
+    }
+
+    #[test]
+    fn test_request_serialization_with_enable_thinking_false() {
+        let client = OpenAiClient::new("http://localhost:8010", None);
+        let req = client.build_request(
+            "mlx-community/Qwen3.5-9B-MLX-4bit",
+            "hello",
+            None,
+            false,
+            None,
+            GenerateParams {
+                enable_thinking: Some(false),
+                ..Default::default()
+            },
+        );
+        let json = serde_json::to_value(&req).unwrap();
+        assert_eq!(json["enable_thinking"], false);
+        assert_eq!(json["chat_template_kwargs"]["enable_thinking"], false);
+    }
+
+    #[test]
+    fn test_request_serialization_enable_thinking_omitted_when_none() {
+        let client = OpenAiClient::new("http://localhost:8010", None);
+        let req = client.build_request(
+            "qwen3:14b",
+            "hello",
+            None,
+            false,
+            None,
+            GenerateParams::default(),
+        );
+        let json = serde_json::to_value(&req).unwrap();
+        assert!(json.get("enable_thinking").is_none());
+        assert!(json.get("chat_template_kwargs").is_none());
     }
 
     #[tokio::test]

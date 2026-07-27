@@ -48,6 +48,9 @@ pub struct InferenceRequest {
     /// repetition loops (TODO #10 / #23 / #34). Tier 2 / Tier 3 / intent
     /// / reaction callers leave it at `None`.
     pub frequency_penalty: Option<f32>,
+    /// Optional OpenAI-compatible reasoning-mode control. Only measured
+    /// provider/model profiles should set this; `None` omits the wire field.
+    pub enable_thinking: Option<bool>,
     /// Priority lane for this request.
     pub priority: InferencePriority,
     /// When true, the worker uses `generate_stream_json` (JSON mode + streaming).
@@ -107,6 +110,8 @@ pub struct QueueRequest {
     /// Optional OpenAI-compat `frequency_penalty`.  Forwarded to vllm-mlx,
     /// LM Studio, OpenAI, and OpenRouter; ignored by Anthropic/Simulator.
     pub frequency_penalty: Option<f32>,
+    /// Optional OpenAI-compatible reasoning-mode control.
+    pub enable_thinking: Option<bool>,
     /// Priority lane for this request.
     pub priority: InferencePriority,
     /// When `true`, the worker uses JSON mode streaming.
@@ -178,6 +183,7 @@ impl InferenceQueue {
             max_tokens: req.max_tokens,
             temperature: req.temperature,
             frequency_penalty: req.frequency_penalty,
+            enable_thinking: req.enable_thinking,
             priority,
             json_mode: req.json_mode,
             json_schema: req.json_schema,
@@ -226,6 +232,7 @@ mod tests {
                 max_tokens: None,
                 temperature: None,
                 frequency_penalty: None,
+                enable_thinking: None,
                 priority: InferencePriority::Interactive,
                 json_mode: false,
                 json_schema: None,
@@ -274,6 +281,7 @@ mod tests {
                 max_tokens: Some(256),
                 temperature: Some(0.7),
                 frequency_penalty: Some(0.5),
+                enable_thinking: None,
                 priority: InferencePriority::Interactive,
                 json_mode: true,
                 json_schema: None,
@@ -310,6 +318,7 @@ mod tests {
                 max_tokens: None,
                 temperature: None,
                 frequency_penalty: None,
+                enable_thinking: None,
                 priority: InferencePriority::Interactive,
                 json_mode: false,
                 json_schema: None,
@@ -335,6 +344,7 @@ mod tests {
                 max_tokens: None,
                 temperature: None,
                 frequency_penalty: None,
+                enable_thinking: None,
                 priority: InferencePriority::Interactive,
                 json_mode: false,
                 json_schema: None,
@@ -364,6 +374,7 @@ mod tests {
                 max_tokens: None,
                 temperature: None,
                 frequency_penalty: None,
+                enable_thinking: None,
                 priority: InferencePriority::Interactive,
                 json_mode: false,
                 json_schema: None,
@@ -410,6 +421,7 @@ mod tests {
                 max_tokens: None,
                 temperature: None,
                 frequency_penalty: None,
+                enable_thinking: None,
                 priority: InferencePriority::Interactive,
                 json_mode: false,
                 json_schema: None,
@@ -427,6 +439,7 @@ mod tests {
                 max_tokens: None,
                 temperature: None,
                 frequency_penalty: None,
+                enable_thinking: None,
                 priority: InferencePriority::Background,
                 json_mode: false,
                 json_schema: None,
@@ -444,6 +457,7 @@ mod tests {
                 max_tokens: None,
                 temperature: None,
                 frequency_penalty: None,
+                enable_thinking: None,
                 priority: InferencePriority::Batch,
                 json_mode: false,
                 json_schema: None,
@@ -485,6 +499,7 @@ mod tests {
                 max_tokens: None,
                 temperature: None,
                 frequency_penalty: None,
+                enable_thinking: None,
                 priority: InferencePriority::Batch,
                 json_mode: false,
                 json_schema: None,
@@ -502,6 +517,7 @@ mod tests {
                 max_tokens: None,
                 temperature: None,
                 frequency_penalty: None,
+                enable_thinking: None,
                 priority: InferencePriority::Interactive,
                 json_mode: false,
                 json_schema: None,

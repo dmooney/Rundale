@@ -35,6 +35,11 @@ bottom; don't lengthen items past 2-3 lines.
 
 ## rundale-bench v2 (promptfoo)
 
+- **The v2 manifest used to omit multiturn and was not enforced by the dataset loader.** Keep every generated slice in `pin_manifest.py::SLICES` and verify hash + record count on load; otherwise changed prompts/rubrics can retain an old leaderboard merkle and look comparable when they are not.
+- **Runtime prompt capture needs a worktree-keyed Cargo target.** A workspace-wide
+  target can be replaced by another worktree after Cargo releases its lock,
+  silently capturing stale request parameters. Preserve the isolation in
+  `capture_prompts.sh`.
 - **A stray space/newline on an exported API key 401s the candidate + judge, but NOT `/v1/models`.** OpenRouter's `/v1/models` is unauthenticated so a malformed key looks fine there, while chat calls fail with "Missing Authentication header" (an extra space after the `Bearer` token is enough). `eval_lib.Target.api_key()` now `.strip()`s the value; if you read a key anywhere else, strip it too.
 - **`RB_SLICE` from a config's `env:` block is NOT applied before the dataset loader runs (promptfoo >=0.118).** `tests: file://load_dataset.py:generate_tests` resolves during config _load_, before `env:` reaches the process, so a bare `npx promptfoo eval -c promptfooconfig.<slice>.yaml` dies with "RB_SLICE env var required". The `promptfoo/justfile` `_eval` recipe now exports `RB_SLICE` itself — drive runs through `just -f promptfoo/justfile …`, or export `RB_SLICE`/`RB_TARGET`/`RB_LIMIT` yourself before a raw `npx promptfoo eval`.
 - **v2 has no multi-run results persistence yet (#1232).** `scripts/report.py` is a single-target rollup over `output/` (gitignored); a second model overwrites the first. Don't expect a v1-style cross-run leaderboard until #1232 lands.
@@ -208,3 +213,6 @@ bottom; don't lengthen items past 2-3 lines.
 - **Tier-2 activity grounding must identify authored interval instances.** Fingerprint schedule variant/entry and game date so a bulk wait cannot skip B and land on text-identical A.
 - **Never hand off with a known verification error just because it predates the branch.** If an in-scope gate exposes an existing failure, repair it before publishing or keep the work explicitly blocked; “already on main” is context, not an acceptable final state.
 - **Playwright pixel baselines must include the rendering platform in their identity.** Full-page screenshots containing text, emoji, or map tiles can differ materially between macOS and Linux even when behavior and CSS are identical; use `{platform}` in `snapshotPathTemplate` instead of weakening the visual-diff threshold.
+- **Prompt-roster order is a local-inference performance contract.** `NpcManager::known_roster` formerly leaked randomized `HashSet` iteration into `PEOPLE YOU KNOW`, producing 166 system-prompt variants for seven NPCs and invalidating vllm-mlx prefix reuse halfway through each prompt. Sort stable identities before prompt assembly; on Qwen2.5-14B this changed repeated-turn TTFT from roughly 5–10s to 0.87–1.16s while leaving the authored prompt content unchanged.
+- **Per-category inference env routing must be resolved in shared config.** `parish-engine` once honored `PARISH_INTENT_*` while `parish-server` silently inherited the dialogue slot; MLX-LM then crashed under concurrent category calls. Apply `resolve_category_env_configs` to every runtime before provider bootstrap.
+- **A guard-activation rate is meaningful only with exact reasons and calibrated detectors.** A generic `display_pipeline` counter hid which canonical transform ran, while a narrow mood phrase list rewrote already-sharp local-model dialogue. Emit each apply-seam reason and keep real-output false positives as regression fixtures.

@@ -9,7 +9,7 @@ featured = false
 
 [[presets]]
 key = "recommended"
-label = "Recommended"
+label = "Experimental (not production-qualified)"
 dialogue = "qwen3:32b"
 simulation = "qwen3:14b"
 intent = "qwen3:4b"

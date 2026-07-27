@@ -323,7 +323,7 @@ Categories are `dialogue`, `simulation`, `intent`, or `reaction`.
 | **Simulator**     | Offline (default) | Generates nonsense locally, no network or model download                                                                              |
 | **Ollama**        | Local             | Auto-start, auto-install, GPU detection, automatic model selection by VRAM                                                            |
 | **LM Studio**     | Local             |                                                                                                                                       |
-| **vLLM**          | Local             | vllm-mlx on Apple Silicon (16 GB+ unified memory)                                                                                     |
+| **vLLM**          | Local             | vllm-mlx on Apple Silicon; current bundled dialogue profiles are experimental, not production-qualified                              |
 | **OpenRouter**    | Cloud             |                                                                                                                                       |
 | **OpenAI**        | Cloud             |                                                                                                                                       |
 | **Anthropic**     | Cloud             | Native `/v1/messages` API — not the OpenAI-compatibility shim                                                                         |
@@ -406,8 +406,8 @@ Five-layer defense against prompt injection:
 
 On first launch (or when no inference provider is configured), the engine presents a **SetupOverlay** fork screen:
 
-- **Local inference path** — downloads bundled Qwen2.5 weights for vllm-mlx on macOS (16 GB+ unified memory), or auto-installs Ollama on Linux/Windows
-- **BYOK cloud path** — configure any supported cloud provider with your own API key
+- **Local inference path (experimental)** — downloads bundled Qwen2.5 weights for vllm-mlx on macOS, or auto-installs Ollama on Linux/Windows; setup shows that no current profile has passed the production dialogue gate
+- **BYOK cloud path (recommended for dialogue)** — configure any supported cloud provider with your own API key
 
 The BYOK flow is driven by two tools:
 
@@ -424,7 +424,7 @@ For a shippable `.app` that runs with zero Python or vllm-mlx setup on the end u
 
 - `just build-vllm-mlx-bundle` (~5 min, ~360 MB compressed) materializes a relocatable Python runtime at `parish/dist/vllm-mlx/python-runtime/` with vllm-mlx pip-installed via `python-build-standalone` — no venv (absolute paths would break when the bundle moves)
 - `cargo tauri build` includes the bundle under `Rundale.app/Contents/Resources/vllm-mlx/python-runtime/`
-- On first launch, the app detects the bundle, recommends local inference for Macs with ≥16 GB unified memory, and downloads Qwen2.5 weights with a live progress bar
+- On first launch, the app detects the bundle, offers local inference as experimental, recommends BYOK for dialogue, and downloads Qwen2.5 weights with a live progress bar only when the user chooses local
 - CI: `.github/workflows/build-vllm-mlx-bundle.yml` (manual trigger)
 
 For dev iteration on `cargo tauri dev`, skip the bundle build — the runtime falls through to a `PATH`-installed vllm-mlx (`uv tool install vllm-mlx`).

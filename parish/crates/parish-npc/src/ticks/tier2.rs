@@ -243,6 +243,7 @@ async fn try_tier2_inference(
             max_tokens: Some(200),
             temperature: None,
             frequency_penalty: None,
+            enable_thinking: None,
         },
     );
 

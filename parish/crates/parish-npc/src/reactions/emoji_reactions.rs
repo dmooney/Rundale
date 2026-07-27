@@ -363,6 +363,7 @@ pub async fn infer_player_message_reaction(
             max_tokens: Some(80),
             temperature: Some(REACTION_INFERENCE_TEMPERATURE),
             frequency_penalty: None,
+            enable_thinking: None,
         },
     );
 

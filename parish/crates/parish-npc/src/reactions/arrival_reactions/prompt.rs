@@ -176,6 +176,7 @@ pub async fn resolve_llm_greeting(
                 max_tokens: Some(100),
                 temperature: None,
                 frequency_penalty: None,
+                enable_thinking: None,
             },
         ),
     )

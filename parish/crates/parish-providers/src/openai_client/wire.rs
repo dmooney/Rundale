@@ -40,6 +40,22 @@ pub(super) struct ChatCompletionRequest<'a> {
     /// `None` omits the key from the wire body entirely.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(super) frequency_penalty: Option<f32>,
+    /// Optional OpenAI-compatible extension used by reasoning-capable local
+    /// servers such as vllm-mlx. `None` preserves provider portability;
+    /// profiles may set `Some(false)` only after the target has been measured
+    /// to require and accept the field.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(super) enable_thinking: Option<bool>,
+    /// MLX-LM exposes the same switch through chat-template kwargs, while
+    /// vllm-mlx consumes the top-level extension above. Profiles set one
+    /// semantic knob and the local-compatible wire path emits both shapes.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(super) chat_template_kwargs: Option<ChatTemplateKwargs>,
+}
+
+#[derive(Serialize, Debug)]
+pub(super) struct ChatTemplateKwargs {
+    pub(super) enable_thinking: bool,
 }
 
 /// Sampling and generation parameters shared across all generate methods.
@@ -60,6 +76,9 @@ pub struct GenerateParams {
     /// and the Simulator (no equivalent).  `None` omits the key from the
     /// wire body entirely.
     pub frequency_penalty: Option<f32>,
+    /// Optional reasoning-mode control accepted by compatible OpenAI-style
+    /// backends. Omitted for providers/models without a measured contract.
+    pub enable_thinking: Option<bool>,
 }
 
 /// Controls structured output format.

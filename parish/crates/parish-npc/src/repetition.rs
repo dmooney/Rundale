@@ -2980,6 +2980,30 @@ fn dialogue_expresses_negative_register(dialogue: &str) -> bool {
         "what do you want",
         "leave me be",
         "enough now",
+        "ye fool",
+        "you fool",
+        "mind yer own",
+        "mind your own",
+        "none of yer business",
+        "none of your business",
+        "don't trouble",
+        "do not trouble",
+        "be damned",
+        "steer clear",
+        "best be off",
+        "go away",
+        "not your concern",
+        "no concern of yours",
+        "sour",
+        "trouble",
+        "struggle",
+        "land's hunger",
+        "land is so tight",
+        "rent is due",
+        "landlord's",
+        "sooner not",
+        "barking up the wrong tree",
+        "swallowing us whole",
     ]
     .iter()
     .any(|marker| dialogue.contains(marker))
@@ -8193,6 +8217,50 @@ mod tests {
     fn already_negative_register_is_not_rewritten() {
         let dialogue = "I've no patience for idle talk. What is it?";
         assert_eq!(guard_mood_register(dialogue, "irritated"), dialogue);
+    }
+
+    #[test]
+    fn sharp_register_variants_from_local_models_are_not_double_prefixed() {
+        for dialogue in [
+            "The seed is only sprouting, ye fool. Ask Liam if ye want field news.",
+            "Mind yer own affairs instead of pryin' into things.",
+            "Sleep be damned, stranger. Fetch the midwife if ye need counsel.",
+            "Do not trouble us again with your empty words.",
+            "Best steer clear of him this mornin' if ye value peace.",
+            "There is nothing here for ye. Best be off.",
+        ] {
+            assert_eq!(
+                guard_mood_register(dialogue, "sharp"),
+                dialogue,
+                "an already-audible sharp register must not be mutated"
+            );
+        }
+    }
+
+    #[test]
+    fn bitter_register_variants_from_local_models_are_not_double_prefixed() {
+        for dialogue in [
+            "The land's hunger keeps us all thin and sour.",
+            "The rent is due, stranger, and sleep is a luxury.",
+            "The landlord's clerk sharpens his pen while we sharpen our spades.",
+            "The soil is so tight it's a struggle to keep it from swallowing us whole.",
+            "I'd sooner not see his face this mornin'.",
+        ] {
+            assert_eq!(
+                guard_mood_register(dialogue, "bitter"),
+                dialogue,
+                "an already-audible bitter register must not be mutated"
+            );
+        }
+    }
+
+    #[test]
+    fn factual_negative_answer_without_sharp_register_still_gets_a_cue() {
+        let dialogue = "No, I saw nothing of him this morning. He may be at the church.";
+        assert_eq!(
+            guard_mood_register(dialogue, "sharp"),
+            format!("Plainly, then—{dialogue}")
+        );
     }
 
     #[test]

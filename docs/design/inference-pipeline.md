@@ -185,15 +185,18 @@ The pipeline supports any OpenAI-compatible endpoint (Ollama, LM Studio, OpenRou
 
 Configuration is runtime-mutable via `/provider`, `/model`, `/key`, and `/cloud` commands. Changing provider settings respawns the inference worker with a new client and swaps per-category clients atomically.
 
-### Recommended Models (May 2026 refresh)
+### Candidate Models and Promotion Status
 
-> This section is **refreshable** — specific picks will drift as the open-model landscape evolves. Last refresh: May 2026 (added macOS / vllm-mlx path measured against per-category budgets). See ADR-005 for the architectural decision; this section owns the specific picks.
+> Specific candidates drift as the open-model landscape evolves. A candidate
+> is not a production recommendation until the frozen holdout, hard-failure,
+> reliability, latency, and memory gates in `promptfoo/` produce a passing
+> receipt. As of July 2026, no fully local dialogue profile is qualified.
 
-#### Linux / Windows + Ollama (RX 9070 16 GB + i9-13900KS, matches ADR-005)
+#### Linux / Windows candidates (RX 9070 16 GB + i9-13900KS)
 
 | Category                   | Local pick                | Cloud pick                | Why                                                                                                                  |
 | -------------------------- | ------------------------- | ------------------------- | -------------------------------------------------------------------------------------------------------------------- |
-| Dialogue                   | Gemma 4 9B or Qwen 3.5 9B | Claude Sonnet 4.6         | Quality-critical; 9B fits in 16 GB VRAM with headroom                                                                |
+| Dialogue                   | Gemma 4 9B or Qwen 3.5 9B (unqualified) | Claude Sonnet 4.6 | Quality-critical; candidates must pass the promotion gate before setup may call them qualified |
 | Simulation (Tier 2 nearby) | Qwen 3.5 9B               | Gemini 2.5 Flash          | Structured JSON throughput matters more than prose quality                                                           |
 | Simulation (Tier 3 batch)  | Qwen 3.5 9B               | **Gemini 2.5 Flash-Lite** | $0.10 / $0.40 per 1M tokens makes cloud Tier 3 effectively free at game scale; stack with batch API + prompt caching |
 | Intent                     | Ministral 3 3B            | — (always local)          | Low-latency JSON / function-calling; 3B is enough and keeps the player's input path private                          |
@@ -201,7 +204,7 @@ Configuration is runtime-mutable via `/provider`, `/model`, `/key`, and `/cloud`
 
 #### macOS / Apple Silicon + vllm-mlx (measured May 2026, M-series unified memory)
 
-Two-slot Qwen loadout (recommended):
+Legacy two-slot Qwen candidate (experimental; not production-qualified):
 
 | Category   | Local pick                                              | Cloud pick            | Notes                                                                                                                                  |
 | ---------- | ------------------------------------------------------- | --------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
@@ -213,10 +216,12 @@ Two-slot Qwen loadout (recommended):
 Both models load through vllm-mlx 0.3.x's clean mlx_lm path
 (`mllm=False`) — neither matches the MLLM pattern that traps gemma-3.
 Memory footprint ~9.3 GB resident total (1.3 GB + 8 GB).
-**16 GB unified memory is the minimum for local-everything.** Below
-16 GB, route through BYOK cloud (OpenRouter / Anthropic / Google) —
-the small-slot-only fallback produces flat, anachronistic dialogue
-(Opus-blind 2.96/5) and isn't a recommended default. See
+The older May 2026 measurements remain useful historical baselines, but they
+predate the production-prompt holdout, hard-failure, reliability, and
+player-ready-turn gate. The current setup therefore recommends BYOK cloud
+(OpenRouter / Anthropic / Google) for dialogue at every memory tier and labels
+the local profile experimental. Below 16 GB, the small-slot-only fallback also
+produces flat, anachronistic dialogue (Opus-blind 2.96/5). See
 [evidence.md → Qwen two-slot validation](../proofs/local-perf/evidence.md#qwen-two-slot-validation-may-2026)
 and the May 2026 Opus-blind compare in
 [`quality_eval_20260511T163000Z.md`](../proofs/local-perf/quality_eval_20260511T163000Z.md).

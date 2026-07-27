@@ -36,8 +36,8 @@ mod schema;
 pub use category::InferenceCategory;
 pub use registry::{ProviderRegistry, ensure_mods_loaded, registry};
 pub use resolution::{
-    CliCloudOverrides, CliOverrides, CloudConfig, ProviderConfig, resolve_cloud_config,
-    resolve_config,
+    CategoryConfig, CliCloudOverrides, CliOverrides, CloudConfig, ProviderConfig,
+    resolve_category_env_configs, resolve_cloud_config, resolve_config,
 };
 pub use schema::{
     PresetBaseUrls, Provider, ProviderKind, ProviderMod, ProviderPreset, unified_memory_bytes,
@@ -142,6 +142,11 @@ featured = false
             std::env::remove_var("PARISH_CLOUD_PROVIDER");
             std::env::remove_var("PARISH_CLOUD_BASE_URL");
             std::env::remove_var("PARISH_CLOUD_MODEL");
+            for category in ["DIALOGUE", "SIMULATION", "INTENT", "REACTION"] {
+                std::env::remove_var(format!("PARISH_{category}_PROVIDER"));
+                std::env::remove_var(format!("PARISH_{category}_BASE_URL"));
+                std::env::remove_var(format!("PARISH_{category}_MODEL"));
+            }
             std::env::remove_var("ANTHROPIC_API_KEY");
             std::env::remove_var("OPENAI_API_KEY");
             std::env::remove_var("OPENROUTER_API_KEY");
@@ -1538,6 +1543,60 @@ model = "toml-model"
     fn provider_default_is_simulator() {
         let p = Provider::default();
         assert_eq!(p.id(), "simulator");
+    }
+
+    #[test]
+    #[serial(parish_env)]
+    fn category_env_configs_are_sparse_and_inherit_base_fields() {
+        clear_parish_env();
+        let base = ProviderConfig {
+            provider: Provider::custom(),
+            base_url: "http://127.0.0.1:8010/v1".into(),
+            api_key: Some("base-secret".into()),
+            model: Some("dialogue-9b".into()),
+        };
+        // SAFETY: this test is serialised with every `parish_env` test.
+        unsafe {
+            std::env::set_var("PARISH_INTENT_MODEL", "intent-1.5b");
+            std::env::set_var("PARISH_INTENT_BASE_URL", "http://127.0.0.1:8001/v1");
+        }
+
+        let resolved = resolve_category_env_configs(&base).expect("category env resolves");
+        assert_eq!(resolved.len(), 1);
+        let intent = resolved
+            .get(&InferenceCategory::Intent)
+            .expect("intent override");
+        assert_eq!(intent.provider.id(), "custom");
+        assert_eq!(intent.base_url, "http://127.0.0.1:8001/v1");
+        assert_eq!(intent.model.as_deref(), Some("intent-1.5b"));
+        assert_eq!(intent.api_key.as_deref(), Some("base-secret"));
+        clear_parish_env();
+    }
+
+    #[test]
+    #[serial(parish_env)]
+    fn category_env_provider_override_uses_provider_defaults() {
+        clear_parish_env();
+        let base = ProviderConfig {
+            provider: Provider::custom(),
+            base_url: "http://127.0.0.1:8010/v1".into(),
+            api_key: None,
+            model: Some("dialogue-9b".into()),
+        };
+        // SAFETY: this test is serialised with every `parish_env` test.
+        unsafe {
+            std::env::set_var("PARISH_REACTION_PROVIDER", "simulator");
+        }
+
+        let resolved = resolve_category_env_configs(&base).expect("category env resolves");
+        let reaction = resolved
+            .get(&InferenceCategory::Reaction)
+            .expect("reaction override");
+        assert_eq!(reaction.provider.id(), "simulator");
+        assert_eq!(reaction.base_url, Provider::simulator().default_base_url());
+        assert!(reaction.model.is_none());
+        assert!(reaction.api_key.is_none());
+        clear_parish_env();
     }
 
     #[test]

@@ -38,7 +38,7 @@ def get_assert(output, context):
             "pass": False,
             "score": 0.0,
             "reason": "bench_bug — empty candidate output (excluded from means)",
-            "namedScores": {"bench_bug": 1.0},
+            "namedScores": {"bench_bug": 1.0, "empty_output": 1.0},
         }
 
     res = rb.judge_item(slice_name, prompt_id, prompt_text, output, rec)
@@ -109,6 +109,8 @@ def get_assert(output, context):
 
     if flags.get("non_latin_detected"):
         named["non_latin"] = 1.0
+    if flags.get("refused"):
+        named["refused"] = 1.0
 
     # §3.2/§3.4: hard-floor flags — degenerate_loop and fabricated force a fail
     # regardless of overall score. These are model-quality signals, not bench bugs.

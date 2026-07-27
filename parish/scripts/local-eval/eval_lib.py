@@ -633,6 +633,7 @@ def call_chat(
     messages: list[dict] | None = None,
     response_format: dict | None = None,
     frequency_penalty: float | None = None,
+    enable_thinking: bool | None = None,
 ) -> tuple[str, dict]:
     """POST a single chat-completion. Returns `(text, usage)`.
 
@@ -683,6 +684,9 @@ def call_chat(
         body["max_tokens"] = max_tokens
     if frequency_penalty is not None:
         body["frequency_penalty"] = frequency_penalty
+    if enable_thinking is not None:
+        body["enable_thinking"] = enable_thinking
+        body["chat_template_kwargs"] = {"enable_thinking": enable_thinking}
     if response_format is not None:
         body["response_format"] = response_format
     elif schema is not None:
@@ -744,11 +748,6 @@ def call_chat(
     # headroom + reasoning-parser is the only available path.
     if _is_reasoning_mlx_model(target.model) and (max_tokens is None or max_tokens < 1500):
         body["max_tokens"] = 1500
-    # Local mlx_lm.server Qwen3+ models need chat_template_kwargs to suppress
-    # the <think>…</think> trace; otherwise the trace fills max_tokens and we
-    # score the model's internal monologue rather than its reply.
-    if _is_thinking_mlx_model(target.model):
-        body.setdefault("chat_template_kwargs", {})["enable_thinking"] = False
     headers = {
         "Content-Type": "application/json",
         # Some providers front their API with Cloudflare (e.g. opencode.ai)
@@ -873,6 +872,7 @@ def call_chat_streaming(
     messages: list[dict] | None = None,
     response_format: dict | None = None,
     frequency_penalty: float | None = None,
+    enable_thinking: bool | None = None,
 ) -> dict:
     """Streaming chat-completion. Captures TTFT + tok/s alongside text.
 
@@ -912,20 +912,23 @@ def call_chat_streaming(
         "stream": True,
         "temperature": temperature,
     }
+    # Both vllm-mlx and mlx_lm.server support the standard usage trailer, but
+    # omit it unless explicitly requested. The perf harness needs real token
+    # counts for throughput; keep this local-only because some cloud-compatible
+    # gateways reject `stream_options` even though OpenAI documents it.
+    if target.base_url.startswith(("http://127.0.0.1", "http://localhost")):
+        body["stream_options"] = {"include_usage": True}
     if max_tokens is not None:
         body["max_tokens"] = max_tokens
     if frequency_penalty is not None:
         body["frequency_penalty"] = frequency_penalty
+    if enable_thinking is not None:
+        body["enable_thinking"] = enable_thinking
+        body["chat_template_kwargs"] = {"enable_thinking": enable_thinking}
     if response_format is not None:
         body["response_format"] = response_format
     elif schema is not None:
         body["response_format"] = {"type": "json_schema", "json_schema": schema}
-    # Local mlx_lm.server Qwen3+ models need chat_template_kwargs to suppress
-    # the <think>…</think> trace; otherwise the trace fills max_tokens and we
-    # score the model's internal monologue rather than its reply. Mirrors the
-    # same injection in call_chat above.
-    if _is_thinking_mlx_model(target.model):
-        body.setdefault("chat_template_kwargs", {})["enable_thinking"] = False
     headers = {
         "Content-Type": "application/json",
         "Accept": "text/event-stream",

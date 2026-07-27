@@ -557,6 +557,10 @@ pub struct DialogueTurnOutcome {
     /// written to the conversation log and the `DialogueOccurred` event. May be
     /// empty when the model returned no usable dialogue.
     pub display_text: String,
+    /// Content-free names of canonical apply-seam transformations that changed
+    /// the model dialogue. Benchmark telemetry uses these to distinguish
+    /// semantic correction from repetition handling and the display cap.
+    pub guard_reasons: Vec<String>,
     /// Secondary-language hints validated against `display_text` and the active
     /// setting's curated native-language inventory (#1789).
     pub language_hints: Vec<crate::npc::LanguageHint>,
@@ -1063,6 +1067,7 @@ pub fn apply_npc_dialogue_turn(
     flags: &FeatureFlags,
 ) -> DialogueTurnOutcome {
     let mut debug_events = Vec::new();
+    let mut guard_reasons = Vec::new();
 
     // 1. Learn the player's name from a self-introduction *before* recording
     //    memory, so the addressed speaker's memory uses the real name (#1028).
@@ -1098,19 +1103,37 @@ pub fn apply_npc_dialogue_turn(
         .collect();
 
     let mut canonical_response = parsed.clone();
-    canonical_response.dialogue =
+    let mut guarded =
         crate::npc::guard_mood_register(&canonical_response.dialogue, &canonical_mood);
-    canonical_response.dialogue = crate::npc::guard_unfounded_first_contact_familiarity(
+    if guarded != canonical_response.dialogue {
+        guard_reasons.push("mood_register_guard".to_string());
+    }
+    canonical_response.dialogue = guarded;
+
+    guarded = crate::npc::guard_unfounded_first_contact_familiarity(
         &canonical_response.dialogue,
         had_prior_exchange,
     );
-    canonical_response.dialogue =
-        crate::npc::guard_direct_evidence_evasion(&canonical_response.dialogue, player_input);
-    canonical_response.dialogue = crate::npc::guard_work_recommendation(
+    if guarded != canonical_response.dialogue {
+        guard_reasons.push("first_contact_guard".to_string());
+    }
+    canonical_response.dialogue = guarded;
+
+    guarded = crate::npc::guard_direct_evidence_evasion(&canonical_response.dialogue, player_input);
+    if guarded != canonical_response.dialogue {
+        guard_reasons.push("evidence_guard".to_string());
+    }
+    canonical_response.dialogue = guarded;
+
+    guarded = crate::npc::guard_work_recommendation(
         &canonical_response.dialogue,
         player_input,
         &work_roster,
     );
+    if guarded != canonical_response.dialogue {
+        guard_reasons.push("work_recommendation_guard".to_string());
+    }
+    canonical_response.dialogue = guarded;
 
     // 2. Tier-1 state update on the speaker.
     let player_name_for_mem = if npc_manager.knows_player_name(speaker_id) {
@@ -1156,6 +1179,9 @@ pub fn apply_npc_dialogue_turn(
         repetition_seed,
         grounded_person_names,
     );
+    if deduped_dialogue != canonical_response.dialogue {
+        guard_reasons.push("canonical_repetition_guard".to_string());
+    }
 
     // Cap the displayed dialogue to the configured limit (#1224). Applied here,
     // before the conversation log and event bus, so all player-visible paths see
@@ -1171,6 +1197,9 @@ pub fn apply_npc_dialogue_turn(
         display_cap,
         npc_cfg.dialogue_sentence_boundary_trim,
     );
+    if capped_dialogue != deduped_dialogue {
+        guard_reasons.push("display_cap".to_string());
+    }
     let language_hints = canonical_response
         .metadata
         .as_ref()
@@ -1286,6 +1315,7 @@ pub fn apply_npc_dialogue_turn(
     DialogueTurnOutcome {
         debug_events,
         display_text: capped_dialogue.into_owned(),
+        guard_reasons,
         language_hints,
         assigned_task,
     }
@@ -1371,6 +1401,7 @@ pub async fn enrich_travel_encounter(
                 max_tokens: Some(80),
                 temperature: None,
                 frequency_penalty: None,
+                enable_thinking: None,
             },
         ),
     )
@@ -1616,6 +1647,7 @@ pub async fn stream_reaction_texts(
                                     max_tokens: Some(100),
                                     temperature: None,
                                     frequency_penalty: None,
+                                    enable_thinking: None,
                                 },
                             ),
                         )
@@ -2612,7 +2644,7 @@ mod tests {
             .with_ymd_and_hms(1820, 3, 20, 17, 30, 0)
             .unwrap();
 
-        crate::game_session::apply_npc_dialogue_turn(
+        let outcome = crate::game_session::apply_npc_dialogue_turn(
             &mut world,
             &mut npc_manager,
             NpcId(1),
@@ -2627,6 +2659,14 @@ mod tests {
             &[],
             &LanguageSettings::english_only(),
             &FeatureFlags::default(),
+        );
+        assert!(
+            outcome
+                .guard_reasons
+                .iter()
+                .any(|reason| reason == "display_cap"),
+            "a material cap must be visible in quality telemetry: {:?}",
+            outcome.guard_reasons
         );
 
         // The DialogueOccurred event published to the bus must carry the

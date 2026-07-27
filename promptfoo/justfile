@@ -4,12 +4,13 @@
 #     just -f promptfoo/justfile <recipe> [target-spec]
 #
 # `target` is a model@base_url[#env:VAR] spec (eval_lib.parse_target). Default
-# is the local 7B MLX slot. Cloud keys + the judge key are sourced from ../.env.
+# is the shipped local 14B MLX dialogue slot. Cloud keys + the judge key are
+# sourced from ../.env.
 
 ENV_FILE   := justfile_directory() / "../.env"
 PF         := justfile_directory()
 OUT        := PF / "output"
-DEFAULT_TARGET := "mlx-community/Qwen2.5-7B-Instruct-4bit@http://localhost:8000/v1"
+DEFAULT_TARGET := "mlx-community/Qwen2.5-14B-Instruct-4bit@http://localhost:8000/v1"
 
 default:
     @just --justfile {{ justfile() }} --list
@@ -22,6 +23,10 @@ manifest:
 test:
     python3 {{ PF }}/scripts/test_v2.py
 
+# Prevent setup/preset quality claims from drifting ahead of passing receipts.
+qualification-check:
+    python3 {{ PF }}/scripts/check_local_dialogue_qualification.py
+
 _eval slice config target limit:
     #!/usr/bin/env bash
     set -euo pipefail
@@ -30,6 +35,7 @@ _eval slice config target limit:
     mkdir -p "{{ OUT }}"
     export RB_TARGET='{{ target }}'
     export RB_LIMIT='{{ limit }}'
+    export RB_SPLIT="${RB_SPLIT:-dev}"
     # RB_SLICE must be exported here, not left to each config's `env:` block:
     # promptfoo >=0.118 resolves the `tests: file://load_dataset.py` generator
     # during config load, BEFORE a config's `env:` is applied to the process,
@@ -39,10 +45,17 @@ _eval slice config target limit:
     # slice passes "perf"; nothing on the perf path reads RB_SLICE, so it's inert
     # there — generate_perf_tests loads dialogue records directly.)
     export RB_SLICE='{{ slice }}'
+    concurrency="${RB_MAX_CONCURRENCY:-4}"
+    if [ '{{ slice }}' = perf ]; then
+        # The production game has one interactive dialogue request in flight.
+        # Parallel perf calls measure queue contention, not player-facing TTFT.
+        concurrency="${RB_MAX_CONCURRENCY:-1}"
+    fi
     # Two -o flags: JSON for scripts/report.py, HTML for a standalone web report.
     npx promptfoo eval -c "{{ config }}" \
         -o "{{ OUT }}/{{ slice }}.json" \
         -o "{{ OUT }}/{{ slice }}.html" \
+        --max-concurrency "$concurrency" \
         --no-cache
 
 # Individual slices. `limit=""` runs the full slice.
@@ -57,6 +70,24 @@ perf      target=DEFAULT_TARGET limit="": (_eval "perf"      (PF / "promptfoocon
 
 # Every quality slice + perf for one target, then the report.
 bench target=DEFAULT_TARGET limit="": (dialogue target limit) (intent target limit) (reaction target limit) (tier2-sim target limit) (tier3-sim target limit) (gaeilge target limit) (multiturn target limit) (perf target limit) report
+
+# Promotion runs never tune on the development split. Every candidate row is
+# stamped with RB_SPLIT so promotion_gate.py can reject accidental dev output.
+bench-holdout target=DEFAULT_TARGET limit="":
+    RB_SPLIT=holdout just --justfile {{ justfile() }} bench '{{ target }}' '{{ limit }}'
+
+# Produce promotion.json + promotion.md and exit non-zero unless the exact
+# candidate/profile meets every production threshold.
+promote candidate evidence:
+    python3 {{ PF }}/scripts/promotion_gate.py {{ OUT }} --candidate '{{ candidate }}' --evidence '{{ evidence }}'
+
+# Drive a running Parish backend through the canonical parser/guard path.
+soak candidate output calls="500" base_url="http://127.0.0.1:3030":
+    python3 {{ PF }}/scripts/soak_dialogue.py --candidate '{{ candidate }}' --output '{{ output }}' --calls {{ calls }} --base-url '{{ base_url }}'
+
+# Combine the live soak with peak-memory data from rundale-bench/local_runner.py.
+build-evidence candidate profile soak local_artifact output:
+    python3 {{ PF }}/scripts/build_profile_evidence.py --candidate '{{ candidate }}' --hardware-profile '{{ profile }}' --soak '{{ soak }}' --local-runner-artifact '{{ local_artifact }}' --output '{{ output }}'
 
 # --- REQ 1: enumerate every viable candidate across provider model lists ---
 enumerate floor="8192":

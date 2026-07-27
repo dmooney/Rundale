@@ -8,6 +8,8 @@ without an API key. Run: python3 promptfoo/scripts/test_v2.py
 
 from __future__ import annotations
 
+import argparse
+import hashlib
 import json
 import os
 import sys
@@ -56,7 +58,80 @@ os.environ["RB_SLICE"] = "dialogue"
 os.environ["RB_LIMIT"] = "3"
 check("loader respects RB_LIMIT", len(load_dataset.generate_tests()) == 3)
 os.environ.pop("RB_LIMIT", None)
-check("perf loader uses measure ids", len(load_dataset.generate_perf_tests()) >= 1)
+for _perf_split in ("dev", "holdout"):
+    os.environ["RB_SPLIT"] = _perf_split
+    _perf_tests = load_dataset.generate_perf_tests()
+    check(
+        f"perf loader/{_perf_split} has one warmup + fixed panel",
+        len(_perf_tests) == 19
+        and _perf_tests[0]["vars"]["perf_warmup"] is True
+        and all(
+            row["vars"]["perf_warmup"] is False for row in _perf_tests[1:]
+        )
+        and sum(
+            row["vars"]["perf_cache_state"] == "cold"
+            for row in _perf_tests[1:]
+        )
+        == 6
+        and sum(
+            row["vars"]["perf_cache_state"] == "warm"
+            for row in _perf_tests[1:]
+        )
+        == 12,
+    )
+    _perf_ids = [row["vars"]["rb_id"] for row in _perf_tests]
+    check(
+        f"perf loader/{_perf_split} keeps warmup out of measured panel",
+        _perf_ids[0] not in _perf_ids[1:],
+    )
+    _cold_perf = [
+        json.loads(row["vars"]["record"])
+        for row in _perf_tests
+        if row["vars"]["perf_cache_state"] == "cold"
+    ]
+    check(
+        f"perf loader/{_perf_split} cold panel uses distinct system prefixes",
+        len({row["system"] for row in _cold_perf}) == len(_cold_perf),
+    )
+os.environ["RB_SPLIT"] = "dev"
+os.environ["RB_LIMIT"] = "5"
+_limited_perf = load_dataset.generate_perf_tests()
+check(
+    "perf loader limit means warmup + N measured",
+    len(_limited_perf) == 6 and _limited_perf[0]["vars"]["perf_warmup"] is True,
+)
+os.environ.pop("RB_LIMIT", None)
+
+_drift_root = Path(tempfile.mkdtemp())
+(_drift_root / "datasets").mkdir()
+(_drift_root / "datasets" / "dialogue.jsonl").write_text(
+    '{"id":"changed"}\n',
+    encoding="utf-8",
+)
+(_drift_root / "MANIFEST.json").write_text(
+    json.dumps(
+        {
+            "slices": {
+                "dialogue.jsonl": {
+                    "sha256": "not-the-content-hash",
+                    "records": 1,
+                }
+            }
+        }
+    ),
+    encoding="utf-8",
+)
+_saved_v2, _saved_datasets = rb.V2_DIR, rb.DATASETS_DIR
+rb.V2_DIR, rb.DATASETS_DIR = _drift_root, _drift_root / "datasets"
+try:
+    load_dataset._load_records("dialogue", "dev")
+except RuntimeError:
+    _dataset_drift_rejected = True
+else:
+    _dataset_drift_rejected = False
+finally:
+    rb.V2_DIR, rb.DATASETS_DIR = _saved_v2, _saved_datasets
+check("loader rejects unpinned dataset drift", _dataset_drift_rejected)
 
 
 # --- candidate request shapes (capture system/user/schema) ------------------
@@ -74,6 +149,7 @@ def fake_call_chat(
     messages=None,
     response_format=None,
     frequency_penalty=None,
+    enable_thinking=None,
     **kw,
 ):
     captured.update(
@@ -87,6 +163,7 @@ def fake_call_chat(
             messages=messages,
             response_format=response_format,
             frequency_penalty=frequency_penalty,
+            enable_thinking=enable_thinking,
         )
     )
     if (
@@ -127,6 +204,36 @@ check(
     and captured["frequency_penalty"] == 0.5
     and captured["max_tokens"] is None,
 )
+
+_old_temp_override = os.environ.get("RB_DIALOGUE_TEMPERATURE")
+_old_max_override = os.environ.get("RB_DIALOGUE_MAX_TOKENS")
+_old_thinking_override = os.environ.get("RB_DIALOGUE_ENABLE_THINKING")
+try:
+    os.environ["RB_DIALOGUE_TEMPERATURE"] = "0.3"
+    os.environ["RB_DIALOGUE_MAX_TOKENS"] = "256"
+    os.environ["RB_DIALOGUE_ENABLE_THINKING"] = "false"
+    _effective = rb.effective_dialogue_record(dlg_rec)
+    check(
+        "dialogue A/B overrides preserve frozen prompts and stamp generation",
+        _effective["system"] == dlg_rec["system"]
+        and _effective["user"] == dlg_rec["user"]
+        and _effective["temperature"] == 0.3
+        and _effective["max_tokens"] == 256
+        and _effective["enable_thinking"] is False,
+    )
+finally:
+    if _old_temp_override is None:
+        os.environ.pop("RB_DIALOGUE_TEMPERATURE", None)
+    else:
+        os.environ["RB_DIALOGUE_TEMPERATURE"] = _old_temp_override
+    if _old_max_override is None:
+        os.environ.pop("RB_DIALOGUE_MAX_TOKENS", None)
+    else:
+        os.environ["RB_DIALOGUE_MAX_TOKENS"] = _old_max_override
+    if _old_thinking_override is None:
+        os.environ.pop("RB_DIALOGUE_ENABLE_THINKING", None)
+    else:
+        os.environ["RB_DIALOGUE_ENABLE_THINKING"] = _old_thinking_override
 check("dialogue cost computed", g["cost"] == 0.0 and g["completion_tokens"] == 25)
 
 intent_rec = {
@@ -334,6 +441,7 @@ def mkres(named, meta=None, latency=100.0, cost=0.0, usage=None, error=None):
         "latencyMs": latency,
         "error": error,
         "response": {
+            "output": "non-empty candidate output",
             "metadata": meta or {},
             "cost": cost,
             "tokenUsage": usage or {"prompt": 100, "completion": 20},
@@ -387,6 +495,8 @@ import pricing  # noqa: E402
 
 pagg.update(pricing.gameplay_cost(*pricing.COSTS["claude-haiku-4-5"]))
 check("perf p50 latency", pagg["latency_p50_ms"] == 200.0)
+check("perf p95 ttft", pagg["ttft_p95_ms"] == 120.0)
+check("perf p50 tok/s", pagg["tokens_per_sec_p50"] == 55.0)
 check("perf tok/s mean", abs(pagg["tokens_per_sec_mean"] - 55.0) < 1e-6)
 check(
     "game-time cost > 0 for paid model",
@@ -437,6 +547,20 @@ pagg_w = report.aggregate_perf(
     ]
 )
 check("perf drops warmup row", pagg_w["latency_p50_ms"] == 200.0 and pagg_w["n_ok"] == 1)
+
+_empty_perf = mkres(
+    {},
+    meta={"model": "m", "ttft_ms": None, "tokens_per_second": None},
+    latency=50_000.0,
+)
+_empty_perf["response"]["output"] = ""
+_empty_perf_agg = report.aggregate_perf([_empty_perf])
+check(
+    "perf treats empty or incomplete streaming output as an error",
+    _empty_perf_agg["n_ok"] == 0
+    and _empty_perf_agg["n_error"] == 1
+    and _empty_perf_agg["error_rate"] == 1.0,
+)
 
 # judge rejects a mismatched rubric_sha256 envelope
 
@@ -576,13 +700,226 @@ check(
     abs(_collapsed["simulation"]["mean"] - 4.0) < 1e-9,
 )
 
+# --- production local-dialogue promotion gate -------------------------------
+import promotion_gate as pg  # noqa: E402
+import check_local_dialogue_qualification as qualification  # noqa: E402
+
+check(
+    "qualification registry has receipts for every production claim",
+    qualification.validate() == [],
+    qualification.validate(),
+)
+
+_promotion_dir = Path(tempfile.mkdtemp())
+_promotion_candidate = "local-test@http://127.0.0.1:8000/v1"
+_promotion_request_profile = {
+    "model": "local-test",
+    "max_tokens": 768,
+    "temperature": 0.7,
+    "frequency_penalty": 0.5,
+    "json_mode": True,
+}
+_holdout_meta = {
+    "target": _promotion_candidate,
+    "dataset_split": "holdout",
+    "request_profile": _promotion_request_profile,
+}
+_dialogue_named = {
+    **{axis: 4.0 for axis in rb.SLICE_META["dialogue"]["axes"]},
+    "overall": 4.0,
+}
+_multiturn_named = {
+    **{axis: 4.0 for axis in rb.SLICE_META["multiturn"]["axes"]},
+    "overall": 4.0,
+}
+_promotion_rows = {
+    "dialogue": [mkres(dict(_dialogue_named), meta=dict(_holdout_meta)) for _ in range(100)],
+    "multiturn": [mkres(dict(_multiturn_named), meta=dict(_holdout_meta)) for _ in range(30)],
+    "perf": [],
+}
+for _index in range(20):
+    _cache_state = "cold" if _index < 6 else "warm"
+    _promotion_rows["perf"].append(
+        mkres(
+            {},
+            meta={
+                **_holdout_meta,
+                "model": "local-test",
+                "ttft_ms": 200,
+                "tokens_per_second": 30.0,
+                "perf_cache_state": _cache_state,
+            },
+            latency=1500.0,
+        )
+    )
+for _slice, _rows in _promotion_rows.items():
+    (_promotion_dir / f"{_slice}.json").write_text(
+        json.dumps({"results": {"results": _rows}}),
+        encoding="utf-8",
+    )
+_promotion_config = json.loads((rb.CONFIG_DIR / "dialogue_promotion.json").read_text())
+_promotion_profiles = json.loads((rb.CONFIG_DIR / "local_hardware_profiles.json").read_text())
+_promotion_manifest = json.loads((rb.V2_DIR / "MANIFEST.json").read_text())
+_promotion_evidence = {
+    "version": 1,
+    "candidate": _promotion_candidate,
+    "hardware_profile_id": "apple-silicon-16gb",
+    "dataset_merkle": _promotion_manifest["merkle_root_sha256"],
+    "hardware": {
+        "platform": "darwin-arm64",
+        "memory_kind": "unified",
+        "total_memory_gb": 16.0,
+        "peak_memory_gb": 12.0,
+    },
+    "reliability_soak": {"calls": 500, "valid_responses": 500},
+    "guard_observation": {"turns": 500, "interventions": 25},
+    "request_profile": _promotion_request_profile,
+}
+_promotion = pg.evaluate(
+    _promotion_dir,
+    candidate=_promotion_candidate,
+    evidence=_promotion_evidence,
+    config=_promotion_config,
+    profiles=_promotion_profiles,
+    manifest_merkle=_promotion_manifest["merkle_root_sha256"],
+)
+check(
+    "promotion: complete holdout/profile evidence passes",
+    _promotion["passed"],
+    json.dumps([c for c in _promotion["checks"] if not c["passed"]]),
+)
+check(
+    "promotion: player-ready metric includes Wilson lower bound",
+    _promotion["metrics"]["player_ready"]["wilson_lower_95"] >= 0.90,
+)
+
+_fabricated_rows = list(_promotion_rows["dialogue"])
+_fabricated_rows[0] = mkres(
+    {**_dialogue_named, "fabricated": 1.0},
+    meta=dict(_holdout_meta),
+)
+(_promotion_dir / "dialogue.json").write_text(
+    json.dumps({"results": {"results": _fabricated_rows}}),
+    encoding="utf-8",
+)
+_promotion_bad = pg.evaluate(
+    _promotion_dir,
+    candidate=_promotion_candidate,
+    evidence=_promotion_evidence,
+    config=_promotion_config,
+    profiles=_promotion_profiles,
+    manifest_merkle=_promotion_manifest["merkle_root_sha256"],
+)
+check(
+    "promotion: one fabrication hard-fails an otherwise strong profile",
+    not _promotion_bad["passed"]
+    and _promotion_bad["metrics"]["hard_failures"]["fabricated"] == 1,
+)
+
+try:
+    pg.evaluate(
+        _promotion_dir,
+        candidate=_promotion_candidate,
+        evidence={**_promotion_evidence, "dataset_merkle": "stale"},
+        config=_promotion_config,
+        profiles=_promotion_profiles,
+        manifest_merkle=_promotion_manifest["merkle_root_sha256"],
+    )
+except pg.EvidenceError:
+    _stale_rejected = True
+else:
+    _stale_rejected = False
+check("promotion: stale dataset evidence is rejected", _stale_rejected)
+
+# Promotion CLI provenance: summaries must be reproducible from immutable raw
+# soak turns and the local runner's memory samples.
+import build_profile_evidence as bpe  # noqa: E402
+
+_evidence_root = Path(tempfile.mkdtemp())
+_turns_path = _evidence_root / "soak.turns.jsonl"
+_turn_rows = [
+    {
+        "version": 1,
+        "candidate": _promotion_candidate,
+        "dataset_merkle": _promotion_manifest["merkle_root_sha256"],
+        "attempt": i,
+        "contract_valid": 1,
+        "turns": 1,
+        "guard_interventions": int(i < 25),
+        "parse_dispositions": ["full_json"],
+        "request_profiles": [_promotion_request_profile],
+    }
+    for i in range(500)
+]
+_turns_path.write_text(
+    "".join(json.dumps(row, sort_keys=True) + "\n" for row in _turn_rows),
+    encoding="utf-8",
+)
+_turns_sha = hashlib.sha256(_turns_path.read_bytes()).hexdigest()
+_soak_path = _evidence_root / "soak.json"
+_soak_path.write_text(
+    json.dumps(
+        {
+            "version": 1,
+            "candidate": _promotion_candidate,
+            "dataset_merkle": _promotion_manifest["merkle_root_sha256"],
+            "reliability_soak": {"calls": 500, "valid_responses": 500},
+            "guard_observation": {"turns": 500, "interventions": 25},
+            "request_profile": _promotion_request_profile,
+            "turns_artifact": {
+                "path": _turns_path.name,
+                "sha256": _turns_sha,
+                "records": 500,
+            },
+        }
+    ),
+    encoding="utf-8",
+)
+_runner_path = _evidence_root / "local_runner.json"
+_runner_path.write_text(
+    json.dumps(
+        {
+            "host": {"platform": "darwin", "machine": "arm64", "memory_gb": 16.0},
+            "rows": [{"hf_repo": "local-test", "peak_ram_gb": 12.0}],
+        }
+    ),
+    encoding="utf-8",
+)
+_evidence_path = _evidence_root / "evidence.json"
+_built_evidence = bpe.build(
+    argparse.Namespace(
+        candidate=_promotion_candidate,
+        hardware_profile="apple-silicon-16gb",
+        soak=_soak_path,
+        local_runner_artifact=_runner_path,
+        output=_evidence_path,
+    )
+)
+_evidence_path.write_text(json.dumps(_built_evidence), encoding="utf-8")
+try:
+    pg._validate_provenance(_built_evidence, _evidence_path)
+except pg.EvidenceError:
+    _provenance_valid = False
+else:
+    _provenance_valid = True
+check("promotion: measured artifact provenance validates", _provenance_valid)
+
+_turns_path.write_text(_turns_path.read_text() + "{}\n", encoding="utf-8")
+try:
+    pg._validate_provenance(_built_evidence, _evidence_path)
+except pg.EvidenceError:
+    _tamper_rejected = True
+else:
+    _tamper_rejected = False
+check("promotion: tampered soak artifact is rejected", _tamper_rejected)
+
 # --- REQ 2: structural drift guard — datasets carry verbatim runtime fields --
 for slice_name, required in [
-    ("dialogue", {"system", "user", "response_format"}),
+    ("dialogue", {"system", "user", "response_format", "max_tokens"}),
     ("reaction", {"system", "user", "persona"}),
     ("tier2-sim", {"user", "grade_schema"}),
     ("intent", {"system", "user", "gold"}),
-    ("multiturn", {"system", "turns"}),
+    ("multiturn", {"system", "turns", "max_tokens"}),
 ]:
     recs = [
         json.loads(ln)
@@ -605,6 +942,67 @@ check(
     _dlg0.get("response_format") == {"type": "json_object"},
 )
 
+# Runtime-corpus builder: promotion holdouts must be deterministic, large
+# enough, and use unseen multiturn scripts.
+import build_runtime_datasets as brd  # noqa: E402
+
+_split_records = [{"id": f"d-{i}", "system": f"s-{i}", "user": f"u-{i}"} for i in range(200)]
+_split_main, _split_hold = brd._split(_split_records, holdout_frac=0.50)
+_split_main_2, _split_hold_2 = brd._split(list(reversed(_split_records)), holdout_frac=0.50)
+check(
+    "corpus: dialogue 50/50 split is capture-order independent",
+    len(_split_main) == 100
+    and len(_split_hold) == 100
+    and [r["id"] for r in _split_hold] == [r["id"] for r in _split_hold_2]
+    and [r["id"] for r in _split_main] == [r["id"] for r in _split_main_2],
+)
+_persona_roles = [
+    "Blacksmith",
+    "Miller",
+    "Midwife",
+    "Teacher",
+    "Publican",
+    "Farmer",
+    "Weaver",
+    "Fisherman",
+]
+_persona_caps = [
+    {
+        "system": f"You are Person {i}, a 40-year-old {_persona_roles[i]} in rural Ireland.",
+        "response_format": {"type": "json_object"},
+        "max_tokens": 768,
+        "temperature": 0.7,
+        "frequency_penalty": 0.5,
+    }
+    for i in range(brd.MULTITURN_PERSONAS)
+]
+_mt_dev, _mt_hold = brd.build_multiturn(_persona_caps)
+check(
+    "corpus: multiturn has 24 dev + 30 holdout transcripts",
+    len(_mt_dev) == 24 and len(_mt_hold) == 30,
+)
+check(
+    "corpus: multiturn preserves the production token budget",
+    all(r["max_tokens"] == 768 for r in _mt_dev + _mt_hold),
+)
+check(
+    "corpus: multiturn holdout scripts and player names are unseen in dev",
+    {tuple(r["turns"]) for r in _mt_dev}.isdisjoint({tuple(r["turns"]) for r in _mt_hold})
+    and {r["player_name"] for r in _mt_dev}.isdisjoint(
+        {r["player_name"] for r in _mt_hold}
+    ),
+)
+
+_capture_order_a = [
+    {"system": "system-z", "user": "user-z"},
+    {"system": "system-a", "user": "user-a"},
+    {"system": "system-z", "user": "user-z"},
+]
+_capture_order_b = list(reversed(_capture_order_a))
+check(
+    "corpus: deduplication is independent of concurrent capture order",
+    brd._dedup(_capture_order_a) == brd._dedup(_capture_order_b),
+)
 
 # --- REQ 6: funnel resume — run-state checkpoint helpers --------------------
 import funnel as fn  # noqa: E402

@@ -27,7 +27,9 @@ mod session;
 mod world;
 
 pub use encounters::EncounterConfig;
-pub use inference::{CategoryRateLimit, InferenceConfig, RateLimitConfig};
+pub use inference::{
+    CategoryRateLimit, DialogueGenerationConfig, InferenceConfig, RateLimitConfig,
+};
 pub use map::{MapConfig, TileSourceConfig};
 pub use npc::{CognitiveTierConfig, NpcConfig, RelationshipLabelConfig};
 pub use palette::PaletteConfig;
@@ -215,6 +217,37 @@ memory_capacity = 30
     fn test_inference_log_capacity_default() {
         let cfg = InferenceConfig::default();
         assert_eq!(cfg.log_capacity, 50);
+    }
+
+    #[test]
+    fn test_dialogue_generation_defaults_preserve_existing_runtime_behavior() {
+        let generation = InferenceConfig::default().dialogue_generation;
+        assert_eq!(generation.max_tokens, 768);
+        assert!((generation.temperature - 0.7).abs() < f32::EPSILON);
+        assert_eq!(generation.frequency_penalty, Some(0.5));
+        assert!(generation.json_mode);
+        assert_eq!(generation.enable_thinking, None);
+    }
+
+    #[test]
+    fn test_dialogue_generation_is_configurable() {
+        let cfg: EngineConfig = toml::from_str(
+            r#"
+[inference.dialogue_generation]
+max_tokens = 512
+temperature = 0.35
+frequency_penalty = 0.2
+json_mode = false
+enable_thinking = false
+"#,
+        )
+        .unwrap();
+        let generation = cfg.inference.dialogue_generation;
+        assert_eq!(generation.max_tokens, 512);
+        assert!((generation.temperature - 0.35).abs() < f32::EPSILON);
+        assert_eq!(generation.frequency_penalty, Some(0.2));
+        assert!(!generation.json_mode);
+        assert_eq!(generation.enable_thinking, Some(false));
     }
 
     #[test]

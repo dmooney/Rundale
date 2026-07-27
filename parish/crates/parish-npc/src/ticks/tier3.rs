@@ -419,6 +419,7 @@ pub async fn tick_tier3(ctx: &Tier3Context<'_>) -> Result<Vec<Tier3Update>, Pari
                 max_tokens: Some(600),
                 temperature,
                 frequency_penalty,
+                enable_thinking: None,
             },
         );
 

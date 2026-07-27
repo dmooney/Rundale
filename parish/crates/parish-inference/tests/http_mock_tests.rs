@@ -290,6 +290,7 @@ async fn openai_generate_request_includes_max_tokens_when_set() {
                 max_tokens: Some(42),
                 temperature: None,
                 frequency_penalty: None,
+                enable_thinking: None,
             },
         )
         .await
@@ -356,6 +357,7 @@ async fn openai_generate_request_includes_frequency_penalty_when_set() {
                 max_tokens: None,
                 temperature: None,
                 frequency_penalty: Some(0.5),
+                enable_thinking: None,
             },
         )
         .await

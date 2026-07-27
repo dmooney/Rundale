@@ -1,0 +1,67 @@
+{
+  "version": 1,
+  "player_ready": {
+    "minimum_records": 100,
+    "minimum_rate": 0.95,
+    "minimum_wilson_lower_95": 0.90,
+    "minimum_overall": 3.5,
+    "minimum_critical_axis": 3.0,
+    "critical_axes": [
+      "grounding",
+      "repetition",
+      "mood_fidelity",
+      "brevity",
+      "responsiveness"
+    ]
+  },
+  "quality": {
+    "minimum_mean": 3.8,
+    "minimum_bootstrap_lower_95": 3.6
+  },
+  "multiturn": {
+    "minimum_records": 30,
+    "minimum_mean": 3.8,
+    "minimum_axis_mean": 3.5,
+    "critical_axes": [
+      "continuity",
+      "name_fidelity",
+      "no_premature_farewell",
+      "persona_consistency",
+      "memory_retention",
+      "freshness"
+    ]
+  },
+  "hard_failures": {
+    "maximum_count": 0,
+    "signals": [
+      "fabricated",
+      "degenerate_loop",
+      "non_latin",
+      "refused",
+      "empty_output"
+    ]
+  },
+  "reliability": {
+    "minimum_soak_calls": 500,
+    "minimum_valid_response_rate": 0.995
+  },
+  "guards": {
+    "minimum_observed_turns": 500,
+    "maximum_intervention_rate": 0.10
+  },
+  "performance": {
+    "minimum_measurements": 15,
+    "minimum_cold_measurements": 5,
+    "minimum_warm_measurements": 10,
+    "maximum_cold_ttft_p95_ms": 6000,
+    "maximum_warm_ttft_p95_ms": 1000,
+    "minimum_tokens_per_second_p50": 15,
+    "maximum_cold_completion_p95_ms": 10000,
+    "maximum_warm_completion_p95_ms": 5000,
+    "maximum_error_rate": 0.005
+  },
+  "resources": {
+    "maximum_memory_utilization": 0.80
+  },
+  "required_dataset_split": "holdout"
+}

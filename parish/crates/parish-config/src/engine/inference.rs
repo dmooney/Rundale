@@ -45,6 +45,12 @@ pub struct InferenceConfig {
     /// or hitting `429 Too Many Requests`.
     #[serde(default)]
     pub rate_limits: RateLimitConfig,
+    /// Tier-1 dialogue generation parameters.
+    ///
+    /// These are explicit configuration so benchmarked model/backend profiles
+    /// can carry their measured sampling settings into live gameplay.
+    #[serde(default)]
+    pub dialogue_generation: DialogueGenerationConfig,
 }
 
 impl Default for InferenceConfig {
@@ -59,8 +65,58 @@ impl Default for InferenceConfig {
             log_capacity: default_log_capacity(),
             log_to_disk: default_log_to_disk(),
             rate_limits: RateLimitConfig::default(),
+            dialogue_generation: DialogueGenerationConfig::default(),
         }
     }
+}
+
+/// Generation settings for player-facing Tier-1 dialogue.
+#[derive(Debug, Deserialize, Clone, Copy)]
+pub struct DialogueGenerationConfig {
+    /// Maximum completion-token budget.
+    #[serde(default = "default_dialogue_max_tokens")]
+    pub max_tokens: u32,
+    /// Sampling temperature.
+    #[serde(default = "default_dialogue_temperature")]
+    pub temperature: f32,
+    /// OpenAI-compatible repetition penalty. `None` omits the field.
+    #[serde(default = "default_dialogue_frequency_penalty")]
+    pub frequency_penalty: Option<f32>,
+    /// Request an OpenAI-compatible JSON object response.
+    #[serde(default = "default_dialogue_json_mode")]
+    pub json_mode: bool,
+    /// Optional OpenAI-compatible reasoning switch. Keep omitted unless a
+    /// measured provider/model profile requires it.
+    #[serde(default)]
+    pub enable_thinking: Option<bool>,
+}
+
+impl Default for DialogueGenerationConfig {
+    fn default() -> Self {
+        Self {
+            max_tokens: default_dialogue_max_tokens(),
+            temperature: default_dialogue_temperature(),
+            frequency_penalty: default_dialogue_frequency_penalty(),
+            json_mode: default_dialogue_json_mode(),
+            enable_thinking: None,
+        }
+    }
+}
+
+fn default_dialogue_max_tokens() -> u32 {
+    768
+}
+
+fn default_dialogue_temperature() -> f32 {
+    0.7
+}
+
+fn default_dialogue_frequency_penalty() -> Option<f32> {
+    Some(0.5)
+}
+
+fn default_dialogue_json_mode() -> bool {
+    true
 }
 
 fn default_timeout_secs() -> u64 {

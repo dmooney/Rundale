@@ -1,0 +1,29 @@
+{
+  "version": 1,
+  "profiles": {
+    "apple-silicon-16gb": {
+      "platform": "darwin-arm64",
+      "memory_kind": "unified",
+      "minimum_total_memory_gb": 15.0,
+      "maximum_total_memory_gb": 18.0
+    },
+    "apple-silicon-24-32gb": {
+      "platform": "darwin-arm64",
+      "memory_kind": "unified",
+      "minimum_total_memory_gb": 23.0,
+      "maximum_total_memory_gb": 40.0
+    },
+    "apple-silicon-48gb": {
+      "platform": "darwin-arm64",
+      "memory_kind": "unified",
+      "minimum_total_memory_gb": 47.0,
+      "maximum_total_memory_gb": 55.0
+    },
+    "linux-windows-16gb-vram": {
+      "platform": "desktop-gpu",
+      "memory_kind": "vram",
+      "minimum_total_memory_gb": 15.0,
+      "maximum_total_memory_gb": 18.0
+    }
+  }
+}

@@ -1,0 +1,7 @@
+# Controlled local-dialogue experiment: isolate temperature from every other
+# production request parameter. Pass with parish-server --engine-config.
+[engine.inference.dialogue_generation]
+max_tokens = 768
+temperature = 0.3
+frequency_penalty = 0.5
+json_mode = true
