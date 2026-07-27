@@ -14,6 +14,7 @@ import json
 import os
 import sys
 import tempfile
+import urllib.request
 from pathlib import Path
 
 PF = Path(__file__).resolve().parents[1]
@@ -1006,6 +1007,7 @@ check(
 
 # --- REQ 6: funnel resume — run-state checkpoint helpers --------------------
 import funnel as fn  # noqa: E402
+import soak_dialogue as soak  # noqa: E402
 
 _clean = [{"response": {"metadata": {}}, "namedScores": {"overall": 4.0}}]
 _errored = [{"response": {"metadata": {"error": "HTTP Error 402"}}, "namedScores": {}}]
@@ -1039,6 +1041,35 @@ try:
     )
 finally:
     fn.RUN_STATE = _saved_state_path
+
+# --- production soak session continuity -------------------------------------
+_secure_cookie = type("Cookie", (), {"secure": True})()
+_loopback_policy = soak.LoopbackSecureCookiePolicy()
+check(
+    "soak: Secure session cookie is returned to HTTP loopback",
+    _loopback_policy.return_ok_secure(
+        _secure_cookie, urllib.request.Request("http://127.0.0.1:3040/api/health")
+    ),
+)
+check(
+    "soak: Secure session cookie remains blocked on external HTTP",
+    not _loopback_policy.return_ok_secure(
+        _secure_cookie, urllib.request.Request("http://example.com/api/health")
+    ),
+)
+check(
+    "soak: the fixed question cycle ends in a farewell",
+    soak.DEFAULT_TURNS_PER_LOCATION == len(soak.QUESTIONS)
+    and soak.QUESTIONS[-1].startswith("Thank you"),
+)
+check(
+    "soak: closed conversations are reacquired outside the reliability denominator",
+    not soak._reached_dialogue_inference({})
+    and not soak._reached_dialogue_inference({"request_profiles": []})
+    and soak._reached_dialogue_inference(
+        {"request_profiles": [{"model": "candidate"}]}
+    ),
+)
 
 
 print()

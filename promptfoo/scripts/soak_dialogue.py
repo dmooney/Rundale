@@ -17,6 +17,7 @@ import os
 import sys
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 from pathlib import Path
 from typing import Any
@@ -52,13 +53,14 @@ LOCATIONS = (
     "the letter office",
     "knockcroghery village",
 )
+DEFAULT_TURNS_PER_LOCATION = len(QUESTIONS)
 
 
 class RuntimeClient:
     def __init__(self, base_url: str, timeout_s: float):
         self.base_url = base_url.rstrip("/")
         self.timeout_s = timeout_s
-        jar = http.cookiejar.CookieJar()
+        jar = http.cookiejar.CookieJar(policy=LoopbackSecureCookiePolicy())
         self.opener = urllib.request.build_opener(
             urllib.request.HTTPCookieProcessor(jar)
         )
@@ -93,6 +95,22 @@ class RuntimeClient:
         )
 
 
+class LoopbackSecureCookiePolicy(http.cookiejar.DefaultCookiePolicy):
+    """Return Secure session cookies to an HTTP loopback test server only.
+
+    Parish intentionally marks its production session cookie Secure. Browsers
+    treat localhost as a trustworthy context, but Python's cookie jar otherwise
+    suppresses the cookie on ``http://127.0.0.1``. A long soak would then create
+    one server session per request and hit admission control at 50 calls.
+    """
+
+    def return_ok_secure(self, cookie, request) -> bool:
+        hostname = urllib.parse.urlsplit(request.get_full_url()).hostname
+        if cookie.secure and hostname in {"127.0.0.1", "::1", "localhost"}:
+            return True
+        return super().return_ok_secure(cookie, request)
+
+
 def _manifest_merkle() -> str:
     manifest = json.loads((rb.V2_DIR / "MANIFEST.json").read_text(encoding="utf-8"))
     return str(manifest["merkle_root_sha256"])
@@ -104,6 +122,12 @@ def _npc_name(value: dict) -> str | None:
         if isinstance(name, str) and name.strip():
             return name.strip()
     return None
+
+
+def _reached_dialogue_inference(quality: dict[str, Any]) -> bool:
+    """Whether a command produced a model request eligible for the soak."""
+
+    return bool(quality.get("request_profiles"))
 
 
 def _find_npc(client: RuntimeClient, location_index: int) -> tuple[str, int]:
@@ -184,12 +208,30 @@ def run(args: argparse.Namespace) -> dict:
                 "guard_reasons": [],
                 "parse_dispositions": [],
                 "request_profiles": [],
+                "continuity_retries": 0,
             }
             try:
-                response = client.command(question, [npc])
-                quality = (response.get("kind_detail") or {}).get(
-                    "dialogue_quality", {}
-                )
+                for continuity_retry in range(len(LOCATIONS) + 1):
+                    response = client.command(question, [npc])
+                    quality = (response.get("kind_detail") or {}).get(
+                        "dialogue_quality", {}
+                    )
+                    # A successful command without a dialogue request means the
+                    # prior conversation has closed (for example after a
+                    # model-generated farewell). Reacquire an NPC and retry the
+                    # same sample; no-inference commands are not reliability
+                    # observations and must never enter the denominator.
+                    if _reached_dialogue_inference(quality):
+                        record["continuity_retries"] = continuity_retry
+                        break
+                    location_index = (location_index + 1) % len(LOCATIONS)
+                    npc, location_index = _find_npc(client, location_index)
+                    record["npc"] = npc
+                else:
+                    raise RuntimeError(
+                        "dialogue did not reach inference after visiting every "
+                        "configured soak location"
+                    )
                 record.update(
                     {
                         "outcome": response.get("outcome"),
@@ -284,7 +326,12 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--base-url", default="http://127.0.0.1:3030")
     parser.add_argument("--candidate", required=True)
     parser.add_argument("--calls", type=int, default=500)
-    parser.add_argument("--turns-per-location", type=int, default=50)
+    # The final scripted question is a farewell. Move to another NPC before
+    # the next cycle so subsequent commands continue to exercise inference
+    # rather than correctly returning no dialogue for a closed conversation.
+    parser.add_argument(
+        "--turns-per-location", type=int, default=DEFAULT_TURNS_PER_LOCATION
+    )
     parser.add_argument("--timeout-seconds", type=float, default=120.0)
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args(argv)

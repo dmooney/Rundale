@@ -1,0 +1,40 @@
+{
+  "candidate": "mradermacher/Gemma-4-26B-A4B-StyleTune-V2-GGUF:Q4_K_M",
+  "dataset_merkle": "feb43d4bf80dae70b1cda3f506f58db7a26602a7a24d2a42f3453cf3726ec912",
+  "decision": "reject",
+  "early_stop": {
+    "reason": "guard_interventions_already_exceed_the_500_call_budget",
+    "requested_calls": 500,
+    "completed_calls": 259,
+    "maximum_allowed_interventions": 50,
+    "observed_interventions": 54,
+    "best_possible_final_rate": 0.108
+  },
+  "reliability_soak": {
+    "calls": 259,
+    "valid_responses": 259,
+    "profiled_requests": 259,
+    "transport_errors": 0,
+    "continuity_retries": 0
+  },
+  "guard_observation": {
+    "interventions": 54,
+    "observed_rate": 0.2084942084942085,
+    "reasons": {
+      "grounding_guard": 7,
+      "mood_register_guard": 47,
+      "polish_guard": 4
+    }
+  },
+  "parse_dispositions": {
+    "full_json": 259,
+    "recovered_dialogue": 0,
+    "raw_text": 0
+  },
+  "turns_artifact": {
+    "path": "gemma4-26b-a4b-styletune-v2-q4km-soak500-early-stop.turns.jsonl",
+    "records": 259,
+    "sha256": "ffb2b088d295bfc9e3b4d8620cb2017e7de2126347680e384ef6e29b115fd0dd"
+  },
+  "version": 1
+}
