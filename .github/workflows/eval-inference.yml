@@ -30,7 +30,7 @@ jobs:
     env:
       RUSTUP_TOOLCHAIN: stable
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
@@ -120,7 +120,7 @@ jobs:
       PARISH_PORT: 3030
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Download parish binary
         uses: actions/download-artifact@v8
@@ -292,7 +292,7 @@ jobs:
       PARISH_PORT: 3030
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Download parish binary
         uses: actions/download-artifact@v8

@@ -41,7 +41,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       # Channel from rust-toolchain.toml (same as ci.yml). Caching stays in the
       # Swatinem step below.

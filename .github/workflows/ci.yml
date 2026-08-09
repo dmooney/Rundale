@@ -46,7 +46,7 @@ jobs:
       runtime: ${{ steps.filter.outputs.runtime || 'true' }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
       - name: Path filter
         id: filter
         if: github.event_name == 'pull_request'
@@ -84,7 +84,7 @@ jobs:
         working-directory: ${{ github.workspace }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           clean: true
           fetch-depth: 0
@@ -101,7 +101,7 @@ jobs:
     timeout-minutes: 10
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Check cited paths exist
         working-directory: ${{ github.workspace }}
@@ -118,7 +118,7 @@ jobs:
         working-directory: ${{ github.workspace }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Setup Node.js
         uses: actions/setup-node@v6
@@ -149,7 +149,7 @@ jobs:
         working-directory: ${{ github.workspace }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Setup Python
         uses: actions/setup-python@v6
@@ -184,7 +184,7 @@ jobs:
         working-directory: ${{ github.workspace }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Install shfmt
         run: |
@@ -219,7 +219,7 @@ jobs:
         working-directory: ${{ github.workspace }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Install taplo
         uses: taiki-e/install-action@v2
@@ -248,7 +248,7 @@ jobs:
         working-directory: parish/apps/ui
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Setup Node.js
         uses: actions/setup-node@v6
@@ -283,7 +283,7 @@ jobs:
         working-directory: ${{ github.workspace }}
     steps:
       - name: Checkout gate implementation
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Require gated jobs to succeed or be skipped
         env:
