@@ -207,6 +207,43 @@ fn no_orphaned_source_files() {
     );
 }
 
+/// Keep regression inputs distinct from one-off proof transcripts. A file in
+/// `testing/fixtures` is swept by CI and therefore claims to be a regression;
+/// legacy regressions use the `test_*.txt` convention, while new coverage must
+/// use the asserted YAML schema under `testing/scenarios`.
+#[test]
+fn gameplay_test_corpus_separates_regressions_from_proofs() {
+    let ws = workspace_root();
+    let fixtures = ws.join("testing/fixtures");
+    let mut misplaced = fs::read_dir(&fixtures)
+        .expect("read testing/fixtures")
+        .filter_map(Result::ok)
+        .map(|entry| entry.path())
+        .filter(|path| path.extension().is_some_and(|extension| extension == "txt"))
+        .filter(|path| {
+            !path
+                .file_name()
+                .and_then(|name| name.to_str())
+                .is_some_and(|name| name.starts_with("test_"))
+        })
+        .collect::<Vec<_>>();
+    misplaced.sort();
+
+    assert!(
+        misplaced.is_empty(),
+        "Truthful test automation violation — non-regression scripts are in \
+         testing/fixtures:\n  - {}\n\n\
+         FIX: new machine-asserted coverage belongs in testing/scenarios/*.yaml; \
+         one-off play/proof scripts belong in testing/proofs/. See AGENTS.md \
+         rule #10 and parish/testing/AGENTS.md.",
+        misplaced
+            .iter()
+            .map(|path| path.display().to_string())
+            .collect::<Vec<_>>()
+            .join("\n  - ")
+    );
+}
+
 /// Sensor for the narration-drift class behind #1156.
 ///
 /// Player-facing minute counts must be pluralized through the shared

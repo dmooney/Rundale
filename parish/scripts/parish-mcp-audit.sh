@@ -1,17 +1,17 @@
 #!/usr/bin/env bash
 #
 # parish-mcp-audit.sh — strict Init / Execute / Validate / Teardown audit loop
-# for the MCP automated-QA pipeline (#1331).
+# for a live parish-server command session (#1331).
 #
-# This is the canonical lifecycle template the demo-audit / demo-audit-mcp
-# skills and any CI audit job should follow. It guarantees there are never
-# hanging backend processes: teardown runs on every exit path via an EXIT trap.
+# Despite the historical filename, this script calls HTTP routes directly. It
+# does not exercise the stdio parish-mcp server or a player-visible UI. Its
+# purpose is backend session/state validation with reliable teardown.
 #
 #   Init      Clear local caches, boot the backend, verify the MCP link is live
 #             (/api/health AND /api/engine-state both answer).
 #   Execute   Drive a sequence of turns against the live backend.
-#   Validate  Compare the observed/UI scene against the canonical engine state
-#             returned by GET /api/engine-state. A divergence is a failure.
+#   Validate  Assert structural and optional expected-scene invariants against
+#             the canonical state returned by GET /api/engine-state.
 #   Teardown  On detected failure, file a bug (screenshot + logs + state +
 #             diagnostic payload) via POST /api/submit-bug-report. Always kill
 #             the backend cleanly and reset, whether the run passed or failed.
@@ -41,6 +41,7 @@ REPO="$(git rev-parse --show-toplevel)"
 PORT="${PARISH_MCP_BACKEND_PORT:-3030}"
 BASE="http://127.0.0.1:${PORT}"
 BACKEND="$REPO/parish/scripts/parish-mcp-backend.sh"
+COOKIE_JAR="$(mktemp)"
 
 # ── Logging helpers ───────────────────────────────────────────────────────────
 phase() { printf '\n=== %s ===\n' "$1"; }
@@ -64,16 +65,17 @@ teardown() {
     fi
     info "stopping backend"
     bash "$BACKEND" stop >/dev/null 2>&1 || true
+    rm -f "$COOKIE_JAR"
     info "teardown complete"
     return "$rc"
 }
 
 # ── HTTP helpers ──────────────────────────────────────────────────────────────
-engine_state() { curl -fsS "$BASE/api/engine-state"; }
+engine_state() { curl -fsS -b "$COOKIE_JAR" -c "$COOKIE_JAR" "$BASE/api/engine-state"; }
 
 # Submit one player input through the synchronous thin-client command surface.
 submit() {
-    curl -fsS -X POST "$BASE/api/command" \
+    curl -fsS -b "$COOKIE_JAR" -c "$COOKIE_JAR" -X POST "$BASE/api/command" \
         -H 'content-type: application/json' \
         -d "$(printf '{"text":%s}' "$(json_str "$1")")"
 }
@@ -81,10 +83,10 @@ submit() {
 # File a bug via the shared bug-report route. The backend auto-appends the
 # diagnostic payload (engine state + LLM history + last user intent, #1331).
 file_bug() {
-    curl -fsS -X POST "$BASE/api/submit-bug-report" \
+    curl -fsS -b "$COOKIE_JAR" -c "$COOKIE_JAR" -X POST "$BASE/api/submit-bug-report" \
         -H 'content-type: application/json' \
         -d "$(printf '{"title":%s,"description":%s}' \
-            "$(json_str "MCP audit failure")" "$(json_str "$1")")" || return 1
+            "$(json_str "Backend HTTP audit failure")" "$(json_str "$1")")" || return 1
 }
 
 # Minimal JSON string escaper (quotes + backslashes + newlines).
@@ -113,7 +115,7 @@ do_init() {
     info "booting backend on port $PORT"
     bash "$BACKEND" start
 
-    info "verifying MCP link is live (/api/health + /api/engine-state)"
+    info "verifying backend session routes (/api/health + /api/engine-state)"
     curl -fsS "$BASE/api/health" >/dev/null || {
         fail "/api/health did not answer"
         exit 1
@@ -122,7 +124,7 @@ do_init() {
         fail "/api/engine-state did not answer — get_engine_state not wired?"
         exit 1
     }
-    info "MCP link verified"
+    info "backend session verified"
 }
 
 # ── Execute ───────────────────────────────────────────────────────────────────
@@ -179,7 +181,7 @@ do_validate() {
             info "scene matches expected substring '$PARISH_AUDIT_EXPECT_SCENE'"
         else
             AUDIT_FAILED=1
-            AUDIT_FAIL_REASON="UI/Engine mismatch: expected scene to contain '$PARISH_AUDIT_EXPECT_SCENE' but engine reports '$scene'"
+            AUDIT_FAIL_REASON="scene mismatch: expected '$PARISH_AUDIT_EXPECT_SCENE' but engine reports '$scene'"
             fail "$AUDIT_FAIL_REASON"
             return 0
         fi

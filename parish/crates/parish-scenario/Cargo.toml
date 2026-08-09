@@ -1,0 +1,22 @@
+[package]
+name = "parish-scenario"
+version = "0.1.0"
+edition = "2024"
+description = "Deterministic, asserted scenarios over the shipping Parish game loop"
+license = "GPL-3.0-only"
+publish = false
+
+[[bin]]
+name = "parish-scenario"
+path = "src/main.rs"
+
+[dependencies]
+clap = { workspace = true }
+parish-engine = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+serde_yaml = { workspace = true }
+thiserror = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }

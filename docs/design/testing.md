@@ -1,8 +1,48 @@
 # Testing Harness Design
 
-> Status: Implemented · Updated: 2026-05-25 · [Docs Index](../index.md)
+> Status: Implemented · Updated: 2026-08-08 · [Docs Index](../index.md)
 
-## Overview
+## Current testing contract
+
+Parish uses distinct sensors for distinct claims:
+
+| Claim                      | Canonical sensor                                               | Failure oracle                                       |
+| -------------------------- | -------------------------------------------------------------- | ---------------------------------------------------- |
+| Shared gameplay behavior   | `parish-scenario` + `testing/scenarios/*.yaml`                 | Event/state assertions over `parish_core::game_loop` |
+| Legacy CLI compatibility   | `testing/fixtures/test_*.txt`                                  | Rust assertions/baselines; process exit              |
+| One-off gameplay evidence  | `testing/proofs/*.txt`                                         | Human/agent review; not swept as regressions         |
+| Browser/server integration | Playwright `browser-fullstack` project                         | UI state equals same-session server state            |
+| Deterministic UI contracts | Playwright `ui-contract` project                               | Mocked IPC interaction and screenshot assertions     |
+| Multi-turn quality         | `parish-harness` (headless) or `quality-harness` skill (Tauri) | Hard gates + rubric/findings                         |
+
+New gameplay regressions belong in the YAML scenario schema. The plaintext
+fixture runner remains while its asserted corpus is migrated, but it is not the
+default place for new coverage.
+
+## Ongoing solo-maintainer loop
+
+The foundation is intentionally incremental rather than a one-time test
+rewrite:
+
+1. A player-found bug is reproduced in the narrowest production-path sensor
+   before or with its fix. Prefer `testing/scenarios/*.yaml` for gameplay and
+   `browser-fullstack` for browser/server integration; use lower-level Rust or
+   UI contract tests when they provide a more deterministic oracle.
+2. Runtime-changing pull requests cannot merge on the fast lane alone. The
+   existing required `CI gate` requires the called Full CI workflow to succeed.
+3. `bash parish/scripts/harness-audit.sh` inventories coverage without
+   pretending proof scripts are tests. Its current real-loop gaps—weather,
+   banshee/death, sparse-tier behavior, memory/overhear, and schedules—are the
+   next migration order when those subsystems change.
+4. Keep the 27 legacy `test_*.txt` scripts until each claim has an equivalent
+   real-loop scenario. Move demonstrations to `testing/proofs/`; delete a
+   legacy regression only after the replacement assertion is green in CI.
+5. The live Tauri/model quality harness remains an explicit manual sensor until
+   a graphical model-equipped runner and an approved API spending ceiling
+   exist. Do not label headless state frames or mocked browser screenshots as a
+   substitute.
+
+## Legacy `GameTestHarness` compatibility layer
 
 The `GameTestHarness` (`crates/parish-engine/src/testing.rs`) provides a programmatic, synchronous
 API for driving the game without a TUI or LLM. It enables:
@@ -41,9 +81,10 @@ API for driving the game without a TUI or LLM. It enables:
 2. **Synchronous** — No async runtime needed. All game logic (movement,
    time, descriptions) is synchronous anyway.
 
-3. **Same code paths** — Reuses `resolve_movement()`, `render_description()`,
-   `format_exits()`, `classify_input()`, and `GameClock::advance()` from
-   the production code.
+3. **Shared primitives, separate router** — `execute()` reuses low-level movement,
+   rendering, input, and clock helpers but keeps a legacy parallel router. Do not
+   use it to claim shipping-loop coverage; `parish-scenario` calls
+   `execute_via_real_loop()` instead.
 
 4. **Structured output** — `ActionResult` enum captures every outcome as a
    typed variant, not prose text. Tests assert on structure, not strings.
@@ -141,7 +182,8 @@ time, and verifying schedule-driven NPC behavior.
 
 ## Test Fixtures
 
-Test scripts live in `testing/fixtures/`:
+Legacy regression scripts live in `testing/fixtures/`. One-off `play_*`
+evidence was moved to `testing/proofs/` and is intentionally outside the sweep.
 
 | File                          | Purpose                                                                   |
 | ----------------------------- | ------------------------------------------------------------------------- |
@@ -235,9 +277,9 @@ fn test_example() {
 | `tests/world_graph_integration.rs`  | 21    | World graph validation, pathfinding, descriptions                        |
 | `tests/headless_script_tests.rs`    | 68    | Comprehensive fixture-driven tests with assertions on every ActionResult |
 
-The `headless_script_tests.rs` file uses `run_script_captured()` to exercise
-all 18 fixture scripts with real assertions on game state — verifying locations,
-time progression, NPC data, debug output, error handling, and more.
+The `headless_script_tests.rs` file uses `run_script_captured()` to exercise the
+legacy `test_*.txt` corpus with assertions on game state. This protects CLI
+compatibility while equivalent behaviors move to real-loop YAML scenarios.
 
 ## Eval baselines
 
@@ -269,17 +311,25 @@ git diff testing/evals/baselines/   # review the diff before committing
 The `/rubric` skill (`.skills/rubric/SKILL.md`) documents the agent-facing
 workflow.
 
-## E2E GUI Testing (Playwright)
+## Browser and UI testing (Playwright)
 
-The Svelte frontend has Playwright E2E tests in `apps/ui/e2e/` that run against
-the Vite dev server with Tauri IPC fully mocked. This enables:
+The Svelte frontend has two named Playwright projects against the managed Axum
+server:
+
+- `ui-contract` installs the Tauri IPC mock. It proves deterministic rendering,
+  events, interactions, and visual baselines; it does not prove engine behavior.
+- `browser-fullstack` installs no IPC mock. It drives the real web transport,
+  preserves the browser's cookie-backed server session, submits movement, and
+  checks the rendered UI against the backend snapshot from that same session.
+
+Together they provide:
 
 - **Real browser rendering** — headless Chromium, no X11/GDK/xvfb required
 - **Screenshot generation** — captures 4 times of day to `docs/screenshots/`
 - **Visual regression** — baseline comparison via `toHaveScreenshot()`
 - **Interaction testing** — input submission, streaming, theme transitions
 
-### How the Mock Works
+### How the UI-contract mock works
 
 `apps/ui/e2e/fixtures.ts` uses `page.addInitScript()` to install a fake
 `window.__TAURI_INTERNALS__` before any app code runs. This provides:
@@ -295,6 +345,10 @@ the Vite dev server with Tauri IPC fully mocked. This enables:
 # Full E2E suite
 cd ui && npx playwright test           # or: just ui-e2e
 
+# One explicit layer
+cd ui && npm run test:e2e:contract
+cd ui && npm run test:e2e:fullstack
+
 # Screenshots only
 cd ui && npx playwright test e2e/screenshots.spec.ts  # or: just screenshots
 
@@ -304,11 +358,12 @@ cd ui && npx playwright test --update-snapshots       # or: just ui-e2e-update
 
 ### Test Files
 
-| File                       | Tests | Purpose                                               |
+| File                       | Layer | Purpose                                               |
 | -------------------------- | ----- | ----------------------------------------------------- |
-| `e2e/app.spec.ts`          | 10    | Layout, status bar, chat, map, sidebar, theme, events |
-| `e2e/interactions.spec.ts` | 5     | Input, streaming, paused state, festival badge        |
-| `e2e/screenshots.spec.ts`  | 8     | Screenshot capture + visual regression baselines      |
+| `e2e/fullstack.spec.ts`    | real  | Browser/server session, movement, API/UI parity       |
+| `e2e/app.spec.ts`          | mock  | Layout, status bar, chat, map, sidebar, theme, events |
+| `e2e/interactions.spec.ts` | mock  | Input, streaming, paused state, festival badge        |
+| `e2e/screenshots.spec.ts`  | mock  | Pinned visual regression baselines                    |
 
 ### Visual Regression Baselines
 

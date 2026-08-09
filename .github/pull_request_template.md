@@ -29,6 +29,7 @@ Proof exemption reason, if applicable: <!-- N/A unless documentation/CI-only -->
 - [ ] `just check`
 - [ ] `just verify` when gameplay, runtime, or UI behavior changed
 - [ ] Focused tests: <!-- list literal commands -->
+- [ ] Player-found bug: added a permanent `testing/scenarios/*.yaml` regression (or explained why a lower-level sensor is stronger).
 - [ ] Screenshots or visual baselines updated when visible UI changed
 
 ## Residual risk

@@ -1,6 +1,6 @@
 import { expect, test } from './fixtures';
 
-test.describe('Smoke tests', () => {
+test.describe('Mocked Tauri UI contract smoke tests', () => {
 	test('page loads with game state', async ({ parishPage: page }) => {
 		await expect(page.getByTestId('chat-game-shell')).toBeVisible();
 		await expect(page.getByTestId('status-bar')).toContainText(
@@ -50,20 +50,6 @@ test.describe('Smoke tests', () => {
 				),
 			)
 			.toBe('go to Binn Éadair');
-	});
-
-	test('API endpoints return valid JSON', async ({ request }) => {
-		for (const endpoint of [
-			'/api/world-snapshot',
-			'/api/map',
-			'/api/npcs-here',
-			'/api/theme',
-			'/api/ui-config',
-		]) {
-			const response = await request.get(endpoint);
-			expect(response.ok()).toBe(true);
-			expect(await response.json()).toBeTruthy();
-		}
 	});
 
 	test('secondary states remain screenshot-safe', async ({

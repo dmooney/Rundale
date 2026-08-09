@@ -23,7 +23,7 @@ just act-pr         # simulate the pull_request fast lane
 
 ## Local gotchas
 
-- **`ci.yml` is the fast lane for non-UI changes.** Pull requests whose existing path detector reports `changes.ui == true` also run the complete Playwright suite, and the single required `CI gate` fails closed unless that conditional job succeeds. Expensive Rust, coverage, harness, and other UI runtime jobs remain in `full-ci.yml`, which runs on `merge_group`, main/develop pushes, nightly schedule, and manual dispatch.
+- **`ci.yml` is the fast lane for non-runtime changes.** Pull requests whose path detector reports `changes.runtime == true` call the reusable `full-ci.yml` suite, and the single required `CI gate` fails closed unless it succeeds. Main/develop pushes, merge-group events, the nightly schedule, and manual dispatch remain independent full-suite backstops.
 - **A shipped default-surface replacement owns the complete E2E contract.** Migrate or explicitly retire every prior Playwright assertion in the same pull request; a focused smoke spec is not a substitute for a green complete suite.
 - **Agent-check runs on PRs only (non-dependabot).** Push events to `main`/`develop` skip the gate — it already ran on the PR. Dependabot bumps are exempt (root AGENTS.md rule #10).
 - **Key PR-author exemptions to immutable authorship.** Use `github.event.pull_request.user.login`, never `github.actor`: the event actor changes when a coordinator refreshes an existing automation-authored branch, while the pull-request author does not.
@@ -41,14 +41,14 @@ just act-pr         # simulate the pull_request fast lane
 ### `ci.yml` — Fast CI pipeline
 
 - **Triggers:** `pull_request`, `push` to `main`/`develop`, `workflow_dispatch`.
-- **Jobs:** changes, agent-check, docs-consistency, format-quality, python-quality, shell-quality, toml-quality, conditional `ui-e2e`, and the aggregate `ci-gate`.
-- **UI contract:** `ui-e2e` runs only for pull requests with `changes.ui == true`. `ci-gate.sh` requires `success` when the job is expected and `skipped` when it is not, so a failure, cancellation, or unexpected skip cannot produce a green required check.
+- **Jobs:** changes, agent-check, docs-consistency, format-quality, python-quality, shell-quality, toml-quality, Windows launcher lifecycle, conditional reusable `runtime-suite`, and the aggregate `ci-gate`.
+- **Runtime contract:** `runtime-suite` calls `full-ci.yml` only for pull requests with `changes.runtime == true`. `ci-gate.sh` requires `success` when the suite is expected and `skipped` when it is not, so a failure, cancellation, or unexpected skip cannot produce a green required check.
 - **agent-check** runs `bash parish/scripts/agent-check.sh --source=pr "$PR_NUMBER"`. Skipped for dependabot.
 - **Concurrency:** `ci-${{ github.workflow }}-${{ github.ref }}`, cancel-in-progress.
 
 ### `full-ci.yml` — Preserved full-suite pipeline
 
-- **Triggers:** `push` to `main`/`develop`, `merge_group`, nightly `schedule`, `workflow_dispatch`.
+- **Triggers:** reusable `workflow_call`, `push` to `main`/`develop`, `merge_group`, nightly `schedule`, `workflow_dispatch`.
 - **Jobs:** rust-quality-gate (fmt+clippy+tests), rust-coverage-ratchet (cargo-llvm-cov floor 60.8%), rust-multi-channel (stable+beta), game-harness (fixture sweep + parish-client smoke), ui-quality (svelte-check+lint+format+build+vitest), ui-e2e (Playwright), and `Full CI gate`.
 - **Concurrency:** `full-ci-${{ github.workflow }}-${{ github.ref }}`, cancel-in-progress.
 
@@ -85,7 +85,7 @@ just act-pr         # simulate the pull_request fast lane
 
 ### `eval-inference.yml` — Inference evaluation
 
-- **Triggers:** `schedule` (nightly 02:00 UTC), `workflow_dispatch` with scenario selection.
+- **Triggers:** `schedule` (nightly 02:00 UTC), `workflow_dispatch` with scenario selection. The player shares one cookie jar across all Parish HTTP requests so the run stays in one server session.
 - Builds `parish-server`, spawns it with `PARISH_PROVIDER=github_models` and `PLAYER_MODEL=microsoft/Phi-4`, runs a Python player agent across scenarios (smoke=10t, intent=25t, reactions=15t, tier2=12t, dialogue=20t, full_session=50t). Judges with gpt-4o via `actions/ai-inference@v1`. Aggregates into a CI summary table.
 - **Concurrency:** `eval-inference-${{ github.ref }}`, cancel-in-progress.
 

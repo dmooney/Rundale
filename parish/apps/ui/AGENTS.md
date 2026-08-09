@@ -17,9 +17,9 @@ npm --prefix parish/apps/ui run check  # svelte-check + tsc
 - **`src/lib/types.ts` must match Rust serde output exactly.** snake_case field names. Drift is silent — frontend gets `undefined` for renamed fields.
 - **Svelte 5 runes everywhere** (`$state`, `$derived`, `$effect`, `$props`). No legacy `let:reactive` blocks.
 - **Playwright snapshot baselines are committed.** UI changes require regenerating baselines (`just ui-e2e -- -u`) and including diffs in the PR per rule #10.
-- **The complete Playwright suite is the shipped-surface contract.** A pull request that replaces the default surface must migrate or explicitly retire every prior E2E assertion in the same change, then pass `just ui-e2e`; a focused smoke spec is not sufficient.
+- **Playwright has two explicit projects.** `ui-contract` installs the Tauri IPC mock and checks deterministic component/event contracts; `browser-fullstack` must not install it and drives a real `parish-server` session through the browser HTTP/WS transport. The complete suite is the shipped-surface contract.
 - **Tauri IPC vs HTTP**: same store layer dispatches both. Don't fork transports — use the single `invoke`/`fetch` adapter in `src/lib/ipc.ts`.
-- **`__mocks__/` is for vitest only**, not Playwright. E2E hits a real server.
+- **Most Playwright specs intentionally mock Tauri IPC.** Keep them in the `ui-contract` project and never describe them as end-to-end engine coverage. `fullstack.spec.ts` owns the real browser/server acceptance path.
 - **`license-clarifications.json` must stay current** — `just notices` rebuilds third-party notices when deps change (rule #7).
 
 ## Layout
