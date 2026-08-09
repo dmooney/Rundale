@@ -1,17 +1,17 @@
 {
   "suite": "rundale-bench-v2",
-  "source": "copied from rundale-bench/v1",
-  "merkle_root_sha256": "12b7a39f0cffe796ae5dcd78129ee597c558f9feaa0dfdb11d297e16b9601cf8",
+  "source": "runtime-captured production prompts plus curated competence probes",
+  "merkle_root_sha256": "feb43d4bf80dae70b1cda3f506f58db7a26602a7a24d2a42f3453cf3726ec912",
   "slices": {
     "dialogue.jsonl": {
-      "sha256": "daca1bdba5f8eee5ca26b7c9a4f0dd0e260b4a2b941e8aee033a8b2a7ed30d7d",
-      "records": 60,
-      "bytes": 698285
+      "sha256": "59795493f8667d3f9add6142e971cfc8017770d2cb55da12f16d32ae37536957",
+      "records": 126,
+      "bytes": 2541003
     },
     "dialogue.holdout.jsonl": {
-      "sha256": "6481c410505332fc09b231c33de094de7afcaf3961d3ea22faaef27ace66d423",
-      "records": 10,
-      "bytes": 114392
+      "sha256": "7e24f385035c008c6479d72abc4e335251dae2f6bc4a79c6b4d867f7133a45a4",
+      "records": 126,
+      "bytes": 2542355
     },
     "gaeilge.jsonl": {
       "sha256": "a45fd4694eb8989776c284f0f4909dfccc17052fcadbbd1f7e687554595abad8",
@@ -24,58 +24,68 @@
       "bytes": 612
     },
     "intent.jsonl": {
-      "sha256": "9c950e692e272b0fabfea11bd0a323903293761124dd8870267276c3eae2eb79",
+      "sha256": "efed92f3a21bc79b0cf6d2c81da851c06c3619e9cfacd5856a8e2762ec689078",
       "records": 33,
-      "bytes": 77906
+      "bytes": 102458
     },
     "intent.holdout.jsonl": {
       "sha256": "a483be553829d9ae9f1e6a86b43c688d540347fa58f38039baba41278bc35f8d",
       "records": 9,
       "bytes": 1776
     },
+    "multiturn.jsonl": {
+      "sha256": "0b9c99bc1826395f1e114cd861ffb36d473af564e60019889f497307259e342e",
+      "records": 24,
+      "bytes": 364358
+    },
+    "multiturn.holdout.jsonl": {
+      "sha256": "88db09085f3a9f2cdca3c80677960665ba2c6bd711fcf02811ad6a1d123a20d2",
+      "records": 30,
+      "bytes": 456130
+    },
     "reaction.jsonl": {
-      "sha256": "e997e0b31593428dfa0dc83a164d92af341fa396f4c5d1b362d76a6d92ddae62",
-      "records": 29,
-      "bytes": 54538
+      "sha256": "4a5b63f34013aa13b7ea09f15f378b255371aaaafbec3780bce065fccf1722a6",
+      "records": 28,
+      "bytes": 57036
     },
     "reaction.holdout.jsonl": {
-      "sha256": "fd6e614842e26f4719894eb08d4fd587ed1c1d42d9dad204687dc59a7a74ced7",
+      "sha256": "958d21084bbc0e2ab81ed72b01fa5de9491778bbced71915007e9557fdfb9ed3",
       "records": 4,
-      "bytes": 7613
+      "bytes": 8128
     },
     "tier2-sim.jsonl": {
-      "sha256": "8e6aeb575f0d55f28603dce49ffed4399d2e43a99a51258bfe15c08064551eba",
-      "records": 131,
-      "bytes": 709797
+      "sha256": "417bb2550064f6e64f4843bc4935cfcb6bebc908f2cf1303a844a019a077af41",
+      "records": 181,
+      "bytes": 1167991
     },
     "tier2-sim.holdout.jsonl": {
-      "sha256": "09d4eb35a648b3abd2161d61e89b02e05543a8673e3b7582fc2dfaafd159295a",
-      "records": 23,
-      "bytes": 119815
+      "sha256": "2c8375b6017bd489d869167d811f53baec16f3ed44876d5ff339aa8e5adf7cd9",
+      "records": 31,
+      "bytes": 200337
     },
     "tier3-sim.jsonl": {
-      "sha256": "ade03d55770c6a40f6721a066acff69bd09df9657af5bce81ae0434e29f1406e",
-      "records": 9,
-      "bytes": 44663
+      "sha256": "446edef1522e8490d80823c18390ca46ba8a66be84e817d3b7b068c2dc9aeed4",
+      "records": 8,
+      "bytes": 42592
     },
     "tier3-sim.holdout.jsonl": {
-      "sha256": "86dbaa8eb0714c5f44508aba31b8e3cd825582e0ef8b30fe6a92da004a4c31c6",
+      "sha256": "f25a3c9aff68f7b7fcd32babe445c7aa851b473345e003176efd00e257af5758",
       "records": 1,
-      "bytes": 4405
+      "bytes": 6392
     }
   },
   "assets": {
     "rubrics/dialogue.system.md": {
-      "sha256": "d6d2d6c623e422476049508f8bee90531010894a540072599bc0e510928eb752",
-      "bytes": 5852
+      "sha256": "e436ac50e6374a0a50b128580a79e98ad4c7a09a8929fa44bde9170037df1198",
+      "bytes": 9807
     },
     "rubrics/gaeilge.system.md": {
       "sha256": "a0161c81e953b222fad371ec6dc4618e79de249ba7b33ce4026eacd47971fb4f",
       "bytes": 5718
     },
     "rubrics/multiturn.system.md": {
-      "sha256": "b8401dd3a67bb752f3f925ad3bcbc9283cfca736c3aa7e80b2fdfbc243ebbe7d",
-      "bytes": 4032
+      "sha256": "145100734bf38db99758334200b7eadd417592c5f2b8df6ad2f6a6b7bd43d52f",
+      "bytes": 4413
     },
     "rubrics/reaction.system.md": {
       "sha256": "2e58d25dc5823a041203fde0206687211579034bff9ee060740f8aba692f4453",
@@ -93,6 +103,10 @@
       "sha256": "78436f9eaf9699a7ef9915840e0d8b8e63c92cde680992b7d7832b073bf82b48",
       "bytes": 1320
     },
+    "rubrics/judge_multiturn_v2.json": {
+      "sha256": "d9436fd9d18b76760a600f7c6c48a8fed5cf8dc12e9a275b402a19a02cff4195",
+      "bytes": 1572
+    },
     "rubrics/judge_reaction_v1.json": {
       "sha256": "b73963cafcc420844def443654f21a17011e8f63f33739aa61389e6913463b70",
       "bytes": 1584
@@ -104,6 +118,10 @@
     "rubrics/judge_sonnet_v1.json": {
       "sha256": "7489725f7e12933007c475ef6e798cde7e89928b61afac5ce2b6a2d16f53dac8",
       "bytes": 1949
+    },
+    "rubrics/judge_sonnet_v2.json": {
+      "sha256": "e8d0a4100bdcb83a5148e0590dee8bb05c7f39f48a9c12a8e4979b9011c19b94",
+      "bytes": 4130
     },
     "perf.ids.json": {
       "sha256": "f3e0520f216360f34ce7352f032a14d66774fe9c3137cdcbacf8c1b1bc8f82a3",

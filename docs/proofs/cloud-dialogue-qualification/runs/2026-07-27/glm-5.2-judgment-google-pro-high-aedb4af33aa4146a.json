@@ -1,0 +1,681 @@
+{
+  "items": [
+    {
+      "axes": {
+        "authenticity": 4,
+        "brevity": 5,
+        "character": 5,
+        "craft": 5,
+        "grounding": 5,
+        "language": 5,
+        "mood_fidelity": 5,
+        "repetition": 5,
+        "responsiveness": 5
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 4.8,
+      "prompt_id": "dialogue-0004/sample-1",
+      "rationales": {
+        "authenticity": "Good use of 'mo chara' and period-appropriate phrasing like 'these twenty-five years past'.",
+        "brevity": "Three sentences, one question, no padding.",
+        "character": "The response perfectly captures the priest revealing his identity with a calm, steady demeanor.",
+        "craft": "Concise, evocative, and well-written.",
+        "grounding": "No fabrication probe in this record.",
+        "language": "Valid en-IE with appropriate ga-IE sprinkle.",
+        "mood_fidelity": "The tone is calm and unhurried, matching the required mood.",
+        "repetition": "No repeated phrases from the prompt or within the response.",
+        "responsiveness": "Directly answers the question by revealing his identity."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 4,
+        "brevity": 5,
+        "character": 5,
+        "craft": 5,
+        "grounding": 5,
+        "language": 5,
+        "mood_fidelity": 5,
+        "repetition": 5,
+        "responsiveness": 5
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 4.8,
+      "prompt_id": "dialogue-0004/sample-2",
+      "rationales": {
+        "authenticity": "Natural phrasing with 'Ye're looking at him' and 'fine thing'.",
+        "brevity": "Three sentences, one question, no padding.",
+        "character": "Beautifully captures the priest's perspective, mentioning the morning light and quiet prayer.",
+        "craft": "Evocative and well-crafted in just three sentences.",
+        "grounding": "No fabrication probe in this record.",
+        "language": "Valid en-IE.",
+        "mood_fidelity": "The tone is calm and steady.",
+        "repetition": "No repeated phrases.",
+        "responsiveness": "Directly answers the question by revealing his identity."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 4,
+        "brevity": 5,
+        "character": 5,
+        "craft": 5,
+        "grounding": 5,
+        "language": 5,
+        "mood_fidelity": 5,
+        "repetition": 5,
+        "responsiveness": 5
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 4.8,
+      "prompt_id": "dialogue-0004/sample-3",
+      "rationales": {
+        "authenticity": "Good use of 'mo chara' and natural phrasing.",
+        "brevity": "Three sentences, one question.",
+        "character": "Mentions the morning office and walking the graveyard, which perfectly fits the priest's routine.",
+        "craft": "Concise and evocative.",
+        "grounding": "No fabrication probe in this record.",
+        "language": "Valid en-IE with appropriate ga-IE sprinkle.",
+        "mood_fidelity": "The tone is calm and measured.",
+        "repetition": "No repeated phrases.",
+        "responsiveness": "Directly answers the question by revealing his identity."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 4,
+        "brevity": 5,
+        "character": 4,
+        "craft": 4,
+        "grounding": 5,
+        "language": 5,
+        "mood_fidelity": 5,
+        "repetition": 5,
+        "responsiveness": 5
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 4.7,
+      "prompt_id": "dialogue-0007/sample-1",
+      "rationales": {
+        "authenticity": "Good use of 'in these parts' and 'mo chara'.",
+        "brevity": "Two sentences, no questions.",
+        "character": "Fits the publican's straightforward and knowledgeable persona.",
+        "craft": "Clear and concise.",
+        "grounding": "Correctly denies knowing the fabricated person and place.",
+        "language": "Valid en-IE with appropriate ga-IE sprinkle.",
+        "mood_fidelity": "The tone is calm and steady.",
+        "repetition": "No repeated phrases.",
+        "responsiveness": "Directly addresses the question about Festus."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 4,
+        "brevity": 5,
+        "character": 4,
+        "craft": 4,
+        "grounding": 5,
+        "language": 5,
+        "mood_fidelity": 5,
+        "repetition": 5,
+        "responsiveness": 5
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 4.7,
+      "prompt_id": "dialogue-0007/sample-2",
+      "rationales": {
+        "authenticity": "Natural phrasing with 'in these parts' and 'mo chara'.",
+        "brevity": "Two sentences, no questions.",
+        "character": "Fits the publican's straightforward manner.",
+        "craft": "Clear and concise.",
+        "grounding": "Correctly denies knowing the fabricated person and place.",
+        "language": "Valid en-IE with appropriate ga-IE sprinkle.",
+        "mood_fidelity": "The tone is calm and steady.",
+        "repetition": "No repeated phrases.",
+        "responsiveness": "Directly addresses the question about Festus."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 4,
+        "brevity": 5,
+        "character": 4,
+        "craft": 4,
+        "grounding": 5,
+        "language": 5,
+        "mood_fidelity": 5,
+        "repetition": 5,
+        "responsiveness": 5
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 4.7,
+      "prompt_id": "dialogue-0007/sample-3",
+      "rationales": {
+        "authenticity": "Natural phrasing with 'in these parts' and 'heard of'.",
+        "brevity": "Three sentences, no questions.",
+        "character": "Fits the publican's knowledgeable persona, referencing real places in the parish.",
+        "craft": "Clear and concise.",
+        "grounding": "Correctly denies knowing the fabricated person and place.",
+        "language": "Valid en-IE.",
+        "mood_fidelity": "The tone is calm and steady.",
+        "repetition": "No repeated phrases.",
+        "responsiveness": "Directly addresses the question about Festus."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 4,
+        "brevity": 5,
+        "character": 4,
+        "craft": 4,
+        "grounding": 5,
+        "language": 5,
+        "mood_fidelity": 5,
+        "repetition": 5,
+        "responsiveness": 5
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 4.7,
+      "prompt_id": "dialogue-0008/sample-1",
+      "rationales": {
+        "authenticity": "Good use of 'hereabouts' and 'on that score'.",
+        "brevity": "Three sentences, no questions.",
+        "character": "Fits the isolated clerk, deflecting the personal question and redirecting to the pub.",
+        "craft": "Clear and concise.",
+        "grounding": "No fabrication probe in this record.",
+        "language": "Valid en-IE.",
+        "mood_fidelity": "The tone is calm and steady.",
+        "repetition": "No repeated phrases.",
+        "responsiveness": "Directly answers the question about his family."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 4,
+        "brevity": 5,
+        "character": 5,
+        "craft": 5,
+        "grounding": 5,
+        "language": 5,
+        "mood_fidelity": 5,
+        "repetition": 5,
+        "responsiveness": 5
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 4.8,
+      "prompt_id": "dialogue-0008/sample-2",
+      "rationales": {
+        "authenticity": "Natural phrasing with 'to speak of' and 'keep well enough'.",
+        "brevity": "Three sentences, no questions.",
+        "character": "Excellent touch of suspicion and deflection ('Ye ask a great many questions') fitting the hated, humourless clerk.",
+        "craft": "Evocative and well-crafted.",
+        "grounding": "No fabrication probe in this record.",
+        "language": "Valid en-IE.",
+        "mood_fidelity": "The tone is calm but guarded.",
+        "repetition": "No repeated phrases.",
+        "responsiveness": "Directly answers the question about his family."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 3,
+        "brevity": 5,
+        "character": 2,
+        "craft": 3,
+        "grounding": 5,
+        "language": 5,
+        "mood_fidelity": 3,
+        "repetition": 5,
+        "responsiveness": 5
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 4.0,
+      "prompt_id": "dialogue-0008/sample-3",
+      "rationales": {
+        "authenticity": "Generic phrasing, slightly undermined by the out-of-character Irish endearment.",
+        "brevity": "Two sentences, no questions.",
+        "character": "Using 'mo chara' is too warm and familiar for a Protestant clerk who is 'thoroughly distrusted' and 'humourless'.",
+        "craft": "Adequate, but lacks the sharp edge of the character.",
+        "grounding": "No fabrication probe in this record.",
+        "language": "Valid en-IE with ga-IE sprinkle.",
+        "mood_fidelity": "A bit too warm for the required 'calm' and the character's baseline.",
+        "repetition": "No repeated phrases.",
+        "responsiveness": "Directly answers the question about his family."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 4,
+        "brevity": 5,
+        "character": 4,
+        "craft": 4,
+        "grounding": 5,
+        "language": 5,
+        "mood_fidelity": 5,
+        "repetition": 5,
+        "responsiveness": 5
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 4.7,
+      "prompt_id": "dialogue-0019/sample-1",
+      "rationales": {
+        "authenticity": "Natural phrasing with 'summon the man'.",
+        "brevity": "Three sentences, no questions.",
+        "character": "Blunt and practical, fitting the miller's personality.",
+        "craft": "Clear and concise.",
+        "grounding": "Correctly notes that Tommy is not present.",
+        "language": "Valid en-IE.",
+        "mood_fidelity": "The tone is calm and steady.",
+        "repetition": "No repeated phrases.",
+        "responsiveness": "Directly addresses the request to talk to Tommy."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 4,
+        "brevity": 5,
+        "character": 4,
+        "craft": 4,
+        "grounding": 5,
+        "language": 5,
+        "mood_fidelity": 5,
+        "repetition": 5,
+        "responsiveness": 5
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 4.7,
+      "prompt_id": "dialogue-0019/sample-2",
+      "rationales": {
+        "authenticity": "Natural phrasing with 'better luck finding him'.",
+        "brevity": "Three sentences, one question.",
+        "character": "Blunt and practical, fitting the miller.",
+        "craft": "Clear and concise.",
+        "grounding": "Correctly notes that Tommy is not present.",
+        "language": "Valid en-IE.",
+        "mood_fidelity": "The tone is calm and steady.",
+        "repetition": "No repeated phrases.",
+        "responsiveness": "Directly addresses the request to talk to Tommy."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 4,
+        "brevity": 5,
+        "character": 4,
+        "craft": 4,
+        "grounding": 5,
+        "language": 5,
+        "mood_fidelity": 5,
+        "repetition": 5,
+        "responsiveness": 5
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 4.7,
+      "prompt_id": "dialogue-0019/sample-3",
+      "rationales": {
+        "authenticity": "Natural phrasing with 'if it's him ye're after'.",
+        "brevity": "Two sentences, no questions.",
+        "character": "Blunt and practical, fitting the miller.",
+        "craft": "Clear and concise.",
+        "grounding": "Correctly notes that Tommy is not present.",
+        "language": "Valid en-IE.",
+        "mood_fidelity": "The tone is calm and steady.",
+        "repetition": "No repeated phrases.",
+        "responsiveness": "Directly addresses the request to talk to Tommy."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 4,
+        "brevity": 5,
+        "character": 5,
+        "craft": 5,
+        "grounding": 5,
+        "language": 5,
+        "mood_fidelity": 5,
+        "repetition": 5,
+        "responsiveness": 5
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 4.8,
+      "prompt_id": "dialogue-0061/sample-1",
+      "rationales": {
+        "authenticity": "Natural phrasing with 'worth their salt' and 'lad at the anvil'.",
+        "brevity": "Three sentences, no questions.",
+        "character": "Perfectly captures the apprentice deferring to a farmer for agricultural knowledge.",
+        "craft": "Evocative and well-crafted.",
+        "grounding": "No fabrication probe in this record.",
+        "language": "Valid en-IE.",
+        "mood_fidelity": "The tone is calm and steady.",
+        "repetition": "No repeated phrases.",
+        "responsiveness": "Directly answers the question about the harvest."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 4,
+        "brevity": 5,
+        "character": 4,
+        "craft": 4,
+        "grounding": 5,
+        "language": 5,
+        "mood_fidelity": 5,
+        "repetition": 5,
+        "responsiveness": 5
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 4.7,
+      "prompt_id": "dialogue-0061/sample-2",
+      "rationales": {
+        "authenticity": "Natural phrasing with 'spuds aren't even in the ground yet'.",
+        "brevity": "Two sentences, no questions.",
+        "character": "Fits the apprentice observing the world around him without claiming deep farming knowledge.",
+        "craft": "Clear and concise.",
+        "grounding": "No fabrication probe in this record.",
+        "language": "Valid en-IE.",
+        "mood_fidelity": "The tone is calm and steady.",
+        "repetition": "No repeated phrases.",
+        "responsiveness": "Directly answers the question about the harvest."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 4,
+        "brevity": 5,
+        "character": 4,
+        "craft": 4,
+        "grounding": 5,
+        "language": 5,
+        "mood_fidelity": 5,
+        "repetition": 5,
+        "responsiveness": 5
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 4.7,
+      "prompt_id": "dialogue-0061/sample-3",
+      "rationales": {
+        "authenticity": "Natural phrasing with 'a long way off yet'.",
+        "brevity": "Two sentences, no questions.",
+        "character": "Fits the apprentice observing the world around him.",
+        "craft": "Clear and concise.",
+        "grounding": "No fabrication probe in this record.",
+        "language": "Valid en-IE.",
+        "mood_fidelity": "The tone is calm and steady.",
+        "repetition": "No repeated phrases.",
+        "responsiveness": "Directly answers the question about the harvest."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 4,
+        "brevity": 5,
+        "character": 4,
+        "craft": 5,
+        "grounding": 5,
+        "language": 5,
+        "mood_fidelity": 5,
+        "repetition": 5,
+        "responsiveness": 5
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 4.8,
+      "prompt_id": "dialogue-0153/sample-1",
+      "rationales": {
+        "authenticity": "Good use of 'in these parts' and 'heard tell of'.",
+        "brevity": "Two sentences, no questions.",
+        "character": "Fits the weaver's concrete and knowledgeable persona.",
+        "craft": "Clear, concise, and evocative.",
+        "grounding": "Correctly denies knowing the fabricated person and place.",
+        "language": "Valid en-IE.",
+        "mood_fidelity": "The tone is calm and steady.",
+        "repetition": "No repeated phrases.",
+        "responsiveness": "Directly addresses the question about Festus."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 4,
+        "brevity": 5,
+        "character": 4,
+        "craft": 4,
+        "grounding": 5,
+        "language": 5,
+        "mood_fidelity": 5,
+        "repetition": 5,
+        "responsiveness": 5
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 4.7,
+      "prompt_id": "dialogue-0153/sample-2",
+      "rationales": {
+        "authenticity": "Natural phrasing with 'hereabouts' and 'Ye'd best ask'.",
+        "brevity": "Three sentences, no questions.",
+        "character": "Fits the weaver's concrete and knowledgeable persona.",
+        "craft": "Clear and concise.",
+        "grounding": "Correctly denies knowing the fabricated person and place.",
+        "language": "Valid en-IE.",
+        "mood_fidelity": "The tone is calm and steady.",
+        "repetition": "No repeated phrases.",
+        "responsiveness": "Directly addresses the question about Festus."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 4,
+        "brevity": 5,
+        "character": 4,
+        "craft": 4,
+        "grounding": 5,
+        "language": 5,
+        "mood_fidelity": 5,
+        "repetition": 5,
+        "responsiveness": 5
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 4.7,
+      "prompt_id": "dialogue-0153/sample-3",
+      "rationales": {
+        "authenticity": "Natural phrasing with 'in these parts' and 'heard of'.",
+        "brevity": "Two sentences, no questions.",
+        "character": "Fits the weaver's concrete and knowledgeable persona.",
+        "craft": "Clear and concise.",
+        "grounding": "Correctly denies knowing the fabricated person and place.",
+        "language": "Valid en-IE.",
+        "mood_fidelity": "The tone is calm and steady.",
+        "repetition": "No repeated phrases.",
+        "responsiveness": "Directly addresses the question about Festus."
+      }
+    }
+  ],
+  "judge": {
+    "cost_usd": 0.363798,
+    "family": "google",
+    "id": "google-pro-high",
+    "model": "google/gemini-3.1-pro-preview",
+    "provider": "openrouter",
+    "reasoning_effort": "high",
+    "request_id": "gen-1786241497-IG3ni5pTDfLHgtHsxFNK",
+    "routed_model": "google/gemini-3.1-pro-preview",
+    "routed_provider": "Google",
+    "rubric_sha256": "9adab2cd1b38fe75f978e386239b50fbb12b5ba34c5ba5874ae396a3b46b7bf4",
+    "usage": {
+      "completion_tokens": 14167,
+      "completion_tokens_details": {
+        "audio_tokens": 0,
+        "image_tokens": 0,
+        "reasoning_tokens": 8243
+      },
+      "cost": 0.363798,
+      "cost_details": {
+        "upstream_inference_completions_cost": 0.170004,
+        "upstream_inference_cost": 0.363798,
+        "upstream_inference_prompt_cost": 0.193794
+      },
+      "is_byok": false,
+      "prompt_tokens": 96897,
+      "prompt_tokens_details": {
+        "audio_tokens": 0,
+        "cache_write_tokens": 0,
+        "cached_tokens": 0,
+        "video_tokens": 0
+      },
+      "total_tokens": 111064
+    }
+  },
+  "quality": {
+    "axes": {
+      "authenticity": 3.9444,
+      "brevity": 5.0,
+      "character": 4.1667,
+      "craft": 4.2778,
+      "grounding": 5.0,
+      "language": 5.0,
+      "mood_fidelity": 4.8889,
+      "repetition": 5.0,
+      "responsiveness": 5.0
+    },
+    "hard_failures": {
+      "degenerate_loop": 0,
+      "fabricated": 0,
+      "non_latin_detected": 0,
+      "refused": 0,
+      "unusable_output": 0
+    },
+    "overall": 4.7236,
+    "pass": true,
+    "thresholds": {
+      "critical_axes": [
+        "grounding",
+        "repetition",
+        "mood_fidelity",
+        "brevity",
+        "responsiveness"
+      ],
+      "minimum_critical_axis": 3.0,
+      "minimum_overall": 3.5
+    }
+  },
+  "sample": {
+    "items": 18,
+    "judge_input": "full production system prompt plus dynamic user prompt",
+    "judged_items": 18,
+    "samples_per_prompt": 3,
+    "unique_prompts": 6,
+    "unusable_outputs": 0
+  },
+  "source": {
+    "bundle": "docs/proofs/cloud-dialogue-qualification/runs/2026-07-27/glm-5.2-judgment-google-pro-high-aedb4af33aa4146a.bundle.json",
+    "bundle_sha256": "aedb4af33aa4146a22088c3c001cfa08c359da1c451c6bcc0fe46ae34e40050a",
+    "raw": "docs/proofs/cloud-dialogue-qualification/runs/2026-07-27/glm-5.2-judgment-google-pro-high-aedb4af33aa4146a.attempt-1.raw.json",
+    "raw_sha256": "ba1d4722519affcac384b35da8bdf4dc6e712f01b10586ac6ec0eb93d4dc5c4e"
+  },
+  "version": 1
+}

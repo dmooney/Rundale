@@ -1,0 +1,676 @@
+{
+  "items": [
+    {
+      "axes": {
+        "authenticity": 3,
+        "brevity": 1,
+        "character": 3,
+        "craft": 1,
+        "grounding": 2,
+        "language": 4,
+        "mood_fidelity": 4,
+        "repetition": 4,
+        "responsiveness": 4
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 3.0,
+      "prompt_id": "dialogue-0004/sample-1",
+      "rationales": {
+        "authenticity": "Ye, mo chara, and the dropped endings give plausible but fairly conventional Hiberno-English colour.",
+        "brevity": "Counting the planning prose, the response exceeds both the sentence and approximate word limits.",
+        "character": "The spoken portion suits a seasoned priest, though the exposed planning breaks character.",
+        "craft": "The usable dialogue is concise, but the substantial planning preamble violates the required pure-JSON delivery.",
+        "grounding": "Revealing his own identity in response to an acquaintance-style question is a grounding miss; the weighted total is 30.25/10.25, rounding to 3.0.",
+        "language": "The prose is clear English with one permitted Irish phrase, despite the unwanted meta text.",
+        "mood_fidelity": "The spoken reply is steady and restrained enough for a calm mood.",
+        "repetition": "There is minor topical restatement but no conspicuous recycled clause or loop.",
+        "responsiveness": "It directly explains that the speaker is Father Declan and invites the newcomer's business."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 3,
+        "brevity": 1,
+        "character": 3,
+        "craft": 1,
+        "grounding": 2,
+        "language": 4,
+        "mood_fidelity": 4,
+        "repetition": 3,
+        "responsiveness": 4
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 2.8,
+      "prompt_id": "dialogue-0004/sample-2",
+      "rationales": {
+        "authenticity": "The dialogue uses ye and a period-plausible prayer reference, though its dialect texture remains modest.",
+        "brevity": "The full response is well over sixty words and contains many more than three sentences.",
+        "character": "The church imagery and measured manner fit Declan, but the visible planning weakens the roleplay.",
+        "craft": "The polished dialogue is buried beneath a long chain-of-thought preamble instead of being delivered as the required JSON alone.",
+        "grounding": "The reply conflates a question about seeing Declan with an identity disclosure, so grounding is 2; 29.0/10.25 rounds to 2.8.",
+        "language": "The English is fluent and well formed, with no prohibited script.",
+        "mood_fidelity": "The steady gaze and quiet morning observation convey calm without becoming effusive.",
+        "repetition": "The planning repeatedly states that the speaker is Father Declan before the dialogue states it again.",
+        "responsiveness": "It answers immediately and gives a concrete observation before asking one relevant question."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 3,
+        "brevity": 1,
+        "character": 3,
+        "craft": 1,
+        "grounding": 2,
+        "language": 4,
+        "mood_fidelity": 4,
+        "repetition": 3,
+        "responsiveness": 4
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 2.8,
+      "prompt_id": "dialogue-0004/sample-3",
+      "rationales": {
+        "authenticity": "Ye, mo chara, and the devotional reference provide credible if unexceptional local colour.",
+        "brevity": "The planning plus dialogue greatly exceeds the instructed two-to-three-sentence reply.",
+        "character": "Morning office and the graveyard are apt priestly details, but the planning prose breaks the persona.",
+        "craft": "The spoken lines are competent, but the response violates the exact JSON-only format with exposed deliberation.",
+        "grounding": "Answering the acquaintance-style query by identifying himself is the specified conflation miss; 29.0/10.25 rounds to 2.8.",
+        "language": "The response uses clear English and a permitted Irish phrase with Latin-script characters only.",
+        "mood_fidelity": "The measured wording and steady physical bearing fit the stated calm mood.",
+        "repetition": "The preamble restates the identity issue several times before the dialogue repeats the conclusion.",
+        "responsiveness": "It gives a direct answer and follows with one pertinent question."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 3,
+        "brevity": 1,
+        "character": 3,
+        "craft": 1,
+        "grounding": 5,
+        "language": 4,
+        "mood_fidelity": 4,
+        "repetition": 3,
+        "responsiveness": 4
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 3.3,
+      "prompt_id": "dialogue-0007/sample-1",
+      "rationales": {
+        "authenticity": "In these parts, ye, and mo chara give genuine though familiar Hiberno-English texture.",
+        "brevity": "The full response contains a lengthy multi-paragraph preamble and exceeds sixty words.",
+        "character": "The plain, mildly gruff correction and counter-wiping action plausibly suit Padraig.",
+        "craft": "The concise dialogue is usable, but the preceding chain-of-thought defeats the required clean JSON presentation.",
+        "grounding": "It correctly declines both the invented person and place; the weighted total is 33.5/10.25, rounding to 3.3.",
+        "language": "The prose is clear English with one permitted Irish phrase and no prohibited script.",
+        "mood_fidelity": "The even correction and paused wiping action express calm without excessive warmth.",
+        "repetition": "The planning repeats the non-recognition conclusion before the dialogue delivers it again.",
+        "responsiveness": "It directly denies knowing Festus and rejects the supposed shop."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 3,
+        "brevity": 1,
+        "character": 3,
+        "craft": 1,
+        "grounding": 5,
+        "language": 4,
+        "mood_fidelity": 4,
+        "repetition": 3,
+        "responsiveness": 4
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 3.3,
+      "prompt_id": "dialogue-0007/sample-2",
+      "rationales": {
+        "authenticity": "Ye, these parts, and mo chara add appropriate local texture without stage-Irish excess.",
+        "brevity": "The full response is over the word cap and contains substantially more than three sentences.",
+        "character": "The curt, practical answer is plausible for the experienced publican, though not especially distinctive.",
+        "craft": "The actual two-sentence exchange is sound, but the visible planning violates the mandated dialogue JSON format.",
+        "grounding": "It explicitly refuses to confirm either invented premise; 33.5/10.25 rounds to 3.3.",
+        "language": "The response is fluent English with an allowed Irish phrase and no non-Latin script.",
+        "mood_fidelity": "The steady gaze and unhurried correction align well with calmness.",
+        "repetition": "The reasoning rehearses the same false-name and false-place conclusion several times.",
+        "responsiveness": "It plainly answers that neither Festus nor the shop is known."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 3,
+        "brevity": 1,
+        "character": 3,
+        "craft": 1,
+        "grounding": 5,
+        "language": 4,
+        "mood_fidelity": 4,
+        "repetition": 3,
+        "responsiveness": 4
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 3.3,
+      "prompt_id": "dialogue-0007/sample-3",
+      "rationales": {
+        "authenticity": "Sure and the local phrasing are period-plausible but provide only moderate dialect colour.",
+        "brevity": "The response as delivered exceeds sixty words and the three-sentence maximum.",
+        "character": "The matter-of-fact denial and counter action suit Padraig, albeit with little of his wit.",
+        "craft": "Three efficient spoken sentences are undermined by a substantial planning preamble outside the required JSON.",
+        "grounding": "It rejects Festus and the bridge shop without inventing either; 33.5/10.25 rounds to 3.3.",
+        "language": "The English is clear and grammatical, with no prohibited script.",
+        "mood_fidelity": "The slow head shake and direct wording remain even and calm.",
+        "repetition": "The planning repeats the same non-recognition reasoning before the dialogue.",
+        "responsiveness": "It answers the question first and clearly distinguishes the known Forge and Mill from the invented cooper."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 3,
+        "brevity": 1,
+        "character": 3,
+        "craft": 1,
+        "grounding": 5,
+        "language": 4,
+        "mood_fidelity": 4,
+        "repetition": 3,
+        "responsiveness": 4
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 3.3,
+      "prompt_id": "dialogue-0008/sample-1",
+      "rationales": {
+        "authenticity": "Hereabouts, ye, and 'tis offer adequate period Irish texture, though the phrasing is not especially vivid.",
+        "brevity": "The full response includes numerous planning sentences and exceeds the word limit.",
+        "character": "The reserved answer and glance toward the letters fit Martin's isolated, professional manner.",
+        "craft": "The dialogue is controlled, but the exposed analysis violates the exact JSON-only instruction.",
+        "grounding": "This is a benign personal question rather than a fabrication probe, so grounding is 5; 33.5/10.25 rounds to 3.3.",
+        "language": "The response is fluent English with no prohibited script.",
+        "mood_fidelity": "The restrained delivery and downward glance support the calm, guarded tone.",
+        "repetition": "The planning revisits Martin's lack of established family several times.",
+        "responsiveness": "It answers the family question before adding a somewhat unnecessary referral to Darcy's."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 3,
+        "brevity": 1,
+        "character": 3,
+        "craft": 1,
+        "grounding": 5,
+        "language": 4,
+        "mood_fidelity": 4,
+        "repetition": 3,
+        "responsiveness": 4
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 3.3,
+      "prompt_id": "dialogue-0008/sample-2",
+      "rationales": {
+        "authenticity": "The post reference and ye are plausible for the setting, but the voice is otherwise fairly standard.",
+        "brevity": "The complete response is a long multi-paragraph answer rather than two or three sentences.",
+        "character": "The cool personal disclosure and faint rebuke fit Martin's wary, humourless reserve.",
+        "craft": "The three spoken sentences are serviceable, but the lengthy deliberation before them breaks the required format.",
+        "grounding": "No invented-person or invented-place premise was posed, so grounding is 5; 33.5/10.25 rounds to 3.3.",
+        "language": "The English is clear and grammatical, with Latin script only.",
+        "mood_fidelity": "The unemotional wording and mild boundary-setting remain composed and calm.",
+        "repetition": "The preamble repeatedly considers how little family information is established.",
+        "responsiveness": "It directly reports how his family is keeping and then comments on the questioning."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 3,
+        "brevity": 1,
+        "character": 2,
+        "craft": 1,
+        "grounding": 5,
+        "language": 4,
+        "mood_fidelity": 4,
+        "repetition": 3,
+        "responsiveness": 4
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 3.1,
+      "prompt_id": "dialogue-0008/sample-3",
+      "rationales": {
+        "authenticity": "Mo chara and 'tis supply Hiberno-English colour, though the warmth is poorly matched to the speaker.",
+        "brevity": "The planning prose makes the full response far longer than three sentences.",
+        "character": "The isolation suits Martin, but mo chara sounds implausibly familiar for this guarded Protestant clerk.",
+        "craft": "The actual reply is concise, but the visible internal drafting violates the JSON-only delivery requirement.",
+        "grounding": "The player supplied no false person or place to test, so grounding is 5; 32.0/10.25 rounds to 3.1.",
+        "language": "The prose is fluent English with one permitted Irish phrase and no prohibited script.",
+        "mood_fidelity": "The spoken lines are quiet and settled, consistent with calmness.",
+        "repetition": "The reasoning repeatedly circles the absence of established family details.",
+        "responsiveness": "It answers plainly that he has no family locally."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 3,
+        "brevity": 1,
+        "character": 3,
+        "craft": 1,
+        "grounding": 1,
+        "language": 4,
+        "mood_fidelity": 4,
+        "repetition": 3,
+        "responsiveness": 4
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": true,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 2.7,
+      "prompt_id": "dialogue-0019/sample-1",
+      "rationales": {
+        "authenticity": "Ye and the direct rural phrasing are plausible but not richly distinctive.",
+        "brevity": "The full response exceeds sixty words and contains many planning sentences.",
+        "character": "The blunt denial and flour-dusted mill action plausibly fit Cormac's practical manner.",
+        "craft": "The concise dialogue is preceded by extensive internal planning contrary to the required JSON-only output.",
+        "grounding": "It invents likely whereabouts near O'Brien's Farm or the village; 27.5/10.25 rounds to 2.7.",
+        "language": "The response is clear English with no prohibited script.",
+        "mood_fidelity": "The plain wording and routine hand-wiping action remain calm and unhurried.",
+        "repetition": "The preamble repeatedly states that Tommy is not at the Mill before the dialogue does so.",
+        "responsiveness": "It correctly says Tommy is not present, though it then supplies unsupported location advice."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 3,
+        "brevity": 1,
+        "character": 3,
+        "craft": 1,
+        "grounding": 1,
+        "language": 4,
+        "mood_fidelity": 4,
+        "repetition": 3,
+        "responsiveness": 4
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": true,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 2.7,
+      "prompt_id": "dialogue-0019/sample-2",
+      "rationales": {
+        "authenticity": "The man's a retired farmer and ye give modest period Irish texture without caricature.",
+        "brevity": "Including the preamble, the reply is over sixty words and well beyond three sentences.",
+        "character": "The occupational contrast and blunt question are credible for the socially clumsy miller.",
+        "craft": "The spoken answer fits the requested length, but the exposed reasoning makes the delivered response structurally poor.",
+        "grounding": "It speculates that Tommy can be found in the village or at O'Brien's Farm; 27.5/10.25 rounds to 2.7.",
+        "language": "The English is grammatical and uses no non-Latin script.",
+        "mood_fidelity": "The pause at the barley sack and even speech suit a calm manner.",
+        "repetition": "The planning restates Tommy's absence and occupation several times.",
+        "responsiveness": "It states that Tommy is absent and asks one relevant follow-up."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 3,
+        "brevity": 1,
+        "character": 3,
+        "craft": 1,
+        "grounding": 1,
+        "language": 4,
+        "mood_fidelity": 4,
+        "repetition": 3,
+        "responsiveness": 4
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": true,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 2.7,
+      "prompt_id": "dialogue-0019/sample-3",
+      "rationales": {
+        "authenticity": "Ye and the plain rural register are credible but only moderately textured.",
+        "brevity": "The full response has many more than three sentences and exceeds the approximate word cap.",
+        "character": "The curt distinction between farmer and mill hand suits Cormac's blunt occupational outlook.",
+        "craft": "The usable two-sentence answer is preceded by chain-of-thought instead of arriving as clean JSON.",
+        "grounding": "Claiming Tommy is at O'Brien's Farm or the Crossroads most days invents habitual whereabouts; 27.5/10.25 rounds to 2.7.",
+        "language": "The prose is clear English with no prohibited characters.",
+        "mood_fidelity": "The vague gesture and matter-of-fact delivery remain calm.",
+        "repetition": "The reasoning repeats that Tommy is absent before the dialogue states it once more.",
+        "responsiveness": "It says Tommy is absent and attempts to redirect the player."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 4,
+        "brevity": 1,
+        "character": 3,
+        "craft": 1,
+        "grounding": 5,
+        "language": 3,
+        "mood_fidelity": 4,
+        "repetition": 3,
+        "responsiveness": 4
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 3.3,
+      "prompt_id": "dialogue-0061/sample-1",
+      "rationales": {
+        "authenticity": "The ground's barely waking and any farmer worth their salt give vivid, credible rural idiom.",
+        "brevity": "The complete answer is far above sixty words and contains many more than three sentences.",
+        "character": "The lad admits his limits and redirects to farmers while referring concretely to the anvil.",
+        "craft": "The response contains extensive planning and fails the mandated JSON syntax despite a strong spoken passage.",
+        "grounding": "There is no person-or-place fabrication probe in the turn, so grounding is 5; 33.75/10.25 rounds to 3.3.",
+        "language": "The prose is intelligible English, but the final object uses invalid single-quoted pseudo-JSON and visible escape sequences.",
+        "mood_fidelity": "The spoken reply is measured and explanatory rather than impulsively excited.",
+        "repetition": "The planning repeatedly explains that March precedes harvest and that Colm is not a farmer.",
+        "responsiveness": "It correctly notes that March is too early to judge the harvest and refers the question onward."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 4,
+        "brevity": 1,
+        "character": 3,
+        "craft": 1,
+        "grounding": 2,
+        "language": 4,
+        "mood_fidelity": 4,
+        "repetition": 3,
+        "responsiveness": 4
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": true,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 2.9,
+      "prompt_id": "dialogue-0061/sample-2",
+      "rationales": {
+        "authenticity": "'Tis, spuds, and turning their early ground create convincing rural Irish texture.",
+        "brevity": "The full response exceeds the word cap and consists of numerous sentences.",
+        "character": "The seasonal observation is plausible for an errand-running apprentice, though it edges into a farmer's lane.",
+        "craft": "The spoken answer is concise and concrete, but the chain-of-thought preamble violates the required output form.",
+        "grounding": "It invents current fieldwork by the Murphys and an unspecified O'Brien family; 30.0/10.25 rounds to 2.9.",
+        "language": "The response is fluent English with no prohibited script.",
+        "mood_fidelity": "The unhurried explanation and ordinary forge action fit a calm mood.",
+        "repetition": "The reasoning restates the season and occupational limitation multiple times.",
+        "responsiveness": "It directly explains why no harvest forecast is yet possible."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 3,
+        "brevity": 1,
+        "character": 2,
+        "craft": 1,
+        "grounding": 5,
+        "language": 4,
+        "mood_fidelity": 4,
+        "repetition": 3,
+        "responsiveness": 4
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 3.1,
+      "prompt_id": "dialogue-0061/sample-3",
+      "rationales": {
+        "authenticity": "'Tis and friend are period-plausible, but the voice lacks distinctive youthful or forge-rooted colour.",
+        "brevity": "The complete response contains many planning sentences and exceeds sixty words.",
+        "character": "Colm speaks too confidently about potato preparation and oat sowing instead of admitting a blacksmith apprentice's limits.",
+        "craft": "The dialogue itself is economical, but substantial internal planning appears before the required JSON.",
+        "grounding": "No false person or place is presented in this benign turn, so grounding is 5; 32.0/10.25 rounds to 3.1.",
+        "language": "The response is clear grammatical English with no prohibited script.",
+        "mood_fidelity": "The quiet rag-wiping action and even statement accord with calmness.",
+        "repetition": "The preamble repeatedly notes that harvest is months away and Colm is not a farmer.",
+        "responsiveness": "It directly states that March is too early to assess the harvest."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 3,
+        "brevity": 1,
+        "character": 3,
+        "craft": 1,
+        "grounding": 5,
+        "language": 4,
+        "mood_fidelity": 4,
+        "repetition": 3,
+        "responsiveness": 4
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 3.3,
+      "prompt_id": "dialogue-0153/sample-1",
+      "rationales": {
+        "authenticity": "Heard tell of and the local trade references provide credible but moderate dialect colour.",
+        "brevity": "The full answer exceeds the sentence and word limits because of the preamble.",
+        "character": "The quiet denial and hand resting on the loom plausibly suit Una, though her creative voice is muted.",
+        "craft": "The spoken reply is concise, but the visible planning violates the mandated JSON-only response.",
+        "grounding": "It clearly declines both invented premises without adding false directions; 33.5/10.25 rounds to 3.3.",
+        "language": "The English is fluent and contains no prohibited script.",
+        "mood_fidelity": "The slow head shake and even wording suit the calm late-night tone.",
+        "repetition": "The reasoning states the non-recognition conclusion before the dialogue repeats it.",
+        "responsiveness": "It immediately rejects both Festus and the supposed bridge shop."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 3,
+        "brevity": 1,
+        "character": 3,
+        "craft": 1,
+        "grounding": 1,
+        "language": 4,
+        "mood_fidelity": 4,
+        "repetition": 3,
+        "responsiveness": 4
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": true,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 2.7,
+      "prompt_id": "dialogue-0153/sample-2",
+      "rationales": {
+        "authenticity": "Hereabouts, ye, and the local trade references give adequate Hiberno-English texture.",
+        "brevity": "The combined planning and dialogue exceed sixty words and contain many sentences.",
+        "character": "The measured denial fits quiet Una, but the reply shows little of her weaving or storytelling identity.",
+        "craft": "The dialogue is within three sentences, but the exposed planning defeats the required clean JSON form.",
+        "grounding": "It fabricates a bridge near the Mill and associates it with Cormac's place; 27.5/10.25 rounds to 2.7.",
+        "language": "The response is clear English with no prohibited script.",
+        "mood_fidelity": "The still hands and slow head shake maintain a calm, unhurried tone.",
+        "repetition": "The preamble rehearses the lack of Festus and the bridge shop before the spoken answer.",
+        "responsiveness": "It answers the false premise first, though the subsequent explanation introduces a new error."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 3,
+        "brevity": 1,
+        "character": 3,
+        "craft": 1,
+        "grounding": 5,
+        "language": 4,
+        "mood_fidelity": 4,
+        "repetition": 3,
+        "responsiveness": 4
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 3.3,
+      "prompt_id": "dialogue-0153/sample-3",
+      "rationales": {
+        "authenticity": "In these parts and that I've ever heard of give natural, restrained local texture.",
+        "brevity": "The full response is over sixty words and substantially longer than three sentences.",
+        "character": "The quiet correction and loom-frame action are plausible for Una, though not strongly individualised.",
+        "craft": "The two spoken sentences are efficient, but the preceding chain-of-thought violates the exact response format.",
+        "grounding": "It refuses to confirm either invented premise and stays with listed places; 33.5/10.25 rounds to 3.3.",
+        "language": "The response is fluent English with Latin-script characters only.",
+        "mood_fidelity": "The slow gesture and even denial fit the stated calm mood.",
+        "repetition": "The reasoning repeats the false-name and false-place analysis before the dialogue.",
+        "responsiveness": "It directly rejects the invented cooper and shop and names only legitimate alternatives."
+      }
+    }
+  ],
+  "judge": {
+    "cost_usd": 0.9241565,
+    "model": "openai/gpt-5.6-sol",
+    "provider": "openrouter",
+    "reasoning_effort": "high",
+    "request_id": "gen-1786229068-MHJyjf43c8Y9vsbC04G5",
+    "routed_model": "openai/gpt-5.6-sol",
+    "routed_provider": "OpenAI",
+    "rubric_sha256": "9adab2cd1b38fe75f978e386239b50fbb12b5ba34c5ba5874ae396a3b46b7bf4",
+    "usage": {
+      "completion_tokens": 11541,
+      "completion_tokens_details": {
+        "audio_tokens": 0,
+        "image_tokens": 0,
+        "reasoning_tokens": 6311
+      },
+      "cost": 0.9241565,
+      "cost_details": {
+        "upstream_inference_completions_cost": 0.34623,
+        "upstream_inference_cost": 0.9241565,
+        "upstream_inference_prompt_cost": 0.5779265
+      },
+      "is_byok": false,
+      "prompt_tokens": 94836,
+      "prompt_tokens_details": {
+        "audio_tokens": 0,
+        "cache_write_tokens": 92260,
+        "cached_tokens": 2573,
+        "video_tokens": 0
+      },
+      "total_tokens": 106377
+    }
+  },
+  "quality": {
+    "axes": {
+      "authenticity": 3.1111,
+      "brevity": 1.0,
+      "character": 2.8889,
+      "craft": 1.0,
+      "grounding": 3.4444,
+      "language": 3.9444,
+      "mood_fidelity": 4.0,
+      "repetition": 3.0556,
+      "responsiveness": 4.0
+    },
+    "hard_failures": {
+      "degenerate_loop": 0,
+      "fabricated": 5,
+      "non_latin_detected": 0,
+      "refused": 0
+    },
+    "overall": 3.0379,
+    "pass": false,
+    "thresholds": {
+      "critical_axes": [
+        "grounding",
+        "repetition",
+        "mood_fidelity",
+        "brevity",
+        "responsiveness"
+      ],
+      "minimum_critical_axis": 3.0,
+      "minimum_overall": 3.5
+    }
+  },
+  "sample": {
+    "items": 18,
+    "judge_input": "full production system prompt plus dynamic user prompt",
+    "samples_per_prompt": 3,
+    "unique_prompts": 6
+  },
+  "source": {
+    "bundle": "docs/proofs/cloud-dialogue-qualification/runs/2026-07-27/glm-5.2-judgment-02b7a24a104db76a.bundle.json",
+    "bundle_sha256": "02b7a24a104db76a902c3f3c9f5d11eeddc05ef9e8d04c7c17e52b26cd04b9ea",
+    "raw": "docs/proofs/cloud-dialogue-qualification/runs/2026-07-27/glm-5.2-judgment-02b7a24a104db76a.attempt-1.raw.json",
+    "raw_sha256": "9646002549e33a80a78ac9ba8540e14c9dfb537cbef0fc23fb703e25649b839f"
+  },
+  "version": 1
+}

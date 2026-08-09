@@ -1,0 +1,24 @@
+: OPENROUTER PROCESSING
+
+: OPENROUTER PROCESSING
+
+data: {"id":"gen-1786217150-LO6t5Z4r4iJW4QmNeffo","object":"chat.completion.chunk","created":1786217150,"model":"google/gemini-3.5-flash-lite","provider":"Google","choices":[{"index":0,"delta":{"content":"","role":"assistant","reasoning":"**Forging Ahead Cheerfully**\n\nI'm feeling quite optimistic today as I begin my work. The air in the forge is crisp, and I'm eager to get started on whatever the day brings. My spirits are high, and I'm ready to tackle any task with a smile.\n\n","reasoning_details":[{"type":"reasoning.text","text":"**Forging Ahead Cheerfully**\n\nI'm feeling quite optimistic today as I begin my work. The air in the forge is crisp, and I'm eager to get started on whatever the day brings. My spirits are high, and I'm ready to tackle any task with a smile.\n\n","format":"google-gemini-v1","index":0}]},"finish_reason":null,"native_finish_reason":null}]}
+
+: OPENROUTER PROCESSING
+
+: OPENROUTER PROCESSING
+
+data: {"id":"gen-1786217150-LO6t5Z4r4iJW4QmNeffo","object":"chat.completion.chunk","created":1786217150,"model":"google/gemini-3.5-flash-lite","provider":"Google","choices":[{"index":0,"delta":{"content":"","role":"assistant","reasoning":"**Recalling Padraig Darcy**\n\nAh, Padraig Darcy! Indeed I do, a fine man with a steady hand. It’s the fourth time you’re asking, though! I tell you, the man’s reputation precedes him. What brings that to mind today, friend?\n\n","reasoning_details":[{"type":"reasoning.text","text":"**Recalling Padraig Darcy**\n\nAh, Padraig Darcy! Indeed I do, a fine man with a steady hand. It’s the fourth time you’re asking, though! I tell you, the man’s reputation precedes him. What brings that to mind today, friend?\n\n","format":"google-gemini-v1","index":0}]},"finish_reason":null,"native_finish_reason":null}]}
+
+: OPENROUTER PROCESSING
+
+data: {"id":"gen-1786217150-LO6t5Z4r4iJW4QmNeffo","object":"chat.completion.chunk","created":1786217150,"model":"google/gemini-3.5-flash-lite","provider":"Google","choices":[{"index":0,"delta":{"content":"{\n  \"dialogue\": \"Aye, third time","role":"assistant"},"finish_reason":null,"native_finish_reason":null}]}
+
+data: {"id":"gen-1786217150-LO6t5Z4r4iJW4QmNeffo","object":"chat.completion.chunk","created":1786217150,"model":"google/gemini-3.5-flash-lite","provider":"Google","choices":[{"index":0,"delta":{"content":"'s the charm, mo chara, and he's still running the public house down","role":"assistant"},"finish_reason":null,"native_finish_reason":null}]}
+
+data: {"id":"gen-1786217150-LO6t5Z4r4iJW4QmNeffo","object":"chat.completion.chunk","created":1786217150,"model":"google/gemini-3.5-flash-lite","provider":"Google","choices":[{"index":0,"delta":{"content":"","role":"assistant","reasoning":null},"finish_reason":"length","native_finish_reason":"MAX_TOKENS"}]}
+
+data: {"id":"gen-1786217150-LO6t5Z4r4iJW4QmNeffo","object":"chat.completion.chunk","created":1786217150,"model":"google/gemini-3.5-flash-lite","provider":"Google","service_tier":"default","choices":[{"index":0,"delta":{"content":"","role":"assistant"},"finish_reason":"length","native_finish_reason":"MAX_TOKENS"}],"usage":{"prompt_tokens":5243,"completion_tokens":764,"total_tokens":6007,"cost":0.0034829,"is_byok":false,"prompt_tokens_details":{"cached_tokens":0,"cache_write_tokens":0,"audio_tokens":0,"video_tokens":0},"cost_details":{"upstream_inference_cost":0.0034829,"upstream_inference_prompt_cost":0.0015729,"upstream_inference_completions_cost":0.00191},"completion_tokens_details":{"reasoning_tokens":733,"image_tokens":0,"audio_tokens":0}}}
+
+data: [DONE]
+

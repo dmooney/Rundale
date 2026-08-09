@@ -2,6 +2,32 @@
 
 use super::*;
 
+/// How a Tier-1 model response crossed the production parsing boundary.
+///
+/// Promotion soaks distinguish contract-valid JSON from fallback recovery.
+/// The fallback paths remain player-safety mechanisms, but a model that relies
+/// on them must not be reported as reliably satisfying the JSON contract.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum NpcResponseParseDisposition {
+    /// The complete response deserialized as the authored JSON object.
+    FullJson,
+    /// Full JSON failed, but the truncated `dialogue` field was recovered.
+    RecoveredDialogue,
+    /// Neither JSON path worked; the raw response became player text.
+    RawText,
+}
+
+impl NpcResponseParseDisposition {
+    /// Stable machine-readable value used by runtime quality telemetry.
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::FullJson => "full_json",
+            Self::RecoveredDialogue => "recovered_dialogue",
+            Self::RawText => "raw_text",
+        }
+    }
+}
+
 /// Parsed result from an NPC LLM response.
 ///
 /// Contains the player-visible dialogue/action text and the optional
@@ -90,6 +116,17 @@ pub struct NpcMetadata {
 ///    wrapper render as user-visible text.
 /// 3. **Raw text** — for non-JSON providers or empty responses.
 pub fn parse_npc_stream_response(full_text: &str) -> NpcStreamResponse {
+    parse_npc_stream_response_with_disposition(full_text).0
+}
+
+/// Parses a complete NPC response and reports which production parser path won.
+///
+/// Keep callers that only need the response on [`parse_npc_stream_response`].
+/// Runtime quality measurement uses this variant so reliability evidence comes
+/// from the exact parser shown to players rather than a benchmark-side mirror.
+pub fn parse_npc_stream_response_with_disposition(
+    full_text: &str,
+) -> (NpcStreamResponse, NpcResponseParseDisposition) {
     let trimmed = full_text.trim();
     let stripped = strip_json_fence(trimmed);
 
@@ -104,7 +141,10 @@ pub fn parse_npc_stream_response(full_text: &str) -> NpcStreamResponse {
             mentioned_people: json_resp.mentioned_people,
             assigned_task: bounded_assigned_task(json_resp.assigned_task),
         });
-        return NpcStreamResponse { dialogue, metadata };
+        return (
+            NpcStreamResponse { dialogue, metadata },
+            NpcResponseParseDisposition::FullJson,
+        );
     }
 
     // Heuristic recovery for truncated / malformed JSON: extract the
@@ -112,20 +152,26 @@ pub fn parse_npc_stream_response(full_text: &str) -> NpcStreamResponse {
     // unclosed JSON object (Brendan + Cormac at The Mill, 2026-05-17
     // demo).
     if let Some(dlg) = extract_dialogue_field_heuristic(stripped) {
-        return NpcStreamResponse {
-            dialogue: strip_trailing_action_token(&strip_trailing_unmatched_quote(&dlg)),
-            metadata: None,
-        };
+        return (
+            NpcStreamResponse {
+                dialogue: strip_trailing_action_token(&strip_trailing_unmatched_quote(&dlg)),
+                metadata: None,
+            },
+            NpcResponseParseDisposition::RecoveredDialogue,
+        );
     }
 
     // Raw-text fallback: non-JSON provider or hopelessly malformed response.
     // Skip quote-stripping here — the text may be a raw JSON stub (e.g. a
     // truncated `{"dialogue": "`) where stripping the trailing `"` would
     // produce an even more garbled result.
-    NpcStreamResponse {
-        dialogue: strip_trailing_action_token(trimmed),
-        metadata: None,
-    }
+    (
+        NpcStreamResponse {
+            dialogue: strip_trailing_action_token(trimmed),
+            metadata: None,
+        },
+        NpcResponseParseDisposition::RawText,
+    )
 }
 
 fn bounded_assigned_task(value: Option<String>) -> Option<String> {
@@ -460,6 +506,26 @@ mod tests {
         let json = r#"{"dialogue": "A fine morning to ye.", "action": "nods", "mood": "calm"}"#;
         let resp = parse_npc_stream_response(json);
         assert_eq!(resp.dialogue, "A fine morning to ye.");
+    }
+
+    #[test]
+    fn parse_disposition_distinguishes_contract_and_fallback_paths() {
+        let (full, full_kind) =
+            parse_npc_stream_response_with_disposition(r#"{"dialogue":"Aye."}"#);
+        assert_eq!(full.dialogue, "Aye.");
+        assert_eq!(full_kind, NpcResponseParseDisposition::FullJson);
+
+        let (recovered, recovered_kind) =
+            parse_npc_stream_response_with_disposition(r#"{"dialogue":"Still usable"#);
+        assert_eq!(recovered.dialogue, "Still usable");
+        assert_eq!(
+            recovered_kind,
+            NpcResponseParseDisposition::RecoveredDialogue
+        );
+
+        let (raw, raw_kind) = parse_npc_stream_response_with_disposition("Plain words.");
+        assert_eq!(raw.dialogue, "Plain words.");
+        assert_eq!(raw_kind, NpcResponseParseDisposition::RawText);
     }
 
     // ── strip_trailing_unmatched_quote ────────────────────────────────────

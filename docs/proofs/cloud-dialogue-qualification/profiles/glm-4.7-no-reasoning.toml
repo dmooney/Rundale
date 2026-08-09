@@ -1,0 +1,22 @@
+# Exact production-path profile for the controlled GLM 4.7 preflight.
+# OPENROUTER_API_KEY is resolved from the environment and is never persisted.
+[provider]
+name = "openrouter"
+base_url = "https://openrouter.ai/api/v1"
+model = "z-ai/glm-4.7"
+
+[provider.intent]
+name = "simulator"
+
+[provider.simulation]
+name = "simulator"
+
+[provider.reaction]
+name = "simulator"
+
+[engine.inference.dialogue_generation]
+max_tokens = 768
+temperature = 0.7
+frequency_penalty = 0.5
+json_mode = true
+enable_thinking = false

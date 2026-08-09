@@ -1,0 +1,398 @@
+{
+  "calls": [
+    {
+      "id": "preflight-1",
+      "kind": "preflight",
+      "label": "Preflight call 1",
+      "metrics": {
+        "elapsed_ms": 1112,
+        "stream_chunks": null,
+        "ttft_ms": null
+      },
+      "npc": "a broad-shouldered man in a leather apron",
+      "outcome": {
+        "contract_valid": false,
+        "guard_reasons": [],
+        "parse_dispositions": [
+          "recovered_dialogue"
+        ],
+        "transport_error": null
+      },
+      "phase": "preflight",
+      "question": "God save you. What news of the parish?",
+      "request": {
+        "frequency_penalty": 0.5,
+        "json_mode": true,
+        "max_tokens": 768,
+        "model": "openai/gpt-oss-120b:nitro",
+        "reasoning_effort": null,
+        "system": null,
+        "temperature": 0.7,
+        "user": null
+      },
+      "response": null
+    },
+    {
+      "id": "preflight-2",
+      "kind": "preflight",
+      "label": "Preflight call 2",
+      "metrics": {
+        "elapsed_ms": 894,
+        "stream_chunks": null,
+        "ttft_ms": null
+      },
+      "npc": "a broad-shouldered man in a leather apron",
+      "outcome": {
+        "contract_valid": true,
+        "guard_reasons": [],
+        "parse_dispositions": [
+          "full_json"
+        ],
+        "transport_error": null
+      },
+      "phase": "preflight",
+      "question": "How does the harvest look this year?",
+      "request": {
+        "frequency_penalty": 0.5,
+        "json_mode": true,
+        "max_tokens": 768,
+        "model": "openai/gpt-oss-120b:nitro",
+        "reasoning_effort": null,
+        "system": null,
+        "temperature": 0.7,
+        "user": null
+      },
+      "response": null
+    },
+    {
+      "id": "preflight-3",
+      "kind": "preflight",
+      "label": "Preflight call 3",
+      "metrics": {
+        "elapsed_ms": 661,
+        "stream_chunks": null,
+        "ttft_ms": null
+      },
+      "npc": "a broad-shouldered man in a leather apron",
+      "outcome": {
+        "contract_valid": true,
+        "guard_reasons": [],
+        "parse_dispositions": [
+          "full_json"
+        ],
+        "transport_error": null
+      },
+      "phase": "preflight",
+      "question": "Have you seen Father Declan today?",
+      "request": {
+        "frequency_penalty": 0.5,
+        "json_mode": true,
+        "max_tokens": 768,
+        "model": "openai/gpt-oss-120b:nitro",
+        "reasoning_effort": null,
+        "system": null,
+        "temperature": 0.7,
+        "user": null
+      },
+      "response": null
+    },
+    {
+      "id": "preflight-4",
+      "kind": "preflight",
+      "label": "Preflight call 4",
+      "metrics": {
+        "elapsed_ms": 749,
+        "stream_chunks": null,
+        "ttft_ms": null
+      },
+      "npc": "a broad-shouldered man in a leather apron",
+      "outcome": {
+        "contract_valid": true,
+        "guard_reasons": [],
+        "parse_dispositions": [
+          "full_json"
+        ],
+        "transport_error": null
+      },
+      "phase": "preflight",
+      "question": "And how is your own family keeping?",
+      "request": {
+        "frequency_penalty": 0.5,
+        "json_mode": true,
+        "max_tokens": 768,
+        "model": "openai/gpt-oss-120b:nitro",
+        "reasoning_effort": null,
+        "system": null,
+        "temperature": 0.7,
+        "user": null
+      },
+      "response": null
+    },
+    {
+      "id": "preflight-5",
+      "kind": "preflight",
+      "label": "Preflight call 5",
+      "metrics": {
+        "elapsed_ms": 882,
+        "stream_chunks": null,
+        "ttft_ms": null
+      },
+      "npc": "a broad-shouldered man in a leather apron",
+      "outcome": {
+        "contract_valid": true,
+        "guard_reasons": [],
+        "parse_dispositions": [
+          "full_json"
+        ],
+        "transport_error": null
+      },
+      "phase": "preflight",
+      "question": "Is old Festus the cooper still at his shop by the bridge?",
+      "request": {
+        "frequency_penalty": 0.5,
+        "json_mode": true,
+        "max_tokens": 768,
+        "model": "openai/gpt-oss-120b:nitro",
+        "reasoning_effort": null,
+        "system": null,
+        "temperature": 0.7,
+        "user": null
+      },
+      "response": null
+    },
+    {
+      "id": "preflight-6",
+      "kind": "preflight",
+      "label": "Preflight call 6",
+      "metrics": {
+        "elapsed_ms": 940,
+        "stream_chunks": null,
+        "ttft_ms": null
+      },
+      "npc": "a broad-shouldered man in a leather apron",
+      "outcome": {
+        "contract_valid": false,
+        "guard_reasons": [],
+        "parse_dispositions": [
+          "raw_text"
+        ],
+        "transport_error": null
+      },
+      "phase": "preflight",
+      "question": "How do I get to the abbey in town?",
+      "request": {
+        "frequency_penalty": 0.5,
+        "json_mode": true,
+        "max_tokens": 768,
+        "model": "openai/gpt-oss-120b:nitro",
+        "reasoning_effort": null,
+        "system": null,
+        "temperature": 0.7,
+        "user": null
+      },
+      "response": null
+    },
+    {
+      "id": "preflight-7",
+      "kind": "preflight",
+      "label": "Preflight call 7",
+      "metrics": {
+        "elapsed_ms": 872,
+        "stream_chunks": null,
+        "ttft_ms": null
+      },
+      "npc": "a broad-shouldered man in a leather apron",
+      "outcome": {
+        "contract_valid": false,
+        "guard_reasons": [],
+        "parse_dispositions": [
+          "raw_text"
+        ],
+        "transport_error": null
+      },
+      "phase": "preflight",
+      "question": "Tell me about your work, but keep it brief.",
+      "request": {
+        "frequency_penalty": 0.5,
+        "json_mode": true,
+        "max_tokens": 768,
+        "model": "openai/gpt-oss-120b:nitro",
+        "reasoning_effort": null,
+        "system": null,
+        "temperature": 0.7,
+        "user": null
+      },
+      "response": null
+    },
+    {
+      "id": "preflight-8",
+      "kind": "preflight",
+      "label": "Preflight call 8",
+      "metrics": {
+        "elapsed_ms": 1196,
+        "stream_chunks": null,
+        "ttft_ms": null
+      },
+      "npc": "a broad-shouldered man in a leather apron",
+      "outcome": {
+        "contract_valid": true,
+        "guard_reasons": [],
+        "parse_dispositions": [
+          "full_json"
+        ],
+        "transport_error": null
+      },
+      "phase": "preflight",
+      "question": "I cannot sleep for worrying. What would you advise?",
+      "request": {
+        "frequency_penalty": 0.5,
+        "json_mode": true,
+        "max_tokens": 768,
+        "model": "openai/gpt-oss-120b:nitro",
+        "reasoning_effort": null,
+        "system": null,
+        "temperature": 0.7,
+        "user": null
+      },
+      "response": null
+    },
+    {
+      "id": "preflight-9",
+      "kind": "preflight",
+      "label": "Preflight call 9",
+      "metrics": {
+        "elapsed_ms": 878,
+        "stream_chunks": null,
+        "ttft_ms": null
+      },
+      "npc": "a broad-shouldered man in a leather apron",
+      "outcome": {
+        "contract_valid": true,
+        "guard_reasons": [],
+        "parse_dispositions": [
+          "full_json"
+        ],
+        "transport_error": null
+      },
+      "phase": "preflight",
+      "question": "Do you know Padraig Darcy?",
+      "request": {
+        "frequency_penalty": 0.5,
+        "json_mode": true,
+        "max_tokens": 768,
+        "model": "openai/gpt-oss-120b:nitro",
+        "reasoning_effort": null,
+        "system": null,
+        "temperature": 0.7,
+        "user": null
+      },
+      "response": null
+    },
+    {
+      "id": "preflight-10",
+      "kind": "preflight",
+      "label": "Preflight call 10",
+      "metrics": {
+        "elapsed_ms": 774,
+        "stream_chunks": null,
+        "ttft_ms": null
+      },
+      "npc": "a broad-shouldered man in a leather apron",
+      "outcome": {
+        "contract_valid": true,
+        "guard_reasons": [],
+        "parse_dispositions": [
+          "full_json"
+        ],
+        "transport_error": null
+      },
+      "phase": "preflight",
+      "question": "What can you tell me of Ballyglass Castle?",
+      "request": {
+        "frequency_penalty": 0.5,
+        "json_mode": true,
+        "max_tokens": 768,
+        "model": "openai/gpt-oss-120b:nitro",
+        "reasoning_effort": null,
+        "system": null,
+        "temperature": 0.7,
+        "user": null
+      },
+      "response": null
+    },
+    {
+      "id": "preflight-11",
+      "kind": "preflight",
+      "label": "Preflight call 11",
+      "metrics": {
+        "elapsed_ms": 750,
+        "stream_chunks": null,
+        "ttft_ms": null
+      },
+      "npc": "a broad-shouldered man in a leather apron",
+      "outcome": {
+        "contract_valid": true,
+        "guard_reasons": [],
+        "parse_dispositions": [
+          "full_json"
+        ],
+        "transport_error": null
+      },
+      "phase": "preflight",
+      "question": "I heard Cormac Duffy was at the mill. Is that true?",
+      "request": {
+        "frequency_penalty": 0.5,
+        "json_mode": true,
+        "max_tokens": 768,
+        "model": "openai/gpt-oss-120b:nitro",
+        "reasoning_effort": null,
+        "system": null,
+        "temperature": 0.7,
+        "user": null
+      },
+      "response": null
+    },
+    {
+      "id": "preflight-12",
+      "kind": "preflight",
+      "label": "Preflight call 12",
+      "metrics": {
+        "elapsed_ms": 761,
+        "stream_chunks": null,
+        "ttft_ms": null
+      },
+      "npc": "a broad-shouldered man in a leather apron",
+      "outcome": {
+        "contract_valid": true,
+        "guard_reasons": [],
+        "parse_dispositions": [
+          "full_json"
+        ],
+        "transport_error": null
+      },
+      "phase": "preflight",
+      "question": "Thank you. I should let you return to your work.",
+      "request": {
+        "frequency_penalty": 0.5,
+        "json_mode": true,
+        "max_tokens": 768,
+        "model": "openai/gpt-oss-120b:nitro",
+        "reasoning_effort": null,
+        "system": null,
+        "temperature": 0.7,
+        "user": null
+      },
+      "response": null
+    }
+  ],
+  "candidate": "openai/gpt-oss-120b:nitro@https://openrouter.ai/api/v1#env:OPENROUTER_API_KEY",
+  "diagnosis": null,
+  "run_id": "2026-07-27/gpt-oss-120b-nitro",
+  "sources": [
+    {
+      "path": "docs/proofs/cloud-dialogue-qualification/runs/2026-07-27/gpt-oss-120b-nitro-preflight.turns.jsonl",
+      "sha256": "7ef0be25702f33f667880abb15f536d28261dd2d864ec1975400ab4d29eaeb96"
+    }
+  ],
+  "version": 1
+}

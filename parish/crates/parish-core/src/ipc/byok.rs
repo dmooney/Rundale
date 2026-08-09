@@ -475,6 +475,7 @@ mod tests {
             log_capacity: 16,
             log_to_disk: false,
             rate_limits: RateLimitConfig::default(),
+            dialogue_generation: Default::default(),
         }
     }
 

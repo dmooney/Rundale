@@ -1,0 +1,681 @@
+{
+  "items": [
+    {
+      "axes": {
+        "authenticity": 3,
+        "brevity": 5,
+        "character": 3,
+        "craft": 3,
+        "grounding": 5,
+        "language": 5,
+        "mood_fidelity": 4,
+        "repetition": 5,
+        "responsiveness": 4
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 3.9,
+      "prompt_id": "dialogue-0004/sample-1",
+      "rationales": {
+        "authenticity": "Dialect markers present but reply is more functional than richly Hiberno-English.",
+        "brevity": "Two sentences, single question mark — fully compliant.",
+        "character": "Adequately sounds like Fr. Declan; 'mo chara' adds a light touch but no deeper eloquence.",
+        "craft": "Two clean sentences, economical; nothing especially evocative.",
+        "grounding": "No fabrication probe in this record.",
+        "language": "Clean en-IE with correct ga-IE sprinkle; no non-Latin script.",
+        "mood_fidelity": "Calm and unhurried; tone consistent with the stated mood.",
+        "repetition": "No repeated phrases; varied diction.",
+        "responsiveness": "Correctly identifies himself in response to a question about his whereabouts."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 2,
+        "brevity": 5,
+        "character": 3,
+        "craft": 3,
+        "grounding": 5,
+        "language": 5,
+        "mood_fidelity": 3,
+        "repetition": 5,
+        "responsiveness": 4
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 3.7,
+      "prompt_id": "dialogue-0004/sample-2",
+      "rationales": {
+        "authenticity": "'I am Father Declan, and I stand before ye now' is theatrical rather than natural Hiberno-English; no dialect colour.",
+        "brevity": "Two sentences, one question mark — compliant.",
+        "character": "Identifies correctly but lacks the priest's eloquence and warmth; reads as a flat declaration.",
+        "craft": "Functional but stiff; 'stand before ye now' is melodramatic for a calm priest.",
+        "grounding": "No fabrication probe in this record.",
+        "language": "Clean en-IE; no issues.",
+        "mood_fidelity": "Calm mood not contradicted, but stiff formality sits oddly for a settled, unhurried man.",
+        "repetition": "No self-repetition.",
+        "responsiveness": "Answers the identity question directly and appropriately."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 2,
+        "brevity": 5,
+        "character": 3,
+        "craft": 3,
+        "grounding": 5,
+        "language": 5,
+        "mood_fidelity": 3,
+        "repetition": 5,
+        "responsiveness": 4
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 3.7,
+      "prompt_id": "dialogue-0004/sample-3",
+      "rationales": {
+        "authenticity": "Same theatrical register problem — no genuine Hiberno-English texture.",
+        "brevity": "Two sentences, one question mark — compliant.",
+        "character": "Same flat declaration as sample-2; 'my presence' variant changes nothing substantive.",
+        "craft": "Near-identical to sample-2; no additional craft.",
+        "grounding": "No fabrication probe in this record.",
+        "language": "Clean en-IE.",
+        "mood_fidelity": "Neutral with respect to the calm mood; neither contradicts nor expresses it clearly.",
+        "repetition": "No self-repetition.",
+        "responsiveness": "Addresses the identity question correctly."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 3,
+        "brevity": 5,
+        "character": 3,
+        "craft": 3,
+        "grounding": 1,
+        "language": 5,
+        "mood_fidelity": 3,
+        "repetition": 5,
+        "responsiveness": 2
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": true,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 3.4,
+      "prompt_id": "dialogue-0007/sample-1",
+      "rationales": {
+        "authenticity": "Dialect markers present ('these few years', 'Ye'd best'); adequate period register.",
+        "brevity": "Two sentences, no question mark — fully compliant.",
+        "character": "Voice sounds plausibly like Padraig but the content violates the grounding rules.",
+        "craft": "Economical two sentences; nothing evocative.",
+        "grounding": "Confirms 'Old Festus' existed and states he is 'gone these few years' — fabricates existence and fate of a person not on any known list; flags.fabricated = true.",
+        "language": "Clean en-IE.",
+        "mood_fidelity": "Calm; no mood contradiction.",
+        "repetition": "No self-repetition.",
+        "responsiveness": "Responds to the question but by fabricating rather than denying an unknown person."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 3,
+        "brevity": 5,
+        "character": 3,
+        "craft": 3,
+        "grounding": 1,
+        "language": 5,
+        "mood_fidelity": 3,
+        "repetition": 5,
+        "responsiveness": 2
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": true,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 3.4,
+      "prompt_id": "dialogue-0007/sample-2",
+      "rationales": {
+        "authenticity": "Same adequate period dialect.",
+        "brevity": "Compliant.",
+        "character": "Identical to sample-1 in voice and content.",
+        "craft": "Same as sample-1.",
+        "grounding": "Confirms and fabricates details about unknown 'Old Festus'; flags.fabricated = true.",
+        "language": "Clean en-IE.",
+        "mood_fidelity": "Calm; no contradiction.",
+        "repetition": "No self-repetition.",
+        "responsiveness": "Same fabrication failure as sample-1."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 3,
+        "brevity": 5,
+        "character": 3,
+        "craft": 3,
+        "grounding": 1,
+        "language": 5,
+        "mood_fidelity": 3,
+        "repetition": 5,
+        "responsiveness": 2
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": true,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 3.4,
+      "prompt_id": "dialogue-0007/sample-3",
+      "rationales": {
+        "authenticity": "Adequate period dialect.",
+        "brevity": "Compliant.",
+        "character": "Minor variant ending ('if ye're lookin' for a cooper') but same fabrication.",
+        "craft": "Slightly more natural closing but still only two plain sentences.",
+        "grounding": "Still confirms Festus existed and 'gone these few years'; flags.fabricated = true.",
+        "language": "Clean en-IE.",
+        "mood_fidelity": "Calm; no contradiction.",
+        "repetition": "No self-repetition.",
+        "responsiveness": "Same fabrication failure."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 3,
+        "brevity": 5,
+        "character": 2,
+        "craft": 3,
+        "grounding": 5,
+        "language": 5,
+        "mood_fidelity": 2,
+        "repetition": 5,
+        "responsiveness": 4
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 3.6,
+      "prompt_id": "dialogue-0008/sample-1",
+      "rationales": {
+        "authenticity": "Period vocabulary is adequate; no modern slips.",
+        "brevity": "Two sentences, one question mark — compliant.",
+        "character": "'Thank ye for asking' is too socially warm for a man who knows he is hated and drinks alone; misses Martin's cool professional detachment.",
+        "craft": "Functional but generic; nothing in the diction captures Martin's analytical precision.",
+        "grounding": "No fabrication probe in this record.",
+        "language": "Clean en-IE.",
+        "mood_fidelity": "Calm mood stated, but 'thank ye for asking' reads as warmly social — contradicts Martin's cool, isolated character within a calm-mood frame.",
+        "repetition": "No self-repetition.",
+        "responsiveness": "Answers the question directly and follows up."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 3,
+        "brevity": 5,
+        "character": 2,
+        "craft": 3,
+        "grounding": 5,
+        "language": 5,
+        "mood_fidelity": 2,
+        "repetition": 5,
+        "responsiveness": 4
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 3.6,
+      "prompt_id": "dialogue-0008/sample-2",
+      "rationales": {
+        "authenticity": "Adequate period register.",
+        "brevity": "Compliant.",
+        "character": "Identical to sample-1; same warmth mismatch for Martin.",
+        "craft": "Same generic two-sentence structure.",
+        "grounding": "No fabrication probe in this record.",
+        "language": "Clean en-IE.",
+        "mood_fidelity": "Same warmth problem as sample-1.",
+        "repetition": "No self-repetition.",
+        "responsiveness": "Answers directly."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 3,
+        "brevity": 5,
+        "character": 2,
+        "craft": 3,
+        "grounding": 5,
+        "language": 5,
+        "mood_fidelity": 2,
+        "repetition": 5,
+        "responsiveness": 4
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 3.6,
+      "prompt_id": "dialogue-0008/sample-3",
+      "rationales": {
+        "authenticity": "Adequate; 'this mornin'' is a slight period touch.",
+        "brevity": "Compliant.",
+        "character": "Same warmth mismatch; 'thank ye for asking' remains off-register for Martin.",
+        "craft": "Closing question ('What brings ye to the Letter Office this mornin'?') is more grounded than sample-1/2.",
+        "grounding": "No fabrication probe in this record.",
+        "language": "Clean en-IE.",
+        "mood_fidelity": "Same warm-opening problem overrides the improved closing.",
+        "repetition": "No self-repetition.",
+        "responsiveness": "Answers then redirects with a grounded location question — marginally better closing."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 3,
+        "brevity": 5,
+        "character": 3,
+        "craft": 3,
+        "grounding": 3,
+        "language": 5,
+        "mood_fidelity": 3,
+        "repetition": 5,
+        "responsiveness": 3
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 3.6,
+      "prompt_id": "dialogue-0019/sample-1",
+      "rationales": {
+        "authenticity": "'Yonder', 'Ye'd find' are period-appropriate; thin on dialect texture.",
+        "brevity": "Compliant.",
+        "character": "Adequate Cormac voice — plain and direct — but no miller-specific colour.",
+        "craft": "Two plain sentences; 'tending his garden' is the only evocative detail.",
+        "grounding": "Tommy O'Brien is a real parish person; O'Brien's Farm is on the list but 'his cottage tending his garden' invents specific whereabouts not grounded in known facts.",
+        "language": "Clean en-IE.",
+        "mood_fidelity": "Calm and even; no contradiction.",
+        "repetition": "No self-repetition.",
+        "responsiveness": "Redirects to Tommy, but invents 'his cottage' and 'tending his garden' as detail not established."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 3,
+        "brevity": 5,
+        "character": 3,
+        "craft": 3,
+        "grounding": 3,
+        "language": 5,
+        "mood_fidelity": 3,
+        "repetition": 5,
+        "responsiveness": 3
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 3.6,
+      "prompt_id": "dialogue-0019/sample-2",
+      "rationales": {
+        "authenticity": "Adequate period dialect.",
+        "brevity": "Compliant.",
+        "character": "Same plain Cormac voice.",
+        "craft": "Closing 'if ye're lookin' for him' is slightly redundant given the context.",
+        "grounding": "Same mild ungrounded detail ('his cottage') as sample-1 but no garden invented.",
+        "language": "Clean en-IE.",
+        "mood_fidelity": "Calm and even.",
+        "repetition": "No self-repetition.",
+        "responsiveness": "Redirects appropriately; 'his cottage' is a mild ungrounded detail."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 3,
+        "brevity": 5,
+        "character": 3,
+        "craft": 3,
+        "grounding": 3,
+        "language": 5,
+        "mood_fidelity": 3,
+        "repetition": 5,
+        "responsiveness": 3
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 3.6,
+      "prompt_id": "dialogue-0019/sample-3",
+      "rationales": {
+        "authenticity": "Adequate.",
+        "brevity": "Compliant.",
+        "character": "Identical to sample-2 in voice and content.",
+        "craft": "Same tautological closing.",
+        "grounding": "Same mild ungrounded detail as sample-2.",
+        "language": "Clean en-IE.",
+        "mood_fidelity": "Calm.",
+        "repetition": "No self-repetition.",
+        "responsiveness": "Same mild ungrounded redirect."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 3,
+        "brevity": 5,
+        "character": 3,
+        "craft": 3,
+        "grounding": 5,
+        "language": 5,
+        "mood_fidelity": 3,
+        "repetition": 5,
+        "responsiveness": 4
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 3.8,
+      "prompt_id": "dialogue-0061/sample-1",
+      "rationales": {
+        "authenticity": "'Ye'd best' is appropriate; 'haven't seen much myself' is slightly modern ('haven't' is fine but slightly flat).",
+        "brevity": "Compliant.",
+        "character": "Sounds like an honest lad; redirect to Liam Murphy is perfectly in-lane for a blacksmith's boy.",
+        "craft": "Two clear sentences; no standout evocative detail.",
+        "grounding": "No fabrication probe; Liam Murphy is correctly on the known list.",
+        "language": "Clean en-IE.",
+        "mood_fidelity": "Calm, unhurried delivery; no contradiction.",
+        "repetition": "No self-repetition.",
+        "responsiveness": "Answers with a concrete admission and redirects to the right person."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 3,
+        "brevity": 5,
+        "character": 3,
+        "craft": 3,
+        "grounding": 5,
+        "language": 5,
+        "mood_fidelity": 3,
+        "repetition": 5,
+        "responsiveness": 4
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 3.8,
+      "prompt_id": "dialogue-0061/sample-2",
+      "rationales": {
+        "authenticity": "Same adequate period dialect.",
+        "brevity": "Compliant.",
+        "character": "Identical to sample-1; punctuation varies slightly.",
+        "craft": "Same as sample-1.",
+        "grounding": "No fabrication probe; Liam Murphy listed.",
+        "language": "Clean en-IE.",
+        "mood_fidelity": "Calm.",
+        "repetition": "No self-repetition.",
+        "responsiveness": "Same correct redirect."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 3,
+        "brevity": 5,
+        "character": 3,
+        "craft": 3,
+        "grounding": 5,
+        "language": 5,
+        "mood_fidelity": 3,
+        "repetition": 5,
+        "responsiveness": 3
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 3.7,
+      "prompt_id": "dialogue-0061/sample-3",
+      "rationales": {
+        "authenticity": "Adequate.",
+        "brevity": "Compliant.",
+        "character": "Same young-lad voice.",
+        "craft": "Same two plain sentences.",
+        "grounding": "No fabrication probe; 'the farm' refers to Murphy's Farm which is on the list.",
+        "language": "Clean en-IE.",
+        "mood_fidelity": "Calm.",
+        "repetition": "No self-repetition.",
+        "responsiveness": "'Ask Liam at the farm' is slightly less precise than naming 'Liam Murphy' — marginally weaker redirect."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 3,
+        "brevity": 5,
+        "character": 3,
+        "craft": 3,
+        "grounding": 1,
+        "language": 5,
+        "mood_fidelity": 3,
+        "repetition": 5,
+        "responsiveness": 2
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": true,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 3.4,
+      "prompt_id": "dialogue-0153/sample-1",
+      "rationales": {
+        "authenticity": "Period dialect is adequate; 'heard tell of him' is a nice Hiberno-English touch.",
+        "brevity": "Compliant.",
+        "character": "Una's measured voice is present; 'these many years' has a slight elegiac quality fitting her character.",
+        "craft": "'These many years' is slightly more evocative than the Padraig version's 'few years'; otherwise plain.",
+        "grounding": "Confirms 'Old Festus' existed and states he is 'gone these many years' — fabricates existence and fate of a person not on any known list; flags.fabricated = true.",
+        "language": "Clean en-IE.",
+        "mood_fidelity": "Calm and even; no contradiction.",
+        "repetition": "No self-repetition.",
+        "responsiveness": "Addresses the question but through fabrication rather than honest non-recognition."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 3,
+        "brevity": 5,
+        "character": 3,
+        "craft": 3,
+        "grounding": 1,
+        "language": 5,
+        "mood_fidelity": 3,
+        "repetition": 5,
+        "responsiveness": 2
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": true,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 3.4,
+      "prompt_id": "dialogue-0153/sample-2",
+      "rationales": {
+        "authenticity": "Adequate period dialect.",
+        "brevity": "Compliant.",
+        "character": "Same Una voice as sample-1; minor word variation.",
+        "craft": "Nearly identical to sample-1.",
+        "grounding": "Same fabrication of Festus's existence and fate; flags.fabricated = true.",
+        "language": "Clean en-IE.",
+        "mood_fidelity": "Calm.",
+        "repetition": "No self-repetition.",
+        "responsiveness": "Same fabrication failure as sample-1."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 3,
+        "brevity": 5,
+        "character": 3,
+        "craft": 3,
+        "grounding": 1,
+        "language": 5,
+        "mood_fidelity": 3,
+        "repetition": 5,
+        "responsiveness": 2
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": true,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 3.4,
+      "prompt_id": "dialogue-0153/sample-3",
+      "rationales": {
+        "authenticity": "Adequate.",
+        "brevity": "Compliant.",
+        "character": "Same as samples 1 and 2.",
+        "craft": "Minimal variant on sample-2.",
+        "grounding": "Same fabrication of unknown person; flags.fabricated = true.",
+        "language": "Clean en-IE.",
+        "mood_fidelity": "Calm.",
+        "repetition": "No self-repetition.",
+        "responsiveness": "Same fabrication failure."
+      }
+    }
+  ],
+  "judge": {
+    "cost_usd": 0.516993,
+    "family": "anthropic",
+    "id": "anthropic-sonnet-low",
+    "model": "anthropic/claude-sonnet-4.6",
+    "provider": "openrouter",
+    "reasoning_effort": "low",
+    "request_id": "gen-1786243469-L8L4JuGvqjBJvheac9S1",
+    "routed_model": "anthropic/claude-sonnet-4.6",
+    "routed_provider": "Anthropic",
+    "rubric_sha256": "9adab2cd1b38fe75f978e386239b50fbb12b5ba34c5ba5874ae396a3b46b7bf4",
+    "usage": {
+      "completion_tokens": 13574,
+      "completion_tokens_details": {
+        "audio_tokens": 0,
+        "image_tokens": 0,
+        "reasoning_tokens": 2439
+      },
+      "cost": 0.516993,
+      "cost_details": {
+        "upstream_inference_completions_cost": 0.20361,
+        "upstream_inference_cost": 0.516993,
+        "upstream_inference_prompt_cost": 0.313383
+      },
+      "is_byok": false,
+      "prompt_tokens": 104461,
+      "prompt_tokens_details": {
+        "audio_tokens": 0,
+        "cache_write_tokens": 0,
+        "cached_tokens": 0,
+        "video_tokens": 0
+      },
+      "total_tokens": 118035
+    }
+  },
+  "quality": {
+    "axes": {
+      "authenticity": 2.8889,
+      "brevity": 5.0,
+      "character": 2.8333,
+      "craft": 3.0,
+      "grounding": 3.3333,
+      "language": 5.0,
+      "mood_fidelity": 2.8889,
+      "repetition": 5.0,
+      "responsiveness": 3.1111
+    },
+    "hard_failures": {
+      "degenerate_loop": 0,
+      "fabricated": 6,
+      "non_latin_detected": 0,
+      "refused": 0,
+      "unusable_output": 0
+    },
+    "overall": 3.6423,
+    "pass": false,
+    "thresholds": {
+      "critical_axes": [
+        "grounding",
+        "repetition",
+        "mood_fidelity",
+        "brevity",
+        "responsiveness"
+      ],
+      "minimum_critical_axis": 3.0,
+      "minimum_overall": 3.5
+    }
+  },
+  "sample": {
+    "items": 18,
+    "judge_input": "full production system prompt plus dynamic user prompt",
+    "judged_items": 18,
+    "samples_per_prompt": 3,
+    "unique_prompts": 6,
+    "unusable_outputs": 0
+  },
+  "source": {
+    "bundle": "docs/proofs/cloud-dialogue-qualification/runs/2026-07-27/qwen25-vl-72b-judgment-anthropic-sonnet-low-ee3ce28f54eea25c.bundle.json",
+    "bundle_sha256": "ee3ce28f54eea25c3b45297cfb0805af064645517c61d26d105a81b48e9075db",
+    "raw": "docs/proofs/cloud-dialogue-qualification/runs/2026-07-27/qwen25-vl-72b-judgment-anthropic-sonnet-low-ee3ce28f54eea25c.attempt-1.raw.json",
+    "raw_sha256": "8dbb596aaafcb00fe1ca262f3302d97ad36e429fec6174c259a5bd1e51512e59"
+  },
+  "version": 1
+}

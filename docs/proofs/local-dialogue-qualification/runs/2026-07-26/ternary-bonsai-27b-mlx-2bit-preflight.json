@@ -1,0 +1,36 @@
+{
+  "candidate": "prism-ml/Ternary-Bonsai-27B-mlx-2bit",
+  "dataset_merkle": "feb43d4bf80dae70b1cda3f506f58db7a26602a7a24d2a42f3453cf3726ec912",
+  "elapsed_seconds": 178.14794993400574,
+  "guard_observation": {
+    "interventions": 10,
+    "reasons": {
+      "verbosity_guard": 10
+    },
+    "turns": 12
+  },
+  "parse_dispositions": {
+    "full_json": 12,
+    "raw_text": 0,
+    "recovered_dialogue": 0
+  },
+  "reliability_soak": {
+    "calls": 12,
+    "valid_responses": 12
+  },
+  "request_profile": {
+    "enable_thinking": false,
+    "frequency_penalty": 0.5,
+    "json_mode": true,
+    "max_tokens": 768,
+    "model": "prism-ml/Ternary-Bonsai-27B-mlx-2bit",
+    "temperature": 0.7
+  },
+  "runtime_base_url": "http://127.0.0.1:3040",
+  "turns_artifact": {
+    "path": "ternary-bonsai-27b-mlx-2bit-preflight.turns.jsonl",
+    "records": 12,
+    "sha256": "ad93e8b10a26fafa98a44bb425cd11886f2795aafecde874e8fae08e614f6169"
+  },
+  "version": 1
+}

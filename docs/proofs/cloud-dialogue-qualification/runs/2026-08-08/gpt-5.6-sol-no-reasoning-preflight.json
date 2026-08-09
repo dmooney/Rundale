@@ -1,0 +1,35 @@
+{
+  "candidate": "openai/gpt-5.6-sol@https://openrouter.ai/api/v1#env:OPENROUTER_API_KEY",
+  "dataset_merkle": "feb43d4bf80dae70b1cda3f506f58db7a26602a7a24d2a42f3453cf3726ec912",
+  "elapsed_seconds": 42.8026487827301,
+  "guard_observation": {
+    "interventions": 0,
+    "reasons": {},
+    "turns": 12
+  },
+  "parse_dispositions": {
+    "full_json": 12,
+    "raw_text": 0,
+    "recovered_dialogue": 0
+  },
+  "reliability_soak": {
+    "calls": 12,
+    "valid_responses": 12
+  },
+  "request_profile": {
+    "enable_thinking": false,
+    "frequency_penalty": 0.5,
+    "json_mode": true,
+    "max_tokens": 768,
+    "model": "openai/gpt-5.6-sol",
+    "reasoning_effort": "none",
+    "temperature": 0.7
+  },
+  "runtime_base_url": "http://127.0.0.1:3041",
+  "turns_artifact": {
+    "path": "gpt-5.6-sol-no-reasoning-preflight.turns.jsonl",
+    "records": 12,
+    "sha256": "2ad53e537a8efd83266f80fe2656a61b9cd5eb94ba3e16fc8476831323796268"
+  },
+  "version": 1
+}

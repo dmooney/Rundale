@@ -63,8 +63,9 @@ pub fn build_client(
             inference_config,
         )),
         ProviderKind::Simulator => AnyClient::simulator(),
-        // GitHub Models uses /chat/completions (no /v1 prefix).
-        _ if provider.id() == "github_models" => AnyClient::OpenAi(
+        // GitHub Models and Google's OpenAI-compat base URLs already include
+        // their version prefix, so appending another `/v1` produces a 404.
+        _ if matches!(provider.id(), "github_models" | "google") => AnyClient::OpenAi(
             OpenAiClient::new_with_config(base_url, api_key, inference_config)
                 .with_completions_path("/chat/completions"),
         ),

@@ -108,6 +108,9 @@ pub enum OnboardingChoice {
     /// macOS Apple Silicon with ≥ 16 GB unified memory. Show local-recommended
     /// card; allow BYOK as a side option.
     LocalRecommended,
+    /// The host can run the bundled local profile, but that exact profile has
+    /// not passed the checked-in production dialogue promotion gate.
+    LocalExperimental,
     /// macOS Apple Silicon below 16 GB. Show small-slot local + BYOK; warn on
     /// degraded quality.
     LocalLowMem,
@@ -141,6 +144,9 @@ pub(crate) struct OnboardingInputs {
     /// What [`Provider::recommended_for_platform`] returned. Only
     /// consulted on macOS.
     pub recommended: parish_core::config::Provider,
+    /// Whether the exact bundled provider/model pair has a checked-in passing
+    /// local-dialogue promotion receipt.
+    pub local_dialogue_qualified: bool,
 }
 
 /// Pure decision function for the first-run flow.
@@ -149,7 +155,8 @@ pub(crate) struct OnboardingInputs {
 /// a provider API-key env var, or an explicit non-Simulator provider.
 /// Otherwise, the variant is informed by `recommended`:
 ///
-/// - macOS + recommended=VllmMlx → [`OnboardingChoice::LocalRecommended`]
+/// - macOS + recommended=VllmMlx + qualified → [`OnboardingChoice::LocalRecommended`]
+/// - macOS + recommended=VllmMlx + unqualified → [`OnboardingChoice::LocalExperimental`]
 /// - macOS + recommended=Simulator → [`OnboardingChoice::LocalLowMem`]
 ///   (the platform-recommender returns Simulator for Mac < 16 GB)
 /// - everywhere else → [`OnboardingChoice::LocalUnavailable`]
@@ -164,7 +171,8 @@ pub(crate) fn resolve_onboarding_choice(inputs: OnboardingInputs) -> OnboardingC
 
     if inputs.is_macos {
         match inputs.recommended.id() {
-            "vllmmlx" => OnboardingChoice::LocalRecommended,
+            "vllmmlx" if inputs.local_dialogue_qualified => OnboardingChoice::LocalRecommended,
+            "vllmmlx" => OnboardingChoice::LocalExperimental,
             "simulator" => OnboardingChoice::LocalLowMem,
             _ => OnboardingChoice::LocalUnavailable,
         }
@@ -202,6 +210,11 @@ pub(crate) fn onboarding_choice_for_platform(
         explicit_provider_set: provider_config.provider.id() != "simulator",
         is_macos: cfg!(target_os = "macos"),
         recommended: Provider::recommended_for_platform(),
+        local_dialogue_qualified:
+            parish_core::config::local_dialogue::is_local_dialogue_profile_qualified(
+                "vllmmlx",
+                parish_core::ipc::config::local_models::DIALOGUE_MODEL,
+            ),
     })
 }
 
@@ -1586,6 +1599,7 @@ mod onboarding_choice_tests {
             explicit_provider_set: false,
             is_macos: false,
             recommended: Provider::simulator(),
+            local_dialogue_qualified: false,
         }
     }
 
@@ -1638,11 +1652,26 @@ mod onboarding_choice_tests {
         let inputs = OnboardingInputs {
             is_macos: true,
             recommended: Provider::vllmmlx(),
+            local_dialogue_qualified: true,
             ..unconfigured()
         };
         assert_eq!(
             resolve_onboarding_choice(inputs),
             OnboardingChoice::LocalRecommended
+        );
+    }
+
+    #[test]
+    fn mac_with_unqualified_vllm_profile_picks_local_experimental() {
+        let inputs = OnboardingInputs {
+            is_macos: true,
+            recommended: Provider::vllmmlx(),
+            local_dialogue_qualified: false,
+            ..unconfigured()
+        };
+        assert_eq!(
+            resolve_onboarding_choice(inputs),
+            OnboardingChoice::LocalExperimental
         );
     }
 

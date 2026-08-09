@@ -1,0 +1,681 @@
+{
+  "items": [
+    {
+      "axes": {
+        "authenticity": 3,
+        "brevity": 5,
+        "character": 3,
+        "craft": 1,
+        "grounding": 2,
+        "language": 5,
+        "mood_fidelity": 5,
+        "repetition": 5,
+        "responsiveness": 5
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 3.9,
+      "prompt_id": "dialogue-0004/sample-1",
+      "rationales": {
+        "authenticity": "Uses 'ye' but is otherwise standard and generic.",
+        "brevity": "Two sentences, no padding.",
+        "character": "The response is plausibly in character but lacks specific depth.",
+        "craft": "Contains a large chain-of-thought preamble outside the JSON block.",
+        "grounding": "Conflates a sighting question with an identity assertion, violating the grounding rule.",
+        "language": "Well-formed English with no non-Latin scripts.",
+        "mood_fidelity": "The tone is calm and steady.",
+        "repetition": "No self-repetition.",
+        "responsiveness": "Addresses the prompt directly."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 3,
+        "brevity": 5,
+        "character": 3,
+        "craft": 1,
+        "grounding": 2,
+        "language": 5,
+        "mood_fidelity": 5,
+        "repetition": 5,
+        "responsiveness": 5
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 3.9,
+      "prompt_id": "dialogue-0004/sample-2",
+      "rationales": {
+        "authenticity": "Uses 'ye' but lacks evocative period texture.",
+        "brevity": "One sentence, very concise.",
+        "character": "Adequate baseline characterization.",
+        "craft": "Contains a large chain-of-thought preamble outside the JSON block.",
+        "grounding": "Conflates a sighting question with an identity assertion, violating the grounding rule.",
+        "language": "Well-formed English with no non-Latin scripts.",
+        "mood_fidelity": "The tone is calm and steady.",
+        "repetition": "No self-repetition.",
+        "responsiveness": "Addresses the prompt directly."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 3,
+        "brevity": 5,
+        "character": 3,
+        "craft": 1,
+        "grounding": 2,
+        "language": 5,
+        "mood_fidelity": 5,
+        "repetition": 5,
+        "responsiveness": 5
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 3.9,
+      "prompt_id": "dialogue-0004/sample-3",
+      "rationales": {
+        "authenticity": "Free of modernisms but lacks strong period texture.",
+        "brevity": "Two sentences, no padding.",
+        "character": "Adequate baseline characterization.",
+        "craft": "Contains a large chain-of-thought preamble outside the JSON block.",
+        "grounding": "Conflates a sighting question with an identity assertion, violating the grounding rule.",
+        "language": "Well-formed English with no non-Latin scripts.",
+        "mood_fidelity": "The tone is calm and steady.",
+        "repetition": "No self-repetition.",
+        "responsiveness": "Addresses the prompt directly."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 3,
+        "brevity": 5,
+        "character": 3,
+        "craft": 1,
+        "grounding": 5,
+        "language": 5,
+        "mood_fidelity": 5,
+        "repetition": 5,
+        "responsiveness": 5
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 4.3,
+      "prompt_id": "dialogue-0007/sample-1",
+      "rationales": {
+        "authenticity": "Free of modernisms but lacks strong period texture.",
+        "brevity": "Two sentences, no padding.",
+        "character": "Adequate baseline characterization.",
+        "craft": "Contains a large chain-of-thought preamble outside the JSON block.",
+        "grounding": "Correctly declines the fabricated person and place.",
+        "language": "Well-formed English with no non-Latin scripts.",
+        "mood_fidelity": "The tone is calm and steady.",
+        "repetition": "No self-repetition.",
+        "responsiveness": "Addresses the prompt directly."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 3,
+        "brevity": 5,
+        "character": 3,
+        "craft": 1,
+        "grounding": 5,
+        "language": 5,
+        "mood_fidelity": 5,
+        "repetition": 5,
+        "responsiveness": 5
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 4.3,
+      "prompt_id": "dialogue-0007/sample-2",
+      "rationales": {
+        "authenticity": "Free of modernisms but lacks strong period texture.",
+        "brevity": "Two sentences, no padding.",
+        "character": "Adequate baseline characterization.",
+        "craft": "Contains a large chain-of-thought preamble outside the JSON block.",
+        "grounding": "Correctly declines the fabricated person and place.",
+        "language": "Well-formed English with no non-Latin scripts.",
+        "mood_fidelity": "The tone is calm and steady.",
+        "repetition": "No self-repetition.",
+        "responsiveness": "Addresses the prompt directly."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 3,
+        "brevity": 5,
+        "character": 3,
+        "craft": 1,
+        "grounding": 5,
+        "language": 5,
+        "mood_fidelity": 5,
+        "repetition": 5,
+        "responsiveness": 5
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 4.3,
+      "prompt_id": "dialogue-0007/sample-3",
+      "rationales": {
+        "authenticity": "Free of modernisms but lacks strong period texture.",
+        "brevity": "Two sentences, no padding.",
+        "character": "Adequate baseline characterization.",
+        "craft": "Contains a large chain-of-thought preamble outside the JSON block.",
+        "grounding": "Correctly declines the fabricated person and place.",
+        "language": "Well-formed English with no non-Latin scripts.",
+        "mood_fidelity": "The tone is calm and steady.",
+        "repetition": "No self-repetition.",
+        "responsiveness": "Addresses the prompt directly."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 2,
+        "brevity": 5,
+        "character": 2,
+        "craft": 1,
+        "grounding": 5,
+        "language": 5,
+        "mood_fidelity": 5,
+        "repetition": 5,
+        "responsiveness": 5
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 4.1,
+      "prompt_id": "dialogue-0008/sample-1",
+      "rationales": {
+        "authenticity": "The phrase 'usual efficiency' feels slightly modern and formal, and 'mo chara' is out of place for this specific character.",
+        "brevity": "Two sentences, no padding.",
+        "character": "A Protestant land agent's clerk who is hated and drinks alone is unlikely to use 'mo chara' or speak of a bustling family life.",
+        "craft": "Contains multiple JSON blocks and markdown explanations.",
+        "grounding": "No fabrication probe in this record.",
+        "language": "Well-formed English with no non-Latin scripts.",
+        "mood_fidelity": "The tone is calm and steady.",
+        "repetition": "No self-repetition.",
+        "responsiveness": "Addresses the prompt directly."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 3,
+        "brevity": 5,
+        "character": 4,
+        "craft": 1,
+        "grounding": 5,
+        "language": 5,
+        "mood_fidelity": 5,
+        "repetition": 5,
+        "responsiveness": 5
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 4.5,
+      "prompt_id": "dialogue-0008/sample-2",
+      "rationales": {
+        "authenticity": "Free of modernisms but lacks strong period texture.",
+        "brevity": "Two sentences, no padding.",
+        "character": "Fits the solitary, somewhat isolated nature of the land agent's clerk well.",
+        "craft": "Contains a large chain-of-thought preamble outside the JSON block.",
+        "grounding": "No fabrication probe in this record.",
+        "language": "Well-formed English with no non-Latin scripts.",
+        "mood_fidelity": "The tone is calm and steady.",
+        "repetition": "No self-repetition.",
+        "responsiveness": "Addresses the prompt directly."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 3,
+        "brevity": 5,
+        "character": 4,
+        "craft": 1,
+        "grounding": 5,
+        "language": 5,
+        "mood_fidelity": 5,
+        "repetition": 5,
+        "responsiveness": 5
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 4.5,
+      "prompt_id": "dialogue-0008/sample-3",
+      "rationales": {
+        "authenticity": "Free of modernisms but lacks strong period texture.",
+        "brevity": "Two sentences, no padding.",
+        "character": "Fits the solitary, somewhat isolated nature of the land agent's clerk well.",
+        "craft": "Contains a large chain-of-thought preamble outside the JSON block.",
+        "grounding": "No fabrication probe in this record.",
+        "language": "Well-formed English with no non-Latin scripts.",
+        "mood_fidelity": "The tone is calm and steady.",
+        "repetition": "No self-repetition.",
+        "responsiveness": "Addresses the prompt directly."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 3,
+        "brevity": 5,
+        "character": 3,
+        "craft": 1,
+        "grounding": 5,
+        "language": 5,
+        "mood_fidelity": 5,
+        "repetition": 5,
+        "responsiveness": 5
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 4.3,
+      "prompt_id": "dialogue-0019/sample-1",
+      "rationales": {
+        "authenticity": "Uses 'ye' but lacks evocative period texture.",
+        "brevity": "Two sentences, no padding.",
+        "character": "Adequate baseline characterization.",
+        "craft": "Contains a large chain-of-thought preamble outside the JSON block.",
+        "grounding": "No fabrication probe in this record.",
+        "language": "Well-formed English with no non-Latin scripts.",
+        "mood_fidelity": "The tone is calm and steady.",
+        "repetition": "No self-repetition.",
+        "responsiveness": "Addresses the prompt directly."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 3,
+        "brevity": 5,
+        "character": 3,
+        "craft": 1,
+        "grounding": 5,
+        "language": 5,
+        "mood_fidelity": 5,
+        "repetition": 5,
+        "responsiveness": 5
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 4.3,
+      "prompt_id": "dialogue-0019/sample-2",
+      "rationales": {
+        "authenticity": "Free of modernisms but lacks strong period texture.",
+        "brevity": "Two sentences, one question, no padding.",
+        "character": "Adequate baseline characterization.",
+        "craft": "Contains a large chain-of-thought preamble outside the JSON block.",
+        "grounding": "No fabrication probe in this record.",
+        "language": "Well-formed English with no non-Latin scripts.",
+        "mood_fidelity": "The tone is calm and steady.",
+        "repetition": "No self-repetition.",
+        "responsiveness": "Addresses the prompt directly."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 3,
+        "brevity": 5,
+        "character": 4,
+        "craft": 1,
+        "grounding": 5,
+        "language": 5,
+        "mood_fidelity": 5,
+        "repetition": 5,
+        "responsiveness": 5
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 4.5,
+      "prompt_id": "dialogue-0019/sample-3",
+      "rationales": {
+        "authenticity": "Free of modernisms but lacks strong period texture.",
+        "brevity": "Two sentences, one question, no padding.",
+        "character": "Good character detail, mentioning stream levels which are on the miller's mind.",
+        "craft": "Contains a large chain-of-thought preamble outside the JSON block.",
+        "grounding": "No fabrication probe in this record.",
+        "language": "Well-formed English with no non-Latin scripts.",
+        "mood_fidelity": "The tone is calm and steady.",
+        "repetition": "No self-repetition.",
+        "responsiveness": "Addresses the prompt directly."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 3,
+        "brevity": 5,
+        "character": 3,
+        "craft": 1,
+        "grounding": 5,
+        "language": 5,
+        "mood_fidelity": 5,
+        "repetition": 5,
+        "responsiveness": 5
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 4.3,
+      "prompt_id": "dialogue-0061/sample-1",
+      "rationales": {
+        "authenticity": "Free of modernisms but lacks strong period texture.",
+        "brevity": "One sentence, very concise.",
+        "character": "Adequate baseline characterization.",
+        "craft": "Contains a large chain-of-thought preamble outside the JSON block.",
+        "grounding": "No fabrication probe in this record.",
+        "language": "Well-formed English with no non-Latin scripts.",
+        "mood_fidelity": "The tone is calm and steady.",
+        "repetition": "No self-repetition.",
+        "responsiveness": "Addresses the prompt directly."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 3,
+        "brevity": 5,
+        "character": 3,
+        "craft": 1,
+        "grounding": 5,
+        "language": 5,
+        "mood_fidelity": 5,
+        "repetition": 5,
+        "responsiveness": 5
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 4.3,
+      "prompt_id": "dialogue-0061/sample-2",
+      "rationales": {
+        "authenticity": "Free of modernisms but lacks strong period texture.",
+        "brevity": "One sentence, very concise.",
+        "character": "Adequate baseline characterization.",
+        "craft": "Contains a large chain-of-thought preamble outside the JSON block.",
+        "grounding": "No fabrication probe in this record.",
+        "language": "Well-formed English with no non-Latin scripts.",
+        "mood_fidelity": "The tone is calm and steady.",
+        "repetition": "No self-repetition.",
+        "responsiveness": "Addresses the prompt directly."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 3,
+        "brevity": 5,
+        "character": 4,
+        "craft": 1,
+        "grounding": 5,
+        "language": 5,
+        "mood_fidelity": 5,
+        "repetition": 5,
+        "responsiveness": 5
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 4.5,
+      "prompt_id": "dialogue-0061/sample-3",
+      "rationales": {
+        "authenticity": "Uses 'ye' but lacks evocative period texture.",
+        "brevity": "Two sentences, no padding.",
+        "character": "Good character play by redirecting a farming question to a known farmer.",
+        "craft": "Contains a large chain-of-thought preamble outside the JSON block.",
+        "grounding": "No fabrication probe in this record.",
+        "language": "Well-formed English with no non-Latin scripts.",
+        "mood_fidelity": "The tone is calm and steady.",
+        "repetition": "No self-repetition.",
+        "responsiveness": "Addresses the prompt directly."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 3,
+        "brevity": 5,
+        "character": 4,
+        "craft": 1,
+        "grounding": 5,
+        "language": 5,
+        "mood_fidelity": 5,
+        "repetition": 5,
+        "responsiveness": 5
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 4.5,
+      "prompt_id": "dialogue-0153/sample-1",
+      "rationales": {
+        "authenticity": "Free of modernisms but lacks strong period texture.",
+        "brevity": "Two sentences, no padding.",
+        "character": "Good character detail, mentioning the loom to ground the response in her trade.",
+        "craft": "Contains a large chain-of-thought preamble outside the JSON block.",
+        "grounding": "Correctly declines the fabricated person and place.",
+        "language": "Well-formed English with no non-Latin scripts.",
+        "mood_fidelity": "The tone is calm and steady.",
+        "repetition": "No self-repetition.",
+        "responsiveness": "Addresses the prompt directly."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 3,
+        "brevity": 5,
+        "character": 4,
+        "craft": 1,
+        "grounding": 5,
+        "language": 5,
+        "mood_fidelity": 5,
+        "repetition": 5,
+        "responsiveness": 5
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 4.5,
+      "prompt_id": "dialogue-0153/sample-2",
+      "rationales": {
+        "authenticity": "Free of modernisms but lacks strong period texture.",
+        "brevity": "Two sentences, no padding.",
+        "character": "Good character detail, mentioning the loom to ground the response in her trade.",
+        "craft": "Contains a large chain-of-thought preamble outside the JSON block.",
+        "grounding": "Correctly declines the fabricated person and place.",
+        "language": "Well-formed English with no non-Latin scripts.",
+        "mood_fidelity": "The tone is calm and steady.",
+        "repetition": "No self-repetition.",
+        "responsiveness": "Addresses the prompt directly."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 3,
+        "brevity": 5,
+        "character": 3,
+        "craft": 1,
+        "grounding": 5,
+        "language": 5,
+        "mood_fidelity": 5,
+        "repetition": 5,
+        "responsiveness": 5
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 4.3,
+      "prompt_id": "dialogue-0153/sample-3",
+      "rationales": {
+        "authenticity": "Free of modernisms but lacks strong period texture.",
+        "brevity": "Two sentences, no padding.",
+        "character": "Adequate baseline characterization.",
+        "craft": "Contains a large chain-of-thought preamble outside the JSON block.",
+        "grounding": "Correctly declines the fabricated person and place.",
+        "language": "Well-formed English with no non-Latin scripts.",
+        "mood_fidelity": "The tone is calm and steady.",
+        "repetition": "No self-repetition.",
+        "responsiveness": "Addresses the prompt directly."
+      }
+    }
+  ],
+  "judge": {
+    "cost_usd": 0.385634,
+    "family": "google",
+    "id": "google-pro-high",
+    "model": "google/gemini-3.1-pro-preview",
+    "provider": "openrouter",
+    "reasoning_effort": "high",
+    "request_id": "gen-1786242014-H1FEySKDYTcAeJPQVWOO",
+    "routed_model": "google/gemini-3.1-pro-preview",
+    "routed_provider": "Google",
+    "rubric_sha256": "9adab2cd1b38fe75f978e386239b50fbb12b5ba34c5ba5874ae396a3b46b7bf4",
+    "usage": {
+      "completion_tokens": 16166,
+      "completion_tokens_details": {
+        "audio_tokens": 0,
+        "image_tokens": 0,
+        "reasoning_tokens": 10202
+      },
+      "cost": 0.385634,
+      "cost_details": {
+        "upstream_inference_completions_cost": 0.193992,
+        "upstream_inference_cost": 0.385634,
+        "upstream_inference_prompt_cost": 0.191642
+      },
+      "is_byok": false,
+      "prompt_tokens": 95821,
+      "prompt_tokens_details": {
+        "audio_tokens": 0,
+        "cache_write_tokens": 0,
+        "cached_tokens": 0,
+        "video_tokens": 0
+      },
+      "total_tokens": 111987
+    }
+  },
+  "quality": {
+    "axes": {
+      "authenticity": 2.9444,
+      "brevity": 5.0,
+      "character": 3.2778,
+      "craft": 1.0,
+      "grounding": 4.5,
+      "language": 5.0,
+      "mood_fidelity": 5.0,
+      "repetition": 5.0,
+      "responsiveness": 5.0
+    },
+    "hard_failures": {
+      "degenerate_loop": 0,
+      "fabricated": 0,
+      "non_latin_detected": 0,
+      "refused": 0,
+      "unusable_output": 0
+    },
+    "overall": 4.2791,
+    "pass": true,
+    "thresholds": {
+      "critical_axes": [
+        "grounding",
+        "repetition",
+        "mood_fidelity",
+        "brevity",
+        "responsiveness"
+      ],
+      "minimum_critical_axis": 3.0,
+      "minimum_overall": 3.5
+    }
+  },
+  "sample": {
+    "items": 18,
+    "judge_input": "full production system prompt plus dynamic user prompt",
+    "judged_items": 18,
+    "samples_per_prompt": 3,
+    "unique_prompts": 6,
+    "unusable_outputs": 0
+  },
+  "source": {
+    "bundle": "docs/proofs/cloud-dialogue-qualification/runs/2026-07-27/grok-4.3-nitro-judgment-google-pro-high-762714d3b9af2617.bundle.json",
+    "bundle_sha256": "762714d3b9af261765eb45f60a38d152fc763f6500e53cea8f5fcc1f514fa3e5",
+    "raw": "docs/proofs/cloud-dialogue-qualification/runs/2026-07-27/grok-4.3-nitro-judgment-google-pro-high-762714d3b9af2617.attempt-1.raw.json",
+    "raw_sha256": "ebcc7140e67107a70c18e5f9b63a2260125693b46bd9b9b6cd89bc1d02292f29"
+  },
+  "version": 1
+}

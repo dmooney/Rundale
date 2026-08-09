@@ -1,0 +1,37 @@
+{
+  "candidate": "mlx-community/Qwen3.6-27B-4bit",
+  "dataset_merkle": "feb43d4bf80dae70b1cda3f506f58db7a26602a7a24d2a42f3453cf3726ec912",
+  "elapsed_seconds": 420.212482213974,
+  "guard_observation": {
+    "interventions": 12,
+    "reasons": {
+      "mood_register_guard": 10,
+      "verbosity_guard": 12
+    },
+    "turns": 12
+  },
+  "parse_dispositions": {
+    "full_json": 8,
+    "raw_text": 0,
+    "recovered_dialogue": 4
+  },
+  "reliability_soak": {
+    "calls": 12,
+    "valid_responses": 8
+  },
+  "request_profile": {
+    "enable_thinking": false,
+    "frequency_penalty": 0.5,
+    "json_mode": true,
+    "max_tokens": 768,
+    "model": "mlx-community/Qwen3.6-27B-4bit",
+    "temperature": 0.7
+  },
+  "runtime_base_url": "http://127.0.0.1:3040",
+  "turns_artifact": {
+    "path": "qwen36-27b-4bit-preflight.turns.jsonl",
+    "records": 12,
+    "sha256": "0c8026b6a0bb0475e1394dfba2d4f27a78fa154a445c4fffe07228295f4b48f7"
+  },
+  "version": 1
+}

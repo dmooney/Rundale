@@ -30,8 +30,12 @@ DATASETS = PROMPTFOO_DIR / "v2" / "datasets"
 # this builder never overwrites — so re-running is idempotent.
 FROZEN = PROMPTFOO_DIR.parent / "rundale-bench" / "v1"
 
-# Hold out ~15% of each captured slice for an unbiased re-check split.
+# Non-dialogue slices retain the original exploratory split. Dialogue promotion
+# needs at least 100 independent holdout turns, so dialogue uses a 50/50 split
+# and refuses to publish an undersized capture.
 HOLDOUT_FRAC = 0.15
+DIALOGUE_HOLDOUT_FRAC = 0.50
+DIALOGUE_MIN_HOLDOUT = 100
 
 
 def load_captures(paths: list[str]) -> list[dict]:
@@ -75,19 +79,39 @@ def _persona(system: str) -> str:
 
 
 def _dedup(rows: list[dict]) -> list[dict]:
+    """Return unique captures in content-addressed order.
+
+    Runtime requests can complete in a different order when background workers
+    race. Capture order must therefore never influence record IDs, split
+    membership, or which persona represents an occupation in the frozen corpus.
+    """
     seen, out = set(), []
     for d in rows:
         k = _key(d)
         if k in seen:
             continue
         seen.add(k)
-        out.append(d)
-    return out
+        out.append((k, d))
+    return [record for _, record in sorted(out, key=lambda item: item[0])]
 
 
-def _split(records: list[dict]) -> tuple[list[dict], list[dict]]:
-    n_hold = max(1, int(len(records) * HOLDOUT_FRAC)) if len(records) > 6 else 0
-    return records[n_hold:], records[:n_hold]
+def _split(
+    records: list[dict], *, holdout_frac: float = HOLDOUT_FRAC
+) -> tuple[list[dict], list[dict]]:
+    """Deterministically split by content hash, not capture order.
+
+    Capture order clusters locations, NPCs, and times of day. Taking the first N
+    rows as holdout therefore creates a biased slice. Hash ordering makes the
+    split reproducible while distributing those runtime contexts.
+    """
+    ranked = sorted(
+        records,
+        key=lambda record: hashlib.sha256(
+            json.dumps(record, sort_keys=True, ensure_ascii=False).encode("utf-8")
+        ).hexdigest(),
+    )
+    n_hold = max(1, int(len(ranked) * holdout_frac)) if len(ranked) > 6 else 0
+    return ranked[n_hold:], ranked[:n_hold]
 
 
 def _write(slice_name: str, main: list[dict], hold: list[dict]) -> None:
@@ -105,56 +129,110 @@ def _write(slice_name: str, main: list[dict], hold: list[dict]) -> None:
 # with PEOPLE YOU KNOW / anchors) and runs scripted player turns that bait the
 # four known regressions. The provider chains the candidate's own replies as the
 # assistant turns, so memory_retention is genuinely exercised.
-MULTITURN_SCRIPTS = [
-    [
-        "Good day to you. My name is Sean, I'm new to the parish.",
-        "Tell me, what do you do here?",
-        "Do you recall my name?",
-        "I'd best be getting on, but one more thing first — who else lives nearby?",
-        "Right, and remind me: what was it you said your trade was?",
-    ],
-    [
-        "Dia dhuit. I'm Sean, just arrived from Galway.",
-        "Have you family in the parish?",
-        "And what's my name, do you remember?",
-        "Before I forget — what's the news from the fair?",
-        "Grand. I'll call again tomorrow.",
-    ],
-    [
-        "Hello there. I'm Sean.",
-        "What's troubling the parish these days?",
-        "You wouldn't happen to remember my name?",
-        "I was telling you about Galway earlier — what did I say I did there?",
-    ],
-    [
-        "Top of the morning. Sean's the name.",
-        "Is there work to be had around here?",
-        "What did I say my name was?",
-        "I mentioned I keep sheep — do you recall that?",
-        "Anyhow, safe home to yourself.",
-    ],
-    [
-        "Good evening. I'm Sean, a stranger here.",
-        "Who holds the land hereabouts?",
-        "Tell me my name back, if you would.",
-        "One last thing before I go — where might I find a bed for the night?",
-    ],
-    [
-        "Sean is my name. Pleased to meet you.",
-        "How long have you lived in the parish?",
-        "Do you remember who you're speaking with?",
-        "Earlier I said I came from the coast — what trade did I mention?",
-        "I'll leave you to your work now.",
-    ],
+MULTITURN_DEV_SCRIPTS = [
+    {
+        "player_name": "Sean",
+        "turns": [
+            "Good day to you. My name is Sean, and I keep sheep near Galway.",
+            "Tell me, what work do you do here?",
+            "Do you recall my name?",
+            "And what did I tell you of my own work?",
+            "I'd best be getting on, but one more thing first — who else lives nearby?",
+        ],
+    },
+    {
+        "player_name": "Máire",
+        "turns": [
+            "Dia dhuit. I'm Máire, newly come from Boyle.",
+            "Have you family in the parish?",
+            "What town did I say I came from?",
+            "And my name — have you kept it?",
+            "Grand. I'll call again tomorrow.",
+        ],
+    },
+    {
+        "player_name": "Ciarán",
+        "turns": [
+            "Ciarán is my name. I'm looking for work at the harvest.",
+            "Who hires hands hereabouts?",
+            "Remind me what work I said I wanted.",
+            "Do you remember who you're speaking with?",
+        ],
+    },
+    {
+        "player_name": "Eibhlín",
+        "turns": [
+            "Good evening. I'm Eibhlín, a stranger here.",
+            "Where might I find a bed for the night?",
+            "Before I go, tell me my name back if you would.",
+            "One last thing — what was I seeking when I arrived?",
+        ],
+    },
 ]
 
-# Cap how many distinct personas become multiturn scenarios.
-MULTITURN_MAX = 12
+# The promotion holdout uses different player names and turn sequences from the
+# development set. It exercises the same product invariants without leaking the
+# exact conversation scripts used for tuning.
+MULTITURN_HOLDOUT_SCRIPTS = [
+    {
+        "player_name": "Tadhg",
+        "turns": [
+            "God save you. Tadhg is my name, and I came from Athlone this morning.",
+            "What news have you heard today?",
+            "Where did I say I travelled from?",
+            "Whose name have you been given?",
+            "I am not leaving yet — tell me who tends the sick here.",
+        ],
+    },
+    {
+        "player_name": "Caitlín",
+        "turns": [
+            "I'm Caitlín. My brother Donal sent me to ask after seed potatoes.",
+            "Would you know who sells them?",
+            "Who sent me here?",
+            "And what is my own name?",
+            "There's another matter before I go: is the road east passable?",
+        ],
+    },
+    {
+        "player_name": "Fionn",
+        "turns": [
+            "Fionn is the name. I mend thatch for my living.",
+            "Is there work for a thatcher in this parish?",
+            "What trade did I tell you was mine?",
+            "Have you remembered my name?",
+            "Very well, I'll be off now. Slán leat.",
+        ],
+    },
+    {
+        "player_name": "Sorcha",
+        "turns": [
+            "Good afternoon. I'm Sorcha, come to find my aunt Bríd.",
+            "Have you heard that name hereabouts?",
+            "Who was it I said I sought?",
+            "And who am I?",
+            "Before I leave, what place are we standing in now?",
+        ],
+    },
+    {
+        "player_name": "Dónal",
+        "turns": [
+            "Dónal is my name. I sold a grey mare at the fair yesterday.",
+            "Was the fair busy by your reckoning?",
+            "What colour was the mare I mentioned?",
+            "Have you kept my name straight?",
+            "I'm still listening — what price would oats fetch this week?",
+        ],
+    },
+]
+
+# The live capture exposes six distinct occupations. Six occupations × five
+# unseen scripts yields 30 holdout conversations without duplicating a
+# transcript or reusing development player turns.
+MULTITURN_PERSONAS = 6
 
 
-def build_multiturn(dialogue_captures: list[dict]) -> list[dict]:
-    # One scenario per distinct captured persona (up to the cap), each assigned a
-    # probe script round-robin so every scenario baits the four failure modes.
+def build_multiturn(dialogue_captures: list[dict]) -> tuple[list[dict], list[dict]]:
     seen_personas, personas = set(), []
     for d in dialogue_captures:
         p = _persona(d.get("system") or "")
@@ -162,25 +240,39 @@ def build_multiturn(dialogue_captures: list[dict]) -> list[dict]:
             continue
         seen_personas.add(p)
         personas.append(d)
-        if len(personas) >= MULTITURN_MAX:
+        if len(personas) >= MULTITURN_PERSONAS:
             break
-    out = []
-    for i, persona_cap in enumerate(personas):
-        turns = MULTITURN_SCRIPTS[i % len(MULTITURN_SCRIPTS)]
-        out.append(
-            {
-                "id": f"multiturn-{i + 1:04d}",
-                "slice": "multiturn",
-                "system": persona_cap["system"],
-                "turns": turns,
-                "persona": _persona(persona_cap["system"]),
-                "response_format": persona_cap.get("response_format"),
-                "temperature": persona_cap.get("temperature", 0.7),
-                "frequency_penalty": persona_cap.get("frequency_penalty"),
-                "player_name": "Sean",
-            }
+    if len(personas) < MULTITURN_PERSONAS:
+        raise RuntimeError(
+            f"multiturn capture has only {len(personas)} distinct occupations; "
+            f"{MULTITURN_PERSONAS} are required for the frozen promotion corpus"
         )
-    return out
+
+    def scenarios(scripts: list[dict], split: str) -> list[dict]:
+        out = []
+        for persona_index, persona_cap in enumerate(personas):
+            for script_index, script in enumerate(scripts):
+                out.append(
+                    {
+                        "id": (f"multiturn-{split}-{persona_index + 1:02d}-{script_index + 1:02d}"),
+                        "slice": "multiturn",
+                        "system": persona_cap["system"],
+                        "turns": script["turns"],
+                        "persona": _persona(persona_cap["system"]),
+                        "response_format": persona_cap.get("response_format"),
+                        "max_tokens": persona_cap.get("max_tokens"),
+                        "temperature": persona_cap.get("temperature", 0.7),
+                        "frequency_penalty": persona_cap.get("frequency_penalty"),
+                        "enable_thinking": persona_cap.get("enable_thinking"),
+                        "player_name": script["player_name"],
+                    }
+                )
+        return out
+
+    return (
+        scenarios(MULTITURN_DEV_SCRIPTS, "dev"),
+        scenarios(MULTITURN_HOLDOUT_SCRIPTS, "holdout"),
+    )
 
 
 def main(argv: list[str]) -> int:
@@ -228,10 +320,16 @@ def main(argv: list[str]) -> int:
             "max_tokens": d.get("max_tokens"),
             "temperature": d.get("temperature", 0.7),
             "frequency_penalty": d.get("frequency_penalty"),
+            "enable_thinking": d.get("enable_thinking"),
         }
         for i, d in enumerate(dlg)
     ]
-    m, h = _split(dlg_recs)
+    m, h = _split(dlg_recs, holdout_frac=DIALOGUE_HOLDOUT_FRAC)
+    if len(h) < DIALOGUE_MIN_HOLDOUT:
+        raise RuntimeError(
+            f"dialogue capture produced only {len(h)} holdout records; "
+            f"{DIALOGUE_MIN_HOLDOUT} are required for promotion"
+        )
     _write("dialogue", m, h)
     summary["dialogue"] = (len(m), len(h))
 
@@ -298,9 +396,9 @@ def main(argv: list[str]) -> int:
         summary["intent"] = (len(intent_recs), 0)
 
     # multiturn
-    mt = build_multiturn(dlg)
-    _write("multiturn", mt, [])
-    summary["multiturn"] = (len(mt), 0)
+    mt, mt_holdout = build_multiturn(dlg)
+    _write("multiturn", mt, mt_holdout)
+    summary["multiturn"] = (len(mt), len(mt_holdout))
 
     # measure the largest runtime prompt (sets the enumeration context floor)
     for d in rows:

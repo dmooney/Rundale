@@ -162,6 +162,36 @@ pub async fn post_command(
             } else {
                 None
             };
+            let dialogue_quality_detail = serde_json::json!({
+                "dialogue_quality": {
+                    "turns": drain.dialogue_quality.len(),
+                    "contract_valid": drain
+                        .dialogue_quality
+                        .iter()
+                        .filter(|item| item.contract_valid)
+                        .count(),
+                    "guard_interventions": drain
+                        .dialogue_quality
+                        .iter()
+                        .filter(|item| item.guard_intervened)
+                        .count(),
+                    "guard_reasons": drain
+                        .dialogue_quality
+                        .iter()
+                        .flat_map(|item| item.guard_reasons.iter().map(String::as_str))
+                        .collect::<Vec<_>>(),
+                    "parse_dispositions": drain
+                        .dialogue_quality
+                        .iter()
+                        .map(|item| item.parse_disposition.as_str())
+                        .collect::<Vec<_>>(),
+                    "request_profiles": drain
+                        .dialogue_quality
+                        .iter()
+                        .map(dialogue_request_profile)
+                        .collect::<Vec<_>>(),
+                }
+            });
 
             (
                 StatusCode::OK,
@@ -174,7 +204,7 @@ pub async fn post_command(
                     kind,
                     echo: text,
                     lines: drain.lines,
-                    kind_detail: serde_json::Value::Null,
+                    kind_detail: dialogue_quality_detail,
                     travel,
                     state: state_bundle,
                     elapsed_ms,
@@ -259,6 +289,30 @@ fn rejected(reason: &str) -> CommandResponse {
     }
 }
 
+/// Canonicalizes an `f32` generation parameter for evidence serialization.
+///
+/// TOML values such as `0.7` are not exactly representable as `f32`; exposing
+/// their binary expansion (`0.699999988...`) makes semantically identical
+/// benchmark profiles fail the promotion gate's exact-profile comparison.
+fn canonical_generation_float(value: f32) -> f64 {
+    (f64::from(value) * 10_000.0).round() / 10_000.0
+}
+
+fn dialogue_request_profile(item: &parish_core::ipc::DialogueQualityPayload) -> serde_json::Value {
+    serde_json::json!({
+        "model": item.model,
+        "max_tokens": item.generation.max_tokens,
+        "temperature": canonical_generation_float(item.generation.temperature),
+        "frequency_penalty": item
+            .generation
+            .frequency_penalty
+            .map(canonical_generation_float),
+        "json_mode": item.generation.json_mode,
+        "enable_thinking": item.generation.enable_thinking,
+        "reasoning_effort": item.generation.reasoning_effort,
+    })
+}
+
 fn iso8601_now() -> String {
     let secs = SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -315,4 +369,45 @@ fn seconds_to_ymdhms(mut s: u64) -> (u64, u64, u64, u64, u64, u64) {
         mo += 1;
     }
     (y, mo, s + 1, hour, min, sec)
+}
+
+#[cfg(test)]
+mod generation_profile_tests {
+    use super::{canonical_generation_float, dialogue_request_profile};
+
+    #[test]
+    fn generation_floats_have_stable_evidence_representation() {
+        assert_eq!(canonical_generation_float(0.7), 0.7);
+        assert_eq!(canonical_generation_float(0.35), 0.35);
+        assert_eq!(canonical_generation_float(-0.125), -0.125);
+    }
+
+    #[test]
+    fn request_profile_includes_reasoning_control() {
+        let item = parish_core::ipc::DialogueQualityPayload {
+            turn_id: 1,
+            parse_disposition: "full_json".into(),
+            contract_valid: true,
+            guard_intervened: false,
+            guard_reasons: Vec::new(),
+            model: "qwen-9b".into(),
+            generation: parish_core::ipc::DialogueGenerationTelemetry {
+                max_tokens: 768,
+                temperature: 0.7,
+                frequency_penalty: Some(0.5),
+                json_mode: true,
+                enable_thinking: Some(true),
+                reasoning_effort: Some(parish_core::config::ReasoningEffort::Max),
+            },
+        };
+
+        assert_eq!(
+            dialogue_request_profile(&item)["enable_thinking"],
+            serde_json::json!(true)
+        );
+        assert_eq!(
+            dialogue_request_profile(&item)["reasoning_effort"],
+            serde_json::json!("max")
+        );
+    }
 }

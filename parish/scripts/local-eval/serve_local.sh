@@ -9,9 +9,12 @@
 #                 knob → the model burns its token budget reasoning and returns
 #                 empty replies on realistic prompts).
 #   llama-server  llama.cpp's OpenAI server (GGUF). Required when vllm-mlx can't
-#                 serve a model cleanly. Honours
-#                 `--chat-template-kwargs '{"enable_thinking":false}'`, so
-#                 mandatory-reasoner models (gemma-4) answer directly.
+#                 serve a model cleanly. Uses llama.cpp's current
+#                 `--reasoning on|off` switch, so mandatory-reasoner models
+#                 (gemma-4) answer directly when `--thinking false`.
+#                 `--model` accepts either a Hugging Face `repo:quant` selector
+#                 or a local GGUF path, allowing an existing HF cache entry to
+#                 be reused without downloading the weights a second time.
 #
 # Runs the server in the FOREGROUND; the caller backgrounds it (nohup … &) and
 # polls `/v1/models`. The bench spec is then:  <alias-or-repo>@http://127.0.0.1:<port>/v1
@@ -113,21 +116,33 @@ case "$BACKEND" in
             exit 3
         }
         alias_name="${ALIAS:-$MODEL}"
-        echo ">>> llama-server -hf $MODEL on $HOST:$PORT (alias=$alias_name, enable_thinking=$THINK)" >&2
-        # --jinja is REQUIRED for --chat-template-kwargs to bind (applies the GGUF's
-        # own chat template). Sampler defaults per the Gemma 4 model card; the bench
-        # overrides temperature per request, so these are only fallbacks.
+        if [[ -f "$MODEL" ]]; then
+            model_args=(-m "$MODEL")
+            model_source="local"
+        else
+            model_args=(-hf "$MODEL")
+            model_source="huggingface"
+        fi
+        if [[ "$THINK" == "true" ]]; then
+            reasoning_mode="on"
+        else
+            reasoning_mode="off"
+        fi
+        echo ">>> llama-server ${model_args[*]} on $HOST:$PORT (source=$model_source, alias=$alias_name, enable_thinking=$THINK)" >&2
+        # --jinja applies the GGUF's own chat template. Sampler defaults per the
+        # Gemma 4 model card; the bench overrides temperature per request, so
+        # these are only fallbacks.
         # --no-mmproj: the bench is text-only. Multimodal GGUFs (gemma-4) ship a
         # vision/audio projector that -hf auto-downloads; loading it can fail
         # (encoder-free archs) and is pure overhead here, so skip it.
         exec llama-server \
-            -hf "$MODEL" \
+            "${model_args[@]}" \
             --alias "$alias_name" \
             --host "$HOST" --port "$PORT" \
             --ctx-size "$CTX" \
             --jinja \
             --no-mmproj \
-            --chat-template-kwargs "{\"enable_thinking\":${THINK}}" \
+            --reasoning "$reasoning_mode" \
             --temp 1.0 --top-p 0.95 --top-k 64 \
             ${EXTRA[@]+"${EXTRA[@]}"}
         ;;

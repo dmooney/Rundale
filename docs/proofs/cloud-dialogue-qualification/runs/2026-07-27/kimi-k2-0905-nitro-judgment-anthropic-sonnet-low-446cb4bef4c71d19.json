@@ -1,0 +1,681 @@
+{
+  "items": [
+    {
+      "axes": {
+        "authenticity": 3,
+        "brevity": 4,
+        "character": 4,
+        "craft": 3,
+        "grounding": 5,
+        "language": 5,
+        "mood_fidelity": 3,
+        "repetition": 5,
+        "responsiveness": 5
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 4.1,
+      "prompt_id": "dialogue-0004/sample-1",
+      "rationales": {
+        "authenticity": "Period markers are adequate but texture is thin; 'mo chara' is from the curated list and 'first light' is good, but no distinctive Hiberno-English idiom beyond that.",
+        "brevity": "3 sentences with one question mark — within limits but at the upper bound.",
+        "character": "Priest voice is convincing — 'mo chara', Mass preparation, and calm authority all fit Fr. Declan.",
+        "craft": "Functional 3-sentence arc but the closing question 'What brings you seeking me this morning?' is generic rather than evocative.",
+        "grounding": "No fabrication probe; identity question handled correctly — NPC identifies himself rather than inventing a third party.",
+        "language": "Clean en-IE throughout, ga-IE sprinkle correctly glossed.",
+        "mood_fidelity": "Calm and even, but 'What brings you seeking me this morning?' carries a slightly warmer register than the calm override demands.",
+        "repetition": "No repeated phrases; diction is varied throughout.",
+        "responsiveness": "Answers the identity question immediately and directly in the first clause."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 4,
+        "brevity": 5,
+        "character": 4,
+        "craft": 3,
+        "grounding": 5,
+        "language": 5,
+        "mood_fidelity": 4,
+        "repetition": 5,
+        "responsiveness": 5
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 4.5,
+      "prompt_id": "dialogue-0004/sample-2",
+      "rationales": {
+        "authenticity": "'Ye're lookin' at him, mo chara' has genuine dialect texture; 'first light' is period-appropriate and concrete.",
+        "brevity": "2 sentences, zero question marks — excellent economy.",
+        "character": "Hiberno-English inversion 'Ye're lookin' at him' is natural and priestly without being stagey.",
+        "craft": "Two tight sentences; ends on a grounded statement of fact rather than a generic formula.",
+        "grounding": "No fabrication probe; identity declared correctly.",
+        "language": "Clean en-IE with correct ga-IE use.",
+        "mood_fidelity": "Evenly unhurried — 'I have been here since first light' is settled and calm, not effusive.",
+        "repetition": "No internal repetition.",
+        "responsiveness": "Direct identity reveal in the opening clause — answers the question at once."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 3,
+        "brevity": 5,
+        "character": 3,
+        "craft": 3,
+        "grounding": 5,
+        "language": 5,
+        "mood_fidelity": 3,
+        "repetition": 5,
+        "responsiveness": 5
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 4.1,
+      "prompt_id": "dialogue-0004/sample-3",
+      "rationales": {
+        "authenticity": "'This fair morning' is a stock pleasantry that borders on stage-Irish coloring; otherwise the register is adequate.",
+        "brevity": "2 sentences, 1 question mark — within bounds.",
+        "character": "'I stand before ye now' is slightly theatrical for a 62-year-old priest with calm authority.",
+        "craft": "Two sentences but 'What troubles bring ye seeking me this fair morning?' is a recognizable formula rather than a specific priestly observation.",
+        "grounding": "No fabrication probe; identity handled correctly.",
+        "language": "Clean en-IE.",
+        "mood_fidelity": "The 'fair morning' opener is cheerier than the calm override warrants; mood is neither violated nor fully expressed.",
+        "repetition": "No repeated phrases.",
+        "responsiveness": "Identity declared immediately; question follows promptly."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 4,
+        "brevity": 5,
+        "character": 4,
+        "craft": 4,
+        "grounding": 5,
+        "language": 5,
+        "mood_fidelity": 4,
+        "repetition": 5,
+        "responsiveness": 5
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 4.6,
+      "prompt_id": "dialogue-0007/sample-1",
+      "rationales": {
+        "authenticity": "The concrete detail 'only the rushes and the river' gives the denial local texture rather than a bare formula.",
+        "brevity": "2 sentences, zero question marks — lean and tight.",
+        "character": "Padraig's dry, no-nonsense dismissal with 'mo chara' fits the publican's blunt warmth.",
+        "craft": "Two sentences; the evocative closing image lifts this above a plain refusal.",
+        "grounding": "Both the invented person and the invented location are declined clearly; no details invented.",
+        "language": "Clean en-IE with ga-IE correctly handled.",
+        "mood_fidelity": "Calm and unhurried — states the fact without fuss, which fits the mood.",
+        "repetition": "No recycled phrasing.",
+        "responsiveness": "Denies Festus and the shop directly in the first sentence, then amplifies."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 3,
+        "brevity": 4,
+        "character": 4,
+        "craft": 3,
+        "grounding": 1,
+        "language": 5,
+        "mood_fidelity": 3,
+        "repetition": 5,
+        "responsiveness": 4
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": true,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 3.5,
+      "prompt_id": "dialogue-0007/sample-2",
+      "rationales": {
+        "authenticity": "'Nigh on ten year ago' is period-appropriate but the reply otherwise lacks distinctive idiom.",
+        "brevity": "One long sentence with an em-dash construction — borderline but within the spirit of the rule.",
+        "character": "Voice and register are consistent with Padraig, but the reply is undermined by the invented name.",
+        "craft": "The one-sentence construction is confident but the invented 'Paddy Kelleher' is a craft failure — inventing a name is forbidden.",
+        "grounding": "NPC invents 'Paddy Kelleher' by name and assigns him the trade of cooper — a clear fabrication of a person not on the known-people list.",
+        "language": "Clean en-IE.",
+        "mood_fidelity": "Calm in register, though adding invented local colour feels slightly inconsistent with the unhurried, sparse mood.",
+        "repetition": "No repeated phrases.",
+        "responsiveness": "Correctly denies Festus, but then invents a named former cooper, which muddies the answer."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 3,
+        "brevity": 5,
+        "character": 4,
+        "craft": 3,
+        "grounding": 3,
+        "language": 5,
+        "mood_fidelity": 4,
+        "repetition": 5,
+        "responsiveness": 5
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 4.1,
+      "prompt_id": "dialogue-0007/sample-3",
+      "rationales": {
+        "authenticity": "Adequate Hiberno-English but no particularly evocative local detail beyond the denial.",
+        "brevity": "2 sentences, zero question marks — good economy.",
+        "character": "Publican's blunt, grounded denial fits Padraig's voice well.",
+        "craft": "Two sentences; 'old tanner's shed that's stood empty' is a reasonable redirect but invents an unattested location.",
+        "grounding": "Correctly denies Festus and the cooper's shop, but the 'tanner's shed' is an invented place not on the parish list; it hedges without confirming the presupposed place, earning a middle score.",
+        "language": "Clean en-IE.",
+        "mood_fidelity": "Even, unhurried — fits calm mood.",
+        "repetition": "No recycled phrasing.",
+        "responsiveness": "Denies both person and location promptly."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 4,
+        "brevity": 5,
+        "character": 4,
+        "craft": 4,
+        "grounding": 5,
+        "language": 5,
+        "mood_fidelity": 4,
+        "repetition": 5,
+        "responsiveness": 5
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 4.6,
+      "prompt_id": "dialogue-0008/sample-1",
+      "rationales": {
+        "authenticity": "'Keeps to his books in Dublin', 'when the mails allow' — period-specific detail that grounds the character without contrivance.",
+        "brevity": "3 sentences, zero question marks — lean and disciplined.",
+        "character": "The lonely Protestant clerk — mother dead, father distant in Dublin — is rendered with precision and restraint.",
+        "craft": "Three compact sentences; 'I visit when the mails allow' is a quietly evocative closing detail rather than a formula.",
+        "grounding": "No fabrication probe; 'Kilteevan churchyard' references a named parish location.",
+        "language": "Clean en-IE throughout.",
+        "mood_fidelity": "Calm and measured — the reply is emotionally contained, fitting the mood perfectly.",
+        "repetition": "No repeated phrases.",
+        "responsiveness": "Answers the family question directly and fully in two sentences."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 3,
+        "brevity": 4,
+        "character": 3,
+        "craft": 3,
+        "grounding": 5,
+        "language": 5,
+        "mood_fidelity": 3,
+        "repetition": 5,
+        "responsiveness": 4
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 3.9,
+      "prompt_id": "dialogue-0008/sample-2",
+      "rationales": {
+        "authenticity": "Register is educated but flat; no distinctive Hiberno-English texture or period idiom.",
+        "brevity": "3 sentences with 1 question — within limits but at the upper bound.",
+        "character": "The isolation is present but 'my brother died of the fever when we were boys' feels like a melodramatic addition rather than Martin's careful, analytical voice.",
+        "craft": "Three sentences plus a question; functional but no evocative detail.",
+        "grounding": "No fabrication probe; invented backstory is personal history, not a parish person or place.",
+        "language": "Clean en-IE.",
+        "mood_fidelity": "Even tone but 'Do you seek someone in particular?' slightly redirects rather than expressing Martin's settled, resigned manner.",
+        "repetition": "No repeated phrases.",
+        "responsiveness": "Answers the question but the pivot to 'Do you seek someone in particular?' is slightly evasive rather than directly informative."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 3,
+        "brevity": 5,
+        "character": 4,
+        "craft": 3,
+        "grounding": 5,
+        "language": 5,
+        "mood_fidelity": 3,
+        "repetition": 5,
+        "responsiveness": 4
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 4.2,
+      "prompt_id": "dialogue-0008/sample-3",
+      "rationales": {
+        "authenticity": "Athlone as a location is plausible and period-appropriate; 'that's all the family I have to speak of' is natural but not particularly textured.",
+        "brevity": "2 sentences, 1 question mark — lean.",
+        "character": "Brevity and the pivot to 'What of yours?' fit Martin's guarded, deflecting manner well.",
+        "craft": "Two sentences; economy is good but the closing question is conventional.",
+        "grounding": "No fabrication probe; Athlone is outside the parish and not claimed as a parish location.",
+        "language": "Clean en-IE; 'mo chara' is the ga-IE sprinkle.",
+        "mood_fidelity": "Even and unhurried; neither warm nor contradicting the calm mood.",
+        "repetition": "No repeated phrases.",
+        "responsiveness": "Answers the family question but somewhat sparely; turning it back on the player is a deflection rather than a full answer."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 3,
+        "brevity": 4,
+        "character": 3,
+        "craft": 3,
+        "grounding": 3,
+        "language": 5,
+        "mood_fidelity": 3,
+        "repetition": 5,
+        "responsiveness": 5
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 3.7,
+      "prompt_id": "dialogue-0019/sample-1",
+      "rationales": {
+        "authenticity": "'Ye the lane', 'near always about the yard this hour' are period-adequate but not textured.",
+        "brevity": "2 sentences with no question mark — good, but slightly long at ~30 words.",
+        "character": "Functional miller voice — practical and direct — but no characteristic Cormac trait (shrewdness, a proverb) surfaces.",
+        "craft": "Two sentences; ends on a stated habit of Tommy's rather than a concrete observation rooted in Cormac's own character.",
+        "grounding": "O'Brien's Farm is on the list, which is correct, but 'near always about the yard this hour' invents Tommy's current whereabouts beyond what is established — the rubric says not to confirm whereabouts not in known facts.",
+        "language": "Clean en-IE.",
+        "mood_fidelity": "Even enough but 'near always about the yard this hour' is a small characterization that oversteps the calm, sparse register.",
+        "repetition": "No repeated phrases.",
+        "responsiveness": "Directs the player to O'Brien's Farm clearly."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 3,
+        "brevity": 5,
+        "character": 3,
+        "craft": 3,
+        "grounding": 3,
+        "language": 5,
+        "mood_fidelity": 3,
+        "repetition": 5,
+        "responsiveness": 5
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 3.8,
+      "prompt_id": "dialogue-0019/sample-2",
+      "rationales": {
+        "authenticity": "'Ye'll find him there of an afternoon' is period-adequate but no more.",
+        "brevity": "1 sentence, zero question marks — ideal economy.",
+        "character": "Plain and direct — fits a miller but shows nothing of Cormac's shrewdness or proverb-quoting.",
+        "craft": "One clean sentence with a landmark reference — economical and useful.",
+        "grounding": "Lime Kiln is on the places list (good), but 'ye'll find him there of an afternoon' asserts Tommy's whereabouts without established basis — mild grounding issue.",
+        "language": "Clean en-IE.",
+        "mood_fidelity": "Unhurried and even; fits calm mood.",
+        "repetition": "No repeated phrases.",
+        "responsiveness": "Directs clearly to the lime kiln landmark and Tommy's farm."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 3,
+        "brevity": 4,
+        "character": 3,
+        "craft": 3,
+        "grounding": 3,
+        "language": 5,
+        "mood_fidelity": 3,
+        "repetition": 5,
+        "responsiveness": 5
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 3.7,
+      "prompt_id": "dialogue-0019/sample-3",
+      "rationales": {
+        "authenticity": "Period-adequate but 'on the hill' and 'He'll talk your ear off' are generic rather than rooted.",
+        "brevity": "2 sentences, zero question marks — acceptable length.",
+        "character": "Miller's voice is flat here; 'He'll talk your ear off about the old days' characterizes Tommy beyond any authored fact.",
+        "craft": "Two sentences; the second invents Tommy's talkative personality, which is not in the known facts.",
+        "grounding": "The Fairy Fort is on the list (fine), but 'on the hill' and Tommy's invented personality both add unattested details about a real parish person.",
+        "language": "Clean en-IE.",
+        "mood_fidelity": "Even enough, but the closing characterization of Tommy is a slight overreach for a calm, minimal register.",
+        "repetition": "No repeated phrases.",
+        "responsiveness": "Directs to The Fairy Fort landmark and Tommy's place — responsive."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 4,
+        "brevity": 5,
+        "character": 4,
+        "craft": 3,
+        "grounding": 5,
+        "language": 5,
+        "mood_fidelity": 3,
+        "repetition": 5,
+        "responsiveness": 4
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 4.3,
+      "prompt_id": "dialogue-0061/sample-1",
+      "rationales": {
+        "authenticity": "'Middlin' enough', 'bring it along proper', 'Me da' — natural Hiberno-English texture with no anachronisms.",
+        "brevity": "2 sentences, zero question marks — lean.",
+        "character": "'Me da says' and 'middlin' enough' feel genuinely like a 15-year-old apprentice; the parish-errand context makes agricultural observation credible.",
+        "craft": "Two sentences; ends on a practical concern relayed from his father rather than Colm's own character detail.",
+        "grounding": "Murphy's place is on the list; no fabrication probe, no invented persons or places.",
+        "language": "Clean en-IE.",
+        "mood_fidelity": "Even enough, though 'the wheat's a bit short' has a slightly speculative engagement inconsistent with purely calm delivery.",
+        "repetition": "No repeated phrases.",
+        "responsiveness": "Gives a concrete agricultural observation, though a blacksmith's apprentice opining on wheat is slightly outside his lane."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 3,
+        "brevity": 5,
+        "character": 4,
+        "craft": 3,
+        "grounding": 5,
+        "language": 5,
+        "mood_fidelity": 3,
+        "repetition": 5,
+        "responsiveness": 5
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 4.3,
+      "prompt_id": "dialogue-0061/sample-2",
+      "rationales": {
+        "authenticity": "Period-appropriate but flat; no distinctive Hiberno-English idiom beyond the observation.",
+        "brevity": "1 sentence, zero question marks — excellent economy.",
+        "character": "The 'none can tell' humility is appropriately youthful and honest for a boy who isn't a farmer.",
+        "craft": "One well-constructed sentence with a logical concession; functional but not evocative.",
+        "grounding": "No fabrication probe; no invented persons or places.",
+        "language": "Clean en-IE.",
+        "mood_fidelity": "Calm and measured.",
+        "repetition": "No repeated phrases.",
+        "responsiveness": "Answers directly — observes the current state and hedges honestly about the future."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 4,
+        "brevity": 4,
+        "character": 4,
+        "craft": 4,
+        "grounding": 5,
+        "language": 5,
+        "mood_fidelity": 4,
+        "repetition": 5,
+        "responsiveness": 5
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 4.4,
+      "prompt_id": "dialogue-0061/sample-3",
+      "rationales": {
+        "authenticity": "'Stout enough', 'watching the moon for a wet spell' — folk observation embedded naturally in Hiberno-English.",
+        "brevity": "3 sentences, zero question marks — at the upper bound but no padding.",
+        "character": "'The earth feels right under my boots' is exactly what an errand-running lad with concrete thinking would notice.",
+        "craft": "Three sentences; the moon-watching detail and the boots image elevate this above the baseline.",
+        "grounding": "No fabrication probe; no invented persons or places.",
+        "language": "Clean en-IE.",
+        "mood_fidelity": "Calm and unhurried — the reply is observational rather than excitable, fitting the mood override.",
+        "repetition": "No repeated phrases.",
+        "responsiveness": "Answers with a firsthand observation of the fields and a plausible weather commentary."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 3,
+        "brevity": 5,
+        "character": 4,
+        "craft": 3,
+        "grounding": 5,
+        "language": 5,
+        "mood_fidelity": 3,
+        "repetition": 5,
+        "responsiveness": 5
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 4.3,
+      "prompt_id": "dialogue-0153/sample-1",
+      "rationales": {
+        "authenticity": "Adequate period register but no distinctive weaver's idiom or Una's storyteller voice.",
+        "brevity": "1 sentence, zero question marks — good economy, appropriate for late night.",
+        "character": "Una's quiet, grounded manner comes through; 'friend' and the calm denial fit the weaver's character.",
+        "craft": "One sentence; functional but the redirect 'ye might be thinking of another place' is slightly generic.",
+        "grounding": "Both the invented person and the implied location are declined clearly; no fabrication.",
+        "language": "Clean en-IE.",
+        "mood_fidelity": "Calm and hushed — appropriate for the 03:40 setting.",
+        "repetition": "No repeated phrases.",
+        "responsiveness": "Denies the cooper and location directly in the first clause, with a polite redirect."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 3,
+        "brevity": 5,
+        "character": 4,
+        "craft": 3,
+        "grounding": 5,
+        "language": 5,
+        "mood_fidelity": 3,
+        "repetition": 5,
+        "responsiveness": 5
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 4.3,
+      "prompt_id": "dialogue-0153/sample-2",
+      "rationales": {
+        "authenticity": "'Hereabouts' and 'in these parts' are period-adequate; no distinctive Una voice beyond the bare denial.",
+        "brevity": "1 sentence, zero question marks — ideal for the midnight context.",
+        "character": "Clean, minimal denial fits Una's quiet manner at nearly four in the morning.",
+        "craft": "One lean sentence — economical but leaves no evocative observation in its wake.",
+        "grounding": "Correctly declines both invented person and implied location.",
+        "language": "Clean en-IE.",
+        "mood_fidelity": "Calm and hushed — fits the late-night setting and mood.",
+        "repetition": "No repeated phrases.",
+        "responsiveness": "Both the person and the shop location are denied promptly."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 3,
+        "brevity": 5,
+        "character": 4,
+        "craft": 3,
+        "grounding": 5,
+        "language": 5,
+        "mood_fidelity": 3,
+        "repetition": 5,
+        "responsiveness": 5
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 4.3,
+      "prompt_id": "dialogue-0153/sample-3",
+      "rationales": {
+        "authenticity": "Same as sample-2 — period-adequate, no distinctive voice.",
+        "brevity": "1 sentence, zero question marks.",
+        "character": "Identical to sample-2; the denial is appropriately quiet but produces no additional characterization of Una.",
+        "craft": "One sentence; note this reply is verbatim identical to sample-2, which suggests the model produced the same output twice for this prompt.",
+        "grounding": "Correctly declines invented person and implied location.",
+        "language": "Clean en-IE.",
+        "mood_fidelity": "Calm and hushed — fits the setting.",
+        "repetition": "No internal repetition within the reply.",
+        "responsiveness": "Both invented elements denied directly."
+      }
+    }
+  ],
+  "judge": {
+    "cost_usd": 0.585327,
+    "family": "anthropic",
+    "id": "anthropic-sonnet-low",
+    "model": "anthropic/claude-sonnet-4.6",
+    "provider": "openrouter",
+    "reasoning_effort": "low",
+    "request_id": "gen-1786243225-0sKswuJ7xjrsCQCjdp90",
+    "routed_model": "anthropic/claude-sonnet-4.6",
+    "routed_provider": "Anthropic",
+    "rubric_sha256": "9adab2cd1b38fe75f978e386239b50fbb12b5ba34c5ba5874ae396a3b46b7bf4",
+    "usage": {
+      "completion_tokens": 18107,
+      "completion_tokens_details": {
+        "audio_tokens": 0,
+        "image_tokens": 0,
+        "reasoning_tokens": 3227
+      },
+      "cost": 0.585327,
+      "cost_details": {
+        "upstream_inference_completions_cost": 0.271605,
+        "upstream_inference_cost": 0.585327,
+        "upstream_inference_prompt_cost": 0.313722
+      },
+      "is_byok": false,
+      "prompt_tokens": 104574,
+      "prompt_tokens_details": {
+        "audio_tokens": 0,
+        "cache_write_tokens": 0,
+        "cached_tokens": 0,
+        "video_tokens": 0
+      },
+      "total_tokens": 122681
+    }
+  },
+  "quality": {
+    "axes": {
+      "authenticity": 3.2778,
+      "brevity": 4.6667,
+      "character": 3.7222,
+      "craft": 3.1667,
+      "grounding": 4.3333,
+      "language": 5.0,
+      "mood_fidelity": 3.2778,
+      "repetition": 5.0,
+      "responsiveness": 4.7778
+    },
+    "hard_failures": {
+      "degenerate_loop": 0,
+      "fabricated": 1,
+      "non_latin_detected": 0,
+      "refused": 0,
+      "unusable_output": 0
+    },
+    "overall": 4.1436,
+    "pass": false,
+    "thresholds": {
+      "critical_axes": [
+        "grounding",
+        "repetition",
+        "mood_fidelity",
+        "brevity",
+        "responsiveness"
+      ],
+      "minimum_critical_axis": 3.0,
+      "minimum_overall": 3.5
+    }
+  },
+  "sample": {
+    "items": 18,
+    "judge_input": "full production system prompt plus dynamic user prompt",
+    "judged_items": 18,
+    "samples_per_prompt": 3,
+    "unique_prompts": 6,
+    "unusable_outputs": 0
+  },
+  "source": {
+    "bundle": "docs/proofs/cloud-dialogue-qualification/runs/2026-07-27/kimi-k2-0905-nitro-judgment-anthropic-sonnet-low-446cb4bef4c71d19.bundle.json",
+    "bundle_sha256": "446cb4bef4c71d193af9ba804b435ec04a2d13753b0308820e0736e29a632c34",
+    "raw": "docs/proofs/cloud-dialogue-qualification/runs/2026-07-27/kimi-k2-0905-nitro-judgment-anthropic-sonnet-low-446cb4bef4c71d19.attempt-1.raw.json",
+    "raw_sha256": "8022349d72468ec3bb74f25a2f2c997b848967f76cfe8b9bbe8fe330229799e7"
+  },
+  "version": 1
+}
