@@ -27,9 +27,7 @@ def registered_profiles() -> list[tuple[str, str]]:
 
 def validate() -> list[str]:
     errors: list[str] = []
-    manifest_merkle = json.loads(MANIFEST.read_text(encoding="utf-8"))[
-        "merkle_root_sha256"
-    ]
+    manifest_merkle = json.loads(MANIFEST.read_text(encoding="utf-8"))["merkle_root_sha256"]
     profiles = registered_profiles()
     receipts = list(QUALIFIED.glob("*/promotion.json")) if QUALIFIED.exists() else []
 
@@ -47,8 +45,7 @@ def validate() -> list[str]:
         matches = [
             receipt
             for receipt in receipt_by_model.get(model, [])
-            if receipt.get("passed") is True
-            and receipt.get("dataset_merkle") == manifest_merkle
+            if receipt.get("passed") is True and receipt.get("dataset_merkle") == manifest_merkle
         ]
         if not matches:
             errors.append(

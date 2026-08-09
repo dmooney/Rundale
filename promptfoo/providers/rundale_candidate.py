@@ -96,8 +96,6 @@ def call_api(prompt, options, context):
             "tokens_per_second": gen["tokens_per_second"],
             "schema_valid": gen["schema_valid"],
             "request_profile": request_profile,
-            "perf_cache_state": (context or {})
-            .get("vars", {})
-            .get("perf_cache_state"),
+            "perf_cache_state": (context or {}).get("vars", {}).get("perf_cache_state"),
         },
     }

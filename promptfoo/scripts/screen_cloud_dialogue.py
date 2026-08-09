@@ -33,7 +33,7 @@ def write_once(path: Path, content: bytes) -> None:
             handle.write(content)
     except FileExistsError:
         if path.read_bytes() != content:
-            raise RuntimeError(f"immutable artifact collision: {path}")
+            raise RuntimeError(f"immutable artifact collision: {path}") from None
 
 
 def wait_for_health(port: int, process: subprocess.Popen, timeout: float = 90.0) -> None:
@@ -76,7 +76,9 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--provider", default="openrouter")
     parser.add_argument("--base-url", default="https://openrouter.ai/api/v1")
     parser.add_argument("--model", required=True)
-    parser.add_argument("--reasoning-effort", choices=("minimal", "low", "medium", "high", "xhigh", "max"))
+    parser.add_argument(
+        "--reasoning-effort", choices=("minimal", "low", "medium", "high", "xhigh", "max")
+    )
     parser.add_argument("--max-tokens", type=int, default=4096)
     parser.add_argument("--port", type=int, default=3041)
     parser.add_argument("--tested-on", default=date.today().isoformat())
@@ -97,31 +99,42 @@ def main(argv: list[str] | None = None) -> int:
         output_dir.mkdir(parents=True, exist_ok=True)
 
         env = os.environ.copy()
-        env.update({
-            "PARISH_PROVIDER": args.provider,
-            "PARISH_BASE_URL": args.base_url,
-            "PARISH_MODEL": args.model,
-            "PARISH_DIALOGUE_PROVIDER": args.provider,
-            "PARISH_DIALOGUE_BASE_URL": args.base_url,
-            "PARISH_DIALOGUE_MODEL": args.model,
-            "PARISH_INTENT_PROVIDER": "simulator",
-            "PARISH_SIMULATION_PROVIDER": "simulator",
-            "PARISH_REACTION_PROVIDER": "simulator",
-            "PARISH_ENGINE_CONFIG": str(config),
-            "PARISH_USER_CONFIG_DIR": str(tmp / "user-config"),
-            "PARISH_USER_DATA_DIR": str(tmp / "user-data"),
-            "PARISH_SAVES_DIR": str(tmp / "saves"),
-            "PARISH_TILE_CACHE_DIR": str(tmp / "tiles"),
-        })
+        env.update(
+            {
+                "PARISH_PROVIDER": args.provider,
+                "PARISH_BASE_URL": args.base_url,
+                "PARISH_MODEL": args.model,
+                "PARISH_DIALOGUE_PROVIDER": args.provider,
+                "PARISH_DIALOGUE_BASE_URL": args.base_url,
+                "PARISH_DIALOGUE_MODEL": args.model,
+                "PARISH_INTENT_PROVIDER": "simulator",
+                "PARISH_SIMULATION_PROVIDER": "simulator",
+                "PARISH_REACTION_PROVIDER": "simulator",
+                "PARISH_ENGINE_CONFIG": str(config),
+                "PARISH_USER_CONFIG_DIR": str(tmp / "user-config"),
+                "PARISH_USER_DATA_DIR": str(tmp / "user-data"),
+                "PARISH_SAVES_DIR": str(tmp / "saves"),
+                "PARISH_TILE_CACHE_DIR": str(tmp / "tiles"),
+            }
+        )
         log_path = output_dir / "parish-server.log"
         with log_path.open("ab") as log:
             server = subprocess.Popen(
                 [
-                    "cargo", "run", "--quiet", "-p", "parish-server", "--",
-                    "--port", str(args.port),
-                    "--data-dir", str(REPO / "mods" / "rundale"),
-                    "--static-dir", str(REPO / "parish" / "apps" / "ui" / "dist"),
-                    "--engine-config", str(config),
+                    "cargo",
+                    "run",
+                    "--quiet",
+                    "-p",
+                    "parish-server",
+                    "--",
+                    "--port",
+                    str(args.port),
+                    "--data-dir",
+                    str(REPO / "mods" / "rundale"),
+                    "--static-dir",
+                    str(REPO / "parish" / "apps" / "ui" / "dist"),
+                    "--engine-config",
+                    str(config),
                 ],
                 cwd=REPO / "parish",
                 env=env,
@@ -133,12 +146,18 @@ def main(argv: list[str] | None = None) -> int:
                 wait_for_health(args.port, server)
                 subprocess.run(
                     [
-                        sys.executable, str(PF / "scripts" / "soak_dialogue.py"),
-                        "--candidate", args.candidate,
-                        "--output", str(preflight),
-                        "--calls", "12",
-                        "--base-url", f"http://127.0.0.1:{args.port}",
-                        "--timeout-seconds", "300",
+                        sys.executable,
+                        str(PF / "scripts" / "soak_dialogue.py"),
+                        "--candidate",
+                        args.candidate,
+                        "--output",
+                        str(preflight),
+                        "--calls",
+                        "12",
+                        "--base-url",
+                        f"http://127.0.0.1:{args.port}",
+                        "--timeout-seconds",
+                        "300",
                     ],
                     cwd=REPO,
                     env=env,
@@ -156,9 +175,16 @@ def main(argv: list[str] | None = None) -> int:
         preflight_data = json.loads(preflight.read_text(encoding="utf-8"))
         calls = preflight_data["reliability_soak"]
         guards = preflight_data["guard_observation"]
-        if calls["valid_responses"] != calls["calls"] or guards["interventions"] / guards["turns"] > 0.10:
+        if (
+            calls["valid_responses"] != calls["calls"]
+            or guards["interventions"] / guards["turns"] > 0.10
+        ):
             print(f"[cloud-profile] {args.slug}: preflight rejected; performance skipped")
-            subprocess.run([sys.executable, str(PF / "scripts" / "qualification_dashboard.py")], cwd=REPO, check=True)
+            subprocess.run(
+                [sys.executable, str(PF / "scripts" / "qualification_dashboard.py")],
+                cwd=REPO,
+                check=True,
+            )
             return 2
 
         perf_env = env | {
@@ -179,7 +205,11 @@ def main(argv: list[str] | None = None) -> int:
         html = output_dir / "perf.html"
         if html.is_file():
             write_once(date_dir / f"{args.slug}-perf.html", html.read_bytes())
-        subprocess.run([sys.executable, str(PF / "scripts" / "qualification_dashboard.py")], cwd=REPO, check=True)
+        subprocess.run(
+            [sys.executable, str(PF / "scripts" / "qualification_dashboard.py")],
+            cwd=REPO,
+            check=True,
+        )
         print(f"[cloud-profile] {args.slug}: preflight and performance complete")
     return 0
 

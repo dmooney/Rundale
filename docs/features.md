@@ -323,7 +323,7 @@ Categories are `dialogue`, `simulation`, `intent`, or `reaction`.
 | **Simulator**     | Offline (default) | Generates nonsense locally, no network or model download                                                                              |
 | **Ollama**        | Local             | Auto-start, auto-install, GPU detection, automatic model selection by VRAM                                                            |
 | **LM Studio**     | Local             |                                                                                                                                       |
-| **vLLM**          | Local             | vllm-mlx on Apple Silicon; current bundled dialogue profiles are experimental, not production-qualified                              |
+| **vLLM**          | Local             | vllm-mlx on Apple Silicon; current bundled dialogue profiles are experimental, not production-qualified                               |
 | **OpenRouter**    | Cloud             |                                                                                                                                       |
 | **OpenAI**        | Cloud             |                                                                                                                                       |
 | **Anthropic**     | Cloud             | Native `/v1/messages` API — not the OpenAI-compatibility shim                                                                         |

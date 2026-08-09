@@ -28,9 +28,7 @@ def _sha256(path: Path) -> str:
 
 
 def _manifest_merkle() -> str:
-    return str(
-        _read_object(rb.V2_DIR / "MANIFEST.json")["merkle_root_sha256"]
-    )
+    return str(_read_object(rb.V2_DIR / "MANIFEST.json")["merkle_root_sha256"])
 
 
 def _platform_id(host: dict[str, Any]) -> tuple[str, str]:
@@ -51,11 +49,7 @@ def _validate_turns_artifact(soak_path: Path, soak: dict[str, Any]) -> Path:
     turns_path = (soak_path.parent / str(artifact.get("path", ""))).resolve()
     if _sha256(turns_path) != artifact.get("sha256"):
         raise ValueError("soak turns artifact hash does not match its receipt")
-    records = sum(
-        1
-        for line in turns_path.read_text(encoding="utf-8").splitlines()
-        if line.strip()
-    )
+    records = sum(1 for line in turns_path.read_text(encoding="utf-8").splitlines() if line.strip())
     if records != int(artifact.get("records", -1)):
         raise ValueError("soak turns artifact record count does not match its receipt")
     return turns_path
@@ -88,17 +82,13 @@ def build(args: argparse.Namespace) -> dict[str, Any]:
         if isinstance(row, dict) and row.get("hf_repo") == target.model
     ]
     if not rows:
-        raise ValueError(
-            f"local runner artifact has no measurements for {target.model!r}"
-        )
+        raise ValueError(f"local runner artifact has no measurements for {target.model!r}")
     peak_memory = max(float(row.get("peak_ram_gb", 0.0)) for row in rows)
     host = runner.get("host")
     if not isinstance(host, dict):
         raise ValueError("local runner artifact is missing host metadata")
     platform_id, memory_kind = _platform_id(host)
-    if platform_id != profile.get("platform") or memory_kind != profile.get(
-        "memory_kind"
-    ):
+    if platform_id != profile.get("platform") or memory_kind != profile.get("memory_kind"):
         raise ValueError("local runner host does not match requested hardware profile")
 
     evidence = {

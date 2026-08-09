@@ -169,7 +169,5 @@ def generate_perf_tests(*_args, **_kwargs):
     tests.append(_row(warmup, warmup=True))
     for repetition in range(repeat):
         for rec in selected:
-            tests.append(
-                _row(rec, cache_state="cold" if repetition == 0 else "warm")
-            )
+            tests.append(_row(rec, cache_state="cold" if repetition == 0 else "warm"))
     return tests

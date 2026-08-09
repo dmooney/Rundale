@@ -5,7 +5,7 @@
     "minimum_valid_response_rate": 1.0
   },
   "guards": {
-    "maximum_intervention_rate": 0.10
+    "maximum_intervention_rate": 0.1
   },
   "performance": {
     "minimum_measurements": 15,

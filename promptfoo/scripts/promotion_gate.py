@@ -26,8 +26,8 @@ from pathlib import Path
 from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-import rb_common as rb  # noqa: E402
 import leaderboard as lb  # noqa: E402
+import rb_common as rb  # noqa: E402
 import report as rpt  # noqa: E402
 
 DEFAULT_CONFIG = rb.CONFIG_DIR / "dialogue_promotion.json"
@@ -63,11 +63,7 @@ def _candidate_rows(out_dir: Path, slice_name: str, candidate: str) -> list[dict
     path = out_dir / f"{slice_name}.json"
     if not path.exists():
         return []
-    return [
-        row
-        for row in rpt._results(_read_json(path))
-        if rpt._candidate(row) == candidate
-    ]
+    return [row for row in rpt._results(_read_json(path)) if rpt._candidate(row) == candidate]
 
 
 def _scoreable(row: dict, axes: list[str]) -> bool:
@@ -86,10 +82,7 @@ def _split_is(row: dict, required: str) -> bool:
 
 
 def _hard_failure_counts(rows: list[dict], signals: list[str]) -> dict[str, int]:
-    return {
-        signal: sum(1 for row in rows if rpt._named(row).get(signal))
-        for signal in signals
-    }
+    return {signal: sum(1 for row in rows if rpt._named(row).get(signal)) for signal in signals}
 
 
 def _mean(values: list[float]) -> float:
@@ -108,9 +101,7 @@ def _validate_provenance(evidence: dict[str, Any], evidence_path: Path) -> None:
     resolved: dict[str, Path] = {}
     for source_name in ("soak_receipt", "soak_turns", "local_runner_artifact"):
         source = provenance.get(source_name)
-        if not isinstance(source, dict) or not source.get("path") or not source.get(
-            "sha256"
-        ):
+        if not isinstance(source, dict) or not source.get("path") or not source.get("sha256"):
             raise EvidenceError(f"evidence.provenance.{source_name} is incomplete")
         path = (evidence_path.parent / source["path"]).resolve()
         try:
@@ -137,8 +128,7 @@ def _validate_provenance(evidence: dict[str, Any], evidence_path: Path) -> None:
         "valid_responses": sum(
             1
             for row in rows
-            if int(row.get("turns", 0)) == 1
-            and int(row.get("contract_valid", 0)) == 1
+            if int(row.get("turns", 0)) == 1 and int(row.get("contract_valid", 0)) == 1
         ),
     }
     recomputed_guards = {
@@ -154,9 +144,9 @@ def _validate_provenance(evidence: dict[str, Any], evidence_path: Path) -> None:
         for row in rows
         for profile in row.get("request_profiles", [])
     }
-    if len(request_profiles) != 1 or json.loads(
-        next(iter(request_profiles), "{}")
-    ) != evidence.get("request_profile"):
+    if len(request_profiles) != 1 or json.loads(next(iter(request_profiles), "{}")) != evidence.get(
+        "request_profile"
+    ):
         raise EvidenceError("request_profile does not match raw soak turns")
 
     runner = _read_json(resolved["local_runner_artifact"])
@@ -257,7 +247,9 @@ def evaluate(
             _split_is(row, required_split)
             and _scoreable(row, dialogue_axes)
             and float(named["overall"]) >= ready_cfg["minimum_overall"]
-            and all(float(named[axis]) >= ready_cfg["minimum_critical_axis"] for axis in critical_axes)
+            and all(
+                float(named[axis]) >= ready_cfg["minimum_critical_axis"] for axis in critical_axes
+            )
             and not any(named.get(signal) for signal in config["hard_failures"]["signals"])
         ):
             ready += 1
@@ -284,10 +276,7 @@ def evaluate(
         sum(rpt._meta(row).get("request_profile") == request_profile for row in dialogue_rows),
         f"all {ready_total} rows match the live soak request profile",
         ready_total > 0
-        and all(
-            rpt._meta(row).get("request_profile") == request_profile
-            for row in dialogue_rows
-        ),
+        and all(rpt._meta(row).get("request_profile") == request_profile for row in dialogue_rows),
     )
     _check(
         checks,
@@ -383,22 +372,16 @@ def evaluate(
     perf = rpt.aggregate_perf(perf_rows)
     perf_cfg = config["performance"]
     measured_perf_rows = [
-        row
-        for row in perf_rows
-        if not bool((row.get("vars") or {}).get("perf_warmup"))
+        row for row in perf_rows if not bool((row.get("vars") or {}).get("perf_warmup"))
     ]
     _check(
         checks,
         "performance.request_profile",
-        sum(
-            rpt._meta(row).get("request_profile") == request_profile
-            for row in measured_perf_rows
-        ),
+        sum(rpt._meta(row).get("request_profile") == request_profile for row in measured_perf_rows),
         f"all {len(measured_perf_rows)} measured rows match the live soak request profile",
         bool(measured_perf_rows)
         and all(
-            rpt._meta(row).get("request_profile") == request_profile
-            for row in measured_perf_rows
+            rpt._meta(row).get("request_profile") == request_profile for row in measured_perf_rows
         ),
     )
     _check(
@@ -524,13 +507,8 @@ def evaluate(
         checks,
         "hardware.registered_memory_range",
         total_memory,
-        (
-            f"{profile['minimum_total_memory_gb']}.."
-            f"{profile['maximum_total_memory_gb']} GiB"
-        ),
-        profile["minimum_total_memory_gb"]
-        <= total_memory
-        <= profile["maximum_total_memory_gb"],
+        (f"{profile['minimum_total_memory_gb']}..{profile['maximum_total_memory_gb']} GiB"),
+        profile["minimum_total_memory_gb"] <= total_memory <= profile["maximum_total_memory_gb"],
     )
     _check(
         checks,
@@ -548,9 +526,7 @@ def evaluate(
         "hardware_profile_id": evidence["hardware_profile_id"],
         "request_profile": request_profile,
         "dataset_merkle": manifest_merkle,
-        "promotion_policy_sha256": _canonical_digest(
-            {"config": config, "profiles": profiles}
-        ),
+        "promotion_policy_sha256": _canonical_digest({"config": config, "profiles": profiles}),
         "passed": all(check["passed"] for check in checks),
         "metrics": {
             "player_ready": {

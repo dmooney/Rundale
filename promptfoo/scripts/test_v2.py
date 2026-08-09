@@ -43,8 +43,7 @@ rb.eval_lib._apply_reasoning_request(
 )
 check(
     "direct DeepSeek uses native high reasoning fields",
-    _deepseek_body
-    == {"thinking": {"type": "enabled"}, "reasoning_effort": "high"},
+    _deepseek_body == {"thinking": {"type": "enabled"}, "reasoning_effort": "high"},
 )
 _deepseek_max_body: dict = {}
 rb.eval_lib._apply_reasoning_request(
@@ -55,8 +54,7 @@ rb.eval_lib._apply_reasoning_request(
 )
 check(
     "direct DeepSeek preserves native max reasoning",
-    _deepseek_max_body
-    == {"thinking": {"type": "enabled"}, "reasoning_effort": "max"},
+    _deepseek_max_body == {"thinking": {"type": "enabled"}, "reasoning_effort": "max"},
 )
 _google_body: dict = {"temperature": 0.7, "frequency_penalty": 0.5}
 _google_target = rb.Target(
@@ -110,19 +108,9 @@ for _perf_split in ("dev", "holdout"):
         f"perf loader/{_perf_split} has one warmup + fixed panel",
         len(_perf_tests) == 19
         and _perf_tests[0]["vars"]["perf_warmup"] is True
-        and all(
-            row["vars"]["perf_warmup"] is False for row in _perf_tests[1:]
-        )
-        and sum(
-            row["vars"]["perf_cache_state"] == "cold"
-            for row in _perf_tests[1:]
-        )
-        == 6
-        and sum(
-            row["vars"]["perf_cache_state"] == "warm"
-            for row in _perf_tests[1:]
-        )
-        == 12,
+        and all(row["vars"]["perf_warmup"] is False for row in _perf_tests[1:])
+        and sum(row["vars"]["perf_cache_state"] == "cold" for row in _perf_tests[1:]) == 6
+        and sum(row["vars"]["perf_cache_state"] == "warm" for row in _perf_tests[1:]) == 12,
     )
     _perf_ids = [row["vars"]["rb_id"] for row in _perf_tests]
     check(
@@ -506,7 +494,13 @@ check(
 )
 rubric_judge.get_assert(
     "Aye.",
-    {"vars": {"record": json.dumps({"id": "d2", "system": "PEOPLE YOU KNOW: Roisin", "user": "Do ye know Roisin?"})}},
+    {
+        "vars": {
+            "record": json.dumps(
+                {"id": "d2", "system": "PEOPLE YOU KNOW: Roisin", "user": "Do ye know Roisin?"}
+            )
+        }
+    },
 )
 _judge_prompt = json.loads(judge_seen["user"])["items"][0]["prompt"]
 check(
@@ -816,8 +810,8 @@ check(
 )
 
 # --- production local-dialogue promotion gate -------------------------------
-import promotion_gate as pg  # noqa: E402
 import check_local_dialogue_qualification as qualification  # noqa: E402
+import promotion_gate as pg  # noqa: E402
 
 check(
     "qualification registry has receipts for every production claim",
@@ -927,8 +921,7 @@ _promotion_bad = pg.evaluate(
 )
 check(
     "promotion: one fabrication hard-fails an otherwise strong profile",
-    not _promotion_bad["passed"]
-    and _promotion_bad["metrics"]["hard_failures"]["fabricated"] == 1,
+    not _promotion_bad["passed"] and _promotion_bad["metrics"]["hard_failures"]["fabricated"] == 1,
 )
 
 try:
@@ -1103,9 +1096,7 @@ check(
 check(
     "corpus: multiturn holdout scripts and player names are unseen in dev",
     {tuple(r["turns"]) for r in _mt_dev}.isdisjoint({tuple(r["turns"]) for r in _mt_hold})
-    and {r["player_name"] for r in _mt_dev}.isdisjoint(
-        {r["player_name"] for r in _mt_hold}
-    ),
+    and {r["player_name"] for r in _mt_dev}.isdisjoint({r["player_name"] for r in _mt_hold}),
 )
 
 _capture_order_a = [
@@ -1173,16 +1164,14 @@ check(
 )
 check(
     "soak: the fixed question cycle ends in a farewell",
-    soak.DEFAULT_TURNS_PER_LOCATION == len(soak.QUESTIONS)
+    len(soak.QUESTIONS) == soak.DEFAULT_TURNS_PER_LOCATION
     and soak.QUESTIONS[-1].startswith("Thank you"),
 )
 check(
     "soak: closed conversations are reacquired outside the reliability denominator",
     not soak._reached_dialogue_inference({})
     and not soak._reached_dialogue_inference({"request_profiles": []})
-    and soak._reached_dialogue_inference(
-        {"request_profiles": [{"model": "candidate"}]}
-    ),
+    and soak._reached_dialogue_inference({"request_profiles": [{"model": "candidate"}]}),
 )
 
 # --- cloud-dialogue qualification dashboard -------------------------------
@@ -1202,23 +1191,23 @@ check(
 )
 check(
     "qualification dashboard exposes evidence hashes for every run",
-    all(
-        len(row["preflight"]["artifact"]["sha256"]) == 64
-        for row in _qualification_feed["runs"]
-    ),
+    all(len(row["preflight"]["artifact"]["sha256"]) == 64 for row in _qualification_feed["runs"]),
 )
 check(
     "qualification dashboard exposes individual-call evidence for every run",
     all(
-        row["calls"]["count"] >= row["preflight"]["calls"]
-        and len(row["calls"]["sha256"]) == 64
+        row["calls"]["count"] >= row["preflight"]["calls"] and len(row["calls"]["sha256"]) == 64
         for row in _qualification_feed["runs"]
     ),
 )
 check(
     "qualification call feeds match their published content hashes",
     all(
-        (lambda path, expected: path.is_file() and hashlib.sha256(path.read_bytes()).hexdigest() == expected)(
+        (
+            lambda path, expected: (
+                path.is_file() and hashlib.sha256(path.read_bytes()).hexdigest() == expected
+            )
+        )(
             PF / "bench-site" / "public" / row["calls"]["path"],
             row["calls"]["sha256"],
         )
@@ -1226,10 +1215,9 @@ check(
     ),
 )
 _speed_ranked = [
-    row for row in _qualification_feed["runs"]
-    if row["status"] in {
-        "needs_judgment", "needs_adjudication", "qualified", "quality_rejected"
-    }
+    row
+    for row in _qualification_feed["runs"]
+    if row["status"] in {"needs_judgment", "needs_adjudication", "qualified", "quality_rejected"}
     and row.get("performance", {}).get("speed_rank") is not None
 ]
 check(
@@ -1264,8 +1252,7 @@ check(
 )
 _quality_ranked = [row for row in _qualification_feed["runs"] if row.get("judgment")]
 _consensus_ranked = [
-    row for row in _quality_ranked
-    if row["judgment"].get("quality_rank") is not None
+    row for row in _quality_ranked if row["judgment"].get("quality_rank") is not None
 ]
 check(
     "cloud qualification publishes a contiguous consensus-only quality ranking",
@@ -1274,24 +1261,19 @@ check(
     and sorted(row["judgment"]["quality_rank"] for row in _consensus_ranked)
     == list(range(1, len(_consensus_ranked) + 1))
     and all(
-        row["judgment"]["complete"]
-        and not row["judgment"]["needs_adjudication"]
+        row["judgment"]["complete"] and not row["judgment"]["needs_adjudication"]
         for row in _consensus_ranked
     ),
 )
 check(
     "cloud judgments use configured blinded multi-family judges",
     len(_qualification_feed["policy"]["judgment"]["judges"]) == 3
-    and len({
-        judge["family"]
-        for judge in _qualification_feed["policy"]["judgment"]["judges"]
-    }) == 3
+    and len({judge["family"] for judge in _qualification_feed["policy"]["judgment"]["judges"]}) == 3
     and _qualification_feed["policy"]["judgment"]["minimum_independent_judges"] == 2
     and _qualification_feed["policy"]["judgment"]["exclude_same_family"]
     and all(
         all(
-            entry["eligible"]
-            == (entry["family"] != row["judgment"]["candidate_family"])
+            entry["eligible"] == (entry["family"] != row["judgment"]["candidate_family"])
             for entry in row["judgment"]["judges"]
         )
         for row in _quality_ranked
@@ -1319,7 +1301,8 @@ check(
 import judge_cloud_dialogue as cloud_judge  # noqa: E402
 
 _judge_source_run = next(
-    row for row in _qualification_feed["runs"]
+    row
+    for row in _qualification_feed["runs"]
     if row["status"] in {"needs_judgment", "qualified", "quality_rejected"}
 )
 _cloud_judge_items = cloud_judge._items(_judge_source_run)
@@ -1331,12 +1314,10 @@ check(
 )
 check(
     "cloud judge profiles pin three independent OpenRouter families",
-    {judge["family"] for judge in cloud_judge.JUDGES}
-    == {"openai", "anthropic", "google"}
+    {judge["family"] for judge in cloud_judge.JUDGES} == {"openai", "anthropic", "google"}
     and all(judge["provider"] == "openrouter" for judge in cloud_judge.JUDGES)
-    and {
-        judge["family"]: judge["reasoning_effort"] for judge in cloud_judge.JUDGES
-    } == {"openai": "high", "anthropic": "low", "google": "high"},
+    and {judge["family"]: judge["reasoning_effort"] for judge in cloud_judge.JUDGES}
+    == {"openai": "high", "anthropic": "low", "google": "high"},
 )
 check(
     "cloud judge never schedules a same-family candidate judge",
@@ -1394,22 +1375,30 @@ check(
     "cloud judge resumes only schema-complete paid raw responses",
     cloud_judge._raw_is_resumable(
         {
-            "choices": [{
-                "finish_reason": "stop",
-                "message": {"content": json.dumps(_complete_judge_result)},
-            }],
+            "choices": [
+                {
+                    "finish_reason": "stop",
+                    "message": {"content": json.dumps(_complete_judge_result)},
+                }
+            ],
         },
         _resume_bundle,
     )
     and not cloud_judge._raw_is_resumable(
         {
-            "choices": [{
-                "finish_reason": "stop",
-                "message": {"content": json.dumps({
-                    "rubric_sha256": cloud_judge.RUBRIC["rubric_sha256"],
-                    "items": _normal_items[:3],
-                })},
-            }],
+            "choices": [
+                {
+                    "finish_reason": "stop",
+                    "message": {
+                        "content": json.dumps(
+                            {
+                                "rubric_sha256": cloud_judge.RUBRIC["rubric_sha256"],
+                                "items": _normal_items[:3],
+                            }
+                        )
+                    },
+                }
+            ],
         },
         _resume_bundle,
     ),

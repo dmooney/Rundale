@@ -1049,9 +1049,7 @@ def call_chat_streaming(
                 # opencode-compatible servers still need the legacy reasoning
                 # fallback because some expose the final answer only there.
                 chunk = delta.get("content") or (
-                    (delta.get("reasoning") or "")
-                    if is_local or is_opencode_go
-                    else ""
+                    (delta.get("reasoning") or "") if is_local or is_opencode_go else ""
                 )
                 if chunk:
                     if ttft_ms is None:

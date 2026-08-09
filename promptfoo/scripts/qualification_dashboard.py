@@ -50,9 +50,13 @@ def _model_family(model: str) -> str:
         vendor = lowered.split("/", 1)[0]
         return {"moonshotai": "moonshot"}.get(vendor, vendor)
     for prefix, family in (
-        ("gpt-", "openai"), ("o1", "openai"), ("o3", "openai"),
-        ("claude-", "anthropic"), ("gemini-", "google"),
-        ("deepseek-", "deepseek"), ("kimi-", "moonshot"),
+        ("gpt-", "openai"),
+        ("o1", "openai"),
+        ("o3", "openai"),
+        ("claude-", "anthropic"),
+        ("gemini-", "google"),
+        ("deepseek-", "deepseek"),
+        ("kimi-", "moonshot"),
     ):
         if lowered.startswith(prefix):
             return family
@@ -60,7 +64,9 @@ def _model_family(model: str) -> str:
 
 
 def _jsonl(path: Path) -> list[dict[str, Any]]:
-    return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
+    return [
+        json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()
+    ]
 
 
 def _question(row: dict[str, Any]) -> str:
@@ -70,7 +76,9 @@ def _question(row: dict[str, Any]) -> str:
     return QUESTIONS[question_id] if 0 <= question_id < len(QUESTIONS) else ""
 
 
-def _preflight_calls(path: Path, data: dict[str, Any]) -> tuple[list[dict[str, Any]], list[dict[str, str]]]:
+def _preflight_calls(
+    path: Path, data: dict[str, Any]
+) -> tuple[list[dict[str, Any]], list[dict[str, str]]]:
     turns_meta = data.get("turns_artifact") or {}
     turns_path = path.parent / str(turns_meta.get("path", ""))
     conventional_turns = path.with_suffix(".turns.jsonl")
@@ -89,38 +97,45 @@ def _preflight_calls(path: Path, data: dict[str, Any]) -> tuple[list[dict[str, A
     for index, turn in enumerate(turns):
         raw = raw_calls[index] if index < len(raw_calls) else {}
         profile = (turn.get("request_profiles") or [data.get("request_profile") or {}])[0]
-        calls.append({
-            "id": f"preflight-{int(turn.get('attempt', index)) + 1}",
-            "kind": "preflight",
-            "label": f"Preflight call {int(turn.get('attempt', index)) + 1}",
-            "phase": "preflight",
-            "question": _question(turn),
-            "npc": turn.get("npc"),
-            "request": {
-                "system": raw.get("gen_ai.prompt.system"),
-                "user": raw.get("gen_ai.prompt"),
-                "model": raw.get("gen_ai.request.model") or profile.get("model"),
-                "max_tokens": raw.get("gen_ai.request.max_tokens") or profile.get("max_tokens"),
-                "temperature": raw.get("gen_ai.request.temperature") or profile.get("temperature"),
-                "frequency_penalty": profile.get("frequency_penalty"),
-                "reasoning_effort": profile.get("reasoning_effort"),
-                "json_mode": profile.get("json_mode"),
-            },
-            "response": raw.get("gen_ai.completion") or "\n".join(
-                str(line.get("text", "")) for line in turn.get("response_lines", []) if isinstance(line, dict)
-            ) or None,
-            "metrics": {
-                "elapsed_ms": raw.get("gen_ai.response.duration_ms") or turn.get("elapsed_ms"),
-                "ttft_ms": raw.get("parish.ttft_ms"),
-                "stream_chunks": raw.get("gen_ai.usage.output_tokens"),
-            },
-            "outcome": {
-                "contract_valid": bool(turn.get("contract_valid")),
-                "parse_dispositions": turn.get("parse_dispositions", []),
-                "guard_reasons": turn.get("guard_reasons", []),
-                "transport_error": turn.get("transport_error"),
-            },
-        })
+        calls.append(
+            {
+                "id": f"preflight-{int(turn.get('attempt', index)) + 1}",
+                "kind": "preflight",
+                "label": f"Preflight call {int(turn.get('attempt', index)) + 1}",
+                "phase": "preflight",
+                "question": _question(turn),
+                "npc": turn.get("npc"),
+                "request": {
+                    "system": raw.get("gen_ai.prompt.system"),
+                    "user": raw.get("gen_ai.prompt"),
+                    "model": raw.get("gen_ai.request.model") or profile.get("model"),
+                    "max_tokens": raw.get("gen_ai.request.max_tokens") or profile.get("max_tokens"),
+                    "temperature": raw.get("gen_ai.request.temperature")
+                    or profile.get("temperature"),
+                    "frequency_penalty": profile.get("frequency_penalty"),
+                    "reasoning_effort": profile.get("reasoning_effort"),
+                    "json_mode": profile.get("json_mode"),
+                },
+                "response": raw.get("gen_ai.completion")
+                or "\n".join(
+                    str(line.get("text", ""))
+                    for line in turn.get("response_lines", [])
+                    if isinstance(line, dict)
+                )
+                or None,
+                "metrics": {
+                    "elapsed_ms": raw.get("gen_ai.response.duration_ms") or turn.get("elapsed_ms"),
+                    "ttft_ms": raw.get("parish.ttft_ms"),
+                    "stream_chunks": raw.get("gen_ai.usage.output_tokens"),
+                },
+                "outcome": {
+                    "contract_valid": bool(turn.get("contract_valid")),
+                    "parse_dispositions": turn.get("parse_dispositions", []),
+                    "guard_reasons": turn.get("guard_reasons", []),
+                    "transport_error": turn.get("transport_error"),
+                },
+            }
+        )
     return calls, sources
 
 
@@ -157,7 +172,9 @@ def _parse_sse(path: Path) -> dict[str, Any]:
     }
 
 
-def _diagnostic_calls(path: Path) -> tuple[dict[str, Any] | None, list[dict[str, Any]], list[dict[str, str]]]:
+def _diagnostic_calls(
+    path: Path,
+) -> tuple[dict[str, Any] | None, list[dict[str, Any]], list[dict[str, str]]]:
     diagnosis_path = path.with_suffix(".diagnosis.json")
     if not diagnosis_path.is_file():
         return None, [], []
@@ -176,33 +193,39 @@ def _diagnostic_calls(path: Path) -> tuple[dict[str, Any] | None, list[dict[str,
         parsed = _parse_sse(replay_path)
         sources.append(_artifact(replay_path))
         usage = parsed["usage"]
-        calls.append({
-            "id": f"diagnostic-{index}",
-            "kind": "diagnostic",
-            "label": f"Exact diagnostic replay {index}",
-            "phase": "profile diagnosis",
-            "question": "Exact replay of production request",
-            "request": {
-                "system": source.get("gen_ai.prompt.system"),
-                "user": source.get("gen_ai.prompt"),
-                "model": parsed["model"] or source.get("gen_ai.request.model"),
-                "max_tokens": diagnosis.get("request_profile", {}).get("max_tokens"),
-                "temperature": source.get("gen_ai.request.temperature"),
-                "reasoning_effort": diagnosis.get("request_profile", {}).get("reasoning_effort"),
-                "json_mode": True,
-            },
-            "response": parsed["response"],
-            "metrics": {
-                "finish_reason": parsed["finish_reason"],
-                "native_finish_reason": parsed["native_finish_reason"],
-                "prompt_tokens": usage.get("prompt_tokens"),
-                "completion_tokens": usage.get("completion_tokens"),
-                "reasoning_tokens": (usage.get("completion_tokens_details") or {}).get("reasoning_tokens"),
-                "cost_usd": usage.get("cost"),
-            },
-            "outcome": {"error": parsed["error"]},
-            "artifact": _artifact(replay_path),
-        })
+        calls.append(
+            {
+                "id": f"diagnostic-{index}",
+                "kind": "diagnostic",
+                "label": f"Exact diagnostic replay {index}",
+                "phase": "profile diagnosis",
+                "question": "Exact replay of production request",
+                "request": {
+                    "system": source.get("gen_ai.prompt.system"),
+                    "user": source.get("gen_ai.prompt"),
+                    "model": parsed["model"] or source.get("gen_ai.request.model"),
+                    "max_tokens": diagnosis.get("request_profile", {}).get("max_tokens"),
+                    "temperature": source.get("gen_ai.request.temperature"),
+                    "reasoning_effort": diagnosis.get("request_profile", {}).get(
+                        "reasoning_effort"
+                    ),
+                    "json_mode": True,
+                },
+                "response": parsed["response"],
+                "metrics": {
+                    "finish_reason": parsed["finish_reason"],
+                    "native_finish_reason": parsed["native_finish_reason"],
+                    "prompt_tokens": usage.get("prompt_tokens"),
+                    "completion_tokens": usage.get("completion_tokens"),
+                    "reasoning_tokens": (usage.get("completion_tokens_details") or {}).get(
+                        "reasoning_tokens"
+                    ),
+                    "cost_usd": usage.get("cost"),
+                },
+                "outcome": {"error": parsed["error"]},
+                "artifact": _artifact(replay_path),
+            }
+        )
     return diagnosis, calls, sources
 
 
@@ -223,9 +246,9 @@ def _judgment_row(
             continue
         data = json.loads(path.read_text(encoding="utf-8"))
         judge = data.get("judge") or {}
-        profile = configured.get(judge.get("id")) or configured_by_profile.get((
-            judge.get("model"), judge.get("provider"), judge.get("reasoning_effort")
-        ))
+        profile = configured.get(judge.get("id")) or configured_by_profile.get(
+            (judge.get("model"), judge.get("provider"), judge.get("reasoning_effort"))
+        )
         if not profile or profile["id"] in receipts:
             continue
         source = data.get("source") or {}
@@ -258,73 +281,90 @@ def _judgment_row(
         bundle_items = {item["prompt_id"]: item for item in bundle.get("items", [])}
         for index, item in enumerate(data.get("items", []), 1):
             evidence = bundle_items.get(item.get("prompt_id"), {})
-            calls.append({
-                "id": f"judgment-{judge_id}-{index}",
-                "kind": "judgment",
-                "label": f"{judge_id} judgment {index}",
-                "phase": "quality judgment",
-                "question": item.get("prompt_id"),
-                "request": {
-                    "model": judge.get("model"),
-                    "reasoning_effort": judge.get("reasoning_effort"),
-                    "max_tokens": bundle.get("judge_profile", {}).get("max_tokens"),
-                    "system": evidence.get("prompt"),
-                    "user": evidence.get("response"),
-                },
-                "response": json.dumps({
-                    "axes": item.get("axes"),
-                    "overall": item.get("overall"),
-                    "rationales": item.get("rationales"),
-                    "flags": item.get("flags"),
-                }, ensure_ascii=False, indent=2),
-                "metrics": {},
-                "outcome": {
-                    "contract_valid": not bool((item.get("flags") or {}).get("bench_bug")),
-                    "guard_reasons": [],
-                },
-            })
+            calls.append(
+                {
+                    "id": f"judgment-{judge_id}-{index}",
+                    "kind": "judgment",
+                    "label": f"{judge_id} judgment {index}",
+                    "phase": "quality judgment",
+                    "question": item.get("prompt_id"),
+                    "request": {
+                        "model": judge.get("model"),
+                        "reasoning_effort": judge.get("reasoning_effort"),
+                        "max_tokens": bundle.get("judge_profile", {}).get("max_tokens"),
+                        "system": evidence.get("prompt"),
+                        "user": evidence.get("response"),
+                    },
+                    "response": json.dumps(
+                        {
+                            "axes": item.get("axes"),
+                            "overall": item.get("overall"),
+                            "rationales": item.get("rationales"),
+                            "flags": item.get("flags"),
+                        },
+                        ensure_ascii=False,
+                        indent=2,
+                    ),
+                    "metrics": {},
+                    "outcome": {
+                        "contract_valid": not bool((item.get("flags") or {}).get("bench_bug")),
+                        "guard_reasons": [],
+                    },
+                }
+            )
         quality = data["quality"]
         sample = dict(data["sample"])
         sample.setdefault("judged_items", sample["items"])
         sample.setdefault("unusable_outputs", sample["items"] - sample["judged_items"])
-        eligible = not policy.get("exclude_same_family", True) or profile["family"] != candidate_family
-        judgments.append({
-            "id": judge_id,
-            "family": profile["family"],
-            "eligible": eligible,
-            "exclusion_reason": None if eligible else "same-family judge",
-            "overall": quality["overall"],
-            "axes": quality["axes"],
-            "hard_failures": quality["hard_failures"],
-            "pass": quality["pass"],
-            "sample": sample,
-            "judge": judge,
-            "artifact": _artifact(path),
-        })
+        eligible = (
+            not policy.get("exclude_same_family", True) or profile["family"] != candidate_family
+        )
+        judgments.append(
+            {
+                "id": judge_id,
+                "family": profile["family"],
+                "eligible": eligible,
+                "exclusion_reason": None if eligible else "same-family judge",
+                "overall": quality["overall"],
+                "axes": quality["axes"],
+                "hard_failures": quality["hard_failures"],
+                "pass": quality["pass"],
+                "sample": sample,
+                "judge": judge,
+                "artifact": _artifact(path),
+            }
+        )
         sources.extend((_artifact(path), _artifact(bundle_path), _artifact(raw_path)))
 
     eligible = [item for item in judgments if item["eligible"]]
     required = int(policy["minimum_independent_judges"])
     complete = len(eligible) >= required
-    axes = {
-        axis: round(statistics.median(item["axes"][axis] for item in eligible), 4)
-        for axis in eligible[0]["axes"]
-    } if eligible else {}
-    overall = round(statistics.median(item["overall"] for item in eligible), 4) if eligible else None
+    axes = (
+        {
+            axis: round(statistics.median(item["axes"][axis] for item in eligible), 4)
+            for axis in eligible[0]["axes"]
+        }
+        if eligible
+        else {}
+    )
+    overall = (
+        round(statistics.median(item["overall"] for item in eligible), 4) if eligible else None
+    )
     pass_votes = sum(bool(item["pass"]) for item in eligible)
     fail_votes = len(eligible) - pass_votes
     spread = (
-        round(max(item["overall"] for item in eligible) - min(item["overall"] for item in eligible), 4)
-        if len(eligible) > 1 else None
+        round(
+            max(item["overall"] for item in eligible) - min(item["overall"] for item in eligible), 4
+        )
+        if len(eligible) > 1
+        else None
     )
     needs_adjudication = complete and (
         (pass_votes > 0 and fail_votes > 0)
         or (spread is not None and spread > policy["maximum_overall_spread_without_adjudication"])
     )
     consensus_pass = complete and not needs_adjudication and pass_votes >= required
-    hard_failure_keys = sorted({
-        key for item in eligible for key in item["hard_failures"]
-    })
+    hard_failure_keys = sorted({key for item in eligible for key in item["hard_failures"]})
     hard_failures = {
         key: max((item["hard_failures"].get(key, 0) for item in eligible), default=0)
         for key in hard_failure_keys
@@ -332,7 +372,9 @@ def _judgment_row(
     sample = {
         "items": max((item["sample"]["items"] for item in eligible), default=0),
         "judged_items": min((item["sample"]["judged_items"] for item in eligible), default=0),
-        "unusable_outputs": max((item["sample"]["unusable_outputs"] for item in eligible), default=0),
+        "unusable_outputs": max(
+            (item["sample"]["unusable_outputs"] for item in eligible), default=0
+        ),
     }
     summary = {
         "method": policy["consensus_method"],
@@ -353,9 +395,9 @@ def _judgment_row(
         },
         "sample": sample,
         "judges": judgments,
-        "cost_usd": round(sum(
-            float((item["judge"].get("cost_usd") or 0.0)) for item in judgments
-        ), 8),
+        "cost_usd": round(
+            sum(float(item["judge"].get("cost_usd") or 0.0) for item in judgments), 8
+        ),
     }
     return summary, calls, sources
 
@@ -367,60 +409,80 @@ def _preflight_row(path: Path) -> tuple[dict[str, Any], list[dict[str, Any]], li
     calls = int(soak["calls"])
     turns = int(guards["turns"])
     calls_payload, sources = _preflight_calls(path, data)
-    return {
-        "candidate": data["candidate"],
-        "calls": calls,
-        "valid": int(soak["valid_responses"]),
-        "guard_interventions": int(guards["interventions"]),
-        "guard_rate": int(guards["interventions"]) / turns if turns else None,
-        "request_profile": data.get("request_profile"),
-        "artifact": _artifact(path),
-    }, calls_payload, sources
+    return (
+        {
+            "candidate": data["candidate"],
+            "calls": calls,
+            "valid": int(soak["valid_responses"]),
+            "guard_interventions": int(guards["interventions"]),
+            "guard_rate": int(guards["interventions"]) / turns if turns else None,
+            "request_profile": data.get("request_profile"),
+            "artifact": _artifact(path),
+        },
+        calls_payload,
+        sources,
+    )
 
 
-def _partial_row(path: Path) -> tuple[dict[str, Any], list[dict[str, Any]], list[dict[str, str]]] | None:
+def _partial_row(
+    path: Path,
+) -> tuple[dict[str, Any], list[dict[str, Any]], list[dict[str, str]]] | None:
     rows = [json.loads(line) for line in path.read_text().splitlines() if line.strip()]
     if not rows:
         return None
     turns = sum(int(row.get("turns", 0)) for row in rows)
     elapsed = [int(row["elapsed_ms"]) for row in rows if row.get("elapsed_ms") is not None]
-    calls = [{
-        "id": f"preflight-{int(row.get('attempt', index)) + 1}",
-        "kind": "preflight",
-        "label": f"Preflight call {int(row.get('attempt', index)) + 1}",
-        "phase": "preflight",
-        "question": _question(row),
-        "npc": row.get("npc"),
-        "request": ((row.get("request_profiles") or [{}])[0]),
-        "response": "\n".join(str(line.get("text", "")) for line in row.get("response_lines", []) if isinstance(line, dict)) or None,
-        "metrics": {"elapsed_ms": row.get("elapsed_ms")},
-        "outcome": {
-            "contract_valid": bool(row.get("contract_valid")),
-            "parse_dispositions": row.get("parse_dispositions", []),
-            "guard_reasons": row.get("guard_reasons", []),
-            "transport_error": row.get("transport_error"),
+    calls = [
+        {
+            "id": f"preflight-{int(row.get('attempt', index)) + 1}",
+            "kind": "preflight",
+            "label": f"Preflight call {int(row.get('attempt', index)) + 1}",
+            "phase": "preflight",
+            "question": _question(row),
+            "npc": row.get("npc"),
+            "request": ((row.get("request_profiles") or [{}])[0]),
+            "response": "\n".join(
+                str(line.get("text", ""))
+                for line in row.get("response_lines", [])
+                if isinstance(line, dict)
+            )
+            or None,
+            "metrics": {"elapsed_ms": row.get("elapsed_ms")},
+            "outcome": {
+                "contract_valid": bool(row.get("contract_valid")),
+                "parse_dispositions": row.get("parse_dispositions", []),
+                "guard_reasons": row.get("guard_reasons", []),
+                "transport_error": row.get("transport_error"),
+            },
+        }
+        for index, row in enumerate(rows)
+    ]
+    return (
+        {
+            "candidate": rows[0]["candidate"],
+            "calls": len(rows),
+            "valid": sum(
+                int(row.get("turns", 0)) == 1 and int(row.get("contract_valid", 0)) == 1
+                for row in rows
+            ),
+            "guard_interventions": sum(int(row.get("guard_interventions", 0)) for row in rows),
+            "guard_rate": (
+                sum(int(row.get("guard_interventions", 0)) for row in rows) / turns
+                if turns
+                else None
+            ),
+            "elapsed_min_ms": min(elapsed) if elapsed else None,
+            "elapsed_max_ms": max(elapsed) if elapsed else None,
+            "artifact": _artifact(path),
         },
-    } for index, row in enumerate(rows)]
-    return {
-        "candidate": rows[0]["candidate"],
-        "calls": len(rows),
-        "valid": sum(
-            int(row.get("turns", 0)) == 1 and int(row.get("contract_valid", 0)) == 1
-            for row in rows
-        ),
-        "guard_interventions": sum(int(row.get("guard_interventions", 0)) for row in rows),
-        "guard_rate": (
-            sum(int(row.get("guard_interventions", 0)) for row in rows) / turns
-            if turns
-            else None
-        ),
-        "elapsed_min_ms": min(elapsed) if elapsed else None,
-        "elapsed_max_ms": max(elapsed) if elapsed else None,
-        "artifact": _artifact(path),
-    }, calls, [_artifact(path)]
+        calls,
+        [_artifact(path)],
+    )
 
 
-def _perf_row(path: Path) -> tuple[dict[str, Any], list[dict[str, Any]], list[dict[str, str]]] | None:
+def _perf_row(
+    path: Path,
+) -> tuple[dict[str, Any], list[dict[str, Any]], list[dict[str, str]]] | None:
     rows = rpt._results(json.loads(path.read_text(encoding="utf-8")))
     if not rows:
         return None
@@ -432,47 +494,57 @@ def _perf_row(path: Path) -> tuple[dict[str, Any], list[dict[str, Any]], list[di
         record = metadata.get("record") or {}
         profile = metadata.get("request_profile") or {}
         token_usage = response.get("tokenUsage") or row.get("tokenUsage") or {}
-        calls.append({
-            "id": f"performance-{index}",
-            "kind": "performance",
-            "label": f"Performance call {index}",
-            "phase": metadata.get("perf_cache_state"),
-            "question": record.get("id"),
-            "request": {
-                "system": record.get("system"),
-                "user": record.get("user"),
-                "model": profile.get("model") or metadata.get("model"),
-                "max_tokens": profile.get("max_tokens"),
-                "temperature": profile.get("temperature"),
-                "frequency_penalty": profile.get("frequency_penalty"),
-                "reasoning_effort": profile.get("reasoning_effort"),
-                "json_mode": profile.get("json_mode"),
-            },
-            "response": response.get("output"),
-            "metrics": {
-                "elapsed_ms": row.get("latencyMs"),
-                "ttft_ms": metadata.get("ttft_ms"),
-                "tokens_per_second": metadata.get("tokens_per_second"),
-                "prompt_tokens": token_usage.get("prompt"),
-                "completion_tokens": token_usage.get("completion"),
-                "reasoning_tokens": (token_usage.get("completionDetails") or {}).get("reasoning"),
-                "cost_usd": response.get("cost") if response.get("cost") is not None else row.get("cost"),
-            },
-            "outcome": {"error": response.get("error") or row.get("failureReason")},
-        })
-    return {
-        "candidate": rpt._candidate(rows[0]),
-        "measurements": int(agg["n_ok"]) + int(agg["n_error"]),
-        "cold_measurements": int(agg["cold_n_ok"]) + int(agg["cold_n_error"]),
-        "warm_measurements": int(agg["warm_n_ok"]) + int(agg["warm_n_error"]),
-        "error_rate": agg["error_rate"],
-        "cold_ttft_p95_ms": agg["cold_ttft_p95_ms"],
-        "warm_ttft_p95_ms": agg["warm_ttft_p95_ms"],
-        "cold_completion_p95_ms": agg["cold_latency_p95_ms"],
-        "warm_completion_p95_ms": agg["warm_latency_p95_ms"],
-        "tokens_per_second_p50": agg["tokens_per_sec_p50"],
-        "artifact": _artifact(path),
-    }, calls, [_artifact(path)]
+        calls.append(
+            {
+                "id": f"performance-{index}",
+                "kind": "performance",
+                "label": f"Performance call {index}",
+                "phase": metadata.get("perf_cache_state"),
+                "question": record.get("id"),
+                "request": {
+                    "system": record.get("system"),
+                    "user": record.get("user"),
+                    "model": profile.get("model") or metadata.get("model"),
+                    "max_tokens": profile.get("max_tokens"),
+                    "temperature": profile.get("temperature"),
+                    "frequency_penalty": profile.get("frequency_penalty"),
+                    "reasoning_effort": profile.get("reasoning_effort"),
+                    "json_mode": profile.get("json_mode"),
+                },
+                "response": response.get("output"),
+                "metrics": {
+                    "elapsed_ms": row.get("latencyMs"),
+                    "ttft_ms": metadata.get("ttft_ms"),
+                    "tokens_per_second": metadata.get("tokens_per_second"),
+                    "prompt_tokens": token_usage.get("prompt"),
+                    "completion_tokens": token_usage.get("completion"),
+                    "reasoning_tokens": (token_usage.get("completionDetails") or {}).get(
+                        "reasoning"
+                    ),
+                    "cost_usd": response.get("cost")
+                    if response.get("cost") is not None
+                    else row.get("cost"),
+                },
+                "outcome": {"error": response.get("error") or row.get("failureReason")},
+            }
+        )
+    return (
+        {
+            "candidate": rpt._candidate(rows[0]),
+            "measurements": int(agg["n_ok"]) + int(agg["n_error"]),
+            "cold_measurements": int(agg["cold_n_ok"]) + int(agg["cold_n_error"]),
+            "warm_measurements": int(agg["warm_n_ok"]) + int(agg["warm_n_error"]),
+            "error_rate": agg["error_rate"],
+            "cold_ttft_p95_ms": agg["cold_ttft_p95_ms"],
+            "warm_ttft_p95_ms": agg["warm_ttft_p95_ms"],
+            "cold_completion_p95_ms": agg["cold_latency_p95_ms"],
+            "warm_completion_p95_ms": agg["warm_latency_p95_ms"],
+            "tokens_per_second_p50": agg["tokens_per_sec_p50"],
+            "artifact": _artifact(path),
+        },
+        calls,
+        [_artifact(path)],
+    )
 
 
 def _performance_failures(perf: dict[str, Any]) -> list[str]:
@@ -498,9 +570,11 @@ def _rank_survivors(runs: list[dict[str, Any]]) -> None:
     eligible = []
     for run in runs:
         perf = run.get("performance")
-        if run["status"] not in {
-            "needs_judgment", "needs_adjudication", "qualified", "quality_rejected"
-        } or not perf:
+        if (
+            run["status"]
+            not in {"needs_judgment", "needs_adjudication", "qualified", "quality_rejected"}
+            or not perf
+        ):
             continue
         ttft = perf.get("warm_ttft_p95_ms")
         completion = perf.get("warm_completion_p95_ms")
@@ -509,18 +583,22 @@ def _rank_survivors(runs: list[dict[str, Any]]) -> None:
         perf["speed_index_ms"] = ttft_weight * ttft + completion_weight * completion
         eligible.append(run)
 
-    eligible.sort(key=lambda run: (
-        run["performance"]["speed_index_ms"],
-        run["performance"]["warm_completion_p95_ms"],
-        run["run_id"],
-    ))
+    eligible.sort(
+        key=lambda run: (
+            run["performance"]["speed_index_ms"],
+            run["performance"]["warm_completion_p95_ms"],
+            run["run_id"],
+        )
+    )
     cohort_size = len(eligible)
     for rank, run in enumerate(eligible, 1):
         run["performance"]["speed_rank"] = rank
         run["performance"]["speed_cohort_size"] = cohort_size
     judged = [
-        run for run in eligible
-        if run.get("judgment") and run["judgment"].get("complete")
+        run
+        for run in eligible
+        if run.get("judgment")
+        and run["judgment"].get("complete")
         and not run["judgment"].get("needs_adjudication")
     ]
     judged.sort(key=lambda run: (-run["judgment"]["overall"], run["run_id"]))
@@ -594,7 +672,9 @@ def _build(runs_root: Path) -> tuple[dict[str, Any], dict[str, bytes]]:
     runs: list[dict[str, Any]] = []
     call_feeds: dict[str, bytes] = {}
     for date_dir in sorted(path for path in runs_root.glob("*") if path.is_dir()):
-        preflights: list[tuple[str, dict[str, Any], list[dict[str, Any]], list[dict[str, str]]]] = []
+        preflights: list[
+            tuple[str, dict[str, Any], list[dict[str, Any]], list[dict[str, str]]]
+        ] = []
         for path in sorted(date_dir.glob("*-preflight.json")):
             slug = path.name.removesuffix("-preflight.json")
             preflight, calls, sources = _preflight_row(path)
@@ -649,7 +729,9 @@ def _build(runs_root: Path) -> tuple[dict[str, Any], dict[str, bytes]]:
                     "status": status,
                     "stage": stage,
                     "reason": reason,
-                    "preflight": {k: v for k, v in preflight.items() if k not in {"candidate", "partial"}},
+                    "preflight": {
+                        k: v for k, v in preflight.items() if k not in {"candidate", "partial"}
+                    },
                     "performance": perf,
                     "judgment": judgment,
                     "calls": {
@@ -664,10 +746,19 @@ def _build(runs_root: Path) -> tuple[dict[str, Any], dict[str, bytes]]:
                 }
             )
     _rank_survivors(runs)
-    counts = {status: sum(run["status"] == status for run in runs) for status in (
-        "invalid_profile", "rejected", "stopped", "needs_performance", "needs_judgment",
-        "needs_adjudication", "quality_rejected", "qualified"
-    )}
+    counts = {
+        status: sum(run["status"] == status for run in runs)
+        for status in (
+            "invalid_profile",
+            "rejected",
+            "stopped",
+            "needs_performance",
+            "needs_judgment",
+            "needs_adjudication",
+            "quality_rejected",
+            "qualified",
+        )
+    }
     payload = {
         "version": 1,
         "source": "immutable cloud-dialogue qualification receipts",

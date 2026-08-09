@@ -254,10 +254,7 @@ def build_multiturn(dialogue_captures: list[dict]) -> tuple[list[dict], list[dic
             for script_index, script in enumerate(scripts):
                 out.append(
                     {
-                        "id": (
-                            f"multiturn-{split}-{persona_index + 1:02d}-"
-                            f"{script_index + 1:02d}"
-                        ),
+                        "id": (f"multiturn-{split}-{persona_index + 1:02d}-{script_index + 1:02d}"),
                         "slice": "multiturn",
                         "system": persona_cap["system"],
                         "turns": script["turns"],

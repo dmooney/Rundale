@@ -194,13 +194,13 @@ Configuration is runtime-mutable via `/provider`, `/model`, `/key`, and `/cloud`
 
 #### Linux / Windows candidates (RX 9070 16 GB + i9-13900KS)
 
-| Category                   | Local pick                | Cloud pick                | Why                                                                                                                  |
-| -------------------------- | ------------------------- | ------------------------- | -------------------------------------------------------------------------------------------------------------------- |
-| Dialogue                   | Gemma 4 9B or Qwen 3.5 9B (unqualified) | Claude Sonnet 4.6 | Quality-critical; candidates must pass the promotion gate before setup may call them qualified |
-| Simulation (Tier 2 nearby) | Qwen 3.5 9B               | Gemini 2.5 Flash          | Structured JSON throughput matters more than prose quality                                                           |
-| Simulation (Tier 3 batch)  | Qwen 3.5 9B               | **Gemini 2.5 Flash-Lite** | $0.10 / $0.40 per 1M tokens makes cloud Tier 3 effectively free at game scale; stack with batch API + prompt caching |
-| Intent                     | Ministral 3 3B            | — (always local)          | Low-latency JSON / function-calling; 3B is enough and keeps the player's input path private                          |
-| Reaction                   | Ministral 3 3B            | Gemini 2.5 Flash-Lite     | Short, fast responses; shares the 3B model with Intent                                                               |
+| Category                   | Local pick                              | Cloud pick                | Why                                                                                                                  |
+| -------------------------- | --------------------------------------- | ------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| Dialogue                   | Gemma 4 9B or Qwen 3.5 9B (unqualified) | Claude Sonnet 4.6         | Quality-critical; candidates must pass the promotion gate before setup may call them qualified                       |
+| Simulation (Tier 2 nearby) | Qwen 3.5 9B                             | Gemini 2.5 Flash          | Structured JSON throughput matters more than prose quality                                                           |
+| Simulation (Tier 3 batch)  | Qwen 3.5 9B                             | **Gemini 2.5 Flash-Lite** | $0.10 / $0.40 per 1M tokens makes cloud Tier 3 effectively free at game scale; stack with batch API + prompt caching |
+| Intent                     | Ministral 3 3B                          | — (always local)          | Low-latency JSON / function-calling; 3B is enough and keeps the player's input path private                          |
+| Reaction                   | Ministral 3 3B                          | Gemini 2.5 Flash-Lite     | Short, fast responses; shares the 3B model with Intent                                                               |
 
 #### macOS / Apple Silicon + vllm-mlx (measured May 2026, M-series unified memory)
 

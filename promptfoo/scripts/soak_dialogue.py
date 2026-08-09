@@ -25,7 +25,6 @@ from typing import Any
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import rb_common as rb  # noqa: E402
 
-
 QUESTIONS = (
     "God save you. What news of the parish?",
     "How does the harvest look this year?",
@@ -61,9 +60,7 @@ class RuntimeClient:
         self.base_url = base_url.rstrip("/")
         self.timeout_s = timeout_s
         jar = http.cookiejar.CookieJar(policy=LoopbackSecureCookiePolicy())
-        self.opener = urllib.request.build_opener(
-            urllib.request.HTTPCookieProcessor(jar)
-        )
+        self.opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(jar))
 
     def request(self, method: str, path: str, body: dict | None = None) -> Any:
         data = None if body is None else json.dumps(body).encode("utf-8")
@@ -214,9 +211,7 @@ def run(args: argparse.Namespace) -> dict:
             try:
                 for continuity_retry in range(len(LOCATIONS) + 1):
                     response = client.command(question, [npc])
-                    quality = (response.get("kind_detail") or {}).get(
-                        "dialogue_quality", {}
-                    )
+                    quality = (response.get("kind_detail") or {}).get("dialogue_quality", {})
                     # A successful command without a dialogue request means the
                     # prior conversation has closed (for example after a
                     # model-generated farewell). Reacquire an NPC and retry the
@@ -239,16 +234,10 @@ def run(args: argparse.Namespace) -> dict:
                         "elapsed_ms": response.get("elapsed_ms"),
                         "contract_valid": int(quality.get("contract_valid", 0)),
                         "turns": int(quality.get("turns", 0)),
-                        "guard_interventions": int(
-                            quality.get("guard_interventions", 0)
-                        ),
+                        "guard_interventions": int(quality.get("guard_interventions", 0)),
                         "guard_reasons": list(quality.get("guard_reasons", [])),
-                        "parse_dispositions": list(
-                            quality.get("parse_dispositions", [])
-                        ),
-                        "request_profiles": list(
-                            quality.get("request_profiles", [])
-                        ),
+                        "parse_dispositions": list(quality.get("parse_dispositions", [])),
+                        "request_profiles": list(quality.get("request_profiles", [])),
                         "response_lines": list(response.get("lines", [])),
                     }
                 )
@@ -267,9 +256,7 @@ def run(args: argparse.Namespace) -> dict:
     ]
     total_turns = sum(int(row["turns"]) for row in rows)
     request_profiles = {
-        json.dumps(profile, sort_keys=True)
-        for row in rows
-        for profile in row["request_profiles"]
+        json.dumps(profile, sort_keys=True) for row in rows for profile in row["request_profiles"]
     }
     if len(request_profiles) != 1:
         raise RuntimeError(
@@ -285,31 +272,21 @@ def run(args: argparse.Namespace) -> dict:
         "reliability_soak": {
             "calls": len(rows),
             "valid_responses": sum(
-                1
-                for row in rows
-                if int(row["turns"]) == 1 and int(row["contract_valid"]) == 1
+                1 for row in rows if int(row["turns"]) == 1 and int(row["contract_valid"]) == 1
             ),
         },
         "guard_observation": {
             "turns": total_turns,
-            "interventions": sum(
-                int(row["guard_interventions"]) for row in rows
-            ),
+            "interventions": sum(int(row["guard_interventions"]) for row in rows),
             "reasons": {
                 reason: sum(row.get("guard_reasons", []).count(reason) for row in rows)
                 for reason in sorted(
-                    {
-                        reason
-                        for row in rows
-                        for reason in row.get("guard_reasons", [])
-                    }
+                    {reason for row in rows for reason in row.get("guard_reasons", [])}
                 )
             },
         },
         "parse_dispositions": {
-            disposition: sum(
-                row["parse_dispositions"].count(disposition) for row in rows
-            )
+            disposition: sum(row["parse_dispositions"].count(disposition) for row in rows)
             for disposition in ("full_json", "recovered_dialogue", "raw_text")
         },
         "request_profile": json.loads(next(iter(request_profiles))),
@@ -331,9 +308,7 @@ def main(argv: list[str] | None = None) -> int:
     # The final scripted question is a farewell. Move to another NPC before
     # the next cycle so subsequent commands continue to exercise inference
     # rather than correctly returning no dialogue for a closed conversation.
-    parser.add_argument(
-        "--turns-per-location", type=int, default=DEFAULT_TURNS_PER_LOCATION
-    )
+    parser.add_argument("--turns-per-location", type=int, default=DEFAULT_TURNS_PER_LOCATION)
     parser.add_argument("--timeout-seconds", type=float, default=120.0)
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args(argv)

@@ -85,9 +85,13 @@ def model_family(model: str) -> str:
         aliases = {"moonshotai": "moonshot", "z-ai": "z-ai", "x-ai": "x-ai"}
         return aliases.get(vendor, vendor)
     for prefix, family in (
-        ("gpt-", "openai"), ("o1", "openai"), ("o3", "openai"),
-        ("claude-", "anthropic"), ("gemini-", "google"),
-        ("deepseek-", "deepseek"), ("kimi-", "moonshot"),
+        ("gpt-", "openai"),
+        ("o1", "openai"),
+        ("o3", "openai"),
+        ("claude-", "anthropic"),
+        ("gemini-", "google"),
+        ("deepseek-", "deepseek"),
+        ("kimi-", "moonshot"),
     ):
         if lowered.startswith(prefix):
             return family
@@ -116,7 +120,7 @@ def _write_once(path: Path, data: bytes) -> None:
             handle.write(data)
     except FileExistsError:
         if path.read_bytes() != data:
-            raise RuntimeError(f"immutable artifact collision: {path}")
+            raise RuntimeError(f"immutable artifact collision: {path}") from None
 
 
 def _items(run: dict[str, Any]) -> list[dict[str, str]]:
@@ -137,7 +141,10 @@ def _items(run: dict[str, Any]) -> list[dict[str, str]]:
         rows_for_prompt = sorted(
             by_prompt[prompt_id],
             key=lambda row: (
-                0 if ((row.get("response") or {}).get("metadata") or {}).get("perf_cache_state") == "cold" else 1,
+                0
+                if ((row.get("response") or {}).get("metadata") or {}).get("perf_cache_state")
+                == "cold"
+                else 1,
                 str(row.get("id", "")),
             ),
         )[:3]
@@ -146,20 +153,24 @@ def _items(run: dict[str, Any]) -> list[dict[str, str]]:
         for sample, row in enumerate(rows_for_prompt, 1):
             response = row["response"]
             record = (response.get("metadata") or {})["record"]
-            items.append({
-                "prompt_id": f"{prompt_id}/sample-{sample}",
-                "prompt": (
-                    f"SYSTEM PROMPT:\n{record.get('system', '')}\n\n"
-                    f"USER PROMPT:\n{record.get('user', '')}"
-                ),
-                "response": grade.extract_dialogue_for_judging(str(response["output"])),
-            })
+            items.append(
+                {
+                    "prompt_id": f"{prompt_id}/sample-{sample}",
+                    "prompt": (
+                        f"SYSTEM PROMPT:\n{record.get('system', '')}\n\n"
+                        f"USER PROMPT:\n{record.get('user', '')}"
+                    ),
+                    "response": grade.extract_dialogue_for_judging(str(response["output"])),
+                }
+            )
     if len(items) != 18:
         raise RuntimeError(f"{run['run_id']}: expected 18 comparable items, got {len(items)}")
     return items
 
 
-def _bundle(run: dict[str, Any], judge: dict[str, Any] | None = None) -> tuple[Path, dict[str, Any]]:
+def _bundle(
+    run: dict[str, Any], judge: dict[str, Any] | None = None
+) -> tuple[Path, dict[str, Any]]:
     judge = judge or JUDGES[0]
     payload = {
         "version": 2,
@@ -185,8 +196,10 @@ def _bundle(run: dict[str, Any], judge: dict[str, Any] | None = None) -> tuple[P
     data = (json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True) + "\n").encode()
     slug = run["run_id"].split("/", 1)[1]
     date = run["tested_on"]
-    path = dashboard.DEFAULT_RUNS / date / (
-        f"{slug}-judgment-{_judge_slug(judge)}-{_sha(data)[:16]}.bundle.json"
+    path = (
+        dashboard.DEFAULT_RUNS
+        / date
+        / (f"{slug}-judgment-{_judge_slug(judge)}-{_sha(data)[:16]}.bundle.json")
     )
     _write_once(path, data)
     return path, payload
@@ -224,10 +237,7 @@ def _aggregate(
     unusable_outputs = len(items) - len(scored)
     if not scored:
         raise ValueError("judge found no usable dialogue in the quality panel")
-    axes = {
-        axis: sum(item["axes"][axis] for item in scored) / len(scored)
-        for axis in WEIGHTS
-    }
+    axes = {axis: sum(item["axes"][axis] for item in scored) / len(scored) for axis in WEIGHTS}
     overall = sum(WEIGHTS[axis] * axes[axis] for axis in WEIGHTS) / sum(WEIGHTS.values())
     hard_failures = {
         flag: sum(bool((item.get("flags") or {}).get(flag)) for item in scored)
@@ -256,7 +266,8 @@ def _aggregate(
             "cost_usd": (raw.get("usage") or {}).get("cost"),
             "usage": raw.get("usage") or {},
         },
-        "sample": bundle["sampling"] | {
+        "sample": bundle["sampling"]
+        | {
             "items": len(items),
             "judged_items": len(scored),
             "unusable_outputs": unusable_outputs,
@@ -305,9 +316,14 @@ def _call_openrouter(bundle: dict[str, Any], judge: dict[str, Any]) -> bytes:
         with urllib.request.urlopen(request, timeout=900) as response:
             return response.read()
     except urllib.error.HTTPError as error:
-        return error.read() or json.dumps({
-            "error": {"code": error.code, "message": str(error)},
-        }).encode()
+        return (
+            error.read()
+            or json.dumps(
+                {
+                    "error": {"code": error.code, "message": str(error)},
+                }
+            ).encode()
+        )
 
 
 def _raw_is_resumable(raw: dict[str, Any], bundle: dict[str, Any]) -> bool:
@@ -437,9 +453,11 @@ def main() -> int:
         if index + 1 >= len(args):
             raise SystemExit("--run-id requires an exact qualification run id")
         selected_run_ids.add(args[index + 1])
-        del args[index:index + 2]
+        del args[index : index + 2]
     feed = dashboard.build(dashboard.DEFAULT_RUNS)
-    runs = [run for run in feed["runs"] if run["status"] in {"needs_judgment", "needs_adjudication"}]
+    runs = [
+        run for run in feed["runs"] if run["status"] in {"needs_judgment", "needs_adjudication"}
+    ]
     if selected_run_ids:
         known_run_ids = {run["run_id"] for run in feed["runs"]}
         unknown_runs = selected_run_ids - known_run_ids
@@ -451,10 +469,13 @@ def main() -> int:
     unknown = selected_ids - {judge["id"] for judge in JUDGES}
     if unknown:
         raise SystemExit(f"unknown judge ids: {', '.join(sorted(unknown))}")
-    missing_keys = sorted({
-        judge["api_key_env"] for judge in judges
-        if not os.environ.get(judge["api_key_env"], "").strip()
-    })
+    missing_keys = sorted(
+        {
+            judge["api_key_env"]
+            for judge in judges
+            if not os.environ.get(judge["api_key_env"], "").strip()
+        }
+    )
     if missing_keys:
         raise SystemExit(f"missing judge API keys: {', '.join(missing_keys)}")
     failures = []
@@ -464,13 +485,11 @@ def main() -> int:
             for run in runs
             for judge in eligible_judges(run)
             if judge in judges
-            and judge["id"] not in {
-                item["id"] for item in (run.get("judgment") or {}).get("judges", [])
-            }
+            and judge["id"]
+            not in {item["id"] for item in (run.get("judgment") or {}).get("judges", [])}
         ]
         futures = {
-            pool.submit(_judge, run, judge): (run["run_id"], judge["id"])
-            for run, judge in jobs
+            pool.submit(_judge, run, judge): (run["run_id"], judge["id"]) for run, judge in jobs
         }
         for future in as_completed(futures):
             try:

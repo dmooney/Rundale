@@ -188,9 +188,7 @@ def aggregate_perf(results: list[dict]) -> dict:
         # measurement are valid. Keep such rows in latency/error accounting and
         # conservatively omit them only from the throughput distribution.
         measurement_complete = (
-            isinstance(output, str)
-            and bool(output.strip())
-            and meta.get("ttft_ms") is not None
+            isinstance(output, str) and bool(output.strip()) and meta.get("ttft_ms") is not None
         )
         if meta.get("error") or not measurement_complete:
             errors += 1
@@ -239,15 +237,11 @@ def aggregate_perf(results: list[dict]) -> dict:
         "ttft_p95_ms": _nearest_rank(ttfts, 0.95),
         "cold_n_ok": by_cache_state["cold"]["ok"],
         "cold_n_error": by_cache_state["cold"]["errors"],
-        "cold_latency_p95_ms": _nearest_rank(
-            by_cache_state["cold"]["latencies"], 0.95
-        ),
+        "cold_latency_p95_ms": _nearest_rank(by_cache_state["cold"]["latencies"], 0.95),
         "cold_ttft_p95_ms": _nearest_rank(by_cache_state["cold"]["ttfts"], 0.95),
         "warm_n_ok": by_cache_state["warm"]["ok"],
         "warm_n_error": by_cache_state["warm"]["errors"],
-        "warm_latency_p95_ms": _nearest_rank(
-            by_cache_state["warm"]["latencies"], 0.95
-        ),
+        "warm_latency_p95_ms": _nearest_rank(by_cache_state["warm"]["latencies"], 0.95),
         "warm_ttft_p95_ms": _nearest_rank(by_cache_state["warm"]["ttfts"], 0.95),
         "tokens_per_sec_p50": _nearest_rank(sorted(tps), 0.50),
         "tokens_per_sec_mean": (sum(tps) / len(tps)) if tps else 0.0,

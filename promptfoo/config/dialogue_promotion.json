@@ -3,7 +3,7 @@
   "player_ready": {
     "minimum_records": 100,
     "minimum_rate": 0.95,
-    "minimum_wilson_lower_95": 0.90,
+    "minimum_wilson_lower_95": 0.9,
     "minimum_overall": 3.5,
     "minimum_critical_axis": 3.0,
     "critical_axes": [
@@ -47,7 +47,7 @@
   },
   "guards": {
     "minimum_observed_turns": 500,
-    "maximum_intervention_rate": 0.10
+    "maximum_intervention_rate": 0.1
   },
   "performance": {
     "minimum_measurements": 15,
@@ -61,7 +61,7 @@
     "maximum_error_rate": 0.005
   },
   "resources": {
-    "maximum_memory_utilization": 0.80
+    "maximum_memory_utilization": 0.8
   },
   "required_dataset_split": "holdout"
 }
