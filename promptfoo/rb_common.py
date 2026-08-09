@@ -15,6 +15,7 @@ import json
 import os
 import re
 import sys
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -169,7 +170,7 @@ def _parse_bool_override(raw: str) -> bool:
     raise ValueError("expected true/false")
 
 
-_DIALOGUE_OVERRIDE_ENV = {
+_DIALOGUE_OVERRIDE_ENV: dict[str, tuple[str, Callable[[str], Any]]] = {
     "max_tokens": ("RB_DIALOGUE_MAX_TOKENS", int),
     "temperature": ("RB_DIALOGUE_TEMPERATURE", float),
     "frequency_penalty": ("RB_DIALOGUE_FREQUENCY_PENALTY", float),

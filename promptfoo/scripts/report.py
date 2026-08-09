@@ -18,9 +18,18 @@ import json
 import math
 import sys
 from pathlib import Path
+from typing import TypedDict
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import rb_common as rb  # noqa: E402
+
+
+class PerfCacheBucket(TypedDict):
+    latencies: list[float]
+    ttfts: list[float]
+    ok: int
+    errors: int
+
 
 AXES = {
     "dialogue": [
@@ -164,7 +173,7 @@ def _is_warmup(res: dict) -> bool:
 
 def aggregate_perf(results: list[dict]) -> dict:
     latencies, ttfts, tps = [], [], []
-    by_cache_state = {
+    by_cache_state: dict[str, PerfCacheBucket] = {
         "cold": {"latencies": [], "ttfts": [], "ok": 0, "errors": 0},
         "warm": {"latencies": [], "ttfts": [], "ok": 0, "errors": 0},
     }
@@ -179,7 +188,7 @@ def aggregate_perf(results: list[dict]) -> dict:
         cache_state = meta.get("perf_cache_state") or (res.get("vars") or {}).get(
             "perf_cache_state"
         )
-        cache_bucket = by_cache_state.get(cache_state)
+        cache_bucket = by_cache_state.get(str(cache_state)) if cache_state is not None else None
         response = res.get("response") or {}
         output = response.get("output")
         # A gateway may deliver the entire completion in the first content
