@@ -7,7 +7,7 @@
 #
 #   PARISH_USER_DATA_DIR=/tmp/parish-log-backpressure \
 #     bash parish/scripts/parish-mcp-backend.sh start   # or: just web 3001
-#   parish --script parish/testing/fixtures/play_log-backpressure.txt
+#   parish --script parish/testing/proofs/play_log-backpressure.txt
 #
 # After the run (PARISH_USER_DATA_DIR is the FULL log root — no app suffix):
 #

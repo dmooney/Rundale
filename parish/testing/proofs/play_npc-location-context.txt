@@ -7,7 +7,7 @@
 # Location context only matters once it reaches the LLM, so run this against a
 # REAL model on a live server:
 #   bash parish/scripts/parish-mcp-backend.sh start
-#   parish --script parish/testing/fixtures/play_npc-location-context.txt
+#   parish --script parish/testing/proofs/play_npc-location-context.txt
 # Then capture the NPC turn's `prompt_text` via the debug snapshot to see the
 # "Paths from here:" block, setting line, and local-note line verbatim.
 

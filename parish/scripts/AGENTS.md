@@ -50,13 +50,15 @@ just attach-proof <task-id>                                # post proof bundle a
 
 - Python script bridging cold-start scenarios for the MCP backend.
 
-### `parish-mcp-audit.sh` — Audit MCP tool call coverage
+### `parish-mcp-audit.sh` — Audit a backend command session
 
-- Scans MCP tool usage across the codebase for coverage gaps.
+- Historical filename: calls parish-server HTTP routes directly, preserving one
+  cookie-backed session across commands. It validates engine-state continuity;
+  it does not exercise the stdio MCP server or player-visible UI.
 
 ### `harness-shadow.sh` — Shadow-mode harness runner
 
-- Runs the harness in shadow mode (real-loop vs legacy router comparison, #1159). See `src/shadow.rs` in `parish-engine`.
+- Runs the harness in shadow mode (real-loop vs legacy router comparison, #1159). Divergences are reported but do not fail the run; compilation and test failures propagate nonzero. See `src/shadow.rs` in `parish-engine`.
 
 ### `harness-shadow-summarize.py` — Summarise shadow-mode diff output
 

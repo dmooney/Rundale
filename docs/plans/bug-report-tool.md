@@ -49,7 +49,7 @@ Ordered, one commit per step (conventional-commit prefix in parens).
 
 ## Proof
 
-- `cargo run --manifest-path parish/Cargo.toml -p parish-engine -- --script parish/testing/fixtures/play_bug-report-tool.txt` → state setup.
+- `cargo run --manifest-path parish/Cargo.toml -p parish-engine -- --script parish/testing/proofs/play_bug-report-tool.txt` → state setup.
 - `parish-mcp-backend.sh start` with `PARISH_BUG_REPORT_DRY_RUN=1` → call
   `mcp__parish__parish_file_bug` → capture transcript + composed body (C6).
 - UI screenshots: toolbar 🐛 + open modal (C7); modal from a debug record (C8).

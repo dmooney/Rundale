@@ -17,6 +17,7 @@ Environment:
 """
 
 import argparse
+import http.cookiejar
 import json
 import os
 import sys
@@ -33,6 +34,13 @@ PLAYER_MODEL = os.environ.get("PLAYER_MODEL", "microsoft/Phi-4")
 GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN", "")
 PARISH_PORT = int(os.environ.get("PARISH_PORT", "3030"))
 GITHUB_MODELS_URL = "https://models.github.ai/inference/chat/completions"
+
+# parish-server stores the active game in a cookie-backed session. A single
+# opener must own every Parish request in a run or each turn silently creates a
+# fresh game. Keep the GitHub Models client separate so game cookies are never
+# sent to an external host.
+PARISH_COOKIE_JAR = http.cookiejar.CookieJar()
+PARISH_OPENER = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(PARISH_COOKIE_JAR))
 
 PLAYER_SYSTEM = """\
 You are playing Rundale, a text adventure set in rural Ireland in 1820. You
@@ -55,7 +63,7 @@ Current game state will be provided before each move."""
 def parish_get(path: str) -> dict:
     url = f"http://127.0.0.1:{PARISH_PORT}{path}"
     req = urllib.request.Request(url)
-    with urllib.request.urlopen(req, timeout=10) as resp:
+    with PARISH_OPENER.open(req, timeout=10) as resp:
         return json.loads(resp.read())
 
 
@@ -63,7 +71,7 @@ def parish_post(path: str, body: dict) -> dict:
     url = f"http://127.0.0.1:{PARISH_PORT}{path}"
     data = json.dumps(body).encode()
     req = urllib.request.Request(url, data=data, headers={"Content-Type": "application/json"})
-    with urllib.request.urlopen(req, timeout=30) as resp:
+    with PARISH_OPENER.open(req, timeout=30) as resp:
         raw = resp.read()
         return json.loads(raw) if raw else {}
 
@@ -97,8 +105,15 @@ def github_models_complete(messages: list[dict]) -> str:
 
 
 def build_state_summary(snapshot: dict, npcs: list[dict]) -> str:
-    loc = snapshot.get("location", "unknown location")
-    clock = snapshot.get("clock", "")
+    loc = snapshot.get("location_name", "unknown location")
+    hour = snapshot.get("hour")
+    minute = snapshot.get("minute")
+    time_label = snapshot.get("time_label", "")
+    clock = (
+        f"{hour:02d}:{minute:02d} {time_label}"
+        if isinstance(hour, int) and isinstance(minute, int)
+        else time_label
+    )
     weather = snapshot.get("weather", "")
     log_tail = snapshot.get("log_tail", [])
 
@@ -138,7 +153,7 @@ def run_session(
         try:
             snapshot = parish_get("/api/world-snapshot")
             npcs_resp = parish_get("/api/npcs-here")
-            npcs = npcs_resp.get("npcs", []) if isinstance(npcs_resp, dict) else []
+            npcs: list[dict] = npcs_resp if isinstance(npcs_resp, list) else []
         except Exception as e:
             print(f"Turn {turn}: failed to read game state: {e}", file=sys.stderr)
             break
@@ -173,13 +188,20 @@ def run_session(
         print(f"Turn {turn + 1:3d}: {command}")
         result = {}
         try:
-            parish_post("/api/submit-input", {"text": command})
-            # Allow time for async NPC processing before reading game response.
-            time.sleep(0.5)
-            post_snapshot = parish_get("/api/world-snapshot")
+            command_response = parish_post(
+                "/api/command",
+                {"text": command, "addressedTo": [], "includeState": True},
+            )
+            post_snapshot = command_response.get("state") or parish_get("/api/world-snapshot")
+            lines = command_response.get("lines", [])
             result = {
-                "log_tail": post_snapshot.get("log_tail", [])[-4:],
-                "location_after": post_snapshot.get("location"),
+                "outcome": command_response.get("outcome"),
+                "kind": command_response.get("kind"),
+                "lines": lines,
+                "narrative": "\n".join(
+                    line.get("text", "") for line in lines if isinstance(line, dict)
+                ),
+                "location_after": post_snapshot.get("location_name"),
             }
         except Exception as e:
             print(f"  Error: {e}", file=sys.stderr)
@@ -191,8 +213,8 @@ def run_session(
                 "command": command,
                 "llm_generated": is_llm_turn,
                 "state": {
-                    "location": snapshot.get("location"),
-                    "clock": snapshot.get("clock"),
+                    "location": snapshot.get("location_name"),
+                    "clock": f"{snapshot.get('hour', 0):02}:{snapshot.get('minute', 0):02}",
                     "weather": snapshot.get("weather"),
                     "npc_count": len(npcs),
                 },

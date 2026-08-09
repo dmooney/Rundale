@@ -312,7 +312,7 @@ Following the #443 `/debug emotion` / `/stub-emotion` pattern:
 - `/debug dreams <npc>` → print `sleep_state`, `fatigue`, last 3 `consolidations` (with levels and time spans), count of `core_memories`, head of list.
 - `/stub-fatigue <npc> <value>` → set fatigue directly for testing.
 - `/force-dream <npc>` → run dream-consolidation synchronously right now regardless of schedule (test harness).
-- Add a gameplay-proof fixture `parish/testing/fixtures/play_prove_dreams.txt` that:
+- Add a gameplay-proof fixture `parish/testing/proofs/play_prove_dreams.txt` that:
   1. Has the player converse extensively with one NPC across an in-game day.
   2. Advances time through the night.
   3. Uses `/debug dreams` to confirm a `level: 0` consolidation entry was created.
@@ -340,7 +340,7 @@ This fixture is the `/prove` target per CLAUDE.md rule #4.
 
 1. `just check` — fmt + clippy + workspace test suite green.
 2. `just verify` — harness walkthrough green.
-3. `cargo run --manifest-path parish/Cargo.toml -p parish-engine -- --script parish/testing/fixtures/play_prove_dreams.txt` — passes.
+3. `cargo run --manifest-path parish/Cargo.toml -p parish-engine -- --script parish/testing/proofs/play_prove_dreams.txt` — passes.
 4. Manual Tauri session: start a new game, play ≥ 1 in-game day, advance through night, open dev-mode NPC debug panel, confirm a consolidation entry is visible with a sensible summary.
 5. Manual regression on #443 coverage (assuming it has landed): `/prove emotions` still passes unchanged; the combined `/debug emotion` + `/debug dreams` shows fatigue biasing emotion decay baseline as designed.
 6. Save a game mid-way through, reload, confirm `consolidations` and `core_memories` survived the round-trip.
@@ -352,7 +352,7 @@ This fixture is the `/prove` target per CLAUDE.md rule #4.
 **New files:**
 
 - `crates/parish-core/prompts/npc_dream_consolidation.prompt.yml`
-- `parish/testing/fixtures/play_prove_dreams.txt`
+- `parish/testing/proofs/play_prove_dreams.txt`
 
 **Extend:**
 

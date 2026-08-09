@@ -12,9 +12,9 @@ symlink where present.
 | `AGENTS.md`, `CLAUDE.md`                          | Repo-wide agent instructions. `CLAUDE.md` is a symlink to `AGENTS.md`        | [AGENTS.md](../../AGENTS.md)            | [AGENTS.md](../../AGENTS.md)                |
 | `LEARNINGS.md`                                    | Short-lived gotchas and surprising defaults for future agents                | [LEARNINGS.md](../../LEARNINGS.md)      | -                                           |
 | `parish/`                                         | Main Rust workspace and frontend workspace for the Parish engine             | [Cargo.toml](../../parish/Cargo.toml)   | -                                           |
-| `parish/crates/`                                  | 23 Rust workspace crates: binaries, composition crate, and leaf logic crates | see [Parish crates](#parish-crates)     | per crate                                   |
+| `parish/crates/`                                  | 24 Rust workspace crates: binaries, composition crate, and leaf logic crates | see [Parish crates](#parish-crates)     | per crate                                   |
 | `parish/apps/ui/`                                 | Svelte 5 + TypeScript frontend shared by desktop and web modes               | `src/routes/`, `src/lib/`               | [AGENTS.md](../../parish/apps/ui/AGENTS.md) |
-| `parish/testing/`                                 | Harness fixtures, eval scripts, and test data                                | `fixtures/`, `evals/`                   | [AGENTS.md](../../parish/testing/AGENTS.md) |
+| `parish/testing/`                                 | Asserted scenarios, legacy fixtures, proof scripts, evals, and test data     | `scenarios/`, `fixtures/`, `proofs/`    | [AGENTS.md](../../parish/testing/AGENTS.md) |
 | `parish/scripts/`                                 | Check, proof, MCP-backend, screenshot, and release helper scripts            | `*.sh`, `*.py`                          | -                                           |
 | `parish/assets/`                                  | Bundled app assets such as fonts                                             | `fonts/`                                | -                                           |
 | `parish/dist/`                                    | Runtime distribution helpers and local model/proxy assets                    | `vllm-mlx/`                             | -                                           |
@@ -45,7 +45,7 @@ symlink where present.
 
 ## Parish Crates
 
-The Parish workspace currently has 23 crates under `parish/crates/`.
+The Parish workspace currently has 24 crates under `parish/crates/`.
 
 | Path                                | Purpose                                                                                                                                                                                                     | Entry / key file                                                         | Scope doc                                                   |
 | ----------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ | ----------------------------------------------------------- |
@@ -72,6 +72,7 @@ The Parish workspace currently has 23 crates under `parish/crates/`.
 | `parish/crates/parish-geo-tool/`    | Geo CLI used by the `/rundale-geo-tool` skill                                                                                                                                                               | `src/main.rs`                                                            | -                                                           |
 | `parish/crates/parish-npc-tool/`    | NPC editing and validation CLI                                                                                                                                                                              | `src/main.rs`                                                            | -                                                           |
 | `parish/crates/parish-harness/`     | Game quality-control harness: LLM-driven N-turn playtests, gate+axes scoring, findings, SQLite telemetry                                                                                                    | `src/run/runner.rs`, `src/score/`, `src/client/`                         | `parish/crates/parish-harness/CLAUDE.md`                    |
+| `parish/crates/parish-scenario/`    | Versioned YAML scenario runner over the shipping game loop; deterministic inference mocks and machine assertions                                                                                            | `src/lib.rs`, `src/main.rs`                                              | [AGENTS.md](../../parish/crates/parish-scenario/AGENTS.md)  |
 
 ## Local / Generated Paths
 

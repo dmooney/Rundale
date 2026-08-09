@@ -10,8 +10,8 @@ const gate = path.join(__dirname, 'ci-gate.sh');
 function runGate({
 	gatedResults = 'success success skipped success',
 	playwrightWindowsResult = 'success',
-	uiRequired,
-	uiResult,
+	runtimeRequired,
+	runtimeResult,
 }) {
 	return spawnSync('bash', [gate], {
 		encoding: 'utf8',
@@ -19,8 +19,8 @@ function runGate({
 			...process.env,
 			GATED_RESULTS: gatedResults,
 			PLAYWRIGHT_WINDOWS_RESULT: playwrightWindowsResult,
-			UI_E2E_REQUIRED: uiRequired,
-			UI_E2E_RESULT: uiResult,
+			RUNTIME_SUITE_REQUIRED: runtimeRequired,
+			RUNTIME_SUITE_RESULT: runtimeResult,
 		},
 	});
 }
@@ -35,8 +35,8 @@ test('Windows Playwright launcher lifecycle must succeed', async (t) => {
 		await t.test(playwrightWindowsResult, () => {
 			const result = runGate({
 				playwrightWindowsResult,
-				uiRequired: 'false',
-				uiResult: 'skipped',
+				runtimeRequired: 'false',
+				runtimeResult: 'skipped',
 			});
 			assert.equal(
 				result.status,
@@ -47,7 +47,7 @@ test('Windows Playwright launcher lifecycle must succeed', async (t) => {
 	}
 });
 
-test('required UI Playwright passes only when it succeeds', async (t) => {
+test('required runtime correctness suite passes only when it succeeds', async (t) => {
 	const cases = [
 		['success', 0],
 		['skipped', 1],
@@ -55,12 +55,12 @@ test('required UI Playwright passes only when it succeeds', async (t) => {
 		['cancelled', 1],
 	];
 
-	for (const [uiResult, expectedStatus] of cases) {
-		await t.test(uiResult, () => {
+	for (const [runtimeResult, expectedStatus] of cases) {
+		await t.test(runtimeResult, () => {
 			const result = runGate({
-				gatedResults: `success success ${uiResult}`,
-				uiRequired: 'true',
-				uiResult,
+				gatedResults: `success success ${runtimeResult}`,
+				runtimeRequired: 'true',
+				runtimeResult,
 			});
 			assert.equal(
 				result.status,
@@ -71,7 +71,7 @@ test('required UI Playwright passes only when it succeeds', async (t) => {
 	}
 });
 
-test('non-UI pull requests pass only when UI Playwright is skipped', async (t) => {
+test('non-runtime pull requests pass only when runtime suite is skipped', async (t) => {
 	const cases = [
 		['skipped', 0],
 		['success', 1],
@@ -79,12 +79,12 @@ test('non-UI pull requests pass only when UI Playwright is skipped', async (t) =
 		['cancelled', 1],
 	];
 
-	for (const [uiResult, expectedStatus] of cases) {
-		await t.test(uiResult, () => {
+	for (const [runtimeResult, expectedStatus] of cases) {
+		await t.test(runtimeResult, () => {
 			const result = runGate({
-				gatedResults: `success skipped ${uiResult}`,
-				uiRequired: 'false',
-				uiResult,
+				gatedResults: `success skipped ${runtimeResult}`,
+				runtimeRequired: 'false',
+				runtimeResult,
 			});
 			assert.equal(
 				result.status,
@@ -98,8 +98,8 @@ test('non-UI pull requests pass only when UI Playwright is skipped', async (t) =
 test('an ordinary dependency failure still fails the aggregate gate', () => {
 	const result = runGate({
 		gatedResults: 'success failure skipped',
-		uiRequired: 'false',
-		uiResult: 'skipped',
+		runtimeRequired: 'false',
+		runtimeResult: 'skipped',
 	});
 
 	assert.equal(result.status, 1, result.stdout + result.stderr);
@@ -109,19 +109,19 @@ test('an ordinary dependency failure still fails the aggregate gate', () => {
 test('an ordinary dependency cancellation still fails the aggregate gate', () => {
 	const result = runGate({
 		gatedResults: 'success cancelled success',
-		uiRequired: 'true',
-		uiResult: 'success',
+		runtimeRequired: 'true',
+		runtimeResult: 'success',
 	});
 
 	assert.equal(result.status, 1, result.stdout + result.stderr);
 	assert.match(result.stdout, /required CI job ended with 'cancelled'/);
 });
 
-test('an invalid UI requirement value fails closed', () => {
+test('an invalid runtime-suite requirement value fails closed', () => {
 	const result = runGate({
 		gatedResults: 'success skipped',
-		uiRequired: 'unknown',
-		uiResult: 'skipped',
+		runtimeRequired: 'unknown',
+		runtimeResult: 'skipped',
 	});
 
 	assert.equal(result.status, 1, result.stdout + result.stderr);

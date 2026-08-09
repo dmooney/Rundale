@@ -7,13 +7,13 @@ The framing comes from OpenAI's [harness-engineering post](https://openai.com/in
 ## When you... → the harness... → lives at
 
 | When you...                                                                                          | The harness...                                                               | Lives at                                                                                                       |
-| ---------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------- |
+| ---------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
 | Edit a doc that links to a path                                                                      | Rejects broken relative Markdown links and nonexistent agent-path references | `parish/scripts/check-doc-paths.sh` (CI: `docs-consistency`, local: `just check`)                              |
 | Edit `AGENTS.md`                                                                                     | `CLAUDE.md` follows automatically                                            | `CLAUDE.md` is a symlink to `AGENTS.md`                                                                        |
 | Add a runtime dep (`axum`, `tauri`, etc.) to a leaf crate                                            | Test fails citing the rule                                                   | `parish/crates/parish-core/tests/architecture_fitness.rs` → `backend_agnostic_crates_do_not_pull_runtime_deps` |
 | Create a top-level module under `parish/crates/parish-engine/src/` that shadows one in `parish-core` | Test fails with the canonical fix (extend the leaf crate)                    | `architecture_fitness.rs` → `parish_engine_does_not_duplicate_parish_core_modules`                             |
 | Leave a `.rs` file behind after a refactor (no `mod` declaration anywhere)                           | Test fails listing the orphan(s)                                             | `architecture_fitness.rs` → `no_orphaned_source_files`                                                         |
-| Change anything that affects gameplay JSON output                                                    | Snapshot baseline test fails with a `live                                    | baseline` diff window                                                                                          | `parish/crates/parish-engine/tests/eval_baselines.rs` |
+| Change anything that affects gameplay JSON output                                                    | Snapshot baseline test fails with a `live-baseline` diff window              | `parish/crates/parish-engine/tests/eval_baselines.rs`                                                          |
 | Introduce an out-of-period word in a fixture                                                         | Rubric fails                                                                 | `eval_baselines.rs` → `rubric_anachronisms_are_empty`                                                          |
 | Accidentally return `Moved { minutes: 0 }` (frozen clock)                                            | Rubric fails                                                                 | `eval_baselines.rs` → `rubric_movement_minutes_are_positive`                                                   |
 | Silently break the location-description renderer                                                     | Rubric fails                                                                 | `eval_baselines.rs` → `rubric_look_descriptions_are_non_empty`                                                 |
@@ -43,10 +43,10 @@ CI fast lane (`ci.yml`):
         agent-check           # proof evidence + judge verdict + fast debt scan
         docs-consistency      # check-doc-paths
         format/python/shell/toml quality
-        ui-e2e                # complete Playwright contract, UI-change PRs only
-        ci-gate               # stable required status; aggregates conditional UI proof
+        runtime-suite         # reusable full-ci.yml, runtime-change PRs only
+        ci-gate               # stable required status; aggregates conditional runtime proof
 
-CI full suite (`full-ci.yml`, merge_group / main push / nightly / manual):
+CI full suite (`full-ci.yml`, workflow_call / merge_group / main push / nightly / manual):
         rust-quality-gate     # fmt + clippy + test (the architecture-fitness tests run here)
         rust-coverage-ratchet # cargo-llvm-cov line floor
         rust-multi-channel    # cargo check on stable + beta
@@ -54,12 +54,17 @@ CI full suite (`full-ci.yml`, merge_group / main push / nightly / manual):
         ui-quality + ui-e2e   # frontend
 ```
 
-The complete Playwright suite is the canonical shipped-surface contract. A
-pull request that replaces the default UI must migrate or explicitly retire
-every assertion for the prior surface in that same change. The conditional
-`ui-e2e` result is folded into the sole branch-protection context, `CI gate`:
-UI changes require `success`, while non-UI pull requests require the job to be
-`skipped`. Failures, cancellations, and unexpected skips fail closed.
+Playwright reports two separate projects: `ui-contract` (deterministic mocked
+Tauri IPC) and `browser-fullstack` (real browser HTTP/WS against
+`parish-server`). The latter asserts browser-visible state against a read from
+the same cookie-backed engine session and attaches a real-server screenshot.
+
+The complete full suite is the runtime-changing PR contract. It includes Rust
+quality, coverage, multi-channel compile, the fixture sweep, UI quality, and
+the complete Playwright suite. Its conditional result is folded into the sole
+branch-protection context, `CI gate`: runtime changes require `success`, while
+non-runtime pull requests require the reusable job to be `skipped`. Failures,
+cancellations, and unexpected skips fail closed.
 
 ## Where the harness ends
 

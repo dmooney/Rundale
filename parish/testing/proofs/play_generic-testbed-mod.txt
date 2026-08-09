@@ -5,7 +5,7 @@
 #
 # Run:
 #   cargo run --manifest-path parish/Cargo.toml -p parish-cli \
-#     -- --script parish/testing/fixtures/play_generic-testbed-mod.txt
+#     -- --script parish/testing/proofs/play_generic-testbed-mod.txt
 #
 # Expected: Origin start location, navigable cross graph, NPCs at correct stations.
 

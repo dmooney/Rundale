@@ -16,7 +16,7 @@
 #
 # Run:
 #   cargo run --manifest-path parish/Cargo.toml -p parish-engine \
-#     -- --headless --script parish/testing/fixtures/play_fix-1276.txt \
+#     -- --headless --script parish/testing/proofs/play_fix-1276.txt \
 #     2>&1 | tee .proofs/fix-1276/transcript.txt
 
 # Confirm starting location.

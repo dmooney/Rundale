@@ -11,9 +11,9 @@
 #
 # Run against a LIVE server (live-proof tier, Rule 10):
 #   bash parish/scripts/parish-mcp-backend.sh start
-#   parish --script parish/testing/fixtures/play_appstate-locks.txt
+#   parish --script parish/testing/proofs/play_appstate-locks.txt
 # Or deterministic harness-level:
-#   just run-headless --script parish/testing/fixtures/play_appstate-locks.txt
+#   just run-headless --script parish/testing/proofs/play_appstate-locks.txt
 #
 # Pass signal: every command returns without error, deadlock, 409, or 500;
 # /status shows a non-empty location; /save and /load both succeed; the /stub

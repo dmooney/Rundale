@@ -16,7 +16,7 @@
 #
 # Run:
 #   cargo run --manifest-path parish/Cargo.toml -p parish-engine \
-#     -- --script parish/testing/fixtures/play_extract-diagnostics.txt \
+#     -- --script parish/testing/proofs/play_extract-diagnostics.txt \
 #     > .proofs/extract-diagnostics/transcript.txt
 #
 # Expected signals:

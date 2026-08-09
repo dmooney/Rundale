@@ -24,6 +24,7 @@ members = [
     "crates/parish-input",
     "crates/parish-client",
     "crates/parish-harness",
+    "crates/parish-scenario",
 ]
 # parish-mcp is a default member so a plain `cargo build` / `just build` produces the
 # stdio MCP binary as part of the normal build — without it, a cold worktree has no
@@ -58,6 +59,7 @@ parish-diagnostics = { path = "crates/parish-diagnostics" }
 parish-persistence = { path = "crates/parish-persistence" }
 parish-input = { path = "crates/parish-input" }
 parish-core = { path = "crates/parish-core" }
+parish-engine = { path = "crates/parish-engine" }
 
 # Serialization
 serde = { version = "1", features = ["derive"] }

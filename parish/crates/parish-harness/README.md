@@ -37,16 +37,19 @@ $BIN serve --db /tmp/harness.db --artifacts /tmp/harness --port 8787
 
 ## Backends
 
-The harness talks HTTP to a running backend on `127.0.0.1:3030` (override with `--base-url`).
-Two options, with different capabilities:
+The harness talks to `POST /api/command` on a running `parish-server` at
+`127.0.0.1:3030` (override with `--base-url`).
 
-| Backend                  | Start                                             | Real LLM dialogue  | Screenshots  | Engine-model BYOK A/B          |
-| ------------------------ | ------------------------------------------------- | ------------------ | ------------ | ------------------------------ |
-| Headless `parish-server` | `bash parish/scripts/parish-mcp-backend.sh start` | no (simulator)     | no           | no (`/api/submit-byok` absent) |
-| Desktop `parish-tauri`   | `cargo run -p parish-tauri -- --mcp-port 3030`    | yes (bundled/BYOK) | yes (F2/MCP) | yes                            |
+| Backend                  | Drive commands | Real model dialogue           | Player-visible screenshots |
+| ------------------------ | -------------- | ----------------------------- | -------------------------- |
+| Headless `parish-server` | yes            | yes with `--headless-models`  | no                         |
+| Desktop `parish-tauri`   | no             | not reachable by this harness | no                         |
 
-Use the headless server for fast, deterministic, key-free runs (scripted player/judge). Use
-the Tauri app when you want real model dialogue, per-turn screenshots, or to A/B engine models.
+The desktop bridge intentionally does not serve `/api/command`, so this binary
+cannot drive Tauri. Its `frame.png` artifacts are rendered state telemetry, not
+captures of the player-visible UI. Per-category engine-model overrides work on
+`parish-server` through runtime slash commands. Use the `quality-harness` skill
+when a real model must drive the desktop game and inspect screenshots.
 
 ## Commands
 
@@ -172,7 +175,7 @@ A/B comparisons are exact.
 {
   "label": "smoke",
   "engine_models": {
-    // per-category BYOK; Tauri backend only
+    // applied to parish-server through /provider, /url, /model, and /key commands
     // "dialogue":  { "provider": "anthropic", "model": "claude-sonnet-4-6" },
     // "intent":    { "provider": "ollama", "model": "qwen2.5:1.5b", "base_url": "http://localhost:11434" }
   },
@@ -230,8 +233,9 @@ A/B comparisons are exact.
 
 - The **scripted judge is a deterministic stand-in**, not real LLM judgment. For true
   play-quality numbers use `--player api` (needs a key).
-- **Engine-model A/B (`engine_models`) needs the Tauri backend** — the headless server has no
-  `/api/submit-byok`, so per-category model overrides are skipped there.
+- **This binary does not drive Tauri.** Engine-model A/B is supported against
+  `parish-server`; player-visible screenshots still require the live desktop
+  `quality-harness` skill.
 - **Cost token columns are 0** today: the `CostTracker` seam exists but `AnyClient` does not
   yet surface per-call token usage. No numbers are faked.
 - `QueueBackend` ships a SQLite implementation; a Postgres impl (multi-machine workers) is a
