@@ -11,6 +11,7 @@
 //! ResponseFormat}`); the request/response structs are `pub(super)`
 //! crate-internal protocol details.
 
+use parish_config::ReasoningEffort;
 use serde::{Deserialize, Serialize};
 
 /// A single message in the chat completions request.
@@ -40,6 +41,52 @@ pub(super) struct ChatCompletionRequest<'a> {
     /// `None` omits the key from the wire body entirely.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(super) frequency_penalty: Option<f32>,
+    /// Optional OpenAI-compatible extension used by reasoning-capable local
+    /// servers such as vllm-mlx. `None` preserves provider portability;
+    /// profiles may set `Some(false)` only after the target has been measured
+    /// to require and accept the field.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(super) enable_thinking: Option<bool>,
+    /// MLX-LM exposes the same switch through chat-template kwargs, while
+    /// vllm-mlx consumes the top-level extension above. Profiles set one
+    /// semantic knob and the local-compatible wire path emits both shapes.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(super) chat_template_kwargs: Option<ChatTemplateKwargs>,
+    /// OpenRouter's provider-neutral reasoning control. The client translates
+    /// the existing semantic `enable_thinking` knob into this shape only for
+    /// an authenticated OpenRouter host; local servers continue to receive
+    /// their native compatibility fields above.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(super) reasoning: Option<ReasoningConfig>,
+    /// DeepSeek's native thinking-mode control. Unlike OpenRouter's unified
+    /// `reasoning` object, the first-party API expects `thinking.type`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(super) thinking: Option<DeepSeekThinkingConfig>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    /// First-party DeepSeek and Google's OpenAI-compat endpoint both expose a
+    /// top-level effort field, though their supported vocabularies differ.
+    pub(super) reasoning_effort: Option<&'static str>,
+}
+
+#[derive(Serialize, Debug)]
+pub(super) struct ChatTemplateKwargs {
+    pub(super) enable_thinking: bool,
+}
+
+#[derive(Serialize, Debug)]
+pub(super) struct ReasoningConfig {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(super) effort: Option<&'static str>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(super) enabled: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(super) exclude: Option<bool>,
+}
+
+#[derive(Serialize, Debug)]
+pub(super) struct DeepSeekThinkingConfig {
+    #[serde(rename = "type")]
+    pub(super) kind: &'static str,
 }
 
 /// Sampling and generation parameters shared across all generate methods.
@@ -60,6 +107,14 @@ pub struct GenerateParams {
     /// and the Simulator (no equivalent).  `None` omits the key from the
     /// wire body entirely.
     pub frequency_penalty: Option<f32>,
+    /// Optional reasoning-mode control accepted by compatible OpenAI-style
+    /// backends. Omitted for providers/models without a measured contract.
+    pub enable_thinking: Option<bool>,
+    /// Optional provider reasoning effort. OpenRouter translates this into
+    /// its unified `reasoning.effort` request object; DeepSeek's first-party
+    /// endpoint translates it into native `thinking` + `reasoning_effort`
+    /// fields with that API's supported effort vocabulary.
+    pub reasoning_effort: Option<ReasoningEffort>,
 }
 
 /// Controls structured output format.

@@ -3,6 +3,7 @@
 pub mod builtin_providers;
 pub mod engine;
 pub mod flags;
+pub mod local_dialogue;
 pub mod provider;
 pub mod user_config;
 

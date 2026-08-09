@@ -58,7 +58,11 @@ cat promptfoo/leaderboard/leaderboard.md        # ranked; full history in leader
   scripted tour; the **byte-exact** requests it sends (dialogue with PEOPLE YOU KNOW / WHAT'S ON
   YOUR MIND / anchors / `json_object` / `frequency_penalty`, intent, reaction, tier2/tier3 sim)
   are folded into the datasets and sent **verbatim** by the bench — no reconstruction, no engine
-  change. The drift guard in `scripts/test_v2.py` fails if the datasets lose their runtime shape.
+  change. A fresh capture is a new sample of the game's stochastic simulation,
+  not an expected byte-for-byte rebuild. The committed sample is the
+  reproducible baseline: its files are content-addressed by `MANIFEST.json` and
+  replayed byte-exactly for every candidate. The drift guard in
+  `scripts/test_v2.py` fails if the datasets lose their runtime shape.
 - **REQ 3 multiturn** (`promptfooconfig.multiturn.yaml`, `v2/rubrics/judge_multiturn_v1.*`):
   a scripted multi-turn conversation per record, the candidate's own replies chained as assistant
   turns, judged on the four known failure modes (re-introduction, wrong name, premature farewell,
@@ -87,7 +91,7 @@ just -f promptfoo/justfile bench \
   'gpt-5-mini@https://api.openai.com/v1#env:OPENAI_API_KEY' 10
 
 # or a single slice
-just -f promptfoo/justfile dialogue 'mlx-community/Qwen2.5-7B-Instruct-4bit@http://localhost:8000/v1'
+just -f promptfoo/justfile dialogue 'mlx-community/Qwen2.5-14B-Instruct-4bit@http://localhost:8000/v1'
 just -f promptfoo/justfile report   # roll up output/*.json
 ```
 
@@ -110,6 +114,83 @@ and a standalone `output/<slice>.html` web report (both gitignored).
   `output/report.md` + `report.json` with the leaderboard-style per-slice means,
   the perf rollup (p50/p95, tok/s), and the cost/game-time projection
   (USD/min·hr). promptfoo's own UI is per-slice and doesn't compute these.
+
+## Production promotion gate
+
+Leaderboard rank is exploratory evidence, not permission to change a shipped
+local preset. A model/backend/hardware combination is promotable only when
+[`scripts/promotion_gate.py`](scripts/promotion_gate.py) emits a passing,
+content-addressed receipt against the frozen holdout:
+
+```sh
+# Generate holdout outputs. The provider stamps RB_SPLIT into every row so the
+# gate can reject development output.
+just -f promptfoo/justfile bench-holdout '<target-spec>'
+
+# With the candidate configured on a running Parish backend, collect 500 live
+# turns through the canonical parser and guard path. The command is resumable.
+just -f promptfoo/justfile soak '<target-spec>' artifacts/soak.json 500
+
+# rundale-bench/local_runner.py supplies the independently sampled peak-memory
+# artifact. Assemble (and hash) both measurement sources.
+just -f promptfoo/justfile build-evidence \
+  '<target-spec>' apple-silicon-24-32gb \
+  artifacts/soak.json rundale-bench/artifacts/local_<timestamp>.json \
+  artifacts/profile-evidence.json
+
+just -f promptfoo/justfile promote \
+  '<target-spec>' artifacts/profile-evidence.json
+```
+
+The policy is machine-readable in
+[`config/dialogue_promotion.json`](config/dialogue_promotion.json). It requires:
+
+- at least 100 dialogue and 30 multiturn holdout records;
+- at least 95% player-ready dialogue turns, with the Wilson 95% lower bound at
+  or above 90%;
+- dialogue mean at least 3.8/5 and bootstrap lower bound at least 3.6;
+- no fabrication, degenerate-loop, non-Latin, refusal, or empty-output signal;
+- a 500-call production-parser soak with at least 99.5% complete, non-empty
+  Tier-1 JSON responses (heuristic recovery remains a player-safety fallback,
+  not a contract-valid success);
+- guard intervention on no more than 10% of at least 500 observed turns;
+- six distinct cold NPC-prefix measurements and at least ten warmed-prefix
+  measurements: cold TTFT/completion p95 at most 6s/10s, warmed TTFT/completion
+  p95 at most 1s/5s, median throughput at least 15 tok/s, and overall error
+  rate no more than 0.5%;
+- peak local-model memory no greater than 80% of the registered hardware
+  profile.
+
+Hardware classes are registered in
+[`config/local_hardware_profiles.json`](config/local_hardware_profiles.json).
+The promotion receipt records both the dataset merkle and a digest of the
+promotion policy, so results from different corpora or thresholds cannot be
+presented as comparable.
+
+The gate deliberately fails when a required measurement or holdout slice is
+missing. Preliminary leaderboard rows and development runs remain useful for
+selecting experiments, but cannot qualify a production preset.
+
+Shipped qualification claims are separately fail-closed. Exact passing
+provider/model pairs live in
+`parish/crates/parish-config/src/local_dialogue.rs`; setup calls every other
+local profile experimental. `just -f promptfoo/justfile qualification-check`
+requires a passing receipt for the current frozen manifest before a registry
+entry is valid and rejects a `Recommended` label on unqualified local presets.
+The registry is currently empty.
+
+Performance runs distinguish cache state rather than averaging it away. The
+first pass uses one byte-distinct system prompt per NPC and is stamped `cold`;
+later repeats are stamped `warm`. The server must be freshly started for a
+qualification run. This catches both first-conversation prefill cost and the
+steady-state path players experience during an ongoing conversation.
+
+`soak_dialogue.py` reads its metrics from a diagnostic event emitted by the
+shared live NPC-turn path. The synchronous command response aggregates that
+event under `kind_detail.dialogue_quality`; the soak does not maintain a
+Python copy of the production parser or guards. Promotion re-hashes the raw
+turn JSONL and local-runner artifact and recomputes every reliability, guard,
+and memory summary before issuing a receipt.
 
 ## Configurable judge
 

@@ -295,6 +295,41 @@ pub struct DialogueCorrectedPayload {
     pub message_id: Option<String>,
 }
 
+/// Production-path quality measurement for one completed NPC turn.
+///
+/// This diagnostic event is consumed by the synchronous command drain and
+/// benchmark soak tooling. It contains no prompt or dialogue content.
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct DialogueQualityPayload {
+    /// Stable ID matching the turn's stream lifecycle events.
+    pub turn_id: u64,
+    /// `full_json`, `recovered_dialogue`, or `raw_text`.
+    pub parse_disposition: String,
+    /// Whether the model satisfied the Tier-1 JSON contract with usable text.
+    pub contract_valid: bool,
+    /// Whether canonical guards or the display cap changed the streamed line.
+    pub guard_intervened: bool,
+    /// Content-free guard stages that changed the line (grounding, polish,
+    /// verbosity, identity/intent, repetition, or the final display pipeline).
+    #[serde(default)]
+    pub guard_reasons: Vec<String>,
+    /// Model name submitted to the inference queue.
+    pub model: String,
+    /// Exact generation settings used for this turn.
+    pub generation: DialogueGenerationTelemetry,
+}
+
+/// Wire-safe copy of the Tier-1 generation settings used for one turn.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub struct DialogueGenerationTelemetry {
+    pub max_tokens: u32,
+    pub temperature: f32,
+    pub frequency_penalty: Option<f32>,
+    pub json_mode: bool,
+    pub enable_thinking: Option<bool>,
+    pub reasoning_effort: Option<crate::config::ReasoningEffort>,
+}
+
 /// Payload for `text-log` events.
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct TextLogPayload {

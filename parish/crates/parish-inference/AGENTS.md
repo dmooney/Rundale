@@ -11,7 +11,7 @@ cargo test -p parish-inference --test '*'            # integration (may hit loca
 
 ## Local gotchas
 
-- **Platform-specific defaults.** macOS: vllm-mlx two-slot Qwen (8000 dialogue + 8001 intent), ≥16 GB unified memory. Linux/Windows: Ollama on 11434. Below 16 GB on macOS prefer BYOK cloud — small-slot-only fallback scores 2.96/5 Opus-blind. Use `Provider::recommended_for_platform()`.
+- **Platform backend selection is not a quality claim.** `Provider::recommended_for_platform()` selects a runnable local backend. Check `parish_config::local_dialogue` before calling an exact dialogue profile qualified; the registry is currently empty, so setup recommends BYOK and labels local choices experimental.
 - **Always set explicit reqwest timeouts.** Provider hangs leak into the game loop.
 - **`#[serde(default)]` on optional response fields.** Providers omit fields inconsistently between releases.
 - **Transport code belongs in `parish-providers`.** Never let provider types leak into `parish-core`; re-exports keep the `parish_inference::*` paths stable.

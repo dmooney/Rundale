@@ -403,18 +403,36 @@ pub async fn run_server(
     static_dir: PathBuf,
     headless_models: bool,
 ) -> anyhow::Result<()> {
+    run_server_with_engine_config(port, data_dir, static_dir, headless_models, None).await
+}
+
+/// Starts the Parish web server with an optional, startup-resolved engine
+/// configuration path.
+///
+/// The explicit path is primarily useful for isolated benchmark profiles. The
+/// ordinary [`run_server`] surface retains the production path-resolution
+/// behavior and remains source-compatible with existing callers.
+pub async fn run_server_with_engine_config(
+    port: u16,
+    data_dir: PathBuf,
+    static_dir: PathBuf,
+    headless_models: bool,
+    engine_config_path: Option<PathBuf>,
+) -> anyhow::Result<()> {
     handle_dotenv();
     let world_path = resolve_world_path(&data_dir);
+    let engine_config_path =
+        engine_config_path.unwrap_or_else(|| parish_core::config::resolve_config_path(&data_dir));
 
     // ── LLM client + config (template, cloned per session) ───────────────────
-    let (provider_cfg, config) = build_client_and_config(headless_models);
+    let (provider_cfg, config) =
+        build_client_and_config(headless_models, Some(&engine_config_path))?;
     let (config, runtime_processes) = run_llm_bootstrap(provider_cfg, config).await?;
 
     // ── Game mod / engine config / UI config ──────────────────────────────────
     let game_mod: Option<GameMod> = load_base_mod_via_source().await;
     let (splash_text, theme_palette) = resolve_splash_and_theme(&game_mod);
 
-    let engine_config_path = parish_core::config::resolve_config_path(&data_dir);
     let engine_config = parish_core::config::load_engine_config(&engine_config_path);
     let (mut config, _tile_sources_snapshot, _active_tile_source, ui_config) =
         resolve_engine_and_ui_config(
@@ -1240,23 +1258,13 @@ fn sanitize_base_url(url: &str) -> String {
 /// Ollama, the tier selector's pick).
 fn build_client_and_config(
     headless_models: bool,
-) -> (parish_core::config::ProviderConfig, GameConfig) {
+    config_path: Option<&Path>,
+) -> Result<(parish_core::config::ProviderConfig, GameConfig), parish_core::error::ParishError> {
     if headless_models {
-        return build_headless_local_config();
+        return Ok(build_headless_local_config());
     }
-    let provider_cfg = parish_core::config::resolve_config(None, &Default::default())
-        .unwrap_or_else(|e| {
-            tracing::warn!(
-                "Failed to resolve configuration: {}; falling back to defaults",
-                e
-            );
-            parish_core::config::ProviderConfig {
-                provider: parish_core::config::Provider::default(),
-                base_url: "http://localhost:11434".to_string(),
-                api_key: None,
-                model: None,
-            }
-        });
+    let provider_cfg = parish_core::config::resolve_config(config_path, &Default::default())?;
+    let category_configs = parish_core::config::resolve_category_env_configs(&provider_cfg)?;
 
     let provider_name = provider_cfg.provider_display();
     let base_url = provider_cfg.base_url.clone();
@@ -1278,7 +1286,7 @@ fn build_client_and_config(
         "Resolved inference configuration"
     );
 
-    let config = GameConfig {
+    let mut config = GameConfig {
         provider_name,
         base_url,
         api_key,
@@ -1303,8 +1311,9 @@ fn build_client_and_config(
         reveal_unexplored_locations: false,
         auto_setup_model: None,
     };
+    config.apply_resolved_category_configs(&category_configs);
 
-    (provider_cfg, config)
+    Ok((provider_cfg, config))
 }
 
 /// Builds the provider + game config for `--headless-models` (#1364): the
@@ -1601,9 +1610,93 @@ mod tests {
     #[serial(parish_env)]
     fn build_client_and_config_defaults() {
         // In test env, clear PARISH_PROVIDER to ensure it defaults to "simulator"
-        unsafe { std::env::remove_var("PARISH_PROVIDER") };
-        let (_client, config) = build_client_and_config(false);
+        unsafe {
+            std::env::remove_var("PARISH_PROVIDER");
+            for category in ["DIALOGUE", "SIMULATION", "INTENT", "REACTION"] {
+                std::env::remove_var(format!("PARISH_{category}_PROVIDER"));
+                std::env::remove_var(format!("PARISH_{category}_BASE_URL"));
+                std::env::remove_var(format!("PARISH_{category}_MODEL"));
+            }
+        }
+        let (_client, config) =
+            build_client_and_config(false, None).expect("default provider config resolves");
         assert_eq!(config.provider_name, "simulator");
+    }
+
+    #[test]
+    #[serial(parish_env)]
+    fn build_client_and_config_applies_category_env_routing() {
+        use parish_core::config::InferenceCategory;
+
+        // SAFETY: serialised with all tests that mutate Parish provider env.
+        unsafe {
+            std::env::set_var("PARISH_PROVIDER", "custom");
+            std::env::set_var("PARISH_BASE_URL", "http://127.0.0.1:8010/v1");
+            std::env::set_var("PARISH_MODEL", "dialogue-9b");
+            std::env::set_var("PARISH_INTENT_PROVIDER", "simulator");
+            std::env::set_var("PARISH_SIMULATION_PROVIDER", "simulator");
+            std::env::set_var("PARISH_REACTION_PROVIDER", "simulator");
+        }
+
+        let (_provider, config) =
+            build_client_and_config(false, None).expect("category provider env resolves");
+        for category in [
+            InferenceCategory::Intent,
+            InferenceCategory::Simulation,
+            InferenceCategory::Reaction,
+        ] {
+            assert_eq!(
+                config.category_provider.get(&category).map(String::as_str),
+                Some("simulator"),
+                "{category:?} must not inherit the dialogue generator"
+            );
+        }
+        assert!(
+            !config
+                .category_provider
+                .contains_key(&InferenceCategory::Dialogue),
+            "dialogue should inherit the measured base provider"
+        );
+
+        unsafe {
+            std::env::remove_var("PARISH_PROVIDER");
+            std::env::remove_var("PARISH_BASE_URL");
+            std::env::remove_var("PARISH_MODEL");
+            std::env::remove_var("PARISH_INTENT_PROVIDER");
+            std::env::remove_var("PARISH_SIMULATION_PROVIDER");
+            std::env::remove_var("PARISH_REACTION_PROVIDER");
+        }
+    }
+
+    #[test]
+    #[serial(parish_env)]
+    fn build_client_and_config_uses_explicit_parish_toml_provider() {
+        unsafe {
+            std::env::remove_var("PARISH_PROVIDER");
+            std::env::remove_var("PARISH_BASE_URL");
+            std::env::remove_var("PARISH_MODEL");
+        }
+        let temp = tempfile::tempdir().expect("temporary config directory");
+        let path = temp.path().join("experiment.toml");
+        std::fs::write(
+            &path,
+            r#"
+[provider]
+name = "custom"
+base_url = "http://127.0.0.1:8010/v1"
+model = "qwen-9b"
+
+[engine.inference.dialogue_generation]
+enable_thinking = false
+"#,
+        )
+        .expect("write experiment config");
+
+        let (provider, config) =
+            build_client_and_config(false, Some(&path)).expect("explicit config resolves");
+        assert_eq!(provider.provider.id(), "custom");
+        assert_eq!(config.base_url, "http://127.0.0.1:8010/v1");
+        assert_eq!(config.model_name, "qwen-9b");
     }
 
     /// `--headless-models` selects the bundled local two-slot Qwen loadout:
@@ -1615,7 +1708,8 @@ mod tests {
         use parish_core::config::InferenceCategory;
         use parish_core::ipc::config::local_models;
 
-        let (provider_cfg, config) = build_client_and_config(true);
+        let (provider_cfg, config) =
+            build_client_and_config(true, None).expect("headless provider config resolves");
 
         // Base slot → 14B @ :8000.
         assert_eq!(provider_cfg.provider.id(), "vllmmlx");

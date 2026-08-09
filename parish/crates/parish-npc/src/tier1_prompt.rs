@@ -26,14 +26,13 @@ const EXAMPLE_RESPONSE_BLOCK: &str = "\
 Example response:\n\
 {\"dialogue\": \"Aye. The road beyond the ford is passable. What news have ye from there?\", \
 \"action\": \"rests both hands on the table\", \"mood\": \"attentive\", \
-\"language_hints\": [], \"assigned_task\": null, \
-\"internal_thought\": \"There may be more to this visit\"}";
+\"language_hints\": [], \"assigned_task\": null}";
 
 const TASK_ASSIGNMENT_EXAMPLE_BLOCK: &str = "\
 Concrete task-assignment example:\n\
 {\"dialogue\": \"First, help with the potato patch — break the clods and plant seed.\", \
 \"action\": \"points toward the open rows\", \"mood\": \"busy\", \"language_hints\": [], \
-\"assigned_task\": \"Dig over the potato patch.\", \"internal_thought\": null}";
+\"assigned_task\": \"Dig over the potato patch.\"}";
 
 /// Builds the Tier 1 system prompt for an NPC.
 ///
@@ -50,11 +49,12 @@ pub fn build_tier1_system_prompt(npc: &Npc, improv: bool, language: &LanguageSet
     let improv_section = if improv { IMPROV_CRAFT_SECTION } else { "" };
     let intel_guidance = npc.intelligence.prompt_guidance();
 
+    // Keep the long, NPC-invariant contract first. vLLM/MLX prefix caches can
+    // then reuse its prefill across different NPCs instead of missing on the
+    // character name in byte one. Identity still precedes the actual response
+    // instruction and is reinforced there by name.
     let mut prompt = format!(
-        "You are {name}, a {age}-year-old {occupation} in a small parish in County Roscommon, \
-        Ireland, in the year 1820.\n\
-        \n\
-        STAY IN YOUR LANE: a midwife knows herbs, births, sickness, and women's matters — \
+        "STAY IN YOUR LANE: a midwife knows herbs, births, sickness, and women's matters — \
         she does NOT track livestock predators, hunt, or speak as a farmer would. \
         A farmer talks of land, beasts, and weather — not deliveries. \
         A priest speaks of souls and gossip, not arithmetic. \
@@ -113,15 +113,16 @@ pub fn build_tier1_system_prompt(npc: &Npc, improv: bool, language: &LanguageSet
         an observation, or an offer — never on a goodbye.\
         {improv_section}\n\
         \n\
+        CHARACTER IDENTITY: You are {name}, a {age}-year-old {occupation} in a small parish \
+        in County Roscommon, Ireland, in the year 1820.\n\
         Personality: {personality}\n\
         {intel_guidance}\
         \n\
         Respond in character as {name}. You MUST respond with a JSON object. \
         IMPORTANT — emit the fields in EXACTLY this order: \
         \"dialogue\" FIRST, then \"action\", then \"mood\", then \"language_hints\", \
-        then \"assigned_task\", then \"internal_thought\" LAST. Never put \
-        \"internal_thought\" or any other field before \
-        \"dialogue\" — the dialogue field must be the very first key in the JSON object. \
+        then \"assigned_task\" LAST. Never put any other field before \"dialogue\" — \
+        the dialogue field must be the very first key in the JSON object. \
         The dialogue should contain only what you say aloud — \
         pure dialogue, no narration or action descriptions.\n\
         \n\
@@ -143,8 +144,8 @@ pub fn build_tier1_system_prompt(npc: &Npc, improv: bool, language: &LanguageSet
         - \"assigned_task\": a short concrete description ONLY when your spoken \
           dialogue explicitly assigns the player work they can begin; otherwise null. \
           Reuse the concrete verbs and objects spoken in \"dialogue\". Do not emit a \
-          task for advice, a general need, an offer, or work assigned to someone else.\n\
-        - \"internal_thought\": what you're thinking but not saying (optional) — MUST BE LAST\n",
+          task for advice, a general need, an offer, or work assigned to someone else. \
+          This MUST BE THE LAST FIELD. Do not emit internal thoughts or any extra fields.\n",
         name = npc.name,
         age = npc.age,
         occupation = npc.occupation,
@@ -237,9 +238,8 @@ mod tests {
         );
     }
 
-    /// AC-3 (#1431 item 3): the JSON field list must instruct the model to emit
-    /// "dialogue" first and "internal_thought" last so the dialogue value completes
-    /// before the token budget is consumed by metadata fields.
+    /// The JSON field list must instruct the model to emit dialogue first and
+    /// omit unused internal monologue so the bounded contract completes.
     #[test]
     fn system_prompt_dialogue_field_ordered_first() {
         let npc = make_named_npc(1, "Padraig", 1);
@@ -252,16 +252,9 @@ mod tests {
             "system prompt must instruct model to emit dialogue field first:\n{prompt}"
         );
 
-        // internal_thought must appear after dialogue in the fields section.
-        let dialogue_pos = prompt
-            .find("\"dialogue\"")
-            .expect("dialogue field must appear in prompt");
-        let internal_thought_pos = prompt
-            .find("\"internal_thought\"")
-            .expect("internal_thought field must appear in prompt");
         assert!(
-            dialogue_pos < internal_thought_pos,
-            "\"dialogue\" field must appear before \"internal_thought\" in the prompt JSON field list"
+            prompt.contains("Do not emit internal thoughts or any extra fields"),
+            "unused internal monologue must be excluded from the output contract"
         );
     }
 
@@ -273,10 +266,9 @@ mod tests {
 
         let dialogue_pos = prompt.find("\"dialogue\" FIRST").unwrap();
         let assigned_task_pos = prompt.find("\"assigned_task\"").unwrap();
-        let internal_thought_pos = prompt.find("\"internal_thought\" LAST").unwrap();
         assert!(
-            dialogue_pos < assigned_task_pos && assigned_task_pos < internal_thought_pos,
-            "dialogue must remain first and low-priority internal thought last:\n{prompt}"
+            dialogue_pos < assigned_task_pos,
+            "dialogue must remain first and optional task metadata last:\n{prompt}"
         );
         assert!(
             prompt.contains("ONLY when your spoken dialogue explicitly assigns the player work"),

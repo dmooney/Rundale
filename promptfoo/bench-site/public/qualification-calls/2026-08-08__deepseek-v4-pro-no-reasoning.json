@@ -1,0 +1,326 @@
+{
+  "calls": [
+    {
+      "id": "preflight-1",
+      "kind": "preflight",
+      "label": "Preflight call 1",
+      "metrics": {
+        "elapsed_ms": 4254
+      },
+      "npc": "a lanky red-haired lad with soot on his face",
+      "outcome": {
+        "contract_valid": true,
+        "guard_reasons": [],
+        "parse_dispositions": [
+          "full_json"
+        ],
+        "transport_error": null
+      },
+      "phase": "preflight",
+      "question": "God save you. What news of the parish?",
+      "request": {
+        "enable_thinking": false,
+        "frequency_penalty": 0.5,
+        "json_mode": true,
+        "max_tokens": 768,
+        "model": "deepseek/deepseek-v4-pro",
+        "temperature": 0.7
+      },
+      "response": null
+    },
+    {
+      "id": "preflight-2",
+      "kind": "preflight",
+      "label": "Preflight call 2",
+      "metrics": {
+        "elapsed_ms": 3620
+      },
+      "npc": "a lanky red-haired lad with soot on his face",
+      "outcome": {
+        "contract_valid": true,
+        "guard_reasons": [],
+        "parse_dispositions": [
+          "full_json"
+        ],
+        "transport_error": null
+      },
+      "phase": "preflight",
+      "question": "How does the harvest look this year?",
+      "request": {
+        "enable_thinking": false,
+        "frequency_penalty": 0.5,
+        "json_mode": true,
+        "max_tokens": 768,
+        "model": "deepseek/deepseek-v4-pro",
+        "temperature": 0.7
+      },
+      "response": null
+    },
+    {
+      "id": "preflight-3",
+      "kind": "preflight",
+      "label": "Preflight call 3",
+      "metrics": {
+        "elapsed_ms": 2925
+      },
+      "npc": "a lanky red-haired lad with soot on his face",
+      "outcome": {
+        "contract_valid": true,
+        "guard_reasons": [],
+        "parse_dispositions": [
+          "full_json"
+        ],
+        "transport_error": null
+      },
+      "phase": "preflight",
+      "question": "Have you seen Father Declan today?",
+      "request": {
+        "enable_thinking": false,
+        "frequency_penalty": 0.5,
+        "json_mode": true,
+        "max_tokens": 768,
+        "model": "deepseek/deepseek-v4-pro",
+        "temperature": 0.7
+      },
+      "response": null
+    },
+    {
+      "id": "preflight-4",
+      "kind": "preflight",
+      "label": "Preflight call 4",
+      "metrics": {
+        "elapsed_ms": 4773
+      },
+      "npc": "a lanky red-haired lad with soot on his face",
+      "outcome": {
+        "contract_valid": true,
+        "guard_reasons": [],
+        "parse_dispositions": [
+          "full_json"
+        ],
+        "transport_error": null
+      },
+      "phase": "preflight",
+      "question": "And how is your own family keeping?",
+      "request": {
+        "enable_thinking": false,
+        "frequency_penalty": 0.5,
+        "json_mode": true,
+        "max_tokens": 768,
+        "model": "deepseek/deepseek-v4-pro",
+        "temperature": 0.7
+      },
+      "response": null
+    },
+    {
+      "id": "preflight-5",
+      "kind": "preflight",
+      "label": "Preflight call 5",
+      "metrics": {
+        "elapsed_ms": 3472
+      },
+      "npc": "a lanky red-haired lad with soot on his face",
+      "outcome": {
+        "contract_valid": true,
+        "guard_reasons": [],
+        "parse_dispositions": [
+          "full_json"
+        ],
+        "transport_error": null
+      },
+      "phase": "preflight",
+      "question": "Is old Festus the cooper still at his shop by the bridge?",
+      "request": {
+        "enable_thinking": false,
+        "frequency_penalty": 0.5,
+        "json_mode": true,
+        "max_tokens": 768,
+        "model": "deepseek/deepseek-v4-pro",
+        "temperature": 0.7
+      },
+      "response": null
+    },
+    {
+      "id": "preflight-6",
+      "kind": "preflight",
+      "label": "Preflight call 6",
+      "metrics": {
+        "elapsed_ms": 3352
+      },
+      "npc": "a lanky red-haired lad with soot on his face",
+      "outcome": {
+        "contract_valid": true,
+        "guard_reasons": [],
+        "parse_dispositions": [
+          "full_json"
+        ],
+        "transport_error": null
+      },
+      "phase": "preflight",
+      "question": "How do I get to the abbey in town?",
+      "request": {
+        "enable_thinking": false,
+        "frequency_penalty": 0.5,
+        "json_mode": true,
+        "max_tokens": 768,
+        "model": "deepseek/deepseek-v4-pro",
+        "temperature": 0.7
+      },
+      "response": null
+    },
+    {
+      "id": "preflight-7",
+      "kind": "preflight",
+      "label": "Preflight call 7",
+      "metrics": {
+        "elapsed_ms": 4603
+      },
+      "npc": "a lanky red-haired lad with soot on his face",
+      "outcome": {
+        "contract_valid": true,
+        "guard_reasons": [
+          "verbosity_guard"
+        ],
+        "parse_dispositions": [
+          "full_json"
+        ],
+        "transport_error": null
+      },
+      "phase": "preflight",
+      "question": "Tell me about your work, but keep it brief.",
+      "request": {
+        "enable_thinking": false,
+        "frequency_penalty": 0.5,
+        "json_mode": true,
+        "max_tokens": 768,
+        "model": "deepseek/deepseek-v4-pro",
+        "temperature": 0.7
+      },
+      "response": null
+    },
+    {
+      "id": "preflight-8",
+      "kind": "preflight",
+      "label": "Preflight call 8",
+      "metrics": {
+        "elapsed_ms": 2569
+      },
+      "npc": "a lanky red-haired lad with soot on his face",
+      "outcome": {
+        "contract_valid": true,
+        "guard_reasons": [],
+        "parse_dispositions": [
+          "full_json"
+        ],
+        "transport_error": null
+      },
+      "phase": "preflight",
+      "question": "I cannot sleep for worrying. What would you advise?",
+      "request": {
+        "enable_thinking": false,
+        "frequency_penalty": 0.5,
+        "json_mode": true,
+        "max_tokens": 768,
+        "model": "deepseek/deepseek-v4-pro",
+        "temperature": 0.7
+      },
+      "response": null
+    },
+    {
+      "id": "preflight-9",
+      "kind": "preflight",
+      "label": "Preflight call 9",
+      "metrics": {
+        "elapsed_ms": 3246
+      },
+      "npc": "a lanky red-haired lad with soot on his face",
+      "outcome": {
+        "contract_valid": true,
+        "guard_reasons": [
+          "verbosity_guard"
+        ],
+        "parse_dispositions": [
+          "full_json"
+        ],
+        "transport_error": null
+      },
+      "phase": "preflight",
+      "question": "Do you know Padraig Darcy?",
+      "request": {
+        "enable_thinking": false,
+        "frequency_penalty": 0.5,
+        "json_mode": true,
+        "max_tokens": 768,
+        "model": "deepseek/deepseek-v4-pro",
+        "temperature": 0.7
+      },
+      "response": null
+    },
+    {
+      "id": "preflight-10",
+      "kind": "preflight",
+      "label": "Preflight call 10",
+      "metrics": {
+        "elapsed_ms": 2877
+      },
+      "npc": "a lanky red-haired lad with soot on his face",
+      "outcome": {
+        "contract_valid": true,
+        "guard_reasons": [],
+        "parse_dispositions": [
+          "full_json"
+        ],
+        "transport_error": null
+      },
+      "phase": "preflight",
+      "question": "What can you tell me of Ballyglass Castle?",
+      "request": {
+        "enable_thinking": false,
+        "frequency_penalty": 0.5,
+        "json_mode": true,
+        "max_tokens": 768,
+        "model": "deepseek/deepseek-v4-pro",
+        "temperature": 0.7
+      },
+      "response": null
+    },
+    {
+      "id": "preflight-11",
+      "kind": "preflight",
+      "label": "Preflight call 11",
+      "metrics": {
+        "elapsed_ms": 3266
+      },
+      "npc": "a lanky red-haired lad with soot on his face",
+      "outcome": {
+        "contract_valid": true,
+        "guard_reasons": [],
+        "parse_dispositions": [
+          "full_json"
+        ],
+        "transport_error": null
+      },
+      "phase": "preflight",
+      "question": "I heard Cormac Duffy was at the mill. Is that true?",
+      "request": {
+        "enable_thinking": false,
+        "frequency_penalty": 0.5,
+        "json_mode": true,
+        "max_tokens": 768,
+        "model": "deepseek/deepseek-v4-pro",
+        "temperature": 0.7
+      },
+      "response": null
+    }
+  ],
+  "candidate": "deepseek/deepseek-v4-pro@https://openrouter.ai/api/v1#env:OPENROUTER_API_KEY",
+  "diagnosis": null,
+  "run_id": "2026-08-08/deepseek-v4-pro-no-reasoning",
+  "sources": [
+    {
+      "path": "docs/proofs/cloud-dialogue-qualification/runs/2026-08-08/deepseek-v4-pro-no-reasoning-preflight.partial.jsonl",
+      "sha256": "8bcd7ceac1cf4397ee188a30ac5f3b8aa6b09c1d56d1b6cb6fdcca34bffda668"
+    }
+  ],
+  "version": 1
+}

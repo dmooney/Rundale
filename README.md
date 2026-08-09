@@ -83,8 +83,9 @@ A four-tier simulation that scales hundreds of NPCs at varying fidelity based on
 
 ### LLM inference
 
-- **15 inference providers** out of the box: Ollama, LM Studio, vllm-mlx (Apple Silicon native), OpenAI, Anthropic (native `/v1/messages` API, not the OpenAI-compatibility shim), Google Gemini, OpenRouter, Groq, xAI Grok, Mistral, DeepSeek, Together AI, Custom (any OpenAI-compatible base URL), and a built-in offline Simulator that needs no model download. (Additional providers are available via mod-loaded configurations — Cohere, GitHub Models, Qwen, Zhipu, OpenCode Zen, and others.) On macOS the recommended local stack is the two-slot vllm-mlx loadout (Qwen2.5-14B for Dialogue, Qwen2.5-1.5B for Intent/Reaction/Simulation), which requires 16 GB+ unified memory; below that, route through BYOK cloud (OpenRouter / Anthropic / Google). On Linux/Windows the default is Ollama with auto-install.
+- **15 inference providers** out of the box: Ollama, LM Studio, vllm-mlx (Apple Silicon native), OpenAI, Anthropic (native `/v1/messages` API, not the OpenAI-compatibility shim), Google Gemini, OpenRouter, Groq, xAI Grok, Mistral, DeepSeek, Together AI, Custom (any OpenAI-compatible base URL), and a built-in offline Simulator that needs no model download. (Additional providers are available via mod-loaded configurations — Cohere, GitHub Models, Qwen, Zhipu, OpenCode Zen, and others.) Local profiles are available for macOS (vllm-mlx) and Linux/Windows (vLLM/Ollama), but none currently passes Rundale's production dialogue promotion gate; first-run setup labels them experimental and recommends BYOK cloud for player dialogue.
 - **Per-category routing** — Dialogue, Simulation, and Intent can each use a different provider/model/key, switchable at runtime via dot-notation commands (`/provider.dialogue`, `/model.intent`, `/key.simulation`).
+- **Measured cloud-dialogue default** — OpenRouter's recommended preset uses `google/gemini-3.6-flash` with the qualified low-reasoning production profile. The retained multi-family judgments, individual API calls, and latency evidence are published in the local qualification dashboard rather than inferred from general-purpose benchmarks.
 - **Three-lane priority queue** — Interactive (player dialogue) preempts Background (Tier 2) preempts Batch (Tier 3); a slow batch call cannot block your conversation.
 - **Token streaming** with bounded back-pressure (1024-token channel) so a slow consumer never OOMs the engine.
 - **Structured JSON output** — NPC turns return `{mood, action, internal_thought, irish_words}`; partial JSON is recovered on truncation.
@@ -274,9 +275,10 @@ vllm-mlx pip-installed straight into its site-packages at
 would break when the bundle moves into `Rundale.app/Contents/Resources/`).
 `cargo tauri build` then includes that tree under
 `Rundale.app/Contents/Resources/vllm-mlx/python-runtime/`. On first
-launch the app detects the bundle, recommends local inference for Macs
-with ≥16 GB unified memory, and downloads the Qwen2.5 weights with a
-live progress bar.
+launch the app detects the bundle and offers the Qwen2.5 local profile
+as an experimental option on capable Macs, with its qualification status
+shown beside the BYOK recommendation. Choosing local downloads the weights
+with a live progress bar.
 
 CI driver: `.github/workflows/build-vllm-mlx-bundle.yml` (manual
 trigger, uploads the bundle as an artifact). For dev iteration on

@@ -30,6 +30,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import platform
 import re
 import socket
 import subprocess
@@ -614,6 +615,7 @@ def main() -> None:
             {
                 "host": {
                     "platform": sys.platform,
+                    "machine": platform.machine(),
                     "memory_gb": avail_gb,
                 },
                 "harness_sha": sha,

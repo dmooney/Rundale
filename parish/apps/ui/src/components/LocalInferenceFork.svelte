@@ -104,11 +104,21 @@
 						API key, no per-message cost.
 					</p>
 				{:else}
-					<h2>Run locally (recommended)</h2>
+					<h2>
+						Run locally ({choice === 'local-recommended'
+							? 'qualified'
+							: 'experimental'})
+					</h2>
 					<p class="local-fork__blurb">
-						Free and private. Two MLX models — a 14B for player
-						dialogue and a 1.5B for background simulation — run
-						side-by-side on your Mac.
+						{#if choice === 'local-recommended'}
+							Free and private. This exact local profile has passed
+							Rundale's dialogue quality, reliability, latency, and
+							memory gates.
+						{:else}
+							Free and private, but this exact local profile has not
+							passed Rundale's production dialogue gate. Expect
+							occasional invented facts or rewritten replies.
+						{/if}
 					</p>
 					<p class="local-fork__detail">
 						Downloads ~9 GB of weights once, then runs offline.
@@ -123,7 +133,10 @@
 				onclick={() => (mode = 'byok')}
 				type="button"
 			>
-				<h2>Use a hosted API (BYOK)</h2>
+				<h2>
+					Use a hosted API
+					{choice === 'local-recommended' ? '(BYOK)' : '(recommended)'}
+				</h2>
 				<p class="local-fork__blurb">
 					Bring your own API key. Faster cold start; pay-per-use.
 				</p>

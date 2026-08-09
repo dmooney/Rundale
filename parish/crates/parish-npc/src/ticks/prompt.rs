@@ -247,6 +247,19 @@ pub fn build_enhanced_system_prompt_with_config(
             identity assertions (\"I'm ...\", \"My name is ...\") for when someone \
             directly asks \"Are you X?\" or \"Who are you?\"\n",
         );
+        // A real roster name establishes identity, not arbitrary facts. Local
+        // models otherwise accept a player's planted rumour about a real
+        // person and invent a sighting or current whereabouts.
+        prompt.push_str(
+            "A REAL NAME IS NOT PROOF OF A RUMOUR: a person appearing in PEOPLE \
+            YOU KNOW means only that the person exists and that the listed facts \
+            are true. Do not invent or confirm their current whereabouts, health, \
+            recent actions, or a claimed sighting. If someone says \"I heard X \
+            was at Y; is that true?\" and neither WHAT'S ON YOUR MIND nor the \
+            recent conversation explicitly establishes it, say you cannot vouch \
+            for the claim or do not know where X is just now. Never turn the \
+            player's leading premise into a fact.\n",
+        );
     }
 
     prompt
@@ -1420,6 +1433,30 @@ mod tests {
             prompt.contains("NEVER give directions"),
             "grounding block must forbid giving directions to an invented place:\n{prompt}"
         );
+    }
+
+    #[test]
+    fn grounding_block_forbids_confirming_unestablished_rumours_about_real_people() {
+        let npc = make_test_npc(1, "Padraig", 2);
+        let config = NpcConfig::default();
+        let names: HashMap<NpcId, String> = [(NpcId(2), "Cormac Duffy".to_string())]
+            .into_iter()
+            .collect();
+        let lang = LanguageSettings::english_only();
+        let places = vec!["The Mill".to_string()];
+
+        let prompt = build_enhanced_system_prompt_with_config(
+            &npc,
+            false,
+            &lang,
+            &config,
+            &names,
+            None,
+            Some(&places),
+        );
+        assert!(prompt.contains("A REAL NAME IS NOT PROOF OF A RUMOUR"));
+        assert!(prompt.contains("Do not invent or confirm their current whereabouts"));
+        assert!(prompt.contains("Never turn the player's leading premise into a fact"));
     }
 
     /// AC-7 (#1401): kill-switch — with grounding disabled (`location_names`
