@@ -39,7 +39,7 @@ jobs:
           test "$(uname -m)" = "arm64"
 
       - name: Cache python-build-standalone tarball
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: parish/dist/cpython-*.tar.gz
           key: pbs-${{ runner.os }}-${{ runner.arch }}-v1
