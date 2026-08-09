@@ -1,5 +1,9 @@
 name: "🔎 Gemini Review"
 
+# Disabled 2026-08-09. GitHub Actions ignores files without a .yml/.yaml
+# extension. Rename this file and gemini-dispatch.yml.disabled together to
+# re-enable the integration.
+
 on:
   workflow_call:
     inputs:
