@@ -43,6 +43,7 @@
     "parish/testing/**",
     "parish/apps/ui/**",
     "rundale-bench/bench-site/**",
+    "**/graphify-out/**",
     ".opencode/**",
     ".codex/**",
   ],
