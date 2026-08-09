@@ -56,7 +56,7 @@ wait for generated exterior art and does not redesign backend gameplay data.
 3. Run the relevant UI tests, at minimum `just ui-test` or focused component
    tests if the full suite is too broad for the iteration.
 4. Run a local browser/dev-server proof and capture desktop/mobile screenshots.
-5. Run the gameplay fixture `parish/testing/fixtures/play_parish-notebook-ui.txt`
+5. Run the gameplay fixture `parish/testing/proofs/play_parish-notebook-ui.txt`
    against the live/backend path used for proof.
 6. Write `.proofs/parish-notebook-ui/evidence.md` and `judge.md` before the PR
    gate.

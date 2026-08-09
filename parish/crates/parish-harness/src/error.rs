@@ -73,6 +73,12 @@ pub enum HarnessError {
     /// A configuration value was missing or malformed.
     #[error("config error: {0}")]
     Config(String),
+
+    /// A completed harness invocation tripped a deterministic game-quality
+    /// gate. The run is already persisted; this variant exists so automation
+    /// receives a nonzero process exit instead of a misleading green result.
+    #[error("run {run_id} gated: {reason}")]
+    RunGated { run_id: i64, reason: String },
 }
 
 /// Convenience result alias.

@@ -45,7 +45,7 @@ behind npc-arrival-greetings flag (default off)`.
 
 - `just check` (fmt + clippy + `cargo test -p parish-core`) green.
 - Headless live transcript:
-  `cargo run --manifest-path parish/Cargo.toml -p parish-cli -- --script parish/testing/fixtures/play_npc-arrival-greetings.txt`
+  `cargo run --manifest-path parish/Cargo.toml -p parish-cli -- --script parish/testing/proofs/play_npc-arrival-greetings.txt`
   → capture to `.proofs/npc-arrival-greetings/transcript.txt`, map AC1–AC5.
 - Tauri spot-check over `:3030`: new-game, move into The Crossroads → no greeting
   at default; `/flag enable npc-arrival-greetings`, move again → greetings return.

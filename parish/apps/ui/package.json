@@ -12,6 +12,8 @@
 		"check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json && node --test scripts/playwright-worktree-server.test.js",
 		"check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
 		"test:e2e": "playwright test",
+		"test:e2e:contract": "playwright test --project ui-contract",
+		"test:e2e:fullstack": "playwright test --project browser-fullstack",
 		"test:e2e:update": "playwright test --update-snapshots",
 		"notebook:art-candidates": "node scripts/generate-notebook-person-candidates.mjs",
 		"notebook:art-candidates:test": "vitest run scripts/generate-notebook-person-candidates.test.mjs",

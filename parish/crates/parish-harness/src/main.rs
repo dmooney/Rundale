@@ -352,7 +352,19 @@ async fn run_session(args: RunArgs) -> Result<()> {
         summary.git_sha,
         summary.git_branch,
     );
+    if let Some(error) =
+        gated_run_error(summary.id, &summary.status, summary.gate_reason.as_deref())
+    {
+        return Err(error);
+    }
     Ok(())
+}
+
+fn gated_run_error(run_id: i64, status: &str, reason: Option<&str>) -> Option<HarnessError> {
+    (status == "gated").then(|| HarnessError::RunGated {
+        run_id,
+        reason: reason.unwrap_or("unspecified gate").to_string(),
+    })
 }
 
 // ── Queue subcommand impl ─────────────────────────────────────────────────────
@@ -589,4 +601,22 @@ async fn run_compare(args: CompareArgs) -> Result<()> {
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod cli_tests {
+    use super::*;
+
+    #[test]
+    fn gated_run_becomes_process_level_error() {
+        let error = gated_run_error(17, "gated", Some("timeout")).expect("gate must fail");
+        assert!(matches!(
+            error,
+            HarnessError::RunGated {
+                run_id: 17,
+                reason
+            } if reason == "timeout"
+        ));
+        assert!(gated_run_error(18, "completed", None).is_none());
+    }
 }

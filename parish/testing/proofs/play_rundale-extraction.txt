@@ -8,12 +8,12 @@
 # Run twice:
 #   echo 'active_base = "testbed"' > mods/mod-list.toml
 #   cargo run --manifest-path parish/Cargo.toml -p parish-cli \
-#     -- --script parish/testing/fixtures/play_rundale-extraction.txt \
+#     -- --script parish/testing/proofs/play_rundale-extraction.txt \
 #     > .proofs/rundale-extraction/transcript-testbed.txt
 #
 #   echo 'active_base = "rundale"' > mods/mod-list.toml
 #   cargo run --manifest-path parish/Cargo.toml -p parish-cli \
-#     -- --script parish/testing/fixtures/play_rundale-extraction.txt \
+#     -- --script parish/testing/proofs/play_rundale-extraction.txt \
 #     > .proofs/rundale-extraction/transcript-rundale.txt
 #
 # Expected divergence:

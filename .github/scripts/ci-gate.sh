@@ -3,8 +3,8 @@ set -euo pipefail
 
 : "${GATED_RESULTS:?GATED_RESULTS must be set}"
 : "${PLAYWRIGHT_WINDOWS_RESULT:?PLAYWRIGHT_WINDOWS_RESULT must be set}"
-: "${UI_E2E_REQUIRED:?UI_E2E_REQUIRED must be set}"
-: "${UI_E2E_RESULT:?UI_E2E_RESULT must be set}"
+: "${RUNTIME_SUITE_REQUIRED:?RUNTIME_SUITE_REQUIRED must be set}"
+: "${RUNTIME_SUITE_RESULT:?RUNTIME_SUITE_RESULT must be set}"
 
 echo "gated job results: $GATED_RESULTS"
 read -ra results <<<"$GATED_RESULTS"
@@ -25,21 +25,21 @@ if [[ "$PLAYWRIGHT_WINDOWS_RESULT" != "success" ]]; then
     status=1
 fi
 
-case "$UI_E2E_REQUIRED" in
+case "$RUNTIME_SUITE_REQUIRED" in
     true)
-        if [[ "$UI_E2E_RESULT" != "success" ]]; then
-            echo "::error::UI Playwright was required but ended with '$UI_E2E_RESULT'"
+        if [[ "$RUNTIME_SUITE_RESULT" != "success" ]]; then
+            echo "::error::runtime correctness suite was required but ended with '$RUNTIME_SUITE_RESULT'"
             status=1
         fi
         ;;
     false)
-        if [[ "$UI_E2E_RESULT" != "skipped" ]]; then
-            echo "::error::UI Playwright was not required but ended with '$UI_E2E_RESULT' instead of 'skipped'"
+        if [[ "$RUNTIME_SUITE_RESULT" != "skipped" ]]; then
+            echo "::error::runtime correctness suite was not required but ended with '$RUNTIME_SUITE_RESULT' instead of 'skipped'"
             status=1
         fi
         ;;
     *)
-        echo "::error::UI_E2E_REQUIRED must be 'true' or 'false', got '$UI_E2E_REQUIRED'"
+        echo "::error::RUNTIME_SUITE_REQUIRED must be 'true' or 'false', got '$RUNTIME_SUITE_REQUIRED'"
         status=1
         ;;
 esac

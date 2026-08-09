@@ -1,7 +1,7 @@
 # Fixture: fix-1205 — bug-risk & regression debt (epic #1205)
 #
 # This file is fed to the headless REPL via stdin:
-#   cargo run -p parish-engine -- --headless < testing/fixtures/play_fix-1205.txt
+#   cargo run -p parish-engine -- --headless < testing/proofs/play_fix-1205.txt
 #
 # It exercises parish-engine TD-037 (idle-message off-by-one). The headless
 # idle path (headless.rs) fires when a dialogue line resolves to no present

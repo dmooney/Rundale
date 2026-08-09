@@ -25,8 +25,8 @@ Start with the detailed agent docs in [docs/agent/README.md](docs/agent/README.m
 
 ## Current project state (quick map)
 
-- Rust workspace: **23 crates** under `parish/crates/` — see [docs/agent/architecture.md](docs/agent/architecture.md) for the full table.
-  - Binaries: `parish-engine` (headless entry point — `--headless` / `--script FILE` / Tauri-launch; despite the name it is a thin binary, the engine is `parish-core` + leaf crates), `parish-server` (Axum HTTP/WS server, library + binary), `parish-tauri` (desktop), `parish-client` (binary `parish`, thin HTTP client — see [Ways to run Parish](README.md#ways-to-run-parish)), `parish-mcp`, `parish-geo-tool`, `parish-npc-tool`.
+- Rust workspace: **24 crates** under `parish/crates/` — see [docs/agent/architecture.md](docs/agent/architecture.md) for the full table.
+  - Binaries: `parish-engine` (headless entry point — `--headless` / `--script FILE` / Tauri-launch; despite the name it is a thin binary, the engine is `parish-core` + leaf crates), `parish-server` (Axum HTTP/WS server, library + binary), `parish-tauri` (desktop), `parish-client` (binary `parish`, thin HTTP client — see [Ways to run Parish](README.md#ways-to-run-parish)), `parish-mcp`, `parish-scenario`, `parish-geo-tool`, `parish-npc-tool`.
   - Composition: `parish-core` re-exports the leaf crates under stable namespaces.
   - Leaf logic crates: `parish-chronicle`, `parish-config`, `parish-diagnostics`, `parish-editor`, `parish-inference`, `parish-input`, `parish-mod`, `parish-npc`, `parish-palette`, `parish-persistence`, `parish-providers`, `parish-setup`, `parish-types`, `parish-world`.
   - These crates make up the **Parish** game engine.
@@ -49,7 +49,12 @@ Rules marked **(enforced)** are checked mechanically by `cargo test` / CI — se
 7. **Keep README.md up to date:** feature list, repository structure, credits. Run `just notices` when dependencies change.
 8. **Five Whys before patching:** Diagnose bugs, regressions, and unexpected behavior with the `/five-whys` skill (or the method) to reach root cause first.
 9. **Resolve runtime paths from explicit config, not the cwd:** Resolve saves/mods/data dirs once at startup and store on `AppState` / `GlobalState`; never `current_dir()`, parent-walks, or marker-file searches from request handlers (#771). Resolver APIs, platform roots, and env overrides: [docs/agent/gotchas.md](docs/agent/gotchas.md).
-10. **[REMOVED]**
+10. **Truthful test automation:** Anything named or scheduled as a test must execute the
+    production behavior it claims to cover, contain a machine-checkable oracle, and
+    propagate failures to its caller. Exploratory proof scripts belong outside regression
+    test directories. Every confirmed escaped bug gets a regression test at the lowest
+    production seam that would have caught it. Scheduled automation must be green,
+    explicitly paused with a tracking issue, or removed.
 11. **Scaling guardrails:** Any PR touching `AppState`, session persistence, real-time push, inference calls, identity lookups, mod loading, or request-ID tracing must be reviewed against the seam checklist in [docs/agent/scaling-rules.md](docs/agent/scaling-rules.md).
 12. **Cross-runtime orchestration belongs in `parish-core`:** Game-loop, IPC, and session handlers shared by the server, Tauri, and CLI entry points — including their constants, payload structs, and helpers — are defined once in a backend-agnostic crate, parameterized via traits (e.g. `EventEmitter`); entry-point crates are thin wiring. Never copy an orchestration body, constant, or payload struct into a second entry-point crate — the divergence is invisible at review time and silently produces security drift (#687, #696).
 13. **[REMOVED]**
