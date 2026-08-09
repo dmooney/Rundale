@@ -1,0 +1,187 @@
+{
+  "/Users/dmooney/.codex/worktrees/cec12f05-2980-42b5-9a1a-5b77ab44cb31/Rundale/mods/rundale/anachronisms.json": {
+    "mtime": 1786263923.0507588,
+    "ast_hash": "6e8cd18ec26fa42521fb67cc3c4daccc",
+    "semantic_hash": "6e8cd18ec26fa42521fb67cc3c4daccc"
+  },
+  "/Users/dmooney/.codex/worktrees/cec12f05-2980-42b5-9a1a-5b77ab44cb31/Rundale/mods/rundale/encounters.json": {
+    "mtime": 1786263923.0600965,
+    "ast_hash": "41e5f160bd4d2c387933711a72bbc847",
+    "semantic_hash": "41e5f160bd4d2c387933711a72bbc847"
+  },
+  "/Users/dmooney/.codex/worktrees/cec12f05-2980-42b5-9a1a-5b77ab44cb31/Rundale/mods/rundale/festivals.json": {
+    "mtime": 1786263923.0601392,
+    "ast_hash": "d9a367c738e4688675b4e6053138d264",
+    "semantic_hash": "d9a367c738e4688675b4e6053138d264"
+  },
+  "/Users/dmooney/.codex/worktrees/cec12f05-2980-42b5-9a1a-5b77ab44cb31/Rundale/mods/rundale/npcs.json": {
+    "mtime": 1786263923.0603848,
+    "ast_hash": "4b500f28330a8722187991e0014a37c9",
+    "semantic_hash": "4b500f28330a8722187991e0014a37c9"
+  },
+  "/Users/dmooney/.codex/worktrees/cec12f05-2980-42b5-9a1a-5b77ab44cb31/Rundale/mods/rundale/pronunciations.json": {
+    "mtime": 1786263923.06086,
+    "ast_hash": "0772e8b14b15794adb577793b9a0a23b",
+    "semantic_hash": "0772e8b14b15794adb577793b9a0a23b"
+  },
+  "/Users/dmooney/.codex/worktrees/cec12f05-2980-42b5-9a1a-5b77ab44cb31/Rundale/mods/rundale/world.json": {
+    "mtime": 1786263923.0610347,
+    "ast_hash": "e22e092dd4ba4991dd301bf043876156",
+    "semantic_hash": "e22e092dd4ba4991dd301bf043876156"
+  },
+  "/Users/dmooney/.codex/worktrees/cec12f05-2980-42b5-9a1a-5b77ab44cb31/Rundale/mods/testbed/anachronisms.json": {
+    "mtime": 1786263923.061399,
+    "ast_hash": "86783c57f87a71f74e8144df2893ecdc",
+    "semantic_hash": "86783c57f87a71f74e8144df2893ecdc"
+  },
+  "/Users/dmooney/.codex/worktrees/cec12f05-2980-42b5-9a1a-5b77ab44cb31/Rundale/mods/testbed/encounters.json": {
+    "mtime": 1786263923.0614512,
+    "ast_hash": "96c91a7a2de412a74136673254ffd0b2",
+    "semantic_hash": "96c91a7a2de412a74136673254ffd0b2"
+  },
+  "/Users/dmooney/.codex/worktrees/cec12f05-2980-42b5-9a1a-5b77ab44cb31/Rundale/mods/testbed/festivals.json": {
+    "mtime": 1786263923.0614924,
+    "ast_hash": "58e0494c51d30eb3494f7c9198986bb9",
+    "semantic_hash": "58e0494c51d30eb3494f7c9198986bb9"
+  },
+  "/Users/dmooney/.codex/worktrees/cec12f05-2980-42b5-9a1a-5b77ab44cb31/Rundale/mods/testbed/npcs.json": {
+    "mtime": 1786263923.0616398,
+    "ast_hash": "645f8fe761f34660e12a10aec08da9e8",
+    "semantic_hash": "645f8fe761f34660e12a10aec08da9e8"
+  },
+  "/Users/dmooney/.codex/worktrees/cec12f05-2980-42b5-9a1a-5b77ab44cb31/Rundale/mods/testbed/world.json": {
+    "mtime": 1786263923.0618913,
+    "ast_hash": "5525cca11f000bd79c224d83bfba3323",
+    "semantic_hash": "5525cca11f000bd79c224d83bfba3323"
+  },
+  "/Users/dmooney/.codex/worktrees/cec12f05-2980-42b5-9a1a-5b77ab44cb31/Rundale/mods/AGENTS.md": {
+    "mtime": 1786263923.0455878,
+    "ast_hash": "d8bfe7d22043efa7be3acb405c850d4c",
+    "semantic_hash": "d8bfe7d22043efa7be3acb405c850d4c"
+  },
+  "/Users/dmooney/.codex/worktrees/cec12f05-2980-42b5-9a1a-5b77ab44cb31/Rundale/mods/CLAUDE.md": {
+    "mtime": 1786263923.0455878,
+    "ast_hash": "d8bfe7d22043efa7be3acb405c850d4c",
+    "semantic_hash": "d8bfe7d22043efa7be3acb405c850d4c"
+  },
+  "/Users/dmooney/.codex/worktrees/cec12f05-2980-42b5-9a1a-5b77ab44cb31/Rundale/mods/TODO.md": {
+    "mtime": 1786263923.0457351,
+    "ast_hash": "90cbd61738d3747b77d35ef25e71adbe",
+    "semantic_hash": "90cbd61738d3747b77d35ef25e71adbe"
+  },
+  "/Users/dmooney/.codex/worktrees/cec12f05-2980-42b5-9a1a-5b77ab44cb31/Rundale/mods/rundale/AGENTS.md": {
+    "mtime": 1786263923.0505574,
+    "ast_hash": "f9ec981b9957c0e66b3c38575f0c94c8",
+    "semantic_hash": "f9ec981b9957c0e66b3c38575f0c94c8"
+  },
+  "/Users/dmooney/.codex/worktrees/cec12f05-2980-42b5-9a1a-5b77ab44cb31/Rundale/mods/rundale/CLAUDE.md": {
+    "mtime": 1786263923.0505574,
+    "ast_hash": "f9ec981b9957c0e66b3c38575f0c94c8",
+    "semantic_hash": "f9ec981b9957c0e66b3c38575f0c94c8"
+  },
+  "/Users/dmooney/.codex/worktrees/cec12f05-2980-42b5-9a1a-5b77ab44cb31/Rundale/mods/rundale/GEMINI.md": {
+    "mtime": 1786263923.0505574,
+    "ast_hash": "f9ec981b9957c0e66b3c38575f0c94c8",
+    "semantic_hash": "f9ec981b9957c0e66b3c38575f0c94c8"
+  },
+  "/Users/dmooney/.codex/worktrees/cec12f05-2980-42b5-9a1a-5b77ab44cb31/Rundale/mods/rundale/demo-prompt.txt": {
+    "mtime": 1786263923.060046,
+    "ast_hash": "3b376060846074be3ce1752788f8f95d",
+    "semantic_hash": "3b376060846074be3ce1752788f8f95d"
+  },
+  "/Users/dmooney/.codex/worktrees/cec12f05-2980-42b5-9a1a-5b77ab44cb31/Rundale/mods/rundale/prompts/AGENTS.md": {
+    "mtime": 1786263923.060597,
+    "ast_hash": "5ff98d278e691f4f70e8e0c6bc293049",
+    "semantic_hash": "5ff98d278e691f4f70e8e0c6bc293049"
+  },
+  "/Users/dmooney/.codex/worktrees/cec12f05-2980-42b5-9a1a-5b77ab44cb31/Rundale/mods/rundale/prompts/CLAUDE.md": {
+    "mtime": 1786263923.060597,
+    "ast_hash": "5ff98d278e691f4f70e8e0c6bc293049",
+    "semantic_hash": "5ff98d278e691f4f70e8e0c6bc293049"
+  },
+  "/Users/dmooney/.codex/worktrees/cec12f05-2980-42b5-9a1a-5b77ab44cb31/Rundale/mods/rundale/prompts/tier1_context.txt": {
+    "mtime": 1786263923.0606823,
+    "ast_hash": "edd2c7227f05f900bfd71556b0978f07",
+    "semantic_hash": "edd2c7227f05f900bfd71556b0978f07"
+  },
+  "/Users/dmooney/.codex/worktrees/cec12f05-2980-42b5-9a1a-5b77ab44cb31/Rundale/mods/rundale/prompts/tier1_system.txt": {
+    "mtime": 1786263923.0607402,
+    "ast_hash": "3eb3d0f02cb3736df985e5e9c69e2882",
+    "semantic_hash": "3eb3d0f02cb3736df985e5e9c69e2882"
+  },
+  "/Users/dmooney/.codex/worktrees/cec12f05-2980-42b5-9a1a-5b77ab44cb31/Rundale/mods/rundale/prompts/tier2_system.txt": {
+    "mtime": 1786263923.0607915,
+    "ast_hash": "377eacd218b5986552a37fff5279a667",
+    "semantic_hash": "377eacd218b5986552a37fff5279a667"
+  },
+  "/Users/dmooney/.codex/worktrees/cec12f05-2980-42b5-9a1a-5b77ab44cb31/Rundale/mods/testbed/prompts/tier1_context.txt": {
+    "mtime": 1786263923.0617168,
+    "ast_hash": "5c2a597c9e3f9fb7a42f477e24d46c3c",
+    "semantic_hash": "5c2a597c9e3f9fb7a42f477e24d46c3c"
+  },
+  "/Users/dmooney/.codex/worktrees/cec12f05-2980-42b5-9a1a-5b77ab44cb31/Rundale/mods/testbed/prompts/tier1_system.txt": {
+    "mtime": 1786263923.0617614,
+    "ast_hash": "d4a1ebbb7eaee0c3736c79f36acb2e7a",
+    "semantic_hash": "d4a1ebbb7eaee0c3736c79f36acb2e7a"
+  },
+  "/Users/dmooney/.codex/worktrees/cec12f05-2980-42b5-9a1a-5b77ab44cb31/Rundale/mods/testbed/prompts/tier2_system.txt": {
+    "mtime": 1786263923.061802,
+    "ast_hash": "986160a5d77cf43393b341e7d0c88898",
+    "semantic_hash": "986160a5d77cf43393b341e7d0c88898"
+  },
+  "/Users/dmooney/.codex/worktrees/cec12f05-2980-42b5-9a1a-5b77ab44cb31/Rundale/mods/rundale/assets/icons/app/favicon-16.png": {
+    "mtime": 1786263923.0509694,
+    "ast_hash": "95665925a18dbbd5744297dec0290e05",
+    "semantic_hash": "95665925a18dbbd5744297dec0290e05"
+  },
+  "/Users/dmooney/.codex/worktrees/cec12f05-2980-42b5-9a1a-5b77ab44cb31/Rundale/mods/rundale/assets/icons/app/favicon-32.png": {
+    "mtime": 1786263923.0510375,
+    "ast_hash": "8d2cf0627b2a87c0232e0d9721b26151",
+    "semantic_hash": "8d2cf0627b2a87c0232e0d9721b26151"
+  },
+  "/Users/dmooney/.codex/worktrees/cec12f05-2980-42b5-9a1a-5b77ab44cb31/Rundale/mods/rundale/assets/icons/app/icon-1024.png": {
+    "mtime": 1786263923.055336,
+    "ast_hash": "7cc3646bb6086511682b13bf667f6166",
+    "semantic_hash": "7cc3646bb6086511682b13bf667f6166"
+  },
+  "/Users/dmooney/.codex/worktrees/cec12f05-2980-42b5-9a1a-5b77ab44cb31/Rundale/mods/rundale/assets/icons/app/icon-128.png": {
+    "mtime": 1786263923.0571249,
+    "ast_hash": "4cadeea82c8f512aba3dd363b3268080",
+    "semantic_hash": "4cadeea82c8f512aba3dd363b3268080"
+  },
+  "/Users/dmooney/.codex/worktrees/cec12f05-2980-42b5-9a1a-5b77ab44cb31/Rundale/mods/rundale/assets/icons/app/icon-16.png": {
+    "mtime": 1786263923.0571976,
+    "ast_hash": "95665925a18dbbd5744297dec0290e05",
+    "semantic_hash": "95665925a18dbbd5744297dec0290e05"
+  },
+  "/Users/dmooney/.codex/worktrees/cec12f05-2980-42b5-9a1a-5b77ab44cb31/Rundale/mods/rundale/assets/icons/app/icon-180.png": {
+    "mtime": 1786263923.058298,
+    "ast_hash": "51ae57914ab2e9bdc6c19889456ef34f",
+    "semantic_hash": "51ae57914ab2e9bdc6c19889456ef34f"
+  },
+  "/Users/dmooney/.codex/worktrees/cec12f05-2980-42b5-9a1a-5b77ab44cb31/Rundale/mods/rundale/assets/icons/app/icon-256.png": {
+    "mtime": 1786263923.058696,
+    "ast_hash": "107eb58a8da39035b848b4adb0c68d6a",
+    "semantic_hash": "107eb58a8da39035b848b4adb0c68d6a"
+  },
+  "/Users/dmooney/.codex/worktrees/cec12f05-2980-42b5-9a1a-5b77ab44cb31/Rundale/mods/rundale/assets/icons/app/icon-32.png": {
+    "mtime": 1786263923.058767,
+    "ast_hash": "8d2cf0627b2a87c0232e0d9721b26151",
+    "semantic_hash": "8d2cf0627b2a87c0232e0d9721b26151"
+  },
+  "/Users/dmooney/.codex/worktrees/cec12f05-2980-42b5-9a1a-5b77ab44cb31/Rundale/mods/rundale/assets/icons/app/icon-48.png": {
+    "mtime": 1786263923.058827,
+    "ast_hash": "cca717d506aed4b58031bbc4b7ab9383",
+    "semantic_hash": "cca717d506aed4b58031bbc4b7ab9383"
+  },
+  "/Users/dmooney/.codex/worktrees/cec12f05-2980-42b5-9a1a-5b77ab44cb31/Rundale/mods/rundale/assets/icons/app/icon-512.png": {
+    "mtime": 1786263923.0598304,
+    "ast_hash": "619b68cc31733e596d3ea77b6d94c8de",
+    "semantic_hash": "619b68cc31733e596d3ea77b6d94c8de"
+  },
+  "/Users/dmooney/.codex/worktrees/cec12f05-2980-42b5-9a1a-5b77ab44cb31/Rundale/mods/rundale/assets/icons/app/icon-64.png": {
+    "mtime": 1786263923.0599847,
+    "ast_hash": "7dc69aba10ccfe5edc80a73e77bab075",
+    "semantic_hash": "7dc69aba10ccfe5edc80a73e77bab075"
+  }
+}

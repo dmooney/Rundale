@@ -115,6 +115,11 @@ is_proof_relevant() {
         docs/proofs/* | .proofs/*)
             return 1
             ;;
+        # Graphify outputs are generated documentation, even when the graph
+        # describes files under a runtime-owned tree such as mods/.
+        graphify-out/* | */graphify-out/*)
+            return 1
+            ;;
         # Documentation, agent instructions, build config, CI workflows,
         # and check tooling require proof only when paired with a runtime
         # code change. On their own, they have no gameplay behavior to
@@ -150,6 +155,9 @@ is_proof_relevant() {
 is_runtime_path() {
     local file="$1"
     case "$file" in
+        graphify-out/* | */graphify-out/*)
+            return 1
+            ;;
         parish/crates/parish-tauri/* | \
             parish/crates/parish-server/* | \
             parish/crates/parish-engine/* | \
