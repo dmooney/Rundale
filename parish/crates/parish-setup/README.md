@@ -43,9 +43,11 @@ cargo test -p parish-setup       # unit tests (wiremock-backed Ollama probes)
 
 ## Local gotchas
 
-- **Local-inference defaults are platform-specific.** macOS: vllm-mlx two-slot
-  Qwen (8000 dialogue + 8001 intent), needs ≥16 GB unified memory.
-  Linux/Windows: Ollama on 11434.
+- **Local-inference backends are platform-specific, but quality qualification
+  is separate.** macOS can run the vllm-mlx two-slot Qwen profile (8000
+  dialogue + 8001 intent); Linux/Windows can run Ollama/vLLM. Consult
+  `parish_config::local_dialogue` before describing any exact profile as
+  production-qualified. The registry is currently empty.
 - **Always set explicit reqwest timeouts.** Provider hangs leak into the game
   loop otherwise; the reachability/warmup probes here build their own clients.
 - **No `parish-inference` dependency.** The bootstrap code reaches the client

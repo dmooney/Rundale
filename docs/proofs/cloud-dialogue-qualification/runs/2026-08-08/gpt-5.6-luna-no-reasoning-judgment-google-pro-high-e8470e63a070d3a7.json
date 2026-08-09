@@ -1,0 +1,681 @@
+{
+  "items": [
+    {
+      "axes": {
+        "authenticity": 4,
+        "brevity": 5,
+        "character": 4,
+        "craft": 4,
+        "grounding": 5,
+        "language": 5,
+        "mood_fidelity": 5,
+        "repetition": 5,
+        "responsiveness": 5
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 4.7,
+      "prompt_id": "dialogue-0006/sample-1",
+      "rationales": {
+        "authenticity": "Good use of 'ye'd best ask' and period-appropriate phrasing.",
+        "brevity": "Two sentences, no questions.",
+        "character": "The redirect to Siobhan Murphy fits the publican's knowledge boundaries well.",
+        "craft": "Clear, concise, and natural.",
+        "grounding": "No fabrication probe in this record.",
+        "language": "Perfectly fluent en-IE with no modernisms.",
+        "mood_fidelity": "The tone is calm and steady, matching the prompt.",
+        "repetition": "No repeated phrases.",
+        "responsiveness": "Directly answers the question and provides a helpful redirect."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 4,
+        "brevity": 5,
+        "character": 5,
+        "craft": 5,
+        "grounding": 5,
+        "language": 5,
+        "mood_fidelity": 5,
+        "repetition": 5,
+        "responsiveness": 5
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 4.9,
+      "prompt_id": "dialogue-0006/sample-2",
+      "rationales": {
+        "authenticity": "Natural phrasing with 'ye' and good period feel.",
+        "brevity": "Two sentences, no questions.",
+        "character": "'I keep barrels, not acres' is an excellent, character-specific detail.",
+        "craft": "Evocative and sharply written.",
+        "grounding": "No fabrication probe in this record.",
+        "language": "Perfectly fluent en-IE.",
+        "mood_fidelity": "Calm and settled tone.",
+        "repetition": "No repeated phrases.",
+        "responsiveness": "Directly addresses the prompt and redirects appropriately."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 4,
+        "brevity": 5,
+        "character": 4,
+        "craft": 4,
+        "grounding": 5,
+        "language": 5,
+        "mood_fidelity": 5,
+        "repetition": 5,
+        "responsiveness": 5
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 4.7,
+      "prompt_id": "dialogue-0006/sample-3",
+      "rationales": {
+        "authenticity": "Solid period phrasing.",
+        "brevity": "One sentence, no questions.",
+        "character": "The reference to judging from 'behind this counter' grounds the reply in his role.",
+        "craft": "Clear and well-constructed.",
+        "grounding": "No fabrication probe in this record.",
+        "language": "Perfectly fluent en-IE.",
+        "mood_fidelity": "Calm and steady.",
+        "repetition": "No repeated phrases.",
+        "responsiveness": "Answers the question and redirects."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 4,
+        "brevity": 5,
+        "character": 4,
+        "craft": 4,
+        "grounding": 5,
+        "language": 5,
+        "mood_fidelity": 5,
+        "repetition": 5,
+        "responsiveness": 5
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 4.7,
+      "prompt_id": "dialogue-0010/sample-1",
+      "rationales": {
+        "authenticity": "Good period feel without modernisms.",
+        "brevity": "Two sentences, no questions.",
+        "character": "Mentions the mill wheel and the landlord selling, fitting his analytical and business-focused mind.",
+        "craft": "Clear and concise.",
+        "grounding": "No fabrication probe in this record.",
+        "language": "Perfectly fluent en-IE.",
+        "mood_fidelity": "Calm and unhurried.",
+        "repetition": "No repeated phrases.",
+        "responsiveness": "Directly answers the request for news."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 4,
+        "brevity": 5,
+        "character": 4,
+        "craft": 4,
+        "grounding": 5,
+        "language": 5,
+        "mood_fidelity": 5,
+        "repetition": 5,
+        "responsiveness": 5
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 4.7,
+      "prompt_id": "dialogue-0010/sample-2",
+      "rationales": {
+        "authenticity": "Phrasing like 'put new terms upon every holding' sounds authentic.",
+        "brevity": "Two sentences, no questions.",
+        "character": "Draws well on his internal knowledge about the stream and the landlord.",
+        "craft": "Well-written and clear.",
+        "grounding": "No fabrication probe in this record.",
+        "language": "Perfectly fluent en-IE.",
+        "mood_fidelity": "Calm and steady.",
+        "repetition": "No repeated phrases.",
+        "responsiveness": "Provides relevant parish news."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 0,
+        "brevity": 0,
+        "character": 0,
+        "craft": 0,
+        "grounding": 0,
+        "language": 0,
+        "mood_fidelity": 0,
+        "repetition": 0,
+        "responsiveness": 0
+      },
+      "flags": {
+        "bench_bug": true,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 0.0,
+      "prompt_id": "dialogue-0010/sample-3",
+      "rationales": {
+        "authenticity": "Response is chain-of-thought planning, not dialogue.",
+        "brevity": "Response is chain-of-thought planning, not dialogue.",
+        "character": "Response is chain-of-thought planning, not dialogue.",
+        "craft": "Response is chain-of-thought planning, not dialogue.",
+        "grounding": "Response is chain-of-thought planning, not dialogue.",
+        "language": "Response is chain-of-thought planning, not dialogue.",
+        "mood_fidelity": "Response is chain-of-thought planning, not dialogue.",
+        "repetition": "Response is chain-of-thought planning, not dialogue.",
+        "responsiveness": "Response is chain-of-thought planning, not dialogue."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 3,
+        "brevity": 5,
+        "character": 4,
+        "craft": 3,
+        "grounding": 5,
+        "language": 5,
+        "mood_fidelity": 5,
+        "repetition": 5,
+        "responsiveness": 5
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 4.6,
+      "prompt_id": "dialogue-0014/sample-1",
+      "rationales": {
+        "authenticity": "A bit plain, but free of modernisms.",
+        "brevity": "Two sentences, no questions.",
+        "character": "Simple and concrete, fitting the young apprentice.",
+        "craft": "Adequate and clear.",
+        "grounding": "No fabrication probe in this record.",
+        "language": "Perfectly fluent en-IE.",
+        "mood_fidelity": "Calm and steady.",
+        "repetition": "No repeated phrases.",
+        "responsiveness": "Directly answers the question."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 4,
+        "brevity": 5,
+        "character": 3,
+        "craft": 3,
+        "grounding": 5,
+        "language": 5,
+        "mood_fidelity": 5,
+        "repetition": 5,
+        "responsiveness": 5
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 4.5,
+      "prompt_id": "dialogue-0014/sample-2",
+      "rationales": {
+        "authenticity": "Good use of 'ye'd best ask' and 'just now'.",
+        "brevity": "Two sentences, no questions.",
+        "character": "A bit generic, but acceptable for the character.",
+        "craft": "Adequate.",
+        "grounding": "No fabrication probe in this record.",
+        "language": "Perfectly fluent en-IE.",
+        "mood_fidelity": "Calm and steady.",
+        "repetition": "No repeated phrases.",
+        "responsiveness": "Directly answers the question."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 3,
+        "brevity": 5,
+        "character": 3,
+        "craft": 3,
+        "grounding": 5,
+        "language": 5,
+        "mood_fidelity": 5,
+        "repetition": 5,
+        "responsiveness": 5
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 4.4,
+      "prompt_id": "dialogue-0014/sample-3",
+      "rationales": {
+        "authenticity": "Relies heavily on the prompt's suggested redirect phrase.",
+        "brevity": "Two sentences, no questions.",
+        "character": "A generic redirect that lacks specific character flavor.",
+        "craft": "Adequate but uninspired.",
+        "grounding": "No fabrication probe in this record.",
+        "language": "Perfectly fluent en-IE.",
+        "mood_fidelity": "Calm and steady.",
+        "repetition": "No repeated phrases.",
+        "responsiveness": "Directly answers the question."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 4,
+        "brevity": 5,
+        "character": 5,
+        "craft": 5,
+        "grounding": 5,
+        "language": 5,
+        "mood_fidelity": 5,
+        "repetition": 5,
+        "responsiveness": 5
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 4.9,
+      "prompt_id": "dialogue-0024/sample-1",
+      "rationales": {
+        "authenticity": "Good phrasing with 'Hereabouts' and 'folk speak'.",
+        "brevity": "Two sentences, no questions.",
+        "character": "Eloquent and observant, perfectly capturing the priest's perspective.",
+        "craft": "Well-written and evocative.",
+        "grounding": "No fabrication probe in this record.",
+        "language": "Perfectly fluent en-IE.",
+        "mood_fidelity": "Calm and steady.",
+        "repetition": "No repeated phrases.",
+        "responsiveness": "Provides excellent parish news."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 4,
+        "brevity": 5,
+        "character": 5,
+        "craft": 5,
+        "grounding": 5,
+        "language": 5,
+        "mood_fidelity": 5,
+        "repetition": 5,
+        "responsiveness": 5
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 4.9,
+      "prompt_id": "dialogue-0024/sample-2",
+      "rationales": {
+        "authenticity": "Natural and period-appropriate phrasing.",
+        "brevity": "Two sentences, no questions.",
+        "character": "Highly eloquent and insightful, fitting the priest perfectly.",
+        "craft": "'Weighing hope against the landlord's displeasure' is excellent writing.",
+        "grounding": "No fabrication probe in this record.",
+        "language": "Perfectly fluent en-IE.",
+        "mood_fidelity": "Calm and steady.",
+        "repetition": "No repeated phrases.",
+        "responsiveness": "Provides relevant news."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 4,
+        "brevity": 5,
+        "character": 4,
+        "craft": 4,
+        "grounding": 5,
+        "language": 5,
+        "mood_fidelity": 5,
+        "repetition": 5,
+        "responsiveness": 5
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 4.7,
+      "prompt_id": "dialogue-0024/sample-3",
+      "rationales": {
+        "authenticity": "Solid period phrasing.",
+        "brevity": "Two sentences, no questions.",
+        "character": "Good use of his internal knowledge, though slightly less insightful than other samples.",
+        "craft": "Clear and well-constructed.",
+        "grounding": "No fabrication probe in this record.",
+        "language": "Perfectly fluent en-IE.",
+        "mood_fidelity": "Calm and steady.",
+        "repetition": "No repeated phrases.",
+        "responsiveness": "Provides relevant news."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 5,
+        "brevity": 5,
+        "character": 5,
+        "craft": 5,
+        "grounding": 5,
+        "language": 5,
+        "mood_fidelity": 5,
+        "repetition": 5,
+        "responsiveness": 5
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 5.0,
+      "prompt_id": "dialogue-0048/sample-1",
+      "rationales": {
+        "authenticity": "Excellent period feel and idiom.",
+        "brevity": "Two sentences, no questions.",
+        "character": "The weaving metaphors ('poor blanket', 'embroidered') are brilliant for her character.",
+        "craft": "Exceptional writing and imagery.",
+        "grounding": "No fabrication probe in this record.",
+        "language": "Perfectly fluent en-IE.",
+        "mood_fidelity": "Calm and steady.",
+        "repetition": "No repeated phrases.",
+        "responsiveness": "Addresses the prompt beautifully."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 5,
+        "brevity": 5,
+        "character": 5,
+        "craft": 5,
+        "grounding": 5,
+        "language": 5,
+        "mood_fidelity": 5,
+        "repetition": 5,
+        "responsiveness": 5
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 5.0,
+      "prompt_id": "dialogue-0048/sample-2",
+      "rationales": {
+        "authenticity": "Very natural and period-appropriate.",
+        "brevity": "Three sentences, no questions.",
+        "character": "Excellent use of weaving metaphors ('thin thread', 'weave hearsay into cloth').",
+        "craft": "Beautifully written and evocative.",
+        "grounding": "No fabrication probe in this record.",
+        "language": "Perfectly fluent en-IE.",
+        "mood_fidelity": "Calm and steady.",
+        "repetition": "No repeated phrases.",
+        "responsiveness": "Provides a great overview of the parish."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 4,
+        "brevity": 5,
+        "character": 5,
+        "craft": 5,
+        "grounding": 5,
+        "language": 5,
+        "mood_fidelity": 5,
+        "repetition": 5,
+        "responsiveness": 5
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 4.9,
+      "prompt_id": "dialogue-0048/sample-3",
+      "rationales": {
+        "authenticity": "Good period phrasing.",
+        "brevity": "Two sentences, one question.",
+        "character": "Strong character voice, using 'dress hearsay as truth'.",
+        "craft": "Well-crafted and engaging.",
+        "grounding": "No fabrication probe in this record.",
+        "language": "Perfectly fluent en-IE.",
+        "mood_fidelity": "Calm and steady.",
+        "repetition": "No repeated phrases.",
+        "responsiveness": "Addresses the prompt well."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 3,
+        "brevity": 5,
+        "character": 3,
+        "craft": 3,
+        "grounding": 5,
+        "language": 5,
+        "mood_fidelity": 5,
+        "repetition": 4,
+        "responsiveness": 5
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 4.3,
+      "prompt_id": "dialogue-0163/sample-1",
+      "rationales": {
+        "authenticity": "Relies on the prompt's suggested redirect phrase.",
+        "brevity": "Two sentences, no questions.",
+        "character": "A bit generic, but accurate to his knowledge.",
+        "craft": "Adequate.",
+        "grounding": "Correctly denies the fabricated person and place.",
+        "language": "Perfectly fluent en-IE.",
+        "mood_fidelity": "Calm and steady.",
+        "repetition": "Uses 'hereabouts' twice in two sentences.",
+        "responsiveness": "Directly answers the question."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 4,
+        "brevity": 5,
+        "character": 4,
+        "craft": 4,
+        "grounding": 5,
+        "language": 5,
+        "mood_fidelity": 5,
+        "repetition": 5,
+        "responsiveness": 5
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 4.7,
+      "prompt_id": "dialogue-0163/sample-2",
+      "rationales": {
+        "authenticity": "Natural phrasing.",
+        "brevity": "Two sentences, no questions.",
+        "character": "Good redirect to the shopkeeper, fitting his practical knowledge.",
+        "craft": "Clear and well-constructed.",
+        "grounding": "Correctly denies the fabricated person and place.",
+        "language": "Perfectly fluent en-IE.",
+        "mood_fidelity": "Calm and steady.",
+        "repetition": "No repeated phrases.",
+        "responsiveness": "Directly answers the question."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 3,
+        "brevity": 5,
+        "character": 3,
+        "craft": 3,
+        "grounding": 5,
+        "language": 5,
+        "mood_fidelity": 5,
+        "repetition": 5,
+        "responsiveness": 5
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 4.4,
+      "prompt_id": "dialogue-0163/sample-3",
+      "rationales": {
+        "authenticity": "Relies on the prompt's suggested redirect phrase.",
+        "brevity": "Two sentences, no questions.",
+        "character": "A generic redirect.",
+        "craft": "Adequate.",
+        "grounding": "Correctly denies the fabricated person and place.",
+        "language": "Perfectly fluent en-IE.",
+        "mood_fidelity": "Calm and steady.",
+        "repetition": "No repeated phrases.",
+        "responsiveness": "Directly answers the question."
+      }
+    }
+  ],
+  "judge": {
+    "cost_usd": 0.345336,
+    "family": "google",
+    "id": "google-pro-high",
+    "model": "google/gemini-3.1-pro-preview",
+    "provider": "openrouter",
+    "reasoning_effort": "high",
+    "request_id": "gen-1786263553-zFcPwLFmBDm2VBo5ekmN",
+    "routed_model": "google/gemini-3.1-pro-preview",
+    "routed_provider": "Google",
+    "rubric_sha256": "9adab2cd1b38fe75f978e386239b50fbb12b5ba34c5ba5874ae396a3b46b7bf4",
+    "usage": {
+      "completion_tokens": 12980,
+      "completion_tokens_details": {
+        "audio_tokens": 0,
+        "image_tokens": 0,
+        "reasoning_tokens": 7247
+      },
+      "cost": 0.345336,
+      "cost_details": {
+        "upstream_inference_completions_cost": 0.15576,
+        "upstream_inference_cost": 0.345336,
+        "upstream_inference_prompt_cost": 0.189576
+      },
+      "is_byok": false,
+      "prompt_tokens": 94788,
+      "prompt_tokens_details": {
+        "audio_tokens": 0,
+        "cache_write_tokens": 0,
+        "cached_tokens": 0,
+        "video_tokens": 0
+      },
+      "total_tokens": 107768
+    }
+  },
+  "quality": {
+    "axes": {
+      "authenticity": 3.8824,
+      "brevity": 5.0,
+      "character": 4.1176,
+      "craft": 4.0588,
+      "grounding": 5.0,
+      "language": 5.0,
+      "mood_fidelity": 5.0,
+      "repetition": 4.9412,
+      "responsiveness": 5.0
+    },
+    "hard_failures": {
+      "degenerate_loop": 0,
+      "fabricated": 0,
+      "non_latin_detected": 0,
+      "refused": 0,
+      "unusable_output": 1
+    },
+    "overall": 4.7088,
+    "pass": false,
+    "thresholds": {
+      "critical_axes": [
+        "grounding",
+        "repetition",
+        "mood_fidelity",
+        "brevity",
+        "responsiveness"
+      ],
+      "minimum_critical_axis": 3.0,
+      "minimum_overall": 3.5
+    }
+  },
+  "sample": {
+    "items": 18,
+    "judge_input": "full production system prompt plus dynamic user prompt",
+    "judged_items": 17,
+    "samples_per_prompt": 3,
+    "unique_prompts": 6,
+    "unusable_outputs": 1
+  },
+  "source": {
+    "bundle": "docs/proofs/cloud-dialogue-qualification/runs/2026-08-08/gpt-5.6-luna-no-reasoning-judgment-google-pro-high-e8470e63a070d3a7.bundle.json",
+    "bundle_sha256": "e8470e63a070d3a7a9a2995e0395c6d12aac28b9e8ba39fa6bbb32f2ae90818b",
+    "raw": "docs/proofs/cloud-dialogue-qualification/runs/2026-08-08/gpt-5.6-luna-no-reasoning-judgment-google-pro-high-e8470e63a070d3a7.attempt-1.raw.json",
+    "raw_sha256": "fd51d5247454e0482a169fd95da982bfcdb0da20ea47bdeb22c750a25d401500"
+  },
+  "version": 1
+}

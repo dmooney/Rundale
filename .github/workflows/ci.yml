@@ -2,11 +2,10 @@ name: Rundale CI
 
 # Jobs run on GitHub-hosted `ubuntu-latest` runners.
 #
-# Sub-minute fast lane for pull requests and main/develop pushes. Pull requests
-# that touch the shipped browser/server seam additionally run the complete
-# Playwright contract.
-# Other expensive Rust, coverage, game-harness, and UI runtime jobs live in
-# `full-ci.yml`.
+# Fast lint/format lane for every change. Pull requests that touch runtime code,
+# gameplay content, fixtures, or the runtime workflows additionally call the
+# complete correctness suite in `full-ci.yml`. The aggregate `CI gate` remains
+# the repository's single required branch-protection context.
 
 on:
   pull_request:
@@ -32,9 +31,8 @@ permissions:
   contents: read
 
 jobs:
-  # Detect which areas a PR changed. Browser UI and parish-server seam changes
-  # use this output to opt into the complete Playwright contract; other
-  # expensive path-sensitive jobs live in `full-ci.yml`.
+  # Detect whether a pull request can affect the shipped runtime or its
+  # acceptance sensors. Runtime changes opt into the complete reusable suite.
   changes:
     name: Detect changed areas
     runs-on: ubuntu-latest
@@ -45,8 +43,7 @@ jobs:
       run:
         working-directory: ${{ github.workspace }}
     outputs:
-      rust: ${{ steps.filter.outputs.rust || 'true' }}
-      ui: ${{ steps.filter.outputs.ui || 'true' }}
+      runtime: ${{ steps.filter.outputs.runtime || 'true' }}
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -56,18 +53,18 @@ jobs:
         uses: dorny/paths-filter@v4
         with:
           filters: |
-            rust:
+            runtime:
               - 'parish/crates/**'
+              - 'parish/apps/ui/**'
               - 'parish/Cargo.toml'
               - 'parish/Cargo.lock'
               - 'parish/testing/**'
+              - 'parish/scripts/**'
+              - 'parish/justfile'
               - 'parish/.config/nextest.toml'
               - 'mods/**'
               - '.github/workflows/ci.yml'
-            ui:
-              - 'parish/apps/ui/**'
-              - 'parish/crates/parish-server/**'
-              - '.github/workflows/ci.yml'
+              - '.github/workflows/full-ci.yml'
 
   agent-check:
     name: Agent proof gate
@@ -235,69 +232,12 @@ jobs:
       - name: Taplo lint
         run: taplo lint
 
-  ui-e2e:
-    name: UI Playwright e2e
+  runtime-suite:
+    name: Runtime correctness suite
     needs: changes
-    if: github.event_name == 'pull_request' && needs.changes.outputs.ui == 'true'
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    defaults:
-      run:
-        working-directory: parish/apps/ui
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v6
-        with:
-          clean: true
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v6
-        with:
-          node-version: 22
-          cache: npm
-          cache-dependency-path: parish/apps/ui/package-lock.json
-
-      - name: Install Rust toolchain
-        uses: actions-rust-lang/setup-rust-toolchain@46268bd060767258de96ed93c1251119784f2ab6 # v1.16.1
-        with:
-          cache: false
-
-      - name: Cache Rust artifacts
-        uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: .
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Build UI
-        run: npm run build
-
-      - name: Run managed-server integration races
-        run: npm run test:playwright-launcher-integration
-
-      - name: Install Playwright browser (Linux-only OS deps)
-        if: runner.os == 'Linux'
-        run: npx playwright install --with-deps chromium
-
-      - name: Install Playwright browser (macOS)
-        if: runner.os == 'macOS'
-        run: npx playwright install chromium
-
-      - name: Prebuild parish web server binary
-        working-directory: ${{ github.workspace }}/parish
-        run: cargo build -p parish-server
-
-      - name: Run Playwright e2e
-        run: npx playwright test
-
-      - name: Upload Playwright report
-        if: always()
-        uses: actions/upload-artifact@v7
-        with:
-          name: playwright-report
-          path: parish/apps/ui/playwright-report/
-          if-no-files-found: ignore
+    if: github.event_name == 'pull_request' && needs.changes.outputs.runtime == 'true'
+    uses: ./.github/workflows/full-ci.yml
+    secrets: inherit
 
   playwright-launcher-windows:
     name: Playwright launcher lifecycle (Windows)
@@ -320,8 +260,7 @@ jobs:
 
   # ── Aggregate required-checks gate ─────────────────────────────────────────
   # Branch protection requires THIS single job. It aggregates the fast lane and
-  # the conditional complete Playwright contract for shipped browser/server
-  # seam changes.
+  # the conditional complete correctness suite for runtime changes.
   ci-gate:
     name: CI gate
     needs:
@@ -334,7 +273,7 @@ jobs:
         playwright-launcher-windows,
         shell-quality,
         toml-quality,
-        ui-e2e,
+        runtime-suite,
       ]
     if: always()
     runs-on: ubuntu-latest
@@ -350,6 +289,6 @@ jobs:
         env:
           GATED_RESULTS: ${{ join(needs.*.result, ' ') }}
           PLAYWRIGHT_WINDOWS_RESULT: ${{ needs.playwright-launcher-windows.result }}
-          UI_E2E_REQUIRED: ${{ github.event_name == 'pull_request' && needs.changes.outputs.ui == 'true' }}
-          UI_E2E_RESULT: ${{ needs.ui-e2e.result }}
+          RUNTIME_SUITE_REQUIRED: ${{ github.event_name == 'pull_request' && needs.changes.outputs.runtime == 'true' }}
+          RUNTIME_SUITE_RESULT: ${{ needs.runtime-suite.result }}
         run: bash .github/scripts/ci-gate.sh

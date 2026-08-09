@@ -4,6 +4,7 @@
 //! and the resolved [`ProviderConfig`] / [`CloudConfig`] outputs. Split out of
 //! the monolithic `provider` module (#1200).
 
+use std::collections::HashMap;
 use std::path::Path;
 
 use parish_types::ParishError;
@@ -22,6 +23,19 @@ pub struct ProviderConfig {
     /// API key for authenticated providers (OpenRouter, etc.).
     pub api_key: Option<String>,
     /// Model name override. Required for non-Ollama providers.
+    pub model: Option<String>,
+}
+
+/// Resolved provider configuration for one inference category.
+///
+/// This lives in `parish-config` so every runtime can apply the same
+/// per-category routing contract. A category absent from the resolved map
+/// inherits the base [`ProviderConfig`].
+#[derive(Debug, Clone)]
+pub struct CategoryConfig {
+    pub provider: Provider,
+    pub base_url: String,
+    pub api_key: Option<String>,
     pub model: Option<String>,
 }
 
@@ -212,6 +226,93 @@ pub fn resolve_config(
         api_key,
         model,
     })
+}
+
+/// Resolves `PARISH_<CATEGORY>_{PROVIDER,BASE_URL,MODEL}` overrides.
+///
+/// Only categories with at least one non-empty override are returned. Missing
+/// fields inherit from `base`; when the provider itself is overridden, its
+/// default URL and standard API-key environment variable are used. This is
+/// the shared environment-only surface used by runtimes that do not expose
+/// the `parish-engine` binary's TOML/CLI category flags (notably
+/// `parish-server`).
+pub fn resolve_category_env_configs(
+    base: &ProviderConfig,
+) -> Result<HashMap<InferenceCategory, CategoryConfig>, ParishError> {
+    let mut result = HashMap::new();
+
+    for category in InferenceCategory::ALL {
+        let prefix = category.env_prefix();
+        let provider_override = env_non_empty(&format!("{prefix}_PROVIDER"));
+        let base_url_override = env_non_empty(&format!("{prefix}_BASE_URL"));
+        let model_override = env_non_empty(&format!("{prefix}_MODEL"));
+
+        if provider_override.is_none() && base_url_override.is_none() && model_override.is_none() {
+            continue;
+        }
+
+        let provider = match provider_override.as_deref() {
+            Some(value) => Provider::from_str_loose(value)?,
+            None => base.provider.clone(),
+        };
+        let base_url = base_url_override.unwrap_or_else(|| {
+            if provider_override.is_some() {
+                provider.default_base_url().to_string()
+            } else {
+                base.base_url.clone()
+            }
+        });
+        let api_key = provider
+            .api_key_env_var()
+            .and_then(env_non_empty)
+            .or_else(|| {
+                if provider_override.is_none() {
+                    base.api_key.clone()
+                } else {
+                    None
+                }
+            });
+        let model = model_override.or_else(|| {
+            if provider_override.is_none() {
+                base.model.clone()
+            } else if provider.id() == "ollama" {
+                None
+            } else {
+                provider.preset_model(category).map(String::from)
+            }
+        });
+
+        if provider.requires_api_key() && api_key.is_none() {
+            let hint = provider
+                .api_key_env_var()
+                .unwrap_or("the provider API key env var");
+            return Err(ParishError::Config(format!(
+                "{} {} provider requires an API key. Set {}.",
+                category.name(),
+                provider.id(),
+                hint
+            )));
+        }
+        if provider.needs_base_url_from_user() && base_url.is_empty() {
+            return Err(ParishError::Config(format!(
+                "{} custom provider requires a base_url. Set {}_BASE_URL.",
+                category.name(),
+                prefix
+            )));
+        }
+
+        result.insert(
+            category,
+            CategoryConfig {
+                provider,
+                base_url,
+                api_key,
+                model,
+            },
+        );
+    }
+
+    Ok(result)
 }
 
 /// Resolves cloud provider configuration from file, env vars, and CLI flags.

@@ -83,8 +83,9 @@ A four-tier simulation that scales hundreds of NPCs at varying fidelity based on
 
 ### LLM inference
 
-- **15 inference providers** out of the box: Ollama, LM Studio, vllm-mlx (Apple Silicon native), OpenAI, Anthropic (native `/v1/messages` API, not the OpenAI-compatibility shim), Google Gemini, OpenRouter, Groq, xAI Grok, Mistral, DeepSeek, Together AI, Custom (any OpenAI-compatible base URL), and a built-in offline Simulator that needs no model download. (Additional providers are available via mod-loaded configurations — Cohere, GitHub Models, Qwen, Zhipu, OpenCode Zen, and others.) On macOS the recommended local stack is the two-slot vllm-mlx loadout (Qwen2.5-14B for Dialogue, Qwen2.5-1.5B for Intent/Reaction/Simulation), which requires 16 GB+ unified memory; below that, route through BYOK cloud (OpenRouter / Anthropic / Google). On Linux/Windows the default is Ollama with auto-install.
+- **15 inference providers** out of the box: Ollama, LM Studio, vllm-mlx (Apple Silicon native), OpenAI, Anthropic (native `/v1/messages` API, not the OpenAI-compatibility shim), Google Gemini, OpenRouter, Groq, xAI Grok, Mistral, DeepSeek, Together AI, Custom (any OpenAI-compatible base URL), and a built-in offline Simulator that needs no model download. (Additional providers are available via mod-loaded configurations — Cohere, GitHub Models, Qwen, Zhipu, OpenCode Zen, and others.) Local profiles are available for macOS (vllm-mlx) and Linux/Windows (vLLM/Ollama), but none currently passes Rundale's production dialogue promotion gate; first-run setup labels them experimental and recommends BYOK cloud for player dialogue.
 - **Per-category routing** — Dialogue, Simulation, and Intent can each use a different provider/model/key, switchable at runtime via dot-notation commands (`/provider.dialogue`, `/model.intent`, `/key.simulation`).
+- **Measured cloud-dialogue default** — OpenRouter's recommended preset uses `google/gemini-3.6-flash` with the qualified low-reasoning production profile. The retained multi-family judgments, individual API calls, and latency evidence are published in the local qualification dashboard rather than inferred from general-purpose benchmarks.
 - **Three-lane priority queue** — Interactive (player dialogue) preempts Background (Tier 2) preempts Batch (Tier 3); a slow batch call cannot block your conversation.
 - **Token streaming** with bounded back-pressure (1024-token channel) so a slow consumer never OOMs the engine.
 - **Structured JSON output** — NPC turns return `{mood, action, internal_thought, irish_words}`; partial JSON is recovered on truncation.
@@ -184,8 +185,9 @@ A GUI editor embedded in the SvelteKit UI at the `/editor` route, accessible fro
 
 - **`parish-geo-tool`** — Overpass-API CLI that pulls real Irish features into `world.json` by named area or bounding box, with cached responses, dry-run preview, hand-curated merge mode, and a `realign-coords` utility for snapping to historical map coordinates.
 - **`parish-npc-tool`** — SQLite-backed NPC builder: bulk-generate parish or county populations with seedable randomness and 1820s demographic weights, query/filter by parish/occupation/tier, edit moods, promote tiers, batch-elaborate backstories with an LLM, validate referential integrity, and export/import JSON. Also splits the monolithic `mods/rundale/npcs.json` catalogue into per-NPC source files (`split-catalog`) and re-joins them into a byte-identical canonical file (`join-catalog`), with a standalone `validate-catalog` integrity pass.
-- **`parish-harness`** — game quality-control harness: runs automated multi-turn playtests where an LLM plays the player and an LLM judges the finished transcript, against a live backend over HTTP. Each run plays N turns capturing the engine state and a rendered "state-frame" per turn; evaluates deterministic hard-fail **gates** (crash / parser-reject / timeout / empty-turn-burn); scores ~7 quality **axes** (0–100) into a weighted-mean quality number when gates pass; records discrete human-like **findings**; and persists everything to its own SQLite DB + on-disk artifacts. Run knobs (engine models per category, feature flags, player persona, judge rubric pinned by sha256) are content-addressed for exact A/B comparison and correlated with git history. The player/judge seam runs either deterministic scripted actors (CI, no key) or `parish-inference`-backed LLMs (Anthropic / OpenAI-compat / local vllm-mlx). Drive with `cargo run -p parish-harness -- run --config <cfg> --turns N` against a running backend; later phases add per-turn screenshots, issue-filing for `/backlog` drain, and a live dashboard. For a **fully headless real-model game** to drive — no desktop app — boot the web server with `parish-server --headless-models` (or `PARISH_HEADLESS_MODELS=1`): it detect-reuses (or spawns) the bundled vllm-mlx Qwen two-slot loadout and binds the four inference categories to it, so `POST /api/command` produces genuine NPC dialogue. The harness applies per-run **BYOK** model overrides (`engine_models.<category>`) through the runtime slash commands (`/provider`, `/url`, `/model`, `/key`) over `/api/command`, resolving provider keys from the harness environment at apply-time (never persisted into the content-addressed run config). For unattended CI/cron runs, `parish-harness run --player api --judge api` is driven solely by env API keys — no Claude Code session, no MCP, no subagent queue — and `--player`/`--judge` select each actor's driver independently.
-- **Script harness** — `.txt` fixtures in `testing/fixtures/` drive the engine through scripted scenes; structured `ScriptResult` JSON output enables deterministic regression checking. Run a single fixture (`just game-test-one <name>`), all of them (`just game-test-all`), or list available scripts (`just game-test-list`).
+- **`parish-harness`** — headless game quality-control harness: runs automated multi-turn playtests where an LLM plays the player and an LLM judges the finished transcript, against `parish-server` over HTTP. Each run captures canonical engine state and a rendered telemetry "state-frame" per turn—not a player-visible UI screenshot; evaluates deterministic hard-fail **gates** (crash / parser-reject / timeout / empty-turn-burn); scores ~7 quality **axes** (0–100) when gates pass; records findings; and persists everything to SQLite plus on-disk artifacts. The Tauri bridge does not expose the `/api/command` endpoint this client uses, so desktop/UI quality is covered separately by the live MCP quality harness and Playwright lanes. Run knobs (engine models per category, feature flags, player persona, judge rubric pinned by sha256) are content-addressed for exact A/B comparison and correlated with git history. The player/judge seam runs either deterministic scripted actors (CI, no key) or `parish-inference`-backed LLMs (Anthropic / OpenAI-compat / local vllm-mlx). Drive with `cargo run -p parish-harness -- run --config <cfg> --turns N` against a running server. For a **fully headless real-model game** to drive, boot the web server with `parish-server --headless-models` (or `PARISH_HEADLESS_MODELS=1`): it detect-reuses (or spawns) the bundled vllm-mlx Qwen two-slot loadout and binds the four inference categories to it, so `POST /api/command` produces genuine NPC dialogue. The harness applies per-run **BYOK** model overrides (`engine_models.<category>`) through runtime slash commands over `/api/command`, resolving provider keys from the harness environment at apply-time (never persisted into the content-addressed run config). For unattended CI/cron runs, `parish-harness run --player api --judge api` is driven solely by env API keys—no Claude Code session, MCP, or subagent queue—and `--player`/`--judge` select each actor's driver independently.
+- **`parish-scenario`** — versioned YAML regression runner for agents and CI. Every step drives the shipping `parish_core::game_loop`, mocks only inference, and evaluates explicit assertions over emitted IPC events and post-step state. Run all scenarios with `just scenario-test` or print one JSON report with `just scenario-run <file>`.
+- **Legacy script harness** — `test_*.txt` fixtures in `testing/fixtures/` retain compatibility coverage through structured `ScriptResult` output. One-off demonstrations are separated under `testing/proofs/` and are not counted as regression tests merely because they execute without crashing.
 - **Eval rubrics & baselines** — snapshot `Vec<ScriptResult>` JSONs in `testing/evals/baselines/`, with structural rubrics that gate against empty look descriptions, frozen clocks, and anachronistic vocabulary.
 - **Architecture fitness tests** — `crates/parish-core/tests/architecture_fitness.rs` mechanically enforces leaf-crate purity (no `tauri`/`axum`/`tower` in shared logic), CLI-vs-leaf duplication bans, and orphaned-module detection. Each failure prints a self-correcting hint.
 - **`justfile`** with ~50 recipes grouping build, test, harness, lint, screenshots, deps, geo/NPC tooling, Ollama control, and local CI via `act`.
@@ -249,7 +251,7 @@ Single-shot / scripted / JSON modes for `parish-client`:
 
 ```sh
 cargo run -p parish-client -- "look"                                # one command, formatted output
-cargo run -p parish-client -- --script testing/fixtures/play_X.txt  # batch fixture
+cargo run -p parish-client -- --script testing/proofs/play_X.txt  # batch fixture
 cargo run -p parish-client -- --json "look" | jq .outcome           # raw CommandResponse JSON
 ```
 
@@ -273,9 +275,10 @@ vllm-mlx pip-installed straight into its site-packages at
 would break when the bundle moves into `Rundale.app/Contents/Resources/`).
 `cargo tauri build` then includes that tree under
 `Rundale.app/Contents/Resources/vllm-mlx/python-runtime/`. On first
-launch the app detects the bundle, recommends local inference for Macs
-with ≥16 GB unified memory, and downloads the Qwen2.5 weights with a
-live progress bar.
+launch the app detects the bundle and offers the Qwen2.5 local profile
+as an experimental option on capable Macs, with its qualification status
+shown beside the BYOK recommendation. Choosing local downloads the weights
+with a live progress bar.
 
 CI driver: `.github/workflows/build-vllm-mlx-bundle.yml` (manual
 trigger, uploads the bundle as an artifact). For dev iteration on
@@ -369,7 +372,7 @@ flowchart TB
 
 ```text
 parish/
-  crates/              23 workspace members (types, config, world, npc, mod, editor, chronicle, diagnostics, etc.)
+  crates/              24 workspace members (runtime, scenario/harness tools, and leaf logic crates)
   apps/ui/             Svelte 5 + TypeScript frontend
   testing/fixtures/    scripted gameplay fixtures
   scripts/             Maintenance and quality gate scripts

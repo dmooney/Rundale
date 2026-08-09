@@ -29,6 +29,7 @@ import os
 import re
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
@@ -79,6 +80,57 @@ def parse_target(spec: str) -> Target:
     else:
         base_url = rest
     return Target(model=model.strip(), base_url=base_url.strip(), api_key_env=api_key_env)
+
+
+def _is_deepseek_direct(target: Target) -> bool:
+    """Return true only for DeepSeek's first-party API hostname."""
+    return (urllib.parse.urlparse(target.base_url).hostname or "").lower() == "api.deepseek.com"
+
+
+def _is_google_direct(target: Target) -> bool:
+    return (
+        urllib.parse.urlparse(target.base_url).hostname or ""
+    ).lower() == "generativelanguage.googleapis.com"
+
+
+def _uses_latest_gemini_sampling_contract(target: Target) -> bool:
+    return _is_google_direct(target) and target.model in {
+        "gemini-3.6-flash",
+        "gemini-3.5-flash-lite",
+    }
+
+
+def _apply_reasoning_request(
+    body: dict,
+    target: Target,
+    *,
+    reasoning: dict | None,
+    enable_thinking: bool | None,
+) -> None:
+    """Apply the target's native reasoning controls to an OpenAI-style body."""
+    if _is_deepseek_direct(target):
+        effort = (reasoning or {}).get("effort")
+        if effort == "none" or (effort is None and enable_thinking is False):
+            body["thinking"] = {"type": "disabled"}
+            return
+        if effort is not None or enable_thinking is True:
+            body["thinking"] = {"type": "enabled"}
+        if effort in {"minimal", "low", "medium", "high"}:
+            body["reasoning_effort"] = "high"
+        elif effort in {"xhigh", "max"}:
+            body["reasoning_effort"] = "max"
+        return
+    if _is_google_direct(target):
+        effort = (reasoning or {}).get("effort")
+        if effort in {"minimal", "low", "medium"}:
+            body["reasoning_effort"] = effort
+        elif effort in {"high", "xhigh", "max"}:
+            body["reasoning_effort"] = "high"
+        return
+    if reasoning is not None:
+        body["reasoning"] = reasoning
+    elif _is_reasoning_model(target.model):
+        body["reasoning"] = _default_reasoning_for(target.model)
 
 
 REASONING_MODEL_PREFIXES = (
@@ -633,6 +685,7 @@ def call_chat(
     messages: list[dict] | None = None,
     response_format: dict | None = None,
     frequency_penalty: float | None = None,
+    enable_thinking: bool | None = None,
 ) -> tuple[str, dict]:
     """POST a single chat-completion. Returns `(text, usage)`.
 
@@ -683,6 +736,14 @@ def call_chat(
         body["max_tokens"] = max_tokens
     if frequency_penalty is not None:
         body["frequency_penalty"] = frequency_penalty
+    if _uses_latest_gemini_sampling_contract(target):
+        body.pop("temperature", None)
+        body.pop("frequency_penalty", None)
+    if enable_thinking is not None and not (
+        _is_deepseek_direct(target) or _is_google_direct(target)
+    ):
+        body["enable_thinking"] = enable_thinking
+        body["chat_template_kwargs"] = {"enable_thinking": enable_thinking}
     if response_format is not None:
         body["response_format"] = response_format
     elif schema is not None:
@@ -729,10 +790,13 @@ def call_chat(
             max_tokens is None or max_tokens < 3000
         ):
             body["max_tokens"] = 3000
-    elif reasoning is not None:
-        body["reasoning"] = reasoning
-    elif _is_reasoning_model(target.model):
-        body["reasoning"] = _default_reasoning_for(target.model)
+    else:
+        _apply_reasoning_request(
+            body,
+            target,
+            reasoning=reasoning,
+            enable_thinking=enable_thinking,
+        )
     # Local mlx-served mandatory reasoners (gemma-4): the thought lands in
     # reasoning_content via --reasoning-parser, but the model burns ~250-550
     # tokens reasoning before it emits the in-character reply, so dialogue's
@@ -744,11 +808,6 @@ def call_chat(
     # headroom + reasoning-parser is the only available path.
     if _is_reasoning_mlx_model(target.model) and (max_tokens is None or max_tokens < 1500):
         body["max_tokens"] = 1500
-    # Local mlx_lm.server Qwen3+ models need chat_template_kwargs to suppress
-    # the <think>…</think> trace; otherwise the trace fills max_tokens and we
-    # score the model's internal monologue rather than its reply.
-    if _is_thinking_mlx_model(target.model):
-        body.setdefault("chat_template_kwargs", {})["enable_thinking"] = False
     headers = {
         "Content-Type": "application/json",
         # Some providers front their API with Cloudflare (e.g. opencode.ai)
@@ -873,6 +932,8 @@ def call_chat_streaming(
     messages: list[dict] | None = None,
     response_format: dict | None = None,
     frequency_penalty: float | None = None,
+    enable_thinking: bool | None = None,
+    reasoning: dict | None = None,
 ) -> dict:
     """Streaming chat-completion. Captures TTFT + tok/s alongside text.
 
@@ -912,20 +973,37 @@ def call_chat_streaming(
         "stream": True,
         "temperature": temperature,
     }
+    # Both vllm-mlx and mlx_lm.server support the standard usage trailer, but
+    # omit it unless explicitly requested. The perf harness needs real token
+    # counts for throughput; keep this local-only because some cloud-compatible
+    # gateways reject `stream_options` even though OpenAI documents it.
+    if target.base_url.startswith(("http://127.0.0.1", "http://localhost")):
+        body["stream_options"] = {"include_usage": True}
     if max_tokens is not None:
         body["max_tokens"] = max_tokens
     if frequency_penalty is not None:
         body["frequency_penalty"] = frequency_penalty
+    if _uses_latest_gemini_sampling_contract(target):
+        body.pop("temperature", None)
+        body.pop("frequency_penalty", None)
+    if enable_thinking is not None and not (
+        _is_deepseek_direct(target) or _is_google_direct(target)
+    ):
+        body["enable_thinking"] = enable_thinking
+        body["chat_template_kwargs"] = {"enable_thinking": enable_thinking}
     if response_format is not None:
         body["response_format"] = response_format
     elif schema is not None:
         body["response_format"] = {"type": "json_schema", "json_schema": schema}
-    # Local mlx_lm.server Qwen3+ models need chat_template_kwargs to suppress
-    # the <think>…</think> trace; otherwise the trace fills max_tokens and we
-    # score the model's internal monologue rather than its reply. Mirrors the
-    # same injection in call_chat above.
-    if _is_thinking_mlx_model(target.model):
-        body.setdefault("chat_template_kwargs", {})["enable_thinking"] = False
+    is_local = target.base_url.startswith(("http://127.0.0.1", "http://localhost"))
+    is_opencode_go = "opencode.ai" in target.base_url
+    if not is_opencode_go:
+        _apply_reasoning_request(
+            body,
+            target,
+            reasoning=reasoning,
+            enable_thinking=enable_thinking,
+        )
     headers = {
         "Content-Type": "application/json",
         "Accept": "text/event-stream",
@@ -947,6 +1025,7 @@ def call_chat_streaming(
     ttft_ms: int | None = None
     prompt_tokens: int | None = None
     completion_tokens: int | None = None
+    usage_cost: float | None = None
     start = time.time()
     with urllib.request.urlopen(req, timeout=timeout) as resp:
         for raw_line in resp:
@@ -963,8 +1042,15 @@ def call_chat_streaming(
             choices = evt.get("choices") or []
             if choices:
                 delta = choices[0].get("delta") or {}
-                # Content takes precedence; reasoning fallback for thinking models.
-                chunk = delta.get("content") or delta.get("reasoning") or ""
+                # Player-facing TTFT begins at the first content delta. Cloud
+                # gateways may stream hidden reasoning first; counting it made
+                # mandatory reasoners look faster than the game can display and
+                # polluted the measured output with chain-of-thought. Local and
+                # opencode-compatible servers still need the legacy reasoning
+                # fallback because some expose the final answer only there.
+                chunk = delta.get("content") or (
+                    (delta.get("reasoning") or "") if is_local or is_opencode_go else ""
+                )
                 if chunk:
                     if ttft_ms is None:
                         ttft_ms = int((time.time() - start) * 1000)
@@ -975,6 +1061,8 @@ def call_chat_streaming(
                     prompt_tokens = int(usage["prompt_tokens"])
                 if "completion_tokens" in usage:
                     completion_tokens = int(usage["completion_tokens"])
+                if usage.get("cost") is not None:
+                    usage_cost = float(usage["cost"])
     total_ms = int((time.time() - start) * 1000)
     text = "".join(parts)
     tps: float | None = None
@@ -989,6 +1077,7 @@ def call_chat_streaming(
         "completion_tokens": completion_tokens,
         "prompt_tokens": prompt_tokens,
         "tokens_per_second": tps,
+        "cost": usage_cost,
     }
 
 

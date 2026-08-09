@@ -272,7 +272,7 @@ impl NpcManager {
                 }
             }
         }
-        known_ids
+        let mut roster: Vec<_> = known_ids
             .into_iter()
             .filter_map(|id| {
                 let other = self.npcs.get(&id)?;
@@ -285,7 +285,13 @@ impl NpcManager {
                 };
                 Some((id, other.name.clone(), descriptor))
             })
-            .collect()
+            .collect();
+        // HashSet iteration is intentionally randomized. Stable identity order
+        // keeps the per-NPC system prompt byte-identical across turns, allowing
+        // local runtimes to reuse the full system-prefix KV cache instead of
+        // invalidating it halfway through PEOPLE YOU KNOW.
+        roster.sort_by_key(|(id, _, _)| id.0);
+        roster
     }
 
     /// Returns the number of NPCs managed.

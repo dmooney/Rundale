@@ -45,6 +45,12 @@ pub struct InferenceConfig {
     /// or hitting `429 Too Many Requests`.
     #[serde(default)]
     pub rate_limits: RateLimitConfig,
+    /// Tier-1 dialogue generation parameters.
+    ///
+    /// These are explicit configuration so benchmarked model/backend profiles
+    /// can carry their measured sampling settings into live gameplay.
+    #[serde(default)]
+    pub dialogue_generation: DialogueGenerationConfig,
 }
 
 impl Default for InferenceConfig {
@@ -59,8 +65,109 @@ impl Default for InferenceConfig {
             log_capacity: default_log_capacity(),
             log_to_disk: default_log_to_disk(),
             rate_limits: RateLimitConfig::default(),
+            dialogue_generation: DialogueGenerationConfig::default(),
         }
     }
+}
+
+/// Generation settings for player-facing Tier-1 dialogue.
+#[derive(Debug, Deserialize, Clone, Copy)]
+pub struct DialogueGenerationConfig {
+    /// Maximum completion-token budget.
+    #[serde(default = "default_dialogue_max_tokens")]
+    pub max_tokens: u32,
+    /// Sampling temperature.
+    #[serde(default = "default_dialogue_temperature")]
+    pub temperature: f32,
+    /// OpenAI-compatible repetition penalty. `None` omits the field.
+    #[serde(default = "default_dialogue_frequency_penalty")]
+    pub frequency_penalty: Option<f32>,
+    /// Request an OpenAI-compatible JSON object response.
+    #[serde(default = "default_dialogue_json_mode")]
+    pub json_mode: bool,
+    /// Optional OpenAI-compatible reasoning switch. Keep omitted unless a
+    /// measured provider/model profile requires it.
+    #[serde(default)]
+    pub enable_thinking: Option<bool>,
+    /// Optional provider reasoning effort. Currently translated by the
+    /// OpenRouter client; omitted profiles retain provider defaults.
+    #[serde(default)]
+    pub reasoning_effort: Option<ReasoningEffort>,
+}
+
+impl DialogueGenerationConfig {
+    /// Apply a promoted model's measured reasoning profile when the operator
+    /// has not explicitly chosen reasoning controls.
+    ///
+    /// Model identifiers intentionally include the provider namespace. This
+    /// prevents evidence gathered through OpenRouter from silently promoting
+    /// an unmeasured first-party route with different latency characteristics.
+    pub fn for_model(mut self, model: &str) -> Self {
+        if model == "google/gemini-3.6-flash"
+            && self.enable_thinking.is_none()
+            && self.reasoning_effort.is_none()
+        {
+            self.enable_thinking = Some(true);
+            self.reasoning_effort = Some(ReasoningEffort::Low);
+        }
+        self
+    }
+}
+
+/// Provider-neutral reasoning effort carried by measured dialogue profiles.
+#[derive(Debug, Deserialize, serde::Serialize, Clone, Copy, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum ReasoningEffort {
+    None,
+    Minimal,
+    Low,
+    Medium,
+    High,
+    Xhigh,
+    Max,
+}
+
+impl ReasoningEffort {
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::None => "none",
+            Self::Minimal => "minimal",
+            Self::Low => "low",
+            Self::Medium => "medium",
+            Self::High => "high",
+            Self::Xhigh => "xhigh",
+            Self::Max => "max",
+        }
+    }
+}
+
+impl Default for DialogueGenerationConfig {
+    fn default() -> Self {
+        Self {
+            max_tokens: default_dialogue_max_tokens(),
+            temperature: default_dialogue_temperature(),
+            frequency_penalty: default_dialogue_frequency_penalty(),
+            json_mode: default_dialogue_json_mode(),
+            enable_thinking: None,
+            reasoning_effort: None,
+        }
+    }
+}
+
+fn default_dialogue_max_tokens() -> u32 {
+    768
+}
+
+fn default_dialogue_temperature() -> f32 {
+    0.7
+}
+
+fn default_dialogue_frequency_penalty() -> Option<f32> {
+    Some(0.5)
+}
+
+fn default_dialogue_json_mode() -> bool {
+    true
 }
 
 fn default_timeout_secs() -> u64 {

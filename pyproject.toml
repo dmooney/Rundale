@@ -31,9 +31,9 @@ no_implicit_optional = true
 exclude = ['\.venv-dev', 'target', 'rundale-bench/artifacts', 'docs/proofs']
 
 [tool.pytest.ini_options]
-# The bench has bespoke phase tests (test_phase*.py, test_grade.py) under
-# rundale-bench/. Collect those; do not recurse into vendored/generated trees.
-testpaths = ["rundale-bench"]
+# The bench has bespoke phase tests; the scheduled player agent has transport
+# contract tests under parish/testing/eval. Collect both in the CI pytest gate.
+testpaths = ["rundale-bench", "parish/testing/eval"]
 python_files = ["test_*.py"]
 norecursedirs = [".venv-dev", "target", "artifacts", "node_modules", "*.egg"]
 addopts = "-q"

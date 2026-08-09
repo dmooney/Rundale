@@ -1,0 +1,681 @@
+{
+  "items": [
+    {
+      "axes": {
+        "authenticity": 4,
+        "brevity": 5,
+        "character": 4,
+        "craft": 4,
+        "grounding": 5,
+        "language": 5,
+        "mood_fidelity": 4,
+        "repetition": 5,
+        "responsiveness": 5
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 4.6,
+      "prompt_id": "dialogue-0006/sample-1",
+      "rationales": {
+        "authenticity": "Period markers present ('tis, 'spuds', 'harvest is a long promise') but no Irish phrase sprinkle and nothing especially evocative beyond competent baseline.",
+        "brevity": "Two sentences plus one question mark — well within limits.",
+        "character": "Padraig's voice rings through — 'spuds', 'ground's in good heart', unhurried tone befits a publican who knows his land.",
+        "craft": "Tight two-sentence answer plus one question; the 'long promise' turn of phrase earns notice.",
+        "grounding": "No fabrication probe in this record; harvest is grounded in spring context.",
+        "language": "Clean Hiberno-English throughout, no modern intrusions.",
+        "mood_fidelity": "Calm and even — no warm opener, measured observation, suits the stated mood.",
+        "repetition": "No recycled phrasing within the reply.",
+        "responsiveness": "Answers the harvest question directly in the first sentence, then contextualises with March timing."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 4,
+        "brevity": 5,
+        "character": 5,
+        "craft": 5,
+        "grounding": 5,
+        "language": 5,
+        "mood_fidelity": 4,
+        "repetition": 5,
+        "responsiveness": 5
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 4.8,
+      "prompt_id": "dialogue-0006/sample-2",
+      "rationales": {
+        "authenticity": "Good dialect and period idiom; no ga-IE sprinkle prevents full marks but 'drills coming up green' is a specific, evocative agricultural detail.",
+        "brevity": "Two sentences, no question mark — economical.",
+        "character": "'The drills are coming up green' and the unprompted rent-shadow draw on Padraig's encyclopedic parish knowledge exactly as authored.",
+        "craft": "Two sentences, no padding, ends on a substantive observation rather than a question — well-shaped beat.",
+        "grounding": "No fabrication probe; rent mention drawn from WHAT'S ON YOUR MIND.",
+        "language": "Faultless Hiberno-English; 'casts a long shadow' is period-plausible.",
+        "mood_fidelity": "Calm and measured; no cheerful opener, unhurried delivery throughout.",
+        "repetition": "No recycled phrasing.",
+        "responsiveness": "First sentence directly answers the harvest question with a concrete observation."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 4,
+        "brevity": 4,
+        "character": 4,
+        "craft": 4,
+        "grounding": 5,
+        "language": 5,
+        "mood_fidelity": 4,
+        "repetition": 5,
+        "responsiveness": 5
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 4.4,
+      "prompt_id": "dialogue-0006/sample-3",
+      "rationales": {
+        "authenticity": "Period markers and idiom present; 'middlin'' and 'eyein' the rents' feel authentic.",
+        "brevity": "Three sentences plus one compound question — within limit but at the edge.",
+        "character": "Padraig's dry awareness of the rent situation is well used; 'wet August took the cream off the oats' is evocative.",
+        "craft": "Three sentences is borderline; the ending question ('plantin' somethin' yourself, or just takin' the parish's pulse') is sharp but the reply runs slightly long.",
+        "grounding": "No fabrication probe; rent concern is from WHAT'S ON YOUR MIND.",
+        "language": "Good Hiberno-English throughout.",
+        "mood_fidelity": "Calm and considered throughout, no warmth intrusion.",
+        "repetition": "No recycled phrasing.",
+        "responsiveness": "Answers with last year's assessment and current outlook before raising rents."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 3,
+        "brevity": 5,
+        "character": 4,
+        "craft": 4,
+        "grounding": 5,
+        "language": 5,
+        "mood_fidelity": 4,
+        "repetition": 5,
+        "responsiveness": 4
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 4.4,
+      "prompt_id": "dialogue-0010/sample-1",
+      "rationales": {
+        "authenticity": "Competent but flat; no dialect colour beyond 'every soul in the parish', no ga-IE and nothing distinctively Roscommon.",
+        "brevity": "Two sentences, one question mark — well within limits.",
+        "character": "Cormac's merchant concern for the estate sale fits his shrewd, leveraged character.",
+        "craft": "Two sentences plus one question — economical, though the WHAM material is deployed without Cormac's particular analytical edge.",
+        "grounding": "No fabrication probe in this record.",
+        "language": "Clean en-IE.",
+        "mood_fidelity": "Even and unhurried; no inappropriate warmth.",
+        "repetition": "No recycled phrasing.",
+        "responsiveness": "Answers the 'what news' question with a specific parish-level rumour."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 4,
+        "brevity": 5,
+        "character": 5,
+        "craft": 5,
+        "grounding": 5,
+        "language": 5,
+        "mood_fidelity": 4,
+        "repetition": 5,
+        "responsiveness": 5
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 4.8,
+      "prompt_id": "dialogue-0010/sample-2",
+      "rationales": {
+        "authenticity": "No ga-IE but 'grist' and the logic of the mill wheel are period-grounded and trade-specific.",
+        "brevity": "Two sentences, one question mark — well within limits.",
+        "character": "The stream-level observation is the miller's occupational obsession given voice — specific, in-lane, and distinct from any other NPC.",
+        "craft": "Two long sentences, each carrying real information; punchy question closes it.",
+        "grounding": "No fabrication probe; both WHAM items (stream, estate) are from authorised memory.",
+        "language": "Clean Hiberno-English; 'they'll be at my door for their grist and finding none' is vivid.",
+        "mood_fidelity": "Calm and analytical — Cormac doesn't emote, he calculates.",
+        "repetition": "No recycled phrasing.",
+        "responsiveness": "Answers with a concrete firsthand observation (dropping stream) before pivoting to the landlord rumour."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 4,
+        "brevity": 5,
+        "character": 4,
+        "craft": 4,
+        "grounding": 5,
+        "language": 5,
+        "mood_fidelity": 4,
+        "repetition": 5,
+        "responsiveness": 4
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 4.5,
+      "prompt_id": "dialogue-0010/sample-3",
+      "rationales": {
+        "authenticity": "'Hereabouts' and 'aught' are period-appropriate; solid if unspectacular.",
+        "brevity": "Two sentences, one question mark — within limits.",
+        "character": "Uses the WHAM estate rumour plausibly, though 'I'd not be the only one watching that' is mildly generic rather than distinctively Cormac.",
+        "craft": "Two sentences plus one question; second sentence ('I'd not be the only one') is filler that a sharper reply would cut.",
+        "grounding": "No fabrication probe; estate rumour is from WHAT'S ON YOUR MIND.",
+        "language": "Clean Hiberno-English.",
+        "mood_fidelity": "Calm and measured; no warmth intrusion.",
+        "repetition": "No recycled phrasing.",
+        "responsiveness": "Answers the news question with the estate rumour."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 4,
+        "brevity": 5,
+        "character": 4,
+        "craft": 4,
+        "grounding": 5,
+        "language": 5,
+        "mood_fidelity": 4,
+        "repetition": 5,
+        "responsiveness": 5
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 4.6,
+      "prompt_id": "dialogue-0014/sample-1",
+      "rationales": {
+        "authenticity": "'Most like', 'don't stray far', 'this hour' — good Hiberno-English texture without stage-Irish.",
+        "brevity": "Two sentences, no question mark — economical.",
+        "character": "Colm's direct, errand-running knowledge ('most like') and youthful plain speech fit well; he doesn't over-claim.",
+        "craft": "Two sentences, each doing work; no padding.",
+        "grounding": "St. Brigid's Church is on the places list; no fabrication.",
+        "language": "Clean en-IE.",
+        "mood_fidelity": "Calm and matter-of-fact — appropriate for a 15-year-old at work.",
+        "repetition": "No recycled phrasing.",
+        "responsiveness": "Directly admits he hasn't seen the priest, then offers the most plausible inference."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 0,
+        "brevity": 0,
+        "character": 0,
+        "craft": 0,
+        "grounding": 0,
+        "language": 0,
+        "mood_fidelity": 0,
+        "repetition": 0,
+        "responsiveness": 0
+      },
+      "flags": {
+        "bench_bug": true,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 0.0,
+      "prompt_id": "dialogue-0014/sample-2",
+      "rationales": {
+        "authenticity": "Response is blank — no dialogue to evaluate.",
+        "brevity": "Response is blank — no dialogue to evaluate.",
+        "character": "Response is blank — no dialogue to evaluate.",
+        "craft": "Response is blank — no dialogue to evaluate.",
+        "grounding": "Response is blank — no dialogue to evaluate.",
+        "language": "Response is blank — no dialogue to evaluate.",
+        "mood_fidelity": "Response is blank — no dialogue to evaluate.",
+        "repetition": "Response is blank — no dialogue to evaluate.",
+        "responsiveness": "Response is blank — no dialogue to evaluate."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 4,
+        "brevity": 5,
+        "character": 4,
+        "craft": 4,
+        "grounding": 5,
+        "language": 5,
+        "mood_fidelity": 4,
+        "repetition": 5,
+        "responsiveness": 5
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 4.6,
+      "prompt_id": "dialogue-0014/sample-3",
+      "rationales": {
+        "authenticity": "Good period diction; 'sacristy' is accurate church vocabulary for 1820.",
+        "brevity": "Two sentences, no question mark.",
+        "character": "'Da and I have been at the anvil since first light' anchors Colm in his trade and his family relation naturally.",
+        "craft": "Two sentences, each concrete; ends on a hedged surmise that suits a 15-year-old.",
+        "grounding": "St. Brigid's Church on places list; no fabrication.",
+        "language": "Clean en-IE.",
+        "mood_fidelity": "Calm and plain-spoken.",
+        "repetition": "No recycled phrasing.",
+        "responsiveness": "Admits non-sighting with a firsthand reason (at the anvil), then offers a reasonable inference."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 4,
+        "brevity": 3,
+        "character": 4,
+        "craft": 4,
+        "grounding": 5,
+        "language": 5,
+        "mood_fidelity": 4,
+        "repetition": 5,
+        "responsiveness": 4
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 4.2,
+      "prompt_id": "dialogue-0024/sample-1",
+      "rationales": {
+        "authenticity": "No ga-IE sprinkle; 'a matter of years, not decades' is a graceful period phrasing.",
+        "brevity": "Three sentences ~70 words — at the upper edge; scores 3 for borderline length.",
+        "character": "Priest's awareness of O'Connell and letter-network fits the authored WHAM well; eloquent register suits Fr. Declan.",
+        "craft": "Three sentences is borderline; the political and the agricultural observations feel slightly stitched together.",
+        "grounding": "No fabrication probe; O'Connell mention is from WHAT'S ON YOUR MIND.",
+        "language": "Clean en-IE.",
+        "mood_fidelity": "Calm and measured; no inappropriate warmth.",
+        "repetition": "No recycled phrasing.",
+        "responsiveness": "Answers the news question with political and seasonal observation."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 3,
+        "brevity": 3,
+        "character": 4,
+        "craft": 4,
+        "grounding": 5,
+        "language": 5,
+        "mood_fidelity": 3,
+        "repetition": 5,
+        "responsiveness": 4
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 4.0,
+      "prompt_id": "dialogue-0024/sample-2",
+      "rationales": {
+        "authenticity": "Flat on dialect markers; 'Ah, well' is a slight warmth opener that conflicts with calm mood; no period texture beyond competent baseline.",
+        "brevity": "Three sentences — borderline, scores 3.",
+        "character": "O'Connell mention is in character; 'a quiet stirring in the parish' is nicely pastoral.",
+        "craft": "Three sentences; the 'new seed potatoes came in sound from the mill' detail is a mild anachronism in phrasing but plausible.",
+        "grounding": "No fabrication probe; O'Connell from WHAT'S ON YOUR MIND.",
+        "language": "Clean en-IE.",
+        "mood_fidelity": "'Ah, well' opener nudges toward casual warmth rather than the stated calm; not a stark contradiction but a mild slip.",
+        "repetition": "No recycled phrasing.",
+        "responsiveness": "Answers the news question with seasonal and political content."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 3,
+        "brevity": 5,
+        "character": 3,
+        "craft": 3,
+        "grounding": 2,
+        "language": 5,
+        "mood_fidelity": 3,
+        "repetition": 5,
+        "responsiveness": 4
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": true,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 3.6,
+      "prompt_id": "dialogue-0024/sample-3",
+      "rationales": {
+        "authenticity": "'buíochas le Dia' is correct from the approved list; otherwise unexceptional.",
+        "brevity": "Two sentences, no question mark — economical.",
+        "character": "Inventing Brigid's specific recent activity undercuts Fr. Declan's careful, truthful nature.",
+        "craft": "Two sentences, but the second invents a fresh event rather than drawing on authored knowledge.",
+        "grounding": "Invents Brigid Ni Fhatharta's specific recent whereabouts and action ('saw a hard birth down at Murphy's') — a clear fabrication of current events not in WHAT'S ON YOUR MIND.",
+        "language": "Clean en-IE with one correct ga-IE phrase.",
+        "mood_fidelity": "Calm in tone but the invented birth narrative gives a slightly effortful warmth.",
+        "repetition": "No recycled phrasing.",
+        "responsiveness": "Answers the news question with political and local detail."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 4,
+        "brevity": 5,
+        "character": 4,
+        "craft": 3,
+        "grounding": 5,
+        "language": 5,
+        "mood_fidelity": 4,
+        "repetition": 5,
+        "responsiveness": 2
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 4.2,
+      "prompt_id": "dialogue-0048/sample-1",
+      "rationales": {
+        "authenticity": "'This dead hour', ''Tis no small telling', 'loom' — solid period texture.",
+        "brevity": "One sentence — exceptionally brief.",
+        "character": "Una's nocturnal weaving and the hushed deferral feel true to the character, but she gives the player nothing of substance.",
+        "craft": "One atmospheric sentence is evocative but doesn't fulfil the brief — inviting the player to sit and listen substitutes mood for information.",
+        "grounding": "No fabrication probe in this record.",
+        "language": "Clean en-IE.",
+        "mood_fidelity": "Calm and measured — 'this dead hour' and the unhurried invitation suit the midnight calm.",
+        "repetition": "No recycled phrasing.",
+        "responsiveness": "Fails to answer the question; defers entirely rather than giving one thread of information as the LIVE TURN CONTRACT requires."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 3,
+        "brevity": 4,
+        "character": 4,
+        "craft": 4,
+        "grounding": 4,
+        "language": 5,
+        "mood_fidelity": 4,
+        "repetition": 5,
+        "responsiveness": 4
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 4.1,
+      "prompt_id": "dialogue-0048/sample-2",
+      "rationales": {
+        "authenticity": "Functional Hiberno-English but no distinctive Una-ish idiom; 'D'Arcy's' is a minor variant spelling.",
+        "brevity": "Two sentences plus one question — within limits but dense.",
+        "character": "Una draws on people she knows (Cormac, Niamh, Kathleen/Eamon) with appropriate familiarity levels.",
+        "craft": "Two long sentences covering three people; the question is apt but the construction is busy.",
+        "grounding": "Describes characters' typical activities rather than specific sightings; borderline but not a clear fabrication.",
+        "language": "Clean en-IE.",
+        "mood_fidelity": "Calm and even; no warmth that contradicts the mood.",
+        "repetition": "No recycled phrasing.",
+        "responsiveness": "Answers with three concrete parish sketches, then asks why the visitor is up at this hour."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 4,
+        "brevity": 4,
+        "character": 4,
+        "craft": 4,
+        "grounding": 5,
+        "language": 5,
+        "mood_fidelity": 4,
+        "repetition": 5,
+        "responsiveness": 4
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 4.3,
+      "prompt_id": "dialogue-0048/sample-3",
+      "rationales": {
+        "authenticity": "'Well now', ''tis a fair-sized parish for its quietness', 'teachin' letters to any child that'll sit still' — good period texture.",
+        "brevity": "Three sentences, no question mark — within limits.",
+        "character": "Una's self-placement at the loom is grounded and specific to her trade; Aoife and Niamh are within her known relationships.",
+        "craft": "Three sentences; 'come springtime' is slightly odd since it IS spring, a minor tense slip.",
+        "grounding": "Describes general occupational patterns ('of an afternoon', 'of an evenin'') rather than specific current events — acceptable.",
+        "language": "Clean en-IE.",
+        "mood_fidelity": "Calm and measured throughout.",
+        "repetition": "No recycled phrasing.",
+        "responsiveness": "Answers with two named examples plus a self-referential trade note."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 4,
+        "brevity": 5,
+        "character": 4,
+        "craft": 4,
+        "grounding": 5,
+        "language": 5,
+        "mood_fidelity": 4,
+        "repetition": 4,
+        "responsiveness": 5
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 4.4,
+      "prompt_id": "dialogue-0163/sample-1",
+      "rationales": {
+        "authenticity": "'Ever heard tell of' is a good period phrasing; register is appropriate for an educated Protestant clerk.",
+        "brevity": "Two sentences, no question mark.",
+        "character": "Martin's analytical precision — 'no cooper of that name', 'no such man as Festus' — fits the clerk who records everything.",
+        "craft": "Two sentences; slight redundancy (says the same non-recognition twice in slightly different words).",
+        "grounding": "Correctly refuses to confirm invented person and place.",
+        "language": "Clean en-IE.",
+        "mood_fidelity": "Calm and measured.",
+        "repetition": "The two sentences deliver the same denial twice ('no cooper of that name'/'no such man as Festus') — minor but noticeable internal echo.",
+        "responsiveness": "Directly and clearly declines the invented person and place."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 4,
+        "brevity": 5,
+        "character": 4,
+        "craft": 4,
+        "grounding": 5,
+        "language": 5,
+        "mood_fidelity": 4,
+        "repetition": 5,
+        "responsiveness": 5
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 4.6,
+      "prompt_id": "dialogue-0163/sample-2",
+      "rationales": {
+        "authenticity": "'In these parts', 'Ye may have been told' — good Hiberno-English without over-decoration.",
+        "brevity": "Two sentences, no question mark — clean.",
+        "character": "Precise, economical denial with the plausible redirect ('another parish entirely') suits Martin's analytical character.",
+        "craft": "Two sentences, each earning its place; second adds a useful redirect without fabricating details.",
+        "grounding": "Correctly refuses invented person and place without invention.",
+        "language": "Clean en-IE.",
+        "mood_fidelity": "Calm and measured; no warmth.",
+        "repetition": "No recycled phrasing.",
+        "responsiveness": "Declines both invented person and place in the first sentence, adds a plausible explanation."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 4,
+        "brevity": 5,
+        "character": 3,
+        "craft": 3,
+        "grounding": 5,
+        "language": 5,
+        "mood_fidelity": 4,
+        "repetition": 5,
+        "responsiveness": 5
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 4.4,
+      "prompt_id": "dialogue-0163/sample-3",
+      "rationales": {
+        "authenticity": "'In these parts', 'for that matter' — reasonable period phrasing.",
+        "brevity": "Two sentences, no question mark.",
+        "character": "The out-of-lane redirect formula ('Ye'd best ask the right person hereabouts') is from the midwife/farmer rubric, not Martin's voice; feels slightly wrong for a clerk denying an invented person exists.",
+        "craft": "'For I can't help ye on that' is a weak closer that adds nothing; 'Ye'd best ask the right person' is misapplied here since there is no right person for a person who doesn't exist.",
+        "grounding": "Correctly refuses to confirm invented person or place.",
+        "language": "Clean en-IE.",
+        "mood_fidelity": "Calm and even.",
+        "repetition": "No recycled phrasing.",
+        "responsiveness": "Clearly declines the invented person and place."
+      }
+    }
+  ],
+  "judge": {
+    "cost_usd": 0.536334,
+    "family": "anthropic",
+    "id": "anthropic-sonnet-low",
+    "model": "anthropic/claude-sonnet-4.6",
+    "provider": "openrouter",
+    "reasoning_effort": "low",
+    "request_id": "gen-1786243700-f5irUOb0D3QP5P91kbKd",
+    "routed_model": "anthropic/claude-sonnet-4.6",
+    "routed_provider": "Anthropic",
+    "rubric_sha256": "9adab2cd1b38fe75f978e386239b50fbb12b5ba34c5ba5874ae396a3b46b7bf4",
+    "usage": {
+      "completion_tokens": 14532,
+      "completion_tokens_details": {
+        "audio_tokens": 0,
+        "image_tokens": 0,
+        "reasoning_tokens": 1830
+      },
+      "cost": 0.536334,
+      "cost_details": {
+        "upstream_inference_completions_cost": 0.21798,
+        "upstream_inference_cost": 0.536334,
+        "upstream_inference_prompt_cost": 0.318354
+      },
+      "is_byok": false,
+      "prompt_tokens": 106118,
+      "prompt_tokens_details": {
+        "audio_tokens": 0,
+        "cache_write_tokens": 0,
+        "cached_tokens": 0,
+        "video_tokens": 0
+      },
+      "total_tokens": 120650
+    }
+  },
+  "quality": {
+    "axes": {
+      "authenticity": 3.7647,
+      "brevity": 4.5882,
+      "character": 4.0,
+      "craft": 3.9412,
+      "grounding": 4.7647,
+      "language": 5.0,
+      "mood_fidelity": 3.8824,
+      "repetition": 4.9412,
+      "responsiveness": 4.4118
+    },
+    "hard_failures": {
+      "degenerate_loop": 0,
+      "fabricated": 1,
+      "non_latin_detected": 0,
+      "refused": 0,
+      "unusable_output": 1
+    },
+    "overall": 4.3687,
+    "pass": false,
+    "thresholds": {
+      "critical_axes": [
+        "grounding",
+        "repetition",
+        "mood_fidelity",
+        "brevity",
+        "responsiveness"
+      ],
+      "minimum_critical_axis": 3.0,
+      "minimum_overall": 3.5
+    }
+  },
+  "sample": {
+    "items": 18,
+    "judge_input": "full production system prompt plus dynamic user prompt",
+    "judged_items": 17,
+    "samples_per_prompt": 3,
+    "unique_prompts": 6,
+    "unusable_outputs": 1
+  },
+  "source": {
+    "bundle": "docs/proofs/cloud-dialogue-qualification/runs/2026-08-08/deepseek-v4-flash-0731-medium-reasoning-4096-judgment-anthropic-sonnet-low-18235e3145d4ed31.bundle.json",
+    "bundle_sha256": "18235e3145d4ed31503405de796c5a9e5068762340b1ebdcbfc295be0f507337",
+    "raw": "docs/proofs/cloud-dialogue-qualification/runs/2026-08-08/deepseek-v4-flash-0731-medium-reasoning-4096-judgment-anthropic-sonnet-low-18235e3145d4ed31.attempt-1.raw.json",
+    "raw_sha256": "a5cca9431be6643f25ffdad27586e8cca85966a064fb5a22dcb5e123e5d1b257"
+  },
+  "version": 1
+}

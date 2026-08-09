@@ -1,0 +1,11 @@
+{
+  "backend": "vllm-mlx",
+  "candidate": "mlx-community/Kimi-Linear-48B-A3B-Instruct-4bit",
+  "dataset_merkle": "feb43d4bf80dae70b1cda3f506f58db7a26602a7a24d2a42f3453cf3726ec912",
+  "error": "ValueError: repository custom code requires trust_remote_code=True",
+  "furthest_stage": "runtime_load",
+  "outcome": "fallback_required",
+  "security_policy": "remote code loading disabled",
+  "server_port": 8023,
+  "version": 1
+}

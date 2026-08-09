@@ -22,6 +22,14 @@ pub struct DrainResult {
     pub timed_out: bool,
     /// Whether any `stream-token` events were observed (NPC conversation).
     pub had_streaming: bool,
+    /// Production parser/guard measurements emitted by completed NPC turns.
+    pub dialogue_quality: Vec<parish_core::ipc::DialogueQualityPayload>,
+}
+
+#[derive(Default)]
+struct StreamState {
+    had_streaming: bool,
+    conversation_done: bool,
 }
 
 /// Drain the event stream until quiescent, returning all collected output.
@@ -39,13 +47,13 @@ pub async fn drain_command(mut stream: EventStream, deadline: Instant) -> DrainR
     let mut npc_turns: HashMap<u64, (String, String)> = HashMap::new();
     let mut world_update: Option<serde_json::Value> = None;
     let mut travel: Option<TravelDetail> = None;
-    let mut had_streaming = false;
-    let mut stream_conversation_done = false;
+    let mut stream_state = StreamState::default();
     let mut timed_out = false;
+    let mut dialogue_quality = Vec::new();
 
     loop {
         // Silence window: 150 ms normally; wait for stream-end while streaming.
-        let silence = if had_streaming && !stream_conversation_done {
+        let silence = if stream_state.had_streaming && !stream_state.conversation_done {
             // NPC is still streaming — extend to the full deadline.
             deadline
         } else {
@@ -63,12 +71,12 @@ pub async fn drain_command(mut stream: EventStream, deadline: Instant) -> DrainR
                             &mut npc_turns,
                             &mut world_update,
                             &mut travel,
-                            &mut had_streaming,
-                            &mut stream_conversation_done,
+                            &mut stream_state,
+                            &mut dialogue_quality,
                         );
                         // Once stream-end arrives, give the bus one more
                         // short window to drain any trailing world-update.
-                        if stream_conversation_done {
+                        if stream_state.conversation_done {
                             // Flush remaining npc_turns just in case.
                             flush_pending_turns(&mut npc_turns, &mut lines);
                             // Continue draining briefly for world-update.
@@ -93,7 +101,8 @@ pub async fn drain_command(mut stream: EventStream, deadline: Instant) -> DrainR
         travel,
         world_update,
         timed_out,
-        had_streaming,
+        had_streaming: stream_state.had_streaming,
+        dialogue_quality,
     }
 }
 
@@ -103,8 +112,8 @@ fn process_event(
     npc_turns: &mut HashMap<u64, (String, String)>,
     world_update: &mut Option<serde_json::Value>,
     travel: &mut Option<TravelDetail>,
-    had_streaming: &mut bool,
-    stream_done: &mut bool,
+    stream_state: &mut StreamState,
+    dialogue_quality: &mut Vec<parish_core::ipc::DialogueQualityPayload>,
 ) {
     match event.event.as_str() {
         "text-log" => {
@@ -129,7 +138,7 @@ fn process_event(
             let payload: Option<parish_core::ipc::StreamTokenPayload> =
                 serde_json::from_value(event.payload).ok();
             if let Some(p) = payload {
-                *had_streaming = true;
+                stream_state.had_streaming = true;
                 let entry = npc_turns
                     .entry(p.turn_id)
                     .or_insert_with(|| (p.source.clone(), String::new()));
@@ -152,8 +161,31 @@ fn process_event(
             }
         }
         "stream-end" => {
-            *stream_done = true;
+            stream_state.conversation_done = true;
             flush_pending_turns(npc_turns, lines);
+        }
+        "dialogue-corrected" => {
+            let payload: Option<parish_core::ipc::DialogueCorrectedPayload> =
+                serde_json::from_value(event.payload).ok();
+            if let Some(p) = payload {
+                if let Some((source, text)) = npc_turns.get_mut(&p.turn_id) {
+                    let _ = source;
+                    *text = p.corrected_text.clone();
+                }
+                if let Some(line) = lines
+                    .iter_mut()
+                    .find(|line| line.id == format!("stream-{}", p.turn_id))
+                {
+                    line.text = p.corrected_text;
+                }
+            }
+        }
+        "dialogue-quality" => {
+            if let Ok(payload) =
+                serde_json::from_value::<parish_core::ipc::DialogueQualityPayload>(event.payload)
+            {
+                dialogue_quality.push(payload);
+            }
         }
         "world-update" => {
             *world_update = Some(event.payload);
@@ -199,5 +231,76 @@ fn source_to_role(source: &str) -> (Role, String) {
         "player" => (Role::Player, "You".to_string()),
         "system" | "narration" => (Role::System, "System".to_string()),
         name => (Role::Npc, name.to_string()),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use parish_core::event_bus::ServerEvent;
+
+    #[test]
+    fn quality_event_is_retained_and_correction_replaces_flushed_text() {
+        let mut lines = vec![OutputLine {
+            id: "stream-42".to_string(),
+            role: Role::Npc,
+            speaker: "Máire".to_string(),
+            text: "raw model text".to_string(),
+        }];
+        let mut npc_turns = HashMap::new();
+        let mut world_update = None;
+        let mut travel = None;
+        let mut stream_state = StreamState {
+            had_streaming: true,
+            conversation_done: false,
+        };
+        let mut quality = Vec::new();
+
+        process_event(
+            ServerEvent {
+                event: "dialogue-corrected".to_string(),
+                payload: serde_json::json!({
+                    "turn_id": 42,
+                    "corrected_text": "guarded text"
+                }),
+            },
+            &mut lines,
+            &mut npc_turns,
+            &mut world_update,
+            &mut travel,
+            &mut stream_state,
+            &mut quality,
+        );
+        process_event(
+            ServerEvent {
+                event: "dialogue-quality".to_string(),
+                payload: serde_json::json!({
+                    "turn_id": 42,
+                    "parse_disposition": "full_json",
+                    "contract_valid": true,
+                    "guard_intervened": true,
+                    "guard_reasons": ["display_cap"],
+                    "model": "local-test",
+                    "generation": {
+                        "max_tokens": 768,
+                        "temperature": 0.7,
+                        "frequency_penalty": 0.5,
+                        "json_mode": true,
+                        "enable_thinking": false
+                    }
+                }),
+            },
+            &mut lines,
+            &mut npc_turns,
+            &mut world_update,
+            &mut travel,
+            &mut stream_state,
+            &mut quality,
+        );
+
+        assert_eq!(lines[0].text, "guarded text");
+        assert_eq!(quality.len(), 1);
+        assert!(quality[0].contract_valid);
+        assert!(quality[0].guard_intervened);
     }
 }

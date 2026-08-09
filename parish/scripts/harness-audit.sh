@@ -2,10 +2,11 @@
 #
 # Read-only audit: where does the gameplay harness have coverage gaps?
 #
-# Cross-references three sources:
-#   1. parish/testing/fixtures/*.txt    — what we exercise
-#   2. parish/testing/evals/baselines/  — what we lock against drift
-#   3. docs/requirements/roadmap.md — what's been shipped
+# Cross-references four sources:
+#   1. parish/testing/scenarios/*.yaml  — real-loop asserted regressions
+#   2. parish/testing/fixtures/test_*.txt — legacy asserted regressions
+#   3. parish/testing/proofs/*.txt      — one-off exploratory proofs
+#   4. parish/testing/evals/baselines/  — legacy output drift locks
 #
 # Plus a curated "core subsystem" matrix that maps named gameplay features
 # (weather, persistence, banshee, etc.) to the fixtures expected to cover
@@ -19,11 +20,9 @@ cd "$(git rev-parse --show-toplevel)"
 
 # ─── Inventory ───────────────────────────────────────────────────────────────
 
-fixtures_total=$(find parish/testing/fixtures -name '*.txt' -type f | wc -l)
 fixtures_test=$(find parish/testing/fixtures -name 'test_*.txt' -type f | wc -l)
-fixtures_play=$(find parish/testing/fixtures -name 'play_*.txt' -type f | wc -l)
-fixtures_banshee=$(find parish/testing/fixtures -name 'banshee_*.txt' -type f | wc -l)
-fixtures_other=$((fixtures_total - fixtures_test - fixtures_play - fixtures_banshee))
+scenarios=$(find parish/testing/scenarios -name '*.yaml' -type f | wc -l)
+proofs=$(find parish/testing/proofs -name '*.txt' -type f | wc -l)
 
 baselines=0
 if [[ -d parish/testing/evals/baselines ]]; then
@@ -32,11 +31,9 @@ fi
 
 echo "===== HARNESS COVERAGE AUDIT ====="
 echo
-echo "Script-harness fixtures:  ${fixtures_total}"
-echo "  test_*    (regression): ${fixtures_test}"
-echo "  play_*    (feature):    ${fixtures_play}"
-echo "  banshee_* (feature):    ${fixtures_banshee}"
-echo "  other:                  ${fixtures_other}"
+echo "Asserted real-loop scenarios: ${scenarios}"
+echo "Legacy regression fixtures:  ${fixtures_test}"
+echo "Exploratory proof scripts:    ${proofs}"
 echo
 echo "Eval baselines (drift sensors): ${baselines}"
 if ((baselines > 0)); then
@@ -104,7 +101,7 @@ printf "  %-26s %-9s %-9s %s\n" "─────────" "─────�
 gaps=0
 for entry in "${SUBSYSTEMS[@]}"; do
     IFS='|' read -r name fixture_kw roadmap_kw <<<"$entry"
-    if find parish/testing/fixtures -iname "*${fixture_kw}*" | grep -q .; then
+    if find parish/testing/scenarios parish/testing/fixtures -iname "*${fixture_kw}*" | grep -q .; then
         fix_status="yes"
     else
         fix_status="MISSING"
@@ -130,8 +127,6 @@ echo
 echo "===== SUMMARY ====="
 echo "  Subsystems with shipped roadmap items but no fixture: ${gaps}"
 echo
-echo "Add a fixture for any flagged gap with /feature-scaffold or by hand:"
-echo "  parish/testing/fixtures/play_<subsystem>.txt"
-echo "and consider adding it to BASELINED_FIXTURES in"
-echo "  parish/crates/parish-engine/tests/eval_baselines.rs"
-echo "for drift-sensor coverage."
+echo "Add a machine-asserted real-loop scenario for any flagged gap:"
+echo "  parish/testing/scenarios/<subsystem>.yaml"
+echo "One-off demonstrations belong under parish/testing/proofs/, not fixtures/."

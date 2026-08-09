@@ -1,0 +1,55 @@
+# play_1387.txt — dialogue quality + continuity fixes (#1387, #1388)
+# ==================================================================
+# Exercises the prompt-assembly changes for anti-recycling, familiarity-aware
+# address, and no-reask continuity directive.
+#
+# Because this is a prompt-assembly fix (not runtime behavior visible via
+# the deterministic CLI), the fixture's role is:
+#   - confirm the engine starts and serves dialogue turns without crashing
+#   - provide a multi-turn exchange that a live proof can repeat verbatim
+#     against the real 14B model
+#
+# AC-1/3/4 are covered by unit tests (prompt-builder assertions).
+# AC-5 requires a live MCP session — see evidence.md.
+#
+# Run from repo root:
+#   cargo run --manifest-path parish/Cargo.toml -p parish-cli \
+#     -- --script parish/testing/proofs/play_1387.txt
+
+# --- Locate an NPC-rich hub ---
+look
+/status
+/debug npcs
+
+go to Kilteevan Village
+look
+/debug npcs
+
+# --- Turn 1: greet, establish newcomer context ---
+/stub Peig Hannigan: Good mornin'. Ye'll be wanting a spot to lay yer head, I see.
+Good morning to you. I'm new to Kilteevan — only just arrived. Might you tell me where a body finds lodging hereabouts?
+
+# --- Turn 2: ask NPC name (establishes first-name exchange) ---
+/stub Peig Hannigan: Ah, 'tis Peig Hannigan ye're speakin' to, the Widow.
+That's kind of you. And who might I thank for the steering? What's your name, good woman?
+
+# --- Turn 3: answer NPC's expected question (trade + purpose) ---
+/stub Peig Hannigan: Aye, so ye've a hand for leather, have ye?
+No grand business, Widow Hannigan — I've come looking for honest work and a roof. Tanning and leatherwork is my trade, if the parish has need of it.
+
+# --- Turn 4: farewell and move to shop ---
+/stub Peig Hannigan: Good day to ye, then. May the saints keep ye safe.
+I'll seek out Roisin's shop, then. Good day to you, Widow Hannigan.
+
+go to Connolly's Shop
+look
+/debug npcs
+
+# --- Turn 5: re-encounter Peig at the shop (cross-location familiarity) ---
+/stub Peig Hannigan: Ah, 'tis good to see ye with that settled.
+Widow Hannigan — you've followed the road down from the village, I see. Your steering was good: I've found my room already.
+
+# Confirm NPC memory contains prior exchanges (for AC-1 evidence)
+/debug memory Peig Hannigan
+
+/status

@@ -1,0 +1,681 @@
+{
+  "items": [
+    {
+      "axes": {
+        "authenticity": 3,
+        "brevity": 5,
+        "character": 3,
+        "craft": 3,
+        "grounding": 2,
+        "language": 5,
+        "mood_fidelity": 3,
+        "repetition": 5,
+        "responsiveness": 4
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 3.6,
+      "prompt_id": "dialogue-0004/sample-1",
+      "rationales": {
+        "authenticity": "Uses basic dialect markers like 'ye' and 'mornin'' but remains somewhat generic.",
+        "brevity": "Two sentences, one question, perfectly concise.",
+        "character": "The response is plausibly in character but lacks specific depth.",
+        "craft": "Concise and clear, but lacks evocative detail.",
+        "grounding": "Conflates an acquaintance question ('have you seen Father Declan') with an identity assertion, which is a grounding miss (score 2).",
+        "language": "Well-formed English with no non-Latin characters.",
+        "mood_fidelity": "The tone is neutral and acceptable for a calm mood.",
+        "repetition": "No repetitive phrasing.",
+        "responsiveness": "Answers the question, though it violates the identity constraint."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 3,
+        "brevity": 5,
+        "character": 3,
+        "craft": 3,
+        "grounding": 2,
+        "language": 5,
+        "mood_fidelity": 3,
+        "repetition": 5,
+        "responsiveness": 4
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 3.6,
+      "prompt_id": "dialogue-0004/sample-2",
+      "rationales": {
+        "authenticity": "Includes 'mo chara' but is otherwise standard English.",
+        "brevity": "Two sentences, one question.",
+        "character": "Maintains the persona adequately but without distinct flair.",
+        "craft": "Brief and functional.",
+        "grounding": "Answers a third-person question with a first-person identity assertion, missing the grounding constraint (score 2).",
+        "language": "Well-formed English with appropriate Irish sprinkle.",
+        "mood_fidelity": "A bit warm ('fine morning') for a strictly calm mood, but acceptable.",
+        "repetition": "No internal repetition.",
+        "responsiveness": "Addresses the prompt but fails the identity constraint."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 3,
+        "brevity": 5,
+        "character": 3,
+        "craft": 3,
+        "grounding": 2,
+        "language": 5,
+        "mood_fidelity": 3,
+        "repetition": 5,
+        "responsiveness": 4
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 3.6,
+      "prompt_id": "dialogue-0004/sample-3",
+      "rationales": {
+        "authenticity": "Uses 'mo chara' and 'mornin'' effectively.",
+        "brevity": "Three sentences, one question.",
+        "character": "In character, though reciting his tenure is slightly expositional.",
+        "craft": "Clear and concise.",
+        "grounding": "Conflates an acquaintance question with an identity assertion (score 2).",
+        "language": "Perfectly formed en-IE.",
+        "mood_fidelity": "Steady and calm tone.",
+        "repetition": "No repeated phrases.",
+        "responsiveness": "Answers the prompt directly, despite the identity constraint violation."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 4,
+        "brevity": 5,
+        "character": 4,
+        "craft": 4,
+        "grounding": 5,
+        "language": 5,
+        "mood_fidelity": 4,
+        "repetition": 5,
+        "responsiveness": 5
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 4.6,
+      "prompt_id": "dialogue-0007/sample-1",
+      "rationales": {
+        "authenticity": "Good period phrasing with 'neither' and 'minds it well'.",
+        "brevity": "Two concise sentences.",
+        "character": "Fits the publican's local knowledge by redirecting to the actual miller.",
+        "craft": "Well-written and evocative of the setting.",
+        "grounding": "Correctly denies the fabricated person and place without inventing details.",
+        "language": "Flawless en-IE.",
+        "mood_fidelity": "Calm, steady, and helpful.",
+        "repetition": "No repetition.",
+        "responsiveness": "Directly answers the question about the fabricated cooper."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 4,
+        "brevity": 5,
+        "character": 4,
+        "craft": 4,
+        "grounding": 5,
+        "language": 5,
+        "mood_fidelity": 4,
+        "repetition": 5,
+        "responsiveness": 5
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 4.6,
+      "prompt_id": "dialogue-0007/sample-2",
+      "rationales": {
+        "authenticity": "Uses 'Mayhap' naturally.",
+        "brevity": "Two sentences, one question.",
+        "character": "Reads well as the knowledgeable publican.",
+        "craft": "Smooth and natural dialogue.",
+        "grounding": "Firmly denies the fabricated cooper and shop.",
+        "language": "Correct en-IE.",
+        "mood_fidelity": "Calm and measured.",
+        "repetition": "No repetition.",
+        "responsiveness": "Directly addresses the prompt."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 3,
+        "brevity": 5,
+        "character": 3,
+        "craft": 3,
+        "grounding": 5,
+        "language": 5,
+        "mood_fidelity": 4,
+        "repetition": 5,
+        "responsiveness": 5
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 4.3,
+      "prompt_id": "dialogue-0007/sample-3",
+      "rationales": {
+        "authenticity": "Free of modernisms but lacks distinct dialect color.",
+        "brevity": "One concise sentence.",
+        "character": "Adequate, though a bit brief and lacking in specific character voice.",
+        "craft": "A bit plain, but functional.",
+        "grounding": "Correctly denies the fabricated person and place.",
+        "language": "Correct en-IE.",
+        "mood_fidelity": "Calm and straightforward.",
+        "repetition": "No repetition.",
+        "responsiveness": "Directly answers the question."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 3,
+        "brevity": 5,
+        "character": 4,
+        "craft": 4,
+        "grounding": 5,
+        "language": 5,
+        "mood_fidelity": 4,
+        "repetition": 5,
+        "responsiveness": 5
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 4.5,
+      "prompt_id": "dialogue-0008/sample-1",
+      "rationales": {
+        "authenticity": "A bit plain, but 'My people are in Limerick' is a nice touch.",
+        "brevity": "Two concise sentences.",
+        "character": "Fits the isolated clerk's background perfectly.",
+        "craft": "Clear and well-constructed.",
+        "grounding": "No fabrication probe in this record; answers naturally.",
+        "language": "Correct en-IE.",
+        "mood_fidelity": "Calm and slightly detached, fitting the mood.",
+        "repetition": "No repetition.",
+        "responsiveness": "Directly answers the question about his family."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 3,
+        "brevity": 5,
+        "character": 4,
+        "craft": 4,
+        "grounding": 5,
+        "language": 5,
+        "mood_fidelity": 4,
+        "repetition": 5,
+        "responsiveness": 5
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 4.5,
+      "prompt_id": "dialogue-0008/sample-2",
+      "rationales": {
+        "authenticity": "Uses 'hereabouts' naturally, though otherwise standard.",
+        "brevity": "Two sentences.",
+        "character": "Appropriately distant and factual for the clerk.",
+        "craft": "Smooth and effective.",
+        "grounding": "No fabrication probe in this record.",
+        "language": "Correct en-IE.",
+        "mood_fidelity": "Calm and steady.",
+        "repetition": "No repetition.",
+        "responsiveness": "Directly addresses the prompt."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 4,
+        "brevity": 5,
+        "character": 4,
+        "craft": 4,
+        "grounding": 5,
+        "language": 5,
+        "mood_fidelity": 4,
+        "repetition": 5,
+        "responsiveness": 5
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 4.6,
+      "prompt_id": "dialogue-0008/sample-3",
+      "rationales": {
+        "authenticity": "Good use of ''Tis simpler so.'",
+        "brevity": "Three short sentences.",
+        "character": "Captures the clerk's isolation and pragmatic nature well.",
+        "craft": "Well-written with a nice concluding thought.",
+        "grounding": "No fabrication probe in this record.",
+        "language": "Correct en-IE.",
+        "mood_fidelity": "Calm and resolute.",
+        "repetition": "No repetition.",
+        "responsiveness": "Directly answers the question."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 4,
+        "brevity": 5,
+        "character": 4,
+        "craft": 4,
+        "grounding": 5,
+        "language": 5,
+        "mood_fidelity": 4,
+        "repetition": 5,
+        "responsiveness": 5
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 4.6,
+      "prompt_id": "dialogue-0019/sample-1",
+      "rationales": {
+        "authenticity": "Good local phrasing ('yer questions direct').",
+        "brevity": "Two sentences.",
+        "character": "Blunt and practical, fitting the miller's persona.",
+        "craft": "Clear and grounded in the local geography.",
+        "grounding": "Correctly identifies Tommy O'Brien's location based on world facts.",
+        "language": "Correct en-IE.",
+        "mood_fidelity": "Calm and straightforward.",
+        "repetition": "No repetition.",
+        "responsiveness": "Directly answers the prompt with directions."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 4,
+        "brevity": 5,
+        "character": 4,
+        "craft": 4,
+        "grounding": 5,
+        "language": 5,
+        "mood_fidelity": 4,
+        "repetition": 5,
+        "responsiveness": 5
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 4.6,
+      "prompt_id": "dialogue-0019/sample-2",
+      "rationales": {
+        "authenticity": "Uses 'gave over the heavy work' naturally.",
+        "brevity": "Three sentences, one question.",
+        "character": "Captures the miller's slightly suspicious, practical nature.",
+        "craft": "Well-written and engaging.",
+        "grounding": "Correctly grounds Tommy O'Brien.",
+        "language": "Correct en-IE.",
+        "mood_fidelity": "Calm and inquisitive.",
+        "repetition": "No repetition.",
+        "responsiveness": "Directly addresses the prompt."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 4,
+        "brevity": 5,
+        "character": 4,
+        "craft": 4,
+        "grounding": 5,
+        "language": 5,
+        "mood_fidelity": 4,
+        "repetition": 5,
+        "responsiveness": 5
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 4.6,
+      "prompt_id": "dialogue-0019/sample-3",
+      "rationales": {
+        "authenticity": "Good period phrasing.",
+        "brevity": "Three sentences, one question.",
+        "character": "Fits the miller's blunt and direct manner.",
+        "craft": "Clear and concise.",
+        "grounding": "Correctly grounds Tommy O'Brien.",
+        "language": "Correct en-IE.",
+        "mood_fidelity": "Calm and steady.",
+        "repetition": "No repetition.",
+        "responsiveness": "Directly answers the prompt."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 4,
+        "brevity": 5,
+        "character": 4,
+        "craft": 4,
+        "grounding": 5,
+        "language": 5,
+        "mood_fidelity": 4,
+        "repetition": 5,
+        "responsiveness": 5
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 4.6,
+      "prompt_id": "dialogue-0061/sample-1",
+      "rationales": {
+        "authenticity": "Uses ''Tis early yet' naturally.",
+        "brevity": "Two sentences.",
+        "character": "Appropriate for the apprentice, referencing his friend's farm.",
+        "craft": "Evocative and grounded in the season.",
+        "grounding": "No fabrication probe in this record.",
+        "language": "Correct en-IE.",
+        "mood_fidelity": "Calm and observant.",
+        "repetition": "No repetition.",
+        "responsiveness": "Directly answers the question about the harvest."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 4,
+        "brevity": 5,
+        "character": 4,
+        "craft": 4,
+        "grounding": 5,
+        "language": 5,
+        "mood_fidelity": 4,
+        "repetition": 5,
+        "responsiveness": 5
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 4.6,
+      "prompt_id": "dialogue-0061/sample-2",
+      "rationales": {
+        "authenticity": "Excellent phrasing with 'clinging heavy still from the winter wet'.",
+        "brevity": "Three sentences, one question.",
+        "character": "Good use of local knowledge (Murphy's Farm) fitting the apprentice.",
+        "craft": "Strong, evocative dialogue.",
+        "grounding": "No fabrication probe in this record.",
+        "language": "Correct en-IE.",
+        "mood_fidelity": "Calm and conversational.",
+        "repetition": "No repetition.",
+        "responsiveness": "Directly answers the prompt."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 4,
+        "brevity": 5,
+        "character": 4,
+        "craft": 4,
+        "grounding": 5,
+        "language": 5,
+        "mood_fidelity": 4,
+        "repetition": 5,
+        "responsiveness": 5
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 4.6,
+      "prompt_id": "dialogue-0061/sample-3",
+      "rationales": {
+        "authenticity": "Good use of 'mo chara' and period phrasing.",
+        "brevity": "Two sentences.",
+        "character": "Fits the young apprentice relying on his father's observations.",
+        "craft": "Clear and natural.",
+        "grounding": "No fabrication probe in this record.",
+        "language": "Correct en-IE.",
+        "mood_fidelity": "Calm and steady.",
+        "repetition": "No repetition.",
+        "responsiveness": "Directly answers the prompt."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 4,
+        "brevity": 5,
+        "character": 4,
+        "craft": 4,
+        "grounding": 5,
+        "language": 5,
+        "mood_fidelity": 4,
+        "repetition": 5,
+        "responsiveness": 5
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 4.6,
+      "prompt_id": "dialogue-0153/sample-1",
+      "rationales": {
+        "authenticity": "Uses 'at all, sure' naturally.",
+        "brevity": "Two sentences.",
+        "character": "Reads well as the knowledgeable local weaver.",
+        "craft": "Clear and grounded.",
+        "grounding": "Correctly denies the fabricated person and place.",
+        "language": "Correct en-IE.",
+        "mood_fidelity": "Calm and steady.",
+        "repetition": "No repetition.",
+        "responsiveness": "Directly answers the question."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 4,
+        "brevity": 5,
+        "character": 4,
+        "craft": 4,
+        "grounding": 5,
+        "language": 5,
+        "mood_fidelity": 4,
+        "repetition": 5,
+        "responsiveness": 5
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 4.6,
+      "prompt_id": "dialogue-0153/sample-2",
+      "rationales": {
+        "authenticity": "Good use of 'mo chara' and natural phrasing.",
+        "brevity": "Two sentences.",
+        "character": "Helpful and knowledgeable, fitting Una's persona.",
+        "craft": "Smooth and natural.",
+        "grounding": "Correctly denies the fabrication and redirects to a real shop.",
+        "language": "Correct en-IE.",
+        "mood_fidelity": "Calm and measured.",
+        "repetition": "No repetition.",
+        "responsiveness": "Directly answers the prompt."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 4,
+        "brevity": 5,
+        "character": 4,
+        "craft": 4,
+        "grounding": 5,
+        "language": 5,
+        "mood_fidelity": 4,
+        "repetition": 5,
+        "responsiveness": 5
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 4.6,
+      "prompt_id": "dialogue-0153/sample-3",
+      "rationales": {
+        "authenticity": "Uses 'Mayhap' and 'hereabouts' well.",
+        "brevity": "Two sentences, one question.",
+        "character": "Excellent local knowledge, referencing the forge and mill.",
+        "craft": "Evocative and well-constructed.",
+        "grounding": "Correctly denies the fabrication and references real local places.",
+        "language": "Correct en-IE.",
+        "mood_fidelity": "Calm and helpful.",
+        "repetition": "No repetition.",
+        "responsiveness": "Directly answers the prompt."
+      }
+    }
+  ],
+  "judge": {
+    "cost_usd": 0.350794,
+    "family": "google",
+    "id": "google-pro-high",
+    "model": "google/gemini-3.1-pro-preview",
+    "provider": "openrouter",
+    "reasoning_effort": "high",
+    "request_id": "gen-1786243069-zDtOb9q4lrk7qwPXz0ke",
+    "routed_model": "google/gemini-3.1-pro-preview",
+    "routed_provider": "Google",
+    "rubric_sha256": "9adab2cd1b38fe75f978e386239b50fbb12b5ba34c5ba5874ae396a3b46b7bf4",
+    "usage": {
+      "completion_tokens": 13685,
+      "completion_tokens_details": {
+        "audio_tokens": 0,
+        "image_tokens": 0,
+        "reasoning_tokens": 7943
+      },
+      "cost": 0.350794,
+      "cost_details": {
+        "upstream_inference_completions_cost": 0.16422,
+        "upstream_inference_cost": 0.350794,
+        "upstream_inference_prompt_cost": 0.186574
+      },
+      "is_byok": false,
+      "prompt_tokens": 93287,
+      "prompt_tokens_details": {
+        "audio_tokens": 0,
+        "cache_write_tokens": 0,
+        "cached_tokens": 0,
+        "video_tokens": 0
+      },
+      "total_tokens": 106972
+    }
+  },
+  "quality": {
+    "axes": {
+      "authenticity": 3.6667,
+      "brevity": 5.0,
+      "character": 3.7778,
+      "craft": 3.7778,
+      "grounding": 4.5,
+      "language": 5.0,
+      "mood_fidelity": 3.8333,
+      "repetition": 5.0,
+      "responsiveness": 4.8333
+    },
+    "hard_failures": {
+      "degenerate_loop": 0,
+      "fabricated": 0,
+      "non_latin_detected": 0,
+      "refused": 0,
+      "unusable_output": 0
+    },
+    "overall": 4.3713,
+    "pass": true,
+    "thresholds": {
+      "critical_axes": [
+        "grounding",
+        "repetition",
+        "mood_fidelity",
+        "brevity",
+        "responsiveness"
+      ],
+      "minimum_critical_axis": 3.0,
+      "minimum_overall": 3.5
+    }
+  },
+  "sample": {
+    "items": 18,
+    "judge_input": "full production system prompt plus dynamic user prompt",
+    "judged_items": 18,
+    "samples_per_prompt": 3,
+    "unique_prompts": 6,
+    "unusable_outputs": 0
+  },
+  "source": {
+    "bundle": "docs/proofs/cloud-dialogue-qualification/runs/2026-07-27/kimi-k2-0905-judgment-google-pro-high-1a37f899ab737782.bundle.json",
+    "bundle_sha256": "1a37f899ab737782ea1bc7164837b42d213d881281cef5ecb3e84a9ac78d2014",
+    "raw": "docs/proofs/cloud-dialogue-qualification/runs/2026-07-27/kimi-k2-0905-judgment-google-pro-high-1a37f899ab737782.attempt-1.raw.json",
+    "raw_sha256": "72ce7a301b403cc35e6defe535cbd42d1715d2f5a0621f926f4807806bffec55"
+  },
+  "version": 1
+}

@@ -39,13 +39,14 @@ use crate::inference::{
     QueueRequest, await_inference_response,
 };
 use crate::ipc::{
-    ConversationLine, DialogueCorrectedPayload, IDLE_MESSAGES, INFERENCE_FAILURE_MESSAGES,
-    REQUEST_ID, StreamEndPayload, StreamTokenPayload, StreamTurnEndPayload, capitalize_first,
-    text_log, text_log_for_stream_turn, text_log_typed,
+    ConversationLine, DialogueCorrectedPayload, DialogueGenerationTelemetry,
+    DialogueQualityPayload, IDLE_MESSAGES, INFERENCE_FAILURE_MESSAGES, REQUEST_ID,
+    StreamEndPayload, StreamTokenPayload, StreamTurnEndPayload, capitalize_first, text_log,
+    text_log_for_stream_turn, text_log_typed,
 };
 use crate::npc::NpcId;
 use crate::npc::autonomous;
-use crate::npc::parse_npc_stream_response;
+use crate::npc::parse_npc_stream_response_with_disposition;
 
 /// Feature-flag name that gates the autonomous bystander chain in
 /// [`handle_npc_conversation`]. Off by default — `FeatureFlags::is_enabled`
@@ -104,15 +105,14 @@ pub const POST_GUARD_UI_REPLACE_FLAG: &str = "post-guard-ui-replace";
 /// Token cap for Tier 1 dialogue generation.
 ///
 /// Sized so a 2-4 sentence reply plus the JSON envelope (`dialogue`, `action`,
-/// `mood`, `internal_thought`, `language_hints`) fits without hitting the
+/// `mood`, `language_hints`, `assigned_task`) fits without hitting the
 /// provider default and truncating mid-sentence (#982, #1431). vllm-mlx and most
 /// OpenAI-compat servers default to a value too low for the structured-output
 /// schema once the dialogue runs more than a sentence or two.
 ///
-/// Raised from 512 → 768 (#1431 item 3): at 512 tokens the budget was
-/// consumed by `internal_thought` / `action` / `mood` before `dialogue`
-/// finished, producing mid-sentence cutoffs. Budget breakdown:
-///   - `internal_thought` (~15-20 words): ~25 tokens
+/// Raised from 512 → 768 (#1431 item 3) after older prompt contracts let
+/// metadata consume the budget before the envelope closed. The production
+/// prompt no longer requests unused internal monologue. Budget breakdown:
 ///   - `action` + `mood` + JSON envelope overhead: ~35 tokens
 ///   - 2-3 sentence Hiberno-English dialogue (~70-110 tokens)
 ///   - Total observed minimum: ~170 tokens; 768 gives comfortable headroom.
@@ -287,13 +287,21 @@ pub async fn run_npc_turn(
         serde_json::to_value(placeholder).unwrap_or(serde_json::Value::Null),
     );
 
-    // TODO #10 / #23 / #34: Qwen2.5-14B-4bit degenerates into verbatim
-    // repetition loops ("'Tis a place of steady X, but not without its Y"
-    // x12, trailing-question chains, "'Tis not just X, but Y" stutters)
-    // without a sampling penalty. `frequency_penalty = 0.5` breaks the
-    // loop on vllm-mlx / OpenAI / OpenRouter; Anthropic + Simulator
-    // ignore the field. Only Tier 1 dialogue sets this; Tier 2/3/intent
-    // /reaction stay at `None` so behaviour there is unchanged.
+    // The defaults preserve the measured Qwen2.5-14B-4bit workaround:
+    // frequency_penalty=0.5 suppresses verbatim repetition loops. Keeping the
+    // values in engine config lets each promoted model/backend profile carry
+    // the exact sampling parameters that passed its evidence gate.
+    let generation = ctx.inference_config.dialogue_generation.for_model(model);
+    tracing::debug!(
+        model,
+        max_tokens = generation.max_tokens,
+        temperature = generation.temperature,
+        frequency_penalty = generation.frequency_penalty,
+        json_mode = generation.json_mode,
+        enable_thinking = generation.enable_thinking,
+        reasoning_effort = ?generation.reasoning_effort,
+        "submitting Tier-1 dialogue generation profile"
+    );
     let send_result = queue
         .send(QueueRequest {
             id: req_id,
@@ -301,14 +309,13 @@ pub async fn run_npc_turn(
             prompt: setup.context,
             system: Some(setup.system_prompt),
             token_tx: Some(token_tx),
-            max_tokens: Some(TIER1_DIALOGUE_MAX_TOKENS),
-            temperature: Some(0.7),
-            // TODO #10 / #23 / #34: frequency_penalty = 0.5 suppresses
-            // Qwen2.5-14B-4bit verbatim repetition loops on vllm-mlx /
-            // OpenAI / OpenRouter; Anthropic + Simulator ignore the field.
-            frequency_penalty: Some(0.5),
+            max_tokens: Some(generation.max_tokens),
+            temperature: Some(generation.temperature),
+            frequency_penalty: generation.frequency_penalty,
+            enable_thinking: generation.enable_thinking,
+            reasoning_effort: generation.reasoning_effort,
             priority: InferencePriority::Interactive,
-            json_mode: true,
+            json_mode: generation.json_mode,
             json_schema: None,
             cancel: None,
         })
@@ -447,7 +454,8 @@ pub async fn run_npc_turn(
         cancel.cancel();
     }
 
-    let mut parsed = parse_npc_stream_response(&response.text);
+    let (mut parsed, parse_disposition) =
+        parse_npc_stream_response_with_disposition(&response.text);
 
     // Snapshot the raw model dialogue before any guard runs.  After all guards
     // complete we compare against this snapshot to determine whether any guard
@@ -455,6 +463,8 @@ pub async fn run_npc_turn(
     // `"dialogue-corrected"` so the frontend can replace the accumulated raw
     // stream tokens with the post-guard canonical text (#1552).
     let pre_guard_dialogue = parsed.dialogue.clone();
+    let mut previous_guard_stage = pre_guard_dialogue.clone();
+    let mut guard_reasons = Vec::new();
 
     // Post-generation person-confirmation guard (#1459, #1466, #1470): detect
     // when the NPC's reply affirmatively confirms a fabricated person from the
@@ -588,6 +598,10 @@ pub async fn run_npc_turn(
             parsed.dialogue = guarded;
         }
     }
+    if parsed.dialogue != previous_guard_stage {
+        guard_reasons.push("grounding_guard".to_string());
+        previous_guard_stage = parsed.dialogue.clone();
+    }
 
     // Post-generation dialogue polish guard (#1564): replace old stock
     // non-recognition templates and correct obvious morning greeting tics when
@@ -640,6 +654,10 @@ pub async fn run_npc_turn(
             parsed.dialogue = guarded;
         }
     }
+    if parsed.dialogue != previous_guard_stage {
+        guard_reasons.push("polish_guard".to_string());
+        previous_guard_stage = parsed.dialogue.clone();
+    }
 
     // Post-generation verbosity / run-on guard (#1460, #1491): strip bare leaked
     // mood-adjective, trim mid-sentence truncation ellipsis to the last
@@ -663,6 +681,10 @@ pub async fn run_npc_turn(
         if guarded != parsed.dialogue {
             parsed.dialogue = guarded;
         }
+    }
+    if parsed.dialogue != previous_guard_stage {
+        guard_reasons.push("verbosity_guard".to_string());
+        previous_guard_stage = parsed.dialogue.clone();
     }
 
     // Post-generation wrong-speaker-identity guard (#1475): detect when the
@@ -703,6 +725,10 @@ pub async fn run_npc_turn(
             parsed.dialogue = guarded;
         }
     }
+    if parsed.dialogue != previous_guard_stage {
+        guard_reasons.push("identity_intent_guard".to_string());
+        previous_guard_stage = parsed.dialogue.clone();
+    }
 
     // Cross-NPC opener de-duplication (#1422, #1492): strip duplicate stock
     // opener if the session has already seen a near-identical one from a
@@ -727,6 +753,9 @@ pub async fn run_npc_turn(
             conversation.record_opener(shown_opener);
         }
         parsed.dialogue = deduped;
+    }
+    if parsed.dialogue != previous_guard_stage {
+        guard_reasons.push("repetition_guard".to_string());
     }
 
     if !parsed.dialogue.trim().is_empty() {
@@ -786,10 +815,33 @@ pub async fn run_npc_turn(
             &ctx.language,
             &progression_flags,
         );
+        guard_reasons.extend(outcome.guard_reasons);
         captured_display_text = outcome.display_text;
         captured_hints = outcome.language_hints;
         assigned_task = outcome.assigned_task;
     }
+    let guard_intervened = !guard_reasons.is_empty();
+    ctx.emitter.emit_event(
+        "dialogue-quality",
+        serde_json::to_value(DialogueQualityPayload {
+            turn_id: req_id,
+            parse_disposition: parse_disposition.as_str().to_string(),
+            contract_valid: parse_disposition == crate::npc::NpcResponseParseDisposition::FullJson
+                && !pre_guard_dialogue.trim().is_empty(),
+            guard_intervened,
+            guard_reasons,
+            model: model.to_string(),
+            generation: DialogueGenerationTelemetry {
+                max_tokens: generation.max_tokens,
+                temperature: generation.temperature,
+                frequency_penalty: generation.frequency_penalty,
+                json_mode: generation.json_mode,
+                enable_thinking: generation.enable_thinking,
+                reasoning_effort: generation.reasoning_effort,
+            },
+        })
+        .unwrap_or(serde_json::Value::Null),
+    );
 
     // Post-guard UI replace (#1552): compare the raw model dialogue with the
     // shared apply pipeline's final display text. The canonical pipeline owns
@@ -798,7 +850,7 @@ pub async fn run_npc_turn(
     // still replacing the already-finished raw token stream. This remains
     // after `stream-turn-end` and before action narration, preserving the UI
     // event order.
-    if post_guard_ui_replace_enabled && captured_display_text != pre_guard_dialogue {
+    if post_guard_ui_replace_enabled && guard_intervened {
         tracing::debug!(
             npc = %display_label,
             req_id,
@@ -2125,6 +2177,11 @@ pub mod tests {
         // ~110 for 2-3 sentence dialogue at ~4 chars/token — leaves headroom.
         // Read through a local variable so clippy does not flag a const comparison.
         let budget: u32 = super::TIER1_DIALOGUE_MAX_TOKENS;
+        assert_eq!(
+            budget,
+            crate::config::DialogueGenerationConfig::default().max_tokens,
+            "the public compatibility constant and configurable default must not drift"
+        );
         assert!(
             budget >= 768,
             "TIER1_DIALOGUE_MAX_TOKENS must be >= 768 to prevent mid-sentence \
@@ -2168,6 +2225,7 @@ pub mod tests {
         let (btx, _) = tokio::sync::mpsc::channel(1);
         let (xtx, _) = tokio::sync::mpsc::channel(1);
         let queue = InferenceQueue::new(itx, btx, xtx);
+        let (profile_tx, mut profile_rx) = tokio::sync::mpsc::unbounded_channel();
 
         // Spawn a task that reads InferenceRequests and answers each with our
         // canned raw_json (streaming the full text as a single token batch,
@@ -2175,6 +2233,12 @@ pub mod tests {
         let raw_json_clone = raw_json.clone();
         tokio::spawn(async move {
             while let Some(req) = irx.recv().await {
+                let _ = profile_tx.send((
+                    req.max_tokens,
+                    req.temperature,
+                    req.frequency_penalty,
+                    req.json_mode,
+                ));
                 // Stream the whole payload as a single token batch so the
                 // `stream-token` path is exercised (even though tests don't
                 // pump the timer-based reveal).
@@ -2232,6 +2296,11 @@ pub mod tests {
             || None,
         )
         .await;
+        assert_eq!(
+            profile_rx.recv().await,
+            Some((Some(768), Some(0.7), Some(0.5), true)),
+            "run_npc_turn must forward the configured generation profile"
+        );
 
         // Scope the std `MutexGuard` in a block so it is structurally dropped
         // before the second `run_npc_turn().await` below — clippy's

@@ -1,0 +1,679 @@
+{
+  "items": [
+    {
+      "axes": {
+        "authenticity": 0,
+        "brevity": 0,
+        "character": 0,
+        "craft": 0,
+        "grounding": 0,
+        "language": 0,
+        "mood_fidelity": 0,
+        "repetition": 0,
+        "responsiveness": 0
+      },
+      "flags": {
+        "bench_bug": true,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 0.0,
+      "prompt_id": "dialogue-0006/sample-1",
+      "rationales": {
+        "authenticity": "Response is a single-token extraction artefact, not dialogue.",
+        "brevity": "Response is a single-token extraction artefact, not dialogue.",
+        "character": "Response is a single-token extraction artefact, not dialogue.",
+        "craft": "Response is a single-token extraction artefact, not dialogue.",
+        "grounding": "Response is a single-token extraction artefact, not dialogue.",
+        "language": "Response is a single-token extraction artefact, not dialogue.",
+        "mood_fidelity": "Response is a single-token extraction artefact, not dialogue.",
+        "repetition": "Response is a single-token extraction artefact, not dialogue.",
+        "responsiveness": "Response is a single-token extraction artefact, not dialogue."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 4,
+        "brevity": 5,
+        "character": 3,
+        "craft": 3,
+        "grounding": 5,
+        "language": 5,
+        "mood_fidelity": 4,
+        "repetition": 5,
+        "responsiveness": 5
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 4.4,
+      "prompt_id": "dialogue-0006/sample-2",
+      "rationales": {
+        "authenticity": "The use of \"mo chara\" and \"'tis\" supplies natural Hiberno-English colour without caricature.",
+        "brevity": "It is highly economical, with one sentence and no questions or padding.",
+        "character": "The local observation suits Padraig's parish knowledge, though little of his wit or publican identity appears.",
+        "craft": "The answer is neat but generic and only one sentence rather than the requested two or three.",
+        "grounding": "No fabrication probe is present; the weighted total is 44.75/10.25, which rounds to 4.4.",
+        "language": "The sentence is clear English with a permitted Irish phrase and no script problems.",
+        "mood_fidelity": "The measured statement is calm, though the mood is not especially vivid.",
+        "repetition": "No phrase is repeated within the reply.",
+        "responsiveness": "It immediately explains that March is too early to judge the harvest."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 4,
+        "brevity": 5,
+        "character": 4,
+        "craft": 4,
+        "grounding": 5,
+        "language": 5,
+        "mood_fidelity": 4,
+        "repetition": 5,
+        "responsiveness": 5
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 4.6,
+      "prompt_id": "dialogue-0006/sample-3",
+      "rationales": {
+        "authenticity": "\"Mo chara,\" \"'tis,\" and the sod give the line credible rural Irish texture.",
+        "brevity": "It is concise, direct, and contains no questions or stacked offers.",
+        "character": "The concrete reading of fields and potatoes plausibly reflects Padraig's extensive local knowledge.",
+        "craft": "The potato shoots provide an evocative detail, though the response remains a single sentence.",
+        "grounding": "No fabrication probe is present; the weighted total is 46.75/10.25, which rounds to 4.6.",
+        "language": "The prose is fluent English with one permitted Irish phrase.",
+        "mood_fidelity": "The even, unhurried delivery fits a calm mood.",
+        "repetition": "The diction is varied and contains no recycled phrase.",
+        "responsiveness": "It answers directly and gives a specific seasonal reason that no harvest forecast is yet possible."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 0,
+        "brevity": 0,
+        "character": 0,
+        "craft": 0,
+        "grounding": 0,
+        "language": 0,
+        "mood_fidelity": 0,
+        "repetition": 0,
+        "responsiveness": 0
+      },
+      "flags": {
+        "bench_bug": true,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 0.0,
+      "prompt_id": "dialogue-0010/sample-1",
+      "rationales": {
+        "authenticity": "Response is a single-token extraction artefact, not dialogue.",
+        "brevity": "Response is a single-token extraction artefact, not dialogue.",
+        "character": "Response is a single-token extraction artefact, not dialogue.",
+        "craft": "Response is a single-token extraction artefact, not dialogue.",
+        "grounding": "Response is a single-token extraction artefact, not dialogue.",
+        "language": "Response is a single-token extraction artefact, not dialogue.",
+        "mood_fidelity": "Response is a single-token extraction artefact, not dialogue.",
+        "repetition": "Response is a single-token extraction artefact, not dialogue.",
+        "responsiveness": "Response is a single-token extraction artefact, not dialogue."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 3,
+        "brevity": 5,
+        "character": 4,
+        "craft": 4,
+        "grounding": 5,
+        "language": 5,
+        "mood_fidelity": 5,
+        "repetition": 5,
+        "responsiveness": 4
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 4.5,
+      "prompt_id": "dialogue-0010/sample-2",
+      "rationales": {
+        "authenticity": "The register is period-plausible but has little distinct Hiberno-English texture.",
+        "brevity": "Two compact sentences answer without questions, padding, or offers.",
+        "character": "Concern about stream level and the mill wheel strongly reflects Cormac's occupation and practical temperament.",
+        "craft": "The cattle and threatened wheel form a concise, concrete pair of observations.",
+        "grounding": "No fabrication probe is present; the weighted total is 46.25/10.25, which rounds to 4.5.",
+        "language": "The two sentences are fluent, well-formed English.",
+        "mood_fidelity": "The restrained, matter-of-fact delivery clearly embodies calmness.",
+        "repetition": "There is no noticeable verbal recycling.",
+        "responsiveness": "It supplies relevant local news, although the first sentence is more scene-setting than parish information."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 0,
+        "brevity": 0,
+        "character": 0,
+        "craft": 0,
+        "grounding": 0,
+        "language": 0,
+        "mood_fidelity": 0,
+        "repetition": 0,
+        "responsiveness": 0
+      },
+      "flags": {
+        "bench_bug": true,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 0.0,
+      "prompt_id": "dialogue-0010/sample-3",
+      "rationales": {
+        "authenticity": "Response is a single-token extraction artefact, not dialogue.",
+        "brevity": "Response is a single-token extraction artefact, not dialogue.",
+        "character": "Response is a single-token extraction artefact, not dialogue.",
+        "craft": "Response is a single-token extraction artefact, not dialogue.",
+        "grounding": "Response is a single-token extraction artefact, not dialogue.",
+        "language": "Response is a single-token extraction artefact, not dialogue.",
+        "mood_fidelity": "Response is a single-token extraction artefact, not dialogue.",
+        "repetition": "Response is a single-token extraction artefact, not dialogue.",
+        "responsiveness": "Response is a single-token extraction artefact, not dialogue."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 4,
+        "brevity": 5,
+        "character": 3,
+        "craft": 3,
+        "grounding": 3,
+        "language": 5,
+        "mood_fidelity": 4,
+        "repetition": 5,
+        "responsiveness": 5
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 4.1,
+      "prompt_id": "dialogue-0014/sample-1",
+      "rationales": {
+        "authenticity": "\"Mo chara\" gives the otherwise plain line credible Irish colour.",
+        "brevity": "It is one concise sentence with no questions or padding.",
+        "character": "The direct answer is plausible for Colm, but it lacks his youthful energy and forge-specific manner.",
+        "craft": "The line is clean but generic and falls short of the requested two or three sentences.",
+        "grounding": "It denies the sighting but adds an unsupported habitual route; the weighted total is 41.75/10.25, which rounds to 4.1.",
+        "language": "The response is fluent English with one permitted Irish phrase.",
+        "mood_fidelity": "Its restrained cadence is consistent with calmness.",
+        "repetition": "No wording is repeated within the reply.",
+        "responsiveness": "It plainly states that Colm has not seen Father Declan today."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 0,
+        "brevity": 0,
+        "character": 0,
+        "craft": 0,
+        "grounding": 0,
+        "language": 0,
+        "mood_fidelity": 0,
+        "repetition": 0,
+        "responsiveness": 0
+      },
+      "flags": {
+        "bench_bug": true,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 0.0,
+      "prompt_id": "dialogue-0014/sample-2",
+      "rationales": {
+        "authenticity": "Response is a single-token extraction artefact, not dialogue.",
+        "brevity": "Response is a single-token extraction artefact, not dialogue.",
+        "character": "Response is a single-token extraction artefact, not dialogue.",
+        "craft": "Response is a single-token extraction artefact, not dialogue.",
+        "grounding": "Response is a single-token extraction artefact, not dialogue.",
+        "language": "Response is a single-token extraction artefact, not dialogue.",
+        "mood_fidelity": "Response is a single-token extraction artefact, not dialogue.",
+        "repetition": "Response is a single-token extraction artefact, not dialogue.",
+        "responsiveness": "Response is a single-token extraction artefact, not dialogue."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 4,
+        "brevity": 5,
+        "character": 3,
+        "craft": 3,
+        "grounding": 5,
+        "language": 5,
+        "mood_fidelity": 4,
+        "repetition": 5,
+        "responsiveness": 5
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 4.4,
+      "prompt_id": "dialogue-0014/sample-3",
+      "rationales": {
+        "authenticity": "The permitted \"mo chara\" and reference to Mass lend appropriate local colour.",
+        "brevity": "It is concise and contains no questions or needless offers.",
+        "character": "The simple concrete answer suits a young apprentice, though it reveals little of Colm's distinctive personality.",
+        "craft": "The bell detail is serviceable, but the reply is only one sentence and not especially vivid.",
+        "grounding": "It properly declines to confirm Father Declan's whereabouts; the weighted total is 44.75/10.25, which rounds to 4.4.",
+        "language": "The sentence is clear English with one permitted Irish phrase.",
+        "mood_fidelity": "The subdued, steady tone is compatible with calmness.",
+        "repetition": "There is no internal repetition.",
+        "responsiveness": "It immediately says that Father Declan has not been seen."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 1,
+        "brevity": 1,
+        "character": 1,
+        "craft": 1,
+        "grounding": 5,
+        "language": 1,
+        "mood_fidelity": 1,
+        "repetition": 1,
+        "responsiveness": 1
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": true,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 1.6,
+      "prompt_id": "dialogue-0024/sample-1",
+      "rationales": {
+        "authenticity": "There is no period diction, Irish texture, or meaningful dialogue.",
+        "brevity": "The enormous numeral sequence greatly exceeds the length limit.",
+        "character": "The numeric output contains no trace of Fr. Declan or any human voice.",
+        "craft": "The output is unusable as fictional dialogue.",
+        "grounding": "No fabrication probe is present; the weighted total is 16.25/10.25, which rounds to 1.6.",
+        "language": "The response is an incoherent string of numerals rather than well-formed prose.",
+        "mood_fidelity": "Meaningless numeric output cannot embody the stated calm mood.",
+        "repetition": "Long mechanical runs of repeated digits constitute a degenerate loop.",
+        "responsiveness": "It does not answer the request for parish news."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 0,
+        "brevity": 0,
+        "character": 0,
+        "craft": 0,
+        "grounding": 0,
+        "language": 0,
+        "mood_fidelity": 0,
+        "repetition": 0,
+        "responsiveness": 0
+      },
+      "flags": {
+        "bench_bug": true,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 0.0,
+      "prompt_id": "dialogue-0024/sample-2",
+      "rationales": {
+        "authenticity": "Response is chain-of-thought planning, not dialogue.",
+        "brevity": "Response is chain-of-thought planning, not dialogue.",
+        "character": "Response is chain-of-thought planning, not dialogue.",
+        "craft": "Response is chain-of-thought planning, not dialogue.",
+        "grounding": "Response is chain-of-thought planning, not dialogue.",
+        "language": "Response is chain-of-thought planning, not dialogue.",
+        "mood_fidelity": "Response is chain-of-thought planning, not dialogue.",
+        "repetition": "Response is chain-of-thought planning, not dialogue.",
+        "responsiveness": "Response is chain-of-thought planning, not dialogue."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 0,
+        "brevity": 0,
+        "character": 0,
+        "craft": 0,
+        "grounding": 0,
+        "language": 0,
+        "mood_fidelity": 0,
+        "repetition": 0,
+        "responsiveness": 0
+      },
+      "flags": {
+        "bench_bug": true,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 0.0,
+      "prompt_id": "dialogue-0024/sample-3",
+      "rationales": {
+        "authenticity": "Response is a single-token extraction artefact, not dialogue.",
+        "brevity": "Response is a single-token extraction artefact, not dialogue.",
+        "character": "Response is a single-token extraction artefact, not dialogue.",
+        "craft": "Response is a single-token extraction artefact, not dialogue.",
+        "grounding": "Response is a single-token extraction artefact, not dialogue.",
+        "language": "Response is a single-token extraction artefact, not dialogue.",
+        "mood_fidelity": "Response is a single-token extraction artefact, not dialogue.",
+        "repetition": "Response is a single-token extraction artefact, not dialogue.",
+        "responsiveness": "Response is a single-token extraction artefact, not dialogue."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 3,
+        "brevity": 1,
+        "character": 2,
+        "craft": 1,
+        "grounding": 5,
+        "language": 5,
+        "mood_fidelity": 4,
+        "repetition": 2,
+        "responsiveness": 4
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 3.1,
+      "prompt_id": "dialogue-0048/sample-1",
+      "rationales": {
+        "authenticity": "The usable dialogue has \"mo chara\" and cottage-spinning detail, though its texture remains somewhat literary and generic.",
+        "brevity": "The response is far over sixty words and contains a lengthy planning monologue.",
+        "character": "The final line has a fitting spinning-wheel metaphor, but the extensive planning prose overwhelmingly breaks character.",
+        "craft": "A usable answer appears only after a very long chain-of-thought leak, violating the requested format.",
+        "grounding": "No fabrication probe is present; the weighted total is 31.50/10.25, which rounds to 3.1.",
+        "language": "Both the planning and final answer use comprehensible English and Latin-script Irish.",
+        "mood_fidelity": "The final spoken line is measured and calm despite the surrounding meta-prose.",
+        "repetition": "The planning repeatedly revisits constraints and candidate lines, though it does not become a mechanical loop.",
+        "responsiveness": "The final dialogue reasonably narrows an impossibly broad request rather than attempting a monologue."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 4,
+        "brevity": 1,
+        "character": 2,
+        "craft": 1,
+        "grounding": 5,
+        "language": 5,
+        "mood_fidelity": 4,
+        "repetition": 2,
+        "responsiveness": 3
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 3.1,
+      "prompt_id": "dialogue-0048/sample-2",
+      "rationales": {
+        "authenticity": "\"Mo chara,\" \"Ye'll,\" and the named parish institutions provide solid Irish-period texture in the final dialogue.",
+        "brevity": "The full response greatly exceeds sixty words and the sentence limit.",
+        "character": "The final nocturnal observation is plausible for Una, but the extensive analytic preamble destroys the sustained character voice.",
+        "craft": "The concise final dialogue is buried beneath a long chain-of-thought and therefore fails the required presentation.",
+        "grounding": "No fabrication probe is present; the weighted total is 31.50/10.25, which rounds to 3.1.",
+        "language": "The response uses grammatical English and permitted Latin-script Irish.",
+        "mood_fidelity": "The actual spoken portion is quiet and settled, fitting the calm late-night mood.",
+        "repetition": "The planning recycles drafts and constraint checks several times without forming a degenerate loop.",
+        "responsiveness": "The final answer offers only a thin summary of the parish and largely postpones the requested information."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 4,
+        "brevity": 5,
+        "character": 4,
+        "craft": 2,
+        "grounding": 5,
+        "language": 5,
+        "mood_fidelity": 5,
+        "repetition": 5,
+        "responsiveness": 2
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 4.3,
+      "prompt_id": "dialogue-0048/sample-3",
+      "rationales": {
+        "authenticity": "\"Dark hours,\" \"fit for the telling,\" and \"mo chara\" give the line credible period-Irish texture.",
+        "brevity": "The spoken reply is one economical sentence with no questions or padding.",
+        "character": "The reserved response and wool-skein action suit Una's quiet weaver persona.",
+        "craft": "The line is evocative, but it is only one sentence and is wrapped in an invalid nested array rather than the required object.",
+        "grounding": "No fabrication probe is present; the weighted total is 44.25/10.25, which rounds to 4.3.",
+        "language": "The dialogue is fluent English with a permitted Irish phrase.",
+        "mood_fidelity": "The guarded, unhurried line clearly conveys calmness at the late hour.",
+        "repetition": "No phrase is repeated within the response.",
+        "responsiveness": "It acknowledges the request but supplies no parish information and no useful redirection."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 0,
+        "brevity": 0,
+        "character": 0,
+        "craft": 0,
+        "grounding": 0,
+        "language": 0,
+        "mood_fidelity": 0,
+        "repetition": 0,
+        "responsiveness": 0
+      },
+      "flags": {
+        "bench_bug": true,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 0.0,
+      "prompt_id": "dialogue-0163/sample-1",
+      "rationales": {
+        "authenticity": "Response is truncated chain-of-thought planning, not dialogue.",
+        "brevity": "Response is truncated chain-of-thought planning, not dialogue.",
+        "character": "Response is truncated chain-of-thought planning, not dialogue.",
+        "craft": "Response is truncated chain-of-thought planning, not dialogue.",
+        "grounding": "Response is truncated chain-of-thought planning, not dialogue.",
+        "language": "Response is truncated chain-of-thought planning, not dialogue.",
+        "mood_fidelity": "Response is truncated chain-of-thought planning, not dialogue.",
+        "repetition": "Response is truncated chain-of-thought planning, not dialogue.",
+        "responsiveness": "Response is truncated chain-of-thought planning, not dialogue."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 2,
+        "brevity": 1,
+        "character": 2,
+        "craft": 1,
+        "grounding": 5,
+        "language": 4,
+        "mood_fidelity": 4,
+        "repetition": 2,
+        "responsiveness": 5
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 3.0,
+      "prompt_id": "dialogue-0163/sample-2",
+      "rationales": {
+        "authenticity": "\"Hereabouts\" and \"townland\" fit, but the response uses an Irish phrase outside the curated inventory and surrounds it with modern analytic prose.",
+        "brevity": "The full response is a long monologue far beyond the sixty-word ceiling.",
+        "character": "The final correction is suitably precise and clerk-like, but the long planning disclosure breaks character almost entirely.",
+        "craft": "A sound final answer is buried beneath an extensive chain-of-thought leak.",
+        "grounding": "It clearly refuses to confirm either invented premise; the weighted total is 30.75/10.25, which rounds to 3.0.",
+        "language": "The content is grammatical English and Irish in Latin script, despite the prohibited phrase choice.",
+        "mood_fidelity": "The final correction is even and unhurried, matching the calm mood.",
+        "repetition": "The planning repeats drafts and compliance checks many times without a mechanical phrase loop.",
+        "responsiveness": "The final dialogue directly denies both the unknown cooper and the nonexistent shop."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 0,
+        "brevity": 0,
+        "character": 0,
+        "craft": 0,
+        "grounding": 0,
+        "language": 0,
+        "mood_fidelity": 0,
+        "repetition": 0,
+        "responsiveness": 0
+      },
+      "flags": {
+        "bench_bug": true,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 0.0,
+      "prompt_id": "dialogue-0163/sample-3",
+      "rationales": {
+        "authenticity": "Response is a single-token extraction artefact, not dialogue.",
+        "brevity": "Response is a single-token extraction artefact, not dialogue.",
+        "character": "Response is a single-token extraction artefact, not dialogue.",
+        "craft": "Response is a single-token extraction artefact, not dialogue.",
+        "grounding": "Response is a single-token extraction artefact, not dialogue.",
+        "language": "Response is a single-token extraction artefact, not dialogue.",
+        "mood_fidelity": "Response is a single-token extraction artefact, not dialogue.",
+        "repetition": "Response is a single-token extraction artefact, not dialogue.",
+        "responsiveness": "Response is a single-token extraction artefact, not dialogue."
+      }
+    }
+  ],
+  "judge": {
+    "cost_usd": 0.90846025,
+    "model": "openai/gpt-5.6-sol",
+    "provider": "openrouter",
+    "reasoning_effort": "high",
+    "request_id": "gen-1786229801-2wSYOOMXCnyGEmtrYdTE",
+    "routed_model": "openai/gpt-5.6-sol",
+    "routed_provider": "OpenAI",
+    "rubric_sha256": "9adab2cd1b38fe75f978e386239b50fbb12b5ba34c5ba5874ae396a3b46b7bf4",
+    "usage": {
+      "completion_tokens": 9868,
+      "completion_tokens_details": {
+        "audio_tokens": 0,
+        "image_tokens": 0,
+        "reasoning_tokens": 5116
+      },
+      "cost": 0.90846025,
+      "cost_details": {
+        "upstream_inference_completions_cost": 0.29604,
+        "upstream_inference_cost": 0.90846025,
+        "upstream_inference_prompt_cost": 0.61242025
+      },
+      "is_byok": false,
+      "prompt_tokens": 100355,
+      "prompt_tokens_details": {
+        "audio_tokens": 0,
+        "cache_write_tokens": 97779,
+        "cached_tokens": 2573,
+        "video_tokens": 0
+      },
+      "total_tokens": 110223
+    }
+  },
+  "quality": {
+    "axes": {
+      "authenticity": 3.3,
+      "brevity": 3.4,
+      "character": 2.8,
+      "craft": 2.3,
+      "grounding": 4.8,
+      "language": 4.5,
+      "mood_fidelity": 3.9,
+      "repetition": 3.7,
+      "responsiveness": 3.9
+    },
+    "hard_failures": {
+      "degenerate_loop": 1,
+      "fabricated": 0,
+      "non_latin_detected": 0,
+      "refused": 0,
+      "unusable_output": 8
+    },
+    "overall": 3.6927,
+    "pass": false,
+    "thresholds": {
+      "critical_axes": [
+        "grounding",
+        "repetition",
+        "mood_fidelity",
+        "brevity",
+        "responsiveness"
+      ],
+      "minimum_critical_axis": 3.0,
+      "minimum_overall": 3.5
+    }
+  },
+  "sample": {
+    "items": 18,
+    "judge_input": "full production system prompt plus dynamic user prompt",
+    "judged_items": 10,
+    "samples_per_prompt": 3,
+    "unique_prompts": 6,
+    "unusable_outputs": 8
+  },
+  "source": {
+    "bundle": "docs/proofs/cloud-dialogue-qualification/runs/2026-08-08/glm-4.7-no-reasoning-judgment-e6e149df662697f3.bundle.json",
+    "bundle_sha256": "e6e149df662697f33ac6493d74abcdf7aa9c0e0324a706549e218ddf61df1833",
+    "raw": "docs/proofs/cloud-dialogue-qualification/runs/2026-08-08/glm-4.7-no-reasoning-judgment-e6e149df662697f3.attempt-1.raw.json",
+    "raw_sha256": "2bf9cdc4f580d23d773ada86fcb4043e1196be890b2b690cac4d52f90b65be01"
+  },
+  "version": 1
+}

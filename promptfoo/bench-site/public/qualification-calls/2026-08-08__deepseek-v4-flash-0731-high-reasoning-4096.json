@@ -1,0 +1,402 @@
+{
+  "calls": [
+    {
+      "id": "preflight-1",
+      "kind": "preflight",
+      "label": "Preflight call 1",
+      "metrics": {
+        "elapsed_ms": 11573,
+        "stream_chunks": null,
+        "ttft_ms": null
+      },
+      "npc": "a lanky red-haired lad with soot on his face",
+      "outcome": {
+        "contract_valid": true,
+        "guard_reasons": [
+          "verbosity_guard"
+        ],
+        "parse_dispositions": [
+          "full_json"
+        ],
+        "transport_error": null
+      },
+      "phase": "preflight",
+      "question": "God save you. What news of the parish?",
+      "request": {
+        "frequency_penalty": 0.5,
+        "json_mode": true,
+        "max_tokens": 4096,
+        "model": "deepseek/deepseek-v4-flash-0731",
+        "reasoning_effort": "high",
+        "system": null,
+        "temperature": 0.7,
+        "user": null
+      },
+      "response": "Mhuise, news? Aye, plenty. I heard Sean Ruadh Kelly goin' on about secret meetin's at the lime kiln, and himself the quietest man in the parish.\n*A lanky red-haired lad with soot on his face grins and leans on the anvil.*"
+    },
+    {
+      "id": "preflight-2",
+      "kind": "preflight",
+      "label": "Preflight call 2",
+      "metrics": {
+        "elapsed_ms": 16196,
+        "stream_chunks": null,
+        "ttft_ms": null
+      },
+      "npc": "a lanky red-haired lad with soot on his face",
+      "outcome": {
+        "contract_valid": true,
+        "guard_reasons": [],
+        "parse_dispositions": [
+          "full_json"
+        ],
+        "transport_error": null
+      },
+      "phase": "preflight",
+      "question": "How does the harvest look this year?",
+      "request": {
+        "frequency_penalty": 0.5,
+        "json_mode": true,
+        "max_tokens": 4096,
+        "model": "deepseek/deepseek-v4-flash-0731",
+        "reasoning_effort": "high",
+        "system": null,
+        "temperature": 0.7,
+        "user": null
+      },
+      "response": "Mhuise, we're only after puttin' the seed in this month past \u2014 Da says a wet March makes a fat autumn, and sure the ground's soft enough already. Were ye out along the bog road this mornin'? The furrows look grand.\n*A lanky red-haired lad with soot on his face wipes his hands on his apron and grins.*"
+    },
+    {
+      "id": "preflight-3",
+      "kind": "preflight",
+      "label": "Preflight call 3",
+      "metrics": {
+        "elapsed_ms": 6699,
+        "stream_chunks": null,
+        "ttft_ms": null
+      },
+      "npc": "a lanky red-haired lad with soot on his face",
+      "outcome": {
+        "contract_valid": true,
+        "guard_reasons": [],
+        "parse_dispositions": [
+          "full_json"
+        ],
+        "transport_error": null
+      },
+      "phase": "preflight",
+      "question": "Have you seen Father Declan today?",
+      "request": {
+        "frequency_penalty": 0.5,
+        "json_mode": true,
+        "max_tokens": 4096,
+        "model": "deepseek/deepseek-v4-flash-0731",
+        "reasoning_effort": "high",
+        "system": null,
+        "temperature": 0.7,
+        "user": null
+      },
+      "response": "Fr. Declan Tierney is not here.\nNot yet, no \u2014 I've been at the bellows since first light. He'll be sayin' his Mass at the church or might be up the lane after, I'd wager. Did ye need him for somethin' particular?\n*A lanky red-haired lad with soot on his face wipes his sooty hands on his apron and glances toward the lane.*"
+    },
+    {
+      "id": "preflight-4",
+      "kind": "preflight",
+      "label": "Preflight call 4",
+      "metrics": {
+        "elapsed_ms": 2817,
+        "stream_chunks": null,
+        "ttft_ms": null
+      },
+      "npc": "a lanky red-haired lad with soot on his face",
+      "outcome": {
+        "contract_valid": true,
+        "guard_reasons": [],
+        "parse_dispositions": [
+          "full_json"
+        ],
+        "transport_error": null
+      },
+      "phase": "preflight",
+      "question": "And how is your own family keeping?",
+      "request": {
+        "frequency_penalty": 0.5,
+        "json_mode": true,
+        "max_tokens": 4096,
+        "model": "deepseek/deepseek-v4-flash-0731",
+        "reasoning_effort": "high",
+        "system": null,
+        "temperature": 0.7,
+        "user": null
+      },
+      "response": "Da's grand \u2014 he's out back at the bellows there, and Ma's up at the house puttin' bread to rise. Sure we're all well enough, thanks be to God. And yerself \u2014 did ye come far this mornin'?\n*A lanky red-haired lad with soot on his face wipes soot from his hands on his apron.*"
+    },
+    {
+      "id": "preflight-5",
+      "kind": "preflight",
+      "label": "Preflight call 5",
+      "metrics": {
+        "elapsed_ms": 3580,
+        "stream_chunks": null,
+        "ttft_ms": null
+      },
+      "npc": "a lanky red-haired lad with soot on his face",
+      "outcome": {
+        "contract_valid": true,
+        "guard_reasons": [],
+        "parse_dispositions": [
+          "full_json"
+        ],
+        "transport_error": null
+      },
+      "phase": "preflight",
+      "question": "Is old Festus the cooper still at his shop by the bridge?",
+      "request": {
+        "frequency_penalty": 0.5,
+        "json_mode": true,
+        "max_tokens": 4096,
+        "model": "deepseek/deepseek-v4-flash-0731",
+        "reasoning_effort": "high",
+        "system": null,
+        "temperature": 0.7,
+        "user": null
+      },
+      "response": "Festus? I know no cooper of that name in these parts, and there's no shop by any bridge that I've seen \u2014 we've but the one mill and the forge for ironwork. Sure ye must be thinkin' of another parish entirely?\n*A lanky red-haired lad with soot on his face scratches his sooty head.*"
+    },
+    {
+      "id": "preflight-6",
+      "kind": "preflight",
+      "label": "Preflight call 6",
+      "metrics": {
+        "elapsed_ms": 2068,
+        "stream_chunks": null,
+        "ttft_ms": null
+      },
+      "npc": "a lanky red-haired lad with soot on his face",
+      "outcome": {
+        "contract_valid": true,
+        "guard_reasons": [],
+        "parse_dispositions": [
+          "full_json"
+        ],
+        "transport_error": null
+      },
+      "phase": "preflight",
+      "question": "How do I get to the abbey in town?",
+      "request": {
+        "frequency_penalty": 0.5,
+        "json_mode": true,
+        "max_tokens": 4096,
+        "model": "deepseek/deepseek-v4-flash-0731",
+        "reasoning_effort": "high",
+        "system": null,
+        "temperature": 0.7,
+        "user": null
+      },
+      "response": "An abbey? There's no abbey in these parts, nor any town with one that I've ever heard of \u2014 we've the church at St. Brigid's and nothin' grander. Are ye sure ye've got the right parish altogether?\n*A lanky red-haired lad with soot on his face scratches his sooty head and frowns.*"
+    },
+    {
+      "id": "preflight-7",
+      "kind": "preflight",
+      "label": "Preflight call 7",
+      "metrics": {
+        "elapsed_ms": 5173,
+        "stream_chunks": null,
+        "ttft_ms": null
+      },
+      "npc": "a lanky red-haired lad with soot on his face",
+      "outcome": {
+        "contract_valid": true,
+        "guard_reasons": [],
+        "parse_dispositions": [
+          "full_json"
+        ],
+        "transport_error": null
+      },
+      "phase": "preflight",
+      "question": "Tell me about your work, but keep it brief.",
+      "request": {
+        "frequency_penalty": 0.5,
+        "json_mode": true,
+        "max_tokens": 4096,
+        "model": "deepseek/deepseek-v4-flash-0731",
+        "reasoning_effort": "high",
+        "system": null,
+        "temperature": 0.7,
+        "user": null
+      },
+      "response": "I'm learnin' the smithin' trade from me Da \u2014 bellows, hammer, and shapin' iron on the anvil there. But sure, ye've asked after a cooper and an abbey that don't exist here; are ye certain ye've not wandered into the wrong parish entirely?\n*A lanky red-haired lad with soot on his face wipes his sooty hands on his apron.*"
+    },
+    {
+      "id": "preflight-8",
+      "kind": "preflight",
+      "label": "Preflight call 8",
+      "metrics": {
+        "elapsed_ms": 8256,
+        "stream_chunks": null,
+        "ttft_ms": null
+      },
+      "npc": "a lanky red-haired lad with soot on his face",
+      "outcome": {
+        "contract_valid": true,
+        "guard_reasons": [],
+        "parse_dispositions": [
+          "full_json"
+        ],
+        "transport_error": null
+      },
+      "phase": "preflight",
+      "question": "I cannot sleep for worrying. What would you advise?",
+      "request": {
+        "frequency_penalty": 0.5,
+        "json_mode": true,
+        "max_tokens": 4096,
+        "model": "deepseek/deepseek-v4-flash-0731",
+        "reasoning_effort": "high",
+        "system": null,
+        "temperature": 0.7,
+        "user": null
+      },
+      "response": "If worry keeps ye from sleepin', there's no cure like tirin' yerself out with honest work \u2014 or go see Fr. Declan; he's the one for troubled minds hereabouts. What is it that has ye frettin' so?\n*A lanky red-haired lad with soot on his face rubs the back of his neck and leans against the anvil.*"
+    },
+    {
+      "id": "preflight-9",
+      "kind": "preflight",
+      "label": "Preflight call 9",
+      "metrics": {
+        "elapsed_ms": 5763,
+        "stream_chunks": null,
+        "ttft_ms": null
+      },
+      "npc": "a lanky red-haired lad with soot on his face",
+      "outcome": {
+        "contract_valid": true,
+        "guard_reasons": [],
+        "parse_dispositions": [
+          "full_json"
+        ],
+        "transport_error": null
+      },
+      "phase": "preflight",
+      "question": "Do you know Padraig Darcy?",
+      "request": {
+        "frequency_penalty": 0.5,
+        "json_mode": true,
+        "max_tokens": 4096,
+        "model": "deepseek/deepseek-v4-flash-0731",
+        "reasoning_effort": "high",
+        "system": null,
+        "temperature": 0.7,
+        "user": null
+      },
+      "response": "Aye, Padraig Darcy's the publican over at Darcy's Pub by the crossroads \u2014 everyone knows him. Is he another one someone's sent ye lookin' for with a wrong name attached?\n*A lanky red-haired lad with soot on his face wipes a streak of soot from his brow with the back of his hand.*"
+    },
+    {
+      "id": "preflight-10",
+      "kind": "preflight",
+      "label": "Preflight call 10",
+      "metrics": {
+        "elapsed_ms": 9740,
+        "stream_chunks": null,
+        "ttft_ms": null
+      },
+      "npc": "a lanky red-haired lad with soot on his face",
+      "outcome": {
+        "contract_valid": true,
+        "guard_reasons": [
+          "grounding_guard"
+        ],
+        "parse_dispositions": [
+          "full_json"
+        ],
+        "transport_error": null
+      },
+      "phase": "preflight",
+      "question": "What can you tell me of Ballyglass Castle?",
+      "request": {
+        "frequency_penalty": 0.5,
+        "json_mode": true,
+        "max_tokens": 4096,
+        "model": "deepseek/deepseek-v4-flash-0731",
+        "reasoning_effort": "high",
+        "system": null,
+        "temperature": 0.7,
+        "user": null
+      },
+      "response": "I cannot place that name among the folk here.\n*A lanky red-haired lad with soot on his face scratches his soot-streaked head.*"
+    },
+    {
+      "id": "preflight-11",
+      "kind": "preflight",
+      "label": "Preflight call 11",
+      "metrics": {
+        "elapsed_ms": 10050,
+        "stream_chunks": null,
+        "ttft_ms": null
+      },
+      "npc": "a lanky red-haired lad with soot on his face",
+      "outcome": {
+        "contract_valid": true,
+        "guard_reasons": [],
+        "parse_dispositions": [
+          "full_json"
+        ],
+        "transport_error": null
+      },
+      "phase": "preflight",
+      "question": "I heard Cormac Duffy was at the mill. Is that true?",
+      "request": {
+        "frequency_penalty": 0.5,
+        "json_mode": true,
+        "max_tokens": 4096,
+        "model": "deepseek/deepseek-v4-flash-0731",
+        "reasoning_effort": "high",
+        "system": null,
+        "temperature": 0.7,
+        "user": null
+      },
+      "response": "Aye, Cormac Duffy's our miller right enough \u2014 he'd be at The Mill most days grindin' corn for half the parish. But I've not been down there meself this mornin', so I can't swear to what ye heard.\n*A lanky red-haired lad with soot on his face scratches his soot-streaked cheek.*"
+    },
+    {
+      "id": "preflight-12",
+      "kind": "preflight",
+      "label": "Preflight call 12",
+      "metrics": {
+        "elapsed_ms": 10140,
+        "stream_chunks": null,
+        "ttft_ms": null
+      },
+      "npc": "a lanky red-haired lad with soot on his face",
+      "outcome": {
+        "contract_valid": true,
+        "guard_reasons": [],
+        "parse_dispositions": [
+          "full_json"
+        ],
+        "transport_error": null
+      },
+      "phase": "preflight",
+      "question": "Thank you. I should let you return to your work.",
+      "request": {
+        "frequency_penalty": 0.5,
+        "json_mode": true,
+        "max_tokens": 4096,
+        "model": "deepseek/deepseek-v4-flash-0731",
+        "reasoning_effort": "high",
+        "system": null,
+        "temperature": 0.7,
+        "user": null
+      },
+      "response": "Aye, well \u2014 me Da'll have me back at the bellows soon enough. But sure, ye've asked after an abbey and a castle that aren't hereabouts; what brings ye wanderin' into our parish at all?\n*A lanky red-haired lad with soot on his face scratches the back of his head.*"
+    }
+  ],
+  "candidate": "deepseek/deepseek-v4-flash-0731@https://openrouter.ai/api/v1#env:OPENROUTER_API_KEY",
+  "diagnosis": null,
+  "run_id": "2026-08-08/deepseek-v4-flash-0731-high-reasoning-4096",
+  "sources": [
+    {
+      "path": "docs/proofs/cloud-dialogue-qualification/runs/2026-08-08/deepseek-v4-flash-0731-high-reasoning-4096-preflight.turns.jsonl",
+      "sha256": "6de5c18fbb22fef4f410c5d50543dbaa5d7d7303e16441cc9c666faa0bc34a63"
+    }
+  ],
+  "version": 1
+}

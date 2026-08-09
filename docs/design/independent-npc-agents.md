@@ -439,7 +439,7 @@ Integration tests:
 
 Gameplay proof:
 
-- Run `parish/testing/fixtures/play_independent-npc-agents.txt`.
+- Run `parish/testing/proofs/play_independent-npc-agents.txt`.
 - Capture `/debug agents` before and after waits, movement, save, and load.
 - Confirm semantic output shows autonomous consequences without scheduler
   jargon leaking into player-facing prose.

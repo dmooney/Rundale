@@ -88,7 +88,8 @@ export const listAvailableProviders = () =>
  * Bindings for the local-inference onboarding flow (vllm-mlx on macOS).
  *
  * `OnboardingChoice` is serialized kebab-case by the Rust enum:
- *   "configured" | "local-recommended" | "local-low-mem" | "local-unavailable"
+ *   "configured" | "local-recommended" | "local-experimental" |
+ *   "local-low-mem" | "local-unavailable"
  *
  * `LocalSetupArgs.variant`:
  *   - "two-slot"   — 14B Dialogue + 1.5B small-slot. Recommended on Mac ≥ 16 GB.
@@ -97,6 +98,7 @@ export const listAvailableProviders = () =>
 export type OnboardingChoice =
 	| 'configured'
 	| 'local-recommended'
+	| 'local-experimental'
 	| 'local-low-mem'
 	| 'local-unavailable';
 

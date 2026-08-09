@@ -1,0 +1,31 @@
+# Verification fixture for generic-testbed-mod.
+#
+# Tests the testbed mod world structure, NPC placement, and navigation.
+# Run with mods/mod-list.toml set to active_setting = "testbed".
+#
+# Run:
+#   cargo run --manifest-path parish/Cargo.toml -p parish-cli \
+#     -- --script parish/testing/proofs/play_generic-testbed-mod.txt
+#
+# Expected: Origin start location, navigable cross graph, NPCs at correct stations.
+
+/status
+look
+/npcs
+go north
+look
+/npcs
+go south
+look
+go east
+look
+/npcs
+go west
+look
+go south
+look
+/npcs
+go north
+look
+/status
+/time

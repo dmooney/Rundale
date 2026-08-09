@@ -40,6 +40,7 @@ cargo run -p parish-harness -- compare --a 1 --b 2 --db /tmp/harness.db
 - **Own DB, own schema.** `harness.db` lives under `parish_persistence::paths::resolve_user_data_dir`. Mirror the persistence crate's WAL + hand-rolled `migrate()` idiom; do not touch the game's save schema.
 - **Validate artifact content (rule #14).** `frame/renderer.rs` must `Err` on a blank/degenerate frame. Ingest (`ingest.rs`) applies the same check before replaying through the sink — never accept empty frame bytes.
 - **Dirty tree excluded from regression deltas.** `git.rs` sets `dirty = true` when the working tree is unclean; the dashboard suppresses dirty runs from quality-over-time charts.
+- **A gated `run` exits nonzero after persisting its summary.** Do not turn a deterministic crash/parser/timeout/empty-turn gate back into process success; scheduled automation relies on the CLI exit status.
 - **`--player` sets both roles for back-compat; `--judge` overrides independently.** Passing only `--player api` also sets the judge to `api`. Passing `--judge api` separately keeps the roles independent (#1363).
 - **No dependents.** No other crate in the workspace depends on `parish-harness` at runtime; `parish-server` appears only as a dev-dependency for the wire-parity test.
 

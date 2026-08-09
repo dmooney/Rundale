@@ -117,6 +117,39 @@ fn test_build_system_prompt() {
 }
 
 #[test]
+fn tier1_system_prompt_has_cross_npc_cacheable_prefix() {
+    let first = Npc::new_test_npc();
+    let mut second = Npc::new_test_npc();
+    second.name = "Una Malone".to_string();
+    second.age = 48;
+    second.occupation = "Weaver".to_string();
+    second.personality = "Quietly observant and exacting about her work.".to_string();
+    let lang = LanguageSettings::english_only();
+    let first_prompt = build_tier1_system_prompt(&first, false, &lang);
+    let second_prompt = build_tier1_system_prompt(&second, false, &lang);
+    let marker = "CHARACTER IDENTITY:";
+    let first_prefix = first_prompt
+        .split_once(marker)
+        .expect("identity marker in first prompt")
+        .0;
+    let second_prefix = second_prompt
+        .split_once(marker)
+        .expect("identity marker in second prompt")
+        .0;
+
+    assert_eq!(
+        first_prefix, second_prefix,
+        "NPC-invariant instructions must precede identity for cross-NPC prefix-cache reuse"
+    );
+    assert!(
+        first_prefix.len() > 2_000,
+        "the shared cacheable prefix must include the substantive global contract"
+    );
+    assert!(first_prompt.contains("You are Padraig O'Brien"));
+    assert!(second_prompt.contains("You are Una Malone"));
+}
+
+#[test]
 fn test_build_context() {
     let world = WorldState::new();
     let context = build_tier1_context(&world);

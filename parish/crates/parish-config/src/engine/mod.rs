@@ -27,7 +27,9 @@ mod session;
 mod world;
 
 pub use encounters::EncounterConfig;
-pub use inference::{CategoryRateLimit, InferenceConfig, RateLimitConfig};
+pub use inference::{
+    CategoryRateLimit, DialogueGenerationConfig, InferenceConfig, RateLimitConfig, ReasoningEffort,
+};
 pub use map::{MapConfig, TileSourceConfig};
 pub use npc::{CognitiveTierConfig, NpcConfig, RelationshipLabelConfig};
 pub use palette::PaletteConfig;
@@ -215,6 +217,62 @@ memory_capacity = 30
     fn test_inference_log_capacity_default() {
         let cfg = InferenceConfig::default();
         assert_eq!(cfg.log_capacity, 50);
+    }
+
+    #[test]
+    fn test_dialogue_generation_defaults_preserve_existing_runtime_behavior() {
+        let generation = InferenceConfig::default().dialogue_generation;
+        assert_eq!(generation.max_tokens, 768);
+        assert!((generation.temperature - 0.7).abs() < f32::EPSILON);
+        assert_eq!(generation.frequency_penalty, Some(0.5));
+        assert!(generation.json_mode);
+        assert_eq!(generation.enable_thinking, None);
+        assert_eq!(generation.reasoning_effort, None);
+    }
+
+    #[test]
+    fn test_dialogue_generation_is_configurable() {
+        let cfg: EngineConfig = toml::from_str(
+            r#"
+[inference.dialogue_generation]
+max_tokens = 512
+temperature = 0.35
+frequency_penalty = 0.2
+json_mode = false
+enable_thinking = false
+reasoning_effort = "max"
+"#,
+        )
+        .unwrap();
+        let generation = cfg.inference.dialogue_generation;
+        assert_eq!(generation.max_tokens, 512);
+        assert!((generation.temperature - 0.35).abs() < f32::EPSILON);
+        assert_eq!(generation.frequency_penalty, Some(0.2));
+        assert!(!generation.json_mode);
+        assert_eq!(generation.enable_thinking, Some(false));
+        assert_eq!(generation.reasoning_effort, Some(ReasoningEffort::Max));
+    }
+
+    #[test]
+    fn promoted_openrouter_gemini_profile_defaults_to_low_reasoning() {
+        let promoted = DialogueGenerationConfig::default().for_model("google/gemini-3.6-flash");
+        assert_eq!(promoted.max_tokens, 768);
+        assert_eq!(promoted.temperature, 0.7);
+        assert_eq!(promoted.frequency_penalty, Some(0.5));
+        assert!(promoted.json_mode);
+        assert_eq!(promoted.enable_thinking, Some(true));
+        assert_eq!(promoted.reasoning_effort, Some(ReasoningEffort::Low));
+
+        let explicit = DialogueGenerationConfig {
+            reasoning_effort: Some(ReasoningEffort::High),
+            ..DialogueGenerationConfig::default()
+        }
+        .for_model("google/gemini-3.6-flash");
+        assert_eq!(explicit.reasoning_effort, Some(ReasoningEffort::High));
+        assert_eq!(explicit.enable_thinking, None);
+
+        let direct_google = DialogueGenerationConfig::default().for_model("gemini-3.6-flash");
+        assert_eq!(direct_google.reasoning_effort, None);
     }
 
     #[test]

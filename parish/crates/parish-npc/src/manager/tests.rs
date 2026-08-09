@@ -426,6 +426,30 @@ fn known_roster_descriptor_carries_pronouns_and_age() {
 }
 
 #[test]
+fn known_roster_has_stable_identity_order_for_prompt_caching() {
+    let mut mgr = NpcManager::new();
+    let mut subject = make_test_npc(10, 1);
+    subject.relationships.insert(
+        NpcId(7),
+        Relationship::new(crate::types::RelationshipKind::Friend, 0.5),
+    );
+    subject.relationships.insert(
+        NpcId(2),
+        Relationship::new(crate::types::RelationshipKind::Friend, 0.5),
+    );
+    mgr.add_npc(subject.clone());
+    mgr.add_npc(make_test_npc(7, 1));
+    mgr.add_npc(make_test_npc(2, 1));
+
+    let ids: Vec<_> = mgr
+        .known_roster(&subject)
+        .into_iter()
+        .map(|(id, _, _)| id)
+        .collect();
+    assert_eq!(ids, vec![NpcId(2), NpcId(7)]);
+}
+
+#[test]
 fn test_load_from_file() {
     let path = std::path::Path::new("data/npcs.json");
     if !path.exists() {

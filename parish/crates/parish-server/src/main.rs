@@ -36,6 +36,12 @@ struct Cli {
     #[arg(long, env = "PARISH_STATIC_DIR", value_name = "DIR")]
     static_dir: Option<PathBuf>,
 
+    /// Engine configuration file. Defaults to the `parish.toml` resolved from
+    /// `--data-dir`. This explicit override keeps benchmark experiments
+    /// isolated from the player's normal configuration.
+    #[arg(long, env = "PARISH_ENGINE_CONFIG", value_name = "FILE")]
+    engine_config: Option<PathBuf>,
+
     /// Bring up (or detect-and-reuse) the bundled local vllm-mlx Qwen models
     /// and bind the four inference categories to them, so `POST /api/command`
     /// produces real NPC dialogue with no desktop app (#1364). Dialogue uses
@@ -87,7 +93,14 @@ async fn main() -> Result<()> {
         headless_models,
     );
 
-    parish_server::run_server(cli.port, data_dir, static_dir, headless_models).await
+    parish_server::run_server_with_engine_config(
+        cli.port,
+        data_dir,
+        static_dir,
+        headless_models,
+        cli.engine_config,
+    )
+    .await
 }
 
 /// Sets up tracing and optional OpenTelemetry.

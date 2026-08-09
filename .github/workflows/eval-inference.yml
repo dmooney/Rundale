@@ -139,13 +139,22 @@ jobs:
       - name: Start parish web server
         working-directory: parish
         run: |
-          ./target/release/parish-server --port $PARISH_PORT &
+          set -euo pipefail
+          ./target/release/parish-server --port "$PARISH_PORT" &
           echo $! > .parish-pid
-          for i in $(seq 1 60); do
-            curl -fsS "http://127.0.0.1:$PARISH_PORT/api/health" >/dev/null 2>&1 && \
-              echo "parish ready" && break
+          ready=0
+          for _ in $(seq 1 60); do
+            if curl -fsS "http://127.0.0.1:$PARISH_PORT/api/health" >/dev/null 2>&1; then
+              echo "parish ready"
+              ready=1
+              break
+            fi
             sleep 1
           done
+          if [ "$ready" -ne 1 ]; then
+            echo "::error::parish-server did not become ready"
+            exit 1
+          fi
 
       - name: Run player agent
         working-directory: parish
@@ -161,20 +170,24 @@ jobs:
         run: |
           # Truncate to 6000 chars to stay within the model's context limit.
           LOG=$(python3 -c "
-          import json, pathlib, textwrap
+          import pathlib
           raw = pathlib.Path('parish/testing/eval/logs/${{ matrix.scenario }}-latest.json').read_text()
           print(raw[:6000] + ('...(truncated)' if len(raw) > 6000 else ''))
           ")
-          echo "log<<EOF" >> "$GITHUB_OUTPUT"
-          echo "$LOG" >> "$GITHUB_OUTPUT"
-          echo "EOF" >> "$GITHUB_OUTPUT"
+          {
+            echo "log<<EOF"
+            echo "$LOG"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Read rubric
         id: read_rubric
         run: |
-          echo "rubric<<EOF" >> "$GITHUB_OUTPUT"
-          cat parish/testing/eval/rubrics/${{ matrix.scenario }}.md >> "$GITHUB_OUTPUT"
-          echo "EOF" >> "$GITHUB_OUTPUT"
+          {
+            echo "rubric<<EOF"
+            cat parish/testing/eval/rubrics/${{ matrix.scenario }}.md
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Judge session
         id: judge
@@ -298,13 +311,22 @@ jobs:
       - name: Start parish web server
         working-directory: parish
         run: |
-          ./target/release/parish-server --port $PARISH_PORT &
+          set -euo pipefail
+          ./target/release/parish-server --port "$PARISH_PORT" &
           echo $! > .parish-pid
-          for i in $(seq 1 60); do
-            curl -fsS "http://127.0.0.1:$PARISH_PORT/api/health" >/dev/null 2>&1 && \
-              echo "parish ready" && break
+          ready=0
+          for _ in $(seq 1 60); do
+            if curl -fsS "http://127.0.0.1:$PARISH_PORT/api/health" >/dev/null 2>&1; then
+              echo "parish ready"
+              ready=1
+              break
+            fi
             sleep 1
           done
+          if [ "$ready" -ne 1 ]; then
+            echo "::error::parish-server did not become ready"
+            exit 1
+          fi
 
       - name: Run player agent (50 turns, scripted+llm mix)
         working-directory: parish
@@ -323,16 +345,20 @@ jobs:
           raw = pathlib.Path('parish/testing/eval/logs/full_session-latest.json').read_text()
           print(raw[:8000] + ('...(truncated)' if len(raw) > 8000 else ''))
           ")
-          echo "log<<EOF" >> "$GITHUB_OUTPUT"
-          echo "$LOG" >> "$GITHUB_OUTPUT"
-          echo "EOF" >> "$GITHUB_OUTPUT"
+          {
+            echo "log<<EOF"
+            echo "$LOG"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Read rubric
         id: read_rubric
         run: |
-          echo "rubric<<EOF" >> "$GITHUB_OUTPUT"
-          cat parish/testing/eval/rubrics/full_session.md >> "$GITHUB_OUTPUT"
-          echo "EOF" >> "$GITHUB_OUTPUT"
+          {
+            echo "rubric<<EOF"
+            cat parish/testing/eval/rubrics/full_session.md
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Judge session
         id: judge

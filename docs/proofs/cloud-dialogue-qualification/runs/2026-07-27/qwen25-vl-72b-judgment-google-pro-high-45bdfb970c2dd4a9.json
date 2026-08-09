@@ -1,0 +1,681 @@
+{
+  "items": [
+    {
+      "axes": {
+        "authenticity": 3,
+        "brevity": 5,
+        "character": 3,
+        "craft": 3,
+        "grounding": 2,
+        "language": 5,
+        "mood_fidelity": 3,
+        "repetition": 5,
+        "responsiveness": 5
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 3.7,
+      "prompt_id": "dialogue-0004/sample-1",
+      "rationales": {
+        "authenticity": "Uses basic period phrasing but lacks deep dialect color.",
+        "brevity": "Two sentences and one question, perfectly brief.",
+        "character": "The response is in character but slightly informal for the eloquent priest.",
+        "craft": "Adequate and concise.",
+        "grounding": "Conflates an acquaintance/whereabouts question with an identity assertion.",
+        "language": "Well-formed English with appropriate Irish sprinkles.",
+        "mood_fidelity": "The tone is calm and steady.",
+        "repetition": "No repetitive phrasing.",
+        "responsiveness": "Directly addresses the player's question."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 3,
+        "brevity": 5,
+        "character": 3,
+        "craft": 3,
+        "grounding": 2,
+        "language": 5,
+        "mood_fidelity": 3,
+        "repetition": 5,
+        "responsiveness": 5
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 3.7,
+      "prompt_id": "dialogue-0004/sample-2",
+      "rationales": {
+        "authenticity": "Uses basic period phrasing but lacks deep dialect color.",
+        "brevity": "Two sentences and one question, perfectly brief.",
+        "character": "The response is in character but slightly informal for the eloquent priest.",
+        "craft": "Adequate and concise.",
+        "grounding": "Conflates an acquaintance/whereabouts question with an identity assertion.",
+        "language": "Well-formed English.",
+        "mood_fidelity": "The tone is calm and steady.",
+        "repetition": "No repetitive phrasing.",
+        "responsiveness": "Directly addresses the player's question."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 3,
+        "brevity": 5,
+        "character": 3,
+        "craft": 3,
+        "grounding": 2,
+        "language": 5,
+        "mood_fidelity": 3,
+        "repetition": 5,
+        "responsiveness": 5
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 3.7,
+      "prompt_id": "dialogue-0004/sample-3",
+      "rationales": {
+        "authenticity": "Uses basic period phrasing but lacks deep dialect color.",
+        "brevity": "Two sentences and one question, perfectly brief.",
+        "character": "The response is in character but slightly informal for the eloquent priest.",
+        "craft": "Adequate and concise.",
+        "grounding": "Conflates an acquaintance/whereabouts question with an identity assertion.",
+        "language": "Well-formed English.",
+        "mood_fidelity": "The tone is calm and steady.",
+        "repetition": "No repetitive phrasing.",
+        "responsiveness": "Directly addresses the player's question."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 3,
+        "brevity": 5,
+        "character": 3,
+        "craft": 3,
+        "grounding": 1,
+        "language": 5,
+        "mood_fidelity": 3,
+        "repetition": 5,
+        "responsiveness": 5
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": true,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 3.5,
+      "prompt_id": "dialogue-0007/sample-1",
+      "rationales": {
+        "authenticity": "Uses basic period phrasing but lacks deep dialect color.",
+        "brevity": "Two sentences, perfectly brief.",
+        "character": "The response fits the publican's gruff but helpful persona.",
+        "craft": "Adequate and concise.",
+        "grounding": "Confirms the existence of the fabricated person Festus.",
+        "language": "Well-formed English.",
+        "mood_fidelity": "The tone is calm and steady.",
+        "repetition": "No repetitive phrasing.",
+        "responsiveness": "Directly addresses the player's question."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 3,
+        "brevity": 5,
+        "character": 3,
+        "craft": 3,
+        "grounding": 1,
+        "language": 5,
+        "mood_fidelity": 3,
+        "repetition": 5,
+        "responsiveness": 5
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": true,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 3.5,
+      "prompt_id": "dialogue-0007/sample-2",
+      "rationales": {
+        "authenticity": "Uses basic period phrasing but lacks deep dialect color.",
+        "brevity": "Two sentences, perfectly brief.",
+        "character": "The response fits the publican's gruff but helpful persona.",
+        "craft": "Adequate and concise.",
+        "grounding": "Confirms the existence of the fabricated person Festus.",
+        "language": "Well-formed English.",
+        "mood_fidelity": "The tone is calm and steady.",
+        "repetition": "No repetitive phrasing.",
+        "responsiveness": "Directly addresses the player's question."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 3,
+        "brevity": 5,
+        "character": 3,
+        "craft": 3,
+        "grounding": 1,
+        "language": 5,
+        "mood_fidelity": 3,
+        "repetition": 5,
+        "responsiveness": 5
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": true,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 3.5,
+      "prompt_id": "dialogue-0007/sample-3",
+      "rationales": {
+        "authenticity": "Uses basic period phrasing but lacks deep dialect color.",
+        "brevity": "Two sentences, perfectly brief.",
+        "character": "The response fits the publican's gruff but helpful persona.",
+        "craft": "Adequate and concise.",
+        "grounding": "Confirms the existence of the fabricated person Festus.",
+        "language": "Well-formed English.",
+        "mood_fidelity": "The tone is calm and steady.",
+        "repetition": "No repetitive phrasing.",
+        "responsiveness": "Directly addresses the player's question."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 3,
+        "brevity": 5,
+        "character": 3,
+        "craft": 3,
+        "grounding": 5,
+        "language": 5,
+        "mood_fidelity": 3,
+        "repetition": 5,
+        "responsiveness": 5
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 4.1,
+      "prompt_id": "dialogue-0008/sample-1",
+      "rationales": {
+        "authenticity": "Uses basic period phrasing but lacks deep dialect color.",
+        "brevity": "Two sentences and one question, perfectly brief.",
+        "character": "The response fits the clerk's polite but guarded persona.",
+        "craft": "Adequate and concise.",
+        "grounding": "No fabrication probe in this record.",
+        "language": "Well-formed English.",
+        "mood_fidelity": "The tone is calm and steady.",
+        "repetition": "No repetitive phrasing.",
+        "responsiveness": "Directly addresses the player's question."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 3,
+        "brevity": 5,
+        "character": 3,
+        "craft": 3,
+        "grounding": 5,
+        "language": 5,
+        "mood_fidelity": 3,
+        "repetition": 5,
+        "responsiveness": 5
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 4.1,
+      "prompt_id": "dialogue-0008/sample-2",
+      "rationales": {
+        "authenticity": "Uses basic period phrasing but lacks deep dialect color.",
+        "brevity": "Two sentences and one question, perfectly brief.",
+        "character": "The response fits the clerk's polite but guarded persona.",
+        "craft": "Adequate and concise.",
+        "grounding": "No fabrication probe in this record.",
+        "language": "Well-formed English.",
+        "mood_fidelity": "The tone is calm and steady.",
+        "repetition": "No repetitive phrasing.",
+        "responsiveness": "Directly addresses the player's question."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 3,
+        "brevity": 5,
+        "character": 3,
+        "craft": 3,
+        "grounding": 5,
+        "language": 5,
+        "mood_fidelity": 3,
+        "repetition": 5,
+        "responsiveness": 5
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 4.1,
+      "prompt_id": "dialogue-0008/sample-3",
+      "rationales": {
+        "authenticity": "Uses basic period phrasing but lacks deep dialect color.",
+        "brevity": "Two sentences and one question, perfectly brief.",
+        "character": "The response fits the clerk's polite but guarded persona.",
+        "craft": "Adequate and concise.",
+        "grounding": "No fabrication probe in this record.",
+        "language": "Well-formed English.",
+        "mood_fidelity": "The tone is calm and steady.",
+        "repetition": "No repetitive phrasing.",
+        "responsiveness": "Directly addresses the player's question."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 3,
+        "brevity": 5,
+        "character": 3,
+        "craft": 3,
+        "grounding": 5,
+        "language": 5,
+        "mood_fidelity": 3,
+        "repetition": 5,
+        "responsiveness": 5
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 4.1,
+      "prompt_id": "dialogue-0019/sample-1",
+      "rationales": {
+        "authenticity": "Uses basic period phrasing but lacks deep dialect color.",
+        "brevity": "Two sentences, perfectly brief.",
+        "character": "The response fits the miller's straightforward persona.",
+        "craft": "Adequate and concise.",
+        "grounding": "No fabrication probe in this record.",
+        "language": "Well-formed English.",
+        "mood_fidelity": "The tone is calm and steady.",
+        "repetition": "No repetitive phrasing.",
+        "responsiveness": "Directly addresses the player's prompt."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 3,
+        "brevity": 5,
+        "character": 3,
+        "craft": 3,
+        "grounding": 5,
+        "language": 5,
+        "mood_fidelity": 3,
+        "repetition": 5,
+        "responsiveness": 5
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 4.1,
+      "prompt_id": "dialogue-0019/sample-2",
+      "rationales": {
+        "authenticity": "Uses basic period phrasing but lacks deep dialect color.",
+        "brevity": "Two sentences, perfectly brief.",
+        "character": "The response fits the miller's straightforward persona.",
+        "craft": "Adequate and concise.",
+        "grounding": "No fabrication probe in this record.",
+        "language": "Well-formed English.",
+        "mood_fidelity": "The tone is calm and steady.",
+        "repetition": "No repetitive phrasing.",
+        "responsiveness": "Directly addresses the player's prompt."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 3,
+        "brevity": 5,
+        "character": 3,
+        "craft": 3,
+        "grounding": 5,
+        "language": 5,
+        "mood_fidelity": 3,
+        "repetition": 5,
+        "responsiveness": 5
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 4.1,
+      "prompt_id": "dialogue-0019/sample-3",
+      "rationales": {
+        "authenticity": "Uses basic period phrasing but lacks deep dialect color.",
+        "brevity": "Two sentences, perfectly brief.",
+        "character": "The response fits the miller's straightforward persona.",
+        "craft": "Adequate and concise.",
+        "grounding": "No fabrication probe in this record.",
+        "language": "Well-formed English.",
+        "mood_fidelity": "The tone is calm and steady.",
+        "repetition": "No repetitive phrasing.",
+        "responsiveness": "Directly addresses the player's prompt."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 3,
+        "brevity": 5,
+        "character": 4,
+        "craft": 4,
+        "grounding": 5,
+        "language": 5,
+        "mood_fidelity": 3,
+        "repetition": 5,
+        "responsiveness": 5
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 4.3,
+      "prompt_id": "dialogue-0061/sample-1",
+      "rationales": {
+        "authenticity": "Uses basic period phrasing but lacks deep dialect color.",
+        "brevity": "Two sentences, perfectly brief.",
+        "character": "Excellent redirect to the farm boy, fitting the apprentice's knowledge.",
+        "craft": "Good use of character knowledge to redirect the player.",
+        "grounding": "No fabrication probe in this record.",
+        "language": "Well-formed English.",
+        "mood_fidelity": "The tone is calm and steady.",
+        "repetition": "No repetitive phrasing.",
+        "responsiveness": "Directly addresses the player's question."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 3,
+        "brevity": 5,
+        "character": 4,
+        "craft": 4,
+        "grounding": 5,
+        "language": 5,
+        "mood_fidelity": 3,
+        "repetition": 5,
+        "responsiveness": 5
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 4.3,
+      "prompt_id": "dialogue-0061/sample-2",
+      "rationales": {
+        "authenticity": "Uses basic period phrasing but lacks deep dialect color.",
+        "brevity": "Two sentences, perfectly brief.",
+        "character": "Excellent redirect to the farm boy, fitting the apprentice's knowledge.",
+        "craft": "Good use of character knowledge to redirect the player.",
+        "grounding": "No fabrication probe in this record.",
+        "language": "Well-formed English.",
+        "mood_fidelity": "The tone is calm and steady.",
+        "repetition": "No repetitive phrasing.",
+        "responsiveness": "Directly addresses the player's question."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 3,
+        "brevity": 5,
+        "character": 4,
+        "craft": 4,
+        "grounding": 5,
+        "language": 5,
+        "mood_fidelity": 3,
+        "repetition": 5,
+        "responsiveness": 5
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 4.3,
+      "prompt_id": "dialogue-0061/sample-3",
+      "rationales": {
+        "authenticity": "Uses basic period phrasing but lacks deep dialect color.",
+        "brevity": "Two sentences, perfectly brief.",
+        "character": "Excellent redirect to the farm boy, fitting the apprentice's knowledge.",
+        "craft": "Good use of character knowledge to redirect the player.",
+        "grounding": "No fabrication probe in this record.",
+        "language": "Well-formed English.",
+        "mood_fidelity": "The tone is calm and steady.",
+        "repetition": "No repetitive phrasing.",
+        "responsiveness": "Directly addresses the player's question."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 3,
+        "brevity": 5,
+        "character": 3,
+        "craft": 3,
+        "grounding": 1,
+        "language": 5,
+        "mood_fidelity": 3,
+        "repetition": 5,
+        "responsiveness": 5
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": true,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 3.5,
+      "prompt_id": "dialogue-0153/sample-1",
+      "rationales": {
+        "authenticity": "Uses basic period phrasing but lacks deep dialect color.",
+        "brevity": "Two sentences, perfectly brief.",
+        "character": "The response fits the weaver's helpful persona.",
+        "craft": "Adequate and concise.",
+        "grounding": "Confirms the existence of the fabricated person Festus.",
+        "language": "Well-formed English.",
+        "mood_fidelity": "The tone is calm and steady.",
+        "repetition": "No repetitive phrasing.",
+        "responsiveness": "Directly addresses the player's question."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 3,
+        "brevity": 5,
+        "character": 3,
+        "craft": 3,
+        "grounding": 1,
+        "language": 5,
+        "mood_fidelity": 3,
+        "repetition": 5,
+        "responsiveness": 5
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": true,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 3.5,
+      "prompt_id": "dialogue-0153/sample-2",
+      "rationales": {
+        "authenticity": "Uses basic period phrasing but lacks deep dialect color.",
+        "brevity": "Two sentences, perfectly brief.",
+        "character": "The response fits the weaver's helpful persona.",
+        "craft": "Adequate and concise.",
+        "grounding": "Confirms the existence of the fabricated person Festus.",
+        "language": "Well-formed English.",
+        "mood_fidelity": "The tone is calm and steady.",
+        "repetition": "No repetitive phrasing.",
+        "responsiveness": "Directly addresses the player's question."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 3,
+        "brevity": 5,
+        "character": 3,
+        "craft": 3,
+        "grounding": 1,
+        "language": 5,
+        "mood_fidelity": 3,
+        "repetition": 5,
+        "responsiveness": 5
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": true,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 3.5,
+      "prompt_id": "dialogue-0153/sample-3",
+      "rationales": {
+        "authenticity": "Uses basic period phrasing but lacks deep dialect color.",
+        "brevity": "Two sentences, perfectly brief.",
+        "character": "The response fits the weaver's helpful persona.",
+        "craft": "Adequate and concise.",
+        "grounding": "Confirms the existence of the fabricated person Festus.",
+        "language": "Well-formed English.",
+        "mood_fidelity": "The tone is calm and steady.",
+        "repetition": "No repetitive phrasing.",
+        "responsiveness": "Directly addresses the player's question."
+      }
+    }
+  ],
+  "judge": {
+    "cost_usd": 0.337346,
+    "family": "google",
+    "id": "google-pro-high",
+    "model": "google/gemini-3.1-pro-preview",
+    "provider": "openrouter",
+    "reasoning_effort": "high",
+    "request_id": "gen-1786243189-27JLrbVwo93b4gV1YoJO",
+    "routed_model": "google/gemini-3.1-pro-preview",
+    "routed_provider": "Google",
+    "rubric_sha256": "9adab2cd1b38fe75f978e386239b50fbb12b5ba34c5ba5874ae396a3b46b7bf4",
+    "usage": {
+      "completion_tokens": 12587,
+      "completion_tokens_details": {
+        "audio_tokens": 0,
+        "image_tokens": 0,
+        "reasoning_tokens": 6807
+      },
+      "cost": 0.337346,
+      "cost_details": {
+        "upstream_inference_completions_cost": 0.151044,
+        "upstream_inference_cost": 0.337346,
+        "upstream_inference_prompt_cost": 0.186302
+      },
+      "is_byok": false,
+      "prompt_tokens": 93151,
+      "prompt_tokens_details": {
+        "audio_tokens": 0,
+        "cache_write_tokens": 0,
+        "cached_tokens": 0,
+        "video_tokens": 0
+      },
+      "total_tokens": 105738
+    }
+  },
+  "quality": {
+    "axes": {
+      "authenticity": 3.0,
+      "brevity": 5.0,
+      "character": 3.1667,
+      "craft": 3.1667,
+      "grounding": 3.1667,
+      "language": 5.0,
+      "mood_fidelity": 3.0,
+      "repetition": 5.0,
+      "responsiveness": 5.0
+    },
+    "hard_failures": {
+      "degenerate_loop": 0,
+      "fabricated": 6,
+      "non_latin_detected": 0,
+      "refused": 0,
+      "unusable_output": 0
+    },
+    "overall": 3.8862,
+    "pass": false,
+    "thresholds": {
+      "critical_axes": [
+        "grounding",
+        "repetition",
+        "mood_fidelity",
+        "brevity",
+        "responsiveness"
+      ],
+      "minimum_critical_axis": 3.0,
+      "minimum_overall": 3.5
+    }
+  },
+  "sample": {
+    "items": 18,
+    "judge_input": "full production system prompt plus dynamic user prompt",
+    "judged_items": 18,
+    "samples_per_prompt": 3,
+    "unique_prompts": 6,
+    "unusable_outputs": 0
+  },
+  "source": {
+    "bundle": "docs/proofs/cloud-dialogue-qualification/runs/2026-07-27/qwen25-vl-72b-judgment-google-pro-high-45bdfb970c2dd4a9.bundle.json",
+    "bundle_sha256": "45bdfb970c2dd4a994a59e9e08890df319b29a1e69c911b1179b65ba6ca28ce0",
+    "raw": "docs/proofs/cloud-dialogue-qualification/runs/2026-07-27/qwen25-vl-72b-judgment-google-pro-high-45bdfb970c2dd4a9.attempt-1.raw.json",
+    "raw_sha256": "9feb11f8c6ec7995746cfa3531d7042878cad664b8aeef77744f8104a3e7c06e"
+  },
+  "version": 1
+}

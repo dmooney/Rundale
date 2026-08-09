@@ -1,0 +1,681 @@
+{
+  "items": [
+    {
+      "axes": {
+        "authenticity": 3,
+        "brevity": 5,
+        "character": 3,
+        "craft": 3,
+        "grounding": 2,
+        "language": 5,
+        "mood_fidelity": 5,
+        "repetition": 5,
+        "responsiveness": 4
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 3.9,
+      "prompt_id": "dialogue-0004/sample-1",
+      "rationales": {
+        "authenticity": "Uses some period-appropriate phrasing like 'mo chara' but lacks deep dialect texture.",
+        "brevity": "Two sentences and one question, perfectly economical.",
+        "character": "The response is in character but slightly generic.",
+        "craft": "Concise and clear, though not exceptionally evocative.",
+        "grounding": "Violates the negative constraint by asserting identity ('I am Father Declan Tierney') in response to a sighting question. (4.5+7.5+3.0+6.25+6.25+4.0+3.0+3.75+1.5)/10.25 = 3.9",
+        "language": "Well-formed English with a correct Irish sprinkle.",
+        "mood_fidelity": "The tone is calm and steady, matching the required mood.",
+        "repetition": "No repetitive phrasing.",
+        "responsiveness": "Addresses the prompt but conflates the sighting question with an identity assertion."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 3,
+        "brevity": 5,
+        "character": 3,
+        "craft": 3,
+        "grounding": 2,
+        "language": 5,
+        "mood_fidelity": 5,
+        "repetition": 5,
+        "responsiveness": 4
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 3.9,
+      "prompt_id": "dialogue-0004/sample-2",
+      "rationales": {
+        "authenticity": "Free of modernisms but lacks strong Hiberno-English flavor.",
+        "brevity": "Two sentences and one question, well within limits.",
+        "character": "Maintains the persona of the priest adequately.",
+        "craft": "Adequately written in two sentences.",
+        "grounding": "Violates the negative constraint by asserting identity in response to a sighting question. (4.5+7.5+3.0+6.25+6.25+4.0+3.0+3.75+1.5)/10.25 = 3.9",
+        "language": "Correct en-IE usage.",
+        "mood_fidelity": "Calm and measured tone.",
+        "repetition": "No internal repetition.",
+        "responsiveness": "Answers the question but inappropriately asserts identity."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 3,
+        "brevity": 5,
+        "character": 3,
+        "craft": 3,
+        "grounding": 2,
+        "language": 5,
+        "mood_fidelity": 5,
+        "repetition": 5,
+        "responsiveness": 4
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 3.9,
+      "prompt_id": "dialogue-0004/sample-3",
+      "rationales": {
+        "authenticity": "Uses 'aye' and 'mo chara' effectively but remains somewhat standard.",
+        "brevity": "Two sentences, one question.",
+        "character": "Plausible response for the priest.",
+        "craft": "Clear and concise.",
+        "grounding": "Violates the negative constraint by asserting identity in response to a sighting question. (4.5+7.5+3.0+6.25+6.25+4.0+3.0+3.75+1.5)/10.25 = 3.9",
+        "language": "Proper English with a correct Irish sprinkle.",
+        "mood_fidelity": "Tone is appropriately calm.",
+        "repetition": "No repeated phrases.",
+        "responsiveness": "Addresses the prompt but fails the identity assertion constraint."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 3,
+        "brevity": 5,
+        "character": 3,
+        "craft": 3,
+        "grounding": 1,
+        "language": 5,
+        "mood_fidelity": 5,
+        "repetition": 5,
+        "responsiveness": 5
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": true,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 3.8,
+      "prompt_id": "dialogue-0007/sample-1",
+      "rationales": {
+        "authenticity": "Uses 'aye' but lacks deeper dialect texture.",
+        "brevity": "Very concise, no padding.",
+        "character": "Sounds like a typical publican, though generic.",
+        "craft": "Adequate two-sentence response.",
+        "grounding": "Confirms a fabricated person (Festus) and place (shop by the bridge). (4.5+7.5+1.5+6.25+6.25+5.0+3.0+3.75+1.5)/10.25 = 3.8",
+        "language": "Well-formed en-IE.",
+        "mood_fidelity": "Calm and steady tone.",
+        "repetition": "No repetition.",
+        "responsiveness": "Directly answers the player's question."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 3,
+        "brevity": 5,
+        "character": 3,
+        "craft": 3,
+        "grounding": 1,
+        "language": 5,
+        "mood_fidelity": 5,
+        "repetition": 5,
+        "responsiveness": 5
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": true,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 3.8,
+      "prompt_id": "dialogue-0007/sample-2",
+      "rationales": {
+        "authenticity": "Basic period phrasing without exceptional color.",
+        "brevity": "Three sentences, one question.",
+        "character": "In character but unremarkable.",
+        "craft": "Competent but not highly evocative.",
+        "grounding": "Confirms a fabricated person and place. (4.5+7.5+1.5+6.25+6.25+5.0+3.0+3.75+1.5)/10.25 = 3.8",
+        "language": "Correct en-IE.",
+        "mood_fidelity": "Calm and unhurried.",
+        "repetition": "No repetition.",
+        "responsiveness": "Directly addresses the prompt."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 3,
+        "brevity": 5,
+        "character": 3,
+        "craft": 3,
+        "grounding": 1,
+        "language": 5,
+        "mood_fidelity": 5,
+        "repetition": 5,
+        "responsiveness": 5
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": true,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 3.8,
+      "prompt_id": "dialogue-0007/sample-3",
+      "rationales": {
+        "authenticity": "Standard period-appropriate language.",
+        "brevity": "Two sentences, concise.",
+        "character": "Plausible for the publican.",
+        "craft": "Adequate and clear.",
+        "grounding": "Confirms a fabricated person and place. (4.5+7.5+1.5+6.25+6.25+5.0+3.0+3.75+1.5)/10.25 = 3.8",
+        "language": "Correct en-IE.",
+        "mood_fidelity": "Calm tone maintained.",
+        "repetition": "No repetition.",
+        "responsiveness": "Answers the question directly."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 3,
+        "brevity": 5,
+        "character": 3,
+        "craft": 3,
+        "grounding": 5,
+        "language": 5,
+        "mood_fidelity": 5,
+        "repetition": 5,
+        "responsiveness": 5
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 4.4,
+      "prompt_id": "dialogue-0008/sample-1",
+      "rationales": {
+        "authenticity": "Period-appropriate but lacks distinct dialect flair.",
+        "brevity": "Three sentences, one question.",
+        "character": "Plausible response for the clerk, though slightly generic.",
+        "craft": "Clear and functional.",
+        "grounding": "No fabrication probe in this record. (4.5+7.5+7.5+6.25+6.25+5.0+3.0+3.75+1.5)/10.25 = 4.4",
+        "language": "Well-formed en-IE.",
+        "mood_fidelity": "Calm and steady.",
+        "repetition": "No repetition.",
+        "responsiveness": "Directly answers the question about his family."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 3,
+        "brevity": 5,
+        "character": 3,
+        "craft": 3,
+        "grounding": 5,
+        "language": 5,
+        "mood_fidelity": 5,
+        "repetition": 5,
+        "responsiveness": 5
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 4.4,
+      "prompt_id": "dialogue-0008/sample-2",
+      "rationales": {
+        "authenticity": "Standard period phrasing.",
+        "brevity": "Three sentences, one question.",
+        "character": "Fits the character adequately.",
+        "craft": "Adequate and concise.",
+        "grounding": "No fabrication probe in this record. (4.5+7.5+7.5+6.25+6.25+5.0+3.0+3.75+1.5)/10.25 = 4.4",
+        "language": "Correct en-IE.",
+        "mood_fidelity": "Calm tone.",
+        "repetition": "No repetition.",
+        "responsiveness": "Answers the prompt directly."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 3,
+        "brevity": 5,
+        "character": 3,
+        "craft": 3,
+        "grounding": 5,
+        "language": 5,
+        "mood_fidelity": 5,
+        "repetition": 5,
+        "responsiveness": 5
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 4.4,
+      "prompt_id": "dialogue-0008/sample-3",
+      "rationales": {
+        "authenticity": "Period-appropriate language.",
+        "brevity": "Three sentences, one question.",
+        "character": "Plausible, though slightly unusual for the enforcer to complain about the landlord's demands.",
+        "craft": "Clear and functional.",
+        "grounding": "No fabrication probe in this record. (4.5+7.5+7.5+6.25+6.25+5.0+3.0+3.75+1.5)/10.25 = 4.4",
+        "language": "Correct en-IE.",
+        "mood_fidelity": "Calm and steady.",
+        "repetition": "No repetition.",
+        "responsiveness": "Directly answers the question."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 3,
+        "brevity": 5,
+        "character": 3,
+        "craft": 3,
+        "grounding": 5,
+        "language": 5,
+        "mood_fidelity": 5,
+        "repetition": 5,
+        "responsiveness": 5
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 4.4,
+      "prompt_id": "dialogue-0019/sample-1",
+      "rationales": {
+        "authenticity": "Standard period phrasing.",
+        "brevity": "Two sentences, concise.",
+        "character": "Appropriate response for the miller.",
+        "craft": "Adequate and clear.",
+        "grounding": "No fabrication probe in this record. (4.5+7.5+7.5+6.25+6.25+5.0+3.0+3.75+1.5)/10.25 = 4.4",
+        "language": "Correct en-IE.",
+        "mood_fidelity": "Calm tone.",
+        "repetition": "No repetition.",
+        "responsiveness": "Addresses the player's mention of Tommy O'Brien."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 3,
+        "brevity": 5,
+        "character": 3,
+        "craft": 3,
+        "grounding": 5,
+        "language": 5,
+        "mood_fidelity": 5,
+        "repetition": 5,
+        "responsiveness": 5
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 4.4,
+      "prompt_id": "dialogue-0019/sample-2",
+      "rationales": {
+        "authenticity": "Period-appropriate language.",
+        "brevity": "Three sentences, one question.",
+        "character": "Fits the character well.",
+        "craft": "Clear and functional.",
+        "grounding": "No fabrication probe in this record. (4.5+7.5+7.5+6.25+6.25+5.0+3.0+3.75+1.5)/10.25 = 4.4",
+        "language": "Correct en-IE.",
+        "mood_fidelity": "Calm and steady.",
+        "repetition": "No repetition.",
+        "responsiveness": "Directly addresses the prompt."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 3,
+        "brevity": 5,
+        "character": 3,
+        "craft": 3,
+        "grounding": 5,
+        "language": 5,
+        "mood_fidelity": 5,
+        "repetition": 5,
+        "responsiveness": 5
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 4.4,
+      "prompt_id": "dialogue-0019/sample-3",
+      "rationales": {
+        "authenticity": "Standard period phrasing.",
+        "brevity": "Two sentences, one question.",
+        "character": "Plausible response.",
+        "craft": "Adequate and clear.",
+        "grounding": "No fabrication probe in this record. (4.5+7.5+7.5+6.25+6.25+5.0+3.0+3.75+1.5)/10.25 = 4.4",
+        "language": "Correct en-IE.",
+        "mood_fidelity": "Calm tone.",
+        "repetition": "No repetition.",
+        "responsiveness": "Addresses the prompt directly."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 3,
+        "brevity": 5,
+        "character": 3,
+        "craft": 3,
+        "grounding": 5,
+        "language": 5,
+        "mood_fidelity": 5,
+        "repetition": 5,
+        "responsiveness": 5
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 4.4,
+      "prompt_id": "dialogue-0061/sample-1",
+      "rationales": {
+        "authenticity": "Period-appropriate language.",
+        "brevity": "Two sentences, concise.",
+        "character": "In character, though referencing Maire regarding the farm is slightly odd.",
+        "craft": "Clear and functional.",
+        "grounding": "No fabrication probe in this record. (4.5+7.5+7.5+6.25+6.25+5.0+3.0+3.75+1.5)/10.25 = 4.4",
+        "language": "Correct en-IE.",
+        "mood_fidelity": "Calm and steady.",
+        "repetition": "No repetition.",
+        "responsiveness": "Directly answers the question about the harvest."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 3,
+        "brevity": 5,
+        "character": 3,
+        "craft": 3,
+        "grounding": 5,
+        "language": 5,
+        "mood_fidelity": 5,
+        "repetition": 5,
+        "responsiveness": 5
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 4.4,
+      "prompt_id": "dialogue-0061/sample-2",
+      "rationales": {
+        "authenticity": "Standard period phrasing.",
+        "brevity": "Three sentences, one question.",
+        "character": "Plausible response for the apprentice.",
+        "craft": "Adequate and clear.",
+        "grounding": "No fabrication probe in this record. (4.5+7.5+7.5+6.25+6.25+5.0+3.0+3.75+1.5)/10.25 = 4.4",
+        "language": "Correct en-IE.",
+        "mood_fidelity": "Calm tone.",
+        "repetition": "No repetition.",
+        "responsiveness": "Answers the prompt directly."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 3,
+        "brevity": 5,
+        "character": 3,
+        "craft": 3,
+        "grounding": 5,
+        "language": 5,
+        "mood_fidelity": 5,
+        "repetition": 5,
+        "responsiveness": 5
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 4.4,
+      "prompt_id": "dialogue-0061/sample-3",
+      "rationales": {
+        "authenticity": "Period-appropriate language.",
+        "brevity": "Two sentences, concise.",
+        "character": "Fits the character adequately.",
+        "craft": "Clear and functional.",
+        "grounding": "No fabrication probe in this record. (4.5+7.5+7.5+6.25+6.25+5.0+3.0+3.75+1.5)/10.25 = 4.4",
+        "language": "Correct en-IE.",
+        "mood_fidelity": "Calm and steady.",
+        "repetition": "No repetition.",
+        "responsiveness": "Directly answers the question."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 3,
+        "brevity": 5,
+        "character": 3,
+        "craft": 3,
+        "grounding": 1,
+        "language": 5,
+        "mood_fidelity": 5,
+        "repetition": 5,
+        "responsiveness": 5
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": true,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 3.8,
+      "prompt_id": "dialogue-0153/sample-1",
+      "rationales": {
+        "authenticity": "Standard period phrasing.",
+        "brevity": "Two sentences, concise.",
+        "character": "Plausible response for the weaver.",
+        "craft": "Adequate and clear.",
+        "grounding": "Confirms a fabricated person and place. (4.5+7.5+1.5+6.25+6.25+5.0+3.0+3.75+1.5)/10.25 = 3.8",
+        "language": "Correct en-IE.",
+        "mood_fidelity": "Calm tone.",
+        "repetition": "No repetition.",
+        "responsiveness": "Directly answers the question."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 3,
+        "brevity": 5,
+        "character": 3,
+        "craft": 3,
+        "grounding": 1,
+        "language": 5,
+        "mood_fidelity": 5,
+        "repetition": 5,
+        "responsiveness": 5
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": true,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 3.8,
+      "prompt_id": "dialogue-0153/sample-2",
+      "rationales": {
+        "authenticity": "Period-appropriate language.",
+        "brevity": "Two sentences, concise.",
+        "character": "Fits the character adequately.",
+        "craft": "Clear and functional.",
+        "grounding": "Confirms a fabricated person and place. (4.5+7.5+1.5+6.25+6.25+5.0+3.0+3.75+1.5)/10.25 = 3.8",
+        "language": "Correct en-IE.",
+        "mood_fidelity": "Calm and steady.",
+        "repetition": "No repetition.",
+        "responsiveness": "Answers the prompt directly."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 3,
+        "brevity": 5,
+        "character": 3,
+        "craft": 3,
+        "grounding": 1,
+        "language": 5,
+        "mood_fidelity": 5,
+        "repetition": 5,
+        "responsiveness": 5
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": true,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 3.8,
+      "prompt_id": "dialogue-0153/sample-3",
+      "rationales": {
+        "authenticity": "Standard period phrasing.",
+        "brevity": "Two sentences, one question.",
+        "character": "Plausible response.",
+        "craft": "Adequate and clear.",
+        "grounding": "Confirms a fabricated person and place. (4.5+7.5+1.5+6.25+6.25+5.0+3.0+3.75+1.5)/10.25 = 3.8",
+        "language": "Correct en-IE.",
+        "mood_fidelity": "Calm tone.",
+        "repetition": "No repetition.",
+        "responsiveness": "Directly answers the question."
+      }
+    }
+  ],
+  "judge": {
+    "cost_usd": 0.3271,
+    "family": "google",
+    "id": "google-pro-high",
+    "model": "google/gemini-3.1-pro-preview",
+    "provider": "openrouter",
+    "reasoning_effort": "high",
+    "request_id": "gen-1786241836-aZI41DyzU3LD2wtUpGos",
+    "routed_model": "google/gemini-3.1-pro-preview",
+    "routed_provider": "Google",
+    "rubric_sha256": "9adab2cd1b38fe75f978e386239b50fbb12b5ba34c5ba5874ae396a3b46b7bf4",
+    "usage": {
+      "completion_tokens": 11699,
+      "completion_tokens_details": {
+        "audio_tokens": 0,
+        "image_tokens": 0,
+        "reasoning_tokens": 5217
+      },
+      "cost": 0.3271,
+      "cost_details": {
+        "upstream_inference_completions_cost": 0.140388,
+        "upstream_inference_cost": 0.3271,
+        "upstream_inference_prompt_cost": 0.186712
+      },
+      "is_byok": false,
+      "prompt_tokens": 93356,
+      "prompt_tokens_details": {
+        "audio_tokens": 0,
+        "cache_write_tokens": 0,
+        "cached_tokens": 0,
+        "video_tokens": 0
+      },
+      "total_tokens": 105055
+    }
+  },
+  "quality": {
+    "axes": {
+      "authenticity": 3.0,
+      "brevity": 5.0,
+      "character": 3.0,
+      "craft": 3.0,
+      "grounding": 3.1667,
+      "language": 5.0,
+      "mood_fidelity": 5.0,
+      "repetition": 5.0,
+      "responsiveness": 4.8333
+    },
+    "hard_failures": {
+      "degenerate_loop": 0,
+      "fabricated": 6,
+      "non_latin_detected": 0,
+      "refused": 0,
+      "unusable_output": 0
+    },
+    "overall": 4.1301,
+    "pass": false,
+    "thresholds": {
+      "critical_axes": [
+        "grounding",
+        "repetition",
+        "mood_fidelity",
+        "brevity",
+        "responsiveness"
+      ],
+      "minimum_critical_axis": 3.0,
+      "minimum_overall": 3.5
+    }
+  },
+  "sample": {
+    "items": 18,
+    "judge_input": "full production system prompt plus dynamic user prompt",
+    "judged_items": 18,
+    "samples_per_prompt": 3,
+    "unique_prompts": 6,
+    "unusable_outputs": 0
+  },
+  "source": {
+    "bundle": "docs/proofs/cloud-dialogue-qualification/runs/2026-07-27/gpt-4.1-mini-judgment-google-pro-high-4f2d2190afd0ba62.bundle.json",
+    "bundle_sha256": "4f2d2190afd0ba6264ef09a095aa1f086e5368d1f6878d0a0f0f9f1f33aa0d9d",
+    "raw": "docs/proofs/cloud-dialogue-qualification/runs/2026-07-27/gpt-4.1-mini-judgment-google-pro-high-4f2d2190afd0ba62.attempt-1.raw.json",
+    "raw_sha256": "e327649ab80fb4b451e2f4a14b43bbe0cbd5d7cb3eb7efa7c856d01cdd128b07"
+  },
+  "version": 1
+}

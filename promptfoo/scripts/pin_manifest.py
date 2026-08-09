@@ -16,7 +16,15 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import rb_common as rb  # noqa: E402
 
-SLICES = ["dialogue", "intent", "reaction", "tier2-sim", "tier3-sim", "gaeilge"]
+SLICES = [
+    "dialogue",
+    "intent",
+    "reaction",
+    "tier2-sim",
+    "tier3-sim",
+    "gaeilge",
+    "multiturn",
+]
 
 
 def main() -> int:
@@ -49,7 +57,7 @@ def main() -> int:
     merkle = h.hexdigest()
     manifest = {
         "suite": "rundale-bench-v2",
-        "source": "copied from rundale-bench/v1",
+        "source": "runtime-captured production prompts plus curated competence probes",
         "merkle_root_sha256": merkle,
         "slices": slices,
         "assets": assets,

@@ -1,0 +1,4723 @@
+{
+  "counts": {
+    "invalid_profile": 1,
+    "needs_adjudication": 5,
+    "needs_judgment": 3,
+    "needs_performance": 0,
+    "qualified": 4,
+    "quality_rejected": 3,
+    "rejected": 15,
+    "stopped": 1
+  },
+  "policy": {
+    "guards": {
+      "maximum_intervention_rate": 0.1
+    },
+    "judgment": {
+      "consensus_method": "median",
+      "critical_axes": [
+        "grounding",
+        "repetition",
+        "mood_fidelity",
+        "brevity",
+        "responsiveness"
+      ],
+      "exclude_same_family": true,
+      "judges": [
+        {
+          "api_key_env": "OPENROUTER_API_KEY",
+          "base_url": "https://openrouter.ai/api/v1",
+          "family": "openai",
+          "id": "openai-sol-high",
+          "max_tokens": 65536,
+          "model": "openai/gpt-5.6-sol",
+          "provider": "openrouter",
+          "reasoning_effort": "high"
+        },
+        {
+          "api_key_env": "OPENROUTER_API_KEY",
+          "base_url": "https://openrouter.ai/api/v1",
+          "family": "anthropic",
+          "id": "anthropic-sonnet-low",
+          "max_tokens": 32768,
+          "model": "anthropic/claude-sonnet-4.6",
+          "provider": "openrouter",
+          "reasoning_effort": "low"
+        },
+        {
+          "api_key_env": "OPENROUTER_API_KEY",
+          "base_url": "https://openrouter.ai/api/v1",
+          "family": "google",
+          "id": "google-pro-high",
+          "max_tokens": 32768,
+          "model": "google/gemini-3.1-pro-preview",
+          "provider": "openrouter",
+          "reasoning_effort": "high"
+        }
+      ],
+      "maximum_hard_failures": 0,
+      "maximum_overall_spread_without_adjudication": 0.75,
+      "minimum_critical_axis": 3.0,
+      "minimum_independent_judges": 2,
+      "minimum_overall": 3.5,
+      "tie_margin": 0.1
+    },
+    "performance": {
+      "maximum_error_rate": 0.005,
+      "minimum_cold_measurements": 5,
+      "minimum_measurements": 15,
+      "minimum_warm_measurements": 10,
+      "ranking": {
+        "lower_is_better": true,
+        "warm_completion_weight": 0.25,
+        "warm_ttft_weight": 0.75
+      }
+    },
+    "preflight": {
+      "calls": 12,
+      "minimum_valid_response_rate": 1.0
+    },
+    "version": 1
+  },
+  "runs": [
+    {
+      "calls": {
+        "count": 12,
+        "diagnostic": 0,
+        "judgment": 0,
+        "path": "qualification-calls/2026-07-27__gemini-2.5-flash.json",
+        "performance": 0,
+        "preflight": 12,
+        "sha256": "ae392e2e4ded77403a24773c171ba5528bc027d643295302dc91b6ac2dc9ed84"
+      },
+      "candidate": "google/gemini-2.5-flash@https://openrouter.ai/api/v1#env:OPENROUTER_API_KEY",
+      "judgment": null,
+      "model": "google/gemini-2.5-flash",
+      "performance": null,
+      "preflight": {
+        "artifact": {
+          "path": "docs/proofs/cloud-dialogue-qualification/runs/2026-07-27/gemini-2.5-flash-preflight.json",
+          "sha256": "d01665f8eafd611e0f8be34dafbae53b036e5d798f85c82541f82f0469a86198"
+        },
+        "calls": 12,
+        "guard_interventions": 1,
+        "guard_rate": 0.08333333333333333,
+        "request_profile": {
+          "enable_thinking": null,
+          "frequency_penalty": 0.5,
+          "json_mode": true,
+          "max_tokens": 768,
+          "model": "google/gemini-2.5-flash",
+          "temperature": 0.7
+        },
+        "valid": 11
+      },
+      "reason": "structural reliability",
+      "run_id": "2026-07-27/gemini-2.5-flash",
+      "stage": "preflight",
+      "status": "rejected",
+      "tested_on": "2026-07-27"
+    },
+    {
+      "calls": {
+        "count": 12,
+        "diagnostic": 0,
+        "judgment": 0,
+        "path": "qualification-calls/2026-07-27__glm-4.5v.json",
+        "performance": 0,
+        "preflight": 12,
+        "sha256": "ee29de33fedb9cd913fd48a72a30e1ff2271aaf5fb5e3ab26a62bd2a435f4f9e"
+      },
+      "candidate": "z-ai/glm-4.5v@https://openrouter.ai/api/v1#env:OPENROUTER_API_KEY",
+      "judgment": null,
+      "model": "z-ai/glm-4.5v",
+      "performance": null,
+      "preflight": {
+        "artifact": {
+          "path": "docs/proofs/cloud-dialogue-qualification/runs/2026-07-27/glm-4.5v-preflight.json",
+          "sha256": "525e1ec5f33b05372d050ca7cddde3e7cd7d239c278f37d61cacd9487e03744f"
+        },
+        "calls": 12,
+        "guard_interventions": 4,
+        "guard_rate": 0.3333333333333333,
+        "request_profile": {
+          "enable_thinking": null,
+          "frequency_penalty": 0.5,
+          "json_mode": true,
+          "max_tokens": 768,
+          "model": "z-ai/glm-4.5v",
+          "temperature": 0.7
+        },
+        "valid": 10
+      },
+      "reason": "structural reliability",
+      "run_id": "2026-07-27/glm-4.5v",
+      "stage": "preflight",
+      "status": "rejected",
+      "tested_on": "2026-07-27"
+    },
+    {
+      "calls": {
+        "count": 85,
+        "diagnostic": 0,
+        "judgment": 54,
+        "path": "qualification-calls/2026-07-27__glm-5.2.json",
+        "performance": 19,
+        "preflight": 12,
+        "sha256": "2d6225758ed4f93c2f473e96c577610bdb72794ff8eab1b329bfd91720d2ff80"
+      },
+      "candidate": "z-ai/glm-5.2@https://openrouter.ai/api/v1#env:OPENROUTER_API_KEY",
+      "judgment": {
+        "axes": {
+          "authenticity": 3.2778,
+          "brevity": 5.0,
+          "character": 3.2778,
+          "craft": 2.2222,
+          "grounding": 4.7222,
+          "language": 5.0,
+          "mood_fidelity": 4.0,
+          "repetition": 5.0,
+          "responsiveness": 4.6667
+        },
+        "candidate_family": "z-ai",
+        "complete": true,
+        "cost_usd": 1.8963185,
+        "hard_failures": {
+          "degenerate_loop": 0,
+          "fabricated": 5,
+          "non_latin_detected": 0,
+          "refused": 0,
+          "unusable_output": 0
+        },
+        "judges": [
+          {
+            "artifact": {
+              "path": "docs/proofs/cloud-dialogue-qualification/runs/2026-07-27/glm-5.2-judgment-02b7a24a104db76a.json",
+              "sha256": "39986dcf37016ce5bda12c7ab1f5da5e3f7f33c9a874f332028d522a4483752b"
+            },
+            "axes": {
+              "authenticity": 3.1111,
+              "brevity": 1.0,
+              "character": 2.8889,
+              "craft": 1.0,
+              "grounding": 3.4444,
+              "language": 3.9444,
+              "mood_fidelity": 4.0,
+              "repetition": 3.0556,
+              "responsiveness": 4.0
+            },
+            "eligible": true,
+            "exclusion_reason": null,
+            "family": "openai",
+            "hard_failures": {
+              "degenerate_loop": 0,
+              "fabricated": 5,
+              "non_latin_detected": 0,
+              "refused": 0
+            },
+            "id": "openai-sol-high",
+            "judge": {
+              "cost_usd": 0.9241565,
+              "family": "openai",
+              "id": "openai-sol-high",
+              "model": "openai/gpt-5.6-sol",
+              "provider": "openrouter",
+              "reasoning_effort": "high",
+              "request_id": "gen-1786229068-MHJyjf43c8Y9vsbC04G5",
+              "routed_model": "openai/gpt-5.6-sol",
+              "routed_provider": "OpenAI",
+              "rubric_sha256": "9adab2cd1b38fe75f978e386239b50fbb12b5ba34c5ba5874ae396a3b46b7bf4",
+              "usage": {
+                "completion_tokens": 11541,
+                "completion_tokens_details": {
+                  "audio_tokens": 0,
+                  "image_tokens": 0,
+                  "reasoning_tokens": 6311
+                },
+                "cost": 0.9241565,
+                "cost_details": {
+                  "upstream_inference_completions_cost": 0.34623,
+                  "upstream_inference_cost": 0.9241565,
+                  "upstream_inference_prompt_cost": 0.5779265
+                },
+                "is_byok": false,
+                "prompt_tokens": 94836,
+                "prompt_tokens_details": {
+                  "audio_tokens": 0,
+                  "cache_write_tokens": 92260,
+                  "cached_tokens": 2573,
+                  "video_tokens": 0
+                },
+                "total_tokens": 106377
+              }
+            },
+            "overall": 3.0379,
+            "pass": false,
+            "sample": {
+              "items": 18,
+              "judge_input": "full production system prompt plus dynamic user prompt",
+              "judged_items": 18,
+              "samples_per_prompt": 3,
+              "unique_prompts": 6,
+              "unusable_outputs": 0
+            }
+          },
+          {
+            "artifact": {
+              "path": "docs/proofs/cloud-dialogue-qualification/runs/2026-07-27/glm-5.2-judgment-anthropic-sonnet-low-3bd93f303c2c30a6.json",
+              "sha256": "b3da0fa104e7842b047438368b40c853829dc4e294fd71de06a9a69dda16cfbb"
+            },
+            "axes": {
+              "authenticity": 3.2778,
+              "brevity": 5.0,
+              "character": 3.2778,
+              "craft": 2.2222,
+              "grounding": 4.7222,
+              "language": 5.0,
+              "mood_fidelity": 3.6667,
+              "repetition": 5.0,
+              "responsiveness": 4.6667
+            },
+            "eligible": true,
+            "exclusion_reason": null,
+            "family": "anthropic",
+            "hard_failures": {
+              "degenerate_loop": 0,
+              "fabricated": 1,
+              "non_latin_detected": 0,
+              "refused": 0,
+              "unusable_output": 0
+            },
+            "id": "anthropic-sonnet-low",
+            "judge": {
+              "cost_usd": 0.608364,
+              "family": "anthropic",
+              "id": "anthropic-sonnet-low",
+              "model": "anthropic/claude-sonnet-4.6",
+              "provider": "openrouter",
+              "reasoning_effort": "low",
+              "request_id": "gen-1786242766-RPw7kYt5nXVZEPe7Ymnh",
+              "routed_model": "anthropic/claude-sonnet-4.6",
+              "routed_provider": "Anthropic",
+              "rubric_sha256": "9adab2cd1b38fe75f978e386239b50fbb12b5ba34c5ba5874ae396a3b46b7bf4",
+              "usage": {
+                "completion_tokens": 18866,
+                "completion_tokens_details": {
+                  "audio_tokens": 0,
+                  "image_tokens": 0,
+                  "reasoning_tokens": 3365
+                },
+                "cost": 0.608364,
+                "cost_details": {
+                  "upstream_inference_completions_cost": 0.28299,
+                  "upstream_inference_cost": 0.608364,
+                  "upstream_inference_prompt_cost": 0.325374
+                },
+                "is_byok": false,
+                "prompt_tokens": 108458,
+                "prompt_tokens_details": {
+                  "audio_tokens": 0,
+                  "cache_write_tokens": 0,
+                  "cached_tokens": 0,
+                  "video_tokens": 0
+                },
+                "total_tokens": 127324
+              }
+            },
+            "overall": 4.1762,
+            "pass": false,
+            "sample": {
+              "items": 18,
+              "judge_input": "full production system prompt plus dynamic user prompt",
+              "judged_items": 18,
+              "samples_per_prompt": 3,
+              "unique_prompts": 6,
+              "unusable_outputs": 0
+            }
+          },
+          {
+            "artifact": {
+              "path": "docs/proofs/cloud-dialogue-qualification/runs/2026-07-27/glm-5.2-judgment-google-pro-high-aedb4af33aa4146a.json",
+              "sha256": "92edb6bd6fd83a8308f5101f137202889ef7dfb7eb718e225308e8ddfe2a9ff8"
+            },
+            "axes": {
+              "authenticity": 3.9444,
+              "brevity": 5.0,
+              "character": 4.1667,
+              "craft": 4.2778,
+              "grounding": 5.0,
+              "language": 5.0,
+              "mood_fidelity": 4.8889,
+              "repetition": 5.0,
+              "responsiveness": 5.0
+            },
+            "eligible": true,
+            "exclusion_reason": null,
+            "family": "google",
+            "hard_failures": {
+              "degenerate_loop": 0,
+              "fabricated": 0,
+              "non_latin_detected": 0,
+              "refused": 0,
+              "unusable_output": 0
+            },
+            "id": "google-pro-high",
+            "judge": {
+              "cost_usd": 0.363798,
+              "family": "google",
+              "id": "google-pro-high",
+              "model": "google/gemini-3.1-pro-preview",
+              "provider": "openrouter",
+              "reasoning_effort": "high",
+              "request_id": "gen-1786241497-IG3ni5pTDfLHgtHsxFNK",
+              "routed_model": "google/gemini-3.1-pro-preview",
+              "routed_provider": "Google",
+              "rubric_sha256": "9adab2cd1b38fe75f978e386239b50fbb12b5ba34c5ba5874ae396a3b46b7bf4",
+              "usage": {
+                "completion_tokens": 14167,
+                "completion_tokens_details": {
+                  "audio_tokens": 0,
+                  "image_tokens": 0,
+                  "reasoning_tokens": 8243
+                },
+                "cost": 0.363798,
+                "cost_details": {
+                  "upstream_inference_completions_cost": 0.170004,
+                  "upstream_inference_cost": 0.363798,
+                  "upstream_inference_prompt_cost": 0.193794
+                },
+                "is_byok": false,
+                "prompt_tokens": 96897,
+                "prompt_tokens_details": {
+                  "audio_tokens": 0,
+                  "cache_write_tokens": 0,
+                  "cached_tokens": 0,
+                  "video_tokens": 0
+                },
+                "total_tokens": 111064
+              }
+            },
+            "overall": 4.7236,
+            "pass": true,
+            "sample": {
+              "items": 18,
+              "judge_input": "full production system prompt plus dynamic user prompt",
+              "judged_items": 18,
+              "samples_per_prompt": 3,
+              "unique_prompts": 6,
+              "unusable_outputs": 0
+            }
+          }
+        ],
+        "method": "median",
+        "needs_adjudication": true,
+        "overall": 4.1762,
+        "overall_spread": 1.6857,
+        "pass": false,
+        "sample": {
+          "items": 18,
+          "judged_items": 18,
+          "unusable_outputs": 0
+        },
+        "votes": {
+          "eligible": 3,
+          "fail": 2,
+          "pass": 1,
+          "required": 2,
+          "self_excluded": 0
+        }
+      },
+      "model": "z-ai/glm-5.2",
+      "performance": {
+        "artifact": {
+          "path": "docs/proofs/cloud-dialogue-qualification/runs/2026-07-27/glm-5.2-perf.json",
+          "sha256": "be49dbe1898676b4c19fe866be95e8641a0f0a510053dbea16fe800e6d6fcb88"
+        },
+        "candidate": "z-ai/glm-5.2@https://openrouter.ai/api/v1#env:OPENROUTER_API_KEY",
+        "cold_completion_p95_ms": 10476.0,
+        "cold_measurements": 6,
+        "cold_ttft_p95_ms": 2166.0,
+        "error_rate": 0.0,
+        "measurements": 18,
+        "speed_cohort_size": 15,
+        "speed_index_ms": 6535.5,
+        "speed_rank": 10,
+        "tokens_per_second_p50": 61.267420457533525,
+        "warm_completion_p95_ms": 8454.0,
+        "warm_measurements": 12,
+        "warm_ttft_p95_ms": 5896.0
+      },
+      "preflight": {
+        "artifact": {
+          "path": "docs/proofs/cloud-dialogue-qualification/runs/2026-07-27/glm-5.2-preflight.json",
+          "sha256": "6c7095353754934c61fd6f8471d616445006c6b187f5c8ff1a64b7586ecd88c1"
+        },
+        "calls": 12,
+        "guard_interventions": 0,
+        "guard_rate": 0.0,
+        "request_profile": {
+          "enable_thinking": null,
+          "frequency_penalty": 0.5,
+          "json_mode": true,
+          "max_tokens": 768,
+          "model": "z-ai/glm-5.2",
+          "temperature": 0.7
+        },
+        "valid": 12
+      },
+      "reason": "judge disagreement requires adjudication; speed rank #10 of 15",
+      "run_id": "2026-07-27/glm-5.2",
+      "stage": "judgment",
+      "status": "needs_adjudication",
+      "tested_on": "2026-07-27"
+    },
+    {
+      "calls": {
+        "count": 115,
+        "diagnostic": 0,
+        "judgment": 54,
+        "path": "qualification-calls/2026-07-27__gpt-4.1-mini.json",
+        "performance": 49,
+        "preflight": 12,
+        "sha256": "2b77583cb395cb3cd30215632ac56d2e3c4ee3a341589e67e9106321fab4a5f9"
+      },
+      "candidate": "openai/gpt-4.1-mini@https://openrouter.ai/api/v1#env:OPENROUTER_API_KEY",
+      "judgment": {
+        "axes": {
+          "authenticity": 3.0278,
+          "brevity": 4.6667,
+          "character": 2.6389,
+          "craft": 2.8611,
+          "grounding": 2.8889,
+          "language": 5.0,
+          "mood_fidelity": 4.0834,
+          "repetition": 5.0,
+          "responsiveness": 3.9167
+        },
+        "candidate_family": "openai",
+        "complete": true,
+        "cost_usd": 1.77966625,
+        "hard_failures": {
+          "degenerate_loop": 0,
+          "fabricated": 6,
+          "non_latin_detected": 0,
+          "refused": 0,
+          "unusable_output": 0
+        },
+        "judges": [
+          {
+            "artifact": {
+              "path": "docs/proofs/cloud-dialogue-qualification/runs/2026-07-27/gpt-4.1-mini-judgment-3b64a155644e905d.json",
+              "sha256": "7027ec28ba3822c33cd8933148ebe95dc3457ad5f78aebedf0f77effebff4644"
+            },
+            "axes": {
+              "authenticity": 3.0,
+              "brevity": 5.0,
+              "character": 2.1111,
+              "craft": 2.9444,
+              "grounding": 2.3333,
+              "language": 4.8889,
+              "mood_fidelity": 4.0,
+              "repetition": 5.0,
+              "responsiveness": 4.1667
+            },
+            "eligible": false,
+            "exclusion_reason": "same-family judge",
+            "family": "openai",
+            "hard_failures": {
+              "degenerate_loop": 0,
+              "fabricated": 10,
+              "non_latin_detected": 0,
+              "refused": 0
+            },
+            "id": "openai-sol-high",
+            "judge": {
+              "cost_usd": 0.91286625,
+              "family": "openai",
+              "id": "openai-sol-high",
+              "model": "openai/gpt-5.6-sol",
+              "provider": "openrouter",
+              "reasoning_effort": "high",
+              "request_id": "gen-1786229068-4iceUhzUKs4GkSSh9JRG",
+              "routed_model": "openai/gpt-5.6-sol",
+              "routed_provider": "OpenAI",
+              "rubric_sha256": "9adab2cd1b38fe75f978e386239b50fbb12b5ba34c5ba5874ae396a3b46b7bf4",
+              "usage": {
+                "completion_tokens": 11354,
+                "completion_tokens_details": {
+                  "audio_tokens": 0,
+                  "image_tokens": 0,
+                  "reasoning_tokens": 6595
+                },
+                "cost": 0.91286625,
+                "cost_details": {
+                  "upstream_inference_completions_cost": 0.34062,
+                  "upstream_inference_cost": 0.91286625,
+                  "upstream_inference_prompt_cost": 0.57224625
+                },
+                "is_byok": false,
+                "prompt_tokens": 91560,
+                "prompt_tokens_details": {
+                  "audio_tokens": 0,
+                  "cache_write_tokens": 91557,
+                  "cached_tokens": 0,
+                  "video_tokens": 0
+                },
+                "total_tokens": 102914
+              }
+            },
+            "overall": 3.6558,
+            "pass": false,
+            "sample": {
+              "items": 18,
+              "judge_input": "full production system prompt plus dynamic user prompt",
+              "judged_items": 18,
+              "samples_per_prompt": 3,
+              "unique_prompts": 6,
+              "unusable_outputs": 0
+            }
+          },
+          {
+            "artifact": {
+              "path": "docs/proofs/cloud-dialogue-qualification/runs/2026-07-27/gpt-4.1-mini-judgment-anthropic-sonnet-low-f6bc435869d6142a.json",
+              "sha256": "6fce01d686632e111e2862a16ee90faac067b07fce2401ce98b05be33fd8b49f"
+            },
+            "axes": {
+              "authenticity": 3.0556,
+              "brevity": 4.3333,
+              "character": 2.2778,
+              "craft": 2.7222,
+              "grounding": 2.6111,
+              "language": 5.0,
+              "mood_fidelity": 3.1667,
+              "repetition": 5.0,
+              "responsiveness": 3.0
+            },
+            "eligible": true,
+            "exclusion_reason": null,
+            "family": "anthropic",
+            "hard_failures": {
+              "degenerate_loop": 0,
+              "fabricated": 6,
+              "non_latin_detected": 0,
+              "refused": 0,
+              "unusable_output": 0
+            },
+            "id": "anthropic-sonnet-low",
+            "judge": {
+              "cost_usd": 0.5397,
+              "family": "anthropic",
+              "id": "anthropic-sonnet-low",
+              "model": "anthropic/claude-sonnet-4.6",
+              "provider": "openrouter",
+              "reasoning_effort": "low",
+              "request_id": "gen-1786242766-J5XNjG0IcQnFBsMbJumi",
+              "routed_model": "anthropic/claude-sonnet-4.6",
+              "routed_provider": "Anthropic",
+              "rubric_sha256": "9adab2cd1b38fe75f978e386239b50fbb12b5ba34c5ba5874ae396a3b46b7bf4",
+              "usage": {
+                "completion_tokens": 15042,
+                "completion_tokens_details": {
+                  "audio_tokens": 0,
+                  "image_tokens": 0,
+                  "reasoning_tokens": 2211
+                },
+                "cost": 0.5397,
+                "cost_details": {
+                  "upstream_inference_completions_cost": 0.22563,
+                  "upstream_inference_cost": 0.5397,
+                  "upstream_inference_prompt_cost": 0.31407
+                },
+                "is_byok": false,
+                "prompt_tokens": 104690,
+                "prompt_tokens_details": {
+                  "audio_tokens": 0,
+                  "cache_write_tokens": 0,
+                  "cached_tokens": 0,
+                  "video_tokens": 0
+                },
+                "total_tokens": 119732
+              }
+            },
+            "overall": 3.4065,
+            "pass": false,
+            "sample": {
+              "items": 18,
+              "judge_input": "full production system prompt plus dynamic user prompt",
+              "judged_items": 18,
+              "samples_per_prompt": 3,
+              "unique_prompts": 6,
+              "unusable_outputs": 0
+            }
+          },
+          {
+            "artifact": {
+              "path": "docs/proofs/cloud-dialogue-qualification/runs/2026-07-27/gpt-4.1-mini-judgment-google-pro-high-4f2d2190afd0ba62.json",
+              "sha256": "da3f884e46ce526fdaf729d5ca652ec940ea383dad78f268c84aaaa9ab7c3122"
+            },
+            "axes": {
+              "authenticity": 3.0,
+              "brevity": 5.0,
+              "character": 3.0,
+              "craft": 3.0,
+              "grounding": 3.1667,
+              "language": 5.0,
+              "mood_fidelity": 5.0,
+              "repetition": 5.0,
+              "responsiveness": 4.8333
+            },
+            "eligible": true,
+            "exclusion_reason": null,
+            "family": "google",
+            "hard_failures": {
+              "degenerate_loop": 0,
+              "fabricated": 6,
+              "non_latin_detected": 0,
+              "refused": 0,
+              "unusable_output": 0
+            },
+            "id": "google-pro-high",
+            "judge": {
+              "cost_usd": 0.3271,
+              "family": "google",
+              "id": "google-pro-high",
+              "model": "google/gemini-3.1-pro-preview",
+              "provider": "openrouter",
+              "reasoning_effort": "high",
+              "request_id": "gen-1786241836-aZI41DyzU3LD2wtUpGos",
+              "routed_model": "google/gemini-3.1-pro-preview",
+              "routed_provider": "Google",
+              "rubric_sha256": "9adab2cd1b38fe75f978e386239b50fbb12b5ba34c5ba5874ae396a3b46b7bf4",
+              "usage": {
+                "completion_tokens": 11699,
+                "completion_tokens_details": {
+                  "audio_tokens": 0,
+                  "image_tokens": 0,
+                  "reasoning_tokens": 5217
+                },
+                "cost": 0.3271,
+                "cost_details": {
+                  "upstream_inference_completions_cost": 0.140388,
+                  "upstream_inference_cost": 0.3271,
+                  "upstream_inference_prompt_cost": 0.186712
+                },
+                "is_byok": false,
+                "prompt_tokens": 93356,
+                "prompt_tokens_details": {
+                  "audio_tokens": 0,
+                  "cache_write_tokens": 0,
+                  "cached_tokens": 0,
+                  "video_tokens": 0
+                },
+                "total_tokens": 105055
+              }
+            },
+            "overall": 4.1301,
+            "pass": false,
+            "sample": {
+              "items": 18,
+              "judge_input": "full production system prompt plus dynamic user prompt",
+              "judged_items": 18,
+              "samples_per_prompt": 3,
+              "unique_prompts": 6,
+              "unusable_outputs": 0
+            }
+          }
+        ],
+        "method": "median",
+        "needs_adjudication": false,
+        "overall": 3.7683,
+        "overall_spread": 0.7236,
+        "pass": false,
+        "quality_cohort_size": 7,
+        "quality_rank": 6,
+        "sample": {
+          "items": 18,
+          "judged_items": 18,
+          "unusable_outputs": 0
+        },
+        "votes": {
+          "eligible": 2,
+          "fail": 2,
+          "pass": 0,
+          "required": 2,
+          "self_excluded": 1
+        }
+      },
+      "model": "openai/gpt-4.1-mini",
+      "performance": {
+        "artifact": {
+          "path": "docs/proofs/cloud-dialogue-qualification/runs/2026-07-27/gpt-4.1-mini-perf-expanded.json",
+          "sha256": "9b7a22a2670f17d09cd502984ee682e81e0997c1ceff19ff6830d16035df080b"
+        },
+        "candidate": "openai/gpt-4.1-mini@https://openrouter.ai/api/v1#env:OPENROUTER_API_KEY",
+        "cold_completion_p95_ms": 3605.0,
+        "cold_measurements": 6,
+        "cold_ttft_p95_ms": 1116.0,
+        "error_rate": 0.0,
+        "measurements": 48,
+        "speed_cohort_size": 15,
+        "speed_index_ms": 3241.0,
+        "speed_rank": 2,
+        "tokens_per_second_p50": 73.22325915290739,
+        "warm_completion_p95_ms": 5716.0,
+        "warm_measurements": 42,
+        "warm_ttft_p95_ms": 2416.0
+      },
+      "preflight": {
+        "artifact": {
+          "path": "docs/proofs/cloud-dialogue-qualification/runs/2026-07-27/gpt-4.1-mini-preflight.json",
+          "sha256": "9e3801a1c127ebf228c59acde1edc85d88f83a207be481b04b4aa9685d05957e"
+        },
+        "calls": 12,
+        "guard_interventions": 0,
+        "guard_rate": 0.0,
+        "request_profile": {
+          "enable_thinking": null,
+          "frequency_penalty": 0.5,
+          "json_mode": true,
+          "max_tokens": 768,
+          "model": "openai/gpt-4.1-mini",
+          "temperature": 0.7
+        },
+        "valid": 12
+      },
+      "reason": "quality screen failed; quality rank #6 of 7; speed rank #2 of 15",
+      "run_id": "2026-07-27/gpt-4.1-mini",
+      "stage": "judgment",
+      "status": "quality_rejected",
+      "tested_on": "2026-07-27"
+    },
+    {
+      "calls": {
+        "count": 12,
+        "diagnostic": 0,
+        "judgment": 0,
+        "path": "qualification-calls/2026-07-27__gpt-4o.json",
+        "performance": 0,
+        "preflight": 12,
+        "sha256": "9f80067136a99b7baaf440d5454d2175730624399c3be5df31ab600db390bef4"
+      },
+      "candidate": "openai/gpt-4o@https://openrouter.ai/api/v1#env:OPENROUTER_API_KEY",
+      "judgment": null,
+      "model": "openai/gpt-4o",
+      "performance": null,
+      "preflight": {
+        "artifact": {
+          "path": "docs/proofs/cloud-dialogue-qualification/runs/2026-07-27/gpt-4o-preflight.json",
+          "sha256": "bcd5308204ea1c01d3dfa6ee675f0b1908d720b28fc262090e50cb21e481acc3"
+        },
+        "calls": 12,
+        "guard_interventions": 2,
+        "guard_rate": 0.16666666666666666,
+        "request_profile": {
+          "enable_thinking": null,
+          "frequency_penalty": 0.5,
+          "json_mode": true,
+          "max_tokens": 768,
+          "model": "openai/gpt-4o",
+          "temperature": 0.7
+        },
+        "valid": 12
+      },
+      "reason": "guard intervention rate",
+      "run_id": "2026-07-27/gpt-4o",
+      "stage": "preflight",
+      "status": "rejected",
+      "tested_on": "2026-07-27"
+    },
+    {
+      "calls": {
+        "count": 12,
+        "diagnostic": 0,
+        "judgment": 0,
+        "path": "qualification-calls/2026-07-27__gpt-oss-120b-nitro.json",
+        "performance": 0,
+        "preflight": 12,
+        "sha256": "1d4ad179de0984e3fd68c14b9923dc54ada4ff33a94058d2b4439debc334f884"
+      },
+      "candidate": "openai/gpt-oss-120b:nitro@https://openrouter.ai/api/v1#env:OPENROUTER_API_KEY",
+      "judgment": null,
+      "model": "openai/gpt-oss-120b:nitro",
+      "performance": null,
+      "preflight": {
+        "artifact": {
+          "path": "docs/proofs/cloud-dialogue-qualification/runs/2026-07-27/gpt-oss-120b-nitro-preflight.json",
+          "sha256": "267c0bb8c91dfb5d892fb8966144c4a3c9f2ebfa72ca077ea5a51f08fe679325"
+        },
+        "calls": 12,
+        "guard_interventions": 0,
+        "guard_rate": 0.0,
+        "request_profile": {
+          "enable_thinking": null,
+          "frequency_penalty": 0.5,
+          "json_mode": true,
+          "max_tokens": 768,
+          "model": "openai/gpt-oss-120b:nitro",
+          "temperature": 0.7
+        },
+        "valid": 9
+      },
+      "reason": "structural reliability",
+      "run_id": "2026-07-27/gpt-oss-120b-nitro",
+      "stage": "preflight",
+      "status": "rejected",
+      "tested_on": "2026-07-27"
+    },
+    {
+      "calls": {
+        "count": 85,
+        "diagnostic": 0,
+        "judgment": 54,
+        "path": "qualification-calls/2026-07-27__grok-4.3-nitro.json",
+        "performance": 19,
+        "preflight": 12,
+        "sha256": "a0311521ecdff6c4a4f12fb7ba426b31a2f260bcba7e851675684b0a372092a3"
+      },
+      "candidate": "x-ai/grok-4.3:nitro@https://openrouter.ai/api/v1#env:OPENROUTER_API_KEY",
+      "judgment": {
+        "axes": {
+          "authenticity": 2.9444,
+          "brevity": 4.7778,
+          "character": 3.1667,
+          "craft": 1.2778,
+          "grounding": 4.2222,
+          "language": 3.9444,
+          "mood_fidelity": 4.8889,
+          "repetition": 5.0,
+          "responsiveness": 4.0556
+        },
+        "candidate_family": "x-ai",
+        "complete": true,
+        "cost_usd": 1.8816375,
+        "hard_failures": {
+          "degenerate_loop": 0,
+          "fabricated": 2,
+          "non_latin_detected": 0,
+          "refused": 0,
+          "unusable_output": 0
+        },
+        "judges": [
+          {
+            "artifact": {
+              "path": "docs/proofs/cloud-dialogue-qualification/runs/2026-07-27/grok-4.3-nitro-judgment-1e5b14b59c072f51.json",
+              "sha256": "6a04b0b3990883585e4fd27cbacb16d0d67daeb266024d1a9925ab6a7cde4b57"
+            },
+            "axes": {
+              "authenticity": 2.3333,
+              "brevity": 1.9444,
+              "character": 3.0556,
+              "craft": 1.2778,
+              "grounding": 3.8889,
+              "language": 3.7222,
+              "mood_fidelity": 4.8889,
+              "repetition": 3.3333,
+              "responsiveness": 4.0556
+            },
+            "eligible": true,
+            "exclusion_reason": null,
+            "family": "openai",
+            "hard_failures": {
+              "degenerate_loop": 0,
+              "fabricated": 2,
+              "non_latin_detected": 0,
+              "refused": 0
+            },
+            "id": "openai-sol-high",
+            "judge": {
+              "cost_usd": 0.9110065,
+              "family": "openai",
+              "id": "openai-sol-high",
+              "model": "openai/gpt-5.6-sol",
+              "provider": "openrouter",
+              "reasoning_effort": "high",
+              "request_id": "gen-1786229261-yokxtoMUChBpTTXymMUr",
+              "routed_model": "openai/gpt-5.6-sol",
+              "routed_provider": "OpenAI",
+              "rubric_sha256": "9adab2cd1b38fe75f978e386239b50fbb12b5ba34c5ba5874ae396a3b46b7bf4",
+              "usage": {
+                "completion_tokens": 11291,
+                "completion_tokens_details": {
+                  "audio_tokens": 0,
+                  "image_tokens": 0,
+                  "reasoning_tokens": 6214
+                },
+                "cost": 0.9110065,
+                "cost_details": {
+                  "upstream_inference_completions_cost": 0.33873,
+                  "upstream_inference_cost": 0.9110065,
+                  "upstream_inference_prompt_cost": 0.5722765
+                },
+                "is_byok": false,
+                "prompt_tokens": 93932,
+                "prompt_tokens_details": {
+                  "audio_tokens": 0,
+                  "cache_write_tokens": 91356,
+                  "cached_tokens": 2573,
+                  "video_tokens": 0
+                },
+                "total_tokens": 105223
+              }
+            },
+            "overall": 3.3333,
+            "pass": false,
+            "sample": {
+              "items": 18,
+              "judge_input": "full production system prompt plus dynamic user prompt",
+              "judged_items": 18,
+              "samples_per_prompt": 3,
+              "unique_prompts": 6,
+              "unusable_outputs": 0
+            }
+          },
+          {
+            "artifact": {
+              "path": "docs/proofs/cloud-dialogue-qualification/runs/2026-07-27/grok-4.3-nitro-judgment-anthropic-sonnet-low-2547f1756881dd47.json",
+              "sha256": "1588fba57a783a7990a9c164822d6552c7d90a4263cafc53a302d5fd41d8cce3"
+            },
+            "axes": {
+              "authenticity": 3.0556,
+              "brevity": 4.7778,
+              "character": 3.1667,
+              "craft": 2.9444,
+              "grounding": 4.2222,
+              "language": 3.9444,
+              "mood_fidelity": 3.9444,
+              "repetition": 5.0,
+              "responsiveness": 3.6667
+            },
+            "eligible": true,
+            "exclusion_reason": null,
+            "family": "anthropic",
+            "hard_failures": {
+              "degenerate_loop": 0,
+              "fabricated": 2,
+              "non_latin_detected": 0,
+              "refused": 0,
+              "unusable_output": 0
+            },
+            "id": "anthropic-sonnet-low",
+            "judge": {
+              "cost_usd": 0.584997,
+              "family": "anthropic",
+              "id": "anthropic-sonnet-low",
+              "model": "anthropic/claude-sonnet-4.6",
+              "provider": "openrouter",
+              "reasoning_effort": "low",
+              "request_id": "gen-1786242991-ib3NhdW8TgkAEc2iYKtS",
+              "routed_model": "anthropic/claude-sonnet-4.6",
+              "routed_provider": "Anthropic",
+              "rubric_sha256": "9adab2cd1b38fe75f978e386239b50fbb12b5ba34c5ba5874ae396a3b46b7bf4",
+              "usage": {
+                "completion_tokens": 17517,
+                "completion_tokens_details": {
+                  "audio_tokens": 0,
+                  "image_tokens": 0,
+                  "reasoning_tokens": 2940
+                },
+                "cost": 0.584997,
+                "cost_details": {
+                  "upstream_inference_completions_cost": 0.262755,
+                  "upstream_inference_cost": 0.584997,
+                  "upstream_inference_prompt_cost": 0.322242
+                },
+                "is_byok": false,
+                "prompt_tokens": 107414,
+                "prompt_tokens_details": {
+                  "audio_tokens": 0,
+                  "cache_write_tokens": 0,
+                  "cached_tokens": 0,
+                  "video_tokens": 0
+                },
+                "total_tokens": 124931
+              }
+            },
+            "overall": 3.939,
+            "pass": false,
+            "sample": {
+              "items": 18,
+              "judge_input": "full production system prompt plus dynamic user prompt",
+              "judged_items": 18,
+              "samples_per_prompt": 3,
+              "unique_prompts": 6,
+              "unusable_outputs": 0
+            }
+          },
+          {
+            "artifact": {
+              "path": "docs/proofs/cloud-dialogue-qualification/runs/2026-07-27/grok-4.3-nitro-judgment-google-pro-high-762714d3b9af2617.json",
+              "sha256": "af8c6147adad5070df11cac6980959426b9bc3f287af372994a9bbdb02a957d8"
+            },
+            "axes": {
+              "authenticity": 2.9444,
+              "brevity": 5.0,
+              "character": 3.2778,
+              "craft": 1.0,
+              "grounding": 4.5,
+              "language": 5.0,
+              "mood_fidelity": 5.0,
+              "repetition": 5.0,
+              "responsiveness": 5.0
+            },
+            "eligible": true,
+            "exclusion_reason": null,
+            "family": "google",
+            "hard_failures": {
+              "degenerate_loop": 0,
+              "fabricated": 0,
+              "non_latin_detected": 0,
+              "refused": 0,
+              "unusable_output": 0
+            },
+            "id": "google-pro-high",
+            "judge": {
+              "cost_usd": 0.385634,
+              "family": "google",
+              "id": "google-pro-high",
+              "model": "google/gemini-3.1-pro-preview",
+              "provider": "openrouter",
+              "reasoning_effort": "high",
+              "request_id": "gen-1786242014-H1FEySKDYTcAeJPQVWOO",
+              "routed_model": "google/gemini-3.1-pro-preview",
+              "routed_provider": "Google",
+              "rubric_sha256": "9adab2cd1b38fe75f978e386239b50fbb12b5ba34c5ba5874ae396a3b46b7bf4",
+              "usage": {
+                "completion_tokens": 16166,
+                "completion_tokens_details": {
+                  "audio_tokens": 0,
+                  "image_tokens": 0,
+                  "reasoning_tokens": 10202
+                },
+                "cost": 0.385634,
+                "cost_details": {
+                  "upstream_inference_completions_cost": 0.193992,
+                  "upstream_inference_cost": 0.385634,
+                  "upstream_inference_prompt_cost": 0.191642
+                },
+                "is_byok": false,
+                "prompt_tokens": 95821,
+                "prompt_tokens_details": {
+                  "audio_tokens": 0,
+                  "cache_write_tokens": 0,
+                  "cached_tokens": 0,
+                  "video_tokens": 0
+                },
+                "total_tokens": 111987
+              }
+            },
+            "overall": 4.2791,
+            "pass": true,
+            "sample": {
+              "items": 18,
+              "judge_input": "full production system prompt plus dynamic user prompt",
+              "judged_items": 18,
+              "samples_per_prompt": 3,
+              "unique_prompts": 6,
+              "unusable_outputs": 0
+            }
+          }
+        ],
+        "method": "median",
+        "needs_adjudication": true,
+        "overall": 3.939,
+        "overall_spread": 0.9458,
+        "pass": false,
+        "sample": {
+          "items": 18,
+          "judged_items": 18,
+          "unusable_outputs": 0
+        },
+        "votes": {
+          "eligible": 3,
+          "fail": 2,
+          "pass": 1,
+          "required": 2,
+          "self_excluded": 0
+        }
+      },
+      "model": "x-ai/grok-4.3:nitro",
+      "performance": {
+        "artifact": {
+          "path": "docs/proofs/cloud-dialogue-qualification/runs/2026-07-27/grok-4.3-nitro-perf.json",
+          "sha256": "28458bc124df89f5cc37175ae044b4792eb0ffec126725c6da23e8795681948a"
+        },
+        "candidate": "x-ai/grok-4.3:nitro@https://openrouter.ai/api/v1#env:OPENROUTER_API_KEY",
+        "cold_completion_p95_ms": 11562.0,
+        "cold_measurements": 6,
+        "cold_ttft_p95_ms": 1086.0,
+        "error_rate": 0.0,
+        "measurements": 18,
+        "speed_cohort_size": 15,
+        "speed_index_ms": 3930.0,
+        "speed_rank": 6,
+        "tokens_per_second_p50": 103.88300554715079,
+        "warm_completion_p95_ms": 9654.0,
+        "warm_measurements": 12,
+        "warm_ttft_p95_ms": 2022.0
+      },
+      "preflight": {
+        "artifact": {
+          "path": "docs/proofs/cloud-dialogue-qualification/runs/2026-07-27/grok-4.3-nitro-preflight.json",
+          "sha256": "8ad22e9ce388b6be2ac2153583bf9578080341f1789f70b4d15dc67be320a30c"
+        },
+        "calls": 12,
+        "guard_interventions": 0,
+        "guard_rate": 0.0,
+        "request_profile": {
+          "enable_thinking": null,
+          "frequency_penalty": 0.5,
+          "json_mode": true,
+          "max_tokens": 768,
+          "model": "x-ai/grok-4.3:nitro",
+          "temperature": 0.7
+        },
+        "valid": 12
+      },
+      "reason": "judge disagreement requires adjudication; speed rank #6 of 15",
+      "run_id": "2026-07-27/grok-4.3-nitro",
+      "stage": "judgment",
+      "status": "needs_adjudication",
+      "tested_on": "2026-07-27"
+    },
+    {
+      "calls": {
+        "count": 85,
+        "diagnostic": 0,
+        "judgment": 54,
+        "path": "qualification-calls/2026-07-27__grok-4.3.json",
+        "performance": 19,
+        "preflight": 12,
+        "sha256": "bbb27a87fd7e7707ee9b67fd13574a985feab15d7009def148263d5a341e0635"
+      },
+      "candidate": "x-ai/grok-4.3@https://openrouter.ai/api/v1#env:OPENROUTER_API_KEY",
+      "judgment": {
+        "axes": {
+          "authenticity": 3.0556,
+          "brevity": 3.1111,
+          "character": 3.3333,
+          "craft": 2.1111,
+          "grounding": 4.8333,
+          "language": 5.0,
+          "mood_fidelity": 4.0,
+          "repetition": 5.0,
+          "responsiveness": 4.3333
+        },
+        "candidate_family": "x-ai",
+        "complete": true,
+        "cost_usd": 1.846229,
+        "hard_failures": {
+          "degenerate_loop": 0,
+          "fabricated": 2,
+          "non_latin_detected": 0,
+          "refused": 0,
+          "unusable_output": 0
+        },
+        "judges": [
+          {
+            "artifact": {
+              "path": "docs/proofs/cloud-dialogue-qualification/runs/2026-07-27/grok-4.3-judgment-b65d1132af17a55d.json",
+              "sha256": "990c67c8f92e17064eaad02a78db3b0f82a5aa27495467bbae6a8b01c6a92702"
+            },
+            "axes": {
+              "authenticity": 2.0556,
+              "brevity": 1.8889,
+              "character": 2.0,
+              "craft": 2.1111,
+              "grounding": 3.6111,
+              "language": 3.8333,
+              "mood_fidelity": 4.0,
+              "repetition": 4.0,
+              "responsiveness": 4.3333
+            },
+            "eligible": true,
+            "exclusion_reason": null,
+            "family": "openai",
+            "hard_failures": {
+              "degenerate_loop": 0,
+              "fabricated": 2,
+              "non_latin_detected": 0,
+              "refused": 0
+            },
+            "id": "openai-sol-high",
+            "judge": {
+              "cost_usd": 0.971924,
+              "family": "openai",
+              "id": "openai-sol-high",
+              "model": "openai/gpt-5.6-sol",
+              "provider": "openrouter",
+              "reasoning_effort": "high",
+              "request_id": "gen-1786229264-BLBvSc4yjmZ3i3oVqkRb",
+              "routed_model": "openai/gpt-5.6-sol",
+              "routed_provider": "OpenAI",
+              "rubric_sha256": "9adab2cd1b38fe75f978e386239b50fbb12b5ba34c5ba5874ae396a3b46b7bf4",
+              "usage": {
+                "completion_tokens": 13377,
+                "completion_tokens_details": {
+                  "audio_tokens": 0,
+                  "image_tokens": 0,
+                  "reasoning_tokens": 8048
+                },
+                "cost": 0.971924,
+                "cost_details": {
+                  "upstream_inference_completions_cost": 0.40131,
+                  "upstream_inference_cost": 0.971924,
+                  "upstream_inference_prompt_cost": 0.570614
+                },
+                "is_byok": false,
+                "prompt_tokens": 93666,
+                "prompt_tokens_details": {
+                  "audio_tokens": 0,
+                  "cache_write_tokens": 91090,
+                  "cached_tokens": 2573,
+                  "video_tokens": 0
+                },
+                "total_tokens": 107043
+              }
+            },
+            "overall": 3.1314,
+            "pass": false,
+            "sample": {
+              "items": 18,
+              "judge_input": "full production system prompt plus dynamic user prompt",
+              "judged_items": 18,
+              "samples_per_prompt": 3,
+              "unique_prompts": 6,
+              "unusable_outputs": 0
+            }
+          },
+          {
+            "artifact": {
+              "path": "docs/proofs/cloud-dialogue-qualification/runs/2026-07-27/grok-4.3-judgment-anthropic-sonnet-low-3c7820f4fd744bd1.json",
+              "sha256": "8dcc339dd6c0b9d7c177609a9c7ccf8f12cd44a61b28da17215af9569cf7633e"
+            },
+            "axes": {
+              "authenticity": 3.0556,
+              "brevity": 4.8889,
+              "character": 3.3333,
+              "craft": 2.2222,
+              "grounding": 4.8333,
+              "language": 5.0,
+              "mood_fidelity": 3.9444,
+              "repetition": 5.0,
+              "responsiveness": 3.8333
+            },
+            "eligible": true,
+            "exclusion_reason": null,
+            "family": "anthropic",
+            "hard_failures": {
+              "degenerate_loop": 0,
+              "fabricated": 0,
+              "non_latin_detected": 0,
+              "refused": 0,
+              "unusable_output": 0
+            },
+            "id": "anthropic-sonnet-low",
+            "judge": {
+              "cost_usd": 0.494361,
+              "family": "anthropic",
+              "id": "anthropic-sonnet-low",
+              "model": "anthropic/claude-sonnet-4.6",
+              "provider": "openrouter",
+              "reasoning_effort": "low",
+              "request_id": "gen-1786243058-jVYuv8YtLk9EXKSt0Uhd",
+              "routed_model": "anthropic/claude-sonnet-4.6",
+              "routed_provider": "Anthropic",
+              "rubric_sha256": "9adab2cd1b38fe75f978e386239b50fbb12b5ba34c5ba5874ae396a3b46b7bf4",
+              "usage": {
+                "completion_tokens": 11532,
+                "completion_tokens_details": {
+                  "audio_tokens": 0,
+                  "image_tokens": 0,
+                  "reasoning_tokens": 1603
+                },
+                "cost": 0.494361,
+                "cost_details": {
+                  "upstream_inference_completions_cost": 0.17298,
+                  "upstream_inference_cost": 0.494361,
+                  "upstream_inference_prompt_cost": 0.321381
+                },
+                "is_byok": false,
+                "prompt_tokens": 107127,
+                "prompt_tokens_details": {
+                  "audio_tokens": 0,
+                  "cache_write_tokens": 0,
+                  "cached_tokens": 0,
+                  "video_tokens": 0
+                },
+                "total_tokens": 118659
+              }
+            },
+            "overall": 4.1247,
+            "pass": true,
+            "sample": {
+              "items": 18,
+              "judge_input": "full production system prompt plus dynamic user prompt",
+              "judged_items": 18,
+              "samples_per_prompt": 3,
+              "unique_prompts": 6,
+              "unusable_outputs": 0
+            }
+          },
+          {
+            "artifact": {
+              "path": "docs/proofs/cloud-dialogue-qualification/runs/2026-07-27/grok-4.3-judgment-google-pro-high-a217e437a5ad0835.json",
+              "sha256": "942dd1541067bc46b495c3d203bba47254043c16b47cf5805f590d1c2b34cdfc"
+            },
+            "axes": {
+              "authenticity": 3.0556,
+              "brevity": 3.1111,
+              "character": 3.7778,
+              "craft": 1.1111,
+              "grounding": 5.0,
+              "language": 5.0,
+              "mood_fidelity": 5.0,
+              "repetition": 5.0,
+              "responsiveness": 5.0
+            },
+            "eligible": true,
+            "exclusion_reason": null,
+            "family": "google",
+            "hard_failures": {
+              "degenerate_loop": 0,
+              "fabricated": 0,
+              "non_latin_detected": 0,
+              "refused": 0,
+              "unusable_output": 0
+            },
+            "id": "google-pro-high",
+            "judge": {
+              "cost_usd": 0.379944,
+              "family": "google",
+              "id": "google-pro-high",
+              "model": "google/gemini-3.1-pro-preview",
+              "provider": "openrouter",
+              "reasoning_effort": "high",
+              "request_id": "gen-1786242415-zpIuglMTlCThb4oAdY8Q",
+              "routed_model": "google/gemini-3.1-pro-preview",
+              "routed_provider": "Google",
+              "rubric_sha256": "9adab2cd1b38fe75f978e386239b50fbb12b5ba34c5ba5874ae396a3b46b7bf4",
+              "usage": {
+                "completion_tokens": 15738,
+                "completion_tokens_details": {
+                  "audio_tokens": 0,
+                  "image_tokens": 0,
+                  "reasoning_tokens": 9278
+                },
+                "cost": 0.379944,
+                "cost_details": {
+                  "upstream_inference_completions_cost": 0.188856,
+                  "upstream_inference_cost": 0.379944,
+                  "upstream_inference_prompt_cost": 0.191088
+                },
+                "is_byok": false,
+                "prompt_tokens": 95544,
+                "prompt_tokens_details": {
+                  "audio_tokens": 0,
+                  "cache_write_tokens": 0,
+                  "cached_tokens": 0,
+                  "video_tokens": 0
+                },
+                "total_tokens": 111282
+              }
+            },
+            "overall": 4.2114,
+            "pass": true,
+            "sample": {
+              "items": 18,
+              "judge_input": "full production system prompt plus dynamic user prompt",
+              "judged_items": 18,
+              "samples_per_prompt": 3,
+              "unique_prompts": 6,
+              "unusable_outputs": 0
+            }
+          }
+        ],
+        "method": "median",
+        "needs_adjudication": true,
+        "overall": 4.1247,
+        "overall_spread": 1.08,
+        "pass": false,
+        "sample": {
+          "items": 18,
+          "judged_items": 18,
+          "unusable_outputs": 0
+        },
+        "votes": {
+          "eligible": 3,
+          "fail": 1,
+          "pass": 2,
+          "required": 2,
+          "self_excluded": 0
+        }
+      },
+      "model": "x-ai/grok-4.3",
+      "performance": {
+        "artifact": {
+          "path": "docs/proofs/cloud-dialogue-qualification/runs/2026-07-27/grok-4.3-perf.json",
+          "sha256": "21c39b8de9ac7094b9b363307bf4814b95296b53abce0d6afc3af6d862567d4b"
+        },
+        "candidate": "x-ai/grok-4.3@https://openrouter.ai/api/v1#env:OPENROUTER_API_KEY",
+        "cold_completion_p95_ms": 13085.0,
+        "cold_measurements": 6,
+        "cold_ttft_p95_ms": 1402.0,
+        "error_rate": 0.0,
+        "measurements": 18,
+        "speed_cohort_size": 15,
+        "speed_index_ms": 3827.75,
+        "speed_rank": 5,
+        "tokens_per_second_p50": 87.38260514495713,
+        "warm_completion_p95_ms": 12485.0,
+        "warm_measurements": 12,
+        "warm_ttft_p95_ms": 942.0
+      },
+      "preflight": {
+        "artifact": {
+          "path": "docs/proofs/cloud-dialogue-qualification/runs/2026-07-27/grok-4.3-preflight.json",
+          "sha256": "2c86351404f17832eb303ed2516c9b91877ec04f6bb7af6807e1a7e8501f1308"
+        },
+        "calls": 12,
+        "guard_interventions": 0,
+        "guard_rate": 0.0,
+        "request_profile": {
+          "enable_thinking": null,
+          "frequency_penalty": 0.5,
+          "json_mode": true,
+          "max_tokens": 768,
+          "model": "x-ai/grok-4.3",
+          "temperature": 0.7
+        },
+        "valid": 12
+      },
+      "reason": "judge disagreement requires adjudication; speed rank #5 of 15",
+      "run_id": "2026-07-27/grok-4.3",
+      "stage": "judgment",
+      "status": "needs_adjudication",
+      "tested_on": "2026-07-27"
+    },
+    {
+      "calls": {
+        "count": 115,
+        "diagnostic": 0,
+        "judgment": 54,
+        "path": "qualification-calls/2026-07-27__kimi-k2-0905-nitro.json",
+        "performance": 49,
+        "preflight": 12,
+        "sha256": "92eb221e48ab8bb8785cc86ad7a5dfa261eb3928b330456345fa3522096be7a3"
+      },
+      "candidate": "moonshotai/kimi-k2-0905:nitro@https://openrouter.ai/api/v1#env:OPENROUTER_API_KEY",
+      "judgment": {
+        "axes": {
+          "authenticity": 3.4444,
+          "brevity": 5.0,
+          "character": 3.7222,
+          "craft": 3.1667,
+          "grounding": 4.3333,
+          "language": 5.0,
+          "mood_fidelity": 4.0,
+          "repetition": 5.0,
+          "responsiveness": 4.7778
+        },
+        "candidate_family": "moonshot",
+        "complete": true,
+        "cost_usd": 1.87017775,
+        "hard_failures": {
+          "degenerate_loop": 0,
+          "fabricated": 5,
+          "non_latin_detected": 0,
+          "refused": 0,
+          "unusable_output": 0
+        },
+        "judges": [
+          {
+            "artifact": {
+              "path": "docs/proofs/cloud-dialogue-qualification/runs/2026-07-27/kimi-k2-0905-nitro-judgment-14b526080efc375b.json",
+              "sha256": "01f0a310d631efb244e2e54ce5af4d59d1f8b1e4e7e96161f41ea9768e535406"
+            },
+            "axes": {
+              "authenticity": 3.4444,
+              "brevity": 5.0,
+              "character": 2.8333,
+              "craft": 2.6667,
+              "grounding": 3.2222,
+              "language": 5.0,
+              "mood_fidelity": 4.0,
+              "repetition": 5.0,
+              "responsiveness": 4.0556
+            },
+            "eligible": true,
+            "exclusion_reason": null,
+            "family": "openai",
+            "hard_failures": {
+              "degenerate_loop": 0,
+              "fabricated": 5,
+              "non_latin_detected": 0,
+              "refused": 0
+            },
+            "id": "openai-sol-high",
+            "judge": {
+              "cost_usd": 0.94453275,
+              "family": "openai",
+              "id": "openai-sol-high",
+              "model": "openai/gpt-5.6-sol",
+              "provider": "openrouter",
+              "reasoning_effort": "high",
+              "request_id": "gen-1786229443-xaJw2spDzwoUFUY7wtxk",
+              "routed_model": "openai/gpt-5.6-sol",
+              "routed_provider": "OpenAI",
+              "rubric_sha256": "9adab2cd1b38fe75f978e386239b50fbb12b5ba34c5ba5874ae396a3b46b7bf4",
+              "usage": {
+                "completion_tokens": 12925,
+                "completion_tokens_details": {
+                  "audio_tokens": 0,
+                  "image_tokens": 0,
+                  "reasoning_tokens": 7658
+                },
+                "cost": 0.94453275,
+                "cost_details": {
+                  "upstream_inference_completions_cost": 0.38775,
+                  "upstream_inference_cost": 0.94453275,
+                  "upstream_inference_prompt_cost": 0.55678275
+                },
+                "is_byok": false,
+                "prompt_tokens": 91453,
+                "prompt_tokens_details": {
+                  "audio_tokens": 0,
+                  "cache_write_tokens": 88877,
+                  "cached_tokens": 2573,
+                  "video_tokens": 0
+                },
+                "total_tokens": 104378
+              }
+            },
+            "overall": 3.9187,
+            "pass": false,
+            "sample": {
+              "items": 18,
+              "judge_input": "full production system prompt plus dynamic user prompt",
+              "judged_items": 18,
+              "samples_per_prompt": 3,
+              "unique_prompts": 6,
+              "unusable_outputs": 0
+            }
+          },
+          {
+            "artifact": {
+              "path": "docs/proofs/cloud-dialogue-qualification/runs/2026-07-27/kimi-k2-0905-nitro-judgment-anthropic-sonnet-low-446cb4bef4c71d19.json",
+              "sha256": "5ae4ed61c136c65fefecf2c3907f2d203554be9a30b824fa345a1710a3c70f36"
+            },
+            "axes": {
+              "authenticity": 3.2778,
+              "brevity": 4.6667,
+              "character": 3.7222,
+              "craft": 3.1667,
+              "grounding": 4.3333,
+              "language": 5.0,
+              "mood_fidelity": 3.2778,
+              "repetition": 5.0,
+              "responsiveness": 4.7778
+            },
+            "eligible": true,
+            "exclusion_reason": null,
+            "family": "anthropic",
+            "hard_failures": {
+              "degenerate_loop": 0,
+              "fabricated": 1,
+              "non_latin_detected": 0,
+              "refused": 0,
+              "unusable_output": 0
+            },
+            "id": "anthropic-sonnet-low",
+            "judge": {
+              "cost_usd": 0.585327,
+              "family": "anthropic",
+              "id": "anthropic-sonnet-low",
+              "model": "anthropic/claude-sonnet-4.6",
+              "provider": "openrouter",
+              "reasoning_effort": "low",
+              "request_id": "gen-1786243225-0sKswuJ7xjrsCQCjdp90",
+              "routed_model": "anthropic/claude-sonnet-4.6",
+              "routed_provider": "Anthropic",
+              "rubric_sha256": "9adab2cd1b38fe75f978e386239b50fbb12b5ba34c5ba5874ae396a3b46b7bf4",
+              "usage": {
+                "completion_tokens": 18107,
+                "completion_tokens_details": {
+                  "audio_tokens": 0,
+                  "image_tokens": 0,
+                  "reasoning_tokens": 3227
+                },
+                "cost": 0.585327,
+                "cost_details": {
+                  "upstream_inference_completions_cost": 0.271605,
+                  "upstream_inference_cost": 0.585327,
+                  "upstream_inference_prompt_cost": 0.313722
+                },
+                "is_byok": false,
+                "prompt_tokens": 104574,
+                "prompt_tokens_details": {
+                  "audio_tokens": 0,
+                  "cache_write_tokens": 0,
+                  "cached_tokens": 0,
+                  "video_tokens": 0
+                },
+                "total_tokens": 122681
+              }
+            },
+            "overall": 4.1436,
+            "pass": false,
+            "sample": {
+              "items": 18,
+              "judge_input": "full production system prompt plus dynamic user prompt",
+              "judged_items": 18,
+              "samples_per_prompt": 3,
+              "unique_prompts": 6,
+              "unusable_outputs": 0
+            }
+          },
+          {
+            "artifact": {
+              "path": "docs/proofs/cloud-dialogue-qualification/runs/2026-07-27/kimi-k2-0905-nitro-judgment-google-pro-high-1dca29fe0e676812.json",
+              "sha256": "058bf4576aa15036135fe994debcdcb933aebed7a8ed186c111d2b5245ea20ee"
+            },
+            "axes": {
+              "authenticity": 4.1667,
+              "brevity": 5.0,
+              "character": 4.2222,
+              "craft": 4.1667,
+              "grounding": 5.0,
+              "language": 5.0,
+              "mood_fidelity": 4.9444,
+              "repetition": 5.0,
+              "responsiveness": 5.0
+            },
+            "eligible": true,
+            "exclusion_reason": null,
+            "family": "google",
+            "hard_failures": {
+              "degenerate_loop": 0,
+              "fabricated": 0,
+              "non_latin_detected": 0,
+              "refused": 0,
+              "unusable_output": 0
+            },
+            "id": "google-pro-high",
+            "judge": {
+              "cost_usd": 0.340318,
+              "family": "google",
+              "id": "google-pro-high",
+              "model": "google/gemini-3.1-pro-preview",
+              "provider": "openrouter",
+              "reasoning_effort": "high",
+              "request_id": "gen-1786242611-vcbnOb8XCOepcBNuq5NP",
+              "routed_model": "google/gemini-3.1-pro-preview",
+              "routed_provider": "Google",
+              "rubric_sha256": "9adab2cd1b38fe75f978e386239b50fbb12b5ba34c5ba5874ae396a3b46b7bf4",
+              "usage": {
+                "completion_tokens": 12815,
+                "completion_tokens_details": {
+                  "audio_tokens": 0,
+                  "image_tokens": 0,
+                  "reasoning_tokens": 6670
+                },
+                "cost": 0.340318,
+                "cost_details": {
+                  "upstream_inference_completions_cost": 0.15378,
+                  "upstream_inference_cost": 0.340318,
+                  "upstream_inference_prompt_cost": 0.186538
+                },
+                "is_byok": false,
+                "prompt_tokens": 93269,
+                "prompt_tokens_details": {
+                  "audio_tokens": 0,
+                  "cache_write_tokens": 0,
+                  "cached_tokens": 0,
+                  "video_tokens": 0
+                },
+                "total_tokens": 106084
+              }
+            },
+            "overall": 4.7561,
+            "pass": true,
+            "sample": {
+              "items": 18,
+              "judge_input": "full production system prompt plus dynamic user prompt",
+              "judged_items": 18,
+              "samples_per_prompt": 3,
+              "unique_prompts": 6,
+              "unusable_outputs": 0
+            }
+          }
+        ],
+        "method": "median",
+        "needs_adjudication": true,
+        "overall": 4.1436,
+        "overall_spread": 0.8374,
+        "pass": false,
+        "sample": {
+          "items": 18,
+          "judged_items": 18,
+          "unusable_outputs": 0
+        },
+        "votes": {
+          "eligible": 3,
+          "fail": 2,
+          "pass": 1,
+          "required": 2,
+          "self_excluded": 0
+        }
+      },
+      "model": "moonshotai/kimi-k2-0905:nitro",
+      "performance": {
+        "artifact": {
+          "path": "docs/proofs/cloud-dialogue-qualification/runs/2026-07-27/kimi-k2-0905-nitro-perf-expanded.json",
+          "sha256": "1984ba432a4cbb82e60be1a1fc52a2fc36828d2a2654a41229fd4e052d258133"
+        },
+        "candidate": "moonshotai/kimi-k2-0905:nitro@https://openrouter.ai/api/v1#env:OPENROUTER_API_KEY",
+        "cold_completion_p95_ms": 1681.0,
+        "cold_measurements": 6,
+        "cold_ttft_p95_ms": 1664.0,
+        "error_rate": 0.0,
+        "measurements": 48,
+        "speed_cohort_size": 15,
+        "speed_index_ms": 1338.0,
+        "speed_rank": 1,
+        "tokens_per_second_p50": 6000.0,
+        "warm_completion_p95_ms": 1344.0,
+        "warm_measurements": 42,
+        "warm_ttft_p95_ms": 1336.0
+      },
+      "preflight": {
+        "artifact": {
+          "path": "docs/proofs/cloud-dialogue-qualification/runs/2026-07-27/kimi-k2-0905-nitro-preflight.json",
+          "sha256": "a693e679b53abff4ff555220671625d39e44fd7478428318e7d465d713755104"
+        },
+        "calls": 12,
+        "guard_interventions": 0,
+        "guard_rate": 0.0,
+        "request_profile": {
+          "enable_thinking": null,
+          "frequency_penalty": 0.5,
+          "json_mode": true,
+          "max_tokens": 768,
+          "model": "moonshotai/kimi-k2-0905:nitro",
+          "temperature": 0.7
+        },
+        "valid": 12
+      },
+      "reason": "judge disagreement requires adjudication; speed rank #1 of 15",
+      "run_id": "2026-07-27/kimi-k2-0905-nitro",
+      "stage": "judgment",
+      "status": "needs_adjudication",
+      "tested_on": "2026-07-27"
+    },
+    {
+      "calls": {
+        "count": 85,
+        "diagnostic": 0,
+        "judgment": 54,
+        "path": "qualification-calls/2026-07-27__kimi-k2-0905.json",
+        "performance": 19,
+        "preflight": 12,
+        "sha256": "e4f54d1aa51bd966e9aee380cd01d953bb1c98f33cbee544c18954b7932a362e"
+      },
+      "candidate": "moonshotai/kimi-k2-0905@https://openrouter.ai/api/v1#env:OPENROUTER_API_KEY",
+      "judgment": {
+        "axes": {
+          "authenticity": 3.7778,
+          "brevity": 4.7778,
+          "character": 3.7778,
+          "craft": 3.4444,
+          "grounding": 4.5,
+          "language": 5.0,
+          "mood_fidelity": 3.8889,
+          "repetition": 5.0,
+          "responsiveness": 4.2778
+        },
+        "candidate_family": "moonshot",
+        "complete": true,
+        "cost_usd": 1.79052,
+        "hard_failures": {
+          "degenerate_loop": 0,
+          "fabricated": 0,
+          "non_latin_detected": 0,
+          "refused": 0,
+          "unusable_output": 0
+        },
+        "judges": [
+          {
+            "artifact": {
+              "path": "docs/proofs/cloud-dialogue-qualification/runs/2026-07-27/kimi-k2-0905-judgment-c100cc2fab20b725.json",
+              "sha256": "65abb9de3c412bdad5042744a6b78e053a5f521e62d9d7a430816890a855cbdc"
+            },
+            "axes": {
+              "authenticity": 3.8333,
+              "brevity": 4.6667,
+              "character": 3.1111,
+              "craft": 3.3333,
+              "grounding": 4.2222,
+              "language": 5.0,
+              "mood_fidelity": 4.0556,
+              "repetition": 5.0,
+              "responsiveness": 4.2778
+            },
+            "eligible": true,
+            "exclusion_reason": null,
+            "family": "openai",
+            "hard_failures": {
+              "degenerate_loop": 0,
+              "fabricated": 0,
+              "non_latin_detected": 0,
+              "refused": 0
+            },
+            "id": "openai-sol-high",
+            "judge": {
+              "cost_usd": 0.889724,
+              "family": "openai",
+              "id": "openai-sol-high",
+              "model": "openai/gpt-5.6-sol",
+              "provider": "openrouter",
+              "reasoning_effort": "high",
+              "request_id": "gen-1786229477-23bkrw4VtBFmgvDtlTON",
+              "routed_model": "openai/gpt-5.6-sol",
+              "routed_provider": "OpenAI",
+              "rubric_sha256": "9adab2cd1b38fe75f978e386239b50fbb12b5ba34c5ba5874ae396a3b46b7bf4",
+              "usage": {
+                "completion_tokens": 11092,
+                "completion_tokens_details": {
+                  "audio_tokens": 0,
+                  "image_tokens": 0,
+                  "reasoning_tokens": 6214
+                },
+                "cost": 0.889724,
+                "cost_details": {
+                  "upstream_inference_completions_cost": 0.33276,
+                  "upstream_inference_cost": 0.889724,
+                  "upstream_inference_prompt_cost": 0.556964
+                },
+                "is_byok": false,
+                "prompt_tokens": 91482,
+                "prompt_tokens_details": {
+                  "audio_tokens": 0,
+                  "cache_write_tokens": 88906,
+                  "cached_tokens": 2573,
+                  "video_tokens": 0
+                },
+                "total_tokens": 102574
+              }
+            },
+            "overall": 4.1653,
+            "pass": true,
+            "sample": {
+              "items": 18,
+              "judge_input": "full production system prompt plus dynamic user prompt",
+              "judged_items": 18,
+              "samples_per_prompt": 3,
+              "unique_prompts": 6,
+              "unusable_outputs": 0
+            }
+          },
+          {
+            "artifact": {
+              "path": "docs/proofs/cloud-dialogue-qualification/runs/2026-07-27/kimi-k2-0905-judgment-anthropic-sonnet-low-f361683aa9fbafd6.json",
+              "sha256": "41e7a873d0513f05ed2ec7c0c61cb33ea0c6c180b629d086252d715426fd4a39"
+            },
+            "axes": {
+              "authenticity": 3.7778,
+              "brevity": 4.7778,
+              "character": 3.8889,
+              "craft": 3.4444,
+              "grounding": 4.7222,
+              "language": 5.0,
+              "mood_fidelity": 3.8889,
+              "repetition": 5.0,
+              "responsiveness": 4.2222
+            },
+            "eligible": true,
+            "exclusion_reason": null,
+            "family": "anthropic",
+            "hard_failures": {
+              "degenerate_loop": 0,
+              "fabricated": 0,
+              "non_latin_detected": 0,
+              "refused": 0,
+              "unusable_output": 0
+            },
+            "id": "anthropic-sonnet-low",
+            "judge": {
+              "cost_usd": 0.550002,
+              "family": "anthropic",
+              "id": "anthropic-sonnet-low",
+              "model": "anthropic/claude-sonnet-4.6",
+              "provider": "openrouter",
+              "reasoning_effort": "low",
+              "request_id": "gen-1786243245-wLH0okdLuuRumf5YuuE4",
+              "routed_model": "anthropic/claude-sonnet-4.6",
+              "routed_provider": "Anthropic",
+              "rubric_sha256": "9adab2cd1b38fe75f978e386239b50fbb12b5ba34c5ba5874ae396a3b46b7bf4",
+              "usage": {
+                "completion_tokens": 15742,
+                "completion_tokens_details": {
+                  "audio_tokens": 0,
+                  "image_tokens": 0,
+                  "reasoning_tokens": 2015
+                },
+                "cost": 0.550002,
+                "cost_details": {
+                  "upstream_inference_completions_cost": 0.23613,
+                  "upstream_inference_cost": 0.550002,
+                  "upstream_inference_prompt_cost": 0.313872
+                },
+                "is_byok": false,
+                "prompt_tokens": 104624,
+                "prompt_tokens_details": {
+                  "audio_tokens": 0,
+                  "cache_write_tokens": 0,
+                  "cached_tokens": 0,
+                  "video_tokens": 0
+                },
+                "total_tokens": 120366
+              }
+            },
+            "overall": 4.336,
+            "pass": true,
+            "sample": {
+              "items": 18,
+              "judge_input": "full production system prompt plus dynamic user prompt",
+              "judged_items": 18,
+              "samples_per_prompt": 3,
+              "unique_prompts": 6,
+              "unusable_outputs": 0
+            }
+          },
+          {
+            "artifact": {
+              "path": "docs/proofs/cloud-dialogue-qualification/runs/2026-07-27/kimi-k2-0905-judgment-google-pro-high-1a37f899ab737782.json",
+              "sha256": "f0aad541f0021e6c6dca5d50cdf442afaa1d6e6bf5df83369d0e621514503c4c"
+            },
+            "axes": {
+              "authenticity": 3.6667,
+              "brevity": 5.0,
+              "character": 3.7778,
+              "craft": 3.7778,
+              "grounding": 4.5,
+              "language": 5.0,
+              "mood_fidelity": 3.8333,
+              "repetition": 5.0,
+              "responsiveness": 4.8333
+            },
+            "eligible": true,
+            "exclusion_reason": null,
+            "family": "google",
+            "hard_failures": {
+              "degenerate_loop": 0,
+              "fabricated": 0,
+              "non_latin_detected": 0,
+              "refused": 0,
+              "unusable_output": 0
+            },
+            "id": "google-pro-high",
+            "judge": {
+              "cost_usd": 0.350794,
+              "family": "google",
+              "id": "google-pro-high",
+              "model": "google/gemini-3.1-pro-preview",
+              "provider": "openrouter",
+              "reasoning_effort": "high",
+              "request_id": "gen-1786243069-zDtOb9q4lrk7qwPXz0ke",
+              "routed_model": "google/gemini-3.1-pro-preview",
+              "routed_provider": "Google",
+              "rubric_sha256": "9adab2cd1b38fe75f978e386239b50fbb12b5ba34c5ba5874ae396a3b46b7bf4",
+              "usage": {
+                "completion_tokens": 13685,
+                "completion_tokens_details": {
+                  "audio_tokens": 0,
+                  "image_tokens": 0,
+                  "reasoning_tokens": 7943
+                },
+                "cost": 0.350794,
+                "cost_details": {
+                  "upstream_inference_completions_cost": 0.16422,
+                  "upstream_inference_cost": 0.350794,
+                  "upstream_inference_prompt_cost": 0.186574
+                },
+                "is_byok": false,
+                "prompt_tokens": 93287,
+                "prompt_tokens_details": {
+                  "audio_tokens": 0,
+                  "cache_write_tokens": 0,
+                  "cached_tokens": 0,
+                  "video_tokens": 0
+                },
+                "total_tokens": 106972
+              }
+            },
+            "overall": 4.3713,
+            "pass": true,
+            "sample": {
+              "items": 18,
+              "judge_input": "full production system prompt plus dynamic user prompt",
+              "judged_items": 18,
+              "samples_per_prompt": 3,
+              "unique_prompts": 6,
+              "unusable_outputs": 0
+            }
+          }
+        ],
+        "method": "median",
+        "needs_adjudication": false,
+        "overall": 4.336,
+        "overall_spread": 0.206,
+        "pass": true,
+        "quality_cohort_size": 7,
+        "quality_rank": 5,
+        "sample": {
+          "items": 18,
+          "judged_items": 18,
+          "unusable_outputs": 0
+        },
+        "votes": {
+          "eligible": 3,
+          "fail": 0,
+          "pass": 3,
+          "required": 2,
+          "self_excluded": 0
+        }
+      },
+      "model": "moonshotai/kimi-k2-0905",
+      "performance": {
+        "artifact": {
+          "path": "docs/proofs/cloud-dialogue-qualification/runs/2026-07-27/kimi-k2-0905-perf.json",
+          "sha256": "0d2cddcbf6a059beb3206c12242e0aa50e8623f6ce7770165040563717d8d55f"
+        },
+        "candidate": "moonshotai/kimi-k2-0905@https://openrouter.ai/api/v1#env:OPENROUTER_API_KEY",
+        "cold_completion_p95_ms": 5510.0,
+        "cold_measurements": 6,
+        "cold_ttft_p95_ms": 2912.0,
+        "error_rate": 0.0,
+        "measurements": 18,
+        "speed_cohort_size": 15,
+        "speed_index_ms": 3410.0,
+        "speed_rank": 3,
+        "tokens_per_second_p50": 40.396621373485125,
+        "warm_completion_p95_ms": 4790.0,
+        "warm_measurements": 12,
+        "warm_ttft_p95_ms": 2950.0
+      },
+      "preflight": {
+        "artifact": {
+          "path": "docs/proofs/cloud-dialogue-qualification/runs/2026-07-27/kimi-k2-0905-preflight.json",
+          "sha256": "4c10ed7a7639e6d552e069ea3eca09f8a94349721a96c19af14f65de8c5bd61e"
+        },
+        "calls": 12,
+        "guard_interventions": 0,
+        "guard_rate": 0.0,
+        "request_profile": {
+          "enable_thinking": null,
+          "frequency_penalty": 0.5,
+          "json_mode": true,
+          "max_tokens": 768,
+          "model": "moonshotai/kimi-k2-0905",
+          "temperature": 0.7
+        },
+        "valid": 12
+      },
+      "reason": "quality passed; quality rank #5 of 7; speed rank #3 of 15",
+      "run_id": "2026-07-27/kimi-k2-0905",
+      "stage": "judgment",
+      "status": "qualified",
+      "tested_on": "2026-07-27"
+    },
+    {
+      "calls": {
+        "count": 12,
+        "diagnostic": 0,
+        "judgment": 0,
+        "path": "qualification-calls/2026-07-27__mistral-medium-3.1.json",
+        "performance": 0,
+        "preflight": 12,
+        "sha256": "8fb2efa0e01f8a4c6f1d5bb52fc7b2550c12b66c7efa6a00c7639694296ef74d"
+      },
+      "candidate": "mistralai/mistral-medium-3.1@https://openrouter.ai/api/v1#env:OPENROUTER_API_KEY",
+      "judgment": null,
+      "model": "mistralai/mistral-medium-3.1",
+      "performance": null,
+      "preflight": {
+        "artifact": {
+          "path": "docs/proofs/cloud-dialogue-qualification/runs/2026-07-27/mistral-medium-3.1-preflight.json",
+          "sha256": "2982f5f6e25603ceb85500a9c0a893f5f3a8fd20637f5a0653085a3913c7dd4c"
+        },
+        "calls": 12,
+        "guard_interventions": 5,
+        "guard_rate": 0.4166666666666667,
+        "request_profile": {
+          "enable_thinking": null,
+          "frequency_penalty": 0.5,
+          "json_mode": true,
+          "max_tokens": 768,
+          "model": "mistralai/mistral-medium-3.1",
+          "temperature": 0.7
+        },
+        "valid": 12
+      },
+      "reason": "guard intervention rate",
+      "run_id": "2026-07-27/mistral-medium-3.1",
+      "stage": "preflight",
+      "status": "rejected",
+      "tested_on": "2026-07-27"
+    },
+    {
+      "calls": {
+        "count": 12,
+        "diagnostic": 0,
+        "judgment": 0,
+        "path": "qualification-calls/2026-07-27__nemotron-3-ultra.json",
+        "performance": 0,
+        "preflight": 12,
+        "sha256": "67f2085c44cb271a33f10dddf2532fd769b9cad3e6f313b74476bf3093bcbfc1"
+      },
+      "candidate": "nvidia/nemotron-3-ultra-550b-a55b@https://openrouter.ai/api/v1#env:OPENROUTER_API_KEY",
+      "judgment": null,
+      "model": "nvidia/nemotron-3-ultra-550b-a55b",
+      "performance": null,
+      "preflight": {
+        "artifact": {
+          "path": "docs/proofs/cloud-dialogue-qualification/runs/2026-07-27/nemotron-3-ultra-preflight.json",
+          "sha256": "841804932eda683370b609b05bbecda02911be129ff41bb17e808491868ec051"
+        },
+        "calls": 12,
+        "guard_interventions": 3,
+        "guard_rate": 0.25,
+        "request_profile": {
+          "enable_thinking": null,
+          "frequency_penalty": 0.5,
+          "json_mode": true,
+          "max_tokens": 768,
+          "model": "nvidia/nemotron-3-ultra-550b-a55b",
+          "temperature": 0.7
+        },
+        "valid": 4
+      },
+      "reason": "structural reliability",
+      "run_id": "2026-07-27/nemotron-3-ultra",
+      "stage": "preflight",
+      "status": "rejected",
+      "tested_on": "2026-07-27"
+    },
+    {
+      "calls": {
+        "count": 85,
+        "diagnostic": 0,
+        "judgment": 54,
+        "path": "qualification-calls/2026-07-27__qwen25-vl-72b.json",
+        "performance": 19,
+        "preflight": 12,
+        "sha256": "19a996901b382e357fdcd9191d7d431220fdd0b8d49c76e6cfdba2f4e1cae62e"
+      },
+      "candidate": "qwen/qwen2.5-vl-72b-instruct@https://openrouter.ai/api/v1#env:OPENROUTER_API_KEY",
+      "judgment": {
+        "axes": {
+          "authenticity": 3.0,
+          "brevity": 5.0,
+          "character": 2.8333,
+          "craft": 3.0,
+          "grounding": 3.1667,
+          "language": 5.0,
+          "mood_fidelity": 3.0,
+          "repetition": 5.0,
+          "responsiveness": 3.5
+        },
+        "candidate_family": "qwen",
+        "complete": true,
+        "cost_usd": 1.715068,
+        "hard_failures": {
+          "degenerate_loop": 0,
+          "fabricated": 9,
+          "non_latin_detected": 0,
+          "refused": 0,
+          "unusable_output": 0
+        },
+        "judges": [
+          {
+            "artifact": {
+              "path": "docs/proofs/cloud-dialogue-qualification/runs/2026-07-27/qwen25-vl-72b-judgment-43dce095bdbcd35f.json",
+              "sha256": "ade7af1539c578f7fe0fdbddf569bc71826912865805e52e2179728176588f25"
+            },
+            "axes": {
+              "authenticity": 3.1111,
+              "brevity": 5.0,
+              "character": 2.5,
+              "craft": 2.0,
+              "grounding": 3.0,
+              "language": 4.9444,
+              "mood_fidelity": 4.0,
+              "repetition": 5.0,
+              "responsiveness": 3.5
+            },
+            "eligible": true,
+            "exclusion_reason": null,
+            "family": "openai",
+            "hard_failures": {
+              "degenerate_loop": 0,
+              "fabricated": 9,
+              "non_latin_detected": 0,
+              "refused": 0
+            },
+            "id": "openai-sol-high",
+            "judge": {
+              "cost_usd": 0.860729,
+              "family": "openai",
+              "id": "openai-sol-high",
+              "model": "openai/gpt-5.6-sol",
+              "provider": "openrouter",
+              "reasoning_effort": "high",
+              "request_id": "gen-1786229638-uHzxOekqFjDYpsFzK9gy",
+              "routed_model": "openai/gpt-5.6-sol",
+              "routed_provider": "OpenAI",
+              "rubric_sha256": "9adab2cd1b38fe75f978e386239b50fbb12b5ba34c5ba5874ae396a3b46b7bf4",
+              "usage": {
+                "completion_tokens": 10158,
+                "completion_tokens_details": {
+                  "audio_tokens": 0,
+                  "image_tokens": 0,
+                  "reasoning_tokens": 4996
+                },
+                "cost": 0.860729,
+                "cost_details": {
+                  "upstream_inference_completions_cost": 0.30474,
+                  "upstream_inference_cost": 0.860729,
+                  "upstream_inference_prompt_cost": 0.555989
+                },
+                "is_byok": false,
+                "prompt_tokens": 91326,
+                "prompt_tokens_details": {
+                  "audio_tokens": 0,
+                  "cache_write_tokens": 88750,
+                  "cached_tokens": 2573,
+                  "video_tokens": 0
+                },
+                "total_tokens": 101484
+              }
+            },
+            "overall": 3.7141,
+            "pass": false,
+            "sample": {
+              "items": 18,
+              "judge_input": "full production system prompt plus dynamic user prompt",
+              "judged_items": 18,
+              "samples_per_prompt": 3,
+              "unique_prompts": 6,
+              "unusable_outputs": 0
+            }
+          },
+          {
+            "artifact": {
+              "path": "docs/proofs/cloud-dialogue-qualification/runs/2026-07-27/qwen25-vl-72b-judgment-anthropic-sonnet-low-ee3ce28f54eea25c.json",
+              "sha256": "b4b9daa055d165ce47bf3e680484f08e57e9b2d3231bbbe45af4559ff30824e6"
+            },
+            "axes": {
+              "authenticity": 2.8889,
+              "brevity": 5.0,
+              "character": 2.8333,
+              "craft": 3.0,
+              "grounding": 3.3333,
+              "language": 5.0,
+              "mood_fidelity": 2.8889,
+              "repetition": 5.0,
+              "responsiveness": 3.1111
+            },
+            "eligible": true,
+            "exclusion_reason": null,
+            "family": "anthropic",
+            "hard_failures": {
+              "degenerate_loop": 0,
+              "fabricated": 6,
+              "non_latin_detected": 0,
+              "refused": 0,
+              "unusable_output": 0
+            },
+            "id": "anthropic-sonnet-low",
+            "judge": {
+              "cost_usd": 0.516993,
+              "family": "anthropic",
+              "id": "anthropic-sonnet-low",
+              "model": "anthropic/claude-sonnet-4.6",
+              "provider": "openrouter",
+              "reasoning_effort": "low",
+              "request_id": "gen-1786243469-L8L4JuGvqjBJvheac9S1",
+              "routed_model": "anthropic/claude-sonnet-4.6",
+              "routed_provider": "Anthropic",
+              "rubric_sha256": "9adab2cd1b38fe75f978e386239b50fbb12b5ba34c5ba5874ae396a3b46b7bf4",
+              "usage": {
+                "completion_tokens": 13574,
+                "completion_tokens_details": {
+                  "audio_tokens": 0,
+                  "image_tokens": 0,
+                  "reasoning_tokens": 2439
+                },
+                "cost": 0.516993,
+                "cost_details": {
+                  "upstream_inference_completions_cost": 0.20361,
+                  "upstream_inference_cost": 0.516993,
+                  "upstream_inference_prompt_cost": 0.313383
+                },
+                "is_byok": false,
+                "prompt_tokens": 104461,
+                "prompt_tokens_details": {
+                  "audio_tokens": 0,
+                  "cache_write_tokens": 0,
+                  "cached_tokens": 0,
+                  "video_tokens": 0
+                },
+                "total_tokens": 118035
+              }
+            },
+            "overall": 3.6423,
+            "pass": false,
+            "sample": {
+              "items": 18,
+              "judge_input": "full production system prompt plus dynamic user prompt",
+              "judged_items": 18,
+              "samples_per_prompt": 3,
+              "unique_prompts": 6,
+              "unusable_outputs": 0
+            }
+          },
+          {
+            "artifact": {
+              "path": "docs/proofs/cloud-dialogue-qualification/runs/2026-07-27/qwen25-vl-72b-judgment-google-pro-high-45bdfb970c2dd4a9.json",
+              "sha256": "78d1c36507704ee954143cca3170b816bdc74b668a25996738d997c88b6e5ea4"
+            },
+            "axes": {
+              "authenticity": 3.0,
+              "brevity": 5.0,
+              "character": 3.1667,
+              "craft": 3.1667,
+              "grounding": 3.1667,
+              "language": 5.0,
+              "mood_fidelity": 3.0,
+              "repetition": 5.0,
+              "responsiveness": 5.0
+            },
+            "eligible": true,
+            "exclusion_reason": null,
+            "family": "google",
+            "hard_failures": {
+              "degenerate_loop": 0,
+              "fabricated": 6,
+              "non_latin_detected": 0,
+              "refused": 0,
+              "unusable_output": 0
+            },
+            "id": "google-pro-high",
+            "judge": {
+              "cost_usd": 0.337346,
+              "family": "google",
+              "id": "google-pro-high",
+              "model": "google/gemini-3.1-pro-preview",
+              "provider": "openrouter",
+              "reasoning_effort": "high",
+              "request_id": "gen-1786243189-27JLrbVwo93b4gV1YoJO",
+              "routed_model": "google/gemini-3.1-pro-preview",
+              "routed_provider": "Google",
+              "rubric_sha256": "9adab2cd1b38fe75f978e386239b50fbb12b5ba34c5ba5874ae396a3b46b7bf4",
+              "usage": {
+                "completion_tokens": 12587,
+                "completion_tokens_details": {
+                  "audio_tokens": 0,
+                  "image_tokens": 0,
+                  "reasoning_tokens": 6807
+                },
+                "cost": 0.337346,
+                "cost_details": {
+                  "upstream_inference_completions_cost": 0.151044,
+                  "upstream_inference_cost": 0.337346,
+                  "upstream_inference_prompt_cost": 0.186302
+                },
+                "is_byok": false,
+                "prompt_tokens": 93151,
+                "prompt_tokens_details": {
+                  "audio_tokens": 0,
+                  "cache_write_tokens": 0,
+                  "cached_tokens": 0,
+                  "video_tokens": 0
+                },
+                "total_tokens": 105738
+              }
+            },
+            "overall": 3.8862,
+            "pass": false,
+            "sample": {
+              "items": 18,
+              "judge_input": "full production system prompt plus dynamic user prompt",
+              "judged_items": 18,
+              "samples_per_prompt": 3,
+              "unique_prompts": 6,
+              "unusable_outputs": 0
+            }
+          }
+        ],
+        "method": "median",
+        "needs_adjudication": false,
+        "overall": 3.7141,
+        "overall_spread": 0.2439,
+        "pass": false,
+        "quality_cohort_size": 7,
+        "quality_rank": 7,
+        "sample": {
+          "items": 18,
+          "judged_items": 18,
+          "unusable_outputs": 0
+        },
+        "votes": {
+          "eligible": 3,
+          "fail": 3,
+          "pass": 0,
+          "required": 2,
+          "self_excluded": 0
+        }
+      },
+      "model": "qwen/qwen2.5-vl-72b-instruct",
+      "performance": {
+        "artifact": {
+          "path": "docs/proofs/cloud-dialogue-qualification/runs/2026-07-27/qwen25-vl-72b-perf.json",
+          "sha256": "1256dc2692f28e7c7a02913111544d287d63293eb5ccaa77c88b63c24ac2659a"
+        },
+        "candidate": "qwen/qwen2.5-vl-72b-instruct@https://openrouter.ai/api/v1#env:OPENROUTER_API_KEY",
+        "cold_completion_p95_ms": 19988.0,
+        "cold_measurements": 6,
+        "cold_ttft_p95_ms": 4494.0,
+        "error_rate": 0.0,
+        "measurements": 18,
+        "speed_cohort_size": 15,
+        "speed_index_ms": 9996.75,
+        "speed_rank": 11,
+        "tokens_per_second_p50": 8.124337689862239,
+        "warm_completion_p95_ms": 20904.0,
+        "warm_measurements": 12,
+        "warm_ttft_p95_ms": 6361.0
+      },
+      "preflight": {
+        "artifact": {
+          "path": "docs/proofs/cloud-dialogue-qualification/runs/2026-07-27/qwen25-vl-72b-preflight.json",
+          "sha256": "97f31fad3663428c2c5200352e9ce61941a5a06d0202c35da9c8766f1790ccf5"
+        },
+        "calls": 12,
+        "guard_interventions": 0,
+        "guard_rate": 0.0,
+        "request_profile": {
+          "enable_thinking": null,
+          "frequency_penalty": 0.5,
+          "json_mode": true,
+          "max_tokens": 768,
+          "model": "qwen/qwen2.5-vl-72b-instruct",
+          "temperature": 0.7
+        },
+        "valid": 12
+      },
+      "reason": "quality screen failed; quality rank #7 of 7; speed rank #11 of 15",
+      "run_id": "2026-07-27/qwen25-vl-72b",
+      "stage": "judgment",
+      "status": "quality_rejected",
+      "tested_on": "2026-07-27"
+    },
+    {
+      "calls": {
+        "count": 12,
+        "diagnostic": 0,
+        "judgment": 0,
+        "path": "qualification-calls/2026-08-08__deepseek-v4-flash-0731-high-reasoning-4096.json",
+        "performance": 0,
+        "preflight": 12,
+        "sha256": "60aba7a21f2e42728d0e959d4340fa9fd5ab096919995643f6dd05f613a0d0c2"
+      },
+      "candidate": "deepseek/deepseek-v4-flash-0731@https://openrouter.ai/api/v1#env:OPENROUTER_API_KEY",
+      "judgment": null,
+      "model": "deepseek/deepseek-v4-flash-0731",
+      "performance": null,
+      "preflight": {
+        "artifact": {
+          "path": "docs/proofs/cloud-dialogue-qualification/runs/2026-08-08/deepseek-v4-flash-0731-high-reasoning-4096-preflight.json",
+          "sha256": "f1bc20c3089aa71859ad840a47ee7344e359a2187ab61994412eea0c3c252764"
+        },
+        "calls": 12,
+        "guard_interventions": 2,
+        "guard_rate": 0.16666666666666666,
+        "request_profile": {
+          "enable_thinking": true,
+          "frequency_penalty": 0.5,
+          "json_mode": true,
+          "max_tokens": 4096,
+          "model": "deepseek/deepseek-v4-flash-0731",
+          "reasoning_effort": "high",
+          "temperature": 0.7
+        },
+        "valid": 12
+      },
+      "reason": "guard intervention rate",
+      "run_id": "2026-08-08/deepseek-v4-flash-0731-high-reasoning-4096",
+      "stage": "preflight",
+      "status": "rejected",
+      "tested_on": "2026-08-08"
+    },
+    {
+      "calls": {
+        "count": 12,
+        "diagnostic": 0,
+        "judgment": 0,
+        "path": "qualification-calls/2026-08-08__deepseek-v4-flash-0731-low-reasoning-4096.json",
+        "performance": 0,
+        "preflight": 12,
+        "sha256": "999da849729e787c352683c92fefdae9926d9102d3c2d834b2f2f89c1bf3a05e"
+      },
+      "candidate": "deepseek/deepseek-v4-flash-0731@https://openrouter.ai/api/v1#env:OPENROUTER_API_KEY",
+      "judgment": null,
+      "model": "deepseek/deepseek-v4-flash-0731",
+      "performance": null,
+      "preflight": {
+        "artifact": {
+          "path": "docs/proofs/cloud-dialogue-qualification/runs/2026-08-08/deepseek-v4-flash-0731-low-reasoning-4096-preflight.json",
+          "sha256": "d50acf3319f44964a578aed95bacd04ac401388c6b935b2cf4005f6e0f08dbde"
+        },
+        "calls": 12,
+        "guard_interventions": 3,
+        "guard_rate": 0.25,
+        "request_profile": {
+          "enable_thinking": true,
+          "frequency_penalty": 0.5,
+          "json_mode": true,
+          "max_tokens": 4096,
+          "model": "deepseek/deepseek-v4-flash-0731",
+          "reasoning_effort": "low",
+          "temperature": 0.7
+        },
+        "valid": 10
+      },
+      "reason": "structural reliability",
+      "run_id": "2026-08-08/deepseek-v4-flash-0731-low-reasoning-4096",
+      "stage": "preflight",
+      "status": "rejected",
+      "tested_on": "2026-08-08"
+    },
+    {
+      "calls": {
+        "count": 67,
+        "diagnostic": 0,
+        "judgment": 36,
+        "path": "qualification-calls/2026-08-08__deepseek-v4-flash-0731-max-reasoning-4096.json",
+        "performance": 19,
+        "preflight": 12,
+        "sha256": "2d596d86d95e89ff7532cdac29a0e04bbcf3eb54729e1ab999b4938715c88e43"
+      },
+      "candidate": "deepseek/deepseek-v4-flash-0731@https://openrouter.ai/api/v1#env:OPENROUTER_API_KEY",
+      "judgment": {
+        "axes": {
+          "authenticity": 3.9444,
+          "brevity": 4.75,
+          "character": 4.0833,
+          "craft": 3.9445,
+          "grounding": 4.9167,
+          "language": 5.0,
+          "mood_fidelity": 4.1667,
+          "repetition": 5.0,
+          "responsiveness": 4.5
+        },
+        "candidate_family": "deepseek",
+        "complete": true,
+        "cost_usd": 0.889751,
+        "hard_failures": {
+          "degenerate_loop": 0,
+          "fabricated": 1,
+          "non_latin_detected": 0,
+          "refused": 0,
+          "unusable_output": 0
+        },
+        "judges": [
+          {
+            "artifact": {
+              "path": "docs/proofs/cloud-dialogue-qualification/runs/2026-08-08/deepseek-v4-flash-0731-max-reasoning-4096-judgment-anthropic-sonnet-low-307985942856a14b.json",
+              "sha256": "92a32c71e9628063a5191dd6615ab031951c902aacbae9f26f82953589ef8655"
+            },
+            "axes": {
+              "authenticity": 3.8333,
+              "brevity": 4.5,
+              "character": 3.7778,
+              "craft": 3.5556,
+              "grounding": 4.8333,
+              "language": 5.0,
+              "mood_fidelity": 3.7778,
+              "repetition": 5.0,
+              "responsiveness": 4.0556
+            },
+            "eligible": true,
+            "exclusion_reason": null,
+            "family": "anthropic",
+            "hard_failures": {
+              "degenerate_loop": 0,
+              "fabricated": 1,
+              "non_latin_detected": 0,
+              "refused": 0,
+              "unusable_output": 0
+            },
+            "id": "anthropic-sonnet-low",
+            "judge": {
+              "cost_usd": 0.512253,
+              "family": "anthropic",
+              "id": "anthropic-sonnet-low",
+              "model": "anthropic/claude-sonnet-4.6",
+              "provider": "openrouter",
+              "reasoning_effort": "low",
+              "request_id": "gen-1786243502-tderVwftKit4fMF8ehks",
+              "routed_model": "anthropic/claude-sonnet-4.6",
+              "routed_provider": "Anthropic",
+              "rubric_sha256": "9adab2cd1b38fe75f978e386239b50fbb12b5ba34c5ba5874ae396a3b46b7bf4",
+              "usage": {
+                "completion_tokens": 12933,
+                "completion_tokens_details": {
+                  "audio_tokens": 0,
+                  "image_tokens": 0,
+                  "reasoning_tokens": 1285
+                },
+                "cost": 0.512253,
+                "cost_details": {
+                  "upstream_inference_completions_cost": 0.193995,
+                  "upstream_inference_cost": 0.512253,
+                  "upstream_inference_prompt_cost": 0.318258
+                },
+                "is_byok": false,
+                "prompt_tokens": 106086,
+                "prompt_tokens_details": {
+                  "audio_tokens": 0,
+                  "cache_write_tokens": 0,
+                  "cached_tokens": 0,
+                  "video_tokens": 0
+                },
+                "total_tokens": 119019
+              }
+            },
+            "overall": 4.2805,
+            "pass": false,
+            "sample": {
+              "items": 18,
+              "judge_input": "full production system prompt plus dynamic user prompt",
+              "judged_items": 18,
+              "samples_per_prompt": 3,
+              "unique_prompts": 6,
+              "unusable_outputs": 0
+            }
+          },
+          {
+            "artifact": {
+              "path": "docs/proofs/cloud-dialogue-qualification/runs/2026-08-08/deepseek-v4-flash-0731-max-reasoning-4096-judgment-google-pro-high-ea66e0b249150a38.json",
+              "sha256": "ad842d92e67a122903d03a146cf2faf95305c9122d4f79288160f8b4ca6af78e"
+            },
+            "axes": {
+              "authenticity": 4.0556,
+              "brevity": 5.0,
+              "character": 4.3889,
+              "craft": 4.3333,
+              "grounding": 5.0,
+              "language": 5.0,
+              "mood_fidelity": 4.5556,
+              "repetition": 5.0,
+              "responsiveness": 4.9444
+            },
+            "eligible": true,
+            "exclusion_reason": null,
+            "family": "google",
+            "hard_failures": {
+              "degenerate_loop": 0,
+              "fabricated": 0,
+              "non_latin_detected": 0,
+              "refused": 0,
+              "unusable_output": 0
+            },
+            "id": "google-pro-high",
+            "judge": {
+              "cost_usd": 0.377498,
+              "family": "google",
+              "id": "google-pro-high",
+              "model": "google/gemini-3.1-pro-preview",
+              "provider": "openrouter",
+              "reasoning_effort": "high",
+              "request_id": "gen-1786243652-PWwNEAbGCc4NA4NoDIS7",
+              "routed_model": "google/gemini-3.1-pro-preview",
+              "routed_provider": "Google",
+              "rubric_sha256": "9adab2cd1b38fe75f978e386239b50fbb12b5ba34c5ba5874ae396a3b46b7bf4",
+              "usage": {
+                "completion_tokens": 15693,
+                "completion_tokens_details": {
+                  "audio_tokens": 0,
+                  "image_tokens": 0,
+                  "reasoning_tokens": 9887
+                },
+                "cost": 0.377498,
+                "cost_details": {
+                  "upstream_inference_completions_cost": 0.188316,
+                  "upstream_inference_cost": 0.377498,
+                  "upstream_inference_prompt_cost": 0.189182
+                },
+                "is_byok": false,
+                "prompt_tokens": 94591,
+                "prompt_tokens_details": {
+                  "audio_tokens": 0,
+                  "cache_write_tokens": 0,
+                  "cached_tokens": 0,
+                  "video_tokens": 0
+                },
+                "total_tokens": 110284
+              }
+            },
+            "overall": 4.7154,
+            "pass": true,
+            "sample": {
+              "items": 18,
+              "judge_input": "full production system prompt plus dynamic user prompt",
+              "judged_items": 18,
+              "samples_per_prompt": 3,
+              "unique_prompts": 6,
+              "unusable_outputs": 0
+            }
+          }
+        ],
+        "method": "median",
+        "needs_adjudication": true,
+        "overall": 4.4979,
+        "overall_spread": 0.4349,
+        "pass": false,
+        "sample": {
+          "items": 18,
+          "judged_items": 18,
+          "unusable_outputs": 0
+        },
+        "votes": {
+          "eligible": 2,
+          "fail": 1,
+          "pass": 1,
+          "required": 2,
+          "self_excluded": 0
+        }
+      },
+      "model": "deepseek/deepseek-v4-flash-0731",
+      "performance": {
+        "artifact": {
+          "path": "docs/proofs/cloud-dialogue-qualification/runs/2026-08-08/deepseek-v4-flash-0731-max-reasoning-4096-perf.json",
+          "sha256": "cbb65974797d08374a2dbaa02a78954a96e57be961d53c0250964b740cda6f7a"
+        },
+        "candidate": "deepseek/deepseek-v4-flash-0731@https://openrouter.ai/api/v1#env:OPENROUTER_API_KEY",
+        "cold_completion_p95_ms": 124790.0,
+        "cold_measurements": 6,
+        "cold_ttft_p95_ms": 123127.0,
+        "error_rate": 0.0,
+        "measurements": 18,
+        "speed_cohort_size": 15,
+        "speed_index_ms": 101130.25,
+        "speed_rank": 15,
+        "tokens_per_second_p50": 409.0909090909091,
+        "warm_completion_p95_ms": 104620.0,
+        "warm_measurements": 12,
+        "warm_ttft_p95_ms": 99967.0
+      },
+      "preflight": {
+        "artifact": {
+          "path": "docs/proofs/cloud-dialogue-qualification/runs/2026-08-08/deepseek-v4-flash-0731-max-reasoning-4096-preflight.json",
+          "sha256": "1d822e6cd8d55981961aee05612cbbc37ae4f44728a37cc4aa3b2c851c9cbbc2"
+        },
+        "calls": 12,
+        "guard_interventions": 0,
+        "guard_rate": 0.0,
+        "request_profile": {
+          "enable_thinking": true,
+          "frequency_penalty": 0.5,
+          "json_mode": true,
+          "max_tokens": 4096,
+          "model": "deepseek/deepseek-v4-flash-0731",
+          "reasoning_effort": "max",
+          "temperature": 0.7
+        },
+        "valid": 12
+      },
+      "reason": "judge disagreement requires adjudication; speed rank #15 of 15",
+      "run_id": "2026-08-08/deepseek-v4-flash-0731-max-reasoning-4096",
+      "stage": "judgment",
+      "status": "needs_adjudication",
+      "tested_on": "2026-08-08"
+    },
+    {
+      "calls": {
+        "count": 49,
+        "diagnostic": 0,
+        "judgment": 18,
+        "path": "qualification-calls/2026-08-08__deepseek-v4-flash-0731-medium-reasoning-4096.json",
+        "performance": 19,
+        "preflight": 12,
+        "sha256": "1c4db6c4ce5ac77b85dab78878e7a1b2644735879f43974d0899bac7a7410fd5"
+      },
+      "candidate": "deepseek/deepseek-v4-flash-0731@https://openrouter.ai/api/v1#env:OPENROUTER_API_KEY",
+      "judgment": {
+        "axes": {
+          "authenticity": 3.7647,
+          "brevity": 4.5882,
+          "character": 4.0,
+          "craft": 3.9412,
+          "grounding": 4.7647,
+          "language": 5.0,
+          "mood_fidelity": 3.8824,
+          "repetition": 4.9412,
+          "responsiveness": 4.4118
+        },
+        "candidate_family": "deepseek",
+        "complete": false,
+        "cost_usd": 0.536334,
+        "hard_failures": {
+          "degenerate_loop": 0,
+          "fabricated": 1,
+          "non_latin_detected": 0,
+          "refused": 0,
+          "unusable_output": 1
+        },
+        "judges": [
+          {
+            "artifact": {
+              "path": "docs/proofs/cloud-dialogue-qualification/runs/2026-08-08/deepseek-v4-flash-0731-medium-reasoning-4096-judgment-anthropic-sonnet-low-18235e3145d4ed31.json",
+              "sha256": "03d3afa882c06b599d877f530b09c2e366b66e60a82010f7c23a2107000f67f3"
+            },
+            "axes": {
+              "authenticity": 3.7647,
+              "brevity": 4.5882,
+              "character": 4.0,
+              "craft": 3.9412,
+              "grounding": 4.7647,
+              "language": 5.0,
+              "mood_fidelity": 3.8824,
+              "repetition": 4.9412,
+              "responsiveness": 4.4118
+            },
+            "eligible": true,
+            "exclusion_reason": null,
+            "family": "anthropic",
+            "hard_failures": {
+              "degenerate_loop": 0,
+              "fabricated": 1,
+              "non_latin_detected": 0,
+              "refused": 0,
+              "unusable_output": 1
+            },
+            "id": "anthropic-sonnet-low",
+            "judge": {
+              "cost_usd": 0.536334,
+              "family": "anthropic",
+              "id": "anthropic-sonnet-low",
+              "model": "anthropic/claude-sonnet-4.6",
+              "provider": "openrouter",
+              "reasoning_effort": "low",
+              "request_id": "gen-1786243700-f5irUOb0D3QP5P91kbKd",
+              "routed_model": "anthropic/claude-sonnet-4.6",
+              "routed_provider": "Anthropic",
+              "rubric_sha256": "9adab2cd1b38fe75f978e386239b50fbb12b5ba34c5ba5874ae396a3b46b7bf4",
+              "usage": {
+                "completion_tokens": 14532,
+                "completion_tokens_details": {
+                  "audio_tokens": 0,
+                  "image_tokens": 0,
+                  "reasoning_tokens": 1830
+                },
+                "cost": 0.536334,
+                "cost_details": {
+                  "upstream_inference_completions_cost": 0.21798,
+                  "upstream_inference_cost": 0.536334,
+                  "upstream_inference_prompt_cost": 0.318354
+                },
+                "is_byok": false,
+                "prompt_tokens": 106118,
+                "prompt_tokens_details": {
+                  "audio_tokens": 0,
+                  "cache_write_tokens": 0,
+                  "cached_tokens": 0,
+                  "video_tokens": 0
+                },
+                "total_tokens": 120650
+              }
+            },
+            "overall": 4.3687,
+            "pass": false,
+            "sample": {
+              "items": 18,
+              "judge_input": "full production system prompt plus dynamic user prompt",
+              "judged_items": 17,
+              "samples_per_prompt": 3,
+              "unique_prompts": 6,
+              "unusable_outputs": 1
+            }
+          }
+        ],
+        "method": "median",
+        "needs_adjudication": false,
+        "overall": 4.3687,
+        "overall_spread": null,
+        "pass": false,
+        "sample": {
+          "items": 18,
+          "judged_items": 17,
+          "unusable_outputs": 1
+        },
+        "votes": {
+          "eligible": 1,
+          "fail": 1,
+          "pass": 0,
+          "required": 2,
+          "self_excluded": 0
+        }
+      },
+      "model": "deepseek/deepseek-v4-flash-0731",
+      "performance": {
+        "artifact": {
+          "path": "docs/proofs/cloud-dialogue-qualification/runs/2026-08-08/deepseek-v4-flash-0731-medium-reasoning-4096-perf.json",
+          "sha256": "eb911f619608a3bea35a1e84169901def20cba8e37c1388f568d33daa969f2cf"
+        },
+        "candidate": "deepseek/deepseek-v4-flash-0731@https://openrouter.ai/api/v1#env:OPENROUTER_API_KEY",
+        "cold_completion_p95_ms": 31051.0,
+        "cold_measurements": 6,
+        "cold_ttft_p95_ms": 29019.0,
+        "error_rate": 0.0,
+        "measurements": 18,
+        "speed_cohort_size": 15,
+        "speed_index_ms": 12481.25,
+        "speed_rank": 13,
+        "tokens_per_second_p50": 202.494497432135,
+        "warm_completion_p95_ms": 14207.0,
+        "warm_measurements": 12,
+        "warm_ttft_p95_ms": 11906.0
+      },
+      "preflight": {
+        "artifact": {
+          "path": "docs/proofs/cloud-dialogue-qualification/runs/2026-08-08/deepseek-v4-flash-0731-medium-reasoning-4096-preflight.json",
+          "sha256": "6330fe5aa8ed64be084628c86679f0124b0eecc7fcf4cbf846a82e2462a748cf"
+        },
+        "calls": 12,
+        "guard_interventions": 0,
+        "guard_rate": 0.0,
+        "request_profile": {
+          "enable_thinking": true,
+          "frequency_penalty": 0.5,
+          "json_mode": true,
+          "max_tokens": 4096,
+          "model": "deepseek/deepseek-v4-flash-0731",
+          "reasoning_effort": "medium",
+          "temperature": 0.7
+        },
+        "valid": 12
+      },
+      "reason": "awaiting independent judges (1/2); cloud speed rank #13 of 15",
+      "run_id": "2026-08-08/deepseek-v4-flash-0731-medium-reasoning-4096",
+      "stage": "judgment",
+      "status": "needs_judgment",
+      "tested_on": "2026-08-08"
+    },
+    {
+      "calls": {
+        "count": 12,
+        "diagnostic": 0,
+        "judgment": 0,
+        "path": "qualification-calls/2026-08-08__deepseek-v4-flash-0731-no-reasoning.json",
+        "performance": 0,
+        "preflight": 12,
+        "sha256": "d00dc324c47749fd7570a8a43423125d2d7775c6ed0f33dbae322c4bac8a501c"
+      },
+      "candidate": "deepseek/deepseek-v4-flash-0731@https://openrouter.ai/api/v1#env:OPENROUTER_API_KEY",
+      "judgment": null,
+      "model": "deepseek/deepseek-v4-flash-0731",
+      "performance": null,
+      "preflight": {
+        "artifact": {
+          "path": "docs/proofs/cloud-dialogue-qualification/runs/2026-08-08/deepseek-v4-flash-0731-no-reasoning-preflight.json",
+          "sha256": "e3574e4f1f343ed74b2f09198bb2ba46f88840d3b3fe7e00ded4f4c6e60306ac"
+        },
+        "calls": 12,
+        "guard_interventions": 3,
+        "guard_rate": 0.25,
+        "request_profile": {
+          "enable_thinking": false,
+          "frequency_penalty": 0.5,
+          "json_mode": true,
+          "max_tokens": 768,
+          "model": "deepseek/deepseek-v4-flash-0731",
+          "temperature": 0.7
+        },
+        "valid": 12
+      },
+      "reason": "guard intervention rate",
+      "run_id": "2026-08-08/deepseek-v4-flash-0731-no-reasoning",
+      "stage": "preflight",
+      "status": "rejected",
+      "tested_on": "2026-08-08"
+    },
+    {
+      "calls": {
+        "count": 12,
+        "diagnostic": 0,
+        "judgment": 0,
+        "path": "qualification-calls/2026-08-08__deepseek-v4-flash-direct-high-reasoning-4096.json",
+        "performance": 0,
+        "preflight": 12,
+        "sha256": "dc7adbc0596f81e4e18e99c1a0849e2cdfa88a688a051263c329653ae95a2631"
+      },
+      "candidate": "deepseek-v4-flash@https://api.deepseek.com/v1#env:DEEPSEEK_API_KEY",
+      "judgment": null,
+      "model": "deepseek-v4-flash",
+      "performance": null,
+      "preflight": {
+        "artifact": {
+          "path": "docs/proofs/cloud-dialogue-qualification/runs/2026-08-08/deepseek-v4-flash-direct-high-reasoning-4096-preflight.json",
+          "sha256": "6163d9e14fbc564dc2ee59ac6054da0f7971b13e23fefc0ad7960b46c6737f4e"
+        },
+        "calls": 12,
+        "guard_interventions": 2,
+        "guard_rate": 0.16666666666666666,
+        "request_profile": {
+          "enable_thinking": true,
+          "frequency_penalty": 0.5,
+          "json_mode": true,
+          "max_tokens": 4096,
+          "model": "deepseek-v4-flash",
+          "reasoning_effort": "high",
+          "temperature": 0.7
+        },
+        "valid": 12
+      },
+      "reason": "guard intervention rate",
+      "run_id": "2026-08-08/deepseek-v4-flash-direct-high-reasoning-4096",
+      "stage": "preflight",
+      "status": "rejected",
+      "tested_on": "2026-08-08"
+    },
+    {
+      "calls": {
+        "count": 67,
+        "diagnostic": 0,
+        "judgment": 36,
+        "path": "qualification-calls/2026-08-08__gemini-3.5-flash-lite-low-reasoning-2048.json",
+        "performance": 19,
+        "preflight": 12,
+        "sha256": "5d6963f2c4d34cc66393f9cfcce4dccab7da4bff3185ecb2bc8ba99a8337c4e4"
+      },
+      "candidate": "google/gemini-3.5-flash-lite@https://openrouter.ai/api/v1#env:OPENROUTER_API_KEY",
+      "judgment": {
+        "axes": {
+          "authenticity": 3.5556,
+          "brevity": 5.0,
+          "character": 3.6944,
+          "craft": 3.4444,
+          "grounding": 4.9722,
+          "language": 4.9722,
+          "mood_fidelity": 4.1666,
+          "repetition": 4.9722,
+          "responsiveness": 4.4444
+        },
+        "candidate_family": "google",
+        "complete": true,
+        "cost_usd": 1.45215925,
+        "hard_failures": {
+          "degenerate_loop": 0,
+          "fabricated": 0,
+          "non_latin_detected": 0,
+          "refused": 0,
+          "unusable_output": 0
+        },
+        "judges": [
+          {
+            "artifact": {
+              "path": "docs/proofs/cloud-dialogue-qualification/runs/2026-08-08/gemini-3.5-flash-lite-low-reasoning-2048-judgment-5d78276f9fe78493.json",
+              "sha256": "83c2e296430f55b0106e396a05482d3c3c1c64e641f3f6538c24807bca4af8e3"
+            },
+            "axes": {
+              "authenticity": 3.5556,
+              "brevity": 5.0,
+              "character": 3.5556,
+              "craft": 3.3889,
+              "grounding": 4.9444,
+              "language": 4.9444,
+              "mood_fidelity": 4.5,
+              "repetition": 5.0,
+              "responsiveness": 4.5556
+            },
+            "eligible": true,
+            "exclusion_reason": null,
+            "family": "openai",
+            "hard_failures": {
+              "degenerate_loop": 0,
+              "fabricated": 0,
+              "non_latin_detected": 0,
+              "refused": 0
+            },
+            "id": "openai-sol-high",
+            "judge": {
+              "cost_usd": 0.89691025,
+              "family": "openai",
+              "id": "openai-sol-high",
+              "model": "openai/gpt-5.6-sol",
+              "provider": "openrouter",
+              "reasoning_effort": "high",
+              "request_id": "gen-1786229642-6iBNL3b1XyF8iQuil1yB",
+              "routed_model": "openai/gpt-5.6-sol",
+              "routed_provider": "OpenAI",
+              "rubric_sha256": "9adab2cd1b38fe75f978e386239b50fbb12b5ba34c5ba5874ae396a3b46b7bf4",
+              "usage": {
+                "completion_tokens": 11108,
+                "completion_tokens_details": {
+                  "audio_tokens": 0,
+                  "image_tokens": 0,
+                  "reasoning_tokens": 6250
+                },
+                "cost": 0.89691025,
+                "cost_details": {
+                  "upstream_inference_completions_cost": 0.33324,
+                  "upstream_inference_cost": 0.89691025,
+                  "upstream_inference_prompt_cost": 0.56367025
+                },
+                "is_byok": false,
+                "prompt_tokens": 92555,
+                "prompt_tokens_details": {
+                  "audio_tokens": 0,
+                  "cache_write_tokens": 89979,
+                  "cached_tokens": 2573,
+                  "video_tokens": 0
+                },
+                "total_tokens": 103663
+              }
+            },
+            "overall": 4.4404,
+            "pass": true,
+            "sample": {
+              "items": 18,
+              "judge_input": "full production system prompt plus dynamic user prompt",
+              "judged_items": 18,
+              "samples_per_prompt": 3,
+              "unique_prompts": 6,
+              "unusable_outputs": 0
+            }
+          },
+          {
+            "artifact": {
+              "path": "docs/proofs/cloud-dialogue-qualification/runs/2026-08-08/gemini-3.5-flash-lite-low-reasoning-2048-judgment-anthropic-sonnet-low-5c5ecd177c593c42.json",
+              "sha256": "6939c022ce2695ab8f8e6e806218101b25b3b6a19e7bcf71848ec30bc8b52010"
+            },
+            "axes": {
+              "authenticity": 3.5556,
+              "brevity": 5.0,
+              "character": 3.8333,
+              "craft": 3.5,
+              "grounding": 5.0,
+              "language": 5.0,
+              "mood_fidelity": 3.8333,
+              "repetition": 4.9444,
+              "responsiveness": 4.3333
+            },
+            "eligible": true,
+            "exclusion_reason": null,
+            "family": "anthropic",
+            "hard_failures": {
+              "degenerate_loop": 0,
+              "fabricated": 0,
+              "non_latin_detected": 0,
+              "refused": 0,
+              "unusable_output": 0
+            },
+            "id": "anthropic-sonnet-low",
+            "judge": {
+              "cost_usd": 0.555249,
+              "family": "anthropic",
+              "id": "anthropic-sonnet-low",
+              "model": "anthropic/claude-sonnet-4.6",
+              "provider": "openrouter",
+              "reasoning_effort": "low",
+              "request_id": "gen-1786243792-xPsad4TFPr9LI9bKMMp1",
+              "routed_model": "anthropic/claude-sonnet-4.6",
+              "routed_provider": "Anthropic",
+              "rubric_sha256": "9adab2cd1b38fe75f978e386239b50fbb12b5ba34c5ba5874ae396a3b46b7bf4",
+              "usage": {
+                "completion_tokens": 15858,
+                "completion_tokens_details": {
+                  "audio_tokens": 0,
+                  "image_tokens": 0,
+                  "reasoning_tokens": 2116
+                },
+                "cost": 0.555249,
+                "cost_details": {
+                  "upstream_inference_completions_cost": 0.23787,
+                  "upstream_inference_cost": 0.555249,
+                  "upstream_inference_prompt_cost": 0.317379
+                },
+                "is_byok": false,
+                "prompt_tokens": 105793,
+                "prompt_tokens_details": {
+                  "audio_tokens": 0,
+                  "cache_write_tokens": 0,
+                  "cached_tokens": 0,
+                  "video_tokens": 0
+                },
+                "total_tokens": 121651
+              }
+            },
+            "overall": 4.3726,
+            "pass": true,
+            "sample": {
+              "items": 18,
+              "judge_input": "full production system prompt plus dynamic user prompt",
+              "judged_items": 18,
+              "samples_per_prompt": 3,
+              "unique_prompts": 6,
+              "unusable_outputs": 0
+            }
+          }
+        ],
+        "method": "median",
+        "needs_adjudication": false,
+        "overall": 4.4065,
+        "overall_spread": 0.0678,
+        "pass": true,
+        "quality_cohort_size": 7,
+        "quality_rank": 4,
+        "sample": {
+          "items": 18,
+          "judged_items": 18,
+          "unusable_outputs": 0
+        },
+        "votes": {
+          "eligible": 2,
+          "fail": 0,
+          "pass": 2,
+          "required": 2,
+          "self_excluded": 0
+        }
+      },
+      "model": "google/gemini-3.5-flash-lite",
+      "performance": {
+        "artifact": {
+          "path": "docs/proofs/cloud-dialogue-qualification/runs/2026-08-08/gemini-3.5-flash-lite-low-reasoning-2048-perf.json",
+          "sha256": "7a028b4da4f76e403882cf17d71329a6f4cfd23ce6fad642bb34f2993ed117ac"
+        },
+        "candidate": "google/gemini-3.5-flash-lite@https://openrouter.ai/api/v1#env:OPENROUTER_API_KEY",
+        "cold_completion_p95_ms": 3751.0,
+        "cold_measurements": 6,
+        "cold_ttft_p95_ms": 3641.0,
+        "error_rate": 0.0,
+        "measurements": 18,
+        "speed_cohort_size": 15,
+        "speed_index_ms": 3699.5,
+        "speed_rank": 4,
+        "tokens_per_second_p50": 1574.4680851063831,
+        "warm_completion_p95_ms": 4007.0,
+        "warm_measurements": 12,
+        "warm_ttft_p95_ms": 3597.0
+      },
+      "preflight": {
+        "artifact": {
+          "path": "docs/proofs/cloud-dialogue-qualification/runs/2026-08-08/gemini-3.5-flash-lite-low-reasoning-2048-preflight.json",
+          "sha256": "b6478393bfc69ff9c97a1605c9cb5d7733d96170bc3807c69b486120a7551161"
+        },
+        "calls": 12,
+        "guard_interventions": 0,
+        "guard_rate": 0.0,
+        "request_profile": {
+          "enable_thinking": true,
+          "frequency_penalty": 0.5,
+          "json_mode": true,
+          "max_tokens": 2048,
+          "model": "google/gemini-3.5-flash-lite",
+          "reasoning_effort": "low",
+          "temperature": 0.7
+        },
+        "valid": 12
+      },
+      "reason": "quality passed; quality rank #4 of 7; speed rank #4 of 15",
+      "run_id": "2026-08-08/gemini-3.5-flash-lite-low-reasoning-2048",
+      "stage": "judgment",
+      "status": "qualified",
+      "tested_on": "2026-08-08"
+    },
+    {
+      "calls": {
+        "count": 14,
+        "diagnostic": 2,
+        "judgment": 0,
+        "path": "qualification-calls/2026-08-08__gemini-3.5-flash-lite-low-reasoning.json",
+        "performance": 0,
+        "preflight": 12,
+        "sha256": "b2a7f94345e687c4d3d76cb7ebfac35e9f6c1620d224723230208e97c37193ef"
+      },
+      "candidate": "google/gemini-3.5-flash-lite@https://openrouter.ai/api/v1#env:OPENROUTER_API_KEY",
+      "judgment": null,
+      "model": "google/gemini-3.5-flash-lite",
+      "performance": null,
+      "preflight": {
+        "artifact": {
+          "path": "docs/proofs/cloud-dialogue-qualification/runs/2026-08-08/gemini-3.5-flash-lite-low-reasoning-preflight.json",
+          "sha256": "26f3bfeb1d5577aedd0c3e814e0cea64b4fec9e9940ffd55627e3a4fff81d539"
+        },
+        "calls": 12,
+        "guard_interventions": 0,
+        "guard_rate": 0.0,
+        "request_profile": {
+          "enable_thinking": true,
+          "frequency_penalty": 0.5,
+          "json_mode": true,
+          "max_tokens": 768,
+          "model": "google/gemini-3.5-flash-lite",
+          "reasoning_effort": "low",
+          "temperature": 0.7
+        },
+        "valid": 10
+      },
+      "reason": "superseded: insufficient completion budget",
+      "run_id": "2026-08-08/gemini-3.5-flash-lite-low-reasoning",
+      "stage": "configuration",
+      "status": "invalid_profile",
+      "tested_on": "2026-08-08"
+    },
+    {
+      "calls": {
+        "count": 67,
+        "diagnostic": 0,
+        "judgment": 36,
+        "path": "qualification-calls/2026-08-08__gemini-3.6-flash-low-reasoning.json",
+        "performance": 19,
+        "preflight": 12,
+        "sha256": "2b27236ee3f8b482565893cdd643f1c67de1f6dead87da904ab7463be7185fd4"
+      },
+      "candidate": "google/gemini-3.6-flash@https://openrouter.ai/api/v1#env:OPENROUTER_API_KEY",
+      "judgment": {
+        "axes": {
+          "authenticity": 3.75,
+          "brevity": 5.0,
+          "character": 3.7222,
+          "craft": 3.7778,
+          "grounding": 4.8333,
+          "language": 5.0,
+          "mood_fidelity": 4.0833,
+          "repetition": 5.0,
+          "responsiveness": 4.7222
+        },
+        "candidate_family": "google",
+        "complete": true,
+        "cost_usd": 1.40744525,
+        "hard_failures": {
+          "degenerate_loop": 0,
+          "fabricated": 0,
+          "non_latin_detected": 0,
+          "refused": 0,
+          "unusable_output": 0
+        },
+        "judges": [
+          {
+            "artifact": {
+              "path": "docs/proofs/cloud-dialogue-qualification/runs/2026-08-08/gemini-3.6-flash-low-reasoning-judgment-6a409cdeb66afe58.json",
+              "sha256": "04071d37de597c806ff4bb05a07813d82ea949f919f19a8770220f6e2748e796"
+            },
+            "axes": {
+              "authenticity": 3.7222,
+              "brevity": 5.0,
+              "character": 3.6667,
+              "craft": 3.7222,
+              "grounding": 4.6667,
+              "language": 5.0,
+              "mood_fidelity": 4.2222,
+              "repetition": 5.0,
+              "responsiveness": 4.8333
+            },
+            "eligible": true,
+            "exclusion_reason": null,
+            "family": "openai",
+            "hard_failures": {
+              "degenerate_loop": 0,
+              "fabricated": 0,
+              "non_latin_detected": 0,
+              "refused": 0
+            },
+            "id": "openai-sol-high",
+            "judge": {
+              "cost_usd": 0.86038025,
+              "family": "openai",
+              "id": "openai-sol-high",
+              "model": "openai/gpt-5.6-sol",
+              "provider": "openrouter",
+              "reasoning_effort": "high",
+              "request_id": "gen-1786229787-MsszSuFVubekFPj2BHhj",
+              "routed_model": "openai/gpt-5.6-sol",
+              "routed_provider": "OpenAI",
+              "rubric_sha256": "9adab2cd1b38fe75f978e386239b50fbb12b5ba34c5ba5874ae396a3b46b7bf4",
+              "usage": {
+                "completion_tokens": 9842,
+                "completion_tokens_details": {
+                  "audio_tokens": 0,
+                  "image_tokens": 0,
+                  "reasoning_tokens": 4937
+                },
+                "cost": 0.86038025,
+                "cost_details": {
+                  "upstream_inference_completions_cost": 0.29526,
+                  "upstream_inference_cost": 0.86038025,
+                  "upstream_inference_prompt_cost": 0.56512025
+                },
+                "is_byok": false,
+                "prompt_tokens": 92787,
+                "prompt_tokens_details": {
+                  "audio_tokens": 0,
+                  "cache_write_tokens": 90211,
+                  "cached_tokens": 2573,
+                  "video_tokens": 0
+                },
+                "total_tokens": 102629
+              }
+            },
+            "overall": 4.439,
+            "pass": true,
+            "sample": {
+              "items": 18,
+              "judge_input": "full production system prompt plus dynamic user prompt",
+              "judged_items": 18,
+              "samples_per_prompt": 3,
+              "unique_prompts": 6,
+              "unusable_outputs": 0
+            }
+          },
+          {
+            "artifact": {
+              "path": "docs/proofs/cloud-dialogue-qualification/runs/2026-08-08/gemini-3.6-flash-low-reasoning-judgment-anthropic-sonnet-low-355b77395fdcb6d3.json",
+              "sha256": "b0225e0be6e68d31e5dea33eecbd9359245c11e70683444b37187fb24fc26845"
+            },
+            "axes": {
+              "authenticity": 3.7778,
+              "brevity": 5.0,
+              "character": 3.7778,
+              "craft": 3.8333,
+              "grounding": 5.0,
+              "language": 5.0,
+              "mood_fidelity": 3.9444,
+              "repetition": 5.0,
+              "responsiveness": 4.6111
+            },
+            "eligible": true,
+            "exclusion_reason": null,
+            "family": "anthropic",
+            "hard_failures": {
+              "degenerate_loop": 0,
+              "fabricated": 0,
+              "non_latin_detected": 0,
+              "refused": 0,
+              "unusable_output": 0
+            },
+            "id": "anthropic-sonnet-low",
+            "judge": {
+              "cost_usd": 0.547065,
+              "family": "anthropic",
+              "id": "anthropic-sonnet-low",
+              "model": "anthropic/claude-sonnet-4.6",
+              "provider": "openrouter",
+              "reasoning_effort": "low",
+              "request_id": "gen-1786243923-Jpsu3G39gGucNRaCaHv7",
+              "routed_model": "anthropic/claude-sonnet-4.6",
+              "routed_provider": "Anthropic",
+              "rubric_sha256": "9adab2cd1b38fe75f978e386239b50fbb12b5ba34c5ba5874ae396a3b46b7bf4",
+              "usage": {
+                "completion_tokens": 15261,
+                "completion_tokens_details": {
+                  "audio_tokens": 0,
+                  "image_tokens": 0,
+                  "reasoning_tokens": 1569
+                },
+                "cost": 0.547065,
+                "cost_details": {
+                  "upstream_inference_completions_cost": 0.228915,
+                  "upstream_inference_cost": 0.547065,
+                  "upstream_inference_prompt_cost": 0.31815
+                },
+                "is_byok": false,
+                "prompt_tokens": 106050,
+                "prompt_tokens_details": {
+                  "audio_tokens": 0,
+                  "cache_write_tokens": 0,
+                  "cached_tokens": 0,
+                  "video_tokens": 0
+                },
+                "total_tokens": 121311
+              }
+            },
+            "overall": 4.4526,
+            "pass": true,
+            "sample": {
+              "items": 18,
+              "judge_input": "full production system prompt plus dynamic user prompt",
+              "judged_items": 18,
+              "samples_per_prompt": 3,
+              "unique_prompts": 6,
+              "unusable_outputs": 0
+            }
+          }
+        ],
+        "method": "median",
+        "needs_adjudication": false,
+        "overall": 4.4458,
+        "overall_spread": 0.0136,
+        "pass": true,
+        "quality_cohort_size": 7,
+        "quality_rank": 2,
+        "sample": {
+          "items": 18,
+          "judged_items": 18,
+          "unusable_outputs": 0
+        },
+        "votes": {
+          "eligible": 2,
+          "fail": 0,
+          "pass": 2,
+          "required": 2,
+          "self_excluded": 0
+        }
+      },
+      "model": "google/gemini-3.6-flash",
+      "performance": {
+        "artifact": {
+          "path": "docs/proofs/cloud-dialogue-qualification/runs/2026-08-08/gemini-3.6-flash-low-reasoning-perf.json",
+          "sha256": "91d1857058339851ecc5791595b83da57e8f515b36ded953b689a06b06ff23a8"
+        },
+        "candidate": "google/gemini-3.6-flash@https://openrouter.ai/api/v1#env:OPENROUTER_API_KEY",
+        "cold_completion_p95_ms": 3368.0,
+        "cold_measurements": 6,
+        "cold_ttft_p95_ms": 2834.0,
+        "error_rate": 0.0,
+        "measurements": 18,
+        "speed_cohort_size": 15,
+        "speed_index_ms": 4652.75,
+        "speed_rank": 7,
+        "tokens_per_second_p50": 724.4258872651358,
+        "warm_completion_p95_ms": 4967.0,
+        "warm_measurements": 12,
+        "warm_ttft_p95_ms": 4548.0
+      },
+      "preflight": {
+        "artifact": {
+          "path": "docs/proofs/cloud-dialogue-qualification/runs/2026-08-08/gemini-3.6-flash-low-reasoning-preflight.json",
+          "sha256": "13cf0a3b8e158456ccc29ee421a4182db64097822e4819a5cb35008ddb898851"
+        },
+        "calls": 12,
+        "guard_interventions": 1,
+        "guard_rate": 0.08333333333333333,
+        "request_profile": {
+          "enable_thinking": true,
+          "frequency_penalty": 0.5,
+          "json_mode": true,
+          "max_tokens": 768,
+          "model": "google/gemini-3.6-flash",
+          "reasoning_effort": "low",
+          "temperature": 0.7
+        },
+        "valid": 12
+      },
+      "reason": "quality passed; quality rank #2 of 7; speed rank #7 of 15",
+      "run_id": "2026-08-08/gemini-3.6-flash-low-reasoning",
+      "stage": "judgment",
+      "status": "qualified",
+      "tested_on": "2026-08-08"
+    },
+    {
+      "calls": {
+        "count": 49,
+        "diagnostic": 0,
+        "judgment": 18,
+        "path": "qualification-calls/2026-08-08__glm-4.7-no-reasoning.json",
+        "performance": 19,
+        "preflight": 12,
+        "sha256": "5fe07183b35014638fa26b47a45b1e71015940ed5e3f0fa4789f298710b21a42"
+      },
+      "candidate": "z-ai/glm-4.7@https://openrouter.ai/api/v1#env:OPENROUTER_API_KEY",
+      "judgment": {
+        "axes": {
+          "authenticity": 3.3,
+          "brevity": 3.4,
+          "character": 2.8,
+          "craft": 2.3,
+          "grounding": 4.8,
+          "language": 4.5,
+          "mood_fidelity": 3.9,
+          "repetition": 3.7,
+          "responsiveness": 3.9
+        },
+        "candidate_family": "z-ai",
+        "complete": false,
+        "cost_usd": 0.90846025,
+        "hard_failures": {
+          "degenerate_loop": 1,
+          "fabricated": 0,
+          "non_latin_detected": 0,
+          "refused": 0,
+          "unusable_output": 8
+        },
+        "judges": [
+          {
+            "artifact": {
+              "path": "docs/proofs/cloud-dialogue-qualification/runs/2026-08-08/glm-4.7-no-reasoning-judgment-e6e149df662697f3.json",
+              "sha256": "0b8794abb01a31fa0f8dc7d123007e80caad48873f87caa34fcdd462d79595c7"
+            },
+            "axes": {
+              "authenticity": 3.3,
+              "brevity": 3.4,
+              "character": 2.8,
+              "craft": 2.3,
+              "grounding": 4.8,
+              "language": 4.5,
+              "mood_fidelity": 3.9,
+              "repetition": 3.7,
+              "responsiveness": 3.9
+            },
+            "eligible": true,
+            "exclusion_reason": null,
+            "family": "openai",
+            "hard_failures": {
+              "degenerate_loop": 1,
+              "fabricated": 0,
+              "non_latin_detected": 0,
+              "refused": 0,
+              "unusable_output": 8
+            },
+            "id": "openai-sol-high",
+            "judge": {
+              "cost_usd": 0.90846025,
+              "family": "openai",
+              "id": "openai-sol-high",
+              "model": "openai/gpt-5.6-sol",
+              "provider": "openrouter",
+              "reasoning_effort": "high",
+              "request_id": "gen-1786229801-2wSYOOMXCnyGEmtrYdTE",
+              "routed_model": "openai/gpt-5.6-sol",
+              "routed_provider": "OpenAI",
+              "rubric_sha256": "9adab2cd1b38fe75f978e386239b50fbb12b5ba34c5ba5874ae396a3b46b7bf4",
+              "usage": {
+                "completion_tokens": 9868,
+                "completion_tokens_details": {
+                  "audio_tokens": 0,
+                  "image_tokens": 0,
+                  "reasoning_tokens": 5116
+                },
+                "cost": 0.90846025,
+                "cost_details": {
+                  "upstream_inference_completions_cost": 0.29604,
+                  "upstream_inference_cost": 0.90846025,
+                  "upstream_inference_prompt_cost": 0.61242025
+                },
+                "is_byok": false,
+                "prompt_tokens": 100355,
+                "prompt_tokens_details": {
+                  "audio_tokens": 0,
+                  "cache_write_tokens": 97779,
+                  "cached_tokens": 2573,
+                  "video_tokens": 0
+                },
+                "total_tokens": 110223
+              }
+            },
+            "overall": 3.6927,
+            "pass": false,
+            "sample": {
+              "items": 18,
+              "judge_input": "full production system prompt plus dynamic user prompt",
+              "judged_items": 10,
+              "samples_per_prompt": 3,
+              "unique_prompts": 6,
+              "unusable_outputs": 8
+            }
+          }
+        ],
+        "method": "median",
+        "needs_adjudication": false,
+        "overall": 3.6927,
+        "overall_spread": null,
+        "pass": false,
+        "sample": {
+          "items": 18,
+          "judged_items": 10,
+          "unusable_outputs": 8
+        },
+        "votes": {
+          "eligible": 1,
+          "fail": 1,
+          "pass": 0,
+          "required": 2,
+          "self_excluded": 0
+        }
+      },
+      "model": "z-ai/glm-4.7",
+      "performance": {
+        "artifact": {
+          "path": "docs/proofs/cloud-dialogue-qualification/runs/2026-08-08/glm-4.7-no-reasoning-perf.json",
+          "sha256": "6379e39c9c8228a161d15a39b5e38f762810a2b31ffdecf3595a794a3c2c8415"
+        },
+        "candidate": "z-ai/glm-4.7@https://openrouter.ai/api/v1#env:OPENROUTER_API_KEY",
+        "cold_completion_p95_ms": 48121.0,
+        "cold_measurements": 6,
+        "cold_ttft_p95_ms": 30590.0,
+        "error_rate": 0.0,
+        "measurements": 18,
+        "speed_cohort_size": 15,
+        "speed_index_ms": 14005.75,
+        "speed_rank": 14,
+        "tokens_per_second_p50": 52.631578947368425,
+        "warm_completion_p95_ms": 48244.0,
+        "warm_measurements": 12,
+        "warm_ttft_p95_ms": 2593.0
+      },
+      "preflight": {
+        "artifact": {
+          "path": "docs/proofs/cloud-dialogue-qualification/runs/2026-08-08/glm-4.7-no-reasoning-preflight.json",
+          "sha256": "21b0e0092a456e190a2319b243b0c83f6c273edbc3176ff1ea1ec782c01f3eb6"
+        },
+        "calls": 12,
+        "guard_interventions": 0,
+        "guard_rate": 0.0,
+        "request_profile": {
+          "enable_thinking": false,
+          "frequency_penalty": 0.5,
+          "json_mode": true,
+          "max_tokens": 768,
+          "model": "z-ai/glm-4.7",
+          "temperature": 0.7
+        },
+        "valid": 12
+      },
+      "reason": "awaiting independent judges (1/2); cloud speed rank #14 of 15",
+      "run_id": "2026-08-08/glm-4.7-no-reasoning",
+      "stage": "judgment",
+      "status": "needs_judgment",
+      "tested_on": "2026-08-08"
+    },
+    {
+      "calls": {
+        "count": 67,
+        "diagnostic": 0,
+        "judgment": 36,
+        "path": "qualification-calls/2026-08-08__gpt-5.6-luna-high-reasoning-4096.json",
+        "performance": 19,
+        "preflight": 12,
+        "sha256": "cc542987234778fa757304a230b3903dc8eb129e09381e611adbec3239998bd7"
+      },
+      "candidate": "openai/gpt-5.6-luna@https://openrouter.ai/api/v1#env:OPENROUTER_API_KEY",
+      "judgment": {
+        "axes": {
+          "authenticity": 3.5833,
+          "brevity": 4.75,
+          "character": 4.2222,
+          "craft": 4.0834,
+          "grounding": 5.0,
+          "language": 5.0,
+          "mood_fidelity": 4.4444,
+          "repetition": 4.9722,
+          "responsiveness": 4.75
+        },
+        "candidate_family": "openai",
+        "complete": true,
+        "cost_usd": 0.908515,
+        "hard_failures": {
+          "degenerate_loop": 0,
+          "fabricated": 0,
+          "non_latin_detected": 0,
+          "refused": 0,
+          "unusable_output": 0
+        },
+        "judges": [
+          {
+            "artifact": {
+              "path": "docs/proofs/cloud-dialogue-qualification/runs/2026-08-08/gpt-5.6-luna-high-reasoning-4096-judgment-anthropic-sonnet-low-adb1f70746f87941.json",
+              "sha256": "e23993f7f077f2de2fdc685739a3107fcba4deabd2ebe88393144152f7f318a3"
+            },
+            "axes": {
+              "authenticity": 3.0,
+              "brevity": 4.6111,
+              "character": 3.6111,
+              "craft": 3.6667,
+              "grounding": 5.0,
+              "language": 5.0,
+              "mood_fidelity": 3.8889,
+              "repetition": 4.9444,
+              "responsiveness": 4.5
+            },
+            "eligible": true,
+            "exclusion_reason": null,
+            "family": "anthropic",
+            "hard_failures": {
+              "degenerate_loop": 0,
+              "fabricated": 0,
+              "non_latin_detected": 0,
+              "refused": 0,
+              "unusable_output": 0
+            },
+            "id": "anthropic-sonnet-low",
+            "judge": {
+              "cost_usd": 0.564879,
+              "family": "anthropic",
+              "id": "anthropic-sonnet-low",
+              "model": "anthropic/claude-sonnet-4.6",
+              "provider": "openrouter",
+              "reasoning_effort": "low",
+              "request_id": "gen-1786263000-qKspdo45ldVneVngPXpj",
+              "routed_model": "anthropic/claude-sonnet-4.6",
+              "routed_provider": "Anthropic",
+              "rubric_sha256": "9adab2cd1b38fe75f978e386239b50fbb12b5ba34c5ba5874ae396a3b46b7bf4",
+              "usage": {
+                "completion_tokens": 16434,
+                "completion_tokens_details": {
+                  "audio_tokens": 0,
+                  "image_tokens": 0,
+                  "reasoning_tokens": 2008
+                },
+                "cost": 0.564879,
+                "cost_details": {
+                  "upstream_inference_completions_cost": 0.24651,
+                  "upstream_inference_cost": 0.564879,
+                  "upstream_inference_prompt_cost": 0.318369
+                },
+                "is_byok": false,
+                "prompt_tokens": 106123,
+                "prompt_tokens_details": {
+                  "audio_tokens": 0,
+                  "cache_write_tokens": 0,
+                  "cached_tokens": 0,
+                  "video_tokens": 0
+                },
+                "total_tokens": 122557
+              }
+            },
+            "overall": 4.271,
+            "pass": true,
+            "sample": {
+              "items": 18,
+              "judge_input": "full production system prompt plus dynamic user prompt",
+              "judged_items": 18,
+              "samples_per_prompt": 3,
+              "unique_prompts": 6,
+              "unusable_outputs": 0
+            }
+          },
+          {
+            "artifact": {
+              "path": "docs/proofs/cloud-dialogue-qualification/runs/2026-08-08/gpt-5.6-luna-high-reasoning-4096-judgment-google-pro-high-b796fc909e6eca0d.json",
+              "sha256": "58db88e959355447ea46a863866a7a299a47902370779dfc116cb06785047d06"
+            },
+            "axes": {
+              "authenticity": 4.1667,
+              "brevity": 4.8889,
+              "character": 4.8333,
+              "craft": 4.5,
+              "grounding": 5.0,
+              "language": 5.0,
+              "mood_fidelity": 5.0,
+              "repetition": 5.0,
+              "responsiveness": 5.0
+            },
+            "eligible": true,
+            "exclusion_reason": null,
+            "family": "google",
+            "hard_failures": {
+              "degenerate_loop": 0,
+              "fabricated": 0,
+              "non_latin_detected": 0,
+              "refused": 0,
+              "unusable_output": 0
+            },
+            "id": "google-pro-high",
+            "judge": {
+              "cost_usd": 0.343636,
+              "family": "google",
+              "id": "google-pro-high",
+              "model": "google/gemini-3.1-pro-preview",
+              "provider": "openrouter",
+              "reasoning_effort": "high",
+              "request_id": "gen-1786263427-OwuuDIqcQ90rfffOKDM7",
+              "routed_model": "google/gemini-3.1-pro-preview",
+              "routed_provider": "Google",
+              "rubric_sha256": "9adab2cd1b38fe75f978e386239b50fbb12b5ba34c5ba5874ae396a3b46b7bf4",
+              "usage": {
+                "completion_tokens": 12866,
+                "completion_tokens_details": {
+                  "audio_tokens": 0,
+                  "image_tokens": 0,
+                  "reasoning_tokens": 7052
+                },
+                "cost": 0.343636,
+                "cost_details": {
+                  "upstream_inference_completions_cost": 0.154392,
+                  "upstream_inference_cost": 0.343636,
+                  "upstream_inference_prompt_cost": 0.189244
+                },
+                "is_byok": false,
+                "prompt_tokens": 94622,
+                "prompt_tokens_details": {
+                  "audio_tokens": 0,
+                  "cache_write_tokens": 0,
+                  "cached_tokens": 0,
+                  "video_tokens": 0
+                },
+                "total_tokens": 107488
+              }
+            },
+            "overall": 4.8564,
+            "pass": true,
+            "sample": {
+              "items": 18,
+              "judge_input": "full production system prompt plus dynamic user prompt",
+              "judged_items": 18,
+              "samples_per_prompt": 3,
+              "unique_prompts": 6,
+              "unusable_outputs": 0
+            }
+          }
+        ],
+        "method": "median",
+        "needs_adjudication": false,
+        "overall": 4.5637,
+        "overall_spread": 0.5854,
+        "pass": true,
+        "quality_cohort_size": 7,
+        "quality_rank": 1,
+        "sample": {
+          "items": 18,
+          "judged_items": 18,
+          "unusable_outputs": 0
+        },
+        "votes": {
+          "eligible": 2,
+          "fail": 0,
+          "pass": 2,
+          "required": 2,
+          "self_excluded": 0
+        }
+      },
+      "model": "openai/gpt-5.6-luna",
+      "performance": {
+        "artifact": {
+          "path": "docs/proofs/cloud-dialogue-qualification/runs/2026-08-08/gpt-5.6-luna-high-reasoning-4096-perf.json",
+          "sha256": "4f81be963b60621d93fa771665f81a82f4a5465d8e2b7fb5dd0341a7c113c3cf"
+        },
+        "candidate": "openai/gpt-5.6-luna@https://openrouter.ai/api/v1#env:OPENROUTER_API_KEY",
+        "cold_completion_p95_ms": 7844.0,
+        "cold_measurements": 6,
+        "cold_ttft_p95_ms": 6884.0,
+        "error_rate": 0.0,
+        "measurements": 18,
+        "speed_cohort_size": 15,
+        "speed_index_ms": 5713.25,
+        "speed_rank": 9,
+        "tokens_per_second_p50": 1057.0776255707763,
+        "warm_completion_p95_ms": 6365.0,
+        "warm_measurements": 12,
+        "warm_ttft_p95_ms": 5496.0
+      },
+      "preflight": {
+        "artifact": {
+          "path": "docs/proofs/cloud-dialogue-qualification/runs/2026-08-08/gpt-5.6-luna-high-reasoning-4096-preflight.json",
+          "sha256": "a1f9cd53066eb20e5bf999333cfcad766356b87c5834e6432bd74c401487d842"
+        },
+        "calls": 12,
+        "guard_interventions": 0,
+        "guard_rate": 0.0,
+        "request_profile": {
+          "enable_thinking": true,
+          "frequency_penalty": 0.5,
+          "json_mode": true,
+          "max_tokens": 4096,
+          "model": "openai/gpt-5.6-luna",
+          "reasoning_effort": "high",
+          "temperature": 0.7
+        },
+        "valid": 12
+      },
+      "reason": "quality passed; quality rank #1 of 7; speed rank #9 of 15",
+      "run_id": "2026-08-08/gpt-5.6-luna-high-reasoning-4096",
+      "stage": "judgment",
+      "status": "qualified",
+      "tested_on": "2026-08-08"
+    },
+    {
+      "calls": {
+        "count": 12,
+        "diagnostic": 0,
+        "judgment": 0,
+        "path": "qualification-calls/2026-08-08__gpt-5.6-luna-max-reasoning-4096.json",
+        "performance": 0,
+        "preflight": 12,
+        "sha256": "e2186aa21dd5ca4ecf17ecb03a11af73131f91e93d5177812f1b3102a02b9fa7"
+      },
+      "candidate": "openai/gpt-5.6-luna@https://openrouter.ai/api/v1#env:OPENROUTER_API_KEY",
+      "judgment": null,
+      "model": "openai/gpt-5.6-luna",
+      "performance": null,
+      "preflight": {
+        "artifact": {
+          "path": "docs/proofs/cloud-dialogue-qualification/runs/2026-08-08/gpt-5.6-luna-max-reasoning-4096-preflight.json",
+          "sha256": "a41ce3d9172d9192be9528da688b9d001ae40d0e477fbf988e7fced55aa356af"
+        },
+        "calls": 12,
+        "guard_interventions": 2,
+        "guard_rate": 0.16666666666666666,
+        "request_profile": {
+          "enable_thinking": true,
+          "frequency_penalty": 0.5,
+          "json_mode": true,
+          "max_tokens": 4096,
+          "model": "openai/gpt-5.6-luna",
+          "reasoning_effort": "max",
+          "temperature": 0.7
+        },
+        "valid": 12
+      },
+      "reason": "guard intervention rate",
+      "run_id": "2026-08-08/gpt-5.6-luna-max-reasoning-4096",
+      "stage": "preflight",
+      "status": "rejected",
+      "tested_on": "2026-08-08"
+    },
+    {
+      "calls": {
+        "count": 85,
+        "diagnostic": 0,
+        "judgment": 54,
+        "path": "qualification-calls/2026-08-08__gpt-5.6-luna-no-reasoning.json",
+        "performance": 19,
+        "preflight": 12,
+        "sha256": "67c98ca2023eb396c01d35e92a9ed2f854e3ab0d7c46d43c6bb67f148ab51d47"
+      },
+      "candidate": "openai/gpt-5.6-luna@https://openrouter.ai/api/v1#env:OPENROUTER_API_KEY",
+      "judgment": {
+        "axes": {
+          "authenticity": 3.6471,
+          "brevity": 4.8824,
+          "character": 4.0588,
+          "craft": 3.7941,
+          "grounding": 5.0,
+          "language": 4.5,
+          "mood_fidelity": 4.0,
+          "repetition": 4.9412,
+          "responsiveness": 4.5883
+        },
+        "candidate_family": "openai",
+        "complete": true,
+        "cost_usd": 1.79757325,
+        "hard_failures": {
+          "degenerate_loop": 0,
+          "fabricated": 0,
+          "non_latin_detected": 0,
+          "refused": 0,
+          "unusable_output": 1
+        },
+        "judges": [
+          {
+            "artifact": {
+              "path": "docs/proofs/cloud-dialogue-qualification/runs/2026-08-08/gpt-5.6-luna-no-reasoning-judgment-fe463c40f42f703b.json",
+              "sha256": "4023476d4082b0248d710f91040df1648a02e1788eff048455b65d80558f105f"
+            },
+            "axes": {
+              "authenticity": 3.0,
+              "brevity": 4.2778,
+              "character": 3.4444,
+              "craft": 2.6667,
+              "grounding": 5.0,
+              "language": 5.0,
+              "mood_fidelity": 3.9444,
+              "repetition": 4.8333,
+              "responsiveness": 4.7222
+            },
+            "eligible": false,
+            "exclusion_reason": "same-family judge",
+            "family": "openai",
+            "hard_failures": {
+              "degenerate_loop": 0,
+              "fabricated": 0,
+              "non_latin_detected": 0,
+              "refused": 0
+            },
+            "id": "openai-sol-high",
+            "judge": {
+              "cost_usd": 0.85321525,
+              "family": "openai",
+              "id": "openai-sol-high",
+              "model": "openai/gpt-5.6-sol",
+              "provider": "openrouter",
+              "reasoning_effort": "high",
+              "request_id": "gen-1786229932-KZdRcUuHWOLiqDUbrW9s",
+              "routed_model": "openai/gpt-5.6-sol",
+              "routed_provider": "OpenAI",
+              "rubric_sha256": "9adab2cd1b38fe75f978e386239b50fbb12b5ba34c5ba5874ae396a3b46b7bf4",
+              "usage": {
+                "completion_tokens": 9559,
+                "completion_tokens_details": {
+                  "audio_tokens": 0,
+                  "image_tokens": 0,
+                  "reasoning_tokens": 4585
+                },
+                "cost": 0.85321525,
+                "cost_details": {
+                  "upstream_inference_completions_cost": 0.28677,
+                  "upstream_inference_cost": 0.85321525,
+                  "upstream_inference_prompt_cost": 0.56644525
+                },
+                "is_byok": false,
+                "prompt_tokens": 92999,
+                "prompt_tokens_details": {
+                  "audio_tokens": 0,
+                  "cache_write_tokens": 90423,
+                  "cached_tokens": 2573,
+                  "video_tokens": 0
+                },
+                "total_tokens": 102558
+              }
+            },
+            "overall": 4.1734,
+            "pass": true,
+            "sample": {
+              "items": 18,
+              "judge_input": "full production system prompt plus dynamic user prompt",
+              "judged_items": 18,
+              "samples_per_prompt": 3,
+              "unique_prompts": 6,
+              "unusable_outputs": 0
+            }
+          },
+          {
+            "artifact": {
+              "path": "docs/proofs/cloud-dialogue-qualification/runs/2026-08-08/gpt-5.6-luna-no-reasoning-judgment-anthropic-sonnet-low-3c01a29548cc98be.json",
+              "sha256": "63165bb0ffcb213b24a1d851f98fe3b4b1f39638e6529476832ab2c829e00cc9"
+            },
+            "axes": {
+              "authenticity": 3.4118,
+              "brevity": 4.7647,
+              "character": 4.0,
+              "craft": 3.5294,
+              "grounding": 5.0,
+              "language": 4.0,
+              "mood_fidelity": 3.0,
+              "repetition": 4.9412,
+              "responsiveness": 4.1765
+            },
+            "eligible": true,
+            "exclusion_reason": null,
+            "family": "anthropic",
+            "hard_failures": {
+              "degenerate_loop": 0,
+              "fabricated": 0,
+              "non_latin_detected": 0,
+              "refused": 0,
+              "unusable_output": 1
+            },
+            "id": "anthropic-sonnet-low",
+            "judge": {
+              "cost_usd": 0.599022,
+              "family": "anthropic",
+              "id": "anthropic-sonnet-low",
+              "model": "anthropic/claude-sonnet-4.6",
+              "provider": "openrouter",
+              "reasoning_effort": "low",
+              "request_id": "gen-1786263035-oQW3BgA7q5rlyvVj31jA",
+              "routed_model": "anthropic/claude-sonnet-4.6",
+              "routed_provider": "Anthropic",
+              "rubric_sha256": "9adab2cd1b38fe75f978e386239b50fbb12b5ba34c5ba5874ae396a3b46b7bf4",
+              "usage": {
+                "completion_tokens": 18674,
+                "completion_tokens_details": {
+                  "audio_tokens": 0,
+                  "image_tokens": 0,
+                  "reasoning_tokens": 2626
+                },
+                "cost": 0.599022,
+                "cost_details": {
+                  "upstream_inference_completions_cost": 0.28011,
+                  "upstream_inference_cost": 0.599022,
+                  "upstream_inference_prompt_cost": 0.318912
+                },
+                "is_byok": false,
+                "prompt_tokens": 106304,
+                "prompt_tokens_details": {
+                  "audio_tokens": 0,
+                  "cache_write_tokens": 0,
+                  "cached_tokens": 0,
+                  "video_tokens": 0
+                },
+                "total_tokens": 124978
+              }
+            },
+            "overall": 4.1449,
+            "pass": false,
+            "sample": {
+              "items": 18,
+              "judge_input": "full production system prompt plus dynamic user prompt",
+              "judged_items": 17,
+              "samples_per_prompt": 3,
+              "unique_prompts": 6,
+              "unusable_outputs": 1
+            }
+          },
+          {
+            "artifact": {
+              "path": "docs/proofs/cloud-dialogue-qualification/runs/2026-08-08/gpt-5.6-luna-no-reasoning-judgment-google-pro-high-e8470e63a070d3a7.json",
+              "sha256": "4e0241e6a182112fe4ed8d6021373fc0e68c15762ddc95c3ba45a6569c704dee"
+            },
+            "axes": {
+              "authenticity": 3.8824,
+              "brevity": 5.0,
+              "character": 4.1176,
+              "craft": 4.0588,
+              "grounding": 5.0,
+              "language": 5.0,
+              "mood_fidelity": 5.0,
+              "repetition": 4.9412,
+              "responsiveness": 5.0
+            },
+            "eligible": true,
+            "exclusion_reason": null,
+            "family": "google",
+            "hard_failures": {
+              "degenerate_loop": 0,
+              "fabricated": 0,
+              "non_latin_detected": 0,
+              "refused": 0,
+              "unusable_output": 1
+            },
+            "id": "google-pro-high",
+            "judge": {
+              "cost_usd": 0.345336,
+              "family": "google",
+              "id": "google-pro-high",
+              "model": "google/gemini-3.1-pro-preview",
+              "provider": "openrouter",
+              "reasoning_effort": "high",
+              "request_id": "gen-1786263553-zFcPwLFmBDm2VBo5ekmN",
+              "routed_model": "google/gemini-3.1-pro-preview",
+              "routed_provider": "Google",
+              "rubric_sha256": "9adab2cd1b38fe75f978e386239b50fbb12b5ba34c5ba5874ae396a3b46b7bf4",
+              "usage": {
+                "completion_tokens": 12980,
+                "completion_tokens_details": {
+                  "audio_tokens": 0,
+                  "image_tokens": 0,
+                  "reasoning_tokens": 7247
+                },
+                "cost": 0.345336,
+                "cost_details": {
+                  "upstream_inference_completions_cost": 0.15576,
+                  "upstream_inference_cost": 0.345336,
+                  "upstream_inference_prompt_cost": 0.189576
+                },
+                "is_byok": false,
+                "prompt_tokens": 94788,
+                "prompt_tokens_details": {
+                  "audio_tokens": 0,
+                  "cache_write_tokens": 0,
+                  "cached_tokens": 0,
+                  "video_tokens": 0
+                },
+                "total_tokens": 107768
+              }
+            },
+            "overall": 4.7088,
+            "pass": false,
+            "sample": {
+              "items": 18,
+              "judge_input": "full production system prompt plus dynamic user prompt",
+              "judged_items": 17,
+              "samples_per_prompt": 3,
+              "unique_prompts": 6,
+              "unusable_outputs": 1
+            }
+          }
+        ],
+        "method": "median",
+        "needs_adjudication": false,
+        "overall": 4.4268,
+        "overall_spread": 0.5639,
+        "pass": false,
+        "quality_cohort_size": 7,
+        "quality_rank": 3,
+        "sample": {
+          "items": 18,
+          "judged_items": 17,
+          "unusable_outputs": 1
+        },
+        "votes": {
+          "eligible": 2,
+          "fail": 2,
+          "pass": 0,
+          "required": 2,
+          "self_excluded": 1
+        }
+      },
+      "model": "openai/gpt-5.6-luna",
+      "performance": {
+        "artifact": {
+          "path": "docs/proofs/cloud-dialogue-qualification/runs/2026-08-08/gpt-5.6-luna-no-reasoning-perf.json",
+          "sha256": "4a8aa87147b548ceb04c3578d5892b841944ecc7f060033eb31d60f7bf06a0b1"
+        },
+        "candidate": "openai/gpt-5.6-luna@https://openrouter.ai/api/v1#env:OPENROUTER_API_KEY",
+        "cold_completion_p95_ms": 4618.0,
+        "cold_measurements": 6,
+        "cold_ttft_p95_ms": 4105.0,
+        "error_rate": 0.0,
+        "measurements": 18,
+        "speed_cohort_size": 15,
+        "speed_index_ms": 5196.25,
+        "speed_rank": 8,
+        "tokens_per_second_p50": 526.5957446808511,
+        "warm_completion_p95_ms": 6175.0,
+        "warm_measurements": 12,
+        "warm_ttft_p95_ms": 4870.0
+      },
+      "preflight": {
+        "artifact": {
+          "path": "docs/proofs/cloud-dialogue-qualification/runs/2026-08-08/gpt-5.6-luna-no-reasoning-preflight.json",
+          "sha256": "1cc2f609c8ff59b5b8b62af75bf8b85ff51efda5e5dfdabb41450a66a9cf973d"
+        },
+        "calls": 12,
+        "guard_interventions": 1,
+        "guard_rate": 0.08333333333333333,
+        "request_profile": {
+          "enable_thinking": false,
+          "frequency_penalty": 0.5,
+          "json_mode": true,
+          "max_tokens": 768,
+          "model": "openai/gpt-5.6-luna",
+          "reasoning_effort": "none",
+          "temperature": 0.7
+        },
+        "valid": 12
+      },
+      "reason": "quality screen failed; quality rank #3 of 7; speed rank #8 of 15",
+      "run_id": "2026-08-08/gpt-5.6-luna-no-reasoning",
+      "stage": "judgment",
+      "status": "quality_rejected",
+      "tested_on": "2026-08-08"
+    },
+    {
+      "calls": {
+        "count": 49,
+        "diagnostic": 0,
+        "judgment": 18,
+        "path": "qualification-calls/2026-08-08__gpt-5.6-sol-no-reasoning.json",
+        "performance": 19,
+        "preflight": 12,
+        "sha256": "14a335bfc3d3277052b4c1ff775e0520919b190e1680bf1b33b1cc66cbc6da1c"
+      },
+      "candidate": "openai/gpt-5.6-sol@https://openrouter.ai/api/v1#env:OPENROUTER_API_KEY",
+      "judgment": {
+        "axes": {},
+        "candidate_family": "openai",
+        "complete": false,
+        "cost_usd": 0.879559,
+        "hard_failures": {},
+        "judges": [
+          {
+            "artifact": {
+              "path": "docs/proofs/cloud-dialogue-qualification/runs/2026-08-08/gpt-5.6-sol-no-reasoning-judgment-ff8d6cb84921f838.json",
+              "sha256": "f885c09c49bbca64e9ccb7df603cb7ba82f351f034384694720b81ed450b726f"
+            },
+            "axes": {
+              "authenticity": 3.2222,
+              "brevity": 3.6111,
+              "character": 3.4444,
+              "craft": 1.7778,
+              "grounding": 5.0,
+              "language": 5.0,
+              "mood_fidelity": 4.7778,
+              "repetition": 4.5556,
+              "responsiveness": 4.8333
+            },
+            "eligible": false,
+            "exclusion_reason": "same-family judge",
+            "family": "openai",
+            "hard_failures": {
+              "degenerate_loop": 0,
+              "fabricated": 0,
+              "non_latin_detected": 0,
+              "refused": 0
+            },
+            "id": "openai-sol-high",
+            "judge": {
+              "cost_usd": 0.879559,
+              "family": "openai",
+              "id": "openai-sol-high",
+              "model": "openai/gpt-5.6-sol",
+              "provider": "openrouter",
+              "reasoning_effort": "high",
+              "request_id": "gen-1786229939-YexyWEg7TckpgPdZCPR0",
+              "routed_model": "openai/gpt-5.6-sol",
+              "routed_provider": "OpenAI",
+              "rubric_sha256": "9adab2cd1b38fe75f978e386239b50fbb12b5ba34c5ba5874ae396a3b46b7bf4",
+              "usage": {
+                "completion_tokens": 10364,
+                "completion_tokens_details": {
+                  "audio_tokens": 0,
+                  "image_tokens": 0,
+                  "reasoning_tokens": 5419
+                },
+                "cost": 0.879559,
+                "cost_details": {
+                  "upstream_inference_completions_cost": 0.31092,
+                  "upstream_inference_cost": 0.879559,
+                  "upstream_inference_prompt_cost": 0.568639
+                },
+                "is_byok": false,
+                "prompt_tokens": 93350,
+                "prompt_tokens_details": {
+                  "audio_tokens": 0,
+                  "cache_write_tokens": 90774,
+                  "cached_tokens": 2573,
+                  "video_tokens": 0
+                },
+                "total_tokens": 103714
+              }
+            },
+            "overall": 4.1694,
+            "pass": true,
+            "sample": {
+              "items": 18,
+              "judge_input": "full production system prompt plus dynamic user prompt",
+              "judged_items": 18,
+              "samples_per_prompt": 3,
+              "unique_prompts": 6,
+              "unusable_outputs": 0
+            }
+          }
+        ],
+        "method": "median",
+        "needs_adjudication": false,
+        "overall": null,
+        "overall_spread": null,
+        "pass": false,
+        "sample": {
+          "items": 0,
+          "judged_items": 0,
+          "unusable_outputs": 0
+        },
+        "votes": {
+          "eligible": 0,
+          "fail": 0,
+          "pass": 0,
+          "required": 2,
+          "self_excluded": 1
+        }
+      },
+      "model": "openai/gpt-5.6-sol",
+      "performance": {
+        "artifact": {
+          "path": "docs/proofs/cloud-dialogue-qualification/runs/2026-08-08/gpt-5.6-sol-no-reasoning-perf.json",
+          "sha256": "043e6eae64d2caab3d4cf4f20f9d98e69dcaffb249e1d585867e557fca302b87"
+        },
+        "candidate": "openai/gpt-5.6-sol@https://openrouter.ai/api/v1#env:OPENROUTER_API_KEY",
+        "cold_completion_p95_ms": 10159.0,
+        "cold_measurements": 6,
+        "cold_ttft_p95_ms": 8907.0,
+        "error_rate": 0.0,
+        "measurements": 18,
+        "speed_cohort_size": 15,
+        "speed_index_ms": 11898.0,
+        "speed_rank": 12,
+        "tokens_per_second_p50": 137.11151736745887,
+        "warm_completion_p95_ms": 13470.0,
+        "warm_measurements": 12,
+        "warm_ttft_p95_ms": 11374.0
+      },
+      "preflight": {
+        "artifact": {
+          "path": "docs/proofs/cloud-dialogue-qualification/runs/2026-08-08/gpt-5.6-sol-no-reasoning-preflight.json",
+          "sha256": "9c10c160528b5c49831e088346300cc5602db563dadcf5b5e9a9aed333905a5a"
+        },
+        "calls": 12,
+        "guard_interventions": 0,
+        "guard_rate": 0.0,
+        "request_profile": {
+          "enable_thinking": false,
+          "frequency_penalty": 0.5,
+          "json_mode": true,
+          "max_tokens": 768,
+          "model": "openai/gpt-5.6-sol",
+          "reasoning_effort": "none",
+          "temperature": 0.7
+        },
+        "valid": 12
+      },
+      "reason": "awaiting independent judges (0/2); cloud speed rank #12 of 15",
+      "run_id": "2026-08-08/gpt-5.6-sol-no-reasoning",
+      "stage": "judgment",
+      "status": "needs_judgment",
+      "tested_on": "2026-08-08"
+    },
+    {
+      "calls": {
+        "count": 12,
+        "diagnostic": 0,
+        "judgment": 0,
+        "path": "qualification-calls/2026-08-08__kimi-k2-0905-nitro-funded.json",
+        "performance": 0,
+        "preflight": 12,
+        "sha256": "bee63fd3ffdb1f1a35616bcfa041453d8e5f7ecec3b3e2fef47140f4cb889abf"
+      },
+      "candidate": "moonshotai/kimi-k2-0905:nitro@https://openrouter.ai/api/v1#env:OPENROUTER_API_KEY",
+      "judgment": null,
+      "model": "moonshotai/kimi-k2-0905:nitro",
+      "performance": null,
+      "preflight": {
+        "artifact": {
+          "path": "docs/proofs/cloud-dialogue-qualification/runs/2026-08-08/kimi-k2-0905-nitro-funded-preflight.json",
+          "sha256": "afc70bb4906009023505b50eea72f5f924be7dd8343b51888fa3b2af5800da55"
+        },
+        "calls": 12,
+        "guard_interventions": 2,
+        "guard_rate": 0.16666666666666666,
+        "request_profile": {
+          "enable_thinking": null,
+          "frequency_penalty": 0.5,
+          "json_mode": true,
+          "max_tokens": 768,
+          "model": "moonshotai/kimi-k2-0905:nitro",
+          "temperature": 0.7
+        },
+        "valid": 12
+      },
+      "reason": "guard intervention rate",
+      "run_id": "2026-08-08/kimi-k2-0905-nitro-funded",
+      "stage": "preflight",
+      "status": "rejected",
+      "tested_on": "2026-08-08"
+    },
+    {
+      "calls": {
+        "count": 12,
+        "diagnostic": 0,
+        "judgment": 0,
+        "path": "qualification-calls/2026-08-08__kimi-k2.5-nitro-no-reasoning.json",
+        "performance": 0,
+        "preflight": 12,
+        "sha256": "9ccbba330c58163eb1389af7956f8d064bb6a73fe5bc9d91e0f425c5371908e0"
+      },
+      "candidate": "moonshotai/kimi-k2.5:nitro@https://openrouter.ai/api/v1#env:OPENROUTER_API_KEY",
+      "judgment": null,
+      "model": "moonshotai/kimi-k2.5:nitro",
+      "performance": null,
+      "preflight": {
+        "artifact": {
+          "path": "docs/proofs/cloud-dialogue-qualification/runs/2026-08-08/kimi-k2.5-nitro-no-reasoning-preflight.json",
+          "sha256": "5c6715172e73285a83e5df6fafc4b9484c5b56d599b9f31b46296ecceda9d1d4"
+        },
+        "calls": 12,
+        "guard_interventions": 2,
+        "guard_rate": 0.16666666666666666,
+        "request_profile": {
+          "enable_thinking": false,
+          "frequency_penalty": 0.5,
+          "json_mode": true,
+          "max_tokens": 768,
+          "model": "moonshotai/kimi-k2.5:nitro",
+          "temperature": 0.7
+        },
+        "valid": 12
+      },
+      "reason": "guard intervention rate",
+      "run_id": "2026-08-08/kimi-k2.5-nitro-no-reasoning",
+      "stage": "preflight",
+      "status": "rejected",
+      "tested_on": "2026-08-08"
+    },
+    {
+      "calls": {
+        "count": 2,
+        "diagnostic": 0,
+        "judgment": 0,
+        "path": "qualification-calls/2026-08-08__deepseek-v4-flash-0731-max-reasoning.json",
+        "performance": 0,
+        "preflight": 2,
+        "sha256": "d9dd9047723163a9c88b589144ee4d40b4d97caf4552c4275244518087f73aa7"
+      },
+      "candidate": "deepseek/deepseek-v4-flash-0731@https://openrouter.ai/api/v1#env:OPENROUTER_API_KEY",
+      "judgment": null,
+      "model": "deepseek/deepseek-v4-flash-0731",
+      "performance": null,
+      "preflight": {
+        "artifact": {
+          "path": "docs/proofs/cloud-dialogue-qualification/runs/2026-08-08/deepseek-v4-flash-0731-max-reasoning-preflight.partial.jsonl",
+          "sha256": "4aa848ed336de905669b57fb7cdcf73fc5ff57b4c77f53af933121278b9641e7"
+        },
+        "calls": 2,
+        "elapsed_max_ms": 15348,
+        "elapsed_min_ms": 10407,
+        "guard_interventions": 0,
+        "guard_rate": 0.0,
+        "valid": 1
+      },
+      "reason": "structural reliability (early stop)",
+      "run_id": "2026-08-08/deepseek-v4-flash-0731-max-reasoning",
+      "stage": "preflight",
+      "status": "rejected",
+      "tested_on": "2026-08-08"
+    },
+    {
+      "calls": {
+        "count": 11,
+        "diagnostic": 0,
+        "judgment": 0,
+        "path": "qualification-calls/2026-08-08__deepseek-v4-pro-no-reasoning.json",
+        "performance": 0,
+        "preflight": 11,
+        "sha256": "e3a81702bfd4e874c40a6f64e8d57a38dfc59774b8420e6c21d644b4332c0fde"
+      },
+      "candidate": "deepseek/deepseek-v4-pro@https://openrouter.ai/api/v1#env:OPENROUTER_API_KEY",
+      "judgment": null,
+      "model": "deepseek/deepseek-v4-pro",
+      "performance": null,
+      "preflight": {
+        "artifact": {
+          "path": "docs/proofs/cloud-dialogue-qualification/runs/2026-08-08/deepseek-v4-pro-no-reasoning-preflight.partial.jsonl",
+          "sha256": "8bcd7ceac1cf4397ee188a30ac5f3b8aa6b09c1d56d1b6cb6fdcca34bffda668"
+        },
+        "calls": 11,
+        "elapsed_max_ms": 4773,
+        "elapsed_min_ms": 2569,
+        "guard_interventions": 2,
+        "guard_rate": 0.18181818181818182,
+        "valid": 11
+      },
+      "reason": "guard intervention rate (early stop)",
+      "run_id": "2026-08-08/deepseek-v4-pro-no-reasoning",
+      "stage": "preflight",
+      "status": "rejected",
+      "tested_on": "2026-08-08"
+    },
+    {
+      "calls": {
+        "count": 2,
+        "diagnostic": 0,
+        "judgment": 0,
+        "path": "qualification-calls/2026-08-08__kimi-k2.5-nitro.json",
+        "performance": 0,
+        "preflight": 2,
+        "sha256": "c84de2cbdd02066228c5874293ca9dcdc818c9c6f96a46eeb3d8fd5d2431a518"
+      },
+      "candidate": "moonshotai/kimi-k2.5:nitro@https://openrouter.ai/api/v1#env:OPENROUTER_API_KEY",
+      "judgment": null,
+      "model": "moonshotai/kimi-k2.5:nitro",
+      "performance": null,
+      "preflight": {
+        "artifact": {
+          "path": "docs/proofs/cloud-dialogue-qualification/runs/2026-08-08/kimi-k2.5-nitro-preflight.partial.jsonl",
+          "sha256": "70f21dff7ba52c7c3fc0b61b55c52b74c8fa44996ad6bbc89416699594abb2df"
+        },
+        "calls": 2,
+        "elapsed_max_ms": 36346,
+        "elapsed_min_ms": 26282,
+        "guard_interventions": 0,
+        "guard_rate": 0.0,
+        "valid": 2
+      },
+      "reason": "stopped after 2/12 calls",
+      "run_id": "2026-08-08/kimi-k2.5-nitro",
+      "stage": "preflight",
+      "status": "stopped",
+      "tested_on": "2026-08-08"
+    }
+  ],
+  "source": "immutable cloud-dialogue qualification receipts",
+  "version": 1
+}

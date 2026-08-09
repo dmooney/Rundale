@@ -11,32 +11,16 @@
 //! categories inherit from the base `[provider]` config.
 
 pub use parish_core::config::{
-    CliCloudOverrides, CliOverrides, CloudConfig, CognitiveTierConfig, EncounterConfig,
-    EngineConfig, FeatureFlags, InferenceCategory, InferenceConfig, NpcConfig, PaletteConfig,
-    PersistenceConfig, Provider, ProviderConfig, RelationshipLabelConfig, SpeedConfig, WorldConfig,
-    resolve_cloud_config, resolve_config,
+    CategoryConfig, CliCloudOverrides, CliOverrides, CloudConfig, CognitiveTierConfig,
+    EncounterConfig, EngineConfig, FeatureFlags, InferenceCategory, InferenceConfig, NpcConfig,
+    PaletteConfig, PersistenceConfig, Provider, ProviderConfig, RelationshipLabelConfig,
+    SpeedConfig, WorldConfig, resolve_cloud_config, resolve_config,
 };
 
 use crate::error::ParishError;
 use serde::Deserialize;
 use std::collections::HashMap;
 use std::path::Path;
-
-/// Resolved provider configuration for a single inference category.
-///
-/// Built by layering the base `[provider]` config with per-category
-/// overrides from TOML, environment variables, and CLI flags.
-#[derive(Debug, Clone)]
-pub struct CategoryConfig {
-    /// The provider backend for this category.
-    pub provider: Provider,
-    /// Base URL for the provider API.
-    pub base_url: String,
-    /// API key for authenticated providers.
-    pub api_key: Option<String>,
-    /// Model name. `None` for Ollama (auto-selected).
-    pub model: Option<String>,
-}
 
 /// CLI-provided overrides for per-category provider configuration.
 #[derive(Debug, Default)]

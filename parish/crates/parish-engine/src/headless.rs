@@ -1173,10 +1173,10 @@ async fn stream_headless_npc_dialogue(
             std::io::stdout().flush().ok();
         });
 
-        // TODO #10 / #23 / #34: pair with the parish-core dialogue call
-        // site — both Tier 1 entry points must set frequency_penalty so
-        // the headless CLI exhibits the same loop-suppression behaviour
-        // as the Tauri / server runtimes (mode parity, rule #2).
+        // Use the same resolved generation profile as the shared live path.
+        // Prompt capture drives this headless entry point, so any local literal
+        // here would make benchmark requests diverge from server/Tauri play.
+        let generation = app.inference_config.dialogue_generation;
         match queue
             .send(QueueRequest {
                 id: *request_id,
@@ -1184,14 +1184,13 @@ async fn stream_headless_npc_dialogue(
                 prompt: context,
                 system: Some(system_prompt),
                 token_tx: Some(token_tx),
-                max_tokens: None,
-                temperature: Some(0.7),
-                // TODO #10 / #23 / #34: frequency_penalty = 0.5 suppresses
-                // Qwen2.5-14B-4bit verbatim repetition loops on vllm-mlx /
-                // OpenAI / OpenRouter; Anthropic + Simulator ignore the field.
-                frequency_penalty: Some(0.5),
+                max_tokens: Some(generation.max_tokens),
+                temperature: Some(generation.temperature),
+                frequency_penalty: generation.frequency_penalty,
+                enable_thinking: generation.enable_thinking,
+                reasoning_effort: generation.reasoning_effort,
                 priority: InferencePriority::Interactive,
-                json_mode: true,
+                json_mode: generation.json_mode,
                 json_schema: None,
                 cancel: None,
             })

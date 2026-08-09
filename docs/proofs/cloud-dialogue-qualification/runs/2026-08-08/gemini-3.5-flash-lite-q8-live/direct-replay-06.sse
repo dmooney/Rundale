@@ -1,0 +1,24 @@
+: OPENROUTER PROCESSING
+
+: OPENROUTER PROCESSING
+
+data: {"id":"gen-1786217153-O3EUW607Enu1sWqJtbLP","object":"chat.completion.chunk","created":1786217153,"model":"google/gemini-3.5-flash-lite","provider":"Google","choices":[{"index":0,"delta":{"content":"","role":"assistant","reasoning":"**Forging Ahead Cheerfully**\n\nThe morning air is crisp, fitting for the start of a new week. I'm feeling good, ready to get the forge roaring and shape some iron into useful things. A quick smile comes easily as I anticipate the work ahead.\n\n","reasoning_details":[{"type":"reasoning.text","text":"**Forging Ahead Cheerfully**\n\nThe morning air is crisp, fitting for the start of a new week. I'm feeling good, ready to get the forge roaring and shape some iron into useful things. A quick smile comes easily as I anticipate the work ahead.\n\n","format":"google-gemini-v1","index":0}]},"finish_reason":null,"native_finish_reason":null}]}
+
+: OPENROUTER PROCESSING
+
+: OPENROUTER PROCESSING
+
+data: {"id":"gen-1786217153-O3EUW607Enu1sWqJtbLP","object":"chat.completion.chunk","created":1786217153,"model":"google/gemini-3.5-flash-lite","provider":"Google","choices":[{"index":0,"delta":{"content":"","role":"assistant","reasoning":"**Answering Questions Repeatedly**\n\nI've been wrestling with how best to respond to the persistent queries about Padraig Darcy, aiming for a touch of amused repetition without sounding outright annoyed. The goal is to provide the necessary information within a JSON structure while injecting a bit of character, perhaps a subtle hint of my apprentice's presence nearby.\n\n","reasoning_details":[{"type":"reasoning.text","text":"**Answering Questions Repeatedly**\n\nI've been wrestling with how best to respond to the persistent queries about Padraig Darcy, aiming for a touch of amused repetition without sounding outright annoyed. The goal is to provide the necessary information within a JSON structure while injecting a bit of character, perhaps a subtle hint of my apprentice's presence nearby.\n\n","format":"google-gemini-v1","index":0}]},"finish_reason":null,"native_finish_reason":null}]}
+
+: OPENROUTER PROCESSING
+
+data: {"id":"gen-1786217153-O3EUW607Enu1sWqJtbLP","object":"chat.completion.chunk","created":1786217153,"model":"google/gemini-3.5-flash-lite","provider":"Google","choices":[{"index":0,"delta":{"content":"{\n  \"dialogue\": \"Aye, I know him as well as my own anvil, man","role":"assistant"},"finish_reason":null,"native_finish_reason":null}]}
+
+data: {"id":"gen-1786217153-O3EUW607Enu1sWqJtbLP","object":"chat.completion.chunk","created":1786217153,"model":"google/gemini-3.5-flash-lite","provider":"Google","choices":[{"index":0,"delta":{"content":". Mhuise, are ye determined","role":"assistant"},"finish_reason":null,"native_finish_reason":null}]}
+
+data: {"id":"gen-1786217153-O3EUW607Enu1sWqJtbLP","object":"chat.completion.chunk","created":1786217153,"model":"google/gemini-3.5-flash-lite","provider":"Google","choices":[{"index":0,"delta":{"content":"","role":"assistant","reasoning":null},"finish_reason":"length","native_finish_reason":"MAX_TOKENS"}]}
+
+data: {"id":"gen-1786217153-O3EUW607Enu1sWqJtbLP","object":"chat.completion.chunk","created":1786217153,"model":"google/gemini-3.5-flash-lite","provider":"Google","service_tier":"default","choices":[{"index":0,"delta":{"content":"","role":"assistant"},"finish_reason":"length","native_finish_reason":"MAX_TOKENS"}],"usage":{"prompt_tokens":5243,"completion_tokens":764,"total_tokens":6007,"cost":0.0034829,"is_byok":false,"prompt_tokens_details":{"cached_tokens":0,"cache_write_tokens":0,"audio_tokens":0,"video_tokens":0},"cost_details":{"upstream_inference_cost":0.0034829,"upstream_inference_prompt_cost":0.0015729,"upstream_inference_completions_cost":0.00191},"completion_tokens_details":{"reasoning_tokens":735,"image_tokens":0,"audio_tokens":0}}}
+
+data: [DONE]
+

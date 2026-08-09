@@ -588,6 +588,8 @@ async fn generate_player_action_paused(
                 max_tokens: Some(200),
                 temperature: Some(temperature),
                 frequency_penalty: None,
+                enable_thinking: None,
+                reasoning_effort: None,
             },
         )
         .await;

@@ -412,6 +412,33 @@ impl GameConfig {
         }
     }
 
+    /// Applies fully resolved per-category provider configurations.
+    ///
+    /// Runtimes resolve their supported input layers (environment, TOML, or
+    /// CLI) in `parish-config`, then use this one backend-agnostic seam to
+    /// populate the routing maps consumed by every inference call.
+    pub fn apply_resolved_category_configs(
+        &mut self,
+        configs: &std::collections::HashMap<InferenceCategory, parish_config::CategoryConfig>,
+    ) {
+        for (category, resolved) in configs {
+            self.category_provider
+                .insert(*category, resolved.provider.id().to_string());
+            self.category_base_url
+                .insert(*category, resolved.base_url.clone());
+            if let Some(model) = resolved.model.clone() {
+                self.category_model.insert(*category, model);
+            } else {
+                self.category_model.remove(category);
+            }
+            if let Some(api_key) = resolved.api_key.clone() {
+                self.category_api_key.insert(*category, api_key);
+            } else {
+                self.category_api_key.remove(category);
+            }
+        }
+    }
+
     /// Configures this `GameConfig` for the bundled local two-slot Apple
     /// Silicon loadout used by the Tauri wizard's `two-slot` path and by
     /// `parish-server --headless-models` (#1364):
@@ -681,6 +708,53 @@ mod tests {
                 Some("gemma4:e4b")
             );
         }
+    }
+
+    #[test]
+    fn apply_resolved_category_configs_populates_and_clears_optional_fields() {
+        let mut config = GameConfig::default();
+        config
+            .category_model
+            .insert(InferenceCategory::Reaction, "stale-model".into());
+        config
+            .category_api_key
+            .insert(InferenceCategory::Reaction, "stale-key".into());
+        let resolved = std::collections::HashMap::from([(
+            InferenceCategory::Reaction,
+            parish_config::CategoryConfig {
+                provider: parish_config::Provider::simulator(),
+                base_url: String::new(),
+                api_key: None,
+                model: None,
+            },
+        )]);
+
+        config.apply_resolved_category_configs(&resolved);
+
+        assert_eq!(
+            config
+                .category_provider
+                .get(&InferenceCategory::Reaction)
+                .map(String::as_str),
+            Some("simulator")
+        );
+        assert_eq!(
+            config
+                .category_base_url
+                .get(&InferenceCategory::Reaction)
+                .map(String::as_str),
+            Some("")
+        );
+        assert!(
+            !config
+                .category_model
+                .contains_key(&InferenceCategory::Reaction)
+        );
+        assert!(
+            !config
+                .category_api_key
+                .contains_key(&InferenceCategory::Reaction)
+        );
     }
 
     #[test]

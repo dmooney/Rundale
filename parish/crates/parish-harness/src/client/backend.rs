@@ -2,9 +2,10 @@
 //!
 //! Mirrors the dispatch shape proven in `parish-mcp`'s `ParishHttpBackend`
 //! (kebab paths, GET vs POST), but exposes a typed, harness-specific surface
-//! instead of a generic `invoke`. The harness never links `parish-server` /
-//! `parish-tauri`; it speaks HTTP to whatever backend is listening (headless
-//! server in CI, the live Tauri window when a display + vllm-mlx are present).
+//! instead of a generic `invoke`. The harness never links `parish-server` at
+//! runtime; it speaks HTTP to that server's `/api/command` endpoint. The Tauri
+//! bridge intentionally does not expose `/api/command`, so this client cannot
+//! drive the desktop window.
 
 use async_trait::async_trait;
 use serde_json::json;
@@ -72,7 +73,7 @@ pub struct HttpGameClient {
 }
 
 impl HttpGameClient {
-    /// Construct a client pointed at an Axum/Tauri backend root
+    /// Construct a client pointed at a `parish-server` backend root
     /// (e.g. `http://127.0.0.1:3030`).
     ///
     /// A per-client cookie store is essential: `parish-server` isolates state

@@ -89,7 +89,11 @@
 
 	/** Whether to render the macOS local-vllm-mlx fork instead of BYOK. */
 	function showsLocalFork(choice: OnboardingChoice | undefined): boolean {
-		return choice === 'local-recommended' || choice === 'local-low-mem';
+		return (
+			choice === 'local-recommended' ||
+			choice === 'local-experimental' ||
+			choice === 'local-low-mem'
+		);
 	}
 
 	let downloadPct = $derived(

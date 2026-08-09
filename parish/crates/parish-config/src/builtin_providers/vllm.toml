@@ -11,7 +11,7 @@ featured = false
 
 [[presets]]
 key = "recommended"
-label = "Recommended"
+label = "Experimental (not production-qualified)"
 # Three-slot Linux/Windows CUDA/ROCm loadout:
 #   Slot 1 (:8000) — 14B for dialogue (narrative weight)
 #   Slot 2 (:8001) — 8B for simulation + reaction (mid-tier shared)

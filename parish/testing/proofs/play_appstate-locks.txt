@@ -1,0 +1,72 @@
+# appstate-locks play-test
+# =========================
+# Exercises the server-relevant flows that acquire the regrouped AppState
+# locks, proving the field-grouping refactor (#1366 §2) preserves behavior:
+#
+#   * world + npc_manager group       — /status, /time, movement, /debug here
+#   * inference group                 — /stub dialogue via the command host
+#     (client / cloud_client / inference_queue, now behind one lock)
+#   * save-identity group             — /save, /branch, /branches, /load
+#     (save_path / current_branch_id / current_branch_name, now behind one lock)
+#
+# Run against a LIVE server (live-proof tier, Rule 10):
+#   bash parish/scripts/parish-mcp-backend.sh start
+#   parish --script parish/testing/proofs/play_appstate-locks.txt
+# Or deterministic harness-level:
+#   just run-headless --script parish/testing/proofs/play_appstate-locks.txt
+#
+# Pass signal: every command returns without error, deadlock, 409, or 500;
+# /status shows a non-empty location; /save and /load both succeed; the /stub
+# dialogue echoes. Process exits 0 with no panic / transport error.
+
+# 1. Baseline reads — world + npc_manager group up and consistent.
+/status
+/time
+/debug here
+/npcs
+
+# 2. Movement — world + npc_manager acquired in canonical order (no deadlock).
+go to The Crossroads
+/debug here
+/status
+
+# 3. Save-identity group: write the active save and confirm it took.
+#    Touches save_path + current_branch_id + current_branch_name + save_lock.
+/save
+/status
+
+# 4. Save-identity group: fork + list — re-reads the identity triple and
+#    writes a new current_branch_id / current_branch_name.
+/fork locktest
+/branches
+
+# 5. Inference group via the command host: /stub seeds a canned reply, then a
+#    spoken line drives a dialogue turn through client/cloud_client/queue.
+/npcs
+/stub Padraig Darcy: The morning's grand, thanks be to God.
+say Good morning, Padraig.
+/wait 1
+
+# 6. Second movement + save to re-cross world -> save-identity -> save_db order
+#    (the autosave/save path) and confirm no ordering inversion regresses.
+go to Darcy's Pub
+/debug here
+/save
+
+# 7. Load back the original branch — exercises the save-identity group write on
+#    branch switch (load_branch path). Branches are addressed by name.
+/branches
+/load main
+/status
+/debug here
+
+# 8. Advance time so the tick task runs its world -> npc_manager -> save_db
+#    autosave cycle under the new lock grouping without hanging.
+/speed fast
+/wait 60
+/status
+/npcs
+
+# 9. Final snapshot — world still live, engine has not crashed or deadlocked.
+/time
+/map

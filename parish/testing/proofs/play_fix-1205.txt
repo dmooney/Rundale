@@ -1,0 +1,21 @@
+# Fixture: fix-1205 — bug-risk & regression debt (epic #1205)
+#
+# This file is fed to the headless REPL via stdin:
+#   cargo run -p parish-engine -- --headless < testing/proofs/play_fix-1205.txt
+#
+# It exercises parish-engine TD-037 (idle-message off-by-one). The headless
+# idle path (headless.rs) fires when a dialogue line resolves to no present
+# NPC. Addressing a non-existent NPC via @mention is a deterministic trigger
+# regardless of who is on-stage, because resolve_npc_targets() returns empty.
+#
+# AC1 expectation (live transcript):
+#   - 1st idle line  -> idle_messages[0]: "The wind stirs, but nothing else."
+#   - 2nd idle line  -> idle_messages[1]: "Only the sound of a distant crow."
+# The pre-fix code skipped idle_messages[0] entirely (started at index 1).
+#
+# NOTE: this is NOT a harness (run_script_mode) fixture — the script harness
+# in testing.rs does not process idle messages. It is a stdin script for the
+# live --headless REPL, which is the accepted live signal for this proof.
+@Zzqnobody hello there, is anyone about?
+@Zzqnobody still no answer?
+/quit

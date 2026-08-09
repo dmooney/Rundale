@@ -41,7 +41,13 @@ export default defineConfig({
 
 	projects: [
 		{
-			name: 'chromium',
+			name: 'ui-contract',
+			testIgnore: /fullstack\.spec\.ts/,
+			use: { ...devices['Desktop Chrome'] },
+		},
+		{
+			name: 'browser-fullstack',
+			testMatch: /fullstack\.spec\.ts/,
 			use: { ...devices['Desktop Chrome'] },
 		},
 	],
