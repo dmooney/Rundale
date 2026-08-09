@@ -8,10 +8,9 @@
 # parish_core::game_loop and records any divergence (#1159). The aggregated
 # JSONL ledger is summarized into a Markdown report.
 #
-# This is intentionally NON-GATING: it measures the current legacy-vs-real
-# divergence set (the go/no-go signal for the consolidation), it does not fail
-# on divergences. Test failures still surface (cargo's exit code) but the
-# divergence count never blocks.
+# Divergences are intentionally non-gating: they measure the current
+# legacy-vs-real delta. Cargo compilation and test failures are gating and are
+# returned to the caller after the partial ledger has been summarized.
 #
 # Usage:
 #   bash parish/scripts/harness-shadow.sh [SUMMARY_MD]
@@ -37,18 +36,17 @@ mkdir -p "$(dirname "$LEDGER")" "$(dirname "$SUMMARY")"
 rm -f "$LEDGER"
 
 # Each invocation tags its records with a case label so the summary can break
-# divergences down by corpus area. Test failures are tolerated (the shadow run
-# is a measurement, not a gate) — but we capture and surface each cargo exit
-# code so a compile/test failure can't masquerade as a clean (empty) ledger.
+# divergences down by corpus area. The grep is presentation-only; capture the
+# pipeline statuses before any follow-up command can overwrite PIPESTATUS.
 corpus_status=0
 run_case() {
     local case_label="$1"
     shift
     echo "=== shadow corpus: $case_label ==="
     PARISH_HARNESS_SHADOW_CASE="$case_label" cargo test --manifest-path "$MANIFEST" "$@" 2>&1 \
-        | grep -E "test result|FAILED|error\[" || true
-    # ${PIPESTATUS[0]} is cargo's exit code (grep/|| true would otherwise mask it).
-    local rc=${PIPESTATUS[0]}
+        | grep -E "test result|FAILED|error\["
+    local pipeline_status=("${PIPESTATUS[@]}")
+    local rc=${pipeline_status[0]}
     if [ "$rc" -ne 0 ]; then
         echo "WARNING: cargo test for '$case_label' exited $rc — ledger may be incomplete for this case."
         corpus_status=1
@@ -68,3 +66,5 @@ echo "=== summarizing $LEDGER -> $SUMMARY ==="
 python3 "$REPO_ROOT/parish/scripts/harness-shadow-summarize.py" "$LEDGER" >"$SUMMARY"
 echo "wrote $SUMMARY"
 cat "$SUMMARY"
+
+exit "$corpus_status"

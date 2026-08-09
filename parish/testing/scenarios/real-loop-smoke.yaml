@@ -1,0 +1,30 @@
+version: 1
+name: real-loop-smoke
+description: Shipping-loop bootstrap covering look, movement, and a system command.
+steps:
+  - input: look
+    expect:
+      location: Kilteevan Village
+      min_events: 1
+      events:
+        - name: text-log
+          contains: Kilteevan
+      absent_events:
+        - real-loop-panic
+  - input: go to the crossroads
+    expect:
+      location: The Crossroads
+      min_events: 1
+      events:
+        - name: world-update
+      absent_events:
+        - real-loop-panic
+  - input: /status
+    expect:
+      location: The Crossroads
+      min_events: 1
+      events:
+        - name: text-log
+          contains: Crossroads
+      absent_events:
+        - real-loop-panic

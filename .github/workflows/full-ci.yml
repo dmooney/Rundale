@@ -1,10 +1,11 @@
 name: Rundale Full CI
 
-# Expensive correctness gates preserved outside the sub-minute `ci.yml` fast
-# lane. These jobs intentionally run on main/develop pushes, merge-queue
-# entries, nightly schedule, and manual dispatch.
+# Expensive correctness gates. Runtime-changing pull requests call this workflow
+# from `ci.yml`; main/develop pushes, merge-queue entries, the nightly schedule,
+# and manual dispatch remain independent backstops.
 
 on:
+  workflow_call:
   push:
     branches:
       - main
@@ -216,7 +217,7 @@ jobs:
       - name: Build engine once
         run: cargo build -p parish-engine
 
-      - name: Run every fixture script (parallel)
+      - name: Run every legacy regression fixture (parallel)
         shell: bash
         run: |
           set -euo pipefail
@@ -232,8 +233,11 @@ jobs:
             echo "ok: $f"
           EOF
           export BIN="$PWD/target/debug/parish-engine"
-          find testing/fixtures -maxdepth 1 -name '*.txt' -print0 \
+          find testing/fixtures -maxdepth 1 -name 'test_*.txt' -print0 \
             | xargs -0 -P "$(nproc)" -I{} bash "$runner" {}
+
+      - name: Run asserted shipping-loop scenarios
+        run: cargo test -p parish-scenario --test scenarios
 
       - name: Build server + client
         run: cargo build -p parish-server -p parish-client
@@ -348,7 +352,9 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: playwright-report
-          path: parish/apps/ui/playwright-report/
+          path: |
+            parish/apps/ui/playwright-report/
+            parish/apps/ui/e2e/test-results/
           if-no-files-found: ignore
 
   full-ci-gate:

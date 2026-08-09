@@ -61,10 +61,10 @@ Location names come from `/map` or `mods/rundale/world.json`.
 
 Prove a gameplay feature works at runtime — not just that tests pass.
 
-1. **Write a targeted script** at `testing/fixtures/play_prove.txt` that exercises the feature from a
+1. **Write a targeted script** at `testing/proofs/play_prove.txt` that exercises the feature from a
    player's perspective. Use `/wait` to advance time, move between locations, and use `/time`, `/status`,
    `/debug clock`, `/debug npcs`, `look`, `/npcs` to make the feature's impact visible.
-2. **Run it**: `cargo run -- --script testing/fixtures/play_prove.txt`
+2. **Run it**: `cargo run -- --script testing/proofs/play_prove.txt`
 3. **Read the JSON critically.** For each line ask:
    - Do values change when expected (weather transitions, NPC relocations)?
    - Do descriptions read naturally — grammatical and immersive to a player?
@@ -94,7 +94,7 @@ Autonomous play-test to evaluate the gameplay experience.
 2. **Determine what to test**:
    - If given a `.txt` path, use it as the script directly.
    - If given a scenario ("explore all locations", "talk to every NPC", "test time passage"), generate a
-     script at `testing/fixtures/play_session.txt`.
+     script at `testing/proofs/play_session.txt`.
    - If nothing is given, generate a comprehensive exploration script that checks `/status`, `/time`,
      `/map`, `/npcs`; visits every reachable location; uses `/wait` and `/tick` to advance time and observe
      schedule changes; tests `/save`, `/fork`, `/branches`, `/log`; and toggles `/speed fast` / `/speed normal`.

@@ -18,28 +18,35 @@ function section(source, startMarker, endMarker) {
 test('server-side Playwright seam changes require the real launcher integration', () => {
 	const workflow = fs.readFileSync(workflowPath, 'utf8');
 	const changesJob = section(workflow, '  changes:', '  agent-check:');
-	const uiFilterMatch = changesJob.match(
-		/^ {12}ui:\n((?:^ {14}- '[^']+'\n?)+)/m,
+	const runtimeFilterMatch = changesJob.match(
+		/^ {12}runtime:\n((?:^ {14}- '[^']+'\n?)+)/m,
 	);
-	assert.ok(uiFilterMatch, 'missing ui path filter');
-	const uiPatterns = [...uiFilterMatch[1].matchAll(/'([^']+)'/g)].map(
+	assert.ok(runtimeFilterMatch, 'missing runtime path filter');
+	const runtimePatterns = [...runtimeFilterMatch[1].matchAll(/'([^']+)'/g)].map(
 		(match) => match[1],
 	);
 	assert.ok(
-		uiPatterns.includes('parish/crates/parish-server/**'),
-		'parish-server build and readiness changes must select UI Playwright e2e',
+		runtimePatterns.includes('parish/crates/**'),
+		'parish-server build and readiness changes must select the runtime suite',
 	);
 
-	const uiE2eJob = section(
+	const runtimeSuiteJob = section(
 		workflow,
-		'  ui-e2e:',
+		'  runtime-suite:',
 		'  playwright-launcher-windows:',
 	);
 	assert.match(
-		uiE2eJob,
-		/needs\.changes\.outputs\.ui == 'true'/,
-		'ui-e2e must be selected by the guarded path filter',
+		runtimeSuiteJob,
+		/needs\.changes\.outputs\.runtime == 'true'/,
+		'runtime suite must be selected by the guarded path filter',
 	);
+	assert.match(runtimeSuiteJob, /uses: \.\/\.github\/workflows\/full-ci\.yml/);
+
+	const fullWorkflow = fs.readFileSync(
+		path.join(__dirname, '..', 'workflows', 'full-ci.yml'),
+		'utf8',
+	);
+	const uiE2eJob = section(fullWorkflow, '  ui-e2e:', '  full-ci-gate:');
 	assert.match(
 		uiE2eJob,
 		/npm run test:playwright-launcher-integration/,

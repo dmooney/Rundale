@@ -136,4 +136,4 @@ suggested) because only `parish-engine` can reach all of `GameTestHarness`,
 `/debug memory Niamh Darcy` shows `Overheard: a newcomer said '…' and Padraig
 Darcy replied '…'` — impossible before the fix because the addressed path never
 called `record_witness_memories`. Fixture:
-`parish/testing/fixtures/play_1172-1173-dialogue-seam.txt`.
+`parish/testing/proofs/play_1172-1173-dialogue-seam.txt`.

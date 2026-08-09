@@ -25,7 +25,7 @@ assets are small, replaceable visual atoms.
 1. **One PR per milestone**, branched from the previous milestone's merge.
 2. **Acceptance criteria:** each milestone should define
    `.proofs/diorama-m<N>/acceptance-criteria.md` and
-   `parish/testing/fixtures/play_diorama-m<N>.txt` before implementation.
+   `parish/testing/proofs/play_diorama-m<N>.txt` before implementation.
 3. **Proof (AGENTS rule 10):** milestones touching runtime paths need a
    live-proof bundle in the PR body. M4 is tool-only but still needs a transcript
    or fixture proving the tool behavior claimed.
@@ -190,7 +190,7 @@ unintroduced NPCs.
 
 ### 4. Script-Harness Fixtures
 
-`parish/testing/fixtures/play_diorama-m<N>.txt` is written during milestone
+`parish/testing/proofs/play_diorama-m<N>.txt` is written during milestone
 setup.
 Runs assert the load line (M1), `/flag enable diorama` + `/scene` output
 (M2+), clickable route parity where practical, and the 3-scene walk (M5).

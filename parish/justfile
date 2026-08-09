@@ -211,7 +211,7 @@ ui-format-check:
 ui-test:
     eval "$(fnm env)" && cd apps/ui && npx vitest run
 
-# Run Playwright E2E tests (headless Chromium, mocked Tauri IPC).
+# Run Playwright UI-contract tests plus the real browser/parish-server lane.
 # Keep the early ui-build feedback; the config-managed launcher rebuilds again
 # immediately before capture so every Playwright entry point is safe (#1717).
 ui-e2e: ui-build
@@ -286,14 +286,31 @@ game-test-one NAME:
 
 # Run all test fixtures
 game-test-all:
-    @for f in testing/fixtures/*.txt; do \
-        echo "=== Running $f ==="; \
-        cargo run -p parish-engine -- --script "$f" > /dev/null && echo "  PASS" || echo "  FAIL"; \
+    #!/usr/bin/env bash
+    set -uo pipefail
+    status=0
+    for f in testing/fixtures/test_*.txt; do
+        echo "=== Running $f ==="
+        if cargo run -p parish-engine -- --script "$f" >/dev/null; then
+            echo "  PASS"
+        else
+            echo "  FAIL"
+            status=1
+        fi
     done
+    exit "$status"
 
 # List available test fixtures
 game-test-list:
-    @ls testing/fixtures/*.txt | sed 's|testing/fixtures/||; s|\.txt||'
+    @ls testing/fixtures/test_*.txt | sed 's|testing/fixtures/||; s|\.txt||'
+
+# Run every versioned, asserted scenario through the shipping game loop.
+scenario-test:
+    cargo test -p parish-scenario
+
+# Run one asserted scenario and print its JSON report.
+scenario-run FILE="testing/scenarios/real-loop-smoke.yaml":
+    cargo run -p parish-scenario -- {{FILE}}
 
 # Run inference eval against GitHub Models. Requires GITHUB_TOKEN with models:read scope
 # and a running parish-server (start with: bash scripts/parish-mcp-backend.sh start).

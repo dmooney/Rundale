@@ -33,7 +33,7 @@ Open `TODO.md`. Prefer the smallest-scope unaddressed P0/P1. If the entry has a 
 Before any code change:
 
 - `.proofs/todo-<id>/acceptance-criteria.md` — observable criteria, sized concretely (e.g. "`frequency_penalty: Option<f32>` field on `InferenceRequest`", not "improve repetition handling"). Include a "Deferred items" section listing anything intentionally punted from this round.
-- `parish/testing/fixtures/play_todo-<id>.txt` — harness commands that exercise the new code path in `parish-engine --headless --script`.
+- `parish/testing/proofs/play_todo-<id>.txt` — harness commands that exercise the new code path in `parish-engine --headless --script`.
 
 ## 4. Implement
 
@@ -61,7 +61,7 @@ cd parish/apps/ui && npx vitest run && pnpm run check
 
 ```sh
 cargo run -p parish-engine -- --headless --script \
-  parish/testing/fixtures/play_todo-<id>.txt > /tmp/transcript.txt
+  parish/testing/proofs/play_todo-<id>.txt > /tmp/transcript.txt
 cp /tmp/transcript.txt .proofs/todo-<id>/transcript.json
 ```
 

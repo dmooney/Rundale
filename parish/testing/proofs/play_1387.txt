@@ -14,7 +14,7 @@
 #
 # Run from repo root:
 #   cargo run --manifest-path parish/Cargo.toml -p parish-cli \
-#     -- --script parish/testing/fixtures/play_1387.txt
+#     -- --script parish/testing/proofs/play_1387.txt
 
 # --- Locate an NPC-rich hub ---
 look

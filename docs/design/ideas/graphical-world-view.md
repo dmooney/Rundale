@@ -166,7 +166,7 @@ Rendering is on the request path (fast enough); no streaming/lazy generation.
 - **Unit tests (`parish-sprite`):** `derive_npc_recipe_is_deterministic`, `recipe_serde_roundtrip`, `tint_preserves_hue_modulates_value`.
 - **Snapshot tests:** golden PNGs under `crates/parish-sprite/snapshots/` for 6 NPCs + 4 scenes; CI fails on diff with a byte-diff report.
 - **Architecture-fitness:** extend `architecture_fitness.rs` to register `parish-sprite` and forbid backend deps.
-- **`/prove sprites`** (`testing/fixtures/prove_sprites.txt`):
+- **`/prove sprites`** (`testing/proofs/prove_sprites.txt`):
   1. Capture Maeve portrait via `parish sprites dump`; assert valid PNG header.
   2. Save → restart → load → re-capture; assert byte-identical (determinism survives persistence).
   3. Fast-forward dawn→midday→dusk; assert scene hashes differ (tint applied) but underlying indexed mask is identical.
