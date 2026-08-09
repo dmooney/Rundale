@@ -774,13 +774,19 @@ async fn openai_compatible_provider_smoke() {
 
     for case in &cases {
         let server = MockServer::start().await;
+        let completions_path = if case.provider.id() == "google" {
+            "/chat/completions"
+        } else {
+            "/v1/chat/completions"
+        };
 
-        // Mount a mock that expects POST /v1/chat/completions.
+        // Google already carries its version prefix in the configured base URL;
+        // the remaining providers use the standard `/v1` completion path.
         // For key-bearing providers, additionally require the Authorization header.
         if let Some(key) = case.api_key {
             let bearer = format!("Bearer {key}");
             Mock::given(method("POST"))
-                .and(path("/v1/chat/completions"))
+                .and(path(completions_path))
                 .and(header("Authorization", bearer.as_str()))
                 .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
                     "choices": [{"message": {"content": "ok"}}]
@@ -790,7 +796,7 @@ async fn openai_compatible_provider_smoke() {
         } else {
             // For key-absent providers: first assert Authorization is never sent.
             Mock::given(method("POST"))
-                .and(path("/v1/chat/completions"))
+                .and(path(completions_path))
                 .and(header_exists("Authorization"))
                 .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
                     "choices": [{"message": {"content": "with-auth"}}]
@@ -800,7 +806,7 @@ async fn openai_compatible_provider_smoke() {
                 .await;
             // Then mount the permissive success mock.
             Mock::given(method("POST"))
-                .and(path("/v1/chat/completions"))
+                .and(path(completions_path))
                 .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
                     "choices": [{"message": {"content": "ok"}}]
                 })))
