@@ -28,6 +28,12 @@ pub trait InferenceCategoryConfig {
     fn category_model(&self, cat: InferenceCategory) -> Option<String>;
     /// Base-URL override for `cat`, or `None` to inherit the base URL.
     fn category_base_url(&self, cat: InferenceCategory) -> Option<String>;
+    /// Effective profile after top-level and category overrides for the exact
+    /// audited workload (Tier 2 and Tier 3 intentionally have separate caps).
+    fn subrole_profile(
+        &self,
+        subrole: parish_config::InferenceSubrole,
+    ) -> parish_config::InferenceProfile;
 }
 
 #[cfg(test)]

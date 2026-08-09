@@ -143,6 +143,8 @@ async fn ws_message_forwarding() {
                 category_model: Default::default(),
                 category_api_key: Default::default(),
                 category_base_url: Default::default(),
+                inference_profile_override: Default::default(),
+                category_inference_profile: Default::default(),
                 flags: parish_core::config::FeatureFlags::default(),
                 category_rate_limit: Default::default(),
                 active_tile_source: String::new(),

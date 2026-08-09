@@ -12,7 +12,9 @@ mod mention;
 mod parser;
 
 pub use commands::{Command, FlagSubcommand, InferenceLogSub, validate_branch_name};
-pub use intent_llm::parse_intent;
+pub use intent_llm::{
+    parse_intent, parse_intent_with_profile, parse_intent_with_profile_and_audit,
+};
 pub use intent_local::{is_physical_action_shaped, is_player_dialogue, parse_intent_local};
 pub use intent_types::{InputResult, IntentKind, PlayerIntent};
 pub use mention::{MentionExtraction, extract_mention};

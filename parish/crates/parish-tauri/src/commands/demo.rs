@@ -579,22 +579,56 @@ async fn generate_player_action_paused(
     state: &Arc<AppState>,
 ) -> Result<String, String> {
     state.world.lock().await.clock.inference_pause();
-    let gen_result = client
-        .generate(
-            model,
-            user_prompt,
-            Some(system_prompt),
-            GenerateParams {
-                max_tokens: Some(200),
-                temperature: Some(temperature),
-                frequency_penalty: None,
-                enable_thinking: None,
-                reasoning_effort: None,
-            },
+    let profile = state
+        .config
+        .lock()
+        .await
+        .inference_profile(parish_core::config::InferenceSubrole::DemoPlayer);
+    let audit_sink = state
+        .inference_queue
+        .lock()
+        .await
+        .as_ref()
+        .and_then(parish_core::inference::InferenceQueue::audit_sink);
+    let params = GenerateParams {
+        max_tokens: Some(profile.max_output_tokens),
+        temperature: Some(temperature),
+        frequency_penalty: None,
+        enable_thinking: None,
+        reasoning_effort: None,
+        thinking_level: Some(profile.thinking_level),
+        service_tier: Some(profile.service_tier),
+    };
+    let audit = parish_core::inference::DirectInferenceAudit::new(
+        audit_sink,
+        model,
+        user_prompt,
+        Some(system_prompt),
+        parish_core::config::InferenceSubrole::DemoPlayer,
+        false,
+        params.max_tokens,
+        params.thinking_level,
+        params.service_tier,
+        params.temperature,
+        parish_core::inference::InferencePriority::Interactive,
+    );
+    let gen_result = audit
+        .record(
+            client
+                .generate_detailed_with_format(
+                    model,
+                    user_prompt,
+                    Some(system_prompt),
+                    None,
+                    params,
+                )
+                .await,
         )
         .await;
     state.world.lock().await.clock.inference_resume();
-    gen_result.map_err(|e| e.to_string())
+    gen_result
+        .map(|result| result.text)
+        .map_err(|e| e.to_string())
 }
 
 #[cfg(test)]

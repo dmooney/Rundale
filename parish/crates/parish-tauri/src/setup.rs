@@ -423,7 +423,12 @@ pub(crate) async fn init_inference_queue(state: &Arc<AppState>) {
             timeout_config: state.inference_config.clone(),
         },
     );
-    let queue = InferenceQueue::new(interactive_tx, background_tx, batch_tx);
+    let queue = InferenceQueue::new(interactive_tx, background_tx, batch_tx).with_audit_sink(
+        parish_core::inference::InferenceAuditSink::new(
+            state.inference_log.clone(),
+            state.inference_file_log.clone(),
+        ),
+    );
     *state.inference_queue.lock().await = Some(queue);
     *state.worker_handle.lock().await = Some(worker);
 }
@@ -1232,10 +1237,16 @@ async fn dispatch_tier3(
                 // hit the small slot on the two-slot loadout —
                 // the queue's worker only knows about the base
                 // client (#?). Mirrors `emit_npc_reactions`.
-                let (client_opt, model) = {
+                let (client_opt, model, profile) = {
                     let cfg = state_t3.config.lock().await;
                     let base_client = state_t3.client.lock().await;
-                    cfg.resolve_category_client(InferenceCategory::Simulation, base_client.as_ref())
+                    let resolved = cfg.resolve_category_client(
+                        InferenceCategory::Simulation,
+                        base_client.as_ref(),
+                    );
+                    let profile = cfg
+                        .inference_profile(parish_core::config::InferenceSubrole::Tier3Simulation);
+                    (resolved.0, resolved.1, profile)
                 };
                 let Some(sim_client) = client_opt else {
                     let _persistence_guard = state_t3.persistence_gate.lock().await;
@@ -1249,11 +1260,16 @@ async fn dispatch_tier3(
                     state_t3.npc_manager.lock().await.set_tier3_in_flight(false);
                     return;
                 };
-
                 let grounding_enabled = {
                     let cfg = state_t3.config.lock().await;
                     !cfg.flags.is_disabled("npc-dialogue-grounding")
                 };
+                let audit_sink = state_t3
+                    .inference_queue
+                    .lock()
+                    .await
+                    .as_ref()
+                    .and_then(parish_core::inference::InferenceQueue::audit_sink);
                 let ctx = parish_core::npc::ticks::Tier3Context {
                     snapshots: &snapshots,
                     client: &sim_client,
@@ -1268,7 +1284,10 @@ async fn dispatch_tier3(
                     grounding_enabled,
                 };
 
-                let result = parish_core::npc::ticks::tick_tier3(&ctx).await;
+                let result = parish_core::npc::ticks::tick_tier3_with_profile_and_audit(
+                    &ctx, profile, audit_sink,
+                )
+                .await;
 
                 // Re-acquire locks to apply updates.
                 // Lock ordering: `world` → `npc_manager`
@@ -1351,10 +1370,16 @@ async fn dispatch_tier2(
                 // the two-slot loadout actually hit the small
                 // slot for Simulation. Matches the Tier 3 site
                 // above.
-                let (client_opt, model) = {
+                let (client_opt, model, profile) = {
                     let cfg = state_t2.config.lock().await;
                     let base_client = state_t2.client.lock().await;
-                    cfg.resolve_category_client(InferenceCategory::Simulation, base_client.as_ref())
+                    let resolved = cfg.resolve_category_client(
+                        InferenceCategory::Simulation,
+                        base_client.as_ref(),
+                    );
+                    let profile = cfg
+                        .inference_profile(parish_core::config::InferenceSubrole::Tier2Simulation);
+                    (resolved.0, resolved.1, profile)
                 };
                 let Some(sim_client) = client_opt else {
                     let _persistence_guard = state_t2.persistence_gate.lock().await;
@@ -1368,21 +1393,30 @@ async fn dispatch_tier2(
                     state_t2.npc_manager.lock().await.set_tier2_in_flight(false);
                     return;
                 };
+                let audit_sink = state_t2
+                    .inference_queue
+                    .lock()
+                    .await
+                    .as_ref()
+                    .and_then(parish_core::inference::InferenceQueue::audit_sink);
 
                 // Submit each group sequentially (one LLM call
                 // per group, single connection).
                 let mut events = Vec::new();
                 for group in &groups {
-                    if let Some(evt) = parish_core::npc::ticks::run_tier2_for_group(
-                        &sim_client,
-                        &model,
-                        group,
-                        &time_desc,
-                        &weather_str,
-                        &state_t2.language_settings,
-                        Some(cancel_t2.clone()),
-                    )
-                    .await
+                    if let Some(evt) =
+                        parish_core::npc::ticks::run_tier2_for_group_with_profile_and_audit(
+                            &sim_client,
+                            &model,
+                            group,
+                            &time_desc,
+                            &weather_str,
+                            &state_t2.language_settings,
+                            Some(cancel_t2.clone()),
+                            profile,
+                            audit_sink.clone(),
+                        )
+                        .await
                     {
                         events.push(evt);
                     }

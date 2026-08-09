@@ -18,9 +18,7 @@ use crate::config::InferenceCategory;
 use crate::game_loop::{
     GameInputOutcome, GameLoopContext, handle_movement, handle_npc_conversation,
 };
-use crate::input::{
-    is_physical_action_shaped, is_player_dialogue, parse_intent, parse_intent_local,
-};
+use crate::input::{is_physical_action_shaped, is_player_dialogue, parse_intent_local};
 use crate::ipc::{extract_npc_mentions, render_look_text, text_log, text_log_typed};
 use crate::npc::reactions::ReactionTemplates;
 use crate::world::transport::TransportMode;
@@ -223,7 +221,21 @@ pub async fn handle_game_input(
             world.clock.inference_pause();
             world.tick_generation
         };
-        let result = parse_intent(client, &raw, &model).await;
+        let profile = ctx
+            .config
+            .lock()
+            .await
+            .inference_profile(parish_config::InferenceSubrole::Intent);
+        let audit_sink = ctx
+            .inference_queue
+            .lock()
+            .await
+            .as_ref()
+            .and_then(crate::inference::InferenceQueue::audit_sink);
+        let result = crate::input::parse_intent_with_profile_and_audit(
+            client, &raw, &model, profile, audit_sink,
+        )
+        .await;
         {
             let mut world = ctx.world.lock().await;
             world.clock.inference_resume();

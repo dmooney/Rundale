@@ -443,6 +443,20 @@ pub async fn run_server_with_engine_config(
             &theme_palette,
         );
 
+    // Match Tauri and headless semantics: inference effort, token caps, and
+    // service-tier choices are per-user settings, not engine-wide settings.
+    // Resolve the directory once during startup (rule #9) and apply the
+    // non-secret profile fields to the template cloned into every session.
+    let user_config_dir = parish_core::config::user_config::resolve_user_config_dir();
+    match apply_user_inference_profiles_from_dir(&mut config, &user_config_dir) {
+        Ok(()) => {}
+        Err(error) => tracing::warn!(
+            path = %user_config_dir.display(),
+            %error,
+            "Failed to load per-user inference profiles"
+        ),
+    }
+
     // ── Feature flags / session infrastructure / OAuth / WS key ─────────────
     let flags_path = data_dir.join("parish-flags.json");
     config.flags = FeatureFlags::load_from_file(&flags_path);
@@ -513,6 +527,15 @@ pub async fn run_server_with_engine_config(
     )
     .await?;
 
+    Ok(())
+}
+
+fn apply_user_inference_profiles_from_dir(
+    config: &mut GameConfig,
+    user_config_dir: &Path,
+) -> Result<(), parish_core::error::ParishError> {
+    let user_config = parish_core::config::user_config::load_user_config(user_config_dir)?;
+    config.apply_user_inference_profiles(&user_config);
     Ok(())
 }
 
@@ -1303,6 +1326,8 @@ fn build_client_and_config(
         category_model: Default::default(),
         category_api_key: Default::default(),
         category_base_url: Default::default(),
+        inference_profile_override: Default::default(),
+        category_inference_profile: Default::default(),
         flags: FeatureFlags::default(),
         category_rate_limit: Default::default(),
         // Tile-source fields populated in build_app_state from engine config.
@@ -1355,6 +1380,8 @@ fn build_headless_local_config() -> (parish_core::config::ProviderConfig, GameCo
         category_model: Default::default(),
         category_api_key: Default::default(),
         category_base_url: Default::default(),
+        inference_profile_override: Default::default(),
+        category_inference_profile: Default::default(),
         flags: FeatureFlags::default(),
         category_rate_limit: Default::default(),
         active_tile_source: String::new(),
@@ -1393,14 +1420,12 @@ fn build_cloud_client_from_env() -> CloudEnvConfig {
             .as_deref()
             .and_then(|p| parish_core::config::Provider::from_str_loose(p).ok())
             .map(|p| p.default_base_url().to_string())
-            .unwrap_or_else(|| "https://openrouter.ai/api".to_string())
+            .unwrap_or_else(|| "https://generativelanguage.googleapis.com/v1".to_string())
     });
     let provider_enum = provider
         .as_deref()
         .and_then(|p| parish_core::config::Provider::from_str_loose(p).ok())
-        .unwrap_or_else(|| {
-            parish_core::config::Provider::from_id("openrouter").unwrap_or_default()
-        });
+        .unwrap_or_else(|| parish_core::config::Provider::from_id("google").unwrap_or_default());
     let api_key = provider_enum
         .api_key_env_var()
         .and_then(|var| std::env::var(var).ok())
@@ -1605,6 +1630,27 @@ fn parse_forwarded_for(header: &str) -> Option<std::net::IpAddr> {
 mod tests {
     use super::*;
     use serial_test::serial;
+
+    #[test]
+    fn server_template_loads_user_inference_profiles() {
+        let dir = tempfile::tempdir().unwrap();
+        let user = parish_core::config::user_config::UserConfig {
+            thinking_level: Some(parish_core::config::ThinkingLevel::High),
+            max_output_tokens: Some(321),
+            ..Default::default()
+        };
+        parish_core::config::user_config::save_user_config(dir.path(), &user).unwrap();
+        let (_, mut config) = build_headless_local_config();
+
+        apply_user_inference_profiles_from_dir(&mut config, dir.path()).unwrap();
+
+        let intent = config.inference_profile(parish_core::config::InferenceSubrole::Intent);
+        assert_eq!(
+            intent.thinking_level,
+            parish_core::config::ThinkingLevel::High
+        );
+        assert_eq!(intent.max_output_tokens, 321);
+    }
 
     #[test]
     #[serial(parish_env)]

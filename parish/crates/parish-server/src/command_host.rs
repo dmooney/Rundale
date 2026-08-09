@@ -72,7 +72,7 @@ impl SystemCommandHost for AppStateCommandHost {
             let base_url = config
                 .cloud_base_url
                 .as_deref()
-                .unwrap_or("https://openrouter.ai/api")
+                .unwrap_or("https://generativelanguage.googleapis.com/v1")
                 .to_string();
             let api_key = config.cloud_api_key.clone();
             let provider_enum = config
@@ -80,7 +80,7 @@ impl SystemCommandHost for AppStateCommandHost {
                 .as_deref()
                 .and_then(|p| parish_core::config::Provider::from_str_loose(p).ok())
                 .unwrap_or_else(|| {
-                    parish_core::config::Provider::from_id("openrouter").unwrap_or_default()
+                    parish_core::config::Provider::from_id("google").unwrap_or_default()
                 });
             drop(config);
             let mut cloud_guard = self.state.inference.cloud_client.lock().await;

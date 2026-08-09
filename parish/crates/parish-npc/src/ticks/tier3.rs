@@ -372,6 +372,29 @@ pub const TIER3_BATCH_SIZE: usize = 10;
 /// response. If there are more NPCs than `batch_size`, they are split into
 /// multiple sequential queue submissions.
 pub async fn tick_tier3(ctx: &Tier3Context<'_>) -> Result<Vec<Tier3Update>, ParishError> {
+    tick_tier3_with_profile(
+        ctx,
+        parish_config::InferenceProfile::for_subrole(
+            parish_config::InferenceSubrole::Tier3Simulation,
+        ),
+    )
+    .await
+}
+
+/// Runs Tier 3 with the profile resolved from the active runtime config.
+pub async fn tick_tier3_with_profile(
+    ctx: &Tier3Context<'_>,
+    profile: parish_config::InferenceProfile,
+) -> Result<Vec<Tier3Update>, ParishError> {
+    tick_tier3_with_profile_and_audit(ctx, profile, None).await
+}
+
+/// Runs Tier 3 with resolved tuning and common direct-call audit sinks.
+pub async fn tick_tier3_with_profile_and_audit(
+    ctx: &Tier3Context<'_>,
+    profile: parish_config::InferenceProfile,
+    audit_sink: Option<parish_inference::InferenceAuditSink>,
+) -> Result<Vec<Tier3Update>, ParishError> {
     let batch_size = if ctx.batch_size == 0 {
         TIER3_BATCH_SIZE
     } else {
@@ -397,7 +420,17 @@ pub async fn tick_tier3(ctx: &Tier3Context<'_>) -> Result<Vec<Tier3Update>, Pari
         // player turn preempt this batch mid-flight (#9).
         let (sink_tx, mut sink_rx) =
             tokio::sync::mpsc::channel::<String>(parish_inference::TOKEN_CHANNEL_CAPACITY);
-        tokio::spawn(async move { while sink_rx.recv().await.is_some() {} });
+        let observed = std::sync::Arc::new(tokio::sync::Mutex::new((String::new(), None, 0_u64)));
+        let observed_for_sink = observed.clone();
+        let started = std::time::Instant::now();
+        tokio::spawn(async move {
+            while let Some(chunk) = sink_rx.recv().await {
+                let mut state = observed_for_sink.lock().await;
+                state.1.get_or_insert_with(std::time::Instant::now);
+                state.2 += 1;
+                state.0.push_str(&chunk);
+            }
+        });
 
         // When grounding is enabled (default-on, #1397): pin temperature and
         // frequency_penalty to suppress looping and mid-word truncation.
@@ -409,36 +442,71 @@ pub async fn tick_tier3(ctx: &Tier3Context<'_>) -> Result<Vec<Tier3Update>, Pari
         } else {
             (None, None)
         };
-        let stream_fut = ctx.client.generate_stream_with_format(
+        let params = parish_inference::GenerateParams {
+            max_tokens: Some(profile.max_output_tokens),
+            temperature,
+            frequency_penalty,
+            enable_thinking: None,
+            reasoning_effort: None,
+            thinking_level: Some(profile.thinking_level),
+            service_tier: Some(profile.service_tier),
+        };
+        let audit = parish_inference::DirectInferenceAudit::new(
+            audit_sink.clone(),
             ctx.model,
             &prompt,
             None,
-            sink_tx,
-            None,
-            parish_inference::GenerateParams {
-                max_tokens: Some(600),
-                temperature,
-                frequency_penalty,
-                enable_thinking: None,
-                reasoning_effort: None,
-            },
+            parish_config::InferenceSubrole::Tier3Simulation,
+            true,
+            params.max_tokens,
+            params.thinking_level,
+            params.service_tier,
+            params.temperature,
+            parish_inference::InferencePriority::Batch,
         );
+        let stream_fut = ctx
+            .client
+            .generate_stream_detailed_with_format(ctx.model, &prompt, None, sink_tx, None, params);
 
-        let raw = match ctx.cancel.clone() {
+        let detailed = match ctx.cancel.clone() {
             Some(tok) => tokio::select! {
                 biased;
-                () = tok.cancelled() => Err(ParishError::Inference(
-                    "Tier 3 cancelled mid-stream".to_string(),
-                )),
+                () = tok.cancelled() => {
+                    let state = observed.lock().await;
+                    let mut metadata = ctx.client.fallback_metadata(ctx.model);
+                    metadata.terminal_status = Some("cancelled".to_string());
+                    metadata.duration_ms = started.elapsed().as_millis() as u64;
+                    metadata.ttft_ms = state.1.map(|first| first.duration_since(started).as_millis() as u64);
+                    metadata.stream_chunks = state.2;
+                    Err(parish_inference::ProviderCallError {
+                        message: "Tier 3 cancelled mid-stream".to_string(),
+                        partial_text: state.0.clone(),
+                        metadata: Box::new(metadata),
+                    })
+                },
                 res = stream_fut => res,
             },
             None => stream_fut.await,
         };
+        let validated = detailed.and_then(|result| {
+            parish_inference::parse_generation_json::<Tier3Response>(result, "Tier 3")
+        });
+        let parsed = match validated {
+            Ok((raw, parsed)) => audit
+                .record(Ok(raw))
+                .await
+                .map(|_| parsed)
+                .map_err(ParishError::from),
+            Err(error) => {
+                let error = audit
+                    .record(Err(error))
+                    .await
+                    .expect_err("auditing must preserve provider errors");
+                Err(ParishError::from(error))
+            }
+        };
 
-        match raw.and_then(|s| {
-            serde_json::from_str::<Tier3Response>(&s)
-                .map_err(|e| ParishError::Inference(format!("Tier 3 JSON parse failed: {e}")))
-        }) {
+        match parsed {
             Ok(mut resp) => {
                 // Season guard (#1462): scrub wrong-season tokens from every
                 // activity_summary before storing.  The prompt directive

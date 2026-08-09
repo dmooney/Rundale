@@ -38,19 +38,26 @@ pub fn build_configured_providers() -> Vec<String> {
 
 /// Builds the per-role debug entries from an [`InferenceCategoryConfig`].
 ///
-/// Always returns 4 entries in [`parish_config::InferenceCategory::ALL`] order,
-/// so the UI can render a stable table without conditional rows.
+/// Always returns one entry per concrete inference workload so the UI exposes
+/// the actual cap/thinking profile used by direct and queued call paths.
 pub fn build_inference_categories(
     config: &impl InferenceCategoryConfig,
 ) -> Vec<InferenceCategoryDebug> {
-    use parish_config::InferenceCategory;
-    InferenceCategory::ALL
+    use parish_config::InferenceSubrole;
+    InferenceSubrole::ALL
         .iter()
-        .map(|cat| InferenceCategoryDebug {
-            role: cat.name().to_string(),
-            provider: config.category_provider(*cat),
-            model: config.category_model(*cat),
-            base_url: config.category_base_url(*cat),
+        .map(|subrole| {
+            let category = subrole.category();
+            let profile = config.subrole_profile(*subrole);
+            InferenceCategoryDebug {
+                role: subrole.name().to_string(),
+                provider: config.category_provider(category),
+                model: config.category_model(category),
+                base_url: config.category_base_url(category),
+                thinking_level: profile.thinking_level,
+                max_output_tokens: profile.max_output_tokens,
+                service_tier: profile.service_tier,
+            }
         })
         .collect()
 }

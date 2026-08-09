@@ -6,6 +6,9 @@
 //! This module extracts that commonality so each client struct composes a
 //! `ClientBase` instead of duplicating the declarations.
 
+use std::collections::HashMap;
+use std::hash::{DefaultHasher, Hash, Hasher};
+use std::sync::{Mutex, OnceLock};
 use std::time::Duration;
 
 use parish_config::InferenceConfig;
@@ -41,20 +44,49 @@ impl ClientBase {
         streaming_label: &'static str,
         config: &InferenceConfig,
     ) -> Self {
-        let client = crate::openai_client::build_client_or_fallback(
-            Duration::from_secs(config.timeout_secs),
-            label,
-        );
-
-        let streaming_client = crate::openai_client::build_client_or_fallback(
-            Duration::from_secs(config.streaming_timeout_secs),
-            streaming_label,
-        );
-
         let normalized = {
             let trimmed = base_url.trim_end_matches('/');
             trimmed.strip_suffix("/v1").unwrap_or(trimmed).to_string()
         };
+
+        // Cloning reqwest::Client reuses its connection pool. Category
+        // overrides commonly resolve to the same Google host, so cache the
+        // pair by endpoint and timeout policy rather than opening four pools.
+        type ClientPair = (reqwest::Client, reqwest::Client);
+        static TRANSPORTS: OnceLock<Mutex<HashMap<String, ClientPair>>> = OnceLock::new();
+        // Include a non-reversible key fingerprint so separate credentials
+        // never share a transport/auth pool, without storing the secret in a
+        // process-global map key or exposing it through debug formatting.
+        let mut key_hasher = DefaultHasher::new();
+        api_key.unwrap_or_default().hash(&mut key_hasher);
+        let pool_key = format!(
+            "{}|{:016x}|{}|{}",
+            normalized,
+            key_hasher.finish(),
+            config.timeout_secs,
+            config.streaming_timeout_secs
+        );
+        let transports = TRANSPORTS.get_or_init(|| Mutex::new(HashMap::new()));
+        let (client, streaming_client) = transports
+            .lock()
+            .ok()
+            .and_then(|pool| pool.get(&pool_key).cloned())
+            .unwrap_or_else(|| {
+                let pair = (
+                    crate::openai_client::build_client_or_fallback(
+                        Duration::from_secs(config.timeout_secs),
+                        label,
+                    ),
+                    crate::openai_client::build_client_or_fallback(
+                        Duration::from_secs(config.streaming_timeout_secs),
+                        streaming_label,
+                    ),
+                );
+                if let Ok(mut pool) = transports.lock() {
+                    pool.insert(pool_key, pair.clone());
+                }
+                pair
+            });
 
         Self {
             client,

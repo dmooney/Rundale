@@ -96,6 +96,8 @@ pub fn emit_npc_reactions(
     npcs_here: Vec<Npc>,
     reaction_client: Option<AnyClient>,
     reaction_model: String,
+    reaction_profile: parish_config::InferenceProfile,
+    audit_sink: Option<crate::inference::InferenceAuditSink>,
     llm_enabled: bool,
     emitter: Arc<dyn EventEmitter>,
     persist: PersistReactionFn,
@@ -117,6 +119,7 @@ pub fn emit_npc_reactions(
             let client = reaction_client.clone();
             let model = reaction_model.clone();
             let input = player_input.clone();
+            let audit_sink = audit_sink.clone();
 
             join_set.spawn(async move {
                 // Acquire a permit before starting the (potentially slow) LLM call.
@@ -125,12 +128,14 @@ pub fn emit_npc_reactions(
                 // Try LLM path first; fall back to rule-based on any failure (#404).
                 let emoji = if llm_enabled {
                     if let Some(ref c) = client {
-                        crate::npc::reactions::infer_player_message_reaction(
+                        crate::npc::reactions::infer_player_message_reaction_with_profile_and_audit(
                             c,
                             &model,
                             &npc,
                             &input,
                             std::time::Duration::from_secs(2),
+                            reaction_profile,
+                            audit_sink,
                         )
                         .await
                         .or_else(|| crate::npc::reactions::generate_rule_reaction(&input))
@@ -267,6 +272,10 @@ mod tests {
             npcs,
             None, // No LLM client — deterministic rule-based path
             String::new(),
+            parish_config::InferenceProfile::for_subrole(
+                parish_config::InferenceSubrole::MessageReaction,
+            ),
+            None,
             false, // llm_enabled = false
             Arc::clone(&emitter_arc),
             noop_persist(),

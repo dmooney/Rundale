@@ -5,13 +5,12 @@ use std::time::{Duration, Instant};
 use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
 
-use parish_config::InferenceConfig;
-use parish_types::ParishError;
-
 use crate::any_client::{AnyClient, StreamStats, TOKEN_CHANNEL_CAPACITY};
+use crate::google_client::{ProviderCallError, ProviderMetadata};
 use crate::logs::{InferenceLog, InferenceLogEntry};
 use crate::openai_client::{GenerateParams, ResponseFormat};
 use crate::queue::{CancellationToken, InferenceRequest, InferenceResponse};
+use parish_config::InferenceConfig;
 
 /// Wraps an inference future with a timeout *and* an optional cancellation
 /// token, producing consistent error messages so callers don't repeat the
@@ -28,9 +27,9 @@ pub(crate) async fn inference_with_timeout<F, T>(
     model: &str,
     label: &str,
     cancel: Option<&CancellationToken>,
-) -> Result<T, ParishError>
+) -> Result<T, ProviderCallError>
 where
-    F: std::future::Future<Output = Result<T, ParishError>>,
+    F: std::future::Future<Output = Result<T, ProviderCallError>>,
 {
     // tokio::pin so the future is select-safe across branches.
     tokio::pin!(future);
@@ -43,13 +42,17 @@ where
     };
     tokio::select! {
         biased;
-        () = cancel_fut => Err(ParishError::Inference(format!(
-            "{label} cancelled (model={model})",
-        ))),
+        () = cancel_fut => Err(ProviderCallError {
+            message: format!("{label} cancelled (model={model})"),
+            partial_text: String::new(),
+            metadata: Box::new(ProviderMetadata::unavailable(model)),
+        }),
         result = &mut future => result,
-        () = tokio::time::sleep(timeout) => Err(ParishError::Inference(format!(
-            "{label} timed out after {timeout_secs}s (model={model})",
-        ))),
+        () = tokio::time::sleep(timeout) => Err(ProviderCallError {
+            message: format!("{label} timed out after {timeout_secs}s (model={model})"),
+            partial_text: String::new(),
+            metadata: Box::new(ProviderMetadata::unavailable(model)),
+        }),
     }
 }
 
@@ -116,9 +119,26 @@ pub fn spawn_inference_worker(client: AnyClient, config: InferenceWorkerConfig) 
             let streaming = request.token_tx.is_some();
             let prompt_len = request.prompt.len();
             let model = request.model.clone();
+            let role = request.role;
+            let subrole = request.subrole;
+            debug_assert_eq!(role, subrole.category());
+            let profile = request
+                .profile
+                .unwrap_or_else(|| parish_config::InferenceProfile::for_subrole(subrole));
+            let thinking_level = Some(profile.thinking_level);
+            let service_tier = Some(profile.service_tier);
             let system_prompt = request.system.clone();
+            let prompt_prefix_len = system_prompt.as_ref().map(String::len);
+            let prompt_prefix_hash = system_prompt.as_deref().map(stable_prefix_hash);
             let prompt_text = request.prompt.clone();
-            let max_tokens = request.max_tokens;
+            let max_tokens = if client.is_google() {
+                // Native Gemini receives the resolved semantic cap exactly.
+                // A provider ceiling is not a performance target, and silently
+                // flooring legacy caps can create runaway latency and spend.
+                Some(profile.max_output_tokens)
+            } else {
+                request.max_tokens
+            };
             let temperature = request.temperature;
             let priority = request.priority;
             let req_id = request.id;
@@ -145,16 +165,22 @@ pub fn spawn_inference_worker(client: AnyClient, config: InferenceWorkerConfig) 
                     let observer = tokio::spawn(async move {
                         let mut ttft: Option<Duration> = None;
                         let mut tokens: u64 = 0;
+                        let mut partial_text = String::new();
                         while let Some(tok) = proxy_rx.recv().await {
                             if ttft.is_none() {
                                 ttft = Some(observer_start.elapsed());
                             }
                             tokens += 1;
+                            partial_text.push_str(&tok);
                             if token_tx.send(tok).await.is_err() {
                                 break;
                             }
                         }
-                        StreamStats { ttft, tokens }
+                        StreamStats {
+                            ttft,
+                            tokens,
+                            partial_text,
+                        }
                     });
                     let label = match response_format {
                         Some(ResponseFormat::JsonSchema { .. }) => "streaming (schema) inference",
@@ -162,18 +188,20 @@ pub fn spawn_inference_worker(client: AnyClient, config: InferenceWorkerConfig) 
                         None => "streaming inference",
                     };
                     let result = inference_with_timeout(
-                        client.generate_stream_with_format(
+                        client.generate_stream_detailed_with_format(
                             &request.model,
                             &request.prompt,
                             request.system.as_deref(),
                             proxy_tx,
                             response_format.clone(),
                             GenerateParams {
-                                max_tokens: request.max_tokens,
+                                max_tokens,
                                 temperature: request.temperature,
                                 frequency_penalty: request.frequency_penalty,
                                 enable_thinking: request.enable_thinking,
                                 reasoning_effort: request.reasoning_effort,
+                                thinking_level,
+                                service_tier,
                             },
                         ),
                         streaming_timeout,
@@ -186,22 +214,25 @@ pub fn spawn_inference_worker(client: AnyClient, config: InferenceWorkerConfig) 
                     let stats = observer.await.unwrap_or(StreamStats {
                         ttft: None,
                         tokens: 0,
+                        partial_text: String::new(),
                     });
                     (result, Some(stats))
                 }
                 None => {
                     let result = inference_with_timeout(
-                        client.generate_with_format(
+                        client.generate_detailed_with_format(
                             &request.model,
                             &request.prompt,
                             request.system.as_deref(),
                             response_format.clone(),
                             GenerateParams {
-                                max_tokens: request.max_tokens,
+                                max_tokens,
                                 temperature: request.temperature,
                                 frequency_penalty: request.frequency_penalty,
                                 enable_thinking: request.enable_thinking,
                                 reasoning_effort: request.reasoning_effort,
+                                thinking_level,
+                                service_tier,
                             },
                         ),
                         blocking_timeout,
@@ -216,21 +247,60 @@ pub fn spawn_inference_worker(client: AnyClient, config: InferenceWorkerConfig) 
             };
 
             let elapsed = start.elapsed();
-            let (ttft_ms, output_tokens) = match stream_stats {
-                Some(s) => (s.ttft.map(|d| d.as_millis() as u64), Some(s.tokens)),
-                None => (None, None),
+            let (observed_ttft_ms, observed_chunks, observed_partial) = match &stream_stats {
+                Some(s) => (
+                    s.ttft.map(|d| d.as_millis() as u64),
+                    Some(s.tokens),
+                    s.partial_text.clone(),
+                ),
+                None => (None, None, String::new()),
             };
 
-            let (response, entry_error, response_len, response_text) = match &result {
-                Ok(text) => (
+            let mut result = result;
+            if let Err(error) = &mut result {
+                if error.partial_text.is_empty() && !observed_partial.is_empty() {
+                    error.partial_text = observed_partial;
+                }
+                if error.metadata.provider == "unknown" {
+                    let mut observed = client.fallback_metadata(&request.model);
+                    observed.terminal_status =
+                        error.metadata.terminal_status.clone().or_else(|| {
+                            Some(
+                                if error.message.contains("cancel") {
+                                    "cancelled"
+                                } else {
+                                    "timeout"
+                                }
+                                .to_string(),
+                            )
+                        });
+                    observed.ttft_ms = observed_ttft_ms;
+                    observed.stream_chunks = observed_chunks.unwrap_or(0);
+                    observed.duration_ms = elapsed.as_millis() as u64;
+                    observed.requested_service_tier = service_tier;
+                    *error.metadata = observed;
+                }
+            }
+
+            let (
+                response,
+                entry_error,
+                response_len,
+                response_text,
+                partial_output_len,
+                mut metadata,
+            ) = match &result {
+                Ok(result) => (
                     InferenceResponse {
                         id: req_id,
-                        text: text.clone(),
+                        text: result.text.clone(),
                         error: None,
                     },
                     None,
-                    text.len(),
-                    text.clone(),
+                    result.text.len(),
+                    result.text.clone(),
+                    0,
+                    result.metadata.clone(),
                 ),
                 Err(e) => (
                     InferenceResponse {
@@ -239,10 +309,32 @@ pub fn spawn_inference_worker(client: AnyClient, config: InferenceWorkerConfig) 
                         error: Some(e.to_string()),
                     },
                     Some(e.to_string()),
-                    0,
-                    String::new(),
+                    e.partial_text.len(),
+                    e.partial_text.clone(),
+                    e.partial_text.len(),
+                    (*e.metadata).clone(),
                 ),
             };
+            if metadata.provider == "unknown" {
+                metadata.provider = provider.id().to_string();
+                metadata.api_mode = match provider.kind() {
+                    parish_config::ProviderKind::Anthropic => "anthropic-messages",
+                    parish_config::ProviderKind::Google => "google-interactions-v1",
+                    parish_config::ProviderKind::Simulator => "simulator",
+                    parish_config::ProviderKind::OpenAiCompat
+                    | parish_config::ProviderKind::Local => "openai-chat-completions",
+                }
+                .to_string();
+            }
+            let failure_kind = entry_error
+                .as_deref()
+                .map(|message| classify_provider_failure(message, metadata.http_status));
+            let tier_downgraded = matches!(
+                metadata.requested_service_tier,
+                Some(parish_config::ServiceTier::Priority)
+            ) && metadata.effective_service_tier.as_deref()
+                == Some("standard");
+            let estimated_cost_usd = estimate_gemini_36_cost(&metadata);
 
             // Record the completed call. Atomic staged turns attach a
             // request-scoped buffer so neither the debug ring nor JSONL file
@@ -252,6 +344,10 @@ pub fn spawn_inference_worker(client: AnyClient, config: InferenceWorkerConfig) 
                     request_id: req_id,
                     timestamp: chrono::Local::now().format("%H:%M:%S").to_string(),
                     model,
+                    provider: metadata.provider.clone(),
+                    api_mode: metadata.api_mode.clone(),
+                    role,
+                    subrole,
                     streaming,
                     duration_ms: elapsed.as_millis() as u64,
                     prompt_len,
@@ -261,8 +357,31 @@ pub fn spawn_inference_worker(client: AnyClient, config: InferenceWorkerConfig) 
                     prompt_text,
                     response_text,
                     max_tokens,
-                    ttft_ms,
-                    output_tokens,
+                    ttft_ms: metadata.ttft_ms.or(observed_ttft_ms),
+                    output_tokens: metadata.usage.output_tokens,
+                    stream_chunks: Some(metadata.stream_chunks)
+                        .filter(|count| *count > 0)
+                        .or(observed_chunks),
+                    input_tokens: metadata.usage.input_tokens,
+                    cached_tokens: metadata.usage.cached_tokens,
+                    thought_tokens: metadata.usage.thought_tokens,
+                    total_tokens: metadata.usage.total_tokens,
+                    thinking_level,
+                    requested_service_tier: metadata.requested_service_tier,
+                    effective_service_tier: metadata.effective_service_tier,
+                    provider_request_id: metadata
+                        .interaction_id
+                        .as_deref()
+                        .map(safe_provider_request_id),
+                    terminal_status: metadata.terminal_status,
+                    retry_count: metadata.retry_count,
+                    http_status: metadata.http_status,
+                    failure_kind,
+                    partial_output_len,
+                    tier_downgraded,
+                    estimated_cost_usd,
+                    prompt_prefix_hash,
+                    prompt_prefix_len,
                     temperature,
                     priority,
                 };
@@ -289,11 +408,147 @@ pub fn spawn_inference_worker(client: AnyClient, config: InferenceWorkerConfig) 
     })
 }
 
+pub(crate) fn stable_prefix_hash(prefix: &str) -> String {
+    let mut hash = 0xcbf29ce484222325u64;
+    for byte in prefix.as_bytes() {
+        hash ^= u64::from(*byte);
+        hash = hash.wrapping_mul(0x100000001b3);
+    }
+    format!("fnv1a64:{hash:016x}")
+}
+
+pub(crate) fn safe_provider_request_id(value: &str) -> String {
+    const EDGE: usize = 8;
+    const MAX: usize = EDGE * 2 + 1;
+    if value.chars().count() <= MAX {
+        return value.to_string();
+    }
+    let start: String = value.chars().take(EDGE).collect();
+    let end: String = value
+        .chars()
+        .rev()
+        .take(EDGE)
+        .collect::<String>()
+        .chars()
+        .rev()
+        .collect();
+    format!("{start}…{end}")
+}
+
+pub(crate) fn classify_provider_failure(message: &str, status: Option<u16>) -> String {
+    match status {
+        Some(401 | 403) => "authentication",
+        Some(429) => "rate-limited",
+        Some(500..=599) => "provider-unavailable",
+        Some(400..=499) => "request-rejected",
+        _ if message.contains("cancelled") => "cancelled",
+        _ if message.contains("timed out") => "timeout",
+        _ if message.contains("incomplete") || message.contains("budget_exceeded") => "incomplete",
+        _ if message.contains("malformed") || message.contains("parse") => "malformed-response",
+        _ => "provider-error",
+    }
+    .to_string()
+}
+
+/// Paid-tier text estimate checked against Google's Gemini API pricing page
+/// on 2026-08-09: Standard input $1.50/M, cached input $0.15/M, output
+/// (including thinking) $7.50/M. Priority remains an explicit override and
+/// uses $2.70/M, $0.27/M, and $13.50/M respectively.
+pub(crate) fn estimate_gemini_36_cost(metadata: &ProviderMetadata) -> Option<f64> {
+    if metadata.provider != "google" || metadata.model != "gemini-3.6-flash" {
+        return None;
+    }
+    let input = metadata.usage.input_tokens?;
+    let cached = metadata.usage.cached_tokens.unwrap_or(0).min(input);
+    let output = metadata.usage.output_tokens.unwrap_or(0);
+    let thought = metadata.usage.thought_tokens.unwrap_or(0);
+    // Google may downgrade a requested Priority call. Bill against the tier
+    // the response says actually served the request; only fall back to the
+    // requested value when the provider omitted effective-tier telemetry.
+    let priority = match metadata.effective_service_tier.as_deref() {
+        Some("priority") => true,
+        Some("standard") => false,
+        _ => matches!(
+            metadata.requested_service_tier,
+            Some(parish_config::ServiceTier::Priority)
+        ),
+    };
+    #[derive(serde::Deserialize)]
+    struct Rates {
+        input: f64,
+        cached_input: f64,
+        output_and_thought: f64,
+    }
+    #[derive(serde::Deserialize)]
+    struct Pricing {
+        standard: Rates,
+        priority: Rates,
+    }
+    #[derive(serde::Deserialize)]
+    struct Snapshot {
+        pricing_usd_per_million_tokens: Pricing,
+    }
+    static SNAPSHOT: std::sync::OnceLock<Snapshot> = std::sync::OnceLock::new();
+    let snapshot = SNAPSHOT.get_or_init(|| {
+        serde_json::from_str(include_str!(
+            "../../../config/gemini-3.6-flash-capabilities.json"
+        ))
+        .expect("checked-in Gemini capability snapshot must parse")
+    });
+    let rates = if priority {
+        &snapshot.pricing_usd_per_million_tokens.priority
+    } else {
+        &snapshot.pricing_usd_per_million_tokens.standard
+    };
+    let (input_rate, cached_rate, output_rate) =
+        (rates.input, rates.cached_input, rates.output_and_thought);
+    Some(
+        (((input - cached) as f64 * input_rate)
+            + (cached as f64 * cached_rate)
+            + ((output + thought) as f64 * output_rate))
+            / 1_000_000.0,
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::logs::{DeferredInferenceAudit, new_inference_log};
     use crate::queue::{InferencePriority, InferenceQueue, QueueRequest};
+
+    fn priced_google_metadata() -> ProviderMetadata {
+        ProviderMetadata {
+            provider: "google".to_string(),
+            model: "gemini-3.6-flash".to_string(),
+            requested_service_tier: Some(parish_config::ServiceTier::Priority),
+            usage: parish_providers::ProviderUsage {
+                input_tokens: Some(1_000_000),
+                cached_tokens: None,
+                thought_tokens: None,
+                output_tokens: None,
+                total_tokens: Some(1_000_000),
+            },
+            ..ProviderMetadata::default()
+        }
+    }
+
+    #[test]
+    fn cost_estimate_uses_effective_tier_after_google_downgrade() {
+        let mut metadata = priced_google_metadata();
+        metadata.effective_service_tier = Some("standard".to_string());
+        assert_eq!(estimate_gemini_36_cost(&metadata), Some(1.50));
+
+        metadata.effective_service_tier = Some("priority".to_string());
+        assert_eq!(estimate_gemini_36_cost(&metadata), Some(2.70));
+    }
+
+    #[test]
+    fn cost_estimate_falls_back_to_requested_tier_without_response_header() {
+        assert_eq!(
+            estimate_gemini_36_cost(&priced_google_metadata()),
+            Some(2.70)
+        );
+    }
 
     #[tokio::test]
     async fn staged_audit_is_hidden_until_commit_in_memory_and_on_disk() {
@@ -333,6 +588,9 @@ mod tests {
                 enable_thinking: None,
                 reasoning_effort: None,
                 priority: InferencePriority::Interactive,
+                role: parish_config::InferenceCategory::Dialogue,
+                subrole: parish_config::InferenceSubrole::Dialogue,
+                profile: None,
                 json_mode: false,
                 json_schema: None,
                 cancel: None,
@@ -378,6 +636,9 @@ mod tests {
                 enable_thinking: None,
                 reasoning_effort: None,
                 priority: InferencePriority::Interactive,
+                role: parish_config::InferenceCategory::Dialogue,
+                subrole: parish_config::InferenceSubrole::Dialogue,
+                profile: None,
                 json_mode: false,
                 json_schema: None,
                 cancel: None,
@@ -445,6 +706,9 @@ mod tests {
             enable_thinking: None,
             reasoning_effort: None,
             priority: InferencePriority::Interactive,
+            role: parish_config::InferenceCategory::Dialogue,
+            subrole: parish_config::InferenceSubrole::Dialogue,
+            profile: None,
             json_mode: false,
             json_schema: None,
             cancel: None,
@@ -498,6 +762,9 @@ mod tests {
                 enable_thinking: None,
                 reasoning_effort: None,
                 priority: InferencePriority::Interactive,
+                role: parish_config::InferenceCategory::Dialogue,
+                subrole: parish_config::InferenceSubrole::Dialogue,
+                profile: None,
                 json_mode: false,
                 json_schema: None,
                 cancel: None,
@@ -516,8 +783,12 @@ mod tests {
             entry.ttft_ms.is_some(),
             "ttft_ms must be populated for streaming"
         );
-        let tokens = entry.output_tokens.expect("output_tokens populated");
-        assert!(tokens > 0, "expected >0 tokens, got {tokens}");
+        assert!(
+            entry.output_tokens.is_none(),
+            "simulator must not fabricate provider-reported tokens"
+        );
+        let chunks = entry.stream_chunks.expect("stream_chunks populated");
+        assert!(chunks > 0, "expected >0 chunks, got {chunks}");
     }
 
     /// A request whose cancel token fires mid-stream must surface
@@ -576,6 +847,9 @@ mod tests {
                 enable_thinking: None,
                 reasoning_effort: None,
                 priority: InferencePriority::Interactive,
+                role: parish_config::InferenceCategory::Dialogue,
+                subrole: parish_config::InferenceSubrole::Dialogue,
+                profile: None,
                 json_mode: false,
                 json_schema: None,
                 cancel: Some(cancel_for_request),
@@ -657,6 +931,9 @@ mod tests {
                 enable_thinking: None,
                 reasoning_effort: None,
                 priority: InferencePriority::Interactive,
+                role: parish_config::InferenceCategory::Dialogue,
+                subrole: parish_config::InferenceSubrole::Dialogue,
+                profile: None,
             })
             .await
             .unwrap();
@@ -688,6 +965,9 @@ mod tests {
                 enable_thinking: None,
                 reasoning_effort: None,
                 priority: InferencePriority::Interactive,
+                role: parish_config::InferenceCategory::Dialogue,
+                subrole: parish_config::InferenceSubrole::Dialogue,
+                profile: None,
             })
             .await
             .unwrap();

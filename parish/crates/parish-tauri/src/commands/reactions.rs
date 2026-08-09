@@ -76,7 +76,15 @@ pub(super) fn emit_npc_reactions(
     tokio::spawn(async move {
         // Pre-capture the NPC list at the given location (the player may have
         // moved by the time the background task runs).
-        let (npcs_here, reaction_client, reaction_model, llm_enabled, context_bus, context_epoch) = {
+        let (
+            npcs_here,
+            reaction_client,
+            reaction_model,
+            reaction_profile,
+            llm_enabled,
+            context_bus,
+            context_epoch,
+        ) = {
             let world = state_clone.world.lock().await;
             let npc_manager = state_clone.npc_manager.lock().await;
             let config = state_clone.config.lock().await;
@@ -89,10 +97,13 @@ pub(super) fn emit_npc_reactions(
             let (client, model) =
                 config.resolve_category_client(InferenceCategory::Reaction, base_client.as_ref());
             let enabled = !config.flags.is_disabled("npc-llm-reactions");
+            let profile =
+                config.inference_profile(parish_core::config::InferenceSubrole::MessageReaction);
             (
                 npcs,
                 client,
                 model,
+                profile,
                 enabled,
                 world.event_bus.clone(),
                 world.event_bus.context_epoch(),
@@ -125,6 +136,12 @@ pub(super) fn emit_npc_reactions(
                 });
             },
         );
+        let audit_sink = state_clone
+            .inference_queue
+            .lock()
+            .await
+            .as_ref()
+            .and_then(parish_core::inference::InferenceQueue::audit_sink);
 
         parish_core::game_loop::emit_npc_reactions(
             player_msg_id,
@@ -132,6 +149,8 @@ pub(super) fn emit_npc_reactions(
             npcs_here,
             reaction_client,
             reaction_model,
+            reaction_profile,
+            audit_sink,
             llm_enabled,
             emitter,
             persist,

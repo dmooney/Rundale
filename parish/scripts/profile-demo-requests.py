@@ -1,11 +1,10 @@
 #!/usr/bin/env python3
 """Profile inference request volume during `just demo`.
 
-The harness starts a local OpenAI-compatible proxy, points Parish at that
-proxy with `PARISH_PROVIDER=custom`, runs `just demo`, and records every
-chat-completions request that flows through the proxy. The proxy forwards to
-an existing local OpenAI-compatible endpoint such as Ollama, vLLM, vLLM-MLX,
-or LM Studio. The default loadout matches the macOS local-inference default:
+The harness starts a transparent proxy, points Parish at it, runs `just demo`,
+and records every inference request. It understands both OpenAI-compatible
+chat completions and Google's native Interactions request/response/SSE usage.
+The default loadout matches the macOS local-inference default:
 vLLM-MLX with the larger dialogue/simulation slot on port 8000 and the small
 intent/reaction slot on port 8001.
 """
@@ -34,6 +33,12 @@ from typing import Any, Protocol
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_REPORT_DIR = REPO_ROOT / "docs" / "proofs" / "demo-api-profile"
+GEMINI_CAPABILITY_SNAPSHOT = json.loads(
+    (REPO_ROOT / "parish" / "config" / "gemini-3.6-flash-capabilities.json").read_text()
+)
+GEMINI_STANDARD_RATES = GEMINI_CAPABILITY_SNAPSHOT[
+    "pricing_usd_per_million_tokens"
+]["standard"]
 DEFAULT_UPSTREAM = "http://localhost:8000/v1"
 DEFAULT_SMALL_UPSTREAM = "http://localhost:8001/v1"
 DEFAULT_MODEL = os.environ.get(
@@ -80,12 +85,16 @@ EXAMPLE_MODEL_PRICES = [
     ("OpenAI GPT-5.4", 2.50, 15.00),
     ("Anthropic Claude Sonnet 4.6", 3.00, 15.00),
     ("Anthropic Claude Haiku 4.5", 1.00, 5.00),
-    ("Google Gemini 2.5 Flash", 0.30, 2.50),
+    (
+        "Google Gemini 3.6 Flash (Standard)",
+        GEMINI_STANDARD_RATES["input"],
+        GEMINI_STANDARD_RATES["output_and_thought"],
+    ),
     ("Google Gemini 2.5 Flash-Lite", 0.10, 0.40),
     ("xAI Grok 4.3", 1.25, 2.50),
     ("Mistral Large 3", 0.50, 1.50),
 ]
-PRICE_TABLE_CHECKED = "2026-05-20"
+PRICE_TABLE_CHECKED = GEMINI_CAPABILITY_SNAPSHOT["checked_at"]
 PRICE_SOURCES = [
     ("OpenAI", "https://openai.com/api/pricing/"),
     ("Anthropic", "https://platform.claude.com/docs/en/about-claude/pricing"),
@@ -106,13 +115,21 @@ class ApiEvent:
     model: str
     stream: bool
     response_format: str
+    api_mode: str
     status: int
     duration_ms: int
+    ttft_ms: int | None
     prompt_chars: int
     system_chars: int
     response_chars: int
     prompt_tokens_reported: int | None
     completion_tokens_reported: int | None
+    cached_tokens_reported: int | None
+    thought_tokens_reported: int | None
+    total_tokens_reported: int | None
+    terminal_status: str | None
+    provider_request_id: str | None
+    effective_service_tier: str | None
     input_tokens_estimated: int
     output_tokens_estimated: int
     error: str | None
@@ -196,13 +213,14 @@ class ProxyHandler(BaseHTTPRequestHandler):
         model = str(body.get("model") or "")
         stream = bool(body.get("stream"))
         response_format = response_format_label(body.get("response_format"))
+        api_mode = "google-interactions" if self.path.endswith("/interactions") else "openai-compat"
         prompt_chars, system_chars = prompt_char_counts(body)
         status = 502
         response_bytes = b""
         error: str | None = None
 
         try:
-            status, response_bytes, error = self._forward_bytes(raw_body, category, model)
+            status, response_bytes, error, ttft_ms = self._forward_bytes(raw_body, category, model)
         except Exception as exc:  # pragma: no cover - exercised manually.
             error = str(exc)
             status = 502
@@ -218,6 +236,7 @@ class ProxyHandler(BaseHTTPRequestHandler):
                 if not client_disconnect_message("sending proxy error", write_exc):
                     raise
             response_bytes = payload
+            ttft_ms = None
 
         metrics = response_metrics(response_bytes, stream)
         duration_ms = int((time.monotonic() - started) * 1000)
@@ -234,13 +253,21 @@ class ProxyHandler(BaseHTTPRequestHandler):
             model=model,
             stream=stream,
             response_format=response_format,
+            api_mode=api_mode,
             status=status,
             duration_ms=duration_ms,
+            ttft_ms=ttft_ms,
             prompt_chars=prompt_chars,
             system_chars=system_chars,
             response_chars=metrics["response_chars"],
             prompt_tokens_reported=metrics["prompt_tokens_reported"],
             completion_tokens_reported=metrics["completion_tokens_reported"],
+            cached_tokens_reported=metrics["cached_tokens_reported"],
+            thought_tokens_reported=metrics["thought_tokens_reported"],
+            total_tokens_reported=metrics["total_tokens_reported"],
+            terminal_status=metrics["terminal_status"],
+            provider_request_id=metrics["provider_request_id"],
+            effective_service_tier=metrics["effective_service_tier"],
             input_tokens_estimated=estimate_tokens(prompt_chars),
             output_tokens_estimated=metrics["output_tokens_estimated"],
             error=error or metrics["error"],
@@ -275,7 +302,9 @@ class ProxyHandler(BaseHTTPRequestHandler):
 
     def _forward_bytes(
         self, raw_body: bytes, category: str, model: str
-    ) -> tuple[int, bytes, str | None]:
+    ) -> tuple[int, bytes, str | None, int | None]:
+        forward_started = time.monotonic()
+        ttft_ms: int | None = None
         upstream = upstream_for_request(self.server, category, model)  # type: ignore[arg-type]
         upstream_url = build_upstream_url(upstream, self.path)
         req = urllib.request.Request(upstream_url, data=raw_body, method="POST")
@@ -299,6 +328,8 @@ class ProxyHandler(BaseHTTPRequestHandler):
                     chunk = resp.read(8192)
                     if not chunk:
                         break
+                    if ttft_ms is None:
+                        ttft_ms = int((time.monotonic() - forward_started) * 1000)
                     chunks.append(chunk)
                     if not client_connected:
                         continue
@@ -311,7 +342,7 @@ class ProxyHandler(BaseHTTPRequestHandler):
                             raise
                         client_connected = False
                         forward_error = disconnect
-                return resp.status, b"".join(chunks), forward_error
+                return resp.status, b"".join(chunks), forward_error, ttft_ms
         except urllib.error.HTTPError as exc:
             data = exc.read()
             try:
@@ -324,7 +355,7 @@ class ProxyHandler(BaseHTTPRequestHandler):
                 if not disconnect:
                     raise
                 forward_error = disconnect
-            return exc.code, data, forward_error
+            return exc.code, data, forward_error, None
 
 
 def utc_now() -> str:
@@ -371,6 +402,14 @@ def request_texts(body: dict[str, Any]) -> tuple[str, str, str]:
             user_parts.append(text)
     system = "\n".join(system_parts)
     user = "\n".join(user_parts)
+    # Native Google Interactions keeps the stable prefix in
+    # system_instruction and the dynamic turn suffix in input.
+    if not system:
+        system = content_to_text(body.get("system_instruction"))
+    if not user:
+        user = content_to_text(body.get("input"))
+    if not all_parts:
+        all_parts = [part for part in (system, user) if part]
     return system, user, "\n".join(all_parts)
 
 
@@ -390,6 +429,8 @@ def response_format_label(value: Any) -> str:
         return "json_schema"
     if value.get("type") == "json_object":
         return "json_object"
+    if value.get("mime_type") == "application/json":
+        return "json_schema" if value.get("schema") else "json_object"
     return str(value.get("type") or "")
 
 
@@ -447,6 +488,12 @@ def response_metrics(raw: bytes, stream: bool) -> dict[str, Any]:
             "response_chars": 0,
             "prompt_tokens_reported": None,
             "completion_tokens_reported": None,
+            "cached_tokens_reported": None,
+            "thought_tokens_reported": None,
+            "total_tokens_reported": None,
+            "terminal_status": None,
+            "provider_request_id": None,
+            "effective_service_tier": None,
             "output_tokens_estimated": 0,
             "error": None,
         }
@@ -455,12 +502,20 @@ def response_metrics(raw: bytes, stream: bool) -> dict[str, Any]:
     else:
         text, usage, error = parse_json_response(raw)
     response_chars = len(text)
-    prompt_tokens = int_or_none(usage.get("prompt_tokens"))
-    completion_tokens = int_or_none(usage.get("completion_tokens"))
+    prompt_tokens = int_or_none(usage.get("prompt_tokens") or usage.get("total_input_tokens"))
+    completion_tokens = int_or_none(
+        usage.get("completion_tokens") or usage.get("total_output_tokens")
+    )
     return {
         "response_chars": response_chars,
         "prompt_tokens_reported": prompt_tokens,
         "completion_tokens_reported": completion_tokens,
+        "cached_tokens_reported": int_or_none(usage.get("total_cached_tokens")),
+        "thought_tokens_reported": int_or_none(usage.get("total_thought_tokens")),
+        "total_tokens_reported": int_or_none(usage.get("total_tokens")),
+        "terminal_status": usage.get("_terminal_status"),
+        "provider_request_id": usage.get("_provider_request_id"),
+        "effective_service_tier": usage.get("_effective_service_tier"),
         "output_tokens_estimated": completion_tokens or estimate_tokens(response_chars),
         "error": error,
     }
@@ -474,6 +529,17 @@ def parse_json_response(raw: bytes) -> tuple[str, dict[str, Any], str | None]:
     if isinstance(data, dict) and data.get("error"):
         return "", data.get("usage") or {}, json.dumps(data["error"], sort_keys=True)
     text = ""
+    if isinstance(data, dict) and isinstance(data.get("steps"), list):
+        parts: list[str] = []
+        for step in data["steps"]:
+            if not isinstance(step, dict) or step.get("type") != "model_output":
+                continue
+            parts.append(content_to_text(step.get("content")))
+        usage = dict(data.get("usage") or {})
+        usage["_terminal_status"] = data.get("status")
+        usage["_provider_request_id"] = data.get("interaction_id") or data.get("id")
+        usage["_effective_service_tier"] = data.get("service_tier")
+        return "".join(parts), usage, None
     try:
         choice = (data.get("choices") or [{}])[0]
         message = choice.get("message") or {}
@@ -487,11 +553,16 @@ def parse_sse_response(raw: bytes) -> tuple[str, dict[str, Any], str | None]:
     parts: list[str] = []
     usage: dict[str, Any] = {}
     error: str | None = None
-    for line in raw.decode("utf-8", errors="replace").splitlines():
-        line = line.strip()
-        if not line.startswith("data:"):
+    active_model_output = False
+    blocks = raw.decode("utf-8", errors="replace").replace("\r\n", "\n").split("\n\n")
+    for block in blocks:
+        payload = "\n".join(
+            line[5:].lstrip()
+            for line in block.splitlines()
+            if line.startswith("data:")
+        )
+        if not payload:
             continue
-        payload = line[5:].strip()
         if payload == "[DONE]":
             break
         try:
@@ -500,8 +571,30 @@ def parse_sse_response(raw: bytes) -> tuple[str, dict[str, Any], str | None]:
             continue
         if isinstance(evt, dict) and evt.get("error"):
             error = json.dumps(evt["error"], sort_keys=True)
-        if isinstance(evt.get("usage"), dict):
-            usage = evt["usage"]
+        event_type = evt.get("event_type") or evt.get("type")
+        event_usage = evt.get("usage")
+        if not isinstance(event_usage, dict):
+            event_usage = (evt.get("metadata") or {}).get("total_usage")
+        if isinstance(event_usage, dict):
+            usage.update(event_usage)
+        if event_type == "interaction.completed":
+            usage["_terminal_status"] = evt.get("status")
+            usage["_provider_request_id"] = evt.get("interaction_id") or evt.get("id")
+            usage["_effective_service_tier"] = evt.get("service_tier")
+        if event_type == "step.start":
+            step = evt.get("step") or {}
+            active_model_output = step.get("type") == "model_output"
+            if active_model_output:
+                parts.append(content_to_text(step.get("content")))
+            continue
+        if event_type in {"step.stop", "step.completed"}:
+            active_model_output = False
+            continue
+        if event_type == "step.delta":
+            delta = evt.get("delta") or {}
+            if active_model_output and delta.get("type") in {"text", "text_delta"}:
+                parts.append(str(delta.get("text") or delta.get("delta") or ""))
+            continue
         choices = evt.get("choices") or []
         if not choices:
             continue
@@ -622,7 +715,7 @@ def run_demo(
         state_dir = Path(state_tmp.name)
         env.update(
             {
-                "PARISH_PROVIDER": "custom",
+                "PARISH_PROVIDER": args.provider,
                 "PARISH_BASE_URL": proxy_url,
                 "PARISH_MODEL": args.model,
                 "PARISH_DIALOGUE_BASE_URL": proxy_url,
@@ -652,7 +745,7 @@ def run_demo(
         timed_out = False
         with demo_log.open("w", encoding="utf-8") as log:
             log.write(f"$ {' '.join(command)}\n")
-            log.write(f"PARISH_PROVIDER=custom\nPARISH_BASE_URL={proxy_url}\n")
+            log.write(f"PARISH_PROVIDER={args.provider}\nPARISH_BASE_URL={proxy_url}\n")
             log.write(f"PARISH_MODEL={args.model}\n\n")
             log.write(f"PARISH_INTENT_MODEL={args.small_model}\n")
             log.write(f"PARISH_REACTION_MODEL={args.small_model}\n\n")
@@ -693,7 +786,7 @@ def run_demo(
 def write_demo_user_config(config_dir: Path, args: argparse.Namespace, proxy_url: str) -> Path:
     path = config_dir / "parish.toml"
     lines = [
-        'provider = "custom"',
+        f'provider = "{toml_string(args.provider)}"',
         f'base_url = "{proxy_url}"',
         f'model = "{toml_string(args.model)}"',
         "",
@@ -702,7 +795,7 @@ def write_demo_user_config(config_dir: Path, args: argparse.Namespace, proxy_url
         lines.extend(
             [
                 f"[category_overrides.{category}]",
-                'provider = "custom"',
+                f'provider = "{toml_string(args.provider)}"',
                 f'base_url = "{proxy_url}"',
                 f'model = "{toml_string(args.small_model)}"',
                 "",
@@ -765,6 +858,9 @@ def summarize_events(
     category: str, events: list[ApiEvent], observed_seconds: float
 ) -> dict[str, Any]:
     durations = [event.duration_ms for event in events]
+    ttfts = [event.ttft_ms for event in events if event.ttft_ms is not None]
+    reported_input = sum(event.prompt_tokens_reported or 0 for event in events)
+    reported_cached = sum(event.cached_tokens_reported or 0 for event in events)
     minutes = max(observed_seconds / 60.0, 1e-9)
     return {
         "category": category,
@@ -772,11 +868,18 @@ def summarize_events(
         "requests_per_minute": len(events) / minutes,
         "p50_ms": percentile(durations, 50),
         "p95_ms": percentile(durations, 95),
+        "ttft_p50_ms": percentile(ttfts, 50),
+        "ttft_p95_ms": percentile(ttfts, 95),
         "errors": sum(1 for event in events if event.error or event.status >= 400),
         "prompt_chars": sum(event.prompt_chars for event in events),
         "response_chars": sum(event.response_chars for event in events),
         "input_tokens_estimated": sum(event.input_tokens_estimated for event in events),
         "output_tokens_estimated": sum(event.output_tokens_estimated for event in events),
+        "input_tokens_reported": reported_input,
+        "cached_tokens_reported": reported_cached,
+        "thought_tokens_reported": sum(event.thought_tokens_reported or 0 for event in events),
+        "total_tokens_reported": sum(event.total_tokens_reported or 0 for event in events),
+        "cache_ratio": reported_cached / reported_input if reported_input else 0.0,
     }
 
 
@@ -860,7 +963,7 @@ def render_report(
         f"- Duration target: {args.duration_secs:.0f}s",
         f"- Observed API activity window: {observed_seconds:.1f}s",
         f"- Human reading pause: {args.pause:g}s between demo turns",
-        "- Provider forced for run: `custom`",
+        f"- Provider forced for run: `{args.provider}`",
         f"- Parish base URL: `{proxy_url}`",
         f"- Main upstream (dialogue/simulation/demo-player): `{args.upstream}`",
         f"- Small upstream (intent/reaction): `{args.small_upstream}`",
@@ -878,8 +981,8 @@ def render_report(
             "",
             "## Requests By Category",
             "",
-            "| Category | Requests | Req/min | p50 ms | p95 ms | Errors | Est. input tok | Est. output tok | Prompt chars | Response chars |",
-            "|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|",
+            "| Category | Requests | Req/min | p50/p95 ms | TTFT p50/p95 ms | Errors | Reported input | Cached | Cache % | Thoughts | Est. output |",
+            "|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|",
         ]
     )
     for category in CATEGORY_ORDER:
@@ -939,15 +1042,16 @@ def render_report(
     if events:
         lines.extend(["", "## Request Events", ""])
         lines.append(
-            "| # | +s | Category | Model | Stream | Status | ms | Est. in tok | Est. out tok | Error |"
+            "| # | +s | Category | API | Model | Stream | Status | TTFT/ms | Input | Cached | Thought | Output | Error |"
         )
-        lines.append("|---:|---:|---|---|---:|---:|---:|---:|---:|---|")
+        lines.append("|---:|---:|---|---|---|---:|---:|---:|---:|---:|---:|---:|---|")
         for event in events:
             err = (event.error or "").replace("|", "\\|")
             lines.append(
-                f"| {event.request_id} | {event.elapsed_since_run_start_secs:.1f} | {event.category} | "
-                f"`{event.model}` | {str(event.stream).lower()} | {event.status} | {event.duration_ms} | "
-                f"{event.input_tokens_estimated} | {event.output_tokens_estimated} | {err} |"
+                f"| {event.request_id} | {event.elapsed_since_run_start_secs:.1f} | {event.category} | {event.api_mode} | "
+                f"`{event.model}` | {str(event.stream).lower()} | {event.status} | {event.ttft_ms or 'n/a'}/{event.duration_ms} | "
+                f"{event.prompt_tokens_reported or event.input_tokens_estimated} | {event.cached_tokens_reported or 0} | "
+                f"{event.thought_tokens_reported or 0} | {event.completion_tokens_reported or event.output_tokens_estimated} | {err} |"
             )
     return "\n".join(lines) + "\n"
 
@@ -956,9 +1060,9 @@ def render_category_row(row: dict[str, Any], label: str | None = None) -> str:
     category = label or row["category"]
     return (
         f"| {category} | {row['requests']} | {row['requests_per_minute']:.2f} | "
-        f"{row['p50_ms']} | {row['p95_ms']} | {row['errors']} | "
-        f"{row['input_tokens_estimated']} | {row['output_tokens_estimated']} | "
-        f"{row['prompt_chars']} | {row['response_chars']} |"
+        f"{row['p50_ms']}/{row['p95_ms']} | {row['ttft_p50_ms']}/{row['ttft_p95_ms']} | {row['errors']} | "
+        f"{row['input_tokens_reported']} | {row['cached_tokens_reported']} | {row['cache_ratio'] * 100:.1f}% | "
+        f"{row['thought_tokens_reported']} | {row['output_tokens_estimated']} |"
     )
 
 
@@ -1016,7 +1120,7 @@ def dry_run(args: argparse.Namespace) -> int:
     print(f"  duration: {args.duration_secs:.0f}s")
     print(f"  pause: {args.pause:g}s")
     print("  environment:")
-    print("    PARISH_PROVIDER=custom")
+    print(f"    PARISH_PROVIDER={args.provider}")
     print(f"    PARISH_BASE_URL={proxy}")
     print(f"    PARISH_MODEL={args.model}")
     print(f"    PARISH_INTENT_MODEL={args.small_model}")
@@ -1092,6 +1196,29 @@ def self_test() -> int:
         if actual != expected:
             print(f"classifier failed: expected {expected}, got {actual}", file=sys.stderr)
             return 1
+    native_body = {
+        "model": "gemini-3.6-flash",
+        "system_instruction": "You are an input parser. Return intent and target.",
+        "input": "ask Brigid about the harvest",
+        "response_format": {"type": "text", "mime_type": "application/json"},
+    }
+    if classify_request(native_body) != "intent":
+        print("native Interactions classification failed", file=sys.stderr)
+        return 1
+    native_sse = (
+        b'data: {"event_type":"step.start","step":{"type":"thought","content":'
+        b'[{"type":"text","text":"secret"}]}}\n\n'
+        b'data: {"event_type":"step.delta","delta":{"type":"text","text":"secret2"}}\n\n'
+        b'data: {"event_type":"step.start","step":{"type":"model_output","content":'
+        b'[{"type":"text","text":"ok"}]}}\n\n'
+        b'data: {"event_type":"interaction.completed","id":"int_test","status":"completed",'
+        b'"metadata":{"total_usage":{"total_input_tokens":9000,"total_cached_tokens":8000,'
+        b'"total_output_tokens":1,"total_thought_tokens":2,"total_tokens":9003}}}\n\n'
+    )
+    native_metrics = response_metrics(native_sse, True)
+    if native_metrics["response_chars"] != 2 or native_metrics["cached_tokens_reported"] != 8000:
+        print(f"native Interactions metrics failed: {native_metrics}", file=sys.stderr)
+        return 1
     routing = argparse.Namespace(
         upstream="http://main",
         small_upstream="http://small",
@@ -1121,13 +1248,21 @@ def self_test() -> int:
                 model="self-test",
                 stream=bool(body.get("stream")),
                 response_format=response_format_label(body.get("response_format")),
+                api_mode="openai-compat",
                 status=200,
                 duration_ms=100 + idx,
+                ttft_ms=50 + idx,
                 prompt_chars=prompt_chars,
                 system_chars=system_chars,
                 response_chars=80,
                 prompt_tokens_reported=None,
                 completion_tokens_reported=None,
+                cached_tokens_reported=None,
+                thought_tokens_reported=None,
+                total_tokens_reported=None,
+                terminal_status="completed",
+                provider_request_id=None,
+                effective_service_tier=None,
                 input_tokens_estimated=estimate_tokens(prompt_chars),
                 output_tokens_estimated=20,
                 error=None,
@@ -1179,6 +1314,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--pause", type=float, default=DEFAULT_PAUSE_SECS)
     parser.add_argument("--max-turns", type=int, default=None)
     parser.add_argument("--model", default=DEFAULT_MODEL)
+    parser.add_argument("--provider", choices=("custom", "google"), default="custom")
     parser.add_argument("--upstream", default=DEFAULT_UPSTREAM)
     parser.add_argument("--small-model")
     parser.add_argument("--small-upstream")

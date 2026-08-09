@@ -514,6 +514,9 @@ export interface InferenceCategoryDebug {
 	model: string | null;
 	/** Base URL override; null means inherit base. */
 	base_url: string | null;
+	thinking_level: 'minimal' | 'low' | 'medium' | 'high';
+	max_output_tokens: number;
+	service_tier: 'standard' | 'priority';
 }
 
 export interface InferenceDebug {
@@ -526,7 +529,7 @@ export interface InferenceDebug {
 	reaction_req_id: number;
 	improv_enabled: boolean;
 	call_log: InferenceLogEntry[];
-	/** Per-role provider/model/url state (one entry per InferenceCategory). */
+	/** Per-workload provider/model/url and effective inference profile. */
 	categories: InferenceCategoryDebug[];
 	/** List of provider display names that have an API key configured (or are local). */
 	configured_providers: string[];
@@ -538,6 +541,18 @@ export interface InferenceLogEntry {
 	request_id: number;
 	timestamp: string;
 	model: string;
+	provider: string;
+	api_mode: string;
+	role: 'dialogue' | 'simulation' | 'intent' | 'reaction';
+	subrole:
+		| 'dialogue'
+		| 'intent'
+		| 'arrival-reaction'
+		| 'message-reaction'
+		| 'travel-encounter'
+		| 'tier2-simulation'
+		| 'tier3-simulation'
+		| 'demo-player';
 	streaming: boolean;
 	duration_ms: number;
 	prompt_len: number;
@@ -549,6 +564,24 @@ export interface InferenceLogEntry {
 	max_tokens: number | null;
 	ttft_ms: number | null;
 	output_tokens: number | null;
+	stream_chunks: number | null;
+	input_tokens: number | null;
+	cached_tokens: number | null;
+	thought_tokens: number | null;
+	total_tokens: number | null;
+	thinking_level: 'minimal' | 'low' | 'medium' | 'high' | null;
+	requested_service_tier: 'standard' | 'priority' | null;
+	effective_service_tier: string | null;
+	provider_request_id: string | null;
+	terminal_status: string | null;
+	retry_count: number;
+	http_status: number | null;
+	failure_kind: string | null;
+	partial_output_len: number;
+	tier_downgraded: boolean;
+	estimated_cost_usd: number | null;
+	prompt_prefix_hash: string | null;
+	prompt_prefix_len: number | null;
 }
 
 // ── Persistence types ───────────────────────────────────────────────────────

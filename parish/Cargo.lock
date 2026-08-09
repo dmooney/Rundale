@@ -4113,6 +4113,7 @@ name = "parish-inference"
 version = "0.1.0"
 dependencies = [
  "chrono",
+ "dotenvy",
  "hf-hub",
  "parish-config",
  "parish-providers",

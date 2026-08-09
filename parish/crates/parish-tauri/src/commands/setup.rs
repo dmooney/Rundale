@@ -331,6 +331,7 @@ async fn do_start_local_inference_setup_inner(
                 provider: Some("vllm-mlx".to_string()),
                 base_url: Some("http://localhost:8001".to_string()),
                 model: Some("mlx-community/Qwen2.5-1.5B-Instruct-4bit".to_string()),
+                ..Default::default()
             },
         );
         // Sim + Reaction route to the simulator: the 1.5B can't reliably
@@ -347,6 +348,7 @@ async fn do_start_local_inference_setup_inner(
                     provider: Some("simulator".to_string()),
                     base_url: None,
                     model: None,
+                    ..Default::default()
                 },
             );
         }
@@ -373,6 +375,7 @@ async fn do_start_local_inference_setup_inner(
                     provider: Some("simulator".to_string()),
                     base_url: None,
                     model: None,
+                    ..Default::default()
                 },
             );
         }

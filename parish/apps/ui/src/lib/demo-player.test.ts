@@ -7,7 +7,7 @@ import {
 	demoTurnCount,
 	demoConfig,
 } from '../stores/demo';
-import { streamingActive, textLog } from '../stores/game';
+import { flushStream, streamingActive, textLog } from '../stores/game';
 import { runDemoTurn, stopDemo } from './demo-player';
 import { getDemoContext, getLlmPlayerAction, submitInput } from './ipc';
 import { createStreamManager } from './setup/stream-manager';
@@ -48,6 +48,7 @@ beforeEach(() => {
 	demoConfig.set(testConfig);
 	textLog.set([]);
 	streamingActive.set(false);
+	flushStream.set(() => 0);
 	vi.mocked(submitInput).mockClear();
 	vi.mocked(getLlmPlayerAction).mockClear();
 	vi.mocked(getDemoContext).mockClear();
@@ -207,6 +208,31 @@ describe('runDemoTurn', () => {
 
 		expect(streamingAtContext).toBe(false);
 		expect(getLlmPlayerAction).toHaveBeenCalledTimes(1);
+	});
+
+	it('flushes a completed paced stream at the bounded demo wait', async () => {
+		vi.useFakeTimers();
+		try {
+			demoEnabled.set(true);
+			demoConfig.set({ ...testConfig, turn_pause_secs: 0 });
+			streamingActive.set(true);
+			const flush = vi.fn(() => {
+				streamingActive.set(false);
+				return 1;
+			});
+			flushStream.set(flush);
+
+			const turn = runDemoTurn();
+			await vi.advanceTimersByTimeAsync(10_000);
+			await vi.runAllTimersAsync();
+			await turn;
+
+			expect(flush).toHaveBeenCalledTimes(1);
+			expect(get(streamingActive)).toBe(false);
+			expect(getLlmPlayerAction).toHaveBeenCalledTimes(1);
+		} finally {
+			vi.useRealTimers();
+		}
 	});
 
 	// Regression for #999: `[system]` text-log entries that echo the
