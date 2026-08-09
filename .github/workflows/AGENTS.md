@@ -32,7 +32,7 @@ just act-pr         # simulate the pull_request fast lane
 - **Rust toolchain is pinned to 1.95.0** in `full-ci.yml` and `release.yml`. Bump in a dedicated PR alongside any lint fixes.
 - **No YAML anchors** — setup steps (checkout, toolchain, cache, native deps) are inlined per job.
 - **`concurrency: cancel-in-progress: true`** on most workflows; `release.yml` sets `cancel-in-progress: false` (releases must not be cancelled).
-- **Secrets:** `GITHUB_TOKEN` (all), `GEMINI_API_KEY`/`GOOGLE_API_KEY`/`APP_PRIVATE_KEY` (Gemini review), `OPENROUTER_API_KEY` (inference eval, via `secrets: inherit`). Add new secrets to repo-level GitHub secrets and the consuming job's `env:` block.
+- **Secrets:** `GITHUB_TOKEN` (all), `OPENROUTER_API_KEY` (inference eval, via `secrets: inherit`). The disabled Gemini sources retain references to `GEMINI_API_KEY`/`GOOGLE_API_KEY`/`APP_PRIVATE_KEY` for a future re-enable. Add new secrets to repo-level GitHub secrets and the consuming job's `env:` block.
 - **`concurrency: pages`** in `publish-bench-site.yml` — do not rename without checking the `deploy-pages` action's concurrency expectations.
 - **`act` does not reproduce GitHub-side concerns** — concurrency groups, branch protections, required-check status, and `permissions:` are server-side only. See `docs/agent/act-local.md` for caveats.
 
@@ -52,17 +52,11 @@ just act-pr         # simulate the pull_request fast lane
 - **Jobs:** rust-quality-gate (fmt+clippy+tests), rust-coverage-ratchet (cargo-llvm-cov floor 60.8%), rust-multi-channel (stable+beta), game-harness (fixture sweep + parish-client smoke), ui-quality (svelte-check+lint+format+build+vitest), ui-e2e (Playwright), and `Full CI gate`.
 - **Concurrency:** `full-ci-${{ github.workflow }}-${{ github.ref }}`, cancel-in-progress.
 
-### `gemini-dispatch.yml` — Gemini review dispatch
+### `gemini-dispatch.yml.disabled` + `gemini-review.yml.disabled` — paused Gemini review
 
-- **Triggers:** PR opened, PR review submitted, PR review comment, issue comment.
-- Routes to `gemini-review.yml` via `workflow_call`. Dispatches only for non-fork PRs or `@gemini-cli` mentions from OWNER/MEMBER/COLLABORATOR users. Uses GitHub App identity token.
-- **Permissions:** `issues: write`, `pull-requests: write`.
-
-### `gemini-review.yml` — Gemini code review
-
-- **Trigger:** `workflow_call` from `gemini-dispatch.yml`.
-- Runs `google-github-actions/run-gemini-cli` with GCP workload identity federation, MCP server for GitHub tools, and code-review extension.
-- **Timeout:** 7 minutes.
+- **Status:** disabled on 2026-08-09 after the provider rejected reviews because prepaid credits were depleted. The non-YAML extension keeps both workflows out of GitHub Actions entirely, so PRs receive neither a Gemini check nor failure comments.
+- The former dispatcher handled PR opens and authorized `@gemini-cli /review` requests; the reusable workflow ran `google-github-actions/run-gemini-cli` with the GitHub MCP integration.
+- To re-enable it, restore both `.yml` filenames together, confirm provider billing, and run `actionlint` on both files before merging.
 
 ### `audit.yml` — Security audit (cargo-audit)
 
