@@ -327,6 +327,7 @@ pub struct DialogueGenerationTelemetry {
     pub frequency_penalty: Option<f32>,
     pub json_mode: bool,
     pub enable_thinking: Option<bool>,
+    pub reasoning_effort: Option<crate::config::ReasoningEffort>,
 }
 
 /// Payload for `text-log` events.

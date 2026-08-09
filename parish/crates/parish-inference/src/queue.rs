@@ -51,6 +51,8 @@ pub struct InferenceRequest {
     /// Optional OpenAI-compatible reasoning-mode control. Only measured
     /// provider/model profiles should set this; `None` omits the wire field.
     pub enable_thinking: Option<bool>,
+    /// Optional provider reasoning effort for measured dialogue profiles.
+    pub reasoning_effort: Option<parish_config::ReasoningEffort>,
     /// Priority lane for this request.
     pub priority: InferencePriority,
     /// When true, the worker uses `generate_stream_json` (JSON mode + streaming).
@@ -112,6 +114,8 @@ pub struct QueueRequest {
     pub frequency_penalty: Option<f32>,
     /// Optional OpenAI-compatible reasoning-mode control.
     pub enable_thinking: Option<bool>,
+    /// Optional provider reasoning effort.
+    pub reasoning_effort: Option<parish_config::ReasoningEffort>,
     /// Priority lane for this request.
     pub priority: InferencePriority,
     /// When `true`, the worker uses JSON mode streaming.
@@ -184,6 +188,7 @@ impl InferenceQueue {
             temperature: req.temperature,
             frequency_penalty: req.frequency_penalty,
             enable_thinking: req.enable_thinking,
+            reasoning_effort: req.reasoning_effort,
             priority,
             json_mode: req.json_mode,
             json_schema: req.json_schema,
@@ -233,6 +238,7 @@ mod tests {
                 temperature: None,
                 frequency_penalty: None,
                 enable_thinking: None,
+                reasoning_effort: None,
                 priority: InferencePriority::Interactive,
                 json_mode: false,
                 json_schema: None,
@@ -282,6 +288,7 @@ mod tests {
                 temperature: Some(0.7),
                 frequency_penalty: Some(0.5),
                 enable_thinking: None,
+                reasoning_effort: None,
                 priority: InferencePriority::Interactive,
                 json_mode: true,
                 json_schema: None,
@@ -319,6 +326,7 @@ mod tests {
                 temperature: None,
                 frequency_penalty: None,
                 enable_thinking: None,
+                reasoning_effort: None,
                 priority: InferencePriority::Interactive,
                 json_mode: false,
                 json_schema: None,
@@ -345,6 +353,7 @@ mod tests {
                 temperature: None,
                 frequency_penalty: None,
                 enable_thinking: None,
+                reasoning_effort: None,
                 priority: InferencePriority::Interactive,
                 json_mode: false,
                 json_schema: None,
@@ -375,6 +384,7 @@ mod tests {
                 temperature: None,
                 frequency_penalty: None,
                 enable_thinking: None,
+                reasoning_effort: None,
                 priority: InferencePriority::Interactive,
                 json_mode: false,
                 json_schema: None,
@@ -422,6 +432,7 @@ mod tests {
                 temperature: None,
                 frequency_penalty: None,
                 enable_thinking: None,
+                reasoning_effort: None,
                 priority: InferencePriority::Interactive,
                 json_mode: false,
                 json_schema: None,
@@ -440,6 +451,7 @@ mod tests {
                 temperature: None,
                 frequency_penalty: None,
                 enable_thinking: None,
+                reasoning_effort: None,
                 priority: InferencePriority::Background,
                 json_mode: false,
                 json_schema: None,
@@ -458,6 +470,7 @@ mod tests {
                 temperature: None,
                 frequency_penalty: None,
                 enable_thinking: None,
+                reasoning_effort: None,
                 priority: InferencePriority::Batch,
                 json_mode: false,
                 json_schema: None,
@@ -500,6 +513,7 @@ mod tests {
                 temperature: None,
                 frequency_penalty: None,
                 enable_thinking: None,
+                reasoning_effort: None,
                 priority: InferencePriority::Batch,
                 json_mode: false,
                 json_schema: None,
@@ -518,6 +532,7 @@ mod tests {
                 temperature: None,
                 frequency_penalty: None,
                 enable_thinking: None,
+                reasoning_effort: None,
                 priority: InferencePriority::Interactive,
                 json_mode: false,
                 json_schema: None,

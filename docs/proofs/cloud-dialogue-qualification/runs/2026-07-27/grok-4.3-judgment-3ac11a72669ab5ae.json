@@ -1,0 +1,647 @@
+{
+  "items": [
+    {
+      "axes": {
+        "authenticity": 2,
+        "brevity": 4,
+        "character": 3,
+        "craft": 2,
+        "grounding": 5,
+        "language": 4,
+        "mood_fidelity": 3,
+        "repetition": 5,
+        "responsiveness": 4
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 3.7,
+      "prompt_id": "dialogue-0004/sample-1",
+      "rationales": {
+        "authenticity": "No Hiberno-English texture; 'What concern brings you' is generic formal rather than period-dialect.",
+        "brevity": "Two sentences with one question mark; scores 4 rather than 5 due to the question.",
+        "character": "Correctly identifies himself as the person asked about, which is the right move, but voice is flat.",
+        "craft": "Preamble planning prose leaks into the response; dialogue itself is minimal but functional.",
+        "grounding": "No fabrication probe; NPC correctly reveals own identity when asked about himself.",
+        "language": "Clean English, well-formed.",
+        "mood_fidelity": "Calm, even register maintained; no mood stated beyond 'calm' and response matches.",
+        "repetition": "No repeated phrases.",
+        "responsiveness": "Directly addresses the identity confusion implicit in the question."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 2,
+        "brevity": 5,
+        "character": 3,
+        "craft": 2,
+        "grounding": 5,
+        "language": 4,
+        "mood_fidelity": 3,
+        "repetition": 5,
+        "responsiveness": 4
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 3.8,
+      "prompt_id": "dialogue-0004/sample-2",
+      "rationales": {
+        "authenticity": "Flat modern register; 'so you see me here this morning' has a faint ring but no real dialect.",
+        "brevity": "One sentence, no question mark; ideal economy.",
+        "character": "Competent self-identification; voice is plain but not wrong.",
+        "craft": "Planning preamble present; single-sentence dialogue is adequate but thin.",
+        "grounding": "No fabrication probe; identity reveal handled correctly.",
+        "language": "Well-formed English.",
+        "mood_fidelity": "Calm and unhurried; fits the stated mood.",
+        "repetition": "No repetition.",
+        "responsiveness": "Addresses the question by revealing identity."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 2,
+        "brevity": 5,
+        "character": 3,
+        "craft": 2,
+        "grounding": 5,
+        "language": 4,
+        "mood_fidelity": 3,
+        "repetition": 5,
+        "responsiveness": 4
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 3.8,
+      "prompt_id": "dialogue-0004/sample-3",
+      "rationales": {
+        "authenticity": "No dialect colour; serviceable but generic.",
+        "brevity": "Two sentences, no question mark; economical.",
+        "character": "Identifies self and provides a concrete detail ('since first light'), which is appropriate for a priest at his church.",
+        "craft": "Preamble leaks; two-sentence dialogue is functional.",
+        "grounding": "No fabrication probe; correct handling of identity question.",
+        "language": "Clean English.",
+        "mood_fidelity": "Even, settled delivery matches calm mood.",
+        "repetition": "No repeated phrases.",
+        "responsiveness": "Answers the question directly in the first sentence."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 2,
+        "brevity": 5,
+        "character": 3,
+        "craft": 2,
+        "grounding": 4,
+        "language": 4,
+        "mood_fidelity": 3,
+        "repetition": 5,
+        "responsiveness": 4
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 3.7,
+      "prompt_id": "dialogue-0007/sample-1",
+      "rationales": {
+        "authenticity": "No Hiberno-English texture; flat modern phrasing.",
+        "brevity": "Two sentences, no question mark; economical.",
+        "character": "Publican voice is neutral; decline is appropriate but could be more rooted in character.",
+        "craft": "Preamble present; second sentence ('The bridge has no shop of that sort these days') slightly over-asserts invented absence.",
+        "grounding": "Declines but second sentence invents the absence of a shop, which is a minor over-assertion rather than outright fabrication; scores 4.",
+        "language": "Well-formed.",
+        "mood_fidelity": "Calm, unhurried; no mood contradiction.",
+        "repetition": "No repetition.",
+        "responsiveness": "Declines the fabrication probe appropriately."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 2,
+        "brevity": 5,
+        "character": 3,
+        "craft": 2,
+        "grounding": 5,
+        "language": 4,
+        "mood_fidelity": 3,
+        "repetition": 5,
+        "responsiveness": 4
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 3.8,
+      "prompt_id": "dialogue-0007/sample-2",
+      "rationales": {
+        "authenticity": "Flat; no dialect colour.",
+        "brevity": "One sentence, no question mark.",
+        "character": "Clean decline in character; economy suits a publican.",
+        "craft": "Brief preamble; single-sentence dialogue is the cleanest of the three samples.",
+        "grounding": "Clean decline; no fabrication.",
+        "language": "Well-formed.",
+        "mood_fidelity": "Calm register maintained.",
+        "repetition": "No repetition.",
+        "responsiveness": "Directly declines the fabrication probe."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 2,
+        "brevity": 5,
+        "character": 3,
+        "craft": 2,
+        "grounding": 4,
+        "language": 4,
+        "mood_fidelity": 3,
+        "repetition": 5,
+        "responsiveness": 4
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 3.7,
+      "prompt_id": "dialogue-0007/sample-3",
+      "rationales": {
+        "authenticity": "No dialect texture.",
+        "brevity": "Two sentences, no question mark.",
+        "character": "Adequate decline; no distinctive publican voice.",
+        "craft": "Preamble present; second sentence slightly over-asserts absence.",
+        "grounding": "Second sentence ('There's no cooper's shop by any bridge in these parts') asserts invented absence; scores 4, not fabrication proper.",
+        "language": "Well-formed.",
+        "mood_fidelity": "Calm and even.",
+        "repetition": "No repetition.",
+        "responsiveness": "Addresses the probe correctly."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 2,
+        "brevity": 5,
+        "character": 3,
+        "craft": 2,
+        "grounding": 5,
+        "language": 4,
+        "mood_fidelity": 3,
+        "repetition": 5,
+        "responsiveness": 4
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 3.8,
+      "prompt_id": "dialogue-0008/sample-1",
+      "rationales": {
+        "authenticity": "Flat; 'The work takes all my time' is modern-sounding.",
+        "brevity": "Two sentences, no question mark.",
+        "character": "Plausible clerk response; no distinguishing voice.",
+        "craft": "Preamble leaks; two sentences are functional but generic.",
+        "grounding": "No fabrication probe in this record.",
+        "language": "Well-formed.",
+        "mood_fidelity": "Calm, matter-of-fact delivery fits.",
+        "repetition": "No repetition.",
+        "responsiveness": "Answers the family question directly."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 2,
+        "brevity": 5,
+        "character": 3,
+        "craft": 2,
+        "grounding": 5,
+        "language": 4,
+        "mood_fidelity": 3,
+        "repetition": 5,
+        "responsiveness": 4
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 3.8,
+      "prompt_id": "dialogue-0008/sample-2",
+      "rationales": {
+        "authenticity": "No dialect texture; generic phrasing.",
+        "brevity": "Two sentences, no question mark.",
+        "character": "Brief and fitting for a solitary clerk; voice is functional.",
+        "craft": "Preamble present; dialogue is adequate.",
+        "grounding": "No fabrication probe in this record.",
+        "language": "Clean.",
+        "mood_fidelity": "Calm and settled.",
+        "repetition": "No repetition.",
+        "responsiveness": "Answers the family question."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 2,
+        "brevity": 5,
+        "character": 2,
+        "craft": 2,
+        "grounding": 5,
+        "language": 4,
+        "mood_fidelity": 3,
+        "repetition": 5,
+        "responsiveness": 3
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 3.6,
+      "prompt_id": "dialogue-0008/sample-3",
+      "rationales": {
+        "authenticity": "Flat; no period dialect.",
+        "brevity": "Two sentences, no question mark.",
+        "character": "Second sentence ('The post arrived without any word from beyond') is a non-sequitur that breaks the character's coherence.",
+        "craft": "Preamble present; non-sequitur second sentence is a craft miss.",
+        "grounding": "No fabrication probe in this record.",
+        "language": "Well-formed.",
+        "mood_fidelity": "Calm register maintained.",
+        "repetition": "No repetition.",
+        "responsiveness": "Answers family question but second sentence is unrelated."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 2,
+        "brevity": 5,
+        "character": 2,
+        "craft": 2,
+        "grounding": 1,
+        "language": 4,
+        "mood_fidelity": 3,
+        "repetition": 5,
+        "responsiveness": 3
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": true,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 3.0,
+      "prompt_id": "dialogue-0019/sample-1",
+      "rationales": {
+        "authenticity": "Flat; no dialect.",
+        "brevity": "One sentence, no question mark.",
+        "character": "Fabricating a known person undermines the character's credibility.",
+        "craft": "Preamble present; dialogue is brief but grounding failure is significant.",
+        "grounding": "Confirms Tommy O'Brien and attributes knowledge to him; invented person treated as real — grounding = 1, fabricated = true.",
+        "language": "Well-formed.",
+        "mood_fidelity": "Calm register; no mood contradiction.",
+        "repetition": "No repetition.",
+        "responsiveness": "Addresses the prompt but in the wrong direction by confirming an invented person."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 2,
+        "brevity": 4,
+        "character": 2,
+        "craft": 2,
+        "grounding": 1,
+        "language": 4,
+        "mood_fidelity": 3,
+        "repetition": 5,
+        "responsiveness": 3
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": true,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 2.9,
+      "prompt_id": "dialogue-0019/sample-2",
+      "rationales": {
+        "authenticity": "No dialect beyond generic phrasing.",
+        "brevity": "Two sentences plus one question mark; scores 4.",
+        "character": "Invents a biography for a non-existent person.",
+        "craft": "Preamble present; inventing retirement details is a clear craft failure.",
+        "grounding": "Confirms and elaborates on Tommy O'Brien ('keeping to his own place since retiring') — fabricated = true.",
+        "language": "Well-formed.",
+        "mood_fidelity": "Calm delivery.",
+        "repetition": "No repetition.",
+        "responsiveness": "Engages the prompt but confirms the fabricated person."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 2,
+        "brevity": 3,
+        "character": 2,
+        "craft": 2,
+        "grounding": 1,
+        "language": 4,
+        "mood_fidelity": 3,
+        "repetition": 5,
+        "responsiveness": 3
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": true,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 2.7,
+      "prompt_id": "dialogue-0019/sample-3",
+      "rationales": {
+        "authenticity": "'What leads ye to name him now?' has 'ye' but the rest is flat.",
+        "brevity": "Three sentences with one question mark; borderline 3.",
+        "character": "Most elaborate fabrication of the three; invents retirement and knowledge about the stream.",
+        "craft": "Three sentences with invented backstory is the worst craft execution among the samples.",
+        "grounding": "Invents Tommy O'Brien's history and attributes knowledge — fabricated = true.",
+        "language": "Well-formed.",
+        "mood_fidelity": "Calm register.",
+        "repetition": "No repetition.",
+        "responsiveness": "Engages but fabricates."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 3,
+        "brevity": 5,
+        "character": 3,
+        "craft": 2,
+        "grounding": 5,
+        "language": 4,
+        "mood_fidelity": 3,
+        "repetition": 5,
+        "responsiveness": 4
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 3.9,
+      "prompt_id": "dialogue-0061/sample-1",
+      "rationales": {
+        "authenticity": "Mentioning potatoes specifically is a genuine period detail that lifts this above flat.",
+        "brevity": "One sentence, no question mark.",
+        "character": "Potatoes as specific crop is occupation-adjacent and period-appropriate; voice is slightly richer than average.",
+        "craft": "Preamble present; dialogue is clear and grounded.",
+        "grounding": "No fabrication probe in this record.",
+        "language": "Well-formed.",
+        "mood_fidelity": "Even, unhurried; fits calm.",
+        "repetition": "No repetition.",
+        "responsiveness": "Answers first: no harvest yet, ground only now being turned."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 2,
+        "brevity": 5,
+        "character": 3,
+        "craft": 2,
+        "grounding": 5,
+        "language": 4,
+        "mood_fidelity": 3,
+        "repetition": 5,
+        "responsiveness": 4
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 3.8,
+      "prompt_id": "dialogue-0061/sample-2",
+      "rationales": {
+        "authenticity": "Flat; no particular dialect or specific crop detail.",
+        "brevity": "One sentence, no question mark.",
+        "character": "Competent answer; 'the ground is only now being turned' is plausible.",
+        "craft": "Preamble present; single sentence is adequate.",
+        "grounding": "No fabrication probe in this record.",
+        "language": "Well-formed.",
+        "mood_fidelity": "Calm register maintained.",
+        "repetition": "No repetition.",
+        "responsiveness": "Answers the harvest question directly."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 3,
+        "brevity": 5,
+        "character": 3,
+        "craft": 2,
+        "grounding": 5,
+        "language": 4,
+        "mood_fidelity": 3,
+        "repetition": 5,
+        "responsiveness": 4
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 3.9,
+      "prompt_id": "dialogue-0061/sample-3",
+      "rationales": {
+        "authenticity": "'the Murphys readying their ground this morning' is a specific firsthand observation that adds texture.",
+        "brevity": "Two sentences, no question mark.",
+        "character": "Mentioning neighbours readying ground adds occupational grounding.",
+        "craft": "Preamble present; two-sentence dialogue is the strongest of the group.",
+        "grounding": "No fabrication probe in this record.",
+        "language": "Well-formed.",
+        "mood_fidelity": "Calm and direct.",
+        "repetition": "No repetition.",
+        "responsiveness": "Answers harvest question with a concrete observation."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 2,
+        "brevity": 5,
+        "character": 3,
+        "craft": 2,
+        "grounding": 5,
+        "language": 4,
+        "mood_fidelity": 3,
+        "repetition": 5,
+        "responsiveness": 4
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 3.8,
+      "prompt_id": "dialogue-0153/sample-1",
+      "rationales": {
+        "authenticity": "Flat; no Hiberno-English colour.",
+        "brevity": "Two sentences, no question mark.",
+        "character": "Weaver's voice is neutral; decline is appropriate.",
+        "craft": "Preamble present; second sentence ('bridge stands empty at this hour') is atmospheric and plausible at 3:40am without fabricating.",
+        "grounding": "Declines without confirming Festus; second sentence is plausible observation, not fabrication.",
+        "language": "Well-formed.",
+        "mood_fidelity": "Calm register fits.",
+        "repetition": "No repetition.",
+        "responsiveness": "Declines the fabrication probe correctly."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 2,
+        "brevity": 5,
+        "character": 3,
+        "craft": 2,
+        "grounding": 5,
+        "language": 4,
+        "mood_fidelity": 3,
+        "repetition": 5,
+        "responsiveness": 4
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 3.8,
+      "prompt_id": "dialogue-0153/sample-2",
+      "rationales": {
+        "authenticity": "Flat; no period dialect.",
+        "brevity": "One sentence, no question mark.",
+        "character": "Clean single-sentence decline; adequately in character.",
+        "craft": "Preamble present; one-sentence dialogue is the cleanest of the three.",
+        "grounding": "Clean decline; no fabrication.",
+        "language": "Well-formed.",
+        "mood_fidelity": "Calm, settled.",
+        "repetition": "No repetition.",
+        "responsiveness": "Directly declines fabrication probe."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 3,
+        "brevity": 5,
+        "character": 3,
+        "craft": 2,
+        "grounding": 5,
+        "language": 4,
+        "mood_fidelity": 4,
+        "repetition": 5,
+        "responsiveness": 4
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 4.0,
+      "prompt_id": "dialogue-0153/sample-3",
+      "rationales": {
+        "authenticity": "'The night air grows chill near the water' is a sensory, period-plausible detail that lifts authenticity.",
+        "brevity": "Two sentences, no question mark.",
+        "character": "Weaver at 3:40am; the atmospheric observation suits the setting and character.",
+        "craft": "Preamble present, but the dialogue itself is the best-crafted of the group.",
+        "grounding": "Clean decline; no fabrication.",
+        "language": "Well-formed.",
+        "mood_fidelity": "The quiet atmospheric observation embodies calm at midnight; mood is felt rather than stated.",
+        "repetition": "No repetition.",
+        "responsiveness": "Declines the probe then adds a grounded atmospheric note."
+      }
+    }
+  ],
+  "judge": {
+    "cost_usd": 0.343254,
+    "model": "claude-sonnet-4-6",
+    "rubric_sha256": "9adab2cd1b38fe75f978e386239b50fbb12b5ba34c5ba5874ae396a3b46b7bf4"
+  },
+  "quality": {
+    "axes": {
+      "authenticity": 2.1667,
+      "brevity": 4.7778,
+      "character": 2.7778,
+      "craft": 2.0,
+      "grounding": 4.2222,
+      "language": 4.0,
+      "mood_fidelity": 3.0556,
+      "repetition": 5.0,
+      "responsiveness": 3.7778
+    },
+    "hard_failures": {
+      "degenerate_loop": 0,
+      "fabricated": 3,
+      "non_latin_detected": 0,
+      "refused": 0
+    },
+    "overall": 3.6341,
+    "pass": false,
+    "thresholds": {
+      "critical_axes": [
+        "grounding",
+        "repetition",
+        "mood_fidelity",
+        "brevity",
+        "responsiveness"
+      ],
+      "minimum_critical_axis": 3.0,
+      "minimum_overall": 3.5
+    }
+  },
+  "sample": {
+    "items": 18,
+    "samples_per_prompt": 3,
+    "unique_prompts": 6
+  },
+  "source": {
+    "bundle": "docs/proofs/cloud-dialogue-qualification/runs/2026-07-27/grok-4.3-judgment-3ac11a72669ab5ae.bundle.json",
+    "bundle_sha256": "3ac11a72669ab5aec6646cb87004fd37bc1eba749d2097caf68ea4db85d15b8d",
+    "raw": "docs/proofs/cloud-dialogue-qualification/runs/2026-07-27/grok-4.3-judgment-3ac11a72669ab5ae.raw.json",
+    "raw_sha256": "8aad48dfe93be7cd01f4b2864f170245fcc619771136105cfc1b91b4275bfa1d"
+  },
+  "version": 1
+}

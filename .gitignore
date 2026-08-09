@@ -114,3 +114,6 @@ index.lock
 
 # cargo-tarpaulin coverage artifacts
 *.profraw
+
+# Local pnpm content-addressed package store
+.pnpm-store/

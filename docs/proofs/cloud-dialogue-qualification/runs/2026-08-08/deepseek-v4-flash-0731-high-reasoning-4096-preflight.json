@@ -1,0 +1,38 @@
+{
+  "candidate": "deepseek/deepseek-v4-flash-0731@https://openrouter.ai/api/v1#env:OPENROUTER_API_KEY",
+  "dataset_merkle": "feb43d4bf80dae70b1cda3f506f58db7a26602a7a24d2a42f3453cf3726ec912",
+  "elapsed_seconds": 92.11645197868347,
+  "guard_observation": {
+    "interventions": 2,
+    "reasons": {
+      "grounding_guard": 1,
+      "verbosity_guard": 1
+    },
+    "turns": 12
+  },
+  "parse_dispositions": {
+    "full_json": 12,
+    "raw_text": 0,
+    "recovered_dialogue": 0
+  },
+  "reliability_soak": {
+    "calls": 12,
+    "valid_responses": 12
+  },
+  "request_profile": {
+    "enable_thinking": true,
+    "frequency_penalty": 0.5,
+    "json_mode": true,
+    "max_tokens": 4096,
+    "model": "deepseek/deepseek-v4-flash-0731",
+    "reasoning_effort": "high",
+    "temperature": 0.7
+  },
+  "runtime_base_url": "http://127.0.0.1:3041",
+  "turns_artifact": {
+    "path": "deepseek-v4-flash-0731-high-reasoning-4096-preflight.turns.jsonl",
+    "records": 12,
+    "sha256": "6de5c18fbb22fef4f410c5d50543dbaa5d7d7303e16441cc9c666faa0bc34a63"
+  },
+  "version": 1
+}

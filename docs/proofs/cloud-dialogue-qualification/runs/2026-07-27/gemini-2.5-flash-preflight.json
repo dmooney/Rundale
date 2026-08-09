@@ -1,0 +1,36 @@
+{
+  "candidate": "google/gemini-2.5-flash@https://openrouter.ai/api/v1#env:OPENROUTER_API_KEY",
+  "dataset_merkle": "feb43d4bf80dae70b1cda3f506f58db7a26602a7a24d2a42f3453cf3726ec912",
+  "elapsed_seconds": 19.701548099517822,
+  "guard_observation": {
+    "interventions": 1,
+    "reasons": {
+      "verbosity_guard": 1
+    },
+    "turns": 12
+  },
+  "parse_dispositions": {
+    "full_json": 11,
+    "raw_text": 1,
+    "recovered_dialogue": 0
+  },
+  "reliability_soak": {
+    "calls": 12,
+    "valid_responses": 11
+  },
+  "request_profile": {
+    "enable_thinking": null,
+    "frequency_penalty": 0.5,
+    "json_mode": true,
+    "max_tokens": 768,
+    "model": "google/gemini-2.5-flash",
+    "temperature": 0.7
+  },
+  "runtime_base_url": "http://127.0.0.1:3041",
+  "turns_artifact": {
+    "path": "gemini-2.5-flash-preflight.turns.jsonl",
+    "records": 12,
+    "sha256": "9262d9dca161ac6db9198a6e0e6e549dce5d769ee8fcbd09a62bfa74dd2bf473"
+  },
+  "version": 1
+}

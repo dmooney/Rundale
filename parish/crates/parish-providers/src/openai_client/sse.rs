@@ -81,13 +81,17 @@ pub(super) fn process_sse_line(
                 }
                 accumulated.push_str(text);
             }
-            if chunk_data
+            if let Some(reason) = chunk_data
                 .choices
                 .first()
                 .and_then(|c| c.finish_reason.as_deref())
-                == Some("stop")
             {
-                return SseResult::Done;
+                if reason == "stop" {
+                    return SseResult::Done;
+                }
+                return SseResult::Error(format!(
+                    "stream ended without a complete response (finish_reason={reason})"
+                ));
             }
             SseResult::Continue
         }

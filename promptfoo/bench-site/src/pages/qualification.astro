@@ -1,0 +1,388 @@
+---
+import Base from '../layouts/Base.astro';
+import { loadQualificationData } from '../lib/qualification';
+
+const data = loadQualificationData();
+const runs = [...data.runs].reverse();
+const pct = (value: number | null | undefined) => value == null ? '—' : `${(value * 100).toFixed(1)}%`;
+const ms = (value: number | null | undefined) => value == null ? '—' : `${Math.round(value)} ms`;
+const rate = (valid: number, calls: number) => calls ? pct(valid / calls) : '—';
+const artifactUrl = (artifactPath: string) => `https://github.com/dmooney/Rundale/blob/main/${artifactPath}`;
+const profile = (run: typeof runs[number]) => run.preflight.request_profile;
+const effort = (run: typeof runs[number]) => {
+  const request = profile(run);
+  if (!request) return 'not captured';
+  if (request.reasoning_effort != null) return request.reasoning_effort;
+  if (request.enable_thinking === true) return 'enabled';
+  if (request.enable_thinking === false) return 'off';
+  return 'provider default';
+};
+const policy = data.policy;
+const speedRanking = data.runs
+  .filter((run) => run.performance?.speed_rank != null)
+  .sort((a, b) => (a.performance?.speed_rank ?? Infinity) - (b.performance?.speed_rank ?? Infinity));
+const qualityRanking = data.runs
+  .filter((run) => run.judgment?.quality_rank != null)
+  .sort((a, b) => (a.judgment?.quality_rank ?? Infinity) - (b.judgment?.quality_rank ?? Infinity));
+const baseUrl = `${import.meta.env.BASE_URL.replace(/\/?$/, '/')}`;
+---
+
+<Base title="Rundale Bench — dialogue qualification">
+  <section class="hero">
+    <h1>Dialogue qualification funnel</h1>
+    <p class="sub">Every cloud profile tested through Rundale's production dialogue path.
+      Structural reliability, guard use, and request reliability are hard gates;
+      player-facing latency ranks the profiles that survive.</p>
+    <div class="provenance">
+      <span class="prov-chip"><b>{data.runs.length}</b> runs</span>
+      <span class="prov-chip"><b>{data.counts.invalid_profile ?? 0}</b> invalid profiles</span>
+      <span class="prov-chip"><b>{data.counts.rejected ?? 0}</b> rejected</span>
+      <span class="prov-chip"><b>{data.counts.stopped ?? 0}</b> stopped</span>
+      <span class="prov-chip"><b>{data.counts.qualified ?? 0}</b> quality qualified</span>
+      <span class="prov-chip"><b>{data.counts.quality_rejected ?? 0}</b> quality rejected</span>
+      <span class="prov-chip"><b>{data.counts.needs_judgment ?? 0}</b> awaiting judgment</span>
+      <span class="prov-chip"><b>{data.counts.needs_adjudication ?? 0}</b> awaiting adjudication</span>
+    </div>
+  </section>
+
+  <div class="banner">
+    A rejected or stopped profile is deliberately <strong>not judged</strong>. Speed
+    does not disqualify a reliable cloud profile; it determines that profile's rank.
+    Each row links its immutable receipt and exposes the request profile that produced it.
+  </div>
+
+  {policy && (
+    <section class="policy panel" aria-labelledby="policy-heading">
+      <div class="panel-head">
+        <div>
+          <h2 id="policy-heading">Screening policy</h2>
+          <span class="hint">Reliability is gated. Speed is ranked among the survivors.</span>
+        </div>
+        <span class="policy-source">{data.source}</span>
+      </div>
+      <div class="gates">
+        <div class="gate"><span>Preflight</span><strong>{policy.preflight.calls} calls</strong></div>
+        <div class="gate"><span>Valid responses</span><strong>{pct(policy.preflight.minimum_valid_response_rate)}</strong></div>
+        <div class="gate"><span>Guard interventions</span><strong>≤ {pct(policy.guards.maximum_intervention_rate)}</strong></div>
+        <div class="gate"><span>Error rate</span><strong>≤ {pct(policy.performance.maximum_error_rate)}</strong></div>
+        <div class="gate"><span>Performance sample</span><strong>{policy.performance.minimum_measurements}+ total</strong></div>
+        <div class="gate"><span>Cold / warm sample</span><strong>{policy.performance.minimum_cold_measurements} / {policy.performance.minimum_warm_measurements}+</strong></div>
+        <div class="gate"><span>Latency</span><strong>ranking only</strong></div>
+        <div class="gate"><span>Speed index</span><strong>{Math.round(policy.performance.ranking.warm_ttft_weight * 100)}% TTFT + {Math.round(policy.performance.ranking.warm_completion_weight * 100)}% completion</strong></div>
+        <div class="gate"><span>Judge panel</span><strong>{policy.judgment.judges.length} families · {policy.judgment.consensus_method}</strong></div>
+        <div class="gate"><span>Independent votes</span><strong>{policy.judgment.minimum_independent_judges}+ · self-family excluded</strong></div>
+        <div class="gate"><span>Quality overall</span><strong>≥ {policy.judgment.minimum_overall.toFixed(1)}</strong></div>
+        <div class="gate"><span>Critical axes</span><strong>≥ {policy.judgment.minimum_critical_axis.toFixed(1)}</strong></div>
+        <div class="gate"><span>Hard failures</span><strong>≤ {policy.judgment.maximum_hard_failures}</strong></div>
+      </div>
+    </section>
+  )}
+
+  {qualityRanking.length > 0 && (
+    <section class="panel" aria-labelledby="quality-ranking-heading">
+      <div class="panel-head">
+        <div>
+          <h2 id="quality-ranking-heading">Blinded dialogue quality ranking</h2>
+          <span class="hint">Blinded multi-family consensus · self-family scores excluded · 18 retained production outputs per judge</span>
+        </div>
+      </div>
+      <div class="table-scroll">
+        <table>
+          <thead><tr>
+            <th>Rank</th><th>Model</th><th>Verdict</th><th>Overall</th><th>Minimum critical axis</th>
+            <th>Hard failures</th><th>Unusable outputs</th><th>Speed rank</th><th>Judge cost</th>
+          </tr></thead>
+          <tbody>
+            {qualityRanking.map((run) => {
+              const critical = policy?.judgment.critical_axes ?? [];
+              const criticalMin = Math.min(...critical.map((axis) => run.judgment?.axes[axis] ?? Infinity));
+              const failures = Object.values(run.judgment?.hard_failures ?? {}).reduce((sum, value) => sum + value, 0);
+              return <tr>
+                <td class="rank">#{run.judgment?.quality_rank}</td>
+                <td><code title={run.candidate}>{run.model}</code></td>
+                <td><span class={`status ${run.status}`}>{run.judgment?.pass ? 'qualified' : 'rejected'}</span></td>
+                <td class="num">{run.judgment?.overall == null ? '—' : run.judgment.overall.toFixed(2)}</td>
+                <td class="num">{Number.isFinite(criticalMin) ? criticalMin.toFixed(2) : '—'}</td>
+                <td class="num">{failures}</td>
+                <td class="num">{run.judgment?.sample.unusable_outputs ?? 0}</td>
+                <td class="rank">#{run.performance?.speed_rank}</td>
+                <td class="num">{run.judgment == null ? '—' : `$${run.judgment.cost_usd.toFixed(3)}`}</td>
+              </tr>;
+            })}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  )}
+
+  {speedRanking.length > 0 && (
+    <section class="panel" aria-labelledby="speed-ranking-heading">
+      <div class="panel-head">
+        <div>
+          <h2 id="speed-ranking-heading">Qualified cloud speed ranking</h2>
+          <span class="hint">Lower speed index is better. Quality judgment still determines whether dialogue is usable.</span>
+        </div>
+      </div>
+      <div class="table-scroll">
+        <table>
+          <thead><tr>
+            <th>Rank</th><th>Model</th><th>Reasoning</th><th>Max tokens</th>
+            <th>Warm TTFT p95</th><th>Warm completion p95</th><th>Speed index</th><th>Error rate</th>
+          </tr></thead>
+          <tbody>
+            {speedRanking.map((run) => (
+              <tr>
+                <td class="rank">#{run.performance?.speed_rank}</td>
+                <td><code title={run.candidate}>{run.model}</code></td>
+                <td>{effort(run)}</td>
+                <td class="num">{profile(run)?.max_tokens ?? '—'}</td>
+                <td class="num">{ms(run.performance?.warm_ttft_p95_ms)}</td>
+                <td class="num">{ms(run.performance?.warm_completion_p95_ms)}</td>
+                <td class="num">{ms(run.performance?.speed_index_ms)}</td>
+                <td class="num">{pct(run.performance?.error_rate)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  )}
+
+  <div class="panel">
+    <div class="panel-head">
+      <h2>Production screening</h2>
+      <span class="hint">Select a run to inspect the complete evidence trail</span>
+    </div>
+    <div class="table-scroll">
+      <table>
+        <thead><tr>
+          <th>Date</th><th>Model</th><th>Status</th><th>Preflight</th><th>Guards</th>
+          <th>Quality</th><th>Speed rank</th><th>Warm TTFT p95</th><th>Warm completion p95</th><th>Decision</th><th></th>
+        </tr></thead>
+        <tbody>
+          {runs.map((run) => (
+            <tr class={`run ${run.status}`}>
+              <td class="num">{run.tested_on}</td>
+              <td><code title={run.candidate}>{run.model}</code></td>
+              <td><span class={`status ${run.status}`}>{run.status.replace('_', ' ')}</span></td>
+              <td class="num">{run.preflight.valid}/{run.preflight.calls}<small>{rate(run.preflight.valid, run.preflight.calls)}</small></td>
+              <td class="num">{pct(run.preflight.guard_rate)}</td>
+              <td class="num">{run.judgment?.overall == null ? '—' : run.judgment.overall.toFixed(2)}</td>
+              <td class="rank">{run.performance?.speed_rank == null ? '—' : `#${run.performance.speed_rank}`}</td>
+              <td class="num">{ms(run.performance?.warm_ttft_p95_ms)}</td>
+              <td class="num">{ms(run.performance?.warm_completion_p95_ms)}</td>
+              <td><span class="decision">{run.reason}</span></td>
+              <td class="inspect"><details>
+                <summary aria-label={`Inspect ${run.model} evidence`}>Inspect</summary>
+                <div class="evidence-card">
+                  <div class="evidence-head">
+                    <div><span class="eyebrow">Run</span><code>{run.run_id}</code></div>
+                    <span class={`status ${run.status}`}>{run.status.replaceAll('_', ' ')}</span>
+                  </div>
+                  <div class="detail-grid">
+                    <section><h3>Decision</h3><p>{run.reason}</p><dl>
+                      <div><dt>Stage</dt><dd>{run.stage}</dd></div>
+                      <div><dt>Candidate</dt><dd><code>{run.candidate}</code></dd></div>
+                    </dl></section>
+                    <section><h3>Request profile</h3><dl>
+                      <div><dt>Reasoning effort</dt><dd>{effort(run)}</dd></div>
+                      <div><dt>JSON mode</dt><dd>{profile(run)?.json_mode == null ? 'not captured' : profile(run)?.json_mode ? 'on' : 'off'}</dd></div>
+                      <div><dt>Temperature</dt><dd>{profile(run)?.temperature ?? '—'}</dd></div>
+                      <div><dt>Max tokens</dt><dd>{profile(run)?.max_tokens ?? '—'}</dd></div>
+                      <div><dt>Frequency penalty</dt><dd>{profile(run)?.frequency_penalty ?? '—'}</dd></div>
+                    </dl></section>
+                    <section><h3>Preflight evidence</h3><dl>
+                      <div><dt>Valid responses</dt><dd>{run.preflight.valid}/{run.preflight.calls} ({rate(run.preflight.valid, run.preflight.calls)})</dd></div>
+                      <div><dt>Guard interventions</dt><dd>{run.preflight.guard_interventions} ({pct(run.preflight.guard_rate)})</dd></div>
+                      <div><dt>Observed elapsed</dt><dd>{run.preflight.elapsed_min_ms == null ? 'not captured' : `${ms(run.preflight.elapsed_min_ms)}–${ms(run.preflight.elapsed_max_ms)}`}</dd></div>
+                    </dl><a href={artifactUrl(run.preflight.artifact.path)} target="_blank" rel="noreferrer">Open preflight receipt ↗</a><p class="hash"><span>{run.preflight.artifact.path}</span><code title={run.preflight.artifact.sha256}>{run.preflight.artifact.sha256}</code></p></section>
+                    <section><h3>Performance evidence</h3>{run.performance ? <><dl>
+                      <div><dt>Measurements</dt><dd>{run.performance.measurements}</dd></div>
+                      <div><dt>Cold / warm</dt><dd>{run.performance.cold_measurements} / {run.performance.warm_measurements}</dd></div>
+                      <div><dt>Speed rank</dt><dd>{run.performance.speed_rank == null ? 'not qualified' : `#${run.performance.speed_rank} of ${run.performance.speed_cohort_size}`}</dd></div>
+                      <div><dt>Speed index</dt><dd>{ms(run.performance.speed_index_ms)}</dd></div>
+                      <div><dt>Cold TTFT p95</dt><dd>{ms(run.performance.cold_ttft_p95_ms)}</dd></div>
+                      <div><dt>Warm TTFT p95</dt><dd>{ms(run.performance.warm_ttft_p95_ms)}</dd></div>
+                      <div><dt>Cold completion p95</dt><dd>{ms(run.performance.cold_completion_p95_ms)}</dd></div>
+                      <div><dt>Warm completion p95</dt><dd>{ms(run.performance.warm_completion_p95_ms)}</dd></div>
+                      <div><dt>Throughput p50</dt><dd>{run.performance.tokens_per_second_p50?.toFixed(1) ?? '—'} tok/s</dd></div>
+                      <div><dt>Error rate</dt><dd>{pct(run.performance.error_rate)}</dd></div>
+                    </dl><a href={artifactUrl(run.performance.artifact.path)} target="_blank" rel="noreferrer">Open performance receipt ↗</a><p class="hash"><span>{run.performance.artifact.path}</span><code title={run.performance.artifact.sha256}>{run.performance.artifact.sha256}</code></p></> : <p class="muted">Not run: this profile did not clear preflight.</p>}</section>
+                    <section><h3>Quality judgment</h3>{run.judgment ? <><dl>
+                      <div><dt>Consensus / rank</dt><dd>{run.judgment.overall == null ? 'pending' : run.judgment.overall.toFixed(2)} · {run.judgment.quality_rank == null ? 'unranked' : `#${run.judgment.quality_rank} of ${run.judgment.quality_cohort_size}`}</dd></div>
+                      <div><dt>Verdict</dt><dd>{run.judgment.needs_adjudication ? 'adjudication required' : !run.judgment.complete ? 'panel incomplete' : run.judgment.pass ? 'qualified' : 'rejected'}</dd></div>
+                      <div><dt>Independent votes</dt><dd>{run.judgment.votes.pass} pass · {run.judgment.votes.fail} fail · {run.judgment.votes.eligible}/{run.judgment.votes.required} present</dd></div>
+                      <div><dt>Self-family excluded</dt><dd>{run.judgment.votes.self_excluded}</dd></div>
+                      <div><dt>Judge spread</dt><dd>{run.judgment.overall_spread == null ? '—' : run.judgment.overall_spread.toFixed(2)}</dd></div>
+                      <div><dt>Usable outputs</dt><dd>{run.judgment.sample.judged_items}/{run.judgment.sample.items}</dd></div>
+                      <div><dt>Panel cost</dt><dd>${run.judgment.cost_usd.toFixed(4)}</dd></div>
+                    </dl><div class="judge-panel">{run.judgment.judges.map((entry) => <div class="judge-entry">
+                      <span class={entry.eligible ? 'eligible' : 'excluded'}>{entry.id}{entry.eligible ? '' : ' · excluded'}</span>
+                      <code>{entry.overall.toFixed(2)} · {entry.pass ? 'pass' : 'fail'}</code>
+                      <a href={artifactUrl(entry.artifact.path)} target="_blank" rel="noreferrer">receipt ↗</a>
+                    </div>)}</div></> : <p class="muted">Not judged: this profile did not clear deterministic screening.</p>}</section>
+                  </div>
+                  <details class="calls-inspector" data-calls-url={`${baseUrl}${run.calls.path}`}>
+                    <summary>Review {run.calls.count} individual API calls</summary>
+                    <p class="call-provenance">{run.calls.preflight} preflight · {run.calls.performance} performance · {run.calls.judgment} judgment · {run.calls.diagnostic} diagnostic replay</p>
+                    <div class="calls-state">Open this section to load the immutable call evidence.</div>
+                    <p class="hash"><span>{run.calls.path}</span><code title={run.calls.sha256}>{run.calls.sha256}</code></p>
+                  </details>
+                </div>
+              </details></td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</Base>
+
+<style>
+  .hero { margin: 0.5rem 0; }
+  .policy-source { color: var(--muted); font-size: .78rem; max-width: 32ch; text-align: right; }
+  .gates { display: grid; grid-template-columns: repeat(auto-fit, minmax(165px, 1fr)); gap: .65rem; }
+  .gate { background: var(--surface-2); border: 1px solid var(--border); border-radius: 9px; padding: .55rem .65rem; display: grid; gap: .1rem; }
+  .gate span, .eyebrow { color: var(--muted); font-size: .7rem; text-transform: uppercase; letter-spacing: .055em; font-weight: 650; }
+  .gate strong { font-family: var(--mono); font-size: .84rem; color: var(--fg); }
+  .rank { color: var(--good); font-family: var(--mono); font-weight: 700; white-space: nowrap; }
+  .status { display: inline-block; border: 1px solid var(--border); border-radius: 999px; padding: .12rem .5rem; white-space: nowrap; font-size: .76rem; }
+  .status.rejected { color: #f97583; border-color: #f9758366; }
+  .status.invalid_profile { color: #d8a657; border-color: #d8a65788; }
+  .status.stopped { color: var(--accent-fg); border-color: var(--accent); }
+  .status.needs_judgment { color: var(--good); border-color: var(--good); }
+  .status.needs_adjudication { color: #d8a657; border-color: #d8a65788; }
+  .status.qualified { color: var(--good); border-color: var(--good); }
+  .status.quality_rejected { color: #f97583; border-color: #f9758366; }
+  td small { color: var(--muted); display: block; margin-top: .08rem; font-size: .7rem; }
+  .decision { display: block; min-width: 12rem; color: var(--fg-dim); }
+  .inspect { min-width: 6.6rem; text-align: right; }
+  details { position: relative; }
+  summary { color: var(--accent-fg); cursor: pointer; font-size: .82rem; font-weight: 600; list-style: none; }
+  summary::-webkit-details-marker { display: none; }
+  summary::after { content: ' +'; padding-left: .25rem; }
+  details[open] summary::after { content: ' −'; }
+  .evidence-card { position: absolute; z-index: 5; right: 0; top: 1.8rem; width: min(760px, calc(100vw - 4rem)); background: var(--surface); border: 1px solid var(--border-strong); border-radius: 12px; box-shadow: var(--shadow); padding: 1rem; text-align: left; }
+  .evidence-head { display: flex; align-items: start; justify-content: space-between; gap: .8rem; border-bottom: 1px solid var(--border); padding-bottom: .7rem; margin-bottom: .8rem; }
+  .evidence-head > div { min-width: 0; display: grid; gap: .18rem; }
+  .evidence-head code { overflow-wrap: anywhere; }
+  .detail-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem 1.4rem; }
+  .detail-grid section { min-width: 0; }
+  h3 { margin: 0 0 .38rem; font-size: .87rem; }
+  .detail-grid p { margin: 0 0 .48rem; color: var(--fg-dim); }
+  dl { margin: 0; display: grid; gap: .23rem; }
+  dl div { display: grid; grid-template-columns: minmax(110px, .85fr) minmax(0, 1.35fr); gap: .5rem; align-items: baseline; }
+  dt { color: var(--muted); font-size: .76rem; }
+  dd { margin: 0; font-family: var(--mono); font-size: .78rem; overflow-wrap: anywhere; color: var(--fg-dim); }
+  .detail-grid a { display: inline-block; margin-top: .55rem; font-size: .78rem; }
+  .judge-panel { display: grid; gap: .35rem; margin-top: .65rem; }
+  .judge-entry { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: .45rem; align-items: baseline; font-size: .72rem; }
+  .judge-entry .eligible { color: var(--good); }
+  .judge-entry .excluded { color: var(--muted); text-decoration: line-through; }
+  .judge-entry a { margin: 0; }
+  .hash { display: grid; gap: .2rem; margin-top: .45rem !important; }
+  .hash span { color: var(--muted); font: .68rem var(--mono); overflow-wrap: anywhere; }
+  .hash code { font-size: .66rem; overflow-wrap: anywhere; }
+  .calls-inspector { position: static; margin-top: 1rem; border-top: 1px solid var(--border); padding-top: .85rem; }
+  .calls-inspector > summary { font-size: .9rem; }
+  .call-provenance { margin: .35rem 0 .65rem; color: var(--muted); font-size: .75rem; }
+  .calls-state { color: var(--muted); font-size: .8rem; padding: .7rem; border: 1px dashed var(--border); border-radius: 8px; }
+  :global(.api-calls) { display: grid; gap: .55rem; margin-top: .7rem; }
+  :global(.api-call) { position: static; border: 1px solid var(--border); border-radius: 9px; background: var(--surface-2); padding: .6rem .7rem; }
+  :global(.api-call > summary) { display: flex; align-items: center; gap: .45rem; font-size: .78rem; }
+  :global(.api-call-badge) { border: 1px solid var(--border); border-radius: 999px; padding: .08rem .38rem; color: var(--muted); font-size: .65rem; text-transform: uppercase; }
+  :global(.api-call-badge.bad) { color: #f97583; border-color: #f9758366; }
+  :global(.api-call-metrics) { display: flex; flex-wrap: wrap; gap: .35rem; margin: .6rem 0; }
+  :global(.api-call-metrics span) { font: .68rem var(--mono); border: 1px solid var(--border); border-radius: 999px; padding: .14rem .4rem; color: var(--fg-dim); }
+  :global(.api-payload) { position: static; margin-top: .45rem; }
+  :global(.api-payload > summary) { font-size: .72rem; color: var(--accent-fg); }
+  :global(.api-payload pre) { max-height: 320px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; background: var(--surface); border: 1px solid var(--border); border-radius: 7px; padding: .65rem; font: .69rem/1.45 var(--mono); color: var(--fg-dim); }
+  @media (max-width: 680px) {
+    .policy-source { text-align: left; }
+    .evidence-card { position: fixed; inset: auto 1rem 1rem; width: auto; max-height: min(76vh, 720px); overflow: auto; }
+    .detail-grid { grid-template-columns: 1fr; }
+    dl div { grid-template-columns: minmax(96px, .8fr) minmax(0, 1.2fr); }
+  }
+</style>
+
+<script>
+  const text = (value: unknown) => value == null || value === '' ? '—' : String(value);
+
+  function metric(label: string, value: unknown) {
+    if (value == null || value === '') return null;
+    const chip = document.createElement('span');
+    chip.textContent = `${label}: ${text(value)}`;
+    return chip;
+  }
+
+  function payload(label: string, value: unknown) {
+    const details = document.createElement('details');
+    details.className = 'api-payload';
+    const summary = document.createElement('summary');
+    summary.textContent = label;
+    const pre = document.createElement('pre');
+    pre.textContent = typeof value === 'string' ? value : JSON.stringify(value, null, 2);
+    details.append(summary, pre);
+    return details;
+  }
+
+  function renderCalls(host: HTMLElement, feed: any) {
+    host.textContent = '';
+    if (feed.diagnosis?.finding) host.append(payload('Profile diagnosis', feed.diagnosis));
+    const list = document.createElement('div');
+    list.className = 'api-calls';
+    for (const call of feed.calls ?? []) {
+      const details = document.createElement('details');
+      details.className = 'api-call';
+      const summary = document.createElement('summary');
+      const badge = document.createElement('span');
+      badge.className = 'api-call-badge';
+      const failed = call.outcome?.contract_valid === false || call.outcome?.error || call.outcome?.transport_error || call.metrics?.finish_reason === 'length';
+      if (failed) badge.classList.add('bad');
+      badge.textContent = failed ? 'failed' : call.kind;
+      const title = document.createElement('span');
+      title.textContent = `${call.label}${call.question ? ` — ${call.question}` : ''}`;
+      summary.append(badge, title);
+      details.append(summary);
+
+      const metrics = document.createElement('div');
+      metrics.className = 'api-call-metrics';
+      const values = [
+        metric('phase', call.phase), metric('elapsed', call.metrics?.elapsed_ms == null ? null : `${call.metrics.elapsed_ms} ms`),
+        metric('TTFT', call.metrics?.ttft_ms == null ? null : `${call.metrics.ttft_ms} ms`), metric('finish', call.metrics?.finish_reason),
+        metric('native finish', call.metrics?.native_finish_reason), metric('prompt tok', call.metrics?.prompt_tokens),
+        metric('completion tok', call.metrics?.completion_tokens), metric('reasoning tok', call.metrics?.reasoning_tokens),
+        metric('tok/s', call.metrics?.tokens_per_second == null ? null : Number(call.metrics.tokens_per_second).toFixed(1)),
+        metric('cost', call.metrics?.cost_usd == null ? null : `$${Number(call.metrics.cost_usd).toFixed(6)}`),
+        metric('parse', call.outcome?.parse_dispositions?.join(', ')), metric('max tokens', call.request?.max_tokens),
+        metric('reasoning', call.request?.reasoning_effort),
+      ].filter(Boolean) as HTMLElement[];
+      metrics.append(...values);
+      details.append(metrics);
+      if (call.outcome?.error || call.outcome?.transport_error) details.append(payload('Error', call.outcome.error ?? call.outcome.transport_error));
+      if (call.request?.system) details.append(payload('System prompt', call.request.system));
+      if (call.request?.user) details.append(payload('User prompt', call.request.user));
+      if (call.response) details.append(payload('Model response', call.response));
+      if (!call.request?.system && !call.request?.user && !call.response) details.append(payload('Captured call metadata', call));
+      list.append(details);
+    }
+    host.append(list);
+  }
+
+  for (const inspector of document.querySelectorAll<HTMLDetailsElement>('.calls-inspector')) {
+    inspector.addEventListener('toggle', async () => {
+      if (!inspector.open || inspector.dataset.loaded) return;
+      inspector.dataset.loaded = 'true';
+      const host = inspector.querySelector<HTMLElement>('.calls-state');
+      if (!host) return;
+      host.textContent = 'Loading call evidence…';
+      try {
+        const response = await fetch(inspector.dataset.callsUrl!);
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        renderCalls(host, await response.json());
+      } catch (error) {
+        host.textContent = `Could not load call evidence: ${error instanceof Error ? error.message : String(error)}`;
+      }
+    });
+  }
+</script>

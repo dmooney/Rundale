@@ -309,6 +309,7 @@ fn dialogue_request_profile(item: &parish_core::ipc::DialogueQualityPayload) -> 
             .map(canonical_generation_float),
         "json_mode": item.generation.json_mode,
         "enable_thinking": item.generation.enable_thinking,
+        "reasoning_effort": item.generation.reasoning_effort,
     })
 }
 
@@ -395,13 +396,18 @@ mod generation_profile_tests {
                 temperature: 0.7,
                 frequency_penalty: Some(0.5),
                 json_mode: true,
-                enable_thinking: Some(false),
+                enable_thinking: Some(true),
+                reasoning_effort: Some(parish_core::config::ReasoningEffort::Max),
             },
         };
 
         assert_eq!(
             dialogue_request_profile(&item)["enable_thinking"],
-            serde_json::json!(false)
+            serde_json::json!(true)
+        );
+        assert_eq!(
+            dialogue_request_profile(&item)["reasoning_effort"],
+            serde_json::json!("max")
         );
     }
 }

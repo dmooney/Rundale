@@ -364,6 +364,7 @@ pub async fn infer_player_message_reaction(
             temperature: Some(REACTION_INFERENCE_TEMPERATURE),
             frequency_penalty: None,
             enable_thinking: None,
+            reasoning_effort: None,
         },
     );
 

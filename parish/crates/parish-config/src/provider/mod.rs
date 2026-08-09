@@ -1447,6 +1447,10 @@ model = "toml-model"
     fn provider_has_preset_and_models_array() {
         let cloud = registry().get("openrouter").unwrap();
         assert!(cloud.has_preset());
+        assert_eq!(
+            cloud.preset_model(InferenceCategory::Dialogue),
+            Some("google/gemini-3.6-flash"),
+        );
         let arr = cloud.preset_models();
         assert!(arr.iter().any(|m| m.is_some()));
         let sim = registry().get("simulator").unwrap();

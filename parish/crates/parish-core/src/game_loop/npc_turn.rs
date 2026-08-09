@@ -291,7 +291,7 @@ pub async fn run_npc_turn(
     // frequency_penalty=0.5 suppresses verbatim repetition loops. Keeping the
     // values in engine config lets each promoted model/backend profile carry
     // the exact sampling parameters that passed its evidence gate.
-    let generation = ctx.inference_config.dialogue_generation;
+    let generation = ctx.inference_config.dialogue_generation.for_model(model);
     tracing::debug!(
         model,
         max_tokens = generation.max_tokens,
@@ -299,6 +299,7 @@ pub async fn run_npc_turn(
         frequency_penalty = generation.frequency_penalty,
         json_mode = generation.json_mode,
         enable_thinking = generation.enable_thinking,
+        reasoning_effort = ?generation.reasoning_effort,
         "submitting Tier-1 dialogue generation profile"
     );
     let send_result = queue
@@ -312,6 +313,7 @@ pub async fn run_npc_turn(
             temperature: Some(generation.temperature),
             frequency_penalty: generation.frequency_penalty,
             enable_thinking: generation.enable_thinking,
+            reasoning_effort: generation.reasoning_effort,
             priority: InferencePriority::Interactive,
             json_mode: generation.json_mode,
             json_schema: None,
@@ -835,6 +837,7 @@ pub async fn run_npc_turn(
                 frequency_penalty: generation.frequency_penalty,
                 json_mode: generation.json_mode,
                 enable_thinking: generation.enable_thinking,
+                reasoning_effort: generation.reasoning_effort,
             },
         })
         .unwrap_or(serde_json::Value::Null),

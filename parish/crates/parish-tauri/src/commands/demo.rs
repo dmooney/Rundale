@@ -589,6 +589,7 @@ async fn generate_player_action_paused(
                 temperature: Some(temperature),
                 frequency_penalty: None,
                 enable_thinking: None,
+                reasoning_effort: None,
             },
         )
         .await;

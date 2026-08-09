@@ -1188,6 +1188,7 @@ async fn stream_headless_npc_dialogue(
                 temperature: Some(generation.temperature),
                 frequency_penalty: generation.frequency_penalty,
                 enable_thinking: generation.enable_thinking,
+                reasoning_effort: generation.reasoning_effort,
                 priority: InferencePriority::Interactive,
                 json_mode: generation.json_mode,
                 json_schema: None,

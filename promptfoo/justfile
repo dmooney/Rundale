@@ -9,7 +9,7 @@
 
 ENV_FILE   := justfile_directory() / "../.env"
 PF         := justfile_directory()
-OUT        := PF / "output"
+OUT        := env_var_or_default("RB_OUTPUT_DIR", PF / "output")
 DEFAULT_TARGET := "mlx-community/Qwen2.5-14B-Instruct-4bit@http://localhost:8000/v1"
 
 default:
@@ -26,6 +26,10 @@ test:
 # Prevent setup/preset quality claims from drifting ahead of passing receipts.
 qualification-check:
     python3 {{ PF }}/scripts/check_local_dialogue_qualification.py
+
+# Rebuild the public deterministic-screening funnel from immutable receipts.
+qualification-dashboard:
+    python3 {{ PF }}/scripts/qualification_dashboard.py
 
 _eval slice config target limit:
     #!/usr/bin/env bash

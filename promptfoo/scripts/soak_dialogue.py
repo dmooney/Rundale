@@ -202,6 +202,7 @@ def run(args: argparse.Namespace) -> dict:
                 "attempt": attempt,
                 "npc": npc,
                 "question_id": attempt % len(QUESTIONS),
+                "question": question,
                 "contract_valid": 0,
                 "turns": 0,
                 "guard_interventions": 0,
@@ -248,6 +249,7 @@ def run(args: argparse.Namespace) -> dict:
                         "request_profiles": list(
                             quality.get("request_profiles", [])
                         ),
+                        "response_lines": list(response.get("lines", [])),
                     }
                 )
             except (urllib.error.URLError, TimeoutError, ValueError) as exc:

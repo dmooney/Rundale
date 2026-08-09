@@ -1,0 +1,14 @@
+{
+  "classification": "invalid_judge_input",
+  "finding": "The paid judge saw only dynamic user context, not the production system prompt containing character identity and authoritative PEOPLE/PLACES lists. Character and grounding scores are therefore invalid; this receipt must not be ranked.",
+  "invalidates": {
+    "bundle": "docs/proofs/cloud-dialogue-qualification/runs/2026-07-27/grok-4.3-judgment-3ac11a72669ab5ae.bundle.json",
+    "bundle_sha256": "3ac11a72669ab5aec6646cb87004fd37bc1eba749d2097caf68ea4db85d15b8d",
+    "judgment": "docs/proofs/cloud-dialogue-qualification/runs/2026-07-27/grok-4.3-judgment-3ac11a72669ab5ae.json",
+    "judgment_sha256": "724b0020eed9c0b5614dac96e5ec4772bff7ccbe3b31e75fdc8edc0ce301a622",
+    "raw": "docs/proofs/cloud-dialogue-qualification/runs/2026-07-27/grok-4.3-judgment-3ac11a72669ab5ae.raw.json",
+    "raw_sha256": "8aad48dfe93be7cd01f4b2864f170245fcc619771136105cfc1b91b4275bfa1d"
+  },
+  "replacement_contract": "bundle version 2: full production system plus user prompt",
+  "version": 1
+}

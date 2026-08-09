@@ -1,0 +1,70 @@
+{
+  "version": 1,
+  "preflight": {
+    "calls": 12,
+    "minimum_valid_response_rate": 1.0
+  },
+  "guards": {
+    "maximum_intervention_rate": 0.10
+  },
+  "performance": {
+    "minimum_measurements": 15,
+    "minimum_cold_measurements": 5,
+    "minimum_warm_measurements": 10,
+    "maximum_error_rate": 0.005,
+    "ranking": {
+      "warm_ttft_weight": 0.75,
+      "warm_completion_weight": 0.25,
+      "lower_is_better": true
+    }
+  },
+  "judgment": {
+    "minimum_overall": 3.5,
+    "minimum_critical_axis": 3.0,
+    "critical_axes": [
+      "grounding",
+      "repetition",
+      "mood_fidelity",
+      "brevity",
+      "responsiveness"
+    ],
+    "maximum_hard_failures": 0,
+    "minimum_independent_judges": 2,
+    "exclude_same_family": true,
+    "consensus_method": "median",
+    "maximum_overall_spread_without_adjudication": 0.75,
+    "tie_margin": 0.1,
+    "judges": [
+      {
+        "id": "openai-sol-high",
+        "model": "openai/gpt-5.6-sol",
+        "family": "openai",
+        "provider": "openrouter",
+        "base_url": "https://openrouter.ai/api/v1",
+        "api_key_env": "OPENROUTER_API_KEY",
+        "reasoning_effort": "high",
+        "max_tokens": 65536
+      },
+      {
+        "id": "anthropic-sonnet-low",
+        "model": "anthropic/claude-sonnet-4.6",
+        "family": "anthropic",
+        "provider": "openrouter",
+        "base_url": "https://openrouter.ai/api/v1",
+        "api_key_env": "OPENROUTER_API_KEY",
+        "reasoning_effort": "low",
+        "max_tokens": 32768
+      },
+      {
+        "id": "google-pro-high",
+        "model": "google/gemini-3.1-pro-preview",
+        "family": "google",
+        "provider": "openrouter",
+        "base_url": "https://openrouter.ai/api/v1",
+        "api_key_env": "OPENROUTER_API_KEY",
+        "reasoning_effort": "high",
+        "max_tokens": 32768
+      }
+    ]
+  }
+}

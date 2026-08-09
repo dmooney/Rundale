@@ -420,6 +420,7 @@ pub async fn tick_tier3(ctx: &Tier3Context<'_>) -> Result<Vec<Tier3Update>, Pari
                 temperature,
                 frequency_penalty,
                 enable_thinking: None,
+                reasoning_effort: None,
             },
         );
 

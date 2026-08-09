@@ -34,6 +34,50 @@ def check(name, cond, detail=""):
     print(f"  [{status}] {name}{(' — ' + detail) if detail else ''}")
 
 
+_deepseek_body: dict = {}
+rb.eval_lib._apply_reasoning_request(
+    _deepseek_body,
+    rb.Target("deepseek-v4-flash", "https://api.deepseek.com/v1"),
+    reasoning={"effort": "medium"},
+    enable_thinking=True,
+)
+check(
+    "direct DeepSeek uses native high reasoning fields",
+    _deepseek_body
+    == {"thinking": {"type": "enabled"}, "reasoning_effort": "high"},
+)
+_deepseek_max_body: dict = {}
+rb.eval_lib._apply_reasoning_request(
+    _deepseek_max_body,
+    rb.Target("deepseek-v4-flash", "https://api.deepseek.com/v1"),
+    reasoning={"effort": "max"},
+    enable_thinking=True,
+)
+check(
+    "direct DeepSeek preserves native max reasoning",
+    _deepseek_max_body
+    == {"thinking": {"type": "enabled"}, "reasoning_effort": "max"},
+)
+_google_body: dict = {"temperature": 0.7, "frequency_penalty": 0.5}
+_google_target = rb.Target(
+    "gemini-3.6-flash",
+    "https://generativelanguage.googleapis.com/v1beta/openai",
+)
+rb.eval_lib._apply_reasoning_request(
+    _google_body,
+    _google_target,
+    reasoning={"effort": "max"},
+    enable_thinking=True,
+)
+if rb.eval_lib._uses_latest_gemini_sampling_contract(_google_target):
+    _google_body.pop("temperature", None)
+    _google_body.pop("frequency_penalty", None)
+check(
+    "direct latest Gemini uses native capped effort and no deprecated sampling",
+    _google_body == {"reasoning_effort": "high"},
+)
+
+
 # --- dataset loader ---------------------------------------------------------
 import load_dataset  # noqa: E402
 
@@ -151,6 +195,7 @@ def fake_call_chat(
     response_format=None,
     frequency_penalty=None,
     enable_thinking=None,
+    reasoning=None,
     **kw,
 ):
     captured.update(
@@ -165,6 +210,7 @@ def fake_call_chat(
             response_format=response_format,
             frequency_penalty=frequency_penalty,
             enable_thinking=enable_thinking,
+            reasoning=reasoning,
         )
     )
     if (
@@ -206,21 +252,45 @@ check(
     and captured["max_tokens"] is None,
 )
 
+
+def fake_call_chat_streaming(*args, **kwargs):
+    return {
+        "text": '{"dialogue":"Measured"}',
+        "prompt_tokens": 100,
+        "completion_tokens": 20,
+        "ttft_ms": 50,
+        "tokens_per_second": 40.0,
+        "cost": 0.0123,
+    }
+
+
+rb.call_chat_streaming = fake_call_chat_streaming
+_streamed = rb.generate_candidate("dialogue", target, dlg_rec, streaming=True)
+check(
+    "streaming candidate preserves provider-observed cost",
+    _streamed["cost"] == 0.0123,
+)
+
 _old_temp_override = os.environ.get("RB_DIALOGUE_TEMPERATURE")
 _old_max_override = os.environ.get("RB_DIALOGUE_MAX_TOKENS")
 _old_thinking_override = os.environ.get("RB_DIALOGUE_ENABLE_THINKING")
+_old_reasoning_override = os.environ.get("RB_DIALOGUE_REASONING_EFFORT")
 try:
     os.environ["RB_DIALOGUE_TEMPERATURE"] = "0.3"
     os.environ["RB_DIALOGUE_MAX_TOKENS"] = "256"
     os.environ["RB_DIALOGUE_ENABLE_THINKING"] = "false"
+    os.environ["RB_DIALOGUE_REASONING_EFFORT"] = "high"
     _effective = rb.effective_dialogue_record(dlg_rec)
+    rb.generate_candidate("dialogue", target, dlg_rec)
     check(
         "dialogue A/B overrides preserve frozen prompts and stamp generation",
         _effective["system"] == dlg_rec["system"]
         and _effective["user"] == dlg_rec["user"]
         and _effective["temperature"] == 0.3
         and _effective["max_tokens"] == 256
-        and _effective["enable_thinking"] is False,
+        and _effective["enable_thinking"] is False
+        and _effective["reasoning_effort"] == "high"
+        and captured["reasoning"] == {"effort": "high"},
     )
 finally:
     if _old_temp_override is None:
@@ -235,6 +305,10 @@ finally:
         os.environ.pop("RB_DIALOGUE_ENABLE_THINKING", None)
     else:
         os.environ["RB_DIALOGUE_ENABLE_THINKING"] = _old_thinking_override
+    if _old_reasoning_override is None:
+        os.environ.pop("RB_DIALOGUE_REASONING_EFFORT", None)
+    else:
+        os.environ["RB_DIALOGUE_REASONING_EFFORT"] = _old_reasoning_override
 check("dialogue cost computed", g["cost"] == 0.0 and g["completion_tokens"] == 25)
 
 intent_rec = {
@@ -430,6 +504,15 @@ ar = rubric_judge.get_assert(
 check(
     "rubric_judge namedScores carry axes", ar["namedScores"].get("character") == 4.0 and ar["pass"]
 )
+rubric_judge.get_assert(
+    "Aye.",
+    {"vars": {"record": json.dumps({"id": "d2", "system": "PEOPLE YOU KNOW: Roisin", "user": "Do ye know Roisin?"})}},
+)
+_judge_prompt = json.loads(judge_seen["user"])["items"][0]["prompt"]
+check(
+    "dialogue judge receives production system and user context",
+    _judge_prompt == "SYSTEM PROMPT:\nPEOPLE YOU KNOW: Roisin\n\nUSER PROMPT:\nDo ye know Roisin?",
+)
 
 
 # --- report aggregation + game-time cost ------------------------------------
@@ -499,6 +582,21 @@ check("perf p50 latency", pagg["latency_p50_ms"] == 200.0)
 check("perf p95 ttft", pagg["ttft_p95_ms"] == 120.0)
 check("perf p50 tok/s", pagg["tokens_per_sec_p50"] == 55.0)
 check("perf tok/s mean", abs(pagg["tokens_per_sec_mean"] - 55.0) < 1e-6)
+_observed_cost_perf = report.aggregate_perf(
+    [
+        mkres(
+            {},
+            meta={"model": "unknown-routed-model", "ttft_ms": 100, "tokens_per_second": 50.0},
+            latency=200.0,
+            cost=0.012,
+            usage={"prompt": 1000, "completion": 200},
+        )
+    ]
+)
+check(
+    "perf observed cost does not require a static model price",
+    _observed_cost_perf["usd_per_mtok_observed"] == 10.0,
+)
 check(
     "game-time cost > 0 for paid model",
     pagg["gameplay_cost_usd_per_minute"] > 0
@@ -561,6 +659,22 @@ check(
     _empty_perf_agg["n_ok"] == 0
     and _empty_perf_agg["n_error"] == 1
     and _empty_perf_agg["error_rate"] == 1.0,
+)
+
+_single_chunk_perf = mkres(
+    {},
+    meta={"model": "m", "ttft_ms": 50, "tokens_per_second": None},
+    latency=50.0,
+)
+_single_chunk_perf["response"]["output"] = '{"dialogue":"Fast single chunk"}'
+_single_chunk_perf_agg = report.aggregate_perf([_single_chunk_perf])
+check(
+    "perf accepts single-chunk completion with unmeasurable throughput",
+    _single_chunk_perf_agg["n_ok"] == 1
+    and _single_chunk_perf_agg["n_error"] == 0
+    and _single_chunk_perf_agg["error_rate"] == 0.0
+    and _single_chunk_perf_agg["ttft_p50_ms"] == 50.0
+    and _single_chunk_perf_agg["tokens_per_sec_p50"] == 0.0,
 )
 
 # judge rejects a mismatched rubric_sha256 envelope
@@ -1068,6 +1182,236 @@ check(
     and not soak._reached_dialogue_inference({"request_profiles": []})
     and soak._reached_dialogue_inference(
         {"request_profiles": [{"model": "candidate"}]}
+    ),
+)
+
+# --- cloud-dialogue qualification dashboard -------------------------------
+import qualification_dashboard as qdash  # noqa: E402
+
+_qualification_feed = json.loads(
+    (PF / "leaderboard" / "dialogue-qualification.json").read_text(encoding="utf-8")
+)
+_qualification_rebuilt = qdash.build(qdash.DEFAULT_RUNS)
+check(
+    "qualification dashboard is reproducible from immutable receipts",
+    _qualification_feed == _qualification_rebuilt,
+)
+check(
+    "qualification dashboard never scores deterministic rejects",
+    all("quality" not in row and "score" not in row for row in _qualification_feed["runs"]),
+)
+check(
+    "qualification dashboard exposes evidence hashes for every run",
+    all(
+        len(row["preflight"]["artifact"]["sha256"]) == 64
+        for row in _qualification_feed["runs"]
+    ),
+)
+check(
+    "qualification dashboard exposes individual-call evidence for every run",
+    all(
+        row["calls"]["count"] >= row["preflight"]["calls"]
+        and len(row["calls"]["sha256"]) == 64
+        for row in _qualification_feed["runs"]
+    ),
+)
+check(
+    "qualification call feeds match their published content hashes",
+    all(
+        (lambda path, expected: path.is_file() and hashlib.sha256(path.read_bytes()).hexdigest() == expected)(
+            PF / "bench-site" / "public" / row["calls"]["path"],
+            row["calls"]["sha256"],
+        )
+        for row in _qualification_feed["runs"]
+    ),
+)
+_speed_ranked = [
+    row for row in _qualification_feed["runs"]
+    if row["status"] in {
+        "needs_judgment", "needs_adjudication", "qualified", "quality_rejected"
+    }
+    and row.get("performance", {}).get("speed_rank") is not None
+]
+check(
+    "cloud qualification ranks every deterministic survivor by speed",
+    sorted(row["performance"]["speed_rank"] for row in _speed_ranked)
+    == list(range(1, len(_speed_ranked) + 1))
+    and all(
+        row["performance"]["speed_cohort_size"] == len(_speed_ranked)
+        and row["performance"]["speed_index_ms"] > 0
+        for row in _speed_ranked
+    ),
+)
+check(
+    "cloud qualification never hard-rejects a profile for relative speed",
+    all(
+        not (
+            row["stage"] == "performance"
+            and any(signal in row["reason"] for signal in ("TTFT", "completion", "throughput"))
+        )
+        for row in _qualification_feed["runs"]
+    )
+    and all(
+        key not in _qualification_feed["policy"]["performance"]
+        for key in (
+            "maximum_cold_ttft_p95_ms",
+            "maximum_warm_ttft_p95_ms",
+            "maximum_cold_completion_p95_ms",
+            "maximum_warm_completion_p95_ms",
+            "minimum_tokens_per_second_p50",
+        )
+    ),
+)
+_quality_ranked = [row for row in _qualification_feed["runs"] if row.get("judgment")]
+_consensus_ranked = [
+    row for row in _quality_ranked
+    if row["judgment"].get("quality_rank") is not None
+]
+check(
+    "cloud qualification publishes a contiguous consensus-only quality ranking",
+    bool(_quality_ranked)
+    and bool(_consensus_ranked)
+    and sorted(row["judgment"]["quality_rank"] for row in _consensus_ranked)
+    == list(range(1, len(_consensus_ranked) + 1))
+    and all(
+        row["judgment"]["complete"]
+        and not row["judgment"]["needs_adjudication"]
+        for row in _consensus_ranked
+    ),
+)
+check(
+    "cloud judgments use configured blinded multi-family judges",
+    len(_qualification_feed["policy"]["judgment"]["judges"]) == 3
+    and len({
+        judge["family"]
+        for judge in _qualification_feed["policy"]["judgment"]["judges"]
+    }) == 3
+    and _qualification_feed["policy"]["judgment"]["minimum_independent_judges"] == 2
+    and _qualification_feed["policy"]["judgment"]["exclude_same_family"]
+    and all(
+        all(
+            entry["eligible"]
+            == (entry["family"] != row["judgment"]["candidate_family"])
+            for entry in row["judgment"]["judges"]
+        )
+        for row in _quality_ranked
+    ),
+)
+check(
+    "legacy Sol receipts remain visible but self-family votes are excluded",
+    any(
+        any(
+            entry["judge"]["model"] == "openai/gpt-5.6-sol"
+            and entry["judge"]["provider"] == "openrouter"
+            and entry["judge"]["reasoning_effort"] == "high"
+            for entry in row["judgment"]["judges"]
+        )
+        for row in _quality_ranked
+    )
+    and all(
+        not entry["eligible"]
+        for row in _quality_ranked
+        if row["judgment"]["candidate_family"] == "openai"
+        for entry in row["judgment"]["judges"]
+        if entry["family"] == "openai"
+    ),
+)
+import judge_cloud_dialogue as cloud_judge  # noqa: E402
+
+_judge_source_run = next(
+    row for row in _qualification_feed["runs"]
+    if row["status"] in {"needs_judgment", "qualified", "quality_rejected"}
+)
+_cloud_judge_items = cloud_judge._items(_judge_source_run)
+check(
+    "cloud judge uses a balanced full-production-context panel",
+    len(_cloud_judge_items) == 18
+    and all(item["prompt"].startswith("SYSTEM PROMPT:") for item in _cloud_judge_items)
+    and all("\n\nUSER PROMPT:\n" in item["prompt"] for item in _cloud_judge_items),
+)
+check(
+    "cloud judge profiles pin three independent OpenRouter families",
+    {judge["family"] for judge in cloud_judge.JUDGES}
+    == {"openai", "anthropic", "google"}
+    and all(judge["provider"] == "openrouter" for judge in cloud_judge.JUDGES)
+    and {
+        judge["family"]: judge["reasoning_effort"] for judge in cloud_judge.JUDGES
+    } == {"openai": "high", "anthropic": "low", "google": "high"},
+)
+check(
+    "cloud judge never schedules a same-family candidate judge",
+    all(
+        judge["family"] != "openai"
+        for judge in cloud_judge.eligible_judges({"model": "openai/gpt-5.6-luna"})
+    )
+    and all(
+        judge["family"] != "google"
+        for judge in cloud_judge.eligible_judges({"model": "google/gemini-3.6-flash"})
+    ),
+)
+_bench_bug_item = {
+    "prompt_id": _cloud_judge_items[0]["prompt_id"],
+    "axes": {axis: 0 for axis in cloud_judge.WEIGHTS},
+    "overall": 0.0,
+    "flags": {"bench_bug": True},
+}
+_normal_items = [
+    {
+        "prompt_id": item["prompt_id"],
+        "axes": {axis: 4 for axis in cloud_judge.WEIGHTS},
+        "overall": 4.0,
+        "flags": {"bench_bug": False},
+    }
+    for item in _cloud_judge_items[1:]
+]
+_judge_aggregate = cloud_judge._aggregate(
+    {
+        "rubric_sha256": cloud_judge.RUBRIC["rubric_sha256"],
+        "sampling": {"unique_prompts": 6, "samples_per_prompt": 3},
+        "items": _cloud_judge_items,
+    },
+    {
+        "rubric_sha256": cloud_judge.RUBRIC["rubric_sha256"],
+        "items": [_bench_bug_item, *_normal_items],
+    },
+    {"usage": {"cost": 1.0}},
+)
+check(
+    "cloud judge hard-fails retained unusable candidate outputs without discarding usable scores",
+    not _judge_aggregate["quality"]["pass"]
+    and _judge_aggregate["sample"]["unusable_outputs"] == 1
+    and _judge_aggregate["quality"]["hard_failures"]["unusable_output"] == 1,
+)
+_complete_judge_result = {
+    "rubric_sha256": cloud_judge.RUBRIC["rubric_sha256"],
+    "items": [_bench_bug_item, *_normal_items],
+}
+_resume_bundle = {
+    "rubric_sha256": cloud_judge.RUBRIC["rubric_sha256"],
+    "items": _cloud_judge_items,
+}
+check(
+    "cloud judge resumes only schema-complete paid raw responses",
+    cloud_judge._raw_is_resumable(
+        {
+            "choices": [{
+                "finish_reason": "stop",
+                "message": {"content": json.dumps(_complete_judge_result)},
+            }],
+        },
+        _resume_bundle,
+    )
+    and not cloud_judge._raw_is_resumable(
+        {
+            "choices": [{
+                "finish_reason": "stop",
+                "message": {"content": json.dumps({
+                    "rubric_sha256": cloud_judge.RUBRIC["rubric_sha256"],
+                    "items": _normal_items[:3],
+                })},
+            }],
+        },
+        _resume_bundle,
     ),
 )
 

@@ -1402,6 +1402,7 @@ pub async fn enrich_travel_encounter(
                 temperature: None,
                 frequency_penalty: None,
                 enable_thinking: None,
+                reasoning_effort: None,
             },
         ),
     )
@@ -1648,6 +1649,7 @@ pub async fn stream_reaction_texts(
                                     temperature: None,
                                     frequency_penalty: None,
                                     enable_thinking: None,
+                                    reasoning_effort: None,
                                 },
                             ),
                         )

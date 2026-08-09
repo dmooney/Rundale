@@ -169,6 +169,8 @@ def aggregate_perf(results: list[dict]) -> dict:
         "warm": {"latencies": [], "ttfts": [], "ok": 0, "errors": 0},
     }
     total_in = total_out = errors = ok = 0
+    observed_cost = 0.0
+    observed_cost_seen = False
     model = None
     for res in results:
         if _is_warmup(res):  # discard cold-start warmup measurements
@@ -180,11 +182,15 @@ def aggregate_perf(results: list[dict]) -> dict:
         cache_bucket = by_cache_state.get(cache_state)
         response = res.get("response") or {}
         output = response.get("output")
+        # A gateway may deliver the entire completion in the first content
+        # chunk. With millisecond timing that makes total_ms == ttft_ms, so
+        # throughput is not measurable even though the request and its latency
+        # measurement are valid. Keep such rows in latency/error accounting and
+        # conservatively omit them only from the throughput distribution.
         measurement_complete = (
             isinstance(output, str)
             and bool(output.strip())
             and meta.get("ttft_ms") is not None
-            and meta.get("tokens_per_second") is not None
         )
         if meta.get("error") or not measurement_complete:
             errors += 1
@@ -209,11 +215,16 @@ def aggregate_perf(results: list[dict]) -> dict:
         usage = response.get("tokenUsage") or {}
         total_in += int(usage.get("prompt", 0) or 0)
         total_out += int(usage.get("completion", 0) or 0)
+        if response.get("cost") is not None:
+            observed_cost += float(response["cost"])
+            observed_cost_seen = True
     latencies.sort()
     ttfts.sort()
     total_tokens = total_in + total_out
+    gameplay_cost_priced = (model or "") in rb.pricing.COSTS
     price_in, price_out = rb.pricing.COSTS.get(model or "", (0.0, 0.0))
-    total_cost = total_in / 1e6 * price_in + total_out / 1e6 * price_out
+    static_cost = total_in / 1e6 * price_in + total_out / 1e6 * price_out
+    total_cost = observed_cost if observed_cost_seen else static_cost
     for values in by_cache_state.values():
         values["latencies"].sort()
         values["ttfts"].sort()
@@ -243,6 +254,7 @@ def aggregate_perf(results: list[dict]) -> dict:
         "usd_per_mtok_observed": round(
             (total_cost * 1e6 / total_tokens) if total_tokens else 0.0, 4
         ),
+        "gameplay_cost_priced": gameplay_cost_priced,
     }
 
 
@@ -357,12 +369,18 @@ def _write_markdown(report: dict, path: Path) -> None:
                 f"tok/s_p50={_fmt(sp['tokens_per_sec_p50'], 1)} "
                 f"err={_fmt(sp['error_rate'])} $/Mtok={_fmt(sp['usd_per_mtok_observed'], 4)}"
             )
-            lines.append(
-                f"- **cost/game-time** (model `{sp.get('model')}`, "
-                f"${_fmt(sp.get('price_in_per_mtok'), 2)}/{_fmt(sp.get('price_out_per_mtok'), 2)} per Mtok): "
-                f"**${_fmt(sp.get('gameplay_cost_usd_per_minute'), 5)}/min** · "
-                f"${_fmt(sp.get('gameplay_cost_usd_per_hour'), 3)}/hr"
-            )
+            if sp.get("gameplay_cost_priced"):
+                lines.append(
+                    f"- **cost/game-time** (model `{sp.get('model')}`, "
+                    f"${_fmt(sp.get('price_in_per_mtok'), 2)}/{_fmt(sp.get('price_out_per_mtok'), 2)} per Mtok): "
+                    f"**${_fmt(sp.get('gameplay_cost_usd_per_minute'), 5)}/min** · "
+                    f"${_fmt(sp.get('gameplay_cost_usd_per_hour'), 3)}/hr"
+                )
+            else:
+                lines.append(
+                    f"- **cost/game-time**: unavailable for unpriced routed model "
+                    f"`{sp.get('model')}`; use observed run spend"
+                )
         lines.append(f"- run spend: ${_fmt(c['run_cost']['usd'], 4)}\n")
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 

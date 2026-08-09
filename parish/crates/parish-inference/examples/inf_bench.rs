@@ -571,6 +571,7 @@ async fn run_one(
         temperature: None,
         frequency_penalty: None,
         enable_thinking: None,
+        reasoning_effort: None,
         priority: InferencePriority::Interactive,
         // schema wins over json_mode in the worker; setting json_mode true
         // when schema is also Some is harmless.

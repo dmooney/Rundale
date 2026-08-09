@@ -30,7 +30,8 @@ pub use wire::{GenerateParams, JsonSchemaSpec, ResponseFormat};
 
 use sse::read_sse_stream;
 use wire::{
-    ChatCompletionRequest, ChatCompletionResponse, ChatMessage, ChatTemplateKwargs, extract_content,
+    ChatCompletionRequest, ChatCompletionResponse, ChatMessage, ChatTemplateKwargs,
+    DeepSeekThinkingConfig, ReasoningConfig, extract_content,
 };
 
 /// Builds a `reqwest::Client` with the given timeout, falling back to a default
@@ -163,6 +164,33 @@ impl OpenAiClient {
     /// Returns the base URL of this client.
     pub fn base_url(&self) -> &str {
         self.base.base_url()
+    }
+
+    /// Match OpenRouter by parsed hostname, never by an attacker-controlled
+    /// substring in a path or lookalike hostname.
+    fn is_openrouter(&self) -> bool {
+        reqwest::Url::parse(self.base.base_url())
+            .ok()
+            .and_then(|url| url.host_str().map(str::to_ascii_lowercase))
+            .is_some_and(|host| host == "openrouter.ai" || host.ends_with(".openrouter.ai"))
+    }
+
+    /// Match DeepSeek's first-party API by parsed hostname. Third-party
+    /// OpenAI-compatible hosts serving DeepSeek models must keep their own
+    /// wire contract instead of receiving DeepSeek-only request fields.
+    fn is_deepseek(&self) -> bool {
+        reqwest::Url::parse(self.base.base_url())
+            .ok()
+            .and_then(|url| url.host_str().map(str::to_ascii_lowercase))
+            .is_some_and(|host| host == "api.deepseek.com")
+    }
+
+    /// Match Google's first-party Gemini OpenAI-compat endpoint by hostname.
+    fn is_google_generative_ai(&self) -> bool {
+        reqwest::Url::parse(self.base.base_url())
+            .ok()
+            .and_then(|url| url.host_str().map(str::to_ascii_lowercase))
+            .is_some_and(|host| host == "generativelanguage.googleapis.com")
     }
 
     /// Sends a non-streaming chat completion request and returns the response text.
@@ -347,19 +375,113 @@ impl OpenAiClient {
             content: prompt,
         });
 
-        let chat_template_kwargs = params
-            .enable_thinking
-            .map(|enable_thinking| ChatTemplateKwargs { enable_thinking });
+        let (enable_thinking, chat_template_kwargs, reasoning, thinking, reasoning_effort) =
+            if self.is_openrouter() {
+                let reasoning = params
+                    .reasoning_effort
+                    .map(|effort| ReasoningConfig {
+                        effort: Some(effort.as_str()),
+                        enabled: None,
+                        exclude: (effort == parish_config::ReasoningEffort::None).then_some(true),
+                    })
+                    .or_else(|| {
+                        params.enable_thinking.map(|enabled| {
+                            if enabled {
+                                ReasoningConfig {
+                                    effort: None,
+                                    enabled: Some(true),
+                                    exclude: None,
+                                }
+                            } else {
+                                ReasoningConfig {
+                                    effort: Some("none"),
+                                    enabled: None,
+                                    exclude: Some(true),
+                                }
+                            }
+                        })
+                    });
+                (None, None, reasoning, None, None)
+            } else if self.is_deepseek() {
+                let explicit_effort = params.reasoning_effort;
+                let enabled = explicit_effort
+                    .is_some_and(|effort| effort != parish_config::ReasoningEffort::None)
+                    || (explicit_effort.is_none() && params.enable_thinking == Some(true));
+                let disabled = explicit_effort == Some(parish_config::ReasoningEffort::None)
+                    || (explicit_effort.is_none() && params.enable_thinking == Some(false));
+                let thinking = if enabled {
+                    Some(DeepSeekThinkingConfig { kind: "enabled" })
+                } else if disabled {
+                    Some(DeepSeekThinkingConfig { kind: "disabled" })
+                } else {
+                    None
+                };
+                // DeepSeek V4 currently exposes high/max. Its API documents
+                // low/medium as high aliases and xhigh as a max alias.
+                let reasoning_effort = explicit_effort.and_then(|effort| match effort {
+                    parish_config::ReasoningEffort::None => None,
+                    parish_config::ReasoningEffort::Minimal
+                    | parish_config::ReasoningEffort::Low
+                    | parish_config::ReasoningEffort::Medium
+                    | parish_config::ReasoningEffort::High => Some("high"),
+                    parish_config::ReasoningEffort::Xhigh | parish_config::ReasoningEffort::Max => {
+                        Some("max")
+                    }
+                });
+                (None, None, None, thinking, reasoning_effort)
+            } else if self.is_google_generative_ai() {
+                // Gemini's OpenAI-compat endpoint accepts a top-level effort.
+                // Gemini 3 cannot disable thinking; clamp provider-neutral levels
+                // above its documented maximum and omit an explicit `none`.
+                let reasoning_effort = params.reasoning_effort.and_then(|effort| match effort {
+                    parish_config::ReasoningEffort::None => None,
+                    parish_config::ReasoningEffort::Minimal => Some("minimal"),
+                    parish_config::ReasoningEffort::Low => Some("low"),
+                    parish_config::ReasoningEffort::Medium => Some("medium"),
+                    parish_config::ReasoningEffort::High
+                    | parish_config::ReasoningEffort::Xhigh
+                    | parish_config::ReasoningEffort::Max => Some("high"),
+                });
+                (None, None, None, None, reasoning_effort)
+            } else {
+                let chat_template_kwargs = params
+                    .enable_thinking
+                    .map(|enable_thinking| ChatTemplateKwargs { enable_thinking });
+                (
+                    params.enable_thinking,
+                    chat_template_kwargs,
+                    None,
+                    None,
+                    None,
+                )
+            };
         ChatCompletionRequest {
             model,
             messages,
             stream,
             response_format,
             max_tokens: params.max_tokens,
-            temperature: params.temperature,
-            frequency_penalty: params.frequency_penalty,
-            enable_thinking: params.enable_thinking,
+            // Gemini 3.6 Flash and 3.5 Flash-Lite deprecate sampling controls
+            // on the first-party API. Google instructs callers to remove
+            // temperature; frequency_penalty is not part of its documented
+            // OpenAI-compat parameter surface either.
+            temperature: if self.is_google_generative_ai()
+                && matches!(model, "gemini-3.6-flash" | "gemini-3.5-flash-lite")
+            {
+                None
+            } else {
+                params.temperature
+            },
+            frequency_penalty: if self.is_google_generative_ai() {
+                None
+            } else {
+                params.frequency_penalty
+            },
+            enable_thinking,
             chat_template_kwargs,
+            reasoning,
+            thinking,
+            reasoning_effort,
         }
     }
 
@@ -414,7 +536,7 @@ impl OpenAiClient {
             Some(key) => req.header("Authorization", format!("Bearer {}", key)),
             None => req,
         };
-        if self.base.base_url.contains("openrouter") {
+        if self.is_openrouter() {
             req.header("HTTP-Referer", "https://github.com/parish-game/parish")
                 .header("X-Title", "Parish")
         } else {
@@ -427,7 +549,7 @@ impl OpenAiClient {
 mod tests {
     use super::*;
     use crate::TOKEN_CHANNEL_CAPACITY;
-    use sse::{SseData, parse_sse_line};
+    use sse::{SseData, parse_sse_line, process_sse_line};
     use wire::ChatCompletionChunk;
 
     /// Regression test for #98: the helper must never panic, even when
@@ -682,6 +804,20 @@ mod tests {
     }
 
     #[test]
+    fn test_process_sse_line_rejects_length_terminated_partial_response() {
+        let (token_tx, _token_rx) = tokio::sync::mpsc::channel(1);
+        let mut accumulated = String::from(r#"{"dialogue":"cut off"#);
+        let line = r#"data: {"choices":[{"delta":{},"finish_reason":"length"}]}"#;
+
+        match process_sse_line(line, &token_tx, &mut accumulated) {
+            crate::SseResult::Error(message) => {
+                assert!(message.contains("finish_reason=length"));
+            }
+            _ => panic!("length termination must not be accepted as success"),
+        }
+    }
+
+    #[test]
     fn test_parse_sse_line_empty() {
         assert!(parse_sse_line("").is_none());
         assert!(parse_sse_line("   ").is_none());
@@ -844,6 +980,147 @@ mod tests {
         let json = serde_json::to_value(&req).unwrap();
         assert_eq!(json["enable_thinking"], false);
         assert_eq!(json["chat_template_kwargs"]["enable_thinking"], false);
+        assert!(json.get("reasoning").is_none());
+    }
+
+    #[test]
+    fn test_openrouter_translates_enable_thinking_false_to_reasoning_none() {
+        let client = OpenAiClient::new("https://openrouter.ai/api/v1", None);
+        let req = client.build_request(
+            "moonshotai/kimi-k2.5:nitro",
+            "hello",
+            None,
+            false,
+            None,
+            GenerateParams {
+                enable_thinking: Some(false),
+                ..Default::default()
+            },
+        );
+        let json = serde_json::to_value(&req).unwrap();
+        assert_eq!(json["reasoning"]["effort"], "none");
+        assert_eq!(json["reasoning"]["exclude"], true);
+        assert!(json.get("enable_thinking").is_none());
+        assert!(json.get("chat_template_kwargs").is_none());
+    }
+
+    #[test]
+    fn test_openrouter_serializes_explicit_max_reasoning_effort() {
+        let client = OpenAiClient::new("https://openrouter.ai/api/v1", None);
+        let req = client.build_request(
+            "deepseek/deepseek-v4-flash-0731",
+            "hello",
+            None,
+            false,
+            None,
+            GenerateParams {
+                enable_thinking: Some(true),
+                reasoning_effort: Some(parish_config::ReasoningEffort::Max),
+                ..Default::default()
+            },
+        );
+        let json = serde_json::to_value(&req).unwrap();
+        assert_eq!(json["reasoning"]["effort"], "max");
+        assert!(json["reasoning"].get("enabled").is_none());
+        assert!(json.get("enable_thinking").is_none());
+        assert!(json.get("chat_template_kwargs").is_none());
+        assert!(json.get("thinking").is_none());
+        assert!(json.get("reasoning_effort").is_none());
+    }
+
+    #[test]
+    fn test_deepseek_serializes_native_high_reasoning_fields() {
+        let client = OpenAiClient::new("https://api.deepseek.com", None);
+        let req = client.build_request(
+            "deepseek-v4-flash",
+            "hello",
+            None,
+            false,
+            None,
+            GenerateParams {
+                enable_thinking: Some(true),
+                reasoning_effort: Some(parish_config::ReasoningEffort::Medium),
+                ..Default::default()
+            },
+        );
+        let json = serde_json::to_value(&req).unwrap();
+        assert_eq!(json["thinking"]["type"], "enabled");
+        assert_eq!(json["reasoning_effort"], "high");
+        assert!(json.get("reasoning").is_none());
+        assert!(json.get("enable_thinking").is_none());
+        assert!(json.get("chat_template_kwargs").is_none());
+    }
+
+    #[test]
+    fn test_deepseek_serializes_native_max_alias_and_disable() {
+        let client = OpenAiClient::new("https://api.deepseek.com/v1", None);
+        let max_req = client.build_request(
+            "deepseek-v4-flash",
+            "hello",
+            None,
+            false,
+            None,
+            GenerateParams {
+                reasoning_effort: Some(parish_config::ReasoningEffort::Xhigh),
+                ..Default::default()
+            },
+        );
+        let max_json = serde_json::to_value(&max_req).unwrap();
+        assert_eq!(max_json["thinking"]["type"], "enabled");
+        assert_eq!(max_json["reasoning_effort"], "max");
+
+        let disabled_req = client.build_request(
+            "deepseek-v4-flash",
+            "hello",
+            None,
+            false,
+            None,
+            GenerateParams {
+                reasoning_effort: Some(parish_config::ReasoningEffort::None),
+                ..Default::default()
+            },
+        );
+        let disabled_json = serde_json::to_value(&disabled_req).unwrap();
+        assert_eq!(disabled_json["thinking"]["type"], "disabled");
+        assert!(disabled_json.get("reasoning_effort").is_none());
+    }
+
+    #[test]
+    fn test_google_latest_models_use_native_effort_without_deprecated_sampling() {
+        let client = OpenAiClient::new(
+            "https://generativelanguage.googleapis.com/v1beta/openai",
+            None,
+        );
+        let req = client.build_request(
+            "gemini-3.6-flash",
+            "hello",
+            None,
+            false,
+            None,
+            GenerateParams {
+                temperature: Some(0.7),
+                frequency_penalty: Some(0.5),
+                enable_thinking: Some(true),
+                reasoning_effort: Some(parish_config::ReasoningEffort::Max),
+                ..Default::default()
+            },
+        );
+        let json = serde_json::to_value(&req).unwrap();
+        assert_eq!(json["reasoning_effort"], "high");
+        assert!(json.get("temperature").is_none());
+        assert!(json.get("frequency_penalty").is_none());
+        assert!(json.get("reasoning").is_none());
+        assert!(json.get("enable_thinking").is_none());
+        assert!(json.get("chat_template_kwargs").is_none());
+        assert!(json.get("thinking").is_none());
+    }
+
+    #[test]
+    fn test_openrouter_host_detection_rejects_lookalikes() {
+        assert!(OpenAiClient::new("https://openrouter.ai/api/v1", None).is_openrouter());
+        assert!(OpenAiClient::new("https://api.openrouter.ai/v1", None).is_openrouter());
+        assert!(!OpenAiClient::new("https://openrouter.ai.evil.example/v1", None).is_openrouter());
+        assert!(!OpenAiClient::new("https://example.test/openrouter.ai/v1", None).is_openrouter());
     }
 
     #[test]
@@ -860,6 +1137,9 @@ mod tests {
         let json = serde_json::to_value(&req).unwrap();
         assert!(json.get("enable_thinking").is_none());
         assert!(json.get("chat_template_kwargs").is_none());
+        assert!(json.get("reasoning").is_none());
+        assert!(json.get("thinking").is_none());
+        assert!(json.get("reasoning_effort").is_none());
     }
 
     #[tokio::test]

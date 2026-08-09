@@ -33,6 +33,7 @@ def _dialogue_request_profile(target, rec: dict) -> dict:
         "frequency_penalty": rec.get("frequency_penalty"),
         "json_mode": rec.get("response_format") == {"type": "json_object"},
         "enable_thinking": rec.get("enable_thinking"),
+        "reasoning_effort": rec.get("reasoning_effort"),
     }
 
 

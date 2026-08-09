@@ -174,6 +174,7 @@ _DIALOGUE_OVERRIDE_ENV = {
     "temperature": ("RB_DIALOGUE_TEMPERATURE", float),
     "frequency_penalty": ("RB_DIALOGUE_FREQUENCY_PENALTY", float),
     "enable_thinking": ("RB_DIALOGUE_ENABLE_THINKING", _parse_bool_override),
+    "reasoning_effort": ("RB_DIALOGUE_REASONING_EFFORT", str),
 }
 
 
@@ -234,6 +235,7 @@ def generate_candidate(slice_name: str, target, rec: dict, *, streaming: bool = 
             temperature = rec.get("temperature", 0.7)
             frequency_penalty = rec.get("frequency_penalty")
             enable_thinking = rec.get("enable_thinking")
+            reasoning_effort = rec.get("reasoning_effort")
         elif slice_name == "gaeilge":
             # gaeilge stays a curated Irish-competence probe (no captured request).
             system, user, schema, response_format, frequency_penalty = (
@@ -245,6 +247,7 @@ def generate_candidate(slice_name: str, target, rec: dict, *, streaming: bool = 
             )
             max_tokens, temperature = rec.get("max_tokens", 300), 0.2
             enable_thinking = None
+            reasoning_effort = None
         else:
             raise ValueError(f"unknown slice: {slice_name}")
 
@@ -259,12 +262,14 @@ def generate_candidate(slice_name: str, target, rec: dict, *, streaming: bool = 
                 response_format=response_format,
                 frequency_penalty=frequency_penalty,
                 enable_thinking=enable_thinking,
+                reasoning={"effort": reasoning_effort} if reasoning_effort else None,
             )
             text = res["text"]
             pt = res.get("prompt_tokens") or 0
             ct = res.get("completion_tokens") or 0
             out["ttft_ms"] = res.get("ttft_ms")
             out["tokens_per_second"] = res.get("tokens_per_second")
+            observed_cost = res.get("cost")
         else:
             text, usage = call_chat(
                 target,
@@ -276,15 +281,21 @@ def generate_candidate(slice_name: str, target, rec: dict, *, streaming: bool = 
                 response_format=response_format,
                 frequency_penalty=frequency_penalty,
                 enable_thinking=enable_thinking,
+                reasoning={"effort": reasoning_effort} if reasoning_effort else None,
                 max_retries=int(os.environ.get("RB_MAX_RETRIES", "4")),
             )
             pt = usage.get("prompt_tokens", 0)
             ct = usage.get("completion_tokens", 0)
+            observed_cost = None
 
         out["output"] = text
         out["prompt_tokens"] = pt
         out["completion_tokens"] = ct
-        out["cost"] = pricing.estimate_cost(target.model, pt, ct)
+        out["cost"] = (
+            float(observed_cost)
+            if observed_cost is not None
+            else pricing.estimate_cost(target.model, pt, ct)
+        )
         if not text or not text.strip():
             out["error"] = "empty_output"
             return out

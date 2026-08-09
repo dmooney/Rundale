@@ -1,0 +1,681 @@
+{
+  "items": [
+    {
+      "axes": {
+        "authenticity": 3,
+        "brevity": 3,
+        "character": 4,
+        "craft": 1,
+        "grounding": 5,
+        "language": 5,
+        "mood_fidelity": 5,
+        "repetition": 5,
+        "responsiveness": 5
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 4.2,
+      "prompt_id": "dialogue-0004/sample-1",
+      "rationales": {
+        "authenticity": "The dialogue uses standard period-appropriate English without modernisms.",
+        "brevity": "The dialogue is brief, but the overall response is padded by the chain-of-thought leak.",
+        "character": "The dialogue addresses the identity confusion well, fitting the priest's perceptive nature.",
+        "craft": "The response contains a significant chain-of-thought leak outside the JSON block.",
+        "grounding": "No fabrication probe in this record.",
+        "language": "The response is in well-formed English.",
+        "mood_fidelity": "The tone is calm and steady, matching the required mood.",
+        "repetition": "No repetitive phrasing within the dialogue.",
+        "responsiveness": "Directly answers the player's question about seeing Father Declan."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 3,
+        "brevity": 3,
+        "character": 3,
+        "craft": 1,
+        "grounding": 5,
+        "language": 5,
+        "mood_fidelity": 5,
+        "repetition": 5,
+        "responsiveness": 5
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 4.1,
+      "prompt_id": "dialogue-0004/sample-2",
+      "rationales": {
+        "authenticity": "Standard period-appropriate phrasing without notable dialect color.",
+        "brevity": "The dialogue is brief, but the overall response is padded by the chain-of-thought leak.",
+        "character": "The dialogue is a bit blunt but adequately addresses the situation in character.",
+        "craft": "The response contains a significant chain-of-thought leak outside the JSON block.",
+        "grounding": "No fabrication probe in this record.",
+        "language": "The response is in well-formed English.",
+        "mood_fidelity": "The tone is calm and steady, matching the required mood.",
+        "repetition": "No repetitive phrasing within the dialogue.",
+        "responsiveness": "Directly answers the player's question."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 3,
+        "brevity": 3,
+        "character": 4,
+        "craft": 1,
+        "grounding": 5,
+        "language": 5,
+        "mood_fidelity": 5,
+        "repetition": 5,
+        "responsiveness": 5
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 4.2,
+      "prompt_id": "dialogue-0004/sample-3",
+      "rationales": {
+        "authenticity": "Standard period-appropriate phrasing without notable dialect color.",
+        "brevity": "The dialogue is brief, but the overall response is padded by the chain-of-thought leak.",
+        "character": "The dialogue handles the identity confusion smoothly and in character.",
+        "craft": "The response contains a significant chain-of-thought leak outside the JSON block.",
+        "grounding": "No fabrication probe in this record.",
+        "language": "The response is in well-formed English.",
+        "mood_fidelity": "The tone is calm and steady, matching the required mood.",
+        "repetition": "No repetitive phrasing within the dialogue.",
+        "responsiveness": "Directly answers the player's question."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 3,
+        "brevity": 3,
+        "character": 4,
+        "craft": 1,
+        "grounding": 5,
+        "language": 5,
+        "mood_fidelity": 5,
+        "repetition": 5,
+        "responsiveness": 5
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 4.2,
+      "prompt_id": "dialogue-0007/sample-1",
+      "rationales": {
+        "authenticity": "Standard period-appropriate phrasing without notable dialect color.",
+        "brevity": "The dialogue is brief, but the overall response is padded by the chain-of-thought leak.",
+        "character": "The dialogue fits the publican's knowledgeable and grounded persona.",
+        "craft": "The response contains a significant chain-of-thought leak outside the JSON block.",
+        "grounding": "Correctly declines the fabricated person and place.",
+        "language": "The response is in well-formed English.",
+        "mood_fidelity": "The tone is calm and steady, matching the required mood.",
+        "repetition": "No repetitive phrasing within the dialogue.",
+        "responsiveness": "Directly addresses the player's question about the cooper."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 3,
+        "brevity": 4,
+        "character": 3,
+        "craft": 2,
+        "grounding": 5,
+        "language": 5,
+        "mood_fidelity": 5,
+        "repetition": 5,
+        "responsiveness": 5
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 4.2,
+      "prompt_id": "dialogue-0007/sample-2",
+      "rationales": {
+        "authenticity": "Standard period-appropriate phrasing without notable dialect color.",
+        "brevity": "The dialogue is brief, though slightly padded by the minor chain-of-thought leak.",
+        "character": "The dialogue is a bit generic but adequately in character.",
+        "craft": "The response contains a minor chain-of-thought leak outside the JSON block.",
+        "grounding": "Correctly declines the fabricated person and place.",
+        "language": "The response is in well-formed English.",
+        "mood_fidelity": "The tone is calm and steady, matching the required mood.",
+        "repetition": "No repetitive phrasing within the dialogue.",
+        "responsiveness": "Directly addresses the player's question about the cooper."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 3,
+        "brevity": 3,
+        "character": 4,
+        "craft": 1,
+        "grounding": 5,
+        "language": 5,
+        "mood_fidelity": 5,
+        "repetition": 5,
+        "responsiveness": 5
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 4.2,
+      "prompt_id": "dialogue-0007/sample-3",
+      "rationales": {
+        "authenticity": "Standard period-appropriate phrasing without notable dialect color.",
+        "brevity": "The dialogue is brief, but the overall response is padded by the chain-of-thought leak.",
+        "character": "The dialogue fits the publican's knowledgeable and grounded persona.",
+        "craft": "The response contains a significant chain-of-thought leak outside the JSON block.",
+        "grounding": "Correctly declines the fabricated person and place.",
+        "language": "The response is in well-formed English.",
+        "mood_fidelity": "The tone is calm and steady, matching the required mood.",
+        "repetition": "No repetitive phrasing within the dialogue.",
+        "responsiveness": "Directly addresses the player's question about the cooper."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 3,
+        "brevity": 3,
+        "character": 4,
+        "craft": 1,
+        "grounding": 5,
+        "language": 5,
+        "mood_fidelity": 5,
+        "repetition": 5,
+        "responsiveness": 5
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 4.2,
+      "prompt_id": "dialogue-0008/sample-1",
+      "rationales": {
+        "authenticity": "Standard period-appropriate phrasing without notable dialect color.",
+        "brevity": "The dialogue is brief, but the overall response is padded by the chain-of-thought leak.",
+        "character": "The dialogue fits the clerk's isolated, work-focused persona well.",
+        "craft": "The response contains a significant chain-of-thought leak outside the JSON block.",
+        "grounding": "No fabrication probe in this record.",
+        "language": "The response is in well-formed English.",
+        "mood_fidelity": "The tone is calm and steady, matching the required mood.",
+        "repetition": "No repetitive phrasing within the dialogue.",
+        "responsiveness": "Directly answers the player's question about his family."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 3,
+        "brevity": 3,
+        "character": 4,
+        "craft": 1,
+        "grounding": 5,
+        "language": 5,
+        "mood_fidelity": 5,
+        "repetition": 5,
+        "responsiveness": 5
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 4.2,
+      "prompt_id": "dialogue-0008/sample-2",
+      "rationales": {
+        "authenticity": "Standard period-appropriate phrasing without notable dialect color.",
+        "brevity": "The dialogue is brief, but the overall response is padded by the chain-of-thought leak.",
+        "character": "The dialogue fits the clerk's isolated, work-focused persona well.",
+        "craft": "The response contains a significant chain-of-thought leak outside the JSON block.",
+        "grounding": "No fabrication probe in this record.",
+        "language": "The response is in well-formed English.",
+        "mood_fidelity": "The tone is calm and steady, matching the required mood.",
+        "repetition": "No repetitive phrasing within the dialogue.",
+        "responsiveness": "Directly answers the player's question about his family."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 3,
+        "brevity": 3,
+        "character": 4,
+        "craft": 1,
+        "grounding": 5,
+        "language": 5,
+        "mood_fidelity": 5,
+        "repetition": 5,
+        "responsiveness": 5
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 4.2,
+      "prompt_id": "dialogue-0008/sample-3",
+      "rationales": {
+        "authenticity": "Standard period-appropriate phrasing without notable dialect color.",
+        "brevity": "The dialogue is brief, but the overall response is padded by the chain-of-thought leak.",
+        "character": "The dialogue fits the clerk's isolated, work-focused persona well.",
+        "craft": "The response contains a significant chain-of-thought leak outside the JSON block.",
+        "grounding": "No fabrication probe in this record.",
+        "language": "The response is in well-formed English.",
+        "mood_fidelity": "The tone is calm and steady, matching the required mood.",
+        "repetition": "No repetitive phrasing within the dialogue.",
+        "responsiveness": "Directly answers the player's question about his family."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 3,
+        "brevity": 3,
+        "character": 3,
+        "craft": 1,
+        "grounding": 5,
+        "language": 5,
+        "mood_fidelity": 5,
+        "repetition": 5,
+        "responsiveness": 5
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 4.1,
+      "prompt_id": "dialogue-0019/sample-1",
+      "rationales": {
+        "authenticity": "Standard period-appropriate phrasing without notable dialect color.",
+        "brevity": "The dialogue is brief, but the overall response is padded by the chain-of-thought leak.",
+        "character": "The dialogue is a bit generic but adequately in character.",
+        "craft": "The response contains a significant chain-of-thought leak outside the JSON block.",
+        "grounding": "No fabrication probe in this record.",
+        "language": "The response is in well-formed English.",
+        "mood_fidelity": "The tone is calm and steady, matching the required mood.",
+        "repetition": "No repetitive phrasing within the dialogue.",
+        "responsiveness": "Directly addresses the player's request to talk to Tommy O'Brien."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 3,
+        "brevity": 3,
+        "character": 4,
+        "craft": 1,
+        "grounding": 5,
+        "language": 5,
+        "mood_fidelity": 5,
+        "repetition": 5,
+        "responsiveness": 5
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 4.2,
+      "prompt_id": "dialogue-0019/sample-2",
+      "rationales": {
+        "authenticity": "Standard period-appropriate phrasing without notable dialect color.",
+        "brevity": "The dialogue is brief, but the overall response is padded by the chain-of-thought leak.",
+        "character": "The dialogue fits the miller's knowledgeable and slightly blunt persona.",
+        "craft": "The response contains a significant chain-of-thought leak outside the JSON block.",
+        "grounding": "No fabrication probe in this record.",
+        "language": "The response is in well-formed English.",
+        "mood_fidelity": "The tone is calm and steady, matching the required mood.",
+        "repetition": "No repetitive phrasing within the dialogue.",
+        "responsiveness": "Directly addresses the player's request to talk to Tommy O'Brien."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 4,
+        "brevity": 3,
+        "character": 4,
+        "craft": 1,
+        "grounding": 5,
+        "language": 5,
+        "mood_fidelity": 5,
+        "repetition": 5,
+        "responsiveness": 5
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 4.3,
+      "prompt_id": "dialogue-0019/sample-3",
+      "rationales": {
+        "authenticity": "Good use of period phrasing ('ye', 'drier times').",
+        "brevity": "The dialogue is brief, but the overall response is padded by the chain-of-thought leak.",
+        "character": "The dialogue fits the miller's knowledgeable and slightly blunt persona.",
+        "craft": "The response contains a significant chain-of-thought leak outside the JSON block.",
+        "grounding": "No fabrication probe in this record.",
+        "language": "The response is in well-formed English.",
+        "mood_fidelity": "The tone is calm and steady, matching the required mood.",
+        "repetition": "No repetitive phrasing within the dialogue.",
+        "responsiveness": "Directly addresses the player's request to talk to Tommy O'Brien."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 3,
+        "brevity": 3,
+        "character": 4,
+        "craft": 1,
+        "grounding": 5,
+        "language": 5,
+        "mood_fidelity": 5,
+        "repetition": 5,
+        "responsiveness": 5
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 4.2,
+      "prompt_id": "dialogue-0061/sample-1",
+      "rationales": {
+        "authenticity": "Standard period-appropriate phrasing without notable dialect color.",
+        "brevity": "The dialogue is brief, but the overall response is padded by the chain-of-thought leak.",
+        "character": "The dialogue fits the apprentice's concrete thinking and knowledge of the season.",
+        "craft": "The response contains a significant chain-of-thought leak outside the JSON block.",
+        "grounding": "No fabrication probe in this record.",
+        "language": "The response is in well-formed English.",
+        "mood_fidelity": "The tone is calm and steady, matching the required mood.",
+        "repetition": "No repetitive phrasing within the dialogue.",
+        "responsiveness": "Directly answers the player's question about the harvest."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 3,
+        "brevity": 3,
+        "character": 4,
+        "craft": 1,
+        "grounding": 5,
+        "language": 5,
+        "mood_fidelity": 5,
+        "repetition": 5,
+        "responsiveness": 5
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 4.2,
+      "prompt_id": "dialogue-0061/sample-2",
+      "rationales": {
+        "authenticity": "Standard period-appropriate phrasing without notable dialect color.",
+        "brevity": "The dialogue is brief, but the overall response is padded by the chain-of-thought leak.",
+        "character": "The dialogue fits the apprentice's concrete thinking and knowledge of the season.",
+        "craft": "The response contains a significant chain-of-thought leak outside the JSON block.",
+        "grounding": "No fabrication probe in this record.",
+        "language": "The response is in well-formed English.",
+        "mood_fidelity": "The tone is calm and steady, matching the required mood.",
+        "repetition": "No repetitive phrasing within the dialogue.",
+        "responsiveness": "Directly answers the player's question about the harvest."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 3,
+        "brevity": 3,
+        "character": 4,
+        "craft": 1,
+        "grounding": 5,
+        "language": 5,
+        "mood_fidelity": 5,
+        "repetition": 5,
+        "responsiveness": 5
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 4.2,
+      "prompt_id": "dialogue-0061/sample-3",
+      "rationales": {
+        "authenticity": "Standard period-appropriate phrasing without notable dialect color.",
+        "brevity": "The dialogue is brief, but the overall response is padded by the chain-of-thought leak.",
+        "character": "The dialogue fits the apprentice's concrete thinking and knowledge of the season.",
+        "craft": "The response contains a significant chain-of-thought leak outside the JSON block.",
+        "grounding": "No fabrication probe in this record.",
+        "language": "The response is in well-formed English.",
+        "mood_fidelity": "The tone is calm and steady, matching the required mood.",
+        "repetition": "No repetitive phrasing within the dialogue.",
+        "responsiveness": "Directly answers the player's question about the harvest."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 3,
+        "brevity": 4,
+        "character": 4,
+        "craft": 2,
+        "grounding": 5,
+        "language": 5,
+        "mood_fidelity": 5,
+        "repetition": 5,
+        "responsiveness": 5
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 4.4,
+      "prompt_id": "dialogue-0153/sample-1",
+      "rationales": {
+        "authenticity": "Standard period-appropriate phrasing without notable dialect color.",
+        "brevity": "The dialogue is brief, though slightly padded by the minor chain-of-thought leak.",
+        "character": "The dialogue fits the weaver's knowledgeable and grounded persona.",
+        "craft": "The response contains a minor chain-of-thought leak outside the JSON block.",
+        "grounding": "Correctly declines the fabricated person and place.",
+        "language": "The response is in well-formed English.",
+        "mood_fidelity": "The tone is calm and steady, matching the required mood.",
+        "repetition": "No repetitive phrasing within the dialogue.",
+        "responsiveness": "Directly addresses the player's question about the cooper."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 3,
+        "brevity": 3,
+        "character": 3,
+        "craft": 1,
+        "grounding": 5,
+        "language": 5,
+        "mood_fidelity": 5,
+        "repetition": 5,
+        "responsiveness": 5
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 4.1,
+      "prompt_id": "dialogue-0153/sample-2",
+      "rationales": {
+        "authenticity": "Standard period-appropriate phrasing without notable dialect color.",
+        "brevity": "The dialogue is brief, but the overall response is padded by the chain-of-thought leak.",
+        "character": "The dialogue is a bit generic but adequately in character.",
+        "craft": "The response contains a significant chain-of-thought leak outside the JSON block.",
+        "grounding": "Correctly declines the fabricated person and place.",
+        "language": "The response is in well-formed English.",
+        "mood_fidelity": "The tone is calm and steady, matching the required mood.",
+        "repetition": "No repetitive phrasing within the dialogue.",
+        "responsiveness": "Directly addresses the player's question about the cooper."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 3,
+        "brevity": 3,
+        "character": 4,
+        "craft": 1,
+        "grounding": 5,
+        "language": 5,
+        "mood_fidelity": 5,
+        "repetition": 5,
+        "responsiveness": 5
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 4.2,
+      "prompt_id": "dialogue-0153/sample-3",
+      "rationales": {
+        "authenticity": "Standard period-appropriate phrasing without notable dialect color.",
+        "brevity": "The dialogue is brief, but the overall response is padded by the chain-of-thought leak.",
+        "character": "The dialogue fits the weaver's knowledgeable and grounded persona.",
+        "craft": "The response contains a significant chain-of-thought leak outside the JSON block.",
+        "grounding": "Correctly declines the fabricated person and place.",
+        "language": "The response is in well-formed English.",
+        "mood_fidelity": "The tone is calm and steady, matching the required mood.",
+        "repetition": "No repetitive phrasing within the dialogue.",
+        "responsiveness": "Directly addresses the player's question about the cooper."
+      }
+    }
+  ],
+  "judge": {
+    "cost_usd": 0.379944,
+    "family": "google",
+    "id": "google-pro-high",
+    "model": "google/gemini-3.1-pro-preview",
+    "provider": "openrouter",
+    "reasoning_effort": "high",
+    "request_id": "gen-1786242415-zpIuglMTlCThb4oAdY8Q",
+    "routed_model": "google/gemini-3.1-pro-preview",
+    "routed_provider": "Google",
+    "rubric_sha256": "9adab2cd1b38fe75f978e386239b50fbb12b5ba34c5ba5874ae396a3b46b7bf4",
+    "usage": {
+      "completion_tokens": 15738,
+      "completion_tokens_details": {
+        "audio_tokens": 0,
+        "image_tokens": 0,
+        "reasoning_tokens": 9278
+      },
+      "cost": 0.379944,
+      "cost_details": {
+        "upstream_inference_completions_cost": 0.188856,
+        "upstream_inference_cost": 0.379944,
+        "upstream_inference_prompt_cost": 0.191088
+      },
+      "is_byok": false,
+      "prompt_tokens": 95544,
+      "prompt_tokens_details": {
+        "audio_tokens": 0,
+        "cache_write_tokens": 0,
+        "cached_tokens": 0,
+        "video_tokens": 0
+      },
+      "total_tokens": 111282
+    }
+  },
+  "quality": {
+    "axes": {
+      "authenticity": 3.0556,
+      "brevity": 3.1111,
+      "character": 3.7778,
+      "craft": 1.1111,
+      "grounding": 5.0,
+      "language": 5.0,
+      "mood_fidelity": 5.0,
+      "repetition": 5.0,
+      "responsiveness": 5.0
+    },
+    "hard_failures": {
+      "degenerate_loop": 0,
+      "fabricated": 0,
+      "non_latin_detected": 0,
+      "refused": 0,
+      "unusable_output": 0
+    },
+    "overall": 4.2114,
+    "pass": true,
+    "thresholds": {
+      "critical_axes": [
+        "grounding",
+        "repetition",
+        "mood_fidelity",
+        "brevity",
+        "responsiveness"
+      ],
+      "minimum_critical_axis": 3.0,
+      "minimum_overall": 3.5
+    }
+  },
+  "sample": {
+    "items": 18,
+    "judge_input": "full production system prompt plus dynamic user prompt",
+    "judged_items": 18,
+    "samples_per_prompt": 3,
+    "unique_prompts": 6,
+    "unusable_outputs": 0
+  },
+  "source": {
+    "bundle": "docs/proofs/cloud-dialogue-qualification/runs/2026-07-27/grok-4.3-judgment-google-pro-high-a217e437a5ad0835.bundle.json",
+    "bundle_sha256": "a217e437a5ad0835fb957ab1f43e3b1e482c1cdfe08d93a8cd87abb0e7376ce0",
+    "raw": "docs/proofs/cloud-dialogue-qualification/runs/2026-07-27/grok-4.3-judgment-google-pro-high-a217e437a5ad0835.attempt-1.raw.json",
+    "raw_sha256": "9c012058c46f27c7774b0979e019b9d37b2bae4c980cec01d99932c8fbce1128"
+  },
+  "version": 1
+}
