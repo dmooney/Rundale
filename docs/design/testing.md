@@ -17,7 +17,9 @@ Parish uses distinct sensors for distinct claims:
 
 New gameplay regressions belong in the YAML scenario schema. The plaintext
 fixture runner remains while its asserted corpus is migrated, but it is not the
-default place for new coverage.
+default place for new coverage. Scenario state oracles include the player
+location, clock, pause state, and exact canonical locations for named NPCs via
+`npc_locations`.
 
 ## Ongoing solo-maintainer loop
 
@@ -32,8 +34,8 @@ rewrite:
    existing required `CI gate` requires the called Full CI workflow to succeed.
 3. `bash parish/scripts/harness-audit.sh` inventories coverage without
    pretending proof scripts are tests. Its current real-loop gaps—weather,
-   banshee/death, sparse-tier behavior, memory/overhear, and schedules—are the
-   next migration order when those subsystems change.
+   banshee/death, sparse-tier behavior, and memory/overhear—are the next
+   migration order when those subsystems change.
 4. Keep the 27 legacy `test_*.txt` scripts until each claim has an equivalent
    real-loop scenario. Move demonstrations to `testing/proofs/`; delete a
    legacy regression only after the replacement assertion is green in CI.

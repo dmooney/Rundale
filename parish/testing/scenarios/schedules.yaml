@@ -1,0 +1,15 @@
+version: 1
+name: schedules
+description: Morning schedule transitions update canonical NPC locations through the shipping loop.
+steps:
+  - input: /wait 30
+    expect:
+      clock: "08:30"
+      min_events: 1
+  - input: /wait 30
+    expect:
+      clock: "09:00"
+      npc_locations:
+        Maire Gallagher: Connolly's Shop
+      events:
+        - name: world-update

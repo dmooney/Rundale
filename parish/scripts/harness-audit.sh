@@ -43,40 +43,76 @@ if ((baselines > 0)); then
 fi
 echo
 
-# ─── Roadmap progress per phase ──────────────────────────────────────────────
+# ─── Roadmap portfolio status ──────────────────────────────────────────────
 
-echo "===== ROADMAP PROGRESS ====="
-awk '
-    /^## Phase/        { current = $0; phases[++n] = current; next }
-    /^- \[x\]/         { done[current]++; total[current]++ }
-    /^- \[~\]/         { prog[current]++; total[current]++ }
-    /^- \[ \]/         { todo[current]++; total[current]++ }
+echo "===== ROADMAP STATUS ====="
+awk -F'|' '
+    function trim(value) {
+        gsub(/^[[:space:]]+|[[:space:]]+$/, "", value)
+        return value
+    }
+    /^\|/ {
+        feature = trim($2)
+        status = trim($3)
+        if (feature == "Subsystem / Feature" || feature ~ /^-+$/ || status == "") next
+        counts[status]++
+    }
     END {
-        for (i = 1; i <= n; i++) {
-            p = phases[i]
-            d = done[p] + 0; w = prog[p] + 0; t = todo[p] + 0; sum = total[p] + 0
-            printf "  %-44s %2d / %2d done", p, d, sum
-            if (w > 0) printf "  (%d in progress)", w
-            if (t > 0) printf "  (%d not started)", t
-            print ""
-        }
+        printf "  %-12s %2d\n", "Implemented", counts["Implemented"] + 0
+        printf "  %-12s %2d\n", "Partial", counts["Partial"] + 0
+        printf "  %-12s %2d\n", "In progress", counts["In progress"] + 0
+        printf "  %-12s %2d\n", "Proposed", counts["Proposed"] + 0
+        printf "  %-12s %2d\n", "Planned", counts["Planned"] + 0
     }
 ' docs/requirements/roadmap.md
 echo
+
+roadmap_status() {
+    local keyword="$1"
+    awk -F'|' -v keyword="$keyword" '
+        function trim(value) {
+            gsub(/^[[:space:]]+|[[:space:]]+$/, "", value)
+            return value
+        }
+        function priority(status) {
+            if (status == "Implemented") return 3
+            if (status == "Partial" || status == "In progress") return 2
+            if (status == "Proposed" || status == "Planned") return 1
+            return 0
+        }
+        BEGIN {
+            target = tolower(keyword)
+            best = 0
+            result = "-"
+        }
+        /^\|/ {
+            feature = trim($2)
+            status = trim($3)
+            rank = priority(status)
+            if (index(tolower(feature), target) && rank > best) {
+                best = rank
+                if (rank == 3) result = "shipped"
+                else if (rank == 2) result = "WIP"
+                else if (rank == 1) result = "planned"
+            }
+        }
+        END { print result }
+    ' docs/requirements/roadmap.md
+}
 
 # ─── Curated subsystem-coverage matrix ───────────────────────────────────────
 #
 # Format: "subsystem|fixture-name-keyword|roadmap-keyword"
 # A subsystem is "covered" if any fixture name contains the keyword.
-# A subsystem is "shipped" if the roadmap has any `- [x]` containing the
-# keyword (case-insensitive).
+# A subsystem's status comes from the authoritative roadmap feature-status
+# table. When multiple rows match, the most complete status wins.
 
 SUBSYSTEMS=(
     "Movement|movement|movement"
     "Look / descriptions|look|descriptions"
-    "World graph|all_locations|world graph"
+    "World graph|all_locations|graph-based world"
     "Multi-hop pathfinding|multi_hop|pathfinding"
-    "Time progression|time|GameClock"
+    "Time progression|time|time"
     "Speed presets|speed|speed"
     "Pause / resume|pause|pause"
     "Persistence|persistence|persistence"
@@ -106,15 +142,7 @@ for entry in "${SUBSYSTEMS[@]}"; do
     else
         fix_status="MISSING"
     fi
-    if grep -iqE "^- \[x\].*${roadmap_kw}" docs/requirements/roadmap.md; then
-        rm_status="shipped"
-    elif grep -iqE "^- \[~\].*${roadmap_kw}" docs/requirements/roadmap.md; then
-        rm_status="WIP"
-    elif grep -iqE "^- \[ \].*${roadmap_kw}" docs/requirements/roadmap.md; then
-        rm_status="planned"
-    else
-        rm_status="-"
-    fi
+    rm_status=$(roadmap_status "$roadmap_kw")
     note=""
     if [[ "$fix_status" == "MISSING" && "$rm_status" == "shipped" ]]; then
         note="← gap: shipped without fixture"
