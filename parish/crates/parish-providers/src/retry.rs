@@ -95,7 +95,7 @@ fn is_retryable_status(status: StatusCode) -> bool {
 
 /// Deterministic backoff base for the given retry index (0-based):
 /// 500ms, 1s, 2s, 4s, … capped at [`MAX_BACKOFF`].
-fn base_backoff(retry: u32) -> Duration {
+pub(crate) fn base_backoff(retry: u32) -> Duration {
     // `min(5)` bounds the shift so the multiplier cannot overflow; the cap
     // below dominates from retry 4 onwards anyway.
     INITIAL_BACKOFF
@@ -107,7 +107,7 @@ fn base_backoff(retry: u32) -> Duration {
 /// `[0.5, 1.0]` keeps at least half the deterministic delay (so retries
 /// still spread out over time) while desynchronising concurrent clients
 /// hammering the same provider.
-fn jittered(base: Duration) -> Duration {
+pub(crate) fn jittered(base: Duration) -> Duration {
     let factor: f64 = rand::rng().random_range(0.5..=1.0);
     base.mul_f64(factor)
 }
@@ -118,7 +118,7 @@ fn jittered(base: Duration) -> Duration {
 /// fall back to the computed backoff. Values exceeding [`MAX_RETRY_AFTER`]
 /// are capped rather than rejected, so the caller still honours the intent
 /// to back off without being parked for an arbitrarily long time.
-fn retry_after_delay(headers: &HeaderMap, now: SystemTime) -> Option<Duration> {
+pub(crate) fn retry_after_delay(headers: &HeaderMap, now: SystemTime) -> Option<Duration> {
     let value = headers.get(reqwest::header::RETRY_AFTER)?.to_str().ok()?;
     parse_retry_after(value, now)
 }

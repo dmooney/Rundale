@@ -125,13 +125,15 @@ pub async fn rebuild_inference_worker(
             interactive_rx,
             background_rx,
             batch_rx,
-            log: inference_log,
-            file_log: inference_file_log,
+            log: inference_log.clone(),
+            file_log: inference_file_log.clone(),
             provider: provider_enum,
             timeout_config: inference_config.clone(),
         },
     );
-    let queue = InferenceQueue::new(interactive_tx, background_tx, batch_tx);
+    let queue = InferenceQueue::new(interactive_tx, background_tx, batch_tx).with_audit_sink(
+        crate::inference::InferenceAuditSink::new(inference_log, inference_file_log),
+    );
 
     // Install the new queue and worker handle.
     *slots.inference_queue.lock().await = Some(queue);

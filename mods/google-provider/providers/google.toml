@@ -1,27 +1,27 @@
 id = "google"
 display_name = "Google (Gemini)"
 aliases = ["gemini"]
-kind = "openai-compat"
-default_base_url = "https://generativelanguage.googleapis.com/v1beta/openai"
+kind = "google"
+default_base_url = "https://generativelanguage.googleapis.com/v1"
 requires_api_key = true
 requires_model = true
 api_key_env_var = "GOOGLE_API_KEY"
-blurb = "Free tier with quota — Gemini family."
+blurb = "Native Gemini Interactions API — fast reasoning with implicit caching."
 signup_url = "https://aistudio.google.com/app/apikey"
 featured = true
 
 [[presets]]
 key = "recommended"
 label = "Recommended"
-dialogue = "gemini-2.5-pro"
-simulation = "gemini-2.5-flash"
-intent = "gemini-2.5-flash-lite"
-reaction = "gemini-2.5-flash"
+dialogue = "gemini-3.6-flash"
+simulation = "gemini-3.6-flash"
+intent = "gemini-3.6-flash"
+reaction = "gemini-3.6-flash"
 
 [[presets]]
 key = "flash"
 label = "Flash"
-dialogue = "gemini-2.5-flash"
-simulation = "gemini-2.5-flash"
-intent = "gemini-2.5-flash"
-reaction = "gemini-2.5-flash"
+dialogue = "gemini-3.6-flash"
+simulation = "gemini-3.6-flash"
+intent = "gemini-3.6-flash"
+reaction = "gemini-3.6-flash"

@@ -1382,6 +1382,46 @@ pub async fn enrich_travel_encounter(
     model: &str,
     timeout_secs: u64,
 ) -> String {
+    enrich_travel_encounter_with_profile(
+        rolled,
+        client,
+        model,
+        timeout_secs,
+        parish_config::InferenceProfile::for_subrole(
+            parish_config::InferenceSubrole::TravelEncounter,
+        ),
+    )
+    .await
+}
+
+/// Enriches a travel encounter using the active runtime inference profile.
+pub async fn enrich_travel_encounter_with_profile(
+    rolled: &RolledEncounter,
+    client: &AnyClient,
+    model: &str,
+    timeout_secs: u64,
+    profile: parish_config::InferenceProfile,
+) -> String {
+    enrich_travel_encounter_with_profile_and_audit(
+        rolled,
+        client,
+        model,
+        timeout_secs,
+        profile,
+        None,
+    )
+    .await
+}
+
+/// Enriches a travel encounter with resolved tuning and common audit sinks.
+pub async fn enrich_travel_encounter_with_profile_and_audit(
+    rolled: &RolledEncounter,
+    client: &AnyClient,
+    model: &str,
+    timeout_secs: u64,
+    profile: parish_config::InferenceProfile,
+    audit_sink: Option<crate::inference::InferenceAuditSink>,
+) -> String {
     let (system, context) = parish_world::wayfarers::build_enrichment_prompt(
         &rolled.canned,
         rolled.time,
@@ -1391,25 +1431,46 @@ pub async fn enrich_travel_encounter(
     );
 
     let timeout = Duration::from_secs(timeout_secs);
-    let result = tokio::time::timeout(
+    let params = GenerateParams {
+        max_tokens: Some(profile.max_output_tokens),
+        temperature: None,
+        frequency_penalty: None,
+        enable_thinking: None,
+        reasoning_effort: None,
+        thinking_level: Some(profile.thinking_level),
+        service_tier: Some(profile.service_tier),
+    };
+    let audit = crate::inference::DirectInferenceAudit::new(
+        audit_sink,
+        model,
+        &context,
+        Some(&system),
+        parish_config::InferenceSubrole::TravelEncounter,
+        false,
+        params.max_tokens,
+        params.thinking_level,
+        params.service_tier,
+        params.temperature,
+        crate::inference::InferencePriority::Interactive,
+    );
+    let detailed = match tokio::time::timeout(
         timeout,
-        client.generate(
-            model,
-            &context,
-            Some(&system),
-            GenerateParams {
-                max_tokens: Some(80),
-                temperature: None,
-                frequency_penalty: None,
-                enable_thinking: None,
-                reasoning_effort: None,
-            },
-        ),
+        client.generate_detailed_with_format(model, &context, Some(&system), None, params),
     )
-    .await;
+    .await
+    {
+        Ok(result) => result,
+        Err(_) => Err(crate::inference::ProviderCallError {
+            message: format!("travel encounter inference timed out after {timeout_secs}s"),
+            partial_text: String::new(),
+            metadata: Box::new(crate::inference::ProviderMetadata::unavailable(model)),
+        }),
+    };
+    let result = audit.record(detailed).await;
 
     match result {
-        Ok(Ok(text)) => {
+        Ok(result) => {
+            let text = result.text;
             let trimmed = text.trim();
             let cleaned = trimmed.split("---").next().unwrap_or(trimmed).trim();
             // Strip leading "- " / "* " if the model returned a bullet anyway.
@@ -1424,7 +1485,7 @@ pub async fn enrich_travel_encounter(
                 first_line.to_string()
             }
         }
-        _ => rolled.canned.text.clone(),
+        Err(_) => rolled.canned.text.clone(),
     }
 }
 
@@ -1577,6 +1638,49 @@ pub async fn stream_reaction_texts(
     model: &str,
     inference_log: Option<&InferenceLog>,
     language: &LanguageSettings,
+    emit_text_log: impl FnMut(u64, &str, Option<&'static str>),
+    emit_stream_token: impl FnMut(u64, &str, &str),
+    emit_stream_turn_end: impl FnMut(u64),
+) {
+    stream_reaction_texts_with_profile(
+        reactions,
+        all_npcs,
+        current_location_id,
+        loc_name,
+        tod,
+        weather,
+        introduced,
+        client,
+        model,
+        inference_log,
+        parish_config::InferenceProfile::for_subrole(
+            parish_config::InferenceSubrole::ArrivalReaction,
+        ),
+        None,
+        language,
+        emit_text_log,
+        emit_stream_token,
+        emit_stream_turn_end,
+    )
+    .await
+}
+
+/// Streams arrival reactions using a fully resolved runtime profile.
+#[allow(clippy::too_many_arguments)]
+pub async fn stream_reaction_texts_with_profile(
+    reactions: &[NpcReaction],
+    all_npcs: &[Npc],
+    current_location_id: LocationId,
+    loc_name: &str,
+    tod: TimeOfDay,
+    weather: &str,
+    introduced: &HashSet<NpcId>,
+    client: Option<&AnyClient>,
+    model: &str,
+    inference_log: Option<&InferenceLog>,
+    profile: parish_config::InferenceProfile,
+    audit_sink: Option<crate::inference::InferenceAuditSink>,
+    language: &LanguageSettings,
     mut emit_text_log: impl FnMut(u64, &str, Option<&'static str>),
     mut emit_stream_token: impl FnMut(u64, &str, &str),
     mut emit_stream_turn_end: impl FnMut(u64),
@@ -1609,6 +1713,7 @@ pub async fn stream_reaction_texts(
 
         // Capture prompt data here (before the spawn) so we can log it afterwards.
         let mut llm_log_info: Option<(usize, String, String)> = None; // (prompt_len, system, context)
+        let mut provider_result_rx = None;
 
         if reaction.use_llm {
             if let (Some(c), Some(npc)) = (client, npc) {
@@ -1636,24 +1741,65 @@ pub async fn stream_reaction_texts(
 
                     let c_clone = c.clone();
                     let model_str = model.to_string();
+                    let (result_tx, result_rx) = tokio::sync::oneshot::channel();
+                    provider_result_rx = Some(result_rx);
+                    let audit_sink = audit_sink.clone();
                     tokio::spawn(async move {
-                        let _ = tokio::time::timeout(
+                        let params = GenerateParams {
+                            max_tokens: Some(profile.max_output_tokens),
+                            temperature: None,
+                            frequency_penalty: None,
+                            enable_thinking: None,
+                            reasoning_effort: None,
+                            thinking_level: Some(profile.thinking_level),
+                            service_tier: Some(profile.service_tier),
+                        };
+                        let audit = crate::inference::DirectInferenceAudit::new(
+                            audit_sink,
+                            &model_str,
+                            &context,
+                            Some(&system),
+                            parish_config::InferenceSubrole::ArrivalReaction,
+                            true,
+                            params.max_tokens,
+                            params.thinking_level,
+                            params.service_tier,
+                            params.temperature,
+                            crate::inference::InferencePriority::Interactive,
+                        );
+                        let detailed = match tokio::time::timeout(
                             Duration::from_secs(timeout_secs),
-                            c_clone.generate_stream(
+                            c_clone.generate_stream_detailed_with_format(
                                 &model_str,
                                 &context,
                                 Some(&system),
                                 tx,
-                                GenerateParams {
-                                    max_tokens: Some(100),
-                                    temperature: None,
-                                    frequency_penalty: None,
-                                    enable_thinking: None,
-                                    reasoning_effort: None,
-                                },
+                                None,
+                                params,
                             ),
                         )
-                        .await;
+                        .await
+                        {
+                            Ok(result) => result,
+                            Err(_) => Err(crate::inference::ProviderCallError {
+                                message: format!(
+                                    "reaction inference timed out after {timeout_secs}s"
+                                ),
+                                partial_text: String::new(),
+                                metadata: Box::new(
+                                    crate::inference::ProviderMetadata::unavailable(&model_str),
+                                ),
+                            }),
+                        };
+                        let call = audit.record(detailed).await;
+                        let observed = match call {
+                            Ok(result) => (result.metadata, None, 0),
+                            Err(error) => {
+                                let partial_len = error.partial_text.len();
+                                (*error.metadata, Some(error.message), partial_len)
+                            }
+                        };
+                        let _ = result_tx.send(observed);
                         // tx is consumed by generate_stream; when it returns (success or
                         // timeout) tx is dropped, closing the channel and allowing
                         // stream_npc_tokens to finish.
@@ -1679,6 +1825,10 @@ pub async fn stream_reaction_texts(
         })
         .await;
         let elapsed_ms = started.elapsed().as_millis() as u64;
+        let provider_result = match provider_result_rx {
+            Some(rx) => rx.await.ok(),
+            None => None,
+        };
 
         // Finalise this NPC's streaming entry so the UI removes the empty
         // placeholder if no tokens arrived (LLM timeout / empty output) or
@@ -1688,21 +1838,66 @@ pub async fn stream_reaction_texts(
         if let (Some((prompt_len, system_prompt, prompt_text)), Some(log)) =
             (llm_log_info, inference_log)
         {
+            let (metadata, provider_error, partial_output_len) =
+                provider_result.unwrap_or_else(|| {
+                    (
+                        parish_inference::ProviderMetadata::unavailable(model),
+                        None,
+                        0,
+                    )
+                });
+            let failure_kind = provider_error.as_deref().map(|message| {
+                if metadata.http_status == Some(429) {
+                    "rate-limited"
+                } else if message.contains("timed out") {
+                    "timeout"
+                } else {
+                    "provider-error"
+                }
+                .to_string()
+            });
+            let tier_downgraded = matches!(
+                metadata.requested_service_tier,
+                Some(parish_config::ServiceTier::Priority)
+            ) && metadata.effective_service_tier.as_deref()
+                == Some("standard");
             let entry = InferenceLogEntry {
                 request_id: turn_id,
                 timestamp: chrono::Local::now().format("%H:%M:%S").to_string(),
                 model: model.to_string(),
+                provider: metadata.provider,
+                api_mode: metadata.api_mode,
+                role: parish_config::InferenceCategory::Reaction,
+                subrole: parish_config::InferenceSubrole::MessageReaction,
                 streaming: true,
                 duration_ms: elapsed_ms,
                 prompt_len,
                 response_len: accumulated.len(),
-                error: None,
+                error: provider_error,
                 system_prompt: Some(system_prompt),
                 prompt_text,
                 response_text: accumulated,
-                max_tokens: Some(100),
-                ttft_ms: None,
-                output_tokens: None,
+                max_tokens: Some(profile.max_output_tokens),
+                ttft_ms: metadata.ttft_ms,
+                output_tokens: metadata.usage.output_tokens,
+                stream_chunks: Some(metadata.stream_chunks).filter(|count| *count > 0),
+                input_tokens: metadata.usage.input_tokens,
+                cached_tokens: metadata.usage.cached_tokens,
+                thought_tokens: metadata.usage.thought_tokens,
+                total_tokens: metadata.usage.total_tokens,
+                thinking_level: Some(profile.thinking_level),
+                requested_service_tier: metadata.requested_service_tier,
+                effective_service_tier: metadata.effective_service_tier,
+                provider_request_id: metadata.interaction_id,
+                terminal_status: metadata.terminal_status,
+                retry_count: metadata.retry_count,
+                http_status: metadata.http_status,
+                failure_kind,
+                partial_output_len,
+                tier_downgraded,
+                estimated_cost_usd: None,
+                prompt_prefix_hash: None,
+                prompt_prefix_len: None,
                 temperature: None,
                 priority: crate::inference::InferencePriority::Interactive,
             };

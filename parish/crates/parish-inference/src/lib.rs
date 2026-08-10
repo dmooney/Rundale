@@ -27,8 +27,9 @@ pub mod worker;
 // etc. Re-exporting the whole module keeps those paths valid without a single
 // import change, and lets the staying modules (queue/worker/timeout) keep
 // their internal `crate::any_client::…` / `crate::openai_client::…` references.
+pub use parish_providers::parse_generation_json;
 pub use parish_providers::{
-    anthropic_client, any_client, mock_client, openai_client, rate_limit, simulator,
+    anthropic_client, any_client, google_client, mock_client, openai_client, rate_limit, simulator,
 };
 
 // ── Setup/bootstrap module: re-exported from parish-setup ─────────────────────
@@ -46,13 +47,17 @@ pub use parish_setup as setup;
 // ── Re-exports: public API (unchanged paths for downstream crates) ────────────
 
 pub use anthropic_client::AnthropicClient;
+pub use google_client::{
+    GenerationResult, GoogleClient, ProviderCallError, ProviderMetadata, ProviderUsage,
+    ServiceTier, ThinkingLevel,
+};
 pub use parish_config::InferenceConfig;
 pub use rate_limit::InferenceRateLimiter;
 
 pub use any_client::{AnyClient, InferenceClients, TOKEN_CHANNEL_CAPACITY, build_client};
 pub use logs::{
-    BoundedInferenceLog, DeferredInferenceAudit, InferenceLog, InferenceLogEntry,
-    new_inference_log, new_inference_log_with_config,
+    BoundedInferenceLog, DeferredInferenceAudit, DirectInferenceAudit, InferenceAuditSink,
+    InferenceLog, InferenceLogEntry, new_inference_log, new_inference_log_with_config,
 };
 pub use mock_client::{MockClient, MockMatcher};
 pub use openai_client::{GenerateParams, JsonSchemaSpec, ResponseFormat};

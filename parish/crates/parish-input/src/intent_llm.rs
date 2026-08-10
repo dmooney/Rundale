@@ -111,19 +111,79 @@ pub async fn parse_intent(
     raw_input: &str,
     model: &str,
 ) -> Result<PlayerIntent, ParishError> {
+    parse_intent_with_profile(
+        client,
+        raw_input,
+        model,
+        parish_config::InferenceProfile::for_subrole(parish_config::InferenceSubrole::Intent),
+    )
+    .await
+}
+
+/// Parses intent using a fully resolved runtime inference profile.
+pub async fn parse_intent_with_profile(
+    client: &AnyClient,
+    raw_input: &str,
+    model: &str,
+    profile: parish_config::InferenceProfile,
+) -> Result<PlayerIntent, ParishError> {
+    parse_intent_with_profile_and_audit(client, raw_input, model, profile, None).await
+}
+
+/// Parses intent and records native provider metadata in the common audit sink.
+pub async fn parse_intent_with_profile_and_audit(
+    client: &AnyClient,
+    raw_input: &str,
+    model: &str,
+    profile: parish_config::InferenceProfile,
+    audit_sink: Option<parish_inference::InferenceAuditSink>,
+) -> Result<PlayerIntent, ParishError> {
     // Try local parsing first — no LLM needed for obvious commands
     if let Some(intent) = parse_intent_local(raw_input) {
         return Ok(intent);
     }
 
-    let result = client
-        .generate_json::<IntentResponse>(
+    let params = GenerateParams {
+        max_tokens: Some(profile.max_output_tokens),
+        thinking_level: Some(profile.thinking_level),
+        service_tier: Some(profile.service_tier),
+        ..GenerateParams::default()
+    };
+    let audit = parish_inference::DirectInferenceAudit::new(
+        audit_sink,
+        model,
+        raw_input,
+        Some(INTENT_SYSTEM_PROMPT),
+        parish_config::InferenceSubrole::Intent,
+        false,
+        params.max_tokens,
+        params.thinking_level,
+        params.service_tier,
+        params.temperature,
+        parish_inference::InferencePriority::Interactive,
+    );
+    let detailed = client
+        .generate_detailed_with_format(
             model,
             raw_input,
             Some(INTENT_SYSTEM_PROMPT),
-            GenerateParams::default(),
+            Some(parish_inference::ResponseFormat::JsonObject),
+            params,
         )
-        .await;
+        .await
+        .and_then(|result| {
+            parish_inference::parse_generation_json::<IntentResponse>(result, "intent")
+        });
+    let result = match detailed {
+        Ok((raw, parsed)) => audit.record(Ok(raw)).await.map(|_| parsed),
+        Err(error) => {
+            let error = audit
+                .record(Err(error))
+                .await
+                .expect_err("auditing must preserve provider errors");
+            Err(error)
+        }
+    };
 
     match result {
         Ok(resp) => {

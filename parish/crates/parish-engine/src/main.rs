@@ -50,7 +50,7 @@ struct Cli {
     #[arg(long, env = "PARISH_IMPROV")]
     improv: bool,
 
-    /// Cloud LLM provider for player dialogue: openrouter (default), openai,
+    /// Cloud LLM provider for player dialogue: google (default), openai,
     /// google, groq, xai, mistral, deepseek, together, nvidia-nim, anthropic, custom
     #[arg(long, env = "PARISH_CLOUD_PROVIDER")]
     cloud_provider: Option<String>,

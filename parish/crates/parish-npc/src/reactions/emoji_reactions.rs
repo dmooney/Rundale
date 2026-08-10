@@ -339,6 +339,50 @@ pub async fn infer_player_message_reaction(
     player_input: &str,
     timeout: std::time::Duration,
 ) -> Option<String> {
+    infer_player_message_reaction_with_profile(
+        client,
+        model,
+        npc,
+        player_input,
+        timeout,
+        parish_config::InferenceProfile::for_subrole(
+            parish_config::InferenceSubrole::MessageReaction,
+        ),
+    )
+    .await
+}
+
+/// Infers an emoji reaction using the profile resolved from runtime config.
+pub async fn infer_player_message_reaction_with_profile(
+    client: &AnyClient,
+    model: &str,
+    npc: &Npc,
+    player_input: &str,
+    timeout: std::time::Duration,
+    profile: parish_config::InferenceProfile,
+) -> Option<String> {
+    infer_player_message_reaction_with_profile_and_audit(
+        client,
+        model,
+        npc,
+        player_input,
+        timeout,
+        profile,
+        None,
+    )
+    .await
+}
+
+/// Infers an emoji reaction with resolved tuning and common audit sinks.
+pub async fn infer_player_message_reaction_with_profile_and_audit(
+    client: &AnyClient,
+    model: &str,
+    npc: &Npc,
+    player_input: &str,
+    timeout: std::time::Duration,
+    profile: parish_config::InferenceProfile,
+    audit_sink: Option<parish_inference::InferenceAuditSink>,
+) -> Option<String> {
     let lang = LanguageSettings::english_only();
     let (system, prompt) = build_player_message_reaction_prompt(npc, player_input, &lang);
     // 80-token floor (#984 follow-up): the JSON envelope `{"emoji": "<glyph>"}`
@@ -347,46 +391,72 @@ pub async fn infer_player_message_reaction(
     // tokenise to 3-6 BPE tokens each. Combined with optional reasoning prefix
     // tokens emitted by some local models, the previous 40-token cap could
     // truncate the JSON before the closing brace, producing an empty parse and
-    // an invisible reaction. 80 keeps the same upper bound on cost while
-    // removing the truncation risk for every palette entry.
+    // an invisible reaction. The shared Reaction profile leaves enough room
+    // for Gemini's hidden thought budget while the schema still constrains
+    // visible output to a single palette entry.
     //
     // Issue #995: small-model reaction inference collapses onto one or two
     // safe emoji at temp=0. An explicit 1.0 widens the sampling distribution
     // so a 1.5B-class model picks across the full palette rather than always
     // returning 🤔 / 😊. The output schema is constrained to one of the
     // palette entries, so the higher temperature does not break correctness.
-    let call = client.generate(
+    let params = GenerateParams {
+        max_tokens: Some(profile.max_output_tokens),
+        temperature: Some(REACTION_INFERENCE_TEMPERATURE),
+        frequency_penalty: None,
+        enable_thinking: None,
+        reasoning_effort: None,
+        thinking_level: Some(profile.thinking_level),
+        service_tier: Some(profile.service_tier),
+    };
+    let audit = parish_inference::DirectInferenceAudit::new(
+        audit_sink,
         model,
         &prompt,
         Some(&system),
-        GenerateParams {
-            max_tokens: Some(80),
-            temperature: Some(REACTION_INFERENCE_TEMPERATURE),
-            frequency_penalty: None,
-            enable_thinking: None,
-            reasoning_effort: None,
-        },
+        parish_config::InferenceSubrole::MessageReaction,
+        false,
+        params.max_tokens,
+        params.thinking_level,
+        params.service_tier,
+        params.temperature,
+        parish_inference::InferencePriority::Interactive,
     );
+    let call = client.generate_detailed_with_format(model, &prompt, Some(&system), None, params);
 
-    let raw = match tokio::time::timeout(timeout, call).await {
-        Ok(Ok(r)) => r,
-        Ok(Err(e)) => {
-            tracing::debug!(error = ?e, "inference call failed in infer_player_message_reaction");
-            return None;
-        }
-        Err(_) => {
-            tracing::debug!(
-                "inference call timed out after {:?} in infer_player_message_reaction",
-                timeout
-            );
-            return None;
-        }
+    let detailed = match tokio::time::timeout(timeout, call).await {
+        Ok(result) => result,
+        Err(_) => Err(parish_inference::ProviderCallError {
+            message: format!("reaction inference timed out after {timeout:?}"),
+            partial_text: String::new(),
+            metadata: Box::new(parish_inference::ProviderMetadata::unavailable(model)),
+        }),
     };
-
-    let response = match parse_reaction_decision(&raw) {
-        Some(d) => d,
-        None => {
-            tracing::debug!(raw = %raw, "could not extract reaction decision from model output");
+    let validated = detailed.and_then(|result| match parse_reaction_decision(&result.text) {
+        Some(parsed) => Ok((result, parsed)),
+        None => Err(parish_inference::ProviderCallError {
+            message: "reaction JSON parse failed: no valid reaction decision".to_string(),
+            partial_text: result.text,
+            metadata: Box::new(result.metadata),
+        }),
+    });
+    let response = match validated {
+        Ok((raw, parsed)) => match audit.record(Ok(raw)).await {
+            Ok(_) => parsed,
+            Err(error) => {
+                tracing::debug!(?error, "inference audit unexpectedly changed a success");
+                return None;
+            }
+        },
+        Err(error) => {
+            let error = audit
+                .record(Err(error))
+                .await
+                .expect_err("auditing must preserve provider errors");
+            tracing::debug!(
+                ?error,
+                "inference call failed in infer_player_message_reaction"
+            );
             return None;
         }
     };

@@ -166,6 +166,7 @@ fn debug_snapshot_call_log_has_prompt_len_not_prompt_text() {
         output_tokens: Some(12),
         temperature: None,
         priority: parish_core::inference::InferencePriority::Interactive,
+        ..Default::default()
     };
 
     // Call the production redaction function — the same path `get_debug_snapshot`
@@ -266,6 +267,8 @@ async fn second_ws_upgrade_same_account_is_409() {
             category_model: Default::default(),
             category_api_key: Default::default(),
             category_base_url: Default::default(),
+            inference_profile_override: Default::default(),
+            category_inference_profile: Default::default(),
             flags: parish_core::config::FeatureFlags::default(),
             category_rate_limit: Default::default(),
             active_tile_source: String::new(),
@@ -387,6 +390,8 @@ async fn debug_snapshot_no_deadlock_with_concurrent_readers() {
             category_model: Default::default(),
             category_api_key: Default::default(),
             category_base_url: Default::default(),
+            inference_profile_override: Default::default(),
+            category_inference_profile: Default::default(),
             flags: parish_core::config::FeatureFlags::default(),
             category_rate_limit: Default::default(),
             active_tile_source: String::new(),

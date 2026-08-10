@@ -84,6 +84,7 @@ pub async fn validate(
             .await
         }
         ProviderKind::Anthropic => probe_anthropic(&client, base_url, api_key).await,
+        ProviderKind::Google => probe_google(&client, base_url, api_key).await,
         // GitHub Models uses /chat/completions (no /v1 prefix) without a /v1 base path.
         _ if provider.id() == "github_models" => {
             probe_github_models(&client, base_url, api_key).await
@@ -91,6 +92,24 @@ pub async fn validate(
         // Every other provider speaks OpenAI-compatible /v1.
         _ => probe_openai_compat(&client, base_url, api_key).await,
     }
+}
+
+async fn probe_google(
+    client: &reqwest::Client,
+    base_url: &str,
+    api_key: Option<&str>,
+) -> ValidationOutcome {
+    let trimmed = base_url.trim_end_matches('/');
+    let models_url = if trimmed.ends_with("/v1") {
+        format!("{trimmed}/models")
+    } else {
+        format!("{trimmed}/v1/models")
+    };
+    let mut request = client.get(models_url);
+    if let Some(key) = api_key {
+        request = request.header("x-goog-api-key", key);
+    }
+    classify_response(request.send().await).await
 }
 
 async fn probe_openai_compat(
