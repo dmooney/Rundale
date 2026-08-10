@@ -159,6 +159,7 @@ mod tests {
         let result = server.handle("initialize", json!({})).await.unwrap();
         assert_eq!(result["protocolVersion"], PROTOCOL_VERSION);
         assert_eq!(result["serverInfo"]["name"], SERVER_NAME);
+        assert_eq!(result["serverInfo"]["version"], SERVER_VERSION);
         assert!(result["capabilities"]["tools"].is_object());
     }
 

@@ -377,10 +377,12 @@ pub async fn handle_game_input(
     // such as "a boat" or the player's own name must not be pushed into the
     // target list: they will generate a spurious "X is not here." message
     // (#1220, #1227).
-    let (mentions, validated_talk_target) = {
+    let (mentions, explicit_recipient_names, validated_talk_target) = {
         let world = ctx.world.lock().await;
         let npc_manager = ctx.npc_manager.lock().await;
         let mentions = extract_npc_mentions(&raw, &world, &npc_manager);
+        let explicit_recipient_names = explicit_talk_recipient_clause(&raw)
+            .map(|clause| extract_npc_mentions(clause, &world, &npc_manager).names);
         let validated = if is_talk {
             talk_target.filter(|t| {
                 npc_manager
@@ -391,33 +393,73 @@ pub async fn handle_game_input(
         } else {
             None
         };
-        (mentions, validated)
+        (mentions, explicit_recipient_names, validated)
     };
 
-    // Chip selections (real names from the frontend) come first, then names
-    // detected in the player's text, then the LLM's single talk target when it
-    // supplied one and resolved to a present NPC. Deduping happens in
-    // `resolve_npc_targets` via `find_by_name`, which matches both real and
-    // display names.
+    // Explicit recipients are authoritative. A chip-selected addressee, or the
+    // recipient clause in `talk to X about Y`, must not be polluted by other
+    // parish names mentioned in the message body. Otherwise asking Seamus
+    // "Where is Padraig?" addresses both men and emits a false
+    // "Padraig Darcy is not here." line. Free-form dialogue without an
+    // explicit recipient still routes to every naturally mentioned local NPC.
     let mut targets: Vec<String> =
         Vec::with_capacity(addressed_to.len() + mentions.names.len() + 1);
-    for name in addressed_to {
-        if !targets.iter().any(|t| t == &name) {
-            targets.push(name);
+    if !addressed_to.is_empty() {
+        for name in addressed_to {
+            push_unique_target(&mut targets, name);
         }
-    }
-    for name in mentions.names {
-        if !targets.iter().any(|t| t == &name) {
-            targets.push(name);
+    } else if let Some(explicit_names) = explicit_recipient_names {
+        for name in explicit_names {
+            push_unique_target(&mut targets, name);
         }
-    }
-    if let Some(target) = validated_talk_target
-        && !targets.iter().any(|t| t == &target)
-    {
-        targets.push(target);
+        if let Some(target) = validated_talk_target {
+            push_unique_target(&mut targets, target);
+        }
+        if targets.is_empty()
+            && let Some(clause) = explicit_talk_recipient_clause(&raw)
+        {
+            push_unique_target(&mut targets, clause.to_string());
+        }
+    } else {
+        for name in mentions.names {
+            push_unique_target(&mut targets, name);
+        }
+        if let Some(target) = validated_talk_target {
+            push_unique_target(&mut targets, target);
+        }
     }
 
     handle_npc_conversation(ctx, mentions.remaining, targets, spawn_loading).await
+}
+
+fn push_unique_target(targets: &mut Vec<String>, target: String) {
+    if !targets
+        .iter()
+        .any(|existing| existing.eq_ignore_ascii_case(&target))
+    {
+        targets.push(target);
+    }
+}
+
+fn explicit_talk_recipient_clause(raw: &str) -> Option<&str> {
+    let trimmed = raw.trim();
+    let lower = trimmed.to_ascii_lowercase();
+    let prefix_len = if lower.starts_with("talk to ") {
+        "talk to ".len()
+    } else if lower.starts_with("speak to ") {
+        "speak to ".len()
+    } else {
+        return None;
+    };
+
+    let lower_remainder = &lower[prefix_len..];
+    let clause_end = [" about ", " regarding "]
+        .iter()
+        .filter_map(|delimiter| lower_remainder.find(delimiter))
+        .min()
+        .unwrap_or(lower_remainder.len());
+    let clause = trimmed[prefix_len..prefix_len + clause_end].trim();
+    (!clause.is_empty()).then_some(clause)
 }
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
@@ -439,6 +481,28 @@ mod tests {
             id: "walking".to_string(),
             speed_m_per_s: 1.2,
         }
+    }
+
+    #[test]
+    fn explicit_talk_recipient_clause_stops_before_message_body() {
+        assert_eq!(
+            super::explicit_talk_recipient_clause(
+                "talk to Seamus Gallagher about Where is Padraig Darcy?"
+            ),
+            Some("Seamus Gallagher")
+        );
+        assert_eq!(
+            super::explicit_talk_recipient_clause("SPEAK TO Peig Hannigan REGARDING the road"),
+            Some("Peig Hannigan")
+        );
+        assert_eq!(
+            super::explicit_talk_recipient_clause("talk to Seamus Gallagher and Colm Gallagher",),
+            Some("Seamus Gallagher and Colm Gallagher")
+        );
+        assert_eq!(
+            super::explicit_talk_recipient_clause("Where is Padraig Darcy?"),
+            None
+        );
     }
 
     #[tokio::test]
