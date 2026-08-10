@@ -136,7 +136,12 @@ def main() -> None:
         manifest = {}
 
     proto = manifest.get("protocolVersion", "2025-06-18")
-    server_name = manifest.get("serverInfo", {}).get("name", "parish-mcp")
+    manifest_server_info = manifest.get("serverInfo", {})
+    if not isinstance(manifest_server_info, dict):
+        manifest_server_info = {}
+    server_info = dict(manifest_server_info)
+    server_info.setdefault("name", "parish-mcp")
+    server_info.setdefault("version", "0.1.0")
     tools = manifest.get("tools", [])
     log(f"cold start: serving {len(tools)} tools from manifest (binary not built yet)")
 
@@ -166,7 +171,10 @@ def main() -> None:
                     "id": rid,
                     "result": {
                         "protocolVersion": proto,
-                        "serverInfo": {"name": server_name},
+                        # MCP Implementation requires both name and version.
+                        # Forward the manifest object intact so the cold path
+                        # cannot silently drop future optional identity fields.
+                        "serverInfo": server_info,
                         "capabilities": {"tools": {"listChanged": False}},
                     },
                 }

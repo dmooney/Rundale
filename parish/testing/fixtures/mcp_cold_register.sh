@@ -48,11 +48,12 @@ echo "=== AC#1: cold register (no binary) returns init + tools/list ==="
 COLD="$(mktemp -d)"
 CARGO_TARGET_DIR="$COLD/empty" drive /tmp/cr_a.out /tmp/cr_a.err 2 "$REQ_INIT" "$REQ_INITED" "$REQ_LIST"
 A_NAME="$(python3 -c 'import json;[print(json.loads(l)["result"]["serverInfo"]["name"]) for l in open("/tmp/cr_a.out") if json.loads(l).get("id")==1]' 2>/dev/null)"
+A_VERSION="$(python3 -c 'import json;[print(json.loads(l)["result"]["serverInfo"]["version"]) for l in open("/tmp/cr_a.out") if json.loads(l).get("id")==1]' 2>/dev/null)"
 A_NAMES="$(python3 -c 'import json;[print(",".join(t["name"] for t in json.loads(l)["result"]["tools"])) for l in open("/tmp/cr_a.out") if json.loads(l).get("id")==2]' 2>/dev/null)"
-if [ "$A_NAME" = "parish-mcp" ] && [ "$A_NAMES" = "$MANIFEST_NAMES" ]; then
-    ok "AC#1 cold register: serverInfo=parish-mcp, tools == manifest"
+if [ "$A_NAME" = "parish-mcp" ] && [ "$A_VERSION" = "0.1.0" ] && [ "$A_NAMES" = "$MANIFEST_NAMES" ]; then
+    ok "AC#1 cold register: required serverInfo fields + tools == manifest"
 else
-    no "AC#1 cold register mismatch (name='$A_NAME')"
+    no "AC#1 cold register mismatch (name='$A_NAME', version='$A_VERSION')"
 fi
 if grep -q "cold shim" /tmp/cr_a.err && ! grep -qi "compiling\|cargo build" /tmp/cr_a.err; then
     ok "AC#1 took the no-build shim (no cargo on the init path)"
