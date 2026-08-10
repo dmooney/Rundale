@@ -44,14 +44,14 @@ pub(super) fn build_session_cloud_client(global: &GlobalState) -> Option<AnyClie
             .as_deref()
             .and_then(|p| parish_core::config::Provider::from_str_loose(p).ok())
             .unwrap_or_else(|| {
-                parish_core::config::Provider::from_id("openrouter").unwrap_or_default()
+                parish_core::config::Provider::from_id("google").unwrap_or_default()
             });
         parish_core::inference::build_client(
             &provider_enum,
             config
                 .cloud_base_url
                 .as_deref()
-                .unwrap_or("https://openrouter.ai/api"),
+                .unwrap_or("https://generativelanguage.googleapis.com/v1"),
             Some(key),
             &global.inference_config, // (#417) use TOML-configured timeouts
         )
@@ -79,7 +79,12 @@ pub(super) async fn init_inference_queue(app_state: &Arc<AppState>, client: AnyC
             timeout_config: app_state.inference_config.clone(),
         },
     );
-    let queue = InferenceQueue::new(interactive_tx, background_tx, batch_tx);
+    let queue = InferenceQueue::new(interactive_tx, background_tx, batch_tx).with_audit_sink(
+        parish_core::inference::InferenceAuditSink::new(
+            app_state.inference_log.clone(),
+            app_state.inference_file_log.clone(),
+        ),
+    );
     *app_state.inference.inference_queue.lock().await = Some(queue);
     *app_state.worker_handle.lock().await = Some(worker);
 }

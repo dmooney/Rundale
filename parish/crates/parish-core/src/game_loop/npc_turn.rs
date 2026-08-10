@@ -275,6 +275,11 @@ pub async fn run_npc_turn(
     let (token_tx, token_rx) = mpsc::channel::<String>(crate::ipc::TOKEN_CHANNEL_CAPACITY);
     let display_label = capitalize_first(&setup.display_name);
     let req_id = REQUEST_ID.fetch_add(1, Ordering::SeqCst);
+    let inference_profile = ctx
+        .config
+        .lock()
+        .await
+        .inference_profile(parish_config::InferenceSubrole::Dialogue);
 
     // Build the placeholder first so we can capture its message id: a stream
     // that resumes after a WebSocket reconnect carries this id on every
@@ -315,6 +320,9 @@ pub async fn run_npc_turn(
             enable_thinking: generation.enable_thinking,
             reasoning_effort: generation.reasoning_effort,
             priority: InferencePriority::Interactive,
+            role: parish_config::InferenceCategory::Dialogue,
+            subrole: parish_config::InferenceSubrole::Dialogue,
+            profile: Some(inference_profile),
             json_mode: generation.json_mode,
             json_schema: None,
             cancel: None,

@@ -3,7 +3,7 @@
 //! Contains the [`App`] struct (game state container), used by headless,
 //! script, and Tauri modes.
 
-use std::collections::VecDeque;
+use std::collections::{HashMap, VecDeque};
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Instant;
@@ -133,6 +133,12 @@ pub struct App {
     pub simulation: CategoryOverride,
     /// Reaction category override.
     pub reaction: CategoryOverride,
+    /// Base and per-category native inference tuning resolved at startup.
+    pub inference_profile_override: parish_core::config::InferenceProfileOverride,
+    pub category_inference_profile: HashMap<
+        parish_core::config::InferenceCategory,
+        parish_core::config::InferenceProfileOverride,
+    >,
     /// Loaded game mod data (None if no mod directory was found or specified).
     pub game_mod: Option<GameMod>,
     /// Runtime feature flags (loaded from parish-flags.json at startup).
@@ -222,6 +228,8 @@ impl App {
             intent: CategoryOverride::default(),
             simulation: CategoryOverride::default(),
             reaction: CategoryOverride::default(),
+            inference_profile_override: Default::default(),
+            category_inference_profile: Default::default(),
             game_mod: None,
             flags: crate::config::FeatureFlags::default(),
             flags_path: None,
@@ -538,6 +546,8 @@ impl App {
                 cfg.category_base_url.insert(cat, u.to_string());
             }
         }
+        cfg.inference_profile_override = self.inference_profile_override;
+        cfg.category_inference_profile = self.category_inference_profile.clone();
 
         cfg
     }
@@ -557,6 +567,8 @@ impl App {
         self.improv_enabled = cfg.improv_enabled;
         self.reveal_unexplored_locations = cfg.reveal_unexplored_locations;
         self.flags = cfg.flags.clone();
+        self.inference_profile_override = cfg.inference_profile_override;
+        self.category_inference_profile = cfg.category_inference_profile.clone();
 
         // Apply per-category overrides
         for cat in InferenceCategory::ALL {

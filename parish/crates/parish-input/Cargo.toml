@@ -11,9 +11,9 @@ parish-types = { workspace = true }
 parish-config = { workspace = true }
 parish-inference = { workspace = true }
 serde = { workspace = true }
+serde_json = { workspace = true }
 
 [dev-dependencies]
-serde_json = { workspace = true }
 wiremock = { workspace = true }
 tokio = { workspace = true }
 # parish-inference is already in [dependencies]; no need to repeat it in dev-deps

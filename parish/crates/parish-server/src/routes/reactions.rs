@@ -130,14 +130,23 @@ pub fn emit_npc_reactions(
                 });
             },
         );
-        let (reaction_client, reaction_model, llm_enabled) = {
+        let (reaction_client, reaction_model, reaction_profile, llm_enabled) = {
             let config = state_clone.config.lock().await;
             let base_client = state_clone.inference.client.lock().await;
             let (client, model) =
                 config.resolve_category_client(InferenceCategory::Reaction, base_client.as_ref());
             let enabled = !config.flags.is_disabled("npc-llm-reactions");
-            (client, model, enabled)
+            let profile =
+                config.inference_profile(parish_core::config::InferenceSubrole::MessageReaction);
+            (client, model, profile, enabled)
         };
+        let audit_sink = state_clone
+            .inference
+            .inference_queue
+            .lock()
+            .await
+            .as_ref()
+            .and_then(parish_core::inference::InferenceQueue::audit_sink);
 
         parish_core::game_loop::emit_npc_reactions(
             player_msg_id,
@@ -145,6 +154,8 @@ pub fn emit_npc_reactions(
             npcs_here,
             reaction_client,
             reaction_model,
+            reaction_profile,
+            audit_sink,
             llm_enabled,
             emitter,
             persist,

@@ -371,6 +371,22 @@ fn serialise(
         "gen_ai.request.model".to_string(),
         Value::String(entry.model.clone()),
     );
+    map.insert(
+        "gen_ai.provider.name".to_string(),
+        Value::String(entry.provider.clone()),
+    );
+    map.insert(
+        "parish.inference.api_mode".to_string(),
+        Value::String(entry.api_mode.clone()),
+    );
+    map.insert(
+        "parish.inference.role".to_string(),
+        Value::String(entry.role.name().to_string()),
+    );
+    map.insert(
+        "parish.inference.subrole".to_string(),
+        serde_json::to_value(entry.subrole)?,
+    );
     if let Some(max) = entry.max_tokens {
         map.insert(
             "gen_ai.request.max_tokens".to_string(),
@@ -390,6 +406,94 @@ fn serialise(
         map.insert(
             "gen_ai.usage.output_tokens".to_string(),
             Value::Number(out.into()),
+        );
+    }
+    for (key, value) in [
+        ("gen_ai.usage.input_tokens", entry.input_tokens),
+        ("gen_ai.usage.cached_tokens", entry.cached_tokens),
+        ("gen_ai.usage.thought_tokens", entry.thought_tokens),
+        ("gen_ai.usage.total_tokens", entry.total_tokens),
+        ("parish.stream_chunks", entry.stream_chunks),
+    ] {
+        if let Some(value) = value {
+            map.insert(key.to_string(), Value::Number(value.into()));
+        }
+    }
+    if let Some(level) = entry.thinking_level {
+        map.insert(
+            "gen_ai.request.thinking_level".to_string(),
+            Value::String(
+                serde_json::to_value(level)?
+                    .as_str()
+                    .unwrap_or_default()
+                    .to_string(),
+            ),
+        );
+    }
+    if let Some(tier) = entry.requested_service_tier {
+        map.insert(
+            "gen_ai.request.service_tier".to_string(),
+            Value::String(
+                serde_json::to_value(tier)?
+                    .as_str()
+                    .unwrap_or_default()
+                    .to_string(),
+            ),
+        );
+    }
+    if let Some(tier) = entry.effective_service_tier.as_ref() {
+        map.insert(
+            "gen_ai.response.service_tier".to_string(),
+            Value::String(tier.clone()),
+        );
+    }
+    if let Some(status) = entry.terminal_status.as_ref() {
+        map.insert(
+            "gen_ai.response.status".to_string(),
+            Value::String(status.clone()),
+        );
+    }
+    map.insert(
+        "parish.retry_count".to_string(),
+        Value::Number(entry.retry_count.into()),
+    );
+    if let Some(status) = entry.http_status {
+        map.insert(
+            "http.response.status_code".to_string(),
+            Value::Number(status.into()),
+        );
+    }
+    if let Some(kind) = entry.failure_kind.as_ref() {
+        map.insert("error.type".to_string(), Value::String(kind.clone()));
+    }
+    map.insert(
+        "parish.partial_output_len".to_string(),
+        Value::Number((entry.partial_output_len as u64).into()),
+    );
+    map.insert(
+        "parish.service_tier_downgraded".to_string(),
+        Value::Bool(entry.tier_downgraded),
+    );
+    if let Some(cost) = entry
+        .estimated_cost_usd
+        .and_then(serde_json::Number::from_f64)
+    {
+        map.insert("parish.estimated_cost_usd".to_string(), Value::Number(cost));
+        map.insert(
+            "parish.pricing_snapshot_date".to_string(),
+            Value::String("2026-08-09".to_string()),
+        );
+    }
+    if let Some(hash) = entry.prompt_prefix_hash.as_ref() {
+        map.insert(
+            "parish.prompt_prefix_hash".to_string(),
+            Value::String(hash.clone()),
+        );
+    }
+    if let Some(len) = entry.prompt_prefix_len {
+        map.insert(
+            "parish.prompt_prefix_len".to_string(),
+            Value::Number((len as u64).into()),
         );
     }
     if let Some(ttft) = entry.ttft_ms {
@@ -552,6 +656,7 @@ mod tests {
             output_tokens: Some(5),
             temperature: Some(0.7),
             priority: InferencePriority::Interactive,
+            ..Default::default()
         }
     }
 

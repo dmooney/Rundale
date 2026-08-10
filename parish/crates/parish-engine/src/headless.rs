@@ -13,7 +13,8 @@ use crate::inference::{
     QueueRequest,
 };
 use crate::input::{
-    Command, InputResult, classify_input, extract_mention, is_player_dialogue, parse_intent,
+    Command, InputResult, classify_input, extract_mention, is_player_dialogue,
+    parse_intent_with_profile_and_audit,
 };
 use crate::loading::LoadingAnimation;
 use crate::npc::manager::NpcManager;
@@ -97,7 +98,9 @@ fn setup_inference_queue(
             timeout_config: inference_config.clone(),
         },
     );
-    InferenceQueue::new(interactive_tx, background_tx, batch_tx)
+    InferenceQueue::new(interactive_tx, background_tx, batch_tx).with_audit_sink(
+        inference::InferenceAuditSink::new(inference_log.clone(), inference_file_log.clone()),
+    )
 }
 
 /// Runs the headless stdin/stdout REPL loop.
@@ -339,6 +342,17 @@ pub async fn run_headless(
     app.script_mode = script_mode;
     app.inference_file_log = inference_file_log.clone();
     app.chat_transcript_log = chat_transcript_log.clone();
+
+    // Match desktop BYOK/profile semantics: reasoning, token caps, and service
+    // tier live in the per-user config even when the headless runtime's
+    // provider/model routing came from CLI or environment overrides.
+    let user_config_dir = parish_core::config::user_config::resolve_user_config_dir();
+    if let Ok(user_cfg) = parish_core::config::user_config::load_user_config(&user_config_dir) {
+        let mut runtime_config = app.snapshot_config();
+        runtime_config.apply_user_inference_profiles(&user_cfg);
+        app.inference_profile_override = runtime_config.inference_profile_override;
+        app.category_inference_profile = runtime_config.category_inference_profile;
+    }
 
     // Load feature flags from disk
     let flags_path = data_dir.map(|d| d.join("parish-flags.json"));
@@ -1190,6 +1204,9 @@ async fn stream_headless_npc_dialogue(
                 enable_thinking: generation.enable_thinking,
                 reasoning_effort: generation.reasoning_effort,
                 priority: InferencePriority::Interactive,
+                role: parish_core::config::InferenceCategory::Dialogue,
+                subrole: parish_core::config::InferenceSubrole::Dialogue,
+                profile: None,
                 json_mode: generation.json_mode,
                 json_schema: None,
                 cancel: None,
@@ -1314,7 +1331,15 @@ async fn handle_headless_game_input(
         local
     } else if let Some(client) = client {
         app.world.clock.inference_pause();
-        let result = parse_intent(client, text, model).await;
+        let profile = app
+            .snapshot_config()
+            .inference_profile(parish_core::config::InferenceSubrole::Intent);
+        let audit_sink = app
+            .inference_queue
+            .as_ref()
+            .and_then(InferenceQueue::audit_sink);
+        let result =
+            parse_intent_with_profile_and_audit(client, text, model, profile, audit_sink).await;
         app.world.clock.inference_resume();
         result?
     } else {
@@ -1664,7 +1689,9 @@ fn print_location_arrival(app: &App) {
 /// Reactions are persisted to each NPC's `reaction_log` (#403) and printed
 /// to stdout so the player sees them.
 async fn emit_headless_npc_reactions(app: &mut App, player_input: &str) {
-    use parish_core::npc::reactions::{generate_rule_reaction, infer_player_message_reaction};
+    use parish_core::npc::reactions::{
+        generate_rule_reaction, infer_player_message_reaction_with_profile_and_audit,
+    };
     use tokio::task::JoinSet;
 
     let npcs_here: Vec<_> = app
@@ -1679,6 +1706,9 @@ async fn emit_headless_npc_reactions(app: &mut App, player_input: &str) {
     }
 
     let llm_enabled = !app.flags.is_disabled("npc-llm-reactions");
+    let reaction_profile = app
+        .snapshot_config()
+        .inference_profile(parish_core::config::InferenceSubrole::MessageReaction);
 
     // Run per-NPC inference concurrently, bounded to NPC_REACTION_CONCURRENCY
     // simultaneous calls so a busy location can't exhaust the LLM connection
@@ -1691,6 +1721,10 @@ async fn emit_headless_npc_reactions(app: &mut App, player_input: &str) {
         let client = app.reaction.client.clone();
         let model = app.reaction.model.clone();
         let input = player_input.to_string();
+        let audit_sink = app
+            .inference_queue
+            .as_ref()
+            .and_then(InferenceQueue::audit_sink);
 
         join_set.spawn(async move {
             // Acquire a permit before starting the (potentially slow) LLM call.
@@ -1698,12 +1732,14 @@ async fn emit_headless_npc_reactions(app: &mut App, player_input: &str) {
 
             let emoji = if llm_enabled {
                 if let Some(ref c) = client {
-                    infer_player_message_reaction(
+                    infer_player_message_reaction_with_profile_and_audit(
                         c,
                         &model,
                         &npc,
                         &input,
                         std::time::Duration::from_secs(2),
+                        reaction_profile,
+                        audit_sink,
                     )
                     .await
                     .or_else(|| generate_rule_reaction(&input))
@@ -1808,6 +1844,13 @@ async fn print_arrival_reactions(app: &mut App) {
                         client,
                         model: &app.reaction.model.clone(),
                         timeout_secs: config.llm_timeout_secs,
+                        profile: app.snapshot_config().inference_profile(
+                            parish_core::config::InferenceSubrole::ArrivalReaction,
+                        ),
+                        audit_sink: app
+                            .inference_queue
+                            .as_ref()
+                            .and_then(parish_core::inference::InferenceQueue::audit_sink),
                     };
                     resolve_llm_greeting(reaction, npc, &llm_params).await
                 } else {
@@ -2079,7 +2122,18 @@ async fn dispatch_headless_tier3_tick(app: &mut App) {
                 grounding_enabled: !app.flags.is_disabled("npc-dialogue-grounding"),
             };
 
-            match parish_core::npc::ticks::tick_tier3(&ctx).await {
+            let profile = app
+                .snapshot_config()
+                .inference_profile(parish_core::config::InferenceSubrole::Tier3Simulation);
+            let audit_sink = app
+                .inference_queue
+                .as_ref()
+                .and_then(InferenceQueue::audit_sink);
+            match parish_core::npc::ticks::tick_tier3_with_profile_and_audit(
+                &ctx, profile, audit_sink,
+            )
+            .await
+            {
                 Ok(updates) => {
                     let game_time = app.world.clock.now();
                     let _events = parish_core::npc::ticks::apply_tier3_updates(
@@ -2120,16 +2174,26 @@ async fn dispatch_headless_tier2_tick(app: &mut App) {
             let lang = app.language_settings();
             let mut events = Vec::new();
             for group in &groups {
-                if let Some(evt) = parish_core::npc::ticks::run_tier2_for_group(
-                    sim_client,
-                    &sim_model,
-                    group,
-                    &app.world.clock.time_of_day().to_string(),
-                    &app.world.weather.to_string(),
-                    &lang,
-                    None,
-                )
-                .await
+                let profile = app
+                    .snapshot_config()
+                    .inference_profile(parish_core::config::InferenceSubrole::Tier2Simulation);
+                let audit_sink = app
+                    .inference_queue
+                    .as_ref()
+                    .and_then(InferenceQueue::audit_sink);
+                if let Some(evt) =
+                    parish_core::npc::ticks::run_tier2_for_group_with_profile_and_audit(
+                        sim_client,
+                        &sim_model,
+                        group,
+                        &app.world.clock.time_of_day().to_string(),
+                        &app.world.weather.to_string(),
+                        &lang,
+                        None,
+                        profile,
+                        audit_sink,
+                    )
+                    .await
                 {
                     events.push(evt);
                 }

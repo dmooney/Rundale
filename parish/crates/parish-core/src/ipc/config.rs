@@ -72,6 +72,11 @@ pub struct GameConfig {
     pub category_api_key: HashMap<InferenceCategory, String>,
     /// Per-category base URL overrides (absent key = inherits base).
     pub category_base_url: HashMap<InferenceCategory, String>,
+    /// Base inference tuning overrides inherited by every role.
+    pub inference_profile_override: parish_config::InferenceProfileOverride,
+    /// Per-category inference tuning overrides layered over the base values.
+    pub category_inference_profile:
+        HashMap<InferenceCategory, parish_config::InferenceProfileOverride>,
     /// Runtime feature flags for safe deployment of in-progress features.
     pub flags: FeatureFlags,
     /// Per-category outbound rate limiters, pre-built from the
@@ -119,9 +124,30 @@ impl parish_diagnostics::debug_snapshot::InferenceCategoryConfig for GameConfig 
     fn category_base_url(&self, cat: InferenceCategory) -> Option<String> {
         self.category_base_url.get(&cat).cloned()
     }
+    fn subrole_profile(
+        &self,
+        subrole: parish_config::InferenceSubrole,
+    ) -> parish_config::InferenceProfile {
+        self.inference_profile(subrole)
+    }
 }
 
 impl GameConfig {
+    /// Resolves the effective inference profile for a concrete workload.
+    pub fn inference_profile(
+        &self,
+        subrole: parish_config::InferenceSubrole,
+    ) -> parish_config::InferenceProfile {
+        let category = subrole.category();
+        let checked = parish_config::InferenceProfile::for_subrole(subrole);
+        let base = self.inference_profile_override.apply(checked, subrole);
+        self.category_inference_profile
+            .get(&category)
+            .copied()
+            .unwrap_or_default()
+            .apply(base, subrole)
+    }
+
     /// Resolves the client and model for a given inference category.
     ///
     /// If the category has any per-category override — provider, model, URL,
@@ -334,13 +360,67 @@ impl GameConfig {
     /// it must be applied at base-client construction time in `setup.rs`,
     /// because cloning a client preserves its limiter.
     pub fn install_rate_limits(&mut self, cfg: &RateLimitConfig) {
-        self.category_rate_limit = InferenceCategory::ALL
-            .iter()
-            .filter_map(|&cat| {
-                InferenceRateLimiter::from_config(cfg.for_category(cat))
-                    .map(|limiter| (cat, limiter))
-            })
-            .collect();
+        use crate::config::Provider;
+        use std::collections::HashMap;
+
+        type TransportKey = (String, String, String);
+        type SharedQuota = (u32, u32, Vec<InferenceCategory>);
+
+        // Google and other cloud quotas apply to the credential/endpoint, not
+        // independently to gameplay roles. Build one bucket per effective
+        // transport and clone it into every matching category. If category
+        // limits disagree, the shared bucket deliberately uses the strictest
+        // values so aggregate traffic can never exceed any declared quota.
+        let mut groups: HashMap<TransportKey, SharedQuota> = HashMap::new();
+        for cat in InferenceCategory::ALL {
+            let Some(limit) = cfg.for_category(cat).or(cfg.default) else {
+                continue;
+            };
+            if limit.per_minute == 0 {
+                continue;
+            }
+            let provider_name = self
+                .category_provider
+                .get(&cat)
+                .map(String::as_str)
+                .unwrap_or(&self.provider_name);
+            let provider = Provider::from_str_loose(provider_name).unwrap_or_default();
+            let url = self
+                .category_base_url
+                .get(&cat)
+                .cloned()
+                .or_else(|| provider.preset_base_url(cat).map(str::to_string))
+                .unwrap_or_else(|| {
+                    if self.base_url.is_empty() {
+                        provider.default_base_url().to_string()
+                    } else {
+                        self.base_url.clone()
+                    }
+                });
+            let key = self
+                .category_api_key
+                .get(&cat)
+                .cloned()
+                .or_else(|| self.api_key.clone())
+                .unwrap_or_default();
+            groups
+                .entry((provider.id().to_string(), url, key))
+                .and_modify(|(per_minute, burst, categories)| {
+                    *per_minute = (*per_minute).min(limit.per_minute);
+                    *burst = (*burst).min(limit.burst.max(1));
+                    categories.push(cat);
+                })
+                .or_insert((limit.per_minute, limit.burst.max(1), vec![cat]));
+        }
+
+        self.category_rate_limit.clear();
+        for (_, (per_minute, burst, categories)) in groups {
+            if let Some(limiter) = InferenceRateLimiter::new(per_minute, burst) {
+                for category in categories {
+                    self.category_rate_limit.insert(category, limiter.clone());
+                }
+            }
+        }
     }
 
     /// Fills in any unset model fields with the appropriate provider preset.
@@ -436,6 +516,33 @@ impl GameConfig {
             } else {
                 self.category_api_key.remove(category);
             }
+        }
+    }
+
+    /// Applies persisted top-level and per-category inference tuning.
+    pub fn apply_user_inference_profiles(&mut self, user: &parish_config::user_config::UserConfig) {
+        self.inference_profile_override = parish_config::InferenceProfileOverride {
+            thinking_level: user.thinking_level,
+            max_output_tokens: user.max_output_tokens,
+            service_tier: user.service_tier,
+            ..Default::default()
+        };
+        self.category_inference_profile.clear();
+        for (name, value) in &user.category_overrides {
+            let Some(category) = InferenceCategory::from_name(name) else {
+                tracing::warn!(category = %name, "ignoring unknown inference category override");
+                continue;
+            };
+            self.category_inference_profile.insert(
+                category,
+                parish_config::InferenceProfileOverride {
+                    thinking_level: value.thinking_level,
+                    max_output_tokens: value.max_output_tokens,
+                    service_tier: value.service_tier,
+                    tier2_max_output_tokens: value.tier2_max_output_tokens,
+                    tier3_max_output_tokens: value.tier3_max_output_tokens,
+                },
+            );
         }
     }
 
@@ -576,6 +683,7 @@ fn attach_rate_limit(
     match (client, limiter) {
         (AnyClient::OpenAi(c), lim) => AnyClient::OpenAi(c.maybe_with_rate_limit(lim)),
         (AnyClient::Anthropic(c), lim) => AnyClient::Anthropic(c.maybe_with_rate_limit(lim)),
+        (AnyClient::Google(c), lim) => AnyClient::Google(c.maybe_with_rate_limit(lim)),
         // Simulator and mock have no network calls and ignore rate limiting.
         (c @ (AnyClient::Simulator(_) | AnyClient::Mock(_)), _) => c,
     }
@@ -600,6 +708,8 @@ impl Default for GameConfig {
             category_model: HashMap::new(),
             category_api_key: HashMap::new(),
             category_base_url: HashMap::new(),
+            inference_profile_override: parish_config::InferenceProfileOverride::default(),
+            category_inference_profile: HashMap::new(),
             flags: FeatureFlags::default(),
             category_rate_limit: HashMap::new(),
             active_tile_source: String::new(),
@@ -613,6 +723,54 @@ impl Default for GameConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn user_inference_profiles_resolve_top_level_category_and_tier_caps() {
+        let mut cfg = GameConfig::default();
+        let user = parish_config::user_config::UserConfig {
+            thinking_level: Some(parish_config::ThinkingLevel::Low),
+            max_output_tokens: Some(3_000),
+            service_tier: Some(parish_config::ServiceTier::Standard),
+            category_overrides: std::collections::BTreeMap::from([(
+                "simulation".to_string(),
+                parish_config::user_config::CategoryOverride {
+                    thinking_level: Some(parish_config::ThinkingLevel::High),
+                    tier2_max_output_tokens: Some(1_500),
+                    tier3_max_output_tokens: Some(5_000),
+                    ..Default::default()
+                },
+            )]),
+            ..Default::default()
+        };
+        cfg.apply_user_inference_profiles(&user);
+
+        let dialogue = cfg.inference_profile(parish_config::InferenceSubrole::Dialogue);
+        assert_eq!(dialogue.thinking_level, parish_config::ThinkingLevel::Low);
+        assert_eq!(dialogue.max_output_tokens, 3_000);
+        let tier2 = cfg.inference_profile(parish_config::InferenceSubrole::Tier2Simulation);
+        assert_eq!(tier2.thinking_level, parish_config::ThinkingLevel::High);
+        assert_eq!(tier2.max_output_tokens, 1_500);
+        let tier3 = cfg.inference_profile(parish_config::InferenceSubrole::Tier3Simulation);
+        assert_eq!(tier3.max_output_tokens, 5_000);
+    }
+
+    #[test]
+    fn debug_profiles_cover_every_concrete_workload() {
+        let cfg = GameConfig::default();
+        let rows = parish_diagnostics::debug_snapshot::build_inference_categories(&cfg);
+        assert_eq!(rows.len(), parish_config::InferenceSubrole::ALL.len());
+        assert_eq!(rows[0].role, "dialogue");
+        assert_eq!(rows[2].role, "arrival-reaction");
+        assert_eq!(rows[5].role, "tier2-simulation");
+        assert_eq!(rows[5].max_output_tokens, 2_048);
+        assert_eq!(rows[6].role, "tier3-simulation");
+        assert_eq!(rows[6].max_output_tokens, 4_096);
+        assert_eq!(rows[7].role, "demo-player");
+        assert_eq!(
+            rows[7].thinking_level,
+            parish_config::ThinkingLevel::Minimal
+        );
+    }
 
     #[test]
     fn apply_local_qwen_two_slot_routes_categories() {
@@ -980,6 +1138,7 @@ mod tests {
                 provider: Some("vllm-mlx".to_string()),
                 model: Some("mlx-community/Qwen2.5-1.5B-Instruct-4bit".to_string()),
                 base_url: Some("http://localhost:8001".to_string()),
+                ..Default::default()
             },
         );
         cfg.apply_user_category_overrides(&overrides);
@@ -1172,6 +1331,41 @@ mod tests {
         assert!(
             !cfg.category_rate_limit
                 .contains_key(&InferenceCategory::Dialogue)
+        );
+    }
+
+    #[test]
+    fn identical_cloud_transport_shares_one_aggregate_rate_bucket() {
+        use crate::config::{CategoryRateLimit, RateLimitConfig};
+
+        let mut cfg = GameConfig {
+            provider_name: "google".to_string(),
+            base_url: "https://generativelanguage.googleapis.com/v1".to_string(),
+            api_key: Some("test-key".to_string()),
+            ..GameConfig::default()
+        };
+        let limits = RateLimitConfig {
+            default: Some(CategoryRateLimit {
+                per_minute: 60,
+                burst: 2,
+            }),
+            ..RateLimitConfig::default()
+        };
+        cfg.install_rate_limits(&limits);
+
+        let dialogue = cfg
+            .category_rate_limit
+            .get(&InferenceCategory::Dialogue)
+            .expect("dialogue limiter");
+        let intent = cfg
+            .category_rate_limit
+            .get(&InferenceCategory::Intent)
+            .expect("intent limiter");
+        assert!(dialogue.try_acquire());
+        assert!(intent.try_acquire());
+        assert!(
+            !cfg.category_rate_limit[&InferenceCategory::Reaction].try_acquire(),
+            "the third role must observe the two-token aggregate bucket as exhausted"
         );
     }
 

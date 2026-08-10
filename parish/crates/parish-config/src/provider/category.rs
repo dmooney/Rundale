@@ -1,7 +1,8 @@
 //! [`InferenceCategory`] — the four independently-configurable inference slots.
 
 /// Inference categories that can each have independent provider/model/key settings.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "lowercase")]
 pub enum InferenceCategory {
     /// Player-facing NPC dialogue (Tier 1, streaming).
     Dialogue,
