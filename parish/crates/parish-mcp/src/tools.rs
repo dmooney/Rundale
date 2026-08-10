@@ -312,9 +312,10 @@ mod tests {
 
     #[test]
     fn manifest_protocol_and_server_match_consts() {
-        // The cold shim serves protocolVersion + serverInfo.name straight from
-        // manifest.json; the real binary serves the mcp.rs consts. Pin them equal
-        // so the shim→binary handoff is seamless.
+        // The cold shim serves protocolVersion + serverInfo straight from
+        // manifest.json; the real binary serves the mcp.rs consts. Pin every
+        // required field equal so strict clients accept either implementation
+        // and the shim→binary handoff is seamless.
         let parsed: serde_json::Value =
             serde_json::from_str(MANIFEST_JSON).expect("manifest.json is valid JSON");
         assert_eq!(
@@ -326,6 +327,11 @@ mod tests {
             parsed["serverInfo"]["name"],
             crate::mcp::SERVER_NAME,
             "manifest serverInfo.name must equal mcp::SERVER_NAME"
+        );
+        assert_eq!(
+            parsed["serverInfo"]["version"],
+            crate::mcp::SERVER_VERSION,
+            "manifest serverInfo.version must equal mcp::SERVER_VERSION"
         );
     }
 

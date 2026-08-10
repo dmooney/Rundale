@@ -1,7 +1,8 @@
 {
   "protocolVersion": "2025-06-18",
   "serverInfo": {
-    "name": "parish-mcp"
+    "name": "parish-mcp",
+    "version": "0.1.0"
   },
   "tools": [
     {
