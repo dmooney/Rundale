@@ -1,0 +1,59 @@
+# Native Gemini migration live-play scenario.
+#
+# Exercises movement + arrival reactions, free-form intent parsing, streamed
+# dialogue, message reactions, Tier 2/Tier 3 waits, and save/branch/context
+# replacement. Run against a live server configured with PARISH_PROVIDER=google
+# and PARISH_MODEL=gemini-3.6-flash.
+
+/status
+/flag enable npc-arrival-greetings
+/inference-log on
+look
+go to Darcy's Pub
+talk to Padraig Darcy about I am newly arrived. How fares the parish this spring?
+What work might a stranger find here?
+Tell me who tends the fields nearest the village.
+/wait 30
+go to The Crossroads
+go to Kilteevan Village
+look around
+/wait 120
+go to The Crossroads
+go to Darcy's Pub
+talk to Niamh Darcy about Have you heard any news from the bog road?
+Would the rain keep folk from market tomorrow?
+/save
+/fork gemini-proof
+/wait 360
+/branches
+go to The Crossroads
+/load main
+/status
+/new
+look
+go to Darcy's Pub
+talk to Padraig Darcy about Do you remember me?
+/wait 720
+/wait 720
+go to The Crossroads
+go to Darcy's Pub
+go to The Crossroads
+go to Kilteevan Village
+go to The Crossroads
+go to Darcy's Pub
+go to The Crossroads
+go to Kilteevan Village
+go to The Crossroads
+go to Darcy's Pub
+go to The Crossroads
+go to Kilteevan Village
+go to The Crossroads
+go to Darcy's Pub
+go to The Crossroads
+go to Kilteevan Village
+go to The Crossroads
+go to Darcy's Pub
+go to The Crossroads
+go to Kilteevan Village
+/wait 720
+/status

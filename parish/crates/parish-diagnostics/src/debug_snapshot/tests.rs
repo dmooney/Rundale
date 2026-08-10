@@ -171,6 +171,7 @@ fn test_inference_log_entry_serialize() {
         output_tokens: Some(40),
         temperature: Some(0.7),
         priority: parish_inference::InferencePriority::Interactive,
+        ..Default::default()
     };
     let json = serde_json::to_string(&entry).unwrap();
     assert!(json.contains("qwen3:14b"));
@@ -197,6 +198,7 @@ fn test_inference_log_entry_with_error() {
         output_tokens: None,
         temperature: None,
         priority: parish_inference::InferencePriority::Interactive,
+        ..Default::default()
     };
     let json = serde_json::to_string(&entry).unwrap();
     assert!(json.contains("timeout"));
@@ -226,6 +228,7 @@ fn test_call_log_included_in_snapshot() {
         output_tokens: None,
         temperature: None,
         priority: parish_inference::InferencePriority::Interactive,
+        ..Default::default()
     };
     let mut inference = test_inference();
     inference.call_log = vec![entry];

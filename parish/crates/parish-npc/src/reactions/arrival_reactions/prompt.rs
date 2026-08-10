@@ -131,6 +131,10 @@ pub struct LlmGreetingParams<'a> {
     pub model: &'a str,
     /// Timeout in seconds for the LLM call.
     pub timeout_secs: u64,
+    /// Fully resolved runtime profile for arrival reactions.
+    pub profile: parish_config::InferenceProfile,
+    /// Common direct-call audit destination used by every runtime.
+    pub audit_sink: Option<parish_inference::InferenceAuditSink>,
 }
 
 /// Attempts an LLM-generated greeting with a short timeout.
@@ -165,27 +169,58 @@ pub async fn resolve_llm_greeting(
     let (sink_tx, mut sink_rx) =
         tokio::sync::mpsc::channel::<String>(parish_inference::TOKEN_CHANNEL_CAPACITY);
     tokio::spawn(async move { while sink_rx.recv().await.is_some() {} });
+    let wire_params = GenerateParams {
+        max_tokens: Some(params.profile.max_output_tokens),
+        temperature: None,
+        frequency_penalty: None,
+        enable_thinking: None,
+        reasoning_effort: None,
+        thinking_level: Some(params.profile.thinking_level),
+        service_tier: Some(params.profile.service_tier),
+    };
+    let audit = parish_inference::DirectInferenceAudit::new(
+        params.audit_sink.clone(),
+        model,
+        &context,
+        Some(&system),
+        parish_config::InferenceSubrole::ArrivalReaction,
+        true,
+        wire_params.max_tokens,
+        wire_params.thinking_level,
+        wire_params.service_tier,
+        wire_params.temperature,
+        parish_inference::InferencePriority::Interactive,
+    );
     let result = tokio::time::timeout(
         timeout,
-        client.generate_stream(
+        client.generate_stream_detailed_with_format(
             model,
             &context,
             Some(&system),
             sink_tx,
-            GenerateParams {
-                max_tokens: Some(100),
-                temperature: None,
-                frequency_penalty: None,
-                enable_thinking: None,
-                reasoning_effort: None,
-            },
+            None,
+            wire_params,
         ),
     )
     .await;
 
+    let detailed = match result {
+        Ok(result) => result,
+        Err(_) => {
+            let mut metadata = client.fallback_metadata(model);
+            metadata.terminal_status = Some("timeout".to_string());
+            Err(parish_inference::ProviderCallError {
+                message: format!("arrival reaction timed out after {timeout_secs}s"),
+                partial_text: String::new(),
+                metadata: Box::new(metadata),
+            })
+        }
+    };
+    let result = audit.record(detailed).await;
+
     match result {
-        Ok(Ok(text)) => {
-            let trimmed = text.trim();
+        Ok(result) => {
+            let trimmed = result.text.trim();
             if trimmed.is_empty() {
                 reaction.canned_text.clone()
             } else {
@@ -197,6 +232,6 @@ pub async fn resolve_llm_greeting(
                 }
             }
         }
-        _ => reaction.canned_text.clone(),
+        Err(_) => reaction.canned_text.clone(),
     }
 }

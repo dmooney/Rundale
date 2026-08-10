@@ -1,0 +1,75 @@
+# Selective documentation graph scope.
+# Keep current narrative docs by default; omit historical archives and bulk evidence.
+archive/*
+plans/archive/*
+agent/CLAUDE.md
+
+# Proof summaries remain in scope, but machine-generated payloads do not.
+proofs/**/*.json
+proofs/**/*.jsonl
+
+# Graphics V2 is a 1.1 GB research corpus. Exclude every artifact type and all
+# Markdown by default, then opt in only its navigation and durable procedures.
+graphics-v2/*.md
+graphics-v2/**/*.md
+graphics-v2/*.png
+graphics-v2/**/*.png
+graphics-v2/*.jpg
+graphics-v2/**/*.jpg
+graphics-v2/*.jpeg
+graphics-v2/**/*.jpeg
+graphics-v2/*.svg
+graphics-v2/**/*.svg
+graphics-v2/*.pdf
+graphics-v2/**/*.pdf
+graphics-v2/*.json
+graphics-v2/**/*.json
+graphics-v2/*.jsonl
+graphics-v2/**/*.jsonl
+graphics-v2/*.html
+graphics-v2/**/*.html
+graphics-v2/*.css
+graphics-v2/**/*.css
+graphics-v2/*.js
+graphics-v2/**/*.js
+graphics-v2/*.py
+graphics-v2/**/*.py
+
+!graphics-v2/AGENTS.md
+!graphics-v2/README.md
+!graphics-v2/cartographic-comparisons/README.md
+!graphics-v2/interior-concepts/README.md
+!graphics-v2/map-annotator/README.md
+!graphics-v2/npc-portraits/README.md
+!graphics-v2/overhead-art/README.md
+!graphics-v2/overhead-art/cycle-cb/README.md
+!graphics-v2/overhead-art/cycle-cc-character-concepts/README.md
+!graphics-v2/overhead-art/cycle-cd-d-pawns-3x/README.md
+!graphics-v2/overhead-art/cycle-ce-county-tile-continuity/README.md
+!graphics-v2/overhead-art/cycle-cf-production-county-pipeline/README.md
+!graphics-v2/overhead-art/cycle-cf-production-county-pipeline/validation-report.md
+!graphics-v2/overhead-art/cycle-cg-single-tile-provider-tests/README.md
+!graphics-v2/pipeline-experiments/README.md
+!graphics-v2/style-crops/README.md
+!graphics-v2/web-references/irish-dry-stone-walls/README.md
+!graphics-v2/web-references/os-6inch-map-key/README.md
+!graphics-v2/handover-2026-06-28-notebook-qm.md
+!graphics-v2/irish-dry-stone-wall-reference.md
+!graphics-v2/kilteevan-exterior-pipeline-run-template.md
+!graphics-v2/map-crop-selection-protocol.md
+!graphics-v2/map-reader-stage-template.md
+!graphics-v2/map-to-background-plate-pipeline.md
+!graphics-v2/map-to-bu-style-reproducible-pipeline.md
+!graphics-v2/one-shot-background-plate-test-protocol.md
+!graphics-v2/portable-background-plate-one-shot-template.md
+!graphics-v2/runtime-layers-and-independent-variables.md
+
+# Vision extraction is reserved for six canonical product/editor screenshots.
+screenshots/*.png
+screenshots/**/*.png
+!screenshots/rundale.png
+!screenshots/map.png
+!screenshots/location-designer.png
+!screenshots/npc-designer.png
+!screenshots/quality-harness-static-ui.png
+!screenshots/onboarding-local-inference.png

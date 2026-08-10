@@ -13,12 +13,228 @@ use parish_types::ParishError;
 use super::category::InferenceCategory;
 use super::registry::registry;
 
+/// Provider reasoning effort for models that expose discrete thinking levels.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize, Default)]
+#[serde(rename_all = "lowercase")]
+pub enum ThinkingLevel {
+    Minimal,
+    Low,
+    #[default]
+    Medium,
+    High,
+}
+
+/// Synchronous inference service tier.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize, Default)]
+#[serde(rename_all = "lowercase")]
+pub enum ServiceTier {
+    #[default]
+    Standard,
+    Priority,
+}
+
+/// Concrete inference workload. Several workloads share a high-level
+/// category but retain different caps and audit labels.
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize, Default,
+)]
+#[serde(rename_all = "kebab-case")]
+pub enum InferenceSubrole {
+    #[default]
+    Dialogue,
+    Intent,
+    ArrivalReaction,
+    MessageReaction,
+    TravelEncounter,
+    Tier2Simulation,
+    Tier3Simulation,
+    DemoPlayer,
+}
+
+impl InferenceSubrole {
+    pub const ALL: [Self; 8] = [
+        Self::Dialogue,
+        Self::Intent,
+        Self::ArrivalReaction,
+        Self::MessageReaction,
+        Self::TravelEncounter,
+        Self::Tier2Simulation,
+        Self::Tier3Simulation,
+        Self::DemoPlayer,
+    ];
+
+    pub const fn name(self) -> &'static str {
+        match self {
+            Self::Dialogue => "dialogue",
+            Self::Intent => "intent",
+            Self::ArrivalReaction => "arrival-reaction",
+            Self::MessageReaction => "message-reaction",
+            Self::TravelEncounter => "travel-encounter",
+            Self::Tier2Simulation => "tier2-simulation",
+            Self::Tier3Simulation => "tier3-simulation",
+            Self::DemoPlayer => "demo-player",
+        }
+    }
+
+    pub const fn category(self) -> InferenceCategory {
+        match self {
+            Self::Dialogue => InferenceCategory::Dialogue,
+            Self::Intent | Self::DemoPlayer => InferenceCategory::Intent,
+            Self::ArrivalReaction | Self::MessageReaction | Self::TravelEncounter => {
+                InferenceCategory::Reaction
+            }
+            Self::Tier2Simulation | Self::Tier3Simulation => InferenceCategory::Simulation,
+        }
+    }
+
+    pub const fn default_for_category(category: InferenceCategory) -> Self {
+        match category {
+            InferenceCategory::Dialogue => Self::Dialogue,
+            InferenceCategory::Intent => Self::Intent,
+            InferenceCategory::Reaction => Self::ArrivalReaction,
+            InferenceCategory::Simulation => Self::Tier3Simulation,
+        }
+    }
+}
+
+/// Checked-in native Gemini request defaults by gameplay role.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct InferenceProfile {
+    pub thinking_level: ThinkingLevel,
+    pub max_output_tokens: u32,
+    pub service_tier: ServiceTier,
+}
+
+/// Partial user override layered onto a checked-in inference profile.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct InferenceProfileOverride {
+    pub thinking_level: Option<ThinkingLevel>,
+    pub max_output_tokens: Option<u32>,
+    pub service_tier: Option<ServiceTier>,
+    pub tier2_max_output_tokens: Option<u32>,
+    pub tier3_max_output_tokens: Option<u32>,
+}
+
+impl InferenceProfileOverride {
+    pub const fn apply(
+        self,
+        mut profile: InferenceProfile,
+        subrole: InferenceSubrole,
+    ) -> InferenceProfile {
+        if let Some(level) = self.thinking_level {
+            profile.thinking_level = level;
+        }
+        if let Some(cap) = self.max_output_tokens {
+            profile.max_output_tokens = cap;
+        }
+        if let Some(tier) = self.service_tier {
+            profile.service_tier = tier;
+        }
+        let subrole_cap = match subrole {
+            InferenceSubrole::Tier2Simulation => self.tier2_max_output_tokens,
+            InferenceSubrole::Tier3Simulation => self.tier3_max_output_tokens,
+            _ => None,
+        };
+        if let Some(cap) = subrole_cap {
+            profile.max_output_tokens = cap;
+        }
+        profile
+    }
+}
+
+impl InferenceProfile {
+    /// All roles use Google's default Standard service tier. Priority remains
+    /// available as an explicit user override, but is never selected by the
+    /// checked-in gameplay profiles.
+    pub const fn for_category(category: InferenceCategory) -> Self {
+        match category {
+            InferenceCategory::Intent => Self {
+                thinking_level: ThinkingLevel::Minimal,
+                // Production JSON-object calibration completed at 256 with
+                // ample visible-output headroom. Strict json_schema is not
+                // used here: Gemini can loop optional nullable strings under
+                // that different wire contract.
+                max_output_tokens: 256,
+                service_tier: ServiceTier::Standard,
+            },
+            InferenceCategory::Reaction => Self {
+                // Live arrival-reaction calibration at Low spent ~350-460
+                // hidden thought tokens and pushed TTFT to 2.7-3.7s for a
+                // one-sentence greeting. Minimal preserves the constrained
+                // task while keeping reactions interactive.
+                thinking_level: ThinkingLevel::Minimal,
+                max_output_tokens: 1_024,
+                service_tier: ServiceTier::Standard,
+            },
+            InferenceCategory::Dialogue => Self {
+                // Dialogue needs more judgment than routing/reactions, but
+                // Medium and Low both delayed visible speech behind hundreds
+                // of hidden tokens (Low measured 2.8-3.4s TTFT). Minimal is
+                // the latency-calibrated default; quality playthroughs remain
+                // the promotion gate for higher effort.
+                thinking_level: ThinkingLevel::Minimal,
+                max_output_tokens: 4_096,
+                service_tier: ServiceTier::Standard,
+            },
+            InferenceCategory::Simulation => Self {
+                // Minimal returned every required NPC and valid canonical
+                // structures. Medium raised Tier-3 p95 from 5.2s to 13.4s
+                // without improving a rubric gate.
+                thinking_level: ThinkingLevel::Minimal,
+                max_output_tokens: 4_096,
+                service_tier: ServiceTier::Standard,
+            },
+        }
+    }
+
+    pub const fn tier2_simulation() -> Self {
+        Self {
+            max_output_tokens: 2_048,
+            ..Self::for_category(InferenceCategory::Simulation)
+        }
+    }
+
+    pub const fn tier3_simulation() -> Self {
+        Self::for_category(InferenceCategory::Simulation)
+    }
+
+    pub const fn for_subrole(subrole: InferenceSubrole) -> Self {
+        match subrole {
+            InferenceSubrole::Tier2Simulation => Self::tier2_simulation(),
+            InferenceSubrole::DemoPlayer => Self {
+                thinking_level: ThinkingLevel::Minimal,
+                max_output_tokens: 200,
+                service_tier: ServiceTier::Standard,
+            },
+            _ => Self::for_category(subrole.category()),
+        }
+    }
+}
+
+#[cfg(test)]
+mod inference_profile_tests {
+    use super::*;
+
+    #[test]
+    fn every_checked_in_role_defaults_to_standard_service() {
+        for category in InferenceCategory::ALL {
+            assert_eq!(
+                InferenceProfile::for_category(category).service_tier,
+                ServiceTier::Standard,
+                "{category:?} must not opt into premium inference"
+            );
+        }
+    }
+}
+
 /// Client-routing category. Controls which HTTP client (Anthropic
 /// Messages vs OpenAI-compat vs Simulator) is used.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum ProviderKind {
     Anthropic,
+    /// Google's native Gemini Interactions API.
+    Google,
     #[serde(rename = "openai-compat")]
     OpenAiCompat,
     /// Ollama, LM Studio, vLLM — OpenAI-compat on the wire but managed locally.

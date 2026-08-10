@@ -21,14 +21,42 @@ test.describe('Coordinated surfaces', () => {
 
 	test('debug opens on F12, navigates tabs, closes, and reopens', async ({
 		page,
-	}) => {
+	}, testInfo) => {
 		await page.keyboard.press('F12');
 		const debug = page.getByTestId('surface-debug');
 		await expect(debug).toBeVisible();
 		const tabs = debug.locator('.tab-bar button');
 		await expect(tabs).toHaveCount(8);
-		await tabs.nth(1).click();
-		await expect(tabs.nth(1)).toHaveClass(/active/);
+		await tabs.nth(7).click();
+		await expect(tabs.nth(7)).toHaveClass(/active/);
+		await expect(debug).toContainText('gemini-3.6-flash');
+		await expect(debug).toContainText('Session: 1 calls');
+		await expect(debug).toContainText('cache 88.9%');
+		await expect(debug).toContainText('estimated cost $0.00200');
+		await debug.getByRole('button', { name: /#42/ }).click();
+		await expect(debug).toContainText('google-interactions-v1');
+		await expect(debug).toContainText('Provider interaction: int_test');
+		if (process.env.PARISH_CAPTURE_INFERENCE_DEBUG) {
+			await testInfo.attach('inference-debug-desktop', {
+				body: await debug.screenshot(),
+				contentType: 'image/png',
+			});
+		}
+
+		await page.setViewportSize({ width: 390, height: 844 });
+		await expect(debug).toBeVisible();
+		const mobileBox = await debug.boundingBox();
+		expect(mobileBox).not.toBeNull();
+		expect(mobileBox!.x).toBeGreaterThanOrEqual(0);
+		expect(mobileBox!.y).toBeGreaterThanOrEqual(0);
+		expect(mobileBox!.x + mobileBox!.width).toBeLessThanOrEqual(390);
+		expect(mobileBox!.y + mobileBox!.height).toBeLessThanOrEqual(844);
+		if (process.env.PARISH_CAPTURE_INFERENCE_DEBUG) {
+			await testInfo.attach('inference-debug-mobile', {
+				body: await debug.screenshot(),
+				contentType: 'image/png',
+			});
+		}
 		await page.keyboard.press('Escape');
 		await expect(debug).toHaveCount(0);
 		await page.keyboard.press('F12');

@@ -115,6 +115,10 @@ pub struct GenerateParams {
     /// endpoint translates it into native `thinking` + `reasoning_effort`
     /// fields with that API's supported effort vocabulary.
     pub reasoning_effort: Option<ReasoningEffort>,
+    /// Google Gemini thinking level. Non-Google providers ignore this field.
+    pub thinking_level: Option<crate::google_client::ThinkingLevel>,
+    /// Requested Google inference service tier. Defaults to Standard.
+    pub service_tier: Option<crate::google_client::ServiceTier>,
 }
 
 /// Controls structured output format.

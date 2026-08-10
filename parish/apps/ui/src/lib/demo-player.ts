@@ -7,8 +7,15 @@ import {
 	demoStatus,
 	demoConfig,
 } from '../stores/demo';
-import { streamingActive, textLog, worldState } from '../stores/game';
+import {
+	flushStream,
+	streamingActive,
+	textLog,
+	worldState,
+} from '../stores/game';
 import { getDemoContext, getLlmPlayerAction, submitInput } from './ipc';
+
+const DEMO_STREAM_WAIT_TIMEOUT_MS = 10_000;
 
 function sleep(ms: number): Promise<void> {
 	return new Promise((r) => setTimeout(r, ms));
@@ -23,7 +30,8 @@ function sleep(ms: number): Promise<void> {
 // store is not already false), so prefer-const does not apply.
 function waitForFalse(
 	store: Readable<boolean>,
-	timeoutMs = 30_000,
+	timeoutMs = DEMO_STREAM_WAIT_TIMEOUT_MS,
+	recover?: () => boolean,
 ): Promise<void> {
 	return new Promise((resolve) => {
 		// `timerHandle` must be `let` — it is only assigned in the non-resolved
@@ -62,6 +70,16 @@ function waitForFalse(
 
 		// Safety net: if stream-end never arrives, don't hang forever.
 		timerHandle = setTimeout(() => {
+			if (recover?.()) {
+				console.info(
+					'demo-player: flushed a completed paced stream after',
+					timeoutMs,
+					'ms',
+				);
+				cleanup();
+				resolve();
+				return;
+			}
 			console.warn(
 				'demo-player: waitForFalse timed out after',
 				timeoutMs,
@@ -71,6 +89,14 @@ function waitForFalse(
 			resolve();
 		}, timeoutMs);
 	});
+}
+
+/** Reveal any completed buffered reply immediately before the autonomous
+ * player advances. This is the same safe operation as the player's first
+ * keypress: it finalizes every pending bubble and clears streaming state. */
+function flushCompletedStream(): boolean {
+	get(flushStream)();
+	return !get(streamingActive);
 }
 
 export async function runDemoTurn(): Promise<void> {
@@ -95,7 +121,11 @@ export async function runDemoTurn(): Promise<void> {
 	// sometimes continues in the NPC's own voice (role flip). Wait for both to
 	// settle. For movement / look / empty-location turns neither is set, so this
 	// is a no-op.
-	await waitForFalse(streamingActive);
+	await waitForFalse(
+		streamingActive,
+		DEMO_STREAM_WAIT_TIMEOUT_MS,
+		flushCompletedStream,
+	);
 	const inflightDeadline = Date.now() + 30_000;
 	while (get(worldState)?.turn_in_flight && Date.now() < inflightDeadline) {
 		await sleep(100);
@@ -163,7 +193,11 @@ export async function runDemoTurn(): Promise<void> {
 	if (streamingStarted) {
 		// If streaming is already done by the time we reach here, waitForFalse
 		// resolves immediately (correct: `let unsub` avoids TDZ).
-		await waitForFalse(streamingActive);
+		await waitForFalse(
+			streamingActive,
+			DEMO_STREAM_WAIT_TIMEOUT_MS,
+			flushCompletedStream,
+		);
 	} else {
 		// No streaming started (e.g. movement, look, or empty location).
 		await sleep(50);

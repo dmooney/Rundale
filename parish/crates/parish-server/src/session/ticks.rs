@@ -13,6 +13,7 @@
 //! 6. Inactivity tick (1 s)
 //! 7. Autosave tick
 //! 8. Tier-2 simulation tick (#1198)
+//! 9. Tier-3 simulation tick
 
 use std::sync::Arc;
 use std::time::Duration;
@@ -58,7 +59,7 @@ pub(super) fn spawn_session_ticks(
     state: Arc<AppState>,
     shutdown_token: tokio_util::sync::CancellationToken,
 ) -> Vec<JoinHandle<()>> {
-    let mut handles = Vec::with_capacity(8);
+    let mut handles = Vec::with_capacity(9);
 
     // ── Character-log subscriber ───────────────────────────────────────────
     //
@@ -647,11 +648,17 @@ pub(super) fn spawn_session_ticks(
                 }
 
                 // ── Snapshot the sim client + model outside game-state locks ─
-                let (client_opt, model) = {
+                let (client_opt, model, profile) = {
                     use parish_core::config::InferenceCategory;
                     let cfg = s.config.lock().await;
                     let base_client = s.inference.client.lock().await;
-                    cfg.resolve_category_client(InferenceCategory::Simulation, base_client.as_ref())
+                    let resolved = cfg.resolve_category_client(
+                        InferenceCategory::Simulation,
+                        base_client.as_ref(),
+                    );
+                    let profile = cfg
+                        .inference_profile(parish_core::config::InferenceSubrole::Tier2Simulation);
+                    (resolved.0, resolved.1, profile)
                 };
 
                 let Some(sim_client) = client_opt else {
@@ -666,21 +673,31 @@ pub(super) fn spawn_session_ticks(
                     s.npc_manager.lock().await.set_tier2_in_flight(false);
                     continue;
                 };
+                let audit_sink = s
+                    .inference
+                    .inference_queue
+                    .lock()
+                    .await
+                    .as_ref()
+                    .and_then(parish_core::inference::InferenceQueue::audit_sink);
 
                 // ── Run one LLM call per Tier-2 group (outside locks) ────────
                 let lang = s.language_settings.clone();
                 let mut events = Vec::new();
                 for group in &groups {
-                    if let Some(evt) = parish_core::npc::ticks::run_tier2_for_group(
-                        &sim_client,
-                        &model,
-                        group,
-                        &time_desc,
-                        &weather_str,
-                        &lang,
-                        None,
-                    )
-                    .await
+                    if let Some(evt) =
+                        parish_core::npc::ticks::run_tier2_for_group_with_profile_and_audit(
+                            &sim_client,
+                            &model,
+                            group,
+                            &time_desc,
+                            &weather_str,
+                            &lang,
+                            None,
+                            profile,
+                            audit_sink.clone(),
+                        )
+                        .await
                     {
                         events.push(evt);
                     }
@@ -726,6 +743,147 @@ pub(super) fn spawn_session_ticks(
                         ),
                     });
                 }
+            }
+        }));
+    }
+
+    // ── Tier-3 simulation tick ────────────────────────────────────────────────
+    //
+    // Keep the web runtime in parity with Tauri and headless. Tier 3 is a
+    // direct batch call because its distant-NPC snapshot and canonical apply
+    // seam are distinct from queued dialogue. The provider call runs without
+    // game-state locks; immutable snapshot anchors and the context epoch are
+    // checked again before any update is published.
+    {
+        let s = Arc::clone(&state);
+        let token = shutdown_token.clone();
+        handles.push(tokio::spawn(async move {
+            loop {
+                tokio::select! {
+                    _ = token.cancelled() => break,
+                    _ = tokio::time::sleep(Duration::from_secs(5)) => {}
+                }
+
+                let (snapshots, time_desc, weather, season, context_epoch) = {
+                    let _persistence_guard = s.persistence_gate.lock().await;
+                    let world = s.world.lock().await;
+                    let mut npc_mgr = s.npc_manager.lock().await;
+                    let now = world.clock.now();
+                    if !npc_mgr.needs_tier3_tick(now) || npc_mgr.tier3_in_flight() {
+                        continue;
+                    }
+
+                    let npc_names: std::collections::HashMap<_, _> = npc_mgr
+                        .all_npcs()
+                        .map(|npc| (npc.id, npc.name.clone()))
+                        .collect();
+                    let tier3_ids = npc_mgr.npcs_in_tier(parish_core::npc::types::CogTier::Tier3);
+                    let snapshots: Vec<parish_core::npc::ticks::Tier3Snapshot> = tier3_ids
+                        .iter()
+                        .filter_map(|id| npc_mgr.get(*id))
+                        .map(|npc| {
+                            parish_core::npc::ticks::tier3_snapshot_from_npc(
+                                npc,
+                                &world.graph,
+                                &npc_names,
+                            )
+                        })
+                        .collect();
+                    if snapshots.is_empty() {
+                        continue;
+                    }
+
+                    npc_mgr.set_tier3_in_flight(true);
+                    (
+                        snapshots,
+                        world.clock.time_of_day().to_string(),
+                        world.weather.to_string(),
+                        format!("{:?}", world.clock.season()),
+                        world.event_bus.context_epoch(),
+                    )
+                };
+
+                let (client_opt, model, profile, grounding_enabled) = {
+                    use parish_core::config::InferenceCategory;
+                    let cfg = s.config.lock().await;
+                    let base_client = s.inference.client.lock().await;
+                    let resolved = cfg.resolve_category_client(
+                        InferenceCategory::Simulation,
+                        base_client.as_ref(),
+                    );
+                    (
+                        resolved.0,
+                        resolved.1,
+                        cfg.inference_profile(
+                            parish_core::config::InferenceSubrole::Tier3Simulation,
+                        ),
+                        !cfg.flags.is_disabled("npc-dialogue-grounding"),
+                    )
+                };
+
+                let Some(client) = client_opt else {
+                    let _persistence_guard = s.persistence_gate.lock().await;
+                    let current_epoch = s.world.lock().await.event_bus.context_epoch();
+                    if current_epoch == context_epoch {
+                        s.npc_manager.lock().await.set_tier3_in_flight(false);
+                    }
+                    continue;
+                };
+                let audit_sink = s
+                    .inference
+                    .inference_queue
+                    .lock()
+                    .await
+                    .as_ref()
+                    .and_then(parish_core::inference::InferenceQueue::audit_sink);
+                let ctx = parish_core::npc::ticks::Tier3Context {
+                    snapshots: &snapshots,
+                    client: &client,
+                    model: &model,
+                    time_desc: &time_desc,
+                    weather: &weather,
+                    season: &season,
+                    hours: 24,
+                    batch_size: 0,
+                    language: &s.language_settings,
+                    cancel: None,
+                    grounding_enabled,
+                };
+                let result = parish_core::npc::ticks::tick_tier3_with_profile_and_audit(
+                    &ctx, profile, audit_sink,
+                )
+                .await;
+
+                let _persistence_guard = s.persistence_gate.lock().await;
+                let world = s.world.lock().await;
+                if world.event_bus.context_epoch() != context_epoch {
+                    continue;
+                }
+                let mut npc_mgr = s.npc_manager.lock().await;
+                let game_time = world.clock.now();
+                match result {
+                    Ok(updates) => {
+                        let _events = parish_core::npc::ticks::apply_tier3_updates(
+                            &updates,
+                            npc_mgr.npcs_mut(),
+                            &world.graph,
+                            game_time,
+                            &world.event_bus,
+                        );
+                        npc_mgr.record_tier3_tick(game_time);
+                        let mut debug_events = s.debug_events.lock().await;
+                        if debug_events.len() >= crate::state::DEBUG_EVENT_CAPACITY {
+                            debug_events.pop_front();
+                        }
+                        debug_events.push_back(parish_core::debug_snapshot::DebugEvent {
+                            timestamp: String::new(),
+                            category: "tier3".to_string(),
+                            message: format!("Tier 3 tick: {} updates", updates.len()),
+                        });
+                    }
+                    Err(error) => tracing::warn!(%error, "Tier 3 tick failed"),
+                }
+                npc_mgr.set_tier3_in_flight(false);
             }
         }));
     }

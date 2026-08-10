@@ -212,6 +212,8 @@ pub fn test_app_state() -> Arc<crate::state::AppState> {
             category_model: Default::default(),
             category_api_key: Default::default(),
             category_base_url: Default::default(),
+            inference_profile_override: Default::default(),
+            category_inference_profile: Default::default(),
             flags: parish_core::config::FeatureFlags::default(),
             category_rate_limit: Default::default(),
             active_tile_source: String::new(),
@@ -2234,6 +2236,8 @@ fn mods_root_derives_from_game_mod_not_cwd() {
             category_model: Default::default(),
             category_api_key: Default::default(),
             category_base_url: Default::default(),
+            inference_profile_override: Default::default(),
+            category_inference_profile: Default::default(),
             flags: parish_core::config::FeatureFlags::default(),
             category_rate_limit: Default::default(),
             active_tile_source: String::new(),
@@ -2394,6 +2398,7 @@ async fn audit_loop_detects_mismatch_and_files_full_payload() {
         output_tokens: None,
         temperature: Some(0.7),
         priority: InferencePriority::Interactive,
+        ..Default::default()
     });
 
     // ── Validate: read the authoritative engine state ─────────────────────

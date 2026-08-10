@@ -34,7 +34,7 @@ When no cloud provider is configured, all inference uses the local provider (ful
 
 ### Configuration
 
-Cloud provider is configured via a new `[cloud]` TOML section, `PARISH_CLOUD_*` environment variables, or `--cloud-*` CLI flags. The same layered resolution pattern from the local config is reused. Cloud defaults to OpenRouter (gateway to Claude, GPT-4, etc. via a single API key).
+Cloud provider is configured via a `[cloud]` TOML section, `PARISH_CLOUD_*` environment variables, or `--cloud-*` CLI flags. The same layered resolution pattern from the local config is reused. Cloud defaults to Google Gemini 3.6 Flash through Google's native Interactions API; OpenRouter remains available as an explicit gateway choice.
 
 ### Architecture
 

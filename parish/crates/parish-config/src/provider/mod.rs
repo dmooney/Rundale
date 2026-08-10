@@ -40,7 +40,8 @@ pub use resolution::{
     resolve_category_env_configs, resolve_cloud_config, resolve_config,
 };
 pub use schema::{
-    PresetBaseUrls, Provider, ProviderKind, ProviderMod, ProviderPreset, unified_memory_bytes,
+    InferenceProfile, InferenceProfileOverride, InferenceSubrole, PresetBaseUrls, Provider,
+    ProviderKind, ProviderMod, ProviderPreset, ServiceTier, ThinkingLevel, unified_memory_bytes,
 };
 
 // Private re-imports so the `tests` submodule (which uses `super::*`) keeps
@@ -287,7 +288,7 @@ featured = false
             Provider::from_str_loose("google")
                 .unwrap()
                 .default_base_url(),
-            "https://generativelanguage.googleapis.com/v1beta/openai"
+            "https://generativelanguage.googleapis.com/v1"
         );
         assert_eq!(
             Provider::from_str_loose("groq").unwrap().default_base_url(),
@@ -771,7 +772,7 @@ model = "cwd-model"
             ("openai", "https://api.openai.com", "openai"),
             (
                 "google",
-                "https://generativelanguage.googleapis.com/v1beta/openai",
+                "https://generativelanguage.googleapis.com/v1",
                 "google",
             ),
             ("groq", "https://api.groq.com/openai", "groq"),
@@ -1073,10 +1074,10 @@ model = "anthropic/claude-sonnet-4-20250514"
 
     #[test]
     #[serial(parish_env)]
-    fn test_resolve_cloud_config_defaults_to_openrouter() {
+    fn test_resolve_cloud_config_defaults_to_google() {
         clear_parish_env();
         // SAFETY: serialised by #[serial(parish_env)]
-        unsafe { std::env::set_var("OPENROUTER_API_KEY", "sk-test") };
+        unsafe { std::env::set_var("GOOGLE_API_KEY", "sk-test") };
 
         let cli = CliCloudOverrides {
             provider: None,
@@ -1086,8 +1087,11 @@ model = "anthropic/claude-sonnet-4-20250514"
         let config = resolve_cloud_config(Some(Path::new("/nonexistent")), &cli)
             .unwrap()
             .unwrap();
-        assert_eq!(config.provider.id(), "openrouter");
-        assert_eq!(config.base_url, "https://openrouter.ai/api");
+        assert_eq!(config.provider.id(), "google");
+        assert_eq!(
+            config.base_url,
+            "https://generativelanguage.googleapis.com/v1"
+        );
     }
 
     #[test]

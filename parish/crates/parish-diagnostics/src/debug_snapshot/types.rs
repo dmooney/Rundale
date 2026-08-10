@@ -481,11 +481,11 @@ pub struct DebugEvent {
 
 /// Per-role inference configuration shown in the debug panel.
 ///
-/// Mirrors one entry per [`parish_config::InferenceCategory`]. Provider
+/// Mirrors one entry per concrete [`parish_config::InferenceSubrole`]. Provider
 /// names display as `(inherits base)` in the UI when `provider` is `None`.
 #[derive(Debug, Clone, Serialize)]
 pub struct InferenceCategoryDebug {
-    /// Lowercase role name: "dialogue", "simulation", "intent", "reaction".
+    /// Stable concrete workload name such as "dialogue" or "tier2-simulation".
     pub role: String,
     /// Provider override for this role; `None` means inherit base.
     pub provider: Option<String>,
@@ -493,6 +493,10 @@ pub struct InferenceCategoryDebug {
     pub model: Option<String>,
     /// Base URL override for this role; `None` means inherit base.
     pub base_url: Option<String>,
+    /// Effective Gemini tuning profile for this role.
+    pub thinking_level: parish_config::ThinkingLevel,
+    pub max_output_tokens: u32,
+    pub service_tier: parish_config::ServiceTier,
 }
 
 /// Inference pipeline configuration for debug display.
@@ -516,8 +520,8 @@ pub struct InferenceDebug {
     pub improv_enabled: bool,
     /// Recent inference call log entries (newest last).
     pub call_log: Vec<InferenceLogEntry>,
-    /// Per-role provider/model/url state (always 4 entries: Dialogue,
-    /// Simulation, Intent, Reaction). Each entry's `Option<String>` fields
+    /// Per-workload provider/model/url state (one entry per inference subrole).
+    /// Each entry's `Option<String>` fields
     /// are `None` when the role inherits from the base config.
     pub categories: Vec<InferenceCategoryDebug>,
     /// List of provider display names that have an API key configured (or are local).

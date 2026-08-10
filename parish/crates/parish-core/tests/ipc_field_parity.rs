@@ -712,6 +712,9 @@ fn ipc_field_parity() {
             provider: None,
             model: None,
             base_url: None,
+            thinking_level: parish_config::ThinkingLevel::Medium,
+            max_output_tokens: 4_096,
+            service_tier: parish_config::ServiceTier::Standard,
         },
         &manifest,
     );
@@ -762,6 +765,7 @@ fn ipc_field_parity() {
         output_tokens: None,
         temperature: None,
         priority: parish_inference::InferencePriority::Interactive,
+        ..Default::default()
     };
     assert_keys_contain_manifest("InferenceLogEntry", &log_entry, &manifest);
 

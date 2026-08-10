@@ -229,15 +229,28 @@ screenshots:
 
 # Run /inf-bench against an OpenAI-compatible endpoint.
 # Defaults target local Ollama with gemma4:e4b for both intent and main slots.
-# Override via env: BASE_URL, INTENT_MODEL, MAIN_MODEL, ITERS, API_KEY.
+# Override via env: PROVIDER, BASE_URL, INTENT_MODEL, MAIN_MODEL, ITERS, API_KEY.
 inf-bench:
     cd {{justfile_directory()}} && \
         cargo run -p parish-inference --release --example inf_bench -- \
+            --provider "${PROVIDER:-openai}" \
             --base-url "${BASE_URL:-http://localhost:11434}" \
             --intent-model "${INTENT_MODEL:-gemma4:e4b}" \
             --main-model  "${MAIN_MODEL:-gemma4:e4b}" \
-            --iters "${ITERS:-3}" \
+            --iters "${ITERS:-30}" \
             $(if [ -n "${API_KEY:-}" ]; then echo "--api-key $API_KEY"; fi)
+
+# Prove Gemini implicit caching with one cold and nineteen warm requests using
+# a real, immutable Rundale grounding prefix. Reads GOOGLE_API_KEY from env.
+google-cache-probe:
+    cd {{justfile_directory()}} && \
+        cargo run -p parish-inference --release --example inf_bench -- \
+            --provider google \
+            --base-url "${BASE_URL:-https://generativelanguage.googleapis.com/v1}" \
+            --intent-model "${MODEL:-gemini-3.6-flash}" \
+            --main-model "${MODEL:-gemini-3.6-flash}" \
+            --iters "${ITERS:-1}" \
+            --cache-probe
 
 # ─── Test ────────────────────────────────────────────────────────────────────
 

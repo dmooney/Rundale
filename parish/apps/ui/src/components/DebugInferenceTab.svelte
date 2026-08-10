@@ -6,9 +6,9 @@
 	import BugChip from './BugChip.svelte';
 
 	const PRESET_PROVIDERS = [
+		'google',
 		'anthropic',
 		'openai',
-		'google',
 		'openrouter',
 		'groq',
 		'mistral',
@@ -27,6 +27,21 @@
 		if (!entry.system_prompt) return null;
 		const m = entry.system_prompt.match(/^You are ([^,]+),/);
 		return m ? m[1].trim() : null;
+	}
+
+	function percentile(values: number[], quantile: number): number | null {
+		if (values.length === 0) return null;
+		const sorted = [...values].sort((a, b) => a - b);
+		return sorted[Math.round((sorted.length - 1) * quantile)] ?? null;
+	}
+
+	function percent(numerator: number, denominator: number): string {
+		return denominator > 0 ? `${((numerator / denominator) * 100).toFixed(1)}%` : 'n/a';
+	}
+
+	function shortId(value: string | null): string {
+		if (!value) return 'n/a';
+		return value.length <= 20 ? value : `${value.slice(0, 8)}…${value.slice(-8)}`;
 	}
 
 	let { snap, logId, onSelectLog, onDeselectLog }: {
@@ -48,10 +63,21 @@
 		<span class="log-id">#{selectedEntry.request_id}</span>
 		{#if npcLabel}<span class="log-npc accent">{npcLabel}</span>{/if}
 		<span class="muted">{selectedEntry.model}</span>
+		<span class="log-badge">{selectedEntry.subrole}</span>
+		<span class="muted">{selectedEntry.provider} · {selectedEntry.api_mode}</span>
 		{#if selectedEntry.streaming}<span class="log-badge stream">STREAM</span>{/if}
 		{#if selectedEntry.error}<span class="log-badge error">ERROR</span>{:else}<span class="log-badge ok">OK</span>{/if}
-		<span class="muted">{selectedEntry.duration_ms}ms · prompt {selectedEntry.prompt_len}ch · response {selectedEntry.response_len}ch{#if selectedEntry.ttft_ms != null} · ttft {selectedEntry.ttft_ms}ms{/if}{#if selectedEntry.output_tokens != null} · {selectedEntry.output_tokens} tok{#if selectedEntry.ttft_ms != null && selectedEntry.duration_ms > selectedEntry.ttft_ms} ({(selectedEntry.output_tokens / ((selectedEntry.duration_ms - selectedEntry.ttft_ms) / 1000)).toFixed(1)} tok/s){/if}{/if}</span>
+		<span class="muted">{selectedEntry.duration_ms}ms · prompt {selectedEntry.prompt_len}ch · response {selectedEntry.response_len}ch{#if selectedEntry.ttft_ms != null} · ttft {selectedEntry.ttft_ms}ms{/if}{#if selectedEntry.output_tokens != null} · {selectedEntry.output_tokens} output tok{#if selectedEntry.ttft_ms != null && selectedEntry.duration_ms > selectedEntry.ttft_ms} ({(selectedEntry.output_tokens / ((selectedEntry.duration_ms - selectedEntry.ttft_ms) / 1000)).toFixed(1)} tok/s){/if}{/if}</span>
 	</div>
+	<div class="field muted">
+		Thinking: {selectedEntry.thinking_level ?? 'provider default'} · tier: {selectedEntry.requested_service_tier ?? 'default'} → {selectedEntry.effective_service_tier ?? 'unreported'} · status: {selectedEntry.terminal_status ?? (selectedEntry.error ? 'error' : 'completed')} · retries: {selectedEntry.retry_count}
+	</div>
+	<div class="field muted">Provider interaction: {shortId(selectedEntry.provider_request_id)} · HTTP: {selectedEntry.http_status ?? 'n/a'} · failure: {selectedEntry.failure_kind ?? 'none'} · partial: {selectedEntry.partial_output_len}ch · requested cap: {selectedEntry.max_tokens ?? 'provider default'}</div>
+	<div class="field muted">
+		Tokens: input {selectedEntry.input_tokens ?? 'n/a'} · cached {selectedEntry.cached_tokens ?? 'n/a'} ({percent(selectedEntry.cached_tokens ?? 0, selectedEntry.input_tokens ?? 0)}) · thought {selectedEntry.thought_tokens ?? 'n/a'} · output {selectedEntry.output_tokens ?? 'n/a'} · total {selectedEntry.total_tokens ?? 'n/a'} · stream chunks {selectedEntry.stream_chunks ?? 'n/a'}
+	</div>
+	<div class="field muted">Stable prefix: {selectedEntry.prompt_prefix_hash ?? 'n/a'} · {selectedEntry.prompt_prefix_len ?? 0}ch</div>
+	<div class="field muted">Tier downgraded: {selectedEntry.tier_downgraded ? 'yes' : 'no'} · estimated cost: {selectedEntry.estimated_cost_usd == null ? 'n/a' : `$${selectedEntry.estimated_cost_usd.toFixed(6)}`}</div>
 	{#if selectedEntry.error}
 		<div class="log-error-msg">{selectedEntry.error}</div>
 	{/if}
@@ -115,6 +141,8 @@
 						<th>Role</th>
 						<th>Provider</th>
 						<th>Model</th>
+						<th>Thinking</th>
+						<th>Cap / tier</th>
 					</tr>
 				</thead>
 				<tbody>
@@ -123,6 +151,8 @@
 							<td>{cat.role}</td>
 							<td class:muted={!cat.provider}>{cat.provider ?? `(${snap.inference.provider_name})`}</td>
 							<td class:muted={!cat.model}>{cat.model ?? `(${snap.inference.model_name || '(auto)'})`}</td>
+							<td>{cat.thinking_level}</td>
+							<td>{cat.max_output_tokens} / {cat.service_tier}</td>
 						</tr>
 					{/each}
 				</tbody>
@@ -138,9 +168,30 @@
 		{#if snap.inference.call_log.length === 0}
 			<div class="field muted">(no calls yet)</div>
 		{:else}
-			{@const avgMs = Math.round(snap.inference.call_log.reduce((s, e) => s + e.duration_ms, 0) / snap.inference.call_log.length)}
-			{@const errorCount = snap.inference.call_log.filter(e => e.error).length}
-			<div class="field muted">Avg latency: {avgMs}ms | Errors: {errorCount}</div>
+			{@const sessionCalls = snap.inference.call_log}
+			{@const sessionErrors = sessionCalls.filter((e) => e.error).length}
+			{@const sessionCancelled = sessionCalls.filter((e) => e.failure_kind === 'cancelled').length}
+			{@const sessionTruncated = sessionCalls.filter((e) => e.failure_kind === 'incomplete').length}
+			{@const sessionInput = sessionCalls.reduce((sum, e) => sum + (e.input_tokens ?? 0), 0)}
+			{@const sessionCached = sessionCalls.reduce((sum, e) => sum + (e.cached_tokens ?? 0), 0)}
+			{@const sessionThought = sessionCalls.reduce((sum, e) => sum + (e.thought_tokens ?? 0), 0)}
+			{@const sessionOutput = sessionCalls.reduce((sum, e) => sum + (e.output_tokens ?? 0), 0)}
+			{@const sessionTotal = sessionCalls.reduce((sum, e) => sum + (e.total_tokens ?? 0), 0)}
+			{@const sessionCost = sessionCalls.reduce((sum, e) => sum + (e.estimated_cost_usd ?? 0), 0)}
+			<div class="field muted">Session: {sessionCalls.length} calls · success {sessionCalls.length - sessionErrors} ({percent(sessionCalls.length - sessionErrors, sessionCalls.length)}) · errors {sessionErrors} · cancelled {sessionCancelled} · truncated/incomplete {sessionTruncated} · input/cached/thought/output/total {sessionInput}/{sessionCached}/{sessionThought}/{sessionOutput}/{sessionTotal} · cache {percent(sessionCached, sessionInput)} · thought/output {percent(sessionThought, sessionOutput)} · estimated cost ${sessionCost.toFixed(5)}</div>
+			{#each ['dialogue', 'simulation', 'intent', 'reaction'] as role (role)}
+				{@const calls = snap.inference.call_log.filter(e => e.role === role)}
+				{#if calls.length > 0}
+					{@const errors = calls.filter(e => e.error).length}
+					{@const incomplete = calls.filter(e => e.terminal_status != null && e.terminal_status !== 'completed').length}
+					{@const input = calls.reduce((sum, e) => sum + (e.input_tokens ?? 0), 0)}
+					{@const cached = calls.reduce((sum, e) => sum + (e.cached_tokens ?? 0), 0)}
+					{@const thought = calls.reduce((sum, e) => sum + (e.thought_tokens ?? 0), 0)}
+					{@const output = calls.reduce((sum, e) => sum + (e.output_tokens ?? 0), 0)}
+					{@const cost = calls.reduce((sum, e) => sum + (e.estimated_cost_usd ?? 0), 0)}
+					<div class="field muted">{role}: {calls.length} calls · success {calls.length - errors} ({percent(calls.length - errors, calls.length)}) · errors {errors} · incomplete/cancelled {incomplete} · latency p50/p95 {percentile(calls.map(e => e.duration_ms), 0.5)}/{percentile(calls.map(e => e.duration_ms), 0.95)}ms · TTFT p50/p95 {percentile(calls.flatMap(e => e.ttft_ms == null ? [] : [e.ttft_ms]), 0.5) ?? 'n/a'}/{percentile(calls.flatMap(e => e.ttft_ms == null ? [] : [e.ttft_ms]), 0.95) ?? 'n/a'}ms · cached {percent(cached, input)} · thought/output {percent(thought, output)} · cost ${cost.toFixed(5)}</div>
+				{/if}
+			{/each}
 			{#each [...snap.inference.call_log].reverse() as entry (entry.request_id)}
 				{@const npcLabel = npcLabelFromEntry(entry)}
 				<div class="log-row-wrap">
@@ -150,7 +201,8 @@
 						{#if npcLabel}<span class="log-npc accent">{npcLabel}</span>{:else}<span class="log-model">{entry.model}</span>{/if}
 						{#if entry.streaming}<span class="log-badge stream">STREAM</span>{/if}
 						{#if entry.error}<span class="log-badge error">ERROR</span>{:else}<span class="log-badge ok">OK</span>{/if}
-						<span class="muted">{entry.duration_ms}ms{#if entry.ttft_ms != null} · ttft {entry.ttft_ms}ms{/if}{#if entry.output_tokens != null && entry.ttft_ms != null && entry.duration_ms > entry.ttft_ms} · {(entry.output_tokens / ((entry.duration_ms - entry.ttft_ms) / 1000)).toFixed(1)} tok/s{/if}</span>
+						<span class="log-badge">{entry.subrole}</span>
+						<span class="muted">{entry.duration_ms}ms{#if entry.ttft_ms != null} · ttft {entry.ttft_ms}ms{/if}{#if entry.output_tokens != null && entry.ttft_ms != null && entry.duration_ms > entry.ttft_ms} · {(entry.output_tokens / ((entry.duration_ms - entry.ttft_ms) / 1000)).toFixed(1)} tok/s{/if}{#if entry.cached_tokens != null && entry.input_tokens != null} · cache {percent(entry.cached_tokens, entry.input_tokens)}{/if}</span>
 					</button>
 					<BugChip kind="inference" label={`call #${entry.request_id} (${entry.model})`} detail={entry} />
 				</div>
