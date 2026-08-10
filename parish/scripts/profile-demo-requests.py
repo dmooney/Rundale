@@ -36,9 +36,7 @@ DEFAULT_REPORT_DIR = REPO_ROOT / "docs" / "proofs" / "demo-api-profile"
 GEMINI_CAPABILITY_SNAPSHOT = json.loads(
     (REPO_ROOT / "parish" / "config" / "gemini-3.6-flash-capabilities.json").read_text()
 )
-GEMINI_STANDARD_RATES = GEMINI_CAPABILITY_SNAPSHOT[
-    "pricing_usd_per_million_tokens"
-]["standard"]
+GEMINI_STANDARD_RATES = GEMINI_CAPABILITY_SNAPSHOT["pricing_usd_per_million_tokens"]["standard"]
 DEFAULT_UPSTREAM = "http://localhost:8000/v1"
 DEFAULT_SMALL_UPSTREAM = "http://localhost:8001/v1"
 DEFAULT_MODEL = os.environ.get(
@@ -557,9 +555,7 @@ def parse_sse_response(raw: bytes) -> tuple[str, dict[str, Any], str | None]:
     blocks = raw.decode("utf-8", errors="replace").replace("\r\n", "\n").split("\n\n")
     for block in blocks:
         payload = "\n".join(
-            line[5:].lstrip()
-            for line in block.splitlines()
-            if line.startswith("data:")
+            line[5:].lstrip() for line in block.splitlines() if line.startswith("data:")
         )
         if not payload:
             continue

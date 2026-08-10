@@ -12,7 +12,15 @@
   "max_output_tokens": 65536,
   "implicit_cache_probe_floor_tokens": 8192,
   "pricing_usd_per_million_tokens": {
-    "standard": {"input": 1.50, "cached_input": 0.15, "output_and_thought": 7.50},
-    "priority": {"input": 2.70, "cached_input": 0.27, "output_and_thought": 13.50}
+    "standard": {
+      "input": 1.5,
+      "cached_input": 0.15,
+      "output_and_thought": 7.5
+    },
+    "priority": {
+      "input": 2.7,
+      "cached_input": 0.27,
+      "output_and_thought": 13.5
+    }
   }
 }
