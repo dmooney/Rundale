@@ -232,6 +232,53 @@ fn rejected_anachronistic_candidate_has_identical_fallback_across_modes() {
 }
 
 #[test]
+fn incomplete_multifacet_reply_has_identical_obligation_fallback_across_modes() {
+    let mut harness = GameTestHarness::new();
+    let (_speaker_id, speaker_name) = isolate_one_speaker(&mut harness);
+    // Peig is a known authored parish person even when not co-located.
+    let request =
+        "Peig Hannigan sent me. I'm Aiden Carney, seeking honest work and somewhere dry to sleep.";
+    let input = format!("talk to {speaker_name} about {request}");
+    let raw = "'Tis a fine morning indeed. What brings ye here?";
+    let response = serde_json::json!({
+        "dialogue": raw,
+        "action": "offers a room key",
+        "mood": "delighted",
+        "assigned_task": "Start work tomorrow"
+    })
+    .to_string();
+    let pre = GameSnapshot::capture(&harness.app.world, &harness.app.npc_manager);
+
+    harness.add_canned_response(&speaker_name, &response);
+    let mut legacy_rx = harness.app.world.event_bus.subscribe();
+    let _ = harness.execute(&input);
+    let legacy = dialogue_events(&drain(&mut legacy_rx));
+
+    pre.restore(&mut harness.app.world, &mut harness.app.npc_manager);
+    harness
+        .mock()
+        .push_json_for(first_word(&speaker_name), &response);
+    let mut real_rx = harness.app.world.event_bus.subscribe();
+    let ui_events = harness.execute_via_real_loop(&input);
+    let real = dialogue_events(&drain(&mut real_rx));
+
+    assert_eq!(legacy, real);
+    assert_eq!(real.len(), 1);
+    let event = real.iter().next().unwrap();
+    for required in ["Peig Hannigan", "Aiden Carney", "work", "lodging"] {
+        assert!(event.contains(required), "missing {required}: {event}");
+    }
+    for rejected in [raw, "room key", "Start work tomorrow"] {
+        assert!(!event.contains(rejected));
+        assert!(
+            !serde_json::to_string(&ui_events)
+                .unwrap()
+                .contains(rejected)
+        );
+    }
+}
+
+#[test]
 fn typed_unknown_person_followup_has_legacy_real_loop_parity() {
     let mut legacy_harness = GameTestHarness::new();
     let (legacy_id, legacy_speaker) = isolate_one_speaker(&mut legacy_harness);

@@ -1212,6 +1212,11 @@ pub fn prepare_npc_conversation_turn(
             known_person_names.push(name.clone());
         }
     }
+    let dialogue_obligations =
+        crate::npc::derive_dialogue_obligations(player_input, &known_person_names);
+    context.push_str(&crate::npc::render_dialogue_obligation_contract(
+        &dialogue_obligations,
+    ));
 
     // For the wrong-speaker-identity guard (#1475): (name, occupation) pairs
     // for all roster members. Exclude the player entry (NpcId(0)) since the
@@ -1303,6 +1308,7 @@ pub fn prepare_npc_conversation_turn(
         person_facts: typed_grounding.person_facts,
         location_facts: typed_grounding.location_facts,
         referent_context: typed_grounding.referent_context,
+        dialogue_obligations,
     };
 
     Some(NpcConversationSetup {
@@ -2516,6 +2522,60 @@ mod tests {
         assert!(setup.context.contains("AUTHORED PERIOD ALERT"));
         assert!(setup.context.contains("planning board"));
         assert_eq!(setup.grounding.forbidden_output_terms, ["planning board"]);
+    }
+
+    #[test]
+    fn conversation_setup_renders_exact_issue_obligations_in_player_order() {
+        use crate::config::NpcConfig;
+        use crate::npc::{DialogueObligation, Npc, manager::NpcManager};
+
+        let world = WorldState::new();
+        let mut npc_manager = NpcManager::new();
+        let mut priest = Npc::new_test_npc();
+        priest.id = NpcId(1);
+        priest.name = "Fr. Declan Tierney".to_string();
+        priest.occupation = "Parish Priest".to_string();
+        priest.set_location(world.player_location);
+        npc_manager.add_npc(priest);
+        let mut peig = Npc::new_test_npc();
+        peig.id = NpcId(2);
+        peig.name = "Peig Hannigan".to_string();
+        peig.set_location(world.player_location);
+        npc_manager.add_npc(peig);
+
+        let input = "Good morning, Father. Peig Hannigan sent me. I'm Aiden Carney, seeking honest work and somewhere dry to sleep.";
+        let setup = prepare_npc_conversation_turn(
+            &world,
+            &mut npc_manager,
+            input,
+            NpcId(1),
+            &[],
+            false,
+            &crate::npc::LanguageSettings::english_only(),
+            &NpcConfig::default(),
+        )
+        .expect("conversation setup");
+
+        assert_eq!(
+            setup.grounding.dialogue_obligations,
+            vec![
+                DialogueObligation::Referral {
+                    referrer: "Peig Hannigan".to_string(),
+                },
+                DialogueObligation::Name {
+                    player_name: "Aiden Carney".to_string(),
+                },
+                DialogueObligation::Work,
+                DialogueObligation::Lodging,
+            ]
+        );
+        let referral = setup.context.find("1. REFERRAL").unwrap();
+        let name = setup.context.find("2. NAME").unwrap();
+        let work = setup.context.find("3. WORK").unwrap();
+        let lodging = setup.context.find("4. LODGING").unwrap();
+        assert!(referral < name && name < work && work < lodging);
+        assert!(setup.context.contains("PLAYER REQUESTS TO ANSWER NOW"));
+        assert!(setup.context.contains("fulfill EVERY numbered item"));
     }
 
     #[test]
