@@ -28,6 +28,23 @@ trace here.
 
 ## Change
 
+### Explicit current-turn obligations (#1832)
+
+The pre-inference `DialogueGroundingSnapshot` also carries a conservative,
+ordered set of obligations derived from the player's exact live utterance:
+known-person referral, stated player name, request for work, and request for
+lodging. The same typed values render the `PLAYER REQUESTS TO ANSWER NOW`
+prompt contract and validate the final delivered line. This covers declarative
+multi-facet introductions that contain no question mark and therefore do not
+activate the older answer-first question heuristic.
+
+After semantic guards, repetition handling, and the display cap, the canonical
+apply seam verifies that every recognized facet remains acknowledged. A partial
+candidate is replaced whole and its metadata discarded before state, memory,
+events, or UI output. The deterministic replacement addresses each facet in
+player order while making no claim that an NPC is hiring or that a place offers
+lodging. Unrecognized or merely topical mentions create no obligation.
+
 ### Wave 2: typed factual grounding
 
 Dialogue candidates now cross a semantic trust boundary at the same canonical
