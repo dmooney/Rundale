@@ -576,6 +576,87 @@ fn test_debug_schedule_all_npcs() {
 }
 
 #[test]
+fn spring_schedule_fallbacks_are_season_neutral_in_real_script_mode() {
+    let results = fixture("test_spring_schedule_grounding.txt");
+
+    let time_response = results
+        .iter()
+        .find(|result| result.command == "/time")
+        .and_then(|result| match &result.result {
+            ActionResult::SystemCommand { response } => Some(response.as_str()),
+            _ => None,
+        })
+        .expect("proof fixture should report the canonical clock");
+    assert!(
+        time_response.contains("Spring"),
+        "proof fixture must run in Spring: {time_response}"
+    );
+
+    let schedules: Vec<(&str, &str)> = results
+        .iter()
+        .filter(|result| result.command.starts_with("/debug schedule"))
+        .filter_map(|result| match &result.result {
+            ActionResult::SystemCommand { response } => {
+                Some((result.command.as_str(), response.as_str()))
+            }
+            _ => None,
+        })
+        .collect();
+    assert_eq!(
+        schedules.len(),
+        5,
+        "fixture should inspect all corrected NPCs"
+    );
+
+    let expected_activities = [
+        (
+            "/debug schedule Siobhan",
+            "afternoon farm work — tending the fields, livestock and outbuildings",
+        ),
+        (
+            "/debug schedule Declan",
+            "walking the parish roads, checking on outlying families",
+        ),
+        (
+            "/debug schedule Roisin",
+            "minding the shop — serving local trade, tinkers and travellers",
+        ),
+        (
+            "/debug schedule Aoife",
+            "teaching at the hedge school — lessons in reading, writing, arithmetic and Irish",
+        ),
+        (
+            "/debug schedule Niamh",
+            "serving at the pub through the busy evening",
+        ),
+    ];
+
+    for (command, expected_activity) in expected_activities {
+        let response = schedules
+            .iter()
+            .find_map(|(actual_command, response)| {
+                (*actual_command == command).then_some(*response)
+            })
+            .unwrap_or_else(|| panic!("fixture should include {command}"));
+        assert!(
+            response.contains("(resolved for Spring, Weekday)"),
+            "{command} did not resolve the Spring weekday fallback:\n{response}"
+        );
+        assert!(
+            response.contains(expected_activity),
+            "{command} did not expose the expected neutral activity:\n{response}"
+        );
+        let lower = response.to_lowercase();
+        for wrong_season in ["summer", "autumn", "fall", "winter"] {
+            assert!(
+                !lower.contains(wrong_season),
+                "{command} exposed {wrong_season:?} prose in Spring:\n{response}"
+            );
+        }
+    }
+}
+
+#[test]
 fn test_debug_memory_all_npcs() {
     let results = fixture("test_debug_all_npcs.txt");
 
