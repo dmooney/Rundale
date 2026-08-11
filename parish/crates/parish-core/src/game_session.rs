@@ -557,9 +557,10 @@ pub struct DialogueTurnOutcome {
     /// written to the conversation log and the `DialogueOccurred` event. May be
     /// empty when the model returned no usable dialogue.
     pub display_text: String,
-    /// Content-free names of canonical apply-seam transformations that changed
-    /// the model dialogue. Benchmark telemetry uses these to distinguish
-    /// semantic correction from repetition handling and the display cap.
+    /// Content-free names of canonical apply-seam constraints that materially
+    /// affected the accepted model dialogue. A constraint remains represented
+    /// when an earlier canonical guard makes its later transformation a no-op;
+    /// benchmark telemetry must not depend on guard ordering.
     pub guard_reasons: Vec<String>,
     /// Secondary-language hints validated against `display_text` and the active
     /// setting's curated native-language inventory (#1789).
@@ -1204,6 +1205,20 @@ pub fn apply_npc_dialogue_turn_with_validation(
     flags: &FeatureFlags,
 ) -> DialogueTurnOutcome {
     let mut debug_events = Vec::new();
+    let npc_cfg = crate::config::NpcConfig::default();
+
+    // Record whether the configured display constraint is material against the
+    // complete accepted candidate, before semantic guards can shorten it. The
+    // final cap still runs below, after all semantic validation. This preserves
+    // the safe validation order while making quality telemetry independent of
+    // overlap with the verbosity guard (#1834).
+    let candidate_requires_display_cap = cap_dialogue_for_display_with_trim(
+        &parsed.dialogue,
+        npc_cfg.dialogue_display_max_chars,
+        npc_cfg.dialogue_sentence_boundary_trim,
+    )
+    .as_ref()
+        != parsed.dialogue;
 
     // 1. Learn the player's name from a self-introduction *before* recording
     //    memory, so the addressed speaker's memory uses the real name (#1028).
@@ -1225,7 +1240,6 @@ pub fn apply_npc_dialogue_turn_with_validation(
     // identity, event, or UI effect. This repetition guard needs the live
     // conversation log, so it belongs at the apply boundary alongside the
     // snapshot-only validator rather than in a runtime caller (#1228, #1834).
-    let npc_cfg = crate::config::NpcConfig::default();
     let previous_line: Option<String> = world
         .conversation_log
         .recent_at(
@@ -1259,9 +1273,12 @@ pub fn apply_npc_dialogue_turn_with_validation(
         npc_cfg.dialogue_sentence_boundary_trim,
     )
     .into_owned();
-    if capped_dialogue != canonical_response.dialogue {
-        guard_reasons.push("display_cap".to_string());
+    let final_dialogue_was_capped = capped_dialogue != canonical_response.dialogue;
+    if final_dialogue_was_capped {
         canonical_response.dialogue = capped_dialogue;
+    }
+    if accepted_candidate && (candidate_requires_display_cap || final_dialogue_was_capped) {
+        guard_reasons.push("display_cap".to_string());
     }
 
     // 2. Tier-1 state update on the speaker.
@@ -2950,6 +2967,23 @@ mod tests {
                 .any(|reason| reason == "display_cap"),
             "a material cap must be visible in quality telemetry: {:?}",
             outcome.guard_reasons
+        );
+        assert!(
+            outcome
+                .guard_reasons
+                .iter()
+                .any(|reason| reason == "verbosity_guard"),
+            "the setup must exercise the overlapping verbosity guard: {:?}",
+            outcome.guard_reasons
+        );
+        assert_eq!(
+            outcome
+                .guard_reasons
+                .iter()
+                .filter(|reason| reason.as_str() == "display_cap")
+                .count(),
+            1,
+            "the material display constraint must be reported exactly once"
         );
 
         // The DialogueOccurred event published to the bus must carry the
