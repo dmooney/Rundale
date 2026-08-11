@@ -51,6 +51,80 @@ async function submissions(page: Page): Promise<string[]> {
 	);
 }
 
+async function seedOverflowingTranscript(page: Page) {
+	for (let index = 0; index < 18; index += 1) {
+		await emitEvent(page, 'text-log', {
+			id: `history-${index}`,
+			source: 'system',
+			content: `Earlier parish event ${index + 1}: the road, weather, and neighbours remain in view.`,
+		});
+	}
+}
+
+async function streamReply(page: Page, turnId: number, reply: string) {
+	await emitEvent(page, 'loading', { active: true });
+	await emitEvent(page, 'text-log', {
+		id: `reply-${turnId}`,
+		source: 'Siobhan Murphy',
+		content: '',
+		stream_turn_id: turnId,
+	});
+	await emitEvent(page, 'stream-token', {
+		token: reply,
+		turn_id: turnId,
+		source: 'Siobhan Murphy',
+		message_id: `reply-${turnId}`,
+	});
+	await emitEvent(page, 'stream-turn-end', { turn_id: turnId });
+	await emitEvent(page, 'stream-end', { hints: [] });
+	await expect(page.getByTestId('input-field')).toHaveAttribute(
+		'aria-busy',
+		'false',
+		{ timeout: 15_000 },
+	);
+}
+
+async function expectLatestReplyVisible(page: Page, reply: string) {
+	const chat = page.getByTestId('chat-panel');
+	const row = chat.locator('.bubble-row.npc').filter({ hasText: reply }).last();
+	await expect(row).toBeVisible();
+	await expect
+		.poll(() =>
+			chat.evaluate(
+				(element) =>
+					element.scrollHeight - element.scrollTop - element.clientHeight,
+			),
+		)
+		.toBeLessThanOrEqual(1);
+	const geometry = await page.evaluate(() => {
+		const chatElement = document.querySelector<HTMLElement>(
+			'[data-testid="chat-panel"]',
+		)!;
+		const replyElement = [
+			...document.querySelectorAll<HTMLElement>('.bubble-row.npc'),
+		].at(-1)!;
+		const inputElement = document.querySelector<HTMLElement>('.input-wrapper')!;
+		const chatRect = chatElement.getBoundingClientRect();
+		const replyRect = replyElement.getBoundingClientRect();
+		const inputRect = inputElement.getBoundingClientRect();
+		return {
+			chatTop: chatRect.top,
+			chatBottom: chatRect.bottom,
+			replyTop: replyRect.top,
+			replyBottom: replyRect.bottom,
+			inputTop: inputRect.top,
+			bottomDelta:
+				chatElement.scrollHeight -
+				chatElement.scrollTop -
+				chatElement.clientHeight,
+		};
+	});
+	expect(geometry.replyTop).toBeGreaterThanOrEqual(geometry.chatTop - 1);
+	expect(geometry.replyBottom).toBeLessThanOrEqual(geometry.chatBottom + 1);
+	expect(geometry.replyBottom).toBeLessThanOrEqual(geometry.inputTop + 1);
+	expect(Math.abs(geometry.bottomDelta)).toBeLessThanOrEqual(1);
+}
+
 test.describe('Input and streaming', () => {
 	test.beforeEach(async ({ page }) => {
 		await installTauriMock(page, 'morning');
@@ -256,6 +330,75 @@ test.describe('Input and streaming', () => {
 		await expect(padraigRow).toContainText(
 			"If it is, I'll bring the cart before sunset.",
 		);
+	});
+
+	for (const viewport of [
+		{ name: 'desktop', width: 1280, height: 800 },
+		{ name: 'mobile', width: 390, height: 844 },
+	]) {
+		test(`${viewport.name} keeps a completed streamed reply above the composer`, async ({
+			page,
+		}) => {
+			await page.setViewportSize(viewport);
+			await seedOverflowingTranscript(page);
+			const reply =
+				'The potatoes need tending first, then we will mend the western gate before the evening rain.';
+			await streamReply(page, viewport.width, reply);
+			await expectLatestReplyVisible(page, reply);
+		});
+	}
+
+	test('mobile preserves a reader who scrolls up during a streamed reply', async ({
+		page,
+	}) => {
+		await page.setViewportSize({ width: 390, height: 844 });
+		await seedOverflowingTranscript(page);
+		await emitEvent(page, 'loading', { active: true });
+		await emitEvent(page, 'stream-token', {
+			token:
+				'First, ye will clear the stones from the field. After that, bring the seed from the dry loft and mind the broken stair.',
+			turn_id: 1835,
+			source: 'Siobhan Murphy',
+		});
+		await expect(page.getByTestId('chat-panel')).toContainText('First,');
+		const chat = page.getByTestId('chat-panel');
+		await chat.hover();
+		await page.mouse.wheel(0, -2_000);
+		await expect
+			.poll(() => chat.evaluate((element) => element.scrollTop))
+			.toBe(0);
+		const topAfterUserScroll = await chat.evaluate(
+			(element) => element.scrollTop,
+		);
+
+		await emitEvent(page, 'stream-turn-end', { turn_id: 1835 });
+		await emitEvent(page, 'stream-end', { hints: [] });
+		await expect(page.getByTestId('input-field')).toHaveAttribute(
+			'aria-busy',
+			'false',
+			{ timeout: 15_000 },
+		);
+		expect(await chat.evaluate((element) => element.scrollTop)).toBe(
+			topAfterUserScroll,
+		);
+	});
+
+	test('mobile bottom-follow survives viewport and composer height changes', async ({
+		page,
+	}) => {
+		await page.setViewportSize({ width: 390, height: 844 });
+		await seedOverflowingTranscript(page);
+		const reply = 'The western gate is ready for us now.';
+		await streamReply(page, 1836, reply);
+		await expectLatestReplyVisible(page, reply);
+
+		await page.setViewportSize({ width: 390, height: 700 });
+		await expectLatestReplyVisible(page, reply);
+
+		await page
+			.getByTestId('input-field')
+			.fill('First line\nSecond line\nThird line\nFourth line');
+		await expectLatestReplyVisible(page, reply);
 	});
 });
 
