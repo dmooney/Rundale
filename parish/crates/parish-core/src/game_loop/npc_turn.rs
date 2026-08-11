@@ -253,12 +253,17 @@ pub async fn run_npc_turn(
         )
     };
     let mut setup = setup?;
-    setup.grounding.prior_openers = ctx
-        .conversation
-        .lock()
-        .await
-        .seen_openers_this_location
-        .clone();
+    {
+        let mut conversation = ctx.conversation.lock().await;
+        conversation.dialogue_referents.observe_player_input(
+            prompt_input,
+            &setup.grounding.known_person_names,
+            &setup.grounding.known_location_names,
+            setup.grounding.player_name.as_deref(),
+        );
+        setup.grounding.referent_context = conversation.dialogue_referents.clone();
+        setup.grounding.prior_openers = conversation.seen_openers_this_location.clone();
+    }
 
     let loading_cancel = spawn_loading();
 

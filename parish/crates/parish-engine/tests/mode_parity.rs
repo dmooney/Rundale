@@ -103,7 +103,7 @@ fn isolate_one_speaker(harness: &mut GameTestHarness) -> (NpcId, String) {
         .npc_manager
         .all_npcs()
         .map(|npc| npc.id)
-        .next()
+        .min_by_key(|id| id.0)
         .expect("harness loads at least one NPC");
     let speaker_name = {
         let npc = harness
@@ -229,6 +229,75 @@ fn rejected_anachronistic_candidate_has_identical_fallback_across_modes() {
             .find("planning board")
             .is_none()
     );
+}
+
+#[test]
+fn typed_unknown_person_followup_has_legacy_real_loop_parity() {
+    let mut legacy_harness = GameTestHarness::new();
+    let (legacy_id, legacy_speaker) = isolate_one_speaker(&mut legacy_harness);
+    let mut real_harness = GameTestHarness::new();
+    let (real_id, real_speaker) = isolate_one_speaker(&mut real_harness);
+    assert_eq!(legacy_speaker, real_speaker);
+
+    let turns = [
+        (
+            "Have you seen my cousin Cormac Finn?",
+            "Aye, I've seen yer cousin. He was here earlier.",
+        ),
+        (
+            "Where did he go?",
+            "He made for the crossroads, as if in a hurry.",
+        ),
+    ];
+    let mut legacy_events = BTreeSet::new();
+    let mut real_events = BTreeSet::new();
+    for (input, reply) in turns {
+        let legacy_location = legacy_harness.app.world.player_location;
+        legacy_harness
+            .app
+            .npc_manager
+            .get_mut(legacy_id)
+            .expect("legacy speaker exists")
+            .set_location_and_state(legacy_location, NpcState::Present);
+        let real_location = real_harness.app.world.player_location;
+        real_harness
+            .app
+            .npc_manager
+            .get_mut(real_id)
+            .expect("real speaker exists")
+            .set_location_and_state(real_location, NpcState::Present);
+        let response = serde_json::json!({
+            "dialogue": reply,
+            "action": "points away",
+            "mood": "certain",
+            "assigned_task": "Follow Cormac"
+        })
+        .to_string();
+
+        legacy_harness.add_canned_response(&legacy_speaker, &response);
+        let mut legacy_rx = legacy_harness.app.world.event_bus.subscribe();
+        let _ = legacy_harness.execute(&format!("talk to {legacy_speaker} about {input}"));
+        legacy_events.extend(dialogue_events(&drain(&mut legacy_rx)));
+
+        real_harness
+            .mock()
+            .push_json_for(first_word(&real_speaker), &response);
+        let mut real_rx = real_harness.app.world.event_bus.subscribe();
+        let ui_events =
+            real_harness.execute_via_real_loop(&format!("talk to {real_speaker} about {input}"));
+        assert!(!serde_json::to_string(&ui_events).unwrap().contains(reply));
+        real_events.extend(dialogue_events(&drain(&mut real_rx)));
+    }
+
+    assert_eq!(legacy_events, real_events);
+    assert_eq!(legacy_events.len(), 2);
+    assert!(legacy_events.iter().all(|event| {
+        event.contains(parish_core::npc::INVALID_DIALOGUE_FALLBACK)
+            && !event.contains("seen yer cousin")
+            && !event.contains("made for the crossroads")
+            && !event.contains("points away")
+            && !event.contains("Follow Cormac\"")
+    }));
 }
 
 #[test]
