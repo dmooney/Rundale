@@ -186,13 +186,13 @@ fn dialogue_turn_publishes_identical_event_across_legacy_and_real_loop() {
 fn grounded_task_assignment_is_identical_in_legacy_and_real_loops() {
     let mut harness = GameTestHarness::new();
     let (speaker_id, speaker_name) = isolate_one_speaker(&mut harness);
-    let input = format!("talk to {speaker_name} about whether ye have work for me");
+    let input = "I'll take the work. What would you have me do first?".to_string();
     let response = serde_json::json!({
         "dialogue": "First, help with the potato patch — break the clods and plant seed.",
         "action": "points toward the field",
         "mood": "busy",
         "language_hints": [],
-        "assigned_task": "Dig over the potato patch.",
+        "assigned_task": "Break the clods and plant seed in the potato patch.",
         "internal_thought": null
     })
     .to_string();
@@ -210,7 +210,10 @@ fn grounded_task_assignment_is_identical_in_legacy_and_real_loops() {
         .next()
         .cloned()
         .expect("legacy path assigns the grounded task");
-    assert_eq!(legacy_task.description, "Dig over the potato patch.");
+    assert_eq!(
+        legacy_task.description,
+        "Break the clods and plant seed in the potato patch."
+    );
     assert_eq!(legacy_task.assigned_by, speaker_id);
 
     pre.restore(&mut harness.app.world, &mut harness.app.npc_manager);
@@ -278,7 +281,7 @@ fn parity_comparison_catches_a_dropped_dialogue_event() {
 
 #[test]
 fn potato_patch_action_progresses_identically_in_legacy_and_real_loops() {
-    const ACTION: &str = "I dig over the potato patch.";
+    const ACTION: &str = "I take up a spade, break the clods in the potato patch, and plant the seed as Siobhan instructed.";
 
     let mut harness = GameTestHarness::new();
     let location = harness.app.world.player_location;
@@ -288,7 +291,7 @@ fn potato_patch_action_progresses_identically_in_legacy_and_real_loops() {
         .world
         .player_progress
         .assign_task(
-            "Dig over the potato patch.",
+            "Break the clods and plant seed in the potato patch.",
             NpcId(7),
             location,
             assigned_at,
