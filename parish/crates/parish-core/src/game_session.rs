@@ -68,12 +68,31 @@ pub const PLAYER_TASK_PROGRESSION_FLAG: &str = "player-task-progression";
 
 /// Deterministic player opt-in for accepting a model-proposed task.
 ///
-/// Restricting assignment to an explicit work/help request lets runtimes know
-/// before inference which dialogue turns can mutate the durable task ledger,
-/// so those turns can be staged atomically without delaying every ordinary
-/// conversation.
+/// Restricting assignment to an explicit work/help request, affirmative
+/// acceptance, or concrete first-step follow-up lets runtimes know before
+/// inference which dialogue turns can mutate the durable task ledger. The
+/// staged-turn admission seam calls this same classifier, so no accepted task
+/// can bypass atomic journal persistence.
 pub fn is_task_request_input(input: &str) -> bool {
-    let normalized = input.trim().to_ascii_lowercase();
+    let normalized = input.trim().to_ascii_lowercase().replace('\u{2019}', "'");
+    if [
+        "don't need help",
+        "do not need help",
+        "can't help",
+        "cannot help",
+        "won't help",
+        "will not help",
+        "won't take the work",
+        "will not take the work",
+        "not take the work",
+        "decline the work",
+    ]
+    .iter()
+    .any(|phrase| normalized.contains(phrase))
+    {
+        return false;
+    }
+
     [
         "any work",
         "have work",
@@ -94,6 +113,14 @@ pub fn is_task_request_input(input: &str) -> bool {
         "have a job",
         "chores",
         "errand",
+        "i'll take the work",
+        "i will take the work",
+        "i accept the work",
+        "i'll do the work",
+        "i will do the work",
+        "what would you have me do first",
+        "what should i do first",
+        "what am i to do first",
     ]
     .iter()
     .any(|phrase| normalized.contains(phrase))
@@ -3132,8 +3159,8 @@ mod tests {
             NpcResponseParseDisposition::FullJson,
             &grounding,
             DialogueValidationPolicy::default(),
-            "Good morning. What is your name?",
-            "Good morning. What is your name?",
+            "I'll take the work. What would you have me do first?",
+            "I'll take the work. What would you have me do first?",
             game_time,
             location,
             "an elderly widow",
@@ -3592,6 +3619,34 @@ mod tests {
                     "Please dig over the potato patch.",
                 ),
                 "{negative_proposal:?} must not become a durable task"
+            );
+        }
+    }
+
+    #[test]
+    fn task_turn_classifier_accepts_reported_follow_up_and_rejects_negation() {
+        for input in [
+            "I'll take the work. What would you have me do first?",
+            "I’ll take the work. What would you have me do first?",
+            "I accept the work. What should I do first?",
+            "Have ye any work for me?",
+        ] {
+            assert!(
+                is_task_request_input(input),
+                "{input:?} must admit task assignment"
+            );
+        }
+
+        for input in [
+            "I won't take the work.",
+            "I will not take the work.",
+            "I cannot help today.",
+            "I don't need help with the weather.",
+            "The work was hard last winter.",
+        ] {
+            assert!(
+                !is_task_request_input(input),
+                "{input:?} must not admit task assignment"
             );
         }
     }

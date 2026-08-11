@@ -186,7 +186,7 @@ fn dialogue_turn_publishes_identical_event_across_legacy_and_real_loop() {
 fn rejected_anachronistic_candidate_has_identical_fallback_across_modes() {
     let mut harness = GameTestHarness::new();
     let (_speaker_id, speaker_name) = isolate_one_speaker(&mut harness);
-    let input = format!("talk to {speaker_name} about the parish council");
+    let input = "I'll take the work. What would you have me do first?".to_string();
     let response = serde_json::json!({
         "dialogue": "Council says the planning board has set tongues.",
         "action": "waves a notice",
@@ -199,7 +199,10 @@ fn rejected_anachronistic_candidate_has_identical_fallback_across_modes() {
     harness.add_canned_response(&speaker_name, &response);
     let mut legacy_rx = harness.app.world.event_bus.subscribe();
     let _ = harness.execute(&input);
-    let legacy = dialogue_events(&drain(&mut legacy_rx));
+    let legacy_stream = drain(&mut legacy_rx);
+    let legacy = dialogue_events(&legacy_stream);
+    let legacy_tasks = player_task_events(&legacy_stream);
+    assert!(harness.app.world.player_progress.is_empty());
 
     pre.restore(&mut harness.app.world, &mut harness.app.npc_manager);
     harness
@@ -207,9 +210,14 @@ fn rejected_anachronistic_candidate_has_identical_fallback_across_modes() {
         .push_json_for(first_word(&speaker_name), &response);
     let mut real_rx = harness.app.world.event_bus.subscribe();
     let ui_events = harness.execute_via_real_loop(&input);
-    let real = dialogue_events(&drain(&mut real_rx));
+    let real_stream = drain(&mut real_rx);
+    let real = dialogue_events(&real_stream);
+    let real_tasks = player_task_events(&real_stream);
 
     assert_eq!(legacy, real);
+    assert_eq!(legacy_tasks, real_tasks);
+    assert!(real_tasks.is_empty());
+    assert!(harness.app.world.player_progress.is_empty());
     assert!(real.iter().all(|event| !event.contains("planning board")));
     assert!(
         real.iter()
@@ -296,13 +304,13 @@ fn typed_unknown_person_followup_has_legacy_real_loop_parity() {
 fn grounded_task_assignment_is_identical_in_legacy_and_real_loops() {
     let mut harness = GameTestHarness::new();
     let (speaker_id, speaker_name) = isolate_one_speaker(&mut harness);
-    let input = format!("talk to {speaker_name} about whether ye have work for me");
+    let input = "I'll take the work. What would you have me do first?".to_string();
     let response = serde_json::json!({
         "dialogue": "First, help with the potato patch — break the clods and plant seed.",
         "action": "points toward the field",
         "mood": "busy",
         "language_hints": [],
-        "assigned_task": "Dig over the potato patch.",
+        "assigned_task": "Break the clods and plant seed in the potato patch.",
         "internal_thought": null
     })
     .to_string();
@@ -320,7 +328,10 @@ fn grounded_task_assignment_is_identical_in_legacy_and_real_loops() {
         .next()
         .cloned()
         .expect("legacy path assigns the grounded task");
-    assert_eq!(legacy_task.description, "Dig over the potato patch.");
+    assert_eq!(
+        legacy_task.description,
+        "Break the clods and plant seed in the potato patch."
+    );
     assert_eq!(legacy_task.assigned_by, speaker_id);
 
     pre.restore(&mut harness.app.world, &mut harness.app.npc_manager);
@@ -388,7 +399,7 @@ fn parity_comparison_catches_a_dropped_dialogue_event() {
 
 #[test]
 fn potato_patch_action_progresses_identically_in_legacy_and_real_loops() {
-    const ACTION: &str = "I dig over the potato patch.";
+    const ACTION: &str = "I take up a spade, break the clods in the potato patch, and plant the seed as Siobhan instructed.";
 
     let mut harness = GameTestHarness::new();
     let location = harness.app.world.player_location;
@@ -398,7 +409,7 @@ fn potato_patch_action_progresses_identically_in_legacy_and_real_loops() {
         .world
         .player_progress
         .assign_task(
-            "Dig over the potato patch.",
+            "Break the clods and plant seed in the potato patch.",
             NpcId(7),
             location,
             assigned_at,
