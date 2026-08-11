@@ -3,7 +3,7 @@ use std::path::PathBuf;
 
 use parish_npc::Npc;
 use parish_npc::data::{load_npcs_from_file, load_npcs_from_str};
-use parish_types::{LocationId, NpcId};
+use parish_types::{DayType, LocationId, NpcId, Season};
 use parish_world::graph::WorldGraph;
 
 fn repo_root() -> PathBuf {
@@ -81,6 +81,16 @@ fn validate_npcs_against_world(npcs: &[Npc], world: &WorldGraph) -> Vec<String> 
                     errors.push(format!("{} has a blank schedule activity", npc.name));
                 }
 
+                if variant.season.is_none()
+                    && variant.day_type.is_none()
+                    && let Some(season) = unscoped_activity_season_word(&entry.activity)
+                {
+                    errors.push(format!(
+                        "{} has season-specific word {season:?} in unscoped fallback activity {:?}",
+                        npc.name, entry.activity
+                    ));
+                }
+
                 if !world_has_location(world, entry.location) {
                     errors.push(format!(
                         "{} has missing schedule location {}",
@@ -125,6 +135,22 @@ fn validate_npcs_against_world(npcs: &[Npc], world: &WorldGraph) -> Vec<String> 
     errors
 }
 
+/// Returns the first explicit season word in authored activity prose.
+///
+/// An unscoped `(None, None)` schedule variant can resolve in every season and
+/// day type not covered by a more specific variant. Its prose therefore must
+/// not claim that any one season is currently active.
+fn unscoped_activity_season_word(activity: &str) -> Option<&'static str> {
+    const SEASONS: [&str; 5] = ["spring", "summer", "autumn", "fall", "winter"];
+    activity
+        .split(|character: char| !character.is_alphabetic())
+        .find_map(|word| {
+            SEASONS
+                .into_iter()
+                .find(|season| word.eq_ignore_ascii_case(season))
+        })
+}
+
 fn world_has_location(world: &WorldGraph, id: LocationId) -> bool {
     world.get(id).is_some()
 }
@@ -161,6 +187,64 @@ fn real_rundale_npcs_and_world_are_consistent() {
         "Rundale NPC/world consistency errors:\n{}",
         errors.join("\n")
     );
+}
+
+#[test]
+fn spring_weekday_schedule_activities_are_seasonally_grounded() {
+    let npcs =
+        load_npcs_from_file(&rundale_file("npcs.json")).expect("real Rundale NPC data should load");
+
+    let expected = [
+        (
+            "Siobhan Murphy",
+            13,
+            "afternoon farm work — tending the fields, livestock and outbuildings",
+        ),
+        (
+            "Fr. Declan Tierney",
+            14,
+            "walking the parish roads, checking on outlying families",
+        ),
+        (
+            "Roisin Connolly",
+            9,
+            "minding the shop — serving local trade, tinkers and travellers",
+        ),
+        (
+            "Aoife Brennan",
+            9,
+            "teaching at the hedge school — lessons in reading, writing, arithmetic and Irish",
+        ),
+        (
+            "Niamh Darcy",
+            18,
+            "serving at the pub through the busy evening",
+        ),
+    ];
+
+    for (name, hour, expected_activity) in expected {
+        let npc = npcs
+            .iter()
+            .find(|npc| npc.name == name)
+            .unwrap_or_else(|| panic!("real Rundale data should include {name}"));
+        let activity = npc
+            .schedule()
+            .and_then(|schedule| schedule.entry_at(hour, Season::Spring, DayType::Weekday))
+            .map(|entry| entry.activity.as_str())
+            .unwrap_or_else(|| {
+                panic!("{name} should have a Spring weekday activity at {hour:02}:00")
+            });
+
+        assert_eq!(
+            activity, expected_activity,
+            "wrong Spring activity for {name}"
+        );
+        assert_eq!(
+            unscoped_activity_season_word(activity),
+            None,
+            "Spring activity for {name} must not assert another season"
+        );
+    }
 }
 
 /// TD-002: cross-file content validation for the supporting mod data files
