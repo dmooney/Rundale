@@ -7,8 +7,9 @@
 use parish_types::TimeOfDay;
 
 use crate::{
-    DialogueSpeakerContext, NpcResponseParseDisposition, NpcStreamResponse, RelationshipToneHint,
-    dedupe_cross_npc_openers, guard_acquaintance_question_intent_drift,
+    DialogueObligation, DialogueSpeakerContext, NpcResponseParseDisposition, NpcStreamResponse,
+    RelationshipToneHint, dedupe_cross_npc_openers, dialogue_fulfills_obligations,
+    dialogue_obligation_fallback, guard_acquaintance_question_intent_drift,
     guard_direct_evidence_evasion, guard_fabricated_person_confirmation_with_locations,
     guard_fabricated_person_routing, guard_false_denial_of_known_place,
     guard_false_denial_of_roster_person_with_speaker, guard_invented_place_confirmation,
@@ -153,6 +154,8 @@ pub struct DialogueGroundingSnapshot {
     pub person_facts: Vec<GroundedPersonFact>,
     pub location_facts: Vec<GroundedLocationFact>,
     pub referent_context: DialogueReferentContext,
+    /// Explicit facets derived from the exact player utterance before inference.
+    pub dialogue_obligations: Vec<DialogueObligation>,
 }
 
 impl Default for DialogueGroundingSnapshot {
@@ -177,6 +180,7 @@ impl Default for DialogueGroundingSnapshot {
             person_facts: Vec::new(),
             location_facts: Vec::new(),
             referent_context: DialogueReferentContext::default(),
+            dialogue_obligations: Vec::new(),
         }
     }
 }
@@ -775,14 +779,15 @@ pub fn validate_dialogue_candidate(
     policy: DialogueValidationPolicy,
     seed: u64,
 ) -> DialogueValidationOutcome {
+    let rejected_response = || NpcStreamResponse {
+        dialogue: dialogue_obligation_fallback(&snapshot.dialogue_obligations),
+        metadata: None,
+    };
     let contract_valid = disposition == NpcResponseParseDisposition::FullJson
         && !candidate.dialogue.trim().is_empty();
     if !contract_valid {
         return DialogueValidationOutcome {
-            response: NpcStreamResponse {
-                dialogue: INVALID_DIALOGUE_FALLBACK.to_string(),
-                metadata: None,
-            },
+            response: rejected_response(),
             contract_valid: false,
             accepted: false,
             guard_reasons: vec!["response_contract_guard".to_string()],
@@ -791,10 +796,7 @@ pub fn validate_dialogue_candidate(
 
     if candidate_contains_forbidden_term(candidate, &snapshot.forbidden_output_terms) {
         return DialogueValidationOutcome {
-            response: NpcStreamResponse {
-                dialogue: INVALID_DIALOGUE_FALLBACK.to_string(),
-                metadata: None,
-            },
+            response: rejected_response(),
             contract_valid: true,
             accepted: false,
             guard_reasons: vec!["anachronism_output_guard".to_string()],
@@ -803,10 +805,7 @@ pub fn validate_dialogue_candidate(
 
     if violates_typed_grounding(&candidate.dialogue, player_input, snapshot) {
         return DialogueValidationOutcome {
-            response: NpcStreamResponse {
-                dialogue: INVALID_DIALOGUE_FALLBACK.to_string(),
-                metadata: None,
-            },
+            response: rejected_response(),
             contract_valid: true,
             accepted: false,
             guard_reasons: vec!["typed_grounding_guard".to_string()],
@@ -970,6 +969,18 @@ pub fn validate_dialogue_candidate(
         guarded,
     );
 
+    // All semantic rewrites precede this check: the contract applies to the
+    // actual candidate line that would otherwise reach the final apply seam.
+    // A partial response is rejected whole so its metadata cannot take effect.
+    if !dialogue_fulfills_obligations(&response.dialogue, &snapshot.dialogue_obligations) {
+        return DialogueValidationOutcome {
+            response: rejected_response(),
+            contract_valid: true,
+            accepted: false,
+            guard_reasons: vec!["dialogue_obligation_guard".to_string()],
+        };
+    }
+
     DialogueValidationOutcome {
         response,
         contract_valid: true,
@@ -1068,6 +1079,36 @@ mod tests {
             DialogueValidationPolicy::default(),
             7,
         )
+    }
+
+    #[test]
+    fn explicit_multifacet_obligations_reject_partial_candidate_and_metadata() {
+        let input = "Good morning, Father. Peig Hannigan sent me. I'm Aiden Carney, seeking honest work and somewhere dry to sleep.";
+        let mut snapshot = typed_snapshot();
+        snapshot.dialogue_obligations =
+            crate::derive_dialogue_obligations(input, &snapshot.known_person_names);
+
+        let rejected = validate_typed(
+            "'Tis a fine morning indeed. What brings ye to this church?",
+            input,
+            &snapshot,
+        );
+        assert!(!rejected.accepted);
+        assert_eq!(rejected.guard_reasons, ["dialogue_obligation_guard"]);
+        assert!(rejected.response.metadata.is_none());
+        assert!(crate::dialogue_fulfills_obligations(
+            &rejected.response.dialogue,
+            &snapshot.dialogue_obligations,
+        ));
+        assert!(!rejected.response.dialogue.contains("What brings ye"));
+
+        let accepted = validate_typed(
+            "I hear Peig sent you, Aiden. I cannot promise work or a bed, but I understand both needs.",
+            input,
+            &snapshot,
+        );
+        assert!(accepted.accepted, "{:?}", accepted.guard_reasons);
+        assert!(accepted.response.metadata.is_some());
     }
 
     #[test]
