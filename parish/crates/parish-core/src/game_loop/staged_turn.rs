@@ -22,9 +22,10 @@ pub struct StagedGameInputCommit {
 
 /// Returns whether a free-form input must use whole-turn staging.
 ///
-/// Explicit work requests can assign a new task. Once any task is active, all
-/// free-form inputs are staged because intent parsing may classify one as the
-/// physical action that advances it.
+/// Explicit work requests, affirmative acceptance, and concrete first-step
+/// follow-ups can assign a new task. Once any task is active, all free-form
+/// inputs are staged because intent parsing may classify one as the physical
+/// action that advances it.
 pub fn input_may_mutate_tasks(world: &crate::world::WorldState, raw: &str) -> bool {
     crate::game_session::is_task_request_input(raw)
         || world.player_progress.active_tasks().next().is_some()
@@ -377,11 +378,11 @@ mod tests {
         };
         let transport = make_transport();
         let reaction_templates = ReactionTemplates::default();
-        let raw = "Do each of ye have work for me here now?".to_string();
+        let raw = "I'll take the work. What would you have me do first?".to_string();
         let addressed_to = vec!["Brigid Doyle".to_string(), "Máire Kelly".to_string()];
         let prelude = vec![(
             "text-log".to_string(),
-            json!({"source": "player", "content": "> Could each of ye give me work?"}),
+            json!({"source": "player", "content": "> I'll take the work. What would you have me do first?"}),
         )];
 
         let before_snapshot = {
@@ -524,6 +525,11 @@ mod tests {
             &world,
             "Do ye have work for me here now?"
         ));
+        assert!(input_may_mutate_tasks(
+            &world,
+            "I'll take the work. What would you have me do first?"
+        ));
+        assert!(!input_may_mutate_tasks(&world, "I won't take the work."));
         assert!(!input_may_mutate_tasks(&world, "How is the weather?"));
         world
             .player_progress

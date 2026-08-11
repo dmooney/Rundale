@@ -228,10 +228,14 @@ pub use parish_types::ThemePalette;
 
 // ── Event payloads ──────────────────────────────────────────────────────────
 
-/// Payload for `stream-token` events.
+/// Payload for player-renderable stream batches.
+///
+/// Tier-1 provider tokens are untrusted candidates and must never use this
+/// event. The dialogue loop emits only the canonical accepted-or-replaced
+/// response after the shared apply validator has run (#1834).
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct StreamTokenPayload {
-    /// The batch of token text to append to the current chat entry.
+    /// Canonical text to append to the current chat entry.
     pub token: String,
     /// Stable ID for the NPC turn this token batch belongs to. This is the
     /// same value as the placeholder `text-log` entry's `stream_turn_id`, so

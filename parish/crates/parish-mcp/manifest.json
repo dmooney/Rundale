@@ -68,12 +68,12 @@
       "name": "parish_save_state"
     },
     {
-      "description": "Slim per-turn state read — returns the last few conversation exchanges (NPC dialogue), recent world events (NPC arrivals/departures, weather changes, gossip, mood shifts), current clock, location, and NPC count at the player's location. Bounded to at most 10 exchanges + 20 events; suitable for polling after every turn without blowing the context window. Use after `parish_submit_input` to check for world changes that occurred during the turn (tier-2 NPC interactions, schedule ticks, etc.). The `event_cursor` field in the response is a monotonic counter; pass it as `since` on the next call to receive only new events.",
+      "description": "Slim per-turn state read — returns the last few conversation exchanges (NPC dialogue), the newest 20 unseen retained world events in chronological order (NPC arrivals/departures, weather changes, gossip, mood shifts), current clock, location, and NPC count at the player's location. Suitable for polling after every turn without blowing the context window. Use after `parish_submit_input` to check for world changes that occurred during the turn (tier-2 NPC interactions, schedule ticks, etc.). The `event_cursor` field is the lifetime-monotonic coherent current event total; pass it as `since` on the next call to receive only new events. If more than 20 unseen events accumulated, the oldest excess events are omitted and the cursor still advances to the current total.",
       "inputSchema": {
         "additionalProperties": false,
         "properties": {
           "since": {
-            "description": "Monotonic event cursor from the previous parish_turn response. Omit (or 0) to return all recent events.",
+            "description": "Monotonic event cursor from the previous parish_turn response. Omit (or use 0) to return the newest retained event window.",
             "minimum": 0,
             "type": "integer"
           }

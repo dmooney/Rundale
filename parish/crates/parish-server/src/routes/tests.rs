@@ -1190,6 +1190,36 @@ async fn new_game_preserves_cursor_so_old_client_receives_first_new_context_even
     assert!(turn.events[0].summary.contains("new-context"));
 }
 
+/// Regression for #1843: the public server route must expose the newest
+/// bounded window and the coherent lifetime total, matching the Tauri bridge.
+#[tokio::test]
+async fn turn_route_over_cap_returns_newest_events_and_total_cursor() {
+    let state = test_app_state();
+    {
+        let mut events = state.game_events.lock().await;
+        events.extend((0..27).map(
+            |index| parish_core::world::events::GameEvent::WeatherChanged {
+                new_weather: format!("Weather {index}"),
+                timestamp: chrono::Utc::now(),
+            },
+        ));
+    }
+    state
+        .total_game_events
+        .store(27, std::sync::atomic::Ordering::Relaxed);
+
+    let Json(turn) = get_turn(
+        axum::extract::Extension(state),
+        axum::extract::Query(parish_core::ipc::TurnReadParams { since: Some(0) }),
+    )
+    .await;
+
+    assert_eq!(turn.events.len(), 20);
+    assert_eq!(turn.events[0].summary, "Weather → Weather 7");
+    assert_eq!(turn.events.last().unwrap().summary, "Weather → Weather 26");
+    assert_eq!(turn.event_cursor, 27);
+}
+
 #[tokio::test]
 async fn new_save_marker_failure_preserves_live_identity_cleans_candidate_and_retries() {
     let temp = tempfile::tempdir().unwrap();

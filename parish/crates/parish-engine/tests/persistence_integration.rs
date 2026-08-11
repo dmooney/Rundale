@@ -167,7 +167,7 @@ fn test_save_preserves_text_log() {
 #[test]
 fn test_full_world_state_roundtrip() {
     use parish_engine::world::time::GameSpeed;
-    use parish_types::{ConversationExchange, LocationId, NpcId};
+    use parish_types::{ConversationExchange, LocationId, NpcId, TaskStatus};
 
     let mut h = GameTestHarness::new();
 
@@ -225,7 +225,33 @@ fn test_full_world_state_roundtrip() {
     });
     let expected_conversation = h.app.world.conversation_log.clone();
 
-    // (g) npc state: move an NPC so manager state differs from load baseline
+    // (g) durable player task progression, using #1833's exact compound action.
+    let task_id = h
+        .app
+        .world
+        .player_progress
+        .assign_task(
+            "Break the clods and plant seed in the potato patch.",
+            NpcId(7),
+            expected_location,
+            expected_game_time,
+        )
+        .unwrap();
+    assert_eq!(
+        h.app.world.player_progress.advance_assigned_task(
+            "I take up a spade, break the clods in the potato patch, and plant the seed as Siobhan instructed.",
+            expected_location,
+            expected_game_time,
+        ),
+        Some(task_id)
+    );
+    let expected_player_progress = h.app.world.player_progress.clone();
+    assert_eq!(
+        expected_player_progress.task(task_id).unwrap().status,
+        TaskStatus::InProgress
+    );
+
+    // (h) npc state: move an NPC so manager state differs from load baseline
     let npc_ids: Vec<NpcId> = h.app.npc_manager.all_npcs().map(|n| n.id).collect();
     let moved_npc_id = npc_ids
         .first()
@@ -249,6 +275,7 @@ fn test_full_world_state_roundtrip() {
     h.app.world.edge_traversals.clear();
     h.app.world.gossip_network = parish_types::GossipNetwork::new();
     h.app.world.conversation_log = parish_types::ConversationLog::new();
+    h.app.world.player_progress = parish_types::PlayerProgress::default();
     h.app.world.clock.resume();
     h.app.world.clock.set_speed(GameSpeed::Normal);
     if let Some(npc) = h.app.npc_manager.get_mut(moved_npc_id) {
@@ -315,6 +342,11 @@ fn test_full_world_state_roundtrip() {
     assert_eq!(
         h.app.world.conversation_log, expected_conversation,
         "conversation_log must round-trip"
+    );
+
+    assert_eq!(
+        h.app.world.player_progress, expected_player_progress,
+        "authoritative task progression must round-trip"
     );
 
     // NPC state was restored
