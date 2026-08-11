@@ -569,6 +569,9 @@ pub struct DialogueTurnOutcome {
     /// Callers persist this exact record before acknowledging the player turn;
     /// replay never re-runs model-output interpretation.
     pub assigned_task: Option<parish_types::PlayerTask>,
+    /// Canonical physical action from accepted metadata. Rejected response
+    /// metadata is discarded before this value is derived.
+    pub action: Option<String>,
 }
 
 #[cfg(test)]
@@ -1066,27 +1069,63 @@ pub fn apply_npc_dialogue_turn(
     language: &LanguageSettings,
     flags: &FeatureFlags,
 ) -> DialogueTurnOutcome {
-    let mut debug_events = Vec::new();
-    let mut guard_reasons = Vec::new();
+    let grounding = dialogue_grounding_snapshot(world, npc_manager, speaker_id);
+    apply_npc_dialogue_turn_with_validation(
+        world,
+        npc_manager,
+        speaker_id,
+        parsed,
+        crate::npc::NpcResponseParseDisposition::FullJson,
+        &grounding,
+        crate::npc::DialogueValidationPolicy::default(),
+        player_input,
+        player_said_for_journal,
+        game_time,
+        location,
+        speaker_display_name,
+        speaker_actual_name,
+        request_id,
+        grounded_person_names,
+        language,
+        flags,
+    )
+}
 
-    // 1. Learn the player's name from a self-introduction *before* recording
-    //    memory, so the addressed speaker's memory uses the real name (#1028).
-    crate::ipc::detect_and_record_player_name(world, npc_manager, player_input, speaker_id);
-
-    // Canonical semantic guards run before memory/state application so every
-    // runtime records the same grounded text. These checks use authored state
-    // and the canonical conversation log rather than trusting model metadata.
-    let had_prior_exchange = world.conversation_log.has_exchange_with(speaker_id);
-    let canonical_mood = npc_manager
-        .get(speaker_id)
-        .map(|npc| npc.mood.clone())
-        .unwrap_or_default();
-    let mut work_roster_with_ids: Vec<(NpcId, String, String, Option<String>)> = npc_manager
+/// Captures the authored facts used to validate one future dialogue result.
+/// Live callers capture this before inference; trusted harness callers use the
+/// compatibility wrapper above, which captures immediately before apply.
+pub fn dialogue_grounding_snapshot(
+    world: &WorldState,
+    npc_manager: &NpcManager,
+    speaker_id: NpcId,
+) -> crate::npc::DialogueGroundingSnapshot {
+    let speaker = npc_manager.get(speaker_id);
+    let mut known_person_names: Vec<String> =
+        npc_manager.all_npcs().map(|npc| npc.name.clone()).collect();
+    known_person_names.sort();
+    if let Some(player_name) = world.player_name.as_ref()
+        && !known_person_names.iter().any(|known| known == player_name)
+    {
+        known_person_names.push(player_name.clone());
+    }
+    let mut roster_names_occupations: Vec<(String, String)> = npc_manager
+        .all_npcs()
+        .map(|npc| (npc.name.clone(), npc.occupation.clone()))
+        .collect();
+    roster_names_occupations.sort();
+    let mut known_location_names: Vec<String> = world
+        .graph
+        .location_ids()
+        .into_iter()
+        .filter_map(|id| world.graph.get(id).map(|location| location.name.clone()))
+        .collect();
+    known_location_names.sort();
+    let mut work_roster: Vec<(NpcId, String, String, Option<String>)> = npc_manager
         .all_npcs()
         .map(|person| {
             let workplace = person
                 .workplace
-                .and_then(|location_id| world.graph.get(location_id))
+                .and_then(|id| world.graph.get(id))
                 .map(|location| location.name.clone());
             (
                 person.id,
@@ -1096,44 +1135,134 @@ pub fn apply_npc_dialogue_turn(
             )
         })
         .collect();
-    work_roster_with_ids.sort_by_key(|(id, _, _, _)| id.0);
-    let work_roster: Vec<(String, String, Option<String>)> = work_roster_with_ids
+    work_roster.sort_by_key(|(id, _, _, _)| id.0);
+    let prior_player_inputs = world
+        .conversation_log
+        .recent_at(
+            world.player_location,
+            crate::npc::conversation::ConversationLog::capacity(),
+        )
         .into_iter()
-        .map(|(_, name, occupation, workplace)| (name, occupation, workplace))
+        .filter(|exchange| exchange.speaker_id == speaker_id)
+        .map(|exchange| exchange.player_input.clone())
         .collect();
-
-    let mut canonical_response = parsed.clone();
-    let mut guarded =
-        crate::npc::guard_mood_register(&canonical_response.dialogue, &canonical_mood);
-    if guarded != canonical_response.dialogue {
-        guard_reasons.push("mood_register_guard".to_string());
+    crate::npc::DialogueGroundingSnapshot {
+        speaker_name: speaker.map(|npc| npc.name.clone()).unwrap_or_default(),
+        speaker_context: speaker.map(|npc| crate::npc::DialogueSpeakerContext {
+            name: npc.name.clone(),
+            occupation: npc.occupation.clone(),
+            mood: npc.mood.clone(),
+        }),
+        canonical_mood: speaker.map(|npc| npc.mood.clone()).unwrap_or_default(),
+        had_prior_exchange: world.conversation_log.has_exchange_with(speaker_id),
+        time_of_day: world.clock.time_of_day(),
+        known_person_names,
+        roster_names_occupations,
+        current_location_name: world
+            .graph
+            .get(world.player_location)
+            .map(|location| location.name.clone())
+            .unwrap_or_default(),
+        known_location_names,
+        player_name: world.player_name.clone(),
+        work_roster: work_roster
+            .into_iter()
+            .map(|(_, name, occupation, workplace)| (name, occupation, workplace))
+            .collect(),
+        relationship_tone_hints: npc_manager.relationship_tone_hints(speaker_id),
+        prior_player_inputs,
+        forbidden_output_terms: world
+            .dialogue_anachronisms
+            .iter()
+            .map(|entry| entry.term.clone())
+            .collect(),
+        prior_openers: Vec::new(),
     }
-    canonical_response.dialogue = guarded;
+}
 
-    guarded = crate::npc::guard_unfounded_first_contact_familiarity(
-        &canonical_response.dialogue,
-        had_prior_exchange,
-    );
-    if guarded != canonical_response.dialogue {
-        guard_reasons.push("first_contact_guard".to_string());
-    }
-    canonical_response.dialogue = guarded;
+/// Applies one untrusted Tier-1 candidate after the single canonical validation
+/// pass. Rejected candidate text and metadata are replaced before any state,
+/// memory, event, or UI-facing outcome is produced.
+#[allow(clippy::too_many_arguments)]
+pub fn apply_npc_dialogue_turn_with_validation(
+    world: &mut WorldState,
+    npc_manager: &mut NpcManager,
+    speaker_id: NpcId,
+    parsed: &crate::npc::NpcStreamResponse,
+    parse_disposition: crate::npc::NpcResponseParseDisposition,
+    grounding: &crate::npc::DialogueGroundingSnapshot,
+    validation_policy: crate::npc::DialogueValidationPolicy,
+    player_input: &str,
+    player_said_for_journal: &str,
+    game_time: chrono::DateTime<chrono::Utc>,
+    location: LocationId,
+    speaker_display_name: &str,
+    speaker_actual_name: &str,
+    request_id: Option<u64>,
+    grounded_person_names: &[String],
+    language: &LanguageSettings,
+    flags: &FeatureFlags,
+) -> DialogueTurnOutcome {
+    let mut debug_events = Vec::new();
 
-    guarded = crate::npc::guard_direct_evidence_evasion(&canonical_response.dialogue, player_input);
-    if guarded != canonical_response.dialogue {
-        guard_reasons.push("evidence_guard".to_string());
-    }
-    canonical_response.dialogue = guarded;
+    // 1. Learn the player's name from a self-introduction *before* recording
+    //    memory, so the addressed speaker's memory uses the real name (#1028).
+    crate::ipc::detect_and_record_player_name(world, npc_manager, player_input, speaker_id);
 
-    guarded = crate::npc::guard_work_recommendation(
-        &canonical_response.dialogue,
+    let validation = crate::npc::validate_dialogue_candidate(
+        parsed,
+        parse_disposition,
         player_input,
-        &work_roster,
+        grounding,
+        validation_policy,
+        speaker_id.0 as u64 ^ game_time.timestamp() as u64,
     );
-    if guarded != canonical_response.dialogue {
-        guard_reasons.push("work_recommendation_guard".to_string());
+    let accepted_candidate = validation.accepted;
+    let mut canonical_response = validation.response;
+    let mut guard_reasons = validation.guard_reasons;
+
+    // Complete the canonical text outcome before any memory, mood, task,
+    // identity, event, or UI effect. This repetition guard needs the live
+    // conversation log, so it belongs at the apply boundary alongside the
+    // snapshot-only validator rather than in a runtime caller (#1228, #1834).
+    let npc_cfg = crate::config::NpcConfig::default();
+    let previous_line: Option<String> = world
+        .conversation_log
+        .recent_at(
+            location,
+            crate::npc::conversation::ConversationLog::capacity(),
+        )
+        .into_iter()
+        .rev()
+        .find(|e| e.speaker_id == speaker_id)
+        .map(|e| e.npc_dialogue.clone());
+    let repetition_seed = speaker_id.0 as u64 ^ (game_time.timestamp() as u64);
+    let deduped_dialogue = if accepted_candidate {
+        crate::npc::guard_against_repetition(
+            &canonical_response.dialogue,
+            previous_line.as_deref(),
+            npc_cfg.dialogue_repetition_threshold,
+            repetition_seed,
+            grounded_person_names,
+        )
+    } else {
+        canonical_response.dialogue.clone()
+    };
+    if deduped_dialogue != canonical_response.dialogue {
+        canonical_response.dialogue = deduped_dialogue;
+        guard_reasons.push("canonical_repetition_guard".to_string());
     }
-    canonical_response.dialogue = guarded;
+
+    let capped_dialogue = cap_dialogue_for_display_with_trim(
+        &canonical_response.dialogue,
+        npc_cfg.dialogue_display_max_chars,
+        npc_cfg.dialogue_sentence_boundary_trim,
+    )
+    .into_owned();
+    if capped_dialogue != canonical_response.dialogue {
+        guard_reasons.push("display_cap".to_string());
+        canonical_response.dialogue = capped_dialogue;
+    }
 
     // 2. Tier-1 state update on the speaker.
     let player_name_for_mem = if npc_manager.knows_player_name(speaker_id) {
@@ -1152,63 +1281,12 @@ pub fn apply_npc_dialogue_turn(
         ));
     }
 
-    // Anti-repetition guard (#1228). Applied *before* the length cap so the
-    // length budget is spent on de-duplicated content, not a wall of repeated
-    // clauses. Collapses consecutive duplicate clauses within the new line and,
-    // when the result is near-identical to this NPC's own previous line at this
-    // location, substitutes a varied fallback. Deterministic and provider-
-    // agnostic; runs identically for the local MLX model and any cloud provider.
-    let npc_cfg = crate::config::NpcConfig::default();
-    let previous_line: Option<String> = world
-        .conversation_log
-        .recent_at(
-            location,
-            crate::npc::conversation::ConversationLog::capacity(),
-        )
-        .into_iter()
-        .rev()
-        .find(|e| e.speaker_id == speaker_id)
-        .map(|e| e.npc_dialogue.clone());
-    // Stable per-turn seed so the fallback is deterministic for tests/replay but
-    // varies across NPCs and turns.
-    let repetition_seed = speaker_id.0 as u64 ^ (game_time.timestamp() as u64);
-    let deduped_dialogue = crate::npc::guard_against_repetition(
-        &canonical_response.dialogue,
-        previous_line.as_deref(),
-        npc_cfg.dialogue_repetition_threshold,
-        repetition_seed,
-        grounded_person_names,
-    );
-    if deduped_dialogue != canonical_response.dialogue {
-        guard_reasons.push("canonical_repetition_guard".to_string());
-    }
-
-    // Cap the displayed dialogue to the configured limit (#1224). Applied here,
-    // before the conversation log and event bus, so all player-visible paths see
-    // the same capped text. The in-memory representation (witness memories,
-    // tier-1 memory entry) is capped separately via `memory_truncation_dialogue`.
-    let display_cap = npc_cfg.dialogue_display_max_chars;
-    // Sentence-boundary trim (#1400): clip back to a clause end so a capped
-    // reply never shows a mid-word/mid-clause "…". Default-on; kill-switched
-    // via the `dialogue_sentence_boundary_trim` config field (runtime flag
-    // `dialogue-sentence-boundary-trim`).
-    let capped_dialogue = cap_dialogue_for_display_with_trim(
-        &deduped_dialogue,
-        display_cap,
-        npc_cfg.dialogue_sentence_boundary_trim,
-    );
-    if capped_dialogue != deduped_dialogue {
-        guard_reasons.push("display_cap".to_string());
-    }
+    let capped_dialogue = &canonical_response.dialogue;
     let language_hints = canonical_response
         .metadata
         .as_ref()
         .map(|metadata| {
-            crate::npc::validate_language_hints(
-                &metadata.language_hints,
-                &capped_dialogue,
-                language,
-            )
+            crate::npc::validate_language_hints(&metadata.language_hints, capped_dialogue, language)
         })
         .unwrap_or_default();
     let assigned_task = if flags.is_disabled(PLAYER_TASK_PROGRESSION_FLAG)
@@ -1221,7 +1299,7 @@ pub fn apply_npc_dialogue_turn(
             .as_ref()
             .and_then(|metadata| metadata.assigned_task.as_deref())
             .and_then(|proposal| {
-                let grounding_clause = grounded_task_assignment_clause(proposal, &capped_dialogue)?;
+                let grounding_clause = grounded_task_assignment_clause(proposal, capped_dialogue)?;
                 let authoritative_location = npc_manager.get(speaker_id)?.location();
                 if authoritative_location != world.player_location
                     || task_proposal_names_remote_location(world, proposal, authoritative_location)
@@ -1254,7 +1332,7 @@ pub fn apply_npc_dialogue_turn(
     // every text guard prevents a name removed by post-processing from leaking
     // through the notebook/card state.
     if !npc_manager.is_introduced(speaker_id)
-        && crate::npc::dialogue_self_identifies_speaker(&capped_dialogue, speaker_actual_name)
+        && crate::npc::dialogue_self_identifies_speaker(capped_dialogue, speaker_actual_name)
     {
         npc_manager.mark_introduced(speaker_id);
         debug_events.push(format!(
@@ -1281,7 +1359,7 @@ pub fn apply_npc_dialogue_turn(
         speaker_id,
         speaker_display_name,
         player_input,
-        &capped_dialogue,
+        capped_dialogue,
         game_time,
         location,
     ));
@@ -1312,12 +1390,20 @@ pub fn apply_npc_dialogue_turn(
             });
     }
 
+    let action = canonical_response
+        .metadata
+        .as_ref()
+        .map(|metadata| metadata.action.trim())
+        .filter(|action| !action.is_empty())
+        .map(str::to_string);
+
     DialogueTurnOutcome {
         debug_events,
-        display_text: capped_dialogue.into_owned(),
+        display_text: capped_dialogue.to_string(),
         guard_reasons,
         language_hints,
         assigned_task,
+        action,
     }
 }
 
@@ -2884,6 +2970,178 @@ mod tests {
             );
         } else {
             panic!("Expected DialogueOccurred event, got something else");
+        }
+    }
+
+    #[test]
+    fn canonical_apply_rejects_issue_1834_text_and_metadata_before_side_effects() {
+        use crate::npc::manager::NpcManager;
+        use crate::npc::{
+            DialogueValidationPolicy, LanguageSettings, NpcId, NpcMetadata,
+            NpcResponseParseDisposition, NpcStreamResponse,
+        };
+        use chrono::TimeZone;
+        use parish_types::events::GameEvent;
+        use parish_world::WorldState;
+
+        let mut world = WorldState::new();
+        world.dialogue_anachronisms = vec![
+            parish_types::AnachronismEntry {
+                term: "planning board".to_string(),
+                category: Some("concept".to_string()),
+                origin_year: Some(1934),
+                note: "postdates 1820".to_string(),
+            },
+            parish_types::AnachronismEntry {
+                term: "agricultural show".to_string(),
+                category: Some("concept".to_string()),
+                origin_year: Some(1831),
+                note: "postdates 1820".to_string(),
+            },
+        ];
+        let mut events = world.event_bus.subscribe();
+        let mut manager = NpcManager::new();
+        let mut npc = crate::npc::Npc::new_test_npc();
+        npc.id = NpcId(1);
+        npc.name = "Peig Hannigan".to_string();
+        npc.mood = "sharp".to_string();
+        npc.set_location(world.player_location);
+        manager.add_npc(npc);
+        let grounding = dialogue_grounding_snapshot(&world, &manager, NpcId(1));
+        let location = world.player_location;
+        let game_time = chrono::Utc.with_ymd_and_hms(1820, 3, 20, 8, 0, 0).unwrap();
+        let raw = "Council says the planning board has set tongues";
+        let candidate = NpcStreamResponse {
+            dialogue: raw.to_string(),
+            metadata: Some(NpcMetadata {
+                action: "points at a committee notice".to_string(),
+                mood: "delighted".to_string(),
+                internal_thought: Some("modern plan".to_string()),
+                language_hints: Vec::new(),
+                mentioned_people: vec!["Council".to_string()],
+                assigned_task: Some("Attend the agricultural show committee".to_string()),
+            }),
+        };
+
+        let outcome = apply_npc_dialogue_turn_with_validation(
+            &mut world,
+            &mut manager,
+            NpcId(1),
+            &candidate,
+            NpcResponseParseDisposition::FullJson,
+            &grounding,
+            DialogueValidationPolicy::default(),
+            "Good morning. What is your name?",
+            "Good morning. What is your name?",
+            game_time,
+            location,
+            "an elderly widow",
+            "Peig Hannigan",
+            Some(1834),
+            &grounding.known_person_names,
+            &LanguageSettings::english_only(),
+            &FeatureFlags::default(),
+        );
+
+        assert_eq!(
+            outcome.display_text,
+            "I beg your pardon; I lost the thread of that."
+        );
+        assert_eq!(outcome.guard_reasons, ["anachronism_output_guard"]);
+        assert!(
+            outcome.action.is_none(),
+            "rejected action metadata must vanish"
+        );
+        assert!(
+            outcome.assigned_task.is_none(),
+            "rejected task metadata must vanish"
+        );
+        assert_eq!(manager.get(NpcId(1)).unwrap().mood, "sharp");
+        let exchange = world
+            .conversation_log
+            .recent_at(location, 1)
+            .pop()
+            .expect("fallback exchange recorded");
+        assert_eq!(exchange.npc_dialogue, outcome.display_text);
+        assert!(!exchange.npc_dialogue.contains(raw));
+        let event = events.try_recv().expect("canonical dialogue event");
+        match event {
+            GameEvent::DialogueOccurred { npc_said, .. } => {
+                assert_eq!(npc_said.as_deref(), Some(outcome.display_text.as_str()));
+            }
+            other => panic!("expected dialogue event, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn canonical_apply_rejects_recovered_and_raw_modes_with_identical_fallback() {
+        use crate::npc::manager::NpcManager;
+        use crate::npc::{
+            DialogueValidationPolicy, LanguageSettings, NpcId, NpcMetadata,
+            NpcResponseParseDisposition, NpcStreamResponse,
+        };
+        use chrono::TimeZone;
+        use parish_world::WorldState;
+
+        for disposition in [
+            NpcResponseParseDisposition::RecoveredDialogue,
+            NpcResponseParseDisposition::RawText,
+        ] {
+            let mut world = WorldState::new();
+            let mut manager = NpcManager::new();
+            let mut npc = crate::npc::Npc::new_test_npc();
+            npc.id = NpcId(1);
+            npc.name = "Peig Hannigan".to_string();
+            npc.mood = "sharp".to_string();
+            npc.set_location(world.player_location);
+            manager.add_npc(npc);
+            let grounding = dialogue_grounding_snapshot(&world, &manager, NpcId(1));
+            let location = world.player_location;
+            let candidate = NpcStreamResponse {
+                dialogue: "This recovered candidate must never escape.".to_string(),
+                metadata: Some(NpcMetadata {
+                    action: "waves a forbidden notice".to_string(),
+                    mood: "delighted".to_string(),
+                    internal_thought: None,
+                    language_hints: Vec::new(),
+                    mentioned_people: Vec::new(),
+                    assigned_task: Some("Trust the recovered payload".to_string()),
+                }),
+            };
+            let outcome = apply_npc_dialogue_turn_with_validation(
+                &mut world,
+                &mut manager,
+                NpcId(1),
+                &candidate,
+                disposition,
+                &grounding,
+                DialogueValidationPolicy::default(),
+                "Good morning.",
+                "Good morning.",
+                chrono::Utc.with_ymd_and_hms(1820, 3, 20, 8, 0, 0).unwrap(),
+                location,
+                "an elderly widow",
+                "Peig Hannigan",
+                None,
+                &grounding.known_person_names,
+                &LanguageSettings::english_only(),
+                &FeatureFlags::default(),
+            );
+            assert_eq!(
+                outcome.display_text,
+                "I beg your pardon; I lost the thread of that."
+            );
+            assert_eq!(outcome.guard_reasons, ["response_contract_guard"]);
+            assert!(outcome.action.is_none());
+            assert!(outcome.assigned_task.is_none());
+            assert_eq!(manager.get(NpcId(1)).unwrap().mood, "sharp");
+            assert!(
+                world
+                    .conversation_log
+                    .recent_at(location, 1)
+                    .iter()
+                    .all(|exchange| !exchange.npc_dialogue.contains("recovered candidate"))
+            );
         }
     }
 

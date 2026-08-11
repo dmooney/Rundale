@@ -18,7 +18,6 @@ use crate::input::{
 };
 use crate::loading::LoadingAnimation;
 use crate::npc::manager::NpcManager;
-use crate::npc::parse_npc_stream_response;
 use crate::world::description::{format_exits, render_description};
 use crate::world::movement::{self, MovementResult};
 use anyhow::Result;
@@ -993,120 +992,12 @@ fn apply_npc_response(
     location: parish_core::world::LocationId,
     npc_display_name: &str,
     npc_actual_name: &str,
-    known_person_names: &[String],
-    known_location_names: &[String],
-    player_name: Option<&str>,
-) -> Option<parish_core::session_store::PlayerTask> {
-    let mut parsed = parse_npc_stream_response(response_text);
+    grounding: &crate::npc::DialogueGroundingSnapshot,
+) -> (Option<parish_core::session_store::PlayerTask>, String) {
+    let (parsed, parse_disposition) =
+        crate::npc::parse_npc_stream_response_with_disposition(response_text);
     if let Some(meta) = &parsed.metadata {
         tracing::debug!("NPC metadata: action={}, mood={}", meta.action, meta.mood);
-    }
-
-    // Post-generation person-confirmation guard (#1459, #1466, #1470): headless
-    // parity with the live-loop path in `run_npc_turn`. Both guards default-on;
-    // no runtime-flag access here so we use the NpcConfig default (true).
-    // Prior player inputs are not available in this single-turn helper scope,
-    // so we pass &[] — the pronoun follow-up guard is conservative and will
-    // only fire when prior_player_inputs is non-empty.
-    let cfg = parish_core::config::NpcConfig::default();
-    let speaker_context =
-        app.npc_manager
-            .get(npc_id)
-            .map(|npc| crate::npc::DialogueSpeakerContext {
-                name: npc.name.clone(),
-                occupation: npc.occupation.clone(),
-                mood: npc.mood.clone(),
-            });
-    if cfg.person_confirmation_guard_enabled && !parsed.dialogue.trim().is_empty() {
-        let seed = npc_id.0 as u64 ^ (game_time.timestamp() as u64);
-        let guarded = crate::npc::guard_fabricated_person_confirmation_with_locations(
-            &parsed.dialogue,
-            player_input,
-            known_person_names,
-            known_location_names,
-            &[],
-            player_name,
-            seed,
-        );
-        if guarded != parsed.dialogue {
-            parsed.dialogue = guarded;
-        }
-    }
-    if !app.flags.is_disabled(crate::npc::FALSE_DENIAL_GUARD_FLAG)
-        && !parsed.dialogue.trim().is_empty()
-    {
-        let seed = npc_id.0 as u64 ^ (game_time.timestamp() as u64);
-        let guarded = crate::npc::guard_false_denial_of_roster_person_with_speaker(
-            &parsed.dialogue,
-            player_input,
-            known_person_names,
-            player_name,
-            seed,
-            speaker_context.as_ref(),
-        );
-        if guarded != parsed.dialogue {
-            parsed.dialogue = guarded;
-        }
-        let guarded = crate::npc::guard_false_denial_of_known_place(
-            &parsed.dialogue,
-            player_input,
-            known_location_names,
-            seed,
-        );
-        if guarded != parsed.dialogue {
-            parsed.dialogue = guarded;
-        }
-    }
-    if !app.flags.is_disabled(crate::npc::INVENTED_PLACE_GUARD_FLAG)
-        && !parsed.dialogue.trim().is_empty()
-    {
-        let seed = npc_id.0 as u64 ^ (game_time.timestamp() as u64);
-        let guarded = crate::npc::guard_invented_place_confirmation(
-            &parsed.dialogue,
-            player_input,
-            known_location_names,
-            seed,
-        );
-        if guarded != parsed.dialogue {
-            parsed.dialogue = guarded;
-        }
-    }
-    if !app
-        .flags
-        .is_disabled(crate::npc::DIALOGUE_POLISH_GUARD_FLAG)
-        && !parsed.dialogue.trim().is_empty()
-    {
-        let seed = npc_id.0 as u64 ^ (game_time.timestamp() as u64);
-        let guarded = crate::npc::guard_stock_nonrecognition_decline_with_speaker(
-            &parsed.dialogue,
-            player_input,
-            seed,
-            speaker_context.as_ref(),
-        );
-        if guarded != parsed.dialogue {
-            parsed.dialogue = guarded;
-        }
-        let guarded =
-            crate::npc::guard_time_of_day_phrase(&parsed.dialogue, app.world.clock.time_of_day());
-        if guarded != parsed.dialogue {
-            parsed.dialogue = guarded;
-        }
-    }
-    if cfg.verbosity_guard_enabled && !parsed.dialogue.trim().is_empty() {
-        // The authored pre-turn mood governs spoken style. The model's JSON
-        // mood describes its proposed post-turn state and cannot retroactively
-        // relax the current reply (#1779).
-        let mood_str = speaker_context
-            .as_ref()
-            .map(|speaker| speaker.mood.as_str());
-        let guarded = if app.flags.is_disabled("npc-mood-aware-sentence-cap") {
-            crate::npc::guard_verbosity_runons(&parsed.dialogue)
-        } else {
-            crate::npc::guard_verbosity_runons_with_mood(&parsed.dialogue, mood_str)
-        };
-        if guarded != parsed.dialogue {
-            parsed.dialogue = guarded;
-        }
     }
 
     // Shared per-turn pipeline (#1172 / #1173): name detection, Tier-1 apply,
@@ -1114,11 +1005,14 @@ fn apply_npc_response(
     // publish (headless previously skipped this last step). Forward the returned
     // debug-event strings to the headless debug sink.
     let language = app.language_settings();
-    let outcome = parish_core::game_session::apply_npc_dialogue_turn(
+    let outcome = parish_core::game_session::apply_npc_dialogue_turn_with_validation(
         &mut app.world,
         &mut app.npc_manager,
         npc_id,
         &parsed,
+        parse_disposition,
+        grounding,
+        crate::npc::DialogueValidationPolicy::default(),
         player_input,
         player_input,
         game_time,
@@ -1133,7 +1027,7 @@ fn apply_npc_response(
     for event in outcome.debug_events {
         app.debug_event(event);
     }
-    outcome.assigned_task
+    (outcome.assigned_task, outcome.display_text)
 }
 
 /// Streams NPC dialogue to stdout with loading animation, then applies
@@ -1149,9 +1043,7 @@ async fn stream_headless_npc_dialogue(
     let npc_id = setup.npc_id;
     let system_prompt = setup.system_prompt;
     let context = setup.context;
-    let known_person_names = setup.known_person_names.clone();
-    let known_location_names = setup.known_location_names.clone();
-    let setup_player_name = setup.player_name.clone();
+    let grounding = setup.grounding.clone();
 
     let mut assigned_task = None;
     if let Some(queue) = &app.inference_queue {
@@ -1215,14 +1107,10 @@ async fn stream_headless_npc_dialogue(
         {
             Ok(rx) => {
                 let stream_handle = tokio::spawn(async move {
-                    let accumulated = parish_core::ipc::stream_npc_tokens(token_rx, |batch| {
+                    parish_core::ipc::stream_npc_tokens(token_rx, |_| {
                         cancel_for_stream.notify_one();
-                        print!("{}", batch);
-                        std::io::stdout().flush().ok();
                     })
-                    .await;
-                    println!();
-                    accumulated
+                    .await
                 });
 
                 match rx.await {
@@ -1235,7 +1123,7 @@ async fn stream_headless_npc_dialogue(
                         } else {
                             let game_time = app.world.clock.now();
                             let location = app.world.player_location;
-                            assigned_task = apply_npc_response(
+                            let (task, canonical_dialogue) = apply_npc_response(
                                 app,
                                 npc_id,
                                 &response.text,
@@ -1244,10 +1132,10 @@ async fn stream_headless_npc_dialogue(
                                 location,
                                 &npc_display_name,
                                 &npc_actual_name,
-                                &known_person_names,
-                                &known_location_names,
-                                setup_player_name.as_deref(),
+                                &grounding,
                             );
+                            println!("{canonical_dialogue}");
+                            assigned_task = task;
                         }
                     }
                     Err(_) => {
