@@ -184,6 +184,15 @@ pub fn derive_dialogue_obligations(
     ];
 
     let input = routed_utterance(player_input);
+    // This contract protects declarative, multi-facet appeals such as the
+    // issue report's referral + name + work + lodging introduction. Ordinary
+    // questions continue through their established intent-specific paths. In
+    // particular, treating "Is there work for me?" as a noncommittal-answer
+    // obligation would erase an otherwise grounded task assignment at the
+    // canonical apply seam.
+    if input.trim_end().ends_with('?') {
+        return Vec::new();
+    }
     let lower = input.to_lowercase();
     let mut positioned: Vec<(usize, u8, DialogueObligation)> = Vec::new();
 
@@ -473,6 +482,11 @@ mod tests {
             .is_empty()
         );
         assert!(derive_dialogue_obligations("What is your name?", &people()).is_empty());
+        assert!(derive_dialogue_obligations("Is there work for me?", &people()).is_empty());
+        assert!(
+            derive_dialogue_obligations("Did Peig Hannigan send me to ask about work?", &people(),)
+                .is_empty()
+        );
         assert!(
             derive_dialogue_obligations(
                 "I am Aiden Carney, a cooper newly arrived in Kilteevan. Might there be work here?",
