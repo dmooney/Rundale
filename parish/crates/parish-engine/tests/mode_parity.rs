@@ -183,6 +183,47 @@ fn dialogue_turn_publishes_identical_event_across_legacy_and_real_loop() {
 }
 
 #[test]
+fn rejected_anachronistic_candidate_has_identical_fallback_across_modes() {
+    let mut harness = GameTestHarness::new();
+    let (_speaker_id, speaker_name) = isolate_one_speaker(&mut harness);
+    let input = format!("talk to {speaker_name} about the parish council");
+    let response = serde_json::json!({
+        "dialogue": "Council says the planning board has set tongues.",
+        "action": "waves a notice",
+        "mood": "delighted",
+        "assigned_task": "Attend the agricultural show committee"
+    })
+    .to_string();
+    let pre = GameSnapshot::capture(&harness.app.world, &harness.app.npc_manager);
+
+    harness.add_canned_response(&speaker_name, &response);
+    let mut legacy_rx = harness.app.world.event_bus.subscribe();
+    let _ = harness.execute(&input);
+    let legacy = dialogue_events(&drain(&mut legacy_rx));
+
+    pre.restore(&mut harness.app.world, &mut harness.app.npc_manager);
+    harness
+        .mock()
+        .push_json_for(first_word(&speaker_name), &response);
+    let mut real_rx = harness.app.world.event_bus.subscribe();
+    let ui_events = harness.execute_via_real_loop(&input);
+    let real = dialogue_events(&drain(&mut real_rx));
+
+    assert_eq!(legacy, real);
+    assert!(real.iter().all(|event| !event.contains("planning board")));
+    assert!(
+        real.iter()
+            .any(|event| event.contains("I beg your pardon; I lost the thread of that."))
+    );
+    assert!(
+        serde_json::to_string(&ui_events)
+            .unwrap()
+            .find("planning board")
+            .is_none()
+    );
+}
+
+#[test]
 fn grounded_task_assignment_is_identical_in_legacy_and_real_loops() {
     let mut harness = GameTestHarness::new();
     let (speaker_id, speaker_name) = isolate_one_speaker(&mut harness);

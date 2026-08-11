@@ -188,6 +188,8 @@ export interface TextLogEntry {
 }
 
 export interface StreamTokenPayload {
+	/** Player-renderable canonical text. Tier-1 provider candidate tokens are
+	 * quarantined by the engine and never cross this protocol boundary (#1834). */
 	token: string;
 	turn_id: number;
 	source: string;

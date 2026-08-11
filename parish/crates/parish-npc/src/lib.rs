@@ -59,6 +59,7 @@ pub use data::{
 //    Each `pub use module::*` keeps every public path stable
 //    (e.g. `parish_npc::build_tier1_system_prompt`).
 mod context;
+mod dialogue_validation;
 mod language;
 mod names;
 mod npc;
@@ -67,6 +68,7 @@ mod response;
 mod tier1_prompt;
 
 pub use context::*;
+pub use dialogue_validation::*;
 pub use language::*;
 pub use names::*;
 pub use npc::*;
