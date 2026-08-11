@@ -425,4 +425,7 @@ contributors, licensed under the
 Historic 6″ Ordnance Survey Ireland tiles (1829–1842) reproduced with the
 permission of the [National Library of Scotland](https://maps.nls.uk/),
 licensed under [CC-BY](https://maps.nls.uk/copyright.html). UI icons use
-[Phosphor Icons](https://phosphoricons.com/) under MIT.
+[Phosphor Icons](https://phosphoricons.com/) under MIT. Map labels use
+[Open Sans](https://github.com/googlefonts/opensans) under the SIL Open Font
+License 1.1; its generated MapLibre glyph ranges and licence are bundled for
+offline web and desktop rendering.
