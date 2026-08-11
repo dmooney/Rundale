@@ -186,7 +186,7 @@ fn dialogue_turn_publishes_identical_event_across_legacy_and_real_loop() {
 fn rejected_anachronistic_candidate_has_identical_fallback_across_modes() {
     let mut harness = GameTestHarness::new();
     let (_speaker_id, speaker_name) = isolate_one_speaker(&mut harness);
-    let input = format!("talk to {speaker_name} about the parish council");
+    let input = "I'll take the work. What would you have me do first?".to_string();
     let response = serde_json::json!({
         "dialogue": "Council says the planning board has set tongues.",
         "action": "waves a notice",
@@ -199,7 +199,10 @@ fn rejected_anachronistic_candidate_has_identical_fallback_across_modes() {
     harness.add_canned_response(&speaker_name, &response);
     let mut legacy_rx = harness.app.world.event_bus.subscribe();
     let _ = harness.execute(&input);
-    let legacy = dialogue_events(&drain(&mut legacy_rx));
+    let legacy_stream = drain(&mut legacy_rx);
+    let legacy = dialogue_events(&legacy_stream);
+    let legacy_tasks = player_task_events(&legacy_stream);
+    assert!(harness.app.world.player_progress.is_empty());
 
     pre.restore(&mut harness.app.world, &mut harness.app.npc_manager);
     harness
@@ -207,9 +210,14 @@ fn rejected_anachronistic_candidate_has_identical_fallback_across_modes() {
         .push_json_for(first_word(&speaker_name), &response);
     let mut real_rx = harness.app.world.event_bus.subscribe();
     let ui_events = harness.execute_via_real_loop(&input);
-    let real = dialogue_events(&drain(&mut real_rx));
+    let real_stream = drain(&mut real_rx);
+    let real = dialogue_events(&real_stream);
+    let real_tasks = player_task_events(&real_stream);
 
     assert_eq!(legacy, real);
+    assert_eq!(legacy_tasks, real_tasks);
+    assert!(real_tasks.is_empty());
+    assert!(harness.app.world.player_progress.is_empty());
     assert!(real.iter().all(|event| !event.contains("planning board")));
     assert!(
         real.iter()
