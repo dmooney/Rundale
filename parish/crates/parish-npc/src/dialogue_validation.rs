@@ -20,6 +20,117 @@ use crate::{
     guard_wrong_speaker_identity,
 };
 
+/// Authored person facts available to the canonical dialogue claim validator.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct GroundedPersonFact {
+    pub name: String,
+    pub occupation: String,
+    pub workplace: Option<String>,
+    pub current_location: Option<String>,
+}
+
+/// Authored geography available to the canonical dialogue claim validator.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct GroundedLocationFact {
+    pub name: String,
+    /// Locations that may truthfully be described as containing, adjoining,
+    /// or anchoring this location (authored graph connections/relative anchor).
+    pub nearby_locations: Vec<String>,
+}
+
+/// The semantic type of a player-introduced referent absent from authored data.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DialogueReferentKind {
+    UnknownPerson,
+    UnknownPlace,
+}
+
+/// One unresolved player-introduced referent retained across a local exchange.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DialogueReferent {
+    pub kind: DialogueReferentKind,
+    pub label: String,
+}
+
+/// Small per-conversation context for pronoun/appositive follow-ups.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct DialogueReferentContext {
+    referents: Vec<DialogueReferent>,
+}
+
+impl DialogueReferentContext {
+    const MAX_REFERENTS: usize = 4;
+
+    /// Observe explicit referents in a player line. Known authored names clear
+    /// stale unknowns of the same type. New unknowns remain together in the
+    /// bounded context so pronouns are disabled whenever their referent would
+    /// be ambiguous.
+    pub fn observe_player_input(
+        &mut self,
+        input: &str,
+        known_people: &[String],
+        known_places: &[String],
+        player_name: Option<&str>,
+    ) {
+        // Real-loop commands retain their routing prefix (for example,
+        // `talk to Padraig about ...`). The addressed NPC is not the subject
+        // of the player's factual question and must not clear an unresolved
+        // referent from the prior turn.
+        let input = routed_utterance(input);
+        let people = extract_unknown_people(input, known_people, known_places, player_name);
+        let places = extract_unknown_common_noun_places(input, known_places);
+
+        if !people.is_empty() {
+            self.extend(DialogueReferentKind::UnknownPerson, people);
+        } else if contains_any_authored_name(input, known_people) {
+            self.referents
+                .retain(|referent| referent.kind != DialogueReferentKind::UnknownPerson);
+        }
+
+        if !places.is_empty() {
+            self.extend(DialogueReferentKind::UnknownPlace, places);
+        } else if contains_any_authored_name(input, known_places) {
+            self.referents
+                .retain(|referent| referent.kind != DialogueReferentKind::UnknownPlace);
+        }
+    }
+
+    fn extend(&mut self, kind: DialogueReferentKind, labels: Vec<String>) {
+        for label in labels {
+            if !self.referents.iter().any(|referent| {
+                referent.kind == kind && normalize(&referent.label) == normalize(&label)
+            }) {
+                self.referents.push(DialogueReferent { kind, label });
+            }
+        }
+        if self.referents.len() > Self::MAX_REFERENTS {
+            self.referents
+                .drain(0..self.referents.len() - Self::MAX_REFERENTS);
+        }
+    }
+
+    fn unambiguous(&self, kind: DialogueReferentKind) -> Option<&DialogueReferent> {
+        let mut matching = self
+            .referents
+            .iter()
+            .filter(|referent| referent.kind == kind);
+        let referent = matching.next()?;
+        matching.next().is_none().then_some(referent)
+    }
+}
+
+fn routed_utterance(input: &str) -> &str {
+    let lower = input.to_lowercase();
+    if lower.starts_with("talk to ") {
+        lower
+            .find(" about ")
+            .map(|index| &input[index + " about ".len()..])
+            .unwrap_or("")
+    } else {
+        input
+    }
+}
+
 /// Immutable authored facts captured before inference starts.
 #[derive(Debug, Clone)]
 pub struct DialogueGroundingSnapshot {
@@ -38,6 +149,10 @@ pub struct DialogueGroundingSnapshot {
     pub prior_player_inputs: Vec<String>,
     pub forbidden_output_terms: Vec<String>,
     pub prior_openers: Vec<String>,
+    pub current_festival: Option<String>,
+    pub person_facts: Vec<GroundedPersonFact>,
+    pub location_facts: Vec<GroundedLocationFact>,
+    pub referent_context: DialogueReferentContext,
 }
 
 impl Default for DialogueGroundingSnapshot {
@@ -58,6 +173,10 @@ impl Default for DialogueGroundingSnapshot {
             prior_player_inputs: Vec::new(),
             forbidden_output_terms: Vec::new(),
             prior_openers: Vec::new(),
+            current_festival: None,
+            person_facts: Vec::new(),
+            location_facts: Vec::new(),
+            referent_context: DialogueReferentContext::default(),
         }
     }
 }
@@ -163,6 +282,476 @@ fn candidate_contains_forbidden_term(candidate: &NpcStreamResponse, terms: &[Str
         })
 }
 
+fn normalize(value: &str) -> String {
+    value
+        .split(|character: char| !character.is_alphanumeric() && character != '\'')
+        .filter(|word| !word.is_empty())
+        .map(str::to_lowercase)
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
+fn contains_phrase(text: &str, phrase: &str) -> bool {
+    let text = format!(" {} ", normalize(text));
+    let phrase = normalize(phrase);
+    !phrase.is_empty() && text.contains(&format!(" {phrase} "))
+}
+
+fn contains_any_authored_name(text: &str, names: &[String]) -> bool {
+    names.iter().any(|name| contains_phrase(text, name))
+}
+
+fn extract_title_case_names(input: &str) -> Vec<String> {
+    let words: Vec<&str> = input.split_whitespace().collect();
+    let mut candidates = Vec::new();
+    for index in 0..words.len() {
+        let first = words[index].trim_matches(|character: char| !character.is_alphabetic());
+        if first.len() < 2 || !first.chars().next().is_some_and(char::is_uppercase) {
+            continue;
+        }
+        for width in (2..=3).rev() {
+            if index + width > words.len() {
+                continue;
+            }
+            let parts: Vec<&str> = words[index..index + width]
+                .iter()
+                .map(|word| word.trim_matches(|character: char| !character.is_alphabetic()))
+                .collect();
+            if parts.iter().all(|part| {
+                part.len() >= 2
+                    && part.chars().next().is_some_and(char::is_uppercase)
+                    && part
+                        .chars()
+                        .all(|character| character.is_alphabetic() || character == '\'')
+            }) {
+                candidates.push(parts.join(" "));
+                break;
+            }
+        }
+    }
+    candidates
+}
+
+fn extract_unknown_people(
+    input: &str,
+    known_people: &[String],
+    known_places: &[String],
+    player_name: Option<&str>,
+) -> Vec<String> {
+    let player_name = player_name.map(normalize);
+    let mut candidates: Vec<String> = extract_title_case_names(input)
+        .into_iter()
+        .filter(|candidate| {
+            let normalized = normalize(candidate);
+            let first = normalized.split_whitespace().next().unwrap_or_default();
+            player_name.as_deref() != Some(normalized.as_str())
+                && !matches!(
+                    first,
+                    "and" | "but" | "do" | "does" | "good" | "have" | "is" | "tell" | "where"
+                )
+                && !known_people
+                    .iter()
+                    .any(|known| normalize(known) == normalized)
+                && !known_places
+                    .iter()
+                    .any(|known| normalize(known).contains(&normalized))
+                && !matches!(
+                    normalized.as_str(),
+                    "saint brigid" | "st brigid" | "good morning" | "good evening"
+                )
+        })
+        .collect();
+    candidates.sort_by_key(|candidate| std::cmp::Reverse(candidate.split_whitespace().count()));
+    let mut selected: Vec<String> = Vec::new();
+    for candidate in candidates {
+        let normalized = normalize(&candidate);
+        if !selected
+            .iter()
+            .any(|existing| normalize(existing).contains(&normalized))
+        {
+            selected.push(candidate);
+        }
+    }
+    selected
+}
+
+fn extract_unknown_common_noun_places(input: &str, known_places: &[String]) -> Vec<String> {
+    const PLACE_HEADS: &[&str] = &[
+        "abbey",
+        "castle",
+        "chapel",
+        "church",
+        "farm",
+        "forge",
+        "house",
+        "inn",
+        "mill",
+        "monastery",
+        "pub",
+        "ruins",
+        "tavern",
+        "tower",
+        "village",
+        "well",
+    ];
+    const PLACE_MODIFIERS: &[&str] = &[
+        "abandoned",
+        "ancient",
+        "burned",
+        "burnt",
+        "haunted",
+        "old",
+        "ruined",
+        "roofless",
+    ];
+
+    let words: Vec<String> = input
+        .split_whitespace()
+        .map(normalize)
+        .filter(|word| !word.is_empty())
+        .collect();
+    let mut candidates = Vec::new();
+    for index in 0..words.len() {
+        let word = words[index].as_str();
+        let candidate = if PLACE_HEADS.contains(&word)
+            && index > 0
+            && PLACE_MODIFIERS.contains(&words[index - 1].as_str())
+        {
+            Some(format!("{} {}", words[index - 1], word))
+        } else if PLACE_MODIFIERS.contains(&word)
+            && index + 1 < words.len()
+            && PLACE_HEADS.contains(&words[index + 1].as_str())
+        {
+            Some(format!("{} {}", word, words[index + 1]))
+        } else {
+            None
+        };
+        if let Some(candidate) = candidate
+            && !known_places.iter().any(|known| {
+                let known = normalize(known);
+                known.contains(&candidate) || candidate.contains(&known)
+            })
+            && !candidates.contains(&candidate)
+        {
+            candidates.push(candidate);
+        }
+    }
+    candidates
+}
+
+fn has_denial(text: &str) -> bool {
+    let lower = text.to_lowercase();
+    [
+        "don't know",
+        "do not know",
+        "never heard",
+        "no such",
+        "cannot say",
+        "can't say",
+        "not heard",
+        "know nothing",
+    ]
+    .iter()
+    .any(|marker| lower.contains(marker))
+}
+
+fn affirms_unknown_person(dialogue: &str, referent: &str) -> bool {
+    if has_denial(dialogue) {
+        return false;
+    }
+    let lower = dialogue.to_lowercase();
+    let names_referent = contains_phrase(dialogue, referent)
+        || referent
+            .split_whitespace()
+            .next()
+            .is_some_and(|first| contains_phrase(dialogue, first));
+    let affirmation = [
+        "i've seen",
+        "i have seen",
+        "was here",
+        "he was",
+        "she was",
+        "he is",
+        "she is",
+        "he's",
+        "she's",
+        "made for",
+        "went to",
+        "headed",
+        "you'll find",
+        "you will find",
+        "my cousin",
+        "your cousin",
+        "yer cousin",
+        "the lad",
+        "the woman",
+    ]
+    .iter()
+    .any(|marker| lower.contains(marker));
+    affirmation
+        && (names_referent
+            || [" he ", " she ", " him ", " her "]
+                .iter()
+                .any(|pronoun| format!(" {lower} ").contains(pronoun)))
+}
+
+fn affirms_unknown_place(dialogue: &str, referent: &str) -> bool {
+    if has_denial(dialogue) {
+        return false;
+    }
+    let lower = dialogue.to_lowercase();
+    let affirmation = [
+        "the ruins",
+        "the abbey",
+        "walk to",
+        "road to",
+        "path to",
+        "lies to",
+        "stands to",
+        "you'll find",
+        "you will find",
+        "past the",
+        "stones",
+        "swallowed by",
+        "it is near",
+        "it's near",
+        "there is",
+    ]
+    .iter()
+    .any(|marker| lower.contains(marker));
+    affirmation
+        && (contains_phrase(dialogue, referent)
+            || lower.contains("the ruins")
+            || lower.contains("the abbey")
+            || lower.contains(" there"))
+}
+
+fn current_festival_claim(dialogue: &str) -> Option<&'static str> {
+    let lower = dialogue.to_lowercase();
+    let current_marker = [
+        "on this day",
+        "this very day",
+        "today",
+        "today's",
+        "today is",
+        "we celebrate",
+        "we're celebrating",
+        "we are celebrating",
+    ]
+    .iter()
+    .any(|marker| lower.contains(marker));
+    if !current_marker {
+        return None;
+    }
+    if lower.contains("saint brigid") || lower.contains("st brigid") || lower.contains("imbolc") {
+        Some("imbolc")
+    } else if lower.contains("bealtaine") {
+        Some("bealtaine")
+    } else if lower.contains("lughnasa") {
+        Some("lughnasa")
+    } else if lower.contains("samhain") {
+        Some("samhain")
+    } else {
+        None
+    }
+}
+
+fn queried_occupation<'a>(input: &str, facts: &'a [GroundedPersonFact]) -> Option<&'a str> {
+    let mut matches = facts
+        .iter()
+        .map(|fact| fact.occupation.as_str())
+        .filter(|occupation| contains_phrase(input, occupation));
+    let occupation = matches.next()?;
+    matches
+        .all(|other| other.eq_ignore_ascii_case(occupation))
+        .then_some(occupation)
+}
+
+fn contradicts_person_facts(
+    dialogue: &str,
+    player_input: &str,
+    facts: &[GroundedPersonFact],
+    locations: &[GroundedLocationFact],
+) -> bool {
+    if let Some(requested_occupation) = queried_occupation(player_input, facts) {
+        let lower = dialogue.to_lowercase();
+        for fact in facts {
+            if !fact.occupation.eq_ignore_ascii_case(requested_occupation)
+                && contains_phrase(dialogue, &fact.name)
+                && ["find", "there", "go to", "at the"]
+                    .iter()
+                    .any(|marker| lower.contains(marker))
+            {
+                return true;
+            }
+        }
+        let matching_people: Vec<&GroundedPersonFact> = facts
+            .iter()
+            .filter(|fact| fact.occupation.eq_ignore_ascii_case(requested_occupation))
+            .collect();
+        if let [person] = matching_people.as_slice()
+            && [
+                "find him",
+                "find her",
+                "he is at",
+                "she is at",
+                "he's at",
+                "she's at",
+            ]
+            .iter()
+            .any(|marker| lower.contains(marker))
+        {
+            let expected = if ["work", "works", "workplace"]
+                .iter()
+                .any(|marker| player_input.to_lowercase().contains(marker))
+            {
+                person.workplace.as_deref()
+            } else {
+                person.current_location.as_deref()
+            };
+            if let Some(expected) = expected
+                && locations.iter().any(|location| {
+                    contains_phrase(dialogue, &location.name)
+                        && !location.name.eq_ignore_ascii_case(expected)
+                })
+            {
+                return true;
+            }
+        }
+    }
+
+    for clause in dialogue.split(['.', '!', '?', ';']) {
+        for fact in facts {
+            if !contains_phrase(clause, &fact.name) {
+                continue;
+            }
+            for occupation in facts.iter().map(|other| other.occupation.as_str()) {
+                if !occupation.eq_ignore_ascii_case(&fact.occupation)
+                    && contains_phrase(clause, occupation)
+                {
+                    return true;
+                }
+            }
+            if let Some(workplace) = fact.workplace.as_deref() {
+                let lower = clause.to_lowercase();
+                if ["works at", "keeps", "runs", "workplace is"]
+                    .iter()
+                    .any(|marker| lower.contains(marker))
+                {
+                    for other_place in facts.iter().filter_map(|other| other.workplace.as_deref()) {
+                        if !other_place.eq_ignore_ascii_case(workplace)
+                            && contains_phrase(clause, other_place)
+                        {
+                            return true;
+                        }
+                    }
+                }
+            }
+        }
+    }
+    false
+}
+
+fn contradicts_location_facts(dialogue: &str, facts: &[GroundedLocationFact]) -> bool {
+    if has_denial(dialogue) {
+        return false;
+    }
+    dialogue
+        .split(['.', '!', '?', ';'])
+        .any(|clause| contradicts_location_clause(clause, facts))
+}
+
+fn contradicts_location_clause(clause: &str, facts: &[GroundedLocationFact]) -> bool {
+    let mentioned: Vec<&GroundedLocationFact> = facts
+        .iter()
+        .filter(|fact| contains_phrase(clause, &fact.name))
+        .collect();
+    if mentioned.len() < 2 {
+        return false;
+    }
+    let lower = clause.to_lowercase();
+    let relates = [" in ", " near ", " beside ", " by ", " at "]
+        .iter()
+        .any(|marker| format!(" {lower} ").contains(marker));
+    if !relates {
+        return false;
+    }
+    mentioned.iter().any(|subject| {
+        mentioned.iter().any(|target| {
+            subject.name != target.name
+                && !subject
+                    .nearby_locations
+                    .iter()
+                    .any(|allowed| allowed.eq_ignore_ascii_case(&target.name))
+                && !target
+                    .nearby_locations
+                    .iter()
+                    .any(|allowed| allowed.eq_ignore_ascii_case(&subject.name))
+        })
+    })
+}
+
+fn violates_typed_grounding(
+    dialogue: &str,
+    player_input: &str,
+    snapshot: &DialogueGroundingSnapshot,
+) -> bool {
+    if let Some(claimed) = current_festival_claim(dialogue)
+        && snapshot
+            .current_festival
+            .as_deref()
+            .is_none_or(|festival| !festival.eq_ignore_ascii_case(claimed))
+    {
+        return true;
+    }
+
+    let mut referents = snapshot.referent_context.clone();
+    let current_people = extract_unknown_people(
+        player_input,
+        &snapshot.known_person_names,
+        &snapshot.known_location_names,
+        snapshot.player_name.as_deref(),
+    );
+    let current_places =
+        extract_unknown_common_noun_places(player_input, &snapshot.known_location_names);
+    referents.observe_player_input(
+        player_input,
+        &snapshot.known_person_names,
+        &snapshot.known_location_names,
+        snapshot.player_name.as_deref(),
+    );
+    let person_referent = if let [person] = current_people.as_slice() {
+        Some(person.as_str())
+    } else {
+        referents
+            .unambiguous(DialogueReferentKind::UnknownPerson)
+            .map(|referent| referent.label.as_str())
+    };
+    if let Some(person) = person_referent
+        && affirms_unknown_person(dialogue, person)
+    {
+        return true;
+    }
+    let place_referent = if let [place] = current_places.as_slice() {
+        Some(place.as_str())
+    } else {
+        referents
+            .unambiguous(DialogueReferentKind::UnknownPlace)
+            .map(|referent| referent.label.as_str())
+    };
+    if let Some(place) = place_referent
+        && affirms_unknown_place(dialogue, place)
+    {
+        return true;
+    }
+    contradicts_person_facts(
+        dialogue,
+        player_input,
+        &snapshot.person_facts,
+        &snapshot.location_facts,
+    ) || contradicts_location_facts(dialogue, &snapshot.location_facts)
+}
+
 fn apply_guard(
     response: &mut NpcStreamResponse,
     reasons: &mut Vec<String>,
@@ -209,6 +798,18 @@ pub fn validate_dialogue_candidate(
             contract_valid: true,
             accepted: false,
             guard_reasons: vec!["anachronism_output_guard".to_string()],
+        };
+    }
+
+    if violates_typed_grounding(&candidate.dialogue, player_input, snapshot) {
+        return DialogueValidationOutcome {
+            response: NpcStreamResponse {
+                dialogue: INVALID_DIALOGUE_FALLBACK.to_string(),
+                metadata: None,
+            },
+            contract_valid: true,
+            accepted: false,
+            guard_reasons: vec!["typed_grounding_guard".to_string()],
         };
     }
 
@@ -391,6 +992,275 @@ mod tests {
                 "agricultural show".to_string(),
             ],
             ..Default::default()
+        }
+    }
+
+    fn typed_snapshot() -> DialogueGroundingSnapshot {
+        DialogueGroundingSnapshot {
+            known_person_names: vec![
+                "Padraig Darcy".to_string(),
+                "Seamus Gallagher".to_string(),
+                "Peig Hannigan".to_string(),
+            ],
+            known_location_names: vec![
+                "Darcy's Pub".to_string(),
+                "The Crossroads".to_string(),
+                "The Forge".to_string(),
+                "Curraghboy Village".to_string(),
+                "St. Brigid's Church".to_string(),
+            ],
+            person_facts: vec![
+                GroundedPersonFact {
+                    name: "Padraig Darcy".to_string(),
+                    occupation: "Publican".to_string(),
+                    workplace: Some("Darcy's Pub".to_string()),
+                    current_location: Some("Darcy's Pub".to_string()),
+                },
+                GroundedPersonFact {
+                    name: "Seamus Gallagher".to_string(),
+                    occupation: "Blacksmith".to_string(),
+                    workplace: Some("The Forge".to_string()),
+                    current_location: Some("The Forge".to_string()),
+                },
+            ],
+            location_facts: vec![
+                GroundedLocationFact {
+                    name: "Darcy's Pub".to_string(),
+                    nearby_locations: vec!["The Crossroads".to_string()],
+                },
+                GroundedLocationFact {
+                    name: "The Crossroads".to_string(),
+                    nearby_locations: vec!["Darcy's Pub".to_string()],
+                },
+                GroundedLocationFact {
+                    name: "The Forge".to_string(),
+                    nearby_locations: Vec::new(),
+                },
+                GroundedLocationFact {
+                    name: "Curraghboy Village".to_string(),
+                    nearby_locations: Vec::new(),
+                },
+            ],
+            ..snapshot()
+        }
+    }
+
+    fn validate_typed(
+        line: &str,
+        input: &str,
+        snapshot: &DialogueGroundingSnapshot,
+    ) -> DialogueValidationOutcome {
+        validate_dialogue_candidate(
+            &NpcStreamResponse {
+                dialogue: line.to_string(),
+                metadata: Some(crate::NpcMetadata {
+                    action: "points".to_string(),
+                    mood: "content".to_string(),
+                    internal_thought: None,
+                    language_hints: Vec::new(),
+                    mentioned_people: Vec::new(),
+                    assigned_task: Some("follow the directions".to_string()),
+                }),
+            },
+            NpcResponseParseDisposition::FullJson,
+            input,
+            snapshot,
+            DialogueValidationPolicy::default(),
+            7,
+        )
+    }
+
+    #[test]
+    fn current_festival_claims_require_the_canonical_clock_festival() {
+        let snapshot = typed_snapshot();
+        let rejected = validate_typed(
+            "'Tis said 'tis blessed on this day, Saint Brigid's feast, and can heal sore eyes and more.",
+            "Is the well blessed?",
+            &snapshot,
+        );
+        assert!(!rejected.accepted);
+        assert_eq!(rejected.response.dialogue, INVALID_DIALOGUE_FALLBACK);
+        assert!(rejected.response.metadata.is_none());
+        assert_eq!(rejected.guard_reasons, ["typed_grounding_guard"]);
+
+        let folklore = validate_typed(
+            "Folk say Saint Brigid blessed wells and that her feast comes at Imbolc.",
+            "Tell me of Saint Brigid.",
+            &snapshot,
+        );
+        assert!(
+            folklore.accepted,
+            "general folklore is not a current-day claim"
+        );
+
+        let mut imbolc = snapshot;
+        imbolc.current_festival = Some("Imbolc".to_string());
+        assert!(
+            validate_typed(
+                "Today is Imbolc, Saint Brigid's feast.",
+                "What day is it?",
+                &imbolc,
+            )
+            .accepted
+        );
+    }
+
+    #[test]
+    fn unknown_person_relationship_appositive_and_pronoun_claims_are_rejected() {
+        let snapshot = typed_snapshot();
+        for (input, line) in [
+            (
+                "Have you seen my cousin Cormac Finn?",
+                "Aye, I've seen yer cousin. He was here earlier.",
+            ),
+            (
+                "Cormac Finn, my cousin, passed this way?",
+                "He made for the crossroads, as if in a hurry.",
+            ),
+            (
+                "Do you know Cormac Finn?",
+                "He's out, the lad Cormac, down by the mill.",
+            ),
+        ] {
+            let outcome = validate_typed(line, input, &snapshot);
+            assert!(!outcome.accepted, "must reject {input:?} -> {line:?}");
+            assert!(outcome.response.metadata.is_none());
+        }
+
+        let mut followup = snapshot.clone();
+        followup.referent_context.observe_player_input(
+            "Have you seen my cousin Cormac Finn?",
+            &followup.known_person_names,
+            &followup.known_location_names,
+            None,
+        );
+        assert!(
+            !validate_typed(
+                "He made for the crossroads, as if in a hurry.",
+                "Where did he go?",
+                &followup,
+            )
+            .accepted
+        );
+
+        let mut routed = typed_snapshot();
+        routed.referent_context.observe_player_input(
+            "talk to Padraig Darcy about Have you seen Cormac Finn?",
+            &routed.known_person_names,
+            &routed.known_location_names,
+            None,
+        );
+        routed.referent_context.observe_player_input(
+            "talk to Padraig Darcy about Where did he go?",
+            &routed.known_person_names,
+            &routed.known_location_names,
+            None,
+        );
+        assert!(
+            !validate_typed(
+                "He made for the crossroads, as if in a hurry.",
+                "Where did he go?",
+                &routed,
+            )
+            .accepted,
+            "the addressed speaker in a routing prefix must not resolve Cormac"
+        );
+
+        followup.referent_context.observe_player_input(
+            "And Father Ambrose Pendleton?",
+            &followup.known_person_names,
+            &followup.known_location_names,
+            None,
+        );
+        assert!(
+            validate_typed(
+                "He may have gone toward the crossroads.",
+                "Where did he go?",
+                &followup,
+            )
+            .accepted,
+            "ambiguous pronouns must not be guessed at"
+        );
+    }
+
+    #[test]
+    fn role_marked_unknown_place_and_followup_directions_are_rejected() {
+        let snapshot = typed_snapshot();
+        let exact = validate_typed(
+            "The ruins are but a walk to the south past the old church. Keep your eyes open for the stones swallowed by the ivy.",
+            "Where is the ruined abbey?",
+            &snapshot,
+        );
+        assert!(!exact.accepted);
+
+        let mut followup = snapshot.clone();
+        followup.referent_context.observe_player_input(
+            "Is there an old abbey nearby?",
+            &followup.known_person_names,
+            &followup.known_location_names,
+            None,
+        );
+        assert!(
+            !validate_typed(
+                "Walk to the south; the abbey ruins stand past the church.",
+                "How do I reach it?",
+                &followup,
+            )
+            .accepted
+        );
+        assert!(
+            validate_typed(
+                "I know of no such abbey in this parish.",
+                "Where is the ruined abbey?",
+                &snapshot,
+            )
+            .accepted
+        );
+    }
+
+    #[test]
+    fn occupation_workplace_and_geography_claims_use_authored_facts() {
+        let snapshot = typed_snapshot();
+        for (input, line) in [
+            (
+                "Where is the blacksmith?",
+                "Ye want the blacksmith, go the lane to the forge. Ye'll find Padraig Darcy there.",
+            ),
+            (
+                "Who is the publican?",
+                "Seamus Gallagher is the publican at Darcy's Pub.",
+            ),
+            ("Where is the publican?", "Ye'll find him at The Forge."),
+            (
+                "Where is Darcy's Pub?",
+                "Ye'll find it at Darcy's Pub, in Curraghboy Village.",
+            ),
+        ] {
+            let outcome = validate_typed(line, input, &snapshot);
+            assert!(!outcome.accepted, "must reject {input:?} -> {line:?}");
+        }
+
+        for (input, line) in [
+            (
+                "Who is the publican?",
+                "Padraig Darcy is the publican and keeps Darcy's Pub.",
+            ),
+            (
+                "Who is the blacksmith?",
+                "Seamus Gallagher is the blacksmith at The Forge.",
+            ),
+            (
+                "Where is Darcy's Pub?",
+                "Darcy's Pub stands beside The Crossroads.",
+            ),
+            ("Where is the publican?", "You'll find him at Darcy's Pub."),
+        ] {
+            let outcome = validate_typed(line, input, &snapshot);
+            assert!(
+                outcome.accepted,
+                "must preserve {input:?} -> {line:?}: {:?}",
+                outcome.guard_reasons
+            );
         }
     }
 

@@ -2464,17 +2464,7 @@ mod tests {
 
         assert_eq!(npc, "Colm Gallagher");
         let lower = dialogue.to_lowercase();
-        assert!(
-            lower.contains("no such person")
-                || lower.contains("no one by that name")
-                || lower.contains("not known to me")
-                || lower.contains("wrong parish")
-                || lower.contains("such a person")
-                || lower.contains("that name")
-                || lower.contains("parish face")
-                || lower.contains("comes to mind"),
-            "{dialogue}"
-        );
+        assert_eq!(dialogue, parish_core::npc::INVALID_DIALOGUE_FALLBACK);
         assert!(!lower.contains("lord fitzwilliam"), "{dialogue}");
         assert!(!lower.contains("owns most of the land"), "{dialogue}");
     }

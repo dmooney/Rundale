@@ -1137,6 +1137,49 @@ pub fn dialogue_grounding_snapshot(
         })
         .collect();
     work_roster.sort_by_key(|(id, _, _, _)| id.0);
+    let person_facts: Vec<crate::npc::GroundedPersonFact> = npc_manager
+        .all_npcs()
+        .map(|person| crate::npc::GroundedPersonFact {
+            name: person.name.clone(),
+            occupation: person.occupation.clone(),
+            workplace: person
+                .workplace
+                .and_then(|id| world.graph.get(id))
+                .map(|location| location.name.clone()),
+            current_location: world
+                .graph
+                .get(person.location())
+                .map(|location| location.name.clone()),
+        })
+        .collect();
+    let location_facts: Vec<crate::npc::GroundedLocationFact> = world
+        .graph
+        .location_ids()
+        .into_iter()
+        .filter_map(|id| world.graph.get(id))
+        .map(|location| {
+            let mut nearby_locations: Vec<String> = location
+                .connections
+                .iter()
+                .filter_map(|connection| world.graph.get(connection.target))
+                .map(|nearby| nearby.name.clone())
+                .collect();
+            if let Some(anchor) = location
+                .relative_to
+                .as_ref()
+                .and_then(|relative| world.graph.get(relative.anchor))
+                .map(|anchor| anchor.name.clone())
+                && !nearby_locations.contains(&anchor)
+            {
+                nearby_locations.push(anchor);
+            }
+            nearby_locations.sort();
+            crate::npc::GroundedLocationFact {
+                name: location.name.clone(),
+                nearby_locations,
+            }
+        })
+        .collect();
     let prior_player_inputs = world
         .conversation_log
         .recent_at(
@@ -1147,6 +1190,23 @@ pub fn dialogue_grounding_snapshot(
         .filter(|exchange| exchange.speaker_id == speaker_id)
         .map(|exchange| exchange.player_input.clone())
         .collect();
+    let mut referent_context = crate::npc::DialogueReferentContext::default();
+    for input in world
+        .conversation_log
+        .recent_at(
+            world.player_location,
+            crate::npc::conversation::ConversationLog::capacity(),
+        )
+        .into_iter()
+        .map(|exchange| exchange.player_input.as_str())
+    {
+        referent_context.observe_player_input(
+            input,
+            &known_person_names,
+            &known_location_names,
+            world.player_name.as_deref(),
+        );
+    }
     crate::npc::DialogueGroundingSnapshot {
         speaker_name: speaker.map(|npc| npc.name.clone()).unwrap_or_default(),
         speaker_context: speaker.map(|npc| crate::npc::DialogueSpeakerContext {
@@ -1178,6 +1238,13 @@ pub fn dialogue_grounding_snapshot(
             .map(|entry| entry.term.clone())
             .collect(),
         prior_openers: Vec::new(),
+        current_festival: world
+            .clock
+            .check_festival()
+            .map(|festival| festival.to_string()),
+        person_facts,
+        location_facts,
+        referent_context,
     }
 }
 
@@ -3102,6 +3169,92 @@ mod tests {
         match event {
             GameEvent::DialogueOccurred { npc_said, .. } => {
                 assert_eq!(npc_said.as_deref(), Some(outcome.display_text.as_str()));
+            }
+            other => panic!("expected dialogue event, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn canonical_apply_rejects_typed_factual_claim_before_side_effects() {
+        use crate::npc::manager::NpcManager;
+        use crate::npc::{
+            DialogueValidationPolicy, LanguageSettings, NpcId, NpcMetadata,
+            NpcResponseParseDisposition, NpcStreamResponse,
+        };
+        use chrono::TimeZone;
+        use parish_types::events::GameEvent;
+        use parish_world::WorldState;
+
+        let mut world = WorldState::new();
+        let mut events = world.event_bus.subscribe();
+        let mut manager = NpcManager::new();
+        let mut npc = crate::npc::Npc::new_test_npc();
+        npc.id = NpcId(1);
+        npc.name = "Nora Duffy".to_string();
+        npc.mood = "watchful".to_string();
+        npc.set_location(world.player_location);
+        manager.add_npc(npc);
+        let mut grounding = dialogue_grounding_snapshot(&world, &manager, NpcId(1));
+        grounding.current_festival = None;
+        let location = world.player_location;
+        let raw = "'Tis said 'tis blessed on this day, Saint Brigid's feast, and can heal sore eyes and more.";
+        let candidate = NpcStreamResponse {
+            dialogue: raw.to_string(),
+            metadata: Some(NpcMetadata {
+                action: "ties a ribbon to the well".to_string(),
+                mood: "joyful".to_string(),
+                internal_thought: Some("the feast is today".to_string()),
+                language_hints: Vec::new(),
+                mentioned_people: Vec::new(),
+                assigned_task: Some("Join today's feast".to_string()),
+            }),
+        };
+
+        let outcome = apply_npc_dialogue_turn_with_validation(
+            &mut world,
+            &mut manager,
+            NpcId(1),
+            &candidate,
+            NpcResponseParseDisposition::FullJson,
+            &grounding,
+            DialogueValidationPolicy::default(),
+            "Is the well blessed?",
+            "Is the well blessed?",
+            chrono::Utc.with_ymd_and_hms(1820, 3, 20, 8, 0, 0).unwrap(),
+            location,
+            "a watchful woman",
+            "Nora Duffy",
+            Some(1839),
+            &grounding.known_person_names,
+            &LanguageSettings::english_only(),
+            &FeatureFlags::default(),
+        );
+
+        assert_eq!(outcome.display_text, crate::npc::INVALID_DIALOGUE_FALLBACK);
+        assert_eq!(outcome.guard_reasons, ["typed_grounding_guard"]);
+        assert!(outcome.action.is_none());
+        assert!(outcome.assigned_task.is_none());
+        assert_eq!(manager.get(NpcId(1)).unwrap().mood, "watchful");
+        assert!(
+            manager
+                .get(NpcId(1))
+                .unwrap()
+                .memory
+                .recent(8)
+                .iter()
+                .all(|memory| {
+                    !memory.content.contains(raw)
+                        && !memory.content.contains("Join today's feast")
+                        && !memory.content.contains("ties a ribbon")
+                })
+        );
+        let event = events.try_recv().expect("canonical fallback event");
+        match event {
+            GameEvent::DialogueOccurred { npc_said, .. } => {
+                assert_eq!(
+                    npc_said.as_deref(),
+                    Some(crate::npc::INVALID_DIALOGUE_FALLBACK)
+                );
             }
             other => panic!("expected dialogue event, got {other:?}"),
         }
