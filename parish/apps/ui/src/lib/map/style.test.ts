@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { buildStyle, type ThemeColors } from './style';
+import { buildStyle, defaultGlyphsUrl, type ThemeColors } from './style';
 import type { TileSource } from '$lib/types';
 
 const THEME: ThemeColors = {
@@ -46,6 +46,29 @@ function tmsSource(): TileSource {
 }
 
 describe('buildStyle', () => {
+	it('uses same-origin bundled glyphs without encoding MapLibre tokens', () => {
+		const glyphs = defaultGlyphsUrl('https://rundale.test/editor');
+		expect(glyphs).toBe(
+			'https://rundale.test/map-glyphs/{fontstack}/{range}.pbf',
+		);
+		expect(buildStyle('full', THEME, osm()).glyphs).toBe(
+			`${document.location.origin}/map-glyphs/{fontstack}/{range}.pbf`,
+		);
+	});
+
+	it('resolves the bundled route on the Tauri document origin', () => {
+		expect(defaultGlyphsUrl('tauri://localhost/index.html')).toBe(
+			'tauri://localhost/map-glyphs/{fontstack}/{range}.pbf',
+		);
+	});
+
+	it('retains glyph URL injection for tests and embeds', () => {
+		const injected = 'https://assets.example/fonts/{fontstack}/{range}.pbf';
+		expect(buildStyle('minimap', THEME, undefined, injected).glyphs).toBe(
+			injected,
+		);
+	});
+
 	it('full map with OSM source wires URL and no TMS scheme', () => {
 		const style = buildStyle('full', THEME, osm());
 		const src = style.sources['map-tiles'];

@@ -60,15 +60,14 @@ export function readThemeColors(
 }
 
 /**
- * MapLibre glyphs endpoint default — the MapLibre demo CDN, which has no SLA.
- * Override via `buildStyle`'s `glyphsUrl` parameter to point at self-hosted
- * PBFs (e.g. `/fonts/{fontstack}/{range}.pbf`) once bundled as static assets.
- * Known limitation: depends on the MapLibre demo CDN glyphs endpoint, which
- * has no SLA. For fully offline use, bundle Open Sans glyph PBFs as static
- * assets and override via `buildStyle`'s `glyphsUrl` parameter.
+ * Resolves the bundled MapLibre glyphs relative to the document's base URL.
+ * Append the MapLibre template tokens only after URL resolution: passing the
+ * complete template to `new URL` percent-encodes the braces and breaks glyph
+ * substitution. The explicit parameter keeps unit-test and embed injection.
  */
-export const DEFAULT_GLYPHS_URL =
-	'https://demotiles.maplibre.org/font/{fontstack}/{range}.pbf';
+export function defaultGlyphsUrl(baseUri: string = document.baseURI): string {
+	return `${new URL('/map-glyphs/', baseUri).href}{fontstack}/{range}.pbf`;
+}
 
 /**
  * Builds a MapLibre style spec for the given map variant and theme.
@@ -88,7 +87,7 @@ export function buildStyle(
 	variant: MapVariant,
 	theme: ThemeColors,
 	tileSource?: TileSource,
-	glyphsUrl: string = DEFAULT_GLYPHS_URL,
+	glyphsUrl: string = defaultGlyphsUrl(),
 ): StyleSpecification {
 	const layers: LayerSpecification[] = [];
 	const rasterSourceId = 'map-tiles';

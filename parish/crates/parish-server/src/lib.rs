@@ -66,8 +66,6 @@ use state::{GameConfig, UiConfigSnapshot};
 ///
 /// - `https://tile.openstreetmap.org` — default OSM raster tile source
 ///   (`parish-config` `default_tile_sources`).
-/// - `https://demotiles.maplibre.org` — MapLibre glyph PBFs used by the
-///   map label layer (`style.ts` `GLYPHS_URL`).
 /// - `https://fonts.googleapis.com` — Google Fonts CSS `<link>` in `app.html`.
 /// - `https://fonts.gstatic.com` — Google Fonts glyph files (font-src).
 ///
@@ -80,7 +78,6 @@ use state::{GameConfig, UiConfigSnapshot};
 /// membership without repeating the origin strings.
 pub const ALLOWED_EXTERNAL_ORIGINS: &[&str] = &[
     "https://tile.openstreetmap.org",
-    "https://demotiles.maplibre.org",
     "https://fonts.googleapis.com",
     "https://fonts.gstatic.com",
 ];
@@ -95,8 +92,7 @@ pub const ALLOWED_EXTERNAL_ORIGINS: &[&str] = &[
 ///
 /// MapLibre fetches tiles via `fetch()` (CORS → connect-src) AND renders them
 /// as raster images (img-src), so the tile-server origins appear in both
-/// directives.  MapLibre also fetches glyph PBFs at runtime for the label
-/// layer, so `demotiles.maplibre.org` is in connect-src as well.
+/// directives. MapLibre glyph PBFs are bundled and fetched from `'self'`.
 ///
 /// # script-src: hash-based allowlist (TD-036, #543)
 ///
@@ -133,7 +129,7 @@ pub(crate) fn build_csp_policy(script_hashes: &[&str]) -> String {
          worker-src 'self' blob:; \
          style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; \
          img-src 'self' data: blob: https://tile.openstreetmap.org; \
-         connect-src 'self' ws: wss: https://tile.openstreetmap.org https://demotiles.maplibre.org https://fonts.googleapis.com; \
+         connect-src 'self' ws: wss: https://tile.openstreetmap.org https://fonts.googleapis.com; \
          font-src 'self' https://fonts.gstatic.com; \
          frame-ancestors 'none'; \
          base-uri 'self'; \

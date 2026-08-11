@@ -205,9 +205,8 @@ async fn csp_connect_src_contains_required_ws_schemes() {
 #[tokio::test]
 async fn csp_connect_src_contains_allowed_external_origins() {
     // Every origin in ALLOWED_EXTERNAL_ORIGINS that the frontend genuinely
-    // connects to must appear in connect-src.  The tile-server and glyph-server
-    // origins are fetched at runtime by MapLibre (tiles via fetch(), glyphs via
-    // XHR), so they must be explicitly listed.
+    // connects to must appear in connect-src. The external tile server is
+    // fetched at runtime by MapLibre; glyphs are bundled and same-origin.
     //
     // Exceptions: fonts.gstatic.com is only in font-src (file downloads), not
     // connect-src, so we only check the subset that is actually fetched.
@@ -216,7 +215,6 @@ async fn csp_connect_src_contains_allowed_external_origins() {
     // connect-src — the browser only connects to 'self'.
     let connect_fetch_origins: &[&str] = &[
         "https://tile.openstreetmap.org",
-        "https://demotiles.maplibre.org",
         "https://fonts.googleapis.com",
     ];
     let tokens = csp_directive_tokens(CSP_POLICY.as_str(), "connect-src");
@@ -226,6 +224,18 @@ async fn csp_connect_src_contains_allowed_external_origins() {
             "connect-src must contain {origin}; tokens: {tokens:?}"
         );
     }
+}
+
+#[tokio::test]
+async fn csp_does_not_allow_the_maplibre_demo_origin() {
+    assert!(
+        !CSP_POLICY.contains("demotiles.maplibre.org"),
+        "bundled glyphs must not retain the obsolete demo CDN exception"
+    );
+    assert!(
+        !ALLOWED_EXTERNAL_ORIGINS.contains(&"https://demotiles.maplibre.org"),
+        "same-origin support assets do not belong in the external allowlist"
+    );
 }
 
 #[tokio::test]

@@ -1,1 +1,2 @@
 .agent/witness-log.md merge=union
+parish/apps/ui/static/map-glyphs/**/*.pbf binary
