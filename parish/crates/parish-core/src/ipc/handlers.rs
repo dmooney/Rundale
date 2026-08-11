@@ -1218,14 +1218,16 @@ pub fn prepare_npc_conversation_turn(
         &dialogue_obligations,
     ));
 
-    // For the wrong-speaker-identity guard (#1475): (name, occupation) pairs
-    // for all roster members. Exclude the player entry (NpcId(0)) since the
-    // guard is about NPC identities, not the player.
-    let roster_names_occupations: Vec<(String, String)> = roster
-        .iter()
-        .filter(|(id, _, _)| id.0 != 0)
-        .map(|(_, name, occ)| (name.clone(), occ.clone()))
+    // The canonical identity guards need the complete authored NPC roster,
+    // not merely the speaker's social/prompt roster. Otherwise a first name
+    // that looks unique from one NPC's perspective can collide elsewhere in
+    // the parish, and wrong-speaker validation changes with relationships.
+    // The player is not an NPC and therefore is not part of this collection.
+    let mut roster_names_occupations: Vec<(String, String)> = npc_manager
+        .all_npcs()
+        .map(|person| (person.name.clone(), person.occupation.clone()))
         .collect();
+    roster_names_occupations.sort();
 
     let location_name = world
         .graph

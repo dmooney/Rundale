@@ -306,6 +306,38 @@ describe('reconnect canonical context resync', () => {
 		currentRevision += 1;
 	});
 
+	it('commits an identity reveal only from the authoritative aggregate', async () => {
+		const hidden: NpcInfo = {
+			...oldNpc,
+			name: 'a broad-shouldered smith',
+			real_name: 'Seamus Gallagher',
+			occupation: 'Blacksmith',
+			introduced: false,
+		};
+		npcsHere.set([hidden]);
+		const state = presentation(12);
+		const canonicalWorld = snapshot('The forge rings with hammer blows.');
+		const canonicalMap = map('1');
+		const revealed: NpcInfo = {
+			...hidden,
+			name: hidden.real_name,
+			introduced: true,
+		};
+
+		await refreshCanonicalStateAfterWorldUpdate(
+			state,
+			4,
+			() => 4,
+			() =>
+				Promise.resolve(
+					aggregate(canonicalWorld, canonicalMap, [revealed], 12),
+				),
+		);
+
+		expect(get(npcsHere)).toEqual([revealed]);
+		expect(get(npcsHere)[0]).not.toBe(hidden);
+	});
+
 	it('rejects an old reconnect response that resolves after a context reset', async () => {
 		const state = presentation(10);
 		const staleWorld = snapshot('Stale branch prose.', 'Stale Parish');

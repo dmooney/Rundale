@@ -610,11 +610,6 @@ async fn load_and_restore_snapshot(
             let snap_id = recovery.snapshot_id;
             let (mut candidate_world, mut candidate_npcs) = fresh_headless_world_and_npcs(app)?;
             recovery.restore(&mut candidate_world, &mut candidate_npcs);
-            // Gate: clear in-memory introduced set so NPCs must be re-introduced
-            // each session (#1396, npc-dialogue-grounding flag, default-on).
-            if !app.flags.is_disabled("npc-dialogue-grounding") {
-                candidate_npcs.clear_introduced_for_session();
-            }
             candidate_npcs.assign_tiers(&candidate_world, &[]);
             let prepared_binding = app
                 .session_store
@@ -2635,7 +2630,16 @@ mod tests {
     async fn test_restore_from_db_with_existing_snapshot() {
         let tmp = tempfile::tempdir().unwrap();
         let save_path = tmp.path().join("parish_001.db");
-        let app = App::new();
+        let mut app = App::new();
+        app.npc_manager
+            .add_npc(parish_core::npc::Npc::new_test_npc());
+        let introduced_id = app
+            .npc_manager
+            .all_npcs()
+            .next()
+            .expect("headless fixture has an NPC")
+            .id;
+        app.npc_manager.mark_introduced(introduced_id);
         let db = crate::persistence::Database::open(&save_path).unwrap();
         let async_db = Arc::new(crate::persistence::AsyncDatabase::new(db));
 
@@ -2654,6 +2658,10 @@ mod tests {
             .unwrap();
         assert_eq!(app2.active_branch_id, branch.id);
         assert_eq!(app2.latest_snapshot_id, snap_id);
+        assert!(
+            app2.npc_manager.is_introduced(introduced_id),
+            "headless database restore must preserve durable identity knowledge"
+        );
     }
 
     #[tokio::test]

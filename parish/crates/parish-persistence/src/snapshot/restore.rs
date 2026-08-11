@@ -200,6 +200,14 @@ impl GameSnapshot {
         );
 
         world.gossip_network = self.gossip_network;
+        // #1838 compatibility repair: #1396 restored this durable set and then
+        // cleared it at every runtime boundary. Saves written after that clear
+        // may contain an empty set while their bounded canonical dialogue still
+        // proves an explicit identity reveal. Merge only claims accepted by the
+        // same strict detector as the live apply seam; never infer from contact
+        // or canonical speaker metadata alone. The next ordinary save persists
+        // any healed ids without a schema migration.
+        npc_manager.heal_introductions_from_conversation(&self.conversation_log);
         world.conversation_log = self.conversation_log;
         world.player_name = self.player_name;
         world.player_progress = self.player_progress;

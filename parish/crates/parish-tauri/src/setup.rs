@@ -552,16 +552,9 @@ pub(crate) async fn init_persistence(state: &Arc<AppState>) -> bool {
                             return false;
                         }
                         prepared_binding.commit();
-                        let grounding_enabled = {
-                            let cfg = state.config.lock().await;
-                            !cfg.flags.is_disabled("npc-dialogue-grounding")
-                        };
                         let mut world = state.world.lock().await;
                         let mut npc_mgr = state.npc_manager.lock().await;
                         recovery.restore(&mut world, &mut npc_mgr);
-                        if grounding_enabled {
-                            npc_mgr.clear_introduced_for_session();
-                        }
                         npc_mgr.assign_tiers(&world, &[]);
                         drop(npc_mgr);
                         drop(world);

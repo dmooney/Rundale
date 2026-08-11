@@ -72,4 +72,36 @@ test.describe('Real browser + parish-server acceptance', () => {
 			expect(result.body, endpoint).toBeTruthy();
 		}
 	});
+
+	test('nearby-person labels mirror authoritative server identity state', async ({
+		page,
+	}) => {
+		const npcs = await page.evaluate(async () => {
+			const response = await fetch('/api/npcs-here');
+			if (!response.ok) throw new Error(`npcs-here failed: ${response.status}`);
+			return (await response.json()) as Array<{
+				name: string;
+				real_name: string;
+				occupation: string;
+				introduced: boolean;
+			}>;
+		});
+		expect(npcs.length).toBeGreaterThan(0);
+
+		const present = page.getByTestId('npcs-present');
+		await expect(present).toBeVisible();
+		for (const npc of npcs) {
+			await expect(present.getByText(npc.name, { exact: true })).toBeVisible();
+			if (npc.introduced && npc.occupation) {
+				await expect(
+					present.getByText(npc.occupation, { exact: true }),
+				).toBeVisible();
+			} else {
+				expect(npc.name).not.toBe(npc.real_name);
+				await expect(
+					present.getByText(npc.real_name, { exact: true }),
+				).toHaveCount(0);
+			}
+		}
+	});
 });
