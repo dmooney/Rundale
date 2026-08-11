@@ -1096,6 +1096,17 @@ async fn load_branch_rejects_path_traversal() {
 async fn successful_same_location_branch_restore_clears_ring_but_preserves_lifetime_cursor() {
     let state = test_app_state();
     seed_stale_branch_runtime(&state).await;
+    let introduced_id = {
+        let mut npc_manager = state.npc_manager.lock().await;
+        npc_manager.add_npc(parish_core::npc::Npc::new_test_npc());
+        let id = npc_manager
+            .all_npcs()
+            .next()
+            .expect("server fixture has an NPC")
+            .id;
+        npc_manager.mark_introduced(id);
+        id
+    };
     let snapshot = {
         let world = state.world.lock().await;
         let npc_manager = state.npc_manager.lock().await;
@@ -1123,6 +1134,10 @@ async fn successful_same_location_branch_restore_clears_ring_but_preserves_lifet
     assert!(conversation.seen_openers_this_location.is_empty());
     drop(conversation);
     assert!(state.game_events.lock().await.is_empty());
+    assert!(
+        state.npc_manager.lock().await.is_introduced(introduced_id),
+        "server branch restore must preserve durable identity knowledge"
+    );
     assert_eq!(
         state
             .total_game_events

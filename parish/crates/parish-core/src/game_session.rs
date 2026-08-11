@@ -1461,11 +1461,23 @@ pub fn apply_npc_dialogue_turn_with_validation(
     };
 
     // Identity becomes known only when the final delivered line explicitly
-    // establishes the speaker's authored full name (#1776). Doing this after
-    // every text guard prevents a name removed by post-processing from leaking
-    // through the notebook/card state.
+    // establishes the speaker's grounded identity (#1776/#1842). The immutable
+    // pre-inference snapshot supplies the authored occupation and full roster,
+    // so a unique first-name claim cannot be validated against model metadata
+    // or mutable post-generation state. Running after every text transform
+    // prevents a removed claim from leaking through notebook/card state.
+    let speaker_occupation = grounding
+        .speaker_context
+        .as_ref()
+        .map(|speaker| speaker.occupation.as_str())
+        .unwrap_or_default();
     if !npc_manager.is_introduced(speaker_id)
-        && crate::npc::dialogue_self_identifies_speaker(capped_dialogue, speaker_actual_name)
+        && crate::npc::dialogue_self_identifies_speaker(
+            capped_dialogue,
+            speaker_actual_name,
+            speaker_occupation,
+            &grounding.roster_names_occupations,
+        )
     {
         npc_manager.mark_introduced(speaker_id);
         debug_events.push(format!(
@@ -3541,6 +3553,53 @@ mod tests {
             npc_manager.is_introduced(NpcId(22)),
             "the canonical delivered self-identification must reveal the NPC"
         );
+    }
+
+    #[test]
+    fn dialogue_turn_reveals_unique_first_name_with_grounded_occupation() {
+        use crate::npc::manager::NpcManager;
+        use crate::npc::{LanguageSettings, NpcId, NpcStreamResponse};
+        use chrono::TimeZone;
+        use parish_world::WorldState;
+
+        let mut world = WorldState::new();
+        let mut npc_manager = NpcManager::new();
+        let mut seamus = crate::npc::Npc::new_test_npc();
+        seamus.id = NpcId(9);
+        seamus.name = "Seamus Gallagher".to_string();
+        seamus.occupation = "Blacksmith".to_string();
+        seamus.brief_description = "a broad-shouldered smith".to_string();
+        seamus.set_location(world.player_location);
+        npc_manager.add_npc(seamus);
+        let location = world.player_location;
+        let response = NpcStreamResponse {
+            dialogue: "Aye, I'm Seamus, the blacksmith. And mornin' to ye!".to_string(),
+            metadata: None,
+        };
+
+        let outcome = crate::game_session::apply_npc_dialogue_turn(
+            &mut world,
+            &mut npc_manager,
+            NpcId(9),
+            &response,
+            "Are ye Padraig?",
+            "Are ye Padraig?",
+            chrono::Utc.with_ymd_and_hms(1820, 3, 20, 8, 0, 0).unwrap(),
+            location,
+            "a broad-shouldered smith",
+            "Seamus Gallagher",
+            None,
+            &[],
+            &LanguageSettings::english_only(),
+            &FeatureFlags::default(),
+        );
+
+        assert_eq!(outcome.display_text, response.dialogue);
+        assert!(npc_manager.is_introduced(NpcId(9)));
+        let visible = crate::ipc::build_npcs_here(&world, &npc_manager);
+        assert_eq!(visible[0].name, "Seamus Gallagher");
+        assert_eq!(visible[0].occupation, "Blacksmith");
+        assert!(visible[0].introduced);
     }
 
     #[test]

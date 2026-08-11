@@ -530,6 +530,64 @@ fn test_old_save_backward_compat_introduced_npcs() {
     assert_eq!(npcs.introduced_count(), 0);
 }
 
+#[test]
+fn restore_heals_regression_era_empty_introduced_set_from_final_dialogue() {
+    use parish_types::conversation::ConversationExchange;
+
+    let mut world = WorldState::new();
+    let mut npc_manager = NpcManager::new();
+    let mut seamus = make_test_npc(9, 1);
+    seamus.name = "Seamus Gallagher".to_string();
+    seamus.occupation = "Blacksmith".to_string();
+    npc_manager.add_npc(seamus);
+    world.conversation_log.add(ConversationExchange {
+        timestamp: Utc.with_ymd_and_hms(1820, 3, 20, 8, 0, 0).unwrap(),
+        speaker_id: NpcId(9),
+        speaker_name: "Seamus Gallagher".to_string(),
+        player_input: "Are ye Padraig?".to_string(),
+        npc_dialogue: "I'm Seamus, the blacksmith.".to_string(),
+        location: LocationId(1),
+    });
+
+    let mut snapshot = GameSnapshot::capture(&world, &npc_manager);
+    snapshot.introduced_npcs.clear();
+    let json = serde_json::to_string(&snapshot).unwrap();
+    let restored: GameSnapshot = serde_json::from_str(&json).unwrap();
+    let mut restored_world = WorldState::new();
+    let mut restored_npcs = NpcManager::new();
+    restored.restore(&mut restored_world, &mut restored_npcs);
+
+    assert!(restored_npcs.is_introduced(NpcId(9)));
+    assert_eq!(restored_world.conversation_log.exchanges_since(0).len(), 1);
+}
+
+#[test]
+fn restore_does_not_infer_identity_from_exchange_or_speaker_metadata() {
+    use parish_types::conversation::ConversationExchange;
+
+    let mut world = WorldState::new();
+    let mut npc_manager = NpcManager::new();
+    let mut peig = make_test_npc(22, 1);
+    peig.name = "Peig Hannigan".to_string();
+    peig.occupation = "Widow".to_string();
+    npc_manager.add_npc(peig);
+    world.conversation_log.add(ConversationExchange {
+        timestamp: Utc.with_ymd_and_hms(1820, 3, 20, 8, 0, 0).unwrap(),
+        speaker_id: NpcId(22),
+        speaker_name: "Peig Hannigan".to_string(),
+        player_input: "Good morning.".to_string(),
+        npc_dialogue: "Good morning. What brings ye here?".to_string(),
+        location: LocationId(1),
+    });
+
+    let snapshot = GameSnapshot::capture(&world, &npc_manager);
+    let mut restored_world = WorldState::new();
+    let mut restored_npcs = NpcManager::new();
+    snapshot.restore(&mut restored_world, &mut restored_npcs);
+
+    assert!(!restored_npcs.is_introduced(NpcId(22)));
+}
+
 /// Regression for #286 — `current_location()` must not panic after
 /// restoring a snapshot into a `WorldState::new()` (empty graph, only
 /// Crossroads in the legacy map) when the player's saved location

@@ -31,4 +31,22 @@ describe('notebook people labels', () => {
 		expect(notebookPersonLabel(person)).toBe('Lean, red-haired young man');
 		expect(notebookPersonInitial(person)).toBe('L');
 	});
+
+	it('switches to the canonical name only after authoritative introduction', () => {
+		const hidden = npc({
+			introduced: false,
+			name: 'a broad-shouldered smith in a leather apron',
+			real_name: 'Seamus Gallagher',
+			occupation: 'Blacksmith',
+		});
+		expect(notebookPersonLabel(hidden)).toBe('Broad-shouldered smith in a');
+
+		const revealed = {
+			...hidden,
+			name: hidden.real_name,
+			introduced: true,
+		};
+		expect(notebookPersonLabel(revealed)).toBe('Seamus Gallagher');
+		expect(notebookPersonInitial(revealed)).toBe('S');
+	});
 });

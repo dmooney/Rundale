@@ -862,43 +862,41 @@ fn reaction_emoji_monoculture_clears_when_diversity_returns() {
     );
 }
 
-/// AC-2 / AC-3 (#1396): `clear_introduced_for_session` resets the in-memory
-/// set so NPCs that were introduced in a previous (restored) session must be
-/// re-introduced this session.
 #[test]
-fn test_clear_introduced_for_session_resets_set() {
+fn conversation_repair_heals_only_explicit_grounded_identity_claims() {
+    use parish_types::conversation::{ConversationExchange, ConversationLog};
+
     let mut mgr = NpcManager::new();
-    mgr.add_npc(make_test_npc(1, 2));
-    mgr.add_npc(make_test_npc(2, 2));
+    let mut seamus = make_test_npc(1, 2);
+    seamus.name = "Seamus Gallagher".to_string();
+    seamus.occupation = "Blacksmith".to_string();
+    let mut peig = make_test_npc(2, 2);
+    peig.name = "Peig Hannigan".to_string();
+    peig.occupation = "Widow".to_string();
+    mgr.add_npc(seamus);
+    mgr.add_npc(peig);
 
-    // Simulate a prior session: both NPCs were introduced.
-    mgr.mark_introduced(NpcId(1));
-    mgr.mark_introduced(NpcId(2));
+    let mut log = ConversationLog::new();
+    let timestamp = chrono::Utc.with_ymd_and_hms(1820, 3, 20, 8, 0, 0).unwrap();
+    log.add(ConversationExchange {
+        timestamp,
+        speaker_id: NpcId(1),
+        speaker_name: "Seamus Gallagher".to_string(),
+        player_input: "Who are ye?".to_string(),
+        npc_dialogue: "I'm Seamus, the blacksmith.".to_string(),
+        location: parish_types::LocationId(2),
+    });
+    log.add(ConversationExchange {
+        timestamp,
+        speaker_id: NpcId(2),
+        speaker_name: "Peig Hannigan".to_string(),
+        player_input: "Good morning.".to_string(),
+        npc_dialogue: "Good morning. What brings ye here?".to_string(),
+        location: parish_types::LocationId(2),
+    });
+
+    assert_eq!(mgr.heal_introductions_from_conversation(&log), 1);
     assert!(mgr.is_introduced(NpcId(1)));
-    assert!(mgr.is_introduced(NpcId(2)));
-
-    // Simulate session reload: clear the in-memory set.
-    mgr.clear_introduced_for_session();
-
-    // Neither NPC is introduced at the start of the new session (AC-2).
-    assert!(
-        !mgr.is_introduced(NpcId(1)),
-        "NPC 1 must not be introduced after session reset"
-    );
-    assert!(
-        !mgr.is_introduced(NpcId(2)),
-        "NPC 2 must not be introduced after session reset"
-    );
-    assert_eq!(mgr.introduced_count(), 0);
-
-    // After a real meeting this session, introduced flips to true (AC-3).
-    mgr.mark_introduced(NpcId(1));
-    assert!(
-        mgr.is_introduced(NpcId(1)),
-        "NPC 1 must be introduced after actual meeting"
-    );
-    assert!(
-        !mgr.is_introduced(NpcId(2)),
-        "NPC 2 still unintroduced — only NPC 1 was met"
-    );
+    assert!(!mgr.is_introduced(NpcId(2)));
+    assert_eq!(mgr.heal_introductions_from_conversation(&log), 0);
 }
