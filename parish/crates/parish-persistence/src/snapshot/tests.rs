@@ -277,7 +277,7 @@ fn test_player_progress_capture_and_restore() {
     let task_id = world
         .player_progress
         .assign_task(
-            "Dig over the potato patch.",
+            "Break the clods and plant seed in the potato patch.",
             NpcId(7),
             LocationId(1),
             assigned_at,
@@ -285,7 +285,7 @@ fn test_player_progress_capture_and_restore() {
         .unwrap();
     assert_eq!(
         world.player_progress.advance_assigned_task(
-            "I set to work digging the potato patch.",
+            "I take up a spade, break the clods in the potato patch, and plant the seed as Siobhan instructed.",
             LocationId(1),
             started_at,
         ),
@@ -301,7 +301,10 @@ fn test_player_progress_capture_and_restore() {
     restored_snapshot.restore(&mut restored_world, &mut restored_npcs);
 
     let restored = restored_world.player_progress.task(task_id).unwrap();
-    assert_eq!(restored.description, "Dig over the potato patch.");
+    assert_eq!(
+        restored.description,
+        "Break the clods and plant seed in the potato patch."
+    );
     assert_eq!(restored.assigned_by, NpcId(7));
     assert_eq!(restored.location, LocationId(1));
     assert_eq!(restored.assigned_at, assigned_at);
@@ -309,7 +312,9 @@ fn test_player_progress_capture_and_restore() {
     assert_eq!(restored.started_at, Some(started_at));
     assert_eq!(
         restored.last_matching_action.as_deref(),
-        Some("I set to work digging the potato patch.")
+        Some(
+            "I take up a spade, break the clods in the potato patch, and plant the seed as Siobhan instructed."
+        )
     );
     assert_eq!(
         restored_world
