@@ -1273,6 +1273,8 @@ pub fn prepare_npc_conversation_turn(
         .filter(|exchange| exchange.speaker_id == speaker_id)
         .map(|exchange| exchange.player_input.clone())
         .collect();
+    let typed_grounding =
+        crate::game_session::dialogue_grounding_snapshot(world, npc_manager, speaker_id);
     let grounding = crate::npc::DialogueGroundingSnapshot {
         speaker_name: npc.name.clone(),
         speaker_context: Some(crate::npc::DialogueSpeakerContext {
@@ -1297,6 +1299,10 @@ pub fn prepare_npc_conversation_turn(
             .map(|entry| entry.term.clone())
             .collect(),
         prior_openers: Vec::new(),
+        current_festival: typed_grounding.current_festival,
+        person_facts: typed_grounding.person_facts,
+        location_facts: typed_grounding.location_facts,
+        referent_context: typed_grounding.referent_context,
     };
 
     Some(NpcConversationSetup {
