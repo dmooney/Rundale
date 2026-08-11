@@ -48,6 +48,16 @@ for the frontend. The generated output is written alongside this file as
 
 ## Fonts
 
+### Open Sans Regular (MapLibre map-label glyphs)
+
+- Source: <https://github.com/googlefonts/opensans> (pinned source commit and
+  generated-file hashes are recorded in
+  `parish/apps/ui/static/map-glyphs/README.md`)
+- Copyright: Copyright 2020 The Open Sans Project Authors
+- Licence: **SIL Open Font License 1.1**
+- Distribution: bundled as MapLibre PBF glyph ranges; the complete licence is
+  distributed at `parish/apps/ui/static/map-glyphs/OFL.txt`
+
 ---
 
 ## Frontend runtime dependencies (`apps/ui/package.json`)
