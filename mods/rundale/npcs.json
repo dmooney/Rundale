@@ -260,7 +260,7 @@
                             "start_hour": 13,
                             "end_hour": 15,
                             "location": 12,
-                            "activity": "cutting turf on the bog, stacking it to dry in the summer sun"
+                            "activity": "afternoon farm work — tending the fields, livestock and outbuildings"
                         },
                         {
                             "start_hour": 16,
@@ -549,7 +549,7 @@
                             "start_hour": 14,
                             "end_hour": 16,
                             "location": 1,
-                            "activity": "walking the parish roads in the long summer light, checking on outlying families"
+                            "activity": "walking the parish roads, checking on outlying families"
                         },
                         {
                             "start_hour": 17,
@@ -755,7 +755,7 @@
                             "start_hour": 8,
                             "end_hour": 12,
                             "location": 13,
-                            "activity": "minding the shop — summer brings more trade, tinkers and travellers"
+                            "activity": "minding the shop — serving local trade, tinkers and travellers"
                         },
                         {
                             "start_hour": 13,
@@ -1227,7 +1227,7 @@
                             "start_hour": 8,
                             "end_hour": 13,
                             "location": 6,
-                            "activity": "teaching at the hedge school — the long summer days allow more lessons"
+                            "activity": "teaching at the hedge school — lessons in reading, writing, arithmetic and Irish"
                         },
                         {
                             "start_hour": 14,
@@ -1661,7 +1661,7 @@
                             "start_hour": 18,
                             "end_hour": 22,
                             "location": 2,
-                            "activity": "serving at the pub through the long summer evening"
+                            "activity": "serving at the pub through the busy evening"
                         },
                         {
                             "start_hour": 23,
