@@ -29,10 +29,10 @@ Example response:\n\
 \"language_hints\": [], \"assigned_task\": null}";
 
 const TASK_ASSIGNMENT_EXAMPLE_BLOCK: &str = "\
-Concrete task-assignment example:\n\
+Concrete task-assignment example after the player explicitly requests or accepts work:\n\
 {\"dialogue\": \"First, help with the potato patch — break the clods and plant seed.\", \
 \"action\": \"points toward the open rows\", \"mood\": \"busy\", \"language_hints\": [], \
-\"assigned_task\": \"Dig over the potato patch.\"}";
+\"assigned_task\": \"Break the clods and plant seed in the potato patch.\"}";
 
 /// Builds the Tier 1 system prompt for an NPC.
 ///
@@ -141,8 +141,9 @@ pub fn build_tier1_system_prompt(npc: &Npc, improv: bool, language: &LanguageSet
           - \"word\": the word as written\n\
           - \"pronunciation\": phonetic guide in English\n\
           - \"meaning\": English translation\n\
-        - \"assigned_task\": a short concrete description ONLY when your spoken \
-          dialogue explicitly assigns the player work they can begin; otherwise null. \
+        - \"assigned_task\": a short concrete description ONLY when the player \
+          explicitly requests or accepts work AND your spoken dialogue assigns work \
+          they can begin; otherwise null. \
           Reuse the concrete verbs and objects spoken in \"dialogue\". Do not emit a \
           task for advice, a general need, an offer, or work assigned to someone else. \
           This MUST BE THE LAST FIELD. Do not emit internal thoughts or any extra fields.\n",
@@ -271,8 +272,9 @@ mod tests {
             "dialogue must remain first and optional task metadata last:\n{prompt}"
         );
         assert!(
-            prompt.contains("ONLY when your spoken dialogue explicitly assigns the player work"),
-            "task metadata must be tied to an actual spoken assignment:\n{prompt}"
+            prompt.contains("ONLY when the player explicitly requests or accepts work")
+                && prompt.contains("your spoken dialogue assigns work they can begin"),
+            "task metadata must require both player opt-in and an actual spoken assignment:\n{prompt}"
         );
         assert!(
             prompt.contains("\"assigned_task\": null"),
@@ -281,7 +283,7 @@ mod tests {
         assert!(
             prompt.contains(
                 "\"dialogue\": \"First, help with the potato patch — break the clods and plant seed.\""
-            ) && prompt.contains("\"assigned_task\": \"Dig over the potato patch.\""),
+            ) && prompt.contains("\"assigned_task\": \"Break the clods and plant seed in the potato patch.\""),
             "the prompt must demonstrate the exact positive task-assignment contract:\n{prompt}"
         );
     }

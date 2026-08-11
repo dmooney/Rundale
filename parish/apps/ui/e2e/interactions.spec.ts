@@ -197,6 +197,44 @@ test.describe('Input and streaming', () => {
 		await emitEvent(page, 'stream-end', { hints: IRISH_HINTS });
 	});
 
+	test('only post-validation dialogue can become visible', async ({ page }) => {
+		const forbiddenCandidate =
+			'The agricultural show committee has very strong opinions.';
+		const safeFallback = 'I beg your pardon; I lost the thread of that.';
+		const chat = page.getByTestId('chat-panel');
+
+		await emitEvent(page, 'loading', { active: true });
+		await emitEvent(page, 'text-log', {
+			id: 'validated-turn',
+			source: 'Siobhan Murphy',
+			content: '',
+			stream_turn_id: 1834,
+		});
+		// Even if internal telemetry is forwarded by a test transport, it is not
+		// part of the renderable UI protocol and has no store listener.
+		await emitEvent(page, 'dialogue-candidate-token', {
+			token: forbiddenCandidate,
+			turn_id: 1834,
+			source: 'provider',
+		});
+		await expect(chat).not.toContainText(forbiddenCandidate);
+
+		// The backend has quarantined the candidate and exposes only the
+		// canonical validator outcome through the renderable protocol.
+		await emitEvent(page, 'stream-token', {
+			token: safeFallback,
+			turn_id: 1834,
+			source: 'Siobhan Murphy',
+			message_id: 'validated-turn',
+		});
+		await expect(chat).not.toContainText(forbiddenCandidate);
+
+		await emitEvent(page, 'stream-turn-end', { turn_id: 1834 });
+		await expect(chat).toContainText(safeFallback);
+		await emitEvent(page, 'stream-end', { hints: [] });
+		await expect(chat).not.toContainText(forbiddenCandidate);
+	});
+
 	test('overlapping NPC turns remain attached to their speakers', async ({
 		page,
 	}) => {

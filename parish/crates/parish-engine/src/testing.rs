@@ -633,135 +633,6 @@ impl GameTestHarness {
             .push(response.to_string());
     }
 
-    fn guard_canned_npc_dialogue(
-        &self,
-        npc_id: NpcId,
-        dialogue: String,
-        player_input: &str,
-        game_time: chrono::DateTime<chrono::Utc>,
-    ) -> String {
-        let cfg = parish_core::config::NpcConfig::default();
-        if dialogue.trim().is_empty() {
-            return dialogue;
-        }
-        let mut guarded = dialogue;
-        let known_person_names: Vec<String> = self
-            .app
-            .npc_manager
-            .all_npcs()
-            .map(|npc| npc.name.clone())
-            .collect();
-        let known_location_names: Vec<String> = self
-            .app
-            .world
-            .graph
-            .location_ids()
-            .into_iter()
-            .filter_map(|id| self.app.world.graph.get(id))
-            .map(|location| location.name.clone())
-            .collect();
-        let seed = npc_id.0 as u64 ^ (game_time.timestamp() as u64);
-        let speaker_context =
-            self.app
-                .npc_manager
-                .get(npc_id)
-                .map(|npc| crate::npc::DialogueSpeakerContext {
-                    name: npc.name.clone(),
-                    occupation: npc.occupation.clone(),
-                    mood: npc.mood.clone(),
-                });
-
-        if cfg.person_confirmation_guard_enabled {
-            guarded = crate::npc::guard_fabricated_person_confirmation_with_locations(
-                &guarded,
-                player_input,
-                &known_person_names,
-                &known_location_names,
-                &[],
-                self.app.world.player_name.as_deref(),
-                seed,
-            );
-        }
-
-        if !self
-            .app
-            .flags
-            .is_disabled(crate::npc::FALSE_DENIAL_GUARD_FLAG)
-        {
-            guarded = crate::npc::guard_false_denial_of_roster_person_with_speaker(
-                &guarded,
-                player_input,
-                &known_person_names,
-                self.app.world.player_name.as_deref(),
-                seed,
-                speaker_context.as_ref(),
-            );
-            guarded = crate::npc::guard_false_denial_of_known_place(
-                &guarded,
-                player_input,
-                &known_location_names,
-                seed,
-            );
-        }
-
-        if !self
-            .app
-            .flags
-            .is_disabled(crate::npc::INVENTED_PLACE_GUARD_FLAG)
-        {
-            guarded = crate::npc::guard_invented_place_confirmation(
-                &guarded,
-                player_input,
-                &known_location_names,
-                seed,
-            );
-        }
-
-        if !self
-            .app
-            .flags
-            .is_disabled(crate::npc::DIALOGUE_POLISH_GUARD_FLAG)
-        {
-            guarded = crate::npc::guard_stock_nonrecognition_decline_with_speaker(
-                &guarded,
-                player_input,
-                seed,
-                speaker_context.as_ref(),
-            );
-            guarded =
-                crate::npc::guard_time_of_day_phrase(&guarded, self.app.world.clock.time_of_day());
-            guarded = crate::npc::guard_priest_tenure_drift(&guarded, player_input);
-            guarded = crate::npc::guard_presumed_prior_acquaintance(
-                &guarded,
-                player_input,
-                &known_person_names,
-                speaker_context.as_ref(),
-            );
-            guarded = crate::npc::guard_repeated_speaker_name(&guarded, speaker_context.as_ref());
-            let relationship_tone_hints = self.app.npc_manager.relationship_tone_hints(npc_id);
-            guarded = crate::npc::guard_rival_target_neutral_tone(
-                &guarded,
-                player_input,
-                &relationship_tone_hints,
-            );
-        }
-
-        if cfg.verbosity_guard_enabled {
-            let mood = self
-                .app
-                .npc_manager
-                .get(npc_id)
-                .map(|npc| npc.mood.as_str());
-            guarded = if self.app.flags.is_disabled("npc-mood-aware-sentence-cap") {
-                crate::npc::guard_verbosity_runons(&guarded)
-            } else {
-                crate::npc::guard_verbosity_runons_with_mood(&guarded, mood)
-            };
-        }
-
-        guarded
-    }
-
     /// Returns the name of the player's current location.
     pub fn player_location(&self) -> &str {
         &self.app.world.current_location().name
@@ -1579,10 +1450,8 @@ impl GameTestHarness {
                 .get(speaker_id)
                 .map(|npc| npc.mood.clone())
                 .unwrap_or_default();
-            let mut response = parse_canned_npc_response(responses.remove(0), fallback_mood);
+            let response = parse_canned_npc_response(responses.remove(0), fallback_mood);
             let game_time = self.app.world.clock.now();
-            response.dialogue =
-                self.guard_canned_npc_dialogue(speaker_id, response.dialogue, text, game_time);
             // Shared per-turn pipeline (#1172 / #1173): run the same five steps
             // as every other backend. Previously this addressed path only did
             // name detection + Tier-1 apply, silently dropping the
@@ -1785,10 +1654,8 @@ impl GameTestHarness {
             return None;
         }
 
-        let mut response = parse_canned_npc_response(responses.remove(0), mood);
+        let response = parse_canned_npc_response(responses.remove(0), mood);
         let game_time = self.app.world.clock.now();
-        response.dialogue =
-            self.guard_canned_npc_dialogue(npc_id, response.dialogue, text, game_time);
 
         // Build a parsed or synthetic NPC response and run it through the memory pipeline.
         // Shared per-turn pipeline (#1172 / #1173): name detection, Tier-1
