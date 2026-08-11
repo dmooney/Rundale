@@ -1097,7 +1097,9 @@ pub fn apply_npc_dialogue_turn(
     language: &LanguageSettings,
     flags: &FeatureFlags,
 ) -> DialogueTurnOutcome {
-    let grounding = dialogue_grounding_snapshot(world, npc_manager, speaker_id);
+    let mut grounding = dialogue_grounding_snapshot(world, npc_manager, speaker_id);
+    grounding.dialogue_obligations =
+        crate::npc::derive_dialogue_obligations(player_input, &grounding.known_person_names);
     apply_npc_dialogue_turn_with_validation(
         world,
         npc_manager,
@@ -1272,6 +1274,7 @@ pub fn dialogue_grounding_snapshot(
         person_facts,
         location_facts,
         referent_context,
+        dialogue_obligations: Vec::new(),
     }
 }
 
@@ -1373,6 +1376,25 @@ pub fn apply_npc_dialogue_turn_with_validation(
     }
     if accepted_candidate && (candidate_requires_display_cap || final_dialogue_was_capped) {
         guard_reasons.push("display_cap".to_string());
+    }
+
+    // Recheck after repetition and display transforms. The final player-visible
+    // text, not merely the originally accepted model candidate, must fulfill
+    // every explicit current-turn facet before any metadata or state effect.
+    if !crate::npc::dialogue_fulfills_obligations(
+        &canonical_response.dialogue,
+        &grounding.dialogue_obligations,
+    ) {
+        canonical_response = crate::npc::NpcStreamResponse {
+            dialogue: crate::npc::dialogue_obligation_fallback(&grounding.dialogue_obligations),
+            metadata: None,
+        };
+        if !guard_reasons
+            .iter()
+            .any(|reason| reason == "dialogue_obligation_guard")
+        {
+            guard_reasons.push("dialogue_obligation_guard".to_string());
+        }
     }
 
     // 2. Tier-1 state update on the speaker.
@@ -3194,6 +3216,99 @@ mod tests {
         assert!(!exchange.npc_dialogue.contains(raw));
         let event = events.try_recv().expect("canonical dialogue event");
         match event {
+            GameEvent::DialogueOccurred { npc_said, .. } => {
+                assert_eq!(npc_said.as_deref(), Some(outcome.display_text.as_str()));
+            }
+            other => panic!("expected dialogue event, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn canonical_apply_replaces_incomplete_multifacet_reply_before_all_effects() {
+        use crate::npc::manager::NpcManager;
+        use crate::npc::{
+            DialogueValidationPolicy, LanguageSettings, NpcId, NpcMetadata,
+            NpcResponseParseDisposition, NpcStreamResponse,
+        };
+        use chrono::TimeZone;
+        use parish_types::events::GameEvent;
+        use parish_world::WorldState;
+
+        let mut world = WorldState::new();
+        let mut events = world.event_bus.subscribe();
+        let mut manager = NpcManager::new();
+        let mut priest = crate::npc::Npc::new_test_npc();
+        priest.id = NpcId(1);
+        priest.name = "Fr. Declan Tierney".to_string();
+        priest.mood = "solemn".to_string();
+        priest.set_location(world.player_location);
+        manager.add_npc(priest);
+        let mut peig = crate::npc::Npc::new_test_npc();
+        peig.id = NpcId(2);
+        peig.name = "Peig Hannigan".to_string();
+        peig.set_location(world.player_location);
+        manager.add_npc(peig);
+
+        let input = "Good morning, Father. Peig Hannigan sent me. I'm Aiden Carney, seeking honest work and somewhere dry to sleep.";
+        let mut grounding = dialogue_grounding_snapshot(&world, &manager, NpcId(1));
+        grounding.dialogue_obligations =
+            crate::npc::derive_dialogue_obligations(input, &grounding.known_person_names);
+        let raw = "'Tis a fine morning indeed. What brings ye to this church?";
+        let candidate = NpcStreamResponse {
+            dialogue: raw.to_string(),
+            metadata: Some(NpcMetadata {
+                action: "offers a room key".to_string(),
+                mood: "delighted".to_string(),
+                internal_thought: Some("hire him".to_string()),
+                language_hints: Vec::new(),
+                mentioned_people: vec!["Aiden Carney".to_string()],
+                assigned_task: Some("Start work at the rectory".to_string()),
+            }),
+        };
+        let location = world.player_location;
+        let outcome = apply_npc_dialogue_turn_with_validation(
+            &mut world,
+            &mut manager,
+            NpcId(1),
+            &candidate,
+            NpcResponseParseDisposition::FullJson,
+            &grounding,
+            DialogueValidationPolicy::default(),
+            input,
+            input,
+            chrono::Utc.with_ymd_and_hms(1820, 3, 20, 8, 0, 0).unwrap(),
+            location,
+            "a parish priest",
+            "Fr. Declan Tierney",
+            Some(1832),
+            &grounding.known_person_names,
+            &LanguageSettings::english_only(),
+            &FeatureFlags::default(),
+        );
+
+        assert_eq!(outcome.guard_reasons, ["dialogue_obligation_guard"]);
+        assert!(crate::npc::dialogue_fulfills_obligations(
+            &outcome.display_text,
+            &grounding.dialogue_obligations,
+        ));
+        assert!(!outcome.display_text.contains(raw));
+        assert!(outcome.action.is_none());
+        assert!(outcome.assigned_task.is_none());
+        assert_eq!(manager.get(NpcId(1)).unwrap().mood, "solemn");
+        for npc in manager.all_npcs() {
+            assert!(npc.memory.entries().all(|memory| {
+                !memory.content.contains(raw)
+                    && !memory.content.contains("offers a room key")
+                    && !memory.content.contains("Start work at the rectory")
+            }));
+        }
+        let exchange = world
+            .conversation_log
+            .recent_at(location, 1)
+            .pop()
+            .expect("safe fallback exchange");
+        assert_eq!(exchange.npc_dialogue, outcome.display_text);
+        match events.try_recv().expect("canonical dialogue event") {
             GameEvent::DialogueOccurred { npc_said, .. } => {
                 assert_eq!(npc_said.as_deref(), Some(outcome.display_text.as_str()));
             }

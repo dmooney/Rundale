@@ -161,6 +161,45 @@ test.describe('Input and streaming', () => {
 		await expect(chat).not.toContainText(forbiddenCandidate);
 	});
 
+	test('an incomplete multi-facet candidate never appears before its complete fallback', async ({
+		page,
+	}) => {
+		const incompleteCandidate =
+			"'Tis a fine morning indeed. What brings ye to this church?";
+		const completeFallback =
+			'I hear that Peig Hannigan sent you. Aiden Carney, is it? I have it. I cannot promise work, but I understand you are seeking it. I cannot promise lodging, but I understand you need a dry place to sleep.';
+		const chat = page.getByTestId('chat-panel');
+
+		await emitEvent(page, 'loading', { active: true });
+		await emitEvent(page, 'text-log', {
+			id: 'obligation-turn',
+			source: 'Fr. Declan Tierney',
+			content: '',
+			stream_turn_id: 1832,
+		});
+		await emitEvent(page, 'dialogue-candidate-token', {
+			token: incompleteCandidate,
+			turn_id: 1832,
+			source: 'provider',
+		});
+		await expect(chat).not.toContainText(incompleteCandidate);
+
+		await emitEvent(page, 'stream-token', {
+			token: completeFallback,
+			turn_id: 1832,
+			source: 'Fr. Declan Tierney',
+			message_id: 'obligation-turn',
+		});
+		await emitEvent(page, 'stream-turn-end', { turn_id: 1832 });
+		await expect(chat).toContainText('Peig Hannigan');
+		await expect(chat).toContainText('Aiden Carney');
+		await expect(chat).toContainText('cannot promise work');
+		await expect(chat).toContainText('cannot promise lodging');
+		await expect(chat).not.toContainText(incompleteCandidate);
+		await emitEvent(page, 'stream-end', { hints: [] });
+		await expect(chat).not.toContainText(incompleteCandidate);
+	});
+
 	test('overlapping NPC turns remain attached to their speakers', async ({
 		page,
 	}) => {
