@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { tick, untrack } from 'svelte';
+	import { onMount, tick, untrack } from 'svelte';
 	import { SvelteSet } from 'svelte/reactivity';
 	import { textLog, streamingActive, loadingPhrase, loadingColor, addReaction, removeReaction, messageHints, worldState, nameHints, pushErrorLog, formatIpcError, playerSubmittedCount } from '../stores/game';
 	import type { TextLogEntry } from '$lib/types';
@@ -16,12 +16,17 @@
 	// Updated by the scroll listener below — the ONLY place user scroll intent
 	// is read (after content mutation, not during it).
 	let stickToBottom = $state(true);
+	let userScrollRevision = 0;
+	let userScrollIntentPending = false;
 
 	// Track the last playerSubmittedCount value we handled so we can detect a
 	// fresh increment. Initialised to the store's current value so that
 	// pre-existing submissions at component mount don't trigger a spurious
 	// force-scroll (#1431 item 4).
 	let lastSubmittedCount = $playerSubmittedCount;
+	// A streamed reply replaces its existing textLog entry for every chunk, so
+	// array length is not a sufficient transcript-revision signal (#1835).
+	let lastEntries = $textLog;
 	// Track the last textLog length so we can detect when the player's echo
 	// has actually landed in the log after a submit.
 	let lastLogLength = $textLog.length;
@@ -32,15 +37,78 @@
 	// can exceed the near-bottom threshold and the panel stops short (#1431).
 	let scrollOnNextLogGrowth = false;
 
+	/** Align the transcript after Svelte has committed the pending DOM update.
+	 *  Re-check both sticky state and user intent after tick(): a wheel/touch
+	 *  scroll that happens while this request is queued must win. */
+	function requestBottomFollow(force = false) {
+		const requestedAtUserRevision = userScrollRevision;
+		void tick().then(() => {
+			if (!logEl || requestedAtUserRevision !== userScrollRevision) return;
+			if (!force && !untrack(() => stickToBottom)) return;
+
+			logEl.scrollTop = logEl.scrollHeight;
+		});
+	}
+
+	function markUserScrollIntent() {
+		userScrollIntentPending = true;
+	}
+
+	function handleScrollPointerDown(event: PointerEvent) {
+		if (!logEl) return;
+		const rect = logEl.getBoundingClientRect();
+		if (event.clientX >= rect.right - 16) markUserScrollIntent();
+	}
+
+	function handleScrollKeydown(event: KeyboardEvent) {
+		if (!['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Home', 'End', ' '].includes(event.key)) return;
+		markUserScrollIntent();
+		// If the key affected a focused child instead of scrolling its ancestor,
+		// do not let stale intent classify a later layout scroll as user-driven.
+		setTimeout(() => {
+			userScrollIntentPending = false;
+		}, 0);
+	}
+
 	/** Called on every real user scroll event. Measures whether the panel is
 	 *  near the bottom and updates stickToBottom accordingly. We read geometry
 	 *  here (on actual scroll) rather than after content mutations so the
 	 *  measurement is never contaminated by newly-rendered content. */
-	function handleScroll() {
+	function handleScroll(event: Event) {
 		if (!logEl) return;
-		stickToBottom =
-			logEl.scrollHeight - logEl.scrollTop - logEl.clientHeight < 50;
+		const nearBottom =
+			logEl.scrollHeight - logEl.scrollTop - logEl.clientHeight <= 50;
+		// Native layout, ResizeObserver, and scrollTop assignments can all emit
+		// trusted scroll events. Only wheel/touch/scrollbar intent may unstick the
+		// reader. Synthetic events remain explicit intent for deterministic tests.
+		const isUserScroll = userScrollIntentPending || !event.isTrusted;
+		userScrollIntentPending = false;
+		if (nearBottom) {
+			stickToBottom = true;
+		} else if (isUserScroll) {
+			stickToBottom = false;
+			userScrollRevision += 1;
+			// A user scroll after submit supersedes the delayed echo follow.
+			scrollOnNextLogGrowth = false;
+		} else if (stickToBottom) {
+			// Content/layout moved the bottom before our queued follow completed.
+			requestBottomFollow();
+		}
 	}
+
+	onMount(() => {
+		requestBottomFollow();
+		if (typeof ResizeObserver === 'undefined') return;
+
+		// The flex child changes height when the viewport, virtual keyboard, chip
+		// rows, or expanding composer changes the available chat area. Preserve
+		// the bottom only for readers who have not deliberately scrolled up.
+		const observer = new ResizeObserver(() => {
+			requestBottomFollow();
+		});
+		observer.observe(logEl);
+		return () => observer.disconnect();
+	});
 
 	$effect(() => {
 		const entries = $textLog;
@@ -48,9 +116,11 @@
 		// reactive dependency and re-runs on every increment.
 		const currentCount = $playerSubmittedCount;
 		const countIncremented = currentCount > lastSubmittedCount;
+		const textLogRevised = entries !== lastEntries;
 		const logGrew = entries.length > lastLogLength;
 
 		lastSubmittedCount = currentCount;
+		lastEntries = entries;
 		lastLogLength = entries.length;
 
 		// Player submit: arm the one-shot flag and re-stick so the player
@@ -66,17 +136,13 @@
 		const forceScroll = countIncremented || (scrollOnNextLogGrowth && logGrew);
 		if (logGrew && scrollOnNextLogGrowth) scrollOnNextLogGrowth = false;
 
-		// Scroll on any log growth when sticky (covers backend/bridge-driven
-		// turns that never touch playerSubmittedCount), OR force-scroll on
-		// player submit regardless.
+		// Follow every transcript revision while sticky. Streaming, finalisation,
+		// correction, and reactions replace entries without growing the array.
+		// Player submit remains the sole unconditional force-follow signal.
 		// Read stickToBottom via untrack so scroll events don't re-trigger
 		// this effect — only $textLog / $playerSubmittedCount changes should.
-		const shouldScroll = forceScroll || (logGrew && untrack(() => stickToBottom));
-		tick().then(() => {
-			if (logEl && shouldScroll) {
-				logEl.scrollTop = logEl.scrollHeight;
-			}
-		});
+		const shouldScroll = forceScroll || (textLogRevised && untrack(() => stickToBottom));
+		if (shouldScroll) requestBottomFollow(forceScroll);
 	});
 
 	function entryType(entry: TextLogEntry): 'player' | 'npc' | 'system' | 'command' {
@@ -225,7 +291,21 @@
 	}
 </script>
 
-<div class="chat-panel" data-testid="chat-panel" bind:this={logEl} role="log" aria-live="polite" aria-label="Game chat log" onscroll={handleScroll}>
+<!-- The log itself is the scrollable interaction surface; these handlers only track user scroll intent. -->
+<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+<div
+	class="chat-panel"
+	data-testid="chat-panel"
+	bind:this={logEl}
+	role="log"
+	aria-live="polite"
+	aria-label="Game chat log"
+	onwheel={markUserScrollIntent}
+	ontouchmove={markUserScrollIntent}
+	onpointerdown={handleScrollPointerDown}
+	onkeydown={handleScrollKeydown}
+	onscroll={handleScroll}
+>
 	{#each $textLog as entry, index (entry.id || entry.stream_turn_id || `${entry.source}:${index}`)}
 		{#if entryType(entry) === 'command'}
 			<div class="entry command" data-testid="command-entry" role="log">
