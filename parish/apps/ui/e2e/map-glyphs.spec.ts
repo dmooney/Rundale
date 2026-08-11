@@ -9,7 +9,7 @@ test('bundled glyphs stay same-origin across every MapLibre surface', async ({
 	const demoRequests: string[] = [];
 
 	page.on('request', (request) => {
-		if (request.url().includes('demotiles.maplibre.org')) {
+		if (new URL(request.url()).hostname === 'demotiles.maplibre.org') {
 			demoRequests.push(request.url());
 		}
 	});
