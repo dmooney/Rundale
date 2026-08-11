@@ -5,7 +5,9 @@
 
 use std::collections::HashSet;
 
-use crate::{Npc, NpcId};
+use parish_types::ConversationLog;
+
+use crate::{Npc, NpcId, dialogue_self_identifies_speaker};
 
 use super::NpcManager;
 
@@ -63,14 +65,33 @@ impl NpcManager {
         self.introduced_npcs = set;
     }
 
-    /// Clears the in-memory introduced-NPC set so the current session starts
-    /// with no pre-known introductions (#1396).
+    /// Conservatively repairs identity knowledge erased by the #1396 restore
+    /// regression from retained canonical conversation dialogue.
     ///
-    /// Call this after `snapshot.restore(…)` when the
-    /// `npc-dialogue-grounding` feature flag is enabled (default-on).
-    /// The save file still persists the set for schema stability; this method
-    /// only resets the live in-memory state.
-    pub fn clear_introduced_for_session(&mut self) {
-        self.introduced_npcs.clear();
+    /// Only the same strict final-dialogue detector used by the live apply seam
+    /// may add an id. Canonical speaker metadata or the mere existence of an
+    /// exchange is never sufficient. Returns the number of newly repaired ids.
+    pub fn heal_introductions_from_conversation(&mut self, log: &ConversationLog) -> usize {
+        let roster: Vec<(String, String)> = self
+            .all_npcs()
+            .map(|npc| (npc.name.clone(), npc.occupation.clone()))
+            .collect();
+        let healed: HashSet<NpcId> = log
+            .exchanges_since(0)
+            .into_iter()
+            .filter_map(|exchange| {
+                let npc = self.get(exchange.speaker_id)?;
+                dialogue_self_identifies_speaker(
+                    &exchange.npc_dialogue,
+                    &npc.name,
+                    &npc.occupation,
+                    &roster,
+                )
+                .then_some(npc.id)
+            })
+            .collect();
+        let before = self.introduced_npcs.len();
+        self.introduced_npcs.extend(healed);
+        self.introduced_npcs.len() - before
     }
 }

@@ -140,6 +140,49 @@ fn isolate_one_speaker(harness: &mut GameTestHarness) -> (NpcId, String) {
     (speaker_id, speaker_name)
 }
 
+fn isolate_one_unintroduced_speaker(harness: &mut GameTestHarness) -> (NpcId, String, String) {
+    let player_location = harness.app.world.player_location;
+    let speaker_id = harness
+        .app
+        .npc_manager
+        .all_npcs()
+        .map(|npc| npc.id)
+        .min_by_key(|id| id.0)
+        .expect("harness loads at least one NPC");
+    let (speaker_name, occupation) = {
+        let npc = harness
+            .app
+            .npc_manager
+            .get_mut(speaker_id)
+            .expect("speaker exists");
+        npc.set_location_and_state(player_location, NpcState::Present);
+        (npc.name.clone(), npc.occupation.clone())
+    };
+
+    let other_location = harness
+        .app
+        .world
+        .graph
+        .location_ids()
+        .into_iter()
+        .find(|location| *location != player_location)
+        .expect("graph has at least two locations");
+    let others: Vec<NpcId> = harness
+        .app
+        .npc_manager
+        .all_npcs()
+        .filter(|npc| npc.location() == player_location && npc.id != speaker_id)
+        .map(|npc| npc.id)
+        .collect();
+    for id in others {
+        if let Some(npc) = harness.app.npc_manager.get_mut(id) {
+            npc.set_location(other_location);
+        }
+    }
+
+    (speaker_id, speaker_name, occupation)
+}
+
 #[test]
 fn dialogue_turn_publishes_identical_event_across_legacy_and_real_loop() {
     let mut h = GameTestHarness::new();
@@ -179,6 +222,48 @@ fn dialogue_turn_publishes_identical_event_across_legacy_and_real_loop() {
         legacy, real,
         "legacy harness and real game_loop must publish the same DialogueOccurred \
          stream for `{input}`\n  legacy = {legacy:?}\n  real   = {real:?}"
+    );
+}
+
+#[test]
+fn unique_first_name_and_occupation_reveals_identity_across_turn_modes() {
+    let mut legacy_harness = GameTestHarness::new();
+    let (legacy_id, speaker_name, occupation) =
+        isolate_one_unintroduced_speaker(&mut legacy_harness);
+    let first_name = first_word(&speaker_name);
+    let input = format!("talk to {speaker_name} about the forge");
+    let reply = format!("I'm {first_name}, the {occupation}.");
+    let roster: Vec<(String, String)> = legacy_harness
+        .app
+        .npc_manager
+        .all_npcs()
+        .map(|npc| (npc.name.clone(), npc.occupation.clone()))
+        .collect();
+    assert!(parish_core::npc::dialogue_self_identifies_speaker(
+        &reply,
+        &speaker_name,
+        &occupation,
+        &roster,
+    ));
+
+    legacy_harness.add_canned_response(&speaker_name, &reply);
+    let _ = legacy_harness.execute(&input);
+    assert!(
+        legacy_harness.app.npc_manager.is_introduced(legacy_id),
+        "legacy harness route must commit the identity transition"
+    );
+
+    let mut real_harness = GameTestHarness::new();
+    let (real_id, real_name, real_occupation) = isolate_one_unintroduced_speaker(&mut real_harness);
+    assert_eq!(
+        (real_name, real_occupation),
+        (speaker_name.clone(), occupation)
+    );
+    real_harness.mock().push_for(first_name, &reply);
+    let ui_events = real_harness.execute_via_real_loop(&input);
+    assert!(
+        real_harness.app.npc_manager.is_introduced(real_id),
+        "real game-loop route must commit the same identity transition; UI events: {ui_events:?}"
     );
 }
 

@@ -374,17 +374,10 @@ pub async fn restore_snapshot_and_emit(
     path: &std::path::Path,
 ) {
     {
-        let grounding_enabled = {
-            let cfg = state.config.lock().await;
-            !cfg.flags.is_disabled("npc-dialogue-grounding")
-        };
         let mut world = state.world.lock().await;
         let mut npc_manager = state.npc_manager.lock().await;
         world.event_bus.advance_context_epoch();
         recovery.restore(&mut world, &mut npc_manager);
-        if grounding_enabled {
-            npc_manager.clear_introduced_for_session();
-        }
         npc_manager.assign_tiers(&world, &[]);
 
         let mut ws = parish_core::ipc::snapshot_from_world(&world);

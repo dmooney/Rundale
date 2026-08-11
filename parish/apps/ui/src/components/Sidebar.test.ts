@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { render } from '@testing-library/svelte';
+import { tick } from 'svelte';
 import { languageHints, nameHints, uiConfig, npcsHere } from '../stores/game';
 import Sidebar from './Sidebar.svelte';
 import type { LanguageHint, NpcInfo } from '$lib/types';
@@ -134,6 +135,28 @@ describe('Sidebar (desktop branch — no onclose prop)', () => {
 		expect(getByText('a stern priest')).toBeTruthy();
 		expect(queryByText('Priest')).toBeNull();
 	});
+
+	it('reveals canonical identity when the authoritative NPC state changes', async () => {
+		const hidden = NPCS[1];
+		npcsHere.set([hidden]);
+		const { getByText, queryByText } = render(Sidebar);
+		expect(getByText('a stern priest')).toBeTruthy();
+		expect(queryByText('Fr. Tiernan')).toBeNull();
+		expect(queryByText('Priest')).toBeNull();
+
+		npcsHere.set([
+			{
+				...hidden,
+				name: hidden.real_name,
+				introduced: true,
+			},
+		]);
+		await tick();
+
+		expect(getByText('Fr. Tiernan')).toBeTruthy();
+		expect(getByText('Priest')).toBeTruthy();
+		expect(queryByText('a stern priest')).toBeNull();
+	});
 });
 
 describe('Sidebar (mobile overlay branch — onclose prop provided)', () => {
@@ -170,6 +193,22 @@ describe('Sidebar (mobile overlay branch — onclose prop provided)', () => {
 		expect(getByText('Present')).toBeTruthy();
 		expect(getByTestId('npcs-present')).toBeTruthy();
 		expect(getByText('Bridget Kelly')).toBeTruthy();
+	});
+
+	it('shows an authoritative identity reveal in the mobile panel', async () => {
+		const hidden = NPCS[1];
+		npcsHere.set([hidden]);
+		const { getByText, queryByText } = render(Sidebar, {
+			props: { onclose: () => {} },
+		});
+		expect(getByText('a stern priest')).toBeTruthy();
+		expect(queryByText('Priest')).toBeNull();
+
+		npcsHere.set([{ ...hidden, name: hidden.real_name, introduced: true }]);
+		await tick();
+
+		expect(getByText('Fr. Tiernan')).toBeTruthy();
+		expect(getByText('Priest')).toBeTruthy();
 	});
 
 	it('renders name hints in mobile overlay', () => {
