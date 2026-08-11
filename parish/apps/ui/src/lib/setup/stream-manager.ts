@@ -102,7 +102,9 @@ export interface StreamManager {
 export function createStreamManager(): StreamManager {
 	const pendingNpcTurns = new Map<number, PendingNpcTurn>();
 	let pendingStreamEndHints: LanguageHint[] | null = null;
-	// True from the first stream-token of a conversation chain until
+	// This store admits only the canonical `stream-token` protocol; unvalidated
+	// provider candidate tokens never reach it (#1834). True from the first
+	// stream-token of a conversation chain until
 	// `finishNpcStream` runs. The +page.svelte `onLoading` handler reads
 	// this to suppress mid-chain `loading {active:false}` events from
 	// clearing `streamingActive` — handle_npc_conversation cancels and
