@@ -1251,6 +1251,37 @@ mod tests {
         assert_eq!(second.event_cursor, 5);
     }
 
+    /// Regression for #1843: the desktop bridge exposes the newest bounded
+    /// event window and the coherent lifetime cursor, not an oldest page.
+    #[tokio::test]
+    async fn turn_result_over_cap_returns_newest_events_and_total_cursor() {
+        use chrono::Utc;
+        use parish_core::world::events::GameEvent;
+
+        let dir = TempDir::new().unwrap();
+        let state = byok_test_state(&dir);
+        push_test_events(
+            &state,
+            (0..27)
+                .map(|index| GameEvent::WeatherChanged {
+                    new_weather: format!("Weather {index}"),
+                    timestamp: Utc::now(),
+                })
+                .collect(),
+        )
+        .await;
+
+        let result = build_turn_result(&state, 0).await;
+
+        assert_eq!(result.events.len(), 20);
+        assert_eq!(result.events[0].summary, "Weather → Weather 7");
+        assert_eq!(
+            result.events.last().unwrap().summary,
+            "Weather → Weather 26"
+        );
+        assert_eq!(result.event_cursor, 27);
+    }
+
     /// `TurnReadResult` shape: exchanges + events + core state fields present.
     #[tokio::test]
     async fn turn_read_result_shape_is_correct() {
