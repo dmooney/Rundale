@@ -996,6 +996,9 @@ pub struct NpcConversationSetup {
     /// Canonical authored work facts for post-generation referral validation:
     /// `(name, occupation, workplace name)`.
     pub work_roster: Vec<(String, String, Option<String>)>,
+    /// Immutable authored facts captured before inference. The canonical apply
+    /// seam validates the completed candidate against this exact snapshot.
+    pub grounding: crate::npc::DialogueGroundingSnapshot,
 }
 
 /// Prepares a specific NPC's turn in an ongoing conversation.
@@ -1141,10 +1144,23 @@ pub fn prepare_npc_conversation_turn(
     // Transcript history first (current player input excluded — shown separately below).
     append_transcript_context(&mut context, transcript, player_label, player_input);
 
-    // Check for anachronisms in player input and inject alert into context
-    let anachronisms = anachronism::check_input(player_input);
-    if let Some(alert) = anachronism::format_context_alert(&anachronisms) {
-        context.push_str(&alert);
+    // Prompt and output validation consume the same mod-authored term set.
+    // Empty test worlds retain the legacy static dictionary fallback.
+    if world.dialogue_anachronisms.is_empty() {
+        let detected = anachronism::check_input(player_input);
+        if let Some(alert) = anachronism::format_context_alert(&detected) {
+            context.push_str(&alert);
+        }
+    } else {
+        let detected =
+            anachronism::check_input_from_mod_data(player_input, &world.dialogue_anachronisms);
+        if let Some(alert) = anachronism::format_context_alert_from_mod_data(
+            &detected,
+            &world.dialogue_anachronism_alert_prefix,
+            &world.dialogue_anachronism_alert_suffix,
+        ) {
+            context.push_str(&alert);
+        }
     }
 
     // Modern-register echo guard (TODO #55) — separate from the
@@ -1242,10 +1258,46 @@ pub fn prepare_npc_conversation_turn(
         })
         .collect();
     work_roster_with_ids.sort_by_key(|(id, _, _, _)| id.0);
-    let work_roster = work_roster_with_ids
+    let work_roster: Vec<(String, String, Option<String>)> = work_roster_with_ids
         .into_iter()
         .map(|(_, name, occupation, workplace)| (name, occupation, workplace))
         .collect();
+
+    let prior_player_inputs = world
+        .conversation_log
+        .recent_at(
+            world.player_location,
+            crate::npc::conversation::ConversationLog::capacity(),
+        )
+        .into_iter()
+        .filter(|exchange| exchange.speaker_id == speaker_id)
+        .map(|exchange| exchange.player_input.clone())
+        .collect();
+    let grounding = crate::npc::DialogueGroundingSnapshot {
+        speaker_name: npc.name.clone(),
+        speaker_context: Some(crate::npc::DialogueSpeakerContext {
+            name: npc.name.clone(),
+            occupation: npc.occupation.clone(),
+            mood: npc.mood.clone(),
+        }),
+        canonical_mood: npc.mood.clone(),
+        had_prior_exchange,
+        time_of_day: world.clock.time_of_day(),
+        known_person_names: known_person_names.clone(),
+        roster_names_occupations: roster_names_occupations.clone(),
+        current_location_name: location_name.clone(),
+        known_location_names: known_location_names.clone(),
+        player_name: world.player_name.clone(),
+        work_roster: work_roster.clone(),
+        relationship_tone_hints: npc_manager.relationship_tone_hints(speaker_id),
+        prior_player_inputs,
+        forbidden_output_terms: world
+            .dialogue_anachronisms
+            .iter()
+            .map(|entry| entry.term.clone())
+            .collect(),
+        prior_openers: Vec::new(),
+    };
 
     Some(NpcConversationSetup {
         display_name,
@@ -1260,6 +1312,7 @@ pub fn prepare_npc_conversation_turn(
         player_name: world.player_name.clone(),
         had_prior_exchange,
         work_roster,
+        grounding,
     })
 }
 
@@ -2420,6 +2473,43 @@ mod tests {
             "person-confirmation guard must NOT fire on a real parish NPC (Roisin Malone) \
              after #1488 fix; got: {guarded:?}"
         );
+    }
+
+    #[test]
+    fn prompt_and_validation_snapshot_share_mod_anachronism_terms() {
+        use crate::config::NpcConfig;
+        use crate::npc::{Npc, manager::NpcManager};
+
+        let mut world = WorldState::new();
+        world.dialogue_anachronisms = vec![parish_types::AnachronismEntry {
+            term: "planning board".to_string(),
+            category: Some("concept".to_string()),
+            origin_year: Some(1934),
+            note: "postdates 1820".to_string(),
+        }];
+        world.dialogue_anachronism_alert_prefix = "AUTHORED PERIOD ALERT".to_string();
+        world.dialogue_anachronism_alert_suffix = "DO NOT ECHO IT".to_string();
+        let mut npc_manager = NpcManager::new();
+        let mut npc = Npc::new_test_npc();
+        npc.id = NpcId(1);
+        npc.set_location(world.player_location);
+        npc_manager.add_npc(npc);
+
+        let setup = prepare_npc_conversation_turn(
+            &world,
+            &mut npc_manager,
+            "What says the planning board?",
+            NpcId(1),
+            &[],
+            false,
+            &crate::npc::LanguageSettings::english_only(),
+            &NpcConfig::default(),
+        )
+        .expect("conversation setup");
+
+        assert!(setup.context.contains("AUTHORED PERIOD ALERT"));
+        assert!(setup.context.contains("planning board"));
+        assert_eq!(setup.grounding.forbidden_output_terms, ["planning board"]);
     }
 
     #[test]
