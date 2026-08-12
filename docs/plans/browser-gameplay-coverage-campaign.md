@@ -176,58 +176,58 @@ Update rows immediately after each scenario. Never reconstruct them from memory 
 
 | Feature | Scenario | Oracle | Run/turn | Status | Issue | Evidence |
 | --- | --- | --- | --- | --- | --- | --- |
-| Fuzzy location graph | Misspelled movement | Correct unique destination and state change | — | pending | — | — |
-| Prose edges and worn paths | Five repeated traversals | Narration plus increased count/edge weight | — | pending | — | — |
-| Hybrid geography | Real/manual/fictional visits | Coherent coordinates and travel | — | pending | — | — |
-| Game clock and speed | Seven phases; slow/ludicrous comparison | Status/state phase and relative rate | — | pending | — | — |
-| Four seasons | Calendar checkpoints | Engine season plus schedule differences | — | pending | — | — |
-| Weather state machine | Six two-hour advances | Adjacent transitions and minimum dwell | — | pending | — | — |
-| Weather-gated travel | Clear/rain/fog/storm branches | Time penalties and route block/alternate | — | pending | — | — |
-| Travel and encounters | Ten varied journeys | Time/prose; encounter or bounded exhaustion | — | pending | — | — |
-| Festivals | Four exact festival dates | Status, hooks, relationship/event evidence | — | pending | — | — |
-| Mythology hooks | Fairy Fort/Holy Well dialogue | Authored prompt context only | — | pending | — | — |
-| Tier 1 dialogue | Direct NPC conversations | Full grounded streamed response | — | pending | — | — |
-| Tier 2 simulation | Nearby wait | Event/mood/relationship delta | — | pending | — | — |
-| Tier 3 simulation | Distant long wait | Batch/off-screen event evidence | — | pending | — | — |
-| Tier 4 simulation | Calendar tour | Life events or bounded not-observed result | — | pending | — | — |
-| NPC memory | 21-turn topic and return | Promotion and recall after deflation | — | pending | — | — |
-| Gossip network | Three social hops | Propagation and optional distortion | — | pending | — | — |
-| Intelligence profiles | Matched questions | Authored differences visible in replies | — | pending | — | — |
-| Seasonal schedules | Same NPC at checkpoints | Canonical activity/location changes | — | pending | — | — |
-| Autonomous NPC chains | Five bounded attempts | Follow-on chain no longer than three | — | pending | — | — |
-| Off-screen social simulation | Leave, wait, return | Persisted events and surfaced gossip | — | pending | — | — |
-| Anachronism filter | Known modern term | Authentic confusion, no false acceptance | — | pending | — | — |
-| Per-category inference | Debug during live turns | Correct route/model/category | — | pending | — | — |
-| Priority queue | Dialogue during simulation | Interactive response not blocked | — | pending | — | — |
-| Token streaming | Mid/final captures | Incremental bounded rendering | — | pending | — | — |
-| Structured output validation | Debug plus visible reply | No raw metadata; valid effects only | — | pending | — | — |
-| Inference timeout/logging | Debug inspection | Bounded records with latency/error fields | — | pending | — | — |
-| Prompt-injection defence | Injection and fabrication probes | No leak, false claim, or unauthorized effect | — | pending | — | — |
-| Five free-text intents | Natural inputs | Correct presentation and state behavior | — | pending | — | — |
-| `@mention` targeting | Crowded conversation | Only selected NPC responds | — | pending | — | — |
-| Slash-command surface | Representative commands | Correct command presentation/effect | — | pending | — | — |
-| Chat-first play surface | Desktop/mobile use | Transcript/input/context remain usable | — | pending | — | — |
-| Responsive illustrated context | Desktop/mobile images | Loaded, nonblank, responsive assets | — | pending | — | — |
-| Coordinated secondary surfaces | Open/close each surface | Correct destination and focus restoration | — | pending | — | — |
-| Emote rendering | NPC action/emote | Italic inline presentation | — | pending | — | — |
-| Message reactions | React, save, reload | Reaction persists | — | pending | — | — |
-| Enriched input | Completion/history/multiline/travel | Each input behavior works | — | pending | — | — |
-| Focail panel | Irish phrase/name | Word, name, pronunciation accumulate | — | pending | — | — |
-| Durable assigned work | Assign, act, wait, inspect | Task state/events persist; inspection coherent | — | pending | — | — |
-| Manual save and autosave | Save plus >45 seconds | Save identity/timestamp advances | — | pending | — | — |
-| Branching and journal recovery | Fork/load/restart | Exact divergent state recovers | — | pending | — | — |
-| Save picker DAG | F5 after branching | UI graph matches authoritative branches | — | pending | — | — |
-| Map overlay and sources | M, map card, source switch | Correct markers/edges/source | — | pending | — | — |
-| Animated travel | Click-to-travel | Intermediate and final framing | — | pending | — | — |
-| Status/context chrome | All phases/weather/festival | Legible and state-consistent | — | pending | — | — |
-| Themes | Three themes plus reload | Correct palette and persistence | — | pending | — | — |
-| Debug records | Eight tabs | Values match same-session debug state | — | pending | — | — |
-| Bug reporter | First real finding or dry-run | Exact record, screenshot, state, diagnostic | — | pending | — | — |
-| Keyboard shortcuts | Keyboard-only pass | Correct action, focus, and dismissal | — | pending | — | — |
-| Accessibility | Desktop/mobile audit | Roles, names, focus, contrast | — | pending | — | — |
-| Web session isolation | Two browser contexts | No state crosses cookies | — | pending | — | — |
-| WebSocket events | Stream/world/theme/map actions | Expected event classes observed | — | pending | — | — |
-| Restart persistence | Server restart, same cookie | Session/save state resumes | — | pending | — | — |
+| Fuzzy location graph | Misspelled movement | Correct unique destination and state change | gemini-97e76823/7 | pass | — | `kilteven vilage` uniquely resolved to Kilteevan Village and moved there |
+| Prose edges and worn paths | Five repeated traversals | Narration plus increased count/edge weight | gemini-97e76823/6-11 | pass | — | Distinct route prose retained; Debug World reports `Kilteevan Village ↔ The Forge ×6` |
+| Hybrid geography | Real/manual/fictional visits | Coherent coordinates and travel | gemini-97e76823/6,36 | pass | — | Manual Kilteevan, fictional-relative Forge, and real Hodson Bay were reached through coherent routed travel |
+| Game clock and speed | Seven phases; slow/ludicrous comparison | Status/state phase and relative rate | gemini-97e76823/19-29 | pass | — | Slow advanced ~2m/5s; ludicrous ~73m/5s; exact Dawn/Morning/Midday/Afternoon/Dusk/Night/Midnight headers matched waits |
+| Four seasons | Calendar checkpoints | Engine season plus schedule differences | gemini-97e76823/113–119 | pass | — | Exact waits reached Spring (1 May), Summer (1 Jun/1 Aug), Autumn (1 Sep/1 Nov), and Winter (1 Dec/1 Feb); status and Debug clock agreed. |
+| Weather state machine | Six two-hour advances | Adjacent transitions and minimum dwell | gemini-97e76823/20,30-35 | pass | — | Clear moved to adjacent Partly Cloudy; six exact two-hour samples then held Partly Cloudy for ≥12h |
+| Weather-gated travel | Clear/rain/fog/storm branches | Time penalties and route block/alternate | gemini-97e76823/19–35,113–133 | not observed | — | Clear, Partly Cloudy, Fog, and Overcast were observed, but no Heavy Rain or Storm occurred across six two-hour samples plus the bounded seasonal tour; no direct weather mutation was used. |
+| Travel and encounters | Ten varied journeys | Time/prose; encounter or bounded exhaustion | gemini-97e76823/6-43 | pass | — | Eleven journeys covered short/repeated/317m routed travel and multiple contextual farmer, goat, cart, pail-carrier encounters |
+| Festivals | Four exact festival dates | Status, hooks, relationship/event evidence | gemini-97e76823/113,115,117,119,124 | pass | — | Bealtaine, Lughnasa, Samhain, and Imbolc appeared on their exact dates; on Imbolc Declan independently grounded his reply in St. Brigid's feast day. |
+| Mythology hooks | Fairy Fort/Holy Well dialogue | Authored prompt context only | gemini-97e76823/40-45 | pass | — | Holy Well prose and Declan's ribbons/sídhe explanation stayed grounded and introduced no mechanic |
+| Tier 1 dialogue | Direct NPC conversations | Full grounded streamed response | gemini-97e76823/2-101 | fail | [#1857](https://github.com/dmooney/Rundale/issues/1857) | Most exchanges grounded; turn 69 finalized a complete accepted reply as only `You` |
+| Tier 2 simulation | Nearby wait | Event/mood/relationship delta | gemini-97e76823/11 | pass | — | Debug Events shows repeated Tier-2 group ticks, memories, stale-result rejection, and Niamh mood change |
+| Tier 3 simulation | Distant long wait | Batch/off-screen event evidence | gemini-97e76823/11 | pass | — | Debug Events records `Tier 3 tick: 4 updates` while player remained in Kilteevan |
+| Tier 4 simulation | Calendar tour | Life events or bounded not-observed result | gemini-97e76823/113–119 | not observed | — | After exact waits spanning 20 Mar 1820 to 1 Feb 1821, Debug still showed `T4: 0` and `T4 last: (never)`. Tier 4 is probabilistic, so this bounded absence is not filed as a deterministic defect. |
+| NPC memory | 21-turn topic and return | Promotion and recall after deflation | gemini-97e76823/49-101 | pass | — | Debug showed short-term rollover and 8 long-term entries; Tier1→Tier2 deflation occurred; return recall preserved blue wool/old bridge exactly |
+| Gossip network | Three social hops | Propagation and optional distortion | gemini-97e76823/119 | not observed | — | Debug Gossip preserved 29 authored-source entries and several `distortion 1` variants; the largest visible audience was source plus two knowers, so a complete three-hop chain was not claimed. |
+| Intelligence profiles | Matched questions | Authored differences visible in replies | gemini-97e76823/125,128 | fail | [#1857](https://github.com/dmooney/Rundale/issues/1857) | Declan gave a learned theological/seasonal explanation. Peig's raw valid completion gave a practical, self-deprecating contrast, but the player-visible transcript finalized as only `Plainly,`; second reproduction attached to #1857. |
+| Seasonal schedules | Same NPC at checkpoints | Canonical activity/location changes | gemini-97e76823/113–129 | pass | — | Peig was present in Kilteevan at the first six morning checkpoints; on Imbolc the village roster changed and Debug later placed Peig at The Crossroads, matching canonical schedule movement. |
+| Autonomous NPC chains | Five bounded attempts | Follow-on chain no longer than three | gemini-97e76823/11,113–133 | not observed | — | Many Tier-2/Tier-3 ticks and stale-result rejections were visible, but no unambiguous chained follow-on sequence could be established from the bounded event log. |
+| Off-screen social simulation | Leave, wait, return | Persisted events and surfaced gossip | gemini-97e76823/11 | pass | — | Debug shows autonomous interactions and memories at pub, farm, shop, well, forge, and mill |
+| Anachronism filter | Known modern term | Authentic confusion, no false acceptance | gemini-97e76823/120,124 | pass | — | A valid question-form probe made Declan reject `Elon Musk`, hidden prompts, and the planning board as unknown stranger talk; the separate imperative-routing echo is tracked as #1860. |
+| Per-category inference | Debug during live turns | Correct route/model/category | gemini-97e76823/2 | pass | — | Raw log distinguishes intent, dialogue, reaction, and Tier-2 simulation roles on Gemini 3.6 Flash |
+| Priority queue | Dialogue during simulation | Interactive response not blocked | gemini-97e76823/2 | pass | — | 901ms interactive dialogue completed while multiple background Tier-2 requests were active |
+| Token streaming | Mid/final captures | Incremental bounded rendering | gemini-97e76823/2-69 | fail | [#1857](https://github.com/dmooney/Rundale/issues/1857) | Normal streaming had no JSON leak, but one four-chunk successful response finalized as its first word only |
+| Structured output validation | Debug plus visible reply | No raw metadata; valid effects only | gemini-97e76823/2 | pass | — | Full ordered JSON became dialogue, emote, mood, and no unauthorized task |
+| Inference timeout/logging | Debug inspection | Bounded records with latency/error fields | gemini-97e76823/2 | pass | — | Raw record includes Gemini model/API mode, 901ms duration, token counts, cache/cost, and response status |
+| Prompt-injection defence | Injection and fabrication probes | No leak, false claim, or unauthorized effect | gemini-97e76823/120–124 | fail | [#1860](https://github.com/dmooney/Rundale/issues/1860) | Question-form dialogue was safely rejected with no leak or fabricated confirmation. The imperative form bypassed dialogue, was routed as `action`, and was rendered verbatim as Mick's NPC message. |
+| Five free-text intents | Natural inputs | Correct presentation and state behavior | gemini-97e76823/2-6 | pass | — | Talk, Look, Examine, Interact, and Move all routed through the visible chat with appropriate outcomes |
+| `@mention` targeting | Crowded conversation | Only selected NPC responds | gemini-97e76823/132 | pass | — | With four NPCs present at Murphy's Farm, `@Siobhan Murphy` produced one middle-aged-woman response and no competing NPC dialogue. |
+| Slash-command surface | Representative commands | Correct command presentation/effect | gemini-97e76823/12-18 | pass | — | Slash completion exposed the shipping command set; help, theme, and time commands executed correctly |
+| Chat-first play surface | Desktop/mobile use | Transcript/input/context remain usable | gemini-97e76823/2-18 | pass | — | Desktop and 390×844 mobile retained transcript, composer, status, map, and People & Words access |
+| Responsive illustrated context | Desktop/mobile images | Loaded, nonblank, responsive assets | gemini-97e76823/2,18 | pass | — | Scene plate, NPC portrait, historic map, and selected marker were visibly nonblank at both viewports |
+| Coordinated secondary surfaces | Open/close each surface | Correct destination and focus restoration | gemini-97e76823/11-18 | pass | — | Map, Ledger, Debug, Mod, and shortcuts opened exclusively and restored keyboard focus on dismissal |
+| Emote rendering | NPC action/emote | Italic inline presentation | gemini-97e76823/2 | pass | — | Peig's shawl-adjustment action rendered separately beneath dialogue |
+| Message reactions | React, save, reload | Reaction persists | gemini-97e76823/2,106–111 | not observed | [#1859](https://github.com/dmooney/Rundale/issues/1859) | Thoughtful reaction applied through the keyboard picker, but the saved game became unreachable after server restart, gating an authoritative persistence assertion. |
+| Enriched input | Completion/history/multiline/travel | Each input behavior works | gemini-97e76823/12-13 | pass | — | Slash and NPC completion, Arrow-Up history, multiline normalization, and quick-travel controls worked |
+| Focail panel | Irish phrase/name | Word, name, pronunciation accumulate | gemini-97e76823/45 | pass | — | `Go n-éirí leat`, `[guh NAY-ree lat]`, and `good luck to you` accumulated beside Kilteevan |
+| Durable assigned work | Assign, act, wait, inspect | Task state/events persist; inspection coherent | Gemini run turns 103–105 | fail | [#1854](https://github.com/dmooney/Rundale/issues/1854) | Siobhan returned a grounded `assigned_task`, but Debug Events contained only `DialogueOccurred`; the exact follow-up work action was routed into dialogue and produced no task state, action narration, or progression. Browser turn folders 103–105; raw inference log lines 415/429; [provider-independent reproduction comment](https://github.com/dmooney/Rundale/issues/1854#issuecomment-5260960226). Inspection/save progression is gated for this run. |
+| Manual save and autosave | Save plus >45 seconds | Save identity/timestamp advances | gemini-97e76823/106,108 | pass | — | `/save` confirmed `parish_001.db` on both `main` and `work-gated`; the campaign had exceeded the autosave interval before the manual checkpoint and both branches showed persisted dated state in the ledger. |
+| Branching and journal recovery | Fork/load/restart | Exact divergent state recovers | gemini-97e76823/107–110 | fail | [#1858](https://github.com/dmooney/Rundale/issues/1858) | `work-gated` forked at Murphy's Farm, diverged and saved at Bog Road. `/load main` only opened the ledger and did not load; clicking the main ledger row restored Murphy's Farm correctly. Restart/journal recovery remains pending. |
+| Save picker DAG | F5 after branching | UI graph matches authoritative branches | gemini-97e76823/109–110 | pass | — | Ledger displayed `main` at Murphy's Farm and child `work-gated` at Bog Road; selecting main restored the saved main state. |
+| Map overlay and sources | M, map card, source switch | Correct markers/edges/source | gemini-97e76823/37-39,46-48 | fail | [#1856](https://github.com/dmooney/Rundale/issues/1856) | Historic/OSM switches preserved state, but enabled adjacent marker ignored one mouse click on both directions; Enter travelled |
+| Animated travel | Click-to-travel | Intermediate and final framing | gemini-97e76823/37-39 | fail | [#1856](https://github.com/dmooney/Rundale/issues/1856) | Pan/selection animation captured, but promised single-click travel did not complete |
+| Status/context chrome | All phases/weather/festival | Legible and state-consistent | gemini-97e76823/19–35,113–119 | pass | — | All seven day phases, four observed weather states, all seasons, and all four festival badges remained legible and matched Debug clock/weather state. |
+| Themes | Three themes plus reload | Correct palette and persistence | gemini-97e76823/14-17 | pass | — | Default, Solarized Light, and Solarized Dark applied; screenshots after reload retained each selection |
+| Debug records | Eight tabs | Values match same-session debug state | gemini-97e76823/133 | pass | — | Overview, NPCs, World, Weather, Gossip, Conv, Events, and Inference all opened and exposed same-session values; clock, weather, tier counts, locations, and Gemini records matched the visible run. |
+| Bug reporter | First real finding or dry-run | Exact record, screenshot, state, diagnostic | gemini-97e76823/39 | pass | [#1856](https://github.com/dmooney/Rundale/issues/1856) | In-game reporter filed exact two-direction reproduction with automatic screenshot/log/state bundle |
+| Keyboard shortcuts | Keyboard-only pass | Correct action, focus, and dismissal | gemini-97e76823/38,133–134 | pass | — | Enter activated a selected map marker; F12 opened Debug; M opened the Parish map; Escape dismissed it; `?` opened shortcuts; F5 opened the ledger; prior reaction/input work exercised Tab and Enter focus paths. |
+| Accessibility | Desktop/mobile audit | Roles, names, focus, contrast | gemini-97e76823/2–18,38,133–134 | pass | — | Desktop and 390×844 mobile semantic snapshots exposed named regions/dialogs/buttons, disabled state, active focus, NPC-message groups, and keyboard-operable dismissal. All three themes were visually inspected; no unreadable foreground/background pair was found. |
+| Web session isolation | Two browser contexts | No state crosses cookies | — | not applicable | — | The Codex in-app browser controller exposes one browser identity and tabs but no isolated-cookie/context constructor. A second tab would share the same session, so this was not represented as an isolation test and no game bug was filed. |
+| WebSocket events | Stream/world/theme/map actions | Expected event classes observed | gemini-97e76823/2–134 | pass | — | The same browser session received incremental dialogue chunks, final replacements, world-time/weather/location updates, theme persistence across reloads, and context replacement events; Debug Events agreed with visible changes. |
+| Restart persistence | Server restart, same cookie | Session/save state resumes | gemini-97e76823/111 | fail | [#1859](https://github.com/dmooney/Rundale/issues/1859) | Restarted the same server command, user-data directory, provider, mod, port, and browser context. Reload published a fresh Kilteevan 20 Mar game; the ledger no longer exposed the saved 27 Mar `main`/`work-gated` branches. |
 | Horse/cart travel comparison | Active Rundale transport config | Rundale ships walking only | — | not applicable | — | `mods/rundale/transport.toml` |
 
 ## Run history
@@ -236,15 +236,16 @@ Append one row per completed or gated segment and keep unfinished coverage expli
 
 | Date | Commit | Browser/server configuration | Dashboard run IDs | Findings | Unfinished coverage |
 | --- | --- | --- | --- | --- | --- |
-| — | — | — | — | — | All rows initially pending |
+| 2026-08-11 | `73683dfb` (runtime base `962e02d`) | Codex in-app browser 1440x900; `parish-server` :3001; temp user data; local MLX Qwen model | `1` (gated) | Configuration-invalid Segment A stopped after three turns when its first dialogue exceeded the browser bound; excluded after the user confirmed Gemini is the shipped default | None; recovery continued as the Gemini segment below |
+| 2026-08-11 | `73683dfb` (runtime base `962e02d`) | Codex in-app browser 1440x900 plus 390x844 responsive pass; `parish-server` :3001; ignored/untracked `.env`; direct Google Gemini 3.6 Flash, Standard tier; run `gemini-97e76823` | `2` (completed, 72.17) | Existing [#1854](https://github.com/dmooney/Rundale/issues/1854) reproduced; filed [#1856](https://github.com/dmooney/Rundale/issues/1856), [#1857](https://github.com/dmooney/Rundale/issues/1857), [#1858](https://github.com/dmooney/Rundale/issues/1858), [#1859](https://github.com/dmooney/Rundale/issues/1859), and [#1860](https://github.com/dmooney/Rundale/issues/1860) | None pending. Tier 4, full three-hop gossip, autonomous chains, heavy-rain/storm travel, and reaction persistence are explicitly `not observed`; isolated-cookie testing is `not applicable` in the in-app controller. |
 
 ## Completion checklist
 
-- [ ] Every ledger row is non-`pending`.
-- [ ] Every `fail` row links a filed issue.
-- [ ] Every `not observed`/`not applicable` row states why.
-- [ ] All gameplay turns have distinct screenshots and transcript/state evidence.
-- [ ] Every dialogue turn has a complete raw prompt/response artifact.
-- [ ] Every completed or gated segment is ingested and listed in run history.
-- [ ] Final report lists passes, issues, gates/recoveries, stochastic non-observations,
+- [x] Every ledger row is non-`pending`.
+- [x] Every `fail` row links a filed issue.
+- [x] Every `not observed`/`not applicable` row states why.
+- [x] All gameplay turns have distinct screenshots and transcript/state evidence.
+- [x] Every dialogue turn has a complete raw prompt/response artifact.
+- [x] Every completed or gated segment is ingested and listed in run history.
+- [x] Final report lists passes, issues, gates/recoveries, stochastic non-observations,
       exclusions, dashboard run IDs, and this runbook path.
