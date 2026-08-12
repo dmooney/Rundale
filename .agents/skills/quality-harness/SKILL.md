@@ -214,6 +214,16 @@ end of every run so it shows on `serve` (`http://localhost:8787`) next to binary
    ingest links the finding on the dashboard), and a `cost` tally. On a hard fail set `gate` and
    omit `quality_score`.
 
+   **Cost must come from complete provider telemetry, never a hand estimate.** Sum
+   `parish.estimated_cost_usd`, `gen_ai.usage.input_tokens`,
+   `gen_ai.usage.output_tokens`, `gen_ai.usage.cached_tokens`, and call count across every raw
+   inference _session_ JSONL produced during the run. Exclude `.transcript.jsonl` and any
+   concatenated aggregate that duplicates those session files. This must include intent,
+   dialogue, reaction, and background simulation calls—not only per-turn dialogue logs. Write
+   the result to `<run>/cost-summary.json`, copy the exact USD total into `cost.cost_usd`, and
+   label a zero as local/simulator rather than implying a cloud run was free. Provider telemetry
+   excludes Codex usage, local electricity/hardware, storage, and network costs.
+
 3. **Ingest, then backfill any missing issue links:**
 
    ```sh
@@ -222,6 +232,10 @@ end of every run so it shows on `serve` (`http://localhost:8787`) next to binary
    # prior run's issue) by matching its signature to the filed issue body.
    cargo run -p parish-harness -- backfill-issues
    ```
+
+   Read the ingested run back from `/api/runs/<id>` (or the `runs` row) and require its
+   `cost_usd` to equal `cost-summary.json` before calling the run complete. Report total cost
+   and cost per turn alongside quality and turn count.
 
    Ingest prints `ingested run <id>`. Surface that id and `http://localhost:8787` to the user so
    they can open the run on the dashboard.

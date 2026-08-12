@@ -48,6 +48,21 @@ wording.
   `not observed`, not an automatic bug.
 - Ingest every completed or gated segment into the quality dashboard and record its run ID.
 
+### Cost accounting
+
+- Before ingest, sum `parish.estimated_cost_usd`, input tokens, output tokens, cached tokens,
+  and call count across every raw inference session JSONL produced by the run. Exclude
+  `.transcript.jsonl` files and any concatenated aggregate that duplicates the session files.
+- Write the result to `cost-summary.json` in the permanent run artifact directory and copy the
+  exact USD total into the ingest payload. Never estimate cost from turn count or from a
+  partial set of per-turn dialogue records: intent, reaction, and background simulation are
+  billable too.
+- After ingest, require the dashboard run's `cost_usd` to equal `cost-summary.json`. Record the
+  total and cost per captured interaction in the run history. A zero is valid only for a local
+  or simulator run and must be labelled as such.
+- This measures provider API charges reported by Parish telemetry. It does not include Codex
+  usage, local electricity/hardware, storage, or network costs.
+
 ## Campaign acts
 
 ### Act 1 — Browser, UI, and input baseline (about 10 gameplay turns)
@@ -251,6 +266,21 @@ Append one row per completed or gated segment and keep unfinished coverage expli
 Permanent persistence: `~/Library/Application Support/parish-harness/harness.db` and its
 `runs/` sibling. The verified dashboard for these records is `http://localhost:8788` because
 port 8787 was already serving an unrelated temporary harness database.
+
+### Provider cost history
+
+| Dashboard run | Provider mode                            | Captured interactions | Calls |   Provider cost | Cost/interaction |
+| ------------: | ---------------------------------------- | --------------------: | ----: | --------------: | ---------------: |
+|            21 | Local MLX, configuration-invalid         |                     4 |     — | `$0.000000` API |        `$0.0000` |
+|            22 | Google Gemini 3.6 Flash                  |                   135 |   726 |     `$1.942602` |        `$0.0144` |
+|            23 | Google Gemini 3.6 Flash                  |                   111 |   248 |     `$0.623787` |        `$0.0056` |
+|            24 | Offline simulator, configuration-invalid |                     5 |     — | `$0.000000` API |        `$0.0000` |
+|            25 | Google Gemini 3.6 Flash                  |                    24 |   199 |     `$0.491094` |        `$0.0205` |
+|            26 | Google Gemini 3.6 Flash                  |                   133 |   468 |     `$1.312189` |        `$0.0099` |
+
+Recent browser-campaign provider total (runs 21–26): **`$4.369673`**. Runs 1–20 used
+local inference and record no provider API charge; their electricity/hardware and Codex costs
+were not measured.
 
 Repeat-run artifacts are permanent under
 `~/Library/Application Support/parish-harness/runs/browser2-3f55fed0-f988-4297-b11d-2454b996ab64/`.
