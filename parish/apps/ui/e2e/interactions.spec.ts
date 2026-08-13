@@ -274,6 +274,102 @@ test.describe('Input and streaming', () => {
 		await expect(chat).not.toContainText(incompleteCandidate);
 	});
 
+	test('authoritative termination commits the full response and rejects partial failures', async ({
+		page,
+	}) => {
+		const chat = page.getByTestId('chat-panel');
+		const input = page.getByTestId('input-field');
+		const complete =
+			'Plainly, the complete validated Gemini response remains in the transcript after finalization.';
+		await input.focus();
+		await expect(input).toBeFocused();
+
+		await emitEvent(page, 'loading', { active: true });
+		await emitEvent(page, 'text-log', {
+			id: 'gemini-final',
+			source: 'Brigid',
+			content: '',
+			stream_turn_id: 1857,
+		});
+		await emitEvent(page, 'stream-token', {
+			token: complete,
+			turn_id: 1857,
+			source: 'Brigid',
+			message_id: 'gemini-final',
+		});
+		await expect(chat).toContainText('Plainly,');
+		await emitEvent(page, 'stream-turn-end', {
+			turn_id: 1857,
+			status: 'completed',
+			message_id: 'gemini-final',
+			source: 'Brigid',
+			final_text: complete,
+		});
+		await expect(chat).toContainText(complete);
+		const completedRow = chat.locator('.bubble-row.npc').filter({
+			hasText: complete,
+		});
+		await completedRow
+			.getByRole('group', {
+				name: 'NPC message — press Enter or Tab into the reaction picker',
+			})
+			.focus();
+		await expect(completedRow.getByTestId('reaction-picker')).toBeVisible();
+		await input.focus();
+		await emitEvent(page, 'stream-end', { hints: [] });
+
+		await emitEvent(page, 'loading', { active: true });
+		await emitEvent(page, 'text-log', {
+			id: 'length-failure',
+			source: 'Brigid',
+			content: '',
+			stream_turn_id: 1855,
+		});
+		await emitEvent(page, 'stream-token', {
+			token: 'Forbidden truncated candidate',
+			turn_id: 1855,
+			source: 'Brigid',
+			message_id: 'length-failure',
+		});
+		await emitEvent(page, 'stream-turn-end', {
+			turn_id: 1855,
+			status: 'failed',
+			message_id: 'length-failure',
+			recovery_message:
+				'That reply could not be completed, so its partial response was not added. Please try again.',
+		});
+		await emitEvent(page, 'stream-end', { hints: [] });
+		await expect(chat).not.toContainText('Forbidden truncated candidate');
+		await expect(chat).toContainText('Please try again');
+		await expect(input).toHaveAttribute('aria-busy', 'false');
+		await expect(input).toBeFocused();
+		const proofDir = process.env.DIALOGUE_FINALIZATION_PROOF_DIR;
+		if (proofDir) {
+			await page.screenshot({
+				path: `${proofDir}/desktop-dialogue-finalization.png`,
+				fullPage: true,
+			});
+		}
+
+		await page.setViewportSize({ width: 390, height: 844 });
+		await expect(chat).toContainText(complete);
+		await expect(chat).toContainText('Please try again');
+		const errorBubble = chat.locator('.entry.system.error').filter({
+			hasText: 'Please try again',
+		});
+		await expect(errorBubble).toBeVisible();
+		const bounds = await errorBubble.boundingBox();
+		expect(bounds).not.toBeNull();
+		expect(bounds!.x).toBeGreaterThanOrEqual(0);
+		expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(390);
+		if (proofDir) {
+			await page.screenshot({
+				path: `${proofDir}/mobile-dialogue-finalization.png`,
+				fullPage: true,
+			});
+		}
+	});
+
 	test('overlapping NPC turns remain attached to their speakers', async ({
 		page,
 	}) => {
