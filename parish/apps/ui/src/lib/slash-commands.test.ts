@@ -45,6 +45,7 @@ const FEATURES_MD_COMMANDS: ReadonlyArray<{
 	{ command: '/resume', hasArgs: false },
 	{ command: '/quit', hasArgs: false },
 	{ command: '/new', hasArgs: false },
+	{ command: '/new-game', hasArgs: false },
 	{ command: '/status', hasArgs: false },
 	{ command: '/time', hasArgs: false },
 	{ command: '/where', hasArgs: false },

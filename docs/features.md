@@ -194,7 +194,7 @@ Most configuration commands follow a **unified show/set pattern**: running the c
 
 - `/pause` / `/resume` — Pause or resume the simulation
 - `/quit` — Exit game
-- `/new` — Start a fresh game
+- `/new` / `/new-game` — Start a fresh game
 - `/status` — Show current game state
 - `/time` — Display current in-game time
 - `/where` — Show current location

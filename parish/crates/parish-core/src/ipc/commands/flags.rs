@@ -42,6 +42,9 @@ pub(super) fn handle_flag_command(cmd: Command, config: &mut GameConfig) -> Comm
         }
         Command::InvalidFlagName(msg) => CommandResult::text(msg),
         Command::InvalidBranchName(msg) => CommandResult::text(msg),
+        Command::InvalidSystemCommand(input) => CommandResult::text(format!(
+            "Unknown system command: {input}. Use /help to list available commands."
+        )),
         _ => unreachable!("dispatched only by handle_command for matching variants"),
     }
 }

@@ -257,6 +257,15 @@ pub async fn load_branch(
     Json(body): Json<LoadBranchRequest>,
 ) -> Result<StatusCode, (StatusCode, String)> {
     let _persistence_guard = state.persistence_gate.lock().await;
+    do_load_branch_inner(&state, body).await
+}
+
+/// Transactional branch-load implementation for REST and system-command
+/// adapters. The caller owns the persistence gate.
+pub async fn do_load_branch_inner(
+    state: &Arc<AppState>,
+    body: LoadBranchRequest,
+) -> Result<StatusCode, (StatusCode, String)> {
     let (path, branch_id, candidate_lock) = validate_and_acquire_lock(&state, &body).await?;
 
     let path_clone = path.clone();
@@ -301,6 +310,34 @@ pub async fn load_branch(
     }
 
     Ok(StatusCode::OK)
+}
+
+/// Loads a named branch from the active save file.
+pub async fn do_load_named_branch_inner(state: &Arc<AppState>, name: &str) -> Result<(), String> {
+    let path = state
+        .save_identity
+        .save_path
+        .lock()
+        .await
+        .clone()
+        .ok_or_else(|| "No active save file. Use /save first.".to_string())?;
+    let lookup_path = path.clone();
+    let name = name.to_string();
+    let branch = tokio::task::spawn_blocking(move || {
+        parish_core::game_loop::resolve_named_branch(&lookup_path, &name)
+    })
+    .await
+    .map_err(|error| error.to_string())??;
+    do_load_branch_inner(
+        state,
+        LoadBranchRequest {
+            file_path: path.to_string_lossy().into_owned(),
+            branch_id: branch.id,
+        },
+    )
+    .await
+    .map(|_| ())
+    .map_err(|(_, error)| error)
 }
 
 /// Validates the save-file path, checks containment, and acquires an advisory
