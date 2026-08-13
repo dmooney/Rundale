@@ -425,7 +425,7 @@ fn ipc_field_parity() {
         since: "06:00 1820-03-20".into(),
         duration_hours: 2.5,
         min_duration_hours: 1.0,
-        last_check_hour: None,
+        last_check_at: None,
     };
     assert_keys_contain_manifest("WeatherDebug", &weather, &manifest);
 

@@ -159,7 +159,10 @@ pub(crate) fn build_weather_debug(world: &WorldState) -> WeatherDebug {
             .to_string(),
         duration_hours: world.weather_engine.duration_hours(now),
         min_duration_hours: world.weather_engine.min_duration_hours(),
-        last_check_hour: world.weather_engine.last_check_hour(),
+        last_check_at: world
+            .weather_engine
+            .last_check_at()
+            .map(|at| at.format("%H:%M %Y-%m-%d").to_string()),
     }
 }
 
