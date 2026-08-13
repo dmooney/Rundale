@@ -232,6 +232,29 @@ pub async fn do_load_branch(
     Ok(())
 }
 
+/// Loads a named branch from the currently active save file. The caller owns
+/// the persistence gate, matching [`do_load_branch`].
+pub async fn do_load_named_branch(
+    state: &Arc<AppState>,
+    app: &tauri::AppHandle,
+    name: &str,
+) -> Result<(), String> {
+    let path = state
+        .save_path
+        .lock()
+        .await
+        .clone()
+        .ok_or_else(|| "No active save file. Use /save first.".to_string())?;
+    let lookup_path = path.clone();
+    let name = name.to_string();
+    let branch = tokio::task::spawn_blocking(move || {
+        parish_core::game_loop::resolve_named_branch(&lookup_path, &name)
+    })
+    .await
+    .map_err(|error| error.to_string())??;
+    do_load_branch(state, app, path.to_string_lossy().into_owned(), branch.id).await
+}
+
 /// Creates a new branch forked from a specified parent branch.
 #[tauri::command]
 pub async fn create_branch(

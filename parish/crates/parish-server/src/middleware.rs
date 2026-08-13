@@ -238,7 +238,7 @@ pub async fn session_middleware_tower(
     // parish UUID yet), try recovering from the raw `parish_sid` cookie.
     // This handles returning visitors whose cookie was issued before the
     // tower-sessions migration — their UUID is in the persistent DB but not
-    // in the new MemoryStore, so tower-sessions would otherwise assign them
+    // in the tower-session store, so tower-sessions would otherwise assign them
     // a brand-new session and clobber their save data.
     if cookie_id.is_none() {
         let raw_headers = req.headers();

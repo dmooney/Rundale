@@ -125,11 +125,16 @@ impl SystemCommandHost for TauriCommandHost {
         })
     }
 
-    fn load_branch(&self, _name: String) -> BoxFuture<'_, Result<(), String>> {
+    fn load_branch(&self, name: String) -> BoxFuture<'_, Result<(), String>> {
+        let state = Arc::clone(&self.state);
         let app = self.app.clone();
         Box::pin(async move {
-            let _ = app.emit(EVENT_SAVE_PICKER, ());
-            Ok(())
+            if name.trim().is_empty() {
+                let _ = app.emit(EVENT_SAVE_PICKER, ());
+                Ok(())
+            } else {
+                crate::commands::do_load_named_branch(&state, &app, &name).await
+            }
         })
     }
 
