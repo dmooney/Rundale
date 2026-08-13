@@ -188,7 +188,7 @@ async fn run_headless_repl_loop(
                     weather: WeatherMode::Single,
                     run_banshee: !app.flags.is_disabled("banshee"),
                     gossip: GossipMode::Skip,
-                    run_tier4: true,
+                    run_tier4: parish_core::game_loop::tier4_simulation_enabled(&app.flags),
                 },
             );
 
