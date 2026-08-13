@@ -16,9 +16,9 @@ intent-resolution prompts for downstream game systems.
 
 ## Slash command policy
 
-- `/new` is the canonical player command for starting a fresh game. Do not add
-  `/new-game` as a slash-command alias; that spelling is reserved for HTTP API
-  route names.
+- `/new` and `/new-game` both start a fresh game. The latter spelling also
+  matches the HTTP API route, but input classification resolves it locally
+  before gameplay routing.
 
 ## Notes
 
