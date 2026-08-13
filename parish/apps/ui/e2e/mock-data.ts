@@ -267,7 +267,7 @@ export const DEBUG_SNAPSHOT: DebugSnapshot = {
 		since: '00:00',
 		duration_hours: 6,
 		min_duration_hours: 2,
-		last_check_hour: 8,
+		last_check_at: '08:00 1820-03-20',
 	},
 	world: {
 		player_location_name: 'Baile Átha Cliath',
