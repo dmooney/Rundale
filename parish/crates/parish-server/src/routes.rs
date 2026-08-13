@@ -49,9 +49,10 @@ pub use reactions::{emit_npc_reactions, react_to_message};
 // saves
 pub use saves::{
     CreateBranchRequest, LoadBranchRequest, create_branch, discover_save_files,
-    do_branch_log_inner, do_fork_branch_inner, do_list_branches_inner, do_new_game_inner,
-    do_save_game_inner, get_save_state, load_branch, load_branch_name, new_game, new_save_file,
-    restore_snapshot_and_emit, save_game, validate_and_acquire_lock,
+    do_branch_log_inner, do_fork_branch_inner, do_list_branches_inner, do_load_branch_inner,
+    do_load_named_branch_inner, do_new_game_inner, do_save_game_inner, get_save_state, load_branch,
+    load_branch_name, new_game, new_save_file, restore_snapshot_and_emit, save_game,
+    validate_and_acquire_lock,
 };
 
 // admin
