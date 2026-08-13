@@ -73,6 +73,67 @@ test.describe('Real browser + parish-server acceptance', () => {
 		}
 	});
 
+	test('synchronous command API classifies unknown slash input as system output', async ({
+		page,
+	}) => {
+		const result = await page.evaluate(async () => {
+			const response = await fetch('/api/command', {
+				method: 'POST',
+				headers: { 'content-type': 'application/json' },
+				body: JSON.stringify({ text: '/not-a-command', timeoutMs: 2_000 }),
+			});
+			return (await response.json()) as {
+				kind: string;
+				lines: Array<{ text: string }>;
+			};
+		});
+		expect(result.kind).toBe('system');
+		expect(result.lines.map((line) => line.text).join('\n')).toContain(
+			'Unknown system command',
+		);
+	});
+
+	test('advertised slash commands execute as system commands and named load restores the branch', async ({
+		page,
+	}) => {
+		const input = page.getByRole('combobox', { name: 'Player input' });
+
+		await input.fill('/fork alternate');
+		await input.press('Enter');
+		await expect(
+			page.getByText("Created new branch 'alternate'."),
+		).toBeVisible();
+
+		await input.fill('go to the crossroads');
+		await input.press('Enter');
+		await expect(page.getByTestId('status-bar')).toContainText('Crossroads');
+
+		await input.fill('/load main');
+		await input.press('Enter');
+		await expect(page.getByTestId('status-bar')).toContainText('Kilteevan');
+		await expect(page.getByText(/Loaded .*branch: main/)).toBeVisible();
+
+		await input.fill('/irish');
+		await input.press('Enter');
+		await expect(page.getByText(/Irish words panel/i)).toBeVisible();
+
+		const saveBeforeNewGame = await page.evaluate(async () => {
+			const response = await fetch('/api/save-state');
+			return (await response.json()) as { filename?: string };
+		});
+		await input.fill('/new-game');
+		await input.press('Enter');
+		await expect(page.getByTestId('status-bar')).toContainText('Kilteevan');
+		await expect
+			.poll(() =>
+				page.evaluate(async () => {
+					const response = await fetch('/api/save-state');
+					return ((await response.json()) as { filename?: string }).filename;
+				}),
+			)
+			.not.toBe(saveBeforeNewGame.filename);
+	});
+
 	test('nearby-person labels mirror authoritative server identity state', async ({
 		page,
 	}) => {

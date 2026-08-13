@@ -715,7 +715,7 @@ fn attach_static_and_auth(
 /// Two paths are supported:
 ///
 /// - **tower-sessions** (default, `use_tower_sessions = true`): installs a
-///   [`tower_sessions::MemoryStore`]-backed [`tower_sessions::SessionManagerLayer`]
+///   SQLite-backed [`tower_sessions::SessionManagerLayer`]
 ///   using the existing `parish_sid` cookie name, then wraps that with
 ///   `session_middleware_tower` and `idempotency_middleware`.
 ///
@@ -734,19 +734,11 @@ fn apply_session_layer(
     if use_tower_sessions {
         use tower_sessions::cookie::SameSite;
         use tower_sessions::cookie::time::Duration as CookieDuration;
-        use tower_sessions::{Expiry, MemoryStore, SessionManagerLayer};
+        use tower_sessions::{Expiry, SessionManagerLayer};
 
-        // `MemoryStore` does not implement `ExpiredDeletion`, so expired
-        // entries are only filtered on read (via `is_active`).  There is no
-        // background cleanup task because the backing map is not publicly
-        // accessible.  Instead we rely on the 365-day `Expiry` set by
-        // `SessionManagerLayer` below to bound memory growth.
-        //
-        // TODO: replace `MemoryStore` with a store that implements
-        // `ExpiredDeletion` (e.g. `tower-sessions-sqlx-store`) if
-        // long-running deployments reveal significant memory pressure.
-        let session_store = std::sync::Arc::new(MemoryStore::default());
-        let session_layer = SessionManagerLayer::new((*session_store).clone())
+        let session_store = session_store_impl::SqliteTowerSessionStore::new(&global.saves_dir)
+            .expect("sessions.db tower-session schema must initialize");
+        let session_layer = SessionManagerLayer::new(session_store)
             .with_name(middleware::SESSION_COOKIE)
             .with_secure(true)
             .with_http_only(true)
