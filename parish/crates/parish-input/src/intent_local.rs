@@ -3,7 +3,329 @@
 //! Catches common, unambiguous movement and look phrases without
 //! requiring a network round-trip to the LLM provider.
 
-use crate::intent_types::{IntentKind, PlayerIntent};
+use crate::intent_types::{AtmosphericTopic, IntentKind, PlayerIntent};
+
+/// Detects a grounded atmospheric subject in free-form player input.
+///
+/// Detection is deliberately lexical and conservative. It uses whole words
+/// and qualified phrases rather than substring matching, so character names
+/// such as `Omena`, generic mentions of a `story`, `listen to Mary`, and road
+/// signs/signposts do not accidentally trigger atmospheric narration.
+///
+/// When more than one subject is explicit, the most specific subject wins:
+/// omen, then folklore, then listening to the wider world.
+pub fn detect_atmospheric_topic(raw_input: &str) -> Option<AtmosphericTopic> {
+    let lower = raw_input.to_lowercase();
+    let words = split_words(&lower);
+
+    detect_atmospheric_topic_in_words(&words)
+}
+
+fn split_words(input: &str) -> Vec<&str> {
+    input
+        .split(|character: char| !character.is_alphanumeric() && character != '\'')
+        .filter(|word| !word.is_empty())
+        .collect()
+}
+
+fn detect_atmospheric_topic_in_words(words: &[&str]) -> Option<AtmosphericTopic> {
+    if words.is_empty() {
+        return None;
+    }
+
+    if contains_any_word(words, &["omen", "omens", "portent", "portents"])
+        || contains_supernatural_sign_phrase(words)
+    {
+        return Some(AtmosphericTopic::Omen);
+    }
+
+    if contains_any_word(words, &["folklore"])
+        || contains_qualified_tale(words)
+        || contains_phrase(words, &["folk", "tale"])
+        || contains_phrase(words, &["folk", "tales"])
+        || contains_phrase(words, &["local", "lore"])
+        || contains_phrase(words, &["old", "lore"])
+        || contains_phrase(words, &["traditional", "lore"])
+        || contains_phrase(words, &["local", "legend"])
+        || contains_phrase(words, &["local", "legends"])
+    {
+        return Some(AtmosphericTopic::Folklore);
+    }
+
+    if contains_world_listening_phrase(words) {
+        return Some(AtmosphericTopic::Listen);
+    }
+
+    None
+}
+
+/// Returns whether raw text contains broader, topic-specific evidence for an
+/// atmospheric topic proposed by the intent model.
+///
+/// [`detect_atmospheric_topic`] remains the high-confidence deterministic
+/// source. This broader check is only a validation boundary for a known model
+/// hint: it recognizes clear synonyms, but cannot invent a topic absent from
+/// the player's words.
+pub(crate) fn supports_atmospheric_topic_hint(raw_input: &str, topic: AtmosphericTopic) -> bool {
+    let lower = raw_input.to_lowercase();
+    let words = split_words(&lower);
+
+    if detect_atmospheric_topic_in_words(&words) == Some(topic) {
+        return true;
+    }
+
+    match topic {
+        AtmosphericTopic::Listen => contains_broad_listening_evidence(&words),
+        AtmosphericTopic::Omen => contains_broad_omen_evidence(&words),
+        AtmosphericTopic::Folklore => contains_place_bound_folklore_evidence(&words),
+    }
+}
+
+fn contains_broad_listening_evidence(words: &[&str]) -> bool {
+    const AUDITORY_WORDS: &[&str] = &["hear", "hearing", "heard", "hearken", "hearkening"];
+    const WORLD_SUBJECTS: &[&str] = &[
+        "world",
+        "land",
+        "place",
+        "parish",
+        "earth",
+        "wind",
+        "rain",
+        "trees",
+        "fields",
+        "night",
+        "river",
+        "stream",
+        "countryside",
+        "surroundings",
+        "breeze",
+        "woods",
+        "hills",
+        "bog",
+    ];
+    const OWNERSHIP_WORDS: &[&str] = &["belongs", "belonged", "owned", "owns"];
+
+    for (index, word) in words.iter().enumerate() {
+        if !AUDITORY_WORDS.contains(word) {
+            continue;
+        }
+
+        let mut tail = &words[index + 1..words.len().min(index + 8)];
+        if tail.first() == Some(&"to") {
+            tail = &tail[1..];
+        }
+
+        let (subject, after_subject) = match tail {
+            [article, subject, rest @ ..] if ["the", "this", "our"].contains(article) => {
+                (*subject, rest)
+            }
+            [subject, rest @ ..] => (*subject, rest),
+            [] => continue,
+        };
+        if WORLD_SUBJECTS.contains(&subject)
+            && !matches!(after_subject.first(), Some(word) if OWNERSHIP_WORDS.contains(word))
+        {
+            return true;
+        }
+
+        if matches!(tail, [indefinite, preposition, article, subject, ..]
+            if ["anything", "something", "what"].contains(indefinite)
+                && ["in", "from", "among"].contains(preposition)
+                && ["the", "this"].contains(article)
+                && WORLD_SUBJECTS.contains(subject))
+        {
+            return true;
+        }
+    }
+
+    words.windows(4).any(|window| {
+        matches!(window, [sound, "of", article, subject]
+            if ["sound", "sounds"].contains(sound)
+                && ["the", "this"].contains(article)
+                && WORLD_SUBJECTS.contains(subject))
+    })
+}
+
+fn contains_broad_omen_evidence(words: &[&str]) -> bool {
+    contains_any_word(
+        words,
+        &[
+            "divination",
+            "augury",
+            "auguries",
+            "auspice",
+            "auspices",
+            "foretoken",
+            "foretokens",
+            "harbinger",
+            "harbingers",
+        ],
+    ) || contains_phrase(words, &["second", "sight"])
+        || contains_phrase(words, &["read", "the", "future"])
+        || contains_phrase(words, &["fortune", "telling"])
+}
+
+fn contains_place_bound_folklore_evidence(words: &[&str]) -> bool {
+    const FOLKLORE_SYNONYMS: &[&str] = &[
+        "legend",
+        "legends",
+        "tradition",
+        "traditions",
+        "custom",
+        "customs",
+        "superstition",
+        "superstitions",
+        "myth",
+        "myths",
+    ];
+    const PLACE_CONTEXT: &[&str] = &[
+        "here",
+        "local",
+        "place",
+        "parish",
+        "village",
+        "land",
+        "country",
+        "well",
+        "fort",
+        "cross",
+        "crossroads",
+        "church",
+        "river",
+        "hill",
+        "fields",
+        "bog",
+        "farm",
+        "cottage",
+    ];
+
+    let has_place_context = contains_any_word(words, PLACE_CONTEXT)
+        || contains_phrase(words, &["these", "parts"])
+        || contains_phrase(words, &["around", "here"]);
+    has_place_context && contains_any_word(words, FOLKLORE_SYNONYMS)
+}
+
+fn contains_any_word(words: &[&str], candidates: &[&str]) -> bool {
+    words.iter().any(|word| candidates.contains(word))
+}
+
+fn contains_phrase(words: &[&str], phrase: &[&str]) -> bool {
+    words.windows(phrase.len()).any(|window| window == phrase)
+}
+
+fn contains_supernatural_sign_phrase(words: &[&str]) -> bool {
+    // A bare "sign" is irreducibly ambiguous: it may be a road marker,
+    // evidence that somebody passed, or a signal from another person. Only
+    // explicitly supernatural wording belongs to the omen layer. Plain
+    // omen/portent vocabulary is handled by the caller.
+    const SIGN_WORDS: &[&str] = &["sign", "signs"];
+    const SUPERNATURAL_WORDS: &[&str] = &[
+        "fairy",
+        "fairies",
+        "heaven",
+        "god",
+        "divine",
+        "supernatural",
+        "unearthly",
+        "otherworldly",
+        "beyond",
+    ];
+
+    words.iter().enumerate().any(|(sign_index, word)| {
+        let is_road_sign = sign_index > 0 && words[sign_index - 1] == "road";
+        SIGN_WORDS.contains(word)
+            && !is_road_sign
+            && words.iter().enumerate().any(|(marker_index, marker)| {
+                SUPERNATURAL_WORDS.contains(marker) && sign_index.abs_diff(marker_index) <= 4
+            })
+    })
+}
+
+fn contains_qualified_tale(words: &[&str]) -> bool {
+    const QUALIFIERS: &[&str] = &["old", "local", "traditional", "ancient", "folk"];
+    const TALES: &[&str] = &["tale", "tales", "story", "stories"];
+
+    words
+        .windows(2)
+        .any(|pair| QUALIFIERS.contains(&pair[0]) && TALES.contains(&pair[1]))
+}
+
+fn contains_world_listening_phrase(words: &[&str]) -> bool {
+    const LISTEN_FORMS: &[&str] = &["listen", "listening"];
+    const HEAR_FORMS: &[&str] = &["hear", "hearing"];
+    const LISTEN_MODIFIERS: &[&str] = &["carefully", "closely", "quietly"];
+    const WORLD_SUBJECTS: &[&str] = &[
+        "world",
+        "land",
+        "place",
+        "parish",
+        "earth",
+        "wind",
+        "rain",
+        "trees",
+        "fields",
+        "night",
+        "river",
+        "stream",
+        "countryside",
+        "surroundings",
+    ];
+
+    for (index, word) in words.iter().enumerate() {
+        if LISTEN_FORMS.contains(word) {
+            let mut tail = &words[index + 1..];
+            if matches!(tail.first(), Some(modifier) if LISTEN_MODIFIERS.contains(modifier)) {
+                tail = &tail[1..];
+            }
+            if tail.first() == Some(&"around") {
+                return true;
+            }
+            if matches!(tail.first(), Some(preposition) if ["to", "for"].contains(preposition)) {
+                tail = &tail[1..];
+                if matches!(tail.first(), Some(article) if ["the", "this", "our"].contains(article))
+                {
+                    tail = &tail[1..];
+                }
+                if matches!(tail.first(), Some(subject) if WORLD_SUBJECTS.contains(subject)) {
+                    return true;
+                }
+                if matches!(tail, ["what", article, subject, verb, ..]
+                    if ["the", "this"].contains(article)
+                        && WORLD_SUBJECTS.contains(subject)
+                        && ["is", "are", "says", "whispers"].contains(verb))
+                {
+                    return true;
+                }
+            }
+        }
+
+        if HEAR_FORMS.contains(word) {
+            let tail = &words[index + 1..words.len().min(index + 8)];
+            // Cover the grounded discussion form "hear what the land is
+            // saying" without matching an incidental report such as "I hear
+            // the land belongs to Mary".
+            if matches!(tail, ["what", article, subject, verb, ..]
+                    if ["the", "this"].contains(article)
+                        && WORLD_SUBJECTS.contains(subject)
+                        && ["is", "are", "says", "whispers"].contains(verb))
+            {
+                return true;
+            }
+        }
+    }
+
+    [
+        &["sounds", "of", "the", "land"][..],
+        &["sounds", "of", "this", "place"][..],
+        &["sounds", "of", "the", "world"][..],
+        &["what", "the", "land", "is", "saying"][..],
+        &["what", "this", "place", "is", "saying"][..],
+        &["the", "land", "speaking"][..],
+        &["the", "land", "whispering"][..],
+    ]
+    .iter()
+    .any(|phrase| contains_phrase(words, phrase))
+}
 
 /// Attempts to parse intent locally using keyword matching.
 ///
@@ -151,6 +473,7 @@ pub fn parse_intent_local(raw_input: &str) -> Option<PlayerIntent> {
             intent: IntentKind::Look,
             target: None,
             dialogue: None,
+            atmosphere: detect_atmospheric_topic(raw_input),
             raw: raw_input.to_string(),
         });
     }
@@ -186,6 +509,7 @@ pub fn parse_intent_local(raw_input: &str) -> Option<PlayerIntent> {
                     intent: IntentKind::Examine,
                     target: Some(target.to_string()),
                     dialogue: None,
+                    atmosphere: detect_atmospheric_topic(raw_input),
                     raw: raw_input.to_string(),
                 });
             }
@@ -338,6 +662,7 @@ pub fn parse_intent_local(raw_input: &str) -> Option<PlayerIntent> {
                     intent: IntentKind::Interact,
                     target,
                     dialogue: None,
+                    atmosphere: detect_atmospheric_topic(raw_input),
                     raw: raw_input.to_string(),
                 });
             }
@@ -354,6 +679,7 @@ pub fn parse_intent_local(raw_input: &str) -> Option<PlayerIntent> {
             intent: IntentKind::Talk,
             target: None,
             dialogue: Some(raw_input.trim().to_string()),
+            atmosphere: detect_atmospheric_topic(raw_input),
             raw: raw_input.to_string(),
         });
     }
@@ -499,6 +825,7 @@ pub fn parse_intent_local(raw_input: &str) -> Option<PlayerIntent> {
                 intent: IntentKind::Interact,
                 target,
                 dialogue: None,
+                atmosphere: detect_atmospheric_topic(raw_input),
                 raw: raw_input.to_string(),
             });
         }
@@ -533,6 +860,14 @@ pub fn is_player_dialogue(raw_input: &str) -> bool {
         // dialogue (speech bubble + reactions), as the pre-#1351 path did.
         None => true,
     }
+}
+
+/// Addressee-aware dialogue presentation for runtime entry points.
+///
+/// Selecting a real NPC makes even action-shaped text conversational for
+/// dispatch purposes (#1450). Whitespace-only chip values remain absent.
+pub fn is_player_dialogue_with_addressees(raw_input: &str, addressed_to: &[String]) -> bool {
+    crate::parser::has_explicit_addressee(addressed_to) || is_player_dialogue(raw_input)
 }
 
 /// Returns `true` when `raw_input` is shaped like an imperative physical action
@@ -661,6 +996,7 @@ fn try_move_prefix(
                     intent: IntentKind::Move,
                     target: Some(target.to_string()),
                     dialogue: None,
+                    atmosphere: detect_atmospheric_topic(raw_input),
                     raw: raw_input.to_string(),
                 });
             }
@@ -671,6 +1007,150 @@ fn try_move_prefix(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn detects_grounded_atmospheric_discussion_by_topic() {
+        assert_eq!(
+            detect_atmospheric_topic("Peig, do you hear what the land is saying?"),
+            Some(AtmosphericTopic::Listen)
+        );
+        assert_eq!(
+            detect_atmospheric_topic("Peig, have you seen any omens here?"),
+            Some(AtmosphericTopic::Omen)
+        );
+        assert_eq!(
+            detect_atmospheric_topic("Peig, what old tales are told about this place?"),
+            Some(AtmosphericTopic::Folklore)
+        );
+    }
+
+    #[test]
+    fn atmospheric_detection_uses_specific_topic_priority() {
+        assert_eq!(
+            detect_atmospheric_topic(
+                "Listen to the land and tell me whether its old tales call this an omen."
+            ),
+            Some(AtmosphericTopic::Omen)
+        );
+        assert_eq!(
+            detect_atmospheric_topic("Listen to the land while you recount the local folklore."),
+            Some(AtmosphericTopic::Folklore)
+        );
+    }
+
+    #[test]
+    fn atmospheric_detection_rejects_lexical_false_positives() {
+        for input in [
+            "Omena walked past the post.",
+            "Listen to Mary.",
+            "Read the road signs.",
+            "Read the fairies road sign.",
+            "Lean against the signpost.",
+            "Look for signs of rain.",
+            "Look for a sign from Mary.",
+            "Look for a sign to Roscommon.",
+            "Look for signs that Mary passed this way.",
+            "Search for a sign beside the road.",
+            "Watch for signs someone entered the field.",
+            "To find Roscommon, look for a sign.",
+            "Mary will wave when it is safe; wait for a sign.",
+            "Look for a sign.",
+            "Show me a sign.",
+            "Give me a sign.",
+            "Those are signs of rain.",
+            "That is a sign from Mary.",
+            "The sign points to Roscommon.",
+            "Tell me a story.",
+            "Spring Folklorence from the gaol.",
+            "I heard Mary owns land.",
+            "Listen to Mary by the river.",
+            "I hear the land belongs to Mary.",
+        ] {
+            assert_eq!(
+                detect_atmospheric_topic(input),
+                None,
+                "false-positive atmospheric topic for {input:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn sign_seeking_requires_explicit_supernatural_grounding() {
+        for input in [
+            "Watch for an omen.",
+            "Search for a supernatural sign.",
+            "Look for a sign from heaven.",
+            "Is this a divine sign?",
+            "Have the fairies left us a sign from beyond?",
+            "Did the fairies leave this sign?",
+            "Ignore the road sign; did the fairies leave this sign?",
+        ] {
+            assert_eq!(
+                detect_atmospheric_topic(input),
+                Some(AtmosphericTopic::Omen),
+                "genuinely portent-seeking input was not detected: {input:?}"
+            );
+        }
+
+        assert!(supports_atmospheric_topic_hint(
+            "Do they practice divination here?",
+            AtmosphericTopic::Omen
+        ));
+    }
+
+    #[test]
+    fn broader_hint_evidence_is_topic_specific() {
+        assert!(supports_atmospheric_topic_hint(
+            "Can you hear the wind rising?",
+            AtmosphericTopic::Listen
+        ));
+        assert!(supports_atmospheric_topic_hint(
+            "What traditions are kept in this parish?",
+            AtmosphericTopic::Folklore
+        ));
+        assert!(supports_atmospheric_topic_hint(
+            "Do they practice divination here?",
+            AtmosphericTopic::Omen
+        ));
+
+        assert!(!supports_atmospheric_topic_hint(
+            "Can you hear Mary by the river?",
+            AtmosphericTopic::Listen
+        ));
+        assert!(!supports_atmospheric_topic_hint(
+            "This is a family tradition.",
+            AtmosphericTopic::Folklore
+        ));
+        assert!(!supports_atmospheric_topic_hint(
+            "Look for signs of rain.",
+            AtmosphericTopic::Omen
+        ));
+    }
+
+    #[test]
+    fn local_intents_retain_their_action_and_gain_atmosphere() {
+        let intent = parse_intent_local("I wonder whether that was an omen.").unwrap();
+        assert_eq!(intent.intent, IntentKind::Talk);
+        assert_eq!(intent.atmosphere, Some(AtmosphericTopic::Omen));
+
+        let intent = parse_intent_local("go to the fields and listen to the wind").unwrap();
+        assert_eq!(intent.intent, IntentKind::Move);
+        assert_eq!(intent.atmosphere, Some(AtmosphericTopic::Listen));
+    }
+
+    #[test]
+    fn real_addressee_makes_action_shaped_input_dialogue_but_blank_does_not() {
+        let raw = "go to the fields and listen to the wind";
+        assert!(!is_player_dialogue(raw));
+        assert!(is_player_dialogue_with_addressees(
+            raw,
+            &[" Peig Hannigan ".to_string()]
+        ));
+        assert!(!is_player_dialogue_with_addressees(
+            raw,
+            &["  \t ".to_string()]
+        ));
+    }
 
     #[test]
     fn test_local_parse_go_to() {

@@ -7,8 +7,10 @@ use parish_inference::{AnyClient, GenerateParams};
 use parish_types::ParishError;
 use serde::Deserialize;
 
-use crate::intent_local::parse_intent_local;
-use crate::intent_types::{IntentKind, PlayerIntent};
+use crate::intent_local::{
+    detect_atmospheric_topic, parse_intent_local, supports_atmospheric_topic_hint,
+};
+use crate::intent_types::{AtmosphericTopic, IntentKind, PlayerIntent};
 
 /// Raw JSON response from the LLM intent parser.
 #[derive(Deserialize)]
@@ -19,6 +21,8 @@ pub(crate) struct IntentResponse {
     pub(crate) target: Option<String>,
     #[serde(default)]
     pub(crate) dialogue: Option<String>,
+    #[serde(default)]
+    pub(crate) atmosphere: Option<String>,
 }
 
 /// The system prompt used for intent parsing.
@@ -28,6 +32,7 @@ determine their intent. Respond with valid JSON containing:\n\
 - \"intent\": one of \"move\", \"talk\", \"look\", \"interact\", \"examine\", \"unknown\"\n\
 - \"target\": what the action is directed at (string or null)\n\
 - \"dialogue\": what the player is saying, if talking (string or null)\n\
+- \"atmosphere\": optionally \"listen\", \"omen\", or \"folklore\" when that subject is explicitly present; otherwise null\n\
 \n\
 IMPORTANT: \"move\" is ONLY for when the player expresses a present desire to \
 navigate somewhere (imperative or future intent). Narrative, past-tense, or \
@@ -58,7 +63,47 @@ IMPORTANT: \"interact\" is for any imperative physical-action command — pickin
 putting down, tying, lighting, pouring, filling, lifting, pumping, digging, placing, \
 or touching/using an object. Do NOT classify physical-action imperatives as \"talk\".\n\
 \n\
+IMPORTANT: \"atmosphere\" supplements the main intent; it never replaces it. A player \
+talking to someone about omens remains \"talk\" with atmosphere \"omen\". Use \"listen\" \
+only for listening to the wider land/world/place, not listening to a person. Use \
+\"folklore\" for explicit folklore, local legends, or qualified old/local/traditional \
+tales, not a generic story. Use \"omen\" for explicit omens/portents or seeking a \
+supernatural sign, not road signs or signposts.\n\
+Clear equivalents include hearing the wind/world for \"listen\", place-bound legends \
+or traditions for \"folklore\", and divination or augury for \"omen\".\n\
+Input: \"Peig, do you hear what the land is saying?\" → {\"intent\": \"talk\", \"target\": \"Peig\", \"dialogue\": \"do you hear what the land is saying?\", \"atmosphere\": \"listen\"}\n\
+Input: \"Peig, have you seen any omens here?\" → {\"intent\": \"talk\", \"target\": \"Peig\", \"dialogue\": \"have you seen any omens here?\", \"atmosphere\": \"omen\"}\n\
+Input: \"Peig, what old tales are told about this place?\" → {\"intent\": \"talk\", \"target\": \"Peig\", \"dialogue\": \"what old tales are told about this place?\", \"atmosphere\": \"folklore\"}\n\
+Input: \"listen to Mary\" → {\"intent\": \"talk\", \"target\": \"Mary\", \"dialogue\": null, \"atmosphere\": null}\n\
+Input: \"read the road signs\" → {\"intent\": \"interact\", \"target\": \"the road signs\", \"dialogue\": null, \"atmosphere\": null}\n\
+\n\
 Respond ONLY with valid JSON. No explanation.";
+
+/// Accepts an LLM-proposed topic only when the raw text independently
+/// contains evidence for that same topic. Deterministic evidence is retained
+/// when the model omits the optional field, so atmospheric enrichment does not
+/// depend on model size or provider availability.
+fn validated_atmospheric_topic(
+    proposed: Option<&str>,
+    raw_input: &str,
+) -> Option<AtmosphericTopic> {
+    if let Some(detected) = detect_atmospheric_topic(raw_input) {
+        return Some(detected);
+    }
+
+    let proposed = match proposed.map(str::trim).map(str::to_ascii_lowercase) {
+        Some(value) if value == "listen" => AtmosphericTopic::Listen,
+        Some(value) if value == "omen" => AtmosphericTopic::Omen,
+        Some(value) if value == "folklore" => AtmosphericTopic::Folklore,
+        _ => return None,
+    };
+
+    if supports_atmospheric_topic_hint(raw_input, proposed) {
+        Some(proposed)
+    } else {
+        None
+    }
+}
 
 /// Returns `true` if `raw_input` matches one of the canonical look/examine
 /// phrases that the local parser recognises as genuine observation commands.
@@ -144,6 +189,7 @@ pub async fn parse_intent(
                 intent,
                 target: resp.target,
                 dialogue: resp.dialogue,
+                atmosphere: validated_atmospheric_topic(resp.atmosphere.as_deref(), raw_input),
                 raw: raw_input.to_string(),
             })
         }
@@ -151,6 +197,7 @@ pub async fn parse_intent(
             intent: IntentKind::Unknown,
             target: None,
             dialogue: None,
+            atmosphere: detect_atmospheric_topic(raw_input),
             raw: raw_input.to_string(),
         }),
     }
@@ -161,11 +208,13 @@ mod tests {
 
     #[test]
     fn test_intent_response_deserialize() {
-        let json = r#"{"intent": "move", "target": "the pub", "dialogue": null}"#;
+        let json =
+            r#"{"intent": "move", "target": "the pub", "dialogue": null, "atmosphere": "omen"}"#;
         let resp: IntentResponse = serde_json::from_str(json).unwrap();
         assert_eq!(resp.intent, Some(IntentKind::Move));
         assert_eq!(resp.target, Some("the pub".to_string()));
         assert!(resp.dialogue.is_none());
+        assert_eq!(resp.atmosphere.as_deref(), Some("omen"));
     }
     #[test]
     fn test_intent_response_empty() {
@@ -174,6 +223,92 @@ mod tests {
         assert!(resp.intent.is_none());
         assert!(resp.target.is_none());
         assert!(resp.dialogue.is_none());
+        assert!(resp.atmosphere.is_none());
+    }
+
+    #[test]
+    fn unknown_model_atmosphere_does_not_invalidate_primary_intent() {
+        let json = r#"{"intent":"talk","target":"Peig","dialogue":"hello","atmosphere":"mystery"}"#;
+        let resp: IntentResponse = serde_json::from_str(json).unwrap();
+        assert_eq!(resp.intent, Some(IntentKind::Talk));
+        assert_eq!(resp.target.as_deref(), Some("Peig"));
+        assert_eq!(resp.atmosphere.as_deref(), Some("mystery"));
+        assert_eq!(
+            validated_atmospheric_topic(resp.atmosphere.as_deref(), "hello Peig"),
+            None
+        );
+    }
+
+    #[test]
+    fn model_atmosphere_adds_only_raw_grounded_synonym_coverage() {
+        for (hint, raw, expected) in [
+            (
+                "listen",
+                "Peig, can you hear the wind rising?",
+                AtmosphericTopic::Listen,
+            ),
+            (
+                "folklore",
+                "What traditions are kept in this parish?",
+                AtmosphericTopic::Folklore,
+            ),
+            (
+                "omen",
+                "Did the old women practice divination here?",
+                AtmosphericTopic::Omen,
+            ),
+        ] {
+            assert_eq!(
+                detect_atmospheric_topic(raw),
+                None,
+                "synonym coverage should be supplied by a grounded model hint"
+            );
+            assert_eq!(
+                validated_atmospheric_topic(Some(hint), raw),
+                Some(expected),
+                "{hint:?} should be accepted for grounded raw text {raw:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn model_atmosphere_rejects_unrelated_and_conflicting_hints() {
+        assert_eq!(
+            validated_atmospheric_topic(Some("omen"), "Peig, have you seen any omens here?"),
+            Some(AtmosphericTopic::Omen)
+        );
+        assert_eq!(
+            validated_atmospheric_topic(Some("omen"), "read the road signs"),
+            None
+        );
+        assert_eq!(
+            validated_atmospheric_topic(Some("folklore"), "do you hear what the land is saying?"),
+            Some(AtmosphericTopic::Listen),
+            "grounded text evidence wins over a conflicting model field"
+        );
+        assert_eq!(
+            validated_atmospheric_topic(None, "what old tales are told here?"),
+            Some(AtmosphericTopic::Folklore),
+            "model omission must not suppress deterministic evidence"
+        );
+        assert_eq!(
+            validated_atmospheric_topic(Some("omen"), "What traditions are kept in this parish?"),
+            None,
+            "evidence for another broad topic must not ground the proposed hint"
+        );
+        assert_eq!(
+            validated_atmospheric_topic(Some("mystery"), "Can you hear the wind?"),
+            None,
+            "unknown model labels must be ignored even when atmospheric words exist"
+        );
+    }
+
+    #[test]
+    fn intent_prompt_keeps_atmosphere_supplemental_and_grounded() {
+        assert!(INTENT_SYSTEM_PROMPT.contains("\"atmosphere\" supplements the main intent"));
+        assert!(INTENT_SYSTEM_PROMPT.contains("talking to someone about omens remains"));
+        assert!(INTENT_SYSTEM_PROMPT.contains("not listening to a person"));
+        assert!(INTENT_SYSTEM_PROMPT.contains("not road signs or signposts"));
     }
 
     /// Unit tests for the is_genuine_look_input guard (#1276).

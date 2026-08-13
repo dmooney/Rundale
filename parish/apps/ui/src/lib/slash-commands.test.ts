@@ -46,6 +46,9 @@ const FEATURES_MD_COMMANDS: ReadonlyArray<{
 	{ command: '/quit', hasArgs: false },
 	{ command: '/new', hasArgs: false },
 	{ command: '/status', hasArgs: false },
+	{ command: '/listen', hasArgs: false },
+	{ command: '/omen', hasArgs: false },
+	{ command: '/folklore', hasArgs: false },
 	{ command: '/time', hasArgs: false },
 	{ command: '/where', hasArgs: false },
 	{ command: '/npcs', hasArgs: false },
@@ -122,6 +125,24 @@ describe('slash command registry', () => {
 			command: '/preset',
 			description: 'Apply a recommended model set for a provider',
 			hasArgs: true,
+		});
+	});
+
+	it('discovers all three ways of attending to a place', () => {
+		expect(SLASH_COMMANDS).toContainEqual({
+			command: '/listen',
+			description: 'Hear the present soundscape',
+			hasArgs: false,
+		});
+		expect(SLASH_COMMANDS).toContainEqual({
+			command: '/omen',
+			description: 'Notice a possible sign, without prophecy',
+			hasArgs: false,
+		});
+		expect(SLASH_COMMANDS).toContainEqual({
+			command: '/folklore',
+			description: 'Recall this place’s authored tradition',
+			hasArgs: false,
 		});
 	});
 
@@ -205,6 +226,14 @@ describe('slash command registry', () => {
 		expect(results).toContain('/flag');
 		expect(results).toContain('/flags');
 		expect(results.every((cmd) => cmd.startsWith('/fl'))).toBe(true);
+	});
+
+	it('typing /fol discovers folklore', () => {
+		expect(filterCommands('fol').map((c) => c.command)).toEqual(['/folklore']);
+	});
+
+	it('typing /om discovers omen', () => {
+		expect(filterCommands('om').map((c) => c.command)).toEqual(['/omen']);
 	});
 
 	it('typing /s returns save, status, speed, spinner', () => {

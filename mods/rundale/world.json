@@ -39,7 +39,7 @@
             "lat": 53.63621173776622,
             "lon": -8.115314764346493,
             "associated_npcs": [],
-            "mythological_significance": "Crossroads hold power in Irish folklore — a place between places, where the veil is thin.",
+            "mythological_significance": "At the meeting of four roads, the old people say, you stand between one place and another. After dark, the Good People may pass close by unseen.",
             "aliases": [
                 "crossroads"
             ],
@@ -95,7 +95,7 @@
             "lat": 53.63793806161644,
             "lon": -8.103992498132557,
             "associated_npcs": [],
-            "mythological_significance": "Built on the site of an older holy well dedicated to Brigid, the goddess-turned-saint.",
+            "mythological_significance": "Before the church was raised, a holy well stood on this ground under Brigid's care. Some still leave a rag or pin there on her feast day.",
             "aliases": [
                 "church",
                 "the church",
@@ -216,7 +216,7 @@
             "lat": 53.627485628457435,
             "lon": -8.063465222584824,
             "associated_npcs": [],
-            "mythological_significance": "Lough Ree is said to be home to a monster — the Lough Ree wurm, Ireland's lesser-known cousin of Nessie.",
+            "mythological_significance": "The old people say a great serpent lives in Lough Ree. Boatmen cross themselves before taking the deepest water.",
             "aliases": [
                 "coast",
                 "the coast",
@@ -323,7 +323,7 @@
             "lat": 53.62831265298641,
             "lon": -8.081709439766257,
             "associated_npcs": [],
-            "mythological_significance": "A rath said to be home to the sídhe. No farmer has ever ploughed within twenty yards of it. Those who disturb fairy forts are said to suffer terrible misfortune.",
+            "mythological_significance": "This rath belongs to the sídhe. No farmer will put a plough within twenty yards of it, for terrible misfortune is said to follow those who disturb their forts.",
             "aliases": [
                 "rath",
                 "ring fort",
@@ -360,7 +360,7 @@
             "lat": 53.62783820367662,
             "lon": -8.07181578456263,
             "associated_npcs": [],
-            "mythological_significance": "Bogs preserve everything — bodies, butter, memories. People say you can hear voices in the wind here on certain nights.",
+            "mythological_significance": "The bog keeps what it takes — bodies, butter, and old memories. On certain nights, people say, voices travel with the wind across it.",
             "aliases": [
                 "the bog",
                 "turf bog",
@@ -478,7 +478,7 @@
                 21,
                 22
             ],
-            "mythological_significance": "Kilteevan — Cill Taobháin, Teevan's Church, named for the early Christian Taobhán who once kept a cell here. The ruins of the old church stand in a field nearby, half-swallowed by ivy and elder.",
+            "mythological_significance": "Taobhán, an early holy man, is said to have kept his cell here; Cill Taobháin means Taobhán's church. The old church ruins stand in a nearby field, half-swallowed by ivy and elder.",
             "aliases": [
                 "town",
                 "village",
@@ -536,7 +536,7 @@
             "lat": 53.6329651682621,
             "lon": -8.102393252512787,
             "associated_npcs": [],
-            "mythological_significance": "The holy well of Kilteevan — the spring that gave Cill Taobháin its name. People leave offerings here for cures and blessings. The water is said to heal sore eyes on the patron's feast day.",
+            "mythological_significance": "People leave rags and small offerings at the holy well of Kilteevan, asking for cures and blessings. Its water is said to ease sore eyes on the patron's feast day.",
             "aliases": [
                 "holy well",
                 "the well",

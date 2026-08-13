@@ -1273,6 +1273,22 @@ impl GameTestHarness {
         // Try local intent parsing (no LLM needed)
         let intent = input::parse_intent_local(text);
 
+        if let Some(topic) = parish_core::game_loop::input::conversational_atmospheric_topic(
+            intent.as_ref(),
+            text,
+            false,
+        ) {
+            let config = self.app.snapshot_config();
+            if let Some(cue) = parish_core::ipc::commands::listen::render_place_atmosphere(
+                &self.app.world,
+                &config,
+                topic,
+                parish_core::ipc::commands::listen::AtmospherePresentation::Supplemental,
+            ) {
+                self.app.world.log(cue);
+            }
+        }
+
         // Lightweight "talk to <name>" / "speak to <name>" recognition so
         // fixtures can exercise the addressed-target dispatch path even
         // without an LLM. This mirrors the production Talk intent and
@@ -2276,6 +2292,26 @@ mod tests {
             assert_eq!(npc, "Padraig Darcy");
             assert_eq!(dialogue, "Ah, good morning to ye!");
         }
+    }
+
+    #[test]
+    fn legacy_harness_atmosphere_supplements_addressed_dialogue() {
+        let mut h = GameTestHarness::new();
+        h.add_canned_response("Peig Hannigan", "The old account is worth remembering.");
+
+        let result = h.execute("talk to Peig Hannigan about old tales told in this place");
+        assert!(
+            matches!(result, ActionResult::NpcResponse { .. }),
+            "{result:?}"
+        );
+        assert!(
+            h.app
+                .world
+                .text_log
+                .iter()
+                .any(|line| line.contains("Taobhán")),
+            "the legacy harness must log the folklore cue before continuing dialogue"
+        );
     }
 
     #[test]

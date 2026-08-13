@@ -1,12 +1,13 @@
 //! Master command dispatch — routes [`Command`] variants to handler functions.
 
-use crate::input::Command;
+use crate::input::{AtmosphericTopic, Command};
 use crate::npc::manager::NpcManager;
 use crate::world::WorldState;
 
 use super::flags::handle_flag_command;
 use super::help::render_help_text;
 use super::info::handle_info_command;
+use super::listen::handle_atmospheric_command;
 use super::map::{handle_map_command, handle_unexplored_command};
 use super::provider::{
     handle_category_provider_command, handle_cloud_provider_command, handle_preset_command,
@@ -93,6 +94,9 @@ pub fn handle_command(
         Command::Map(arg) => handle_map_command(config, arg),
         Command::Unexplored(arg) => handle_unexplored_command(config, arg),
         Command::Weather(arg) => handle_weather_command(world, arg),
+        Command::Listen => handle_atmospheric_command(world, config, AtmosphericTopic::Listen),
+        Command::Omen => handle_atmospheric_command(world, config, AtmosphericTopic::Omen),
+        Command::Folklore => handle_atmospheric_command(world, config, AtmosphericTopic::Folklore),
         Command::Session => handle_session_command(world, config),
         Command::Designer => CommandResult::effect_only(CommandEffect::OpenDesigner),
         Command::Debug(sub) => CommandResult::effect_only(CommandEffect::Debug(sub)),

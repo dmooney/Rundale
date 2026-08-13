@@ -19,8 +19,10 @@ use crate::game_loop::{
     GameInputOutcome, GameLoopContext, handle_movement, handle_npc_conversation,
 };
 use crate::input::{
-    is_physical_action_shaped, is_player_dialogue, parse_intent, parse_intent_local,
+    AtmosphericTopic, PlayerIntent, detect_atmospheric_topic, is_physical_action_shaped,
+    is_player_dialogue_with_addressees, parse_intent, parse_intent_local,
 };
+use crate::ipc::commands::listen::{AtmospherePresentation, render_place_atmosphere};
 use crate::ipc::{extract_npc_mentions, render_look_text, text_log, text_log_typed};
 use crate::npc::reactions::ReactionTemplates;
 use crate::world::transport::TransportMode;
@@ -166,6 +168,64 @@ pub(crate) async fn handle_interact(ctx: &GameLoopContext<'_>, raw: &str) -> Gam
 
 // ── Game input dispatch ───────────────────────────────────────────────────────
 
+/// Resolves a supplemental topic without overriding the primary action.
+///
+/// This is public for the legacy direct headless and script-harness paths;
+/// production server and Tauri input already converge on [`handle_game_input`].
+pub fn conversational_atmospheric_topic(
+    intent: Option<&PlayerIntent>,
+    raw: &str,
+    conversational_context: bool,
+) -> Option<AtmosphericTopic> {
+    let conversational = conversational_context
+        || intent
+            .map(|parsed| {
+                matches!(
+                    parsed.intent,
+                    crate::input::IntentKind::Talk | crate::input::IntentKind::Unknown
+                )
+            })
+            .unwrap_or(true);
+    conversational.then(|| {
+        intent
+            .and_then(|parsed| parsed.atmosphere)
+            .or_else(|| detect_atmospheric_topic(raw))
+    })?
+}
+
+/// Emits at most one grounded place cue before the underlying conversational
+/// turn. Explicit NPC addressees affect who answers, not whether the cue is
+/// present. The shared renderer owns prose and the feature-flag kill switch.
+async fn emit_supplemental_place_atmosphere(
+    ctx: &GameLoopContext<'_>,
+    intent: Option<&PlayerIntent>,
+    raw: &str,
+    conversational_context: bool,
+) {
+    let Some(topic) = conversational_atmospheric_topic(intent, raw, conversational_context) else {
+        return;
+    };
+    let cue = {
+        let config = ctx.config.lock().await.clone();
+        let world = ctx.world.lock().await;
+        render_place_atmosphere(&world, &config, topic, AtmospherePresentation::Supplemental)
+    };
+    if let Some(cue) = cue {
+        ctx.emitter.emit_event(
+            "text-log",
+            serde_json::to_value(text_log("system", cue)).unwrap_or(serde_json::Value::Null),
+        );
+    }
+}
+
+fn normalize_addressed_to(addressed_to: Vec<String>) -> Vec<String> {
+    addressed_to
+        .into_iter()
+        .map(|name| name.trim().to_string())
+        .filter(|name| !name.is_empty())
+        .collect()
+}
+
 /// Handles free-form player input: parses intent (with LLM fallback) then
 /// dispatches to movement, look, or NPC conversation.
 ///
@@ -189,11 +249,16 @@ pub async fn handle_game_input(
     reaction_templates: &ReactionTemplates,
     spawn_loading: impl Fn() -> Option<CancellationToken>,
 ) -> GameInputOutcome {
+    // Treat only meaningful names as explicit addressees. Normalising once at
+    // the shared seam prevents whitespace chips from suppressing movement or
+    // producing malformed `"   is not here"` dialogue.
+    let addressed_to = normalize_addressed_to(addressed_to);
+
     // Record the raw player input before any parsing so a bug report filed
     // mid-turn carries the exact action that triggered the failure (#1331).
     ctx.conversation.lock().await.record_player_input(&raw);
 
-    if !is_player_dialogue(&raw) {
+    if !is_player_dialogue_with_addressees(&raw, &addressed_to) {
         let echo_enabled = {
             let config = ctx.config.lock().await;
             !config.flags.is_disabled("echo-commands")
@@ -251,6 +316,10 @@ pub async fn handle_game_input(
         // No client configured — use local keyword parsing only.
         parse_intent_local(&raw)
     };
+
+    // Atmospheric topics supplement conversational turns; they do not replace
+    // the original action or addressed NPC exchange.
+    emit_supplemental_place_atmosphere(ctx, intent.as_ref(), &raw, !addressed_to.is_empty()).await;
 
     let is_move = intent
         .as_ref()
@@ -1999,6 +2068,40 @@ mod tests {
         assert!(
             logs.iter().all(|(k, _)| k != "action"),
             "'go to the forge' must NOT produce kind=action; should be movement; got: {logs:?}"
+        );
+    }
+
+    #[test]
+    fn supplemental_topics_respect_conversational_context() {
+        let move_intent = crate::input::PlayerIntent {
+            intent: crate::input::IntentKind::Move,
+            target: Some("the hill".to_string()),
+            dialogue: None,
+            atmosphere: Some(crate::input::AtmosphericTopic::Listen),
+            raw: "go to the hill and listen to the world".to_string(),
+        };
+
+        assert_eq!(
+            super::conversational_atmospheric_topic(Some(&move_intent), &move_intent.raw, false,),
+            None,
+            "an ordinary movement action must not gain an atmospheric aside"
+        );
+        assert_eq!(
+            super::conversational_atmospheric_topic(Some(&move_intent), &move_intent.raw, true,),
+            Some(crate::input::AtmosphericTopic::Listen),
+            "an explicitly addressed action is conversation and keeps its cue"
+        );
+    }
+
+    #[test]
+    fn blank_addressees_are_removed_and_real_names_are_trimmed() {
+        assert_eq!(
+            super::normalize_addressed_to(vec![
+                "   ".to_string(),
+                "  Peig Hannigan  ".to_string(),
+                "".to_string(),
+            ]),
+            vec!["Peig Hannigan".to_string()]
         );
     }
 }

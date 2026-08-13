@@ -15,6 +15,7 @@ pub mod dispatch;
 pub mod flags;
 pub mod help;
 pub mod info;
+pub mod listen;
 pub mod look;
 pub mod map;
 pub mod provider;
@@ -31,5 +32,6 @@ mod tests;
 // ── Re-exports — public API ───────────────────────────────────────────────────
 
 pub use dispatch::handle_command;
+pub use listen::{AtmospherePresentation, render_place_atmosphere};
 pub use look::render_look_text;
 pub use types::{CommandEffect, CommandResult, TextPresentation};

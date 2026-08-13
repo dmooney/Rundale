@@ -13,7 +13,13 @@ mod parser;
 
 pub use commands::{Command, FlagSubcommand, InferenceLogSub, validate_branch_name};
 pub use intent_llm::parse_intent;
-pub use intent_local::{is_physical_action_shaped, is_player_dialogue, parse_intent_local};
-pub use intent_types::{InputResult, IntentKind, PlayerIntent};
+pub use intent_local::{
+    detect_atmospheric_topic, is_physical_action_shaped, is_player_dialogue,
+    is_player_dialogue_with_addressees, parse_intent_local,
+};
+pub use intent_types::{AtmosphericTopic, InputResult, IntentKind, PlayerIntent};
 pub use mention::{MentionExtraction, extract_mention};
-pub use parser::{classify_input, parse_system_command};
+pub use parser::{
+    classify_input, classify_input_with_addressees, classify_input_with_context,
+    has_explicit_addressee, parse_system_command,
+};

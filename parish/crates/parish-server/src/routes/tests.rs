@@ -412,6 +412,257 @@ async fn submit_input_returns_only_canonical_npc_exchange() {
     worker.abort();
 }
 
+#[tokio::test]
+async fn submit_input_real_addressee_keeps_place_topic_discussion_as_dialogue() {
+    let state = test_app_state();
+    add_introduced_npc(&state, 1, "Siobhan Murphy", "Teacher").await;
+    {
+        let mut config = state.config.lock().await;
+        config.model_name = "test-model".to_string();
+        config.max_follow_up_turns = 0;
+    }
+    let (_prompts, worker) = install_scripted_inference_queue(
+        &state,
+        vec![
+            r#"{"dialogue":"I am listening.","action":"nods","mood":"attentive"}"#,
+            r#"{"dialogue":"There are signs enough, if you watch.","action":"glances outside","mood":"thoughtful"}"#,
+            r#"{"dialogue":"There are old stories tied to this place.","action":"settles by the fire","mood":"reflective"}"#,
+            r#"{"dialogue":"Then listen before you set off.","action":"tilts her head","mood":"attentive"}"#,
+            r#"{"dialogue":"There are signs enough, if you watch.","action":"glances outside","mood":"thoughtful"}"#,
+            r#"{"dialogue":"There are old stories tied to this place.","action":"settles by the fire","mood":"reflective"}"#,
+        ],
+    )
+    .await;
+    let mut stream = state
+        .event_bus
+        .subscribe(&[parish_core::event_bus::Topic::TextLog]);
+
+    for (natural_topic, supplemental_topic) in [
+        ("listen carefully", None),
+        ("listen for an omen", None),
+        (
+            "I stop and listen to the world around me",
+            Some(parish_core::input::AtmosphericTopic::Listen),
+        ),
+        (
+            "do you take that as an omen?",
+            Some(parish_core::input::AtmosphericTopic::Omen),
+        ),
+        (
+            "what old tales are told about this place?",
+            Some(parish_core::input::AtmosphericTopic::Folklore),
+        ),
+        (
+            "go to the fields and listen to the wind",
+            Some(parish_core::input::AtmosphericTopic::Listen),
+        ),
+    ] {
+        let expected_cue = if let Some(topic) = supplemental_topic {
+            let world = state.world.lock().await;
+            let config = state.config.lock().await;
+            parish_core::ipc::commands::render_place_atmosphere(
+                &world,
+                &config,
+                topic,
+                parish_core::ipc::commands::AtmospherePresentation::Supplemental,
+            )
+        } else {
+            None
+        };
+        let response = super::submit_input(
+            axum::extract::Extension(Arc::clone(&state)),
+            axum::extract::Extension(crate::cf_auth::AuthContext {
+                account_id: uuid::Uuid::new_v4(),
+                email: "player@example.com".to_string(),
+            }),
+            Json(SubmitInputRequest {
+                text: natural_topic.to_string(),
+                addressed_to: vec!["Siobhan Murphy".to_string()],
+            }),
+        )
+        .await;
+
+        assert_eq!(response.status(), axum::http::StatusCode::OK);
+        let body = axum::body::to_bytes(response.into_body(), 16 * 1024)
+            .await
+            .unwrap();
+        let result: parish_core::ipc::SubmitInputResult = serde_json::from_slice(&body).unwrap();
+        assert_eq!(result.exchanges.len(), 1, "{result:?}");
+        assert_eq!(result.exchanges[0].speaker_name, "Siobhan Murphy");
+        assert_eq!(result.exchanges[0].player_input, natural_topic);
+        let logs = drain_text_logs(&mut stream);
+        assert!(
+            logs.iter().any(|log| {
+                log.source == "player" && log.content == format!("> {natural_topic}")
+            }),
+            "an explicitly addressed topic must retain its player dialogue prelude: {logs:?}"
+        );
+        if let Some(expected_cue) = expected_cue {
+            assert!(
+                logs.iter().any(|log| {
+                    log.source == "system" && log.content.as_str() == expected_cue.as_str()
+                }),
+                "{natural_topic:?} must add its grounded cue without replacing dialogue: {logs:?}"
+            );
+        }
+    }
+
+    worker.abort();
+}
+
+#[tokio::test]
+async fn submit_input_place_slashes_override_real_addressee_distinctly() {
+    let state = test_app_state();
+    let mut stream = state
+        .event_bus
+        .subscribe(&[parish_core::event_bus::Topic::TextLog]);
+
+    for (slash, lead) in [
+        ("/listen", "You stand still and listen."),
+        ("/omen", "You watch for an omen."),
+        ("/folklore", "You call to mind what is said of this place."),
+    ] {
+        let response = super::submit_input(
+            axum::extract::Extension(Arc::clone(&state)),
+            axum::extract::Extension(crate::cf_auth::AuthContext {
+                account_id: uuid::Uuid::new_v4(),
+                email: "player@example.com".to_string(),
+            }),
+            Json(SubmitInputRequest {
+                text: slash.to_string(),
+                addressed_to: vec!["Siobhan Murphy".to_string()],
+            }),
+        )
+        .await;
+
+        assert_eq!(response.status(), axum::http::StatusCode::OK);
+        let logs = drain_text_logs(&mut stream);
+        assert!(
+            logs.iter().any(|log| log.content.starts_with(lead)),
+            "{slash} must retain its distinct system behavior with an addressee: {logs:?}"
+        );
+    }
+}
+
+#[tokio::test]
+async fn submit_input_blank_addressee_does_not_suppress_natural_place_commands() {
+    let state = test_app_state();
+    let mut stream = state
+        .event_bus
+        .subscribe(&[parish_core::event_bus::Topic::TextLog]);
+
+    for (natural, lead) in [
+        ("listen carefully", "You stand still and listen."),
+        ("listen for an omen", "You watch for an omen."),
+    ] {
+        let response = super::submit_input(
+            axum::extract::Extension(Arc::clone(&state)),
+            axum::extract::Extension(crate::cf_auth::AuthContext {
+                account_id: uuid::Uuid::new_v4(),
+                email: "player@example.com".to_string(),
+            }),
+            Json(SubmitInputRequest {
+                text: natural.to_string(),
+                addressed_to: vec!["  \t ".to_string()],
+            }),
+        )
+        .await;
+
+        assert_eq!(response.status(), axum::http::StatusCode::OK);
+        let logs = drain_text_logs(&mut stream);
+        assert!(
+            logs.iter().any(|log| log.content.starts_with(lead)),
+            "blank addressee must not suppress {natural:?}: {logs:?}"
+        );
+    }
+}
+
+async fn sync_command_json(
+    state: Arc<crate::state::AppState>,
+    text: &str,
+    addressed_to: Vec<String>,
+) -> serde_json::Value {
+    let response = crate::sync_routes::post_command(
+        axum::extract::Extension(state),
+        axum::extract::Extension(crate::cf_auth::AuthContext {
+            account_id: uuid::Uuid::new_v4(),
+            email: "player@example.com".to_string(),
+        }),
+        Json(crate::sync_types::CommandRequest {
+            text: text.to_string(),
+            addressed_to,
+            timeout_ms: Some(2_000),
+            include_state: Some(false),
+            include_map: Some(false),
+        }),
+    )
+    .await
+    .into_response();
+
+    assert_eq!(response.status(), axum::http::StatusCode::OK);
+    let body = axum::body::to_bytes(response.into_body(), 64 * 1024)
+        .await
+        .unwrap();
+    serde_json::from_slice(&body).unwrap()
+}
+
+#[tokio::test]
+async fn sync_command_addressee_context_preserves_distinct_place_boundaries() {
+    for (natural, expected_command) in [
+        ("listen carefully", "listen"),
+        ("listen for an omen", "omen"),
+    ] {
+        let blank = sync_command_json(test_app_state(), natural, vec![" \n\t ".to_string()]).await;
+        assert_eq!(blank["kind"], "system", "{blank}");
+        assert_eq!(blank["kind_detail"]["command"], expected_command, "{blank}");
+    }
+
+    for (slash, expected_command) in [
+        ("/listen", "listen"),
+        ("/omen", "omen"),
+        ("/folklore", "folklore"),
+    ] {
+        let response =
+            sync_command_json(test_app_state(), slash, vec!["Siobhan Murphy".to_string()]).await;
+        assert_eq!(response["kind"], "system", "{response}");
+        assert_eq!(
+            response["kind_detail"]["command"], expected_command,
+            "{response}"
+        );
+    }
+
+    for natural_topic in [
+        "I stop and listen to the world around me",
+        "do you take that as an omen?",
+        "what old tales are told about this place?",
+    ] {
+        let dialogue_state = test_app_state();
+        add_introduced_npc(&dialogue_state, 1, "Siobhan Murphy", "Teacher").await;
+        {
+            let mut config = dialogue_state.config.lock().await;
+            config.model_name = "test-model".to_string();
+            config.max_follow_up_turns = 0;
+        }
+        let (_prompts, worker) = install_scripted_inference_queue(
+            &dialogue_state,
+            vec![r#"{"dialogue":"I hear you.","action":"nods","mood":"attentive"}"#],
+        )
+        .await;
+        let dialogue = sync_command_json(
+            dialogue_state,
+            natural_topic,
+            vec!["Siobhan Murphy".to_string()],
+        )
+        .await;
+        assert_ne!(dialogue["kind"], "system", "{dialogue}");
+        assert_eq!(
+            dialogue["kind_detail"]["dialogue_quality"]["turns"], 1,
+            "a real addressee must route {natural_topic:?} through dialogue: {dialogue}"
+        );
+        worker.abort();
+    }
+}
+
 fn drain_text_logs(stream: &mut parish_core::event_bus::EventStream) -> Vec<TextLogPayload> {
     let mut logs = Vec::new();
     loop {
