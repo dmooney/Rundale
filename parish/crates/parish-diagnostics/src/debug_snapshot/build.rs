@@ -185,6 +185,19 @@ pub(crate) fn build_event_bus_debug(
             let timestamp = e.timestamp().format("%H:%M %Y-%m-%d").to_string();
             let kind = e.event_type().to_string();
             let summary = match e {
+                GameEvent::ReactionRecorded {
+                    npc_id,
+                    direction,
+                    emoji,
+                    context,
+                    ..
+                } => format!(
+                    "{} {:?} {}: {}",
+                    name_of(*npc_id),
+                    direction,
+                    emoji,
+                    context
+                ),
                 GameEvent::DialogueOccurred {
                     npc_id, summary, ..
                 } => format!("{}: {}", name_of(*npc_id), summary),
@@ -634,6 +647,7 @@ pub(crate) fn build_npc_reaction_debug(npc: &parish_npc::Npc) -> Vec<ReactionDeb
         .entries()
         .rev()
         .map(|r| ReactionDebug {
+            direction: r.direction,
             timestamp: r.timestamp.format("%H:%M %Y-%m-%d").to_string(),
             emoji: r.emoji.clone(),
             description: r.description.clone(),

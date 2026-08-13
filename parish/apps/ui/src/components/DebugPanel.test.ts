@@ -228,6 +228,46 @@ describe('DebugPanel', () => {
 			expect(container.textContent).toContain('35');
 		});
 
+		it('labels reaction history with the authoritative actor', async () => {
+			debugVisible.set(true);
+			debugSnapshot.set(
+				makeSnapshot({
+					npcs: [
+						{
+							...npcFixture,
+							reactions: [
+								{
+									direction: 'NpcToPlayer' as const,
+									timestamp: '10:00',
+									emoji: '👀',
+									description: 'raised an eyebrow',
+									context: 'I have no money',
+								},
+								{
+									direction: 'PlayerToNpc' as const,
+									timestamp: '10:01',
+									emoji: '😊',
+									description: 'smiled warmly',
+									context: 'Welcome',
+								},
+							],
+						},
+					],
+				}),
+			);
+			debugTab.set(1);
+			const { container } = render(DebugPanel);
+			await fireEvent.click(
+				container.querySelector('.npc-row') as HTMLButtonElement,
+			);
+			await tick();
+
+			expect(container.textContent).toContain(
+				'Máire Ní Bhriain: raised an eyebrow',
+			);
+			expect(container.textContent).toContain('Player: smiled warmly');
+		});
+
 		it('shows (no NPCs) when list is empty', () => {
 			debugVisible.set(true);
 			debugSnapshot.set(makeSnapshot({ npcs: [] }));

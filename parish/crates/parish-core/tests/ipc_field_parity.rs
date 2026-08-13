@@ -490,6 +490,7 @@ fn ipc_field_parity() {
     assert_keys_contain_manifest(
         "ReactionDebug",
         &ReactionDebug {
+            direction: parish_core::ReactionDirection::PlayerToNpc,
             timestamp: "08:00".into(),
             emoji: "😠".into(),
             description: "looked angry".into(),

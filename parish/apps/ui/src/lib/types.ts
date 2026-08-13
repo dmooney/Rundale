@@ -387,6 +387,7 @@ export interface LongTermMemoryDebug {
 }
 
 export interface ReactionDebug {
+	direction: 'PlayerToNpc' | 'NpcToPlayer';
 	timestamp: string;
 	emoji: string;
 	description: string;
