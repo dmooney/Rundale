@@ -19,6 +19,28 @@ use parish_core::world::LocationId;
 
 use crate::state::AppState;
 
+async fn commit_reaction_event(
+    state: &Arc<AppState>,
+    event: &parish_core::world::events::GameEvent,
+) -> Result<(), parish_core::error::ParishError> {
+    let Some(target) = state
+        .save_identity
+        .task_journal_target(&state.session_id)
+        .await
+    else {
+        return Ok(());
+    };
+    let world_event = parish_core::persistence::journal_bridge::to_journal_event(event)
+        .expect("ReactionRecorded must map to a journal event");
+    parish_core::session_store::append_world_event_exact(
+        state.session_store.as_ref(),
+        &target,
+        &world_event,
+        &event.timestamp().to_rfc3339(),
+    )
+    .await
+}
+
 // ── Reaction endpoint ──────────────────────────────────────────────────────
 
 /// `POST /api/react-to-message` — player reacts to an NPC message with an emoji.
@@ -47,12 +69,43 @@ pub async fn react_to_message(
     // overwritten by the candidate install.
     let _persistence_guard = state.persistence_gate.lock().await;
 
-    // Store the reaction in the target NPC's reaction log
+    // Store and journal through the shared directional seam.
+    let world = state.world.lock().await;
     let mut npc_manager = state.npc_manager.lock().await;
-    if let Some(npc) = npc_manager.find_by_name_mut(&body.npc_name) {
+    if let Some(npc_id) = npc_manager
+        .find_by_name_mut(&body.npc_name)
+        .map(|npc| npc.id)
+    {
+        let previous_log = npc_manager.get(npc_id).map(|npc| npc.reaction_log.clone());
         let now = chrono::Utc::now();
-        npc.reaction_log
-            .add(&body.emoji, &body.message_snippet, now);
+        let event = parish_core::game_loop::record_directional_reaction(
+            &mut npc_manager,
+            npc_id,
+            parish_core::ReactionDirection::PlayerToNpc,
+            &body.emoji,
+            &body.message_snippet,
+            now,
+        );
+        drop(npc_manager);
+        drop(world);
+        if let Some(event) = event {
+            if let Err(error) = commit_reaction_event(&state, &event).await {
+                if let Some(previous_log) = previous_log {
+                    let mut npc_manager = state.npc_manager.lock().await;
+                    if let Some(npc) = npc_manager.get_mut(npc_id) {
+                        npc.reaction_log = previous_log;
+                    }
+                }
+                tracing::warn!(%error, "reaction journal commit failed; rolled back");
+                return StatusCode::INTERNAL_SERVER_ERROR;
+            }
+            state
+                .npc_manager
+                .lock()
+                .await
+                .record_reaction_emoji(&body.emoji);
+            state.world.lock().await.event_bus.publish(event);
+        }
     }
 
     StatusCode::OK
@@ -118,15 +171,37 @@ pub fn emit_npc_reactions(
                     if !context_is_valid() {
                         return;
                     }
+                    let world = state.world.lock().await;
                     let mut npc_manager = state.npc_manager.lock().await;
-                    if let Some(npc_mut) = npc_manager.find_by_name_mut(&npc_name) {
-                        npc_mut.reaction_log.add_player_message_reaction(
+                    if let Some(npc_id) = npc_manager.find_by_name_mut(&npc_name).map(|npc| npc.id)
+                    {
+                        let previous_log =
+                            npc_manager.get(npc_id).map(|npc| npc.reaction_log.clone());
+                        let event = parish_core::game_loop::record_directional_reaction(
+                            &mut npc_manager,
+                            npc_id,
+                            parish_core::ReactionDirection::NpcToPlayer,
                             &emoji,
                             &player_input,
                             chrono::Utc::now(),
                         );
+                        drop(npc_manager);
+                        drop(world);
+                        if let Some(event) = event {
+                            if let Err(error) = commit_reaction_event(&state, &event).await {
+                                if let Some(previous_log) = previous_log {
+                                    let mut npc_manager = state.npc_manager.lock().await;
+                                    if let Some(npc) = npc_manager.get_mut(npc_id) {
+                                        npc.reaction_log = previous_log;
+                                    }
+                                }
+                                tracing::warn!(%error, "NPC reaction journal commit failed; rolled back");
+                                return;
+                            }
+                            state.npc_manager.lock().await.record_reaction_emoji(&emoji);
+                            state.world.lock().await.event_bus.publish(event);
+                        }
                     }
-                    npc_manager.record_reaction_emoji(&emoji);
                 });
             },
         );

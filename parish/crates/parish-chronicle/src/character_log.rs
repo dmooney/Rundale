@@ -190,6 +190,7 @@ impl CharacterLogManager {
         };
 
         match event {
+            GameEvent::ReactionRecorded { .. } => {}
             GameEvent::DialogueOccurred {
                 npc_id,
                 summary,

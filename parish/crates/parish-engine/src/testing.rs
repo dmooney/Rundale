@@ -1375,11 +1375,17 @@ impl GameTestHarness {
         for (id, name) in npc_ids_here {
             if let Some(emoji) = generate_rule_reaction(text) {
                 // Persist to reaction_log (proves #403).
-                if let Some(npc) = self.app.npc_manager.get_mut(id) {
-                    npc.reaction_log.add(&emoji, text, chrono::Utc::now());
+                if let Some(event) = parish_core::game_loop::record_directional_reaction(
+                    &mut self.app.npc_manager,
+                    id,
+                    parish_core::ReactionDirection::NpcToPlayer,
+                    &emoji,
+                    text,
+                    chrono::Utc::now(),
+                ) {
+                    self.app.npc_manager.record_reaction_emoji(&emoji);
+                    self.app.world.event_bus.publish(event);
                 }
-                // Feed the per-session diversity sensor (#995).
-                self.app.npc_manager.record_reaction_emoji(&emoji);
                 self.app
                     .world
                     .log(format!("{} {}", capitalize_first(&name), emoji));
@@ -3302,11 +3308,16 @@ mod tests {
         // At least one NPC at this location should now have a non-empty reaction_log.
         let loc = h.location_id();
         let npcs_here = h.app.npc_manager.npcs_at(loc);
-        let any_logged = npcs_here.iter().any(|npc| !npc.reaction_log.is_empty());
+        let any_logged = npcs_here.iter().any(|npc| {
+            npc.reaction_log.entries().any(|entry| {
+                entry.direction == parish_core::ReactionDirection::NpcToPlayer
+                    && entry.context == trigger_input
+            })
+        });
 
         assert!(
             any_logged,
-            "After repeated keyword messages, at least one NPC's reaction_log should be non-empty"
+            "rule-based NPC reactions must retain NPC→player direction"
         );
     }
 

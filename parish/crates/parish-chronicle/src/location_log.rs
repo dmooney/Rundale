@@ -170,6 +170,7 @@ impl LocationLogManager {
         };
 
         match event {
+            GameEvent::ReactionRecorded { .. } => {}
             GameEvent::PlayerMoved { from, to, .. } => {
                 let Some(path) = path_for(*to) else {
                     return Ok(());
