@@ -11,10 +11,9 @@
 //!
 //! # Behavioural notes
 //!
-//! - **`player_initiated`**: when `true`, error messages are surfaced to the
-//!   player via `text-log`. When `false` (autonomous follow-up / idle banter),
-//!   errors are silently logged. This unifies the server behaviour (which had
-//!   the flag) with the Tauri runtime (which previously always surfaced errors).
+//! - **`player_initiated`**: when `true`, failures carry player-safe recovery
+//!   in the authoritative `stream-turn-end`. When `false` (autonomous follow-up
+//!   / idle banter), failures are silently logged.
 //! - **Loading animation**: controlled by the caller via `spawn_loading`; this
 //!   module only cancels the returned token on completion or error.
 //! - **Token streaming**: provider batches are internal candidates. Only the
@@ -40,9 +39,8 @@ use crate::inference::{
 };
 use crate::ipc::{
     ConversationLine, DialogueCorrectedPayload, DialogueGenerationTelemetry,
-    DialogueQualityPayload, IDLE_MESSAGES, INFERENCE_FAILURE_MESSAGES, REQUEST_ID,
-    StreamEndPayload, StreamTokenPayload, StreamTurnEndPayload, capitalize_first, text_log,
-    text_log_for_stream_turn, text_log_typed,
+    DialogueQualityPayload, IDLE_MESSAGES, REQUEST_ID, StreamEndPayload, StreamTokenPayload,
+    StreamTurnEndPayload, capitalize_first, text_log, text_log_for_stream_turn, text_log_typed,
 };
 use crate::npc::NpcId;
 use crate::npc::autonomous;
@@ -117,6 +115,11 @@ pub const POST_GUARD_UI_REPLACE_FLAG: &str = "post-guard-ui-replace";
 ///   - 2-3 sentence Hiberno-English dialogue (~70-110 tokens)
 ///   - Total observed minimum: ~170 tokens; 768 gives comfortable headroom.
 pub const TIER1_DIALOGUE_MAX_TOKENS: u32 = 768;
+
+/// Player-safe recovery used when no complete dialogue crosses the apply seam.
+/// Rejected partial provider output is deliberately not interpolated.
+pub const DIALOGUE_RETRY_MESSAGE: &str =
+    "That reply could not be completed, so its partial response was not added. Please try again.";
 
 /// Output of a single NPC turn.
 #[derive(Debug)]
@@ -330,19 +333,13 @@ pub async fn run_npc_turn(
             tracing::error!("Failed to submit inference request: {}", e);
             ctx.emitter.emit_event(
                 "stream-turn-end",
-                serde_json::to_value(StreamTurnEndPayload { turn_id: req_id })
-                    .unwrap_or(serde_json::Value::Null),
+                serde_json::to_value(StreamTurnEndPayload::failed(
+                    req_id,
+                    Some(message_id.clone()),
+                    player_initiated.then(|| DIALOGUE_RETRY_MESSAGE.to_string()),
+                ))
+                .unwrap_or(serde_json::Value::Null),
             );
-            if player_initiated {
-                ctx.emitter.emit_event(
-                    "text-log",
-                    serde_json::to_value(text_log(
-                        "system",
-                        "The parish storyteller has wandered off. Try again.",
-                    ))
-                    .unwrap_or(serde_json::Value::Null),
-                );
-            }
             if let Some(cancel) = loading_cancel {
                 cancel.cancel();
             }
@@ -384,45 +381,33 @@ pub async fn run_npc_turn(
                 req_id,
                 "NPC inference response channel closed without a reply"
             );
-            if player_initiated {
-                ctx.emitter.emit_event(
-                    "text-log",
-                    serde_json::to_value(text_log(
-                        "system",
-                        "The storyteller has wandered off mid-tale.",
-                    ))
-                    .unwrap_or(serde_json::Value::Null),
-                );
-            }
             if let Some(cancel) = loading_cancel {
                 cancel.cancel();
             }
             ctx.emitter.emit_event(
                 "stream-turn-end",
-                serde_json::to_value(StreamTurnEndPayload { turn_id: req_id })
-                    .unwrap_or(serde_json::Value::Null),
+                serde_json::to_value(StreamTurnEndPayload::failed(
+                    req_id,
+                    Some(message_id.clone()),
+                    player_initiated.then(|| DIALOGUE_RETRY_MESSAGE.to_string()),
+                ))
+                .unwrap_or(serde_json::Value::Null),
             );
             return None;
         }
         InferenceAwaitOutcome::TimedOut { secs } => {
             tracing::warn!(req_id, secs, "NPC inference response timed out");
-            if player_initiated {
-                ctx.emitter.emit_event(
-                    "text-log",
-                    serde_json::to_value(text_log(
-                        "system",
-                        "The storyteller is lost in thought. Try again.",
-                    ))
-                    .unwrap_or(serde_json::Value::Null),
-                );
-            }
             if let Some(cancel) = loading_cancel {
                 cancel.cancel();
             }
             ctx.emitter.emit_event(
                 "stream-turn-end",
-                serde_json::to_value(StreamTurnEndPayload { turn_id: req_id })
-                    .unwrap_or(serde_json::Value::Null),
+                serde_json::to_value(StreamTurnEndPayload::failed(
+                    req_id,
+                    Some(message_id.clone()),
+                    player_initiated.then(|| DIALOGUE_RETRY_MESSAGE.to_string()),
+                ))
+                .unwrap_or(serde_json::Value::Null),
             );
             return None;
         }
@@ -430,26 +415,17 @@ pub async fn run_npc_turn(
 
     if response.error.is_some() {
         tracing::warn!("Inference error: {:?}", response.error);
-        if player_initiated {
-            let msg = if ctx.inference_failure_messages.is_empty() {
-                let idx = response.id as usize % INFERENCE_FAILURE_MESSAGES.len();
-                INFERENCE_FAILURE_MESSAGES[idx].to_string()
-            } else {
-                let idx = response.id as usize % ctx.inference_failure_messages.len();
-                ctx.inference_failure_messages[idx].clone()
-            };
-            ctx.emitter.emit_event(
-                "text-log",
-                serde_json::to_value(text_log("system", &msg)).unwrap_or(serde_json::Value::Null),
-            );
-        }
         if let Some(cancel) = loading_cancel {
             cancel.cancel();
         }
         ctx.emitter.emit_event(
             "stream-turn-end",
-            serde_json::to_value(StreamTurnEndPayload { turn_id: req_id })
-                .unwrap_or(serde_json::Value::Null),
+            serde_json::to_value(StreamTurnEndPayload::failed(
+                req_id,
+                Some(message_id.clone()),
+                player_initiated.then(|| DIALOGUE_RETRY_MESSAGE.to_string()),
+            ))
+            .unwrap_or(serde_json::Value::Null),
         );
         return None;
     }
@@ -558,8 +534,13 @@ pub async fn run_npc_turn(
     );
     ctx.emitter.emit_event(
         "stream-turn-end",
-        serde_json::to_value(StreamTurnEndPayload { turn_id: req_id })
-            .unwrap_or(serde_json::Value::Null),
+        serde_json::to_value(StreamTurnEndPayload::completed(
+            req_id,
+            Some(message_id.clone()),
+            display_label.clone(),
+            captured_display_text.clone(),
+        ))
+        .unwrap_or(serde_json::Value::Null),
     );
     ctx.emitter.emit_event(
         "dialogue-quality",
@@ -962,6 +943,7 @@ pub async fn handle_npc_conversation(
     let mut assigned_tasks = Vec::new();
     let mut spoken_this_chain: Vec<NpcId> = Vec::new();
     let mut last_speaker: Option<NpcId> = None;
+    let mut dialogue_failure = None;
 
     // Phase 1: each addressed NPC takes one turn in the order named.
     // Cross-NPC opener de-duplication (#1422, #1492) is now applied inside
@@ -984,6 +966,7 @@ pub async fn handle_npc_conversation(
         )
         .await
         else {
+            dialogue_failure = Some(DIALOGUE_RETRY_MESSAGE.to_string());
             break;
         };
 
@@ -1044,6 +1027,7 @@ pub async fn handle_npc_conversation(
     );
     GameInputOutcome {
         task_mutations: assigned_tasks,
+        dialogue_failure,
     }
 }
 
@@ -1184,6 +1168,7 @@ pub async fn run_idle_banter(
     );
     GameInputOutcome {
         task_mutations: assigned_tasks,
+        dialogue_failure: None,
     }
 }
 
@@ -2260,5 +2245,110 @@ pub mod tests {
             .and_then(serde_json::Value::as_str)
             .expect("dialogue-corrected should carry canonical text");
         assert_eq!(corrected_text, displayed);
+        let terminal: crate::ipc::StreamTurnEndPayload =
+            serde_json::from_value(events[stream_end_index].1.clone())
+                .expect("terminal payload should deserialize");
+        assert_eq!(terminal.status, crate::ipc::StreamTurnStatus::Completed);
+        assert_eq!(terminal.final_text.as_deref(), Some(displayed.as_str()));
+        let placeholder_id = events
+            .iter()
+            .find(|(name, payload)| {
+                name == "text-log"
+                    && payload
+                        .get("stream_turn_id")
+                        .and_then(serde_json::Value::as_u64)
+                        == Some(terminal.turn_id)
+            })
+            .and_then(|(_, payload)| payload.get("id"))
+            .and_then(serde_json::Value::as_str)
+            .expect("stream placeholder should carry a reaction target id");
+        assert_eq!(terminal.message_id.as_deref(), Some(placeholder_id));
+    }
+
+    #[tokio::test]
+    async fn failed_provider_turn_discards_partial_and_returns_retry_outcome() {
+        use crate::inference::{InferenceQueue, InferenceResponse};
+        use crate::npc::Npc;
+
+        let (itx, mut irx) = tokio::sync::mpsc::channel::<crate::inference::InferenceRequest>(1);
+        let (btx, _) = tokio::sync::mpsc::channel(1);
+        let (xtx, _) = tokio::sync::mpsc::channel(1);
+        let queue = InferenceQueue::new(itx, btx, xtx);
+        tokio::spawn(async move {
+            if let Some(req) = irx.recv().await {
+                if let Some(tx) = req.token_tx {
+                    let _ = tx
+                        .send("forbidden length-terminated partial".to_string())
+                        .await;
+                }
+                let _ = req.response_tx.send(InferenceResponse {
+                    id: req.id,
+                    text: "forbidden length-terminated partial".to_string(),
+                    error: Some(
+                        "stream ended without a complete response (finish_reason=length)"
+                            .to_string(),
+                    ),
+                });
+            }
+        });
+
+        let emitter = Arc::new(CapturingEmitter::new());
+        let world_state = WorldState::new();
+        let player_loc = world_state.player_location;
+        let mut npc_mgr = NpcManager::new();
+        let mut npc = Npc::new_test_npc();
+        npc.set_location(player_loc);
+        npc_mgr.add_npc(npc);
+
+        let world = tokio::sync::Mutex::new(world_state);
+        let npc_manager = tokio::sync::Mutex::new(npc_mgr);
+        let config = tokio::sync::Mutex::new(GameConfig::default());
+        let conversation = tokio::sync::Mutex::new(ConversationRuntimeState::new());
+        let inference_queue = tokio::sync::Mutex::new(Some(queue));
+        let client = tokio::sync::Mutex::new(None);
+        let cloud_client = tokio::sync::Mutex::new(None);
+        let inference_config = crate::config::InferenceConfig::default();
+        let ctx = make_test_ctx!(
+            &world,
+            &npc_manager,
+            &config,
+            &conversation,
+            &inference_queue,
+            &client,
+            &cloud_client,
+            &inference_config,
+            Arc::clone(&emitter) as Arc<dyn EventEmitter>
+        );
+
+        let outcome = super::handle_npc_conversation(
+            &ctx,
+            "Can ye tell me where to begin?".to_string(),
+            Vec::new(),
+            || None,
+        )
+        .await;
+
+        assert_eq!(
+            outcome.dialogue_failure.as_deref(),
+            Some(super::DIALOGUE_RETRY_MESSAGE)
+        );
+        assert!(world.lock().await.conversation_log.is_empty());
+        let events = emitter.events.lock().unwrap();
+        assert!(
+            !events.iter().any(|(name, _)| name == "stream-token"),
+            "candidate tokens must remain quarantined on failure"
+        );
+        let (_, payload) = events
+            .iter()
+            .find(|(name, _)| name == "stream-turn-end")
+            .expect("failed turn should emit an authoritative terminal event");
+        let terminal: crate::ipc::StreamTurnEndPayload =
+            serde_json::from_value(payload.clone()).expect("terminal payload should deserialize");
+        assert_eq!(terminal.status, crate::ipc::StreamTurnStatus::Failed);
+        assert!(terminal.final_text.is_none());
+        assert_eq!(
+            terminal.recovery_message.as_deref(),
+            Some(super::DIALOGUE_RETRY_MESSAGE)
+        );
     }
 }

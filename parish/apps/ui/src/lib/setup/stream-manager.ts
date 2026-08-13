@@ -7,7 +7,7 @@ import {
 	trimTextLog,
 } from '../../stores/game';
 import { getStreamChunkDelayMs, takeNextStreamChunk } from '../stream-pacing';
-import type { LanguageHint } from '../types';
+import type { LanguageHint, StreamTurnEndPayload } from '../types';
 
 export const STREAM_WAIT_FOR_WORD_MS = 70;
 
@@ -75,6 +75,17 @@ export interface StreamManager {
 	finishNpcStream: (hints?: LanguageHint[]) => void;
 	maybeFinishNpcStream: () => void;
 	finalizePendingTurn: (turnId: number) => void;
+	/** Applies the backend's authoritative terminal truth. Successful dialogue
+	 *  replaces any paced prefix with the complete validated text; failures
+	 *  discard every partial and surface retry guidance. */
+	completeTurn: (payload: StreamTurnEndPayload) => void;
+	/** Applies the legacy post-guard correction without allowing a parked NPC
+	 * turn to bypass single-speaker reveal ordering. */
+	correctTurn: (
+		turnId: number,
+		correctedText: string,
+		messageId?: string,
+	) => void;
 	startTurnPumpIfNeeded: (turn: PendingNpcTurn) => void;
 	/** Immediately reveals the full text of every in-flight streamed NPC line:
 	 *  drains each pending turn's buffer into its textLog entry, cancels the
@@ -88,15 +99,11 @@ export interface StreamManager {
 	pendingTurnCount: () => number;
 	hasPendingEndHints: () => boolean;
 	isChainInProgress: () => boolean;
-	/** Discards all in-flight stream state without tearing the manager down.
-	 *  Used on WebSocket reconnect, where any pending turn is orphaned (the
-	 *  remaining tokens / stream-end were lost during the gap). */
+	/** Finalizes canonical buffered text, then clears in-flight stream state
+	 * without tearing the manager down. Used on reconnect and context reset;
+	 * the latter clears the transcript immediately afterward. */
 	reset: () => void;
 	dispose: () => void;
-	/** Clears the pending buffer for `turnId` so the stream pump stops
-	 *  appending raw tokens after a `dialogue-corrected` replacement (#1552).
-	 *  No-op when the turn is not found or is already complete. */
-	clearTurnBuffer: (turnId: number) => void;
 }
 
 export function createStreamManager(): StreamManager {
@@ -280,6 +287,115 @@ export function createStreamManager(): StreamManager {
 		maybeFinishNpcStream();
 	}
 
+	function completeTurn(payload: StreamTurnEndPayload) {
+		const turn = findPendingTurn(payload.turn_id);
+
+		// Arrival-reaction streams have no canonical message identity/final text.
+		// Preserve their paced-token completion behavior.
+		if (
+			(payload.status === 'completed' || payload.status === undefined) &&
+			payload.final_text === undefined
+		) {
+			if (!turn) return;
+			turn.complete = true;
+			startTurnPumpIfNeeded(turn);
+			return;
+		}
+
+		if (turn) stopTurnPump(turn);
+		if (
+			turn &&
+			payload.status === 'completed' &&
+			payload.final_text !== undefined &&
+			turn.turnId !== activeTurnId
+		) {
+			turn.source = payload.source ?? turn.source;
+			turn.messageId = turn.messageId ?? payload.message_id;
+			turn.buffer = payload.final_text;
+			turn.complete = true;
+			return;
+		}
+		textLog.update((log) => {
+			const recoveryId = payload.message_id
+				? `${payload.message_id}:error`
+				: undefined;
+			const index = log.findIndex(
+				(entry) =>
+					entry.stream_turn_id === payload.turn_id ||
+					(payload.message_id !== undefined && entry.id === payload.message_id),
+			);
+
+			if (payload.status === 'failed') {
+				if (
+					recoveryId !== undefined &&
+					log.some((entry) => entry.id === recoveryId)
+				) {
+					return log;
+				}
+				// A context replacement clears both pending turns and transcript
+				// identities. Ignore an old-session terminal that arrives afterward.
+				if (!turn && index < 0) return log;
+				const withoutPartial =
+					index < 0 ? log : [...log.slice(0, index), ...log.slice(index + 1)];
+				return payload.recovery_message
+					? trimTextLog([
+							...withoutPartial,
+							{
+								id: recoveryId,
+								source: 'system',
+								subtype: 'error',
+								content: payload.recovery_message,
+							},
+						])
+					: withoutPartial;
+			}
+
+			// Same rule for successful late terminals: a same-context reconnect
+			// retains the finalized message ID, while a replacement context does not.
+			if (!turn && index < 0) return log;
+
+			const completed = {
+				...(index >= 0 ? log[index] : {}),
+				id: payload.message_id ?? (index >= 0 ? log[index].id : undefined),
+				source:
+					payload.source ??
+					turn?.source ??
+					(index >= 0 ? log[index].source : 'NPC'),
+				content: payload.final_text ?? '',
+				stream_turn_id: undefined,
+				streaming: false,
+				latest_chunk: undefined,
+				stream_chunk_id: undefined,
+			};
+			if (index < 0) return trimTextLog([...log, completed]);
+			return [...log.slice(0, index), completed, ...log.slice(index + 1)];
+		});
+		if (turn) finalizePendingTurn(payload.turn_id);
+		else maybeFinishNpcStream();
+	}
+
+	function correctTurn(
+		turnId: number,
+		correctedText: string,
+		messageId?: string,
+	) {
+		const turn = findPendingTurn(turnId);
+		if (turn && turn.turnId !== activeTurnId) {
+			stopTurnPump(turn);
+			turn.messageId = turn.messageId ?? messageId;
+			turn.buffer = correctedText;
+			turn.complete = true;
+			return;
+		}
+		completeTurn({
+			turn_id: turnId,
+			status: 'completed',
+			message_id: messageId ?? turn?.messageId,
+			source: turn?.source,
+			final_text: correctedText,
+		});
+	}
+
 	function nextParkedTurnId(): number | null {
 		const iter = pendingNpcTurns.keys().next();
 		return iter.done ? null : iter.value;
@@ -390,6 +506,11 @@ export function createStreamManager(): StreamManager {
 	}
 
 	function reset() {
+		// Since provider candidates are quarantined, every buffered stream-token is
+		// already canonical player text. Preserve its complete batch before a
+		// same-context reconnect discards timers; otherwise the paced first word
+		// would become permanent when the terminal event was lost in the gap.
+		if (pendingNpcTurns.size > 0) flushAll();
 		pendingNpcTurns.forEach((turn) => stopTurnPump(turn));
 		pendingNpcTurns.clear();
 		pendingStreamEndHints = null;
@@ -433,24 +554,6 @@ export function createStreamManager(): StreamManager {
 		reset();
 	}
 
-	/** Clears the pending buffer for `turnId` so the stream pump stops
-	 *  appending raw tokens after a `dialogue-corrected` replacement (#1552).
-	 *  Stops the pump timer, empties the buffer, and marks the turn complete
-	 *  so finalizePendingTurn fires on the next pumpTurn invocation without
-	 *  additional token appends. No-op when the turn is not found.
-	 */
-	function clearTurnBuffer(turnId: number) {
-		const turn = findPendingTurn(turnId);
-		if (!turn) return;
-		stopTurnPump(turn);
-		turn.buffer = '';
-		turn.complete = true;
-		// Finalize synchronously so the streaming flags are cleared before the
-		// caller writes the corrected text — avoids the race where a scheduled
-		// pump fires after the replacement and re-appends stale raw tokens (#1552).
-		finalizePendingTurn(turnId);
-	}
-
 	return {
 		findPendingTurn,
 		queuePendingTurn,
@@ -458,6 +561,8 @@ export function createStreamManager(): StreamManager {
 		finishNpcStream,
 		maybeFinishNpcStream,
 		finalizePendingTurn,
+		completeTurn,
+		correctTurn,
 		startTurnPumpIfNeeded,
 		flushAll,
 		setPendingEndHints,
@@ -466,6 +571,5 @@ export function createStreamManager(): StreamManager {
 		isChainInProgress,
 		reset,
 		dispose,
-		clearTurnBuffer,
 	};
 }
