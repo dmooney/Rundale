@@ -388,6 +388,41 @@ fn entry_point_crates_do_not_reimplement_shared_commands() {
     );
 }
 
+/// Rule #2/#12 sensor: every production world-pump owner must derive Tier 4
+/// enablement from the same default-on feature-flag contract. This prevents a
+/// runtime rewrite from silently substituting a literal and disabling shipped
+/// background simulation again (#1865).
+#[test]
+fn realtime_world_pumps_share_tier4_feature_flag_contract() {
+    let ws = workspace_root();
+    const PUMP_OWNERS: &[&str] = &[
+        "crates/parish-server/src/session/ticks.rs",
+        "crates/parish-tauri/src/setup.rs",
+        "crates/parish-engine/src/headless.rs",
+        "crates/parish-engine/src/testing.rs",
+    ];
+
+    let mut violations = Vec::new();
+    for relative in PUMP_OWNERS {
+        let body = fs::read_to_string(ws.join(relative))
+            .unwrap_or_else(|error| panic!("read {relative}: {error}"));
+        if !body.contains("tier4_simulation_enabled") {
+            violations.push(*relative);
+        }
+    }
+
+    assert!(
+        violations.is_empty(),
+        "Mode-parity violation — world-pump owner(s) do not use the shared \
+         default-on Tier 4 flag contract:\n  - {}\n\n\
+         FIX: derive `AdvanceOptions::run_tier4` through \
+         `parish_core::game_loop::tier4_simulation_enabled`; do not use a \
+         runtime-local literal or change the polarity. Deliberately partial \
+         harness pumps may remain false. See AGENTS.md rules #2/#12 (#1865).",
+        violations.join("\n  - ")
+    );
+}
+
 fn list_top_level_modules(src: &Path) -> BTreeSet<String> {
     let mut out = BTreeSet::new();
     if !src.is_dir() {
