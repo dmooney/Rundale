@@ -342,9 +342,8 @@ fn authored_landmark_rejection_has_identical_fallback_across_modes() {
         .get_mut(speaker_id)
         .unwrap()
         .set_location_and_state(kilteevan, NpcState::Present);
-    let input = format!(
-        "talk to {speaker_name} about Is there an old bridge in Kilteevan Village?"
-    );
+    let input =
+        format!("talk to {speaker_name} about Is there an old bridge in Kilteevan Village?");
     let raw = "There is no old bridge in Kilteevan that I have ever heard tell of.";
     let response = serde_json::json!({
         "dialogue": raw,
@@ -374,7 +373,11 @@ fn authored_landmark_rejection_has_identical_fallback_across_modes() {
     assert!(event.contains("I beg your pardon; I lost the thread of that."));
     for rejected in [raw, "points away", "Search elsewhere"] {
         assert!(!event.contains(rejected));
-        assert!(!serde_json::to_string(&ui_events).unwrap().contains(rejected));
+        assert!(
+            !serde_json::to_string(&ui_events)
+                .unwrap()
+                .contains(rejected)
+        );
     }
 }
 

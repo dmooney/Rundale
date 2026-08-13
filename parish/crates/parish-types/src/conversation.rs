@@ -631,14 +631,12 @@ mod tests {
         let scoped = restored.remembered_object_facts(NpcId(1), LocationId(2));
         assert_eq!(scoped.len(), 1);
         assert_eq!(scoped[0].attributes.len(), 2);
-        assert!(scoped[0]
-            .attributes
-            .iter()
-            .any(|attribute| attribute.kind == RememberedObjectAttributeKind::Material && attribute.value == "wool"));
-        assert!(scoped[0]
-            .attributes
-            .iter()
-            .any(|attribute| attribute.kind == RememberedObjectAttributeKind::Colour && attribute.value == "red"));
+        assert!(scoped[0].attributes.iter().any(|attribute| attribute.kind
+            == RememberedObjectAttributeKind::Material
+            && attribute.value == "wool"));
+        assert!(scoped[0].attributes.iter().any(|attribute| attribute.kind
+            == RememberedObjectAttributeKind::Colour
+            && attribute.value == "red"));
         assert_eq!(
             restored.remembered_object_facts(NpcId(2), LocationId(2))[0].attributes[0].value,
             "silk"

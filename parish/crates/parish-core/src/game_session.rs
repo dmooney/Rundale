@@ -1275,8 +1275,8 @@ pub fn dialogue_grounding_snapshot(
             .clock
             .check_festival()
             .map(|festival| festival.to_string()),
-        current_weekday: crate::types::time::weekday_name(current_date.weekday()).to_string(),
-        current_day_type: crate::types::DayType::from_date(current_date),
+        current_weekday: parish_types::time::weekday_name(current_date.weekday()).to_string(),
+        current_day_type: parish_types::DayType::from_date(current_date),
         active_session: world
             .active_session
             .as_ref()
@@ -3514,22 +3514,23 @@ mod tests {
         assert!(outcome.action.is_none());
         assert!(outcome.assigned_task.is_none());
         assert_eq!(manager.get(NpcId(1)).unwrap().mood, "content");
-        assert!(manager.all_npcs().all(|npc| npc.memory.entries().all(|memory| {
-            !memory.content.contains(raw)
-                && !memory.content.contains("waves the singer away")
-                && !memory.content.contains("Silence the singer")
-        })));
+        assert!(
+            manager
+                .all_npcs()
+                .all(|npc| npc.memory.entries().all(|memory| {
+                    !memory.content.contains(raw)
+                        && !memory.content.contains("waves the singer away")
+                        && !memory.content.contains("Silence the singer")
+                }))
+        );
         let facts = world
             .conversation_log
             .remembered_object_facts(NpcId(1), location);
         assert_eq!(facts.len(), 1);
-        assert!(facts[0]
-            .attributes
-            .iter()
-            .any(|attribute| {
-                attribute.kind == crate::types::RememberedObjectAttributeKind::Material
-                    && attribute.value == "wool"
-            }));
+        assert!(facts[0].attributes.iter().any(|attribute| {
+            attribute.kind == parish_types::RememberedObjectAttributeKind::Material
+                && attribute.value == "wool"
+        }));
         match events.try_recv().expect("canonical dialogue event") {
             GameEvent::DialogueOccurred { npc_said, .. } => {
                 assert_eq!(npc_said.as_deref(), Some(outcome.display_text.as_str()));

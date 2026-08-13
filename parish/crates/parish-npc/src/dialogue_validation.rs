@@ -359,18 +359,12 @@ const OBJECT_LABELS: &[&str] = &[
     "ribbon", "cloth", "shawl", "coat", "book", "letter", "ring", "knife", "stone", "token",
 ];
 const OBJECT_MATERIALS: &[&str] = &[
-    "wool", "silk", "linen", "leather", "iron", "wood", "wooden", "stone", "silver", "gold",
-    "copper",
+    "wool", "silk", "linen", "leather", "iron", "wood", "wooden", "silver", "gold", "copper",
 ];
 const OBJECT_COLOURS: &[&str] = &[
     "red", "blue", "green", "brown", "black", "white", "yellow", "grey", "gray",
 ];
-const OBJECT_MARKINGS: &[&str] = &[
-    "blue stitch",
-    "red stitch",
-    "white stitch",
-    "black stitch",
-];
+const OBJECT_MARKINGS: &[&str] = &["blue stitch", "red stitch", "white stitch", "black stitch"];
 
 fn unique_supported_value(text: &str, values: &[&str]) -> Option<String> {
     let found: Vec<&str> = values
@@ -412,6 +406,19 @@ pub fn extract_remembered_object_fact(
     speaker_id: NpcId,
     location: LocationId,
 ) -> Option<RememberedObjectFact> {
+    // Questions mention candidate values without establishing them as truth
+    // ("Was the ribbon silk?"). A compound line may still begin with a clear
+    // declaration before asking a follow-up, so reject question-led shapes
+    // rather than every utterance containing a question mark.
+    let normalized_input = normalize(player_input);
+    if [
+        "was ", "is ", "are ", "did ", "does ", "do ", "what ", "which ", "who ",
+    ]
+    .iter()
+    .any(|prefix| normalized_input.starts_with(prefix))
+    {
+        return None;
+    }
     let labels: Vec<&str> = OBJECT_LABELS
         .iter()
         .copied()
@@ -501,9 +508,11 @@ fn contradicts_active_session(
     player_input: &str,
     session: Option<&parish_world::session::ActiveSessionFact>,
 ) -> bool {
-    let asks_about_session = ["song", "singer", "singing", "music", "tune", "ballad", "session"]
-        .iter()
-        .any(|marker| contains_phrase(player_input, marker));
+    let asks_about_session = [
+        "song", "singer", "singing", "music", "tune", "ballad", "session",
+    ]
+    .iter()
+    .any(|marker| contains_phrase(player_input, marker));
     session.is_some()
         && asks_about_session
         && [

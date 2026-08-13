@@ -240,7 +240,7 @@ test.describe('Input and streaming', () => {
 	}) => {
 		const rejectedCandidates = [
 			'There is no old bridge in Kilteevan that I have ever heard tell of.',
-			'A small mark like that turns a plain scrap of silk into a whole life\'s remembrance.',
+			"A small mark like that turns a plain scrap of silk into a whole life's remembrance.",
 			'Sunday is market day in the town.',
 			'There is no one singer taking the floor; only the general clatter of the room.',
 		];

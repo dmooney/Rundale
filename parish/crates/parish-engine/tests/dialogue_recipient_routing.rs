@@ -156,13 +156,7 @@ fn absent_at_mention_never_retargets_present_bystander() {
         "Seamus Gallagher",
         "I am present, though 'tis Padraig ye were addressing, not myself.".to_string(),
     );
-    let before_memories = harness
-        .app
-        .npc_manager
-        .get(seamus_id)
-        .unwrap()
-        .memory
-        .len();
+    let before_memories = harness.app.npc_manager.get(seamus_id).unwrap().memory.len();
     let mut receiver = harness.app.world.event_bus.subscribe();
 
     let emitted = harness.execute_via_real_loop("@Padraig Darcy Are you still here?");
@@ -178,20 +172,22 @@ fn absent_at_mention_never_retargets_present_bystander() {
         event,
         GameEvent::AddressedAbsentNpc { name, .. } if name == "Padraig Darcy"
     )));
-    assert!(game_events.iter().all(|event| !matches!(
-        event,
-        GameEvent::DialogueOccurred { .. }
-    )));
+    assert!(
+        game_events
+            .iter()
+            .all(|event| !matches!(event, GameEvent::DialogueOccurred { .. }))
+    );
     assert_eq!(
-        harness
-            .app
-            .npc_manager
-            .get(seamus_id)
-            .unwrap()
-            .memory
-            .len(),
+        harness.app.npc_manager.get(seamus_id).unwrap().memory.len(),
         before_memories
     );
-    assert!(harness.app.world.conversation_log.exchanges_since(0).is_empty());
+    assert!(
+        harness
+            .app
+            .world
+            .conversation_log
+            .exchanges_since(0)
+            .is_empty()
+    );
     assert_ne!(seamus_id, padraig_id);
 }

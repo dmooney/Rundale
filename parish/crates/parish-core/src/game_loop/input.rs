@@ -788,28 +788,36 @@ mod tests {
         )
         .await;
 
-        let logs = emitter.events.lock().unwrap();
-        assert!(logs.iter().any(|(name, payload)| {
-            name == "text-log"
-                && payload.get("source").and_then(|value| value.as_str()) == Some("system")
-                && payload.get("content").and_then(|value| value.as_str())
-                    == Some("Siobhan Murphy is not here.")
-        }));
-        assert!(logs.iter().all(|(_, payload)| {
-            payload
-                .get("content")
-                .and_then(|value| value.as_str())
-                .is_none_or(|content| !content.contains("LLM is not configured"))
-        }));
-        drop(logs);
+        {
+            let logs = emitter.events.lock().unwrap();
+            assert!(logs.iter().any(|(name, payload)| {
+                name == "text-log"
+                    && payload.get("source").and_then(|value| value.as_str()) == Some("system")
+                    && payload.get("content").and_then(|value| value.as_str())
+                        == Some("Siobhan Murphy is not here.")
+            }));
+            assert!(logs.iter().all(|(_, payload)| {
+                payload
+                    .get("content")
+                    .and_then(|value| value.as_str())
+                    .is_none_or(|content| !content.contains("LLM is not configured"))
+            }));
+        }
         assert!(matches!(
             bus.try_recv(),
-            Ok(crate::types::GameEvent::AddressedAbsentNpc { ref name, .. })
+            Ok(parish_types::GameEvent::AddressedAbsentNpc { ref name, .. })
                 if name == "Siobhan Murphy"
         ));
         let manager = npc_manager.lock().await;
         assert!(manager.all_npcs().all(|npc| npc.memory.is_empty()));
-        assert!(world.lock().await.conversation_log.exchanges_since(0).is_empty());
+        assert!(
+            world
+                .lock()
+                .await
+                .conversation_log
+                .exchanges_since(0)
+                .is_empty()
+        );
     }
 
     // ── Examine routing (#1424) ───────────────────────────────────────────────

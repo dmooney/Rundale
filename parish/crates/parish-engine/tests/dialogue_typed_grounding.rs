@@ -3,8 +3,8 @@
 //!
 //! Drives `execute_via_real_loop`, mocking only completed provider responses.
 
-use parish_core::npc::types::NpcState;
 use parish_core::npc::NpcId;
+use parish_core::npc::types::NpcState;
 use parish_engine::testing::GameTestHarness;
 
 const SAFE_FALLBACK: &str = parish_core::npc::INVALID_DIALOGUE_FALLBACK;
@@ -205,16 +205,18 @@ fn imperative_injection_echo_is_quarantined_by_real_loop() {
         harness.app.world.player_progress.tasks().len(),
         original_tasks
     );
-    assert!(harness
-        .app
-        .npc_manager
-        .get(speaker_id)
-        .unwrap()
-        .memory
-        .recent(20)
-        .iter()
-        .all(|memory| !memory.content.contains(reply)
-            && !memory.content.contains("invented directions")));
+    assert!(
+        harness
+            .app
+            .npc_manager
+            .get(speaker_id)
+            .unwrap()
+            .memory
+            .recent(20)
+            .iter()
+            .all(|memory| !memory.content.contains(reply)
+                && !memory.content.contains("invented directions"))
+    );
 }
 
 #[test]
@@ -370,17 +372,21 @@ fn player_established_object_material_survives_a_multiturn_real_loop() {
         .conversation_log
         .remembered_object_facts(speaker_id, harness.app.world.player_location);
     assert_eq!(facts.len(), 1);
-    assert!(facts[0]
-        .attributes
-        .iter()
-        .any(|attribute| attribute.value == "wool"));
-    assert!(harness
-        .app
-        .npc_manager
-        .get(speaker_id)
-        .unwrap()
-        .memory
-        .recent(20)
-        .iter()
-        .all(|memory| !memory.content.contains("scrap of silk")));
+    assert!(
+        facts[0]
+            .attributes
+            .iter()
+            .any(|attribute| attribute.value == "wool")
+    );
+    assert!(
+        harness
+            .app
+            .npc_manager
+            .get(speaker_id)
+            .unwrap()
+            .memory
+            .recent(20)
+            .iter()
+            .all(|memory| !memory.content.contains("scrap of silk"))
+    );
 }
