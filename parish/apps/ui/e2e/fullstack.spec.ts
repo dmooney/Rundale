@@ -100,7 +100,9 @@ test.describe('Real browser + parish-server acceptance', () => {
 
 		await input.fill('/fork alternate');
 		await input.press('Enter');
-		await expect(page.getByText("Created new branch 'alternate'.")).toBeVisible();
+		await expect(
+			page.getByText("Created new branch 'alternate'."),
+		).toBeVisible();
 
 		await input.fill('go to the crossroads');
 		await input.press('Enter');
