@@ -7,7 +7,10 @@ use parish_npc::manager::NpcManager;
 use parish_npc::memory::{LongTermMemory, ShortTermMemory};
 use parish_npc::types::Intelligence;
 use parish_npc::{Npc, NpcPersistedFields};
-use parish_types::{LocationId, NpcId, TaskStatus};
+use parish_types::{
+    LocationId, NpcId, RememberedObjectAttribute, RememberedObjectAttributeKind,
+    RememberedObjectFact, TaskStatus,
+};
 use parish_world::WorldState;
 
 use super::types::{ClockSnapshot, GameSnapshot, NpcSnapshot};
@@ -275,6 +278,49 @@ fn test_game_snapshot_restore() {
     assert_eq!(new_world.text_log[0], "Test entry");
     assert_eq!(new_npcs.npc_count(), 1);
     assert!(new_npcs.get(NpcId(1)).is_some());
+}
+
+#[test]
+fn dialogue_session_and_object_facts_survive_snapshot_json_and_restore() {
+    let mut world = WorldState::new();
+    let location = world.player_location;
+    world.active_session = Some(parish_world::session::ActiveSessionFact {
+        date: chrono::NaiveDate::from_ymd_opt(1820, 3, 20).unwrap(),
+        location,
+        vignette: parish_world::session::SessionVignette {
+            musician: "An old man's voice lifts from the settle; he".to_string(),
+            tune: "strikes up a ballad".to_string(),
+            ambient: "The room leans in".to_string(),
+            verse: Some("The summer is gone".to_string()),
+        },
+    });
+    world
+        .conversation_log
+        .remember_object_fact(RememberedObjectFact {
+            speaker_id: NpcId(1),
+            location,
+            label: "ribbon".to_string(),
+            attributes: vec![RememberedObjectAttribute {
+                kind: RememberedObjectAttributeKind::Material,
+                value: "wool".to_string(),
+            }],
+        });
+    let expected = world.active_session.clone();
+    let snapshot = GameSnapshot::capture(&world, &NpcManager::new());
+    let encoded = serde_json::to_string(&snapshot).unwrap();
+    let decoded: GameSnapshot = serde_json::from_str(&encoded).unwrap();
+    let mut restored_world = WorldState::new();
+    decoded.restore(&mut restored_world, &mut NpcManager::new());
+
+    assert_eq!(restored_world.active_session, expected);
+    assert_eq!(
+        restored_world
+            .conversation_log
+            .remembered_object_facts(NpcId(1), location)[0]
+            .attributes[0]
+            .value,
+        "wool"
+    );
 }
 
 #[test]

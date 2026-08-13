@@ -106,6 +106,7 @@ mod tests {
             id: LocationId(1),
             name: name.to_string(),
             description_template: template.to_string(),
+            landmarks: vec![],
             indoor: false,
             public: true,
             connections: vec![],
