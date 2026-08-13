@@ -602,7 +602,11 @@ fn npc_mention_candidates(
 ) -> Vec<NpcMentionCandidate> {
     let mut candidates = npc_location_mention_candidate_pairs(world, npc_manager);
 
-    if is_explicit_roster_presence_query(raw) {
+    // An explicit `@name` is an identity-bearing routing token even when the
+    // NPC is absent. Resolve it against the full authored roster so the
+    // absent-aware target seam can fail closed instead of ambient-falling back
+    // to a bystander (#1866).
+    if raw.contains('@') || is_explicit_roster_presence_query(raw) {
         candidates.extend(roster_presence_mention_candidate_pairs(npc_manager));
     }
 
@@ -676,14 +680,13 @@ fn find_natural_npc_mentions(
 
 /// Extracts all valid `@mentions` that match NPCs at the player's location.
 ///
-/// Matching is done against the NPCs currently present. Explicit `@mentions`
-/// and natural free-text names match introduced full/first names and visible
-/// display names, so `Padraig`, `Padraig Darcy`, and multi-word lowercase
-/// descriptions like `an older man behind the bar` remain parseable. Ambiguous
-/// mention text is ignored rather than routed to an arbitrary co-located NPC.
-/// Explicit presence/where/seen questions additionally match unambiguous
-/// full-roster names and role titles so "Is Father Declan here?" can report
-/// the named person's absence instead of falling through as ambient input.
+/// Natural free-text matching uses NPCs currently present. Explicit
+/// `@mentions` additionally use the full roster because the named identity is
+/// authoritative even when absent; presence/where/seen questions do the same.
+/// Introduced full/first names and visible display names remain parseable, so
+/// `Padraig`, `Padraig Darcy`, and multi-word lowercase descriptions like `an
+/// older man behind the bar` work. Ambiguous mention text is ignored rather
+/// than routed to an arbitrary NPC.
 pub fn extract_npc_mentions(
     raw: &str,
     world: &WorldState,
@@ -1307,11 +1310,17 @@ pub fn prepare_npc_conversation_turn(
             .collect(),
         prior_openers: Vec::new(),
         current_festival: typed_grounding.current_festival,
+        current_weekday: typed_grounding.current_weekday,
+        current_day_type: typed_grounding.current_day_type,
+        active_session: typed_grounding.active_session,
+        remembered_objects: typed_grounding.remembered_objects,
         person_facts: typed_grounding.person_facts,
         location_facts: typed_grounding.location_facts,
         referent_context: typed_grounding.referent_context,
         dialogue_obligations,
     };
+
+    context.push_str(&crate::npc::render_dialogue_grounding_contract(&grounding));
 
     Some(NpcConversationSetup {
         display_name,
@@ -1812,6 +1821,33 @@ mod tests {
             "full-roster aliases should stay gated to explicit presence queries"
         );
         assert_eq!(extracted.remaining, casual);
+    }
+
+    #[test]
+    fn explicit_at_mention_preserves_absent_roster_identity() {
+        let world = WorldState::new();
+        let mut npc_mgr = NpcManager::new();
+
+        let mut bystander = Npc::new_test_npc();
+        bystander.id = NpcId(1);
+        bystander.name = "Liam Murphy".to_string();
+        bystander.set_location(world.player_location);
+        let mut absent = Npc::new_test_npc();
+        absent.id = NpcId(2);
+        absent.name = "Siobhan Murphy".to_string();
+        absent.set_location(LocationId(world.player_location.0 + 1));
+        npc_mgr.add_npc(bystander);
+        npc_mgr.add_npc(absent);
+        npc_mgr.mark_introduced(NpcId(1));
+        npc_mgr.mark_introduced(NpcId(2));
+
+        let extracted =
+            extract_npc_mentions("@Siobhan Murphy Are you still here?", &world, &npc_mgr);
+        assert_eq!(extracted.names, vec!["Siobhan Murphy".to_string()]);
+        assert_eq!(extracted.remaining, "Are you still here?");
+        let resolved = resolve_addressed_targets(&world, &npc_mgr, &extracted.names);
+        assert!(resolved.resolved.is_empty());
+        assert_eq!(resolved.absent, vec!["Siobhan Murphy".to_string()]);
     }
 
     #[test]

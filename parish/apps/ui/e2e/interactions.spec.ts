@@ -235,6 +235,47 @@ test.describe('Input and streaming', () => {
 		await expect(chat).not.toContainText(forbiddenCandidate);
 	});
 
+	test('typed grounding contradictions never transiently render', async ({
+		page,
+	}) => {
+		const rejectedCandidates = [
+			'There is no old bridge in Kilteevan that I have ever heard tell of.',
+			'A small mark like that turns a plain scrap of silk into a whole life\'s remembrance.',
+			'Sunday is market day in the town.',
+			'There is no one singer taking the floor; only the general clatter of the room.',
+		];
+		const safeFallback = 'I beg your pardon; I lost the thread of that.';
+		const chat = page.getByTestId('chat-panel');
+
+		await emitEvent(page, 'loading', { active: true });
+		await emitEvent(page, 'text-log', {
+			id: 'typed-grounding-turn',
+			source: 'Padraig Darcy',
+			content: '',
+			stream_turn_id: 1872,
+		});
+		for (const candidate of rejectedCandidates) {
+			await emitEvent(page, 'dialogue-candidate-token', {
+				token: candidate,
+				turn_id: 1872,
+				source: 'provider',
+			});
+			await expect(chat).not.toContainText(candidate);
+		}
+		await emitEvent(page, 'stream-token', {
+			token: safeFallback,
+			turn_id: 1872,
+			source: 'Padraig Darcy',
+			message_id: 'typed-grounding-turn',
+		});
+		await emitEvent(page, 'stream-turn-end', { turn_id: 1872 });
+		await emitEvent(page, 'stream-end', { hints: [] });
+		await expect(chat).toContainText(safeFallback);
+		for (const candidate of rejectedCandidates) {
+			await expect(chat).not.toContainText(candidate);
+		}
+	});
+
 	test('an incomplete multi-facet candidate never appears before its complete fallback', async ({
 		page,
 	}) => {

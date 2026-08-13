@@ -32,6 +32,7 @@ fn make_test_snapshot() -> GameSnapshot {
         player_name: None,
         player_progress: Default::default(),
         npcs_who_know_player_name: Default::default(),
+        active_session: None,
     }
 }
 

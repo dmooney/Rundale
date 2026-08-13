@@ -148,3 +148,50 @@ fn explicit_talk_recipient_does_not_make_present_question_subject_reply() {
         "a person mentioned as the question's subject must not become a second speaker"
     );
 }
+
+#[test]
+fn absent_at_mention_never_retargets_present_bystander() {
+    let (mut harness, seamus_id, padraig_id) = setup(false);
+    harness.mock().push_for(
+        "Seamus Gallagher",
+        "I am present, though 'tis Padraig ye were addressing, not myself.".to_string(),
+    );
+    let before_memories = harness
+        .app
+        .npc_manager
+        .get(seamus_id)
+        .unwrap()
+        .memory
+        .len();
+    let mut receiver = harness.app.world.event_bus.subscribe();
+
+    let emitted = harness.execute_via_real_loop("@Padraig Darcy Are you still here?");
+    let game_events = drain(&mut receiver);
+
+    assert!(emitted.iter().any(|(name, payload)| {
+        name == "text-log"
+            && payload.get("source").and_then(serde_json::Value::as_str) == Some("system")
+            && payload.get("content").and_then(serde_json::Value::as_str)
+                == Some("Padraig Darcy is not here.")
+    }));
+    assert!(game_events.iter().any(|event| matches!(
+        event,
+        GameEvent::AddressedAbsentNpc { name, .. } if name == "Padraig Darcy"
+    )));
+    assert!(game_events.iter().all(|event| !matches!(
+        event,
+        GameEvent::DialogueOccurred { .. }
+    )));
+    assert_eq!(
+        harness
+            .app
+            .npc_manager
+            .get(seamus_id)
+            .unwrap()
+            .memory
+            .len(),
+        before_memories
+    );
+    assert!(harness.app.world.conversation_log.exchanges_since(0).is_empty());
+    assert_ne!(seamus_id, padraig_id);
+}

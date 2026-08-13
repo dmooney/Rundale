@@ -20,13 +20,14 @@ use crate::ipc::config::GameConfig;
 /// 3. **Time** — only fires at dusk, night, or midnight. At other hours
 ///    the pub is effectively empty of musicians and the command prints
 ///    a hint rather than a vignette.
-pub(super) fn handle_session_command(world: &WorldState, config: &GameConfig) -> CommandResult {
+pub(super) fn handle_session_command(world: &mut WorldState, config: &GameConfig) -> CommandResult {
     if config.flags.is_disabled("session") {
         return CommandResult::text("The session feature is currently disabled.");
     }
 
     let loc = world.current_location();
     let loc_name = loc.name.clone();
+    let loc_id = loc.id;
     let is_pub = location_is_pub(world);
     if !is_pub {
         return CommandResult::text(format!(
@@ -42,8 +43,13 @@ pub(super) fn handle_session_command(world: &WorldState, config: &GameConfig) ->
     }
 
     let date = world.clock.now().date_naive();
-    let seed = session_seed(date, loc.id.0);
+    let seed = session_seed(date, loc_id.0);
     let v = vignette_from_seed(seed, world.weather, world.clock.season());
+    world.active_session = Some(crate::world::session::ActiveSessionFact {
+        date,
+        location: loc_id,
+        vignette: v.clone(),
+    });
 
     // Compose the vignette into a single response. Paragraph-style so
     // the frontend's prose renderer handles line wrapping; the pub name
@@ -80,4 +86,38 @@ fn location_is_pub(world: &WorldState) -> bool {
                 .any(|a| a.to_lowercase().contains("pub"))
         })
         .unwrap_or(false)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn successful_session_records_exact_typed_scene_fact() {
+        let mut world = WorldState::new();
+        world.clock.advance(11 * 60);
+        world
+            .locations
+            .get_mut(&world.player_location)
+            .unwrap()
+            .name = "Darcy's Pub".to_string();
+        let config = GameConfig::default();
+
+        let result = handle_session_command(&mut world, &config);
+        let fact = world.active_session.as_ref().expect("active session fact");
+        assert_eq!(fact.location, world.player_location);
+        assert!(result.response.contains(&fact.vignette.musician));
+        assert!(result.response.contains(&fact.vignette.tune));
+        if let Some(verse) = &fact.vignette.verse {
+            assert!(result.response.contains(verse));
+        }
+    }
+
+    #[test]
+    fn failed_session_command_does_not_invent_scene_fact() {
+        let mut world = WorldState::new();
+        let result = handle_session_command(&mut world, &GameConfig::default());
+        assert!(result.response.contains("no music here"));
+        assert!(world.active_session.is_none());
+    }
 }

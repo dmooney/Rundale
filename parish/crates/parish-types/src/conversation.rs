@@ -10,6 +10,42 @@ use std::collections::{BTreeSet, VecDeque};
 
 use crate::ids::{LocationId, NpcId};
 
+/// Supported machine-comparable object attribute kinds.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum RememberedObjectAttributeKind {
+    Material,
+    Colour,
+    Marking,
+}
+
+impl std::fmt::Display for RememberedObjectAttributeKind {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str(match self {
+            Self::Material => "material",
+            Self::Colour => "colour",
+            Self::Marking => "marking",
+        })
+    }
+}
+
+/// One player-established attribute of a concrete object discussed with an NPC.
+/// Free-form model output never populates this structure.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RememberedObjectAttribute {
+    pub kind: RememberedObjectAttributeKind,
+    pub value: String,
+}
+
+/// Bounded, durable object facts established by the player in conversation.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RememberedObjectFact {
+    pub speaker_id: NpcId,
+    pub location: LocationId,
+    pub label: String,
+    pub attributes: Vec<RememberedObjectAttribute>,
+}
+
 /// Maximum number of exchanges retained globally.
 const LOG_CAPACITY: usize = 30;
 
@@ -60,6 +96,11 @@ pub struct ConversationLog {
     /// the number of retained exchanges.
     #[serde(default)]
     total_exchanges: ConversationCursor,
+    /// Player-authored object attributes used for conservative factual
+    /// continuity. This is separate from prose memories so model text can
+    /// never rewrite a canonical attribute.
+    #[serde(default)]
+    remembered_objects: VecDeque<RememberedObjectFact>,
 }
 
 impl ConversationLog {
@@ -69,7 +110,47 @@ impl ConversationLog {
             exchanges: VecDeque::with_capacity(LOG_CAPACITY),
             contacted_speakers: BTreeSet::new(),
             total_exchanges: 0,
+            remembered_objects: VecDeque::new(),
         }
+    }
+
+    /// Merge one player-established object fact into the bounded durable set.
+    pub fn remember_object_fact(&mut self, fact: RememberedObjectFact) {
+        const MAX_OBJECT_FACTS: usize = 16;
+        if let Some(existing) = self.remembered_objects.iter_mut().find(|existing| {
+            existing.speaker_id == fact.speaker_id
+                && existing.location == fact.location
+                && existing.label.eq_ignore_ascii_case(&fact.label)
+        }) {
+            for attribute in fact.attributes {
+                if let Some(prior) = existing
+                    .attributes
+                    .iter_mut()
+                    .find(|prior| prior.kind == attribute.kind)
+                {
+                    *prior = attribute;
+                } else {
+                    existing.attributes.push(attribute);
+                }
+            }
+            return;
+        }
+        if self.remembered_objects.len() >= MAX_OBJECT_FACTS {
+            self.remembered_objects.pop_front();
+        }
+        self.remembered_objects.push_back(fact);
+    }
+
+    /// Facts established with one speaker at one location, oldest first.
+    pub fn remembered_object_facts(
+        &self,
+        speaker_id: NpcId,
+        location: LocationId,
+    ) -> Vec<&RememberedObjectFact> {
+        self.remembered_objects
+            .iter()
+            .filter(|fact| fact.speaker_id == speaker_id && fact.location == location)
+            .collect()
     }
 
     /// Records a new exchange, evicting the oldest if at capacity.
@@ -512,6 +593,56 @@ mod tests {
 
         assert_eq!(inputs, vec!["first", "second", "third"]);
         assert_eq!(restored, log);
+    }
+
+    #[test]
+    fn remembered_object_facts_merge_by_scope_and_survive_serde() {
+        let mut log = ConversationLog::new();
+        log.remember_object_fact(RememberedObjectFact {
+            speaker_id: NpcId(1),
+            location: LocationId(2),
+            label: "ribbon".to_string(),
+            attributes: vec![RememberedObjectAttribute {
+                kind: RememberedObjectAttributeKind::Material,
+                value: "wool".to_string(),
+            }],
+        });
+        log.remember_object_fact(RememberedObjectFact {
+            speaker_id: NpcId(1),
+            location: LocationId(2),
+            label: "Ribbon".to_string(),
+            attributes: vec![RememberedObjectAttribute {
+                kind: RememberedObjectAttributeKind::Colour,
+                value: "red".to_string(),
+            }],
+        });
+        log.remember_object_fact(RememberedObjectFact {
+            speaker_id: NpcId(2),
+            location: LocationId(2),
+            label: "ribbon".to_string(),
+            attributes: vec![RememberedObjectAttribute {
+                kind: RememberedObjectAttributeKind::Material,
+                value: "silk".to_string(),
+            }],
+        });
+
+        let encoded = serde_json::to_string(&log).unwrap();
+        let restored: ConversationLog = serde_json::from_str(&encoded).unwrap();
+        let scoped = restored.remembered_object_facts(NpcId(1), LocationId(2));
+        assert_eq!(scoped.len(), 1);
+        assert_eq!(scoped[0].attributes.len(), 2);
+        assert!(scoped[0]
+            .attributes
+            .iter()
+            .any(|attribute| attribute.kind == RememberedObjectAttributeKind::Material && attribute.value == "wool"));
+        assert!(scoped[0]
+            .attributes
+            .iter()
+            .any(|attribute| attribute.kind == RememberedObjectAttributeKind::Colour && attribute.value == "red"));
+        assert_eq!(
+            restored.remembered_object_facts(NpcId(2), LocationId(2))[0].attributes[0].value,
+            "silk"
+        );
     }
 
     #[test]
