@@ -51,7 +51,14 @@
 	"StreamTokenPayload": ["token", "turn_id", "source"],
 	"TextLogPayload": ["id", "source", "content"],
 	"StreamEndPayload": ["hints"],
-	"StreamTurnEndPayload": ["turn_id"],
+	"StreamTurnEndPayload": [
+		"turn_id",
+		"status",
+		"message_id",
+		"source",
+		"final_text",
+		"recovery_message"
+	],
 	"DialogueCorrectedPayload": ["turn_id", "corrected_text", "message_id"],
 	"NpcReactionPayload": ["message_id", "emoji", "source"],
 	"LoadingPayload": ["active"],

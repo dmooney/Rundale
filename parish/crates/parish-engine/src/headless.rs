@@ -1506,12 +1506,42 @@ fn committed_headless_lines(emissions: &[(String, serde_json::Value)]) -> Vec<St
                 let Some(turn_id) = payload.get("turn_id").and_then(|value| value.as_u64()) else {
                     continue;
                 };
+                if payload.get("status").and_then(|value| value.as_str()) == Some("failed") {
+                    if let Some(recovery) = payload
+                        .get("recovery_message")
+                        .and_then(|value| value.as_str())
+                        .filter(|value| !value.is_empty())
+                    {
+                        lines.push(recovery.to_string());
+                    }
+                    continue;
+                }
                 let Some(turn) = turns.get(&turn_id) else {
+                    if let Some(final_text) = payload
+                        .get("final_text")
+                        .and_then(|value| value.as_str())
+                        .filter(|value| !value.is_empty())
+                    {
+                        let source = payload
+                            .get("source")
+                            .and_then(|value| value.as_str())
+                            .unwrap_or_default();
+                        lines.push(if source.is_empty() {
+                            final_text.to_string()
+                        } else {
+                            format!("{source}: {final_text}")
+                        });
+                    }
                     continue;
                 };
-                let dialogue = turn.corrected.clone().unwrap_or_else(|| {
-                    parish_core::npc::parse_npc_stream_response(&turn.streamed).dialogue
-                });
+                let dialogue = payload
+                    .get("final_text")
+                    .and_then(|value| value.as_str())
+                    .map(str::to_string)
+                    .or_else(|| turn.corrected.clone())
+                    .unwrap_or_else(|| {
+                        parish_core::npc::parse_npc_stream_response(&turn.streamed).dialogue
+                    });
                 if !dialogue.trim().is_empty() {
                     if turn.source.is_empty() {
                         lines.push(dialogue);

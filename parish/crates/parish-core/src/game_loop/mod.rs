@@ -58,6 +58,9 @@
 pub struct GameInputOutcome {
     /// Player-task post-states in the order they were applied.
     pub task_mutations: Vec<parish_types::PlayerTask>,
+    /// Player-visible recovery when an initiated NPC turn produced no
+    /// canonical exchange (for example a length-terminated provider stream).
+    pub dialogue_failure: Option<String>,
 }
 
 impl GameInputOutcome {
@@ -65,6 +68,7 @@ impl GameInputOutcome {
     pub fn from_task(task: Option<parish_types::PlayerTask>) -> Self {
         Self {
             task_mutations: task.into_iter().collect(),
+            dialogue_failure: None,
         }
     }
 }

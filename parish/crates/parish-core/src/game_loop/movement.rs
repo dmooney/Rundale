@@ -275,7 +275,7 @@ pub async fn handle_movement(
                 // `stream-end` for the whole batch).
                 emitter_for_turn_end.emit_event(
                     "stream-turn-end",
-                    serde_json::to_value(StreamTurnEndPayload { turn_id })
+                    serde_json::to_value(StreamTurnEndPayload::completed_stream(turn_id))
                         .unwrap_or(serde_json::Value::Null),
                 );
             },
