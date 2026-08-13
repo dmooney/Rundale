@@ -9,6 +9,7 @@ use parish_engine::testing::GameTestHarness;
 
 const ISSUE_INPUT: &str = "Good morning, Father. Peig Hannigan sent me. I'm Aiden Carney, seeking honest work and somewhere dry to sleep.";
 const BAD_REPLY: &str = "'Tis a fine morning indeed. Ye've come to the right place for a brief moment of peace. What brings ye to this church?";
+const WORK_REFERRAL_INPUT: &str = "Good morning. I'm Eilis Byrne, newly arrived and looking for honest work. Is there anyone needing a hand today?";
 
 fn harness_with_priest() -> (GameTestHarness, NpcId, String) {
     let mut harness = GameTestHarness::new();
@@ -136,4 +137,53 @@ fn complete_noncommittal_completion_survives_the_real_loop() {
     let events = harness.execute_via_real_loop(&format!("talk to {speaker} about {ISSUE_INPUT}"));
 
     assert_eq!(streamed_text(&events), good);
+}
+
+#[test]
+fn exact_work_referral_non_answer_is_grounded_in_real_loop_ui_without_task_state() {
+    let (mut harness, _speaker_id, speaker) = harness_with_priest();
+    let tasks_before = harness.app.world.player_progress.tasks().len();
+    harness.mock().push_json_for(
+        &speaker,
+        serde_json::json!({
+            "dialogue": "Plainly, then—what brings ye to Kilteevan?",
+            "action": "shrugs",
+            "mood": "curious",
+            "assigned_task": "Invent a job"
+        })
+        .to_string(),
+    );
+
+    let events =
+        harness.execute_via_real_loop(&format!("talk to {speaker} about {WORK_REFERRAL_INPUT}"));
+    let rendered = streamed_text(&events);
+    let serialized = serde_json::to_string(&events).expect("UI events serialize");
+
+    assert!(rendered.contains("Siobhan Murphy"), "{rendered}");
+    assert!(rendered.contains("Farmer at Murphy's Farm"), "{rendered}");
+    assert!(rendered.contains("cannot say"), "{rendered}");
+    assert!(!serialized.contains("Invent a job"), "{serialized}");
+    assert!(!serialized.contains("shrugs"), "{serialized}");
+    assert_eq!(
+        harness.app.world.player_progress.tasks().len(),
+        tasks_before
+    );
+}
+
+#[test]
+fn exact_declarative_work_referral_gets_grounded_real_loop_answer() {
+    let input = "I came to Kilteevan because I need honest work. Tell me plainly which farmer or tradesperson I should ask for a task today.";
+    let (mut harness, _speaker_id, speaker) = harness_with_priest();
+    harness.mock().push_json_for(
+        &speaker,
+        candidate("I cannot promise work, but I understand you are seeking it."),
+    );
+
+    let events = harness.execute_via_real_loop(&format!("talk to {speaker} about {input}"));
+    let rendered = streamed_text(&events);
+
+    assert!(rendered.contains("Siobhan Murphy"), "{rendered}");
+    assert!(rendered.contains("Farmer at Murphy's Farm"), "{rendered}");
+    assert!(rendered.contains("cannot say"), "{rendered}");
+    assert!(harness.app.world.player_progress.is_empty());
 }

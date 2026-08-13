@@ -39,6 +39,7 @@ impl NpcSnapshot {
             knowledge,
             state,
             deflated_summary,
+            reaction_log,
             last_activity,
             is_ill,
             doom,
@@ -72,6 +73,7 @@ impl NpcSnapshot {
             // demotion summary on every save/load cycle. Round-tripped
             // through NpcSnapshot.deflated_summary now.
             deflated_summary,
+            reaction_log,
         }
     }
 
@@ -106,6 +108,7 @@ impl NpcSnapshot {
             doom,
             banshee_heralded,
             deflated_summary,
+            reaction_log,
         } = self;
 
         Npc::from_persisted_fields(NpcPersistedFields {
@@ -135,6 +138,7 @@ impl NpcSnapshot {
             // demotion summary on every save/load cycle. Round-tripped
             // through NpcSnapshot.deflated_summary now.
             deflated_summary,
+            reaction_log,
         })
     }
 }

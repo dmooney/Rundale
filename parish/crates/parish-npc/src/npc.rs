@@ -66,6 +66,8 @@ pub struct NpcPersistedFields {
     pub state: NpcState,
     /// Last cognitive-tier deflation summary.
     pub deflated_summary: Option<NpcSummary>,
+    /// Durable directional reaction history.
+    pub reaction_log: ReactionLog,
     /// Last Tier-3 activity summary.
     pub last_activity: Option<String>,
     /// Current illness flag.
@@ -165,8 +167,8 @@ pub struct Npc {
 impl Npc {
     /// Restores persisted gameplay state into a fresh live NPC incarnation.
     ///
-    /// Transient reaction history and all async-grounding state deliberately
-    /// start fresh.
+    /// Async-grounding state deliberately starts fresh; player-earned and
+    /// NPC-authored directional reaction history is restored.
     pub fn from_persisted_fields(fields: NpcPersistedFields) -> Self {
         let NpcPersistedFields {
             id,
@@ -188,6 +190,7 @@ impl Npc {
             knowledge,
             state,
             deflated_summary,
+            reaction_log,
             last_activity,
             is_ill,
             doom,
@@ -216,7 +219,7 @@ impl Npc {
             grounding_revision: next_grounding_revision(),
             observed_activity_fingerprint: None,
             deflated_summary,
-            reaction_log: ReactionLog::default(),
+            reaction_log,
             last_activity,
             is_ill,
             doom,
@@ -224,8 +227,8 @@ impl Npc {
         }
     }
 
-    /// Captures every persisted field while deliberately excluding transient
-    /// reaction and async-grounding state.
+    /// Captures every persisted field while deliberately excluding only
+    /// process-local async-grounding state.
     pub fn persisted_fields(&self) -> NpcPersistedFields {
         let Self {
             id,
@@ -249,7 +252,7 @@ impl Npc {
             grounding_revision: _,
             observed_activity_fingerprint: _,
             deflated_summary,
-            reaction_log: _,
+            reaction_log,
             last_activity,
             is_ill,
             doom,
@@ -276,6 +279,7 @@ impl Npc {
             knowledge: knowledge.clone(),
             state: state.clone(),
             deflated_summary: deflated_summary.clone(),
+            reaction_log: reaction_log.clone(),
             last_activity: last_activity.clone(),
             is_ill: *is_ill,
             doom: *doom,

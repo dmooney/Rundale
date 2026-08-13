@@ -317,6 +317,71 @@ fn rejected_anachronistic_candidate_has_identical_fallback_across_modes() {
 }
 
 #[test]
+fn authored_landmark_rejection_has_identical_fallback_across_modes() {
+    let mut harness = GameTestHarness::new();
+    let (speaker_id, speaker_name) = isolate_one_speaker(&mut harness);
+    let kilteevan = harness
+        .app
+        .world
+        .graph
+        .location_ids()
+        .into_iter()
+        .find(|id| {
+            harness
+                .app
+                .world
+                .graph
+                .get(*id)
+                .is_some_and(|location| location.name == "Kilteevan Village")
+        })
+        .expect("Rundale contains Kilteevan Village");
+    harness.app.world.player_location = kilteevan;
+    harness
+        .app
+        .npc_manager
+        .get_mut(speaker_id)
+        .unwrap()
+        .set_location_and_state(kilteevan, NpcState::Present);
+    let input =
+        format!("talk to {speaker_name} about Is there an old bridge in Kilteevan Village?");
+    let raw = "There is no old bridge in Kilteevan that I have ever heard tell of.";
+    let response = serde_json::json!({
+        "dialogue": raw,
+        "action": "points away from the stream",
+        "mood": "certain",
+        "assigned_task": "Search elsewhere"
+    })
+    .to_string();
+    let pre = GameSnapshot::capture(&harness.app.world, &harness.app.npc_manager);
+
+    harness.add_canned_response(&speaker_name, &response);
+    let mut legacy_rx = harness.app.world.event_bus.subscribe();
+    let _ = harness.execute(&input);
+    let legacy = dialogue_events(&drain(&mut legacy_rx));
+
+    pre.restore(&mut harness.app.world, &mut harness.app.npc_manager);
+    harness
+        .mock()
+        .push_json_for(first_word(&speaker_name), &response);
+    let mut real_rx = harness.app.world.event_bus.subscribe();
+    let ui_events = harness.execute_via_real_loop(&input);
+    let real = dialogue_events(&drain(&mut real_rx));
+
+    assert_eq!(legacy, real);
+    assert_eq!(real.len(), 1);
+    let event = real.iter().next().unwrap();
+    assert!(event.contains("I beg your pardon; I lost the thread of that."));
+    for rejected in [raw, "points away", "Search elsewhere"] {
+        assert!(!event.contains(rejected));
+        assert!(
+            !serde_json::to_string(&ui_events)
+                .unwrap()
+                .contains(rejected)
+        );
+    }
+}
+
+#[test]
 fn incomplete_multifacet_reply_has_identical_obligation_fallback_across_modes() {
     let mut harness = GameTestHarness::new();
     let (_speaker_id, speaker_name) = isolate_one_speaker(&mut harness);
@@ -492,6 +557,50 @@ fn grounded_task_assignment_is_identical_in_legacy_and_real_loops() {
         legacy_events, real_events,
         "legacy harness and real game loop must publish identical task assignment events"
     );
+}
+
+#[test]
+fn grounded_work_referral_fallback_is_identical_in_legacy_and_real_loops() {
+    let mut harness = GameTestHarness::new();
+    let (_speaker_id, speaker_name) = isolate_one_speaker(&mut harness);
+    let input = "Good morning. I'm Eilis Byrne, newly arrived and looking for honest work. Is there anyone needing a hand today?";
+    let response = serde_json::json!({
+        "dialogue": "Plainly, then—what brings ye to Kilteevan?",
+        "action": "shrugs",
+        "mood": "curious",
+        "language_hints": [],
+        "assigned_task": "Invent a job",
+        "internal_thought": null
+    })
+    .to_string();
+    let pre = GameSnapshot::capture(&harness.app.world, &harness.app.npc_manager);
+
+    harness.add_canned_response(&speaker_name, &response);
+    let mut legacy_rx = harness.app.world.event_bus.subscribe();
+    let _ = harness.execute(input);
+    let legacy_stream = drain(&mut legacy_rx);
+    let legacy = dialogue_events(&legacy_stream);
+    let legacy_tasks = player_task_events(&legacy_stream);
+    assert!(harness.app.world.player_progress.is_empty());
+
+    pre.restore(&mut harness.app.world, &mut harness.app.npc_manager);
+    harness
+        .mock()
+        .push_json_for(first_word(&speaker_name), &response);
+    let mut real_rx = harness.app.world.event_bus.subscribe();
+    let _ = harness.execute_via_real_loop(input);
+    let real_stream = drain(&mut real_rx);
+    let real = dialogue_events(&real_stream);
+    let real_tasks = player_task_events(&real_stream);
+
+    assert_eq!(legacy, real);
+    assert_eq!(legacy_tasks, real_tasks);
+    assert!(real_tasks.is_empty());
+    assert!(harness.app.world.player_progress.is_empty());
+    let rendered = real.iter().cloned().collect::<String>();
+    assert!(rendered.contains("Siobhan Murphy"), "{rendered}");
+    assert!(rendered.contains("Murphy's Farm"), "{rendered}");
+    assert!(!rendered.contains("Invent a job"), "{rendered}");
 }
 
 /// C6: the comparison the parity test relies on must flag a path that drops the

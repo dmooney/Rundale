@@ -16,6 +16,16 @@ use tokio::sync::broadcast;
 use crate::ids::{LocationId, NpcId};
 use crate::player_progress::{PlayerTask, TaskStatus};
 
+/// Authoritative direction of a nonverbal reaction retained in NPC history.
+#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, PartialEq, Eq)]
+pub enum ReactionDirection {
+    /// The player selected a reaction to something the NPC said.
+    #[default]
+    PlayerToNpc,
+    /// The NPC automatically reacted to something the player said.
+    NpcToPlayer,
+}
+
 /// Capacity of the broadcast channel.
 ///
 /// Subscribers that fall behind by more than this many events will
@@ -43,6 +53,19 @@ pub struct ContextEventEnvelope {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(tag = "type")]
 pub enum GameEvent {
+    /// A directional nonverbal reaction was added to an NPC's durable history.
+    ReactionRecorded {
+        /// NPC whose reaction history changed.
+        npc_id: NpcId,
+        /// Whether the player or NPC performed the reaction.
+        direction: ReactionDirection,
+        /// Canonical reaction emoji.
+        emoji: String,
+        /// Dialogue snippet that triggered the reaction.
+        context: String,
+        /// When the reaction happened.
+        timestamp: DateTime<Utc>,
+    },
     /// A dialogue occurred between the player and an NPC.
     DialogueOccurred {
         /// Which NPC spoke.
@@ -263,7 +286,8 @@ impl GameEvent {
     /// Returns the timestamp of this event.
     pub fn timestamp(&self) -> DateTime<Utc> {
         match self {
-            GameEvent::DialogueOccurred { timestamp, .. }
+            GameEvent::ReactionRecorded { timestamp, .. }
+            | GameEvent::DialogueOccurred { timestamp, .. }
             | GameEvent::MoodChanged { timestamp, .. }
             | GameEvent::RelationshipChanged { timestamp, .. }
             | GameEvent::NpcArrived { timestamp, .. }
@@ -284,6 +308,7 @@ impl GameEvent {
     /// Returns the discriminant name for logging/debugging.
     pub fn event_type(&self) -> &str {
         match self {
+            GameEvent::ReactionRecorded { .. } => "ReactionRecorded",
             GameEvent::DialogueOccurred { .. } => "DialogueOccurred",
             GameEvent::MoodChanged { .. } => "MoodChanged",
             GameEvent::RelationshipChanged { .. } => "RelationshipChanged",

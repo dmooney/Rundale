@@ -51,7 +51,14 @@
 	"StreamTokenPayload": ["token", "turn_id", "source"],
 	"TextLogPayload": ["id", "source", "content"],
 	"StreamEndPayload": ["hints"],
-	"StreamTurnEndPayload": ["turn_id"],
+	"StreamTurnEndPayload": [
+		"turn_id",
+		"status",
+		"message_id",
+		"source",
+		"final_text",
+		"recovery_message"
+	],
 	"DialogueCorrectedPayload": ["turn_id", "corrected_text", "message_id"],
 	"NpcReactionPayload": ["message_id", "emoji", "source"],
 	"LoadingPayload": ["active"],
@@ -110,7 +117,7 @@
 		"since",
 		"duration_hours",
 		"min_duration_hours",
-		"last_check_hour"
+		"last_check_at"
 	],
 	"WorldDebug": [
 		"player_location_name",
@@ -169,7 +176,13 @@
 		"knows_player_name"
 	],
 	"LongTermMemoryDebug": ["timestamp", "content", "importance", "keywords"],
-	"ReactionDebug": ["timestamp", "emoji", "description", "context"],
+	"ReactionDebug": [
+		"direction",
+		"timestamp",
+		"emoji",
+		"description",
+		"context"
+	],
 	"DeflatedSummaryDebug": [
 		"location_name",
 		"mood",

@@ -21,6 +21,7 @@ fn test_location(id: u32, indoor: bool) -> LocationData {
         id: LocationId(id),
         name: "Test Location".to_string(),
         description_template: String::new(),
+        landmarks: vec![],
         indoor,
         public: true,
         connections: vec![],

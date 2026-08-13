@@ -127,7 +127,7 @@
 			<div class="section">
 				<h5>Reactions ({selectedNpc.reactions.length})</h5>
 				{#each selectedNpc.reactions as r, ri (ri)}
-					<div class="field"><span class="muted">[{r.timestamp}]</span> {r.emoji} {r.description}</div>
+					<div class="field"><span class="muted">[{r.timestamp}]</span> {r.emoji} {r.direction === 'PlayerToNpc' ? 'Player' : selectedNpc.name}: {r.description}</div>
 					<div class="field indent muted">context: {r.context}</div>
 				{/each}
 			</div>

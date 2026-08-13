@@ -381,12 +381,15 @@ pub(super) fn spawn_session_ticks(
 
                 {
                     let _persistence_guard = s.persistence_gate.lock().await;
-                    // Snapshot the banshee flag outside the world/npc locks to avoid
-                    // nesting config → world, which inverts the project-wide
-                    // lock order.
-                    let banshee_enabled = {
+                    // Snapshot simulation flags outside the world/npc locks to
+                    // avoid nesting config → world, which inverts the
+                    // project-wide lock order.
+                    let (banshee_enabled, tier4_enabled) = {
                         let cfg = s.config.lock().await;
-                        !cfg.flags.is_disabled("banshee")
+                        (
+                            !cfg.flags.is_disabled("banshee"),
+                            parish_core::game_loop::tier4_simulation_enabled(&cfg.flags),
+                        )
                     };
 
                     let mut world = s.world.lock().await;
@@ -394,10 +397,8 @@ pub(super) fn spawn_session_ticks(
 
                     // Advance the world one pump through the single shared
                     // helper (rule #12): weather + schedules + tier
-                    // reassignment + banshee + budgeted gossip. The server
-                    // intentionally leaves tier-4 to its own scheduling (it has
-                    // never dispatched tier-4 from this loop). The budgeted
-                    // gossip cursor round-robins across ticks (#466).
+                    // reassignment + banshee + budgeted gossip + Tier 4. The
+                    // budgeted gossip cursor round-robins across ticks (#466).
                     {
                         use parish_core::game_loop::{
                             AdvanceOptions, GossipMode, WeatherMode, advance_world,
@@ -415,7 +416,7 @@ pub(super) fn spawn_session_ticks(
                                     cursor: gossip_cursor,
                                     budget: GOSSIP_BUDGET_PER_TICK,
                                 },
-                                run_tier4: false,
+                                run_tier4: tier4_enabled,
                             },
                         );
                         gossip_cursor = report.gossip_cursor;
@@ -994,10 +995,11 @@ async fn run_location_log_writer(
 #[cfg(test)]
 mod tests {
     use std::sync::Arc;
+    use std::time::Duration;
 
     use super::{
         AUTOSAVE_INTERVAL_SECS, LOG_WRITER_QUEUE_CAPACITY, record_contextual_game_event,
-        run_character_log_writer,
+        run_character_log_writer, spawn_session_ticks,
     };
 
     /// C4: the per-subscriber writer channel is bounded to
@@ -1148,6 +1150,128 @@ mod tests {
         );
 
         token.cancel();
+    }
+
+    /// #1865: the browser runtime must drive the canonical Tier 4 rules engine
+    /// from its real per-session world-tick lifecycle. Rundale's current start
+    /// graph has no NPC beyond five edges, so this regression installs a
+    /// synthetic seven-location chain with one genuinely Tier 4 NPC.
+    #[tokio::test]
+    async fn server_world_tick_runs_tier4_for_distance_six_npc() {
+        use chrono::TimeZone;
+        use parish_core::npc::Npc;
+        use parish_core::npc::types::CogTier;
+        use parish_core::world::graph::WorldGraph;
+        use parish_core::world::time::GameClock;
+        use parish_core::world::{LocationId, events::GameEvent};
+        use tokio_util::sync::CancellationToken;
+
+        let state = crate::routes::tests::test_app_state();
+        let untouched_session = crate::routes::tests::test_app_state();
+
+        let locations: Vec<serde_json::Value> = (1u32..=7)
+            .map(|id| {
+                let mut connections = Vec::new();
+                if id > 1 {
+                    connections.push(serde_json::json!({
+                        "target": id - 1,
+                        "path_description": "a road"
+                    }));
+                }
+                if id < 7 {
+                    connections.push(serde_json::json!({
+                        "target": id + 1,
+                        "path_description": "a road"
+                    }));
+                }
+                serde_json::json!({
+                    "id": id,
+                    "name": format!("Web Tier 4 {id}"),
+                    "description_template": "A test location.",
+                    "indoor": false,
+                    "public": true,
+                    "connections": connections
+                })
+            })
+            .collect();
+        let graph =
+            WorldGraph::load_from_str(&serde_json::json!({ "locations": locations }).to_string())
+                .expect("synthetic distance-six graph should load");
+
+        {
+            let mut world = state.world.lock().await;
+            world.graph = graph;
+            world.player_location = LocationId(1);
+            // Lughnasa deterministically produces FestivalStarted, avoiding a
+            // probabilistic assertion while still exercising Tier 4 apply +
+            // publication through the production server task.
+            world.clock =
+                GameClock::new(chrono::Utc.with_ymd_and_hms(1820, 8, 1, 8, 0, 0).unwrap());
+
+            let mut npc_manager = state.npc_manager.lock().await;
+            let mut far_npc = Npc::new_test_npc();
+            far_npc.id = parish_core::npc::NpcId(1865);
+            far_npc.name = "Distant Web Farmer".to_string();
+            far_npc.occupation = "Farmer".to_string();
+            far_npc.set_location(LocationId(7));
+            far_npc.home = Some(LocationId(7));
+            npc_manager.add_npc(far_npc);
+            npc_manager.assign_tiers(&world, &[]);
+            assert_eq!(
+                npc_manager.tier_of(parish_core::npc::NpcId(1865)),
+                Some(CogTier::Tier4),
+                "distance six must be Tier 4; the real Rundale start graph cannot prove this"
+            );
+            assert!(npc_manager.last_tier4_game_time().is_none());
+        }
+
+        let token = CancellationToken::new();
+        let handles = spawn_session_ticks(Arc::clone(&state), token.clone());
+        // Let the game-event subscriber and world-tick timer install, then
+        // wait through one real production interval. Keeping the real timer
+        // makes this a scheduling lifecycle proof, not a direct helper test.
+        tokio::task::yield_now().await;
+        tokio::task::yield_now().await;
+        tokio::time::sleep(Duration::from_millis(5_250)).await;
+        for _ in 0..8 {
+            tokio::task::yield_now().await;
+        }
+
+        let last_tick = state.npc_manager.lock().await.last_tier4_game_time();
+        assert!(
+            last_tick.is_some(),
+            "server world tick must record Tier 4 authoritative state"
+        );
+        assert!(
+            untouched_session
+                .npc_manager
+                .lock()
+                .await
+                .last_tier4_game_time()
+                .is_none(),
+            "the spawned session tick must not mutate another session"
+        );
+
+        let events = state.game_events.lock().await;
+        assert!(
+            events
+                .iter()
+                .any(|event| matches!(event, GameEvent::FestivalStarted { name, .. } if name == "Lughnasa")),
+            "Tier 4 semantic event must reach the server's authoritative event delivery: {events:?}"
+        );
+        drop(events);
+
+        let debug = crate::routes::world::build_full_debug_snapshot(&state).await;
+        assert_eq!(debug.tier_summary.tier4_count, 1);
+        assert!(
+            debug.tier_summary.last_tier4_tick.is_some(),
+            "browser debug telemetry must no longer report T4 last: (never)"
+        );
+
+        token.cancel();
+        for handle in handles {
+            handle.abort();
+        }
     }
 
     #[tokio::test]
@@ -1317,6 +1441,7 @@ mod tests {
                 player_name: None,
                 player_progress: Default::default(),
                 npcs_who_know_player_name: Default::default(),
+                active_session: None,
             }
         }
 

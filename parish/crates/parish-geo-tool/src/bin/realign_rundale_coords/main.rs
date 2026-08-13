@@ -219,6 +219,7 @@ mod tests {
                 id: LocationId(1),
                 name: "Real".to_string(),
                 description_template: "".to_string(),
+                landmarks: vec![],
                 indoor: false,
                 public: true,
                 connections: vec![Connection {
@@ -239,6 +240,7 @@ mod tests {
                 id: LocationId(2),
                 name: "Fiction".to_string(),
                 description_template: "".to_string(),
+                landmarks: vec![],
                 indoor: false,
                 public: true,
                 connections: vec![Connection {
@@ -313,6 +315,7 @@ mod tests {
             id: LocationId(id),
             name: name.to_string(),
             description_template: String::new(),
+            landmarks: vec![],
             indoor: false,
             public: true,
             connections: vec![],

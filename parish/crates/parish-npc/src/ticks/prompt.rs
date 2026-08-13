@@ -530,7 +530,7 @@ fn continuity_block(
 fn reactions_block(npc: &Npc, config: &NpcConfig) -> Option<String> {
     let ctx = npc
         .reaction_log
-        .context_string(config.reaction_context_count);
+        .prompt_context_string(config.reaction_context_count);
     if ctx.is_empty() {
         return None;
     }
@@ -978,6 +978,34 @@ mod tests {
     use parish_config::RelationshipLabelConfig;
     use parish_world::WorldState;
     use std::collections::HashMap;
+
+    #[test]
+    fn production_tier1_context_keeps_mixed_reaction_direction() {
+        let mut npc = make_test_npc(1, "Padraig", 1);
+        let now = chrono::Utc::now();
+        npc.reaction_log.add("😊", "Welcome to the pub", now);
+        npc.reaction_log
+            .add_player_message_reaction("👀", "I have no money", now);
+        let world = WorldState::new();
+        let config = NpcConfig::default();
+        let context = build_enhanced_context_with_config(Tier1ContextParams {
+            npc: &npc,
+            world: &world,
+            player_input: "What do you think?",
+            other_npcs: &[],
+            language: &LanguageSettings::english_only(),
+            config: &config,
+            npc_names: &HashMap::new(),
+            player_name_for_npc: None,
+            was_introduced: false,
+        });
+
+        assert!(context.contains("The player smiled warmly when you said \"Welcome to the pub\""));
+        assert!(context.contains(
+            "You raised an eyebrow in response to the player saying \"I have no money\""
+        ));
+        assert!(!context.contains("The player raised an eyebrow"));
+    }
 
     #[test]
     fn test_enhanced_system_prompt_includes_relationships() {

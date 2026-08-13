@@ -51,6 +51,7 @@ pub async fn submit_input(
         parish_core::ipc::conversation_cursor(&world)
     };
 
+    let mut dialogue_failure = None;
     if !text.is_empty() {
         match classify_input(&text) {
             InputResult::SystemCommand(cmd) => {
@@ -83,20 +84,29 @@ pub async fn submit_input(
                 };
                 // Capture location before handle_game_input (which may move the player).
                 let reaction_location = state.world.lock().await.player_location;
-                if let Err(error) =
-                    handle_game_input(raw, body.addressed_to, &state, prelude_emissions).await
+                let outcome = match handle_game_input(
+                    raw,
+                    body.addressed_to,
+                    &state,
+                    prelude_emissions,
+                )
+                .await
                 {
-                    tracing::error!(
-                        session_id = %state.session_id,
-                        %error,
-                        "player task journal append failed"
-                    );
-                    return (
-                        StatusCode::INTERNAL_SERVER_ERROR,
-                        format!("failed to persist player task: {error}"),
-                    )
-                        .into_response();
-                }
+                    Ok(outcome) => outcome,
+                    Err(error) => {
+                        tracing::error!(
+                            session_id = %state.session_id,
+                            %error,
+                            "player task journal append failed"
+                        );
+                        return (
+                            StatusCode::INTERNAL_SERVER_ERROR,
+                            format!("failed to persist player task: {error}"),
+                        )
+                            .into_response();
+                    }
+                };
+                dialogue_failure = outcome.dialogue_failure;
                 // Generate NPC reactions to the player's message in the background.
                 if let Some((player_msg_id, raw_for_reactions)) = dispatch {
                     emit_npc_reactions(
@@ -110,11 +120,12 @@ pub async fn submit_input(
         }
     }
 
-    let result = {
+    let mut result = {
         let world = state.world.lock().await;
         let npc_manager = state.npc_manager.lock().await;
         parish_core::ipc::build_submit_input_result(&world, &npc_manager, before_turn)
     };
+    result.error = dialogue_failure;
     Json(result).into_response()
 }
 
@@ -213,7 +224,7 @@ pub async fn handle_game_input(
     addressed_to: Vec<String>,
     state: &Arc<AppState>,
     mut prelude_emissions: Vec<(String, serde_json::Value)>,
-) -> Result<(), parish_core::error::ParishError> {
+) -> Result<parish_core::game_loop::GameInputOutcome, parish_core::error::ParishError> {
     let must_stage = {
         let world = state.world.lock().await;
         parish_core::game_loop::input_may_mutate_tasks(&world, &raw)
@@ -238,7 +249,7 @@ pub async fn handle_game_input(
             "world-update".to_string(),
             world_update_payload(state).await,
         ));
-        parish_core::game_loop::handle_staged_game_input(
+        let commit = parish_core::game_loop::handle_staged_game_input(
             &ctx,
             state.session_store.as_ref(),
             task_target.as_ref(),
@@ -250,7 +261,10 @@ pub async fn handle_game_input(
         )
         .await?;
         emit_world_update(state).await;
-        return Ok(());
+        return Ok(parish_core::game_loop::GameInputOutcome {
+            task_mutations: commit.task_mutations,
+            dialogue_failure: commit.dialogue_failure,
+        });
     }
 
     touch_player_activity(state).await;
@@ -290,7 +304,7 @@ pub async fn handle_game_input(
 
     // Emit world-update after to clear the inference-pause flag.
     emit_world_update(state).await;
-    Ok(())
+    Ok(outcome)
 }
 
 async fn persist_task_mutations(

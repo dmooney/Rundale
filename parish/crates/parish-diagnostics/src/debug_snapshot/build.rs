@@ -159,7 +159,10 @@ pub(crate) fn build_weather_debug(world: &WorldState) -> WeatherDebug {
             .to_string(),
         duration_hours: world.weather_engine.duration_hours(now),
         min_duration_hours: world.weather_engine.min_duration_hours(),
-        last_check_hour: world.weather_engine.last_check_hour(),
+        last_check_at: world
+            .weather_engine
+            .last_check_at()
+            .map(|at| at.format("%H:%M %Y-%m-%d").to_string()),
     }
 }
 
@@ -185,6 +188,19 @@ pub(crate) fn build_event_bus_debug(
             let timestamp = e.timestamp().format("%H:%M %Y-%m-%d").to_string();
             let kind = e.event_type().to_string();
             let summary = match e {
+                GameEvent::ReactionRecorded {
+                    npc_id,
+                    direction,
+                    emoji,
+                    context,
+                    ..
+                } => format!(
+                    "{} {:?} {}: {}",
+                    name_of(*npc_id),
+                    direction,
+                    emoji,
+                    context
+                ),
                 GameEvent::DialogueOccurred {
                     npc_id, summary, ..
                 } => format!("{}: {}", name_of(*npc_id), summary),
@@ -634,6 +650,7 @@ pub(crate) fn build_npc_reaction_debug(npc: &parish_npc::Npc) -> Vec<ReactionDeb
         .entries()
         .rev()
         .map(|r| ReactionDebug {
+            direction: r.direction,
             timestamp: r.timestamp.format("%H:%M %Y-%m-%d").to_string(),
             emoji: r.emoji.clone(),
             description: r.description.clone(),

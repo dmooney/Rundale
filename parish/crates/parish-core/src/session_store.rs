@@ -267,6 +267,32 @@ pub trait SessionStore: Send + Sync + 'static {
         target: &'a TaskJournalTarget,
         tasks: &'a [PlayerTask],
     ) -> BoxFuture<'a, Result<usize, ParishError>>;
+
+    /// Appends one world mutation while pinned to an exact active save.
+    fn append_world_event_exact<'a>(
+        &'a self,
+        target: &'a TaskJournalTarget,
+        event: &'a WorldEvent,
+        game_time: &'a str,
+    ) -> BoxFuture<'a, Result<(), ParishError>> {
+        Box::pin(async move {
+            self.set_active_save(&target.session_id, &target.save_path)?;
+            let Some((snapshot_id, _)) = self
+                .load_latest_snapshot(&target.session_id, target.branch_id)
+                .await?
+            else {
+                return Err(missing_task_snapshot_error(target));
+            };
+            self.append_journal_event(
+                &target.session_id,
+                target.branch_id,
+                snapshot_id,
+                event,
+                game_time,
+            )
+            .await
+        })
+    }
 }
 
 /// Exact persistence identity captured for one task-producing operation.
@@ -326,6 +352,20 @@ pub async fn append_task_mutations(
     tasks: &[PlayerTask],
 ) -> Result<usize, ParishError> {
     store.append_task_mutations_exact(target, tasks).await
+}
+
+/// Appends one canonical world mutation to the latest snapshot of an exact
+/// active save. Callers hold their lifecycle barrier across in-memory mutation,
+/// this commit, and rollback on error.
+pub async fn append_world_event_exact(
+    store: &dyn SessionStore,
+    target: &TaskJournalTarget,
+    event: &WorldEvent,
+    game_time: &str,
+) -> Result<(), ParishError> {
+    store
+        .append_world_event_exact(target, event, game_time)
+        .await
 }
 
 /// Appends task mutations or restores the caller's pre-turn task ledger.
@@ -742,6 +782,28 @@ impl SessionStore for DbSessionStore {
                 return Err(missing_task_snapshot_error(target));
             };
             Ok(tasks.len())
+        })
+    }
+
+    fn append_world_event_exact<'a>(
+        &'a self,
+        target: &'a TaskJournalTarget,
+        event: &'a WorldEvent,
+        game_time: &'a str,
+    ) -> BoxFuture<'a, Result<(), ParishError>> {
+        let exact_db = self.bind_exact_db(&target.session_id, &target.save_path);
+        let event = event.clone();
+        let game_time = game_time.to_string();
+        Box::pin(async move {
+            let sdb = exact_db?;
+            let Some(_snapshot_id) = sdb
+                .async_db
+                .append_events_to_latest_snapshot(target.branch_id, &[(event, game_time)])
+                .await?
+            else {
+                return Err(missing_task_snapshot_error(target));
+            };
+            Ok(())
         })
     }
 }

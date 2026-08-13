@@ -188,7 +188,7 @@ async fn run_headless_repl_loop(
                     weather: WeatherMode::Single,
                     run_banshee: !app.flags.is_disabled("banshee"),
                     gossip: GossipMode::Skip,
-                    run_tier4: true,
+                    run_tier4: parish_core::game_loop::tier4_simulation_enabled(&app.flags),
                 },
             );
 
@@ -1506,12 +1506,42 @@ fn committed_headless_lines(emissions: &[(String, serde_json::Value)]) -> Vec<St
                 let Some(turn_id) = payload.get("turn_id").and_then(|value| value.as_u64()) else {
                     continue;
                 };
+                if payload.get("status").and_then(|value| value.as_str()) == Some("failed") {
+                    if let Some(recovery) = payload
+                        .get("recovery_message")
+                        .and_then(|value| value.as_str())
+                        .filter(|value| !value.is_empty())
+                    {
+                        lines.push(recovery.to_string());
+                    }
+                    continue;
+                }
                 let Some(turn) = turns.get(&turn_id) else {
+                    if let Some(final_text) = payload
+                        .get("final_text")
+                        .and_then(|value| value.as_str())
+                        .filter(|value| !value.is_empty())
+                    {
+                        let source = payload
+                            .get("source")
+                            .and_then(|value| value.as_str())
+                            .unwrap_or_default();
+                        lines.push(if source.is_empty() {
+                            final_text.to_string()
+                        } else {
+                            format!("{source}: {final_text}")
+                        });
+                    }
                     continue;
                 };
-                let dialogue = turn.corrected.clone().unwrap_or_else(|| {
-                    parish_core::npc::parse_npc_stream_response(&turn.streamed).dialogue
-                });
+                let dialogue = payload
+                    .get("final_text")
+                    .and_then(|value| value.as_str())
+                    .map(str::to_string)
+                    .or_else(|| turn.corrected.clone())
+                    .unwrap_or_else(|| {
+                        parish_core::npc::parse_npc_stream_response(&turn.streamed).dialogue
+                    });
                 if !dialogue.trim().is_empty() {
                     if turn.source.is_empty() {
                         lines.push(dialogue);
@@ -1657,15 +1687,50 @@ async fn emit_headless_npc_reactions(app: &mut App, player_input: &str) {
         };
 
         // Persist to reaction_log so NPC memory is maintained (#403).
-        if let Some(npc_mut) = app.npc_manager.find_by_name_mut(&npc_name) {
-            npc_mut.reaction_log.add_player_message_reaction(
+        if let Some(npc_id) = app
+            .npc_manager
+            .find_by_name_mut(&npc_name)
+            .map(|npc| npc.id)
+        {
+            let previous_log = app
+                .npc_manager
+                .get(npc_id)
+                .map(|npc| npc.reaction_log.clone());
+            if let Some(event) = parish_core::game_loop::record_directional_reaction(
+                &mut app.npc_manager,
+                npc_id,
+                parish_core::ReactionDirection::NpcToPlayer,
                 &emoji,
                 player_input,
                 chrono::Utc::now(),
-            );
+            ) {
+                let journal_result = if let (Some(db), Some(world_event)) = (
+                    app.db.as_ref(),
+                    parish_core::persistence::journal_bridge::to_journal_event(&event),
+                ) {
+                    db.append_event(
+                        app.active_branch_id,
+                        app.latest_snapshot_id,
+                        &world_event,
+                        &event.timestamp().to_rfc3339(),
+                    )
+                    .await
+                } else {
+                    Ok(())
+                };
+                if let Err(error) = journal_result {
+                    if let (Some(npc), Some(previous_log)) =
+                        (app.npc_manager.get_mut(npc_id), previous_log)
+                    {
+                        npc.reaction_log = previous_log;
+                    }
+                    tracing::warn!(%error, "reaction journal commit failed; rolled back");
+                    continue;
+                }
+                app.npc_manager.record_reaction_emoji(&emoji);
+                app.world.event_bus.publish(event);
+            }
         }
-        // Feed the per-session diversity sensor (#995).
-        app.npc_manager.record_reaction_emoji(&emoji);
         println!("{} {}", capitalize_first(&npc_name), emoji);
     }
 }

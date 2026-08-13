@@ -326,11 +326,18 @@ async fn submit_input(
         parish_core::ipc::conversation_cursor(&world)
     };
 
-    crate::commands::input::do_submit_input_locked(&b.state, &b.app, body.text, body.addressed_to)
-        .await
-        .map_err(AppError::from)?;
+    let outcome = crate::commands::input::do_submit_input_locked(
+        &b.state,
+        &b.app,
+        body.text,
+        body.addressed_to,
+    )
+    .await
+    .map_err(AppError::from)?;
 
-    Ok(Json(build_submit_result(&b.state, before_turn).await))
+    let mut result = build_submit_result(&b.state, before_turn).await;
+    result.error = outcome.dialogue_failure;
+    Ok(Json(result))
 }
 
 /// `GET /api/turn?since=<cursor>` — slim per-turn read (#1356).

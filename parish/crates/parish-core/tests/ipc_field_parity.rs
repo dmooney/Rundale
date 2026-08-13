@@ -290,7 +290,14 @@ fn ipc_field_parity() {
 
     assert_keys_contain_manifest(
         "StreamTurnEndPayload",
-        &StreamTurnEndPayload { turn_id: 1 },
+        &StreamTurnEndPayload {
+            turn_id: 1,
+            status: parish_core::ipc::StreamTurnStatus::Completed,
+            message_id: Some("msg-1".into()),
+            source: Some("Siobhan".into()),
+            final_text: Some("Good day to ye.".into()),
+            recovery_message: Some("Please try again.".into()),
+        },
         &manifest,
     );
 
@@ -425,7 +432,7 @@ fn ipc_field_parity() {
         since: "06:00 1820-03-20".into(),
         duration_hours: 2.5,
         min_duration_hours: 1.0,
-        last_check_hour: None,
+        last_check_at: None,
     };
     assert_keys_contain_manifest("WeatherDebug", &weather, &manifest);
 
@@ -490,6 +497,7 @@ fn ipc_field_parity() {
     assert_keys_contain_manifest(
         "ReactionDebug",
         &ReactionDebug {
+            direction: parish_core::ReactionDirection::PlayerToNpc,
             timestamp: "08:00".into(),
             emoji: "😠".into(),
             description: "looked angry".into(),

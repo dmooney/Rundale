@@ -228,6 +228,25 @@ describe('createStreamManager — chainInProgress (#991)', () => {
 });
 
 describe('createStreamManager — reset() finalizes orphaned stream entries', () => {
+	it('preserves the full canonical buffer when reconnect lands after one paced word', () => {
+		vi.useFakeTimers();
+		const sm = createStreamManager();
+		const turn = sm.queuePendingTurn(1857, 'Brigid', 'msg-1857');
+		turn.buffer = 'Plainly, the complete response must survive reconnect.';
+		sm.startTurnPumpIfNeeded(turn);
+		expect(get(textLog)[0].content).toBe('Plainly, ');
+
+		sm.reset();
+
+		expect(get(textLog)[0]).toMatchObject({
+			id: 'msg-1857',
+			content: 'Plainly, the complete response must survive reconnect.',
+			streaming: false,
+		});
+		expect(get(textLog)[0].stream_turn_id).toBeUndefined();
+		vi.useRealTimers();
+	});
+
 	it('clears streaming flags on a half-streamed entry (reconnect mid-turn)', () => {
 		const sm = createStreamManager();
 		// A partially-streamed NPC bubble: content present, still streaming.
@@ -330,6 +349,148 @@ describe('createStreamManager — resumed stream rebinds to a reactable id (#116
 		sm.queuePendingTurn(5, 'Nora', 'token-id'); // resumed/duplicate signal
 		expect(sm.findPendingTurn(5)?.messageId).toBe('placeholder-id');
 		expect(get(textLog)[0].id).toBe('placeholder-id');
+	});
+});
+
+describe('createStreamManager — authoritative turn finalization (#1855, #1857)', () => {
+	beforeEach(() => vi.useFakeTimers());
+	afterEach(() => vi.useRealTimers());
+
+	it('replaces the paced first word with the full validated final response', () => {
+		const sm = createStreamManager();
+		const turn = sm.queuePendingTurn(1857, 'Brigid', 'msg-1857');
+		turn.buffer = 'Plainly, the whole answer survives Gemini finalization.';
+		sm.startTurnPumpIfNeeded(turn);
+
+		// The pacing pump has revealed only its synchronous first chunk.
+		expect(get(textLog)[0].content).toBe('Plainly, ');
+
+		sm.completeTurn({
+			turn_id: 1857,
+			status: 'completed',
+			message_id: 'msg-1857',
+			source: 'Brigid',
+			final_text: 'Plainly, the whole answer survives Gemini finalization.',
+		});
+
+		expect(get(textLog)).toEqual([
+			{
+				id: 'msg-1857',
+				source: 'Brigid',
+				content: 'Plainly, the whole answer survives Gemini finalization.',
+				stream_turn_id: undefined,
+				streaming: false,
+				latest_chunk: undefined,
+				stream_chunk_id: undefined,
+			},
+		]);
+		expect(sm.pendingTurnCount()).toBe(0);
+		vi.runAllTimers();
+		expect(get(textLog)[0].content).toContain('whole answer');
+	});
+
+	it('discards every partial and renders retry guidance on failed termination', () => {
+		const sm = createStreamManager();
+		const turn = sm.queuePendingTurn(1855, 'Brigid', 'msg-1855');
+		turn.buffer = 'This candidate was cut off';
+		sm.startTurnPumpIfNeeded(turn);
+		expect(get(textLog)[0].content).toBe('This ');
+
+		sm.completeTurn({
+			turn_id: 1855,
+			status: 'failed',
+			message_id: 'msg-1855',
+			recovery_message:
+				'That reply could not be completed, so its partial response was not added. Please try again.',
+		});
+
+		const log = get(textLog);
+		expect(log).toHaveLength(1);
+		expect(log[0]).toMatchObject({ source: 'system', subtype: 'error' });
+		expect(log[0].content).toContain('Please try again');
+		expect(log[0].content).not.toContain('cut off');
+		expect(sm.pendingTurnCount()).toBe(0);
+		vi.runAllTimers();
+		expect(get(textLog)).toEqual(log);
+		sm.completeTurn({
+			turn_id: 1855,
+			status: 'failed',
+			message_id: 'msg-1855',
+			recovery_message: log[0].content,
+		});
+		expect(get(textLog)).toHaveLength(1);
+	});
+
+	it('can recover a completed turn after reconnect without a local buffer', () => {
+		const sm = createStreamManager();
+		textLog.set([
+			{
+				id: 'msg-9',
+				source: 'Nora',
+				content: 'The terminal payload carries',
+				streaming: false,
+			},
+		]);
+		sm.completeTurn({
+			turn_id: 9,
+			status: 'completed',
+			message_id: 'msg-9',
+			source: 'Nora',
+			final_text: 'The terminal payload carries the complete truth.',
+		});
+		expect(get(textLog)[0]).toMatchObject({
+			id: 'msg-9',
+			source: 'Nora',
+			content: 'The terminal payload carries the complete truth.',
+		});
+	});
+
+	it('ignores late success and failure terminals after context replacement', () => {
+		const sm = createStreamManager();
+		sm.completeTurn({
+			turn_id: 91,
+			status: 'completed',
+			message_id: 'old-session-message',
+			source: 'Nora',
+			final_text: 'This old session must not be resurrected.',
+		});
+		sm.completeTurn({
+			turn_id: 92,
+			status: 'failed',
+			message_id: 'old-session-failure',
+			recovery_message: 'This old failure must not be resurrected.',
+		});
+		expect(get(textLog)).toEqual([]);
+	});
+
+	it('keeps an authoritative parked reply behind the active speaker', () => {
+		const sm = createStreamManager();
+		const first = sm.queuePendingTurn(1, 'Brigid', 'msg-1');
+		first.buffer = 'First speaker remains active.';
+		sm.startTurnPumpIfNeeded(first);
+		const parked = sm.queuePendingTurn(2, 'Nora', 'msg-2');
+		sm.ensureTurnEntry(parked);
+		parked.buffer = 'token candidate';
+
+		sm.completeTurn({
+			turn_id: 2,
+			status: 'completed',
+			message_id: 'msg-2',
+			source: 'Nora',
+			final_text: 'Second speaker waits with complete canonical text.',
+		});
+		sm.correctTurn(
+			2,
+			'Second speaker waits with complete corrected text.',
+			'msg-2',
+		);
+
+		expect(get(textLog).find((entry) => entry.id === 'msg-2')?.content).toBe(
+			'',
+		);
+		expect(sm.findPendingTurn(2)?.buffer).toBe(
+			'Second speaker waits with complete corrected text.',
+		);
 	});
 });
 
