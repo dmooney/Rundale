@@ -7,14 +7,14 @@
 use parish_types::TimeOfDay;
 
 use crate::{
-    DialogueObligation, DialogueSpeakerContext, NpcResponseParseDisposition, NpcStreamResponse,
-    RelationshipToneHint, dedupe_cross_npc_openers, dialogue_fulfills_obligations,
-    dialogue_obligation_fallback, guard_acquaintance_question_intent_drift,
-    guard_direct_evidence_evasion, guard_fabricated_person_confirmation_with_locations,
-    guard_fabricated_person_routing, guard_false_denial_of_known_place,
-    guard_false_denial_of_roster_person_with_speaker, guard_invented_place_confirmation,
-    guard_mood_register, guard_presumed_prior_acquaintance, guard_priest_tenure_drift,
-    guard_repeated_speaker_name, guard_rival_target_neutral_tone,
+    DialogueObligation, DialogueSpeakerContext, GroundedWorkFact, NpcResponseParseDisposition,
+    NpcStreamResponse, RelationshipToneHint, dedupe_cross_npc_openers,
+    dialogue_fulfills_obligations, dialogue_obligation_fallback,
+    guard_acquaintance_question_intent_drift, guard_direct_evidence_evasion,
+    guard_fabricated_person_confirmation_with_locations, guard_fabricated_person_routing,
+    guard_false_denial_of_known_place, guard_false_denial_of_roster_person_with_speaker,
+    guard_invented_place_confirmation, guard_mood_register, guard_presumed_prior_acquaintance,
+    guard_priest_tenure_drift, guard_repeated_speaker_name, guard_rival_target_neutral_tone,
     guard_stock_nonrecognition_decline_with_speaker, guard_time_of_day_phrase,
     guard_unfounded_first_contact_familiarity, guard_verbosity_runons,
     guard_verbosity_runons_with_mood, guard_work_recommendation, guard_wrong_location_reference,
@@ -145,7 +145,7 @@ pub struct DialogueGroundingSnapshot {
     pub current_location_name: String,
     pub known_location_names: Vec<String>,
     pub player_name: Option<String>,
-    pub work_roster: Vec<(String, String, Option<String>)>,
+    pub work_roster: Vec<GroundedWorkFact>,
     pub relationship_tone_hints: Vec<RelationshipToneHint>,
     pub prior_player_inputs: Vec<String>,
     pub forbidden_output_terms: Vec<String>,
@@ -780,7 +780,11 @@ pub fn validate_dialogue_candidate(
     seed: u64,
 ) -> DialogueValidationOutcome {
     let rejected_response = || NpcStreamResponse {
-        dialogue: dialogue_obligation_fallback(&snapshot.dialogue_obligations),
+        dialogue: dialogue_obligation_fallback(
+            &snapshot.dialogue_obligations,
+            player_input,
+            &snapshot.work_roster,
+        ),
         metadata: None,
     };
     let contract_valid = disposition == NpcResponseParseDisposition::FullJson
@@ -972,7 +976,12 @@ pub fn validate_dialogue_candidate(
     // All semantic rewrites precede this check: the contract applies to the
     // actual candidate line that would otherwise reach the final apply seam.
     // A partial response is rejected whole so its metadata cannot take effect.
-    if !dialogue_fulfills_obligations(&response.dialogue, &snapshot.dialogue_obligations) {
+    if !dialogue_fulfills_obligations(
+        &response.dialogue,
+        &snapshot.dialogue_obligations,
+        player_input,
+        &snapshot.work_roster,
+    ) {
         return DialogueValidationOutcome {
             response: rejected_response(),
             contract_valid: true,
@@ -1032,6 +1041,18 @@ mod tests {
                     occupation: "Blacksmith".to_string(),
                     workplace: Some("The Forge".to_string()),
                     current_location: Some("The Forge".to_string()),
+                },
+            ],
+            work_roster: vec![
+                GroundedWorkFact {
+                    name: "Siobhan Murphy".to_string(),
+                    occupation: "Farmer".to_string(),
+                    workplace: Some("Murphy's Farm".to_string()),
+                },
+                GroundedWorkFact {
+                    name: "Seamus Gallagher".to_string(),
+                    occupation: "Blacksmith".to_string(),
+                    workplace: Some("The Forge".to_string()),
                 },
             ],
             location_facts: vec![
@@ -1099,6 +1120,8 @@ mod tests {
         assert!(crate::dialogue_fulfills_obligations(
             &rejected.response.dialogue,
             &snapshot.dialogue_obligations,
+            input,
+            &snapshot.work_roster,
         ));
         assert!(!rejected.response.dialogue.contains("What brings ye"));
 
@@ -1109,6 +1132,46 @@ mod tests {
         );
         assert!(accepted.accepted, "{:?}", accepted.guard_reasons);
         assert!(accepted.response.metadata.is_some());
+    }
+
+    #[test]
+    fn exact_work_referral_non_answer_becomes_grounded_guidance_before_apply() {
+        let input = "Good morning. I'm Eilis Byrne, newly arrived and looking for honest work. Is there anyone needing a hand today?";
+        let mut snapshot = typed_snapshot();
+        snapshot.dialogue_obligations =
+            crate::derive_dialogue_obligations(input, &snapshot.known_person_names);
+
+        let rejected = validate_dialogue_candidate(
+            &NpcStreamResponse {
+                dialogue: "Plainly, then—what brings ye to Kilteevan?".to_string(),
+                metadata: Some(crate::NpcMetadata {
+                    action: "shrugs".to_string(),
+                    mood: "curious".to_string(),
+                    internal_thought: None,
+                    language_hints: Vec::new(),
+                    mentioned_people: Vec::new(),
+                    assigned_task: Some("Invent a job".to_string()),
+                }),
+            },
+            NpcResponseParseDisposition::FullJson,
+            input,
+            &snapshot,
+            DialogueValidationPolicy::default(),
+            1853,
+        );
+
+        assert!(!rejected.accepted);
+        assert_eq!(rejected.guard_reasons, ["dialogue_obligation_guard"]);
+        assert!(rejected.response.metadata.is_none());
+        assert!(rejected.response.dialogue.contains("Siobhan Murphy"));
+        assert!(
+            rejected
+                .response
+                .dialogue
+                .contains("Farmer at Murphy's Farm")
+        );
+        assert!(rejected.response.dialogue.contains("cannot say"));
+        assert!(!rejected.response.dialogue.contains("hiring"));
     }
 
     #[test]
