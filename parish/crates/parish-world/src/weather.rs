@@ -12,6 +12,11 @@ use parish_types::{Season, Weather};
 /// Minimum duration in game-hours before a weather transition is allowed.
 const DEFAULT_MIN_DURATION_HOURS: f64 = 2.0;
 
+/// Internal key used to suppress duplicate evaluations within one game hour.
+fn game_hour_key(now: DateTime<Utc>) -> i64 {
+    now.timestamp() / 3600
+}
+
 /// Maps each weather variant to an ordinal for adjacency calculations.
 ///
 /// The main weather axis is:
@@ -91,8 +96,12 @@ pub struct WeatherEngine {
     since: DateTime<Utc>,
     /// Minimum duration in game-hours before a transition is allowed.
     min_duration_hours: f64,
-    /// Game-hour of the last transition check (to avoid multiple checks per hour).
-    last_check_hour: Option<i64>,
+    /// Canonical game time of the last transition check.
+    ///
+    /// The hourly deduplication key is derived from this value and remains an
+    /// implementation detail. Keeping the actual instant lets diagnostics
+    /// report meaningful pre-Unix-epoch game time.
+    last_check_at: Option<DateTime<Utc>>,
 }
 
 impl WeatherEngine {
@@ -102,7 +111,7 @@ impl WeatherEngine {
             current: initial,
             since: start_time,
             min_duration_hours: DEFAULT_MIN_DURATION_HOURS,
-            last_check_hour: None,
+            last_check_at: None,
         }
     }
 
@@ -127,9 +136,14 @@ impl WeatherEngine {
         self.min_duration_hours
     }
 
-    /// Returns the game-hour of the last transition check, or `None` if unchecked.
-    pub fn last_check_hour(&self) -> Option<i64> {
-        self.last_check_hour
+    /// Returns the internal game-hour deduplication key.
+    fn last_check_hour_key(&self) -> Option<i64> {
+        self.last_check_at.map(game_hour_key)
+    }
+
+    /// Returns the canonical game time of the last transition check.
+    pub fn last_check_at(&self) -> Option<DateTime<Utc>> {
+        self.last_check_at
     }
 
     /// Forces the weather to a specific state immediately, resetting the
@@ -139,7 +153,7 @@ impl WeatherEngine {
     pub fn force(&mut self, weather: Weather, now: DateTime<Utc>) {
         self.current = weather;
         self.since = now;
-        self.last_check_hour = Some(now.timestamp() / 3600);
+        self.last_check_at = Some(now);
     }
 
     /// Ticks the weather engine. Returns `Some(new_weather)` if a
@@ -156,13 +170,13 @@ impl WeatherEngine {
         season: Season,
         rng: &mut impl Rng,
     ) -> Option<Weather> {
-        let current_hour = now.timestamp() / 3600;
+        let current_hour = game_hour_key(now);
 
         // Only check once per game-hour
-        if self.last_check_hour == Some(current_hour) {
+        if self.last_check_hour_key() == Some(current_hour) {
             return None;
         }
-        self.last_check_hour = Some(current_hour);
+        self.last_check_at = Some(now);
 
         // Enforce minimum duration
         if self.duration_hours(now) < self.min_duration_hours {
@@ -408,7 +422,7 @@ mod tests {
     }
 
     #[test]
-    fn test_force_changes_state_and_arms_last_check_hour() {
+    fn test_force_changes_state_and_records_last_check_time() {
         let start = time_at(8);
         let mut engine = WeatherEngine::new(Weather::Clear, start);
 
@@ -417,8 +431,9 @@ mod tests {
 
         assert_eq!(engine.current(), Weather::Storm);
         assert_eq!(engine.since(), forced_time);
+        assert_eq!(engine.last_check_at(), Some(forced_time));
         assert_eq!(
-            engine.last_check_hour(),
+            engine.last_check_hour_key(),
             Some(forced_time.timestamp() / 3600)
         );
 
