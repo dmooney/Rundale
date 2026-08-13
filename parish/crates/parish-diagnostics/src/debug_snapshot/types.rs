@@ -111,8 +111,8 @@ pub struct WeatherDebug {
     pub duration_hours: f64,
     /// Minimum duration before a transition is allowed (game-hours).
     pub min_duration_hours: f64,
-    /// Game-hour cursor of the last transition evaluation, if any.
-    pub last_check_hour: Option<i64>,
+    /// Canonical game time of the last transition evaluation, if any.
+    pub last_check_at: Option<String>,
 }
 
 /// World graph summary for debug display.
