@@ -32,7 +32,6 @@ import {
 	playerSubmittedCount,
 	noteStreamingStarted,
 	resetExternalDrive,
-	replaceStreamEntryContent,
 } from '../stores/game';
 import { demoConfig } from '../stores/demo';
 import { startDemoLoop } from './demo-player';
@@ -759,23 +758,20 @@ export async function createPageController(
 
 		listeners.push(
 			await onStreamTurnEnd((payload) => {
-				const turn = sm.findPendingTurn(payload.turn_id);
-				if (!turn) return;
-				turn.complete = true;
-				sm.startTurnPumpIfNeeded(turn);
+				sm.completeTurn(payload);
 			}),
 		);
 
 		listeners.push(
 			await onDialogueCorrected((payload) => {
 				// Compatibility path for a restored older in-flight stream. New turns
-				// receive only canonical post-validation text through stream-token.
-				// We must (a) clear the stream pump's remaining buffer so it stops
-				// appending raw tokens and (b) replace the textLog entry content with
-				// the corrected text so the player sees what is stored in the
-				// conversation log and returned by /api/transcript.
-				sm.clearTurnBuffer(payload.turn_id);
-				replaceStreamEntryContent(payload.turn_id, payload.corrected_text);
+				// already carry canonical terminal text. Keep a parked correction
+				// parked; otherwise atomically replace the paced prefix by stable ID.
+				sm.correctTurn(
+					payload.turn_id,
+					payload.corrected_text,
+					payload.message_id,
+				);
 			}),
 		);
 

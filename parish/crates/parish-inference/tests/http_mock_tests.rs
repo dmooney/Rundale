@@ -188,6 +188,29 @@ async fn openai_generate_stream_honors_done_sentinel_before_stop() {
 }
 
 #[tokio::test]
+async fn openai_generate_stream_rejects_eof_without_terminal_marker() {
+    let server = MockServer::start().await;
+    let sse = [
+        r#"data: {"choices":[{"delta":{"content":"partial "},"finish_reason":null}]}"#,
+        r#"data: {"choices":[{"delta":{"content":"answer"},"finish_reason":null}]}"#,
+    ]
+    .join("\n");
+    Mock::given(method("POST"))
+        .and(path("/v1/chat/completions"))
+        .respond_with(ResponseTemplate::new(200).set_body_string(sse))
+        .mount(&server)
+        .await;
+
+    let client = OpenAiClient::new(&server.uri(), None);
+    let (tx, _rx) = mpsc::channel::<String>(TOKEN_CHANNEL_CAPACITY);
+    let error = client
+        .generate_stream("m", "p", None, tx, GenerateParams::default())
+        .await
+        .expect_err("transport EOF without a terminal marker must reject the partial body");
+    assert!(error.to_string().contains("missing terminal marker"));
+}
+
+#[tokio::test]
 async fn openai_generate_stream_ignores_sse_comments_and_blank_lines() {
     let server = MockServer::start().await;
     let sse = [

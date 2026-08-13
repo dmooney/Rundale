@@ -78,6 +78,9 @@ pub struct SubmitInputResult {
     pub location: String,
     /// Number of NPCs at the player's location after the turn.
     pub npcs_here: usize,
+    /// Present when the submitted dialogue produced no canonical NPC exchange.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub error: Option<String>,
 }
 
 /// A summarised world event returned by `GET /api/turn`.
@@ -134,6 +137,7 @@ pub fn build_submit_input_result(
         clock,
         location,
         npcs_here,
+        error: None,
     }
 }
 
@@ -400,6 +404,22 @@ mod tests {
         assert_eq!(result.exchanges[0].speaker_name, "Sean");
         assert_eq!(result.exchanges[0].player_input, "new question");
         assert_eq!(result.exchanges[0].npc_dialogue, "new answer");
+        assert!(result.error.is_none());
+    }
+
+    #[test]
+    fn submit_projection_can_distinguish_failed_dialogue_from_a_non_dialogue_turn() {
+        let world = WorldState::new();
+        let before = conversation_cursor(&world);
+        let mut result = build_submit_input_result(&world, &NpcManager::new(), before);
+        result.error = Some("That reply failed. Please try again.".to_string());
+
+        let json = serde_json::to_value(result).unwrap();
+        assert_eq!(json["exchanges"], serde_json::json!([]));
+        assert_eq!(
+            json["error"],
+            serde_json::json!("That reply failed. Please try again.")
+        );
     }
 
     #[test]
