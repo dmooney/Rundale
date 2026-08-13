@@ -461,7 +461,25 @@ pub fn extract_remembered_object_fact(
 }
 
 fn echoes_player_imperative(dialogue: &str, player_input: &str) -> bool {
-    let input = normalize(routed_utterance(player_input));
+    let routed = routed_utterance(player_input).trim().to_lowercase();
+    const DIRECTIVE_PREFIXES: &[&str] = &[
+        "ignore ",
+        "disregard ",
+        "forget ",
+        "override ",
+        "reveal ",
+        "repeat ",
+        "confirm that ",
+        "pretend that ",
+        "say that ",
+    ];
+    if !DIRECTIVE_PREFIXES
+        .iter()
+        .any(|prefix| routed.starts_with(prefix))
+    {
+        return false;
+    }
+    let input = normalize(&routed);
     if input.is_empty() {
         return false;
     }
@@ -1501,6 +1519,32 @@ mod tests {
             &typed_snapshot(),
         );
         assert!(refusal.accepted, "{:?}", refusal.guard_reasons);
+    }
+
+    #[test]
+    fn ordinary_person_topic_reaches_presumed_acquaintance_polish() {
+        let mut snapshot = typed_snapshot();
+        snapshot
+            .known_person_names
+            .extend(["Roisin Connolly".to_string(), "Colm Gallagher".to_string()]);
+        snapshot.speaker_context = Some(crate::DialogueSpeakerContext {
+            name: "Roisin Connolly".to_string(),
+            occupation: "Shopkeeper".to_string(),
+            mood: "alert".to_string(),
+        });
+
+        let result = validate_typed(
+            "Colm Gallagher, aye, he's a bright lad at the forge. How do ye find him so far?",
+            "talk to Roisin Connolly about Colm Gallagher",
+            &snapshot,
+        );
+
+        assert!(result.accepted, "{:?}", result.guard_reasons);
+        assert_eq!(result.guard_reasons, ["polish_guard"]);
+        assert_eq!(
+            result.response.dialogue,
+            "Colm Gallagher, aye. Have ye met Colm Gallagher yet?"
+        );
     }
 
     #[test]

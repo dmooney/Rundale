@@ -268,7 +268,13 @@ test.describe('Input and streaming', () => {
 			source: 'Padraig Darcy',
 			message_id: 'typed-grounding-turn',
 		});
-		await emitEvent(page, 'stream-turn-end', { turn_id: 1872 });
+		await emitEvent(page, 'stream-turn-end', {
+			turn_id: 1872,
+			status: 'completed',
+			message_id: 'typed-grounding-turn',
+			source: 'Padraig Darcy',
+			final_text: safeFallback,
+		});
 		await emitEvent(page, 'stream-end', { hints: [] });
 		await expect(chat).toContainText(safeFallback);
 		for (const candidate of rejectedCandidates) {
