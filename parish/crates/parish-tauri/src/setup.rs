@@ -1004,9 +1004,12 @@ pub(crate) fn spawn_world_tick(handle: AppHandle, state: Arc<AppState>) {
                 let old_weather = world.weather;
 
                 // Banshee flag snapshot (gates the banshee tick in the pump).
-                let banshee_enabled = {
+                let (banshee_enabled, tier4_enabled) = {
                     let cfg = state.config.lock().await;
-                    !cfg.flags.is_disabled("banshee")
+                    (
+                        !cfg.flags.is_disabled("banshee"),
+                        parish_core::game_loop::tier4_simulation_enabled(&cfg.flags),
+                    )
                 };
 
                 // Advance the world one pump through the single shared helper
@@ -1026,7 +1029,7 @@ pub(crate) fn spawn_world_tick(handle: AppHandle, state: Arc<AppState>) {
                             weather: WeatherMode::Single,
                             run_banshee: banshee_enabled,
                             gossip: GossipMode::All,
-                            run_tier4: true,
+                            run_tier4: tier4_enabled,
                         },
                     )
                 };

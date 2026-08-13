@@ -10,8 +10,8 @@
 //! reached the harness).
 //!
 //! [`advance_world`] is now the **only** place those atoms are advanced. Each
-//! runtime keeps its own *scheduling* (the server budgets gossip and skips
-//! tier-4; the harness backfills weather on bulk jumps) by passing the right
+//! runtime keeps its own *scheduling* (the server budgets gossip; the harness
+//! backfills weather on bulk jumps) by passing the right
 //! [`AdvanceOptions`]; the pump returns an [`AdvanceReport`] so each runtime can
 //! render its own debug events / player-visible narration from the same data.
 //!
@@ -25,11 +25,27 @@ use std::collections::{HashMap, HashSet};
 
 use rand::Rng;
 
+use crate::config::FeatureFlags;
 use crate::npc::banshee::BansheeReport;
 use crate::npc::manager::{NpcManager, ScheduleEvent, TierTransition};
 use crate::npc::types::CogTier;
 use crate::npc::{Npc, NpcId};
 use crate::world::{Weather, WorldState};
+
+/// Default-on kill switch for the canonical Tier 4 rules engine.
+///
+/// All runtimes use this shared name and polarity. This is deliberately
+/// separate from `autonomous-npc-chain`, which remains an opt-in dialogue
+/// feature and does not govern background life simulation.
+pub const TIER4_SIMULATION_FLAG: &str = "tier4-simulation";
+
+/// Returns whether Tier 4 background simulation should run.
+///
+/// Unknown flags are enabled here because Tier 4 is a shipped engine feature;
+/// operators may explicitly disable it as a production kill switch.
+pub fn tier4_simulation_enabled(flags: &FeatureFlags) -> bool {
+    !flags.is_disabled(TIER4_SIMULATION_FLAG)
+}
 
 /// How the weather engine is advanced during a pump.
 #[derive(Debug, Clone, Copy)]
@@ -74,8 +90,10 @@ pub struct AdvanceOptions {
     pub run_banshee: bool,
     /// How (or whether) to propagate gossip among co-located Tier-2 NPCs.
     pub gossip: GossipMode,
-    /// Dispatch the tier-4 rules engine when `needs_tier4_tick` is due. The
-    /// server intentionally leaves this `false` (its loop never ran tier-4).
+    /// Dispatch the tier-4 rules engine when `needs_tier4_tick` is due.
+    /// Real runtimes derive this through [`tier4_simulation_enabled`]; callers
+    /// may still use `false` for deliberately partial pumps such as the
+    /// harness's per-command schedule synchronization.
     pub run_tier4: bool,
 }
 
@@ -548,6 +566,24 @@ mod tests {
     }
 
     // ── advance_world wiring ───────────────────────────────────────────────────
+
+    #[test]
+    fn tier4_simulation_is_default_on_and_explicitly_kill_switchable() {
+        let mut flags = FeatureFlags::default();
+        assert!(
+            tier4_simulation_enabled(&flags),
+            "shipped Tier 4 simulation must run when its flag is absent"
+        );
+
+        flags.disable(TIER4_SIMULATION_FLAG);
+        assert!(
+            !tier4_simulation_enabled(&flags),
+            "an explicit false value must disable Tier 4 simulation"
+        );
+
+        flags.enable(TIER4_SIMULATION_FLAG);
+        assert!(tier4_simulation_enabled(&flags));
+    }
 
     #[test]
     fn skip_options_consume_no_rng_and_publish_no_weather() {
