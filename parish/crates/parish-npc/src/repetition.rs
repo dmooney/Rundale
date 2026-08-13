@@ -3484,46 +3484,47 @@ fn dialogue_recommends_person(dialogue: &str, name: &str) -> bool {
 pub fn guard_work_recommendation(
     dialogue: &str,
     player_input: &str,
-    work_roster: &[(String, String, Option<String>)],
+    work_roster: &[crate::GroundedWorkFact],
 ) -> String {
     let Some(domain) = requested_work_domain(player_input) else {
         return dialogue.to_string();
     };
-    let recommended: Vec<&(String, String, Option<String>)> = work_roster
+    let recommended: Vec<&crate::GroundedWorkFact> = work_roster
         .iter()
-        .filter(|(name, _, _)| dialogue_recommends_person(dialogue, name))
+        .filter(|fact| dialogue_recommends_person(dialogue, &fact.name))
         .collect();
     if recommended.is_empty()
-        || recommended.iter().all(|(_, occupation, workplace)| {
-            work_entry_matches_domain(occupation, workplace.as_deref(), domain)
+        || recommended.iter().all(|fact| {
+            work_entry_matches_domain(&fact.occupation, fact.workplace.as_deref(), domain)
         })
     {
         return dialogue.to_string();
     }
 
     let replacement = domain.occupation_keywords().iter().find_map(|keyword| {
-        work_roster.iter().find(|(_, occupation, workplace)| {
-            let occupation_lower = occupation.to_lowercase();
+        work_roster.iter().find(|fact| {
+            let occupation_lower = fact.occupation.to_lowercase();
             !occupation_lower.contains("retired")
                 && occupation_lower.contains(keyword)
-                && work_entry_matches_domain(occupation, workplace.as_deref(), domain)
+                && work_entry_matches_domain(&fact.occupation, fact.workplace.as_deref(), domain)
         })
     });
     let replacement = replacement.or_else(|| {
-        work_roster.iter().find(|(_, occupation, workplace)| {
-            work_entry_matches_domain(occupation, workplace.as_deref(), domain)
+        work_roster.iter().find(|fact| {
+            work_entry_matches_domain(&fact.occupation, fact.workplace.as_deref(), domain)
         })
     });
-    let Some((name, occupation, workplace)) = replacement else {
+    let Some(replacement) = replacement else {
         return dialogue.to_string();
     };
 
     tracing::warn!(
-        recommended = ?recommended.iter().map(|(name, _, _)| name).collect::<Vec<_>>(),
-        replacement = %name,
+        recommended = ?recommended.iter().map(|fact| &fact.name).collect::<Vec<_>>(),
+        replacement = %replacement.name,
         "work-referral grounding guard corrected an occupation mismatch (#1790)"
     );
-    let workplace = workplace
+    let workplace = replacement
+        .workplace
         .as_deref()
         .filter(|place| !place.trim().is_empty())
         .map(|place| format!(" at {place}"))
@@ -3531,8 +3532,8 @@ pub fn guard_work_recommendation(
     format!(
         "For {}, ye'd best ask {}, the {}{}.",
         domain.label(),
-        name,
-        occupation,
+        replacement.name,
+        replacement.occupation,
         workplace
     )
 }
@@ -8484,17 +8485,21 @@ mod tests {
     #[test]
     fn farm_hands_referral_rejects_retired_constable_and_prefers_farmer() {
         let roster = vec![
-            (
-                "Mick Flanagan".to_string(),
-                "Retired Constable".to_string(),
-                None,
-            ),
-            (
-                "Siobhan Murphy".to_string(),
-                "Farmer".to_string(),
-                Some("Murphy's Farm".to_string()),
-            ),
-            ("Sean Ruadh Kelly".to_string(), "Labourer".to_string(), None),
+            crate::GroundedWorkFact {
+                name: "Mick Flanagan".to_string(),
+                occupation: "Retired Constable".to_string(),
+                workplace: None,
+            },
+            crate::GroundedWorkFact {
+                name: "Siobhan Murphy".to_string(),
+                occupation: "Farmer".to_string(),
+                workplace: Some("Murphy's Farm".to_string()),
+            },
+            crate::GroundedWorkFact {
+                name: "Sean Ruadh Kelly".to_string(),
+                occupation: "Labourer".to_string(),
+                workplace: None,
+            },
         ];
         let dialogue = "Might be worth asking Mick Flanagan if ye could help with \
                         farm duties. He's a man who needs a steady hand, I wager.";
@@ -8509,11 +8514,11 @@ mod tests {
 
     #[test]
     fn occupation_matched_work_referral_passes_through() {
-        let roster = vec![(
-            "Siobhan Murphy".to_string(),
-            "Farmer".to_string(),
-            Some("Murphy's Farm".to_string()),
-        )];
+        let roster = vec![crate::GroundedWorkFact {
+            name: "Siobhan Murphy".to_string(),
+            occupation: "Farmer".to_string(),
+            workplace: Some("Murphy's Farm".to_string()),
+        }];
         let dialogue = "Ask Siobhan Murphy at the farm; she's the farmer there.";
         assert_eq!(
             guard_work_recommendation(
@@ -8528,16 +8533,16 @@ mod tests {
     #[test]
     fn your_man_work_referral_is_checked_against_authored_occupation() {
         let roster = vec![
-            (
-                "Mick Flanagan".to_string(),
-                "Retired Constable".to_string(),
-                None,
-            ),
-            (
-                "Siobhan Murphy".to_string(),
-                "Farmer".to_string(),
-                Some("Murphy's Farm".to_string()),
-            ),
+            crate::GroundedWorkFact {
+                name: "Mick Flanagan".to_string(),
+                occupation: "Retired Constable".to_string(),
+                workplace: None,
+            },
+            crate::GroundedWorkFact {
+                name: "Siobhan Murphy".to_string(),
+                occupation: "Farmer".to_string(),
+                workplace: Some("Murphy's Farm".to_string()),
+            },
         ];
         let dialogue = "Mick Flanagan is your man for farm work.";
         let result = guard_work_recommendation(

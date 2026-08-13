@@ -1257,7 +1257,13 @@ pub fn dialogue_grounding_snapshot(
         player_name: world.player_name.clone(),
         work_roster: work_roster
             .into_iter()
-            .map(|(_, name, occupation, workplace)| (name, occupation, workplace))
+            .map(
+                |(_, name, occupation, workplace)| crate::npc::GroundedWorkFact {
+                    name,
+                    occupation,
+                    workplace,
+                },
+            )
             .collect(),
         relationship_tone_hints: npc_manager.relationship_tone_hints(speaker_id),
         prior_player_inputs,
@@ -1384,9 +1390,15 @@ pub fn apply_npc_dialogue_turn_with_validation(
     if !crate::npc::dialogue_fulfills_obligations(
         &canonical_response.dialogue,
         &grounding.dialogue_obligations,
+        player_input,
+        &grounding.work_roster,
     ) {
         canonical_response = crate::npc::NpcStreamResponse {
-            dialogue: crate::npc::dialogue_obligation_fallback(&grounding.dialogue_obligations),
+            dialogue: crate::npc::dialogue_obligation_fallback(
+                &grounding.dialogue_obligations,
+                player_input,
+                &grounding.work_roster,
+            ),
             metadata: None,
         };
         if !guard_reasons
@@ -3302,6 +3314,8 @@ mod tests {
         assert!(crate::npc::dialogue_fulfills_obligations(
             &outcome.display_text,
             &grounding.dialogue_obligations,
+            input,
+            &grounding.work_roster,
         ));
         assert!(!outcome.display_text.contains(raw));
         assert!(outcome.action.is_none());
@@ -3326,6 +3340,77 @@ mod tests {
             }
             other => panic!("expected dialogue event, got {other:?}"),
         }
+    }
+
+    #[test]
+    fn canonical_apply_replaces_work_non_answer_with_grounded_referral() {
+        use crate::npc::manager::NpcManager;
+        use crate::npc::{
+            DialogueValidationPolicy, LanguageSettings, NpcId, NpcMetadata,
+            NpcResponseParseDisposition, NpcStreamResponse,
+        };
+        use chrono::TimeZone;
+        use parish_world::WorldState;
+
+        let mut world = WorldState::new();
+        let mut manager = NpcManager::new();
+        let mut peig = crate::npc::Npc::new_test_npc();
+        peig.id = NpcId(1);
+        peig.name = "Peig Hannigan".to_string();
+        peig.occupation = "Widow".to_string();
+        peig.set_location(world.player_location);
+        manager.add_npc(peig);
+        let mut siobhan = crate::npc::Npc::new_test_npc();
+        siobhan.id = NpcId(2);
+        siobhan.name = "Siobhan Murphy".to_string();
+        siobhan.occupation = "Farmer".to_string();
+        siobhan.set_location(world.player_location);
+        manager.add_npc(siobhan);
+
+        let input = "I came to Kilteevan because I need honest work. Tell me plainly which farmer or tradesperson I should ask for a task today.";
+        let mut grounding = dialogue_grounding_snapshot(&world, &manager, NpcId(1));
+        grounding.dialogue_obligations =
+            crate::npc::derive_dialogue_obligations(input, &grounding.known_person_names);
+        let candidate = NpcStreamResponse {
+            dialogue: "I cannot promise work, but I understand you are seeking it.".to_string(),
+            metadata: Some(NpcMetadata {
+                action: "shrugs".to_string(),
+                mood: "curious".to_string(),
+                internal_thought: None,
+                language_hints: Vec::new(),
+                mentioned_people: Vec::new(),
+                assigned_task: Some("Invent a job".to_string()),
+            }),
+        };
+        let location = world.player_location;
+        let outcome = apply_npc_dialogue_turn_with_validation(
+            &mut world,
+            &mut manager,
+            NpcId(1),
+            &candidate,
+            NpcResponseParseDisposition::FullJson,
+            &grounding,
+            DialogueValidationPolicy::default(),
+            input,
+            input,
+            chrono::Utc.with_ymd_and_hms(1820, 3, 20, 8, 0, 0).unwrap(),
+            location,
+            "an elderly widow",
+            "Peig Hannigan",
+            Some(1853),
+            &grounding.known_person_names,
+            &LanguageSettings::english_only(),
+            &FeatureFlags::default(),
+        );
+
+        assert_eq!(outcome.guard_reasons, ["dialogue_obligation_guard"]);
+        assert!(outcome.display_text.contains("Siobhan Murphy"));
+        assert!(outcome.display_text.contains("Farmer"));
+        assert!(outcome.display_text.contains("cannot say"));
+        assert!(!outcome.display_text.contains("hiring"));
+        assert!(outcome.action.is_none());
+        assert!(outcome.assigned_task.is_none());
+        assert!(world.player_progress.is_empty());
     }
 
     #[test]

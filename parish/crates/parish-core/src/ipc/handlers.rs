@@ -993,9 +993,8 @@ pub struct NpcConversationSetup {
     /// an NPC can have met the player without having said their name (#1776,
     /// #1786).
     pub had_prior_exchange: bool,
-    /// Canonical authored work facts for post-generation referral validation:
-    /// `(name, occupation, workplace name)`.
-    pub work_roster: Vec<(String, String, Option<String>)>,
+    /// Canonical authored work facts for post-generation referral validation.
+    pub work_roster: Vec<crate::npc::GroundedWorkFact>,
     /// Immutable authored facts captured before inference. The canonical apply
     /// seam validates the completed candidate against this exact snapshot.
     pub grounding: crate::npc::DialogueGroundingSnapshot,
@@ -1265,9 +1264,15 @@ pub fn prepare_npc_conversation_turn(
         })
         .collect();
     work_roster_with_ids.sort_by_key(|(id, _, _, _)| id.0);
-    let work_roster: Vec<(String, String, Option<String>)> = work_roster_with_ids
+    let work_roster: Vec<crate::npc::GroundedWorkFact> = work_roster_with_ids
         .into_iter()
-        .map(|(_, name, occupation, workplace)| (name, occupation, workplace))
+        .map(
+            |(_, name, occupation, workplace)| crate::npc::GroundedWorkFact {
+                name,
+                occupation,
+                workplace,
+            },
+        )
         .collect();
 
     let prior_player_inputs = world

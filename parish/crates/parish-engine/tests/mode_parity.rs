@@ -494,6 +494,50 @@ fn grounded_task_assignment_is_identical_in_legacy_and_real_loops() {
     );
 }
 
+#[test]
+fn grounded_work_referral_fallback_is_identical_in_legacy_and_real_loops() {
+    let mut harness = GameTestHarness::new();
+    let (_speaker_id, speaker_name) = isolate_one_speaker(&mut harness);
+    let input = "Good morning. I'm Eilis Byrne, newly arrived and looking for honest work. Is there anyone needing a hand today?";
+    let response = serde_json::json!({
+        "dialogue": "Plainly, then—what brings ye to Kilteevan?",
+        "action": "shrugs",
+        "mood": "curious",
+        "language_hints": [],
+        "assigned_task": "Invent a job",
+        "internal_thought": null
+    })
+    .to_string();
+    let pre = GameSnapshot::capture(&harness.app.world, &harness.app.npc_manager);
+
+    harness.add_canned_response(&speaker_name, &response);
+    let mut legacy_rx = harness.app.world.event_bus.subscribe();
+    let _ = harness.execute(input);
+    let legacy_stream = drain(&mut legacy_rx);
+    let legacy = dialogue_events(&legacy_stream);
+    let legacy_tasks = player_task_events(&legacy_stream);
+    assert!(harness.app.world.player_progress.is_empty());
+
+    pre.restore(&mut harness.app.world, &mut harness.app.npc_manager);
+    harness
+        .mock()
+        .push_json_for(first_word(&speaker_name), &response);
+    let mut real_rx = harness.app.world.event_bus.subscribe();
+    let _ = harness.execute_via_real_loop(input);
+    let real_stream = drain(&mut real_rx);
+    let real = dialogue_events(&real_stream);
+    let real_tasks = player_task_events(&real_stream);
+
+    assert_eq!(legacy, real);
+    assert_eq!(legacy_tasks, real_tasks);
+    assert!(real_tasks.is_empty());
+    assert!(harness.app.world.player_progress.is_empty());
+    let rendered = real.iter().cloned().collect::<String>();
+    assert!(rendered.contains("Siobhan Murphy"), "{rendered}");
+    assert!(rendered.contains("Murphy's Farm"), "{rendered}");
+    assert!(!rendered.contains("Invent a job"), "{rendered}");
+}
+
 /// C6: the comparison the parity test relies on must flag a path that drops the
 /// `DialogueOccurred` event (the exact pre-fix addressed-path bug), and must NOT
 /// flag two events that differ only in incidental ids/timestamps.
