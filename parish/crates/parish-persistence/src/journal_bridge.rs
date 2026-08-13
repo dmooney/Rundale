@@ -15,6 +15,19 @@ use parish_types::GameEvent;
 /// to be replayed during crash recovery.
 pub fn to_journal_event(event: &GameEvent) -> Option<WorldEvent> {
     match event {
+        GameEvent::ReactionRecorded {
+            npc_id,
+            direction,
+            emoji,
+            context,
+            timestamp,
+        } => Some(WorldEvent::ReactionRecorded {
+            npc_id: *npc_id,
+            direction: *direction,
+            emoji: emoji.clone(),
+            context: context.clone(),
+            timestamp: *timestamp,
+        }),
         GameEvent::DialogueOccurred {
             npc_id,
             summary,
@@ -104,6 +117,27 @@ mod tests {
         };
         let journal = to_journal_event(&event).unwrap();
         assert_eq!(journal.event_type(), "NpcMoodChanged");
+    }
+
+    #[test]
+    fn reaction_recorded_preserves_direction_for_recovery() {
+        let event = GameEvent::ReactionRecorded {
+            npc_id: NpcId(7),
+            direction: parish_types::ReactionDirection::NpcToPlayer,
+            emoji: "👀".to_string(),
+            context: "I have no money".to_string(),
+            timestamp: test_time(),
+        };
+        assert_eq!(
+            to_journal_event(&event),
+            Some(WorldEvent::ReactionRecorded {
+                npc_id: NpcId(7),
+                direction: parish_types::ReactionDirection::NpcToPlayer,
+                emoji: "👀".to_string(),
+                context: "I have no money".to_string(),
+                timestamp: test_time(),
+            })
+        );
     }
 
     #[test]

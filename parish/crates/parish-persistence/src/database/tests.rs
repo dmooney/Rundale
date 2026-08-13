@@ -59,6 +59,46 @@ fn test_snapshot_save_and_load() {
 }
 
 #[test]
+fn reaction_history_survives_snapshot_plus_journal_recovery() {
+    use parish_npc::manager::NpcManager;
+    use parish_types::{NpcId, ReactionDirection};
+
+    let db = Database::open_memory().unwrap();
+    let branch = db.find_branch("main").unwrap().unwrap();
+    let mut snapshot = make_test_snapshot();
+    let npc = parish_npc::Npc::new_test_npc();
+    snapshot.npcs.push(crate::NpcSnapshot::from_npc(&npc));
+    let snapshot_id = db.save_snapshot(branch.id, &snapshot).unwrap();
+    let timestamp = Utc.with_ymd_and_hms(1820, 3, 20, 8, 5, 0).unwrap();
+    db.append_event(
+        branch.id,
+        snapshot_id,
+        &crate::WorldEvent::ReactionRecorded {
+            npc_id: NpcId(1),
+            direction: ReactionDirection::NpcToPlayer,
+            emoji: "👀".to_string(),
+            context: "I have no money".to_string(),
+            timestamp,
+        },
+        &timestamp.to_rfc3339(),
+    )
+    .unwrap();
+
+    let recovery = db.load_recovery_data(branch.id).unwrap().unwrap();
+    let mut world = parish_world::WorldState::new();
+    let mut npcs = NpcManager::new();
+    recovery.snapshot.restore(&mut world, &mut npcs);
+    crate::replay_journal(&mut world, &mut npcs, &recovery.journal);
+    let context = npcs
+        .get(NpcId(1))
+        .unwrap()
+        .reaction_log
+        .prompt_context_string(5);
+    assert!(context.contains("You raised an eyebrow"));
+    assert!(!context.contains("The player raised an eyebrow"));
+}
+
+#[test]
 fn test_load_latest_snapshot_none() {
     let db = Database::open_memory().unwrap();
     let branch = db.find_branch("main").unwrap().unwrap();
