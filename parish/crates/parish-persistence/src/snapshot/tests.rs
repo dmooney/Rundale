@@ -77,7 +77,7 @@ fn test_npc_snapshot_roundtrip_all_persisted_fields() {
         key_relationship_changes: vec![],
     };
 
-    let npc = Npc::from_persisted_fields(NpcPersistedFields {
+    let mut npc = Npc::from_persisted_fields(NpcPersistedFields {
         id: NpcId(42),
         name: "Brigid Ní Fhaoláin".to_string(),
         brief_description: "a tall woman in a grey shawl".to_string(),
@@ -111,11 +111,22 @@ fn test_npc_snapshot_roundtrip_all_persisted_fields() {
         knowledge: vec!["The well on Kilmore road is dry.".to_string()],
         state: NpcState::Present,
         deflated_summary: Some(summary.clone()),
+        reaction_log: parish_npc::reactions::ReactionLog::default(),
         last_activity: Some("Delivered a baby at the Burke farm.".to_string()),
         is_ill: true,
         doom: Some(Utc.with_ymd_and_hms(1820, 6, 1, 0, 0, 0).unwrap()),
         banshee_heralded: true,
     });
+    npc.reaction_log.add(
+        "😊",
+        "Welcome",
+        Utc.with_ymd_and_hms(1820, 3, 20, 10, 5, 0).unwrap(),
+    );
+    npc.reaction_log.add_player_message_reaction(
+        "👀",
+        "I have no money",
+        Utc.with_ymd_and_hms(1820, 3, 20, 10, 6, 0).unwrap(),
+    );
 
     // Round-trip through JSON to exercise the full serialize/deserialize path.
     let snap = NpcSnapshot::from_npc(&npc);
@@ -162,11 +173,7 @@ fn test_npc_snapshot_roundtrip_all_persisted_fields() {
         restored.banshee_heralded,
         "banshee_heralded lost on round-trip"
     );
-    // reaction_log is intentionally not persisted — verify it is reset.
-    assert!(
-        restored.reaction_log.is_empty(),
-        "reaction_log should be reset on load (not persisted)"
-    );
+    assert_eq!(restored.reaction_log, npc.reaction_log);
 }
 
 /// #338: deflated_summary used to be hard-coded to None on
@@ -216,6 +223,7 @@ fn test_npc_snapshot_legacy_blob_without_deflated_summary() {
     let parsed: NpcSnapshot =
         serde_json::from_str(legacy_json).expect("legacy NpcSnapshot must parse");
     assert!(parsed.deflated_summary.is_none());
+    assert!(parsed.reaction_log.is_empty());
 }
 
 #[test]
