@@ -110,7 +110,7 @@
 		"since",
 		"duration_hours",
 		"min_duration_hours",
-		"last_check_hour"
+		"last_check_at"
 	],
 	"WorldDebug": [
 		"player_location_name",

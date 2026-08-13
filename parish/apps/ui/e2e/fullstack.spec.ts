@@ -104,4 +104,51 @@ test.describe('Real browser + parish-server acceptance', () => {
 			}
 		}
 	});
+
+	test('weather diagnostics render the canonical 1820 check time', async ({
+		page,
+	}, testInfo) => {
+		const input = page.getByRole('combobox', { name: 'Player input' });
+		await input.fill('/weather overcast');
+		await input.press('Enter');
+
+		await expect
+			.poll(() =>
+				page.evaluate(async () => {
+					const response = await fetch('/api/debug-snapshot');
+					if (!response.ok) return null;
+					return (await response.json()).weather as {
+						last_check_at?: string | null;
+						last_check_hour?: number;
+					};
+				}),
+			)
+			.toMatchObject({
+				last_check_at: expect.stringMatching(/^\d{2}:\d{2} 1820-03-20$/),
+			});
+		const snapshot = await page.evaluate(async () => {
+			const response = await fetch('/api/debug-snapshot');
+			return (await response.json()).weather as {
+				last_check_at: string;
+				last_check_hour?: number;
+			};
+		});
+		expect(snapshot.last_check_hour).toBeUndefined();
+
+		await page.getByRole('button', { name: 'Developer tools menu' }).click();
+		await page
+			.getByRole('menuitemcheckbox', { name: 'Toggle debug panel' })
+			.click();
+		await page.getByRole('button', { name: 'Weather', exact: true }).click();
+		const dialog = page.getByRole('dialog', { name: 'Debug records' });
+		await expect(dialog).toContainText(
+			`Last checked: ${snapshot.last_check_at}`,
+		);
+		await expect(dialog).not.toContainText('Last check hour');
+
+		await testInfo.attach('weather-debug-canonical-check-time', {
+			body: await page.screenshot({ fullPage: true }),
+			contentType: 'image/png',
+		});
+	});
 });

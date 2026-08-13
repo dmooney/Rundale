@@ -311,7 +311,7 @@ export interface WeatherDebug {
 	since: string;
 	duration_hours: number;
 	min_duration_hours: number;
-	last_check_hour: number | null;
+	last_check_at: string | null;
 }
 
 export interface WorldDebug {
