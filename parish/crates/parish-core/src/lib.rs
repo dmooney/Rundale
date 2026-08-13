@@ -60,6 +60,7 @@ pub use parish_input as input;
 pub use parish_mod as game_mod;
 pub use parish_npc as npc;
 pub use parish_persistence as persistence;
+pub use parish_types::ReactionDirection;
 pub use parish_types::dice;
 pub use parish_types::error;
 pub use parish_world as world;
