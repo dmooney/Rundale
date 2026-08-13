@@ -236,6 +236,10 @@ Known engine flags (all **default-on**; disable to opt out):
   whatever `PARISH_*` env vars / `parish.toml` already configure.
 - `night-visions` (planned) — see `docs/design/ideas/night-visions.md`.
 - `banshee` — banshee death-herald system: keening cries announce impending NPC death during dusk-to-dawn windows (see Death & The Banshee).
+- `tier4-simulation` — seasonal CPU-only life events for NPCs more than five
+  graph edges from the player. The same kill switch governs web, desktop,
+  headless, and bulk-time harness pumps; disabling it does not enable or alter
+  autonomous NPC conversation chains.
 
 Flags documented in plans but not yet implemented:
 
