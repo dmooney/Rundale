@@ -2125,13 +2125,14 @@ async fn react_to_message_waits_for_staged_turn_barrier() {
     assert_eq!(response.status(), axum::http::StatusCode::OK);
     let location = state.world.lock().await.player_location;
     let npc_manager = state.npc_manager.lock().await;
+    let log = &npc_manager
+        .find_by_name("Molly", location)
+        .unwrap()
+        .reaction_log;
+    assert_eq!(log.len(), 1);
     assert_eq!(
-        npc_manager
-            .find_by_name("Molly", location)
-            .unwrap()
-            .reaction_log
-            .len(),
-        1
+        log.entries().next().unwrap().direction,
+        parish_core::ReactionDirection::PlayerToNpc
     );
 }
 

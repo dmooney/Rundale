@@ -243,6 +243,12 @@ fn project_exchange(world: &WorldState, exchange: &ConversationExchange) -> Turn
 
 fn project_event(event: &GameEvent) -> TurnEvent {
     let summary = match event {
+        GameEvent::ReactionRecorded {
+            npc_id,
+            direction,
+            emoji,
+            ..
+        } => format!("NPC #{} reaction {:?}: {emoji}", npc_id.0, direction),
         GameEvent::DialogueOccurred { summary, .. } => summary.clone(),
         GameEvent::MoodChanged {
             npc_id, new_mood, ..
