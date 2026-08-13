@@ -290,7 +290,14 @@ fn ipc_field_parity() {
 
     assert_keys_contain_manifest(
         "StreamTurnEndPayload",
-        &StreamTurnEndPayload { turn_id: 1 },
+        &StreamTurnEndPayload {
+            turn_id: 1,
+            status: parish_core::ipc::StreamTurnStatus::Completed,
+            message_id: Some("msg-1".into()),
+            source: Some("Siobhan".into()),
+            final_text: Some("Good day to ye.".into()),
+            recovery_message: Some("Please try again.".into()),
+        },
         &manifest,
     );
 
