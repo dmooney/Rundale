@@ -19,6 +19,12 @@ vi.mock('$lib/map/controller', () => ({
 	MapController: class {
 		onLocationClick() {}
 		onLocationHover() {}
+		addMoveListener() {
+			return () => {};
+		}
+		projectToScreen() {
+			return { x: 0, y: 0 };
+		}
 		updateMap() {}
 		fitBounds() {}
 		setTileSource() {}

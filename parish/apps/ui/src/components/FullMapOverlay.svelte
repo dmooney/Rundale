@@ -12,7 +12,7 @@
 	import { subscribeTileSource } from '$lib/map/tileSync';
 	import { MapController, type LocationHoverInfo } from '$lib/map/controller';
 	import MapTooltip from './MapTooltip.svelte';
-	import type { MapTooltipInfo } from '$lib/types';
+	import type { MapLocation, MapTooltipInfo } from '$lib/types';
 
 	interface Props {
 		onclose: () => void;
@@ -25,6 +25,46 @@
 	let mounted = $state(false);
 
 	let tooltip: MapTooltipInfo | null = $state(null);
+	let locationActions: Array<MapLocation & { x: number; y: number }> = $state(
+		[],
+	);
+
+	async function activateLocation(
+		location: Pick<MapLocation, 'name' | 'adjacent'>,
+	) {
+		if (!location.adjacent) return;
+		try {
+			await submitInput(`go to ${location.name}`);
+		} catch (err) {
+			pushErrorLog(
+				`Could not travel to ${location.name}: ${formatIpcError(err)}`,
+			);
+		}
+	}
+
+	function positionLocationActions() {
+		const m = $mapData;
+		const mapController = controller;
+		if (!mapController || !m) {
+			locationActions = [];
+			return;
+		}
+		locationActions = m.locations
+			.filter((location) => location.adjacent)
+			.map((location) => ({
+				...location,
+				...mapController.projectToScreen(location.lat, location.lon),
+			}));
+	}
+
+	function showLocationTooltip(location: MapLocation) {
+		tooltip = {
+			name: location.name,
+			indoor: location.indoor,
+			travel_minutes: location.travel_minutes,
+			visited: location.visited,
+		};
+	}
 
 	onMount(() => {
 		if (!container) return;
@@ -35,15 +75,8 @@
 			tileSource: currentTileSource($tiles),
 		});
 
-		controller.onLocationClick(async (info) => {
-			if (!info.adjacent) return;
-			try {
-				await submitInput(`go to ${info.name}`);
-			} catch (err) {
-				pushErrorLog(
-					`Could not travel to ${info.name}: ${formatIpcError(err)}`,
-				);
-			}
+		controller.onLocationClick((info) => {
+			void activateLocation(info);
 		});
 
 		controller.onLocationHover(
@@ -73,11 +106,14 @@
 
 		// Keep base tiles in sync with `/tiles` selection.
 		const unsubscribeTiles = subscribeTileSource(() => controller);
+		const unsubscribeMove = controller.addMoveListener(positionLocationActions);
 
 		mounted = true;
+		positionLocationActions();
 
 		return () => {
 			unsubscribeTiles();
+			unsubscribeMove();
 			controller?.destroy();
 			controller = null;
 		};
@@ -107,6 +143,9 @@
 				);
 				hasFitOnce = true;
 			}
+			positionLocationActions();
+		} else {
+			locationActions = [];
 		}
 	});
 
@@ -143,6 +182,23 @@
 		<span aria-hidden="true">&times;</span>
 	</button>
 	<div class="map-container" bind:this={container}></div>
+	<nav class="location-actions" aria-label="Walkable map locations">
+		{#each locationActions as location (location.id)}
+			<button
+				type="button"
+				class="location-action"
+				style:left="{location.x}px"
+				style:top="{location.y}px"
+				aria-label="Travel to {location.name}"
+				title="Travel to {location.name}"
+				onclick={() => void activateLocation(location)}
+				onmouseenter={() => showLocationTooltip(location)}
+				onmouseleave={() => (tooltip = null)}
+				onfocus={() => showLocationTooltip(location)}
+				onblur={() => (tooltip = null)}
+			></button>
+		{/each}
+	</nav>
 	{#if $uiConfig.map_overlay === 'grid'}
 		<div class="blueprint-grid-overlay"></div>
 	{/if}
@@ -208,6 +264,33 @@
 		flex: 1;
 		min-height: 0;
 		width: 100%;
+	}
+
+	.location-actions {
+		position: absolute;
+		inset: 0;
+		z-index: 1;
+		pointer-events: none;
+	}
+
+	.location-action {
+		position: absolute;
+		width: 44px;
+		height: 44px;
+		padding: 0;
+		transform: translate(-50%, -50%);
+		border: 0;
+		border-radius: 50%;
+		background: transparent;
+		color: transparent;
+		cursor: pointer;
+		pointer-events: auto;
+	}
+
+	.location-action:focus-visible {
+		outline: 2px solid var(--color-fg);
+		outline-offset: 3px;
+		box-shadow: 0 0 0 2px var(--color-accent);
 	}
 
 	.map-legend {
