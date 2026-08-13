@@ -15,6 +15,25 @@ pub enum DialogueObligation {
     Lodging,
 }
 
+/// Immutable authored occupation/workplace facts used to answer work-seeking
+/// appeals without turning a roster entry into a claim that anyone is hiring.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct GroundedWorkFact {
+    /// Canonical authored display name.
+    pub name: String,
+    /// Canonical authored occupation, never inferred from model text.
+    pub occupation: String,
+    /// Canonical authored workplace name when the NPC has one.
+    pub workplace: Option<String>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum WorkReferralKind {
+    General,
+    Farmer,
+    Tradesperson,
+}
+
 fn normalized_words(value: &str) -> Vec<String> {
     value
         .split(|character: char| !character.is_alphanumeric() && character != '\'')
@@ -44,6 +63,42 @@ fn routed_utterance(input: &str) -> &str {
 fn first_position(input: &str, phrases: &[&str]) -> Option<usize> {
     let lower = input.to_lowercase();
     phrases.iter().filter_map(|phrase| lower.find(phrase)).min()
+}
+
+fn requests_work_referral(input: &str) -> bool {
+    let lower = input.to_lowercase();
+    let seeks_work = [
+        "looking for honest work",
+        "looking for work",
+        "need honest work",
+        "need work",
+        "seeking honest work",
+        "seeking work",
+        "needing a hand",
+        "needs a hand",
+        "farmer or tradesperson",
+        "farmer or tradesman",
+        "who should i ask",
+        "who might i ask",
+        "anyone needing",
+        "anyone who needs",
+    ]
+    .iter()
+    .any(|phrase| lower.contains(phrase));
+    let seeks_person = [
+        "anyone",
+        "which farmer",
+        "what farmer",
+        "farmer or tradesperson",
+        "farmer or tradesman",
+        "who should i ask",
+        "who might i ask",
+        "who can i ask",
+        "tell me plainly which",
+    ]
+    .iter()
+    .any(|phrase| lower.contains(phrase));
+    seeks_work && seeks_person
 }
 
 fn find_bounded(value: &str, needle: &str) -> Option<usize> {
@@ -190,7 +245,7 @@ pub fn derive_dialogue_obligations(
     // particular, treating "Is there work for me?" as a noncommittal-answer
     // obligation would erase an otherwise grounded task assignment at the
     // canonical apply seam.
-    if input.trim_end().ends_with('?') {
+    if input.trim_end().ends_with('?') && !requests_work_referral(input) {
         return Vec::new();
     }
     let lower = input.to_lowercase();
@@ -247,7 +302,7 @@ pub fn render_dialogue_obligation_contract(obligations: &[DialogueObligation]) -
             DialogueObligation::Name { player_name } => {
                 format!("NAME: acknowledge the player's stated name, {player_name}")
             }
-            DialogueObligation::Work => "WORK: address the request for work; do not claim that you or anyone else is hiring without authored evidence".to_string(),
+            DialogueObligation::Work => "WORK: answer a request for work or a work referral with a canonically suitable authored occupation/workplace lead when one is known; make clear that this is guidance, not a claim that anyone is hiring; otherwise state the uncertainty plainly".to_string(),
             DialogueObligation::Lodging => "LODGING: address the request for a bed, shelter, or dry place to sleep; do not claim that any person or place offers lodging without authored evidence".to_string(),
         };
         block.push_str(&format!("{}. {instruction}.\n", index + 1));
@@ -352,7 +407,12 @@ fn is_noncommittal(dialogue: &str) -> bool {
 
 /// True only when the final player-visible line acknowledges every recognized
 /// facet without inventing hiring or lodging capability.
-pub fn dialogue_fulfills_obligations(dialogue: &str, obligations: &[DialogueObligation]) -> bool {
+pub fn dialogue_fulfills_obligations(
+    dialogue: &str,
+    obligations: &[DialogueObligation],
+    player_input: &str,
+    work_roster: &[GroundedWorkFact],
+) -> bool {
     obligations.iter().all(|obligation| match obligation {
         DialogueObligation::Referral { referrer } => {
             mentions_person(dialogue, referrer)
@@ -362,6 +422,7 @@ pub fn dialogue_fulfills_obligations(dialogue: &str, obligations: &[DialogueObli
         }
         DialogueObligation::Name { player_name } => mentions_person(dialogue, player_name),
         DialogueObligation::Work => {
+            let grounded_referral = grounded_work_referral(player_input, work_roster);
             is_noncommittal(dialogue)
                 && !invents_work_capability(dialogue)
                 && [
@@ -378,6 +439,9 @@ pub fn dialogue_fulfills_obligations(dialogue: &str, obligations: &[DialogueObli
                 ]
                 .iter()
                 .any(|marker| contains_phrase(dialogue, marker))
+                && (!requests_work_referral(player_input)
+                    || grounded_referral.is_none()
+                    || names_suitable_grounded_referral(dialogue, player_input, work_roster))
         }
         DialogueObligation::Lodging => {
             is_noncommittal(dialogue)
@@ -398,8 +462,111 @@ pub fn dialogue_fulfills_obligations(dialogue: &str, obligations: &[DialogueObli
     })
 }
 
+fn work_referral_kind(player_input: &str) -> WorkReferralKind {
+    let lower = player_input.to_lowercase();
+    if lower.contains("farmer") {
+        WorkReferralKind::Farmer
+    } else if (lower.contains("tradesperson") || lower.contains("tradesman"))
+        && !lower.contains("farmer")
+    {
+        WorkReferralKind::Tradesperson
+    } else {
+        WorkReferralKind::General
+    }
+}
+
+fn is_grounded_work_candidate(fact: &GroundedWorkFact, kind: WorkReferralKind) -> bool {
+    let occupation = fact.occupation.to_lowercase();
+    if occupation.contains("retired")
+        || occupation.contains("child")
+        || occupation.contains("widow")
+        || occupation.contains("wife")
+        || occupation.contains("daughter")
+        || occupation.contains("son")
+        || fact.name.trim().is_empty()
+        || fact.occupation.trim().is_empty()
+    {
+        return false;
+    }
+    let is_farmer = occupation.contains("farmer") || occupation.contains("farm boy");
+    let is_trade = [
+        "blacksmith",
+        "miller",
+        "weaver",
+        "shopkeeper",
+        "publican",
+        "boatman",
+        "labourer",
+        "clerk",
+    ]
+    .iter()
+    .any(|trade| occupation.contains(trade));
+    match kind {
+        WorkReferralKind::Farmer => is_farmer,
+        WorkReferralKind::Tradesperson => is_trade,
+        WorkReferralKind::General => is_farmer || is_trade,
+    }
+}
+
+fn grounded_work_referral<'a>(
+    player_input: &str,
+    work_roster: &'a [GroundedWorkFact],
+) -> Option<&'a GroundedWorkFact> {
+    let kind = work_referral_kind(player_input);
+    let find = |kind| {
+        work_roster
+            .iter()
+            .find(|fact| is_grounded_work_candidate(fact, kind))
+    };
+    match kind {
+        WorkReferralKind::General => {
+            find(WorkReferralKind::Farmer).or_else(|| find(WorkReferralKind::Tradesperson))
+        }
+        specific => find(specific),
+    }
+}
+
+fn names_suitable_grounded_referral(
+    dialogue: &str,
+    player_input: &str,
+    work_roster: &[GroundedWorkFact],
+) -> bool {
+    let kind = work_referral_kind(player_input);
+    work_roster.iter().any(|fact| {
+        let suitable = match kind {
+            WorkReferralKind::General => {
+                is_grounded_work_candidate(fact, WorkReferralKind::Farmer)
+                    || is_grounded_work_candidate(fact, WorkReferralKind::Tradesperson)
+            }
+            specific => is_grounded_work_candidate(fact, specific),
+        };
+        suitable && mentions_person(dialogue, &fact.name)
+    })
+}
+
+fn grounded_work_guidance(player_input: &str, work_roster: &[GroundedWorkFact]) -> String {
+    let Some(fact) = grounded_work_referral(player_input, work_roster) else {
+        return "I know no suitable worker to name from what is certain, and I cannot promise work."
+            .to_string();
+    };
+    let workplace = fact
+        .workplace
+        .as_deref()
+        .filter(|place| !place.trim().is_empty())
+        .map(|place| format!(" at {place}"))
+        .unwrap_or_default();
+    format!(
+        "You could ask {}, the {}{}; I cannot say whether they can offer work.",
+        fact.name, fact.occupation, workplace
+    )
+}
+
 /// Authored, noncommittal replacement that covers every recognized facet.
-pub fn dialogue_obligation_fallback(obligations: &[DialogueObligation]) -> String {
+pub fn dialogue_obligation_fallback(
+    obligations: &[DialogueObligation],
+    player_input: &str,
+    work_roster: &[GroundedWorkFact],
+) -> String {
     if obligations.is_empty() {
         return crate::INVALID_DIALOGUE_FALLBACK.to_string();
     }
@@ -411,7 +578,11 @@ pub fn dialogue_obligation_fallback(obligations: &[DialogueObligation]) -> Strin
             }
             DialogueObligation::Name { player_name } => format!("{player_name}, is it? I have it."),
             DialogueObligation::Work => {
-                "I cannot promise work, but I understand you are seeking it.".to_string()
+                if requests_work_referral(player_input) {
+                    grounded_work_guidance(player_input, work_roster)
+                } else {
+                    "I cannot promise work, but I understand you are seeking it.".to_string()
+                }
             }
             DialogueObligation::Lodging => {
                 "I cannot promise lodging, but I understand you need a dry place to sleep."
@@ -505,42 +676,115 @@ mod tests {
 
     #[test]
     fn fulfillment_requires_every_facet_and_refuses_invented_capabilities() {
-        let obligations = derive_dialogue_obligations(
-            "Peig sent me. I'm Aiden Carney, seeking work and somewhere to sleep.",
-            &people(),
-        );
+        let input = "Peig sent me. I'm Aiden Carney, seeking work and somewhere to sleep.";
+        let obligations = derive_dialogue_obligations(input, &people());
         assert!(!dialogue_fulfills_obligations(
             "Aye, I know Peig. What brings ye here?",
             &obligations,
+            input,
+            &[],
         ));
         assert!(dialogue_fulfills_obligations(
             "I hear Peig sent you, Aiden. I cannot promise work, and I cannot promise a bed, but I understand both needs.",
             &obligations,
+            input,
+            &[],
         ));
         assert!(!dialogue_fulfills_obligations(
             "Peig sent you, Aiden. Siobhan is hiring and Darcy's Pub has rooms.",
             &obligations,
+            input,
+            &[],
         ));
         assert!(!dialogue_fulfills_obligations(
             "Peig sent you, Aiden. Work awaits you, and a spare bed is ready.",
             &obligations,
+            input,
+            &[],
         ));
     }
 
     #[test]
     fn fallback_and_prompt_cover_every_obligation_in_order() {
-        let obligations = derive_dialogue_obligations(
-            "Peig sent me. I'm Aiden Carney, seeking work and somewhere to sleep.",
-            &people(),
-        );
+        let input = "Peig sent me. I'm Aiden Carney, seeking work and somewhere to sleep.";
+        let obligations = derive_dialogue_obligations(input, &people());
         let contract = render_dialogue_obligation_contract(&obligations);
         assert!(contract.contains(PLAYER_REQUESTS_HEADING));
         assert!(contract.find("REFERRAL").unwrap() < contract.find("NAME").unwrap());
         assert!(contract.find("NAME").unwrap() < contract.find("WORK").unwrap());
         assert!(contract.find("WORK").unwrap() < contract.find("LODGING").unwrap());
-        let fallback = dialogue_obligation_fallback(&obligations);
-        assert!(dialogue_fulfills_obligations(&fallback, &obligations));
+        let fallback = dialogue_obligation_fallback(&obligations, input, &[]);
+        assert!(dialogue_fulfills_obligations(
+            &fallback,
+            &obligations,
+            input,
+            &[]
+        ));
         assert!(!fallback.contains("is hiring"));
         assert!(!fallback.contains("has rooms"));
+    }
+
+    #[test]
+    fn exact_work_referral_appeals_require_grounded_useful_guidance() {
+        let roster = vec![
+            GroundedWorkFact {
+                name: "Peig Hannigan".to_string(),
+                occupation: "Widow".to_string(),
+                workplace: None,
+            },
+            GroundedWorkFact {
+                name: "Siobhan Murphy".to_string(),
+                occupation: "Farmer".to_string(),
+                workplace: Some("Murphy's Farm".to_string()),
+            },
+            GroundedWorkFact {
+                name: "Seamus Gallagher".to_string(),
+                occupation: "Blacksmith".to_string(),
+                workplace: Some("The Forge".to_string()),
+            },
+        ];
+        for input in [
+            "Good morning. I'm Eilis Byrne, newly arrived and looking for honest work. Is there anyone needing a hand today?",
+            "I came to Kilteevan because I need honest work. Tell me plainly which farmer or tradesperson I should ask for a task today.",
+        ] {
+            let obligations = derive_dialogue_obligations(input, &people());
+            assert_eq!(obligations, [DialogueObligation::Work]);
+            assert!(!dialogue_fulfills_obligations(
+                "I cannot promise work, but I understand you are seeking it.",
+                &obligations,
+                input,
+                &roster,
+            ));
+            let fallback = dialogue_obligation_fallback(&obligations, input, &roster);
+            assert!(fallback.contains("Siobhan Murphy"), "{fallback}");
+            assert!(fallback.contains("Farmer at Murphy's Farm"), "{fallback}");
+            assert!(fallback.contains("cannot say"), "{fallback}");
+            assert!(!fallback.contains("hiring"), "{fallback}");
+            assert!(dialogue_fulfills_obligations(
+                &fallback,
+                &obligations,
+                input,
+                &roster,
+            ));
+            if !input.contains("farmer") {
+                assert!(dialogue_fulfills_obligations(
+                    "You could ask Seamus Gallagher, the Blacksmith at The Forge; I do not know whether he has work.",
+                    &obligations,
+                    input,
+                    &roster,
+                ));
+            }
+        }
+        let input = "I need work; who should I ask?";
+        let obligations = derive_dialogue_obligations(input, &people());
+        let uncertain = dialogue_obligation_fallback(&obligations, input, &[]);
+        assert!(uncertain.contains("no suitable worker"), "{uncertain}");
+        assert!(dialogue_fulfills_obligations(
+            &uncertain,
+            &obligations,
+            input,
+            &[],
+        ));
+        assert!(derive_dialogue_obligations("Is there work for me?", &people()).is_empty());
     }
 }
