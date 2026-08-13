@@ -1706,7 +1706,7 @@ mod tests {
     }
 
     #[test]
-    fn extract_npc_mentions_does_not_match_unintroduced_real_name() {
+    fn explicit_at_mention_matches_unintroduced_roster_name() {
         let world = WorldState::new();
         let mut npc_mgr = NpcManager::new();
         let mut npc = Npc::new_test_npc();
@@ -1718,8 +1718,8 @@ mod tests {
         let raw = "@Padraig O'Brien what have you heard?";
         let extracted = extract_npc_mentions(raw, &world, &npc_mgr);
 
-        assert!(extracted.names.is_empty());
-        assert_eq!(extracted.remaining, raw);
+        assert_eq!(extracted.names, ["Padraig O'Brien"]);
+        assert_eq!(extracted.remaining, "what have you heard?");
     }
 
     #[test]
