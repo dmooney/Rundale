@@ -46,14 +46,22 @@ impl StdoutEmitter {
     /// the event should be silently ignored (wrong event name, missing content,
     /// or empty content).
     fn format_event(name: &str, payload: &serde_json::Value) -> Option<String> {
-        if name == "text-log" {
-            payload
+        match name {
+            "text-log" => payload
                 .get("content")
                 .and_then(|v| v.as_str())
                 .filter(|c| !c.is_empty())
-                .map(|s| s.to_string())
-        } else {
-            None
+                .map(str::to_string),
+            "stream-turn-end"
+                if payload.get("status").and_then(|v| v.as_str()) == Some("failed") =>
+            {
+                payload
+                    .get("recovery_message")
+                    .and_then(|v| v.as_str())
+                    .filter(|c| !c.is_empty())
+                    .map(str::to_string)
+            }
+            _ => None,
         }
     }
 }
@@ -127,5 +135,18 @@ mod tests {
 
         let result = StdoutEmitter::format_event("unknown-event", &serde_json::Value::Null);
         assert_eq!(result, None);
+    }
+
+    #[test]
+    fn failed_stream_prints_player_recovery() {
+        let payload = serde_json::json!({
+            "turn_id": 7,
+            "status": "failed",
+            "recovery_message": "The reply failed. Please try again."
+        });
+        assert_eq!(
+            StdoutEmitter::format_event("stream-turn-end", &payload),
+            Some("The reply failed. Please try again.".to_string())
+        );
     }
 }

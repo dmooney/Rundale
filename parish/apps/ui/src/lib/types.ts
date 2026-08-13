@@ -195,14 +195,24 @@ export interface StreamTokenPayload {
 	source: string;
 	/** Message id of the `text-log` placeholder this stream fills. Carried so a
 	 *  stream that resumes after a WS reconnect can rebind to a reactable
-	 *  `textLog` entry even though `StreamManager.reset()` discarded the
-	 *  client's only copy of the id (#1164). Absent for arrival-reaction
+	 *  `textLog` entry even when `StreamManager.reset()` finalized the client's
+	 *  earlier presentation state (#1164). Absent for arrival-reaction
 	 *  streams (Rust serializes `Option<String>` with `skip_serializing_if`). */
 	message_id?: string;
 }
 
 export interface StreamTurnEndPayload {
 	turn_id: number;
+	/** Authoritative disposition of the complete provider response. */
+	status: 'completed' | 'failed';
+	/** Stable canonical dialogue message identity, when this was an NPC turn. */
+	message_id?: string;
+	/** Display source for a completed dialogue line. */
+	source?: string;
+	/** Complete, validated player-renderable text. Never a provider partial. */
+	final_text?: string;
+	/** Player-visible retry guidance for a failed locally initiated turn. */
+	recovery_message?: string;
 }
 
 export interface StreamEndPayload {

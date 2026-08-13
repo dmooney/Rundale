@@ -18,6 +18,8 @@ pub struct StagedGameInputCommit {
     pub emissions: Vec<(String, serde_json::Value)>,
     /// Complete durable task post-states appended by the turn.
     pub task_mutations: Vec<parish_types::PlayerTask>,
+    /// Recovery result from a dialogue turn that produced no canonical reply.
+    pub dialogue_failure: Option<String>,
 }
 
 /// Returns whether a free-form input must use whole-turn staging.
@@ -214,6 +216,7 @@ where
     Ok(StagedGameInputCommit {
         emissions,
         task_mutations: outcome.task_mutations,
+        dialogue_failure: outcome.dialogue_failure,
     })
 }
 
