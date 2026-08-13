@@ -95,6 +95,8 @@ pub struct WorldState {
     /// Mod-authored prompt framing for the same canonical term set.
     pub dialogue_anachronism_alert_prefix: String,
     pub dialogue_anachronism_alert_suffix: String,
+    /// Last canonical `/session` beat, date/location scoped when consumed.
+    pub active_session: Option<session::ActiveSessionFact>,
 }
 
 impl WorldState {
@@ -162,6 +164,7 @@ impl WorldState {
             dialogue_anachronisms: Vec::new(),
             dialogue_anachronism_alert_prefix: String::new(),
             dialogue_anachronism_alert_suffix: String::new(),
+            active_session: None,
         }
     }
 

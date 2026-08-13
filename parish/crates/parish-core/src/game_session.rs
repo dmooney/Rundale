@@ -14,6 +14,8 @@ use std::collections::HashSet;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{Duration, Instant};
 
+use chrono::Datelike;
+
 use crate::config::{FeatureFlags, ReactionConfig};
 use crate::debug_snapshot::InferenceLogEntry;
 use crate::dice;
@@ -1129,6 +1131,7 @@ pub fn dialogue_grounding_snapshot(
     npc_manager: &NpcManager,
     speaker_id: NpcId,
 ) -> crate::npc::DialogueGroundingSnapshot {
+    let current_date = world.clock.now().date_naive();
     let speaker = npc_manager.get(speaker_id);
     let mut known_person_names: Vec<String> =
         npc_manager.all_npcs().map(|npc| npc.name.clone()).collect();
@@ -1206,6 +1209,7 @@ pub fn dialogue_grounding_snapshot(
             crate::npc::GroundedLocationFact {
                 name: location.name.clone(),
                 nearby_locations,
+                landmarks: location.landmarks.clone(),
             }
         })
         .collect();
@@ -1277,6 +1281,21 @@ pub fn dialogue_grounding_snapshot(
             .clock
             .check_festival()
             .map(|festival| festival.to_string()),
+        current_weekday: parish_types::time::weekday_name(current_date.weekday()).to_string(),
+        current_day_type: parish_types::DayType::from_date(current_date),
+        active_session: world
+            .active_session
+            .as_ref()
+            .filter(|session| {
+                session.date == current_date && session.location == world.player_location
+            })
+            .cloned(),
+        remembered_objects: world
+            .conversation_log
+            .remembered_object_facts(speaker_id, world.player_location)
+            .into_iter()
+            .cloned()
+            .collect(),
         person_facts,
         location_facts,
         referent_context,
@@ -1407,6 +1426,17 @@ pub fn apply_npc_dialogue_turn_with_validation(
         {
             guard_reasons.push("dialogue_obligation_guard".to_string());
         }
+    }
+
+    // Player-authored object attributes are durable conversation truth. They
+    // are derived exclusively from the input (never candidate text/metadata)
+    // and recorded only at this canonical turn boundary, so later turns and
+    // save/load preserve material/colour continuity without granting model
+    // prose authority (#1871).
+    if let Some(fact) =
+        crate::npc::extract_remembered_object_fact(player_input, speaker_id, location)
+    {
+        world.conversation_log.remember_object_fact(fact);
     }
 
     // 2. Tier-1 state update on the speaker.
@@ -3494,6 +3524,102 @@ mod tests {
                     npc_said.as_deref(),
                     Some(crate::npc::INVALID_DIALOGUE_FALLBACK)
                 );
+            }
+            other => panic!("expected dialogue event, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn canonical_apply_quarantines_session_contradiction_and_remembers_player_object_fact() {
+        use crate::npc::manager::NpcManager;
+        use crate::npc::{
+            DialogueValidationPolicy, LanguageSettings, NpcId, NpcMetadata,
+            NpcResponseParseDisposition, NpcStreamResponse,
+        };
+        use chrono::TimeZone;
+        use parish_types::events::GameEvent;
+        use parish_world::WorldState;
+
+        let mut world = WorldState::new();
+        let location = world.player_location;
+        let mut events = world.event_bus.subscribe();
+        let mut manager = NpcManager::new();
+        let mut npc = crate::npc::Npc::new_test_npc();
+        npc.id = NpcId(1);
+        npc.name = "Padraig Darcy".to_string();
+        npc.mood = "content".to_string();
+        npc.set_location(location);
+        manager.add_npc(npc);
+        let mut grounding = dialogue_grounding_snapshot(&world, &manager, NpcId(1));
+        grounding.active_session = Some(crate::world::session::ActiveSessionFact {
+            date: chrono::NaiveDate::from_ymd_opt(1820, 3, 20).unwrap(),
+            location,
+            vignette: crate::world::session::SessionVignette {
+                musician: "An old man's voice lifts from the settle; he".to_string(),
+                tune: "strikes up a ballad.".to_string(),
+                ambient: "The room leans in.".to_string(),
+                verse: Some("The summer is gone".to_string()),
+            },
+        });
+        let raw = "There are only general airs being hummed, with no one singer taking the floor; tonight 'tis only the general clatter of the room.";
+        let candidate = NpcStreamResponse {
+            dialogue: raw.to_string(),
+            metadata: Some(NpcMetadata {
+                action: "waves the singer away".to_string(),
+                mood: "angry".to_string(),
+                internal_thought: Some("deny the song".to_string()),
+                language_hints: Vec::new(),
+                mentioned_people: Vec::new(),
+                assigned_task: Some("Silence the singer".to_string()),
+            }),
+        };
+        let input = "The red wool ribbon has one blue stitch. What do you make of tonight's song?";
+        let outcome = apply_npc_dialogue_turn_with_validation(
+            &mut world,
+            &mut manager,
+            NpcId(1),
+            &candidate,
+            NpcResponseParseDisposition::FullJson,
+            &grounding,
+            DialogueValidationPolicy::default(),
+            input,
+            input,
+            chrono::Utc.with_ymd_and_hms(1820, 3, 20, 20, 0, 0).unwrap(),
+            location,
+            "the publican",
+            "Padraig Darcy",
+            Some(1863),
+            &grounding.known_person_names,
+            &LanguageSettings::english_only(),
+            &FeatureFlags::default(),
+        );
+
+        assert_eq!(outcome.guard_reasons, ["typed_grounding_guard"]);
+        assert!(!outcome.display_text.contains("general clatter"));
+        assert!(outcome.action.is_none());
+        assert!(outcome.assigned_task.is_none());
+        assert_eq!(manager.get(NpcId(1)).unwrap().mood, "content");
+        assert!(
+            manager
+                .all_npcs()
+                .all(|npc| npc.memory.entries().all(|memory| {
+                    !memory.content.contains(raw)
+                        && !memory.content.contains("waves the singer away")
+                        && !memory.content.contains("Silence the singer")
+                }))
+        );
+        let facts = world
+            .conversation_log
+            .remembered_object_facts(NpcId(1), location);
+        assert_eq!(facts.len(), 1);
+        assert!(facts[0].attributes.iter().any(|attribute| {
+            attribute.kind == parish_types::RememberedObjectAttributeKind::Material
+                && attribute.value == "wool"
+        }));
+        match events.try_recv().expect("canonical dialogue event") {
+            GameEvent::DialogueOccurred { npc_said, .. } => {
+                assert_eq!(npc_said.as_deref(), Some(outcome.display_text.as_str()));
+                assert!(!npc_said.unwrap_or_default().contains(raw));
             }
             other => panic!("expected dialogue event, got {other:?}"),
         }

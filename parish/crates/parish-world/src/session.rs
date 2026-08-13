@@ -26,15 +26,16 @@
 //! *sean-nós* songs, named dance forms) so that the vignette doesn't fight
 //! the setting.
 
-use parish_types::Weather;
 use parish_types::time::{Season, TimeOfDay};
+use parish_types::{LocationId, Weather};
+use serde::{Deserialize, Serialize};
 
 /// A single vignette describing a moment from a session at the pub.
 ///
 /// Four short composed lines: one musician, one tune, one ambient touch
 /// (the room, the weather, a corner of the bar), and optionally a
 /// one-line verse when the musician is a singer rather than a player.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SessionVignette {
     /// The musician or singer leading this moment.
     pub musician: String,
@@ -44,6 +45,16 @@ pub struct SessionVignette {
     pub ambient: String,
     /// Present only when `musician` is a singer — a single line of verse.
     pub verse: Option<String>,
+}
+
+/// The last canonical music beat the player deliberately listened to.
+/// Consumers must additionally match its date and location before treating it
+/// as active dialogue grounding.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ActiveSessionFact {
+    pub date: chrono::NaiveDate,
+    pub location: LocationId,
+    pub vignette: SessionVignette,
 }
 
 /// Returns `true` when the given time-of-day is a plausible session hour.

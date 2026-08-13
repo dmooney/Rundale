@@ -257,6 +257,20 @@ mod tests {
         assert_eq!(loc.name, "The Crossroads");
         assert!(!loc.indoor);
         assert!(loc.public);
+        assert!(loc.landmarks.is_empty(), "legacy mods default landmarks");
+    }
+
+    #[test]
+    fn test_loads_structured_authored_landmarks() {
+        let json = test_graph_json().replace(
+            "\"description_template\": \"A quiet crossroads at {time}. The weather is {weather}.\"",
+            "\"description_template\": \"A quiet crossroads at {time}. The weather is {weather}.\", \"landmarks\": [\"old stone bridge\", \"well\"]",
+        );
+        let graph = WorldGraph::load_from_str(&json).unwrap();
+        assert_eq!(
+            graph.get(LocationId(1)).unwrap().landmarks,
+            vec!["old stone bridge".to_string(), "well".to_string()]
+        );
     }
 
     #[test]

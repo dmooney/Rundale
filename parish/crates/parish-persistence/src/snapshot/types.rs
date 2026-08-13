@@ -201,4 +201,7 @@ pub struct GameSnapshot {
     /// Set of NPC ids that know the player's name.
     #[serde(default)]
     pub npcs_who_know_player_name: HashSet<NpcId>,
+    /// Last canonical music session beat, if any.
+    #[serde(default)]
+    pub active_session: Option<parish_world::session::ActiveSessionFact>,
 }
