@@ -266,7 +266,7 @@ pub async fn do_load_branch_inner(
     state: &Arc<AppState>,
     body: LoadBranchRequest,
 ) -> Result<StatusCode, (StatusCode, String)> {
-    let (path, branch_id, candidate_lock) = validate_and_acquire_lock(&state, &body).await?;
+    let (path, branch_id, candidate_lock) = validate_and_acquire_lock(state, &body).await?;
 
     let path_clone = path.clone();
     let branch_name = tokio::task::spawn_blocking(move || load_branch_name(&path_clone, branch_id))
@@ -304,7 +304,7 @@ pub async fn do_load_branch_inner(
 
     // Marker is the commit record; all remaining publication is infallible.
     prepared_binding.commit();
-    restore_snapshot_and_emit(&state, recovery, &branch_name, branch_id, &path).await;
+    restore_snapshot_and_emit(state, recovery, &branch_name, branch_id, &path).await;
     if let Some(lock) = candidate_lock {
         *state.save_lock.lock().await = Some(lock);
     }

@@ -25,7 +25,7 @@ pub use parish_core::session_store::DbSessionStore;
 /// Durable backing store for tower-sessions' opaque cookie-id → record map.
 ///
 /// The record contains the canonical Parish session UUID. Keeping it in the
-/// existing sessions database lets the same browser cookie recover the same
+/// durable sessions database lets the same browser cookie recover the same
 /// isolated save ledger after a server process restart.
 #[derive(Clone, Debug)]
 pub struct SqliteTowerSessionStore {
