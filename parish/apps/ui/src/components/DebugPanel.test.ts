@@ -41,7 +41,7 @@ function makeSnapshot(overrides: Partial<DebugSnapshot> = {}): DebugSnapshot {
 			since: '1820-03-15 06:00',
 			duration_hours: 3.0,
 			min_duration_hours: 2.0,
-			last_check_hour: 8,
+			last_check_at: '08:00 1820-03-15',
 		},
 		world: {
 			player_location_name: 'Village Green',
@@ -228,6 +228,46 @@ describe('DebugPanel', () => {
 			expect(container.textContent).toContain('35');
 		});
 
+		it('labels reaction history with the authoritative actor', async () => {
+			debugVisible.set(true);
+			debugSnapshot.set(
+				makeSnapshot({
+					npcs: [
+						{
+							...npcFixture,
+							reactions: [
+								{
+									direction: 'NpcToPlayer' as const,
+									timestamp: '10:00',
+									emoji: '👀',
+									description: 'raised an eyebrow',
+									context: 'I have no money',
+								},
+								{
+									direction: 'PlayerToNpc' as const,
+									timestamp: '10:01',
+									emoji: '😊',
+									description: 'smiled warmly',
+									context: 'Welcome',
+								},
+							],
+						},
+					],
+				}),
+			);
+			debugTab.set(1);
+			const { container } = render(DebugPanel);
+			await fireEvent.click(
+				container.querySelector('.npc-row') as HTMLButtonElement,
+			);
+			await tick();
+
+			expect(container.textContent).toContain(
+				'Máire Ní Bhriain: raised an eyebrow',
+			);
+			expect(container.textContent).toContain('Player: smiled warmly');
+		});
+
 		it('shows (no NPCs) when list is empty', () => {
 			debugVisible.set(true);
 			debugSnapshot.set(makeSnapshot({ npcs: [] }));
@@ -266,11 +306,11 @@ describe('DebugPanel', () => {
 			expect(container.textContent).toContain('Clear');
 			expect(container.textContent).toContain('1820-03-15 06:00');
 			expect(container.textContent).toContain('3.00h');
-			expect(container.textContent).toContain('Last check hour');
-			expect(container.textContent).toContain('8');
+			expect(container.textContent).toContain('Last checked');
+			expect(container.textContent).toContain('08:00 1820-03-15');
 		});
 
-		it('shows "(never)" when last_check_hour is null', () => {
+		it('shows "(never)" when last_check_at is null', () => {
 			debugVisible.set(true);
 			debugSnapshot.set(
 				makeSnapshot({
@@ -279,7 +319,7 @@ describe('DebugPanel', () => {
 						since: '1820-03-15 08:00',
 						duration_hours: 1.0,
 						min_duration_hours: 0.5,
-						last_check_hour: null,
+						last_check_at: null,
 					},
 				}),
 			);

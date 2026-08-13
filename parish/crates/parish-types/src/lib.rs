@@ -19,7 +19,7 @@ pub use conversation::{
 };
 pub use dice::{DiceRoll, fixed_n, roll_n};
 pub use error::ParishError;
-pub use events::{ContextEventEnvelope, EventBus, GameEvent};
+pub use events::{ContextEventEnvelope, EventBus, GameEvent, ReactionDirection};
 pub use gossip::{GossipItem, GossipNetwork};
 pub use ids::{
     DEFAULT_START_LOCATION, LanguageHint, Location, LocationId, NpcId, Weather,

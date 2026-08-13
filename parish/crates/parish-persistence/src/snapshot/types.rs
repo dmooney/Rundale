@@ -140,6 +140,9 @@ pub struct NpcSnapshot {
     /// (pre-#338) loadable.
     #[serde(default)]
     pub deflated_summary: Option<parish_npc::transitions::NpcSummary>,
+    /// Directional nonverbal reaction history. Older saves omitted it.
+    #[serde(default)]
+    pub reaction_log: parish_npc::reactions::ReactionLog,
 }
 
 /// A complete snapshot of dynamic game state.

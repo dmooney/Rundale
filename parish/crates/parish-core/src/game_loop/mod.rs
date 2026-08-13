@@ -90,10 +90,11 @@ pub use npc_turn::{
 };
 pub use reactions::{
     PersistReactionFn, ReactionContextValidFn, emit_npc_reactions, is_snippet_injection_char,
+    record_directional_reaction,
 };
 pub use save::{
     NewGameParams, SaveGameParams, do_new_game, do_save_game, load_fresh_world_and_npcs,
-    render_branch_log_text, render_branches_text,
+    render_branch_log_text, render_branches_text, resolve_named_branch,
 };
 pub use staged_turn::{
     StagedGameInputCommit, flush_staged_emissions, handle_staged_game_input,

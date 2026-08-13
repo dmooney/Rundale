@@ -111,8 +111,8 @@ pub struct WeatherDebug {
     pub duration_hours: f64,
     /// Minimum duration before a transition is allowed (game-hours).
     pub min_duration_hours: f64,
-    /// Game-hour cursor of the last transition evaluation, if any.
-    pub last_check_hour: Option<i64>,
+    /// Canonical game time of the last transition evaluation, if any.
+    pub last_check_at: Option<String>,
 }
 
 /// World graph summary for debug display.
@@ -226,7 +226,7 @@ pub struct NpcDebug {
     pub memories: Vec<MemoryDebug>,
     /// Importance-weighted long-term memories.
     pub long_term_memories: Vec<LongTermMemoryDebug>,
-    /// Recent player emoji reactions directed at this NPC.
+    /// Recent directional nonverbal reactions involving this NPC.
     pub reactions: Vec<ReactionDebug>,
     /// Deflated summary captured at the last tier drop, if any.
     pub deflated_summary: Option<DeflatedSummaryDebug>,
@@ -253,16 +253,18 @@ pub struct LongTermMemoryDebug {
     pub keywords: Vec<String>,
 }
 
-/// A player reaction entry for debug display.
+/// A directional reaction entry for debug display.
 #[derive(Debug, Clone, Serialize)]
 pub struct ReactionDebug {
+    /// Who performed the reaction.
+    pub direction: parish_types::ReactionDirection,
     /// Formatted game timestamp.
     pub timestamp: String,
     /// Emoji used.
     pub emoji: String,
     /// Natural-language description (e.g. "looked angry").
     pub description: String,
-    /// Truncated context — what the NPC said that was reacted to.
+    /// Truncated dialogue context that triggered the reaction.
     pub context: String,
 }
 

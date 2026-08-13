@@ -10,7 +10,7 @@
 	<div class="field">Since: {snap.weather.since}</div>
 	<div class="field">Duration: {snap.weather.duration_hours.toFixed(2)}h</div>
 	<div class="field muted">Min duration before next transition: {snap.weather.min_duration_hours}h</div>
-	<div class="field muted">Last check hour: {snap.weather.last_check_hour ?? '(never)'}</div>
+	<div class="field muted">Last checked: {snap.weather.last_check_at ?? '(never)'}</div>
 </div>
 
 <style>
