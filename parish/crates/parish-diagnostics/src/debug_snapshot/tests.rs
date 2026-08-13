@@ -108,6 +108,24 @@ fn test_build_clock_debug() {
 }
 
 #[test]
+fn weather_debug_formats_pre_epoch_last_check_as_game_time() {
+    let mut world = WorldState::new();
+    let checked_at = world.clock.now();
+    assert!(
+        checked_at.timestamp() < 0,
+        "fixture must exercise the 1820 clock"
+    );
+    world
+        .weather_engine
+        .force(parish_world::Weather::Overcast, checked_at);
+
+    let weather = build_weather_debug(&world);
+
+    assert_eq!(weather.last_check_at.as_deref(), Some("08:00 1820-03-20"));
+    assert!(!serde_json::to_string(&weather).unwrap().contains("-131"));
+}
+
+#[test]
 fn test_build_tier_summary_empty() {
     let mgr = NpcManager::new();
     let summary = build_tier_summary(&mgr);
