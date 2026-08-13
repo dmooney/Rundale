@@ -101,6 +101,6 @@ pub use staged_turn::{
 };
 pub use system_command::{BoxFuture, SystemCommandHost, handle_system_command};
 pub use world_pump::{
-    AdvanceOptions, AdvanceReport, GossipMode, WeatherMode, advance_world, budgeted_round_robin,
-    build_tier2_groups, mint_tier2_gossip,
+    AdvanceOptions, AdvanceReport, GossipMode, TIER4_SIMULATION_FLAG, WeatherMode, advance_world,
+    budgeted_round_robin, build_tier2_groups, mint_tier2_gossip, tier4_simulation_enabled,
 };

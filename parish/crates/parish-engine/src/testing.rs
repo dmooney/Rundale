@@ -728,7 +728,7 @@ impl GameTestHarness {
                 weather: WeatherMode::Backfill { minutes },
                 run_banshee: !self.app.flags.is_disabled("banshee"),
                 gossip: GossipMode::All,
-                run_tier4: true,
+                run_tier4: parish_core::game_loop::tier4_simulation_enabled(&self.app.flags),
             },
         );
         self.apply_advance_report(&report);
