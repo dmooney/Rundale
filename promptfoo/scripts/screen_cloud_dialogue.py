@@ -69,6 +69,32 @@ def engine_config(args: argparse.Namespace) -> str:
     return "\n".join(lines) + "\n"
 
 
+def user_config(args: argparse.Namespace) -> str:
+    """Build native-provider role overrides used by the production runtime.
+
+    OpenAI-compatible providers consume ``reasoning_effort`` from the engine
+    generation profile. Native Gemini consumes ``thinking_level`` from the
+    user inference profile instead, so a Google qualification must set both
+    seams to ensure the live preflight and perf probe measure the same effort.
+    """
+
+    if args.provider != "google" or not args.reasoning_effort:
+        return ""
+    if args.reasoning_effort not in {"minimal", "low", "medium", "high"}:
+        raise ValueError(
+            "native Google qualification supports minimal, low, medium, or high "
+            f"thinking, not {args.reasoning_effort!r}"
+        )
+    return "\n".join(
+        [
+            '[category_overrides.dialogue]',
+            f'thinking_level = "{args.reasoning_effort}"',
+            f"max_output_tokens = {args.max_tokens}",
+            "",
+        ]
+    )
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--slug", required=True)
@@ -95,6 +121,11 @@ def main(argv: list[str] | None = None) -> int:
         tmp = Path(tmp_raw)
         config = tmp / "parish.toml"
         config.write_text(engine_config(args), encoding="utf-8")
+        user_config_dir = tmp / "user-config"
+        user_config_dir.mkdir(parents=True, exist_ok=True)
+        native_user_config = user_config(args)
+        if native_user_config:
+            (user_config_dir / "parish.toml").write_text(native_user_config, encoding="utf-8")
         output_dir = PF / "output" / "cloud-profiles" / args.tested_on / args.slug
         output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -111,7 +142,7 @@ def main(argv: list[str] | None = None) -> int:
                 "PARISH_SIMULATION_PROVIDER": "simulator",
                 "PARISH_REACTION_PROVIDER": "simulator",
                 "PARISH_ENGINE_CONFIG": str(config),
-                "PARISH_USER_CONFIG_DIR": str(tmp / "user-config"),
+                "PARISH_USER_CONFIG_DIR": str(user_config_dir),
                 "PARISH_USER_DATA_DIR": str(tmp / "user-data"),
                 "PARISH_SAVES_DIR": str(tmp / "saves"),
                 "PARISH_TILE_CACHE_DIR": str(tmp / "tiles"),

@@ -721,7 +721,7 @@ async fn run_cache_probe(
     model: &str,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let capability: serde_json::Value = serde_json::from_str(include_str!(
-        "../../../config/gemini-3.6-flash-capabilities.json"
+        "../../../config/gemini-3.7-flash-capabilities.json"
     ))?;
     let eligibility_floor = capability["implicit_cache_probe_floor_tokens"]
         .as_u64()

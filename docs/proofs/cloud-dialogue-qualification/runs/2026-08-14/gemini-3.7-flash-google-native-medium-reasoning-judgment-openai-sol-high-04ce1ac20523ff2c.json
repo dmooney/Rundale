@@ -1,0 +1,681 @@
+{
+  "items": [
+    {
+      "axes": {
+        "authenticity": 4,
+        "brevity": 5,
+        "character": 4,
+        "craft": 2,
+        "grounding": 5,
+        "language": 4,
+        "mood_fidelity": 4,
+        "repetition": 5,
+        "responsiveness": 5
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 4.4,
+      "prompt_id": "dialogue-0006/sample-1",
+      "rationales": {
+        "authenticity": "'Tis, mo chara, furrows, and tillage supply credible Hiberno-English colour without caricature.",
+        "brevity": "The reply uses three economical sentences and only one question mark.",
+        "character": "Padraig sounds like an experienced parish publican, linking sowing, weather, rents, and the newcomer's work.",
+        "craft": "The required JSON wrapper and metadata are absent, a major craft flaw; the weighted total is 45.00/10.25 = 4.4 overall.",
+        "grounding": "There is no fabrication probe in this record.",
+        "language": "The English is fluent and the single Irish phrase is used naturally.",
+        "mood_fidelity": "The measured assessment is steady and calm, though the closing question adds some animation.",
+        "repetition": "No phrase is noticeably recycled within the reply.",
+        "responsiveness": "It immediately explains that March is too early to judge the harvest and gives relevant conditions."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 4,
+        "brevity": 5,
+        "character": 3,
+        "craft": 2,
+        "grounding": 5,
+        "language": 4,
+        "mood_fidelity": 4,
+        "repetition": 5,
+        "responsiveness": 4
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 4.1,
+      "prompt_id": "dialogue-0006/sample-2",
+      "rationales": {
+        "authenticity": "'Tis, mo chara, and le cúnamh Dé provide credible Irish texture.",
+        "brevity": "Two short sentences answer the question without padding or questions.",
+        "character": "The reply is plausible for Padraig but shows little of his publican's wit or distinctive local authority.",
+        "craft": "The dialogue is serviceable but generic and omits all required JSON metadata; the weighted total is 42.50/10.25 = 4.1 overall.",
+        "grounding": "There is no fabrication probe in this record.",
+        "language": "The prose is clear, grammatical, and confined to English with one allowed Irish phrase.",
+        "mood_fidelity": "The conditional, unhurried forecast suits a calm mood.",
+        "repetition": "There is no distracting repetition within the response.",
+        "responsiveness": "It correctly says the seed is newly set and any autumn yield remains uncertain."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 4,
+        "brevity": 5,
+        "character": 3,
+        "craft": 2,
+        "grounding": 5,
+        "language": 4,
+        "mood_fidelity": 4,
+        "repetition": 5,
+        "responsiveness": 4
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 4.1,
+      "prompt_id": "dialogue-0006/sample-3",
+      "rationales": {
+        "authenticity": "Sure, 'tis, and mo chara give the otherwise plain answer solid Hiberno-English colour.",
+        "brevity": "The reply stays to two concise sentences with no question marks.",
+        "character": "Padraig's practical judgement is plausible, but his particular wit and publican's personality are largely absent.",
+        "craft": "The spoken answer is coherent but generic and entirely omits the mandated JSON object; the weighted total is 42.50/10.25 = 4.1 overall.",
+        "grounding": "There is no fabrication probe in this record.",
+        "language": "The response is fluent, grammatical English with a permitted Irish address.",
+        "mood_fidelity": "Its patient refusal to predict the crop reads as calmly measured.",
+        "repetition": "No phrase or clause is needlessly repeated.",
+        "responsiveness": "It directly explains that the harvest cannot be judged before the summer weather is known."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 3,
+        "brevity": 5,
+        "character": 4,
+        "craft": 2,
+        "grounding": 5,
+        "language": 4,
+        "mood_fidelity": 4,
+        "repetition": 5,
+        "responsiveness": 5
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 4.3,
+      "prompt_id": "dialogue-0010/sample-1",
+      "rationales": {
+        "authenticity": "The Irish greeting adds colour, but the remaining diction is formal and only lightly Hiberno-English.",
+        "brevity": "Three concise sentences contain no questions or padding.",
+        "character": "Concern over estate terms and the mill stream gives Cormac credible occupational and financial priorities.",
+        "craft": "The content is focused but the mandatory JSON structure and metadata are wholly missing; the weighted total is 44.00/10.25 = 4.3 overall.",
+        "grounding": "There is no fabrication probe in this record.",
+        "language": "The response is fluent and well formed in English with one permitted Irish phrase.",
+        "mood_fidelity": "The grave news is delivered evenly rather than anxiously or dramatically.",
+        "repetition": "The two news items use distinct wording without internal recycling.",
+        "responsiveness": "It supplies two concrete, canon-grounded pieces of parish news immediately."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 4,
+        "brevity": 5,
+        "character": 4,
+        "craft": 2,
+        "grounding": 5,
+        "language": 4,
+        "mood_fidelity": 4,
+        "repetition": 5,
+        "responsiveness": 5
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 4.4,
+      "prompt_id": "dialogue-0010/sample-2",
+      "rationales": {
+        "authenticity": "Mhuise, ye, holding land, and the reference to Murphy's gate create convincing local texture.",
+        "brevity": "The three sentences remain under the limit and include exactly one question.",
+        "character": "The estate terms and low stream are sharply relevant to Cormac's interests as landlord-conscious miller.",
+        "craft": "The dialogue is effective, but failure to emit the required JSON object is a major miss; the weighted total is 45.00/10.25 = 4.4 overall.",
+        "grounding": "There is no fabrication probe in this record.",
+        "language": "The prose is grammatical and uses only clear English plus an allowed Irish interjection.",
+        "mood_fidelity": "The information is presented in a controlled, matter-of-fact manner consistent with calm.",
+        "repetition": "There is no noticeable repetition within the reply.",
+        "responsiveness": "It answers with two specific news items before asking one context-rooted question."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 3,
+        "brevity": 5,
+        "character": 4,
+        "craft": 2,
+        "grounding": 5,
+        "language": 4,
+        "mood_fidelity": 4,
+        "repetition": 5,
+        "responsiveness": 5
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 4.3,
+      "prompt_id": "dialogue-0010/sample-3",
+      "rationales": {
+        "authenticity": "Hereabouts and mo chara add some Irish texture, but phrases such as shift every lease sound comparatively generic.",
+        "brevity": "Three compact sentences and one question satisfy the length constraints.",
+        "character": "The low stream and leases suit Cormac's practical, profit-minded perspective as a miller.",
+        "craft": "The spoken content is competent but omits the explicitly required JSON and metadata; the weighted total is 44.00/10.25 = 4.3 overall.",
+        "grounding": "There is no fabrication probe in this record.",
+        "language": "The response is clear and grammatical, with no disallowed language or script.",
+        "mood_fidelity": "The tone remains composed and deliberate throughout.",
+        "repetition": "No phrase is recycled or looped.",
+        "responsiveness": "It provides two pertinent items of parish news and one situational follow-up."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 4,
+        "brevity": 5,
+        "character": 3,
+        "craft": 2,
+        "grounding": 3,
+        "language": 4,
+        "mood_fidelity": 4,
+        "repetition": 5,
+        "responsiveness": 4
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 3.9,
+      "prompt_id": "dialogue-0014/sample-1",
+      "rationales": {
+        "authenticity": "Mornin', mo chara, ye, and meanin' give the reply natural Hiberno-English texture.",
+        "brevity": "Three short sentences contain only one question.",
+        "character": "The direct, helpful manner is plausible for young Colm, though little of his energetic apprentice personality appears.",
+        "craft": "The answer is concise but omits the required JSON object and metadata; the weighted total is 39.50/10.25 = 3.9 overall.",
+        "grounding": "It hedges rather than confirms, but still speculates that the priest is currently at St. Brigid's without evidence.",
+        "language": "The English is fluent and well formed with one allowed Irish address.",
+        "mood_fidelity": "The answer is even and unhurried, fitting the calm mood.",
+        "repetition": "No wording is noticeably repeated within the reply.",
+        "responsiveness": "It clearly states that Colm has not seen Father Declan, but then adds an unsupported guess about his location."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 4,
+        "brevity": 5,
+        "character": 3,
+        "craft": 2,
+        "grounding": 3,
+        "language": 4,
+        "mood_fidelity": 4,
+        "repetition": 5,
+        "responsiveness": 4
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 3.9,
+      "prompt_id": "dialogue-0014/sample-2",
+      "rationales": {
+        "authenticity": "Mo chara, ye, and the forge reference give credible rural Irish colour.",
+        "brevity": "The response uses three short sentences and a single question.",
+        "character": "Colm sounds friendly and concrete, but the answer does not strongly evoke an impulsive young forge apprentice.",
+        "craft": "The prose is orderly but the mandated JSON envelope and metadata are absent; the weighted total is 39.50/10.25 = 3.9 overall.",
+        "grounding": "The claim that Father Declan is likely at the church is hedged but unsupported by the supplied facts.",
+        "language": "The response is grammatical, clear, and entirely in permitted language.",
+        "mood_fidelity": "Its straightforward cadence remains calm and settled.",
+        "repetition": "No phrase or filler is repeated within the reply.",
+        "responsiveness": "It answers the sighting question first, then offers a plausible but unverified whereabouts."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 4,
+        "brevity": 5,
+        "character": 3,
+        "craft": 2,
+        "grounding": 3,
+        "language": 4,
+        "mood_fidelity": 4,
+        "repetition": 5,
+        "responsiveness": 4
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 3.9,
+      "prompt_id": "dialogue-0014/sample-3",
+      "rationales": {
+        "authenticity": "Laid eyes on, mornin', mo chara, and ye provide convincing Hiberno-English texture.",
+        "brevity": "Two concise sentences contain no questions or stacked offers.",
+        "character": "The plain, helpful answer suits Colm adequately but lacks youthful curiosity or forge-specific personality.",
+        "craft": "The dialogue is economical but does not follow the required JSON format at all; the weighted total is 39.50/10.25 = 3.9 overall.",
+        "grounding": "Most likely is a hedge, but the suggested current location is not established by the record.",
+        "language": "The two sentences are fluent and use only permitted English and Irish.",
+        "mood_fidelity": "The restrained delivery clearly accords with a calm mood.",
+        "repetition": "There is no internal repetition.",
+        "responsiveness": "It directly denies having seen the priest, though it follows with an unverified location guess."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 4,
+        "brevity": 5,
+        "character": 4,
+        "craft": 2,
+        "grounding": 5,
+        "language": 4,
+        "mood_fidelity": 4,
+        "repetition": 5,
+        "responsiveness": 5
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 4.4,
+      "prompt_id": "dialogue-0024/sample-1",
+      "rationales": {
+        "authenticity": "Ye, spring planting, and le cúnamh Dé supply restrained and credible Irish colour.",
+        "brevity": "Three focused sentences and one question fit the required limits.",
+        "character": "Dublin letters, O'Connell, labour, and prayer form a recognisably thoughtful parish-priest perspective.",
+        "craft": "The dialogue is coherent and evocative but omits every required JSON metadata field; the weighted total is 45.00/10.25 = 4.4 overall.",
+        "grounding": "There is no fabrication probe in this record.",
+        "language": "The prose is fluent English with one permitted Irish phrase.",
+        "mood_fidelity": "The priest presents political hope and daily duties in a steady, composed voice.",
+        "repetition": "No phrase is needlessly reused within the reply.",
+        "responsiveness": "It gives both local agricultural news and the grounded political news currently on Declan's mind."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 4,
+        "brevity": 5,
+        "character": 4,
+        "craft": 2,
+        "grounding": 5,
+        "language": 4,
+        "mood_fidelity": 4,
+        "repetition": 5,
+        "responsiveness": 5
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 4.4,
+      "prompt_id": "dialogue-0024/sample-2",
+      "rationales": {
+        "authenticity": "Ye, townlands, soil-turning, and buíochas le Dia create genuine local and devotional texture.",
+        "brevity": "Three economical sentences include only one question.",
+        "character": "The blend of parish observation, O'Connell's cause, and pastoral enquiry suits Fr. Declan well.",
+        "craft": "The spoken answer is polished, but the compulsory JSON structure is entirely missing; the weighted total is 45.00/10.25 = 4.4 overall.",
+        "grounding": "There is no fabrication probe in this record.",
+        "language": "The reply is clear, grammatical, and uses only permitted English and Irish.",
+        "mood_fidelity": "Its measured contrast between Dublin and parish life conveys calm composure.",
+        "repetition": "The response contains no noticeable repeated phrase.",
+        "responsiveness": "It immediately reports quiet local conditions and grounded political news from Dublin."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 4,
+        "brevity": 5,
+        "character": 4,
+        "craft": 2,
+        "grounding": 5,
+        "language": 4,
+        "mood_fidelity": 4,
+        "repetition": 5,
+        "responsiveness": 5
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 4.4,
+      "prompt_id": "dialogue-0024/sample-3",
+      "rationales": {
+        "authenticity": "Ye, sowing, mo chara, and buíochas le Dia give the formal voice credible Irish grounding.",
+        "brevity": "The response stays to three concise sentences and one question.",
+        "character": "The restrained political allusion and concern for parish souls are fitting for an experienced priest.",
+        "craft": "The prose is well shaped but completely ignores the mandated JSON output contract; the weighted total is 45.00/10.25 = 4.4 overall.",
+        "grounding": "There is no fabrication probe in this record.",
+        "language": "The response is fluent, well formed, and confined to allowed language.",
+        "mood_fidelity": "The quiet imagery and deliberate cadence strongly support a calm tone.",
+        "repetition": "No clause or filler is repeated.",
+        "responsiveness": "It supplies concrete local and Dublin news before asking one relevant question."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 4,
+        "brevity": 5,
+        "character": 4,
+        "craft": 2,
+        "grounding": 5,
+        "language": 4,
+        "mood_fidelity": 5,
+        "repetition": 5,
+        "responsiveness": 4
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 4.4,
+      "prompt_id": "dialogue-0048/sample-1",
+      "rationales": {
+        "authenticity": "Mhuise, mo chara, stirrin', and the named parish trades provide convincing Hiberno-English colour.",
+        "brevity": "Three compact sentences and one question remain within all limits.",
+        "character": "The web-of-cloth metaphor, loom, and knowledge of local trades strongly evoke Una as a weaver and gathering-place keeper.",
+        "craft": "The spoken lines are evocative, but the complete absence of required JSON metadata is a serious flaw; the weighted total is 45.50/10.25 = 4.4 overall.",
+        "grounding": "There is no fabrication probe in this record.",
+        "language": "The response is fluent and uses only clear English with one permitted Irish interjection.",
+        "mood_fidelity": "The sleeping parish, lone loom, and night air create an especially hushed, settled calm.",
+        "repetition": "The weaving and night imagery varies naturally without repetition.",
+        "responsiveness": "It reasonably narrows an impossible request while offering a brief outline of parish trade."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 4,
+        "brevity": 5,
+        "character": 3,
+        "craft": 2,
+        "grounding": 5,
+        "language": 4,
+        "mood_fidelity": 5,
+        "repetition": 5,
+        "responsiveness": 3
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 4.2,
+      "prompt_id": "dialogue-0048/sample-2",
+      "rationales": {
+        "authenticity": "A power of talk, mo chara, yer, and the bog give the reply credible local texture.",
+        "brevity": "Three short sentences and one question are appropriately economical.",
+        "character": "The measured late-night manner suits Una, but there is little weaving knowledge or distinctive creative voice.",
+        "craft": "The answer is tidy but generic and omits the required JSON object; the weighted total is 43.00/10.25 = 4.2 overall.",
+        "grounding": "There is no fabrication probe in this record.",
+        "language": "The prose is clear, grammatical, and entirely in permitted language.",
+        "mood_fidelity": "The dead-of-night setting, sleeping village, and bog wind distinctly embody a hushed calm.",
+        "repetition": "No phrase is repeated within the response.",
+        "responsiveness": "It acknowledges the breadth of the request but supplies almost no parish information before redirecting."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 4,
+        "brevity": 5,
+        "character": 5,
+        "craft": 2,
+        "grounding": 5,
+        "language": 4,
+        "mood_fidelity": 5,
+        "repetition": 5,
+        "responsiveness": 4
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 4.6,
+      "prompt_id": "dialogue-0048/sample-3",
+      "rationales": {
+        "authenticity": "A power of talk, mo chara, ye, and the dead of the night provide natural Irish cadence without caricature.",
+        "brevity": "Three concise sentences and one question obey the length restrictions.",
+        "character": "The parish woven thread by thread from forge to mill is a vivid, occupation-rooted metaphor that exceptionally captures Una.",
+        "craft": "The spoken dialogue is strong, yet omission of the mandatory JSON wrapper remains a major craft failure; the weighted total is 47.00/10.25 = 4.6 overall.",
+        "grounding": "There is no fabrication probe in this record.",
+        "language": "The dialogue is fluent, well formed, and uses only permitted language.",
+        "mood_fidelity": "The slow metaphor and dead-of-night restraint strongly convey Una's calm state.",
+        "repetition": "The weaving image develops cleanly without repeating phrases.",
+        "responsiveness": "It cannot fulfil the sweeping request in three sentences, but redirects clearly toward one person or trade."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 3,
+        "brevity": 5,
+        "character": 4,
+        "craft": 2,
+        "grounding": 5,
+        "language": 4,
+        "mood_fidelity": 4,
+        "repetition": 5,
+        "responsiveness": 5
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 4.3,
+      "prompt_id": "dialogue-0163/sample-1",
+      "rationales": {
+        "authenticity": "Townland and mo chara add some local colour, but the diction is otherwise largely standard English.",
+        "brevity": "Two concise sentences and one question meet the economy requirements.",
+        "character": "The precise denial and concern with parish geography fit Martin's careful, administrative manner.",
+        "craft": "The dialogue is clear but the explicitly required JSON output is absent; the weighted total is 44.00/10.25 = 4.3 overall.",
+        "grounding": "It correctly declines to recognise Festus or the cooper's shop by the bridge and invents no details.",
+        "language": "The response is fluent, grammatical, and uses no disallowed script or language.",
+        "mood_fidelity": "The correction is firm but evenly and calmly delivered.",
+        "repetition": "No phrase is recycled within the reply.",
+        "responsiveness": "It directly rejects both the unknown person and the nonexistent shop before seeking clarification."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 3,
+        "brevity": 5,
+        "character": 4,
+        "craft": 2,
+        "grounding": 5,
+        "language": 4,
+        "mood_fidelity": 4,
+        "repetition": 5,
+        "responsiveness": 5
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 4.3,
+      "prompt_id": "dialogue-0163/sample-2",
+      "rationales": {
+        "authenticity": "Ye and parish terminology provide modest Irish texture, but the clerk's speech remains mostly formal standard English.",
+        "brevity": "Three concise sentences contain exactly one question.",
+        "character": "The reference to tenants, lawful trades, and his ledger gives Martin strong occupation-specific authority, though it slightly overstates his records.",
+        "craft": "The content is sharply organised but wholly omits the required JSON object and metadata; the weighted total is 44.00/10.25 = 4.3 overall.",
+        "grounding": "It explicitly rejects both fabricated premises and does not supply any invented whereabouts or trade details.",
+        "language": "The prose is grammatical, precise, and entirely in permitted language.",
+        "mood_fidelity": "Martin's correction remains controlled and matter-of-fact.",
+        "repetition": "The denial is reinforced without degenerating into repeated phrasing.",
+        "responsiveness": "It answers the question directly, explains the basis for non-recognition, and asks one clarifying question."
+      }
+    },
+    {
+      "axes": {
+        "authenticity": 3,
+        "brevity": 5,
+        "character": 4,
+        "craft": 2,
+        "grounding": 5,
+        "language": 4,
+        "mood_fidelity": 4,
+        "repetition": 5,
+        "responsiveness": 5
+      },
+      "flags": {
+        "bench_bug": false,
+        "degenerate_loop": false,
+        "fabricated": false,
+        "non_latin_detected": false,
+        "refused": false
+      },
+      "overall": 4.3,
+      "prompt_id": "dialogue-0163/sample-3",
+      "rationales": {
+        "authenticity": "Hereabouts, mo chara, and parish language offer limited but credible Hiberno-English texture.",
+        "brevity": "Three economical sentences include only one question.",
+        "character": "The formal correction and probing final question suit Martin's analytical, suspicious clerkly manner.",
+        "craft": "The spoken response is competent but fails the mandatory JSON formatting instruction; the weighted total is 44.00/10.25 = 4.3 overall.",
+        "grounding": "It correctly refuses to confirm Festus or the cooper's shop and fabricates nothing.",
+        "language": "The reply is clear, grammatical, and confined to permitted English and Irish.",
+        "mood_fidelity": "The denial is composed and deliberate, although the word truly introduces mild suspicion.",
+        "repetition": "No clause or phrase is repeated excessively.",
+        "responsiveness": "It immediately denies both the named person and place, then asks what the newcomer actually needs."
+      }
+    }
+  ],
+  "judge": {
+    "cost_usd": 0.88035525,
+    "family": "openai",
+    "id": "openai-sol-high",
+    "model": "openai/gpt-5.6-sol",
+    "provider": "openrouter",
+    "reasoning_effort": "high",
+    "request_id": "gen-1786717679-mUft4PfVzPwGcSc0VIUy",
+    "routed_model": "openai/gpt-5.6-sol",
+    "routed_provider": "OpenAI",
+    "rubric_sha256": "9adab2cd1b38fe75f978e386239b50fbb12b5ba34c5ba5874ae396a3b46b7bf4",
+    "usage": {
+      "completion_tokens": 10477,
+      "completion_tokens_details": {
+        "audio_tokens": 0,
+        "image_tokens": 0,
+        "reasoning_tokens": 5344
+      },
+      "cost": 0.88035525,
+      "cost_details": {
+        "upstream_inference_completions_cost": 0.31431,
+        "upstream_inference_cost": 0.88035525,
+        "upstream_inference_prompt_cost": 0.56604525
+      },
+      "is_byok": false,
+      "prompt_tokens": 92935,
+      "prompt_tokens_details": {
+        "audio_tokens": 0,
+        "cache_write_tokens": 90359,
+        "cached_tokens": 2573,
+        "video_tokens": 0
+      },
+      "total_tokens": 103412
+    }
+  },
+  "quality": {
+    "axes": {
+      "authenticity": 3.7222,
+      "brevity": 5.0,
+      "character": 3.7222,
+      "craft": 2.0,
+      "grounding": 4.6667,
+      "language": 4.0,
+      "mood_fidelity": 4.1667,
+      "repetition": 5.0,
+      "responsiveness": 4.5
+    },
+    "hard_failures": {
+      "degenerate_loop": 0,
+      "fabricated": 0,
+      "non_latin_detected": 0,
+      "refused": 0,
+      "unusable_output": 0
+    },
+    "overall": 4.2493,
+    "pass": true,
+    "thresholds": {
+      "critical_axes": [
+        "grounding",
+        "repetition",
+        "mood_fidelity",
+        "brevity",
+        "responsiveness"
+      ],
+      "minimum_critical_axis": 3.0,
+      "minimum_overall": 3.5
+    }
+  },
+  "sample": {
+    "items": 18,
+    "judge_input": "full production system prompt plus dynamic user prompt",
+    "judged_items": 18,
+    "samples_per_prompt": 3,
+    "unique_prompts": 6,
+    "unusable_outputs": 0
+  },
+  "source": {
+    "bundle": "docs/proofs/cloud-dialogue-qualification/runs/2026-08-14/gemini-3.7-flash-google-native-medium-reasoning-judgment-openai-sol-high-04ce1ac20523ff2c.bundle.json",
+    "bundle_sha256": "04ce1ac20523ff2c1238e224c441409aab2ce12b575f5f0b9b294ebd7e1d06a3",
+    "raw": "docs/proofs/cloud-dialogue-qualification/runs/2026-08-14/gemini-3.7-flash-google-native-medium-reasoning-judgment-openai-sol-high-04ce1ac20523ff2c.attempt-1.raw.json",
+    "raw_sha256": "e4234eaafe76dc82e3dda842b6393a1c9b600c0b706ef42d7906880fbd6bd3aa"
+  },
+  "version": 1
+}

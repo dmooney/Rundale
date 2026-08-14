@@ -23,6 +23,7 @@ sys.path.insert(0, str(PF / "assertions"))
 sys.path.insert(0, str(PF / "scripts"))
 
 import rb_common as rb  # noqa: E402
+import screen_cloud_dialogue  # noqa: E402
 
 _fails: list[str] = []
 
@@ -32,6 +33,24 @@ def check(name, cond, detail=""):
     if not cond:
         _fails.append(name)
     print(f"  [{status}] {name}{(' — ' + detail) if detail else ''}")
+
+
+_native_google_profile = screen_cloud_dialogue.user_config(
+    argparse.Namespace(provider="google", reasoning_effort="low", max_tokens=4096)
+)
+check(
+    "cloud screen applies native Google dialogue thinking profile",
+    '[category_overrides.dialogue]' in _native_google_profile
+    and 'thinking_level = "low"' in _native_google_profile
+    and "max_output_tokens = 4096" in _native_google_profile,
+)
+check(
+    "cloud screen leaves OpenRouter user profile empty",
+    screen_cloud_dialogue.user_config(
+        argparse.Namespace(provider="openrouter", reasoning_effort="low", max_tokens=4096)
+    )
+    == "",
+)
 
 
 _deepseek_body: dict = {}

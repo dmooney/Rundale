@@ -13,7 +13,9 @@ featured = true
 [[presets]]
 key = "recommended"
 label = "Recommended"
-dialogue = "gemini-3.6-flash"
+# Qualified through Google's native Interactions API at low thinking with a
+# 4,096-token cap. See the immutable 2026-08-14 cloud-dialogue receipts.
+dialogue = "gemini-3.7-flash"
 simulation = "gemini-3.6-flash"
 intent = "gemini-3.6-flash"
 reaction = "gemini-3.6-flash"

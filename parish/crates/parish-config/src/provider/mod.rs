@@ -1080,9 +1080,9 @@ model = "anthropic/claude-sonnet-4-20250514"
         unsafe { std::env::set_var("GOOGLE_API_KEY", "sk-test") };
 
         let cli = CliCloudOverrides {
-            provider: None,
+            provider: Some("google".to_string()),
             base_url: None,
-            model: Some("my-model".to_string()),
+            model: None,
         };
         let config = resolve_cloud_config(Some(Path::new("/nonexistent")), &cli)
             .unwrap()
@@ -1092,6 +1092,7 @@ model = "anthropic/claude-sonnet-4-20250514"
             config.base_url,
             "https://generativelanguage.googleapis.com/v1"
         );
+        assert_eq!(config.model, "gemini-3.7-flash");
     }
 
     #[test]
@@ -1449,14 +1450,21 @@ model = "toml-model"
 
     #[test]
     fn provider_has_preset_and_models_array() {
-        let cloud = registry().get("openrouter").unwrap();
-        assert!(cloud.has_preset());
+        let google = registry().get("google").unwrap();
+        assert!(google.has_preset());
         assert_eq!(
-            cloud.preset_model(InferenceCategory::Dialogue),
-            Some("google/gemini-3.7-flash"),
+            google.preset_model(InferenceCategory::Dialogue),
+            Some("gemini-3.7-flash"),
         );
-        let arr = cloud.preset_models();
+        let arr = google.preset_models();
         assert!(arr.iter().any(|m| m.is_some()));
+
+        let openrouter = registry().get("openrouter").unwrap();
+        assert_eq!(
+            openrouter.preset_model(InferenceCategory::Dialogue),
+            Some("google/gemini-3.6-flash"),
+            "the default Gemini 3.7 route is native Google, not OpenRouter"
+        );
         let sim = registry().get("simulator").unwrap();
         assert!(!sim.has_preset());
         assert_eq!(sim.preset_models(), [None, None, None, None]);

@@ -254,7 +254,7 @@ reasoning_effort = "max"
     }
 
     #[test]
-    fn promoted_openrouter_gemini_37_profile_uses_measured_headroom_and_low_reasoning() {
+    fn promoted_gemini_37_profiles_preserve_route_and_use_measured_headroom() {
         let promoted = DialogueGenerationConfig::default().for_model("google/gemini-3.7-flash");
         assert_eq!(promoted.max_tokens, 4096);
         assert_eq!(promoted.temperature, 0.7);
@@ -279,8 +279,9 @@ reasoning_effort = "max"
         assert_eq!(prior_promoted.reasoning_effort, Some(ReasoningEffort::Low));
 
         let direct_google = DialogueGenerationConfig::default().for_model("gemini-3.7-flash");
-        assert_eq!(direct_google.max_tokens, 768);
-        assert_eq!(direct_google.reasoning_effort, None);
+        assert_eq!(direct_google.max_tokens, 4096);
+        assert_eq!(direct_google.reasoning_effort, Some(ReasoningEffort::Low));
+        assert_eq!(direct_google.enable_thinking, Some(true));
     }
 
     #[test]

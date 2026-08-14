@@ -372,7 +372,7 @@ pub fn resolve_cloud_config(
     let model = raw
         .model
         .filter(|s| !s.is_empty())
-        .or_else(|| (provider.id() == "google").then(|| "gemini-3.6-flash".to_string()));
+        .or_else(|| (provider.id() == "google").then(|| "gemini-3.7-flash".to_string()));
 
     let model = model.ok_or_else(|| {
         ParishError::Config(
