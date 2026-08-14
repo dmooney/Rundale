@@ -95,6 +95,7 @@ def _is_google_direct(target: Target) -> bool:
 
 def _uses_latest_gemini_sampling_contract(target: Target) -> bool:
     return _is_google_direct(target) and target.model in {
+        "gemini-3.7-flash",
         "gemini-3.6-flash",
         "gemini-3.5-flash-lite",
     }

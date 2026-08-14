@@ -14,9 +14,9 @@ featured = true
 key = "recommended"
 label = "Recommended"
 # Qualified on the frozen production dialogue panel with the engine's default
-# 768-token/0.7/0.5 JSON profile and low reasoning. See the content-addressed
-# receipts under docs/proofs/cloud-dialogue-qualification/runs/2026-08-08/.
-dialogue = "google/gemini-3.6-flash"
+# 4096-token/0.7/0.5 JSON profile and low reasoning. See the content-addressed
+# receipts under docs/proofs/cloud-dialogue-qualification/runs/2026-08-13/.
+dialogue = "google/gemini-3.7-flash"
 simulation = "anthropic/claude-sonnet-4-6"
 intent = "anthropic/claude-haiku-4-5"
 reaction = "anthropic/claude-sonnet-4-6"

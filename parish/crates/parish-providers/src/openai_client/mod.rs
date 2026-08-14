@@ -461,13 +461,15 @@ impl OpenAiClient {
             stream,
             response_format,
             max_tokens: params.max_tokens,
-            // Gemini 3.6 Flash and 3.5 Flash-Lite deprecate sampling controls
+            // Recent Gemini Flash models deprecate sampling controls
             // on the first-party API. Google instructs callers to remove
             // temperature; frequency_penalty is not part of its documented
             // OpenAI-compat parameter surface either.
             temperature: if self.is_google_generative_ai()
-                && matches!(model, "gemini-3.6-flash" | "gemini-3.5-flash-lite")
-            {
+                && matches!(
+                    model,
+                    "gemini-3.7-flash" | "gemini-3.6-flash" | "gemini-3.5-flash-lite"
+                ) {
                 None
             } else {
                 params.temperature
@@ -1091,28 +1093,30 @@ mod tests {
             "https://generativelanguage.googleapis.com/v1beta/openai",
             None,
         );
-        let req = client.build_request(
-            "gemini-3.6-flash",
-            "hello",
-            None,
-            false,
-            None,
-            GenerateParams {
-                temperature: Some(0.7),
-                frequency_penalty: Some(0.5),
-                enable_thinking: Some(true),
-                reasoning_effort: Some(parish_config::ReasoningEffort::Max),
-                ..Default::default()
-            },
-        );
-        let json = serde_json::to_value(&req).unwrap();
-        assert_eq!(json["reasoning_effort"], "high");
-        assert!(json.get("temperature").is_none());
-        assert!(json.get("frequency_penalty").is_none());
-        assert!(json.get("reasoning").is_none());
-        assert!(json.get("enable_thinking").is_none());
-        assert!(json.get("chat_template_kwargs").is_none());
-        assert!(json.get("thinking").is_none());
+        for model in ["gemini-3.7-flash", "gemini-3.6-flash"] {
+            let req = client.build_request(
+                model,
+                "hello",
+                None,
+                false,
+                None,
+                GenerateParams {
+                    temperature: Some(0.7),
+                    frequency_penalty: Some(0.5),
+                    enable_thinking: Some(true),
+                    reasoning_effort: Some(parish_config::ReasoningEffort::Max),
+                    ..Default::default()
+                },
+            );
+            let json = serde_json::to_value(&req).unwrap();
+            assert_eq!(json["reasoning_effort"], "high");
+            assert!(json.get("temperature").is_none());
+            assert!(json.get("frequency_penalty").is_none());
+            assert!(json.get("reasoning").is_none());
+            assert!(json.get("enable_thinking").is_none());
+            assert!(json.get("chat_template_kwargs").is_none());
+            assert!(json.get("thinking").is_none());
+        }
     }
 
     #[test]
