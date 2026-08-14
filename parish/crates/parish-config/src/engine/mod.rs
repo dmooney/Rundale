@@ -254,9 +254,9 @@ reasoning_effort = "max"
     }
 
     #[test]
-    fn promoted_openrouter_gemini_profile_defaults_to_low_reasoning() {
-        let promoted = DialogueGenerationConfig::default().for_model("google/gemini-3.6-flash");
-        assert_eq!(promoted.max_tokens, 768);
+    fn promoted_openrouter_gemini_37_profile_uses_measured_headroom_and_low_reasoning() {
+        let promoted = DialogueGenerationConfig::default().for_model("google/gemini-3.7-flash");
+        assert_eq!(promoted.max_tokens, 4096);
         assert_eq!(promoted.temperature, 0.7);
         assert_eq!(promoted.frequency_penalty, Some(0.5));
         assert!(promoted.json_mode);
@@ -265,13 +265,21 @@ reasoning_effort = "max"
 
         let explicit = DialogueGenerationConfig {
             reasoning_effort: Some(ReasoningEffort::High),
+            max_tokens: 1024,
             ..DialogueGenerationConfig::default()
         }
-        .for_model("google/gemini-3.6-flash");
+        .for_model("google/gemini-3.7-flash");
+        assert_eq!(explicit.max_tokens, 1024);
         assert_eq!(explicit.reasoning_effort, Some(ReasoningEffort::High));
         assert_eq!(explicit.enable_thinking, None);
 
-        let direct_google = DialogueGenerationConfig::default().for_model("gemini-3.6-flash");
+        let prior_promoted =
+            DialogueGenerationConfig::default().for_model("google/gemini-3.6-flash");
+        assert_eq!(prior_promoted.max_tokens, 768);
+        assert_eq!(prior_promoted.reasoning_effort, Some(ReasoningEffort::Low));
+
+        let direct_google = DialogueGenerationConfig::default().for_model("gemini-3.7-flash");
+        assert_eq!(direct_google.max_tokens, 768);
         assert_eq!(direct_google.reasoning_effort, None);
     }
 
