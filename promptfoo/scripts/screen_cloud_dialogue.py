@@ -87,7 +87,7 @@ def user_config(args: argparse.Namespace) -> str:
         )
     return "\n".join(
         [
-            '[category_overrides.dialogue]',
+            "[category_overrides.dialogue]",
             f'thinking_level = "{args.reasoning_effort}"',
             f"max_output_tokens = {args.max_tokens}",
             "",

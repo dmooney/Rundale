@@ -40,7 +40,7 @@ _native_google_profile = screen_cloud_dialogue.user_config(
 )
 check(
     "cloud screen applies native Google dialogue thinking profile",
-    '[category_overrides.dialogue]' in _native_google_profile
+    "[category_overrides.dialogue]" in _native_google_profile
     and 'thinking_level = "low"' in _native_google_profile
     and "max_output_tokens = 4096" in _native_google_profile,
 )
