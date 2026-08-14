@@ -602,7 +602,11 @@ fn npc_mention_candidates(
 ) -> Vec<NpcMentionCandidate> {
     let mut candidates = npc_location_mention_candidate_pairs(world, npc_manager);
 
-    if is_explicit_roster_presence_query(raw) {
+    // An explicit `@name` is an identity-bearing routing token even when the
+    // NPC is absent. Resolve it against the full authored roster so the
+    // absent-aware target seam can fail closed instead of ambient-falling back
+    // to a bystander (#1866).
+    if raw.contains('@') || is_explicit_roster_presence_query(raw) {
         candidates.extend(roster_presence_mention_candidate_pairs(npc_manager));
     }
 
@@ -676,14 +680,13 @@ fn find_natural_npc_mentions(
 
 /// Extracts all valid `@mentions` that match NPCs at the player's location.
 ///
-/// Matching is done against the NPCs currently present. Explicit `@mentions`
-/// and natural free-text names match introduced full/first names and visible
-/// display names, so `Padraig`, `Padraig Darcy`, and multi-word lowercase
-/// descriptions like `an older man behind the bar` remain parseable. Ambiguous
-/// mention text is ignored rather than routed to an arbitrary co-located NPC.
-/// Explicit presence/where/seen questions additionally match unambiguous
-/// full-roster names and role titles so "Is Father Declan here?" can report
-/// the named person's absence instead of falling through as ambient input.
+/// Natural free-text matching uses NPCs currently present. Explicit
+/// `@mentions` additionally use the full roster because the named identity is
+/// authoritative even when absent; presence/where/seen questions do the same.
+/// Introduced full/first names and visible display names remain parseable, so
+/// `Padraig`, `Padraig Darcy`, and multi-word lowercase descriptions like `an
+/// older man behind the bar` work. Ambiguous mention text is ignored rather
+/// than routed to an arbitrary NPC.
 pub fn extract_npc_mentions(
     raw: &str,
     world: &WorldState,
@@ -993,9 +996,11 @@ pub struct NpcConversationSetup {
     /// an NPC can have met the player without having said their name (#1776,
     /// #1786).
     pub had_prior_exchange: bool,
-    /// Canonical authored work facts for post-generation referral validation:
-    /// `(name, occupation, workplace name)`.
-    pub work_roster: Vec<(String, String, Option<String>)>,
+    /// Canonical authored work facts for post-generation referral validation.
+    pub work_roster: Vec<crate::npc::GroundedWorkFact>,
+    /// Immutable authored facts captured before inference. The canonical apply
+    /// seam validates the completed candidate against this exact snapshot.
+    pub grounding: crate::npc::DialogueGroundingSnapshot,
 }
 
 /// Prepares a specific NPC's turn in an ongoing conversation.
@@ -1141,10 +1146,23 @@ pub fn prepare_npc_conversation_turn(
     // Transcript history first (current player input excluded — shown separately below).
     append_transcript_context(&mut context, transcript, player_label, player_input);
 
-    // Check for anachronisms in player input and inject alert into context
-    let anachronisms = anachronism::check_input(player_input);
-    if let Some(alert) = anachronism::format_context_alert(&anachronisms) {
-        context.push_str(&alert);
+    // Prompt and output validation consume the same mod-authored term set.
+    // Empty test worlds retain the legacy static dictionary fallback.
+    if world.dialogue_anachronisms.is_empty() {
+        let detected = anachronism::check_input(player_input);
+        if let Some(alert) = anachronism::format_context_alert(&detected) {
+            context.push_str(&alert);
+        }
+    } else {
+        let detected =
+            anachronism::check_input_from_mod_data(player_input, &world.dialogue_anachronisms);
+        if let Some(alert) = anachronism::format_context_alert_from_mod_data(
+            &detected,
+            &world.dialogue_anachronism_alert_prefix,
+            &world.dialogue_anachronism_alert_suffix,
+        ) {
+            context.push_str(&alert);
+        }
     }
 
     // Modern-register echo guard (TODO #55) — separate from the
@@ -1196,15 +1214,22 @@ pub fn prepare_npc_conversation_turn(
             known_person_names.push(name.clone());
         }
     }
+    let dialogue_obligations =
+        crate::npc::derive_dialogue_obligations(player_input, &known_person_names);
+    context.push_str(&crate::npc::render_dialogue_obligation_contract(
+        &dialogue_obligations,
+    ));
 
-    // For the wrong-speaker-identity guard (#1475): (name, occupation) pairs
-    // for all roster members. Exclude the player entry (NpcId(0)) since the
-    // guard is about NPC identities, not the player.
-    let roster_names_occupations: Vec<(String, String)> = roster
-        .iter()
-        .filter(|(id, _, _)| id.0 != 0)
-        .map(|(_, name, occ)| (name.clone(), occ.clone()))
+    // The canonical identity guards need the complete authored NPC roster,
+    // not merely the speaker's social/prompt roster. Otherwise a first name
+    // that looks unique from one NPC's perspective can collide elsewhere in
+    // the parish, and wrong-speaker validation changes with relationships.
+    // The player is not an NPC and therefore is not part of this collection.
+    let mut roster_names_occupations: Vec<(String, String)> = npc_manager
+        .all_npcs()
+        .map(|person| (person.name.clone(), person.occupation.clone()))
         .collect();
+    roster_names_occupations.sort();
 
     let location_name = world
         .graph
@@ -1242,10 +1267,65 @@ pub fn prepare_npc_conversation_turn(
         })
         .collect();
     work_roster_with_ids.sort_by_key(|(id, _, _, _)| id.0);
-    let work_roster = work_roster_with_ids
+    let work_roster: Vec<crate::npc::GroundedWorkFact> = work_roster_with_ids
         .into_iter()
-        .map(|(_, name, occupation, workplace)| (name, occupation, workplace))
+        .map(
+            |(_, name, occupation, workplace)| crate::npc::GroundedWorkFact {
+                name,
+                occupation,
+                workplace,
+            },
+        )
         .collect();
+
+    let prior_player_inputs = world
+        .conversation_log
+        .recent_at(
+            world.player_location,
+            crate::npc::conversation::ConversationLog::capacity(),
+        )
+        .into_iter()
+        .filter(|exchange| exchange.speaker_id == speaker_id)
+        .map(|exchange| exchange.player_input.clone())
+        .collect();
+    let typed_grounding =
+        crate::game_session::dialogue_grounding_snapshot(world, npc_manager, speaker_id);
+    let grounding = crate::npc::DialogueGroundingSnapshot {
+        speaker_name: npc.name.clone(),
+        speaker_context: Some(crate::npc::DialogueSpeakerContext {
+            name: npc.name.clone(),
+            occupation: npc.occupation.clone(),
+            mood: npc.mood.clone(),
+        }),
+        canonical_mood: npc.mood.clone(),
+        had_prior_exchange,
+        time_of_day: world.clock.time_of_day(),
+        known_person_names: known_person_names.clone(),
+        roster_names_occupations: roster_names_occupations.clone(),
+        current_location_name: location_name.clone(),
+        known_location_names: known_location_names.clone(),
+        player_name: world.player_name.clone(),
+        work_roster: work_roster.clone(),
+        relationship_tone_hints: npc_manager.relationship_tone_hints(speaker_id),
+        prior_player_inputs,
+        forbidden_output_terms: world
+            .dialogue_anachronisms
+            .iter()
+            .map(|entry| entry.term.clone())
+            .collect(),
+        prior_openers: Vec::new(),
+        current_festival: typed_grounding.current_festival,
+        current_weekday: typed_grounding.current_weekday,
+        current_day_type: typed_grounding.current_day_type,
+        active_session: typed_grounding.active_session,
+        remembered_objects: typed_grounding.remembered_objects,
+        person_facts: typed_grounding.person_facts,
+        location_facts: typed_grounding.location_facts,
+        referent_context: typed_grounding.referent_context,
+        dialogue_obligations,
+    };
+
+    context.push_str(&crate::npc::render_dialogue_grounding_contract(&grounding));
 
     Some(NpcConversationSetup {
         display_name,
@@ -1260,6 +1340,7 @@ pub fn prepare_npc_conversation_turn(
         player_name: world.player_name.clone(),
         had_prior_exchange,
         work_roster,
+        grounding,
     })
 }
 
@@ -1630,7 +1711,7 @@ mod tests {
     }
 
     #[test]
-    fn extract_npc_mentions_does_not_match_unintroduced_real_name() {
+    fn explicit_at_mention_matches_unintroduced_roster_name() {
         let world = WorldState::new();
         let mut npc_mgr = NpcManager::new();
         let mut npc = Npc::new_test_npc();
@@ -1642,8 +1723,8 @@ mod tests {
         let raw = "@Padraig O'Brien what have you heard?";
         let extracted = extract_npc_mentions(raw, &world, &npc_mgr);
 
-        assert!(extracted.names.is_empty());
-        assert_eq!(extracted.remaining, raw);
+        assert_eq!(extracted.names, ["Padraig O'Brien"]);
+        assert_eq!(extracted.remaining, "what have you heard?");
     }
 
     #[test]
@@ -1745,6 +1826,33 @@ mod tests {
             "full-roster aliases should stay gated to explicit presence queries"
         );
         assert_eq!(extracted.remaining, casual);
+    }
+
+    #[test]
+    fn explicit_at_mention_preserves_absent_roster_identity() {
+        let world = WorldState::new();
+        let mut npc_mgr = NpcManager::new();
+
+        let mut bystander = Npc::new_test_npc();
+        bystander.id = NpcId(1);
+        bystander.name = "Liam Murphy".to_string();
+        bystander.set_location(world.player_location);
+        let mut absent = Npc::new_test_npc();
+        absent.id = NpcId(2);
+        absent.name = "Siobhan Murphy".to_string();
+        absent.set_location(LocationId(world.player_location.0 + 1));
+        npc_mgr.add_npc(bystander);
+        npc_mgr.add_npc(absent);
+        npc_mgr.mark_introduced(NpcId(1));
+        npc_mgr.mark_introduced(NpcId(2));
+
+        let extracted =
+            extract_npc_mentions("@Siobhan Murphy Are you still here?", &world, &npc_mgr);
+        assert_eq!(extracted.names, vec!["Siobhan Murphy".to_string()]);
+        assert_eq!(extracted.remaining, "Are you still here?");
+        let resolved = resolve_addressed_targets(&world, &npc_mgr, &extracted.names);
+        assert!(resolved.resolved.is_empty());
+        assert_eq!(resolved.absent, vec!["Siobhan Murphy".to_string()]);
     }
 
     #[test]
@@ -2420,6 +2528,97 @@ mod tests {
             "person-confirmation guard must NOT fire on a real parish NPC (Roisin Malone) \
              after #1488 fix; got: {guarded:?}"
         );
+    }
+
+    #[test]
+    fn prompt_and_validation_snapshot_share_mod_anachronism_terms() {
+        use crate::config::NpcConfig;
+        use crate::npc::{Npc, manager::NpcManager};
+
+        let mut world = WorldState::new();
+        world.dialogue_anachronisms = vec![parish_types::AnachronismEntry {
+            term: "planning board".to_string(),
+            category: Some("concept".to_string()),
+            origin_year: Some(1934),
+            note: "postdates 1820".to_string(),
+        }];
+        world.dialogue_anachronism_alert_prefix = "AUTHORED PERIOD ALERT".to_string();
+        world.dialogue_anachronism_alert_suffix = "DO NOT ECHO IT".to_string();
+        let mut npc_manager = NpcManager::new();
+        let mut npc = Npc::new_test_npc();
+        npc.id = NpcId(1);
+        npc.set_location(world.player_location);
+        npc_manager.add_npc(npc);
+
+        let setup = prepare_npc_conversation_turn(
+            &world,
+            &mut npc_manager,
+            "What says the planning board?",
+            NpcId(1),
+            &[],
+            false,
+            &crate::npc::LanguageSettings::english_only(),
+            &NpcConfig::default(),
+        )
+        .expect("conversation setup");
+
+        assert!(setup.context.contains("AUTHORED PERIOD ALERT"));
+        assert!(setup.context.contains("planning board"));
+        assert_eq!(setup.grounding.forbidden_output_terms, ["planning board"]);
+    }
+
+    #[test]
+    fn conversation_setup_renders_exact_issue_obligations_in_player_order() {
+        use crate::config::NpcConfig;
+        use crate::npc::{DialogueObligation, Npc, manager::NpcManager};
+
+        let world = WorldState::new();
+        let mut npc_manager = NpcManager::new();
+        let mut priest = Npc::new_test_npc();
+        priest.id = NpcId(1);
+        priest.name = "Fr. Declan Tierney".to_string();
+        priest.occupation = "Parish Priest".to_string();
+        priest.set_location(world.player_location);
+        npc_manager.add_npc(priest);
+        let mut peig = Npc::new_test_npc();
+        peig.id = NpcId(2);
+        peig.name = "Peig Hannigan".to_string();
+        peig.set_location(world.player_location);
+        npc_manager.add_npc(peig);
+
+        let input = "Good morning, Father. Peig Hannigan sent me. I'm Aiden Carney, seeking honest work and somewhere dry to sleep.";
+        let setup = prepare_npc_conversation_turn(
+            &world,
+            &mut npc_manager,
+            input,
+            NpcId(1),
+            &[],
+            false,
+            &crate::npc::LanguageSettings::english_only(),
+            &NpcConfig::default(),
+        )
+        .expect("conversation setup");
+
+        assert_eq!(
+            setup.grounding.dialogue_obligations,
+            vec![
+                DialogueObligation::Referral {
+                    referrer: "Peig Hannigan".to_string(),
+                },
+                DialogueObligation::Name {
+                    player_name: "Aiden Carney".to_string(),
+                },
+                DialogueObligation::Work,
+                DialogueObligation::Lodging,
+            ]
+        );
+        let referral = setup.context.find("1. REFERRAL").unwrap();
+        let name = setup.context.find("2. NAME").unwrap();
+        let work = setup.context.find("3. WORK").unwrap();
+        let lodging = setup.context.find("4. LODGING").unwrap();
+        assert!(referral < name && name < work && work < lodging);
+        assert!(setup.context.contains("PLAYER REQUESTS TO ANSWER NOW"));
+        assert!(setup.context.contains("fulfill EVERY numbered item"));
     }
 
     #[test]

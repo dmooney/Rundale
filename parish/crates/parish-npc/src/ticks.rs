@@ -31,6 +31,7 @@ pub use tier1::{apply_tier1_response_with_config, record_witness_memories};
 pub use tier2::{
     GroundedTier2ApplyOutcome, NpcSnapshot, Tier2Group, apply_grounded_tier2_event_with_config,
     build_tier2_prompt, npc_snapshot_from_npc, npc_snapshot_from_npc_at, run_tier2_for_group,
+    run_tier2_for_group_with_profile, run_tier2_for_group_with_profile_and_audit,
     tier2_activity_fingerprint_from_npc_at, tier2_parse_failures_total,
     tier2_summary_location_conflict,
 };
@@ -38,7 +39,8 @@ pub use tier2::{
 // Tier 3 — snapshot types, prompt, inference, update application
 pub use tier3::{
     TIER3_BATCH_SIZE, Tier3Context, Tier3Snapshot, apply_tier3_updates, build_tier3_prompt,
-    tick_tier3, tier3_snapshot_from_npc,
+    tick_tier3, tick_tier3_with_profile, tick_tier3_with_profile_and_audit,
+    tier3_snapshot_from_npc,
 };
 
 // Gossip helpers

@@ -223,23 +223,11 @@ pub fn redact_call_log(
     entries
         .iter()
         .map(|e| parish_core::debug_snapshot::InferenceLogEntry {
-            request_id: e.request_id,
-            timestamp: e.timestamp.clone(),
-            model: e.model.clone(),
-            streaming: e.streaming,
-            duration_ms: e.duration_ms,
-            prompt_len: e.prompt_len,
-            response_len: e.response_len,
-            error: e.error.clone(),
-            max_tokens: e.max_tokens,
-            ttft_ms: e.ttft_ms,
-            output_tokens: e.output_tokens,
-            temperature: e.temperature,
-            priority: e.priority,
             // Redacted fields:
             system_prompt: None,
             prompt_text: String::new(),
             response_text: String::new(),
+            ..e.clone()
         })
         .collect()
 }

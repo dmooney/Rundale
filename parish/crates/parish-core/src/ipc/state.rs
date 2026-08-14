@@ -52,6 +52,10 @@ pub struct ConversationRuntimeState {
     /// Capped at 32 entries so it cannot grow unboundedly during a long stay at
     /// one location.
     pub seen_openers_this_location: Vec<String>,
+    /// Typed unresolved person/place referents introduced by the player in the
+    /// current local exchange. This is runtime-only, bounded in `parish-npc`,
+    /// and cleared with the rest of the location-scoped transcript.
+    pub dialogue_referents: crate::npc::DialogueReferentContext,
 }
 
 impl Default for ConversationRuntimeState {
@@ -72,6 +76,7 @@ impl ConversationRuntimeState {
             conversation_in_progress: false,
             last_player_input: None,
             seen_openers_this_location: Vec::new(),
+            dialogue_referents: crate::npc::DialogueReferentContext::default(),
         }
     }
 
@@ -119,6 +124,7 @@ impl ConversationRuntimeState {
             self.location = Some(location);
             self.transcript.clear();
             self.seen_openers_this_location.clear();
+            self.dialogue_referents = crate::npc::DialogueReferentContext::default();
         }
     }
 
@@ -243,6 +249,31 @@ mod tests {
         assert!(
             state.transcript.is_empty(),
             "moving to a new location should clear stale local transcript"
+        );
+    }
+
+    #[test]
+    fn sync_location_clears_typed_dialogue_referents_only_on_move() {
+        let mut state = ConversationRuntimeState::new();
+        let crossroads = LocationId(1);
+        let chapel = LocationId(2);
+        state.sync_location(crossroads);
+        state
+            .dialogue_referents
+            .observe_player_input("Have you seen Cormac Finn?", &[], &[], None);
+        assert_ne!(
+            state.dialogue_referents,
+            crate::npc::DialogueReferentContext::default()
+        );
+        state.sync_location(crossroads);
+        assert_ne!(
+            state.dialogue_referents,
+            crate::npc::DialogueReferentContext::default()
+        );
+        state.sync_location(chapel);
+        assert_eq!(
+            state.dialogue_referents,
+            crate::npc::DialogueReferentContext::default()
         );
     }
 

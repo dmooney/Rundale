@@ -1233,6 +1233,8 @@ pub fn run() {
         category_model: Default::default(),
         category_api_key: Default::default(),
         category_base_url: Default::default(),
+        inference_profile_override: Default::default(),
+        category_inference_profile: Default::default(),
         flags,
         category_rate_limit: Default::default(),
         active_tile_source,
@@ -1251,6 +1253,7 @@ pub fn run() {
     // category to the dialogue port and the small-slot inference 404s.)
     if let Ok(user_cfg) = parish_core::config::user_config::load_user_config(&user_config_dir) {
         game_config.apply_user_category_overrides(&user_cfg.category_overrides);
+        game_config.apply_user_inference_profiles(&user_cfg);
     }
 
     // Fill any unset model fields from the chosen provider's presets so a
@@ -1646,12 +1649,12 @@ fn build_cloud_client_from_env(
             .as_deref()
             .and_then(|p| Provider::from_str_loose(p).ok())
             .map(|p| p.default_base_url().to_string())
-            .unwrap_or_else(|| "https://openrouter.ai/api".to_string())
+            .unwrap_or_else(|| "https://generativelanguage.googleapis.com/v1".to_string())
     });
     let provider_enum = provider
         .as_deref()
         .and_then(|p| Provider::from_str_loose(p).ok())
-        .unwrap_or_else(|| Provider::from_id("openrouter").unwrap_or_default());
+        .unwrap_or_else(|| Provider::from_id("google").unwrap_or_default());
     let api_key = provider_enum
         .api_key_env_var()
         .and_then(|var| std::env::var(var).ok())

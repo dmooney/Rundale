@@ -81,7 +81,8 @@ pub fn handle_command(
         Command::Flags
         | Command::Flag(_)
         | Command::InvalidFlagName(_)
-        | Command::InvalidBranchName(_) => handle_flag_command(cmd, config),
+        | Command::InvalidBranchName(_)
+        | Command::InvalidSystemCommand(_) => handle_flag_command(cmd, config),
 
         Command::Quit => CommandResult::effect_only(CommandEffect::Quit),
         Command::Help => CommandResult::text_tabular(render_help_text()),

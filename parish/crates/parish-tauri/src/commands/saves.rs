@@ -139,17 +139,10 @@ async fn restore_loaded_branch_state(
     state: &Arc<AppState>,
     recovery: parish_core::session_store::RecoveryBundle,
 ) -> crate::WorldSnapshot {
-    let grounding_enabled = {
-        let cfg = state.config.lock().await;
-        !cfg.flags.is_disabled("npc-dialogue-grounding")
-    };
     let mut world = state.world.lock().await;
     let mut npc_manager = state.npc_manager.lock().await;
     world.event_bus.advance_context_epoch();
     recovery.restore(&mut world, &mut npc_manager);
-    if grounding_enabled {
-        npc_manager.clear_introduced_for_session();
-    }
     npc_manager.assign_tiers(&world, &[]);
     let ws = super::snapshot::get_world_snapshot_inner(
         &world,
@@ -237,6 +230,29 @@ pub async fn do_load_branch(
     }
 
     Ok(())
+}
+
+/// Loads a named branch from the currently active save file. The caller owns
+/// the persistence gate, matching [`do_load_branch`].
+pub async fn do_load_named_branch(
+    state: &Arc<AppState>,
+    app: &tauri::AppHandle,
+    name: &str,
+) -> Result<(), String> {
+    let path = state
+        .save_path
+        .lock()
+        .await
+        .clone()
+        .ok_or_else(|| "No active save file. Use /save first.".to_string())?;
+    let lookup_path = path.clone();
+    let name = name.to_string();
+    let branch = tokio::task::spawn_blocking(move || {
+        parish_core::game_loop::resolve_named_branch(&lookup_path, &name)
+    })
+    .await
+    .map_err(|error| error.to_string())??;
+    do_load_branch(state, app, path.to_string_lossy().into_owned(), branch.id).await
 }
 
 /// Creates a new branch forked from a specified parent branch.
@@ -648,6 +664,17 @@ mod tests {
     async fn same_location_branch_restore_resets_runtime_context_and_preserves_lifetime_cursor() {
         let state = test_app_state();
         seed_stale_branch_runtime(&state).await;
+        let introduced_id = {
+            let mut npc_manager = state.npc_manager.lock().await;
+            npc_manager.add_npc(parish_core::npc::Npc::new_test_npc());
+            let id = npc_manager
+                .all_npcs()
+                .next()
+                .expect("Tauri fixture has an NPC")
+                .id;
+            npc_manager.mark_introduced(id);
+            id
+        };
         let snapshot = {
             let world = state.world.lock().await;
             let npc_manager = state.npc_manager.lock().await;
@@ -668,6 +695,10 @@ mod tests {
         assert!(conversation.seen_openers_this_location.is_empty());
         drop(conversation);
         assert!(state.game_events.lock().await.is_empty());
+        assert!(
+            state.npc_manager.lock().await.is_introduced(introduced_id),
+            "Tauri branch restore must preserve durable identity knowledge"
+        );
         assert_eq!(
             state
                 .total_game_events

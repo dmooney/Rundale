@@ -1,7 +1,0 @@
-# Fixture: parish_turn since-cursor bug (issue #1389)
-# Verifies that /api/turn?since=N returns only events after cursor N.
-# This fixture exercises the headless engine to show event_cursor advances.
-/status
-/turn
-/wait 60
-/turn

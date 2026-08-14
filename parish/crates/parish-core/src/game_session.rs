@@ -14,6 +14,8 @@ use std::collections::HashSet;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{Duration, Instant};
 
+use chrono::Datelike;
+
 use crate::config::{FeatureFlags, ReactionConfig};
 use crate::debug_snapshot::InferenceLogEntry;
 use crate::dice;
@@ -68,12 +70,31 @@ pub const PLAYER_TASK_PROGRESSION_FLAG: &str = "player-task-progression";
 
 /// Deterministic player opt-in for accepting a model-proposed task.
 ///
-/// Restricting assignment to an explicit work/help request lets runtimes know
-/// before inference which dialogue turns can mutate the durable task ledger,
-/// so those turns can be staged atomically without delaying every ordinary
-/// conversation.
+/// Restricting assignment to an explicit work/help request, affirmative
+/// acceptance, or concrete first-step follow-up lets runtimes know before
+/// inference which dialogue turns can mutate the durable task ledger. The
+/// staged-turn admission seam calls this same classifier, so no accepted task
+/// can bypass atomic journal persistence.
 pub fn is_task_request_input(input: &str) -> bool {
-    let normalized = input.trim().to_ascii_lowercase();
+    let normalized = input.trim().to_ascii_lowercase().replace('\u{2019}', "'");
+    if [
+        "don't need help",
+        "do not need help",
+        "can't help",
+        "cannot help",
+        "won't help",
+        "will not help",
+        "won't take the work",
+        "will not take the work",
+        "not take the work",
+        "decline the work",
+    ]
+    .iter()
+    .any(|phrase| normalized.contains(phrase))
+    {
+        return false;
+    }
+
     [
         "any work",
         "have work",
@@ -94,6 +115,14 @@ pub fn is_task_request_input(input: &str) -> bool {
         "have a job",
         "chores",
         "errand",
+        "i'll take the work",
+        "i will take the work",
+        "i accept the work",
+        "i'll do the work",
+        "i will do the work",
+        "what would you have me do first",
+        "what should i do first",
+        "what am i to do first",
     ]
     .iter()
     .any(|phrase| normalized.contains(phrase))
@@ -557,9 +586,10 @@ pub struct DialogueTurnOutcome {
     /// written to the conversation log and the `DialogueOccurred` event. May be
     /// empty when the model returned no usable dialogue.
     pub display_text: String,
-    /// Content-free names of canonical apply-seam transformations that changed
-    /// the model dialogue. Benchmark telemetry uses these to distinguish
-    /// semantic correction from repetition handling and the display cap.
+    /// Content-free names of canonical apply-seam constraints that materially
+    /// affected the accepted model dialogue. A constraint remains represented
+    /// when an earlier canonical guard makes its later transformation a no-op;
+    /// benchmark telemetry must not depend on guard ordering.
     pub guard_reasons: Vec<String>,
     /// Secondary-language hints validated against `display_text` and the active
     /// setting's curated native-language inventory (#1789).
@@ -569,6 +599,9 @@ pub struct DialogueTurnOutcome {
     /// Callers persist this exact record before acknowledging the player turn;
     /// replay never re-runs model-output interpretation.
     pub assigned_task: Option<parish_types::PlayerTask>,
+    /// Canonical physical action from accepted metadata. Rejected response
+    /// metadata is discarded before this value is derived.
+    pub action: Option<String>,
 }
 
 #[cfg(test)]
@@ -1066,27 +1099,66 @@ pub fn apply_npc_dialogue_turn(
     language: &LanguageSettings,
     flags: &FeatureFlags,
 ) -> DialogueTurnOutcome {
-    let mut debug_events = Vec::new();
-    let mut guard_reasons = Vec::new();
+    let mut grounding = dialogue_grounding_snapshot(world, npc_manager, speaker_id);
+    grounding.dialogue_obligations =
+        crate::npc::derive_dialogue_obligations(player_input, &grounding.known_person_names);
+    apply_npc_dialogue_turn_with_validation(
+        world,
+        npc_manager,
+        speaker_id,
+        parsed,
+        crate::npc::NpcResponseParseDisposition::FullJson,
+        &grounding,
+        crate::npc::DialogueValidationPolicy::default(),
+        player_input,
+        player_said_for_journal,
+        game_time,
+        location,
+        speaker_display_name,
+        speaker_actual_name,
+        request_id,
+        grounded_person_names,
+        language,
+        flags,
+    )
+}
 
-    // 1. Learn the player's name from a self-introduction *before* recording
-    //    memory, so the addressed speaker's memory uses the real name (#1028).
-    crate::ipc::detect_and_record_player_name(world, npc_manager, player_input, speaker_id);
-
-    // Canonical semantic guards run before memory/state application so every
-    // runtime records the same grounded text. These checks use authored state
-    // and the canonical conversation log rather than trusting model metadata.
-    let had_prior_exchange = world.conversation_log.has_exchange_with(speaker_id);
-    let canonical_mood = npc_manager
-        .get(speaker_id)
-        .map(|npc| npc.mood.clone())
-        .unwrap_or_default();
-    let mut work_roster_with_ids: Vec<(NpcId, String, String, Option<String>)> = npc_manager
+/// Captures the authored facts used to validate one future dialogue result.
+/// Live callers capture this before inference; trusted harness callers use the
+/// compatibility wrapper above, which captures immediately before apply.
+pub fn dialogue_grounding_snapshot(
+    world: &WorldState,
+    npc_manager: &NpcManager,
+    speaker_id: NpcId,
+) -> crate::npc::DialogueGroundingSnapshot {
+    let current_date = world.clock.now().date_naive();
+    let speaker = npc_manager.get(speaker_id);
+    let mut known_person_names: Vec<String> =
+        npc_manager.all_npcs().map(|npc| npc.name.clone()).collect();
+    known_person_names.sort();
+    if let Some(player_name) = world.player_name.as_ref()
+        && !known_person_names.iter().any(|known| known == player_name)
+    {
+        known_person_names.push(player_name.clone());
+    }
+    let mut roster_names_occupations: Vec<(String, String)> = npc_manager
+        .all_npcs()
+        .map(|npc| (npc.name.clone(), npc.occupation.clone()))
+        .collect();
+    roster_names_occupations.sort();
+    let mut known_location_names: Vec<String> = world
+        .graph
+        .location_ids()
+        .into_iter()
+        .filter_map(|id| world.graph.get(id).map(|location| location.name.clone()))
+        .collect();
+    known_location_names.sort();
+    let mut work_roster: Vec<(NpcId, String, String, Option<String>)> = npc_manager
         .all_npcs()
         .map(|person| {
             let workplace = person
                 .workplace
-                .and_then(|location_id| world.graph.get(location_id))
+                .and_then(|id| world.graph.get(id))
                 .map(|location| location.name.clone());
             (
                 person.id,
@@ -1096,44 +1168,276 @@ pub fn apply_npc_dialogue_turn(
             )
         })
         .collect();
-    work_roster_with_ids.sort_by_key(|(id, _, _, _)| id.0);
-    let work_roster: Vec<(String, String, Option<String>)> = work_roster_with_ids
-        .into_iter()
-        .map(|(_, name, occupation, workplace)| (name, occupation, workplace))
+    work_roster.sort_by_key(|(id, _, _, _)| id.0);
+    let person_facts: Vec<crate::npc::GroundedPersonFact> = npc_manager
+        .all_npcs()
+        .map(|person| crate::npc::GroundedPersonFact {
+            name: person.name.clone(),
+            occupation: person.occupation.clone(),
+            workplace: person
+                .workplace
+                .and_then(|id| world.graph.get(id))
+                .map(|location| location.name.clone()),
+            current_location: world
+                .graph
+                .get(person.location())
+                .map(|location| location.name.clone()),
+        })
         .collect();
-
-    let mut canonical_response = parsed.clone();
-    let mut guarded =
-        crate::npc::guard_mood_register(&canonical_response.dialogue, &canonical_mood);
-    if guarded != canonical_response.dialogue {
-        guard_reasons.push("mood_register_guard".to_string());
+    let location_facts: Vec<crate::npc::GroundedLocationFact> = world
+        .graph
+        .location_ids()
+        .into_iter()
+        .filter_map(|id| world.graph.get(id))
+        .map(|location| {
+            let mut nearby_locations: Vec<String> = location
+                .connections
+                .iter()
+                .filter_map(|connection| world.graph.get(connection.target))
+                .map(|nearby| nearby.name.clone())
+                .collect();
+            if let Some(anchor) = location
+                .relative_to
+                .as_ref()
+                .and_then(|relative| world.graph.get(relative.anchor))
+                .map(|anchor| anchor.name.clone())
+                && !nearby_locations.contains(&anchor)
+            {
+                nearby_locations.push(anchor);
+            }
+            nearby_locations.sort();
+            crate::npc::GroundedLocationFact {
+                name: location.name.clone(),
+                nearby_locations,
+                landmarks: location.landmarks.clone(),
+            }
+        })
+        .collect();
+    let prior_player_inputs = world
+        .conversation_log
+        .recent_at(
+            world.player_location,
+            crate::npc::conversation::ConversationLog::capacity(),
+        )
+        .into_iter()
+        .filter(|exchange| exchange.speaker_id == speaker_id)
+        .map(|exchange| exchange.player_input.clone())
+        .collect();
+    let mut referent_context = crate::npc::DialogueReferentContext::default();
+    for input in world
+        .conversation_log
+        .recent_at(
+            world.player_location,
+            crate::npc::conversation::ConversationLog::capacity(),
+        )
+        .into_iter()
+        .map(|exchange| exchange.player_input.as_str())
+    {
+        referent_context.observe_player_input(
+            input,
+            &known_person_names,
+            &known_location_names,
+            world.player_name.as_deref(),
+        );
     }
-    canonical_response.dialogue = guarded;
-
-    guarded = crate::npc::guard_unfounded_first_contact_familiarity(
-        &canonical_response.dialogue,
-        had_prior_exchange,
-    );
-    if guarded != canonical_response.dialogue {
-        guard_reasons.push("first_contact_guard".to_string());
+    crate::npc::DialogueGroundingSnapshot {
+        speaker_name: speaker.map(|npc| npc.name.clone()).unwrap_or_default(),
+        speaker_context: speaker.map(|npc| crate::npc::DialogueSpeakerContext {
+            name: npc.name.clone(),
+            occupation: npc.occupation.clone(),
+            mood: npc.mood.clone(),
+        }),
+        canonical_mood: speaker.map(|npc| npc.mood.clone()).unwrap_or_default(),
+        had_prior_exchange: world.conversation_log.has_exchange_with(speaker_id),
+        time_of_day: world.clock.time_of_day(),
+        known_person_names,
+        roster_names_occupations,
+        current_location_name: world
+            .graph
+            .get(world.player_location)
+            .map(|location| location.name.clone())
+            .unwrap_or_default(),
+        known_location_names,
+        player_name: world.player_name.clone(),
+        work_roster: work_roster
+            .into_iter()
+            .map(
+                |(_, name, occupation, workplace)| crate::npc::GroundedWorkFact {
+                    name,
+                    occupation,
+                    workplace,
+                },
+            )
+            .collect(),
+        relationship_tone_hints: npc_manager.relationship_tone_hints(speaker_id),
+        prior_player_inputs,
+        forbidden_output_terms: world
+            .dialogue_anachronisms
+            .iter()
+            .map(|entry| entry.term.clone())
+            .collect(),
+        prior_openers: Vec::new(),
+        current_festival: world
+            .clock
+            .check_festival()
+            .map(|festival| festival.to_string()),
+        current_weekday: parish_types::time::weekday_name(current_date.weekday()).to_string(),
+        current_day_type: parish_types::DayType::from_date(current_date),
+        active_session: world
+            .active_session
+            .as_ref()
+            .filter(|session| {
+                session.date == current_date && session.location == world.player_location
+            })
+            .cloned(),
+        remembered_objects: world
+            .conversation_log
+            .remembered_object_facts(speaker_id, world.player_location)
+            .into_iter()
+            .cloned()
+            .collect(),
+        person_facts,
+        location_facts,
+        referent_context,
+        dialogue_obligations: Vec::new(),
     }
-    canonical_response.dialogue = guarded;
+}
 
-    guarded = crate::npc::guard_direct_evidence_evasion(&canonical_response.dialogue, player_input);
-    if guarded != canonical_response.dialogue {
-        guard_reasons.push("evidence_guard".to_string());
-    }
-    canonical_response.dialogue = guarded;
+/// Applies one untrusted Tier-1 candidate after the single canonical validation
+/// pass. Rejected candidate text and metadata are replaced before any state,
+/// memory, event, or UI-facing outcome is produced.
+#[allow(clippy::too_many_arguments)]
+pub fn apply_npc_dialogue_turn_with_validation(
+    world: &mut WorldState,
+    npc_manager: &mut NpcManager,
+    speaker_id: NpcId,
+    parsed: &crate::npc::NpcStreamResponse,
+    parse_disposition: crate::npc::NpcResponseParseDisposition,
+    grounding: &crate::npc::DialogueGroundingSnapshot,
+    validation_policy: crate::npc::DialogueValidationPolicy,
+    player_input: &str,
+    player_said_for_journal: &str,
+    game_time: chrono::DateTime<chrono::Utc>,
+    location: LocationId,
+    speaker_display_name: &str,
+    speaker_actual_name: &str,
+    request_id: Option<u64>,
+    grounded_person_names: &[String],
+    language: &LanguageSettings,
+    flags: &FeatureFlags,
+) -> DialogueTurnOutcome {
+    let mut debug_events = Vec::new();
+    let npc_cfg = crate::config::NpcConfig::default();
 
-    guarded = crate::npc::guard_work_recommendation(
-        &canonical_response.dialogue,
+    // Record whether the configured display constraint is material against the
+    // complete accepted candidate, before semantic guards can shorten it. The
+    // final cap still runs below, after all semantic validation. This preserves
+    // the safe validation order while making quality telemetry independent of
+    // overlap with the verbosity guard (#1834).
+    let candidate_requires_display_cap = cap_dialogue_for_display_with_trim(
+        &parsed.dialogue,
+        npc_cfg.dialogue_display_max_chars,
+        npc_cfg.dialogue_sentence_boundary_trim,
+    )
+    .as_ref()
+        != parsed.dialogue;
+
+    // 1. Learn the player's name from a self-introduction *before* recording
+    //    memory, so the addressed speaker's memory uses the real name (#1028).
+    crate::ipc::detect_and_record_player_name(world, npc_manager, player_input, speaker_id);
+
+    let validation = crate::npc::validate_dialogue_candidate(
+        parsed,
+        parse_disposition,
         player_input,
-        &work_roster,
+        grounding,
+        validation_policy,
+        speaker_id.0 as u64 ^ game_time.timestamp() as u64,
     );
-    if guarded != canonical_response.dialogue {
-        guard_reasons.push("work_recommendation_guard".to_string());
+    let accepted_candidate = validation.accepted;
+    let mut canonical_response = validation.response;
+    let mut guard_reasons = validation.guard_reasons;
+
+    // Complete the canonical text outcome before any memory, mood, task,
+    // identity, event, or UI effect. This repetition guard needs the live
+    // conversation log, so it belongs at the apply boundary alongside the
+    // snapshot-only validator rather than in a runtime caller (#1228, #1834).
+    let previous_line: Option<String> = world
+        .conversation_log
+        .recent_at(
+            location,
+            crate::npc::conversation::ConversationLog::capacity(),
+        )
+        .into_iter()
+        .rev()
+        .find(|e| e.speaker_id == speaker_id)
+        .map(|e| e.npc_dialogue.clone());
+    let repetition_seed = speaker_id.0 as u64 ^ (game_time.timestamp() as u64);
+    let deduped_dialogue = if accepted_candidate {
+        crate::npc::guard_against_repetition(
+            &canonical_response.dialogue,
+            previous_line.as_deref(),
+            npc_cfg.dialogue_repetition_threshold,
+            repetition_seed,
+            grounded_person_names,
+        )
+    } else {
+        canonical_response.dialogue.clone()
+    };
+    if deduped_dialogue != canonical_response.dialogue {
+        canonical_response.dialogue = deduped_dialogue;
+        guard_reasons.push("canonical_repetition_guard".to_string());
     }
-    canonical_response.dialogue = guarded;
+
+    let capped_dialogue = cap_dialogue_for_display_with_trim(
+        &canonical_response.dialogue,
+        npc_cfg.dialogue_display_max_chars,
+        npc_cfg.dialogue_sentence_boundary_trim,
+    )
+    .into_owned();
+    let final_dialogue_was_capped = capped_dialogue != canonical_response.dialogue;
+    if final_dialogue_was_capped {
+        canonical_response.dialogue = capped_dialogue;
+    }
+    if accepted_candidate && (candidate_requires_display_cap || final_dialogue_was_capped) {
+        guard_reasons.push("display_cap".to_string());
+    }
+
+    // Recheck after repetition and display transforms. The final player-visible
+    // text, not merely the originally accepted model candidate, must fulfill
+    // every explicit current-turn facet before any metadata or state effect.
+    if !crate::npc::dialogue_fulfills_obligations(
+        &canonical_response.dialogue,
+        &grounding.dialogue_obligations,
+        player_input,
+        &grounding.work_roster,
+    ) {
+        canonical_response = crate::npc::NpcStreamResponse {
+            dialogue: crate::npc::dialogue_obligation_fallback(
+                &grounding.dialogue_obligations,
+                player_input,
+                &grounding.work_roster,
+            ),
+            metadata: None,
+        };
+        if !guard_reasons
+            .iter()
+            .any(|reason| reason == "dialogue_obligation_guard")
+        {
+            guard_reasons.push("dialogue_obligation_guard".to_string());
+        }
+    }
+
+    // Player-authored object attributes are durable conversation truth. They
+    // are derived exclusively from the input (never candidate text/metadata)
+    // and recorded only at this canonical turn boundary, so later turns and
+    // save/load preserve material/colour continuity without granting model
+    // prose authority (#1871).
+    if let Some(fact) =
+        crate::npc::extract_remembered_object_fact(player_input, speaker_id, location)
+    {
+        world.conversation_log.remember_object_fact(fact);
+    }
 
     // 2. Tier-1 state update on the speaker.
     let player_name_for_mem = if npc_manager.knows_player_name(speaker_id) {
@@ -1152,63 +1456,12 @@ pub fn apply_npc_dialogue_turn(
         ));
     }
 
-    // Anti-repetition guard (#1228). Applied *before* the length cap so the
-    // length budget is spent on de-duplicated content, not a wall of repeated
-    // clauses. Collapses consecutive duplicate clauses within the new line and,
-    // when the result is near-identical to this NPC's own previous line at this
-    // location, substitutes a varied fallback. Deterministic and provider-
-    // agnostic; runs identically for the local MLX model and any cloud provider.
-    let npc_cfg = crate::config::NpcConfig::default();
-    let previous_line: Option<String> = world
-        .conversation_log
-        .recent_at(
-            location,
-            crate::npc::conversation::ConversationLog::capacity(),
-        )
-        .into_iter()
-        .rev()
-        .find(|e| e.speaker_id == speaker_id)
-        .map(|e| e.npc_dialogue.clone());
-    // Stable per-turn seed so the fallback is deterministic for tests/replay but
-    // varies across NPCs and turns.
-    let repetition_seed = speaker_id.0 as u64 ^ (game_time.timestamp() as u64);
-    let deduped_dialogue = crate::npc::guard_against_repetition(
-        &canonical_response.dialogue,
-        previous_line.as_deref(),
-        npc_cfg.dialogue_repetition_threshold,
-        repetition_seed,
-        grounded_person_names,
-    );
-    if deduped_dialogue != canonical_response.dialogue {
-        guard_reasons.push("canonical_repetition_guard".to_string());
-    }
-
-    // Cap the displayed dialogue to the configured limit (#1224). Applied here,
-    // before the conversation log and event bus, so all player-visible paths see
-    // the same capped text. The in-memory representation (witness memories,
-    // tier-1 memory entry) is capped separately via `memory_truncation_dialogue`.
-    let display_cap = npc_cfg.dialogue_display_max_chars;
-    // Sentence-boundary trim (#1400): clip back to a clause end so a capped
-    // reply never shows a mid-word/mid-clause "…". Default-on; kill-switched
-    // via the `dialogue_sentence_boundary_trim` config field (runtime flag
-    // `dialogue-sentence-boundary-trim`).
-    let capped_dialogue = cap_dialogue_for_display_with_trim(
-        &deduped_dialogue,
-        display_cap,
-        npc_cfg.dialogue_sentence_boundary_trim,
-    );
-    if capped_dialogue != deduped_dialogue {
-        guard_reasons.push("display_cap".to_string());
-    }
+    let capped_dialogue = &canonical_response.dialogue;
     let language_hints = canonical_response
         .metadata
         .as_ref()
         .map(|metadata| {
-            crate::npc::validate_language_hints(
-                &metadata.language_hints,
-                &capped_dialogue,
-                language,
-            )
+            crate::npc::validate_language_hints(&metadata.language_hints, capped_dialogue, language)
         })
         .unwrap_or_default();
     let assigned_task = if flags.is_disabled(PLAYER_TASK_PROGRESSION_FLAG)
@@ -1221,7 +1474,7 @@ pub fn apply_npc_dialogue_turn(
             .as_ref()
             .and_then(|metadata| metadata.assigned_task.as_deref())
             .and_then(|proposal| {
-                let grounding_clause = grounded_task_assignment_clause(proposal, &capped_dialogue)?;
+                let grounding_clause = grounded_task_assignment_clause(proposal, capped_dialogue)?;
                 let authoritative_location = npc_manager.get(speaker_id)?.location();
                 if authoritative_location != world.player_location
                     || task_proposal_names_remote_location(world, proposal, authoritative_location)
@@ -1250,11 +1503,23 @@ pub fn apply_npc_dialogue_turn(
     };
 
     // Identity becomes known only when the final delivered line explicitly
-    // establishes the speaker's authored full name (#1776). Doing this after
-    // every text guard prevents a name removed by post-processing from leaking
-    // through the notebook/card state.
+    // establishes the speaker's grounded identity (#1776/#1842). The immutable
+    // pre-inference snapshot supplies the authored occupation and full roster,
+    // so a unique first-name claim cannot be validated against model metadata
+    // or mutable post-generation state. Running after every text transform
+    // prevents a removed claim from leaking through notebook/card state.
+    let speaker_occupation = grounding
+        .speaker_context
+        .as_ref()
+        .map(|speaker| speaker.occupation.as_str())
+        .unwrap_or_default();
     if !npc_manager.is_introduced(speaker_id)
-        && crate::npc::dialogue_self_identifies_speaker(&capped_dialogue, speaker_actual_name)
+        && crate::npc::dialogue_self_identifies_speaker(
+            capped_dialogue,
+            speaker_actual_name,
+            speaker_occupation,
+            &grounding.roster_names_occupations,
+        )
     {
         npc_manager.mark_introduced(speaker_id);
         debug_events.push(format!(
@@ -1281,7 +1546,7 @@ pub fn apply_npc_dialogue_turn(
         speaker_id,
         speaker_display_name,
         player_input,
-        &capped_dialogue,
+        capped_dialogue,
         game_time,
         location,
     ));
@@ -1312,12 +1577,20 @@ pub fn apply_npc_dialogue_turn(
             });
     }
 
+    let action = canonical_response
+        .metadata
+        .as_ref()
+        .map(|metadata| metadata.action.trim())
+        .filter(|action| !action.is_empty())
+        .map(str::to_string);
+
     DialogueTurnOutcome {
         debug_events,
-        display_text: capped_dialogue.into_owned(),
+        display_text: capped_dialogue.to_string(),
         guard_reasons,
         language_hints,
         assigned_task,
+        action,
     }
 }
 
@@ -1382,6 +1655,46 @@ pub async fn enrich_travel_encounter(
     model: &str,
     timeout_secs: u64,
 ) -> String {
+    enrich_travel_encounter_with_profile(
+        rolled,
+        client,
+        model,
+        timeout_secs,
+        parish_config::InferenceProfile::for_subrole(
+            parish_config::InferenceSubrole::TravelEncounter,
+        ),
+    )
+    .await
+}
+
+/// Enriches a travel encounter using the active runtime inference profile.
+pub async fn enrich_travel_encounter_with_profile(
+    rolled: &RolledEncounter,
+    client: &AnyClient,
+    model: &str,
+    timeout_secs: u64,
+    profile: parish_config::InferenceProfile,
+) -> String {
+    enrich_travel_encounter_with_profile_and_audit(
+        rolled,
+        client,
+        model,
+        timeout_secs,
+        profile,
+        None,
+    )
+    .await
+}
+
+/// Enriches a travel encounter with resolved tuning and common audit sinks.
+pub async fn enrich_travel_encounter_with_profile_and_audit(
+    rolled: &RolledEncounter,
+    client: &AnyClient,
+    model: &str,
+    timeout_secs: u64,
+    profile: parish_config::InferenceProfile,
+    audit_sink: Option<crate::inference::InferenceAuditSink>,
+) -> String {
     let (system, context) = parish_world::wayfarers::build_enrichment_prompt(
         &rolled.canned,
         rolled.time,
@@ -1391,25 +1704,46 @@ pub async fn enrich_travel_encounter(
     );
 
     let timeout = Duration::from_secs(timeout_secs);
-    let result = tokio::time::timeout(
+    let params = GenerateParams {
+        max_tokens: Some(profile.max_output_tokens),
+        temperature: None,
+        frequency_penalty: None,
+        enable_thinking: None,
+        reasoning_effort: None,
+        thinking_level: Some(profile.thinking_level),
+        service_tier: Some(profile.service_tier),
+    };
+    let audit = crate::inference::DirectInferenceAudit::new(
+        audit_sink,
+        model,
+        &context,
+        Some(&system),
+        parish_config::InferenceSubrole::TravelEncounter,
+        false,
+        params.max_tokens,
+        params.thinking_level,
+        params.service_tier,
+        params.temperature,
+        crate::inference::InferencePriority::Interactive,
+    );
+    let detailed = match tokio::time::timeout(
         timeout,
-        client.generate(
-            model,
-            &context,
-            Some(&system),
-            GenerateParams {
-                max_tokens: Some(80),
-                temperature: None,
-                frequency_penalty: None,
-                enable_thinking: None,
-                reasoning_effort: None,
-            },
-        ),
+        client.generate_detailed_with_format(model, &context, Some(&system), None, params),
     )
-    .await;
+    .await
+    {
+        Ok(result) => result,
+        Err(_) => Err(crate::inference::ProviderCallError {
+            message: format!("travel encounter inference timed out after {timeout_secs}s"),
+            partial_text: String::new(),
+            metadata: Box::new(crate::inference::ProviderMetadata::unavailable(model)),
+        }),
+    };
+    let result = audit.record(detailed).await;
 
     match result {
-        Ok(Ok(text)) => {
+        Ok(result) => {
+            let text = result.text;
             let trimmed = text.trim();
             let cleaned = trimmed.split("---").next().unwrap_or(trimmed).trim();
             // Strip leading "- " / "* " if the model returned a bullet anyway.
@@ -1424,7 +1758,7 @@ pub async fn enrich_travel_encounter(
                 first_line.to_string()
             }
         }
-        _ => rolled.canned.text.clone(),
+        Err(_) => rolled.canned.text.clone(),
     }
 }
 
@@ -1577,6 +1911,49 @@ pub async fn stream_reaction_texts(
     model: &str,
     inference_log: Option<&InferenceLog>,
     language: &LanguageSettings,
+    emit_text_log: impl FnMut(u64, &str, Option<&'static str>),
+    emit_stream_token: impl FnMut(u64, &str, &str),
+    emit_stream_turn_end: impl FnMut(u64),
+) {
+    stream_reaction_texts_with_profile(
+        reactions,
+        all_npcs,
+        current_location_id,
+        loc_name,
+        tod,
+        weather,
+        introduced,
+        client,
+        model,
+        inference_log,
+        parish_config::InferenceProfile::for_subrole(
+            parish_config::InferenceSubrole::ArrivalReaction,
+        ),
+        None,
+        language,
+        emit_text_log,
+        emit_stream_token,
+        emit_stream_turn_end,
+    )
+    .await
+}
+
+/// Streams arrival reactions using a fully resolved runtime profile.
+#[allow(clippy::too_many_arguments)]
+pub async fn stream_reaction_texts_with_profile(
+    reactions: &[NpcReaction],
+    all_npcs: &[Npc],
+    current_location_id: LocationId,
+    loc_name: &str,
+    tod: TimeOfDay,
+    weather: &str,
+    introduced: &HashSet<NpcId>,
+    client: Option<&AnyClient>,
+    model: &str,
+    inference_log: Option<&InferenceLog>,
+    profile: parish_config::InferenceProfile,
+    audit_sink: Option<crate::inference::InferenceAuditSink>,
+    language: &LanguageSettings,
     mut emit_text_log: impl FnMut(u64, &str, Option<&'static str>),
     mut emit_stream_token: impl FnMut(u64, &str, &str),
     mut emit_stream_turn_end: impl FnMut(u64),
@@ -1609,6 +1986,7 @@ pub async fn stream_reaction_texts(
 
         // Capture prompt data here (before the spawn) so we can log it afterwards.
         let mut llm_log_info: Option<(usize, String, String)> = None; // (prompt_len, system, context)
+        let mut provider_result_rx = None;
 
         if reaction.use_llm {
             if let (Some(c), Some(npc)) = (client, npc) {
@@ -1636,24 +2014,65 @@ pub async fn stream_reaction_texts(
 
                     let c_clone = c.clone();
                     let model_str = model.to_string();
+                    let (result_tx, result_rx) = tokio::sync::oneshot::channel();
+                    provider_result_rx = Some(result_rx);
+                    let audit_sink = audit_sink.clone();
                     tokio::spawn(async move {
-                        let _ = tokio::time::timeout(
+                        let params = GenerateParams {
+                            max_tokens: Some(profile.max_output_tokens),
+                            temperature: None,
+                            frequency_penalty: None,
+                            enable_thinking: None,
+                            reasoning_effort: None,
+                            thinking_level: Some(profile.thinking_level),
+                            service_tier: Some(profile.service_tier),
+                        };
+                        let audit = crate::inference::DirectInferenceAudit::new(
+                            audit_sink,
+                            &model_str,
+                            &context,
+                            Some(&system),
+                            parish_config::InferenceSubrole::ArrivalReaction,
+                            true,
+                            params.max_tokens,
+                            params.thinking_level,
+                            params.service_tier,
+                            params.temperature,
+                            crate::inference::InferencePriority::Interactive,
+                        );
+                        let detailed = match tokio::time::timeout(
                             Duration::from_secs(timeout_secs),
-                            c_clone.generate_stream(
+                            c_clone.generate_stream_detailed_with_format(
                                 &model_str,
                                 &context,
                                 Some(&system),
                                 tx,
-                                GenerateParams {
-                                    max_tokens: Some(100),
-                                    temperature: None,
-                                    frequency_penalty: None,
-                                    enable_thinking: None,
-                                    reasoning_effort: None,
-                                },
+                                None,
+                                params,
                             ),
                         )
-                        .await;
+                        .await
+                        {
+                            Ok(result) => result,
+                            Err(_) => Err(crate::inference::ProviderCallError {
+                                message: format!(
+                                    "reaction inference timed out after {timeout_secs}s"
+                                ),
+                                partial_text: String::new(),
+                                metadata: Box::new(
+                                    crate::inference::ProviderMetadata::unavailable(&model_str),
+                                ),
+                            }),
+                        };
+                        let call = audit.record(detailed).await;
+                        let observed = match call {
+                            Ok(result) => (result.metadata, None, 0),
+                            Err(error) => {
+                                let partial_len = error.partial_text.len();
+                                (*error.metadata, Some(error.message), partial_len)
+                            }
+                        };
+                        let _ = result_tx.send(observed);
                         // tx is consumed by generate_stream; when it returns (success or
                         // timeout) tx is dropped, closing the channel and allowing
                         // stream_npc_tokens to finish.
@@ -1679,6 +2098,10 @@ pub async fn stream_reaction_texts(
         })
         .await;
         let elapsed_ms = started.elapsed().as_millis() as u64;
+        let provider_result = match provider_result_rx {
+            Some(rx) => rx.await.ok(),
+            None => None,
+        };
 
         // Finalise this NPC's streaming entry so the UI removes the empty
         // placeholder if no tokens arrived (LLM timeout / empty output) or
@@ -1688,21 +2111,66 @@ pub async fn stream_reaction_texts(
         if let (Some((prompt_len, system_prompt, prompt_text)), Some(log)) =
             (llm_log_info, inference_log)
         {
+            let (metadata, provider_error, partial_output_len) =
+                provider_result.unwrap_or_else(|| {
+                    (
+                        parish_inference::ProviderMetadata::unavailable(model),
+                        None,
+                        0,
+                    )
+                });
+            let failure_kind = provider_error.as_deref().map(|message| {
+                if metadata.http_status == Some(429) {
+                    "rate-limited"
+                } else if message.contains("timed out") {
+                    "timeout"
+                } else {
+                    "provider-error"
+                }
+                .to_string()
+            });
+            let tier_downgraded = matches!(
+                metadata.requested_service_tier,
+                Some(parish_config::ServiceTier::Priority)
+            ) && metadata.effective_service_tier.as_deref()
+                == Some("standard");
             let entry = InferenceLogEntry {
                 request_id: turn_id,
                 timestamp: chrono::Local::now().format("%H:%M:%S").to_string(),
                 model: model.to_string(),
+                provider: metadata.provider,
+                api_mode: metadata.api_mode,
+                role: parish_config::InferenceCategory::Reaction,
+                subrole: parish_config::InferenceSubrole::MessageReaction,
                 streaming: true,
                 duration_ms: elapsed_ms,
                 prompt_len,
                 response_len: accumulated.len(),
-                error: None,
+                error: provider_error,
                 system_prompt: Some(system_prompt),
                 prompt_text,
                 response_text: accumulated,
-                max_tokens: Some(100),
-                ttft_ms: None,
-                output_tokens: None,
+                max_tokens: Some(profile.max_output_tokens),
+                ttft_ms: metadata.ttft_ms,
+                output_tokens: metadata.usage.output_tokens,
+                stream_chunks: Some(metadata.stream_chunks).filter(|count| *count > 0),
+                input_tokens: metadata.usage.input_tokens,
+                cached_tokens: metadata.usage.cached_tokens,
+                thought_tokens: metadata.usage.thought_tokens,
+                total_tokens: metadata.usage.total_tokens,
+                thinking_level: Some(profile.thinking_level),
+                requested_service_tier: metadata.requested_service_tier,
+                effective_service_tier: metadata.effective_service_tier,
+                provider_request_id: metadata.interaction_id,
+                terminal_status: metadata.terminal_status,
+                retry_count: metadata.retry_count,
+                http_status: metadata.http_status,
+                failure_kind,
+                partial_output_len,
+                tier_downgraded,
+                estimated_cost_usd: None,
+                prompt_prefix_hash: None,
+                prompt_prefix_len: None,
                 temperature: None,
                 priority: crate::inference::InferencePriority::Interactive,
             };
@@ -2670,6 +3138,23 @@ mod tests {
             "a material cap must be visible in quality telemetry: {:?}",
             outcome.guard_reasons
         );
+        assert!(
+            outcome
+                .guard_reasons
+                .iter()
+                .any(|reason| reason == "verbosity_guard"),
+            "the setup must exercise the overlapping verbosity guard: {:?}",
+            outcome.guard_reasons
+        );
+        assert_eq!(
+            outcome
+                .guard_reasons
+                .iter()
+                .filter(|reason| reason.as_str() == "display_cap")
+                .count(),
+            1,
+            "the material display constraint must be reported exactly once"
+        );
 
         // The DialogueOccurred event published to the bus must carry the
         // capped dialogue, not the full 1500-char original.
@@ -2689,6 +3174,526 @@ mod tests {
             );
         } else {
             panic!("Expected DialogueOccurred event, got something else");
+        }
+    }
+
+    #[test]
+    fn canonical_apply_rejects_issue_1834_text_and_metadata_before_side_effects() {
+        use crate::npc::manager::NpcManager;
+        use crate::npc::{
+            DialogueValidationPolicy, LanguageSettings, NpcId, NpcMetadata,
+            NpcResponseParseDisposition, NpcStreamResponse,
+        };
+        use chrono::TimeZone;
+        use parish_types::events::GameEvent;
+        use parish_world::WorldState;
+
+        let mut world = WorldState::new();
+        world.dialogue_anachronisms = vec![
+            parish_types::AnachronismEntry {
+                term: "planning board".to_string(),
+                category: Some("concept".to_string()),
+                origin_year: Some(1934),
+                note: "postdates 1820".to_string(),
+            },
+            parish_types::AnachronismEntry {
+                term: "agricultural show".to_string(),
+                category: Some("concept".to_string()),
+                origin_year: Some(1831),
+                note: "postdates 1820".to_string(),
+            },
+        ];
+        let mut events = world.event_bus.subscribe();
+        let mut manager = NpcManager::new();
+        let mut npc = crate::npc::Npc::new_test_npc();
+        npc.id = NpcId(1);
+        npc.name = "Peig Hannigan".to_string();
+        npc.mood = "sharp".to_string();
+        npc.set_location(world.player_location);
+        manager.add_npc(npc);
+        let grounding = dialogue_grounding_snapshot(&world, &manager, NpcId(1));
+        let location = world.player_location;
+        let game_time = chrono::Utc.with_ymd_and_hms(1820, 3, 20, 8, 0, 0).unwrap();
+        let raw = "Council says the planning board has set tongues";
+        let candidate = NpcStreamResponse {
+            dialogue: raw.to_string(),
+            metadata: Some(NpcMetadata {
+                action: "points at a committee notice".to_string(),
+                mood: "delighted".to_string(),
+                internal_thought: Some("modern plan".to_string()),
+                language_hints: Vec::new(),
+                mentioned_people: vec!["Council".to_string()],
+                assigned_task: Some("Attend the agricultural show committee".to_string()),
+            }),
+        };
+
+        let outcome = apply_npc_dialogue_turn_with_validation(
+            &mut world,
+            &mut manager,
+            NpcId(1),
+            &candidate,
+            NpcResponseParseDisposition::FullJson,
+            &grounding,
+            DialogueValidationPolicy::default(),
+            "I'll take the work. What would you have me do first?",
+            "I'll take the work. What would you have me do first?",
+            game_time,
+            location,
+            "an elderly widow",
+            "Peig Hannigan",
+            Some(1834),
+            &grounding.known_person_names,
+            &LanguageSettings::english_only(),
+            &FeatureFlags::default(),
+        );
+
+        assert_eq!(
+            outcome.display_text,
+            "I beg your pardon; I lost the thread of that."
+        );
+        assert_eq!(outcome.guard_reasons, ["anachronism_output_guard"]);
+        assert!(
+            outcome.action.is_none(),
+            "rejected action metadata must vanish"
+        );
+        assert!(
+            outcome.assigned_task.is_none(),
+            "rejected task metadata must vanish"
+        );
+        assert_eq!(manager.get(NpcId(1)).unwrap().mood, "sharp");
+        let exchange = world
+            .conversation_log
+            .recent_at(location, 1)
+            .pop()
+            .expect("fallback exchange recorded");
+        assert_eq!(exchange.npc_dialogue, outcome.display_text);
+        assert!(!exchange.npc_dialogue.contains(raw));
+        let event = events.try_recv().expect("canonical dialogue event");
+        match event {
+            GameEvent::DialogueOccurred { npc_said, .. } => {
+                assert_eq!(npc_said.as_deref(), Some(outcome.display_text.as_str()));
+            }
+            other => panic!("expected dialogue event, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn canonical_apply_replaces_incomplete_multifacet_reply_before_all_effects() {
+        use crate::npc::manager::NpcManager;
+        use crate::npc::{
+            DialogueValidationPolicy, LanguageSettings, NpcId, NpcMetadata,
+            NpcResponseParseDisposition, NpcStreamResponse,
+        };
+        use chrono::TimeZone;
+        use parish_types::events::GameEvent;
+        use parish_world::WorldState;
+
+        let mut world = WorldState::new();
+        let mut events = world.event_bus.subscribe();
+        let mut manager = NpcManager::new();
+        let mut priest = crate::npc::Npc::new_test_npc();
+        priest.id = NpcId(1);
+        priest.name = "Fr. Declan Tierney".to_string();
+        priest.mood = "solemn".to_string();
+        priest.set_location(world.player_location);
+        manager.add_npc(priest);
+        let mut peig = crate::npc::Npc::new_test_npc();
+        peig.id = NpcId(2);
+        peig.name = "Peig Hannigan".to_string();
+        peig.set_location(world.player_location);
+        manager.add_npc(peig);
+
+        let input = "Good morning, Father. Peig Hannigan sent me. I'm Aiden Carney, seeking honest work and somewhere dry to sleep.";
+        let mut grounding = dialogue_grounding_snapshot(&world, &manager, NpcId(1));
+        grounding.dialogue_obligations =
+            crate::npc::derive_dialogue_obligations(input, &grounding.known_person_names);
+        let raw = "'Tis a fine morning indeed. What brings ye to this church?";
+        let candidate = NpcStreamResponse {
+            dialogue: raw.to_string(),
+            metadata: Some(NpcMetadata {
+                action: "offers a room key".to_string(),
+                mood: "delighted".to_string(),
+                internal_thought: Some("hire him".to_string()),
+                language_hints: Vec::new(),
+                mentioned_people: vec!["Aiden Carney".to_string()],
+                assigned_task: Some("Start work at the rectory".to_string()),
+            }),
+        };
+        let location = world.player_location;
+        let outcome = apply_npc_dialogue_turn_with_validation(
+            &mut world,
+            &mut manager,
+            NpcId(1),
+            &candidate,
+            NpcResponseParseDisposition::FullJson,
+            &grounding,
+            DialogueValidationPolicy::default(),
+            input,
+            input,
+            chrono::Utc.with_ymd_and_hms(1820, 3, 20, 8, 0, 0).unwrap(),
+            location,
+            "a parish priest",
+            "Fr. Declan Tierney",
+            Some(1832),
+            &grounding.known_person_names,
+            &LanguageSettings::english_only(),
+            &FeatureFlags::default(),
+        );
+
+        assert_eq!(outcome.guard_reasons, ["dialogue_obligation_guard"]);
+        assert!(crate::npc::dialogue_fulfills_obligations(
+            &outcome.display_text,
+            &grounding.dialogue_obligations,
+            input,
+            &grounding.work_roster,
+        ));
+        assert!(!outcome.display_text.contains(raw));
+        assert!(outcome.action.is_none());
+        assert!(outcome.assigned_task.is_none());
+        assert_eq!(manager.get(NpcId(1)).unwrap().mood, "solemn");
+        for npc in manager.all_npcs() {
+            assert!(npc.memory.entries().all(|memory| {
+                !memory.content.contains(raw)
+                    && !memory.content.contains("offers a room key")
+                    && !memory.content.contains("Start work at the rectory")
+            }));
+        }
+        let exchange = world
+            .conversation_log
+            .recent_at(location, 1)
+            .pop()
+            .expect("safe fallback exchange");
+        assert_eq!(exchange.npc_dialogue, outcome.display_text);
+        match events.try_recv().expect("canonical dialogue event") {
+            GameEvent::DialogueOccurred { npc_said, .. } => {
+                assert_eq!(npc_said.as_deref(), Some(outcome.display_text.as_str()));
+            }
+            other => panic!("expected dialogue event, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn canonical_apply_replaces_work_non_answer_with_grounded_referral() {
+        use crate::npc::manager::NpcManager;
+        use crate::npc::{
+            DialogueValidationPolicy, LanguageSettings, NpcId, NpcMetadata,
+            NpcResponseParseDisposition, NpcStreamResponse,
+        };
+        use chrono::TimeZone;
+        use parish_world::WorldState;
+
+        let mut world = WorldState::new();
+        let mut manager = NpcManager::new();
+        let mut peig = crate::npc::Npc::new_test_npc();
+        peig.id = NpcId(1);
+        peig.name = "Peig Hannigan".to_string();
+        peig.occupation = "Widow".to_string();
+        peig.set_location(world.player_location);
+        manager.add_npc(peig);
+        let mut siobhan = crate::npc::Npc::new_test_npc();
+        siobhan.id = NpcId(2);
+        siobhan.name = "Siobhan Murphy".to_string();
+        siobhan.occupation = "Farmer".to_string();
+        siobhan.set_location(world.player_location);
+        manager.add_npc(siobhan);
+
+        let input = "I came to Kilteevan because I need honest work. Tell me plainly which farmer or tradesperson I should ask for a task today.";
+        let mut grounding = dialogue_grounding_snapshot(&world, &manager, NpcId(1));
+        grounding.dialogue_obligations =
+            crate::npc::derive_dialogue_obligations(input, &grounding.known_person_names);
+        let candidate = NpcStreamResponse {
+            dialogue: "I cannot promise work, but I understand you are seeking it.".to_string(),
+            metadata: Some(NpcMetadata {
+                action: "shrugs".to_string(),
+                mood: "curious".to_string(),
+                internal_thought: None,
+                language_hints: Vec::new(),
+                mentioned_people: Vec::new(),
+                assigned_task: Some("Invent a job".to_string()),
+            }),
+        };
+        let location = world.player_location;
+        let outcome = apply_npc_dialogue_turn_with_validation(
+            &mut world,
+            &mut manager,
+            NpcId(1),
+            &candidate,
+            NpcResponseParseDisposition::FullJson,
+            &grounding,
+            DialogueValidationPolicy::default(),
+            input,
+            input,
+            chrono::Utc.with_ymd_and_hms(1820, 3, 20, 8, 0, 0).unwrap(),
+            location,
+            "an elderly widow",
+            "Peig Hannigan",
+            Some(1853),
+            &grounding.known_person_names,
+            &LanguageSettings::english_only(),
+            &FeatureFlags::default(),
+        );
+
+        assert_eq!(outcome.guard_reasons, ["dialogue_obligation_guard"]);
+        assert!(outcome.display_text.contains("Siobhan Murphy"));
+        assert!(outcome.display_text.contains("Farmer"));
+        assert!(outcome.display_text.contains("cannot say"));
+        assert!(!outcome.display_text.contains("hiring"));
+        assert!(outcome.action.is_none());
+        assert!(outcome.assigned_task.is_none());
+        assert!(world.player_progress.is_empty());
+    }
+
+    #[test]
+    fn canonical_apply_rejects_typed_factual_claim_before_side_effects() {
+        use crate::npc::manager::NpcManager;
+        use crate::npc::{
+            DialogueValidationPolicy, LanguageSettings, NpcId, NpcMetadata,
+            NpcResponseParseDisposition, NpcStreamResponse,
+        };
+        use chrono::TimeZone;
+        use parish_types::events::GameEvent;
+        use parish_world::WorldState;
+
+        let mut world = WorldState::new();
+        let mut events = world.event_bus.subscribe();
+        let mut manager = NpcManager::new();
+        let mut npc = crate::npc::Npc::new_test_npc();
+        npc.id = NpcId(1);
+        npc.name = "Nora Duffy".to_string();
+        npc.mood = "watchful".to_string();
+        npc.set_location(world.player_location);
+        manager.add_npc(npc);
+        let mut grounding = dialogue_grounding_snapshot(&world, &manager, NpcId(1));
+        grounding.current_festival = None;
+        let location = world.player_location;
+        let raw = "'Tis said 'tis blessed on this day, Saint Brigid's feast, and can heal sore eyes and more.";
+        let candidate = NpcStreamResponse {
+            dialogue: raw.to_string(),
+            metadata: Some(NpcMetadata {
+                action: "ties a ribbon to the well".to_string(),
+                mood: "joyful".to_string(),
+                internal_thought: Some("the feast is today".to_string()),
+                language_hints: Vec::new(),
+                mentioned_people: Vec::new(),
+                assigned_task: Some("Join today's feast".to_string()),
+            }),
+        };
+
+        let outcome = apply_npc_dialogue_turn_with_validation(
+            &mut world,
+            &mut manager,
+            NpcId(1),
+            &candidate,
+            NpcResponseParseDisposition::FullJson,
+            &grounding,
+            DialogueValidationPolicy::default(),
+            "Is the well blessed?",
+            "Is the well blessed?",
+            chrono::Utc.with_ymd_and_hms(1820, 3, 20, 8, 0, 0).unwrap(),
+            location,
+            "a watchful woman",
+            "Nora Duffy",
+            Some(1839),
+            &grounding.known_person_names,
+            &LanguageSettings::english_only(),
+            &FeatureFlags::default(),
+        );
+
+        assert_eq!(outcome.display_text, crate::npc::INVALID_DIALOGUE_FALLBACK);
+        assert_eq!(outcome.guard_reasons, ["typed_grounding_guard"]);
+        assert!(outcome.action.is_none());
+        assert!(outcome.assigned_task.is_none());
+        assert_eq!(manager.get(NpcId(1)).unwrap().mood, "watchful");
+        assert!(
+            manager
+                .get(NpcId(1))
+                .unwrap()
+                .memory
+                .recent(8)
+                .iter()
+                .all(|memory| {
+                    !memory.content.contains(raw)
+                        && !memory.content.contains("Join today's feast")
+                        && !memory.content.contains("ties a ribbon")
+                })
+        );
+        let event = events.try_recv().expect("canonical fallback event");
+        match event {
+            GameEvent::DialogueOccurred { npc_said, .. } => {
+                assert_eq!(
+                    npc_said.as_deref(),
+                    Some(crate::npc::INVALID_DIALOGUE_FALLBACK)
+                );
+            }
+            other => panic!("expected dialogue event, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn canonical_apply_quarantines_session_contradiction_and_remembers_player_object_fact() {
+        use crate::npc::manager::NpcManager;
+        use crate::npc::{
+            DialogueValidationPolicy, LanguageSettings, NpcId, NpcMetadata,
+            NpcResponseParseDisposition, NpcStreamResponse,
+        };
+        use chrono::TimeZone;
+        use parish_types::events::GameEvent;
+        use parish_world::WorldState;
+
+        let mut world = WorldState::new();
+        let location = world.player_location;
+        let mut events = world.event_bus.subscribe();
+        let mut manager = NpcManager::new();
+        let mut npc = crate::npc::Npc::new_test_npc();
+        npc.id = NpcId(1);
+        npc.name = "Padraig Darcy".to_string();
+        npc.mood = "content".to_string();
+        npc.set_location(location);
+        manager.add_npc(npc);
+        let mut grounding = dialogue_grounding_snapshot(&world, &manager, NpcId(1));
+        grounding.active_session = Some(crate::world::session::ActiveSessionFact {
+            date: chrono::NaiveDate::from_ymd_opt(1820, 3, 20).unwrap(),
+            location,
+            vignette: crate::world::session::SessionVignette {
+                musician: "An old man's voice lifts from the settle; he".to_string(),
+                tune: "strikes up a ballad.".to_string(),
+                ambient: "The room leans in.".to_string(),
+                verse: Some("The summer is gone".to_string()),
+            },
+        });
+        let raw = "There are only general airs being hummed, with no one singer taking the floor; tonight 'tis only the general clatter of the room.";
+        let candidate = NpcStreamResponse {
+            dialogue: raw.to_string(),
+            metadata: Some(NpcMetadata {
+                action: "waves the singer away".to_string(),
+                mood: "angry".to_string(),
+                internal_thought: Some("deny the song".to_string()),
+                language_hints: Vec::new(),
+                mentioned_people: Vec::new(),
+                assigned_task: Some("Silence the singer".to_string()),
+            }),
+        };
+        let input = "The red wool ribbon has one blue stitch. What do you make of tonight's song?";
+        let outcome = apply_npc_dialogue_turn_with_validation(
+            &mut world,
+            &mut manager,
+            NpcId(1),
+            &candidate,
+            NpcResponseParseDisposition::FullJson,
+            &grounding,
+            DialogueValidationPolicy::default(),
+            input,
+            input,
+            chrono::Utc.with_ymd_and_hms(1820, 3, 20, 20, 0, 0).unwrap(),
+            location,
+            "the publican",
+            "Padraig Darcy",
+            Some(1863),
+            &grounding.known_person_names,
+            &LanguageSettings::english_only(),
+            &FeatureFlags::default(),
+        );
+
+        assert_eq!(outcome.guard_reasons, ["typed_grounding_guard"]);
+        assert!(!outcome.display_text.contains("general clatter"));
+        assert!(outcome.action.is_none());
+        assert!(outcome.assigned_task.is_none());
+        assert_eq!(manager.get(NpcId(1)).unwrap().mood, "content");
+        assert!(
+            manager
+                .all_npcs()
+                .all(|npc| npc.memory.entries().all(|memory| {
+                    !memory.content.contains(raw)
+                        && !memory.content.contains("waves the singer away")
+                        && !memory.content.contains("Silence the singer")
+                }))
+        );
+        let facts = world
+            .conversation_log
+            .remembered_object_facts(NpcId(1), location);
+        assert_eq!(facts.len(), 1);
+        assert!(facts[0].attributes.iter().any(|attribute| {
+            attribute.kind == parish_types::RememberedObjectAttributeKind::Material
+                && attribute.value == "wool"
+        }));
+        match events.try_recv().expect("canonical dialogue event") {
+            GameEvent::DialogueOccurred { npc_said, .. } => {
+                assert_eq!(npc_said.as_deref(), Some(outcome.display_text.as_str()));
+                assert!(!npc_said.unwrap_or_default().contains(raw));
+            }
+            other => panic!("expected dialogue event, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn canonical_apply_rejects_recovered_and_raw_modes_with_identical_fallback() {
+        use crate::npc::manager::NpcManager;
+        use crate::npc::{
+            DialogueValidationPolicy, LanguageSettings, NpcId, NpcMetadata,
+            NpcResponseParseDisposition, NpcStreamResponse,
+        };
+        use chrono::TimeZone;
+        use parish_world::WorldState;
+
+        for disposition in [
+            NpcResponseParseDisposition::RecoveredDialogue,
+            NpcResponseParseDisposition::RawText,
+        ] {
+            let mut world = WorldState::new();
+            let mut manager = NpcManager::new();
+            let mut npc = crate::npc::Npc::new_test_npc();
+            npc.id = NpcId(1);
+            npc.name = "Peig Hannigan".to_string();
+            npc.mood = "sharp".to_string();
+            npc.set_location(world.player_location);
+            manager.add_npc(npc);
+            let grounding = dialogue_grounding_snapshot(&world, &manager, NpcId(1));
+            let location = world.player_location;
+            let candidate = NpcStreamResponse {
+                dialogue: "This recovered candidate must never escape.".to_string(),
+                metadata: Some(NpcMetadata {
+                    action: "waves a forbidden notice".to_string(),
+                    mood: "delighted".to_string(),
+                    internal_thought: None,
+                    language_hints: Vec::new(),
+                    mentioned_people: Vec::new(),
+                    assigned_task: Some("Trust the recovered payload".to_string()),
+                }),
+            };
+            let outcome = apply_npc_dialogue_turn_with_validation(
+                &mut world,
+                &mut manager,
+                NpcId(1),
+                &candidate,
+                disposition,
+                &grounding,
+                DialogueValidationPolicy::default(),
+                "Good morning.",
+                "Good morning.",
+                chrono::Utc.with_ymd_and_hms(1820, 3, 20, 8, 0, 0).unwrap(),
+                location,
+                "an elderly widow",
+                "Peig Hannigan",
+                None,
+                &grounding.known_person_names,
+                &LanguageSettings::english_only(),
+                &FeatureFlags::default(),
+            );
+            assert_eq!(
+                outcome.display_text,
+                "I beg your pardon; I lost the thread of that."
+            );
+            assert_eq!(outcome.guard_reasons, ["response_contract_guard"]);
+            assert!(outcome.action.is_none());
+            assert!(outcome.assigned_task.is_none());
+            assert_eq!(manager.get(NpcId(1)).unwrap().mood, "sharp");
+            assert!(
+                world
+                    .conversation_log
+                    .recent_at(location, 1)
+                    .iter()
+                    .all(|exchange| !exchange.npc_dialogue.contains("recovered candidate"))
+            );
         }
     }
 
@@ -2759,6 +3764,53 @@ mod tests {
             npc_manager.is_introduced(NpcId(22)),
             "the canonical delivered self-identification must reveal the NPC"
         );
+    }
+
+    #[test]
+    fn dialogue_turn_reveals_unique_first_name_with_grounded_occupation() {
+        use crate::npc::manager::NpcManager;
+        use crate::npc::{LanguageSettings, NpcId, NpcStreamResponse};
+        use chrono::TimeZone;
+        use parish_world::WorldState;
+
+        let mut world = WorldState::new();
+        let mut npc_manager = NpcManager::new();
+        let mut seamus = crate::npc::Npc::new_test_npc();
+        seamus.id = NpcId(9);
+        seamus.name = "Seamus Gallagher".to_string();
+        seamus.occupation = "Blacksmith".to_string();
+        seamus.brief_description = "a broad-shouldered smith".to_string();
+        seamus.set_location(world.player_location);
+        npc_manager.add_npc(seamus);
+        let location = world.player_location;
+        let response = NpcStreamResponse {
+            dialogue: "Aye, I'm Seamus, the blacksmith. And mornin' to ye!".to_string(),
+            metadata: None,
+        };
+
+        let outcome = crate::game_session::apply_npc_dialogue_turn(
+            &mut world,
+            &mut npc_manager,
+            NpcId(9),
+            &response,
+            "Are ye Padraig?",
+            "Are ye Padraig?",
+            chrono::Utc.with_ymd_and_hms(1820, 3, 20, 8, 0, 0).unwrap(),
+            location,
+            "a broad-shouldered smith",
+            "Seamus Gallagher",
+            None,
+            &[],
+            &LanguageSettings::english_only(),
+            &FeatureFlags::default(),
+        );
+
+        assert_eq!(outcome.display_text, response.dialogue);
+        assert!(npc_manager.is_introduced(NpcId(9)));
+        let visible = crate::ipc::build_npcs_here(&world, &npc_manager);
+        assert_eq!(visible[0].name, "Seamus Gallagher");
+        assert_eq!(visible[0].occupation, "Blacksmith");
+        assert!(visible[0].introduced);
     }
 
     #[test]
@@ -2952,6 +4004,34 @@ mod tests {
                     "Please dig over the potato patch.",
                 ),
                 "{negative_proposal:?} must not become a durable task"
+            );
+        }
+    }
+
+    #[test]
+    fn task_turn_classifier_accepts_reported_follow_up_and_rejects_negation() {
+        for input in [
+            "I'll take the work. What would you have me do first?",
+            "I’ll take the work. What would you have me do first?",
+            "I accept the work. What should I do first?",
+            "Have ye any work for me?",
+        ] {
+            assert!(
+                is_task_request_input(input),
+                "{input:?} must admit task assignment"
+            );
+        }
+
+        for input in [
+            "I won't take the work.",
+            "I will not take the work.",
+            "I cannot help today.",
+            "I don't need help with the weather.",
+            "The work was hard last winter.",
+        ] {
+            assert!(
+                !is_task_request_input(input),
+                "{input:?} must not admit task assignment"
             );
         }
     }

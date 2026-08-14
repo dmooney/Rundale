@@ -326,11 +326,18 @@ async fn submit_input(
         parish_core::ipc::conversation_cursor(&world)
     };
 
-    crate::commands::input::do_submit_input_locked(&b.state, &b.app, body.text, body.addressed_to)
-        .await
-        .map_err(AppError::from)?;
+    let outcome = crate::commands::input::do_submit_input_locked(
+        &b.state,
+        &b.app,
+        body.text,
+        body.addressed_to,
+    )
+    .await
+    .map_err(AppError::from)?;
 
-    Ok(Json(build_submit_result(&b.state, before_turn).await))
+    let mut result = build_submit_result(&b.state, before_turn).await;
+    result.error = outcome.dialogue_failure;
+    Ok(Json(result))
 }
 
 /// `GET /api/turn?since=<cursor>` — slim per-turn read (#1356).
@@ -663,6 +670,8 @@ mod tests {
             category_model: Default::default(),
             category_api_key: Default::default(),
             category_base_url: Default::default(),
+            inference_profile_override: Default::default(),
+            category_inference_profile: Default::default(),
             flags: parish_core::config::FeatureFlags::default(),
             category_rate_limit: Default::default(),
             active_tile_source: String::new(),
@@ -1247,6 +1256,37 @@ mod tests {
         assert_eq!(second.events[0].summary, "Weather → Snow");
         assert_eq!(second.events[1].summary, "Weather → Hail");
         assert_eq!(second.event_cursor, 5);
+    }
+
+    /// Regression for #1843: the desktop bridge exposes the newest bounded
+    /// event window and the coherent lifetime cursor, not an oldest page.
+    #[tokio::test]
+    async fn turn_result_over_cap_returns_newest_events_and_total_cursor() {
+        use chrono::Utc;
+        use parish_core::world::events::GameEvent;
+
+        let dir = TempDir::new().unwrap();
+        let state = byok_test_state(&dir);
+        push_test_events(
+            &state,
+            (0..27)
+                .map(|index| GameEvent::WeatherChanged {
+                    new_weather: format!("Weather {index}"),
+                    timestamp: Utc::now(),
+                })
+                .collect(),
+        )
+        .await;
+
+        let result = build_turn_result(&state, 0).await;
+
+        assert_eq!(result.events.len(), 20);
+        assert_eq!(result.events[0].summary, "Weather → Weather 7");
+        assert_eq!(
+            result.events.last().unwrap().summary,
+            "Weather → Weather 26"
+        );
+        assert_eq!(result.event_cursor, 27);
     }
 
     /// `TurnReadResult` shape: exchanges + events + core state fields present.

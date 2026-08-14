@@ -18,6 +18,8 @@ import {
 	loadingColor,
 	worldState,
 	playerSubmittedCount,
+	addReaction,
+	replaceStreamEntryContent,
 } from '../stores/game';
 import type { WorldSnapshot } from '$lib/types';
 import ChatPanel from './ChatPanel.svelte';
@@ -254,6 +256,31 @@ describe('ChatPanel', () => {
 	});
 
 	describe('scroll-to-bottom behavior', () => {
+		async function drainScrollEffects() {
+			await Promise.resolve();
+			await Promise.resolve();
+			await Promise.resolve();
+		}
+
+		function setScrollGeometry(
+			logEl: HTMLDivElement,
+			{ height, client, top }: { height: number; client: number; top: number },
+		) {
+			Object.defineProperty(logEl, 'scrollHeight', {
+				value: height,
+				configurable: true,
+			});
+			Object.defineProperty(logEl, 'clientHeight', {
+				value: client,
+				configurable: true,
+			});
+			Object.defineProperty(logEl, 'scrollTop', {
+				value: top,
+				configurable: true,
+				writable: true,
+			});
+		}
+
 		it('renders log container and scrolls on new message', async () => {
 			const { container } = render(ChatPanel);
 			const logEl = container.querySelector('.chat-panel') as HTMLDivElement;
@@ -434,6 +461,179 @@ describe('ChatPanel', () => {
 
 				// Force-scroll on player submit regardless of sticky.
 				expect(scrollTopSpy).toHaveBeenCalledWith(500);
+			});
+		});
+
+		describe('#1835 rendered transcript revisions', () => {
+			it('follows same-length streaming, finalisation, correction, and reaction revisions', async () => {
+				textLog.set([
+					{
+						id: 'reply-1',
+						source: 'Siobhan',
+						content: 'First words',
+						stream_turn_id: 7,
+						streaming: true,
+					},
+				]);
+				const { container } = render(ChatPanel);
+				const logEl = container.querySelector('.chat-panel') as HTMLDivElement;
+				await drainScrollEffects();
+				setScrollGeometry(logEl, { height: 500, client: 200, top: 300 });
+				await fireEvent.scroll(logEl);
+				const scrollTopSpy = vi.spyOn(logEl, 'scrollTop', 'set');
+
+				textLog.set([
+					{
+						id: 'reply-1',
+						source: 'Siobhan',
+						content: 'First words, followed by the rest of the streamed reply.',
+						stream_turn_id: 7,
+						streaming: true,
+						latest_chunk: ' streamed reply.',
+					},
+				]);
+				await drainScrollEffects();
+
+				textLog.update((entries) => [
+					{ ...entries[0], streaming: false, stream_turn_id: undefined },
+				]);
+				await drainScrollEffects();
+
+				textLog.update((entries) => [{ ...entries[0], stream_turn_id: 7 }]);
+				await drainScrollEffects();
+				replaceStreamEntryContent(
+					7,
+					'The canonical corrected reply is longer.',
+				);
+				await drainScrollEffects();
+
+				addReaction('reply-1', '👍', 'player');
+				await drainScrollEffects();
+
+				expect(scrollTopSpy).toHaveBeenCalledTimes(5);
+				expect(scrollTopSpy).toHaveBeenLastCalledWith(500);
+			});
+
+			it('preserves a scrolled-up reader across same-length stream revisions', async () => {
+				textLog.set([
+					{ source: 'Siobhan', content: 'First words', stream_turn_id: 8 },
+				]);
+				const { container } = render(ChatPanel);
+				const logEl = container.querySelector('.chat-panel') as HTMLDivElement;
+				await drainScrollEffects();
+				setScrollGeometry(logEl, { height: 500, client: 200, top: 0 });
+				await fireEvent.scroll(logEl);
+				const scrollTopSpy = vi.spyOn(logEl, 'scrollTop', 'set');
+
+				textLog.set([
+					{
+						source: 'Siobhan',
+						content: 'First words and a much longer streamed continuation.',
+						stream_turn_id: 8,
+					},
+				]);
+				await drainScrollEffects();
+
+				expect(scrollTopSpy).not.toHaveBeenCalled();
+			});
+
+			it('lets a user scroll after submit cancel the delayed echo follow', async () => {
+				textLog.set([{ source: 'system', content: 'Welcome.' }]);
+				const { container } = render(ChatPanel);
+				const logEl = container.querySelector('.chat-panel') as HTMLDivElement;
+				await drainScrollEffects();
+				setScrollGeometry(logEl, { height: 500, client: 200, top: 0 });
+				await fireEvent.scroll(logEl);
+
+				playerSubmittedCount.set(1);
+				await drainScrollEffects();
+				logEl.scrollTop = 0;
+				await fireEvent.scroll(logEl);
+				const scrollTopSpy = vi.spyOn(logEl, 'scrollTop', 'set');
+
+				textLog.set([
+					{ source: 'system', content: 'Welcome.' },
+					{ source: 'player', content: 'I am still reading above.' },
+				]);
+				await drainScrollEffects();
+
+				expect(scrollTopSpy).not.toHaveBeenCalled();
+			});
+
+			it('follows panel resize only while sticky and disconnects the observer', async () => {
+				let resizeCallback: ResizeObserverCallback | undefined;
+				const observe = vi.fn();
+				const disconnect = vi.fn();
+				class TestResizeObserver {
+					constructor(callback: ResizeObserverCallback) {
+						resizeCallback = callback;
+					}
+					observe = observe;
+					disconnect = disconnect;
+					unobserve = vi.fn();
+				}
+				vi.stubGlobal('ResizeObserver', TestResizeObserver);
+				try {
+					textLog.set([{ source: 'system', content: 'Welcome.' }]);
+					const { container, unmount } = render(ChatPanel);
+					const logEl = container.querySelector(
+						'.chat-panel',
+					) as HTMLDivElement;
+					await drainScrollEffects();
+					setScrollGeometry(logEl, { height: 500, client: 160, top: 340 });
+					await fireEvent.scroll(logEl);
+					const scrollTopSpy = vi.spyOn(logEl, 'scrollTop', 'set');
+
+					resizeCallback?.([], {} as ResizeObserver);
+					await drainScrollEffects();
+					expect(scrollTopSpy).toHaveBeenCalledWith(500);
+
+					logEl.scrollTop = 0;
+					await fireEvent.scroll(logEl);
+					scrollTopSpy.mockClear();
+					resizeCallback?.([], {} as ResizeObserver);
+					await drainScrollEffects();
+					expect(scrollTopSpy).not.toHaveBeenCalled();
+
+					unmount();
+					expect(observe).toHaveBeenCalledWith(logEl);
+					expect(disconnect).toHaveBeenCalledOnce();
+				} finally {
+					vi.unstubAllGlobals();
+				}
+			});
+
+			it('cancels a queued resize follow when the user scrolls before tick', async () => {
+				let resizeCallback: ResizeObserverCallback | undefined;
+				class TestResizeObserver {
+					constructor(callback: ResizeObserverCallback) {
+						resizeCallback = callback;
+					}
+					observe() {}
+					disconnect() {}
+					unobserve() {}
+				}
+				vi.stubGlobal('ResizeObserver', TestResizeObserver);
+				try {
+					const { container } = render(ChatPanel);
+					const logEl = container.querySelector(
+						'.chat-panel',
+					) as HTMLDivElement;
+					await drainScrollEffects();
+					setScrollGeometry(logEl, { height: 500, client: 200, top: 300 });
+					await fireEvent.scroll(logEl);
+					const scrollTopSpy = vi.spyOn(logEl, 'scrollTop', 'set');
+
+					resizeCallback?.([], {} as ResizeObserver);
+					logEl.scrollTop = 0;
+					scrollTopSpy.mockClear();
+					logEl.dispatchEvent(new Event('scroll'));
+					await drainScrollEffects();
+
+					expect(scrollTopSpy).not.toHaveBeenCalled();
+				} finally {
+					vi.unstubAllGlobals();
+				}
 			});
 		});
 

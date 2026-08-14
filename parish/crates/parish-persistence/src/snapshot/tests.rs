@@ -7,7 +7,10 @@ use parish_npc::manager::NpcManager;
 use parish_npc::memory::{LongTermMemory, ShortTermMemory};
 use parish_npc::types::Intelligence;
 use parish_npc::{Npc, NpcPersistedFields};
-use parish_types::{LocationId, NpcId, TaskStatus};
+use parish_types::{
+    LocationId, NpcId, RememberedObjectAttribute, RememberedObjectAttributeKind,
+    RememberedObjectFact, TaskStatus,
+};
 use parish_world::WorldState;
 
 use super::types::{ClockSnapshot, GameSnapshot, NpcSnapshot};
@@ -77,7 +80,7 @@ fn test_npc_snapshot_roundtrip_all_persisted_fields() {
         key_relationship_changes: vec![],
     };
 
-    let npc = Npc::from_persisted_fields(NpcPersistedFields {
+    let mut npc = Npc::from_persisted_fields(NpcPersistedFields {
         id: NpcId(42),
         name: "Brigid Ní Fhaoláin".to_string(),
         brief_description: "a tall woman in a grey shawl".to_string(),
@@ -111,11 +114,22 @@ fn test_npc_snapshot_roundtrip_all_persisted_fields() {
         knowledge: vec!["The well on Kilmore road is dry.".to_string()],
         state: NpcState::Present,
         deflated_summary: Some(summary.clone()),
+        reaction_log: parish_npc::reactions::ReactionLog::default(),
         last_activity: Some("Delivered a baby at the Burke farm.".to_string()),
         is_ill: true,
         doom: Some(Utc.with_ymd_and_hms(1820, 6, 1, 0, 0, 0).unwrap()),
         banshee_heralded: true,
     });
+    npc.reaction_log.add(
+        "😊",
+        "Welcome",
+        Utc.with_ymd_and_hms(1820, 3, 20, 10, 5, 0).unwrap(),
+    );
+    npc.reaction_log.add_player_message_reaction(
+        "👀",
+        "I have no money",
+        Utc.with_ymd_and_hms(1820, 3, 20, 10, 6, 0).unwrap(),
+    );
 
     // Round-trip through JSON to exercise the full serialize/deserialize path.
     let snap = NpcSnapshot::from_npc(&npc);
@@ -162,11 +176,7 @@ fn test_npc_snapshot_roundtrip_all_persisted_fields() {
         restored.banshee_heralded,
         "banshee_heralded lost on round-trip"
     );
-    // reaction_log is intentionally not persisted — verify it is reset.
-    assert!(
-        restored.reaction_log.is_empty(),
-        "reaction_log should be reset on load (not persisted)"
-    );
+    assert_eq!(restored.reaction_log, npc.reaction_log);
 }
 
 /// #338: deflated_summary used to be hard-coded to None on
@@ -216,6 +226,7 @@ fn test_npc_snapshot_legacy_blob_without_deflated_summary() {
     let parsed: NpcSnapshot =
         serde_json::from_str(legacy_json).expect("legacy NpcSnapshot must parse");
     assert!(parsed.deflated_summary.is_none());
+    assert!(parsed.reaction_log.is_empty());
 }
 
 #[test]
@@ -270,6 +281,49 @@ fn test_game_snapshot_restore() {
 }
 
 #[test]
+fn dialogue_session_and_object_facts_survive_snapshot_json_and_restore() {
+    let mut world = WorldState::new();
+    let location = world.player_location;
+    world.active_session = Some(parish_world::session::ActiveSessionFact {
+        date: chrono::NaiveDate::from_ymd_opt(1820, 3, 20).unwrap(),
+        location,
+        vignette: parish_world::session::SessionVignette {
+            musician: "An old man's voice lifts from the settle; he".to_string(),
+            tune: "strikes up a ballad".to_string(),
+            ambient: "The room leans in".to_string(),
+            verse: Some("The summer is gone".to_string()),
+        },
+    });
+    world
+        .conversation_log
+        .remember_object_fact(RememberedObjectFact {
+            speaker_id: NpcId(1),
+            location,
+            label: "ribbon".to_string(),
+            attributes: vec![RememberedObjectAttribute {
+                kind: RememberedObjectAttributeKind::Material,
+                value: "wool".to_string(),
+            }],
+        });
+    let expected = world.active_session.clone();
+    let snapshot = GameSnapshot::capture(&world, &NpcManager::new());
+    let encoded = serde_json::to_string(&snapshot).unwrap();
+    let decoded: GameSnapshot = serde_json::from_str(&encoded).unwrap();
+    let mut restored_world = WorldState::new();
+    decoded.restore(&mut restored_world, &mut NpcManager::new());
+
+    assert_eq!(restored_world.active_session, expected);
+    assert_eq!(
+        restored_world
+            .conversation_log
+            .remembered_object_facts(NpcId(1), location)[0]
+            .attributes[0]
+            .value,
+        "wool"
+    );
+}
+
+#[test]
 fn test_player_progress_capture_and_restore() {
     let mut world = WorldState::new();
     let assigned_at = Utc.with_ymd_and_hms(1820, 3, 20, 10, 0, 0).unwrap();
@@ -277,7 +331,7 @@ fn test_player_progress_capture_and_restore() {
     let task_id = world
         .player_progress
         .assign_task(
-            "Dig over the potato patch.",
+            "Break the clods and plant seed in the potato patch.",
             NpcId(7),
             LocationId(1),
             assigned_at,
@@ -285,7 +339,7 @@ fn test_player_progress_capture_and_restore() {
         .unwrap();
     assert_eq!(
         world.player_progress.advance_assigned_task(
-            "I set to work digging the potato patch.",
+            "I take up a spade, break the clods in the potato patch, and plant the seed as Siobhan instructed.",
             LocationId(1),
             started_at,
         ),
@@ -301,7 +355,10 @@ fn test_player_progress_capture_and_restore() {
     restored_snapshot.restore(&mut restored_world, &mut restored_npcs);
 
     let restored = restored_world.player_progress.task(task_id).unwrap();
-    assert_eq!(restored.description, "Dig over the potato patch.");
+    assert_eq!(
+        restored.description,
+        "Break the clods and plant seed in the potato patch."
+    );
     assert_eq!(restored.assigned_by, NpcId(7));
     assert_eq!(restored.location, LocationId(1));
     assert_eq!(restored.assigned_at, assigned_at);
@@ -309,7 +366,9 @@ fn test_player_progress_capture_and_restore() {
     assert_eq!(restored.started_at, Some(started_at));
     assert_eq!(
         restored.last_matching_action.as_deref(),
-        Some("I set to work digging the potato patch.")
+        Some(
+            "I take up a spade, break the clods in the potato patch, and plant the seed as Siobhan instructed."
+        )
     );
     assert_eq!(
         restored_world
@@ -523,6 +582,64 @@ fn test_old_save_backward_compat_introduced_npcs() {
     let mut npcs = NpcManager::new();
     snapshot.restore(&mut world, &mut npcs);
     assert_eq!(npcs.introduced_count(), 0);
+}
+
+#[test]
+fn restore_heals_regression_era_empty_introduced_set_from_final_dialogue() {
+    use parish_types::conversation::ConversationExchange;
+
+    let mut world = WorldState::new();
+    let mut npc_manager = NpcManager::new();
+    let mut seamus = make_test_npc(9, 1);
+    seamus.name = "Seamus Gallagher".to_string();
+    seamus.occupation = "Blacksmith".to_string();
+    npc_manager.add_npc(seamus);
+    world.conversation_log.add(ConversationExchange {
+        timestamp: Utc.with_ymd_and_hms(1820, 3, 20, 8, 0, 0).unwrap(),
+        speaker_id: NpcId(9),
+        speaker_name: "Seamus Gallagher".to_string(),
+        player_input: "Are ye Padraig?".to_string(),
+        npc_dialogue: "I'm Seamus, the blacksmith.".to_string(),
+        location: LocationId(1),
+    });
+
+    let mut snapshot = GameSnapshot::capture(&world, &npc_manager);
+    snapshot.introduced_npcs.clear();
+    let json = serde_json::to_string(&snapshot).unwrap();
+    let restored: GameSnapshot = serde_json::from_str(&json).unwrap();
+    let mut restored_world = WorldState::new();
+    let mut restored_npcs = NpcManager::new();
+    restored.restore(&mut restored_world, &mut restored_npcs);
+
+    assert!(restored_npcs.is_introduced(NpcId(9)));
+    assert_eq!(restored_world.conversation_log.exchanges_since(0).len(), 1);
+}
+
+#[test]
+fn restore_does_not_infer_identity_from_exchange_or_speaker_metadata() {
+    use parish_types::conversation::ConversationExchange;
+
+    let mut world = WorldState::new();
+    let mut npc_manager = NpcManager::new();
+    let mut peig = make_test_npc(22, 1);
+    peig.name = "Peig Hannigan".to_string();
+    peig.occupation = "Widow".to_string();
+    npc_manager.add_npc(peig);
+    world.conversation_log.add(ConversationExchange {
+        timestamp: Utc.with_ymd_and_hms(1820, 3, 20, 8, 0, 0).unwrap(),
+        speaker_id: NpcId(22),
+        speaker_name: "Peig Hannigan".to_string(),
+        player_input: "Good morning.".to_string(),
+        npc_dialogue: "Good morning. What brings ye here?".to_string(),
+        location: LocationId(1),
+    });
+
+    let snapshot = GameSnapshot::capture(&world, &npc_manager);
+    let mut restored_world = WorldState::new();
+    let mut restored_npcs = NpcManager::new();
+    snapshot.restore(&mut restored_world, &mut restored_npcs);
+
+    assert!(!restored_npcs.is_introduced(NpcId(22)));
 }
 
 /// Regression for #286 — `current_location()` must not panic after

@@ -1,0 +1,1 @@
+{"nodes": [{"id": "local_perf_dlg_qwen7_qwen7_dialogue_samples", "label": "Five raw Qwen2.5 7B midwife dialogue samples", "file_type": "document", "source_file": "proofs/local-perf/dlg-qwen7.txt", "source_location": "all prompts and replies", "source_url": null, "captured_at": null, "author": null, "contributor": null}], "edges": [], "hyperedges": []}

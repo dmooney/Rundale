@@ -231,6 +231,7 @@ fn build_locations(
                     id,
                     name: feature.name.clone(),
                     description_template,
+                    landmarks: vec![],
                     indoor: feature.location_type.is_indoor(),
                     public: feature.location_type.is_public(),
                     lat: feature.lat,

@@ -77,6 +77,14 @@ export function findProvider(
  */
 export const FALLBACK_FEATURED: ByokProviderMeta[] = [
 	{
+		id: 'google',
+		label: 'Google (Gemini)',
+		blurb: 'Native Gemini 3.6 Flash — fast reasoning and implicit caching.',
+		signupUrl: 'https://aistudio.google.com/app/apikey',
+		needsBaseUrl: false,
+		keyless: false,
+	},
+	{
 		id: 'anthropic',
 		label: 'Anthropic',
 		blurb: "Claude — the engine's native dialogue partner.",
@@ -105,14 +113,6 @@ export const FALLBACK_FEATURED: ByokProviderMeta[] = [
 		label: 'Groq',
 		blurb: 'Fast tokens, generous free tier.',
 		signupUrl: 'https://console.groq.com/keys',
-		needsBaseUrl: false,
-		keyless: false,
-	},
-	{
-		id: 'google',
-		label: 'Google (Gemini)',
-		blurb: 'Free tier with quota — Gemini family.',
-		signupUrl: 'https://aistudio.google.com/app/apikey',
 		needsBaseUrl: false,
 		keyless: false,
 	},

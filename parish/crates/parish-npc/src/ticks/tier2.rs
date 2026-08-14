@@ -224,6 +224,8 @@ async fn try_tier2_inference(
     prompt: &str,
     response_format: Option<parish_inference::ResponseFormat>,
     cancel: Option<parish_inference::CancellationToken>,
+    profile: parish_config::InferenceProfile,
+    audit_sink: Option<parish_inference::InferenceAuditSink>,
 ) -> Result<Tier2Response, ParishError> {
     // Cap output to bound vllm-mlx runaway risk on uncapped JSON gen.
     // Tier 2 outputs ~50-100 tokens in practice; 200 is comfortable headroom.
@@ -231,38 +233,86 @@ async fn try_tier2_inference(
     // generate_stream_with_format) but enables mid-flight cancellation (#9).
     let (sink_tx, mut sink_rx) =
         tokio::sync::mpsc::channel::<String>(parish_inference::TOKEN_CHANNEL_CAPACITY);
-    tokio::spawn(async move { while sink_rx.recv().await.is_some() {} });
+    let observed = std::sync::Arc::new(tokio::sync::Mutex::new((String::new(), None, 0_u64)));
+    let observed_for_sink = observed.clone();
+    let started = std::time::Instant::now();
+    tokio::spawn(async move {
+        while let Some(chunk) = sink_rx.recv().await {
+            let mut state = observed_for_sink.lock().await;
+            state.1.get_or_insert_with(std::time::Instant::now);
+            state.2 += 1;
+            state.0.push_str(&chunk);
+        }
+    });
 
-    let stream_fut = client.generate_stream_with_format(
+    let params = parish_inference::GenerateParams {
+        max_tokens: Some(profile.max_output_tokens),
+        temperature: None,
+        frequency_penalty: None,
+        enable_thinking: None,
+        reasoning_effort: None,
+        thinking_level: Some(profile.thinking_level),
+        service_tier: Some(profile.service_tier),
+    };
+    let audit = parish_inference::DirectInferenceAudit::new(
+        audit_sink,
+        model,
+        prompt,
+        None,
+        parish_config::InferenceSubrole::Tier2Simulation,
+        true,
+        params.max_tokens,
+        params.thinking_level,
+        params.service_tier,
+        params.temperature,
+        parish_inference::InferencePriority::Background,
+    );
+    let stream_fut = client.generate_stream_detailed_with_format(
         model,
         prompt,
         None,
         sink_tx,
         response_format,
-        parish_inference::GenerateParams {
-            max_tokens: Some(200),
-            temperature: None,
-            frequency_penalty: None,
-            enable_thinking: None,
-            reasoning_effort: None,
-        },
+        params,
     );
 
-    let raw = match cancel {
+    let detailed = match cancel {
         Some(tok) => tokio::select! {
             biased;
-            () = tok.cancelled() => Err(ParishError::Inference(
-                "Tier 2 cancelled mid-stream".to_string(),
-            )),
+            () = tok.cancelled() => {
+                let state = observed.lock().await;
+                let mut metadata = client.fallback_metadata(model);
+                metadata.terminal_status = Some("cancelled".to_string());
+                metadata.duration_ms = started.elapsed().as_millis() as u64;
+                metadata.ttft_ms = state.1.map(|first| first.duration_since(started).as_millis() as u64);
+                metadata.stream_chunks = state.2;
+                Err(parish_inference::ProviderCallError {
+                    message: "Tier 2 cancelled mid-stream".to_string(),
+                    partial_text: state.0.clone(),
+                    metadata: Box::new(metadata),
+                })
+            },
             res = stream_fut => res,
         },
         None => stream_fut.await,
     };
-
-    raw.and_then(|s| {
-        serde_json::from_str::<Tier2Response>(&s)
-            .map_err(|e| ParishError::Inference(format!("Tier 2 JSON parse failed: {e}")))
-    })
+    let validated = detailed.and_then(|result| {
+        parish_inference::parse_generation_json::<Tier2Response>(result, "Tier 2")
+    });
+    match validated {
+        Ok((raw, parsed)) => audit
+            .record(Ok(raw))
+            .await
+            .map(|_| parsed)
+            .map_err(ParishError::from),
+        Err(error) => {
+            let error = audit
+                .record(Err(error))
+                .await
+                .expect_err("auditing must preserve provider errors");
+            Err(ParishError::from(error))
+        }
+    }
 }
 
 // ── prompt builder ─────────────────────────────────────────────────────────
@@ -604,6 +654,55 @@ pub async fn run_tier2_for_group(
     language: &LanguageSettings,
     cancel: Option<parish_inference::CancellationToken>,
 ) -> Option<Tier2Event> {
+    run_tier2_for_group_with_profile(
+        client,
+        model,
+        group,
+        time_desc,
+        weather,
+        language,
+        cancel,
+        parish_config::InferenceProfile::for_subrole(
+            parish_config::InferenceSubrole::Tier2Simulation,
+        ),
+    )
+    .await
+}
+
+/// Runs Tier 2 with the profile resolved from the active runtime config.
+#[allow(clippy::too_many_arguments)]
+// Justification: behavior-preserving compatibility wrapper around the audited
+// Tier-2 seam; these are the existing prompt/context inputs plus one resolved
+// profile, and grouping them would churn every runtime call site unnecessarily.
+pub async fn run_tier2_for_group_with_profile(
+    client: &parish_inference::AnyClient,
+    model: &str,
+    group: &Tier2Group,
+    time_desc: &str,
+    weather: &str,
+    language: &LanguageSettings,
+    cancel: Option<parish_inference::CancellationToken>,
+    profile: parish_config::InferenceProfile,
+) -> Option<Tier2Event> {
+    run_tier2_for_group_with_profile_and_audit(
+        client, model, group, time_desc, weather, language, cancel, profile, None,
+    )
+    .await
+}
+
+/// Runs Tier 2 with resolved tuning and common direct-call audit sinks.
+#[allow(clippy::too_many_arguments)]
+pub async fn run_tier2_for_group_with_profile_and_audit(
+    client: &parish_inference::AnyClient,
+    model: &str,
+    group: &Tier2Group,
+    time_desc: &str,
+    weather: &str,
+    language: &LanguageSettings,
+    cancel: Option<parish_inference::CancellationToken>,
+    profile: parish_config::InferenceProfile,
+    audit_sink: Option<parish_inference::InferenceAuditSink>,
+) -> Option<Tier2Event> {
     if group.npcs.len() < 2 {
         // Solo NPC: generate a simple template event, no inference needed
         if let Some(snap) = group.npcs.first() {
@@ -622,24 +721,33 @@ pub async fn run_tier2_for_group(
     let prompt = build_tier2_prompt(group, time_desc, weather, language);
     let participant_ids: Vec<NpcId> = group.npcs.iter().map(|s| s.id).collect();
 
-    let mut last_err: ParishError =
-        match try_tier2_inference(client, model, &prompt, None, cancel.clone()).await {
-            Ok(resp) => {
-                if let Some(error) = tier2_grounding_error(group, &resp.summary) {
-                    error
-                } else {
-                    return Some(Tier2Event {
-                        location: group.location,
-                        summary: canonical_tier2_summary(group),
-                        participants: participant_ids,
-                        mood_changes: resp.mood_changes,
-                        relationship_changes: resp.relationship_changes,
-                        grounding: tier2_participant_grounding(group),
-                    });
-                }
+    let mut last_err: ParishError = match try_tier2_inference(
+        client,
+        model,
+        &prompt,
+        None,
+        cancel.clone(),
+        profile,
+        audit_sink.clone(),
+    )
+    .await
+    {
+        Ok(resp) => {
+            if let Some(error) = tier2_grounding_error(group, &resp.summary) {
+                error
+            } else {
+                return Some(Tier2Event {
+                    location: group.location,
+                    summary: canonical_tier2_summary(group),
+                    participants: participant_ids,
+                    mood_changes: resp.mood_changes,
+                    relationship_changes: resp.relationship_changes,
+                    grounding: tier2_participant_grounding(group),
+                });
             }
-            Err(e) => e,
-        };
+        }
+        Err(e) => e,
+    };
 
     // Retry exactly once on malformed JSON (see #27) or a canonical-location
     // conflict (#1785). Cancellation and transport errors fall through to the
@@ -678,6 +786,8 @@ pub async fn run_tier2_for_group(
             &retry_prompt,
             Some(parish_inference::ResponseFormat::JsonObject),
             cancel,
+            profile,
+            audit_sink,
         )
         .await
         {
@@ -1458,13 +1568,27 @@ mod tests {
         let (client, mock) = parish_inference::AnyClient::mock();
 
         // First attempt: production passes `None` (preserves prior behavior).
-        let _ = try_tier2_inference(&client, "test-model", "first prompt", None, None).await;
+        let profile = parish_config::InferenceProfile::for_subrole(
+            parish_config::InferenceSubrole::Tier2Simulation,
+        );
+        let _ = try_tier2_inference(
+            &client,
+            "test-model",
+            "first prompt",
+            None,
+            None,
+            profile,
+            None,
+        )
+        .await;
         // Retry: production passes a JSON response format.
         let _ = try_tier2_inference(
             &client,
             "test-model",
             "retry prompt",
             Some(parish_inference::ResponseFormat::JsonObject),
+            None,
+            profile,
             None,
         )
         .await;

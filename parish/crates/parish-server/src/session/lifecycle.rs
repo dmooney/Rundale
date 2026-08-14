@@ -414,15 +414,6 @@ async fn restore_session(
     .map_err(|e| e.to_string())?;
 
     recovery.restore(&mut world, &mut npc_manager);
-    // Gate: clear in-memory introduced set so NPCs must be re-introduced each
-    // session (#1396, npc-dialogue-grounding flag, default-on).
-    if !global
-        .template_config
-        .flags
-        .is_disabled("npc-dialogue-grounding")
-    {
-        npc_manager.clear_introduced_for_session();
-    }
     npc_manager.assign_tiers(&world, &[]);
 
     let (client, config) = build_session_client(global);
@@ -578,6 +569,8 @@ mod resume_identity_tests {
             category_model: Default::default(),
             category_api_key: Default::default(),
             category_base_url: Default::default(),
+            inference_profile_override: Default::default(),
+            category_inference_profile: Default::default(),
             flags,
             category_rate_limit: Default::default(),
             active_tile_source: String::new(),
@@ -617,9 +610,16 @@ mod resume_identity_tests {
     fn create_snapshot_db(path: &std::path::Path) -> (i64, String) {
         let db = Database::open(path).unwrap();
         let branch = db.find_branch("main").unwrap().unwrap();
+        let mut npc_manager = NpcManager::new();
+        let mut npc = parish_core::npc::Npc::new_test_npc();
+        npc.id = parish_core::npc::NpcId(42);
+        npc.name = "Durable Test Neighbour".to_string();
+        npc.occupation = "Weaver".to_string();
+        npc_manager.add_npc(npc);
+        npc_manager.mark_introduced(parish_core::npc::NpcId(42));
         db.save_snapshot(
             branch.id,
-            &GameSnapshot::capture(&WorldState::new(), &NpcManager::new()),
+            &GameSnapshot::capture(&WorldState::new(), &npc_manager),
         )
         .unwrap();
         (branch.id, branch.name)
@@ -725,6 +725,15 @@ mod resume_identity_tests {
             "the cold lifecycle gate must publish one shared SessionEntry"
         );
         assert_eq!(global.sessions.active_count(), 1);
+        assert!(
+            first_entry
+                .app_state
+                .npc_manager
+                .lock()
+                .await
+                .is_introduced(parish_core::npc::NpcId(42)),
+            "server cold restore must preserve durable identity knowledge"
+        );
         assert!(
             !first_entry._tick_handles.is_empty(),
             "the one published runtime owns its background tick set"

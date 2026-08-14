@@ -83,7 +83,7 @@ A four-tier simulation that scales hundreds of NPCs at varying fidelity based on
 
 ### LLM inference
 
-- **15 inference providers** out of the box: Ollama, LM Studio, vllm-mlx (Apple Silicon native), OpenAI, Anthropic (native `/v1/messages` API, not the OpenAI-compatibility shim), Google Gemini, OpenRouter, Groq, xAI Grok, Mistral, DeepSeek, Together AI, Custom (any OpenAI-compatible base URL), and a built-in offline Simulator that needs no model download. (Additional providers are available via mod-loaded configurations — Cohere, GitHub Models, Qwen, Zhipu, OpenCode Zen, and others.) Local profiles are available for macOS (vllm-mlx) and Linux/Windows (vLLM/Ollama), but none currently passes Rundale's production dialogue promotion gate; first-run setup labels them experimental and recommends BYOK cloud for player dialogue.
+- **15 inference providers** out of the box: Ollama, LM Studio, vllm-mlx (Apple Silicon native), OpenAI, Anthropic (native `/v1/messages` API, not the OpenAI-compatibility shim), Google Gemini (native Interactions API), OpenRouter, Groq, xAI Grok, Mistral, DeepSeek, Together AI, Custom (any OpenAI-compatible base URL), and a built-in offline Simulator that needs no model download. Google Gemini 3.6 Flash is the default cloud engine, with role-specific thinking/caps, implicit-cache usage telemetry, and Google's Standard service tier by default. (Additional providers are available via mod-loaded configurations — Cohere, GitHub Models, Qwen, Zhipu, OpenCode Zen, and others.) Local profiles are available for macOS (vllm-mlx) and Linux/Windows (vLLM/Ollama), but none currently passes Rundale's production dialogue promotion gate; first-run setup labels them experimental and recommends BYOK cloud for player dialogue.
 - **Per-category routing** — Dialogue, Simulation, and Intent can each use a different provider/model/key, switchable at runtime via dot-notation commands (`/provider.dialogue`, `/model.intent`, `/key.simulation`).
 - **Measured cloud-dialogue default** — OpenRouter's recommended preset uses `google/gemini-3.7-flash` with the qualified low-reasoning, 4,096-token production profile. The retained multi-family judgments, individual API calls, and latency evidence are published in the local qualification dashboard rather than inferred from general-purpose benchmarks.
 - **Three-lane priority queue** — Interactive (player dialogue) preempts Background (Tier 2) preempts Batch (Tier 3); a slow batch call cannot block your conversation.
@@ -425,4 +425,7 @@ contributors, licensed under the
 Historic 6″ Ordnance Survey Ireland tiles (1829–1842) reproduced with the
 permission of the [National Library of Scotland](https://maps.nls.uk/),
 licensed under [CC-BY](https://maps.nls.uk/copyright.html). UI icons use
-[Phosphor Icons](https://phosphoricons.com/) under MIT.
+[Phosphor Icons](https://phosphoricons.com/) under MIT. Map labels use
+[Open Sans](https://github.com/googlefonts/opensans) under the SIL Open Font
+License 1.1; its generated MapLibre glyph ranges and licence are bundled for
+offline web and desktop rendering.

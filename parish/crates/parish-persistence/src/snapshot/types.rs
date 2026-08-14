@@ -140,6 +140,9 @@ pub struct NpcSnapshot {
     /// (pre-#338) loadable.
     #[serde(default)]
     pub deflated_summary: Option<parish_npc::transitions::NpcSummary>,
+    /// Directional nonverbal reaction history. Older saves omitted it.
+    #[serde(default)]
+    pub reaction_log: parish_npc::reactions::ReactionLog,
 }
 
 /// A complete snapshot of dynamic game state.
@@ -198,4 +201,7 @@ pub struct GameSnapshot {
     /// Set of NPC ids that know the player's name.
     #[serde(default)]
     pub npcs_who_know_player_name: HashSet<NpcId>,
+    /// Last canonical music session beat, if any.
+    #[serde(default)]
+    pub active_session: Option<parish_world::session::ActiveSessionFact>,
 }

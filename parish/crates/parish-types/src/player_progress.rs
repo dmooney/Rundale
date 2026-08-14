@@ -273,7 +273,7 @@ impl PlayerProgress {
         started_at: DateTime<Utc>,
     ) -> Option<PlayerTaskId> {
         let action = bounded_nonblank(action, MAX_TASK_ACTION_CHARS)?;
-        let action_verb = affirmative_direct_work_verb(&action)?;
+        let action_verbs = affirmative_direct_work_verbs(&action)?;
         let candidates: Vec<usize> = self
             .tasks
             .iter()
@@ -284,7 +284,7 @@ impl PlayerProgress {
             .collect();
 
         let selected =
-            select_unique_task_by_overlap(&self.tasks, &candidates, &action, action_verb)?;
+            select_unique_task_by_overlap(&self.tasks, &candidates, &action, &action_verbs)?;
 
         let task = &mut self.tasks[selected];
         task.status = TaskStatus::InProgress;
@@ -352,7 +352,7 @@ fn select_unique_task_by_overlap(
     tasks: &[PlayerTask],
     candidates: &[usize],
     action: &str,
-    action_verb: &'static str,
+    action_verbs: &HashSet<&'static str>,
 ) -> Option<usize> {
     let action_tokens = meaningful_tokens(action);
     if action_tokens.is_empty() {
@@ -363,9 +363,12 @@ fn select_unique_task_by_overlap(
         .iter()
         .copied()
         .map(|index| {
-            let task_verb = task_work_verb(&tasks[index].description);
+            let task_verbs =
+                affirmative_direct_work_verbs(&tasks[index].description).unwrap_or_default();
             let description_tokens = meaningful_tokens(&tasks[index].description);
-            let score = if action_verb == "work" || task_verb == Some(action_verb) {
+            let compatible_verb = action_verbs.contains("work")
+                || action_verbs.iter().any(|verb| task_verbs.contains(verb));
+            let score = if compatible_verb {
                 action_tokens.intersection(&description_tokens).count()
             } else {
                 0
@@ -391,7 +394,7 @@ fn task_identity_key(value: &str) -> String {
         .join(" ")
 }
 
-fn affirmative_direct_work_verb(value: &str) -> Option<&'static str> {
+fn affirmative_direct_work_verbs(value: &str) -> Option<HashSet<&'static str>> {
     let lower = value.to_lowercase().replace('\u{2019}', "'");
     let words: Vec<&str> = lower
         .split(|character: char| !character.is_alphanumeric())
@@ -435,6 +438,25 @@ fn affirmative_direct_work_verb(value: &str) -> Option<&'static str> {
         return None;
     }
 
+    let mut verbs = HashSet::new();
+    for punctuation_clause in lower.split([',', ';']) {
+        for clause in punctuation_clause
+            .split(" and ")
+            .flat_map(|part| part.split(" then "))
+        {
+            if let Some(verb) = direct_work_verb_at_clause_start(clause) {
+                verbs.insert(verb);
+            }
+        }
+    }
+    (!verbs.is_empty()).then_some(verbs)
+}
+
+fn direct_work_verb_at_clause_start(clause: &str) -> Option<&'static str> {
+    let words: Vec<&str> = clause
+        .split(|character: char| !character.is_alphanumeric())
+        .filter(|word| !word.is_empty())
+        .collect();
     let mut index = 0;
     if words.get(index) == Some(&"i") {
         index += 1;
@@ -461,25 +483,6 @@ fn affirmative_direct_work_verb(value: &str) -> Option<&'static str> {
             .then_some("take_care_of");
     }
 
-    canonical_work_verb(verb)
-}
-
-fn task_work_verb(value: &str) -> Option<&'static str> {
-    let words: Vec<String> = value
-        .split(|character: char| !character.is_alphanumeric())
-        .filter(|word| !word.is_empty())
-        .map(str::to_lowercase)
-        .collect();
-    let verb = words.first()?.as_str();
-    if verb == "see" && words.get(1).is_some_and(|word| word == "to") {
-        return Some("see_to");
-    }
-    if verb == "take"
-        && words.get(1).is_some_and(|word| word == "care")
-        && words.get(2).is_some_and(|word| word == "of")
-    {
-        return Some("take_care_of");
-    }
     canonical_work_verb(verb)
 }
 
@@ -908,6 +911,31 @@ mod tests {
             progress.advance_assigned_task("I break the stone clods.", LocationId(9), at(11),),
             Some(id)
         );
+    }
+
+    #[test]
+    fn compound_take_up_action_scores_affirmative_work_clauses() {
+        let mut progress = PlayerProgress::default();
+        let id = progress
+            .assign_task(
+                "Break the clods and plant seed in the potato patch.",
+                NpcId(7),
+                LocationId(9),
+                at(10),
+            )
+            .unwrap();
+
+        assert_eq!(
+            progress.advance_assigned_task(
+                "I take up a spade, break the clods in the potato patch, and plant the seed as Siobhan instructed.",
+                LocationId(9),
+                at(11),
+            ),
+            Some(id)
+        );
+        let task = progress.task(id).unwrap();
+        assert_eq!(task.status, TaskStatus::InProgress);
+        assert_eq!(task.completed_at, None);
     }
 
     #[test]

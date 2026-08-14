@@ -148,16 +148,45 @@ fn process_event(
         "stream-turn-end" => {
             let payload: Option<parish_core::ipc::StreamTurnEndPayload> =
                 serde_json::from_value(event.payload).ok();
-            if let Some(p) = payload
-                && let Some((source, text)) = npc_turns.remove(&p.turn_id)
-            {
-                let (role, speaker) = source_to_role(&source);
-                lines.push(OutputLine {
-                    id: format!("stream-{}", p.turn_id),
-                    role,
-                    speaker,
-                    text,
-                });
+            if let Some(p) = payload {
+                stream_state.had_streaming = true;
+                let buffered = npc_turns.remove(&p.turn_id);
+                match p.status {
+                    parish_core::ipc::StreamTurnStatus::Completed => {
+                        let source = p
+                            .source
+                            .or_else(|| buffered.as_ref().map(|(source, _)| source.clone()));
+                        let text = p
+                            .final_text
+                            .or_else(|| buffered.map(|(_, text)| text))
+                            .unwrap_or_default();
+                        if let Some(source) = source
+                            && !text.is_empty()
+                        {
+                            let (role, speaker) = source_to_role(&source);
+                            lines.push(OutputLine {
+                                id: p
+                                    .message_id
+                                    .unwrap_or_else(|| format!("stream-{}", p.turn_id)),
+                                role,
+                                speaker,
+                                text,
+                            });
+                        }
+                    }
+                    parish_core::ipc::StreamTurnStatus::Failed => {
+                        // Any accumulated candidate is explicitly discarded. A
+                        // non-success termination can never become player text.
+                        if let Some(text) = p.recovery_message {
+                            lines.push(OutputLine {
+                                id: format!("stream-error-{}", p.turn_id),
+                                role: Role::System,
+                                speaker: "System".to_string(),
+                                text,
+                            });
+                        }
+                    }
+                }
             }
         }
         "stream-end" => {
@@ -302,5 +331,75 @@ mod tests {
         assert_eq!(quality.len(), 1);
         assert!(quality[0].contract_valid);
         assert!(quality[0].guard_intervened);
+    }
+
+    #[test]
+    fn completed_terminal_uses_authoritative_full_text_over_buffered_prefix() {
+        let mut lines = Vec::new();
+        let mut npc_turns = HashMap::from([(1857, ("Brigid".to_string(), "Plainly,".to_string()))]);
+        let mut world_update = None;
+        let mut travel = None;
+        let mut stream_state = StreamState::default();
+        let mut quality = Vec::new();
+        process_event(
+            ServerEvent {
+                event: "stream-turn-end".to_string(),
+                payload: serde_json::to_value(parish_core::ipc::StreamTurnEndPayload::completed(
+                    1857,
+                    Some("msg-1857".to_string()),
+                    "Brigid".to_string(),
+                    "Plainly, the complete validated response is retained.".to_string(),
+                ))
+                .unwrap(),
+            },
+            &mut lines,
+            &mut npc_turns,
+            &mut world_update,
+            &mut travel,
+            &mut stream_state,
+            &mut quality,
+        );
+        assert_eq!(lines.len(), 1);
+        assert_eq!(lines[0].id, "msg-1857");
+        assert_eq!(
+            lines[0].text,
+            "Plainly, the complete validated response is retained."
+        );
+        assert!(npc_turns.is_empty());
+    }
+
+    #[test]
+    fn failed_terminal_discards_partial_and_returns_recovery() {
+        let mut lines = Vec::new();
+        let mut npc_turns = HashMap::from([(
+            1855,
+            ("Brigid".to_string(), "forbidden partial".to_string()),
+        )]);
+        let mut world_update = None;
+        let mut travel = None;
+        let mut stream_state = StreamState::default();
+        let mut quality = Vec::new();
+        process_event(
+            ServerEvent {
+                event: "stream-turn-end".to_string(),
+                payload: serde_json::to_value(parish_core::ipc::StreamTurnEndPayload::failed(
+                    1855,
+                    Some("msg-1855".to_string()),
+                    Some("Nothing was added. Please try again.".to_string()),
+                ))
+                .unwrap(),
+            },
+            &mut lines,
+            &mut npc_turns,
+            &mut world_update,
+            &mut travel,
+            &mut stream_state,
+            &mut quality,
+        );
+        assert_eq!(lines.len(), 1);
+        assert!(lines[0].role == Role::System);
+        assert_eq!(lines[0].text, "Nothing was added. Please try again.");
+        assert!(lines.iter().all(|line| !line.text.contains("forbidden")));
+        assert!(npc_turns.is_empty());
     }
 }

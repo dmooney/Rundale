@@ -344,18 +344,18 @@ pub fn resolve_cloud_config(
         return Ok(None);
     }
 
-    // Default to OpenRouter for cloud. If the openrouter mod is absent
+    // Default to native Google Gemini for cloud. If the provider mod is absent
     // from this deployment, surface that as a config error instead of
     // panicking — operators who never set `PARISH_CLOUD_PROVIDER` should
     // get an actionable message, not a crashed binary (codex P1).
     let provider = match &raw.provider_str {
         Some(s) => Provider::from_str_loose(s)?,
-        None => Provider::from_id("openrouter").ok_or_else(|| {
+        None => Provider::from_id("google").ok_or_else(|| {
             ParishError::Config(
-                "Cloud provider default 'openrouter' is not registered. \
+                "Cloud provider default 'google' is not registered. \
                  Set PARISH_CLOUD_PROVIDER (or [llm.cloud].provider) to a \
-                 registered provider id, or install the openrouter \
-                 provider mod under mods/openrouter-provider/."
+                 registered provider id, or install the Google \
+                 provider mod under mods/google-provider/."
                     .into(),
             )
         })?,
@@ -369,7 +369,10 @@ pub fn resolve_cloud_config(
     let base_url = raw
         .base_url
         .unwrap_or_else(|| provider.default_base_url().to_string());
-    let model = raw.model.filter(|s| !s.is_empty());
+    let model = raw
+        .model
+        .filter(|s| !s.is_empty())
+        .or_else(|| (provider.id() == "google").then(|| "gemini-3.6-flash".to_string()));
 
     let model = model.ok_or_else(|| {
         ParishError::Config(

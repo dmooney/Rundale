@@ -173,7 +173,7 @@ pub fn handle_list_available_providers()
             other.push(info);
         }
     }
-    featured.sort_by(|a, b| a.id.cmp(&b.id));
+    featured.sort_by_key(|provider| (provider.id != "google", provider.id.clone()));
     other.sort_by(|a, b| a.id.cmp(&b.id));
     let mut out = std::collections::HashMap::new();
     out.insert("featured", featured);
@@ -376,6 +376,7 @@ pub async fn handle_set_provider_config(
         cfg.category_base_url.clear();
         cfg.category_api_key.clear();
         cfg.apply_user_category_overrides(&args.category_overrides);
+        cfg.apply_user_inference_profiles(&user);
         cfg.fill_missing_models_from_presets();
     }
 
@@ -456,6 +457,8 @@ mod tests {
             category_api_key: HashMap::new(),
             category_base_url: HashMap::new(),
             category_rate_limit: HashMap::new(),
+            inference_profile_override: Default::default(),
+            category_inference_profile: HashMap::new(),
             flags: FeatureFlags::default(),
             active_tile_source: String::new(),
             tile_sources: Vec::new(),

@@ -88,6 +88,15 @@ pub struct WorldState {
     /// changed (NPCs moved, clock advanced, weather shifted) while the
     /// intent was being parsed.  See issue #283.
     pub tick_generation: u64,
+    /// Mod-authored terms that must never survive canonical dialogue validation.
+    /// Loaded once with the world so every runtime and staged clone uses the
+    /// same setting-specific safety contract.
+    pub dialogue_anachronisms: Vec<parish_types::AnachronismEntry>,
+    /// Mod-authored prompt framing for the same canonical term set.
+    pub dialogue_anachronism_alert_prefix: String,
+    pub dialogue_anachronism_alert_suffix: String,
+    /// Last canonical `/session` beat, date/location scoped when consumed.
+    pub active_session: Option<session::ActiveSessionFact>,
 }
 
 impl WorldState {
@@ -152,6 +161,10 @@ impl WorldState {
             player_name: None,
             player_progress: PlayerProgress::default(),
             tick_generation: 0,
+            dialogue_anachronisms: Vec::new(),
+            dialogue_anachronism_alert_prefix: String::new(),
+            dialogue_anachronism_alert_suffix: String::new(),
+            active_session: None,
         }
     }
 

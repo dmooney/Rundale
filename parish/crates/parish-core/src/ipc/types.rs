@@ -228,10 +228,14 @@ pub use parish_types::ThemePalette;
 
 // ── Event payloads ──────────────────────────────────────────────────────────
 
-/// Payload for `stream-token` events.
+/// Payload for player-renderable stream batches.
+///
+/// Tier-1 provider tokens are untrusted candidates and must never use this
+/// event. The dialogue loop emits only the canonical accepted-or-replaced
+/// response after the shared apply validator has run (#1834).
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct StreamTokenPayload {
-    /// The batch of token text to append to the current chat entry.
+    /// Canonical text to append to the current chat entry.
     pub token: String,
     /// Stable ID for the NPC turn this token batch belongs to. This is the
     /// same value as the placeholder `text-log` entry's `stream_turn_id`, so
@@ -253,11 +257,89 @@ pub struct StreamTokenPayload {
     pub message_id: Option<String>,
 }
 
-/// Payload for `stream-turn-end` events.
+/// Terminal status for one streamed NPC turn.
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum StreamTurnStatus {
+    /// The complete response crossed the canonical apply seam.
+    Completed,
+    /// No candidate was accepted; partial provider output must stay hidden.
+    Failed,
+}
+
+/// Authoritative terminal payload for one streamed NPC turn.
+///
+/// Progressive `stream-token` events are presentation-only. Consumers must use
+/// this payload to commit the final accepted text or surface the safe recovery
+/// message; local token-buffer timing is never the source of truth (#1855,
+/// #1857).
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct StreamTurnEndPayload {
     /// Stable ID for the NPC turn that has finished streaming tokens.
     pub turn_id: u64,
+    /// Whether the turn produced an accepted canonical response.
+    pub status: StreamTurnStatus,
+    /// Stable message identity shared with the placeholder and stream tokens.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub message_id: Option<String>,
+    /// Speaker label for a completed turn.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source: Option<String>,
+    /// Full accepted post-validation response. Never contains rejected partial
+    /// provider output.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub final_text: Option<String>,
+    /// Player-safe recovery text for a failed turn.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub recovery_message: Option<String>,
+}
+
+impl StreamTurnEndPayload {
+    /// Builds a successful authoritative finalization.
+    pub fn completed(
+        turn_id: u64,
+        message_id: Option<String>,
+        source: impl Into<String>,
+        final_text: impl Into<String>,
+    ) -> Self {
+        Self {
+            turn_id,
+            status: StreamTurnStatus::Completed,
+            message_id,
+            source: Some(source.into()),
+            final_text: Some(final_text.into()),
+            recovery_message: None,
+        }
+    }
+
+    /// Builds a failed finalization without exposing partial provider output.
+    pub fn failed(
+        turn_id: u64,
+        message_id: Option<String>,
+        recovery_message: Option<String>,
+    ) -> Self {
+        Self {
+            turn_id,
+            status: StreamTurnStatus::Failed,
+            message_id,
+            source: None,
+            final_text: None,
+            recovery_message,
+        }
+    }
+
+    /// Builds a completed legacy stream whose final text is carried only by
+    /// preceding token events (currently arrival-reaction animation).
+    pub fn completed_stream(turn_id: u64) -> Self {
+        Self {
+            turn_id,
+            status: StreamTurnStatus::Completed,
+            message_id: None,
+            source: None,
+            final_text: None,
+            recovery_message: None,
+        }
+    }
 }
 
 /// Payload for `stream-end` events.

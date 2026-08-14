@@ -78,6 +78,9 @@ pub struct SubmitInputResult {
     pub location: String,
     /// Number of NPCs at the player's location after the turn.
     pub npcs_here: usize,
+    /// Present when the submitted dialogue produced no canonical NPC exchange.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub error: Option<String>,
 }
 
 /// A summarised world event returned by `GET /api/turn`.
@@ -134,6 +137,7 @@ pub fn build_submit_input_result(
         clock,
         location,
         npcs_here,
+        error: None,
     }
 }
 
@@ -171,11 +175,14 @@ pub fn recent_exchanges(world: &WorldState, limit: usize) -> Vec<TurnExchange> {
     exchanges
 }
 
-/// Projects the retained world-event ring after `since_cursor`.
+/// Projects the newest retained world events after `since_cursor`.
 ///
 /// `total_events` is the monotonic lifetime count maintained by the runtime.
 /// It is floored at the retained length so test fixtures and legacy states
-/// without a populated counter still produce a valid cursor.
+/// without a populated counter still produce a valid cursor. The returned
+/// cursor is always that coherent lifetime total: this is a bounded latest
+/// window, not a pageable log. When more than [`TURN_MAX_EVENTS`] unseen
+/// events are retained, the oldest excess entries are omitted.
 pub fn events_since(
     events: &VecDeque<GameEvent>,
     total_events: usize,
@@ -184,19 +191,22 @@ pub fn events_since(
     let total = total_events.max(events.len());
     let evicted = total.saturating_sub(events.len());
     let first_unseen = if since_cursor > total {
+        // A cursor from a different/restarted runtime cannot name an event in
+        // this lifetime. Resynchronise from the retained window.
         evicted
     } else {
         since_cursor.max(evicted)
     };
-    let skip = first_unseen.saturating_sub(evicted);
+    let unseen_offset = first_unseen.saturating_sub(evicted);
+    let unseen_count = events.len().saturating_sub(unseen_offset);
+    let skip = unseen_offset.saturating_add(unseen_count.saturating_sub(TURN_MAX_EVENTS));
     let projected: Vec<_> = events
         .iter()
         .skip(skip)
         .take(TURN_MAX_EVENTS)
         .map(project_event)
         .collect();
-    let next_cursor = first_unseen.saturating_add(projected.len()).min(total);
-    (projected, next_cursor)
+    (projected, total)
 }
 
 fn project_current_state(
@@ -237,6 +247,12 @@ fn project_exchange(world: &WorldState, exchange: &ConversationExchange) -> Turn
 
 fn project_event(event: &GameEvent) -> TurnEvent {
     let summary = match event {
+        GameEvent::ReactionRecorded {
+            npc_id,
+            direction,
+            emoji,
+            ..
+        } => format!("NPC #{} reaction {:?}: {emoji}", npc_id.0, direction),
         GameEvent::DialogueOccurred { summary, .. } => summary.clone(),
         GameEvent::MoodChanged {
             npc_id, new_mood, ..
@@ -388,6 +404,22 @@ mod tests {
         assert_eq!(result.exchanges[0].speaker_name, "Sean");
         assert_eq!(result.exchanges[0].player_input, "new question");
         assert_eq!(result.exchanges[0].npc_dialogue, "new answer");
+        assert!(result.error.is_none());
+    }
+
+    #[test]
+    fn submit_projection_can_distinguish_failed_dialogue_from_a_non_dialogue_turn() {
+        let world = WorldState::new();
+        let before = conversation_cursor(&world);
+        let mut result = build_submit_input_result(&world, &NpcManager::new(), before);
+        result.error = Some("That reply failed. Please try again.".to_string());
+
+        let json = serde_json::to_value(result).unwrap();
+        assert_eq!(json["exchanges"], serde_json::json!([]));
+        assert_eq!(
+            json["error"],
+            serde_json::json!("That reply failed. Please try again.")
+        );
     }
 
     #[test]
@@ -439,28 +471,91 @@ mod tests {
         assert_eq!(projected[0].summary, "Weather → Rain");
     }
 
-    #[test]
-    fn event_projection_cursor_advances_one_bounded_page_at_a_time() {
-        let events: VecDeque<_> = (0..(TURN_MAX_EVENTS + 7))
+    fn weather_events(range: std::ops::Range<usize>) -> VecDeque<GameEvent> {
+        range
             .map(|index| GameEvent::WeatherChanged {
                 new_weather: format!("Weather {index}"),
                 timestamp: Utc::now(),
             })
-            .collect();
+            .collect()
+    }
 
-        let (first_page, first_cursor) = events_since(&events, events.len(), 0);
-        let (second_page, second_cursor) = events_since(&events, events.len(), first_cursor);
+    fn weather_number(event: &TurnEvent) -> usize {
+        event
+            .summary
+            .strip_prefix("Weather → Weather ")
+            .expect("weather event summary")
+            .parse()
+            .expect("numeric weather test id")
+    }
 
-        assert_eq!(first_page.len(), TURN_MAX_EVENTS);
-        assert_eq!(first_cursor, TURN_MAX_EVENTS);
-        assert_eq!(first_page[0].summary, "Weather → Weather 0");
-        assert_eq!(
-            first_page.last().map(|event| event.summary.as_str()),
-            Some("Weather → Weather 19")
-        );
-        assert_eq!(second_page.len(), 7);
-        assert_eq!(second_cursor, events.len());
-        assert_eq!(second_page[0].summary, "Weather → Weather 20");
+    #[test]
+    fn event_projection_returns_newest_bounded_window_and_lifetime_cursor() {
+        for (total, expected_first) in [(19, 0), (20, 0), (21, 1), (27, 7)] {
+            let events = weather_events(0..total);
+            let (projected, cursor) = events_since(&events, total, 0);
+
+            assert_eq!(cursor, total, "total={total}");
+            assert_eq!(projected.len(), total.min(TURN_MAX_EVENTS), "total={total}");
+            assert_eq!(
+                weather_number(&projected[0]),
+                expected_first,
+                "total={total}"
+            );
+            assert_eq!(
+                weather_number(projected.last().expect("non-empty projection")),
+                total - 1,
+                "total={total}"
+            );
+            assert_eq!(
+                projected.iter().map(weather_number).collect::<Vec<_>>(),
+                (expected_first..total).collect::<Vec<_>>(),
+                "events stay chronological for total={total}"
+            );
+        }
+    }
+
+    #[test]
+    fn event_projection_bounds_in_range_cursor_from_the_newest_end() {
+        let events = weather_events(0..27);
+
+        let (more_than_cap, cursor) = events_since(&events, 27, 3);
+        assert_eq!(cursor, 27);
+        assert_eq!(weather_number(&more_than_cap[0]), 7);
+        assert_eq!(weather_number(more_than_cap.last().unwrap()), 26);
+
+        let (within_cap, cursor) = events_since(&events, 27, 10);
+        assert_eq!(cursor, 27);
+        assert_eq!(within_cap.len(), 17);
+        assert_eq!(weather_number(&within_cap[0]), 10);
+        assert_eq!(weather_number(within_cap.last().unwrap()), 26);
+    }
+
+    #[test]
+    fn stale_cursor_after_ring_eviction_returns_newest_retained_events() {
+        // A capacity-100 ring retaining lifetime positions 5..104.
+        let events = weather_events(5..105);
+        let (projected, cursor) = events_since(&events, 105, 0);
+
+        assert_eq!(cursor, 105);
+        assert_eq!(projected.len(), TURN_MAX_EVENTS);
+        assert_eq!(weather_number(&projected[0]), 85);
+        assert_eq!(weather_number(projected.last().unwrap()), 104);
+    }
+
+    #[test]
+    fn current_cursor_is_empty_and_future_cursor_resynchronises_to_newest() {
+        let events = weather_events(0..27);
+
+        let (current, current_cursor) = events_since(&events, 27, 27);
+        assert!(current.is_empty());
+        assert_eq!(current_cursor, 27);
+
+        let (future, future_cursor) = events_since(&events, 27, 99);
+        assert_eq!(future_cursor, 27);
+        assert_eq!(future.len(), TURN_MAX_EVENTS);
+        assert_eq!(weather_number(&future[0]), 7);
+        assert_eq!(weather_number(future.last().unwrap()), 26);
     }
 
     #[test]
@@ -484,25 +579,5 @@ mod tests {
         assert_eq!(projected.len(), 1);
         assert_eq!(projected[0].summary, "Weather → Clear");
         assert_eq!(cursor, old_context_cursor + 1);
-    }
-
-    #[test]
-    fn future_cursor_restarts_at_oldest_retained_event() {
-        let mut events = VecDeque::new();
-        events.push_back(GameEvent::WeatherChanged {
-            new_weather: "Mist".to_string(),
-            timestamp: Utc::now(),
-        });
-        events.push_back(GameEvent::WeatherChanged {
-            new_weather: "Rain".to_string(),
-            timestamp: Utc::now(),
-        });
-
-        let (projected, cursor) = events_since(&events, 5, 99);
-
-        assert_eq!(cursor, 5);
-        assert_eq!(projected.len(), 2);
-        assert_eq!(projected[0].summary, "Weather → Mist");
-        assert_eq!(projected[1].summary, "Weather → Rain");
     }
 }

@@ -4,9 +4,9 @@ use super::*;
 
 /// How a Tier-1 model response crossed the production parsing boundary.
 ///
-/// Promotion soaks distinguish contract-valid JSON from fallback recovery.
-/// The fallback paths remain player-safety mechanisms, but a model that relies
-/// on them must not be reported as reliably satisfying the JSON contract.
+/// Promotion soaks distinguish contract-valid JSON from diagnostic recovery.
+/// The canonical apply validator maps both recovery dispositions to a safe
+/// fallback, and a model that relies on them does not satisfy the contract.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum NpcResponseParseDisposition {
     /// The complete response deserialized as the authored JSON object.
@@ -109,12 +109,13 @@ pub struct NpcMetadata {
 /// Three-tier fallback when full JSON parse fails:
 ///
 /// 1. **Full JSON parse** — preferred path, captures dialogue + metadata.
-/// 2. **Heuristic `dialogue` extraction** — when the stream is truncated
+/// 2. **Heuristic `dialogue` extraction** — diagnostic recovery when the stream is truncated
 ///    mid-emit (max_tokens cutoff, network blip), the JSON won't close
 ///    but the `"dialogue": "..."` prefix is intact. Regex-extract the
 ///    inner string instead of letting the raw `{"dialogue": "..."}`
-///    wrapper render as user-visible text.
-/// 3. **Raw text** — for non-JSON providers or empty responses.
+///    wrapper pollute telemetry. Canonical production apply rejects this disposition.
+/// 3. **Raw text** — diagnostic recovery for non-JSON providers or empty responses;
+///    canonical production apply rejects this disposition.
 pub fn parse_npc_stream_response(full_text: &str) -> NpcStreamResponse {
     parse_npc_stream_response_with_disposition(full_text).0
 }

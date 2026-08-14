@@ -1105,6 +1105,7 @@ mod tests {
             id: parish_types::LocationId(1),
             name: name.to_string(),
             description_template: description.to_string(),
+            landmarks: vec![],
             indoor: false,
             public: true,
             connections: vec![],

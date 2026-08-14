@@ -10,6 +10,7 @@ use parish_config::{InferenceConfig, Provider};
 use parish_types::ParishError;
 
 use crate::anthropic_client::AnthropicClient;
+use crate::google_client::{GenerationResult, GoogleClient, ProviderCallError, ProviderMetadata};
 use crate::mock_client::MockClient;
 use crate::openai_client::{GenerateParams, OpenAiClient, ResponseFormat};
 use crate::simulator::SimulatorClient;
@@ -31,10 +32,11 @@ pub const TOKEN_CHANNEL_CAPACITY: usize = 1024;
 ///
 /// `pub` so `parish_inference::worker` (which stays in the scheduling crate)
 /// can construct it; the type itself is transport-side state.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 pub struct StreamStats {
     pub ttft: Option<Duration>,
     pub tokens: u64,
+    pub partial_text: String,
 }
 
 /// Builds the right [`AnyClient`] variant for a given [`Provider`].
@@ -58,6 +60,11 @@ pub fn build_client(
     use parish_config::ProviderKind;
     match provider.kind() {
         ProviderKind::Anthropic => AnyClient::Anthropic(AnthropicClient::new_with_config(
+            base_url,
+            api_key,
+            inference_config,
+        )),
+        ProviderKind::Google => AnyClient::Google(GoogleClient::new_with_config(
             base_url,
             api_key,
             inference_config,
@@ -159,6 +166,8 @@ pub enum AnyClient {
     OpenAi(OpenAiClient),
     /// Anthropic's native Messages API client (see [`AnthropicClient`]).
     Anthropic(AnthropicClient),
+    /// Google's native Gemini Interactions API client.
+    Google(GoogleClient),
     /// The built-in offline simulator (generates funny nonsense locally).
     Simulator(Arc<SimulatorClient>),
     /// A scriptable mock returning caller-supplied completions verbatim.
@@ -175,6 +184,11 @@ impl AnyClient {
     /// Wraps a real `AnthropicClient`.
     pub fn anthropic(client: AnthropicClient) -> Self {
         Self::Anthropic(client)
+    }
+
+    /// Wraps a native Google Interactions client.
+    pub fn google(client: GoogleClient) -> Self {
+        Self::Google(client)
     }
 
     /// Creates a new simulator client.
@@ -203,6 +217,7 @@ impl AnyClient {
     ) -> Result<String, ParishError> {
         match self {
             Self::OpenAi(c) => c.generate(model, prompt, system, params).await,
+            Self::Google(c) => c.generate(model, prompt, system, params).await,
             Self::Anthropic(c) => {
                 c.generate(model, prompt, system, params.max_tokens, params.temperature)
                     .await
@@ -230,6 +245,10 @@ impl AnyClient {
     ) -> Result<String, ParishError> {
         match self {
             Self::OpenAi(c) => {
+                c.generate_stream(model, prompt, system, token_tx, params)
+                    .await
+            }
+            Self::Google(c) => {
                 c.generate_stream(model, prompt, system, token_tx, params)
                     .await
             }
@@ -288,6 +307,18 @@ impl AnyClient {
                 c.generate_stream_json(model, prompt, system, token_tx, params)
                     .await
             }
+            Self::Google(c) => c
+                .generate_stream_detailed_with_format(
+                    model,
+                    prompt,
+                    system,
+                    token_tx,
+                    Some(ResponseFormat::JsonObject),
+                    params,
+                )
+                .await
+                .map(|result| result.text)
+                .map_err(Into::into),
             Self::Anthropic(c) => {
                 c.generate_stream_json(
                     model,
@@ -335,6 +366,21 @@ impl AnyClient {
     ) -> Result<T, ParishError> {
         match self {
             Self::OpenAi(c) => c.generate_json::<T>(model, prompt, system, params).await,
+            Self::Google(c) => {
+                let raw = c
+                    .generate_detailed_with_format(
+                        model,
+                        prompt,
+                        system,
+                        Some(ResponseFormat::JsonObject),
+                        params,
+                    )
+                    .await
+                    .map_err(ParishError::from)?;
+                serde_json::from_str(crate::strip_json_fence(&raw.text)).map_err(|error| {
+                    ParishError::Inference(format!("invalid Google JSON: {error}"))
+                })
+            }
             Self::Anthropic(c) => {
                 c.generate_json::<T>(model, prompt, system, params.max_tokens, params.temperature)
                     .await
@@ -372,20 +418,58 @@ impl AnyClient {
                 c.generate_text_with_format(model, prompt, system, response_format, params)
                     .await
             }
+            Self::Google(c) => c
+                .generate_detailed_with_format(model, prompt, system, response_format, params)
+                .await
+                .map(|result| result.text)
+                .map_err(Into::into),
             Self::Anthropic(c) => {
                 c.generate(model, prompt, system, params.max_tokens, params.temperature)
                     .await
             }
             Self::Simulator(c) => {
-                c.generate(model, prompt, system, params.max_tokens, params.temperature)
+                if response_format.is_some() {
+                    c.generate_json::<serde_json::Value>(
+                        model,
+                        prompt,
+                        system,
+                        params.max_tokens,
+                        params.temperature,
+                    )
                     .await
+                    .and_then(|value| {
+                        serde_json::to_string(&value).map_err(|error| {
+                            ParishError::Inference(format!("simulator JSON encode failed: {error}"))
+                        })
+                    })
+                } else {
+                    c.generate(model, prompt, system, params.max_tokens, params.temperature)
+                        .await
+                }
             }
             Self::Mock(c) => {
-                // Mock ignores `response_format`; callers parse the returned
-                // text (or the dialogue envelope) themselves.
-                let _ = response_format;
-                c.generate(model, prompt, system, params.max_tokens, params.temperature)
+                if response_format.is_some() {
+                    // Preserve MockClient's typed-JSON semantics. In
+                    // particular, input-parser calls synthesize deterministic
+                    // intent JSON without consuming the next scripted NPC
+                    // completion.
+                    c.generate_json::<serde_json::Value>(
+                        model,
+                        prompt,
+                        system,
+                        params.max_tokens,
+                        params.temperature,
+                    )
                     .await
+                    .and_then(|value| {
+                        serde_json::to_string(&value).map_err(|error| {
+                            ParishError::Inference(format!("mock JSON encode failed: {error}"))
+                        })
+                    })
+                } else {
+                    c.generate(model, prompt, system, params.max_tokens, params.temperature)
+                        .await
+                }
             }
         }
     }
@@ -423,6 +507,18 @@ impl AnyClient {
                 )
                 .await
             }
+            Self::Google(c) => c
+                .generate_stream_detailed_with_format(
+                    model,
+                    prompt,
+                    system,
+                    token_tx,
+                    response_format,
+                    params,
+                )
+                .await
+                .map(|result| result.text)
+                .map_err(Into::into),
             Self::Anthropic(c) => {
                 c.generate_stream(
                     model,
@@ -516,7 +612,7 @@ impl AnyClient {
     pub fn as_open_ai(&self) -> Option<&OpenAiClient> {
         match self {
             Self::OpenAi(c) => Some(c),
-            Self::Anthropic(_) | Self::Simulator(_) | Self::Mock(_) => None,
+            Self::Anthropic(_) | Self::Google(_) | Self::Simulator(_) | Self::Mock(_) => None,
         }
     }
 
@@ -524,13 +620,18 @@ impl AnyClient {
     pub fn as_anthropic(&self) -> Option<&AnthropicClient> {
         match self {
             Self::Anthropic(c) => Some(c),
-            Self::OpenAi(_) | Self::Simulator(_) | Self::Mock(_) => None,
+            Self::OpenAi(_) | Self::Google(_) | Self::Simulator(_) | Self::Mock(_) => None,
         }
     }
 
     /// Returns `true` if this is the offline simulator.
     pub fn is_simulator(&self) -> bool {
         matches!(self, Self::Simulator(_))
+    }
+
+    /// Whether this client uses Google's native Interactions transport.
+    pub fn is_google(&self) -> bool {
+        matches!(self, Self::Google(_))
     }
 
     /// Returns `true` if this is the scriptable test mock.
@@ -546,7 +647,92 @@ impl AnyClient {
         match self {
             Self::OpenAi(c) => c.has_rate_limiter(),
             Self::Anthropic(c) => c.has_rate_limiter(),
+            Self::Google(c) => c.has_rate_limiter(),
             Self::Simulator(_) | Self::Mock(_) => false,
+        }
+    }
+
+    /// Provider-neutral detailed non-streaming call used by inference audit.
+    pub async fn generate_detailed_with_format(
+        &self,
+        model: &str,
+        prompt: &str,
+        system: Option<&str>,
+        response_format: Option<ResponseFormat>,
+        params: GenerateParams,
+    ) -> Result<GenerationResult, ProviderCallError> {
+        if let Self::Google(client) = self {
+            return client
+                .generate_detailed_with_format(model, prompt, system, response_format, params)
+                .await;
+        }
+        let metadata = self.fallback_metadata(model);
+        self.generate_with_format(model, prompt, system, response_format, params)
+            .await
+            .map(|text| GenerationResult {
+                text,
+                metadata: metadata.clone(),
+            })
+            .map_err(|error| ProviderCallError {
+                message: error.to_string(),
+                partial_text: String::new(),
+                metadata: Box::new(metadata),
+            })
+    }
+
+    /// Provider-neutral detailed streaming call used by inference audit.
+    pub async fn generate_stream_detailed_with_format(
+        &self,
+        model: &str,
+        prompt: &str,
+        system: Option<&str>,
+        token_tx: mpsc::Sender<String>,
+        response_format: Option<ResponseFormat>,
+        params: GenerateParams,
+    ) -> Result<GenerationResult, ProviderCallError> {
+        if let Self::Google(client) = self {
+            return client
+                .generate_stream_detailed_with_format(
+                    model,
+                    prompt,
+                    system,
+                    token_tx,
+                    response_format,
+                    params,
+                )
+                .await;
+        }
+        let metadata = self.fallback_metadata(model);
+        self.generate_stream_with_format(model, prompt, system, token_tx, response_format, params)
+            .await
+            .map(|text| GenerationResult {
+                text,
+                metadata: metadata.clone(),
+            })
+            .map_err(|error| ProviderCallError {
+                message: error.to_string(),
+                partial_text: String::new(),
+                metadata: Box::new(metadata),
+            })
+    }
+
+    /// Provider identity available before a request reaches a terminal event.
+    /// Used to retain useful cancellation/timeout telemetry when a future is
+    /// dropped before the wire response can return final usage.
+    pub fn fallback_metadata(&self, model: &str) -> ProviderMetadata {
+        let (provider, api_mode) = match self {
+            Self::OpenAi(_) => ("openai-compatible", "openai-chat-completions"),
+            Self::Anthropic(_) => ("anthropic", "anthropic-messages"),
+            Self::Google(_) => ("google", "google-interactions-v1"),
+            Self::Simulator(_) => ("simulator", "simulator"),
+            Self::Mock(_) => ("mock", "mock"),
+        };
+        ProviderMetadata {
+            provider: provider.to_string(),
+            api_mode: api_mode.to_string(),
+            model: model.to_string(),
+            terminal_status: Some("completed".to_string()),
+            ..ProviderMetadata::default()
         }
     }
 }
@@ -554,6 +740,36 @@ impl AnyClient {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[tokio::test]
+    async fn mock_structured_intent_does_not_consume_scripted_dialogue() {
+        let (client, mock) = AnyClient::mock();
+        mock.push_any("Aye, I know Fr. Tierney well enough.");
+
+        let intent = client
+            .generate_with_format(
+                "mock",
+                "Do you know Father Declan Tierney?",
+                Some("You are an input parser."),
+                Some(ResponseFormat::JsonObject),
+                GenerateParams::default(),
+            )
+            .await
+            .expect("structured intent response");
+
+        assert!(intent.contains("\"intent\""), "got: {intent}");
+        assert_eq!(mock.pending(), 1, "intent must not consume NPC dialogue");
+        let dialogue = client
+            .generate(
+                "mock",
+                "answer the player",
+                Some("You are Seamus Gallagher"),
+                GenerateParams::default(),
+            )
+            .await
+            .expect("scripted dialogue");
+        assert!(dialogue.contains("know Fr. Tierney"));
+    }
 
     #[test]
     fn test_inference_clients_dialogue_uses_override() {

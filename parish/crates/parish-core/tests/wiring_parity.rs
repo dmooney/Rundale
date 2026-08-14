@@ -274,6 +274,46 @@ pub const BAR: &[&str] = &[
     assert_eq!(vals, vec!["one", "two"]);
 }
 
+#[test]
+fn advertised_system_commands_are_recognized_before_gameplay_dispatch() {
+    for input in ["/load main", "/irish", "/new-game"] {
+        assert!(
+            matches!(
+                parish_core::input::classify_input(input),
+                parish_core::input::InputResult::SystemCommand(_)
+            ),
+            "advertised command {input} must never fall through to NPC inference"
+        );
+    }
+}
+
+#[test]
+fn gui_load_command_adapters_route_named_and_bare_forms() {
+    let ws = workspace_root();
+    for (runtime, relative_path, delegate) in [
+        (
+            "server",
+            "crates/parish-server/src/command_host.rs",
+            "do_load_named_branch_inner",
+        ),
+        (
+            "Tauri",
+            "crates/parish-tauri/src/command_host.rs",
+            "do_load_named_branch",
+        ),
+    ] {
+        let source = fs::read_to_string(ws.join(relative_path)).unwrap();
+        assert!(
+            source.contains("if name.trim().is_empty()"),
+            "{runtime} must preserve bare /load as the save picker"
+        );
+        assert!(
+            source.contains(delegate),
+            "{runtime} must delegate named /load to its transactional loader"
+        );
+    }
+}
+
 // ── SystemCommandHost wiring parity (issue #1174) ───────────────────────────────
 //
 // The CLI/headless path has no HTTP/IPC registry to diff, but it shares the

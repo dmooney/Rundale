@@ -32,7 +32,6 @@ import {
 	playerSubmittedCount,
 	noteStreamingStarted,
 	resetExternalDrive,
-	replaceStreamEntryContent,
 } from '../stores/game';
 import { demoConfig } from '../stores/demo';
 import { startDemoLoop } from './demo-player';
@@ -734,6 +733,9 @@ export async function createPageController(
 
 		listeners.push(
 			await onStreamToken((payload) => {
+				// `stream-token` is the renderable canonical protocol. Provider
+				// candidates remain backend-internal until the apply validator has
+				// accepted or replaced the complete response (#1834).
 				// Re-assert the busy flag whenever tokens actually flow. Normally
 				// loading{active:true} already set it, but after a mid-turn
 				// reconnect (where we cleared it to recover from a possibly-dead
@@ -756,23 +758,20 @@ export async function createPageController(
 
 		listeners.push(
 			await onStreamTurnEnd((payload) => {
-				const turn = sm.findPendingTurn(payload.turn_id);
-				if (!turn) return;
-				turn.complete = true;
-				sm.startTurnPumpIfNeeded(turn);
+				sm.completeTurn(payload);
 			}),
 		);
 
 		listeners.push(
 			await onDialogueCorrected((payload) => {
-				// The backend has applied post-generation guards and found that the raw
-				// model output differed from the canonical post-guard dialogue (#1552).
-				// We must (a) clear the stream pump's remaining buffer so it stops
-				// appending raw tokens and (b) replace the textLog entry content with
-				// the corrected text so the player sees what is stored in the
-				// conversation log and returned by /api/transcript.
-				sm.clearTurnBuffer(payload.turn_id);
-				replaceStreamEntryContent(payload.turn_id, payload.corrected_text);
+				// Compatibility path for a restored older in-flight stream. New turns
+				// already carry canonical terminal text. Keep a parked correction
+				// parked; otherwise atomically replace the paced prefix by stable ID.
+				sm.correctTurn(
+					payload.turn_id,
+					payload.corrected_text,
+					payload.message_id,
+				);
 			}),
 		);
 

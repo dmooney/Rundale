@@ -15,6 +15,7 @@
 //! the player entirely.
 
 use chrono::{DateTime, Utc};
+use parish_types::ReactionDirection;
 use serde::{Deserialize, Serialize};
 use std::collections::VecDeque;
 
@@ -29,7 +30,8 @@ pub use arrival_reactions::{
 };
 pub use emoji_reactions::{
     LlmReactionDecision, build_player_message_reaction_prompt, generate_rule_reaction,
-    infer_player_message_reaction,
+    infer_player_message_reaction, infer_player_message_reaction_with_profile,
+    infer_player_message_reaction_with_profile_and_audit,
 };
 
 // ── Emoji reaction system ────────────────────────────────────────────────────
@@ -63,9 +65,15 @@ pub fn reaction_description(emoji: &str) -> Option<&'static str> {
         .map(|(_, desc)| *desc)
 }
 
-/// A single reaction entry recording a player's nonverbal response.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+/// A single directional nonverbal reaction entry.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct ReactionEntry {
+    /// Who performed the reaction.
+    ///
+    /// Legacy entries predate automatic NPC reactions and therefore default
+    /// conservatively to the original player→NPC meaning.
+    #[serde(default)]
+    pub direction: ReactionDirection,
     /// The emoji used.
     pub emoji: String,
     /// Natural-language description (e.g. "looked angry").
@@ -83,7 +91,7 @@ pub struct ReactionEntry {
 ///
 /// Uses a [`VecDeque`] internally so eviction of the oldest entry is O(1)
 /// rather than the O(n) shift that a plain `Vec` would require. Fixes #284.
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 pub struct ReactionLog {
     entries: VecDeque<ReactionEntry>,
 }
@@ -96,9 +104,16 @@ pub struct ReactionLog {
 const MAX_ENTRIES: usize = 20;
 
 impl ReactionLog {
-    fn push_entry(&mut self, emoji: &str, context: &str, timestamp: DateTime<Utc>) {
+    fn push_entry(
+        &mut self,
+        direction: ReactionDirection,
+        emoji: &str,
+        context: &str,
+        timestamp: DateTime<Utc>,
+    ) {
         if let Some(desc) = reaction_description(emoji) {
             self.entries.push_back(ReactionEntry {
+                direction,
                 emoji: emoji.to_string(),
                 description: desc.to_string(),
                 context: context.chars().take(80).collect(),
@@ -115,7 +130,7 @@ impl ReactionLog {
     /// Evicts the oldest entry if at capacity. Only adds when the emoji is in
     /// the canonical palette. `context` is what the NPC said.
     pub fn add(&mut self, emoji: &str, context: &str, timestamp: DateTime<Utc>) {
-        self.push_entry(emoji, context, timestamp);
+        self.push_entry(ReactionDirection::PlayerToNpc, emoji, context, timestamp);
     }
 
     /// Adds an NPC→player-message reaction (NPC reacts to a player's spoken line).
@@ -129,15 +144,23 @@ impl ReactionLog {
         player_message: &str,
         timestamp: DateTime<Utc>,
     ) {
-        self.push_entry(emoji, player_message, timestamp);
+        self.push_entry(
+            ReactionDirection::NpcToPlayer,
+            emoji,
+            player_message,
+            timestamp,
+        );
     }
 
-    fn format_lines(&self, n: usize, line_fn: impl Fn(&ReactionEntry) -> String) -> String {
-        if self.entries.is_empty() {
-            return String::new();
-        }
-        let lines: Vec<String> = self.entries.iter().rev().take(n).map(line_fn).collect();
-        lines.join("\n")
+    /// Adds a reaction whose direction has already been validated.
+    pub fn add_directional(
+        &mut self,
+        direction: ReactionDirection,
+        emoji: &str,
+        context: &str,
+        timestamp: DateTime<Utc>,
+    ) {
+        self.push_entry(direction, emoji, context, timestamp);
     }
 
     /// Formats the `n` most recent player→NPC reactions as prompt context.
@@ -145,12 +168,20 @@ impl ReactionLog {
     /// Each line reads: "- The player [description] when you said [context]".
     /// Returns an empty string if there are no reactions.
     pub fn context_string(&self, n: usize) -> String {
-        let lines = self.format_lines(n, |e| {
-            format!(
-                "- The player {} when you said \"{}\"",
-                e.description, e.context
-            )
-        });
+        let lines = self
+            .entries
+            .iter()
+            .rev()
+            .filter(|entry| entry.direction == ReactionDirection::PlayerToNpc)
+            .take(n)
+            .map(|entry| {
+                format!(
+                    "- The player {} when you said \"{}\"",
+                    entry.description, entry.context
+                )
+            })
+            .collect::<Vec<_>>()
+            .join("\n");
         if lines.is_empty() {
             return String::new();
         }
@@ -162,16 +193,56 @@ impl ReactionLog {
     /// Each line reads: "- You [description] in response to the player saying [message]".
     /// Returns an empty string if there are no entries.
     pub fn npc_context_string(&self, n: usize) -> String {
-        let lines = self.format_lines(n, |e| {
-            format!(
-                "- You {} in response to the player saying \"{}\"",
-                e.description, e.context
-            )
-        });
+        let lines = self
+            .entries
+            .iter()
+            .rev()
+            .filter(|entry| entry.direction == ReactionDirection::NpcToPlayer)
+            .take(n)
+            .map(|entry| {
+                format!(
+                    "- You {} in response to the player saying \"{}\"",
+                    entry.description, entry.context
+                )
+            })
+            .collect::<Vec<_>>()
+            .join("\n");
         if lines.is_empty() {
             return String::new();
         }
         format!("Recent nonverbal reactions you showed to the player:\n{lines}")
+    }
+
+    /// Formats both directional histories for the production NPC prompt.
+    pub fn prompt_context_string(&self, n: usize) -> String {
+        let mut player_lines = Vec::new();
+        let mut npc_lines = Vec::new();
+        for entry in self.entries.iter().rev().take(n) {
+            match entry.direction {
+                ReactionDirection::PlayerToNpc => player_lines.push(format!(
+                    "- The player {} when you said \"{}\"",
+                    entry.description, entry.context
+                )),
+                ReactionDirection::NpcToPlayer => npc_lines.push(format!(
+                    "- You {} in response to the player saying \"{}\"",
+                    entry.description, entry.context
+                )),
+            }
+        }
+        let mut blocks = Vec::new();
+        if !player_lines.is_empty() {
+            blocks.push(format!(
+                "Recent nonverbal reactions from the player:\n{}",
+                player_lines.join("\n")
+            ));
+        }
+        if !npc_lines.is_empty() {
+            blocks.push(format!(
+                "Recent nonverbal reactions you showed to the player:\n{}",
+                npc_lines.join("\n")
+            ));
+        }
+        blocks.join("\n\n")
     }
 
     /// Returns the number of stored entries.
@@ -339,6 +410,19 @@ mod tests {
         let deser: ReactionLog = serde_json::from_str(&json).unwrap();
         assert_eq!(deser.len(), 1);
         assert_eq!(deser.entries[0].emoji, "😊");
+        assert_eq!(deser.entries[0].direction, ReactionDirection::PlayerToNpc);
+    }
+
+    #[test]
+    fn legacy_entry_without_direction_defaults_to_player_reaction() {
+        let json = r#"{"entries":[{"emoji":"😊","description":"smiled warmly","context":"Welcome","timestamp":"1820-03-20T10:00:00Z"}]}"#;
+        let log: ReactionLog = serde_json::from_str(json).unwrap();
+        assert_eq!(
+            log.entries().next().unwrap().direction,
+            ReactionDirection::PlayerToNpc
+        );
+        assert!(log.context_string(5).contains("The player smiled warmly"));
+        assert!(log.npc_context_string(5).is_empty());
     }
 
     #[test]
@@ -386,5 +470,40 @@ mod tests {
     fn npc_reaction_log_context_string_empty() {
         let log = ReactionLog::default();
         assert_eq!(log.npc_context_string(5), "");
+    }
+
+    #[test]
+    fn mixed_prompt_context_preserves_both_reaction_actors() {
+        let mut log = ReactionLog::default();
+        log.add(
+            "😊",
+            "Welcome to the pub",
+            Utc.with_ymd_and_hms(1820, 3, 20, 10, 0, 0).unwrap(),
+        );
+        log.add_player_message_reaction(
+            "👀",
+            "I have no money",
+            Utc.with_ymd_and_hms(1820, 3, 20, 10, 1, 0).unwrap(),
+        );
+
+        let context = log.prompt_context_string(5);
+        assert!(context.contains("The player smiled warmly when you said \"Welcome to the pub\""));
+        assert!(context.contains(
+            "You raised an eyebrow in response to the player saying \"I have no money\""
+        ));
+        assert!(!context.contains("The player raised an eyebrow"));
+        assert!(!context.contains("You smiled warmly in response"));
+    }
+
+    #[test]
+    fn mixed_prompt_context_limit_applies_across_both_directions() {
+        let mut log = ReactionLog::default();
+        let now = Utc.with_ymd_and_hms(1820, 3, 20, 10, 0, 0).unwrap();
+        log.add("😊", "old player reaction", now);
+        log.add_player_message_reaction("👀", "new npc reaction", now);
+
+        let context = log.prompt_context_string(1);
+        assert!(context.contains("new npc reaction"));
+        assert!(!context.contains("old player reaction"));
     }
 }
