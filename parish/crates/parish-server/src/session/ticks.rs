@@ -13,6 +13,7 @@
 //! 6. Inactivity tick (1 s)
 //! 7. Autosave tick
 //! 8. Tier-2 simulation tick (#1198)
+//! 9. Tier-3 simulation tick
 
 use std::sync::Arc;
 use std::time::Duration;
@@ -58,7 +59,7 @@ pub(super) fn spawn_session_ticks(
     state: Arc<AppState>,
     shutdown_token: tokio_util::sync::CancellationToken,
 ) -> Vec<JoinHandle<()>> {
-    let mut handles = Vec::with_capacity(8);
+    let mut handles = Vec::with_capacity(9);
 
     // ── Character-log subscriber ───────────────────────────────────────────
     //
@@ -380,12 +381,15 @@ pub(super) fn spawn_session_ticks(
 
                 {
                     let _persistence_guard = s.persistence_gate.lock().await;
-                    // Snapshot the banshee flag outside the world/npc locks to avoid
-                    // nesting config → world, which inverts the project-wide
-                    // lock order.
-                    let banshee_enabled = {
+                    // Snapshot simulation flags outside the world/npc locks to
+                    // avoid nesting config → world, which inverts the
+                    // project-wide lock order.
+                    let (banshee_enabled, tier4_enabled) = {
                         let cfg = s.config.lock().await;
-                        !cfg.flags.is_disabled("banshee")
+                        (
+                            !cfg.flags.is_disabled("banshee"),
+                            parish_core::game_loop::tier4_simulation_enabled(&cfg.flags),
+                        )
                     };
 
                     let mut world = s.world.lock().await;
@@ -393,10 +397,8 @@ pub(super) fn spawn_session_ticks(
 
                     // Advance the world one pump through the single shared
                     // helper (rule #12): weather + schedules + tier
-                    // reassignment + banshee + budgeted gossip. The server
-                    // intentionally leaves tier-4 to its own scheduling (it has
-                    // never dispatched tier-4 from this loop). The budgeted
-                    // gossip cursor round-robins across ticks (#466).
+                    // reassignment + banshee + budgeted gossip + Tier 4. The
+                    // budgeted gossip cursor round-robins across ticks (#466).
                     {
                         use parish_core::game_loop::{
                             AdvanceOptions, GossipMode, WeatherMode, advance_world,
@@ -414,7 +416,7 @@ pub(super) fn spawn_session_ticks(
                                     cursor: gossip_cursor,
                                     budget: GOSSIP_BUDGET_PER_TICK,
                                 },
-                                run_tier4: false,
+                                run_tier4: tier4_enabled,
                             },
                         );
                         gossip_cursor = report.gossip_cursor;
@@ -647,11 +649,17 @@ pub(super) fn spawn_session_ticks(
                 }
 
                 // ── Snapshot the sim client + model outside game-state locks ─
-                let (client_opt, model) = {
+                let (client_opt, model, profile) = {
                     use parish_core::config::InferenceCategory;
                     let cfg = s.config.lock().await;
                     let base_client = s.inference.client.lock().await;
-                    cfg.resolve_category_client(InferenceCategory::Simulation, base_client.as_ref())
+                    let resolved = cfg.resolve_category_client(
+                        InferenceCategory::Simulation,
+                        base_client.as_ref(),
+                    );
+                    let profile = cfg
+                        .inference_profile(parish_core::config::InferenceSubrole::Tier2Simulation);
+                    (resolved.0, resolved.1, profile)
                 };
 
                 let Some(sim_client) = client_opt else {
@@ -666,21 +674,31 @@ pub(super) fn spawn_session_ticks(
                     s.npc_manager.lock().await.set_tier2_in_flight(false);
                     continue;
                 };
+                let audit_sink = s
+                    .inference
+                    .inference_queue
+                    .lock()
+                    .await
+                    .as_ref()
+                    .and_then(parish_core::inference::InferenceQueue::audit_sink);
 
                 // ── Run one LLM call per Tier-2 group (outside locks) ────────
                 let lang = s.language_settings.clone();
                 let mut events = Vec::new();
                 for group in &groups {
-                    if let Some(evt) = parish_core::npc::ticks::run_tier2_for_group(
-                        &sim_client,
-                        &model,
-                        group,
-                        &time_desc,
-                        &weather_str,
-                        &lang,
-                        None,
-                    )
-                    .await
+                    if let Some(evt) =
+                        parish_core::npc::ticks::run_tier2_for_group_with_profile_and_audit(
+                            &sim_client,
+                            &model,
+                            group,
+                            &time_desc,
+                            &weather_str,
+                            &lang,
+                            None,
+                            profile,
+                            audit_sink.clone(),
+                        )
+                        .await
                     {
                         events.push(evt);
                     }
@@ -726,6 +744,147 @@ pub(super) fn spawn_session_ticks(
                         ),
                     });
                 }
+            }
+        }));
+    }
+
+    // ── Tier-3 simulation tick ────────────────────────────────────────────────
+    //
+    // Keep the web runtime in parity with Tauri and headless. Tier 3 is a
+    // direct batch call because its distant-NPC snapshot and canonical apply
+    // seam are distinct from queued dialogue. The provider call runs without
+    // game-state locks; immutable snapshot anchors and the context epoch are
+    // checked again before any update is published.
+    {
+        let s = Arc::clone(&state);
+        let token = shutdown_token.clone();
+        handles.push(tokio::spawn(async move {
+            loop {
+                tokio::select! {
+                    _ = token.cancelled() => break,
+                    _ = tokio::time::sleep(Duration::from_secs(5)) => {}
+                }
+
+                let (snapshots, time_desc, weather, season, context_epoch) = {
+                    let _persistence_guard = s.persistence_gate.lock().await;
+                    let world = s.world.lock().await;
+                    let mut npc_mgr = s.npc_manager.lock().await;
+                    let now = world.clock.now();
+                    if !npc_mgr.needs_tier3_tick(now) || npc_mgr.tier3_in_flight() {
+                        continue;
+                    }
+
+                    let npc_names: std::collections::HashMap<_, _> = npc_mgr
+                        .all_npcs()
+                        .map(|npc| (npc.id, npc.name.clone()))
+                        .collect();
+                    let tier3_ids = npc_mgr.npcs_in_tier(parish_core::npc::types::CogTier::Tier3);
+                    let snapshots: Vec<parish_core::npc::ticks::Tier3Snapshot> = tier3_ids
+                        .iter()
+                        .filter_map(|id| npc_mgr.get(*id))
+                        .map(|npc| {
+                            parish_core::npc::ticks::tier3_snapshot_from_npc(
+                                npc,
+                                &world.graph,
+                                &npc_names,
+                            )
+                        })
+                        .collect();
+                    if snapshots.is_empty() {
+                        continue;
+                    }
+
+                    npc_mgr.set_tier3_in_flight(true);
+                    (
+                        snapshots,
+                        world.clock.time_of_day().to_string(),
+                        world.weather.to_string(),
+                        format!("{:?}", world.clock.season()),
+                        world.event_bus.context_epoch(),
+                    )
+                };
+
+                let (client_opt, model, profile, grounding_enabled) = {
+                    use parish_core::config::InferenceCategory;
+                    let cfg = s.config.lock().await;
+                    let base_client = s.inference.client.lock().await;
+                    let resolved = cfg.resolve_category_client(
+                        InferenceCategory::Simulation,
+                        base_client.as_ref(),
+                    );
+                    (
+                        resolved.0,
+                        resolved.1,
+                        cfg.inference_profile(
+                            parish_core::config::InferenceSubrole::Tier3Simulation,
+                        ),
+                        !cfg.flags.is_disabled("npc-dialogue-grounding"),
+                    )
+                };
+
+                let Some(client) = client_opt else {
+                    let _persistence_guard = s.persistence_gate.lock().await;
+                    let current_epoch = s.world.lock().await.event_bus.context_epoch();
+                    if current_epoch == context_epoch {
+                        s.npc_manager.lock().await.set_tier3_in_flight(false);
+                    }
+                    continue;
+                };
+                let audit_sink = s
+                    .inference
+                    .inference_queue
+                    .lock()
+                    .await
+                    .as_ref()
+                    .and_then(parish_core::inference::InferenceQueue::audit_sink);
+                let ctx = parish_core::npc::ticks::Tier3Context {
+                    snapshots: &snapshots,
+                    client: &client,
+                    model: &model,
+                    time_desc: &time_desc,
+                    weather: &weather,
+                    season: &season,
+                    hours: 24,
+                    batch_size: 0,
+                    language: &s.language_settings,
+                    cancel: None,
+                    grounding_enabled,
+                };
+                let result = parish_core::npc::ticks::tick_tier3_with_profile_and_audit(
+                    &ctx, profile, audit_sink,
+                )
+                .await;
+
+                let _persistence_guard = s.persistence_gate.lock().await;
+                let world = s.world.lock().await;
+                if world.event_bus.context_epoch() != context_epoch {
+                    continue;
+                }
+                let mut npc_mgr = s.npc_manager.lock().await;
+                let game_time = world.clock.now();
+                match result {
+                    Ok(updates) => {
+                        let _events = parish_core::npc::ticks::apply_tier3_updates(
+                            &updates,
+                            npc_mgr.npcs_mut(),
+                            &world.graph,
+                            game_time,
+                            &world.event_bus,
+                        );
+                        npc_mgr.record_tier3_tick(game_time);
+                        let mut debug_events = s.debug_events.lock().await;
+                        if debug_events.len() >= crate::state::DEBUG_EVENT_CAPACITY {
+                            debug_events.pop_front();
+                        }
+                        debug_events.push_back(parish_core::debug_snapshot::DebugEvent {
+                            timestamp: String::new(),
+                            category: "tier3".to_string(),
+                            message: format!("Tier 3 tick: {} updates", updates.len()),
+                        });
+                    }
+                    Err(error) => tracing::warn!(%error, "Tier 3 tick failed"),
+                }
+                npc_mgr.set_tier3_in_flight(false);
             }
         }));
     }
@@ -836,10 +995,11 @@ async fn run_location_log_writer(
 #[cfg(test)]
 mod tests {
     use std::sync::Arc;
+    use std::time::Duration;
 
     use super::{
         AUTOSAVE_INTERVAL_SECS, LOG_WRITER_QUEUE_CAPACITY, record_contextual_game_event,
-        run_character_log_writer,
+        run_character_log_writer, spawn_session_ticks,
     };
 
     /// C4: the per-subscriber writer channel is bounded to
@@ -990,6 +1150,128 @@ mod tests {
         );
 
         token.cancel();
+    }
+
+    /// #1865: the browser runtime must drive the canonical Tier 4 rules engine
+    /// from its real per-session world-tick lifecycle. Rundale's current start
+    /// graph has no NPC beyond five edges, so this regression installs a
+    /// synthetic seven-location chain with one genuinely Tier 4 NPC.
+    #[tokio::test]
+    async fn server_world_tick_runs_tier4_for_distance_six_npc() {
+        use chrono::TimeZone;
+        use parish_core::npc::Npc;
+        use parish_core::npc::types::CogTier;
+        use parish_core::world::graph::WorldGraph;
+        use parish_core::world::time::GameClock;
+        use parish_core::world::{LocationId, events::GameEvent};
+        use tokio_util::sync::CancellationToken;
+
+        let state = crate::routes::tests::test_app_state();
+        let untouched_session = crate::routes::tests::test_app_state();
+
+        let locations: Vec<serde_json::Value> = (1u32..=7)
+            .map(|id| {
+                let mut connections = Vec::new();
+                if id > 1 {
+                    connections.push(serde_json::json!({
+                        "target": id - 1,
+                        "path_description": "a road"
+                    }));
+                }
+                if id < 7 {
+                    connections.push(serde_json::json!({
+                        "target": id + 1,
+                        "path_description": "a road"
+                    }));
+                }
+                serde_json::json!({
+                    "id": id,
+                    "name": format!("Web Tier 4 {id}"),
+                    "description_template": "A test location.",
+                    "indoor": false,
+                    "public": true,
+                    "connections": connections
+                })
+            })
+            .collect();
+        let graph =
+            WorldGraph::load_from_str(&serde_json::json!({ "locations": locations }).to_string())
+                .expect("synthetic distance-six graph should load");
+
+        {
+            let mut world = state.world.lock().await;
+            world.graph = graph;
+            world.player_location = LocationId(1);
+            // Lughnasa deterministically produces FestivalStarted, avoiding a
+            // probabilistic assertion while still exercising Tier 4 apply +
+            // publication through the production server task.
+            world.clock =
+                GameClock::new(chrono::Utc.with_ymd_and_hms(1820, 8, 1, 8, 0, 0).unwrap());
+
+            let mut npc_manager = state.npc_manager.lock().await;
+            let mut far_npc = Npc::new_test_npc();
+            far_npc.id = parish_core::npc::NpcId(1865);
+            far_npc.name = "Distant Web Farmer".to_string();
+            far_npc.occupation = "Farmer".to_string();
+            far_npc.set_location(LocationId(7));
+            far_npc.home = Some(LocationId(7));
+            npc_manager.add_npc(far_npc);
+            npc_manager.assign_tiers(&world, &[]);
+            assert_eq!(
+                npc_manager.tier_of(parish_core::npc::NpcId(1865)),
+                Some(CogTier::Tier4),
+                "distance six must be Tier 4; the real Rundale start graph cannot prove this"
+            );
+            assert!(npc_manager.last_tier4_game_time().is_none());
+        }
+
+        let token = CancellationToken::new();
+        let handles = spawn_session_ticks(Arc::clone(&state), token.clone());
+        // Let the game-event subscriber and world-tick timer install, then
+        // wait through one real production interval. Keeping the real timer
+        // makes this a scheduling lifecycle proof, not a direct helper test.
+        tokio::task::yield_now().await;
+        tokio::task::yield_now().await;
+        tokio::time::sleep(Duration::from_millis(5_250)).await;
+        for _ in 0..8 {
+            tokio::task::yield_now().await;
+        }
+
+        let last_tick = state.npc_manager.lock().await.last_tier4_game_time();
+        assert!(
+            last_tick.is_some(),
+            "server world tick must record Tier 4 authoritative state"
+        );
+        assert!(
+            untouched_session
+                .npc_manager
+                .lock()
+                .await
+                .last_tier4_game_time()
+                .is_none(),
+            "the spawned session tick must not mutate another session"
+        );
+
+        let events = state.game_events.lock().await;
+        assert!(
+            events
+                .iter()
+                .any(|event| matches!(event, GameEvent::FestivalStarted { name, .. } if name == "Lughnasa")),
+            "Tier 4 semantic event must reach the server's authoritative event delivery: {events:?}"
+        );
+        drop(events);
+
+        let debug = crate::routes::world::build_full_debug_snapshot(&state).await;
+        assert_eq!(debug.tier_summary.tier4_count, 1);
+        assert!(
+            debug.tier_summary.last_tier4_tick.is_some(),
+            "browser debug telemetry must no longer report T4 last: (never)"
+        );
+
+        token.cancel();
+        for handle in handles {
+            handle.abort();
+        }
     }
 
     #[tokio::test]
@@ -1159,6 +1441,7 @@ mod tests {
                 player_name: None,
                 player_progress: Default::default(),
                 npcs_who_know_player_name: Default::default(),
+                active_session: None,
             }
         }
 

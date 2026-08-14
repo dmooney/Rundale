@@ -6,7 +6,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use parish_types::{LocationId, NpcId, PlayerTask};
+use parish_types::{LocationId, NpcId, PlayerTask, ReactionDirection};
 
 /// A discrete state mutation in the game world.
 ///
@@ -15,6 +15,19 @@ use parish_types::{LocationId, NpcId, PlayerTask};
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(tag = "type")]
 pub enum WorldEvent {
+    /// A directional nonverbal reaction was retained for an NPC.
+    ReactionRecorded {
+        /// NPC whose history changed.
+        npc_id: NpcId,
+        /// Who performed the reaction.
+        direction: ReactionDirection,
+        /// Canonical reaction emoji.
+        emoji: String,
+        /// Dialogue snippet that triggered the reaction.
+        context: String,
+        /// Original reaction time.
+        timestamp: chrono::DateTime<chrono::Utc>,
+    },
     /// The player moved between locations.
     PlayerMoved {
         /// Origin location.
@@ -94,6 +107,7 @@ impl WorldEvent {
     /// Returns the discriminant name for the `event_type` column.
     pub fn event_type(&self) -> &str {
         match self {
+            WorldEvent::ReactionRecorded { .. } => "ReactionRecorded",
             WorldEvent::PlayerMoved { .. } => "PlayerMoved",
             WorldEvent::NpcMoved { .. } => "NpcMoved",
             WorldEvent::NpcMoodChanged { .. } => "NpcMoodChanged",
@@ -189,6 +203,18 @@ pub fn replay_journal(
     let mut player_moved = false;
     for event in events {
         match event {
+            WorldEvent::ReactionRecorded {
+                npc_id,
+                direction,
+                emoji,
+                context,
+                timestamp,
+            } => {
+                if let Some(npc) = npc_manager.get_mut(*npc_id) {
+                    npc.reaction_log
+                        .add_directional(*direction, emoji, context, *timestamp);
+                }
+            }
             WorldEvent::PlayerMoved { from, to, minutes } => {
                 apply_player_moved(world, *from, *to, *minutes, &mut player_moved);
             }
@@ -312,6 +338,34 @@ mod tests {
         let json = serde_json::to_string(&event).unwrap();
         let restored: WorldEvent = serde_json::from_str(&json).unwrap();
         assert_eq!(event, restored);
+    }
+
+    #[test]
+    fn reaction_event_replay_restores_npc_authorship() {
+        let mut world = parish_world::WorldState::new();
+        let mut npcs = parish_npc::manager::NpcManager::new();
+        let npc = parish_npc::Npc::new_test_npc();
+        let npc_id = npc.id;
+        npcs.add_npc(npc);
+        replay_journal(
+            &mut world,
+            &mut npcs,
+            &[WorldEvent::ReactionRecorded {
+                npc_id,
+                direction: ReactionDirection::NpcToPlayer,
+                emoji: "👀".to_string(),
+                context: "I have no money".to_string(),
+                timestamp: task_time(10),
+            }],
+        );
+
+        let prompt = npcs
+            .get(npc_id)
+            .unwrap()
+            .reaction_log
+            .prompt_context_string(5);
+        assert!(prompt.contains("You raised an eyebrow"));
+        assert!(!prompt.contains("The player raised an eyebrow"));
     }
 
     #[test]

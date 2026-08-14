@@ -133,7 +133,8 @@ fn filter_events_for_npc(npc_id: NpcId, events: &[GameEvent]) -> Vec<&GameEvent>
 /// Returns whether a game event involves a specific NPC.
 fn event_involves_npc(npc_id: NpcId, event: &GameEvent) -> bool {
     match event {
-        GameEvent::DialogueOccurred { npc_id: id, .. }
+        GameEvent::ReactionRecorded { npc_id: id, .. }
+        | GameEvent::DialogueOccurred { npc_id: id, .. }
         | GameEvent::MoodChanged { npc_id: id, .. }
         | GameEvent::NpcArrived { npc_id: id, .. }
         | GameEvent::NpcDeparted { npc_id: id, .. }
@@ -163,6 +164,7 @@ fn event_involves_npc(npc_id: NpcId, event: &GameEvent) -> bool {
 /// Produces a short human-readable summary of an event for a specific NPC.
 fn summarize_event_for_npc(npc_id: NpcId, event: &GameEvent) -> String {
     match event {
+        GameEvent::ReactionRecorded { .. } => String::new(),
         GameEvent::DialogueOccurred { summary, .. } => {
             format!("Had a conversation: {summary}")
         }

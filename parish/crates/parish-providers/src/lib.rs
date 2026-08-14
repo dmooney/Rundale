@@ -16,6 +16,7 @@
 pub mod anthropic_client;
 pub mod any_client;
 pub(crate) mod client_base;
+pub mod google_client;
 pub mod mock_client;
 pub mod openai_client;
 pub mod rate_limit;
@@ -51,10 +52,32 @@ pub(crate) fn strip_json_fence(raw: &str) -> &str {
     t
 }
 
+/// Parses a detailed provider result as JSON without discarding its transport
+/// metadata. A malformed structured response becomes a [`ProviderCallError`]
+/// so the common audit path records it as a failed call rather than a
+/// misleading provider success.
+pub fn parse_generation_json<T: serde::de::DeserializeOwned>(
+    result: GenerationResult,
+    context: &str,
+) -> Result<(GenerationResult, T), ProviderCallError> {
+    match serde_json::from_str(strip_json_fence(&result.text)) {
+        Ok(parsed) => Ok((result, parsed)),
+        Err(error) => Err(ProviderCallError {
+            message: format!("{context} JSON parse failed: {error}"),
+            partial_text: result.text,
+            metadata: Box::new(result.metadata),
+        }),
+    }
+}
+
 // ── Public API re-exports ─────────────────────────────────────────────────────
 
 pub use anthropic_client::AnthropicClient;
 pub use any_client::{AnyClient, InferenceClients, TOKEN_CHANNEL_CAPACITY, build_client};
+pub use google_client::{
+    GenerationResult, GoogleClient, ProviderCallError, ProviderMetadata, ProviderUsage,
+    ServiceTier, ThinkingLevel,
+};
 pub use mock_client::{MockClient, MockMatcher};
 pub use openai_client::{GenerateParams, JsonSchemaSpec, ResponseFormat};
 pub use rate_limit::InferenceRateLimiter;

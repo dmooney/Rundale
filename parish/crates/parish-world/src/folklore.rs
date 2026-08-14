@@ -267,6 +267,7 @@ mod tests {
             id: LocationId(11),
             name: name.to_string(),
             description_template: String::new(),
+            landmarks: vec![],
             indoor,
             public: true,
             connections: vec![],

@@ -1,8 +1,9 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { render } from '@testing-library/svelte';
+import { fireEvent, render, waitFor } from '@testing-library/svelte';
 import { flushSync } from 'svelte';
 import { mapData } from '../stores/game';
 import FullMapOverlay from './FullMapOverlay.svelte';
+import { submitInput } from '$lib/ipc';
 
 // MapLibre GL JS requires WebGL, which jsdom doesn't provide. Mock the
 // module so FullMapOverlay mounts without trying to create a real map.
@@ -16,16 +17,30 @@ vi.mock('$lib/ipc', () => ({
 // Spy on MapController.fitBounds via the module mock so we can count calls
 // without depending on the real MapLibre instance.
 const fitBoundsSpy = vi.fn();
+const moveUnsubscribeSpy = vi.fn();
+let locationClickHandler:
+	| ((info: { id: string; name: string; adjacent: boolean }) => void)
+	| undefined;
 
 vi.mock('$lib/map/controller', () => {
 	class FakeMapController {
-		onLocationClick() {}
+		onLocationClick(
+			handler: (info: { id: string; name: string; adjacent: boolean }) => void,
+		) {
+			locationClickHandler = handler;
+		}
 		onLocationHover() {}
 		updateMap() {}
 		fitBounds(...args: unknown[]) {
 			fitBoundsSpy(...args);
 		}
 		setTileSource() {}
+		projectToScreen(lat: number, lon: number) {
+			return { x: lon + 200, y: lat + 100 };
+		}
+		addMoveListener() {
+			return moveUnsubscribeSpy;
+		}
 		startTravel() {}
 		stopTravel() {}
 		destroy() {}
@@ -62,6 +77,9 @@ describe('FullMapOverlay', () => {
 	beforeEach(() => {
 		mapData.set(null);
 		fitBoundsSpy.mockClear();
+		moveUnsubscribeSpy.mockClear();
+		locationClickHandler = undefined;
+		vi.mocked(submitInput).mockClear();
 	});
 
 	it('renders the map container', () => {
@@ -132,5 +150,57 @@ describe('FullMapOverlay', () => {
 			});
 		});
 		expect(fitBoundsSpy).toHaveBeenCalledTimes(1);
+	});
+
+	it('exposes only adjacent places as native travel controls', () => {
+		mapData.set(testMap);
+		const { getByRole, queryByRole } = render(FullMapOverlay, {
+			props: { onclose: vi.fn() },
+		});
+
+		expect(getByRole('button', { name: 'Travel to Roscommon' })).toBeVisible();
+		expect(
+			queryByRole('button', { name: 'Travel to Kilteevan' }),
+		).not.toBeInTheDocument();
+	});
+
+	it('submits travel on one native pointer activation', async () => {
+		mapData.set(testMap);
+		const { getByRole } = render(FullMapOverlay, {
+			props: { onclose: vi.fn() },
+		});
+
+		await fireEvent.click(getByRole('button', { name: 'Travel to Roscommon' }));
+
+		await waitFor(() =>
+			expect(submitInput).toHaveBeenCalledExactlyOnceWith('go to Roscommon'),
+		);
+	});
+
+	it('retains MapLibre activation as a fallback without allowing remote travel', async () => {
+		mapData.set(testMap);
+		render(FullMapOverlay, { props: { onclose: vi.fn() } });
+
+		locationClickHandler?.({
+			id: 'loc1',
+			name: 'Kilteevan',
+			adjacent: false,
+		});
+		locationClickHandler?.({
+			id: 'loc2',
+			name: 'Roscommon',
+			adjacent: true,
+		});
+
+		await waitFor(() =>
+			expect(submitInput).toHaveBeenCalledExactlyOnceWith('go to Roscommon'),
+		);
+	});
+
+	it('releases the map-position subscription when closed', () => {
+		mapData.set(testMap);
+		const view = render(FullMapOverlay, { props: { onclose: vi.fn() } });
+		view.unmount();
+		expect(moveUnsubscribeSpy).toHaveBeenCalledOnce();
 	});
 });

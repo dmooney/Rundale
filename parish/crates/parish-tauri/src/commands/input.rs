@@ -36,7 +36,9 @@ pub(crate) async fn do_submit_input(
     addressed_to: Vec<String>,
 ) -> Result<(), String> {
     let _persistence_guard = state.persistence_gate.lock().await;
-    do_submit_input_locked(state, app, text, addressed_to).await
+    do_submit_input_locked(state, app, text, addressed_to)
+        .await
+        .map(|_| ())
 }
 
 /// Dispatches input while the caller holds [`AppState::persistence_gate`].
@@ -48,10 +50,10 @@ pub(crate) async fn do_submit_input_locked(
     app: &tauri::AppHandle,
     text: String,
     addressed_to: Vec<String>,
-) -> Result<(), String> {
+) -> Result<parish_core::game_loop::GameInputOutcome, String> {
     let text = validate_input_text(&text)?;
     if text.is_empty() {
-        return Ok(());
+        return Ok(parish_core::game_loop::GameInputOutcome::default());
     }
     // #752 — cap addressed_to to prevent unbounded memory/allocation via the
     // NPC-addressing chip list.  Max 10 entries; each name ≤ 100 chars.
@@ -68,10 +70,11 @@ pub(crate) async fn do_submit_input_locked(
         *sc = tokio_util::sync::CancellationToken::new();
     }
 
-    match classify_submitted_input(&text, &addressed_to) {
+    let outcome = match classify_submitted_input(&text, &addressed_to) {
         InputResult::SystemCommand(cmd) => {
             touch_player_activity(state).await;
             handle_system_command(cmd, state, app, &text).await?;
+            parish_core::game_loop::GameInputOutcome::default()
         }
         InputResult::GameInput(raw) => {
             tracing::info!(input = %raw, "chat [player]");
@@ -95,7 +98,8 @@ pub(crate) async fn do_submit_input_locked(
                 };
             // Capture location before handle_game_input (which may move the player).
             let reaction_location = state.world.lock().await.player_location;
-            handle_game_input(raw, addressed_to, state, app.clone(), prelude_emissions).await?;
+            let outcome =
+                handle_game_input(raw, addressed_to, state, app.clone(), prelude_emissions).await?;
             // Generate NPC reactions to the player's message in the background.
             if let Some((player_msg_id, raw_for_reactions)) = dispatch {
                 super::reactions::emit_npc_reactions(
@@ -106,10 +110,11 @@ pub(crate) async fn do_submit_input_locked(
                     app,
                 );
             }
+            outcome
         }
-    }
+    };
 
-    Ok(())
+    Ok(outcome)
 }
 
 /// Tauri's production classification seam for input plus NPC chips.
@@ -209,7 +214,7 @@ pub(crate) async fn handle_game_input(
     state: &Arc<AppState>,
     app: tauri::AppHandle,
     mut prelude_emissions: Vec<(String, serde_json::Value)>,
-) -> Result<(), String> {
+) -> Result<parish_core::game_loop::GameInputOutcome, String> {
     let must_stage = {
         let world = state.world.lock().await;
         parish_core::game_loop::input_may_mutate_tasks(&world, &raw)
@@ -254,7 +259,7 @@ pub(crate) async fn handle_game_input(
             crate::events::EVENT_WORLD_UPDATE.to_string(),
             world_update_payload(state).await,
         ));
-        parish_core::game_loop::handle_staged_game_input(
+        let commit = parish_core::game_loop::handle_staged_game_input(
             &ctx,
             state.session_store.as_ref(),
             task_target.as_ref(),
@@ -270,7 +275,10 @@ pub(crate) async fn handle_game_input(
             format!("failed to persist player task: {error}")
         })?;
         super::snapshot::emit_world_update(state, &app).await;
-        return Ok(());
+        return Ok(parish_core::game_loop::GameInputOutcome {
+            task_mutations: commit.task_mutations,
+            dialogue_failure: commit.dialogue_failure,
+        });
     }
 
     touch_player_activity(state).await;
@@ -317,7 +325,7 @@ pub(crate) async fn handle_game_input(
         format!("failed to persist player task: {error}")
     })?;
     super::snapshot::emit_world_update(state, &app).await;
-    Ok(())
+    Ok(outcome)
 }
 
 async fn persist_task_mutations(

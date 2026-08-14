@@ -66,8 +66,6 @@ use state::{GameConfig, UiConfigSnapshot};
 ///
 /// - `https://tile.openstreetmap.org` — default OSM raster tile source
 ///   (`parish-config` `default_tile_sources`).
-/// - `https://demotiles.maplibre.org` — MapLibre glyph PBFs used by the
-///   map label layer (`style.ts` `GLYPHS_URL`).
 /// - `https://fonts.googleapis.com` — Google Fonts CSS `<link>` in `app.html`.
 /// - `https://fonts.gstatic.com` — Google Fonts glyph files (font-src).
 ///
@@ -80,7 +78,6 @@ use state::{GameConfig, UiConfigSnapshot};
 /// membership without repeating the origin strings.
 pub const ALLOWED_EXTERNAL_ORIGINS: &[&str] = &[
     "https://tile.openstreetmap.org",
-    "https://demotiles.maplibre.org",
     "https://fonts.googleapis.com",
     "https://fonts.gstatic.com",
 ];
@@ -95,8 +92,7 @@ pub const ALLOWED_EXTERNAL_ORIGINS: &[&str] = &[
 ///
 /// MapLibre fetches tiles via `fetch()` (CORS → connect-src) AND renders them
 /// as raster images (img-src), so the tile-server origins appear in both
-/// directives.  MapLibre also fetches glyph PBFs at runtime for the label
-/// layer, so `demotiles.maplibre.org` is in connect-src as well.
+/// directives. MapLibre glyph PBFs are bundled and fetched from `'self'`.
 ///
 /// # script-src: hash-based allowlist (TD-036, #543)
 ///
@@ -133,7 +129,7 @@ pub(crate) fn build_csp_policy(script_hashes: &[&str]) -> String {
          worker-src 'self' blob:; \
          style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; \
          img-src 'self' data: blob: https://tile.openstreetmap.org; \
-         connect-src 'self' ws: wss: https://tile.openstreetmap.org https://demotiles.maplibre.org https://fonts.googleapis.com; \
+         connect-src 'self' ws: wss: https://tile.openstreetmap.org https://fonts.googleapis.com; \
          font-src 'self' https://fonts.gstatic.com; \
          frame-ancestors 'none'; \
          base-uri 'self'; \
@@ -443,6 +439,20 @@ pub async fn run_server_with_engine_config(
             &theme_palette,
         );
 
+    // Match Tauri and headless semantics: inference effort, token caps, and
+    // service-tier choices are per-user settings, not engine-wide settings.
+    // Resolve the directory once during startup (rule #9) and apply the
+    // non-secret profile fields to the template cloned into every session.
+    let user_config_dir = parish_core::config::user_config::resolve_user_config_dir();
+    match apply_user_inference_profiles_from_dir(&mut config, &user_config_dir) {
+        Ok(()) => {}
+        Err(error) => tracing::warn!(
+            path = %user_config_dir.display(),
+            %error,
+            "Failed to load per-user inference profiles"
+        ),
+    }
+
     // ── Feature flags / session infrastructure / OAuth / WS key ─────────────
     let flags_path = data_dir.join("parish-flags.json");
     config.flags = FeatureFlags::load_from_file(&flags_path);
@@ -513,6 +523,15 @@ pub async fn run_server_with_engine_config(
     )
     .await?;
 
+    Ok(())
+}
+
+fn apply_user_inference_profiles_from_dir(
+    config: &mut GameConfig,
+    user_config_dir: &Path,
+) -> Result<(), parish_core::error::ParishError> {
+    let user_config = parish_core::config::user_config::load_user_config(user_config_dir)?;
+    config.apply_user_inference_profiles(&user_config);
     Ok(())
 }
 
@@ -696,7 +715,7 @@ fn attach_static_and_auth(
 /// Two paths are supported:
 ///
 /// - **tower-sessions** (default, `use_tower_sessions = true`): installs a
-///   [`tower_sessions::MemoryStore`]-backed [`tower_sessions::SessionManagerLayer`]
+///   SQLite-backed [`tower_sessions::SessionManagerLayer`]
 ///   using the existing `parish_sid` cookie name, then wraps that with
 ///   `session_middleware_tower` and `idempotency_middleware`.
 ///
@@ -715,19 +734,11 @@ fn apply_session_layer(
     if use_tower_sessions {
         use tower_sessions::cookie::SameSite;
         use tower_sessions::cookie::time::Duration as CookieDuration;
-        use tower_sessions::{Expiry, MemoryStore, SessionManagerLayer};
+        use tower_sessions::{Expiry, SessionManagerLayer};
 
-        // `MemoryStore` does not implement `ExpiredDeletion`, so expired
-        // entries are only filtered on read (via `is_active`).  There is no
-        // background cleanup task because the backing map is not publicly
-        // accessible.  Instead we rely on the 365-day `Expiry` set by
-        // `SessionManagerLayer` below to bound memory growth.
-        //
-        // TODO: replace `MemoryStore` with a store that implements
-        // `ExpiredDeletion` (e.g. `tower-sessions-sqlx-store`) if
-        // long-running deployments reveal significant memory pressure.
-        let session_store = std::sync::Arc::new(MemoryStore::default());
-        let session_layer = SessionManagerLayer::new((*session_store).clone())
+        let session_store = session_store_impl::SqliteTowerSessionStore::new(&global.saves_dir)
+            .expect("sessions.db tower-session schema must initialize");
+        let session_layer = SessionManagerLayer::new(session_store)
             .with_name(middleware::SESSION_COOKIE)
             .with_secure(true)
             .with_http_only(true)
@@ -1303,6 +1314,8 @@ fn build_client_and_config(
         category_model: Default::default(),
         category_api_key: Default::default(),
         category_base_url: Default::default(),
+        inference_profile_override: Default::default(),
+        category_inference_profile: Default::default(),
         flags: FeatureFlags::default(),
         category_rate_limit: Default::default(),
         // Tile-source fields populated in build_app_state from engine config.
@@ -1355,6 +1368,8 @@ fn build_headless_local_config() -> (parish_core::config::ProviderConfig, GameCo
         category_model: Default::default(),
         category_api_key: Default::default(),
         category_base_url: Default::default(),
+        inference_profile_override: Default::default(),
+        category_inference_profile: Default::default(),
         flags: FeatureFlags::default(),
         category_rate_limit: Default::default(),
         active_tile_source: String::new(),
@@ -1393,14 +1408,12 @@ fn build_cloud_client_from_env() -> CloudEnvConfig {
             .as_deref()
             .and_then(|p| parish_core::config::Provider::from_str_loose(p).ok())
             .map(|p| p.default_base_url().to_string())
-            .unwrap_or_else(|| "https://openrouter.ai/api".to_string())
+            .unwrap_or_else(|| "https://generativelanguage.googleapis.com/v1".to_string())
     });
     let provider_enum = provider
         .as_deref()
         .and_then(|p| parish_core::config::Provider::from_str_loose(p).ok())
-        .unwrap_or_else(|| {
-            parish_core::config::Provider::from_id("openrouter").unwrap_or_default()
-        });
+        .unwrap_or_else(|| parish_core::config::Provider::from_id("google").unwrap_or_default());
     let api_key = provider_enum
         .api_key_env_var()
         .and_then(|var| std::env::var(var).ok())
@@ -1605,6 +1618,27 @@ fn parse_forwarded_for(header: &str) -> Option<std::net::IpAddr> {
 mod tests {
     use super::*;
     use serial_test::serial;
+
+    #[test]
+    fn server_template_loads_user_inference_profiles() {
+        let dir = tempfile::tempdir().unwrap();
+        let user = parish_core::config::user_config::UserConfig {
+            thinking_level: Some(parish_core::config::ThinkingLevel::High),
+            max_output_tokens: Some(321),
+            ..Default::default()
+        };
+        parish_core::config::user_config::save_user_config(dir.path(), &user).unwrap();
+        let (_, mut config) = build_headless_local_config();
+
+        apply_user_inference_profiles_from_dir(&mut config, dir.path()).unwrap();
+
+        let intent = config.inference_profile(parish_core::config::InferenceSubrole::Intent);
+        assert_eq!(
+            intent.thinking_level,
+            parish_core::config::ThinkingLevel::High
+        );
+        assert_eq!(intent.max_output_tokens, 321);
+    }
 
     #[test]
     #[serial(parish_env)]

@@ -10,7 +10,7 @@
 //! concrete type in [`crate::session::SessionRegistry`], which combines an
 //! in-memory `DashMap` with the same `sessions.db` SQLite file.
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, MutexGuard};
 
 use parish_core::identity::IdentityStore;
@@ -19,6 +19,141 @@ use parish_core::session_store::{BoxFuture, SessionStore, SnapshotId};
 
 /// Re-export so existing server code continues to compile without change.
 pub use parish_core::session_store::DbSessionStore;
+
+// ── SqliteTowerSessionStore ──────────────────────────────────────────────────
+
+/// Durable backing store for tower-sessions' opaque cookie-id → record map.
+///
+/// The record contains the canonical Parish session UUID. Keeping it in the
+/// durable sessions database lets the same browser cookie recover the same
+/// isolated save ledger after a server process restart.
+#[derive(Clone, Debug)]
+pub struct SqliteTowerSessionStore {
+    db_path: PathBuf,
+}
+
+impl SqliteTowerSessionStore {
+    pub fn new(saves_dir: &Path) -> rusqlite::Result<Self> {
+        let db_path = saves_dir.join("sessions.db");
+        let conn = rusqlite::Connection::open(&db_path)?;
+        initialize_sessions_schema(&conn)?;
+        Ok(Self { db_path })
+    }
+
+    async fn with_connection<T, F>(&self, operation: F) -> tower_sessions::session_store::Result<T>
+    where
+        T: Send + 'static,
+        F: FnOnce(rusqlite::Connection) -> tower_sessions::session_store::Result<T>
+            + Send
+            + 'static,
+    {
+        let path = self.db_path.clone();
+        tokio::task::spawn_blocking(move || {
+            let conn = rusqlite::Connection::open(path).map_err(|error| {
+                tower_sessions::session_store::Error::Backend(error.to_string())
+            })?;
+            operation(conn)
+        })
+        .await
+        .map_err(|error| tower_sessions::session_store::Error::Backend(error.to_string()))?
+    }
+}
+
+#[async_trait::async_trait]
+impl tower_sessions::SessionStore for SqliteTowerSessionStore {
+    async fn create(
+        &self,
+        record: &mut tower_sessions::session::Record,
+    ) -> tower_sessions::session_store::Result<()> {
+        loop {
+            let candidate = record.clone();
+            let inserted = self
+                .with_connection(move |conn| {
+                    let json = serde_json::to_string(&candidate).map_err(|error| {
+                        tower_sessions::session_store::Error::Encode(error.to_string())
+                    })?;
+                    conn.execute(
+                        "INSERT OR IGNORE INTO tower_sessions (id, record_json, expires_at) VALUES (?1, ?2, ?3)",
+                        rusqlite::params![candidate.id.to_string(), json, candidate.expiry_date.unix_timestamp()],
+                    )
+                    .map(|rows| rows == 1)
+                    .map_err(|error| tower_sessions::session_store::Error::Backend(error.to_string()))
+                })
+                .await?;
+            if inserted {
+                return Ok(());
+            }
+            record.id = tower_sessions::session::Id::default();
+        }
+    }
+
+    async fn save(
+        &self,
+        record: &tower_sessions::session::Record,
+    ) -> tower_sessions::session_store::Result<()> {
+        let record = record.clone();
+        self.with_connection(move |conn| {
+            let json = serde_json::to_string(&record).map_err(|error| {
+                tower_sessions::session_store::Error::Encode(error.to_string())
+            })?;
+            conn.execute(
+                "INSERT INTO tower_sessions (id, record_json, expires_at) VALUES (?1, ?2, ?3) \
+                 ON CONFLICT(id) DO UPDATE SET record_json = excluded.record_json, expires_at = excluded.expires_at",
+                rusqlite::params![record.id.to_string(), json, record.expiry_date.unix_timestamp()],
+            )
+            .map(|_| ())
+            .map_err(|error| tower_sessions::session_store::Error::Backend(error.to_string()))
+        })
+        .await
+    }
+
+    async fn load(
+        &self,
+        session_id: &tower_sessions::session::Id,
+    ) -> tower_sessions::session_store::Result<Option<tower_sessions::session::Record>> {
+        let id = session_id.to_string();
+        self.with_connection(move |conn| {
+            use rusqlite::OptionalExtension as _;
+            let row = conn
+                .query_row(
+                    "SELECT record_json, expires_at FROM tower_sessions WHERE id = ?1",
+                    [&id],
+                    |row| Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)?)),
+                )
+                .optional()
+                .map_err(|error| {
+                    tower_sessions::session_store::Error::Backend(error.to_string())
+                })?;
+            let Some((json, expires_at)) = row else {
+                return Ok(None);
+            };
+            if expires_at <= chrono::Utc::now().timestamp() {
+                conn.execute("DELETE FROM tower_sessions WHERE id = ?1", [&id])
+                    .map_err(|error| {
+                        tower_sessions::session_store::Error::Backend(error.to_string())
+                    })?;
+                return Ok(None);
+            }
+            serde_json::from_str(&json)
+                .map(Some)
+                .map_err(|error| tower_sessions::session_store::Error::Decode(error.to_string()))
+        })
+        .await
+    }
+
+    async fn delete(
+        &self,
+        session_id: &tower_sessions::session::Id,
+    ) -> tower_sessions::session_store::Result<()> {
+        let id = session_id.to_string();
+        self.with_connection(move |conn| {
+            conn.execute("DELETE FROM tower_sessions WHERE id = ?1", [&id])
+                .map(|_| ())
+                .map_err(|error| tower_sessions::session_store::Error::Backend(error.to_string()))
+        })
+        .await
+    }
+}
 
 // ── Helpers (used by SqliteIdentityStore) ──────────────────────────────────────
 
@@ -116,7 +251,7 @@ impl IdentityStore for SqliteIdentityStore {
 
 // ── Schema migration ───────────────────────────────────────────────────────────
 
-/// Creates the `sessions` and `oauth_accounts` tables if they don't exist,
+/// Creates the account, OAuth, and tower-session tables if they don't exist,
 /// then applies any idempotent ALTER TABLE migrations for schema evolution.
 pub fn initialize_sessions_schema(conn: &rusqlite::Connection) -> rusqlite::Result<()> {
     conn.execute_batch(
@@ -131,6 +266,11 @@ pub fn initialize_sessions_schema(conn: &rusqlite::Connection) -> rusqlite::Resu
             session_id       TEXT NOT NULL,
             display_name     TEXT NOT NULL DEFAULT '',
             PRIMARY KEY (provider, provider_user_id)
+        );
+        CREATE TABLE IF NOT EXISTS tower_sessions (
+            id          TEXT PRIMARY KEY,
+            record_json TEXT NOT NULL,
+            expires_at  INTEGER NOT NULL
         );",
     )?;
     let _ = conn.execute_batch(
@@ -148,6 +288,60 @@ pub fn open_sessions_db(saves_dir: &Path) -> rusqlite::Result<SharedConn> {
     let conn = rusqlite::Connection::open(&db_path)?;
     initialize_sessions_schema(&conn)?;
     Ok(Arc::new(Mutex::new(conn)))
+}
+
+#[cfg(test)]
+mod tower_session_tests {
+    use super::*;
+    use std::sync::Arc;
+    use tower_sessions::cookie::time::Duration;
+    use tower_sessions::{Expiry, Session};
+
+    #[tokio::test]
+    async fn tower_session_record_survives_store_reopen_and_remains_isolated() {
+        let temp = tempfile::tempdir().unwrap();
+        let first_store = SqliteTowerSessionStore::new(temp.path()).unwrap();
+        let first = Session::new(
+            None,
+            Arc::new(first_store),
+            Some(Expiry::OnInactivity(Duration::days(365))),
+        );
+        first
+            .insert("parish_session_id", "browser-a")
+            .await
+            .unwrap();
+        first.save().await.unwrap();
+        let cookie_id = first.id().expect("saved tower session has an id");
+
+        // Model a process restart by dropping every old handle and reopening
+        // sessions.db before resolving the browser's opaque cookie id.
+        drop(first);
+        let reopened = SqliteTowerSessionStore::new(temp.path()).unwrap();
+        let restored = Session::new(
+            Some(cookie_id),
+            Arc::new(reopened.clone()),
+            Some(Expiry::OnInactivity(Duration::days(365))),
+        );
+        assert_eq!(
+            restored
+                .get::<String>("parish_session_id")
+                .await
+                .unwrap()
+                .as_deref(),
+            Some("browser-a")
+        );
+
+        let isolated = Session::new(
+            None,
+            Arc::new(reopened),
+            Some(Expiry::OnInactivity(Duration::days(365))),
+        );
+        assert_eq!(
+            isolated.get::<String>("parish_session_id").await.unwrap(),
+            None,
+            "a browser without the cookie must not inherit another ledger"
+        );
+    }
 }
 
 // ── InMemorySessionStore (test-only) ─────────────────────────────────────────
@@ -479,6 +673,7 @@ mod tests {
             player_name: None,
             player_progress: Default::default(),
             npcs_who_know_player_name: Default::default(),
+            active_session: None,
         }
     }
 

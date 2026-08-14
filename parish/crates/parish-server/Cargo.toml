@@ -32,6 +32,7 @@ opentelemetry = { workspace = true }
 opentelemetry_sdk = { workspace = true }
 opentelemetry-otlp = { workspace = true }
 anyhow = { workspace = true }
+async-trait = { workspace = true }
 chrono = { workspace = true }
 dotenvy = { workspace = true }
 rand = { workspace = true }

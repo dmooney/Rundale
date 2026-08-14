@@ -4113,6 +4113,7 @@ name = "parish-inference"
 version = "0.1.0"
 dependencies = [
  "chrono",
+ "dotenvy",
  "hf-hub",
  "parish-config",
  "parish-providers",
@@ -4277,6 +4278,7 @@ name = "parish-server"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "async-trait",
  "axum",
  "base64 0.22.1",
  "chrono",

@@ -45,6 +45,26 @@ use crate::world::events::GameEvent;
 use crate::world::transport::TransportMode;
 use crate::world::{DEFAULT_START_LOCATION, WorldState};
 
+/// Resolves a user-facing branch name in an exact save database.
+///
+/// GUI runtimes use this before delegating to their existing transactional
+/// branch loader, so `/load <name>` has the same selection semantics as the
+/// headless runtime without duplicating database lookup behavior.
+pub fn resolve_named_branch(
+    save_path: &Path,
+    name: &str,
+) -> Result<crate::persistence::BranchInfo, String> {
+    let name = name.trim();
+    if name.is_empty() {
+        return Err("Branch name cannot be empty.".to_string());
+    }
+    Database::open(save_path)
+        .map_err(|error| error.to_string())?
+        .find_branch(name)
+        .map_err(|error| error.to_string())?
+        .ok_or_else(|| format!("Branch '{name}' does not exist"))
+}
+
 fn path_with_suffix(path: &Path, suffix: &str) -> PathBuf {
     let mut suffixed = OsString::from(path.as_os_str());
     suffixed.push(suffix);
@@ -564,6 +584,25 @@ mod tests {
             game_time: game_time.to_string(),
             real_time: real_time.to_string(),
         }
+    }
+
+    #[test]
+    fn named_branch_resolution_is_exact_and_reports_missing_names() {
+        let temp = tempfile::tempdir().unwrap();
+        let path = temp.path().join("save.db");
+        let db = Database::open(&path).unwrap();
+        let main = db.find_branch("main").unwrap().unwrap();
+        let branch_id = db.create_branch("other", Some(main.id)).unwrap();
+        drop(db);
+
+        assert_eq!(
+            resolve_named_branch(&path, " other ").unwrap().id,
+            branch_id
+        );
+        assert_eq!(
+            resolve_named_branch(&path, "missing").unwrap_err(),
+            "Branch 'missing' does not exist"
+        );
     }
 
     #[test]

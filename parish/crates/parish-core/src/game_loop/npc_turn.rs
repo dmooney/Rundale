@@ -11,13 +11,13 @@
 //!
 //! # Behavioural notes
 //!
-//! - **`player_initiated`**: when `true`, error messages are surfaced to the
-//!   player via `text-log`. When `false` (autonomous follow-up / idle banter),
-//!   errors are silently logged. This unifies the server behaviour (which had
-//!   the flag) with the Tauri runtime (which previously always surfaced errors).
+//! - **`player_initiated`**: when `true`, failures carry player-safe recovery
+//!   in the authoritative `stream-turn-end`. When `false` (autonomous follow-up
+//!   / idle banter), failures are silently logged.
 //! - **Loading animation**: controlled by the caller via `spawn_loading`; this
 //!   module only cancels the returned token on completion or error.
-//! - **Token streaming**: each incoming batch is emitted as `"stream-token"`.
+//! - **Token streaming**: provider batches are internal candidates. Only the
+//!   canonical accepted-or-replaced response is emitted as `"stream-token"`.
 //!   A `"stream-turn-end"` event follows regardless of success. A single
 //!   `"stream-end"` covering the entire chain is emitted by the caller.
 //!
@@ -27,7 +27,6 @@
 //! a [`GameLoopContext`].  Its inline implementations remain in `headless.rs`
 //! until a follow-up slice wraps `App`'s fields in `Arc<Mutex<>>`.
 
-use std::sync::Arc;
 use std::sync::atomic::Ordering;
 
 use tokio::sync::mpsc;
@@ -40,9 +39,8 @@ use crate::inference::{
 };
 use crate::ipc::{
     ConversationLine, DialogueCorrectedPayload, DialogueGenerationTelemetry,
-    DialogueQualityPayload, IDLE_MESSAGES, INFERENCE_FAILURE_MESSAGES, REQUEST_ID,
-    StreamEndPayload, StreamTokenPayload, StreamTurnEndPayload, capitalize_first, text_log,
-    text_log_for_stream_turn, text_log_typed,
+    DialogueQualityPayload, IDLE_MESSAGES, REQUEST_ID, StreamEndPayload, StreamTokenPayload,
+    StreamTurnEndPayload, capitalize_first, text_log, text_log_for_stream_turn, text_log_typed,
 };
 use crate::npc::NpcId;
 use crate::npc::autonomous;
@@ -118,6 +116,11 @@ pub const POST_GUARD_UI_REPLACE_FLAG: &str = "post-guard-ui-replace";
 ///   - Total observed minimum: ~170 tokens; 768 gives comfortable headroom.
 pub const TIER1_DIALOGUE_MAX_TOKENS: u32 = 768;
 
+/// Player-safe recovery used when no complete dialogue crosses the apply seam.
+/// Rejected partial provider output is deliberately not interpolated.
+pub const DIALOGUE_RETRY_MESSAGE: &str =
+    "That reply could not be completed, so its partial response was not added. Please try again.";
+
 /// Output of a single NPC turn.
 #[derive(Debug)]
 pub struct TurnOutcome {
@@ -159,7 +162,6 @@ pub async fn run_npc_turn(
 ) -> Option<TurnOutcome> {
     let (
         setup,
-        time_of_day,
         person_guard_enabled,
         verbosity_guard_enabled,
         mood_sentence_cap_enabled,
@@ -173,8 +175,6 @@ pub async fn run_npc_turn(
         invented_place_guard_enabled,
         dialogue_polish_guard_enabled,
         post_guard_ui_replace_enabled,
-        relationship_tone_hints,
-        speaker_context,
     ) = {
         let mut world = ctx.world.lock().await;
         let mut npc_manager = ctx.npc_manager.lock().await;
@@ -238,19 +238,8 @@ pub async fn run_npc_turn(
             &ctx.language,
             &npc_cfg,
         );
-        let relationship_tone_hints = npc_manager.relationship_tone_hints(speaker_id);
-        let speaker_context =
-            npc_manager
-                .get(speaker_id)
-                .map(|npc| crate::npc::DialogueSpeakerContext {
-                    name: npc.name.clone(),
-                    occupation: npc.occupation.clone(),
-                    mood: npc.mood.clone(),
-                });
-        let time_of_day = world.clock.time_of_day();
         (
             setup,
-            time_of_day,
             person_guard,
             verbosity_guard,
             mood_sentence_cap,
@@ -264,17 +253,31 @@ pub async fn run_npc_turn(
             invented_place_guard,
             dialogue_polish_guard,
             ui_replace,
-            relationship_tone_hints,
-            speaker_context,
         )
     };
-    let setup = setup?;
+    let mut setup = setup?;
+    {
+        let mut conversation = ctx.conversation.lock().await;
+        conversation.dialogue_referents.observe_player_input(
+            prompt_input,
+            &setup.grounding.known_person_names,
+            &setup.grounding.known_location_names,
+            setup.grounding.player_name.as_deref(),
+        );
+        setup.grounding.referent_context = conversation.dialogue_referents.clone();
+        setup.grounding.prior_openers = conversation.seen_openers_this_location.clone();
+    }
 
     let loading_cancel = spawn_loading();
 
     let (token_tx, token_rx) = mpsc::channel::<String>(crate::ipc::TOKEN_CHANNEL_CAPACITY);
     let display_label = capitalize_first(&setup.display_name);
     let req_id = REQUEST_ID.fetch_add(1, Ordering::SeqCst);
+    let inference_profile = ctx
+        .config
+        .lock()
+        .await
+        .inference_profile(parish_config::InferenceSubrole::Dialogue);
 
     // Build the placeholder first so we can capture its message id: a stream
     // that resumes after a WebSocket reconnect carries this id on every
@@ -315,6 +318,9 @@ pub async fn run_npc_turn(
             enable_thinking: generation.enable_thinking,
             reasoning_effort: generation.reasoning_effort,
             priority: InferencePriority::Interactive,
+            role: parish_config::InferenceCategory::Dialogue,
+            subrole: parish_config::InferenceSubrole::Dialogue,
+            profile: Some(inference_profile),
             json_mode: generation.json_mode,
             json_schema: None,
             cancel: None,
@@ -327,19 +333,13 @@ pub async fn run_npc_turn(
             tracing::error!("Failed to submit inference request: {}", e);
             ctx.emitter.emit_event(
                 "stream-turn-end",
-                serde_json::to_value(StreamTurnEndPayload { turn_id: req_id })
-                    .unwrap_or(serde_json::Value::Null),
+                serde_json::to_value(StreamTurnEndPayload::failed(
+                    req_id,
+                    Some(message_id.clone()),
+                    player_initiated.then(|| DIALOGUE_RETRY_MESSAGE.to_string()),
+                ))
+                .unwrap_or(serde_json::Value::Null),
             );
-            if player_initiated {
-                ctx.emitter.emit_event(
-                    "text-log",
-                    serde_json::to_value(text_log(
-                        "system",
-                        "The parish storyteller has wandered off. Try again.",
-                    ))
-                    .unwrap_or(serde_json::Value::Null),
-                );
-            }
             if let Some(cancel) = loading_cancel {
                 cancel.cancel();
             }
@@ -347,24 +347,12 @@ pub async fn run_npc_turn(
         }
     };
 
-    // Stream tokens in a background task while awaiting the final response.
-    let emitter_clone = Arc::clone(&ctx.emitter);
-    let source = display_label.clone();
-    let stream_message_id = message_id.clone();
+    // Drain provider tokens for transport backpressure, but quarantine them.
+    // Candidate text is untrusted until the completed response crosses the
+    // canonical apply validator; no raw batch is player-renderable (#1834).
     let stream_handle = tokio::spawn(async move {
-        crate::ipc::stream_npc_tokens(token_rx, |batch| {
-            emitter_clone.emit_event(
-                "stream-token",
-                serde_json::to_value(StreamTokenPayload {
-                    token: batch.to_string(),
-                    turn_id: req_id,
-                    source: source.clone(),
-                    message_id: Some(stream_message_id.clone()),
-                })
-                .unwrap_or(serde_json::Value::Null),
-            );
-        })
-        .await
+        let mut token_rx = token_rx;
+        while token_rx.recv().await.is_some() {}
     });
 
     let timeout_secs = {
@@ -380,13 +368,11 @@ pub async fn run_npc_turn(
         timeout_secs.map(std::time::Duration::from_secs),
     )
     .await;
-    let _ = stream_handle.await;
-
-    ctx.emitter.emit_event(
-        "stream-turn-end",
-        serde_json::to_value(StreamTurnEndPayload { turn_id: req_id })
-            .unwrap_or(serde_json::Value::Null),
-    );
+    if matches!(&outcome, InferenceAwaitOutcome::Response(_)) {
+        let _ = stream_handle.await;
+    } else {
+        stream_handle.abort();
+    }
 
     let response = match outcome {
         InferenceAwaitOutcome::Response(r) => r,
@@ -395,58 +381,52 @@ pub async fn run_npc_turn(
                 req_id,
                 "NPC inference response channel closed without a reply"
             );
-            if player_initiated {
-                ctx.emitter.emit_event(
-                    "text-log",
-                    serde_json::to_value(text_log(
-                        "system",
-                        "The storyteller has wandered off mid-tale.",
-                    ))
-                    .unwrap_or(serde_json::Value::Null),
-                );
-            }
             if let Some(cancel) = loading_cancel {
                 cancel.cancel();
             }
+            ctx.emitter.emit_event(
+                "stream-turn-end",
+                serde_json::to_value(StreamTurnEndPayload::failed(
+                    req_id,
+                    Some(message_id.clone()),
+                    player_initiated.then(|| DIALOGUE_RETRY_MESSAGE.to_string()),
+                ))
+                .unwrap_or(serde_json::Value::Null),
+            );
             return None;
         }
         InferenceAwaitOutcome::TimedOut { secs } => {
             tracing::warn!(req_id, secs, "NPC inference response timed out");
-            if player_initiated {
-                ctx.emitter.emit_event(
-                    "text-log",
-                    serde_json::to_value(text_log(
-                        "system",
-                        "The storyteller is lost in thought. Try again.",
-                    ))
-                    .unwrap_or(serde_json::Value::Null),
-                );
-            }
             if let Some(cancel) = loading_cancel {
                 cancel.cancel();
             }
+            ctx.emitter.emit_event(
+                "stream-turn-end",
+                serde_json::to_value(StreamTurnEndPayload::failed(
+                    req_id,
+                    Some(message_id.clone()),
+                    player_initiated.then(|| DIALOGUE_RETRY_MESSAGE.to_string()),
+                ))
+                .unwrap_or(serde_json::Value::Null),
+            );
             return None;
         }
     };
 
     if response.error.is_some() {
         tracing::warn!("Inference error: {:?}", response.error);
-        if player_initiated {
-            let msg = if ctx.inference_failure_messages.is_empty() {
-                let idx = response.id as usize % INFERENCE_FAILURE_MESSAGES.len();
-                INFERENCE_FAILURE_MESSAGES[idx].to_string()
-            } else {
-                let idx = response.id as usize % ctx.inference_failure_messages.len();
-                ctx.inference_failure_messages[idx].clone()
-            };
-            ctx.emitter.emit_event(
-                "text-log",
-                serde_json::to_value(text_log("system", &msg)).unwrap_or(serde_json::Value::Null),
-            );
-        }
         if let Some(cancel) = loading_cancel {
             cancel.cancel();
         }
+        ctx.emitter.emit_event(
+            "stream-turn-end",
+            serde_json::to_value(StreamTurnEndPayload::failed(
+                req_id,
+                Some(message_id.clone()),
+                player_initiated.then(|| DIALOGUE_RETRY_MESSAGE.to_string()),
+            ))
+            .unwrap_or(serde_json::Value::Null),
+        );
         return None;
     }
 
@@ -454,331 +434,15 @@ pub async fn run_npc_turn(
         cancel.cancel();
     }
 
-    let (mut parsed, parse_disposition) =
-        parse_npc_stream_response_with_disposition(&response.text);
-
-    // Snapshot the raw model dialogue before any guard runs.  After all guards
-    // complete we compare against this snapshot to determine whether any guard
-    // altered the text; if so (and the kill-switch is on) we emit
-    // `"dialogue-corrected"` so the frontend can replace the accumulated raw
-    // stream tokens with the post-guard canonical text (#1552).
-    let pre_guard_dialogue = parsed.dialogue.clone();
-    let mut previous_guard_stage = pre_guard_dialogue.clone();
+    let (parsed, parse_disposition) = parse_npc_stream_response_with_disposition(&response.text);
+    let candidate_dialogue = parsed.dialogue.clone();
     let mut guard_reasons = Vec::new();
-
-    // Post-generation person-confirmation guard (#1459, #1466, #1470): detect
-    // when the NPC's reply affirmatively confirms a fabricated person from the
-    // player's input (or an earlier turn) who is not in the known-roster, and
-    // replace with a stock decline.
-    // Runs before the logging/quality-check block so the guarded text is what
-    // gets logged and forwarded to the shared pipeline.
-    if person_guard_enabled && !parsed.dialogue.trim().is_empty() {
-        let guard_seed =
-            speaker_id.0 as u64 ^ ctx.world.lock().await.clock.now().timestamp() as u64;
-        // Extract prior player-speaker lines from the conversation transcript so
-        // the pronoun follow-up guard (#1470 gap 2) can detect fabricated
-        // referents established in earlier turns.
-        let prior_player_inputs: Vec<&str> = transcript
-            .iter()
-            .filter(|line| line.speaker == "You")
-            .map(|line| line.text.as_str())
-            .collect();
-        let guarded = crate::npc::guard_fabricated_person_confirmation_with_locations(
-            &parsed.dialogue,
-            prompt_input,
-            &setup.known_person_names,
-            &setup.known_location_names,
-            &prior_player_inputs,
-            setup.player_name.as_deref(),
-            guard_seed,
-        );
-        if guarded != parsed.dialogue {
-            parsed.dialogue = guarded;
-        }
-    }
-
-    // Post-generation routing-after-denial guard (#1478): when the NPC denied
-    // knowing a fabricated person but also added a routing phrase ("ask at X",
-    // "you might find them at…"), replace with a clean non-recognition decline.
-    // Runs immediately after the primary person-confirmation guard.
-    // Default-on; kill-switch via `dialogue-person-routing-guard` flag.
-    if routing_guard_enabled && !parsed.dialogue.trim().is_empty() {
-        let guard_seed =
-            speaker_id.0 as u64 ^ ctx.world.lock().await.clock.now().timestamp() as u64;
-        let guarded = crate::npc::guard_fabricated_person_routing(
-            &parsed.dialogue,
-            prompt_input,
-            &setup.known_person_names,
-            setup.player_name.as_deref(),
-            guard_seed,
-        );
-        if guarded != parsed.dialogue {
-            parsed.dialogue = guarded;
-        }
-    }
-
-    // Post-generation wrong-location reference guard (#1477): detect when an NPC
-    // names a settlement other than the current location in "here in X" / "village
-    // of X" collocations, and replace the wrong name with the correct one.
-    // Default-on; kill-switch via `npc-wrong-location-guard` flag.
-    if wrong_location_guard_enabled && !parsed.dialogue.trim().is_empty() {
-        let loc = setup.location_name.as_str();
-        let guarded = crate::npc::guard_wrong_location_reference(&parsed.dialogue, Some(loc));
-        if guarded != parsed.dialogue {
-            parsed.dialogue = guarded;
-        }
-    }
-
-    // Post-generation false-denial guards (#1527, #1528, #1563),
-    // invented-place confirmation guard (#1530), and stock decline polish
-    // (#1564): all require a seed derived from the world clock. Acquire the
-    // async world lock ONCE here if any guard is active and the dialogue is
-    // non-empty, then reuse the seed for these guards.
-    let both_guards_seed: Option<u64> = if (false_denial_guard_enabled
-        || invented_place_guard_enabled
-        || dialogue_polish_guard_enabled)
-        && !parsed.dialogue.trim().is_empty()
-    {
-        let ts = ctx.world.lock().await.clock.now().timestamp() as u64;
-        Some(speaker_id.0 as u64 ^ ts)
-    } else {
-        None
-    };
-
-    // Post-generation false-denial guard (#1527, #1528): detect when an NPC
-    // wrongly denies knowing a person who IS in the parish roster (known_person_names).
-    // Runs after the routing guard so only confirmed-false denials are caught here.
-    // Default-on; kill-switch via `dialogue-false-denial-guard` flag.
-    if false_denial_guard_enabled && !parsed.dialogue.trim().is_empty() {
-        // both_guards_seed is always Some here (guard enabled + dialogue non-empty).
-        let guard_seed = both_guards_seed.unwrap_or(0);
-        let guarded = crate::npc::guard_false_denial_of_roster_person_with_speaker(
-            &parsed.dialogue,
-            prompt_input,
-            &setup.known_person_names,
-            setup.player_name.as_deref(),
-            guard_seed,
-            speaker_context.as_ref(),
-        );
-        if guarded != parsed.dialogue {
-            parsed.dialogue = guarded;
-        }
-    }
-
-    // Post-generation false-denial guard for real places (#1563): detect when
-    // an NPC generically denies a real place from the world graph ("that place
-    // does not exist", "no such person") and replace it with a neutral
-    // grounded acknowledgement. Runs before invented-place confirmation.
-    if false_denial_guard_enabled && !parsed.dialogue.trim().is_empty() {
-        let guard_seed = both_guards_seed.unwrap_or(0);
-        let guarded = crate::npc::guard_false_denial_of_known_place(
-            &parsed.dialogue,
-            prompt_input,
-            &setup.known_location_names,
-            guard_seed,
-        );
-        if guarded != parsed.dialogue {
-            parsed.dialogue = guarded;
-        }
-    }
-
-    // Post-generation invented-place confirmation guard (#1530): detect when an
-    // NPC affirms an invented place that is not in the world's location list.
-    // Default-on; kill-switch via `dialogue-invented-place-guard` flag.
-    if invented_place_guard_enabled && !parsed.dialogue.trim().is_empty() {
-        // both_guards_seed is always Some here (guard enabled + dialogue non-empty).
-        let guard_seed = both_guards_seed.unwrap_or(0);
-        let guarded = crate::npc::guard_invented_place_confirmation(
-            &parsed.dialogue,
-            prompt_input,
-            &setup.known_location_names,
-            guard_seed,
-        );
-        if guarded != parsed.dialogue {
-            parsed.dialogue = guarded;
-        }
-    }
-    if parsed.dialogue != previous_guard_stage {
-        guard_reasons.push("grounding_guard".to_string());
-        previous_guard_stage = parsed.dialogue.clone();
-    }
-
-    // Post-generation dialogue polish guard (#1564): replace old stock
-    // non-recognition templates and correct obvious morning greeting tics when
-    // the world clock is not Morning. Runs after grounding guards so true
-    // false-denial corrections win before generic polish.
-    if dialogue_polish_guard_enabled && !parsed.dialogue.trim().is_empty() {
-        let guard_seed = both_guards_seed.unwrap_or(0);
-        let guarded = crate::npc::guard_stock_nonrecognition_decline_with_speaker(
-            &parsed.dialogue,
-            prompt_input,
-            guard_seed,
-            speaker_context.as_ref(),
-        );
-        if guarded != parsed.dialogue {
-            parsed.dialogue = guarded;
-        }
-
-        let guarded = crate::npc::guard_time_of_day_phrase(&parsed.dialogue, time_of_day);
-        if guarded != parsed.dialogue {
-            parsed.dialogue = guarded;
-        }
-
-        let guarded = crate::npc::guard_priest_tenure_drift(&parsed.dialogue, prompt_input);
-        if guarded != parsed.dialogue {
-            parsed.dialogue = guarded;
-        }
-
-        let guarded = crate::npc::guard_presumed_prior_acquaintance(
-            &parsed.dialogue,
-            prompt_input,
-            &setup.known_person_names,
-            speaker_context.as_ref(),
-        );
-        if guarded != parsed.dialogue {
-            parsed.dialogue = guarded;
-        }
-
-        let guarded =
-            crate::npc::guard_repeated_speaker_name(&parsed.dialogue, speaker_context.as_ref());
-        if guarded != parsed.dialogue {
-            parsed.dialogue = guarded;
-        }
-
-        let guarded = crate::npc::guard_rival_target_neutral_tone(
-            &parsed.dialogue,
-            prompt_input,
-            &relationship_tone_hints,
-        );
-        if guarded != parsed.dialogue {
-            parsed.dialogue = guarded;
-        }
-    }
-    if parsed.dialogue != previous_guard_stage {
-        guard_reasons.push("polish_guard".to_string());
-        previous_guard_stage = parsed.dialogue.clone();
-    }
-
-    // Post-generation verbosity / run-on guard (#1460, #1491): strip bare leaked
-    // mood-adjective, trim mid-sentence truncation ellipsis to the last
-    // complete sentence, and cap trailing question stacks to at most one.
-    // When mood-aware sentence cap is enabled (#1491), uses a tighter 2-sentence
-    // cap for busy/curt NPC moods.
-    // Applied here (before the shared pipeline) so the guarded text is what
-    // gets stored in the conversation log and event bus — same effect for
-    // every runtime (Tauri, server, headless) via the shared npc_turn path.
-    if verbosity_guard_enabled && !parsed.dialogue.trim().is_empty() {
-        // Sentence style is governed by the authored mood at the start of the
-        // turn, not by the model's self-reported JSON mood (#1779).
-        let mood_str = speaker_context
-            .as_ref()
-            .map(|speaker| speaker.mood.as_str());
-        let guarded = if mood_sentence_cap_enabled {
-            crate::npc::guard_verbosity_runons_with_mood(&parsed.dialogue, mood_str)
-        } else {
-            crate::npc::guard_verbosity_runons(&parsed.dialogue)
-        };
-        if guarded != parsed.dialogue {
-            parsed.dialogue = guarded;
-        }
-    }
-    if parsed.dialogue != previous_guard_stage {
-        guard_reasons.push("verbosity_guard".to_string());
-        previous_guard_stage = parsed.dialogue.clone();
-    }
-
-    // Post-generation wrong-speaker-identity guard (#1475): detect when the
-    // NPC's reply claims to be a different roster member ("I'm Brendan, the
-    // Miller's Son" spoken by Nora Duffy) and replace with a recovery line.
-    // Default-on; kill-switch via `npc-wrong-speaker-guard` flag.
-    if wrong_speaker_guard_enabled && !parsed.dialogue.trim().is_empty() {
-        let guard_seed =
-            speaker_id.0 as u64 ^ ctx.world.lock().await.clock.now().timestamp() as u64;
-        let guarded = crate::npc::guard_wrong_speaker_identity(
-            &parsed.dialogue,
-            &setup.npc_name,
-            &setup.roster_names_occupations,
-            guard_seed,
-        );
-        if guarded != parsed.dialogue {
-            parsed.dialogue = guarded;
-        }
-    }
-
-    // Post-generation acquaintance-question intent-drift guard (#1504): detect
-    // when the player asked "do you know X?" and the NPC responded only with a
-    // self-identification ("I'm but Seamus Gallagher") instead of answering
-    // whether they know the named person. Replaces with the correct acquaintance
-    // answer (affirmation if known, non-recognition decline if not).
-    // Default-on; kill-switch via `npc-acquaintance-intent-guard` flag.
-    if acquaintance_guard_enabled && !parsed.dialogue.trim().is_empty() {
-        let guard_seed =
-            speaker_id.0 as u64 ^ ctx.world.lock().await.clock.now().timestamp() as u64;
-        let guarded = crate::npc::guard_acquaintance_question_intent_drift(
-            &parsed.dialogue,
-            prompt_input,
-            &setup.npc_name,
-            &setup.known_person_names,
-            guard_seed,
-        );
-        if guarded != parsed.dialogue {
-            parsed.dialogue = guarded;
-        }
-    }
-    if parsed.dialogue != previous_guard_stage {
-        guard_reasons.push("identity_intent_guard".to_string());
-        previous_guard_stage = parsed.dialogue.clone();
-    }
-
-    // Cross-NPC opener de-duplication (#1422, #1492): strip duplicate stock
-    // opener if the session has already seen a near-identical one from a
-    // previous NPC at this location (across any number of prior turns).
-    // Run BEFORE `apply_npc_dialogue_turn` so the `DialogueOccurred` event
-    // and conversation log carry the deduped text, not the raw opener.
-    if anti_repetition_enabled && !parsed.dialogue.trim().is_empty() {
-        let mut conversation = ctx.conversation.lock().await;
-        let deduped = crate::npc::dedupe_cross_npc_openers(
-            &conversation.seen_openers_this_location,
-            &parsed.dialogue,
-        );
-        if deduped != parsed.dialogue {
-            tracing::debug!(
-                npc = %display_label,
-                "stripped duplicate cross-NPC opener in run_npc_turn (#1422/#1492)"
-            );
-        }
-        // Record the opener actually shown to the player.
-        let shown_opener = crate::npc::extract_normalized_opener(&deduped);
-        if !shown_opener.is_empty() {
-            conversation.record_opener(shown_opener);
-        }
-        parsed.dialogue = deduped;
-    }
-    if parsed.dialogue != previous_guard_stage {
-        guard_reasons.push("repetition_guard".to_string());
-    }
-
-    if !parsed.dialogue.trim().is_empty() {
-        tracing::info!(
-            npc = %display_label,
-            reply = %parsed.dialogue,
-            "chat [npc]"
-        );
-        for issue in crate::npc::quality::detect_all_text_issues(&parsed.dialogue) {
-            tracing::warn!(
-                site = "npc-reply",
-                npc = %display_label,
-                kind = issue.kind.as_str(),
-                detail = %issue.detail,
-                "quality issue in NPC reply"
-            );
-        }
-    }
 
     // Player-visible dialogue, set from the shared pipeline's `display_text`.
     let captured_display_text;
     let captured_hints;
     let assigned_task;
+    let captured_action;
     let progression_flags = ctx.config.lock().await.flags.clone();
     {
         let mut world = ctx.world.lock().await;
@@ -799,11 +463,26 @@ pub async fn run_npc_turn(
         // keeps `display_text` — the guarded (#1228) and length-capped (#1224)
         // dialogue that must be shown to the player, identical to what was
         // stored in the event bus and conversation log.
-        let outcome = crate::game_session::apply_npc_dialogue_turn(
+        let outcome = crate::game_session::apply_npc_dialogue_turn_with_validation(
             &mut world,
             &mut npc_manager,
             speaker_id,
             &parsed,
+            parse_disposition,
+            &setup.grounding,
+            crate::npc::DialogueValidationPolicy {
+                person_confirmation: person_guard_enabled,
+                person_routing: routing_guard_enabled,
+                wrong_location: wrong_location_guard_enabled,
+                false_denial: false_denial_guard_enabled,
+                invented_place: invented_place_guard_enabled,
+                polish: dialogue_polish_guard_enabled,
+                verbosity: verbosity_guard_enabled,
+                mood_sentence_cap: mood_sentence_cap_enabled,
+                wrong_speaker: wrong_speaker_guard_enabled,
+                acquaintance_intent: acquaintance_guard_enabled,
+                anti_repetition: anti_repetition_enabled,
+            },
             prompt_input,
             prompt_input,
             game_time,
@@ -819,15 +498,57 @@ pub async fn run_npc_turn(
         captured_display_text = outcome.display_text;
         captured_hints = outcome.language_hints;
         assigned_task = outcome.assigned_task;
+        captured_action = outcome.action;
     }
     let guard_intervened = !guard_reasons.is_empty();
+
+    // Record only the canonical opener. Candidate text is never admitted to
+    // the cross-turn repetition state (#1834).
+    let shown_opener = crate::npc::extract_normalized_opener(&captured_display_text);
+    if !shown_opener.is_empty() {
+        ctx.conversation.lock().await.record_opener(shown_opener);
+    }
+    tracing::info!(npc = %display_label, reply = %captured_display_text, "chat [npc]");
+    for issue in crate::npc::quality::detect_all_text_issues(&captured_display_text) {
+        tracing::warn!(
+            site = "npc-reply",
+            npc = %display_label,
+            kind = issue.kind.as_str(),
+            detail = %issue.detail,
+            "quality issue in canonical NPC reply"
+        );
+    }
+
+    // Publish only the canonical accepted-or-replaced line. A single batch
+    // preserves the stream protocol and pacing while making transient display
+    // of raw provider text impossible.
+    ctx.emitter.emit_event(
+        "stream-token",
+        serde_json::to_value(StreamTokenPayload {
+            token: captured_display_text.clone(),
+            turn_id: req_id,
+            source: display_label.clone(),
+            message_id: Some(message_id.clone()),
+        })
+        .unwrap_or(serde_json::Value::Null),
+    );
+    ctx.emitter.emit_event(
+        "stream-turn-end",
+        serde_json::to_value(StreamTurnEndPayload::completed(
+            req_id,
+            Some(message_id.clone()),
+            display_label.clone(),
+            captured_display_text.clone(),
+        ))
+        .unwrap_or(serde_json::Value::Null),
+    );
     ctx.emitter.emit_event(
         "dialogue-quality",
         serde_json::to_value(DialogueQualityPayload {
             turn_id: req_id,
             parse_disposition: parse_disposition.as_str().to_string(),
             contract_valid: parse_disposition == crate::npc::NpcResponseParseDisposition::FullJson
-                && !pre_guard_dialogue.trim().is_empty(),
+                && !candidate_dialogue.trim().is_empty(),
             guard_intervened,
             guard_reasons,
             model: model.to_string(),
@@ -843,13 +564,9 @@ pub async fn run_npc_turn(
         .unwrap_or(serde_json::Value::Null),
     );
 
-    // Post-guard UI replace (#1552): compare the raw model dialogue with the
-    // shared apply pipeline's final display text. The canonical pipeline owns
-    // semantic guards, anti-repetition, and the display cap; emitting from its
-    // result prevents live mode from applying semantic mutations twice while
-    // still replacing the already-finished raw token stream. This remains
-    // after `stream-turn-end` and before action narration, preserving the UI
-    // event order.
+    // Compatibility correction for clients restoring an older in-flight turn.
+    // New turns have already received this same canonical text as their only
+    // stream batch, so the event is idempotent (#1552, #1834).
     if post_guard_ui_replace_enabled && guard_intervened {
         tracing::debug!(
             npc = %display_label,
@@ -879,11 +596,7 @@ pub async fn run_npc_turn(
     // sentences that omit it. Emitted only when the flag is on (default) and
     // the action field is non-empty after trimming.
     if action_narration_enabled {
-        let action_text = parsed
-            .metadata
-            .as_ref()
-            .map(|m| m.action.trim())
-            .unwrap_or("");
+        let action_text = captured_action.as_deref().unwrap_or("");
         if !action_text.is_empty() {
             // Normalise to a period if the action text doesn't already end with
             // sentence-ending punctuation, so the line reads as a complete clause.
@@ -1230,6 +943,7 @@ pub async fn handle_npc_conversation(
     let mut assigned_tasks = Vec::new();
     let mut spoken_this_chain: Vec<NpcId> = Vec::new();
     let mut last_speaker: Option<NpcId> = None;
+    let mut dialogue_failure = None;
 
     // Phase 1: each addressed NPC takes one turn in the order named.
     // Cross-NPC opener de-duplication (#1422, #1492) is now applied inside
@@ -1252,6 +966,7 @@ pub async fn handle_npc_conversation(
         )
         .await
         else {
+            dialogue_failure = Some(DIALOGUE_RETRY_MESSAGE.to_string());
             break;
         };
 
@@ -1312,6 +1027,7 @@ pub async fn handle_npc_conversation(
     );
     GameInputOutcome {
         task_mutations: assigned_tasks,
+        dialogue_failure,
     }
 }
 
@@ -1452,6 +1168,7 @@ pub async fn run_idle_banter(
     );
     GameInputOutcome {
         task_mutations: assigned_tasks,
+        dialogue_failure: None,
     }
 }
 
@@ -2192,8 +1909,8 @@ pub mod tests {
 
     /// #1552 — post-guard UI replace: when a post-generation guard alters the
     /// NPC dialogue, `run_npc_turn` must emit a `"dialogue-corrected"` event
-    /// carrying the post-guard canonical text so the frontend can replace the
-    /// accumulated raw stream tokens.
+    /// carrying the canonical text as a compatibility signal. The renderable
+    /// stream itself must already contain only that canonical text (#1834).
     ///
     /// The test uses a fake inference worker that immediately responds with a
     /// 5-sentence dialogue (above the 4-sentence cap enforced by the verbosity
@@ -2228,8 +1945,8 @@ pub mod tests {
         let (profile_tx, mut profile_rx) = tokio::sync::mpsc::unbounded_channel();
 
         // Spawn a task that reads InferenceRequests and answers each with our
-        // canned raw_json (streaming the full text as a single token batch,
-        // then sending the final InferenceResponse).
+        // canned raw_json. The provider batch exercises quarantine and the
+        // final response exercises the canonical renderable event.
         let raw_json_clone = raw_json.clone();
         tokio::spawn(async move {
             while let Some(req) = irx.recv().await {
@@ -2239,9 +1956,8 @@ pub mod tests {
                     req.frequency_penalty,
                     req.json_mode,
                 ));
-                // Stream the whole payload as a single token batch so the
-                // `stream-token` path is exercised (even though tests don't
-                // pump the timer-based reveal).
+                // Send the untrusted provider batch; it must be drained without
+                // becoming a player-renderable `stream-token`.
                 if let Some(tx) = req.token_tx {
                     let _ = tx.send(raw_json_clone.clone()).await;
                 }
@@ -2308,6 +2024,21 @@ pub mod tests {
         let corrected_text = {
             let events = emitter.events.lock().unwrap();
 
+            let rendered_stream: String = events
+                .iter()
+                .filter(|(name, _)| name == "stream-token")
+                .filter_map(|(_, payload)| payload.get("token").and_then(|value| value.as_str()))
+                .collect();
+            assert!(
+                !rendered_stream.contains(&raw_json),
+                "raw provider JSON must remain quarantined from renderable stream events"
+            );
+            assert!(
+                !rendered_stream.contains("Is it not a fine sight to behold the valley at dusk?"),
+                "the sentence removed from the over-cap candidate must never appear transiently \
+                 in the UI stream"
+            );
+
             // 1. `dialogue-corrected` must be present.
             let corrected = events
                 .iter()
@@ -2321,12 +2052,17 @@ pub mod tests {
             );
 
             // 2. Extract the corrected text.
-            corrected
+            let corrected_text = corrected
                 .unwrap()
                 .get("corrected_text")
                 .and_then(|v| v.as_str())
                 .unwrap_or("")
-                .to_string()
+                .to_string();
+            assert_eq!(
+                rendered_stream, corrected_text,
+                "the UI stream must contain only the canonical apply result"
+            );
+            corrected_text
         };
 
         assert!(
@@ -2509,5 +2245,110 @@ pub mod tests {
             .and_then(serde_json::Value::as_str)
             .expect("dialogue-corrected should carry canonical text");
         assert_eq!(corrected_text, displayed);
+        let terminal: crate::ipc::StreamTurnEndPayload =
+            serde_json::from_value(events[stream_end_index].1.clone())
+                .expect("terminal payload should deserialize");
+        assert_eq!(terminal.status, crate::ipc::StreamTurnStatus::Completed);
+        assert_eq!(terminal.final_text.as_deref(), Some(displayed.as_str()));
+        let placeholder_id = events
+            .iter()
+            .find(|(name, payload)| {
+                name == "text-log"
+                    && payload
+                        .get("stream_turn_id")
+                        .and_then(serde_json::Value::as_u64)
+                        == Some(terminal.turn_id)
+            })
+            .and_then(|(_, payload)| payload.get("id"))
+            .and_then(serde_json::Value::as_str)
+            .expect("stream placeholder should carry a reaction target id");
+        assert_eq!(terminal.message_id.as_deref(), Some(placeholder_id));
+    }
+
+    #[tokio::test]
+    async fn failed_provider_turn_discards_partial_and_returns_retry_outcome() {
+        use crate::inference::{InferenceQueue, InferenceResponse};
+        use crate::npc::Npc;
+
+        let (itx, mut irx) = tokio::sync::mpsc::channel::<crate::inference::InferenceRequest>(1);
+        let (btx, _) = tokio::sync::mpsc::channel(1);
+        let (xtx, _) = tokio::sync::mpsc::channel(1);
+        let queue = InferenceQueue::new(itx, btx, xtx);
+        tokio::spawn(async move {
+            if let Some(req) = irx.recv().await {
+                if let Some(tx) = req.token_tx {
+                    let _ = tx
+                        .send("forbidden length-terminated partial".to_string())
+                        .await;
+                }
+                let _ = req.response_tx.send(InferenceResponse {
+                    id: req.id,
+                    text: "forbidden length-terminated partial".to_string(),
+                    error: Some(
+                        "stream ended without a complete response (finish_reason=length)"
+                            .to_string(),
+                    ),
+                });
+            }
+        });
+
+        let emitter = Arc::new(CapturingEmitter::new());
+        let world_state = WorldState::new();
+        let player_loc = world_state.player_location;
+        let mut npc_mgr = NpcManager::new();
+        let mut npc = Npc::new_test_npc();
+        npc.set_location(player_loc);
+        npc_mgr.add_npc(npc);
+
+        let world = tokio::sync::Mutex::new(world_state);
+        let npc_manager = tokio::sync::Mutex::new(npc_mgr);
+        let config = tokio::sync::Mutex::new(GameConfig::default());
+        let conversation = tokio::sync::Mutex::new(ConversationRuntimeState::new());
+        let inference_queue = tokio::sync::Mutex::new(Some(queue));
+        let client = tokio::sync::Mutex::new(None);
+        let cloud_client = tokio::sync::Mutex::new(None);
+        let inference_config = crate::config::InferenceConfig::default();
+        let ctx = make_test_ctx!(
+            &world,
+            &npc_manager,
+            &config,
+            &conversation,
+            &inference_queue,
+            &client,
+            &cloud_client,
+            &inference_config,
+            Arc::clone(&emitter) as Arc<dyn EventEmitter>
+        );
+
+        let outcome = super::handle_npc_conversation(
+            &ctx,
+            "Can ye tell me where to begin?".to_string(),
+            Vec::new(),
+            || None,
+        )
+        .await;
+
+        assert_eq!(
+            outcome.dialogue_failure.as_deref(),
+            Some(super::DIALOGUE_RETRY_MESSAGE)
+        );
+        assert!(world.lock().await.conversation_log.is_empty());
+        let events = emitter.events.lock().unwrap();
+        assert!(
+            !events.iter().any(|(name, _)| name == "stream-token"),
+            "candidate tokens must remain quarantined on failure"
+        );
+        let (_, payload) = events
+            .iter()
+            .find(|(name, _)| name == "stream-turn-end")
+            .expect("failed turn should emit an authoritative terminal event");
+        let terminal: crate::ipc::StreamTurnEndPayload =
+            serde_json::from_value(payload.clone()).expect("terminal payload should deserialize");
+        assert_eq!(terminal.status, crate::ipc::StreamTurnStatus::Failed);
+        assert!(terminal.final_text.is_none());
+        assert_eq!(
+            terminal.recovery_message.as_deref(),
+            Some(super::DIALOGUE_RETRY_MESSAGE)
+        );
     }
 }

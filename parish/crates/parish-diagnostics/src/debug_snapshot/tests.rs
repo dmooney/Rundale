@@ -108,6 +108,24 @@ fn test_build_clock_debug() {
 }
 
 #[test]
+fn weather_debug_formats_pre_epoch_last_check_as_game_time() {
+    let mut world = WorldState::new();
+    let checked_at = world.clock.now();
+    assert!(
+        checked_at.timestamp() < 0,
+        "fixture must exercise the 1820 clock"
+    );
+    world
+        .weather_engine
+        .force(parish_world::Weather::Overcast, checked_at);
+
+    let weather = build_weather_debug(&world);
+
+    assert_eq!(weather.last_check_at.as_deref(), Some("08:00 1820-03-20"));
+    assert!(!serde_json::to_string(&weather).unwrap().contains("-131"));
+}
+
+#[test]
 fn test_build_tier_summary_empty() {
     let mgr = NpcManager::new();
     let summary = build_tier_summary(&mgr);
@@ -171,6 +189,7 @@ fn test_inference_log_entry_serialize() {
         output_tokens: Some(40),
         temperature: Some(0.7),
         priority: parish_inference::InferencePriority::Interactive,
+        ..Default::default()
     };
     let json = serde_json::to_string(&entry).unwrap();
     assert!(json.contains("qwen3:14b"));
@@ -197,6 +216,7 @@ fn test_inference_log_entry_with_error() {
         output_tokens: None,
         temperature: None,
         priority: parish_inference::InferencePriority::Interactive,
+        ..Default::default()
     };
     let json = serde_json::to_string(&entry).unwrap();
     assert!(json.contains("timeout"));
@@ -226,6 +246,7 @@ fn test_call_log_included_in_snapshot() {
         output_tokens: None,
         temperature: None,
         priority: parish_inference::InferencePriority::Interactive,
+        ..Default::default()
     };
     let mut inference = test_inference();
     inference.call_log = vec![entry];

@@ -111,8 +111,8 @@ pub struct WeatherDebug {
     pub duration_hours: f64,
     /// Minimum duration before a transition is allowed (game-hours).
     pub min_duration_hours: f64,
-    /// Game-hour cursor of the last transition evaluation, if any.
-    pub last_check_hour: Option<i64>,
+    /// Canonical game time of the last transition evaluation, if any.
+    pub last_check_at: Option<String>,
 }
 
 /// World graph summary for debug display.
@@ -226,7 +226,7 @@ pub struct NpcDebug {
     pub memories: Vec<MemoryDebug>,
     /// Importance-weighted long-term memories.
     pub long_term_memories: Vec<LongTermMemoryDebug>,
-    /// Recent player emoji reactions directed at this NPC.
+    /// Recent directional nonverbal reactions involving this NPC.
     pub reactions: Vec<ReactionDebug>,
     /// Deflated summary captured at the last tier drop, if any.
     pub deflated_summary: Option<DeflatedSummaryDebug>,
@@ -253,16 +253,18 @@ pub struct LongTermMemoryDebug {
     pub keywords: Vec<String>,
 }
 
-/// A player reaction entry for debug display.
+/// A directional reaction entry for debug display.
 #[derive(Debug, Clone, Serialize)]
 pub struct ReactionDebug {
+    /// Who performed the reaction.
+    pub direction: parish_types::ReactionDirection,
     /// Formatted game timestamp.
     pub timestamp: String,
     /// Emoji used.
     pub emoji: String,
     /// Natural-language description (e.g. "looked angry").
     pub description: String,
-    /// Truncated context — what the NPC said that was reacted to.
+    /// Truncated dialogue context that triggered the reaction.
     pub context: String,
 }
 
@@ -481,11 +483,11 @@ pub struct DebugEvent {
 
 /// Per-role inference configuration shown in the debug panel.
 ///
-/// Mirrors one entry per [`parish_config::InferenceCategory`]. Provider
+/// Mirrors one entry per concrete [`parish_config::InferenceSubrole`]. Provider
 /// names display as `(inherits base)` in the UI when `provider` is `None`.
 #[derive(Debug, Clone, Serialize)]
 pub struct InferenceCategoryDebug {
-    /// Lowercase role name: "dialogue", "simulation", "intent", "reaction".
+    /// Stable concrete workload name such as "dialogue" or "tier2-simulation".
     pub role: String,
     /// Provider override for this role; `None` means inherit base.
     pub provider: Option<String>,
@@ -493,6 +495,10 @@ pub struct InferenceCategoryDebug {
     pub model: Option<String>,
     /// Base URL override for this role; `None` means inherit base.
     pub base_url: Option<String>,
+    /// Effective Gemini tuning profile for this role.
+    pub thinking_level: parish_config::ThinkingLevel,
+    pub max_output_tokens: u32,
+    pub service_tier: parish_config::ServiceTier,
 }
 
 /// Inference pipeline configuration for debug display.
@@ -516,8 +522,8 @@ pub struct InferenceDebug {
     pub improv_enabled: bool,
     /// Recent inference call log entries (newest last).
     pub call_log: Vec<InferenceLogEntry>,
-    /// Per-role provider/model/url state (always 4 entries: Dialogue,
-    /// Simulation, Intent, Reaction). Each entry's `Option<String>` fields
+    /// Per-workload provider/model/url state (one entry per inference subrole).
+    /// Each entry's `Option<String>` fields
     /// are `None` when the role inherits from the base config.
     pub categories: Vec<InferenceCategoryDebug>,
     /// List of provider display names that have an API key configured (or are local).

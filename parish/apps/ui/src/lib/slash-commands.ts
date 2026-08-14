@@ -93,6 +93,11 @@ export const SLASH_COMMANDS: SlashCommand[] = [
 	{ command: '/tick', description: 'Advance NPC schedules', hasArgs: false },
 	{ command: '/new', description: 'Start a new game', hasArgs: false },
 	{
+		command: '/new-game',
+		description: 'Start a new game (alias for /new)',
+		hasArgs: false,
+	},
+	{
 		command: '/theme',
 		description: 'Change UI theme (solarized, default)',
 		hasArgs: true,

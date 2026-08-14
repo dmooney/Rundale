@@ -12,10 +12,12 @@ mod mention;
 mod parser;
 
 pub use commands::{Command, FlagSubcommand, InferenceLogSub, validate_branch_name};
-pub use intent_llm::parse_intent;
+pub use intent_llm::{
+    parse_intent, parse_intent_with_profile, parse_intent_with_profile_and_audit,
+};
 pub use intent_local::{
-    detect_atmospheric_topic, is_physical_action_shaped, is_player_dialogue,
-    is_player_dialogue_with_addressees, parse_intent_local,
+    detect_atmospheric_topic, is_directed_instruction_dialogue, is_physical_action_shaped,
+    is_player_dialogue, is_player_dialogue_with_addressees, parse_intent_local,
 };
 pub use intent_types::{AtmosphericTopic, InputResult, IntentKind, PlayerIntent};
 pub use mention::{MentionExtraction, extract_mention};

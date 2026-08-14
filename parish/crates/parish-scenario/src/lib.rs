@@ -5,6 +5,7 @@
 //! sole mocked boundary; command routing, state mutation, and emitted IPC
 //! events come from `parish_core::game_loop`.
 
+use std::collections::BTreeMap;
 use std::fs;
 use std::path::Path;
 
@@ -113,6 +114,16 @@ impl Scenario {
                     "step {step_number} must contain at least one machine assertion"
                 ));
             }
+            if step
+                .expect
+                .npc_locations
+                .iter()
+                .any(|(name, location)| name.trim().is_empty() || location.trim().is_empty())
+            {
+                return self.invalid(format!(
+                    "step {step_number} NPC location assertions must use non-empty names and locations"
+                ));
+            }
             for completion in &step.mock {
                 if completion.raw_json && completion.prompt_contains.is_none() {
                     return self.invalid(format!(
@@ -179,6 +190,8 @@ pub struct Expectation {
     #[serde(default)]
     pub paused: Option<bool>,
     #[serde(default)]
+    pub npc_locations: BTreeMap<String, String>,
+    #[serde(default)]
     pub min_events: Option<usize>,
     #[serde(default)]
     pub events: Vec<EventExpectation>,
@@ -193,6 +206,7 @@ impl Expectation {
         self.location.is_some()
             || self.clock.is_some()
             || self.paused.is_some()
+            || !self.npc_locations.is_empty()
             || self.min_events.is_some()
             || !self.events.is_empty()
             || !self.absent_events.is_empty()
@@ -240,6 +254,7 @@ pub struct StepReport {
     pub location: String,
     pub clock: String,
     pub paused: bool,
+    pub npc_locations: BTreeMap<String, String>,
     pub passed: bool,
     pub failures: Vec<String>,
     pub events: Vec<EventRecord>,
@@ -305,7 +320,36 @@ impl ScenarioRunner {
             .format("%H:%M")
             .to_string();
         let paused = self.harness.app.world.clock.is_paused();
-        let failures = evaluate(&step.expect, &events, &location, &clock, paused);
+        let npc_locations = step
+            .expect
+            .npc_locations
+            .keys()
+            .filter_map(|expected_name| {
+                let npc = self
+                    .harness
+                    .app
+                    .npc_manager
+                    .all_npcs()
+                    .find(|npc| npc.name.eq_ignore_ascii_case(expected_name))?;
+                let location = self
+                    .harness
+                    .app
+                    .world
+                    .graph
+                    .get(npc.location())
+                    .map(|location| location.name.clone())
+                    .unwrap_or_else(|| format!("Location #{}", npc.location().0));
+                Some((expected_name.clone(), location))
+            })
+            .collect::<BTreeMap<_, _>>();
+        let failures = evaluate(
+            &step.expect,
+            &events,
+            &location,
+            &clock,
+            paused,
+            &npc_locations,
+        );
 
         StepReport {
             index,
@@ -313,6 +357,7 @@ impl ScenarioRunner {
             location,
             clock,
             paused,
+            npc_locations,
             passed: failures.is_empty(),
             failures,
             events,
@@ -326,6 +371,7 @@ fn evaluate(
     location: &str,
     clock: &str,
     paused: bool,
+    npc_locations: &BTreeMap<String, String>,
 ) -> Vec<String> {
     let mut failures = Vec::new();
     if let Some(expected) = &expect.location
@@ -344,6 +390,15 @@ fn evaluate(
         && paused != expected
     {
         failures.push(format!("expected paused={expected}, observed {paused}"));
+    }
+    for (npc, expected_location) in &expect.npc_locations {
+        match npc_locations.get(npc) {
+            Some(actual_location) if actual_location == expected_location => {}
+            Some(actual_location) => failures.push(format!(
+                "expected NPC {npc:?} at {expected_location:?}, observed {actual_location:?}"
+            )),
+            None => failures.push(format!("expected NPC {npc:?}, but no such NPC was found")),
+        }
     }
     if let Some(minimum) = expect.min_events
         && events.len() < minimum
@@ -436,8 +491,28 @@ mod tests {
             }],
             ..Expectation::default()
         };
-        assert!(evaluate(&expected, &events, "Kilteevan Village", "08:00", false).is_empty());
-        assert!(!evaluate(&expected, &events, "The Crossroads", "08:00", false).is_empty());
+        assert!(
+            evaluate(
+                &expected,
+                &events,
+                "Kilteevan Village",
+                "08:00",
+                false,
+                &BTreeMap::new(),
+            )
+            .is_empty()
+        );
+        assert!(
+            !evaluate(
+                &expected,
+                &events,
+                "The Crossroads",
+                "08:00",
+                false,
+                &BTreeMap::new(),
+            )
+            .is_empty()
+        );
     }
 
     #[test]
@@ -460,7 +535,14 @@ mod tests {
             ..Expectation::default()
         };
 
-        let failures = evaluate(&expected, &events, "Kilteevan Village", "08:00", true);
+        let failures = evaluate(
+            &expected,
+            &events,
+            "Kilteevan Village",
+            "08:00",
+            true,
+            &BTreeMap::new(),
+        );
         assert_eq!(failures.len(), 1);
         assert!(failures[0].contains("Taobhán"));
 
@@ -471,7 +553,17 @@ mod tests {
             }],
             ..Expectation::default()
         };
-        assert!(evaluate(&expected, &events, "Kilteevan Village", "08:00", true).is_empty());
+        assert!(
+            evaluate(
+                &expected,
+                &events,
+                "Kilteevan Village",
+                "08:00",
+                true,
+                &BTreeMap::new(),
+            )
+            .is_empty()
+        );
     }
 
     #[test]
@@ -581,6 +673,52 @@ mod tests {
                 },
             }],
         };
+        assert!(matches!(
+            scenario.validate(),
+            Err(ScenarioError::Invalid { .. })
+        ));
+    }
+
+    #[test]
+    fn npc_location_constraints_are_machine_checked() {
+        let mut expected_locations = BTreeMap::new();
+        expected_locations.insert("Maire Gallagher".into(), "Connolly's Shop".into());
+        let expected = Expectation {
+            npc_locations: expected_locations.clone(),
+            ..Expectation::default()
+        };
+
+        assert!(
+            evaluate(
+                &expected,
+                &[],
+                "Kilteevan Village",
+                "09:00",
+                false,
+                &expected_locations,
+            )
+            .is_empty()
+        );
+        assert_eq!(
+            evaluate(
+                &expected,
+                &[],
+                "Kilteevan Village",
+                "09:00",
+                false,
+                &BTreeMap::new(),
+            ),
+            vec!["expected NPC \"Maire Gallagher\", but no such NPC was found"]
+        );
+    }
+
+    #[test]
+    fn validation_rejects_blank_npc_location_constraints() {
+        let scenario: Scenario = serde_yaml::from_str(
+            "version: 1\nname: bad NPC oracle\nsteps:\n  - input: look\n    expect:\n      npc_locations:\n        '': Kilteevan Village\n",
+        )
+        .unwrap();
+
         assert!(matches!(
             scenario.validate(),
             Err(ScenarioError::Invalid { .. })

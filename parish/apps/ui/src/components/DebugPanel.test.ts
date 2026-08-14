@@ -41,7 +41,7 @@ function makeSnapshot(overrides: Partial<DebugSnapshot> = {}): DebugSnapshot {
 			since: '1820-03-15 06:00',
 			duration_hours: 3.0,
 			min_duration_hours: 2.0,
-			last_check_hour: 8,
+			last_check_at: '08:00 1820-03-15',
 		},
 		world: {
 			player_location_name: 'Village Green',
@@ -228,6 +228,46 @@ describe('DebugPanel', () => {
 			expect(container.textContent).toContain('35');
 		});
 
+		it('labels reaction history with the authoritative actor', async () => {
+			debugVisible.set(true);
+			debugSnapshot.set(
+				makeSnapshot({
+					npcs: [
+						{
+							...npcFixture,
+							reactions: [
+								{
+									direction: 'NpcToPlayer' as const,
+									timestamp: '10:00',
+									emoji: '👀',
+									description: 'raised an eyebrow',
+									context: 'I have no money',
+								},
+								{
+									direction: 'PlayerToNpc' as const,
+									timestamp: '10:01',
+									emoji: '😊',
+									description: 'smiled warmly',
+									context: 'Welcome',
+								},
+							],
+						},
+					],
+				}),
+			);
+			debugTab.set(1);
+			const { container } = render(DebugPanel);
+			await fireEvent.click(
+				container.querySelector('.npc-row') as HTMLButtonElement,
+			);
+			await tick();
+
+			expect(container.textContent).toContain(
+				'Máire Ní Bhriain: raised an eyebrow',
+			);
+			expect(container.textContent).toContain('Player: smiled warmly');
+		});
+
 		it('shows (no NPCs) when list is empty', () => {
 			debugVisible.set(true);
 			debugSnapshot.set(makeSnapshot({ npcs: [] }));
@@ -266,11 +306,11 @@ describe('DebugPanel', () => {
 			expect(container.textContent).toContain('Clear');
 			expect(container.textContent).toContain('1820-03-15 06:00');
 			expect(container.textContent).toContain('3.00h');
-			expect(container.textContent).toContain('Last check hour');
-			expect(container.textContent).toContain('8');
+			expect(container.textContent).toContain('Last checked');
+			expect(container.textContent).toContain('08:00 1820-03-15');
 		});
 
-		it('shows "(never)" when last_check_hour is null', () => {
+		it('shows "(never)" when last_check_at is null', () => {
 			debugVisible.set(true);
 			debugSnapshot.set(
 				makeSnapshot({
@@ -279,7 +319,7 @@ describe('DebugPanel', () => {
 						since: '1820-03-15 08:00',
 						duration_hours: 1.0,
 						min_duration_hours: 0.5,
-						last_check_hour: null,
+						last_check_at: null,
 					},
 				}),
 			);
@@ -422,6 +462,74 @@ describe('DebugPanel', () => {
 	});
 
 	describe('Inference tab (index 7)', () => {
+		it('shows native Gemini role profiles and cache performance', () => {
+			debugVisible.set(true);
+			const snap = makeSnapshot();
+			snap.inference.categories = [
+				{
+					role: 'dialogue',
+					provider: 'google',
+					model: 'gemini-3.6-flash',
+					base_url: 'https://generativelanguage.googleapis.com/v1',
+					thinking_level: 'medium',
+					max_output_tokens: 4096,
+					service_tier: 'standard',
+				},
+			];
+			snap.inference.call_log = [
+				{
+					request_id: 36,
+					timestamp: '09:36',
+					model: 'gemini-3.6-flash',
+					provider: 'google',
+					api_mode: 'google-interactions-v1',
+					role: 'dialogue',
+					subrole: 'dialogue',
+					streaming: true,
+					duration_ms: 420,
+					prompt_len: 9000,
+					response_len: 40,
+					error: null,
+					system_prompt: null,
+					prompt_text: '',
+					response_text: '',
+					max_tokens: 4096,
+					ttft_ms: 120,
+					output_tokens: 10,
+					stream_chunks: 4,
+					input_tokens: 9000,
+					cached_tokens: 8000,
+					thought_tokens: 20,
+					total_tokens: 9030,
+					thinking_level: 'medium',
+					requested_service_tier: 'standard',
+					effective_service_tier: 'standard',
+					provider_request_id: 'int_test',
+					terminal_status: 'completed',
+					retry_count: 0,
+					http_status: 200,
+					failure_kind: null,
+					partial_output_len: 0,
+					tier_downgraded: false,
+					estimated_cost_usd: 0.002,
+					prompt_prefix_hash: 'abcd',
+					prompt_prefix_len: 8500,
+				},
+			];
+			debugSnapshot.set(snap);
+			debugTab.set(7);
+			const { container } = render(DebugPanel);
+			expect(container.textContent).toContain('gemini-3.6-flash');
+			expect(container.textContent).toContain('medium');
+			expect(container.textContent).toContain('standard');
+			expect(container.textContent).toContain('88.9%');
+			expect(container.textContent).toContain('Session: 1 calls');
+			expect(container.textContent).toContain(
+				'input/cached/thought/output/total 9000/8000/20/10/9030',
+			);
+			expect(container.textContent).toContain('estimated cost $0.00200');
+		});
+
 		it('shows call log entries when present', () => {
 			debugVisible.set(true);
 			debugSnapshot.set(
@@ -443,6 +551,10 @@ describe('DebugPanel', () => {
 								request_id: 1,
 								timestamp: '09:03',
 								model: 'claude-3-haiku',
+								provider: 'anthropic',
+								api_mode: 'anthropic-messages',
+								role: 'dialogue',
+								subrole: 'dialogue',
 								streaming: false,
 								duration_ms: 350,
 								prompt_len: 120,
@@ -454,6 +566,24 @@ describe('DebugPanel', () => {
 								max_tokens: null,
 								ttft_ms: null,
 								output_tokens: null,
+								stream_chunks: null,
+								input_tokens: null,
+								cached_tokens: null,
+								thought_tokens: null,
+								total_tokens: null,
+								thinking_level: null,
+								requested_service_tier: null,
+								effective_service_tier: null,
+								provider_request_id: null,
+								terminal_status: 'completed',
+								retry_count: 0,
+								http_status: 200,
+								failure_kind: null,
+								partial_output_len: 0,
+								tier_downgraded: false,
+								estimated_cost_usd: null,
+								prompt_prefix_hash: null,
+								prompt_prefix_len: null,
 							},
 						],
 					},
@@ -504,6 +634,10 @@ describe('DebugPanel', () => {
 							request_id: 5,
 							timestamp: '09:10',
 							model: 'claude-3-haiku',
+							provider: 'anthropic',
+							api_mode: 'anthropic-messages',
+							role: 'dialogue',
+							subrole: 'dialogue',
 							streaming: false,
 							duration_ms: 200,
 							prompt_len: 50,
@@ -515,6 +649,24 @@ describe('DebugPanel', () => {
 							max_tokens: null,
 							ttft_ms: null,
 							output_tokens: null,
+							stream_chunks: null,
+							input_tokens: null,
+							cached_tokens: null,
+							thought_tokens: null,
+							total_tokens: null,
+							thinking_level: null,
+							requested_service_tier: null,
+							effective_service_tier: null,
+							provider_request_id: null,
+							terminal_status: 'completed',
+							retry_count: 0,
+							http_status: 200,
+							failure_kind: null,
+							partial_output_len: 0,
+							tier_downgraded: false,
+							estimated_cost_usd: null,
+							prompt_prefix_hash: null,
+							prompt_prefix_len: null,
 						},
 					],
 				},

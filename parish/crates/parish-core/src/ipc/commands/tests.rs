@@ -733,6 +733,21 @@ fn invalid_flag_name_returns_msg() {
 }
 
 #[test]
+fn invalid_system_command_returns_helpful_error() {
+    let (mut world, mut npc, mut config) = default_state();
+    let result = handle_command(
+        Command::InvalidSystemCommand("/not-a-command".to_string()),
+        &mut world,
+        &mut npc,
+        &mut config,
+    );
+    assert_eq!(
+        result.response,
+        "Unknown system command: /not-a-command. Use /help to list available commands."
+    );
+}
+
+#[test]
 fn toggle_sidebar_returns_message() {
     let (mut world, mut npc, mut config) = default_state();
     let result = handle_command(Command::ToggleSidebar, &mut world, &mut npc, &mut config);

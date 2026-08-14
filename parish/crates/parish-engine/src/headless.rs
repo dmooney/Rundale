@@ -13,11 +13,11 @@ use crate::inference::{
     QueueRequest,
 };
 use crate::input::{
-    Command, InputResult, classify_input, extract_mention, is_player_dialogue, parse_intent,
+    Command, InputResult, classify_input, extract_mention, is_player_dialogue,
+    parse_intent_with_profile_and_audit,
 };
 use crate::loading::LoadingAnimation;
 use crate::npc::manager::NpcManager;
-use crate::npc::parse_npc_stream_response;
 use crate::world::description::{format_exits, render_description};
 use crate::world::movement::{self, MovementResult};
 use anyhow::Result;
@@ -97,7 +97,9 @@ fn setup_inference_queue(
             timeout_config: inference_config.clone(),
         },
     );
-    InferenceQueue::new(interactive_tx, background_tx, batch_tx)
+    InferenceQueue::new(interactive_tx, background_tx, batch_tx).with_audit_sink(
+        inference::InferenceAuditSink::new(inference_log.clone(), inference_file_log.clone()),
+    )
 }
 
 /// Runs the headless stdin/stdout REPL loop.
@@ -186,7 +188,7 @@ async fn run_headless_repl_loop(
                     weather: WeatherMode::Single,
                     run_banshee: !app.flags.is_disabled("banshee"),
                     gossip: GossipMode::Skip,
-                    run_tier4: true,
+                    run_tier4: parish_core::game_loop::tier4_simulation_enabled(&app.flags),
                 },
             );
 
@@ -339,6 +341,17 @@ pub async fn run_headless(
     app.script_mode = script_mode;
     app.inference_file_log = inference_file_log.clone();
     app.chat_transcript_log = chat_transcript_log.clone();
+
+    // Match desktop BYOK/profile semantics: reasoning, token caps, and service
+    // tier live in the per-user config even when the headless runtime's
+    // provider/model routing came from CLI or environment overrides.
+    let user_config_dir = parish_core::config::user_config::resolve_user_config_dir();
+    if let Ok(user_cfg) = parish_core::config::user_config::load_user_config(&user_config_dir) {
+        let mut runtime_config = app.snapshot_config();
+        runtime_config.apply_user_inference_profiles(&user_cfg);
+        app.inference_profile_override = runtime_config.inference_profile_override;
+        app.category_inference_profile = runtime_config.category_inference_profile;
+    }
 
     // Load feature flags from disk
     let flags_path = data_dir.map(|d| d.join("parish-flags.json"));
@@ -597,11 +610,6 @@ async fn load_and_restore_snapshot(
             let snap_id = recovery.snapshot_id;
             let (mut candidate_world, mut candidate_npcs) = fresh_headless_world_and_npcs(app)?;
             recovery.restore(&mut candidate_world, &mut candidate_npcs);
-            // Gate: clear in-memory introduced set so NPCs must be re-introduced
-            // each session (#1396, npc-dialogue-grounding flag, default-on).
-            if !app.flags.is_disabled("npc-dialogue-grounding") {
-                candidate_npcs.clear_introduced_for_session();
-            }
             candidate_npcs.assign_tiers(&candidate_world, &[]);
             let prepared_binding = app
                 .session_store
@@ -979,120 +987,12 @@ fn apply_npc_response(
     location: parish_core::world::LocationId,
     npc_display_name: &str,
     npc_actual_name: &str,
-    known_person_names: &[String],
-    known_location_names: &[String],
-    player_name: Option<&str>,
-) -> Option<parish_core::session_store::PlayerTask> {
-    let mut parsed = parse_npc_stream_response(response_text);
+    grounding: &crate::npc::DialogueGroundingSnapshot,
+) -> (Option<parish_core::session_store::PlayerTask>, String) {
+    let (parsed, parse_disposition) =
+        crate::npc::parse_npc_stream_response_with_disposition(response_text);
     if let Some(meta) = &parsed.metadata {
         tracing::debug!("NPC metadata: action={}, mood={}", meta.action, meta.mood);
-    }
-
-    // Post-generation person-confirmation guard (#1459, #1466, #1470): headless
-    // parity with the live-loop path in `run_npc_turn`. Both guards default-on;
-    // no runtime-flag access here so we use the NpcConfig default (true).
-    // Prior player inputs are not available in this single-turn helper scope,
-    // so we pass &[] — the pronoun follow-up guard is conservative and will
-    // only fire when prior_player_inputs is non-empty.
-    let cfg = parish_core::config::NpcConfig::default();
-    let speaker_context =
-        app.npc_manager
-            .get(npc_id)
-            .map(|npc| crate::npc::DialogueSpeakerContext {
-                name: npc.name.clone(),
-                occupation: npc.occupation.clone(),
-                mood: npc.mood.clone(),
-            });
-    if cfg.person_confirmation_guard_enabled && !parsed.dialogue.trim().is_empty() {
-        let seed = npc_id.0 as u64 ^ (game_time.timestamp() as u64);
-        let guarded = crate::npc::guard_fabricated_person_confirmation_with_locations(
-            &parsed.dialogue,
-            player_input,
-            known_person_names,
-            known_location_names,
-            &[],
-            player_name,
-            seed,
-        );
-        if guarded != parsed.dialogue {
-            parsed.dialogue = guarded;
-        }
-    }
-    if !app.flags.is_disabled(crate::npc::FALSE_DENIAL_GUARD_FLAG)
-        && !parsed.dialogue.trim().is_empty()
-    {
-        let seed = npc_id.0 as u64 ^ (game_time.timestamp() as u64);
-        let guarded = crate::npc::guard_false_denial_of_roster_person_with_speaker(
-            &parsed.dialogue,
-            player_input,
-            known_person_names,
-            player_name,
-            seed,
-            speaker_context.as_ref(),
-        );
-        if guarded != parsed.dialogue {
-            parsed.dialogue = guarded;
-        }
-        let guarded = crate::npc::guard_false_denial_of_known_place(
-            &parsed.dialogue,
-            player_input,
-            known_location_names,
-            seed,
-        );
-        if guarded != parsed.dialogue {
-            parsed.dialogue = guarded;
-        }
-    }
-    if !app.flags.is_disabled(crate::npc::INVENTED_PLACE_GUARD_FLAG)
-        && !parsed.dialogue.trim().is_empty()
-    {
-        let seed = npc_id.0 as u64 ^ (game_time.timestamp() as u64);
-        let guarded = crate::npc::guard_invented_place_confirmation(
-            &parsed.dialogue,
-            player_input,
-            known_location_names,
-            seed,
-        );
-        if guarded != parsed.dialogue {
-            parsed.dialogue = guarded;
-        }
-    }
-    if !app
-        .flags
-        .is_disabled(crate::npc::DIALOGUE_POLISH_GUARD_FLAG)
-        && !parsed.dialogue.trim().is_empty()
-    {
-        let seed = npc_id.0 as u64 ^ (game_time.timestamp() as u64);
-        let guarded = crate::npc::guard_stock_nonrecognition_decline_with_speaker(
-            &parsed.dialogue,
-            player_input,
-            seed,
-            speaker_context.as_ref(),
-        );
-        if guarded != parsed.dialogue {
-            parsed.dialogue = guarded;
-        }
-        let guarded =
-            crate::npc::guard_time_of_day_phrase(&parsed.dialogue, app.world.clock.time_of_day());
-        if guarded != parsed.dialogue {
-            parsed.dialogue = guarded;
-        }
-    }
-    if cfg.verbosity_guard_enabled && !parsed.dialogue.trim().is_empty() {
-        // The authored pre-turn mood governs spoken style. The model's JSON
-        // mood describes its proposed post-turn state and cannot retroactively
-        // relax the current reply (#1779).
-        let mood_str = speaker_context
-            .as_ref()
-            .map(|speaker| speaker.mood.as_str());
-        let guarded = if app.flags.is_disabled("npc-mood-aware-sentence-cap") {
-            crate::npc::guard_verbosity_runons(&parsed.dialogue)
-        } else {
-            crate::npc::guard_verbosity_runons_with_mood(&parsed.dialogue, mood_str)
-        };
-        if guarded != parsed.dialogue {
-            parsed.dialogue = guarded;
-        }
     }
 
     // Shared per-turn pipeline (#1172 / #1173): name detection, Tier-1 apply,
@@ -1100,11 +1000,14 @@ fn apply_npc_response(
     // publish (headless previously skipped this last step). Forward the returned
     // debug-event strings to the headless debug sink.
     let language = app.language_settings();
-    let outcome = parish_core::game_session::apply_npc_dialogue_turn(
+    let outcome = parish_core::game_session::apply_npc_dialogue_turn_with_validation(
         &mut app.world,
         &mut app.npc_manager,
         npc_id,
         &parsed,
+        parse_disposition,
+        grounding,
+        crate::npc::DialogueValidationPolicy::default(),
         player_input,
         player_input,
         game_time,
@@ -1119,7 +1022,7 @@ fn apply_npc_response(
     for event in outcome.debug_events {
         app.debug_event(event);
     }
-    outcome.assigned_task
+    (outcome.assigned_task, outcome.display_text)
 }
 
 /// Streams NPC dialogue to stdout with loading animation, then applies
@@ -1135,9 +1038,7 @@ async fn stream_headless_npc_dialogue(
     let npc_id = setup.npc_id;
     let system_prompt = setup.system_prompt;
     let context = setup.context;
-    let known_person_names = setup.known_person_names.clone();
-    let known_location_names = setup.known_location_names.clone();
-    let setup_player_name = setup.player_name.clone();
+    let grounding = setup.grounding.clone();
 
     let mut assigned_task = None;
     if let Some(queue) = &app.inference_queue {
@@ -1190,6 +1091,9 @@ async fn stream_headless_npc_dialogue(
                 enable_thinking: generation.enable_thinking,
                 reasoning_effort: generation.reasoning_effort,
                 priority: InferencePriority::Interactive,
+                role: parish_core::config::InferenceCategory::Dialogue,
+                subrole: parish_core::config::InferenceSubrole::Dialogue,
+                profile: None,
                 json_mode: generation.json_mode,
                 json_schema: None,
                 cancel: None,
@@ -1198,14 +1102,10 @@ async fn stream_headless_npc_dialogue(
         {
             Ok(rx) => {
                 let stream_handle = tokio::spawn(async move {
-                    let accumulated = parish_core::ipc::stream_npc_tokens(token_rx, |batch| {
+                    parish_core::ipc::stream_npc_tokens(token_rx, |_| {
                         cancel_for_stream.notify_one();
-                        print!("{}", batch);
-                        std::io::stdout().flush().ok();
                     })
-                    .await;
-                    println!();
-                    accumulated
+                    .await
                 });
 
                 match rx.await {
@@ -1218,7 +1118,7 @@ async fn stream_headless_npc_dialogue(
                         } else {
                             let game_time = app.world.clock.now();
                             let location = app.world.player_location;
-                            assigned_task = apply_npc_response(
+                            let (task, canonical_dialogue) = apply_npc_response(
                                 app,
                                 npc_id,
                                 &response.text,
@@ -1227,10 +1127,10 @@ async fn stream_headless_npc_dialogue(
                                 location,
                                 &npc_display_name,
                                 &npc_actual_name,
-                                &known_person_names,
-                                &known_location_names,
-                                setup_player_name.as_deref(),
+                                &grounding,
                             );
+                            println!("{canonical_dialogue}");
+                            assigned_task = task;
                         }
                     }
                     Err(_) => {
@@ -1330,7 +1230,15 @@ async fn handle_headless_game_input(
         local
     } else if let Some(client) = client {
         app.world.clock.inference_pause();
-        let result = parse_intent(client, text, model).await;
+        let profile = app
+            .snapshot_config()
+            .inference_profile(parish_core::config::InferenceSubrole::Intent);
+        let audit_sink = app
+            .inference_queue
+            .as_ref()
+            .and_then(InferenceQueue::audit_sink);
+        let result =
+            parse_intent_with_profile_and_audit(client, text, model, profile, audit_sink).await;
         app.world.clock.inference_resume();
         result?
     } else {
@@ -1619,12 +1527,42 @@ fn committed_headless_lines(emissions: &[(String, serde_json::Value)]) -> Vec<St
                 let Some(turn_id) = payload.get("turn_id").and_then(|value| value.as_u64()) else {
                     continue;
                 };
+                if payload.get("status").and_then(|value| value.as_str()) == Some("failed") {
+                    if let Some(recovery) = payload
+                        .get("recovery_message")
+                        .and_then(|value| value.as_str())
+                        .filter(|value| !value.is_empty())
+                    {
+                        lines.push(recovery.to_string());
+                    }
+                    continue;
+                }
                 let Some(turn) = turns.get(&turn_id) else {
+                    if let Some(final_text) = payload
+                        .get("final_text")
+                        .and_then(|value| value.as_str())
+                        .filter(|value| !value.is_empty())
+                    {
+                        let source = payload
+                            .get("source")
+                            .and_then(|value| value.as_str())
+                            .unwrap_or_default();
+                        lines.push(if source.is_empty() {
+                            final_text.to_string()
+                        } else {
+                            format!("{source}: {final_text}")
+                        });
+                    }
                     continue;
                 };
-                let dialogue = turn.corrected.clone().unwrap_or_else(|| {
-                    parish_core::npc::parse_npc_stream_response(&turn.streamed).dialogue
-                });
+                let dialogue = payload
+                    .get("final_text")
+                    .and_then(|value| value.as_str())
+                    .map(str::to_string)
+                    .or_else(|| turn.corrected.clone())
+                    .unwrap_or_else(|| {
+                        parish_core::npc::parse_npc_stream_response(&turn.streamed).dialogue
+                    });
                 if !dialogue.trim().is_empty() {
                     if turn.source.is_empty() {
                         lines.push(dialogue);
@@ -1685,7 +1623,9 @@ fn print_location_arrival(app: &App) {
 /// Reactions are persisted to each NPC's `reaction_log` (#403) and printed
 /// to stdout so the player sees them.
 async fn emit_headless_npc_reactions(app: &mut App, player_input: &str) {
-    use parish_core::npc::reactions::{generate_rule_reaction, infer_player_message_reaction};
+    use parish_core::npc::reactions::{
+        generate_rule_reaction, infer_player_message_reaction_with_profile_and_audit,
+    };
     use tokio::task::JoinSet;
 
     let npcs_here: Vec<_> = app
@@ -1700,6 +1640,9 @@ async fn emit_headless_npc_reactions(app: &mut App, player_input: &str) {
     }
 
     let llm_enabled = !app.flags.is_disabled("npc-llm-reactions");
+    let reaction_profile = app
+        .snapshot_config()
+        .inference_profile(parish_core::config::InferenceSubrole::MessageReaction);
 
     // Run per-NPC inference concurrently, bounded to NPC_REACTION_CONCURRENCY
     // simultaneous calls so a busy location can't exhaust the LLM connection
@@ -1712,6 +1655,10 @@ async fn emit_headless_npc_reactions(app: &mut App, player_input: &str) {
         let client = app.reaction.client.clone();
         let model = app.reaction.model.clone();
         let input = player_input.to_string();
+        let audit_sink = app
+            .inference_queue
+            .as_ref()
+            .and_then(InferenceQueue::audit_sink);
 
         join_set.spawn(async move {
             // Acquire a permit before starting the (potentially slow) LLM call.
@@ -1719,12 +1666,14 @@ async fn emit_headless_npc_reactions(app: &mut App, player_input: &str) {
 
             let emoji = if llm_enabled {
                 if let Some(ref c) = client {
-                    infer_player_message_reaction(
+                    infer_player_message_reaction_with_profile_and_audit(
                         c,
                         &model,
                         &npc,
                         &input,
                         std::time::Duration::from_secs(2),
+                        reaction_profile,
+                        audit_sink,
                     )
                     .await
                     .or_else(|| generate_rule_reaction(&input))
@@ -1759,15 +1708,50 @@ async fn emit_headless_npc_reactions(app: &mut App, player_input: &str) {
         };
 
         // Persist to reaction_log so NPC memory is maintained (#403).
-        if let Some(npc_mut) = app.npc_manager.find_by_name_mut(&npc_name) {
-            npc_mut.reaction_log.add_player_message_reaction(
+        if let Some(npc_id) = app
+            .npc_manager
+            .find_by_name_mut(&npc_name)
+            .map(|npc| npc.id)
+        {
+            let previous_log = app
+                .npc_manager
+                .get(npc_id)
+                .map(|npc| npc.reaction_log.clone());
+            if let Some(event) = parish_core::game_loop::record_directional_reaction(
+                &mut app.npc_manager,
+                npc_id,
+                parish_core::ReactionDirection::NpcToPlayer,
                 &emoji,
                 player_input,
                 chrono::Utc::now(),
-            );
+            ) {
+                let journal_result = if let (Some(db), Some(world_event)) = (
+                    app.db.as_ref(),
+                    parish_core::persistence::journal_bridge::to_journal_event(&event),
+                ) {
+                    db.append_event(
+                        app.active_branch_id,
+                        app.latest_snapshot_id,
+                        &world_event,
+                        &event.timestamp().to_rfc3339(),
+                    )
+                    .await
+                } else {
+                    Ok(())
+                };
+                if let Err(error) = journal_result {
+                    if let (Some(npc), Some(previous_log)) =
+                        (app.npc_manager.get_mut(npc_id), previous_log)
+                    {
+                        npc.reaction_log = previous_log;
+                    }
+                    tracing::warn!(%error, "reaction journal commit failed; rolled back");
+                    continue;
+                }
+                app.npc_manager.record_reaction_emoji(&emoji);
+                app.world.event_bus.publish(event);
+            }
         }
-        // Feed the per-session diversity sensor (#995).
-        app.npc_manager.record_reaction_emoji(&emoji);
         println!("{} {}", capitalize_first(&npc_name), emoji);
     }
 }
@@ -1829,6 +1813,13 @@ async fn print_arrival_reactions(app: &mut App) {
                         client,
                         model: &app.reaction.model.clone(),
                         timeout_secs: config.llm_timeout_secs,
+                        profile: app.snapshot_config().inference_profile(
+                            parish_core::config::InferenceSubrole::ArrivalReaction,
+                        ),
+                        audit_sink: app
+                            .inference_queue
+                            .as_ref()
+                            .and_then(parish_core::inference::InferenceQueue::audit_sink),
                     };
                     resolve_llm_greeting(reaction, npc, &llm_params).await
                 } else {
@@ -2100,7 +2091,18 @@ async fn dispatch_headless_tier3_tick(app: &mut App) {
                 grounding_enabled: !app.flags.is_disabled("npc-dialogue-grounding"),
             };
 
-            match parish_core::npc::ticks::tick_tier3(&ctx).await {
+            let profile = app
+                .snapshot_config()
+                .inference_profile(parish_core::config::InferenceSubrole::Tier3Simulation);
+            let audit_sink = app
+                .inference_queue
+                .as_ref()
+                .and_then(InferenceQueue::audit_sink);
+            match parish_core::npc::ticks::tick_tier3_with_profile_and_audit(
+                &ctx, profile, audit_sink,
+            )
+            .await
+            {
                 Ok(updates) => {
                     let game_time = app.world.clock.now();
                     let _events = parish_core::npc::ticks::apply_tier3_updates(
@@ -2141,16 +2143,26 @@ async fn dispatch_headless_tier2_tick(app: &mut App) {
             let lang = app.language_settings();
             let mut events = Vec::new();
             for group in &groups {
-                if let Some(evt) = parish_core::npc::ticks::run_tier2_for_group(
-                    sim_client,
-                    &sim_model,
-                    group,
-                    &app.world.clock.time_of_day().to_string(),
-                    &app.world.weather.to_string(),
-                    &lang,
-                    None,
-                )
-                .await
+                let profile = app
+                    .snapshot_config()
+                    .inference_profile(parish_core::config::InferenceSubrole::Tier2Simulation);
+                let audit_sink = app
+                    .inference_queue
+                    .as_ref()
+                    .and_then(InferenceQueue::audit_sink);
+                if let Some(evt) =
+                    parish_core::npc::ticks::run_tier2_for_group_with_profile_and_audit(
+                        sim_client,
+                        &sim_model,
+                        group,
+                        &app.world.clock.time_of_day().to_string(),
+                        &app.world.weather.to_string(),
+                        &lang,
+                        None,
+                        profile,
+                        audit_sink,
+                    )
+                    .await
                 {
                     events.push(evt);
                 }
@@ -2724,7 +2736,16 @@ mod tests {
     async fn test_restore_from_db_with_existing_snapshot() {
         let tmp = tempfile::tempdir().unwrap();
         let save_path = tmp.path().join("parish_001.db");
-        let app = App::new();
+        let mut app = App::new();
+        app.npc_manager
+            .add_npc(parish_core::npc::Npc::new_test_npc());
+        let introduced_id = app
+            .npc_manager
+            .all_npcs()
+            .next()
+            .expect("headless fixture has an NPC")
+            .id;
+        app.npc_manager.mark_introduced(introduced_id);
         let db = crate::persistence::Database::open(&save_path).unwrap();
         let async_db = Arc::new(crate::persistence::AsyncDatabase::new(db));
 
@@ -2743,6 +2764,10 @@ mod tests {
             .unwrap();
         assert_eq!(app2.active_branch_id, branch.id);
         assert_eq!(app2.latest_snapshot_id, snap_id);
+        assert!(
+            app2.npc_manager.is_introduced(introduced_id),
+            "headless database restore must preserve durable identity knowledge"
+        );
     }
 
     #[tokio::test]

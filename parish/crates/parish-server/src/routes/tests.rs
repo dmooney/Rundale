@@ -212,6 +212,8 @@ pub fn test_app_state() -> Arc<crate::state::AppState> {
             category_model: Default::default(),
             category_api_key: Default::default(),
             category_base_url: Default::default(),
+            inference_profile_override: Default::default(),
+            category_inference_profile: Default::default(),
             flags: parish_core::config::FeatureFlags::default(),
             category_rate_limit: Default::default(),
             active_tile_source: String::new(),
@@ -1345,6 +1347,17 @@ async fn load_branch_rejects_path_traversal() {
 async fn successful_same_location_branch_restore_clears_ring_but_preserves_lifetime_cursor() {
     let state = test_app_state();
     seed_stale_branch_runtime(&state).await;
+    let introduced_id = {
+        let mut npc_manager = state.npc_manager.lock().await;
+        npc_manager.add_npc(parish_core::npc::Npc::new_test_npc());
+        let id = npc_manager
+            .all_npcs()
+            .next()
+            .expect("server fixture has an NPC")
+            .id;
+        npc_manager.mark_introduced(id);
+        id
+    };
     let snapshot = {
         let world = state.world.lock().await;
         let npc_manager = state.npc_manager.lock().await;
@@ -1372,6 +1385,10 @@ async fn successful_same_location_branch_restore_clears_ring_but_preserves_lifet
     assert!(conversation.seen_openers_this_location.is_empty());
     drop(conversation);
     assert!(state.game_events.lock().await.is_empty());
+    assert!(
+        state.npc_manager.lock().await.is_introduced(introduced_id),
+        "server branch restore must preserve durable identity knowledge"
+    );
     assert_eq!(
         state
             .total_game_events
@@ -1437,6 +1454,36 @@ async fn new_game_preserves_cursor_so_old_client_receives_first_new_context_even
     assert_eq!(turn.event_cursor, old_cursor + 1);
     assert_eq!(turn.events.len(), 1);
     assert!(turn.events[0].summary.contains("new-context"));
+}
+
+/// Regression for #1843: the public server route must expose the newest
+/// bounded window and the coherent lifetime total, matching the Tauri bridge.
+#[tokio::test]
+async fn turn_route_over_cap_returns_newest_events_and_total_cursor() {
+    let state = test_app_state();
+    {
+        let mut events = state.game_events.lock().await;
+        events.extend((0..27).map(
+            |index| parish_core::world::events::GameEvent::WeatherChanged {
+                new_weather: format!("Weather {index}"),
+                timestamp: chrono::Utc::now(),
+            },
+        ));
+    }
+    state
+        .total_game_events
+        .store(27, std::sync::atomic::Ordering::Relaxed);
+
+    let Json(turn) = get_turn(
+        axum::extract::Extension(state),
+        axum::extract::Query(parish_core::ipc::TurnReadParams { since: Some(0) }),
+    )
+    .await;
+
+    assert_eq!(turn.events.len(), 20);
+    assert_eq!(turn.events[0].summary, "Weather → Weather 7");
+    assert_eq!(turn.events.last().unwrap().summary, "Weather → Weather 26");
+    assert_eq!(turn.event_cursor, 27);
 }
 
 #[tokio::test]
@@ -2329,13 +2376,14 @@ async fn react_to_message_waits_for_staged_turn_barrier() {
     assert_eq!(response.status(), axum::http::StatusCode::OK);
     let location = state.world.lock().await.player_location;
     let npc_manager = state.npc_manager.lock().await;
+    let log = &npc_manager
+        .find_by_name("Molly", location)
+        .unwrap()
+        .reaction_log;
+    assert_eq!(log.len(), 1);
     assert_eq!(
-        npc_manager
-            .find_by_name("Molly", location)
-            .unwrap()
-            .reaction_log
-            .len(),
-        1
+        log.entries().next().unwrap().direction,
+        parish_core::ReactionDirection::PlayerToNpc
     );
 }
 
@@ -2485,6 +2533,8 @@ fn mods_root_derives_from_game_mod_not_cwd() {
             category_model: Default::default(),
             category_api_key: Default::default(),
             category_base_url: Default::default(),
+            inference_profile_override: Default::default(),
+            category_inference_profile: Default::default(),
             flags: parish_core::config::FeatureFlags::default(),
             category_rate_limit: Default::default(),
             active_tile_source: String::new(),
@@ -2645,6 +2695,7 @@ async fn audit_loop_detects_mismatch_and_files_full_payload() {
         output_tokens: None,
         temperature: Some(0.7),
         priority: InferencePriority::Interactive,
+        ..Default::default()
     });
 
     // ── Validate: read the authoritative engine state ─────────────────────

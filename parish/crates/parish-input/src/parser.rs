@@ -106,13 +106,13 @@ fn parse_zero_arg_command(keyword: &str) -> Option<Command> {
         "/log" => Some(Command::Log),
         "/status" | "/where" => Some(Command::Status),
         "/help" => Some(Command::Help),
-        "/hints" => Some(Command::ToggleSidebar),
+        "/hints" | "/irish" => Some(Command::ToggleSidebar),
         "/improv" => Some(Command::ToggleImprov),
         "/about" => Some(Command::About),
         "/designer" => Some(Command::Designer),
         "/npcs" => Some(Command::NpcsHere),
         "/time" => Some(Command::Time),
-        "/new" => Some(Command::NewGame),
+        "/new" | "/new-game" => Some(Command::NewGame),
         "/tick" => Some(Command::Tick),
         "/flags" => Some(Command::Flags),
         "/session" | "/tune" | "/music" | "/fiddle" | "/seisiun" => Some(Command::Session),
@@ -203,6 +203,9 @@ pub fn classify_input_with_context(raw: &str, has_explicit_addressee: bool) -> I
     let trimmed = raw.trim();
     if let Some(cmd) = parse_system_command(trimmed) {
         return InputResult::SystemCommand(cmd);
+    }
+    if trimmed.starts_with('/') {
+        return InputResult::SystemCommand(Command::InvalidSystemCommand(trimmed.to_string()));
     }
     if !has_explicit_addressee && let Some(cmd) = parse_natural_command_intercept(trimmed) {
         return InputResult::SystemCommand(cmd);
@@ -323,12 +326,25 @@ mod tests {
         );
     }
     #[test]
-    fn test_classify_unknown_slash_command() {
-        // Unknown /commands fall through as game input
+    fn test_classify_unknown_slash_command_never_reaches_gameplay() {
         assert_eq!(
             classify_input("/dance"),
-            InputResult::GameInput("/dance".to_string())
+            InputResult::SystemCommand(Command::InvalidSystemCommand("/dance".to_string()))
         );
+    }
+
+    #[test]
+    fn advertised_aliases_parse_as_system_commands() {
+        assert_eq!(parse_system_command("/irish"), Some(Command::ToggleSidebar));
+        assert_eq!(parse_system_command("/new-game"), Some(Command::NewGame));
+        assert!(matches!(
+            classify_input("/irish"),
+            InputResult::SystemCommand(Command::ToggleSidebar)
+        ));
+        assert!(matches!(
+            classify_input("/new-game"),
+            InputResult::SystemCommand(Command::NewGame)
+        ));
     }
     #[test]
     fn test_classify_whitespace() {
@@ -412,25 +428,21 @@ mod tests {
         assert_eq!(parse_system_command("  /new  "), Some(Command::NewGame));
     }
     #[test]
-    fn test_new_game_alias_policy_keeps_new_canonical() {
-        assert_eq!(parse_system_command("/new-game"), None);
-        assert_eq!(parse_system_command("/NEW-GAME"), None);
+    fn test_new_game_alias_matches_new_command() {
+        assert_eq!(parse_system_command("/new-game"), Some(Command::NewGame));
+        assert_eq!(parse_system_command("/NEW-GAME"), Some(Command::NewGame));
         assert_eq!(parse_system_command("/new-game please"), None);
         assert_eq!(
             classify_input("/new-game"),
-            InputResult::GameInput("/new-game".to_string())
+            InputResult::SystemCommand(Command::NewGame)
         );
     }
     #[test]
-    fn test_new_command_policy_documentation_stays_canonical() {
+    fn test_new_command_policy_documentation_includes_advertised_alias() {
         let readme = include_str!("../README.md");
         assert!(
-            readme.contains("/new` is the canonical player command"),
-            "parish-input README must document /new as the canonical player command"
-        );
-        assert!(
-            readme.contains("Do not add\n  `/new-game` as a slash-command alias"),
-            "parish-input README must reject /new-game as a player slash-command alias"
+            readme.contains("`/new` and `/new-game` both start a fresh game"),
+            "parish-input README must document both advertised aliases"
         );
     }
     #[test]

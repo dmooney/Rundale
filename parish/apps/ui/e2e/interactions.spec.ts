@@ -51,6 +51,80 @@ async function submissions(page: Page): Promise<string[]> {
 	);
 }
 
+async function seedOverflowingTranscript(page: Page) {
+	for (let index = 0; index < 18; index += 1) {
+		await emitEvent(page, 'text-log', {
+			id: `history-${index}`,
+			source: 'system',
+			content: `Earlier parish event ${index + 1}: the road, weather, and neighbours remain in view.`,
+		});
+	}
+}
+
+async function streamReply(page: Page, turnId: number, reply: string) {
+	await emitEvent(page, 'loading', { active: true });
+	await emitEvent(page, 'text-log', {
+		id: `reply-${turnId}`,
+		source: 'Siobhan Murphy',
+		content: '',
+		stream_turn_id: turnId,
+	});
+	await emitEvent(page, 'stream-token', {
+		token: reply,
+		turn_id: turnId,
+		source: 'Siobhan Murphy',
+		message_id: `reply-${turnId}`,
+	});
+	await emitEvent(page, 'stream-turn-end', { turn_id: turnId });
+	await emitEvent(page, 'stream-end', { hints: [] });
+	await expect(page.getByTestId('input-field')).toHaveAttribute(
+		'aria-busy',
+		'false',
+		{ timeout: 15_000 },
+	);
+}
+
+async function expectLatestReplyVisible(page: Page, reply: string) {
+	const chat = page.getByTestId('chat-panel');
+	const row = chat.locator('.bubble-row.npc').filter({ hasText: reply }).last();
+	await expect(row).toBeVisible();
+	await expect
+		.poll(() =>
+			chat.evaluate(
+				(element) =>
+					element.scrollHeight - element.scrollTop - element.clientHeight,
+			),
+		)
+		.toBeLessThanOrEqual(1);
+	const geometry = await page.evaluate(() => {
+		const chatElement = document.querySelector<HTMLElement>(
+			'[data-testid="chat-panel"]',
+		)!;
+		const replyElement = [
+			...document.querySelectorAll<HTMLElement>('.bubble-row.npc'),
+		].at(-1)!;
+		const inputElement = document.querySelector<HTMLElement>('.input-wrapper')!;
+		const chatRect = chatElement.getBoundingClientRect();
+		const replyRect = replyElement.getBoundingClientRect();
+		const inputRect = inputElement.getBoundingClientRect();
+		return {
+			chatTop: chatRect.top,
+			chatBottom: chatRect.bottom,
+			replyTop: replyRect.top,
+			replyBottom: replyRect.bottom,
+			inputTop: inputRect.top,
+			bottomDelta:
+				chatElement.scrollHeight -
+				chatElement.scrollTop -
+				chatElement.clientHeight,
+		};
+	});
+	expect(geometry.replyTop).toBeGreaterThanOrEqual(geometry.chatTop - 1);
+	expect(geometry.replyBottom).toBeLessThanOrEqual(geometry.chatBottom + 1);
+	expect(geometry.replyBottom).toBeLessThanOrEqual(geometry.inputTop + 1);
+	expect(Math.abs(geometry.bottomDelta)).toBeLessThanOrEqual(1);
+}
+
 test.describe('Input and streaming', () => {
 	test.beforeEach(async ({ page }) => {
 		await installTauriMock(page, 'morning');
@@ -123,6 +197,226 @@ test.describe('Input and streaming', () => {
 		await emitEvent(page, 'stream-end', { hints: IRISH_HINTS });
 	});
 
+	test('only post-validation dialogue can become visible', async ({ page }) => {
+		const forbiddenCandidate =
+			'The agricultural show committee has very strong opinions.';
+		const safeFallback = 'I beg your pardon; I lost the thread of that.';
+		const chat = page.getByTestId('chat-panel');
+
+		await emitEvent(page, 'loading', { active: true });
+		await emitEvent(page, 'text-log', {
+			id: 'validated-turn',
+			source: 'Siobhan Murphy',
+			content: '',
+			stream_turn_id: 1834,
+		});
+		// Even if internal telemetry is forwarded by a test transport, it is not
+		// part of the renderable UI protocol and has no store listener.
+		await emitEvent(page, 'dialogue-candidate-token', {
+			token: forbiddenCandidate,
+			turn_id: 1834,
+			source: 'provider',
+		});
+		await expect(chat).not.toContainText(forbiddenCandidate);
+
+		// The backend has quarantined the candidate and exposes only the
+		// canonical validator outcome through the renderable protocol.
+		await emitEvent(page, 'stream-token', {
+			token: safeFallback,
+			turn_id: 1834,
+			source: 'Siobhan Murphy',
+			message_id: 'validated-turn',
+		});
+		await expect(chat).not.toContainText(forbiddenCandidate);
+
+		await emitEvent(page, 'stream-turn-end', { turn_id: 1834 });
+		await expect(chat).toContainText(safeFallback);
+		await emitEvent(page, 'stream-end', { hints: [] });
+		await expect(chat).not.toContainText(forbiddenCandidate);
+	});
+
+	test('typed grounding contradictions never transiently render', async ({
+		page,
+	}) => {
+		const rejectedCandidates = [
+			'There is no old bridge in Kilteevan that I have ever heard tell of.',
+			"A small mark like that turns a plain scrap of silk into a whole life's remembrance.",
+			'Sunday is market day in the town.',
+			'There is no one singer taking the floor; only the general clatter of the room.',
+		];
+		const safeFallback = 'I beg your pardon; I lost the thread of that.';
+		const chat = page.getByTestId('chat-panel');
+
+		await emitEvent(page, 'loading', { active: true });
+		await emitEvent(page, 'text-log', {
+			id: 'typed-grounding-turn',
+			source: 'Padraig Darcy',
+			content: '',
+			stream_turn_id: 1872,
+		});
+		for (const candidate of rejectedCandidates) {
+			await emitEvent(page, 'dialogue-candidate-token', {
+				token: candidate,
+				turn_id: 1872,
+				source: 'provider',
+			});
+			await expect(chat).not.toContainText(candidate);
+		}
+		await emitEvent(page, 'stream-token', {
+			token: safeFallback,
+			turn_id: 1872,
+			source: 'Padraig Darcy',
+			message_id: 'typed-grounding-turn',
+		});
+		await emitEvent(page, 'stream-turn-end', {
+			turn_id: 1872,
+			status: 'completed',
+			message_id: 'typed-grounding-turn',
+			source: 'Padraig Darcy',
+			final_text: safeFallback,
+		});
+		await emitEvent(page, 'stream-end', { hints: [] });
+		await expect(chat).toContainText(safeFallback);
+		for (const candidate of rejectedCandidates) {
+			await expect(chat).not.toContainText(candidate);
+		}
+	});
+
+	test('an incomplete multi-facet candidate never appears before its complete fallback', async ({
+		page,
+	}) => {
+		const incompleteCandidate =
+			"'Tis a fine morning indeed. What brings ye to this church?";
+		const completeFallback =
+			'I hear that Peig Hannigan sent you. Aiden Carney, is it? I have it. I cannot promise work, but I understand you are seeking it. I cannot promise lodging, but I understand you need a dry place to sleep.';
+		const chat = page.getByTestId('chat-panel');
+
+		await emitEvent(page, 'loading', { active: true });
+		await emitEvent(page, 'text-log', {
+			id: 'obligation-turn',
+			source: 'Fr. Declan Tierney',
+			content: '',
+			stream_turn_id: 1832,
+		});
+		await emitEvent(page, 'dialogue-candidate-token', {
+			token: incompleteCandidate,
+			turn_id: 1832,
+			source: 'provider',
+		});
+		await expect(chat).not.toContainText(incompleteCandidate);
+
+		await emitEvent(page, 'stream-token', {
+			token: completeFallback,
+			turn_id: 1832,
+			source: 'Fr. Declan Tierney',
+			message_id: 'obligation-turn',
+		});
+		await emitEvent(page, 'stream-turn-end', { turn_id: 1832 });
+		await expect(chat).toContainText('Peig Hannigan');
+		await expect(chat).toContainText('Aiden Carney');
+		await expect(chat).toContainText('cannot promise work');
+		await expect(chat).toContainText('cannot promise lodging');
+		await expect(chat).not.toContainText(incompleteCandidate);
+		await emitEvent(page, 'stream-end', { hints: [] });
+		await expect(chat).not.toContainText(incompleteCandidate);
+	});
+
+	test('authoritative termination commits the full response and rejects partial failures', async ({
+		page,
+	}) => {
+		const chat = page.getByTestId('chat-panel');
+		const input = page.getByTestId('input-field');
+		const complete =
+			'Plainly, the complete validated Gemini response remains in the transcript after finalization.';
+		await input.focus();
+		await expect(input).toBeFocused();
+
+		await emitEvent(page, 'loading', { active: true });
+		await emitEvent(page, 'text-log', {
+			id: 'gemini-final',
+			source: 'Brigid',
+			content: '',
+			stream_turn_id: 1857,
+		});
+		await emitEvent(page, 'stream-token', {
+			token: complete,
+			turn_id: 1857,
+			source: 'Brigid',
+			message_id: 'gemini-final',
+		});
+		await expect(chat).toContainText('Plainly,');
+		await emitEvent(page, 'stream-turn-end', {
+			turn_id: 1857,
+			status: 'completed',
+			message_id: 'gemini-final',
+			source: 'Brigid',
+			final_text: complete,
+		});
+		await expect(chat).toContainText(complete);
+		const completedRow = chat.locator('.bubble-row.npc').filter({
+			hasText: complete,
+		});
+		await completedRow
+			.getByRole('group', {
+				name: 'NPC message — press Enter or Tab into the reaction picker',
+			})
+			.focus();
+		await expect(completedRow.getByTestId('reaction-picker')).toBeVisible();
+		await input.focus();
+		await emitEvent(page, 'stream-end', { hints: [] });
+
+		await emitEvent(page, 'loading', { active: true });
+		await emitEvent(page, 'text-log', {
+			id: 'length-failure',
+			source: 'Brigid',
+			content: '',
+			stream_turn_id: 1855,
+		});
+		await emitEvent(page, 'stream-token', {
+			token: 'Forbidden truncated candidate',
+			turn_id: 1855,
+			source: 'Brigid',
+			message_id: 'length-failure',
+		});
+		await emitEvent(page, 'stream-turn-end', {
+			turn_id: 1855,
+			status: 'failed',
+			message_id: 'length-failure',
+			recovery_message:
+				'That reply could not be completed, so its partial response was not added. Please try again.',
+		});
+		await emitEvent(page, 'stream-end', { hints: [] });
+		await expect(chat).not.toContainText('Forbidden truncated candidate');
+		await expect(chat).toContainText('Please try again');
+		await expect(input).toHaveAttribute('aria-busy', 'false');
+		await expect(input).toBeFocused();
+		const proofDir = process.env.DIALOGUE_FINALIZATION_PROOF_DIR;
+		if (proofDir) {
+			await page.screenshot({
+				path: `${proofDir}/desktop-dialogue-finalization.png`,
+				fullPage: true,
+			});
+		}
+
+		await page.setViewportSize({ width: 390, height: 844 });
+		await expect(chat).toContainText(complete);
+		await expect(chat).toContainText('Please try again');
+		const errorBubble = chat.locator('.entry.system.error').filter({
+			hasText: 'Please try again',
+		});
+		await expect(errorBubble).toBeVisible();
+		const bounds = await errorBubble.boundingBox();
+		expect(bounds).not.toBeNull();
+		expect(bounds!.x).toBeGreaterThanOrEqual(0);
+		expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(390);
+		if (proofDir) {
+			await page.screenshot({
+				path: `${proofDir}/mobile-dialogue-finalization.png`,
+				fullPage: true,
+			});
+		}
+	});
+
 	test('overlapping NPC turns remain attached to their speakers', async ({
 		page,
 	}) => {
@@ -179,6 +473,75 @@ test.describe('Input and streaming', () => {
 		await expect(padraigRow).toContainText(
 			"If it is, I'll bring the cart before sunset.",
 		);
+	});
+
+	for (const viewport of [
+		{ name: 'desktop', width: 1280, height: 800 },
+		{ name: 'mobile', width: 390, height: 844 },
+	]) {
+		test(`${viewport.name} keeps a completed streamed reply above the composer`, async ({
+			page,
+		}) => {
+			await page.setViewportSize(viewport);
+			await seedOverflowingTranscript(page);
+			const reply =
+				'The potatoes need tending first, then we will mend the western gate before the evening rain.';
+			await streamReply(page, viewport.width, reply);
+			await expectLatestReplyVisible(page, reply);
+		});
+	}
+
+	test('mobile preserves a reader who scrolls up during a streamed reply', async ({
+		page,
+	}) => {
+		await page.setViewportSize({ width: 390, height: 844 });
+		await seedOverflowingTranscript(page);
+		await emitEvent(page, 'loading', { active: true });
+		await emitEvent(page, 'stream-token', {
+			token:
+				'First, ye will clear the stones from the field. After that, bring the seed from the dry loft and mind the broken stair.',
+			turn_id: 1835,
+			source: 'Siobhan Murphy',
+		});
+		await expect(page.getByTestId('chat-panel')).toContainText('First,');
+		const chat = page.getByTestId('chat-panel');
+		await chat.hover();
+		await page.mouse.wheel(0, -2_000);
+		await expect
+			.poll(() => chat.evaluate((element) => element.scrollTop))
+			.toBe(0);
+		const topAfterUserScroll = await chat.evaluate(
+			(element) => element.scrollTop,
+		);
+
+		await emitEvent(page, 'stream-turn-end', { turn_id: 1835 });
+		await emitEvent(page, 'stream-end', { hints: [] });
+		await expect(page.getByTestId('input-field')).toHaveAttribute(
+			'aria-busy',
+			'false',
+			{ timeout: 15_000 },
+		);
+		expect(await chat.evaluate((element) => element.scrollTop)).toBe(
+			topAfterUserScroll,
+		);
+	});
+
+	test('mobile bottom-follow survives viewport and composer height changes', async ({
+		page,
+	}) => {
+		await page.setViewportSize({ width: 390, height: 844 });
+		await seedOverflowingTranscript(page);
+		const reply = 'The western gate is ready for us now.';
+		await streamReply(page, 1836, reply);
+		await expectLatestReplyVisible(page, reply);
+
+		await page.setViewportSize({ width: 390, height: 700 });
+		await expectLatestReplyVisible(page, reply);
+
+		await page
+			.getByTestId('input-field')
+			.fill('First line\nSecond line\nThird line\nFourth line');
+		await expectLatestReplyVisible(page, reply);
 	});
 });
 

@@ -257,7 +257,16 @@ pub async fn load_branch(
     Json(body): Json<LoadBranchRequest>,
 ) -> Result<StatusCode, (StatusCode, String)> {
     let _persistence_guard = state.persistence_gate.lock().await;
-    let (path, branch_id, candidate_lock) = validate_and_acquire_lock(&state, &body).await?;
+    do_load_branch_inner(&state, body).await
+}
+
+/// Transactional branch-load implementation for REST and system-command
+/// adapters. The caller owns the persistence gate.
+pub async fn do_load_branch_inner(
+    state: &Arc<AppState>,
+    body: LoadBranchRequest,
+) -> Result<StatusCode, (StatusCode, String)> {
+    let (path, branch_id, candidate_lock) = validate_and_acquire_lock(state, &body).await?;
 
     let path_clone = path.clone();
     let branch_name = tokio::task::spawn_blocking(move || load_branch_name(&path_clone, branch_id))
@@ -295,12 +304,40 @@ pub async fn load_branch(
 
     // Marker is the commit record; all remaining publication is infallible.
     prepared_binding.commit();
-    restore_snapshot_and_emit(&state, recovery, &branch_name, branch_id, &path).await;
+    restore_snapshot_and_emit(state, recovery, &branch_name, branch_id, &path).await;
     if let Some(lock) = candidate_lock {
         *state.save_lock.lock().await = Some(lock);
     }
 
     Ok(StatusCode::OK)
+}
+
+/// Loads a named branch from the active save file.
+pub async fn do_load_named_branch_inner(state: &Arc<AppState>, name: &str) -> Result<(), String> {
+    let path = state
+        .save_identity
+        .save_path
+        .lock()
+        .await
+        .clone()
+        .ok_or_else(|| "No active save file. Use /save first.".to_string())?;
+    let lookup_path = path.clone();
+    let name = name.to_string();
+    let branch = tokio::task::spawn_blocking(move || {
+        parish_core::game_loop::resolve_named_branch(&lookup_path, &name)
+    })
+    .await
+    .map_err(|error| error.to_string())??;
+    do_load_branch_inner(
+        state,
+        LoadBranchRequest {
+            file_path: path.to_string_lossy().into_owned(),
+            branch_id: branch.id,
+        },
+    )
+    .await
+    .map(|_| ())
+    .map_err(|(_, error)| error)
 }
 
 /// Validates the save-file path, checks containment, and acquires an advisory
@@ -374,17 +411,10 @@ pub async fn restore_snapshot_and_emit(
     path: &std::path::Path,
 ) {
     {
-        let grounding_enabled = {
-            let cfg = state.config.lock().await;
-            !cfg.flags.is_disabled("npc-dialogue-grounding")
-        };
         let mut world = state.world.lock().await;
         let mut npc_manager = state.npc_manager.lock().await;
         world.event_bus.advance_context_epoch();
         recovery.restore(&mut world, &mut npc_manager);
-        if grounding_enabled {
-            npc_manager.clear_introduced_for_session();
-        }
         npc_manager.assign_tiers(&world, &[]);
 
         let mut ws = parish_core::ipc::snapshot_from_world(&world);

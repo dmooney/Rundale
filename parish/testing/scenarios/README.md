@@ -14,9 +14,10 @@ cargo run -p parish-scenario -- testing/scenarios/real-loop-smoke.yaml
 ```
 
 Supported event assertions are `name`, payload `contains`, and an exact
-`json_pointer` + `equals` pair. State assertions currently include the exact
-post-step `location`. `min_events` and `absent_events` make silent/no-op and
-panic-marker failures explicit.
+`json_pointer` + `equals` pair. State assertions include the exact post-step
+player `location`, `clock`, `paused` state, and named `npc_locations`.
+`min_events` and `absent_events` make silent/no-op and panic-marker failures
+explicit.
 
 Legacy `testing/fixtures/test_*.txt` scripts remain compatibility tests while
 they are migrated. One-off `play_*.txt` proof scripts live in

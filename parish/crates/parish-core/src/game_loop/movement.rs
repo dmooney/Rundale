@@ -20,10 +20,7 @@ use std::sync::Arc;
 use crate::config::FeatureFlags;
 use crate::config::InferenceCategory;
 use crate::game_loop::GameLoopContext;
-use crate::game_session::{
-    GameEffects, apply_movement, enrich_travel_encounter, roll_travel_encounter,
-    stream_reaction_texts,
-};
+use crate::game_session::{GameEffects, apply_movement, roll_travel_encounter};
 use crate::ipc::{
     StreamEndPayload, StreamTokenPayload, StreamTurnEndPayload, compute_name_hints,
     snapshot_from_world, text_log, text_log_for_stream_turn, text_log_for_stream_turn_typed,
@@ -95,15 +92,39 @@ pub async fn handle_movement(
             let cfg = ctx.config.lock().await;
             !cfg.flags.is_disabled("travel-encounters-llm")
         };
-        let (reaction_client, reaction_model) = if llm_enabled {
+        let (reaction_client, reaction_model, reaction_profile) = if llm_enabled {
             let config = ctx.config.lock().await;
             let base_client = ctx.client.lock().await;
-            config.resolve_category_client(InferenceCategory::Reaction, base_client.as_ref())
+            let resolved =
+                config.resolve_category_client(InferenceCategory::Reaction, base_client.as_ref());
+            let profile =
+                config.inference_profile(parish_config::InferenceSubrole::TravelEncounter);
+            (resolved.0, resolved.1, profile)
         } else {
-            (None, String::new())
+            (
+                None,
+                String::new(),
+                parish_config::InferenceProfile::for_subrole(
+                    parish_config::InferenceSubrole::TravelEncounter,
+                ),
+            )
         };
         let text = if let Some(client) = reaction_client.as_ref() {
-            enrich_travel_encounter(rolled, client, &reaction_model, 15).await
+            let audit_sink = ctx
+                .inference_queue
+                .lock()
+                .await
+                .as_ref()
+                .and_then(crate::inference::InferenceQueue::audit_sink);
+            crate::game_session::enrich_travel_encounter_with_profile_and_audit(
+                rolled,
+                client,
+                &reaction_model,
+                15,
+                reaction_profile,
+                audit_sink,
+            )
+            .await
         } else {
             rolled.canned.text.clone()
         };
@@ -159,6 +180,7 @@ pub async fn handle_movement(
             introduced,
             reaction_client,
             reaction_model,
+            reaction_profile,
         ) = {
             let world = ctx.world.lock().await;
             let npc_manager = ctx.npc_manager.lock().await;
@@ -166,6 +188,8 @@ pub async fn handle_movement(
             let base_client = ctx.client.lock().await;
             let (rc, rm) =
                 config.resolve_category_client(InferenceCategory::Reaction, base_client.as_ref());
+            let profile =
+                config.inference_profile(parish_config::InferenceSubrole::ArrivalReaction);
             (
                 npc_manager.all_npcs().cloned().collect::<Vec<_>>(),
                 world.player_location,
@@ -178,13 +202,20 @@ pub async fn handle_movement(
                 npc_manager.introduced_set(),
                 rc,
                 rm,
+                profile,
             )
         };
 
         let emitter_clone = Arc::clone(&ctx.emitter);
         let emitter_for_token = Arc::clone(&ctx.emitter);
         let emitter_for_turn_end = Arc::clone(&ctx.emitter);
-        stream_reaction_texts(
+        let audit_sink = ctx
+            .inference_queue
+            .lock()
+            .await
+            .as_ref()
+            .and_then(crate::inference::InferenceQueue::audit_sink);
+        crate::game_session::stream_reaction_texts_with_profile(
             &effects.arrival_reactions,
             &all_npcs,
             current_location_id,
@@ -195,6 +226,8 @@ pub async fn handle_movement(
             reaction_client.as_ref(),
             &reaction_model,
             None, // inference_log: None — shared code doesn't hold runtime-specific logs
+            reaction_profile,
+            audit_sink,
             &ctx.language,
             move |turn_id, npc_name, subtype| {
                 // Tie the placeholder to `turn_id` via `text_log_for_stream_turn`
@@ -242,7 +275,7 @@ pub async fn handle_movement(
                 // `stream-end` for the whole batch).
                 emitter_for_turn_end.emit_event(
                     "stream-turn-end",
-                    serde_json::to_value(StreamTurnEndPayload { turn_id })
+                    serde_json::to_value(StreamTurnEndPayload::completed_stream(turn_id))
                         .unwrap_or(serde_json::Value::Null),
                 );
             },

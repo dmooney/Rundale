@@ -4,6 +4,7 @@ use tokio::sync::{mpsc, oneshot};
 pub use tokio_util::sync::CancellationToken;
 
 use crate::logs::DeferredInferenceAudit;
+use crate::logs::InferenceAuditSink;
 pub use crate::openai_client::JsonSchemaSpec;
 
 /// Priority lane for inference requests. Higher priority lanes are drained first.
@@ -55,6 +56,13 @@ pub struct InferenceRequest {
     pub reasoning_effort: Option<parish_config::ReasoningEffort>,
     /// Priority lane for this request.
     pub priority: InferencePriority,
+    /// Semantic gameplay role. Intent, reaction, and dialogue can all be
+    /// Interactive, so this must never be inferred from queue priority.
+    pub role: parish_config::InferenceCategory,
+    /// Concrete workload label used for distinct caps and audit records.
+    pub subrole: parish_config::InferenceSubrole,
+    /// Fully resolved runtime profile. `None` uses the checked-in subrole default.
+    pub profile: Option<parish_config::InferenceProfile>,
     /// When true, the worker uses `generate_stream_json` (JSON mode + streaming).
     pub json_mode: bool,
     /// Optional structured-output schema. When set, the worker forwards
@@ -118,6 +126,12 @@ pub struct QueueRequest {
     pub reasoning_effort: Option<parish_config::ReasoningEffort>,
     /// Priority lane for this request.
     pub priority: InferencePriority,
+    /// Semantic gameplay role used for reasoning, caps, and telemetry.
+    pub role: parish_config::InferenceCategory,
+    /// Concrete workload label used for distinct caps and audit records.
+    pub subrole: parish_config::InferenceSubrole,
+    /// Fully resolved runtime profile. `None` uses the checked-in subrole default.
+    pub profile: Option<parish_config::InferenceProfile>,
     /// When `true`, the worker uses JSON mode streaming.
     pub json_mode: bool,
     /// Optional strict structured-output schema (takes precedence over
@@ -137,6 +151,7 @@ pub struct InferenceQueue {
     background_tx: mpsc::Sender<InferenceRequest>,
     batch_tx: mpsc::Sender<InferenceRequest>,
     deferred_audit: Option<DeferredInferenceAudit>,
+    audit_sink: Option<InferenceAuditSink>,
 }
 
 impl InferenceQueue {
@@ -151,6 +166,7 @@ impl InferenceQueue {
             background_tx,
             batch_tx,
             deferred_audit: None,
+            audit_sink: None,
         }
     }
 
@@ -162,7 +178,22 @@ impl InferenceQueue {
             background_tx: self.background_tx.clone(),
             batch_tx: self.batch_tx.clone(),
             deferred_audit: Some(audit),
+            audit_sink: self.audit_sink.clone(),
         }
+    }
+
+    /// Attaches the sinks used by direct category clients for audit parity.
+    pub fn with_audit_sink(mut self, sink: InferenceAuditSink) -> Self {
+        self.audit_sink = Some(sink);
+        self
+    }
+
+    pub fn audit_sink(&self) -> Option<InferenceAuditSink> {
+        self.audit_sink.as_ref().map(|sink| {
+            self.deferred_audit
+                .as_ref()
+                .map_or_else(|| sink.clone(), |audit| sink.with_deferred(audit.clone()))
+        })
     }
 
     /// Submits a request to the appropriate priority lane.
@@ -190,6 +221,9 @@ impl InferenceQueue {
             enable_thinking: req.enable_thinking,
             reasoning_effort: req.reasoning_effort,
             priority,
+            role: req.role,
+            subrole: req.subrole,
+            profile: req.profile,
             json_mode: req.json_mode,
             json_schema: req.json_schema,
             cancel: req.cancel,
@@ -240,6 +274,9 @@ mod tests {
                 enable_thinking: None,
                 reasoning_effort: None,
                 priority: InferencePriority::Interactive,
+                role: parish_config::InferenceCategory::Dialogue,
+                subrole: parish_config::InferenceSubrole::Dialogue,
+                profile: None,
                 json_mode: false,
                 json_schema: None,
                 cancel: None,
@@ -290,6 +327,9 @@ mod tests {
                 enable_thinking: None,
                 reasoning_effort: None,
                 priority: InferencePriority::Interactive,
+                role: parish_config::InferenceCategory::Dialogue,
+                subrole: parish_config::InferenceSubrole::Dialogue,
+                profile: None,
                 json_mode: true,
                 json_schema: None,
                 cancel: None,
@@ -328,6 +368,9 @@ mod tests {
                 enable_thinking: None,
                 reasoning_effort: None,
                 priority: InferencePriority::Interactive,
+                role: parish_config::InferenceCategory::Dialogue,
+                subrole: parish_config::InferenceSubrole::Dialogue,
+                profile: None,
                 json_mode: false,
                 json_schema: None,
                 cancel: None,
@@ -355,6 +398,9 @@ mod tests {
                 enable_thinking: None,
                 reasoning_effort: None,
                 priority: InferencePriority::Interactive,
+                role: parish_config::InferenceCategory::Dialogue,
+                subrole: parish_config::InferenceSubrole::Dialogue,
+                profile: None,
                 json_mode: false,
                 json_schema: None,
                 cancel: None,
@@ -386,6 +432,9 @@ mod tests {
                 enable_thinking: None,
                 reasoning_effort: None,
                 priority: InferencePriority::Interactive,
+                role: parish_config::InferenceCategory::Dialogue,
+                subrole: parish_config::InferenceSubrole::Dialogue,
+                profile: None,
                 json_mode: false,
                 json_schema: None,
                 cancel: None,
@@ -434,6 +483,9 @@ mod tests {
                 enable_thinking: None,
                 reasoning_effort: None,
                 priority: InferencePriority::Interactive,
+                role: parish_config::InferenceCategory::Dialogue,
+                subrole: parish_config::InferenceSubrole::Dialogue,
+                profile: None,
                 json_mode: false,
                 json_schema: None,
                 cancel: None,
@@ -453,6 +505,9 @@ mod tests {
                 enable_thinking: None,
                 reasoning_effort: None,
                 priority: InferencePriority::Background,
+                role: parish_config::InferenceCategory::Simulation,
+                subrole: parish_config::InferenceSubrole::Tier2Simulation,
+                profile: None,
                 json_mode: false,
                 json_schema: None,
                 cancel: None,
@@ -472,6 +527,9 @@ mod tests {
                 enable_thinking: None,
                 reasoning_effort: None,
                 priority: InferencePriority::Batch,
+                role: parish_config::InferenceCategory::Simulation,
+                subrole: parish_config::InferenceSubrole::Tier3Simulation,
+                profile: None,
                 json_mode: false,
                 json_schema: None,
                 cancel: None,
@@ -515,6 +573,9 @@ mod tests {
                 enable_thinking: None,
                 reasoning_effort: None,
                 priority: InferencePriority::Batch,
+                role: parish_config::InferenceCategory::Simulation,
+                subrole: parish_config::InferenceSubrole::Tier3Simulation,
+                profile: None,
                 json_mode: false,
                 json_schema: None,
                 cancel: None,
@@ -534,6 +595,9 @@ mod tests {
                 enable_thinking: None,
                 reasoning_effort: None,
                 priority: InferencePriority::Interactive,
+                role: parish_config::InferenceCategory::Dialogue,
+                subrole: parish_config::InferenceSubrole::Dialogue,
+                profile: None,
                 json_mode: false,
                 json_schema: None,
                 cancel: None,

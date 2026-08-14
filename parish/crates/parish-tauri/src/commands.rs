@@ -48,8 +48,8 @@ pub use input::{submit_input, validate_addressed_to, validate_input_text};
 
 // ── Re-exports: saves ─────────────────────────────────────────────────────────
 pub use saves::{
-    create_branch, discover_save_files, do_create_branch, do_load_branch, do_new_game,
-    get_save_state, load_branch, new_game, new_save_file, save_game,
+    create_branch, discover_save_files, do_create_branch, do_load_branch, do_load_named_branch,
+    do_new_game, get_save_state, load_branch, new_game, new_save_file, save_game,
 };
 pub(crate) use saves::{do_branch_log_text, do_list_branches_text, do_save_game};
 

@@ -18,6 +18,8 @@ use std::path::{Path, PathBuf};
 use parish_types::ParishError;
 use serde::{Deserialize, Serialize};
 
+use crate::{ServiceTier, ThinkingLevel};
+
 /// Environment variable that overrides user-config-dir resolution.
 pub const USER_CONFIG_DIR_ENV: &str = "PARISH_USER_CONFIG_DIR";
 
@@ -44,6 +46,15 @@ pub struct UserConfig {
     /// Default model name. None = fill from provider's preset.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub model: Option<String>,
+    /// Base reasoning effort inherited by categories that do not override it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub thinking_level: Option<ThinkingLevel>,
+    /// Base output-token cap inherited by categories that do not override it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub max_output_tokens: Option<u32>,
+    /// Base synchronous service tier. `None` means provider default/Standard.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub service_tier: Option<ServiceTier>,
     /// Per-category overrides keyed by lowercase category name
     /// (`"dialogue"`, `"simulation"`, `"intent"`, `"reaction"`).
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
@@ -58,6 +69,18 @@ pub struct CategoryOverride {
     pub model: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub base_url: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub thinking_level: Option<ThinkingLevel>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub max_output_tokens: Option<u32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub service_tier: Option<ServiceTier>,
+    /// Separate cap for Tier 2 simulation calls.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tier2_max_output_tokens: Option<u32>,
+    /// Separate cap for Tier 3 simulation calls.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tier3_max_output_tokens: Option<u32>,
 }
 
 /// Resolves the per-user config directory once. Creates it if missing.
@@ -108,11 +131,58 @@ fn platform_config_dir() -> Option<PathBuf> {
 pub fn load_user_config(dir: &Path) -> Result<UserConfig, ParishError> {
     let path = dir.join(USER_CONFIG_FILENAME);
     match std::fs::read_to_string(&path) {
-        Ok(body) => toml::from_str::<UserConfig>(&body)
-            .map_err(|e| ParishError::Config(format!("parse {}: {e}", path.display()))),
+        Ok(body) => {
+            let config = toml::from_str::<UserConfig>(&body)
+                .map_err(|e| ParishError::Config(format!("parse {}: {e}", path.display())))?;
+            validate_inference_profile(&config)?;
+            Ok(config)
+        }
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(UserConfig::default()),
         Err(e) => Err(ParishError::Config(format!("read {}: {e}", path.display()))),
     }
+}
+
+fn validate_inference_profile(config: &UserConfig) -> Result<(), ParishError> {
+    fn check_cap(field: &str, value: Option<u32>) -> Result<(), ParishError> {
+        if let Some(value) = value
+            && !(1..=65_536).contains(&value)
+        {
+            return Err(ParishError::Config(format!(
+                "{field}={value} must be between 1 and 65536"
+            )));
+        }
+        Ok(())
+    }
+
+    check_cap("max_output_tokens", config.max_output_tokens)?;
+    for (category, override_) in &config.category_overrides {
+        if crate::InferenceCategory::from_name(category).is_none() {
+            return Err(ParishError::Config(format!(
+                "category_overrides contains unknown category {category:?}; expected dialogue, simulation, intent, or reaction"
+            )));
+        }
+        check_cap(
+            &format!("category_overrides.{category}.max_output_tokens"),
+            override_.max_output_tokens,
+        )?;
+        check_cap(
+            &format!("category_overrides.{category}.tier2_max_output_tokens"),
+            override_.tier2_max_output_tokens,
+        )?;
+        check_cap(
+            &format!("category_overrides.{category}.tier3_max_output_tokens"),
+            override_.tier3_max_output_tokens,
+        )?;
+        if category != "simulation"
+            && (override_.tier2_max_output_tokens.is_some()
+                || override_.tier3_max_output_tokens.is_some())
+        {
+            return Err(ParishError::Config(format!(
+                "Tier 2/3 token caps are only valid for category_overrides.simulation, not {category}"
+            )));
+        }
+    }
+    Ok(())
 }
 
 /// Writes user config to `{dir}/parish.toml`. Creates the dir if missing.
@@ -176,6 +246,30 @@ mod tests {
     }
 
     #[test]
+    fn invalid_cap_error_includes_field_and_value() {
+        let dir = TempDir::new().unwrap();
+        std::fs::write(
+            dir.path().join(USER_CONFIG_FILENAME),
+            "max_output_tokens = 70000\n",
+        )
+        .unwrap();
+        let error = load_user_config(dir.path()).unwrap_err().to_string();
+        assert!(error.contains("max_output_tokens=70000"), "{error}");
+    }
+
+    #[test]
+    fn unknown_inference_category_is_rejected_at_load() {
+        let dir = TempDir::new().unwrap();
+        std::fs::write(
+            dir.path().join(USER_CONFIG_FILENAME),
+            "[category_overrides.typo]\nmax_output_tokens = 100\n",
+        )
+        .unwrap();
+        let error = load_user_config(dir.path()).unwrap_err().to_string();
+        assert!(error.contains("unknown category \"typo\""), "{error}");
+    }
+
+    #[test]
     fn save_then_load_round_trip() {
         let dir = TempDir::new().unwrap();
         let mut cfg = UserConfig {
@@ -183,6 +277,7 @@ mod tests {
             base_url: None,
             model: Some("claude-opus-4-7".to_string()),
             category_overrides: BTreeMap::new(),
+            ..Default::default()
         };
         cfg.category_overrides.insert(
             "simulation".to_string(),
@@ -190,6 +285,7 @@ mod tests {
                 provider: Some("groq".to_string()),
                 model: Some("llama-3.1-8b-instant".to_string()),
                 base_url: None,
+                ..Default::default()
             },
         );
         save_user_config(dir.path(), &cfg).unwrap();
@@ -213,8 +309,10 @@ mod tests {
                     provider: Some("openai".to_string()),
                     model: Some("gpt-4o".to_string()),
                     base_url: None,
+                    ..Default::default()
                 },
             )]),
+            ..Default::default()
         };
         save_user_config(dir.path(), &cfg).unwrap();
         let body = std::fs::read_to_string(dir.path().join(USER_CONFIG_FILENAME)).unwrap();
@@ -222,6 +320,27 @@ mod tests {
             !body.contains("api_key"),
             "user config must never serialize an api_key field; got:\n{body}"
         );
+    }
+
+    #[test]
+    fn explicit_standard_category_tier_survives_priority_parent_round_trip() {
+        let dir = TempDir::new().unwrap();
+        let cfg = UserConfig {
+            service_tier: Some(ServiceTier::Priority),
+            category_overrides: BTreeMap::from([(
+                "dialogue".to_string(),
+                CategoryOverride {
+                    service_tier: Some(ServiceTier::Standard),
+                    ..Default::default()
+                },
+            )]),
+            ..Default::default()
+        };
+        save_user_config(dir.path(), &cfg).unwrap();
+        let round = load_user_config(dir.path()).unwrap();
+        assert_eq!(round, cfg);
+        let body = std::fs::read_to_string(dir.path().join(USER_CONFIG_FILENAME)).unwrap();
+        assert!(body.contains("service_tier = \"standard\""));
     }
 
     #[test]

@@ -27,6 +27,7 @@ pnpm-lock.yaml
 **/pnpm-lock.yaml
 parish/crates/parish-tauri/gen/
 promptfoo/bench-site/
+**/graphify-out/
 
 # Asserted byte-for-byte / prompt content (formatting would break tests or
 # perturb eval prompts sent to judge models)

@@ -51,7 +51,9 @@ pub(super) async fn read_sse_stream(
         }
     }
 
-    Ok(accumulated)
+    Err(parish_types::ParishError::Inference(
+        "stream ended without a complete response (missing terminal marker)".to_string(),
+    ))
 }
 
 /// Processes a single SSE line: extracts content, sends tokens, detects completion.

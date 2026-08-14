@@ -166,6 +166,11 @@ pub enum Command {
     Unexplored(Option<bool>),
     /// Invalid branch name was provided.
     InvalidBranchName(String),
+    /// An unrecognised slash-prefixed command was entered.
+    ///
+    /// Keeping unknown slash input in the system-command channel prevents a
+    /// misspelling or stale advertised command from reaching NPC inference.
+    InvalidSystemCommand(String),
     /// Feature flag management (`/flag enable|disable|list <name>`).
     Flag(FlagSubcommand),
     /// List all feature flags (alias for `Flag(List)`).

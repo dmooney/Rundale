@@ -97,6 +97,10 @@ pub struct LocationData {
     pub name: String,
     /// Description template with placeholders: `{time}`, `{weather}`, `{npcs_present}`.
     pub description_template: String,
+    /// Concrete authored features NPC dialogue must not deny. Unlike the
+    /// description template, these are structured semantic facts.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub landmarks: Vec<String>,
     /// Whether this location is indoors.
     pub indoor: bool,
     /// Whether this location is publicly accessible.

@@ -2725,8 +2725,108 @@ fn wrong_speaker_recovery(seed: u64) -> &'static str {
     POOL[(seed as usize) % POOL.len()]
 }
 
-/// Returns `true` when `dialogue` contains a first-person identity claim ("I'm
-/// X", "I am X", "the name's X", "my name is X") for the given `name`.
+/// Normalizes authored identity text for case-insensitive comparisons while
+/// retaining apostrophes inside names and occupations.
+fn normalize_identity_text(value: &str) -> String {
+    value
+        .to_lowercase()
+        .replace('\u{2019}', "'")
+        .chars()
+        .map(|ch| {
+            if ch.is_alphanumeric() || ch == '\'' {
+                ch
+            } else {
+                ' '
+            }
+        })
+        .collect::<String>()
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
+/// Returns the authored personal first name, skipping a supported honorific.
+fn personal_first_name(name: &str) -> Option<&str> {
+    let mut parts = name.split_whitespace();
+    let first = parts.next()?;
+    if matches!(
+        first.trim_end_matches('.').to_ascii_lowercase().as_str(),
+        "fr" | "father" | "mr" | "mrs" | "miss" | "dr"
+    ) {
+        parts.next()
+    } else {
+        Some(first)
+    }
+}
+
+fn first_name_counts(roster: &[(String, String)]) -> std::collections::HashMap<String, usize> {
+    let mut counts = std::collections::HashMap::new();
+    for (name, _) in roster {
+        if let Some(first) = personal_first_name(name) {
+            *counts.entry(normalize_identity_text(first)).or_insert(0) += 1;
+        }
+    }
+    counts
+}
+
+fn direct_identity_preface(preface: &str) -> bool {
+    let normalized = normalize_identity_text(preface);
+    normalized.is_empty()
+        || normalized.split_whitespace().all(|word| {
+            matches!(
+                word,
+                "aye" | "well" | "faith" | "bedad" | "plainly" | "then" | "sure" | "mhuise"
+            )
+        })
+}
+
+/// Returns `true` when one spoken clause directly claims `name` in first
+/// person. Reported speech and possessive/negated forms are intentionally not
+/// identity claims.
+fn clause_claims_identity(clause: &str, name: &str) -> bool {
+    let lower = clause.to_lowercase().replace('\u{2019}', "'");
+    let name = name.to_lowercase().replace('\u{2019}', "'");
+    const PREFIXES: &[&str] = &[
+        "i'm ",
+        "i am ",
+        "the name's ",
+        "the name is ",
+        "my name's ",
+        "my name is ",
+    ];
+
+    for prefix in PREFIXES {
+        let pattern = format!("{prefix}{name}");
+        let mut search_from = 0;
+        while let Some(relative) = lower[search_from..].find(&pattern) {
+            let start = search_from + relative;
+            let end = start + pattern.len();
+            let boundary_is_valid = lower[end..]
+                .chars()
+                .next()
+                .is_none_or(|next| !next.is_alphanumeric() && next != '\'');
+            if boundary_is_valid && direct_identity_preface(&lower[..start]) {
+                return true;
+            }
+            search_from = end;
+        }
+    }
+
+    // Hiberno-English/postfixed forms put the name before the identifying
+    // phrase: "Peig Hannigan's the name" / "Peig Hannigan is the name".
+    for suffix in ["'s the name", " is the name"] {
+        let pattern = format!("{name}{suffix}");
+        if let Some(start) = lower.find(&pattern)
+            && direct_identity_preface(&lower[..start])
+        {
+            return true;
+        }
+    }
+    false
+}
+
+/// Returns `true` when `dialogue` contains a direct first-person identity claim
+/// for the given `name`.
 ///
 /// Matching is case-insensitive. This helper is used to detect BOTH:
 ///   1. Legitimate self-introductions by the speaker (name == speaker_name).
@@ -2734,10 +2834,6 @@ fn wrong_speaker_recovery(seed: u64) -> &'static str {
 ///
 /// The caller decides which case applies based on whose name matched.
 fn dialogue_claims_identity(dialogue: &str, name: &str) -> bool {
-    // Normalise the typographic apostrophe (U+2019, which the 14B routinely
-    // emits) to ASCII so the prefix list and apostrophe'd names (O'Brien)
-    // match regardless of quote style.
-    let lower = dialogue.to_lowercase().replace('\u{2019}', "'");
     let name_lower = name.to_lowercase().replace('\u{2019}', "'");
     let mut name_aliases = vec![name_lower.clone()];
     if let Some(rest) = name_lower
@@ -2746,59 +2842,51 @@ fn dialogue_claims_identity(dialogue: &str, name: &str) -> bool {
     {
         name_aliases.push(format!("father {rest}"));
     }
+    dialogue.split(['.', '?', '!', ';', '\n']).any(|clause| {
+        name_aliases
+            .iter()
+            .any(|name| clause_claims_identity(clause, name))
+    })
+}
 
-    // First-person identity claim patterns, case-insensitive.
-    // We build the pattern by checking if any marker appears immediately before the name.
-    // Apostrophes are normalised to ASCII above, so a single ASCII form covers
-    // both the straight and the typographic quote the model emits.
-    const IDENTITY_PREFIXES: &[&str] = &[
-        "i'm ",
-        "i am ",
-        "the name's ",
-        "the name is ",
-        "my name's ",
-        "my name is ",
-        "it's ",  // "It's Brendan here"
-        "it is ", // "It is Brendan, the …"
-        "'tis ",  // Hiberno-English contraction
-    ];
-
-    for name_alias in &name_aliases {
-        for prefix in IDENTITY_PREFIXES {
-            let pattern = format!("{prefix}{name_alias}");
-            let mut search_from = 0;
-            while let Some(relative) = lower[search_from..].find(&pattern) {
-                let end = search_from + relative + pattern.len();
-                let boundary_is_valid = lower[end..]
-                    .chars()
-                    .next()
-                    .is_none_or(|next| !next.is_alphanumeric() && next != '\'');
-                if boundary_is_valid {
-                    return true;
-                }
-                search_from = end;
-            }
-        }
-
-        // Hiberno-English/postfixed forms put the name before the identifying
-        // phrase: "Peig Hannigan's the name" / "Peig Hannigan is the name".
-        for suffix in ["'s the name", " is the name"] {
-            if lower.contains(&format!("{name_alias}{suffix}")) {
-                return true;
-            }
-        }
-    }
-    false
+fn clause_contains_occupation(clause: &str, occupation: &str) -> bool {
+    let clause = format!(" {} ", normalize_identity_text(clause));
+    let occupation = normalize_identity_text(occupation);
+    !occupation.is_empty() && clause.contains(&format!(" {occupation} "))
 }
 
 /// Returns whether the delivered dialogue explicitly establishes the
 /// speaker's canonical identity.
 ///
-/// The full authored name must be spoken in a first-person identity form. A
-/// metadata field, an exchange occurring, or a third-person mention is not
+/// The full authored name may be spoken directly. A first-name-only claim is
+/// accepted only when that personal first name is unique across the complete
+/// authored roster and the same clause states the correct authored occupation
+/// (#1842). Metadata, an exchange occurring, or a third-person mention is not
 /// enough to reveal an anonymous NPC's name (#1776).
-pub fn dialogue_self_identifies_speaker(dialogue: &str, speaker_name: &str) -> bool {
-    dialogue_claims_identity(dialogue, speaker_name)
+pub fn dialogue_self_identifies_speaker(
+    dialogue: &str,
+    speaker_name: &str,
+    speaker_occupation: &str,
+    roster: &[(String, String)],
+) -> bool {
+    if dialogue_claims_identity(dialogue, speaker_name) {
+        return true;
+    }
+
+    let Some(first_name) = personal_first_name(speaker_name) else {
+        return false;
+    };
+    let first_name_key = normalize_identity_text(first_name);
+    if first_name_key.is_empty()
+        || first_name_counts(roster).get(&first_name_key).copied() != Some(1)
+    {
+        return false;
+    }
+
+    dialogue.split(['.', '?', '!', ';', '\n']).any(|clause| {
+        clause_claims_identity(clause, first_name)
+            && clause_contains_occupation(clause, speaker_occupation)
+    })
 }
 
 /// Post-generation guard for wrong-speaker identity (#1475).
@@ -2842,22 +2930,12 @@ pub fn guard_wrong_speaker_identity(
 
     let speaker_lower = speaker_name.to_lowercase();
 
-    // Pre-compute how many roster members share each first name so we can
-    // avoid false positives when a first name is ambiguous.
-    let mut first_name_counts: std::collections::HashMap<String, usize> =
-        std::collections::HashMap::new();
-    for (name, _) in roster {
-        if let Some(first) = name.split_whitespace().next() {
-            *first_name_counts.entry(first.to_lowercase()).or_insert(0) += 1;
-        }
-    }
+    let first_name_counts = first_name_counts(roster);
 
     // Hoisted out of the loop — `speaker_name` is constant throughout.
-    let speaker_first_lower = speaker_name
-        .split_whitespace()
-        .next()
-        .unwrap_or("")
-        .to_lowercase();
+    let speaker_first_lower = personal_first_name(speaker_name)
+        .map(normalize_identity_text)
+        .unwrap_or_default();
 
     for (roster_name, _occupation) in roster {
         // Skip the speaker's own entry.
@@ -2878,8 +2956,8 @@ pub fn guard_wrong_speaker_identity(
         // Check first name only (e.g. "I'm Brendan") — but only when the
         // first name is unambiguous (appears exactly once in the roster and
         // differs from the speaker's own first name).
-        if let Some(roster_first) = roster_name.split_whitespace().next() {
-            let roster_first_lower = roster_first.to_lowercase();
+        if let Some(roster_first) = personal_first_name(roster_name) {
+            let roster_first_lower = normalize_identity_text(roster_first);
             // Only fire on first-name-only if the first name is unique in the
             // roster and is not the speaker's own first name.
             let count = first_name_counts
@@ -3406,46 +3484,47 @@ fn dialogue_recommends_person(dialogue: &str, name: &str) -> bool {
 pub fn guard_work_recommendation(
     dialogue: &str,
     player_input: &str,
-    work_roster: &[(String, String, Option<String>)],
+    work_roster: &[crate::GroundedWorkFact],
 ) -> String {
     let Some(domain) = requested_work_domain(player_input) else {
         return dialogue.to_string();
     };
-    let recommended: Vec<&(String, String, Option<String>)> = work_roster
+    let recommended: Vec<&crate::GroundedWorkFact> = work_roster
         .iter()
-        .filter(|(name, _, _)| dialogue_recommends_person(dialogue, name))
+        .filter(|fact| dialogue_recommends_person(dialogue, &fact.name))
         .collect();
     if recommended.is_empty()
-        || recommended.iter().all(|(_, occupation, workplace)| {
-            work_entry_matches_domain(occupation, workplace.as_deref(), domain)
+        || recommended.iter().all(|fact| {
+            work_entry_matches_domain(&fact.occupation, fact.workplace.as_deref(), domain)
         })
     {
         return dialogue.to_string();
     }
 
     let replacement = domain.occupation_keywords().iter().find_map(|keyword| {
-        work_roster.iter().find(|(_, occupation, workplace)| {
-            let occupation_lower = occupation.to_lowercase();
+        work_roster.iter().find(|fact| {
+            let occupation_lower = fact.occupation.to_lowercase();
             !occupation_lower.contains("retired")
                 && occupation_lower.contains(keyword)
-                && work_entry_matches_domain(occupation, workplace.as_deref(), domain)
+                && work_entry_matches_domain(&fact.occupation, fact.workplace.as_deref(), domain)
         })
     });
     let replacement = replacement.or_else(|| {
-        work_roster.iter().find(|(_, occupation, workplace)| {
-            work_entry_matches_domain(occupation, workplace.as_deref(), domain)
+        work_roster.iter().find(|fact| {
+            work_entry_matches_domain(&fact.occupation, fact.workplace.as_deref(), domain)
         })
     });
-    let Some((name, occupation, workplace)) = replacement else {
+    let Some(replacement) = replacement else {
         return dialogue.to_string();
     };
 
     tracing::warn!(
-        recommended = ?recommended.iter().map(|(name, _, _)| name).collect::<Vec<_>>(),
-        replacement = %name,
+        recommended = ?recommended.iter().map(|fact| &fact.name).collect::<Vec<_>>(),
+        replacement = %replacement.name,
         "work-referral grounding guard corrected an occupation mismatch (#1790)"
     );
-    let workplace = workplace
+    let workplace = replacement
+        .workplace
         .as_deref()
         .filter(|place| !place.trim().is_empty())
         .map(|place| format!(" at {place}"))
@@ -3453,8 +3532,8 @@ pub fn guard_work_recommendation(
     format!(
         "For {}, ye'd best ask {}, the {}{}.",
         domain.label(),
-        name,
-        occupation,
+        replacement.name,
+        replacement.occupation,
         workplace
     )
 }
@@ -8164,30 +8243,124 @@ mod tests {
 
     #[test]
     fn delivered_full_name_marks_a_real_self_introduction() {
+        let roster = vec![
+            ("Peig Hannigan".to_string(), "Widow".to_string()),
+            (
+                "Fr. Declan Tierney".to_string(),
+                "Parish Priest".to_string(),
+            ),
+        ];
         assert!(dialogue_self_identifies_speaker(
             "Peig Hannigan's the name. What brings ye here?",
             "Peig Hannigan",
+            "Widow",
+            &roster,
         ));
         assert!(dialogue_self_identifies_speaker(
             "I'm Peig Hannigan. What brings ye here?",
             "Peig Hannigan",
+            "Widow",
+            &roster,
         ));
         assert!(!dialogue_self_identifies_speaker(
             "Good morning. What brings ye here?",
             "Peig Hannigan",
+            "Widow",
+            &roster,
         ));
         assert!(!dialogue_self_identifies_speaker(
             "Peig Hannigan lives beyond the crossroads.",
             "Peig Hannigan",
+            "Widow",
+            &roster,
         ));
         assert!(!dialogue_self_identifies_speaker(
             "I'm Peig Hannigan's cousin from beyond the crossroads.",
             "Peig Hannigan",
+            "Widow",
+            &roster,
         ));
         assert!(dialogue_self_identifies_speaker(
             "I'm Father Declan Tierney, the parish priest.",
             "Fr. Declan Tierney",
+            "Parish Priest",
+            &roster,
         ));
+    }
+
+    fn identity_roster() -> Vec<(String, String)> {
+        vec![
+            ("Seamus Gallagher".to_string(), "Blacksmith".to_string()),
+            ("Peig Hannigan".to_string(), "Widow".to_string()),
+            (
+                "Fr. Declan Tierney".to_string(),
+                "Parish Priest".to_string(),
+            ),
+        ]
+    }
+
+    #[test]
+    fn unique_first_name_and_authored_occupation_reveal_identity() {
+        let roster = identity_roster();
+        assert!(dialogue_self_identifies_speaker(
+            "Aye, I'm Seamus, the blacksmith. What can I do for ye?",
+            "Seamus Gallagher",
+            "Blacksmith",
+            &roster,
+        ));
+        assert!(dialogue_self_identifies_speaker(
+            "I am Declan, the parish priest.",
+            "Fr. Declan Tierney",
+            "Parish Priest",
+            &roster,
+        ));
+    }
+
+    #[test]
+    fn first_name_identity_requires_unique_roster_name_and_correct_occupation() {
+        let mut ambiguous = identity_roster();
+        ambiguous.push(("Seamus Brennan".to_string(), "Farmer".to_string()));
+        assert!(!dialogue_self_identifies_speaker(
+            "I'm Seamus, the blacksmith.",
+            "Seamus Gallagher",
+            "Blacksmith",
+            &ambiguous,
+        ));
+        assert!(!dialogue_self_identifies_speaker(
+            "I'm Seamus.",
+            "Seamus Gallagher",
+            "Blacksmith",
+            &identity_roster(),
+        ));
+        assert!(!dialogue_self_identifies_speaker(
+            "I'm Seamus, the farmer.",
+            "Seamus Gallagher",
+            "Blacksmith",
+            &identity_roster(),
+        ));
+    }
+
+    #[test]
+    fn identity_detection_rejects_indirect_possessive_negated_and_reported_forms() {
+        let roster = identity_roster();
+        for dialogue in [
+            "Seamus is the blacksmith.",
+            "I know Seamus, the blacksmith.",
+            "I'm Seamus's brother, the blacksmith's apprentice.",
+            "I'm not Seamus, the blacksmith.",
+            "Peig told me, I'm Seamus, the blacksmith.",
+            "He said: I'm Seamus, the blacksmith.",
+        ] {
+            assert!(
+                !dialogue_self_identifies_speaker(
+                    dialogue,
+                    "Seamus Gallagher",
+                    "Blacksmith",
+                    &roster,
+                ),
+                "indirect identity form must not reveal the speaker: {dialogue:?}"
+            );
+        }
     }
 
     #[test]
@@ -8312,17 +8485,21 @@ mod tests {
     #[test]
     fn farm_hands_referral_rejects_retired_constable_and_prefers_farmer() {
         let roster = vec![
-            (
-                "Mick Flanagan".to_string(),
-                "Retired Constable".to_string(),
-                None,
-            ),
-            (
-                "Siobhan Murphy".to_string(),
-                "Farmer".to_string(),
-                Some("Murphy's Farm".to_string()),
-            ),
-            ("Sean Ruadh Kelly".to_string(), "Labourer".to_string(), None),
+            crate::GroundedWorkFact {
+                name: "Mick Flanagan".to_string(),
+                occupation: "Retired Constable".to_string(),
+                workplace: None,
+            },
+            crate::GroundedWorkFact {
+                name: "Siobhan Murphy".to_string(),
+                occupation: "Farmer".to_string(),
+                workplace: Some("Murphy's Farm".to_string()),
+            },
+            crate::GroundedWorkFact {
+                name: "Sean Ruadh Kelly".to_string(),
+                occupation: "Labourer".to_string(),
+                workplace: None,
+            },
         ];
         let dialogue = "Might be worth asking Mick Flanagan if ye could help with \
                         farm duties. He's a man who needs a steady hand, I wager.";
@@ -8337,11 +8514,11 @@ mod tests {
 
     #[test]
     fn occupation_matched_work_referral_passes_through() {
-        let roster = vec![(
-            "Siobhan Murphy".to_string(),
-            "Farmer".to_string(),
-            Some("Murphy's Farm".to_string()),
-        )];
+        let roster = vec![crate::GroundedWorkFact {
+            name: "Siobhan Murphy".to_string(),
+            occupation: "Farmer".to_string(),
+            workplace: Some("Murphy's Farm".to_string()),
+        }];
         let dialogue = "Ask Siobhan Murphy at the farm; she's the farmer there.";
         assert_eq!(
             guard_work_recommendation(
@@ -8356,16 +8533,16 @@ mod tests {
     #[test]
     fn your_man_work_referral_is_checked_against_authored_occupation() {
         let roster = vec![
-            (
-                "Mick Flanagan".to_string(),
-                "Retired Constable".to_string(),
-                None,
-            ),
-            (
-                "Siobhan Murphy".to_string(),
-                "Farmer".to_string(),
-                Some("Murphy's Farm".to_string()),
-            ),
+            crate::GroundedWorkFact {
+                name: "Mick Flanagan".to_string(),
+                occupation: "Retired Constable".to_string(),
+                workplace: None,
+            },
+            crate::GroundedWorkFact {
+                name: "Siobhan Murphy".to_string(),
+                occupation: "Farmer".to_string(),
+                workplace: Some("Murphy's Farm".to_string()),
+            },
         ];
         let dialogue = "Mick Flanagan is your man for farm work.";
         let result = guard_work_recommendation(

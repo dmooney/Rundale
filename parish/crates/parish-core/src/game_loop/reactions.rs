@@ -17,18 +17,44 @@ use tokio::sync::Semaphore;
 
 use crate::inference::AnyClient;
 use crate::ipc::{EventEmitter, NPC_REACTION_CONCURRENCY, NpcReactionPayload, capitalize_first};
-use crate::npc::Npc;
+use crate::npc::{Npc, manager::NpcManager, reactions::reaction_description};
+use parish_types::{GameEvent, NpcId, ReactionDirection};
 
-/// Callback type for persisting a single reaction.
+/// Callback type for persisting a single NPC-authored reaction.
 ///
 /// Called with `(npc_name, emoji, player_input)` once per reacting NPC.
 /// Implementations close over an `Arc<AppState>` and lock the NPC manager
-/// to call `reaction_log.add_player_message_reaction` (#403).
+/// to call [`record_directional_reaction`] with `NpcToPlayer` (#403).
 pub type PersistReactionFn = Arc<dyn Fn(String, String, String) + Send + Sync + 'static>;
 
 /// Returns whether the runtime context captured for a detached reaction batch
 /// is still current. Implementations compare the event-bus context epoch.
 pub type ReactionContextValidFn = Arc<dyn Fn() -> bool + Send + Sync + 'static>;
+
+/// Records a directional reaction and returns its crash-recovery event.
+///
+/// This is the one mutation seam for player-selected and automatic reactions
+/// in every runtime. Invalid emoji or unknown NPC ids are harmless no-ops.
+pub fn record_directional_reaction(
+    npc_manager: &mut NpcManager,
+    npc_id: NpcId,
+    direction: ReactionDirection,
+    emoji: &str,
+    context: &str,
+    timestamp: chrono::DateTime<chrono::Utc>,
+) -> Option<GameEvent> {
+    reaction_description(emoji)?;
+    let npc = npc_manager.get_mut(npc_id)?;
+    npc.reaction_log
+        .add_directional(direction, emoji, context, timestamp);
+    Some(GameEvent::ReactionRecorded {
+        npc_id,
+        direction,
+        emoji: emoji.to_string(),
+        context: context.chars().take(80).collect(),
+        timestamp,
+    })
+}
 
 // ── Injection-safety validation ───────────────────────────────────────────────
 
@@ -96,6 +122,8 @@ pub fn emit_npc_reactions(
     npcs_here: Vec<Npc>,
     reaction_client: Option<AnyClient>,
     reaction_model: String,
+    reaction_profile: parish_config::InferenceProfile,
+    audit_sink: Option<crate::inference::InferenceAuditSink>,
     llm_enabled: bool,
     emitter: Arc<dyn EventEmitter>,
     persist: PersistReactionFn,
@@ -117,6 +145,7 @@ pub fn emit_npc_reactions(
             let client = reaction_client.clone();
             let model = reaction_model.clone();
             let input = player_input.clone();
+            let audit_sink = audit_sink.clone();
 
             join_set.spawn(async move {
                 // Acquire a permit before starting the (potentially slow) LLM call.
@@ -125,12 +154,14 @@ pub fn emit_npc_reactions(
                 // Try LLM path first; fall back to rule-based on any failure (#404).
                 let emoji = if llm_enabled {
                     if let Some(ref c) = client {
-                        crate::npc::reactions::infer_player_message_reaction(
+                        crate::npc::reactions::infer_player_message_reaction_with_profile_and_audit(
                             c,
                             &model,
                             &npc,
                             &input,
                             std::time::Duration::from_secs(2),
+                            reaction_profile,
+                            audit_sink,
                         )
                         .await
                         .or_else(|| crate::npc::reactions::generate_rule_reaction(&input))
@@ -267,6 +298,10 @@ mod tests {
             npcs,
             None, // No LLM client — deterministic rule-based path
             String::new(),
+            parish_config::InferenceProfile::for_subrole(
+                parish_config::InferenceSubrole::MessageReaction,
+            ),
+            None,
             false, // llm_enabled = false
             Arc::clone(&emitter_arc),
             noop_persist(),

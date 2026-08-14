@@ -188,19 +188,31 @@ export interface TextLogEntry {
 }
 
 export interface StreamTokenPayload {
+	/** Player-renderable canonical text. Tier-1 provider candidate tokens are
+	 * quarantined by the engine and never cross this protocol boundary (#1834). */
 	token: string;
 	turn_id: number;
 	source: string;
 	/** Message id of the `text-log` placeholder this stream fills. Carried so a
 	 *  stream that resumes after a WS reconnect can rebind to a reactable
-	 *  `textLog` entry even though `StreamManager.reset()` discarded the
-	 *  client's only copy of the id (#1164). Absent for arrival-reaction
+	 *  `textLog` entry even when `StreamManager.reset()` finalized the client's
+	 *  earlier presentation state (#1164). Absent for arrival-reaction
 	 *  streams (Rust serializes `Option<String>` with `skip_serializing_if`). */
 	message_id?: string;
 }
 
 export interface StreamTurnEndPayload {
 	turn_id: number;
+	/** Authoritative disposition of the complete provider response. */
+	status: 'completed' | 'failed';
+	/** Stable canonical dialogue message identity, when this was an NPC turn. */
+	message_id?: string;
+	/** Display source for a completed dialogue line. */
+	source?: string;
+	/** Complete, validated player-renderable text. Never a provider partial. */
+	final_text?: string;
+	/** Player-visible retry guidance for a failed locally initiated turn. */
+	recovery_message?: string;
 }
 
 export interface StreamEndPayload {
@@ -309,7 +321,7 @@ export interface WeatherDebug {
 	since: string;
 	duration_hours: number;
 	min_duration_hours: number;
-	last_check_hour: number | null;
+	last_check_at: string | null;
 }
 
 export interface WorldDebug {
@@ -385,6 +397,7 @@ export interface LongTermMemoryDebug {
 }
 
 export interface ReactionDebug {
+	direction: 'PlayerToNpc' | 'NpcToPlayer';
 	timestamp: string;
 	emoji: string;
 	description: string;
@@ -514,6 +527,9 @@ export interface InferenceCategoryDebug {
 	model: string | null;
 	/** Base URL override; null means inherit base. */
 	base_url: string | null;
+	thinking_level: 'minimal' | 'low' | 'medium' | 'high';
+	max_output_tokens: number;
+	service_tier: 'standard' | 'priority';
 }
 
 export interface InferenceDebug {
@@ -526,7 +542,7 @@ export interface InferenceDebug {
 	reaction_req_id: number;
 	improv_enabled: boolean;
 	call_log: InferenceLogEntry[];
-	/** Per-role provider/model/url state (one entry per InferenceCategory). */
+	/** Per-workload provider/model/url and effective inference profile. */
 	categories: InferenceCategoryDebug[];
 	/** List of provider display names that have an API key configured (or are local). */
 	configured_providers: string[];
@@ -538,6 +554,18 @@ export interface InferenceLogEntry {
 	request_id: number;
 	timestamp: string;
 	model: string;
+	provider: string;
+	api_mode: string;
+	role: 'dialogue' | 'simulation' | 'intent' | 'reaction';
+	subrole:
+		| 'dialogue'
+		| 'intent'
+		| 'arrival-reaction'
+		| 'message-reaction'
+		| 'travel-encounter'
+		| 'tier2-simulation'
+		| 'tier3-simulation'
+		| 'demo-player';
 	streaming: boolean;
 	duration_ms: number;
 	prompt_len: number;
@@ -549,6 +577,24 @@ export interface InferenceLogEntry {
 	max_tokens: number | null;
 	ttft_ms: number | null;
 	output_tokens: number | null;
+	stream_chunks: number | null;
+	input_tokens: number | null;
+	cached_tokens: number | null;
+	thought_tokens: number | null;
+	total_tokens: number | null;
+	thinking_level: 'minimal' | 'low' | 'medium' | 'high' | null;
+	requested_service_tier: 'standard' | 'priority' | null;
+	effective_service_tier: string | null;
+	provider_request_id: string | null;
+	terminal_status: string | null;
+	retry_count: number;
+	http_status: number | null;
+	failure_kind: string | null;
+	partial_output_len: number;
+	tier_downgraded: boolean;
+	estimated_cost_usd: number | null;
+	prompt_prefix_hash: string | null;
+	prompt_prefix_len: number | null;
 }
 
 // ── Persistence types ───────────────────────────────────────────────────────

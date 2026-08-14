@@ -58,6 +58,9 @@
 pub struct GameInputOutcome {
     /// Player-task post-states in the order they were applied.
     pub task_mutations: Vec<parish_types::PlayerTask>,
+    /// Player-visible recovery when an initiated NPC turn produced no
+    /// canonical exchange (for example a length-terminated provider stream).
+    pub dialogue_failure: Option<String>,
 }
 
 impl GameInputOutcome {
@@ -65,6 +68,7 @@ impl GameInputOutcome {
     pub fn from_task(task: Option<parish_types::PlayerTask>) -> Self {
         Self {
             task_mutations: task.into_iter().collect(),
+            dialogue_failure: None,
         }
     }
 }
@@ -90,10 +94,11 @@ pub use npc_turn::{
 };
 pub use reactions::{
     PersistReactionFn, ReactionContextValidFn, emit_npc_reactions, is_snippet_injection_char,
+    record_directional_reaction,
 };
 pub use save::{
     NewGameParams, SaveGameParams, do_new_game, do_save_game, load_fresh_world_and_npcs,
-    render_branch_log_text, render_branches_text,
+    render_branch_log_text, render_branches_text, resolve_named_branch,
 };
 pub use staged_turn::{
     StagedGameInputCommit, flush_staged_emissions, handle_staged_game_input,
@@ -101,6 +106,6 @@ pub use staged_turn::{
 };
 pub use system_command::{BoxFuture, SystemCommandHost, handle_system_command};
 pub use world_pump::{
-    AdvanceOptions, AdvanceReport, GossipMode, WeatherMode, advance_world, budgeted_round_robin,
-    build_tier2_groups, mint_tier2_gossip,
+    AdvanceOptions, AdvanceReport, GossipMode, TIER4_SIMULATION_FLAG, WeatherMode, advance_world,
+    budgeted_round_robin, build_tier2_groups, mint_tier2_gossip, tier4_simulation_enabled,
 };

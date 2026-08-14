@@ -51,7 +51,14 @@
 	"StreamTokenPayload": ["token", "turn_id", "source"],
 	"TextLogPayload": ["id", "source", "content"],
 	"StreamEndPayload": ["hints"],
-	"StreamTurnEndPayload": ["turn_id"],
+	"StreamTurnEndPayload": [
+		"turn_id",
+		"status",
+		"message_id",
+		"source",
+		"final_text",
+		"recovery_message"
+	],
 	"DialogueCorrectedPayload": ["turn_id", "corrected_text", "message_id"],
 	"NpcReactionPayload": ["message_id", "emoji", "source"],
 	"LoadingPayload": ["active"],
@@ -110,7 +117,7 @@
 		"since",
 		"duration_hours",
 		"min_duration_hours",
-		"last_check_hour"
+		"last_check_at"
 	],
 	"WorldDebug": [
 		"player_location_name",
@@ -169,7 +176,13 @@
 		"knows_player_name"
 	],
 	"LongTermMemoryDebug": ["timestamp", "content", "importance", "keywords"],
-	"ReactionDebug": ["timestamp", "emoji", "description", "context"],
+	"ReactionDebug": [
+		"direction",
+		"timestamp",
+		"emoji",
+		"description",
+		"context"
+	],
 	"DeflatedSummaryDebug": [
 		"location_name",
 		"mood",
@@ -240,7 +253,15 @@
 		"npc_dialogue"
 	],
 	"DebugEvent": ["timestamp", "category", "message"],
-	"InferenceCategoryDebug": ["role", "provider", "model", "base_url"],
+	"InferenceCategoryDebug": [
+		"role",
+		"provider",
+		"model",
+		"base_url",
+		"thinking_level",
+		"max_output_tokens",
+		"service_tier"
+	],
 	"InferenceDebug": [
 		"provider_name",
 		"model_name",
@@ -259,6 +280,9 @@
 		"request_id",
 		"timestamp",
 		"model",
+		"provider",
+		"api_mode",
+		"role",
 		"streaming",
 		"duration_ms",
 		"prompt_len",
@@ -269,7 +293,25 @@
 		"response_text",
 		"max_tokens",
 		"ttft_ms",
-		"output_tokens"
+		"output_tokens",
+		"stream_chunks",
+		"input_tokens",
+		"cached_tokens",
+		"thought_tokens",
+		"total_tokens",
+		"thinking_level",
+		"requested_service_tier",
+		"effective_service_tier",
+		"provider_request_id",
+		"terminal_status",
+		"retry_count",
+		"http_status",
+		"failure_kind",
+		"partial_output_len",
+		"tier_downgraded",
+		"estimated_cost_usd",
+		"prompt_prefix_hash",
+		"prompt_prefix_len"
 	],
 	"SnapshotCell": ["id", "game_date", "location"],
 	"SaveBranchDisplay": [

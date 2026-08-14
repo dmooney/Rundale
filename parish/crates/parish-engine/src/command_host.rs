@@ -158,14 +158,14 @@ impl SystemCommandHost for CliCommandHost {
             let base_url = app
                 .cloud_base_url
                 .as_deref()
-                .unwrap_or("https://openrouter.ai/api")
+                .unwrap_or("https://generativelanguage.googleapis.com/v1")
                 .to_string();
             let provider = app
                 .cloud_provider_name
                 .as_deref()
                 .and_then(|p| parish_core::config::Provider::from_str_loose(p).ok())
                 .unwrap_or_else(|| {
-                    parish_core::config::Provider::from_id("openrouter").unwrap_or_default()
+                    parish_core::config::Provider::from_id("google").unwrap_or_default()
                 });
             app.cloud_client = Some(parish_core::inference::build_client(
                 &provider,

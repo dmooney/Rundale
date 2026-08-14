@@ -28,6 +28,43 @@ trace here.
 
 ## Change
 
+### Explicit current-turn obligations (#1832)
+
+The pre-inference `DialogueGroundingSnapshot` also carries a conservative,
+ordered set of obligations derived from the player's exact live utterance:
+known-person referral, stated player name, request for work, and request for
+lodging. The same typed values render the `PLAYER REQUESTS TO ANSWER NOW`
+prompt contract and validate the final delivered line. This covers declarative
+multi-facet introductions that contain no question mark and therefore do not
+activate the older answer-first question heuristic.
+
+After semantic guards, repetition handling, and the display cap, the canonical
+apply seam verifies that every recognized facet remains acknowledged. A partial
+candidate is replaced whole and its metadata discarded before state, memory,
+events, or UI output. The deterministic replacement addresses each facet in
+player order while making no claim that an NPC is hiring or that a place offers
+lodging. Unrecognized or merely topical mentions create no obligation.
+
+### Wave 2: typed factual grounding
+
+Dialogue candidates now cross a semantic trust boundary at the same canonical
+apply seam. Before inference, `DialogueGroundingSnapshot` freezes the authored
+calendar, people, occupations, workplaces, current locations, and location
+relationships that the candidate is allowed to claim. It also carries a small
+typed referent context maintained per conversation and cleared on a location
+change. The context distinguishes unknown people from role-marked unknown
+places and permits pronoun continuity only when the referent is unambiguous.
+
+`validate_dialogue_candidate` compares factual claims against that immutable
+snapshot. Unsupported current-festival claims, confirmations of unknown people
+or places, and contradictions about occupation, workplace, or geography reject
+the entire candidate. Rejection returns the deterministic safe fallback and
+discards all candidate metadata before memory, events, NPC state, or UI-visible
+events can observe it. This is deliberately a whole-candidate decision: the
+validator never substitutes a noun while leaving the surrounding false claim
+intact. The direct apply API and both game-loop modes use the same validator and
+snapshot, with mode-parity coverage at the real-loop seam.
+
 ### B2 (#1173) — one shared seam in `parish-core`
 
 Add `parish_core::game_session::apply_npc_dialogue_turn`, next to

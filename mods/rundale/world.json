@@ -425,6 +425,11 @@
             "id": 15,
             "name": "Kilteevan Village",
             "description_template": "The small village of Kilteevan — a handful of whitewashed cottages clustered around a well and an old stone bridge over a shallow stream. Smoke drifts from chimneys. A rooster crows from behind a low wall. The {weather} sky hangs over the quiet street. It is {time}.",
+            "landmarks": [
+                "old stone bridge",
+                "well",
+                "shallow stream"
+            ],
             "indoor": false,
             "public": true,
             "connections": [
