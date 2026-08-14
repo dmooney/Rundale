@@ -1569,14 +1569,26 @@ pub(crate) fn provider_config_from_env(
     // wizard choice so a returning user lands back on vllm-mlx without
     // re-doing onboarding. PARISH_PROVIDER and friends still win.
     if config.provider.id() == "simulator"
-        && let Ok(user_cfg) = parish_core::config::user_config::load_user_config(user_config_dir)
+        && let Ok(mut user_cfg) =
+            parish_core::config::user_config::load_user_config(user_config_dir)
         && let Some(provider_str) = user_cfg.provider.as_deref()
         && let Ok(saved_provider) = parish_core::config::Provider::from_str_loose(provider_str)
     {
+        if user_cfg.migrate_legacy_google_default_model()
+            && let Err(error) =
+                parish_core::config::user_config::save_user_config(user_config_dir, &user_cfg)
+        {
+            tracing::warn!(%error, "failed to persist migrated Google default model");
+        }
         let saved_default_base = saved_provider.default_base_url().to_string();
+        let saved_model = user_cfg.model.clone().or_else(|| {
+            saved_provider
+                .preset_model(parish_core::config::InferenceCategory::Dialogue)
+                .map(str::to_string)
+        });
         config.provider = saved_provider;
         config.base_url = user_cfg.base_url.clone().unwrap_or(saved_default_base);
-        config.model = user_cfg.model.clone();
+        config.model = saved_model;
     }
 
     let provider_name = config.provider_display();

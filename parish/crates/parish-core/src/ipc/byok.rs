@@ -13,7 +13,7 @@ use tokio::sync::Mutex;
 use crate::config::user_config::{
     clear_user_config, load_user_config, mark_onboarding_complete, save_user_config,
 };
-use crate::config::{InferenceConfig, Provider};
+use crate::config::{InferenceCategory, InferenceConfig, Provider};
 use crate::game_loop::inference::{InferenceSlots, rebuild_inference_worker};
 use crate::inference::{AnyClient, InferenceLog, validate};
 use crate::ipc::config::GameConfig;
@@ -276,7 +276,23 @@ pub async fn handle_set_provider_config(
     let provider = Provider::from_str_loose(&args.provider)
         .map_err(|_| ByokError::UnknownProvider(args.provider.clone()))?;
 
-    let provider_name = args.provider.to_lowercase();
+    // Persist the registry's canonical id, never a user-supplied alias such as
+    // `gemini`; migrations and preset lookup must have one stable identity.
+    let provider_name = provider.id().to_string();
+    let requested_model = args
+        .model
+        .as_deref()
+        .map(str::trim)
+        .filter(|model| !model.is_empty())
+        .map(str::to_string);
+    let recommended_model = provider
+        .preset_model(InferenceCategory::Dialogue)
+        .map(str::to_string);
+    let persisted_model = requested_model
+        .as_ref()
+        .filter(|model| Some(model.as_str()) != recommended_model.as_deref())
+        .cloned();
+    let effective_model = requested_model.clone().or(recommended_model);
 
     // Providers with needs_base_url_from_user require an explicit, non-empty
     // base URL — check both None and "" since callers may send either.
@@ -356,7 +372,9 @@ pub async fn handle_set_provider_config(
     } else {
         None
     };
-    user.model = args.model.clone();
+    // A model equal to the provider's recommended preset is a default, not a
+    // user pin. Leaving it absent lets future preset promotions take effect.
+    user.model = persisted_model;
     user.category_overrides = args.category_overrides.clone();
     save_user_config(ctx.user_config_dir, &user).map_err(|e| ByokError::Config(e.to_string()))?;
 
@@ -366,9 +384,7 @@ pub async fn handle_set_provider_config(
         cfg.provider_name = provider_name.clone();
         cfg.base_url = base_url.clone();
         cfg.api_key = api_key.clone();
-        if let Some(m) = args.model.clone() {
-            cfg.model_name = m;
-        }
+        cfg.model_name = effective_model.unwrap_or_default();
         // Reset per-category overrides; the wizard's optional advanced step
         // sends a complete map on save.
         cfg.category_provider.clear();
@@ -554,6 +570,10 @@ mod tests {
         // user_config TOML has provider but NOT api_key.
         let body = std::fs::read_to_string(dir.path().join("parish.toml")).unwrap();
         assert!(body.contains("provider = \"anthropic\""));
+        assert!(
+            !body.contains("model ="),
+            "the recommended model is a moving default, not a persisted pin: {body}"
+        );
         assert!(!body.contains("api_key"));
         // Onboarding sentinel exists.
         assert!(dir.path().join(".onboarded").exists());
