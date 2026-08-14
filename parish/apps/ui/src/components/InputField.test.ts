@@ -348,11 +348,14 @@ describe('InputField', () => {
 		});
 
 		it('selects arg command via Tab and inserts with trailing space', async () => {
-			const { getByRole, queryByRole } = render(InputField);
+			const { getByRole, queryAllByRole, queryByRole } = render(InputField);
 			const editor = getByRole('combobox');
 
-			typeIntoEditor(editor, '/fo');
+			typeIntoEditor(editor, '/fork');
 			await fireEvent.input(editor);
+			const options = queryAllByRole('option');
+			expect(options).toHaveLength(1);
+			expect(options[0].textContent).toContain('/fork');
 			await fireEvent.keyDown(editor, { key: 'Tab' });
 
 			expect(queryByRole('listbox')).toBeNull();
