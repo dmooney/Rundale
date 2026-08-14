@@ -1,9 +1,11 @@
 //! Dashboard read queries — surfaces run/turn/axis/finding data for the
 //! dashboard API without coupling the sink module to serde.
 
-use rusqlite::{OptionalExtension, params};
+use rusqlite::types::Type;
+use rusqlite::{OptionalExtension, Row, params};
 use serde::Serialize;
 
+use crate::config::RunConfig;
 use crate::error::Result;
 use crate::git::commit_date;
 use crate::persist::Db;
@@ -17,6 +19,11 @@ pub struct RunSummaryDto {
     pub gate_reason: Option<String>,
     pub gate_turn: Option<u32>,
     pub quality_score: Option<f64>,
+    pub cost_usd: f64,
+    pub player_tokens: u64,
+    pub judge_tokens: u64,
+    pub measured_turn_count: u32,
+    pub avg_response_ms: Option<f64>,
     pub rubric_sha256: String,
     pub git_sha: String,
     pub git_branch: String,
@@ -25,6 +32,7 @@ pub struct RunSummaryDto {
     pub started_at: String,
     pub ended_at: Option<String>,
     pub artifact_dir: String,
+    pub config: RunConfig,
 }
 
 /// One axis score row for the detail view.
@@ -70,9 +78,48 @@ pub struct TurnSummaryDto {
 #[derive(Debug, Clone, Serialize)]
 pub struct RunDetail {
     pub summary: RunSummaryDto,
+    pub timing: RunTimingDto,
     pub axes: Vec<AxisScoreDto>,
     pub findings: Vec<FindingDto>,
     pub turns: Vec<TurnSummaryDto>,
+}
+
+/// Response-time statistics over turns with a real positive elapsed time.
+#[derive(Debug, Clone, Serialize)]
+pub struct RunTimingDto {
+    pub measured_turns: u32,
+    pub avg_ms: Option<f64>,
+    pub p95_ms: Option<i64>,
+    pub max_ms: Option<i64>,
+}
+
+fn run_summary_from_row(r: &Row<'_>) -> rusqlite::Result<RunSummaryDto> {
+    let config_json: String = r.get(18)?;
+    let config = serde_json::from_str(&config_json).map_err(|source| {
+        rusqlite::Error::FromSqlConversionFailure(18, Type::Text, Box::new(source))
+    })?;
+    Ok(RunSummaryDto {
+        id: r.get(0)?,
+        status: r.get(1)?,
+        turn_count: r.get(2)?,
+        gate_reason: r.get(3)?,
+        gate_turn: r.get(4)?,
+        quality_score: r.get(5)?,
+        cost_usd: r.get(6)?,
+        player_tokens: r.get::<_, i64>(7)? as u64,
+        judge_tokens: r.get::<_, i64>(8)? as u64,
+        measured_turn_count: r.get::<_, i64>(9)? as u32,
+        avg_response_ms: r.get(10)?,
+        rubric_sha256: r.get(11)?,
+        git_sha: r.get(12)?,
+        git_branch: r.get(13)?,
+        git_dirty: r.get::<_, i64>(14)? != 0,
+        started_at: r.get(15)?,
+        ended_at: r.get(16)?,
+        artifact_dir: r.get(17)?,
+        config,
+        finding_count: r.get::<_, i64>(19)? as u32,
+    })
 }
 
 /// One data point on the quality-over-commits timeline.
@@ -132,39 +179,22 @@ impl Db {
         let conn = &self.conn;
         let mut stmt = conn.prepare(
             "SELECT r.id, r.status, r.turn_count, r.gate_reason, r.gate_turn,
-                    r.quality_score, r.rubric_sha256, r.git_sha, r.git_branch,
+                    r.quality_score, r.cost_usd, r.player_tokens, r.judge_tokens,
+                    (SELECT COUNT(*) FROM turns t
+                      WHERE t.run_id = r.id AND t.elapsed_ms > 0),
+                    (SELECT AVG(t.elapsed_ms) FROM turns t
+                      WHERE t.run_id = r.id AND t.elapsed_ms > 0),
+                    r.rubric_sha256, r.git_sha, r.git_branch,
                     r.git_dirty, r.started_at, r.ended_at, r.artifact_dir,
-                    COUNT(f.id) AS finding_count
+                    c.config_json, COUNT(f.id) AS finding_count
                FROM runs r
+               JOIN configs c ON c.id = r.config_id
                LEFT JOIN findings f ON f.run_id = r.id
               GROUP BY r.id
               ORDER BY r.id DESC
               LIMIT ?1",
         )?;
-        let rows = stmt.query_map(params![limit], |r| {
-            Ok(RunSummaryDto {
-                id: r.get(0)?,
-                status: r.get(1)?,
-                turn_count: r.get(2)?,
-                gate_reason: r.get(3)?,
-                gate_turn: r.get(4)?,
-                quality_score: r.get(5)?,
-                rubric_sha256: r.get(6)?,
-                git_sha: r.get(7)?,
-                git_branch: r.get(8)?,
-                git_dirty: {
-                    let v: i64 = r.get(9)?;
-                    v != 0
-                },
-                started_at: r.get(10)?,
-                ended_at: r.get(11)?,
-                artifact_dir: r.get(12)?,
-                finding_count: {
-                    let v: i64 = r.get(13)?;
-                    v as u32
-                },
-            })
-        })?;
+        let rows = stmt.query_map(params![limit], run_summary_from_row)?;
         let mut out = Vec::new();
         for row in rows {
             out.push(row?);
@@ -180,38 +210,21 @@ impl Db {
         let maybe_summary = conn
             .query_row(
                 "SELECT r.id, r.status, r.turn_count, r.gate_reason, r.gate_turn,
-                        r.quality_score, r.rubric_sha256, r.git_sha, r.git_branch,
+                        r.quality_score, r.cost_usd, r.player_tokens, r.judge_tokens,
+                        (SELECT COUNT(*) FROM turns t
+                          WHERE t.run_id = r.id AND t.elapsed_ms > 0),
+                        (SELECT AVG(t.elapsed_ms) FROM turns t
+                          WHERE t.run_id = r.id AND t.elapsed_ms > 0),
+                        r.rubric_sha256, r.git_sha, r.git_branch,
                         r.git_dirty, r.started_at, r.ended_at, r.artifact_dir,
-                        COUNT(f.id) AS finding_count
+                        c.config_json, COUNT(f.id) AS finding_count
                    FROM runs r
+                   JOIN configs c ON c.id = r.config_id
                    LEFT JOIN findings f ON f.run_id = r.id
                   WHERE r.id = ?1
                   GROUP BY r.id",
                 params![run_id],
-                |r| {
-                    Ok(RunSummaryDto {
-                        id: r.get(0)?,
-                        status: r.get(1)?,
-                        turn_count: r.get(2)?,
-                        gate_reason: r.get(3)?,
-                        gate_turn: r.get(4)?,
-                        quality_score: r.get(5)?,
-                        rubric_sha256: r.get(6)?,
-                        git_sha: r.get(7)?,
-                        git_branch: r.get(8)?,
-                        git_dirty: {
-                            let v: i64 = r.get(9)?;
-                            v != 0
-                        },
-                        started_at: r.get(10)?,
-                        ended_at: r.get(11)?,
-                        artifact_dir: r.get(12)?,
-                        finding_count: {
-                            let v: i64 = r.get(13)?;
-                            v as u32
-                        },
-                    })
-                },
+                run_summary_from_row,
             )
             .optional()?;
 
@@ -282,8 +295,33 @@ impl Db {
             })?
             .collect::<std::result::Result<_, _>>()?;
 
+        let mut elapsed: Vec<i64> = turns
+            .iter()
+            .map(|turn| turn.elapsed_ms)
+            .filter(|elapsed_ms| *elapsed_ms > 0)
+            .collect();
+        elapsed.sort_unstable();
+        let timing = if elapsed.is_empty() {
+            RunTimingDto {
+                measured_turns: 0,
+                avg_ms: None,
+                p95_ms: None,
+                max_ms: None,
+            }
+        } else {
+            let total: i64 = elapsed.iter().sum();
+            let p95_index = ((elapsed.len() * 95).div_ceil(100)).saturating_sub(1);
+            RunTimingDto {
+                measured_turns: elapsed.len() as u32,
+                avg_ms: Some(total as f64 / elapsed.len() as f64),
+                p95_ms: elapsed.get(p95_index).copied(),
+                max_ms: elapsed.last().copied(),
+            }
+        };
+
         Ok(Some(RunDetail {
             summary,
+            timing,
             axes,
             findings,
             turns,
@@ -358,38 +396,21 @@ impl Db {
         let load_summary = |run_id: i64| -> Result<Option<RunSummaryDto>> {
             conn.query_row(
                 "SELECT r.id, r.status, r.turn_count, r.gate_reason, r.gate_turn,
-                        r.quality_score, r.rubric_sha256, r.git_sha, r.git_branch,
+                        r.quality_score, r.cost_usd, r.player_tokens, r.judge_tokens,
+                        (SELECT COUNT(*) FROM turns t
+                          WHERE t.run_id = r.id AND t.elapsed_ms > 0),
+                        (SELECT AVG(t.elapsed_ms) FROM turns t
+                          WHERE t.run_id = r.id AND t.elapsed_ms > 0),
+                        r.rubric_sha256, r.git_sha, r.git_branch,
                         r.git_dirty, r.started_at, r.ended_at, r.artifact_dir,
-                        COUNT(f.id) AS finding_count
+                        c.config_json, COUNT(f.id) AS finding_count
                    FROM runs r
+                   JOIN configs c ON c.id = r.config_id
                    LEFT JOIN findings f ON f.run_id = r.id
                   WHERE r.id = ?1
                   GROUP BY r.id",
                 params![run_id],
-                |r| {
-                    Ok(RunSummaryDto {
-                        id: r.get(0)?,
-                        status: r.get(1)?,
-                        turn_count: r.get(2)?,
-                        gate_reason: r.get(3)?,
-                        gate_turn: r.get(4)?,
-                        quality_score: r.get(5)?,
-                        rubric_sha256: r.get(6)?,
-                        git_sha: r.get(7)?,
-                        git_branch: r.get(8)?,
-                        git_dirty: {
-                            let v: i64 = r.get(9)?;
-                            v != 0
-                        },
-                        started_at: r.get(10)?,
-                        ended_at: r.get(11)?,
-                        artifact_dir: r.get(12)?,
-                        finding_count: {
-                            let v: i64 = r.get(13)?;
-                            v as u32
-                        },
-                    })
-                },
+                run_summary_from_row,
             )
             .optional()
             .map_err(Into::into)
@@ -490,7 +511,7 @@ mod tests {
             player: PlayerCfg {
                 mode: ActorMode::Scripted,
                 model: None,
-                persona: String::new(),
+                persona: "tester".into(),
                 strategy: String::new(),
             },
             judge: JudgeCfg {
@@ -524,7 +545,7 @@ mod tests {
                 player_input: "look".into(),
                 outcome: "ok".into(),
                 kind: "looked".into(),
-                elapsed_ms: 10,
+                elapsed_ms: 250,
                 engine_state_json: "{}".into(),
                 location_id: Some(1),
                 location_name: Some("Lane".into()),
@@ -537,6 +558,7 @@ mod tests {
             },
         )
         .unwrap();
+        db.update_run_cost(rid, 1.25, 1_234, 567).unwrap();
 
         // Score.
         let axes: Vec<AxisScore> = Axis::ALL
@@ -577,6 +599,12 @@ mod tests {
         assert_eq!(r.status, "completed");
         assert_eq!(r.turn_count, 1);
         assert_eq!(r.quality_score, Some(80.0));
+        assert_eq!(r.cost_usd, 1.25);
+        assert_eq!(r.player_tokens, 1_234);
+        assert_eq!(r.judge_tokens, 567);
+        assert_eq!(r.measured_turn_count, 1);
+        assert_eq!(r.avg_response_ms, Some(250.0));
+        assert_eq!(r.config.player.persona, "tester");
         assert_eq!(r.finding_count, 1);
     }
 
@@ -586,6 +614,11 @@ mod tests {
         let (rid, _) = make_full_run(&db);
         let detail = db.run_detail(rid).unwrap().expect("detail should be Some");
         assert_eq!(detail.summary.id, rid);
+        assert_eq!(detail.summary.cost_usd, 1.25);
+        assert_eq!(detail.timing.measured_turns, 1);
+        assert_eq!(detail.timing.avg_ms, Some(250.0));
+        assert_eq!(detail.timing.p95_ms, Some(250));
+        assert_eq!(detail.timing.max_ms, Some(250));
         assert_eq!(detail.axes.len(), 7);
         assert_eq!(detail.findings.len(), 1);
         assert_eq!(detail.turns.len(), 1);
@@ -675,6 +708,10 @@ mod tests {
             .expect("compare should return Some");
         assert_eq!(cmp.a.id, rid_a);
         assert_eq!(cmp.b.id, rid_b);
+        assert_eq!(cmp.a.cost_usd, 1.25);
+        assert_eq!(cmp.a.player_tokens, 1_234);
+        assert_eq!(cmp.a.avg_response_ms, Some(250.0));
+        assert_eq!(cmp.a.config.player.persona, "tester");
 
         // All axis deltas should be -20 (b - a = 60 - 80).
         for d in &cmp.axis_deltas {

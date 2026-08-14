@@ -602,6 +602,34 @@ mod tests {
     }
 
     #[test]
+    fn dashboard_html_renders_per_run_cost_models_and_timing() {
+        let html = include_str!("../../dashboard-ui/index.html");
+        for contract in [
+            "fmtUsd",
+            "fmtDuration",
+            "engineRouteSummary",
+            "['player', config?.player]",
+            "['judge', config?.judge]",
+            "Cost:",
+            "Tokens:",
+            "Response time:",
+            "Engine models:",
+            "Actors:",
+            "Feature flags:",
+        ] {
+            assert!(
+                html.contains(contract),
+                "dashboard must render per-run telemetry contract {contract:?}"
+            );
+        }
+        assert!(
+            html.contains("cost=${fmtUsd(s.cost_usd)}")
+                && html.contains("avg response=${fmtDuration(s.avg_response_ms)}"),
+            "A/B summaries must retain per-run cost and response-time context"
+        );
+    }
+
+    #[test]
     fn dashboard_html_has_run_routing() {
         let html = include_str!("../../dashboard-ui/index.html");
         // Runs are deep-linkable pages via hash routing.
