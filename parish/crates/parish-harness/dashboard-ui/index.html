@@ -174,16 +174,19 @@
       .ab-form { flex-wrap: wrap; }
       .ab-form input { width: 100%; }
       .run-meta { word-break: break-word; }
-      /* A 9-column table can't fit a phone even with horizontal scroll, so make
+      /* A 12-column table can't fit a phone even with horizontal scroll, so make
          it FIT: drop the min-width, let cells wrap, and hide the low-priority
-         Gate (4th), Branch (8th), and Started (9th) columns. Tap a run for the
-         full detail. */
+         timing/model/configuration metadata. Cost remains visible at a glance;
+         tap a run for the full telemetry. */
       #runs-container { overflow-x: visible; }
       #runs-container table { min-width: 0; }
       #runs-container th, #runs-container td { white-space: normal; padding: .5rem .45rem; }
-      #runs-container th:nth-child(4), #runs-container td:nth-child(4),
-      #runs-container th:nth-child(8), #runs-container td:nth-child(8),
-      #runs-container th:nth-child(9), #runs-container td:nth-child(9) { display: none; }
+      #runs-container th:nth-child(5), #runs-container td:nth-child(5),
+      #runs-container th:nth-child(6), #runs-container td:nth-child(6),
+      #runs-container th:nth-child(7), #runs-container td:nth-child(7),
+      #runs-container th:nth-child(10), #runs-container td:nth-child(10),
+      #runs-container th:nth-child(11), #runs-container td:nth-child(11),
+      #runs-container th:nth-child(12), #runs-container td:nth-child(12) { display: none; }
     }
   </style>
 </head>
@@ -255,6 +258,37 @@
       return `<a href="${window.COMMIT_BASE}/commit/${sha}" target="_blank" rel="noopener"><code>${short}</code></a>`;
     }
 
+    function fmtUsd(value) {
+      return `$${Number(value || 0).toFixed(4)}`;
+    }
+
+    function fmtDuration(value) {
+      return value == null ? '—' : `${Math.round(value).toLocaleString()} ms`;
+    }
+
+    function fmtCount(value) {
+      return Number(value || 0).toLocaleString();
+    }
+
+    function engineRouteSummary(config) {
+      const models = config?.engine_models || {};
+      const entries = Object.entries(models);
+      if (!entries.length) return '—';
+      return entries.map(([category, route]) =>
+        `${escHtml(category)}: ${escHtml(route.provider)}/${escHtml(route.model)}`
+      ).join('<br>');
+    }
+
+    function actorSummary(config) {
+      const actors = [['player', config?.player], ['judge', config?.judge]]
+        .filter(([, actor]) => actor);
+      if (!actors.length) return '—';
+      return actors.map(([role, actor]) => {
+        const model = actor.model ? ` · ${escHtml(actor.model)}` : '';
+        return `${role}: ${escHtml(actor.mode)}${model}`;
+      }).join('<br>');
+    }
+
     async function loadRuns() {
       const c = $('runs-container');
       c.innerHTML = '<span class="loading">Loading...</span>';
@@ -264,8 +298,9 @@
         c.innerHTML = '';
         const tbl = document.createElement('table');
         tbl.innerHTML = `<thead><tr>
-          <th>ID</th><th>Status</th><th>Quality</th><th>Gate</th><th>Turns</th>
-          <th>Findings</th><th>Git SHA</th><th>Branch</th><th>Started</th>
+          <th>ID</th><th>Status</th><th>Quality</th><th>Cost</th><th>Avg response</th>
+          <th>Engine</th><th>Gate</th><th>Turns</th><th>Findings</th><th>Git SHA</th>
+          <th>Branch</th><th>Started</th>
         </tr></thead><tbody></tbody>`;
         const tbody = tbl.querySelector('tbody');
         for (const r of runs) {
@@ -276,8 +311,9 @@
           const quality = r.quality_score != null ? r.quality_score.toFixed(1) : '—';
           const gate = r.gate_reason ? `${r.gate_reason} @t${r.gate_turn}` : '—';
           tr.innerHTML = `<td>${r.id}</td><td>${status_badge}</td><td>${quality}</td>
-            <td>${gate}</td><td>${r.turn_count}</td><td>${r.finding_count}</td>
-            <td>${shaCell(r.git_sha)}</td><td>${r.git_branch||'—'}</td>
+            <td>${fmtUsd(r.cost_usd)}</td><td>${fmtDuration(r.avg_response_ms)}</td>
+            <td>${engineRouteSummary(r.config)}</td><td>${gate}</td><td>${r.turn_count}</td>
+            <td>${r.finding_count}</td><td>${shaCell(r.git_sha)}</td><td>${r.git_branch||'—'}</td>
             <td>${(r.started_at||'').substring(0,16)}</td>`;
           tbody.appendChild(tr);
         }
@@ -395,6 +431,11 @@
       const quality = s.quality_score != null ? `<span class="quality-score">${s.quality_score.toFixed(1)}</span>` : '—';
       const status_badge = `<span class="badge badge-${s.status}">${s.status}</span>`;
       const gate_info = s.gate_reason ? `<br>Gate: ${s.gate_reason} at turn ${s.gate_turn}` : '';
+      const costPerTurn = s.turn_count ? s.cost_usd / s.turn_count : 0;
+      const timing = d.timing || {};
+      const flags = (s.config?.flags || []).map(flag =>
+        `${escHtml(flag.name)}=${flag.on ? 'on' : 'off'}`
+      ).join(', ') || '—';
 
       let html = `<h2>Run #${s.id} ${status_badge} <span class="sse-status" id="sse-status"></span></h2>
         <div class="run-meta">
@@ -402,6 +443,12 @@
           Git: ${shaCell(s.git_sha)} on <em>${s.git_branch||'?'}</em>
           ${s.git_dirty ? '<strong style="color:#c09040"> (dirty)</strong>' : ''}<br>
           Turns: ${s.turn_count} &nbsp; Findings: ${s.finding_count}<br>
+          Cost: ${fmtUsd(s.cost_usd)} &nbsp; Cost/turn: ${fmtUsd(costPerTurn)}<br>
+          Tokens: ${fmtCount(s.player_tokens)} player &nbsp; ${fmtCount(s.judge_tokens)} judge<br>
+          Response time: avg ${fmtDuration(timing.avg_ms)} &nbsp; p95 ${fmtDuration(timing.p95_ms)} &nbsp; max ${fmtDuration(timing.max_ms)} (${timing.measured_turns || 0} measured turns)<br>
+          Engine models:<br>${engineRouteSummary(s.config)}<br>
+          Actors:<br>${actorSummary(s.config)}<br>
+          Feature flags: ${flags}<br>
           Started: ${s.started_at||'?'} &nbsp; Ended: ${s.ended_at||'in progress'}
         </div>`;
 
@@ -689,7 +736,7 @@
       const runMeta = (s) => {
         const q = s.quality_score != null ? s.quality_score.toFixed(1) : '—';
         const sha = (s.git_sha || '').substring(0, 8);
-        return `run #${s.id} &nbsp; <span class="badge badge-${s.status}">${s.status}</span> &nbsp; quality=${q} &nbsp; <code>${sha}</code> on <em>${s.git_branch||'?'}</em>`;
+        return `run #${s.id} &nbsp; <span class="badge badge-${s.status}">${s.status}</span> &nbsp; quality=${q} &nbsp; cost=${fmtUsd(s.cost_usd)} &nbsp; avg response=${fmtDuration(s.avg_response_ms)} &nbsp; <code>${sha}</code> on <em>${s.git_branch||'?'}</em>`;
       };
 
       let html = `<h3>Run A</h3><div class="run-meta">${runMeta(cmp.a)}</div>`;
