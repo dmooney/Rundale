@@ -2,7 +2,9 @@
 
 use std::sync::Arc;
 
-use parish_core::input::{InputResult, classify_input, is_player_dialogue};
+use parish_core::input::{
+    InputResult, classify_input_with_addressees, is_player_dialogue_with_addressees,
+};
 use parish_core::ipc::text_log;
 
 use crate::AppState;
@@ -68,7 +70,7 @@ pub(crate) async fn do_submit_input_locked(
         *sc = tokio_util::sync::CancellationToken::new();
     }
 
-    let outcome = match classify_input(&text) {
+    let outcome = match classify_submitted_input(&text, &addressed_to) {
         InputResult::SystemCommand(cmd) => {
             touch_player_activity(state).await;
             handle_system_command(cmd, state, app, &text).await?;
@@ -81,17 +83,19 @@ pub(crate) async fn do_submit_input_locked(
             // `look`, `look around`, movement phrases) must not render as player
             // speech or provoke NPC reactions. `handle_game_input` still runs so
             // the look/move action itself executes.
-            let (dispatch, prelude_emissions) = if is_player_dialogue(&raw) {
-                let player_msg = text_log("player", format!("> {}", raw));
-                let player_msg_id = player_msg.id.clone();
-                let payload = serde_json::to_value(player_msg).unwrap_or(serde_json::Value::Null);
-                (
-                    Some((player_msg_id, raw.clone())),
-                    vec![(EVENT_TEXT_LOG.to_string(), payload)],
-                )
-            } else {
-                (None, Vec::new())
-            };
+            let (dispatch, prelude_emissions) =
+                if is_player_dialogue_with_addressees(&raw, &addressed_to) {
+                    let player_msg = text_log("player", format!("> {}", raw));
+                    let player_msg_id = player_msg.id.clone();
+                    let payload =
+                        serde_json::to_value(player_msg).unwrap_or(serde_json::Value::Null);
+                    (
+                        Some((player_msg_id, raw.clone())),
+                        vec![(EVENT_TEXT_LOG.to_string(), payload)],
+                    )
+                } else {
+                    (None, Vec::new())
+                };
             // Capture location before handle_game_input (which may move the player).
             let reaction_location = state.world.lock().await.player_location;
             let outcome =
@@ -111,6 +115,14 @@ pub(crate) async fn do_submit_input_locked(
     };
 
     Ok(outcome)
+}
+
+/// Tauri's production classification seam for input plus NPC chips.
+///
+/// Kept separate from dispatch so mode-parity behavior can be regression-tested
+/// without constructing a desktop [`tauri::AppHandle`].
+fn classify_submitted_input(text: &str, addressed_to: &[String]) -> InputResult {
+    classify_input_with_addressees(text, addressed_to)
 }
 
 // ── #752 — addressed_to validation ───────────────────────────────────────────
@@ -398,6 +410,58 @@ pub(crate) async fn set_conversation_running(state: &Arc<AppState>, running: boo
 mod tests {
     use super::*;
     use crate::commands::cmd_tests::test_app_state;
+
+    #[test]
+    fn place_attention_classification_respects_only_nonblank_tauri_addressees() {
+        use parish_core::input::Command;
+
+        for (natural, command) in [
+            ("listen carefully", Command::Listen),
+            ("listen for an omen", Command::Omen),
+        ] {
+            assert_eq!(
+                classify_submitted_input(natural, &["  \t ".to_string()]),
+                InputResult::SystemCommand(command),
+                "blank addressees must be semantically absent for {natural:?}"
+            );
+        }
+
+        for natural_topic in [
+            "listen carefully",
+            "listen for an omen",
+            "I stop and listen to the world around me",
+            "do you take that as an omen?",
+            "what old tales are told about this place?",
+        ] {
+            assert_eq!(
+                classify_submitted_input(natural_topic, &["Siobhan Murphy".to_string()]),
+                InputResult::GameInput(natural_topic.to_string()),
+                "natural topic discussion with an addressee must remain dialogue"
+            );
+        }
+
+        for (slash, command) in [
+            ("/listen", Command::Listen),
+            ("/omen", Command::Omen),
+            ("/folklore", Command::Folklore),
+        ] {
+            assert_eq!(
+                classify_submitted_input(slash, &["Siobhan Murphy".to_string()]),
+                InputResult::SystemCommand(command),
+                "explicit slash command must override addressee context"
+            );
+        }
+
+        let action_shaped_topic = "go to the fields and listen to the wind";
+        assert!(is_player_dialogue_with_addressees(
+            action_shaped_topic,
+            &["Siobhan Murphy".to_string()]
+        ));
+        assert!(!is_player_dialogue_with_addressees(
+            action_shaped_topic,
+            &[" \t ".to_string()]
+        ));
+    }
 
     // ── validate_input_text ─────────────────────────────────────────────────
 

@@ -189,6 +189,12 @@ pub enum Command {
     /// Location-gated (the pub) and time-gated (dusk through midnight).
     /// Produces a short evocative vignette generated from the game clock.
     Session,
+    /// Attend to the ordinary sounds and sensations of the current place.
+    Listen,
+    /// Read the current place for a restrained, state-grounded omen.
+    Omen,
+    /// Recall authored folklore associated with the current place.
+    Folklore,
     /// Toggle or inspect the on-disk inference log.
     ///
     /// `On`/`Off` flip the shared enable flag at runtime.

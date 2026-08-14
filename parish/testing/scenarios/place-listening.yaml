@@ -1,0 +1,235 @@
+version: 1
+name: place-listening
+description: Three distinct place-attention actions and natural topic discussion run through the shipping loop and obey one kill switch.
+steps:
+  - input: /pause
+    expect:
+      location: Kilteevan Village
+      paused: true
+      events:
+        - name: text-log
+          contains: clocks of the parish stand still
+  - input: /listen
+    expect:
+      location: Kilteevan Village
+      paused: true
+      events:
+        - name: text-log
+          contains: You stand still and listen.
+        - name: text-log
+          contains: Larks work above the fields
+      absent_events:
+        - real-loop-panic
+  - input: /omen
+    expect:
+      location: Kilteevan Village
+      paused: true
+      events:
+        - name: text-log
+          contains: You watch for an omen.
+        - name: text-log
+          contains: A small bird stirs near the church ground
+      absent_events:
+        - real-loop-panic
+  - input: /folklore
+    expect:
+      location: Kilteevan Village
+      paused: true
+      events:
+        - name: text-log
+          contains: You call to mind what is said of this place.
+        - name: text-log
+          contains: Taobhán
+      absent_events:
+        - real-loop-panic
+  - input: "@a small, sharp-eyed old woman wrapped in a shawl what old tales are told about this place?"
+    mock:
+      - prompt_contains: Peig Hannigan
+        response: "Mind yourself: the old tales outlive those who laugh at them."
+    expect:
+      location: Kilteevan Village
+      paused: true
+      events:
+        - name: text-log
+          contains: Taobhán
+        - name: stream-token
+          contains: the old tales outlive
+      absent_events:
+        - real-loop-panic
+  - input: "@a small, sharp-eyed old woman wrapped in a shawl I listen to the world around us."
+    mock:
+      - prompt_contains: Peig Hannigan
+        response: "Then you will hear more than a hurried traveller does."
+    expect:
+      location: Kilteevan Village
+      paused: true
+      events:
+        - name: text-log
+          contains: Larks work above the fields
+        - name: stream-token
+          contains: hear more than a hurried traveller
+      absent_events:
+        - real-loop-panic
+  - input: "@a small, sharp-eyed old woman wrapped in a shawl do you take that owl for an omen?"
+    mock:
+      - prompt_contains: Peig Hannigan
+        response: "An owl minds its own business, and we would be wise to mind ours."
+    expect:
+      location: Kilteevan Village
+      paused: true
+      events:
+        - name: text-log
+          contains: A small bird stirs near the church ground
+        - name: stream-token
+          contains: wise to mind ours
+      absent_events:
+        - real-loop-panic
+  - input: /flag disable place-listening
+    expect:
+      location: Kilteevan Village
+      events:
+        - name: text-log
+          contains: disabled
+  - input: /listen
+    expect:
+      location: Kilteevan Village
+      events:
+        - name: text-log
+          contains: disabled
+      absent_events:
+        - real-loop-panic
+  - input: /omen
+    expect:
+      location: Kilteevan Village
+      events:
+        - name: text-log
+          contains: disabled
+      absent_events:
+        - real-loop-panic
+  - input: /folklore
+    expect:
+      location: Kilteevan Village
+      events:
+        - name: text-log
+          contains: disabled
+      absent_events:
+        - real-loop-panic
+  - input: "@a small, sharp-eyed old woman wrapped in a shawl what old tales are told about this place?"
+    mock:
+      - prompt_contains: Peig Hannigan
+        response: "The flag cannot stop an old woman talking."
+    expect:
+      location: Kilteevan Village
+      paused: true
+      events:
+        - name: stream-token
+          contains: old woman talking
+      absent_event_text:
+        - name: text-log
+          contains: Taobhán
+      absent_events:
+        - real-loop-panic
+  - input: /flag enable place-listening
+    expect:
+      location: Kilteevan Village
+      events:
+        - name: text-log
+          contains: enabled
+  - input: /weather storm
+    expect:
+      location: Kilteevan Village
+      events:
+        - name: text-log
+          contains: weather shifts to Storm
+  - input: /listen
+    expect:
+      location: Kilteevan Village
+      events:
+        - name: text-log
+          contains: The storm fills every quarter at once
+      absent_events:
+        - real-loop-panic
+  - input: /weather clear
+    expect:
+      location: Kilteevan Village
+      events:
+        - name: text-log
+          contains: weather shifts to Clear
+  - input: go to the holy well
+    expect:
+      location: The Holy Well
+      events:
+        - name: world-update
+  - input: /folklore
+    expect:
+      location: The Holy Well
+      events:
+        - name: text-log
+          contains: ease sore eyes
+      absent_events:
+        - real-loop-panic
+  - input: go to Kilteevan Village
+    expect:
+      location: Kilteevan Village
+      events:
+        - name: world-update
+  - input: go to the crossroads
+    expect:
+      location: The Crossroads
+      events:
+        - name: world-update
+  - input: /folklore
+    expect:
+      location: The Crossroads
+      events:
+        - name: text-log
+          contains: Good People may pass close by unseen
+      absent_events:
+        - real-loop-panic
+  - input: go to the letter office
+    expect:
+      location: The Letter Office
+      events:
+        - name: world-update
+  - input: /folklore
+    expect:
+      location: The Letter Office
+      events:
+        - name: text-log
+          contains: No old account of this place comes readily to mind.
+      absent_events:
+        - real-loop-panic
+  - input: /weather storm
+    expect:
+      location: The Letter Office
+      events:
+        - name: text-log
+          contains: weather shifts to Storm
+  - input: /listen
+    expect:
+      location: The Letter Office
+      events:
+        - name: text-log
+          contains: Wind shoulders the walls
+      absent_events:
+        - real-loop-panic
+  - input: /weather clear
+    expect:
+      location: The Letter Office
+      events:
+        - name: text-log
+          contains: weather shifts to Clear
+  - input: /wait 641
+    expect:
+      location: The Letter Office
+      events:
+        - name: text-log
+          contains: It is now 19:00 Night
+  - input: /listen
+    expect:
+      location: The Letter Office
+      events:
+        - name: text-log
+          contains: Beyond the walls the parish has gone quiet
+      absent_events:
+        - real-loop-panic

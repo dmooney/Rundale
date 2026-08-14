@@ -63,7 +63,7 @@ Shared rule: **mode parity**. Every gameplay feature behaves identically across 
 - **Weather-gated travel** — hazard-tagged routes can become impassable in storms or slower in heavy rain and fog, with alternate-route pathfinding where available.
 - **Travel & encounters** — per-edge travel time from lat/lon and transport mode (walk vs. horse/cart), with time-of-day-weighted en-route encounters.
 - **Festivals** — Imbolc, Bealtaine, Lughnasa, Samhain trigger relationship boosts and narrative hooks.
-- **Mythology hooks** — locations carry a `mythological_significance` field that's surfaced into NPC prompts and reserved for future folklore systems.
+- **Attend to the land** — three deterministic, offline actions reveal different layers of a place: `/listen` hears its weather-, shelter-, season-, and time-aware soundscape; `/omen` notices a present detail that might be taken as a sign, while refusing to predict the future; and `/folklore` recalls the location's exact authored tradition without inventing one when no account comes readily to mind. Natural discussion of omens, folklore, or listening to the world can add a brief atmospheric cue while the underlying conversational turn continues. The default-on `place-listening` flag controls all three.
 
 ### NPCs — cognitive level-of-detail
 

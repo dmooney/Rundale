@@ -8,7 +8,7 @@
 
 use parish_inference::AnyClient;
 use parish_inference::openai_client::OpenAiClient;
-use parish_input::{IntentKind, parse_intent};
+use parish_input::{AtmosphericTopic, IntentKind, parse_intent};
 use wiremock::matchers::{body_partial_json, body_string_contains, method, path};
 use wiremock::{Mock, MockServer, ResponseTemplate};
 
@@ -54,6 +54,45 @@ async fn llm_fallback_success_returns_parsed_intent() {
     assert_eq!(intent.intent, IntentKind::Talk);
     assert_eq!(intent.target.as_deref(), Some("Mary"));
     assert_eq!(intent.dialogue.as_deref(), Some("hello there"));
+}
+
+#[tokio::test]
+async fn unknown_atmosphere_label_preserves_valid_primary_intent() {
+    let server = MockServer::start().await;
+    mount_intent_response(
+        &server,
+        r#"{"intent":"talk","target":"Mary","dialogue":"hello there","atmosphere":"mystery"}"#,
+    )
+    .await;
+
+    let client = AnyClient::open_ai(OpenAiClient::new(&server.uri(), None));
+    let intent = parse_intent(&client, "whisper to Mary hello there", "test-model")
+        .await
+        .unwrap();
+
+    assert_eq!(intent.intent, IntentKind::Talk);
+    assert_eq!(intent.target.as_deref(), Some("Mary"));
+    assert_eq!(intent.dialogue.as_deref(), Some("hello there"));
+    assert_eq!(intent.atmosphere, None);
+}
+
+#[tokio::test]
+async fn grounded_model_atmosphere_extends_synonym_coverage() {
+    let server = MockServer::start().await;
+    mount_intent_response(
+        &server,
+        r#"{"intent":"talk","target":"Peig","dialogue":"can you hear the wind rising?","atmosphere":"listen"}"#,
+    )
+    .await;
+
+    let client = AnyClient::open_ai(OpenAiClient::new(&server.uri(), None));
+    let intent = parse_intent(&client, "Peig, can you hear the wind rising?", "test-model")
+        .await
+        .unwrap();
+
+    assert_eq!(intent.intent, IntentKind::Talk);
+    assert_eq!(intent.target.as_deref(), Some("Peig"));
+    assert_eq!(intent.atmosphere, Some(AtmosphericTopic::Listen));
 }
 
 #[tokio::test]

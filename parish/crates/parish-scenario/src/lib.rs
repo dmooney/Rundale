@@ -97,6 +97,18 @@ impl Scenario {
                     "step {step_number} absent event name must not be empty"
                 ));
             }
+            for event in &step.expect.absent_event_text {
+                if event.name.trim().is_empty() {
+                    return self.invalid(format!(
+                        "step {step_number} absent event text name must not be empty"
+                    ));
+                }
+                if event.contains.trim().is_empty() {
+                    return self.invalid(format!(
+                        "step {step_number} absent event text substring must not be empty"
+                    ));
+                }
+            }
             if !step.expect.has_oracle() {
                 return self.invalid(format!(
                     "step {step_number} must contain at least one machine assertion"
@@ -185,6 +197,8 @@ pub struct Expectation {
     pub events: Vec<EventExpectation>,
     #[serde(default)]
     pub absent_events: Vec<String>,
+    #[serde(default)]
+    pub absent_event_text: Vec<AbsentEventTextExpectation>,
 }
 
 impl Expectation {
@@ -196,7 +210,15 @@ impl Expectation {
             || self.min_events.is_some()
             || !self.events.is_empty()
             || !self.absent_events.is_empty()
+            || !self.absent_event_text.is_empty()
     }
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct AbsentEventTextExpectation {
+    pub name: String,
+    pub contains: String,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -391,6 +413,16 @@ fn evaluate(
             failures.push(format!("forbidden event {forbidden:?} was emitted"));
         }
     }
+    for forbidden in &expect.absent_event_text {
+        if events.iter().any(|event| {
+            event.name == forbidden.name && event.payload.to_string().contains(&forbidden.contains)
+        }) {
+            failures.push(format!(
+                "forbidden text {:?} was emitted by event {:?}",
+                forbidden.contains, forbidden.name
+            ));
+        }
+    }
     for expected in &expect.events {
         let count = events
             .iter()
@@ -484,6 +516,57 @@ mod tests {
     }
 
     #[test]
+    fn absent_event_text_constraints_are_machine_checked() {
+        let events = vec![
+            EventRecord {
+                name: "text-log".into(),
+                payload: serde_json::json!({"content": "Taobhán is remembered here"}),
+            },
+            EventRecord {
+                name: "stream-token".into(),
+                payload: serde_json::json!({"token": "Taobhán"}),
+            },
+        ];
+        let expected = Expectation {
+            absent_event_text: vec![AbsentEventTextExpectation {
+                name: "text-log".into(),
+                contains: "Taobhán".into(),
+            }],
+            ..Expectation::default()
+        };
+
+        let failures = evaluate(
+            &expected,
+            &events,
+            "Kilteevan Village",
+            "08:00",
+            true,
+            &BTreeMap::new(),
+        );
+        assert_eq!(failures.len(), 1);
+        assert!(failures[0].contains("Taobhán"));
+
+        let expected = Expectation {
+            absent_event_text: vec![AbsentEventTextExpectation {
+                name: "text-log".into(),
+                contains: "Good People".into(),
+            }],
+            ..Expectation::default()
+        };
+        assert!(
+            evaluate(
+                &expected,
+                &events,
+                "Kilteevan Village",
+                "08:00",
+                true,
+                &BTreeMap::new(),
+            )
+            .is_empty()
+        );
+    }
+
+    #[test]
     fn validation_rejects_scenarios_without_real_oracles() {
         let scenario = Scenario {
             version: SCHEMA_VERSION,
@@ -541,6 +624,32 @@ mod tests {
             scenario.validate(),
             Err(ScenarioError::Invalid { .. })
         ));
+    }
+
+    #[test]
+    fn validation_rejects_blank_absent_event_text_constraints() {
+        for (name, contains) in [("", "Taobhán"), ("text-log", "  ")] {
+            let scenario = Scenario {
+                version: SCHEMA_VERSION,
+                name: "blank absent event text".into(),
+                description: String::new(),
+                steps: vec![Step {
+                    input: "look".into(),
+                    mock: Vec::new(),
+                    expect: Expectation {
+                        absent_event_text: vec![AbsentEventTextExpectation {
+                            name: name.into(),
+                            contains: contains.into(),
+                        }],
+                        ..Expectation::default()
+                    },
+                }],
+            };
+            assert!(matches!(
+                scenario.validate(),
+                Err(ScenarioError::Invalid { .. })
+            ));
+        }
     }
 
     #[test]

@@ -58,34 +58,37 @@ pub fn generate_description(feature: &GeoFeature) -> (String, DescriptionSource)
 
 /// Generates mythological significance text for applicable location types.
 ///
-/// Returns `Some` for location types with traditional Irish folklore
-/// connections (ring forts, holy wells, crossroads, bogs, etc.).
+/// Returns player-ready, in-world tradition for location types with customary
+/// associations (ring forts, holy wells, crossroads, bogs, etc.). These strings
+/// can be rendered verbatim by the listening mechanic, so they must read as
+/// something an 1820s parishioner might pass on rather than modern metadata.
 pub fn generate_mythological_significance(feature: &GeoFeature) -> Option<String> {
     match feature.location_type {
         LocationType::RingFort => Some(
-            "A rath — an ancient ring fort said to be home to the sídhe, the fairy folk. \
-             No farmer dares disturb it, for those who plough fairy forts are cursed with misfortune."
+            "The old people call such a ring a rath and say the sídhe keep it. \
+             No farmer willingly puts a plough through one; misfortune is said to follow \
+             the hand that breaks its bank."
                 .to_string(),
         ),
         LocationType::Well => Some(
-            "A holy well, blessed by a saint or perhaps older still — a place where the boundary \
-             between this world and the other is thin. Rags tied to the nearby hawthorn flutter \
-             like prayers."
+            "People come to this well on the saint's day, tying a rag to the hawthorn and \
+             asking for a cure. Some say the water's virtue is older than the saint's name."
                 .to_string(),
         ),
         LocationType::Crossroads => Some(
-            "Crossroads hold power in Irish folklore — a place between places, where the veil \
-             is thin and deals can be struck with things best left unnamed."
+            "The old people are wary of a meeting of roads after dark. A traveller may hear \
+             steps on one road and see no one, and it is thought unwise to answer a voice \
+             that calls from behind."
                 .to_string(),
         ),
         LocationType::Bog => Some(
-            "Bogs preserve everything — bodies, butter, memories. People say you can hear \
-             voices in the wind here on certain nights."
+            "The bog keeps what it takes — bodies, butter, and old memories. On certain nights, \
+             people say, voices travel with the wind across it."
                 .to_string(),
         ),
         LocationType::StandingStone => Some(
-            "An ancient stone, raised by hands long forgotten. Some say it marks a grave, \
-             others a boundary between kingdoms mortal and fey."
+            "No one remembers who raised this stone. Some call it a grave-mark; others say \
+             an old boundary was sworn here, and leave it standing."
                 .to_string(),
         ),
         LocationType::Waterside => {
@@ -94,8 +97,8 @@ pub fn generate_mythological_significance(feature: &GeoFeature) -> Option<String
                 || feature.name.to_lowercase().contains("lake")
             {
                 Some(format!(
-                    "{} is said to hold secrets beneath its waters — drowned churches, \
-                     sunken villages, and creatures older than memory.",
+                    "The old people say {} keeps secrets beneath its water. Some tell of a \
+                     drowned bell or sunken walls; others cross themselves and change the subject.",
                     feature.name
                 ))
             } else {
@@ -103,8 +106,8 @@ pub fn generate_mythological_significance(feature: &GeoFeature) -> Option<String
             }
         }
         LocationType::Graveyard => Some(
-            "The dead rest here, but not always peacefully. On certain nights, \
-             it is said the churchyard gate swings open of its own accord."
+            "People lower their voices at this churchyard after dark. It is said the gate \
+             has been found open on still nights, though no living hand was seen upon it."
                 .to_string(),
         ),
         _ => None,
@@ -437,7 +440,7 @@ mod tests {
         let feature = make_feature("A Crossroads", LocationType::Crossroads, 53.5, -8.0);
         let myth = generate_mythological_significance(&feature);
         assert!(myth.is_some());
-        assert!(myth.unwrap().contains("veil"));
+        assert!(myth.unwrap().contains("meeting of roads"));
     }
 
     #[test]
@@ -763,10 +766,7 @@ mod tests {
             myth.is_some(),
             "StandingStone should have mythological significance"
         );
-        assert!(
-            myth.unwrap().contains("kingdoms"),
-            "StandingStone myth should mention kingdoms"
-        );
+        assert!(myth.unwrap().contains("boundary"));
     }
 
     #[test]
@@ -805,5 +805,43 @@ mod tests {
             myth.is_none(),
             "Non-lough waterside should have no mythological significance"
         );
+    }
+
+    #[test]
+    fn generated_mythological_significance_is_player_ready_period_prose() {
+        let types = [
+            LocationType::RingFort,
+            LocationType::Well,
+            LocationType::Crossroads,
+            LocationType::Bog,
+            LocationType::StandingStone,
+            LocationType::Waterside,
+            LocationType::Graveyard,
+        ];
+        let forbidden = [
+            "irish folklore",
+            "the veil is thin",
+            "mortal and fey",
+            "deals can be struck",
+            "are cursed",
+        ];
+
+        for location_type in types {
+            let name = if location_type == LocationType::Waterside {
+                "Lough Test"
+            } else {
+                "Test Place"
+            };
+            let feature = make_feature(name, location_type, 53.5, -8.0);
+            let myth = generate_mythological_significance(&feature)
+                .expect("every selected type should generate a tradition");
+            let lower = myth.to_lowercase();
+            for phrase in forbidden {
+                assert!(
+                    !lower.contains(phrase),
+                    "{location_type:?} generated modern or meta phrasing {phrase:?}: {myth}"
+                );
+            }
+        }
     }
 }

@@ -7,6 +7,25 @@ use serde::Deserialize;
 
 use crate::commands::Command;
 
+/// An atmospheric subject present in the player's natural-language input.
+///
+/// This supplements, rather than replaces, the primary [`IntentKind`]. The
+/// runtime uses it to enrich conversational routing; it does not independently
+/// turn movement, examination, or interaction into an atmospheric action.
+/// Explicitly addressing an NPC can make otherwise action-shaped text
+/// conversational, in which case this topic may still supply an atmospheric
+/// cue alongside that conversation.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum AtmosphericTopic {
+    /// Listening to the wider place or living world.
+    Listen,
+    /// Omens, portents, or deliberately seeking a supernatural sign.
+    Omen,
+    /// Folklore, local legends, or old/traditional tales.
+    Folklore,
+}
+
 /// The kind of player action parsed from natural language input.
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -36,6 +55,9 @@ pub struct PlayerIntent {
     pub target: Option<String>,
     /// Dialogue text if the player is speaking.
     pub dialogue: Option<String>,
+    /// Optional atmospheric subject available when the input routes as
+    /// conversation.
+    pub atmosphere: Option<AtmosphericTopic>,
     /// The original raw input text.
     pub raw: String,
 }
@@ -68,5 +90,12 @@ mod tests {
         let json = r#""unknown""#;
         let kind: IntentKind = serde_json::from_str(json).unwrap();
         assert_eq!(kind, IntentKind::Unknown);
+    }
+
+    #[test]
+    fn atmospheric_topic_deserializes_and_is_copyable() {
+        let topic: AtmosphericTopic = serde_json::from_str(r#""folklore""#).unwrap();
+        let copied = topic;
+        assert_eq!(copied, AtmosphericTopic::Folklore);
     }
 }
