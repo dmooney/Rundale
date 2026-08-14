@@ -312,7 +312,7 @@ impl DirectInferenceAudit {
             metadata.requested_service_tier,
             Some(parish_config::ServiceTier::Priority)
         ) && metadata.effective_service_tier.as_deref() == Some("standard");
-        let estimated_cost_usd = super::worker::estimate_gemini_36_cost(&metadata);
+        let estimated_cost_usd = super::worker::estimate_google_cost(&metadata);
         let prefix = self.system.as_deref();
         let entry = InferenceLogEntry {
             request_id: self.request_id,
