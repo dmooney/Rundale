@@ -48,11 +48,17 @@ pub fn build_inference_categories(
         .iter()
         .map(|subrole| {
             let category = subrole.category();
-            let profile = config.subrole_profile(*subrole);
+            let model = config.category_model(category);
+            // Match the worker's final capability normalization so the debug
+            // panel reports the profile actually sent to the provider.
+            let profile = model.as_deref().map_or_else(
+                || config.subrole_profile(*subrole),
+                |model| config.subrole_profile(*subrole).for_model(model),
+            );
             InferenceCategoryDebug {
                 role: subrole.name().to_string(),
                 provider: config.category_provider(category),
-                model: config.category_model(category),
+                model,
                 base_url: config.category_base_url(category),
                 thinking_level: profile.thinking_level,
                 max_output_tokens: profile.max_output_tokens,
