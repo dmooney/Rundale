@@ -19,7 +19,7 @@ use serde::Deserialize;
 use tokio::time::Instant;
 
 use parish_core::event_bus::{EventBus as EventBusTrait, Topic};
-use parish_core::input::{InputResult, classify_input};
+use parish_core::input::{InputResult, classify_input_with_addressees};
 
 use crate::routes::{admin_emails, check_admin};
 use crate::routes::{
@@ -95,7 +95,7 @@ pub async fn post_command(
         Topic::TravelStart,
     ]);
 
-    let classified = classify_input(&text);
+    let classified = classify_input_with_addressees(&text, &body.addressed_to);
 
     // Admin gate (mirrors submit_input logic).
     if let InputResult::SystemCommand(ref cmd) = classified

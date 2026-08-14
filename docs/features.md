@@ -62,7 +62,9 @@ Parish is a text-based adventure game set in 1820s rural Ireland, powered by LLM
 ### Mythology
 
 - Locations carry a `mythological_significance` field that is surfaced into NPC prompts
-- Reserved for future folklore systems (Phase 6); data fields exist, no active effects
+- Three offline place actions expose distinct layers of the same canonical scene: `listen` / `/listen` renders ordinary ambience, `/omen` offers a cautious present-tense sign but never a prophecy, and `/folklore` returns the location's exact authored tradition or says that no old account comes readily to mind
+- Natural-language intent can also detect discussion of omens, folklore, or listening to the world and prepend a brief atmospheric cue while the underlying conversational turn continues; it does not replace the turn
+- The renderer is seeded from canonical world state, so the same save moment gives the same answer; broader consequential folklore encounters remain future work
 
 ---
 
@@ -192,6 +194,10 @@ Most configuration commands follow a **unified show/set pattern**: running the c
 
 **Game Control:**
 
+- `listen` / `/listen` — Hear the current place's ordinary soundscape, shaped by time, season, weather, and shelter.
+- `/omen` — Notice a detail that local belief might read as a sign. The wording stays uncertain and present-tense; it never promises an outcome or changes canonical state.
+- `/folklore` — Recall the current location's exact authored tradition. At an ordinary place, it says that no old account comes readily to mind rather than claiming none exists or inventing one.
+- Natural discussion of omens, folklore, or listening to the world adds a short deterministic atmospheric cue while the conversational turn continues. An explicit slash command always performs only its named place action.
 - `/pause` / `/resume` — Pause or resume the simulation
 - `/quit` — Exit game
 - `/new` / `/new-game` — Start a fresh game
@@ -229,6 +235,7 @@ Most configuration commands follow a **unified show/set pattern**: running the c
 
 Known engine flags (all **default-on**; disable to opt out):
 
+- `place-listening` — deterministic, offline `/listen`, `/omen`, and `/folklore` responses plus the supplemental atmospheric cue for natural topic intent.
 - `period-map-tiles` — `/map <id>` tile-source switching.
 - `local-inference-onboarding` — first-run wizard that downloads bundled
   vllm-mlx + Qwen weights on macOS, or routes to BYOK on other hosts.
@@ -680,7 +687,7 @@ mods/<mod-name>/
 
 - `geo_kind` — `real` (geocoded from OSM), `manual` (author-pinned coordinates), or `fictional` (purely invented)
 - Relative anchors let fictional clusters subordinate to a real place — a fictional cottage can be placed "2 km north-east of Kilteevan"
-- `mythological_significance` field surfaced into NPC prompts
+- `mythological_significance` is surfaced into NPC prompts and supplies the exact authored tradition for `/folklore`; the related `/listen` and `/omen` actions never fabricate additional world facts
 - Connection edges with prose descriptions and optional hazard tags
 
 ### Default Mod: Rundale
@@ -859,7 +866,7 @@ A reproducible, self-contained LLM benchmark for evaluating model quality agains
 ### Partially Implemented
 
 - Full web & mobile client (web server shipped; mobile client planned)
-- Mythology hooks (data fields exist in world.json, no active effects; Phase 6 planned)
+- Wider mythology systems (the three place-attention actions now surface ambience, cautious signs, and authored location lore; consequential folklore encounters and world effects remain planned for Phase 6)
 
 ### In Progress
 
