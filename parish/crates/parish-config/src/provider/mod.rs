@@ -1449,7 +1449,7 @@ model = "toml-model"
         assert!(cloud.has_preset());
         assert_eq!(
             cloud.preset_model(InferenceCategory::Dialogue),
-            Some("google/gemini-3.6-flash"),
+            Some("google/gemini-3.7-flash"),
         );
         let arr = cloud.preset_models();
         assert!(arr.iter().any(|m| m.is_some()));

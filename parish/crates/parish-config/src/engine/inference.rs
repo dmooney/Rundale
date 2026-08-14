@@ -103,7 +103,10 @@ impl DialogueGenerationConfig {
     /// prevents evidence gathered through OpenRouter from silently promoting
     /// an unmeasured first-party route with different latency characteristics.
     pub fn for_model(mut self, model: &str) -> Self {
-        if model == "google/gemini-3.6-flash"
+        if model == "google/gemini-3.7-flash" && self.max_tokens == default_dialogue_max_tokens() {
+            self.max_tokens = 4096;
+        }
+        if matches!(model, "google/gemini-3.6-flash" | "google/gemini-3.7-flash")
             && self.enable_thinking.is_none()
             && self.reasoning_effort.is_none()
         {
