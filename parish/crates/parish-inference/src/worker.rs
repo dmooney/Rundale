@@ -124,7 +124,8 @@ pub fn spawn_inference_worker(client: AnyClient, config: InferenceWorkerConfig) 
             debug_assert_eq!(role, subrole.category());
             let profile = request
                 .profile
-                .unwrap_or_else(|| parish_config::InferenceProfile::for_subrole(subrole));
+                .unwrap_or_else(|| parish_config::InferenceProfile::for_subrole(subrole))
+                .for_model(&model);
             let thinking_level = Some(profile.thinking_level);
             let service_tier = Some(profile.service_tier);
             let system_prompt = request.system.clone();
@@ -334,7 +335,7 @@ pub fn spawn_inference_worker(client: AnyClient, config: InferenceWorkerConfig) 
                 Some(parish_config::ServiceTier::Priority)
             ) && metadata.effective_service_tier.as_deref()
                 == Some("standard");
-            let estimated_cost_usd = estimate_gemini_36_cost(&metadata);
+            let estimated_cost_usd = estimate_google_cost(&metadata);
 
             // Record the completed call. Atomic staged turns attach a
             // request-scoped buffer so neither the debug ring nor JSONL file
@@ -451,11 +452,16 @@ pub(crate) fn classify_provider_failure(message: &str, status: Option<u16>) -> S
 }
 
 /// Paid-tier text estimate checked against Google's Gemini API pricing page
-/// on 2026-08-09: Standard input $1.50/M, cached input $0.15/M, output
-/// (including thinking) $7.50/M. Priority remains an explicit override and
-/// uses $2.70/M, $0.27/M, and $13.50/M respectively.
-pub(crate) fn estimate_gemini_36_cost(metadata: &ProviderMetadata) -> Option<f64> {
-    if metadata.provider != "google" || metadata.model != "gemini-3.6-flash" {
+/// on 2026-08-14. Gemini 3.6/3.7 promotional Standard rates through the end
+/// of 2026 are $0.75/M input, $0.075/M cached input, and $3.75/M output
+/// (including thinking); Priority is $1.35/M, $0.135/M, and $6.75/M.
+pub(crate) fn estimate_google_cost(metadata: &ProviderMetadata) -> Option<f64> {
+    if metadata.provider != "google"
+        || !matches!(
+            metadata.model.as_str(),
+            "gemini-3.6-flash" | "gemini-3.7-flash"
+        )
+    {
         return None;
     }
     let input = metadata.usage.input_tokens?;
@@ -491,7 +497,7 @@ pub(crate) fn estimate_gemini_36_cost(metadata: &ProviderMetadata) -> Option<f64
     static SNAPSHOT: std::sync::OnceLock<Snapshot> = std::sync::OnceLock::new();
     let snapshot = SNAPSHOT.get_or_init(|| {
         serde_json::from_str(include_str!(
-            "../../../config/gemini-3.6-flash-capabilities.json"
+            "../../../config/gemini-3.7-flash-capabilities.json"
         ))
         .expect("checked-in Gemini capability snapshot must parse")
     });
@@ -519,7 +525,7 @@ mod tests {
     fn priced_google_metadata() -> ProviderMetadata {
         ProviderMetadata {
             provider: "google".to_string(),
-            model: "gemini-3.6-flash".to_string(),
+            model: "gemini-3.7-flash".to_string(),
             requested_service_tier: Some(parish_config::ServiceTier::Priority),
             usage: parish_providers::ProviderUsage {
                 input_tokens: Some(1_000_000),
@@ -536,18 +542,15 @@ mod tests {
     fn cost_estimate_uses_effective_tier_after_google_downgrade() {
         let mut metadata = priced_google_metadata();
         metadata.effective_service_tier = Some("standard".to_string());
-        assert_eq!(estimate_gemini_36_cost(&metadata), Some(1.50));
+        assert_eq!(estimate_google_cost(&metadata), Some(0.75));
 
         metadata.effective_service_tier = Some("priority".to_string());
-        assert_eq!(estimate_gemini_36_cost(&metadata), Some(2.70));
+        assert_eq!(estimate_google_cost(&metadata), Some(1.35));
     }
 
     #[test]
     fn cost_estimate_falls_back_to_requested_tier_without_response_header() {
-        assert_eq!(
-            estimate_gemini_36_cost(&priced_google_metadata()),
-            Some(2.70)
-        );
+        assert_eq!(estimate_google_cost(&priced_google_metadata()), Some(1.35));
     }
 
     #[tokio::test]

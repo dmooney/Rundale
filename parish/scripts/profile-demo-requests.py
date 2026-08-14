@@ -34,7 +34,7 @@ from typing import Any, Protocol
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_REPORT_DIR = REPO_ROOT / "docs" / "proofs" / "demo-api-profile"
 GEMINI_CAPABILITY_SNAPSHOT = json.loads(
-    (REPO_ROOT / "parish" / "config" / "gemini-3.6-flash-capabilities.json").read_text()
+    (REPO_ROOT / "parish" / "config" / "gemini-3.7-flash-capabilities.json").read_text()
 )
 GEMINI_STANDARD_RATES = GEMINI_CAPABILITY_SNAPSHOT["pricing_usd_per_million_tokens"]["standard"]
 DEFAULT_UPSTREAM = "http://localhost:8000/v1"
