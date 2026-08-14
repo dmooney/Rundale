@@ -1190,6 +1190,31 @@ mod tests {
     }
 
     #[test]
+    fn google_recommended_model_and_low_thinking_cover_every_category() {
+        let mut cfg = GameConfig {
+            provider_name: "google".to_string(),
+            ..GameConfig::default()
+        };
+        assert!(cfg.fill_missing_models_from_presets());
+        assert_eq!(cfg.model_name, "gemini-3.7-flash");
+
+        for category in InferenceCategory::ALL {
+            let model = cfg
+                .category_model
+                .get(&category)
+                .unwrap_or_else(|| panic!("missing {category:?} model"));
+            assert_eq!(model, "gemini-3.7-flash", "{category:?} model drifted");
+            assert_eq!(
+                parish_config::InferenceProfile::for_category(category)
+                    .for_model(model)
+                    .thinking_level,
+                parish_config::ThinkingLevel::Low,
+                "{category:?} must use Gemini 3.7's supported Low floor"
+            );
+        }
+    }
+
+    #[test]
     fn fill_missing_models_does_not_overwrite_existing_models() {
         let mut cfg = GameConfig {
             provider_name: "anthropic".to_string(),

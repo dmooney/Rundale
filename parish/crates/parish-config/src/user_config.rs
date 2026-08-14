@@ -83,6 +83,37 @@ pub struct CategoryOverride {
     pub tier3_max_output_tokens: Option<u32>,
 }
 
+impl UserConfig {
+    /// Releases the model pin written by the old Google onboarding default.
+    ///
+    /// Before defaults were treated as defaults, the wizard persisted its
+    /// prefilled `gemini-3.6-flash` value as though the user had explicitly
+    /// selected it. Only migrate the exact official-provider/default shape;
+    /// custom endpoints and category model selections remain authoritative.
+    pub fn migrate_legacy_google_default_model(&mut self) -> bool {
+        let official_or_implicit_base_url = self.base_url.as_deref().is_none_or(|url| {
+            matches!(
+                url.trim_end_matches('/'),
+                "https://generativelanguage.googleapis.com/v1"
+                    | "https://generativelanguage.googleapis.com/v1beta/openai"
+            )
+        });
+        let has_category_model_pin = self
+            .category_overrides
+            .values()
+            .any(|override_| override_.model.is_some());
+        if matches!(self.provider.as_deref(), Some("google" | "gemini"))
+            && self.model.as_deref() == Some("gemini-3.6-flash")
+            && official_or_implicit_base_url
+            && !has_category_model_pin
+        {
+            self.model = None;
+            return true;
+        }
+        false
+    }
+}
+
 /// Resolves the per-user config directory once. Creates it if missing.
 ///
 /// Order: `PARISH_USER_CONFIG_DIR` env > per-OS app-config dir > `./` fallback.
@@ -341,6 +372,50 @@ mod tests {
         assert_eq!(round, cfg);
         let body = std::fs::read_to_string(dir.path().join(USER_CONFIG_FILENAME)).unwrap();
         assert!(body.contains("service_tier = \"standard\""));
+    }
+
+    #[test]
+    fn legacy_google_default_pin_is_released_but_explicit_routing_is_preserved() {
+        let mut legacy = UserConfig {
+            provider: Some("google".to_string()),
+            model: Some("gemini-3.6-flash".to_string()),
+            ..Default::default()
+        };
+        assert!(legacy.migrate_legacy_google_default_model());
+        assert_eq!(legacy.model, None);
+        assert!(!legacy.migrate_legacy_google_default_model());
+
+        let mut legacy_alias = UserConfig {
+            provider: Some("gemini".to_string()),
+            model: Some("gemini-3.6-flash".to_string()),
+            ..Default::default()
+        };
+        assert!(legacy_alias.migrate_legacy_google_default_model());
+        assert_eq!(legacy_alias.model, None);
+
+        for mut explicit in [
+            UserConfig {
+                provider: Some("google".to_string()),
+                base_url: Some("https://proxy.example/v1".to_string()),
+                model: Some("gemini-3.6-flash".to_string()),
+                ..Default::default()
+            },
+            UserConfig {
+                provider: Some("google".to_string()),
+                model: Some("gemini-3.6-flash".to_string()),
+                category_overrides: BTreeMap::from([(
+                    "intent".to_string(),
+                    CategoryOverride {
+                        model: Some("gemini-3.6-flash".to_string()),
+                        ..Default::default()
+                    },
+                )]),
+                ..Default::default()
+            },
+        ] {
+            assert!(!explicit.migrate_legacy_google_default_model());
+            assert_eq!(explicit.model.as_deref(), Some("gemini-3.6-flash"));
+        }
     }
 
     #[test]

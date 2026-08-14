@@ -13,12 +13,14 @@ featured = true
 [[presets]]
 key = "recommended"
 label = "Recommended"
-# Qualified through Google's native Interactions API at low thinking with a
-# 4,096-token cap. See the immutable 2026-08-14 cloud-dialogue receipts.
+# Dialogue was qualified through Google's native Interactions API at low
+# thinking with a 4,096-token cap. The same native model is the default for
+# every inference category; category profiles retain their role-specific caps.
+# See the immutable 2026-08-14 cloud-dialogue receipts.
 dialogue = "gemini-3.7-flash"
-simulation = "gemini-3.6-flash"
-intent = "gemini-3.6-flash"
-reaction = "gemini-3.6-flash"
+simulation = "gemini-3.7-flash"
+intent = "gemini-3.7-flash"
+reaction = "gemini-3.7-flash"
 
 [[presets]]
 key = "flash"

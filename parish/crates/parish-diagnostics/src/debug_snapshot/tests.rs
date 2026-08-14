@@ -8,6 +8,40 @@ use parish_world::graph::WorldGraph;
 use parish_world::time::{DayType, Season};
 use std::collections::VecDeque;
 
+struct GeminiCategoryConfig;
+
+impl InferenceCategoryConfig for GeminiCategoryConfig {
+    fn category_provider(&self, _cat: parish_config::InferenceCategory) -> Option<String> {
+        Some("google".to_string())
+    }
+
+    fn category_model(&self, _cat: parish_config::InferenceCategory) -> Option<String> {
+        Some("gemini-3.7-flash".to_string())
+    }
+
+    fn category_base_url(&self, _cat: parish_config::InferenceCategory) -> Option<String> {
+        None
+    }
+
+    fn subrole_profile(
+        &self,
+        subrole: parish_config::InferenceSubrole,
+    ) -> parish_config::InferenceProfile {
+        parish_config::InferenceProfile::for_subrole(subrole)
+    }
+}
+
+#[test]
+fn inference_categories_report_model_capability_floor() {
+    let categories = build_inference_categories(&GeminiCategoryConfig);
+
+    assert_eq!(categories.len(), parish_config::InferenceSubrole::ALL.len());
+    assert!(categories.iter().all(|category| {
+        category.model.as_deref() == Some("gemini-3.7-flash")
+            && category.thinking_level == parish_config::ThinkingLevel::Low
+    }));
+}
+
 /// Helper: build a minimal `InferenceDebug` for tests.
 fn test_inference() -> InferenceDebug {
     InferenceDebug {
