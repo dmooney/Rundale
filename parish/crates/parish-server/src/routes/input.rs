@@ -16,7 +16,9 @@ use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 
 use parish_core::event_bus::{EventBus as EventBusTrait, Topic};
-use parish_core::input::{InputResult, classify_input, is_player_dialogue};
+use parish_core::input::{
+    InputResult, classify_input_with_addressees, is_player_dialogue_with_addressees,
+};
 pub use parish_core::ipc::SubmitInputRequest;
 use parish_core::ipc::{LoadingPayload, text_log};
 
@@ -53,7 +55,7 @@ pub async fn submit_input(
 
     let mut dialogue_failure = None;
     if !text.is_empty() {
-        match classify_input(&text) {
+        match classify_input_with_addressees(&text, &body.addressed_to) {
             InputResult::SystemCommand(cmd) => {
                 touch_player_activity(&state).await;
                 // #332 — admin command gate: provider/key/model commands are operator-only.
@@ -70,18 +72,19 @@ pub async fn submit_input(
                 // `look`, `look around`, movement phrases) must not render as player
                 // speech or provoke NPC reactions. `handle_game_input` still runs so
                 // the look/move action itself executes.
-                let (dispatch, prelude_emissions) = if is_player_dialogue(&raw) {
-                    let player_msg = text_log("player", format!("> {}", raw));
-                    let player_msg_id = player_msg.id.clone();
-                    let payload =
-                        serde_json::to_value(player_msg).unwrap_or(serde_json::Value::Null);
-                    (
-                        Some((player_msg_id, raw.clone())),
-                        vec![("text-log".to_string(), payload)],
-                    )
-                } else {
-                    (None, Vec::new())
-                };
+                let (dispatch, prelude_emissions) =
+                    if is_player_dialogue_with_addressees(&raw, &body.addressed_to) {
+                        let player_msg = text_log("player", format!("> {}", raw));
+                        let player_msg_id = player_msg.id.clone();
+                        let payload =
+                            serde_json::to_value(player_msg).unwrap_or(serde_json::Value::Null);
+                        (
+                            Some((player_msg_id, raw.clone())),
+                            vec![("text-log".to_string(), payload)],
+                        )
+                    } else {
+                        (None, Vec::new())
+                    };
                 // Capture location before handle_game_input (which may move the player).
                 let reaction_location = state.world.lock().await.player_location;
                 let outcome = match handle_game_input(

@@ -1,0 +1,79 @@
+# Player-visible proof: distinct listening, omen, and folklore actions.
+# Place atmosphere is deterministic and offline; natural-topic examples still
+# continue through the normally configured dialogue path.
+
+/pause
+/status
+
+# At one frozen mythic scene, each command has a different job: present
+# soundscape, cautious sign without prophecy, and exact authored tradition.
+/listen
+/omen
+/folklore
+
+# Natural discussion of all three topics adds atmosphere, but each remains an
+# ordinary dialogue turn.
+/stub Peig Hannigan: The old account is worth remembering.
+talk to Peig Hannigan about what old tales are told about this place
+/stub Peig Hannigan: The land has more voices than hurried folk hear.
+talk to Peig Hannigan about listening to the world around us
+/stub Peig Hannigan: An owl minds its own business, and we should mind ours.
+talk to Peig Hannigan about whether that owl is an omen
+
+# The kill switch removes supplemental atmosphere without swallowing dialogue.
+/flag disable place-listening
+/stub Peig Hannigan: A flag cannot stop an old woman talking.
+talk to Peig Hannigan about what old tales are told about this place
+/folklore
+/flag enable place-listening
+
+# Outdoor ambience follows canonical weather without inference.
+/weather storm
+/listen
+/weather clear
+
+# The nearby well has its own authored healing tradition.
+go to the holy well
+/folklore
+
+# One default-on flag controls all three explicit actions.
+/flag disable place-listening
+/listen
+/omen
+/folklore
+/flag enable place-listening
+/listen
+/omen
+/folklore
+
+# A second mythic category demonstrates a liminal crossroads sign and lore.
+go to Kilteevan Village
+go to the crossroads
+/omen
+/folklore
+
+# Complete the seven-place circuit: church ground, lough, rath, and bog.
+go to St. Brigid's Church
+/folklore
+go to Lough Ree Shore
+/folklore
+go to The Fairy Fort
+/folklore
+go to The Bog Road
+/folklore
+
+# An ordinary place still has a state-aware soundscape and cautious omen, but
+# folklore only says that no old account comes readily to mind.
+go to the letter office
+/listen
+/omen
+/folklore
+
+# Shelter changes the storm soundscape; advancing into night changes it again.
+/weather storm
+/listen
+/weather clear
+/wait 600
+/listen
+
+/status

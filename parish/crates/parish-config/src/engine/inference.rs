@@ -99,12 +99,19 @@ impl DialogueGenerationConfig {
     /// Apply a promoted model's measured reasoning profile when the operator
     /// has not explicitly chosen reasoning controls.
     ///
-    /// Model identifiers intentionally include the provider namespace. This
-    /// prevents evidence gathered through OpenRouter from silently promoting
-    /// an unmeasured first-party route with different latency characteristics.
+    /// Model identifiers preserve the serving route. The bare Gemini ID is
+    /// qualified through Google's native API; the namespaced ID retains the
+    /// separately measured OpenRouter profile.
     pub fn for_model(mut self, model: &str) -> Self {
-        if model == "google/gemini-3.6-flash"
-            && self.enable_thinking.is_none()
+        if matches!(model, "gemini-3.7-flash" | "google/gemini-3.7-flash")
+            && self.max_tokens == default_dialogue_max_tokens()
+        {
+            self.max_tokens = 4096;
+        }
+        if matches!(
+            model,
+            "gemini-3.7-flash" | "google/gemini-3.6-flash" | "google/gemini-3.7-flash"
+        ) && self.enable_thinking.is_none()
             && self.reasoning_effort.is_none()
         {
             self.enable_thinking = Some(true);

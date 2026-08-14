@@ -143,6 +143,17 @@ impl InferenceProfileOverride {
 }
 
 impl InferenceProfile {
+    /// Apply model capability floors after user/category overrides.
+    ///
+    /// Gemini 3.7 rejects `minimal` at the native API boundary. Treat Low as
+    /// its minimum supported level while preserving explicit Medium/High.
+    pub fn for_model(mut self, model: &str) -> Self {
+        if model == "gemini-3.7-flash" && self.thinking_level == ThinkingLevel::Minimal {
+            self.thinking_level = ThinkingLevel::Low;
+        }
+        self
+    }
+
     /// All roles use Google's default Standard service tier. Priority remains
     /// available as an explicit user override, but is never selected by the
     /// checked-in gameplay profiles.
@@ -224,6 +235,30 @@ mod inference_profile_tests {
                 "{category:?} must not opt into premium inference"
             );
         }
+    }
+
+    #[test]
+    fn native_gemini_37_clamps_unsupported_minimal_thinking_to_low() {
+        let minimal = InferenceProfile::for_category(InferenceCategory::Dialogue);
+        assert_eq!(minimal.thinking_level, ThinkingLevel::Minimal);
+        assert_eq!(
+            minimal.for_model("gemini-3.7-flash").thinking_level,
+            ThinkingLevel::Low
+        );
+
+        let medium = InferenceProfile {
+            thinking_level: ThinkingLevel::Medium,
+            ..minimal
+        };
+        assert_eq!(
+            medium.for_model("gemini-3.7-flash").thinking_level,
+            ThinkingLevel::Medium
+        );
+        assert_eq!(
+            minimal.for_model("google/gemini-3.7-flash").thinking_level,
+            ThinkingLevel::Minimal,
+            "OpenRouter's namespaced route has its own request contract"
+        );
     }
 }
 

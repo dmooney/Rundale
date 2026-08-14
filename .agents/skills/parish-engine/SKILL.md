@@ -48,6 +48,8 @@ Script command reference:
 - Movement: `go to <location>`, `walk to <location>`
 - Look: `look`, `look around`
 - System: `/status`, `/time`, `/map`, `/npcs`, `/wait [N]`, `/tick`
+- Place attention: `/listen` (ambient soundscape), `/omen` (cautious sign, never prophecy),
+  `/folklore` (exact authored tradition)
 - Persistence: `/save`, `/fork <name>`, `/load <name>`, `/branches`, `/log`
 - Speed: `/speed fast`, `/speed normal`, `/speed slow`
 - Control: `/pause`, `/resume`, `/new`
@@ -70,6 +72,9 @@ Prove a gameplay feature works at runtime — not just that tests pass.
    - Do descriptions read naturally — grammatical and immersive to a player?
    - Does NPC behaviour respond correctly to the new feature?
    - Are any fields empty, nonsensical, or stuck at their initial value?
+   - For place-attention work, do `/listen`, `/omen`, and `/folklore` produce three distinct
+     player-visible results at the same frozen scene? Does a natural discussion of those topics add
+     its atmospheric cue while the underlying conversational turn still completes?
 4. **Fix what you find.** Common issues:
    - New tick/update logic added to `parish-server` and `headless` but **not** the test harness
      (`crates/parish-cli/src/testing.rs`) — the harness has its own game loop in `advance_time()` and

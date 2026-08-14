@@ -116,26 +116,29 @@ fn parse_zero_arg_command(keyword: &str) -> Option<Command> {
         "/tick" => Some(Command::Tick),
         "/flags" => Some(Command::Flags),
         "/session" | "/tune" | "/music" | "/fiddle" | "/seisiun" => Some(Command::Session),
+        "/listen" => Some(Command::Listen),
+        "/omen" => Some(Command::Omen),
+        "/folklore" => Some(Command::Folklore),
         "/byok" | "/onboard" | "/setup" => Some(Command::ResetByok),
         _ => None,
     }
 }
 
-/// Deterministic pre-classifier for bare (no-`/` prefix) command tokens.
+/// Deterministic pre-classifier for exact natural command forms.
 ///
 /// Small quantised intent models (e.g. Qwen2.5-1.5B-4bit on :8001) occasionally
-/// misclassify unambiguous bare command tokens such as `wait` and `status` as
+/// misclassify unambiguous command forms such as `wait` and `listen carefully` as
 /// player dialogue, causing the text to appear as a player utterance and NPCs to
-/// react to it (#1351).  This function short-circuits those tokens to their
+/// react to it (#1351). This function short-circuits those exact forms to their
 /// canonical `SystemCommand` equivalents before the LLM intent parser is ever
 /// consulted.
 ///
 /// # Scope
 ///
-/// Only **exact** bare matches are intercepted (case-insensitive, trimmed).
-/// Tokens with arguments (e.g. `wait 30`) are intentionally **not** intercepted
-/// here so the LLM can still parse natural-language movement/look phrases that
-/// happen to start with one of these words.
+/// Only **exact** matches are intercepted (case-insensitive, with surrounding
+/// whitespace trimmed). Extra words (e.g. `wait 30` or `listen to Mary`) are
+/// intentionally **not** intercepted so the LLM can still parse natural-language
+/// actions and dialogue that happen to start with one of these words.
 ///
 /// # Token list rationale
 ///
@@ -143,14 +146,18 @@ fn parse_zero_arg_command(keyword: &str) -> Option<Command> {
 ///   "wait" with no number is unambiguous: pause time for 15 minutes.
 /// - `status` — maps to `Command::Status`. A single bare word has no plausible
 ///   conversational meaning distinct from the `/status` command.
-pub(crate) fn parse_bare_command_intercept(trimmed: &str) -> Option<Command> {
-    // Only intercept exact single-token inputs (no spaces after trimming).
-    if trimmed.contains(' ') {
-        return None;
-    }
-    match trimmed.to_lowercase().as_str() {
+/// - Four deliberately enumerated `listen` forms map to `Command::Listen`;
+///   `listen for an omen` maps to `Command::Omen`. Keeping the list closed
+///   prevents arbitrary `listen ...` sentences from bypassing intent
+///   classification.
+pub(crate) fn parse_natural_command_intercept(input: &str) -> Option<Command> {
+    match input.trim().to_lowercase().as_str() {
         "wait" => Some(Command::Wait(15)),
         "status" => Some(Command::Status),
+        "listen" | "listen carefully" | "listen to the place" | "listen to the land" => {
+            Some(Command::Listen)
+        }
+        "listen for an omen" => Some(Command::Omen),
         _ => None,
     }
 }
@@ -159,12 +166,40 @@ pub(crate) fn parse_bare_command_intercept(trimmed: &str) -> Option<Command> {
 ///
 /// Classification order:
 /// 1. `/`-prefixed system commands via [`parse_system_command`].
-/// 2. Bare (un-prefixed) command tokens via [`parse_bare_command_intercept`]
+/// 2. Exact un-prefixed command forms via [`parse_natural_command_intercept`]
 ///    — deterministic short-circuit that prevents the LLM intent parser from
-///    seeing unambiguous command tokens and nondeterministically classifying
-///    them as player dialogue (#1351).
+///    seeing unambiguous command forms and nondeterministically classifying
+///    them as player dialogue (#1351). This short-circuit is skipped when the
+///    player explicitly selected an addressee: in that context, natural text
+///    is dialogue and only an explicit slash command can override it (#1450).
 /// 3. Everything else → [`InputResult::GameInput`] for LLM intent parsing.
 pub fn classify_input(raw: &str) -> InputResult {
+    classify_input_with_context(raw, false)
+}
+
+/// Returns whether a request contains at least one meaningful NPC addressee.
+///
+/// Keeping this semantic check in the input crate ensures classification and
+/// dialogue presentation agree about whitespace-only chip payloads.
+pub fn has_explicit_addressee(addressed_to: &[String]) -> bool {
+    addressed_to.iter().any(|name| !name.trim().is_empty())
+}
+
+/// Classifies input using the NPC addressees carried by a runtime request.
+///
+/// An addressee is explicit only when at least one entry contains non-whitespace
+/// text. The request payload itself is not normalized here: runtimes still pass
+/// the original list to game-input handling after classification.
+pub fn classify_input_with_addressees(raw: &str, addressed_to: &[String]) -> InputResult {
+    classify_input_with_context(raw, has_explicit_addressee(addressed_to))
+}
+
+/// Classifies input while preserving explicitly addressed dialogue.
+///
+/// Slash commands are always commands. Natural command shorthands are commands
+/// only when no NPC addressee is selected, so phrases such as `listen carefully`
+/// can still be spoken to an explicitly addressed character.
+pub fn classify_input_with_context(raw: &str, has_explicit_addressee: bool) -> InputResult {
     let trimmed = raw.trim();
     if let Some(cmd) = parse_system_command(trimmed) {
         return InputResult::SystemCommand(cmd);
@@ -172,7 +207,7 @@ pub fn classify_input(raw: &str) -> InputResult {
     if trimmed.starts_with('/') {
         return InputResult::SystemCommand(Command::InvalidSystemCommand(trimmed.to_string()));
     }
-    if let Some(cmd) = parse_bare_command_intercept(trimmed) {
+    if !has_explicit_addressee && let Some(cmd) = parse_natural_command_intercept(trimmed) {
         return InputResult::SystemCommand(cmd);
     }
     InputResult::GameInput(trimmed.to_string())
@@ -227,6 +262,7 @@ mod tests {
         assert_eq!(parse_system_command("/log"), Some(Command::Log));
         assert_eq!(parse_system_command("/status"), Some(Command::Status));
         assert_eq!(parse_system_command("/help"), Some(Command::Help));
+        assert_eq!(parse_system_command("/listen"), Some(Command::Listen));
     }
     /// Zero-argument commands must NOT match when trailing text is present.
     /// Regression: the refactored match split on the first space, so
@@ -253,6 +289,9 @@ mod tests {
         assert_eq!(parse_system_command("/tick once"), None);
         assert_eq!(parse_system_command("/flags all"), None);
         assert_eq!(parse_system_command("/session start"), None);
+        assert_eq!(parse_system_command("/listen carefully"), None);
+        assert_eq!(parse_system_command("/omen now"), None);
+        assert_eq!(parse_system_command("/folklore please"), None);
     }
     #[test]
     fn test_parse_unknown_command() {
@@ -441,6 +480,30 @@ mod tests {
         assert_eq!(parse_system_command("/SEISIUN"), Some(Command::Session));
     }
 
+    #[test]
+    fn distinct_place_attention_commands_parse_separately() {
+        assert_eq!(parse_system_command("/listen"), Some(Command::Listen));
+        assert_eq!(parse_system_command("/omen"), Some(Command::Omen));
+        assert_eq!(parse_system_command("/folklore"), Some(Command::Folklore));
+    }
+
+    #[test]
+    fn distinct_place_attention_commands_are_case_insensitive_and_trimmed() {
+        assert_eq!(parse_system_command("/LISTEN"), Some(Command::Listen));
+        assert_eq!(parse_system_command("  /OmEn  "), Some(Command::Omen));
+        assert_eq!(
+            parse_system_command("\t/FOLKLORE\n"),
+            Some(Command::Folklore)
+        );
+    }
+
+    #[test]
+    fn distinct_place_attention_commands_reject_trailing_text() {
+        assert_eq!(parse_system_command("/listen carefully"), None);
+        assert_eq!(parse_system_command("/omen now"), None);
+        assert_eq!(parse_system_command("/folklore please"), None);
+    }
+
     // ── Bare-command intercept (#1351) ────────────────────────────────────────
 
     /// Bare `wait` must route to `Command::Wait(15)` without reaching the LLM.
@@ -502,21 +565,121 @@ mod tests {
         );
     }
 
-    /// All tokens in `parse_bare_command_intercept` must return `Some`.
-    /// Regression guard: whenever a new token is added, this test auto-verifies
-    /// it is covered.
     #[test]
-    fn all_bare_intercept_tokens_return_some() {
-        let tokens = ["wait", "status"];
-        for tok in tokens {
-            assert!(
-                super::parse_bare_command_intercept(tok).is_some(),
-                "bare intercept token '{tok}' returned None — add it to parse_bare_command_intercept"
+    fn exact_natural_listen_forms_are_intercepted() {
+        let listen_forms = [
+            "listen",
+            "listen carefully",
+            "listen to the place",
+            "listen to the land",
+        ];
+
+        for form in listen_forms {
+            assert_eq!(
+                classify_input(form),
+                InputResult::SystemCommand(Command::Listen),
+                "natural listen form '{form}' was not intercepted"
             );
-            // Case insensitive
+            assert_eq!(
+                classify_input(&format!("  {}  ", form.to_uppercase())),
+                InputResult::SystemCommand(Command::Listen),
+                "natural listen form '{form}' was not case-insensitive and trimmed"
+            );
+        }
+
+        assert_eq!(
+            classify_input("listen for an omen"),
+            InputResult::SystemCommand(Command::Omen)
+        );
+        assert_eq!(
+            classify_input("  LISTEN FOR AN OMEN  "),
+            InputResult::SystemCommand(Command::Omen)
+        );
+    }
+
+    #[test]
+    fn near_miss_listen_sentences_remain_game_input() {
+        let near_misses = [
+            "listen to Mary",
+            "listen carefully to Mary",
+            "listen to the place for birds",
+            "listen to the landscape",
+            "listen for an omen in the trees",
+            "please listen",
+            "listen!",
+        ];
+
+        for input in near_misses {
+            assert_eq!(
+                classify_input(input),
+                InputResult::GameInput(input.to_string()),
+                "near-miss sentence '{input}' must reach intent classification"
+            );
+        }
+    }
+
+    #[test]
+    fn explicit_addressee_preserves_natural_listen_as_dialogue() {
+        assert_eq!(
+            classify_input_with_context("listen carefully", true),
+            InputResult::GameInput("listen carefully".to_string())
+        );
+        assert_eq!(
+            classify_input_with_context("listen to the land", true),
+            InputResult::GameInput("listen to the land".to_string())
+        );
+        assert_eq!(
+            classify_input_with_context("/listen", true),
+            InputResult::SystemCommand(Command::Listen),
+            "an explicit slash command must override addressee context"
+        );
+    }
+
+    #[test]
+    fn request_addressees_require_at_least_one_nonblank_name() {
+        for addressed_to in [vec![], vec![String::new()], vec!["  \t\n ".to_string()]] {
+            assert_eq!(
+                classify_input_with_addressees("listen carefully", &addressed_to),
+                InputResult::SystemCommand(Command::Listen),
+                "blank addressees must not suppress natural command shortcuts"
+            );
+        }
+
+        assert_eq!(
+            classify_input_with_addressees(
+                "listen carefully",
+                &["  ".to_string(), " Siobhan Murphy ".to_string()]
+            ),
+            InputResult::GameInput("listen carefully".to_string())
+        );
+        assert_eq!(
+            classify_input_with_addressees("/listen", &["Siobhan Murphy".to_string()]),
+            InputResult::SystemCommand(Command::Listen),
+            "slash commands remain commands with a real addressee"
+        );
+    }
+
+    /// All forms in `parse_natural_command_intercept` must return `Some`.
+    /// Regression guard for the deliberately closed deterministic match list.
+    #[test]
+    fn all_natural_intercept_forms_return_some() {
+        let forms = [
+            "wait",
+            "status",
+            "listen",
+            "listen carefully",
+            "listen to the place",
+            "listen to the land",
+            "listen for an omen",
+        ];
+        for form in forms {
             assert!(
-                super::parse_bare_command_intercept(&tok.to_uppercase()).is_some(),
-                "bare intercept token '{tok}' (uppercase) returned None"
+                super::parse_natural_command_intercept(form).is_some(),
+                "natural intercept form '{form}' returned None"
+            );
+            assert!(
+                super::parse_natural_command_intercept(&form.to_uppercase()).is_some(),
+                "natural intercept form '{form}' (uppercase) returned None"
             );
         }
     }

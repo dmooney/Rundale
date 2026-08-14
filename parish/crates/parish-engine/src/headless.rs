@@ -1183,6 +1183,22 @@ async fn persist_headless_task_mutations(
     }
 }
 
+fn render_headless_supplemental_atmosphere(
+    app: &App,
+    intent: &crate::input::PlayerIntent,
+    text: &str,
+) -> Option<String> {
+    let topic =
+        parish_core::game_loop::input::conversational_atmospheric_topic(Some(intent), text, false)?;
+    let config = app.snapshot_config();
+    parish_core::ipc::commands::listen::render_place_atmosphere(
+        &app.world,
+        &config,
+        topic,
+        parish_core::ipc::commands::listen::AtmospherePresentation::Supplemental,
+    )
+}
+
 /// Handles game input (NPC interaction or intent parsing) in headless mode.
 async fn handle_headless_game_input(
     app: &mut App,
@@ -1231,9 +1247,14 @@ async fn handle_headless_game_input(
             intent: crate::input::IntentKind::Talk,
             target: None,
             dialogue: Some(text.to_string()),
+            atmosphere: None,
             raw: text.to_string(),
         }
     };
+
+    if let Some(cue) = render_headless_supplemental_atmosphere(app, &intent, text) {
+        println!("{cue}");
+    }
 
     match intent.intent {
         crate::input::IntentKind::Move => {
@@ -2194,6 +2215,26 @@ mod tests {
     use crate::app::App;
     use crate::world::time::GameSpeed;
     use chrono::Timelike;
+
+    #[test]
+    fn headless_atmosphere_uses_shared_topic_and_kill_switch() {
+        let mut app = App::new();
+        let raw = "I wonder whether that was an omen.";
+        let intent = crate::input::parse_intent_local(raw).expect("local atmospheric talk");
+
+        let cue = render_headless_supplemental_atmosphere(&app, &intent, raw)
+            .expect("default-on atmosphere cue");
+        assert!(!cue.is_empty());
+        assert!(!cue.contains("You watch for an omen."));
+        assert!(!cue.contains("Taobhán"), "omen cues must not dump folklore");
+
+        app.flags.disable("place-listening");
+        assert_eq!(
+            render_headless_supplemental_atmosphere(&app, &intent, raw),
+            None,
+            "the shared kill switch must suppress the direct headless cue"
+        );
+    }
 
     #[tokio::test]
     async fn test_handle_headless_command_quit() {

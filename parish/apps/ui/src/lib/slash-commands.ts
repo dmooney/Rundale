@@ -11,6 +11,21 @@ export interface SlashCommand {
 export const SLASH_COMMANDS: SlashCommand[] = [
 	{ command: '/help', description: 'Show available commands', hasArgs: false },
 	{ command: '/status', description: 'Where am I?', hasArgs: false },
+	{
+		command: '/listen',
+		description: 'Hear the present soundscape',
+		hasArgs: false,
+	},
+	{
+		command: '/omen',
+		description: 'Notice a possible sign, without prophecy',
+		hasArgs: false,
+	},
+	{
+		command: '/folklore',
+		description: 'Recall this place’s authored tradition',
+		hasArgs: false,
+	},
 	{ command: '/save', description: 'Save game', hasArgs: false },
 	{ command: '/load', description: 'Load a saved branch', hasArgs: true },
 	{

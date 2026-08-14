@@ -5,7 +5,9 @@ use crate::config::InferenceCategory;
 use crate::input::{Command, FlagSubcommand};
 use crate::ipc::GameConfig;
 use crate::npc::manager::NpcManager;
-use crate::world::WorldState;
+use crate::world::{LocationId, Weather, WorldState};
+use chrono::Timelike;
+use std::path::Path;
 
 fn default_state() -> (WorldState, NpcManager, GameConfig) {
     (WorldState::new(), NpcManager::new(), GameConfig::default())
@@ -197,6 +199,266 @@ fn render_look_text_basic() {
     let npc = NpcManager::new();
     let text = render_look_text(&world, &npc, 1.25, "on foot", true);
     assert!(!text.is_empty());
+}
+
+// ── Place listening ──────────────────────────────────────────────────────
+
+fn rundale_world_at(location: LocationId) -> WorldState {
+    let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../mods/rundale/world.json");
+    let mut world =
+        WorldState::from_parish_file(&path, location).expect("load the bundled Rundale world");
+    // Freeze the accelerated clock so determinism assertions cannot cross a
+    // time-of-day boundary while the test is running.
+    world.clock.pause();
+    world
+}
+
+fn response_for(world: &WorldState, config: &GameConfig, command: Command) -> CommandResult {
+    let mut world = world.clone();
+    let mut npc = NpcManager::new();
+    let mut config = config.clone();
+    handle_command(command, &mut world, &mut npc, &mut config)
+}
+
+fn current_vignette(world: &WorldState) -> crate::world::folklore::ListeningVignette {
+    let location = world.current_location_data().unwrap();
+    let now = world.clock.now();
+    let date = now.date_naive();
+    let time = crate::world::time::time_of_day_from_hour(now.hour());
+    crate::world::folklore::listen_at_location(
+        location,
+        time,
+        crate::world::time::Season::from_date(date),
+        world.weather,
+        crate::world::folklore::listening_seed(date, location.id, time),
+    )
+}
+
+#[test]
+fn three_atmosphere_actions_are_distinct_and_component_scoped() {
+    let world = rundale_world_at(LocationId(1));
+    let config = GameConfig::default();
+    let vignette = current_vignette(&world);
+    let ambient = vignette.ambient;
+    let echo = vignette.echo.expect("the Crossroads has an authored echo");
+    let lore = vignette.lore.expect("the Crossroads has authored folklore");
+
+    let listen = response_for(&world, &config, Command::Listen);
+    let omen = response_for(&world, &config, Command::Omen);
+    let folklore = response_for(&world, &config, Command::Folklore);
+
+    assert_eq!(
+        listen.response,
+        format!("You stand still and listen.\n\n{ambient}")
+    );
+    assert_eq!(omen.response, format!("You watch for an omen.\n\n{echo}"));
+    assert_eq!(
+        folklore.response,
+        format!("You call to mind what is said of this place.\n\n{lore}")
+    );
+    assert_ne!(listen.response, omen.response);
+    assert_ne!(listen.response, folklore.response);
+    assert_ne!(omen.response, folklore.response);
+    assert!(listen.effects.is_empty());
+    assert!(omen.effects.is_empty());
+    assert!(folklore.effects.is_empty());
+}
+
+#[test]
+fn ordinary_place_has_grounded_fallbacks_without_lore_or_an_omen() {
+    // The Hurling Green has no mythological_significance in the authored world.
+    let world = rundale_world_at(LocationId(5));
+    let config = GameConfig::default();
+    let ambient = current_vignette(&world).ambient;
+
+    assert_eq!(
+        response_for(&world, &config, Command::Listen).response,
+        format!("You stand still and listen.\n\n{ambient}")
+    );
+    assert_eq!(
+        response_for(&world, &config, Command::Omen).response,
+        "You watch for an omen.\n\nNothing in the place sets itself apart from the ordinary."
+    );
+    assert_eq!(
+        response_for(&world, &config, Command::Folklore).response,
+        "You call to mind what is said of this place.\n\nNo old account of this place comes readily to mind."
+    );
+}
+
+#[test]
+fn supplemental_atmosphere_is_the_matching_component_without_an_action_intro() {
+    let world = rundale_world_at(LocationId(1));
+    let config = GameConfig::default();
+    let vignette = current_vignette(&world);
+
+    assert_eq!(
+        render_place_atmosphere(
+            &world,
+            &config,
+            crate::input::AtmosphericTopic::Listen,
+            AtmospherePresentation::Supplemental,
+        ),
+        Some(vignette.ambient)
+    );
+    assert_eq!(
+        render_place_atmosphere(
+            &world,
+            &config,
+            crate::input::AtmosphericTopic::Omen,
+            AtmospherePresentation::Supplemental,
+        ),
+        vignette.echo
+    );
+    assert_eq!(
+        render_place_atmosphere(
+            &world,
+            &config,
+            crate::input::AtmosphericTopic::Folklore,
+            AtmospherePresentation::Supplemental,
+        ),
+        vignette.lore
+    );
+}
+
+#[test]
+fn place_listening_flag_distinguishes_standalone_from_supplemental_text() {
+    let world = rundale_world_at(LocationId(1));
+    let mut config = GameConfig::default();
+    config.flags.disable("place-listening");
+
+    for (topic, command) in [
+        (crate::input::AtmosphericTopic::Listen, Command::Listen),
+        (crate::input::AtmosphericTopic::Omen, Command::Omen),
+        (crate::input::AtmosphericTopic::Folklore, Command::Folklore),
+    ] {
+        assert_eq!(
+            response_for(&world, &config, command).response,
+            "Listening to places is currently disabled."
+        );
+        assert_eq!(
+            render_place_atmosphere(&world, &config, topic, AtmospherePresentation::Supplemental,),
+            None
+        );
+    }
+}
+
+#[test]
+fn all_three_atmosphere_actions_are_deterministic_for_the_same_scene() {
+    let world = rundale_world_at(LocationId(1));
+    let config = GameConfig::default();
+
+    for command in [Command::Listen, Command::Omen, Command::Folklore] {
+        let first = response_for(&world, &config, command.clone());
+        let second = response_for(&world, &config, command);
+        assert_eq!(first.response, second.response);
+    }
+}
+
+#[test]
+fn all_seven_bundled_rundale_traditions_are_player_ready() {
+    let mut world = rundale_world_at(LocationId(1));
+    let mut locations: Vec<_> = world
+        .graph
+        .location_ids()
+        .into_iter()
+        .filter_map(|id| world.graph.get(id))
+        .filter(|location| {
+            location
+                .mythological_significance
+                .as_deref()
+                .is_some_and(|lore| !lore.trim().is_empty())
+        })
+        .cloned()
+        .collect();
+    locations.sort_by_key(|location| location.id);
+
+    let names: Vec<_> = locations
+        .iter()
+        .map(|location| location.name.as_str())
+        .collect();
+    assert_eq!(
+        names,
+        [
+            "The Crossroads",
+            "St. Brigid's Church",
+            "Lough Ree Shore",
+            "The Fairy Fort",
+            "The Bog Road",
+            "Kilteevan Village",
+            "The Holy Well",
+        ],
+        "the documented seven-place contract must track the shipped mod"
+    );
+
+    let config = GameConfig::default();
+
+    for location in locations {
+        let authored = location.mythological_significance.as_deref().unwrap();
+        world.player_location = location.id;
+        let vignette = current_vignette(&world);
+        assert_eq!(
+            vignette.lore.as_deref(),
+            Some(authored),
+            "{} did not preserve its exact authored account",
+            location.name
+        );
+        assert!(
+            vignette.echo.is_some(),
+            "{} did not receive a sensory echo",
+            location.name
+        );
+
+        let lower = authored.to_lowercase();
+        for forbidden in ["folklore", "nessie", "goddess-turned-saint"] {
+            assert!(
+                !lower.contains(forbidden),
+                "{} exposed an anachronistic authoring term: {forbidden}",
+                location.name
+            );
+        }
+        assert!(
+            !authored.contains("gave Cill Taobháin its name"),
+            "the well account must not contradict the village's place-name account"
+        );
+
+        let listen = response_for(&world, &config, Command::Listen).response;
+        let omen = response_for(&world, &config, Command::Omen).response;
+        let folklore = response_for(&world, &config, Command::Folklore).response;
+        assert_eq!(
+            folklore,
+            format!("You call to mind what is said of this place.\n\n{authored}"),
+            "{} did not preserve its exact account",
+            location.name
+        );
+        assert_eq!(
+            omen,
+            format!(
+                "You watch for an omen.\n\n{}",
+                vignette.echo.as_deref().unwrap()
+            ),
+            "{} did not render only its cautious sensory echo",
+            location.name
+        );
+        assert_eq!(
+            listen,
+            format!("You stand still and listen.\n\n{}", vignette.ambient),
+            "{} did not render only its ordinary soundscape",
+            location.name
+        );
+    }
+}
+
+#[test]
+fn listen_ambience_varies_with_weather() {
+    let mut world = rundale_world_at(LocationId(5));
+    let config = GameConfig::default();
+
+    world.weather = Weather::Clear;
+    let clear = response_for(&world, &config, Command::Listen);
+    world.weather = Weather::Storm;
+    let storm = response_for(&world, &config, Command::Listen);
+
+    assert_ne!(clear.response, storm.response);
 }
 
 // ── Silent pause / resume (focus-switch) — fix #1277 ───────────────────
