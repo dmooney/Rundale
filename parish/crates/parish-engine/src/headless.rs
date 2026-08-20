@@ -6,7 +6,7 @@
 
 use crate::app::App;
 use crate::config::{
-    CategoryConfig, CloudConfig, InferenceCategory, InferenceConfig, NpcConfig, ProviderConfig,
+    CategoryConfig, InferenceCategory, InferenceConfig, NpcConfig, ProviderConfig,
 };
 use crate::inference::{
     self, AnyClient, InferenceClients, InferencePriority, InferenceQueue, InferenceWorkerConfig,
@@ -76,7 +76,7 @@ fn print_startup_header(clients: &InferenceClients, provider_config: &ProviderCo
 
 /// Sets up the inference queue and spawns the background worker.
 fn setup_inference_queue(
-    dial_client: AnyClient,
+    clients: InferenceClients,
     inference_config: &InferenceConfig,
     inference_log: &inference::InferenceLog,
     inference_file_log: &inference::file_log::InferenceFileLog,
@@ -85,8 +85,8 @@ fn setup_inference_queue(
     let (interactive_tx, interactive_rx) = mpsc::channel(16);
     let (background_tx, background_rx) = mpsc::channel(32);
     let (batch_tx, batch_rx) = mpsc::channel(64);
-    let _worker = inference::spawn_inference_worker(
-        dial_client,
+    let _worker = inference::spawn_inference_worker_with_clients(
+        clients,
         InferenceWorkerConfig {
             interactive_rx,
             background_rx,
@@ -140,7 +140,7 @@ async fn run_headless_repl_loop(
                             parish_core::config::Provider::from_str_loose(&app.provider_name)
                                 .unwrap_or_default();
                         let queue = setup_inference_queue(
-                            new_client,
+                            InferenceClients::new(new_client, String::new(), Default::default()),
                             &app.inference_config,
                             &inference_log,
                             &app.inference_file_log,
@@ -261,12 +261,14 @@ async fn run_headless_repl_loop(
 pub async fn run_headless(
     clients: InferenceClients,
     provider_config: &ProviderConfig,
-    cloud_config: Option<&CloudConfig>,
     category_configs: &HashMap<InferenceCategory, CategoryConfig>,
     improv: bool,
     game_mod: Option<parish_core::game_mod::GameMod>,
     data_dir: Option<std::path::PathBuf>,
     inference_config: InferenceConfig, // (#417) TOML-configured timeouts
+    resolved_inference: Arc<parish_core::config::ResolvedInferenceSnapshot>,
+    catalog_store: parish_core::config::CatalogStore,
+    catalog_user_data: std::path::PathBuf,
     script_mode: bool,
     no_inference_log: bool,
 ) -> Result<()> {
@@ -304,16 +306,11 @@ pub async fn run_headless(
     }
 
     // Initialize dialogue inference pipeline (cloud if configured, else local)
-    let (dial_client, dial_model) = clients.dialogue_client();
+    let (_, dial_model) = clients.dialogue_client();
     let dialogue_model = dial_model.to_string();
     let inference_log = inference::new_inference_log();
-    let worker_client = if provider_config.provider.id() == "simulator" {
-        AnyClient::simulator()
-    } else {
-        dial_client.clone()
-    };
     let queue = setup_inference_queue(
-        worker_client,
+        clients.clone(),
         &inference_config,
         &inference_log,
         &inference_file_log,
@@ -342,16 +339,16 @@ pub async fn run_headless(
     app.inference_file_log = inference_file_log.clone();
     app.chat_transcript_log = chat_transcript_log.clone();
 
-    // Match desktop BYOK/profile semantics: reasoning, token caps, and service
-    // tier live in the per-user config even when the headless runtime's
-    // provider/model routing came from CLI or environment overrides.
-    let user_config_dir = parish_core::config::user_config::resolve_user_config_dir();
-    if let Ok(user_cfg) = parish_core::config::user_config::load_user_config(&user_config_dir) {
-        let mut runtime_config = app.snapshot_config();
-        runtime_config.apply_user_inference_profiles(&user_cfg);
-        app.inference_profile_override = runtime_config.inference_profile_override;
-        app.category_inference_profile = runtime_config.category_inference_profile;
-    }
+    let mut runtime_config = app.snapshot_config();
+    runtime_config.apply_resolved_inference_v2(&resolved_inference);
+    app.apply_config(&runtime_config);
+    // The queue and complete immutable runtime are now installed. Refreshing
+    // catalog evidence after this publication only affects a later reload.
+    parish_core::inference_runtime_v2::spawn_catalog_refresh_v2(
+        Arc::clone(&resolved_inference),
+        catalog_store,
+        catalog_user_data,
+    );
 
     // Load feature flags from disk
     let flags_path = data_dir.map(|d| d.join("parish-flags.json"));
@@ -395,18 +392,12 @@ pub async fn run_headless(
         app.reaction.base_url = Some(cat_cfg.base_url.clone());
     }
 
-    // Set cloud/dialogue fields if configured
+    // Dialogue is a category route in v2; legacy cloud fields are populated
+    // only as an internal alias for old gameplay accessors.
     if clients.has_custom_dialogue() {
         let (dial_cl, dial_mdl) = clients.dialogue_client();
         app.cloud_client = Some(dial_cl.clone());
         app.cloud_model_name = Some(dial_mdl.to_string());
-    } else if let Some(cc) = cloud_config {
-        app.cloud_provider_name = Some(cc.provider.id().to_string());
-        app.cloud_model_name = Some(cc.model.clone());
-        let (dial_cl, _) = clients.dialogue_client();
-        app.cloud_client = Some(dial_cl.clone());
-        app.cloud_api_key = cc.api_key.clone();
-        app.cloud_base_url = Some(cc.base_url.clone());
     }
 
     // Load NPCs from the active mod
@@ -2492,16 +2483,16 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_handle_headless_command_set_provider() {
+    async fn test_removed_set_provider_does_not_rebuild_or_mutate() {
         let mut app = App::new();
+        let prior = app.provider_name.clone();
         let (quit, rebuild) =
             handle_headless_command(&mut app, Command::SetProvider("openrouter".to_string()), "")
                 .await
                 .unwrap();
         assert!(!quit);
-        assert!(rebuild);
-        assert_eq!(app.provider_name, "openrouter");
-        assert!(app.client.is_some());
+        assert!(!rebuild);
+        assert_eq!(app.provider_name, prior);
     }
 
     #[tokio::test]
@@ -2527,18 +2518,16 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_handle_headless_command_set_model() {
+    async fn test_removed_set_model_does_not_rebuild_or_mutate() {
         let mut app = App::new();
+        let prior = app.model_name.clone();
         let (quit, rebuild) =
             handle_headless_command(&mut app, Command::SetModel("new-model".to_string()), "")
                 .await
                 .unwrap();
         assert!(!quit);
-        // A base model change now rebinds the worker (#1365) — a model change
-        // is a routing change, so it must rebuild for parity with the
-        // server/Tauri shared dispatch.
-        assert!(rebuild);
-        assert_eq!(app.model_name, "new-model");
+        assert!(!rebuild);
+        assert_eq!(app.model_name, prior);
     }
 
     #[tokio::test]
@@ -2563,7 +2552,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_handle_headless_command_set_key() {
+    async fn test_removed_set_key_does_not_rebuild_or_store_secret() {
         let mut app = App::new();
         app.base_url = "https://openrouter.ai/api".to_string();
         let (quit, rebuild) = handle_headless_command(
@@ -2574,9 +2563,8 @@ mod tests {
         .await
         .unwrap();
         assert!(!quit);
-        assert!(rebuild);
-        assert_eq!(app.api_key, Some("sk-new-key-12345678".to_string()));
-        assert!(app.client.is_some());
+        assert!(!rebuild);
+        assert!(app.api_key.is_none());
     }
 
     #[tokio::test]
@@ -2605,8 +2593,9 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_handle_set_category_model_dialogue() {
+    async fn test_removed_category_model_dialogue_does_not_mutate() {
         let mut app = App::new();
+        let prior = app.dialogue_model.clone();
         let (quit, rebuild) = handle_headless_command(
             &mut app,
             Command::SetCategoryModel(InferenceCategory::Dialogue, "gpt-4".to_string()),
@@ -2615,15 +2604,15 @@ mod tests {
         .await
         .unwrap();
         assert!(!quit);
-        // Per-category model change now rebinds the worker (#1365).
-        assert!(rebuild);
-        assert_eq!(app.cloud_model_name.as_deref(), Some("gpt-4"));
-        assert_eq!(app.dialogue_model, "gpt-4");
+        assert!(!rebuild);
+        assert!(app.cloud_model_name.is_none());
+        assert_eq!(app.dialogue_model, prior);
     }
 
     #[tokio::test]
-    async fn test_handle_set_category_model_intent() {
+    async fn test_removed_category_model_intent_does_not_mutate() {
         let mut app = App::new();
+        let prior = app.intent.model.clone();
         let (quit, rebuild) = handle_headless_command(
             &mut app,
             Command::SetCategoryModel(InferenceCategory::Intent, "qwen3:1.5b".to_string()),
@@ -2632,14 +2621,14 @@ mod tests {
         .await
         .unwrap();
         assert!(!quit);
-        // Per-category model change now rebinds the worker (#1365).
-        assert!(rebuild);
-        assert_eq!(app.intent.model, "qwen3:1.5b");
+        assert!(!rebuild);
+        assert_eq!(app.intent.model, prior);
     }
 
     #[tokio::test]
-    async fn test_handle_set_category_model_simulation() {
+    async fn test_removed_category_model_simulation_does_not_mutate() {
         let mut app = App::new();
+        let prior = app.simulation.model.clone();
         let (quit, rebuild) = handle_headless_command(
             &mut app,
             Command::SetCategoryModel(InferenceCategory::Simulation, "qwen3:8b".to_string()),
@@ -2648,13 +2637,12 @@ mod tests {
         .await
         .unwrap();
         assert!(!quit);
-        // Per-category model change now rebinds the worker (#1365).
-        assert!(rebuild);
-        assert_eq!(app.simulation.model, "qwen3:8b");
+        assert!(!rebuild);
+        assert_eq!(app.simulation.model, prior);
     }
 
     #[tokio::test]
-    async fn test_handle_set_category_provider_rebuilds() {
+    async fn test_removed_category_provider_does_not_rebuild() {
         parish_core::config::ensure_mods_loaded();
         let mut app = App::new();
         let (quit, rebuild) = handle_headless_command(
@@ -2665,15 +2653,12 @@ mod tests {
         .await
         .unwrap();
         assert!(!quit);
-        assert!(
-            rebuild,
-            "Setting a category provider should trigger rebuild"
-        );
-        assert_eq!(app.intent.provider_name.as_deref(), Some("openrouter"));
+        assert!(!rebuild);
+        assert!(app.intent.provider_name.is_none());
     }
 
     #[tokio::test]
-    async fn test_handle_set_category_key_rebuilds() {
+    async fn test_removed_category_key_does_not_rebuild_or_store_secret() {
         let mut app = App::new();
         let (quit, rebuild) = handle_headless_command(
             &mut app,
@@ -2683,13 +2668,12 @@ mod tests {
         .await
         .unwrap();
         assert!(!quit);
-        assert!(rebuild, "Setting a category key should trigger rebuild");
-        assert_eq!(app.cloud_api_key.as_deref(), Some("sk-test-key"));
+        assert!(!rebuild);
+        assert!(app.cloud_api_key.is_none());
     }
 
-    /// Verify SetCloudProvider sets cloud_provider_name without panicking (issue #80).
     #[tokio::test]
-    async fn test_set_cloud_provider_sets_name_without_panic() {
+    async fn test_removed_cloud_provider_does_not_mutate_or_rebuild() {
         parish_core::config::ensure_mods_loaded();
         let mut app = App::new();
         let (quit, rebuild) = handle_headless_command(
@@ -2700,8 +2684,8 @@ mod tests {
         .await
         .unwrap();
         assert!(!quit);
-        assert!(rebuild);
-        assert_eq!(app.cloud_provider_name.as_deref(), Some("openrouter"));
+        assert!(!rebuild);
+        assert!(app.cloud_provider_name.is_none());
     }
 
     /// Verify that intent_client being None is observable (guards against regression of issue #79).
@@ -3134,7 +3118,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_handle_headless_command_set_cloud_model() {
+    async fn test_removed_cloud_model_does_not_mutate() {
         let mut app = App::new();
         let (quit, rebuild) = handle_headless_command(
             &mut app,
@@ -3144,12 +3128,12 @@ mod tests {
         .await
         .unwrap();
         assert!(!quit);
-        assert!(!rebuild); // SetCloudModel doesn't trigger rebuild
-        assert_eq!(app.cloud_model_name.as_deref(), Some("claude-sonnet"));
+        assert!(!rebuild);
+        assert!(app.cloud_model_name.is_none());
     }
 
     #[tokio::test]
-    async fn test_handle_headless_command_set_cloud_key() {
+    async fn test_removed_cloud_key_does_not_rebuild_or_store_secret() {
         let mut app = App::new();
         let (quit, rebuild) = handle_headless_command(
             &mut app,
@@ -3159,8 +3143,8 @@ mod tests {
         .await
         .unwrap();
         assert!(!quit);
-        assert!(rebuild);
-        assert_eq!(app.cloud_api_key.as_deref(), Some("sk-cloud-123"));
+        assert!(!rebuild);
+        assert!(app.cloud_api_key.is_none());
     }
 
     #[tokio::test]

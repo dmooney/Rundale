@@ -8,7 +8,6 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 
 use parish_core::game_mod::GameMod;
-use parish_core::inference::AnyClient;
 use parish_core::npc::manager::NpcManager;
 use parish_core::world::{DEFAULT_START_LOCATION, WorldState};
 
@@ -218,7 +217,10 @@ async fn create_session(
     .await
     .map_err(|error| error.to_string())?;
 
-    let (client, config) = build_session_client(global);
+    let (clients, config) = build_session_client(global);
+    let client = clients
+        .as_ref()
+        .map(|clients| clients.dialogue_client().0.clone());
     let cloud_client = build_session_cloud_client(global);
     let game_mod = global.game_mod.clone();
 
@@ -262,7 +264,7 @@ async fn create_session(
         .map_err(|error| format!("failed to register session: {error}"))?;
 
     install_persistent_log_workers(&mut app_state, &session_saves, log_to_disk, &log_base_url);
-    Ok(finalize_session_entry(app_state, client).await)
+    Ok(finalize_session_entry(app_state, clients).await)
 }
 
 /// Shared tail of session entry construction: starts the inference queue
@@ -270,9 +272,9 @@ async fn create_session(
 /// wrapped [`SessionEntry`].
 pub(super) async fn finalize_session_entry(
     app_state: Arc<crate::state::AppState>,
-    client: Option<AnyClient>,
+    clients: Option<parish_core::inference::InferenceClients>,
 ) -> Arc<SessionEntry> {
-    if let Some(ref c) = client {
+    if let Some(ref c) = clients {
         init_inference_queue(&app_state, c.clone()).await;
     }
 
@@ -416,7 +418,10 @@ async fn restore_session(
     recovery.restore(&mut world, &mut npc_manager);
     npc_manager.assign_tiers(&world, &[]);
 
-    let (client, config) = build_session_client(global);
+    let (clients, config) = build_session_client(global);
+    let client = clients
+        .as_ref()
+        .map(|clients| clients.dialogue_client().0.clone());
     let cloud_client = build_session_cloud_client(global);
     let game_mod: Option<GameMod> = global.game_mod.clone();
 
@@ -473,7 +478,7 @@ async fn restore_session(
         .await;
 
     install_persistent_log_workers(&mut app_state, &session_saves, log_to_disk, &log_base_url);
-    Ok(finalize_session_entry(app_state, client).await)
+    Ok(finalize_session_entry(app_state, clients).await)
 }
 
 #[cfg(test)]
@@ -553,6 +558,9 @@ mod resume_identity_tests {
         flags.disable(parish_core::character_log::FEATURE_FLAG);
         flags.disable(parish_core::location_log::FEATURE_FLAG);
         let template_config = crate::state::GameConfig {
+            inference_routes_v2: Default::default(),
+            inference_subrole_routes_v2: Default::default(),
+            inference_configuration_epoch: 0,
             provider_name: String::new(),
             base_url: String::new(),
             api_key: None,
@@ -580,6 +588,7 @@ mod resume_identity_tests {
         };
 
         Arc::new(GlobalState {
+            inference_runtime_v2: None,
             sessions,
             identity_store,
             oauth_config: None,

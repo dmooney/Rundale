@@ -32,6 +32,8 @@ pub(super) struct ChatCompletionRequest<'a> {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(super) max_tokens: Option<u32>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub(super) max_completion_tokens: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub(super) temperature: Option<f32>,
     /// OpenAI-compat `frequency_penalty`. Range nominally `[-2.0, 2.0]`,
     /// but the Tier 1 dialogue call site sets `0.5` to break the
@@ -66,6 +68,8 @@ pub(super) struct ChatCompletionRequest<'a> {
     /// First-party DeepSeek and Google's OpenAI-compat endpoint both expose a
     /// top-level effort field, though their supported vocabularies differ.
     pub(super) reasoning_effort: Option<&'static str>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(super) service_tier: Option<&'static str>,
 }
 
 #[derive(Serialize, Debug)]
@@ -119,6 +123,11 @@ pub struct GenerateParams {
     pub thinking_level: Option<crate::google_client::ThinkingLevel>,
     /// Requested Google inference service tier. Defaults to Standard.
     pub service_tier: Option<crate::google_client::ServiceTier>,
+    /// Authoritative semantic reasoning intent for a v2 request. Native
+    /// adapters use this per call so subrole overrides are not frozen into a
+    /// category client. Legacy callers leave it unset.
+    pub reasoning_intent: Option<parish_config::ReasoningIntent>,
+    pub reasoning_dialect: Option<parish_config::ReasoningDialect>,
 }
 
 /// Controls structured output format.
@@ -164,6 +173,8 @@ pub(super) struct ChatCompletionResponse {
 pub(super) struct Choice {
     #[serde(default)]
     pub(super) message: MessageContent,
+    #[serde(default)]
+    pub(super) finish_reason: Option<String>,
 }
 
 /// Message content in a non-streaming response.
@@ -171,6 +182,12 @@ pub(super) struct Choice {
 pub(super) struct MessageContent {
     #[serde(default)]
     pub(super) content: Option<String>,
+    #[serde(default)]
+    pub(super) tool_calls: Option<serde_json::Value>,
+    #[serde(default)]
+    pub(super) function_call: Option<serde_json::Value>,
+    #[serde(default)]
+    pub(super) refusal: Option<serde_json::Value>,
 }
 
 /// A single SSE chunk from a streaming response.
@@ -194,13 +211,49 @@ pub(super) struct StreamChoice {
 pub(super) struct Delta {
     #[serde(default)]
     pub(super) content: Option<String>,
+    #[serde(default)]
+    pub(super) tool_calls: Option<serde_json::Value>,
+    #[serde(default)]
+    pub(super) function_call: Option<serde_json::Value>,
+    #[serde(default)]
+    pub(super) refusal: Option<serde_json::Value>,
 }
 
 /// Extracts the text content from a non-streaming response.
-pub(super) fn extract_content(resp: &ChatCompletionResponse) -> String {
-    resp.choices
-        .first()
-        .and_then(|c| c.message.content.as_deref())
-        .unwrap_or("")
-        .to_string()
+pub(super) fn extract_complete_content(resp: &ChatCompletionResponse) -> Result<String, String> {
+    if resp.choices.len() != 1 {
+        return Err(format!(
+            "OpenAI-compatible response contained {} choices; expected exactly one",
+            resp.choices.len()
+        ));
+    }
+    let choice = &resp.choices[0];
+    if choice.message.tool_calls.is_some()
+        || choice.message.function_call.is_some()
+        || choice.message.refusal.is_some()
+    {
+        return Err(
+            "OpenAI-compatible response mixed text with a forbidden tool/function/refusal payload"
+                .into(),
+        );
+    }
+    match choice.finish_reason.as_deref() {
+        Some("stop") => {}
+        Some(reason) => {
+            return Err(format!(
+                "OpenAI-compatible response was incomplete (finish_reason={reason})"
+            ));
+        }
+        None => {
+            return Err(
+                "OpenAI-compatible response omitted the required finish_reason".to_string(),
+            );
+        }
+    }
+    choice
+        .message
+        .content
+        .clone()
+        .filter(|content| !content.is_empty())
+        .ok_or_else(|| "OpenAI-compatible response contained no text content".to_string())
 }

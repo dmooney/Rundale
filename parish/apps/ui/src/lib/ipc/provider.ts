@@ -15,6 +15,7 @@ export interface SetProviderConfigArgs {
 	base_url?: string;
 	model?: string;
 	api_key?: string;
+	allow_insecure_http?: boolean;
 	category_overrides?: Record<string, ByokCategoryOverride>;
 }
 
@@ -22,6 +23,7 @@ export interface ValidateProviderConfigArgs {
 	provider: string;
 	base_url?: string;
 	api_key?: string;
+	allow_insecure_http?: boolean;
 }
 
 export type ValidationOutcome =

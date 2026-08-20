@@ -98,11 +98,23 @@ impl InferenceSubrole {
 }
 
 /// Checked-in native Gemini request defaults by gameplay role.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct InferenceProfile {
+    /// Immutable configuration publication captured when this request was admitted.
+    pub configuration_epoch: u64,
+    /// Resolved provider/model output contract for schema-bearing workloads.
+    pub structured_output: Option<crate::StructuredOutputMode>,
     pub thinking_level: ThinkingLevel,
     pub max_output_tokens: u32,
+    pub temperature: Option<f32>,
+    pub frequency_penalty: Option<f32>,
     pub service_tier: ServiceTier,
+    /// Exact v2 semantic intent. This preserves Auto/Off/Budget and effort
+    /// levels above the legacy four-level UI projection through the worker.
+    pub reasoning_intent: crate::ReasoningIntent,
+    /// Exact adapter translation chosen for this route/subrole.
+    pub reasoning_dialect: Option<crate::ReasoningDialect>,
+    pub service_tier_intent: crate::ServiceTierIntent,
 }
 
 /// Partial user override layered onto a checked-in inference profile.
@@ -123,12 +135,24 @@ impl InferenceProfileOverride {
     ) -> InferenceProfile {
         if let Some(level) = self.thinking_level {
             profile.thinking_level = level;
+            profile.reasoning_intent = crate::ReasoningIntent::Effort {
+                level: match level {
+                    ThinkingLevel::Minimal => crate::ReasoningEffortV2::Minimal,
+                    ThinkingLevel::Low => crate::ReasoningEffortV2::Low,
+                    ThinkingLevel::Medium => crate::ReasoningEffortV2::Medium,
+                    ThinkingLevel::High => crate::ReasoningEffortV2::High,
+                },
+            };
         }
         if let Some(cap) = self.max_output_tokens {
             profile.max_output_tokens = cap;
         }
         if let Some(tier) = self.service_tier {
             profile.service_tier = tier;
+            profile.service_tier_intent = match tier {
+                ServiceTier::Standard => crate::ServiceTierIntent::Standard,
+                ServiceTier::Priority => crate::ServiceTierIntent::Priority,
+            };
         }
         let subrole_cap = match subrole {
             InferenceSubrole::Tier2Simulation => self.tier2_max_output_tokens,
@@ -150,6 +174,9 @@ impl InferenceProfile {
     pub fn for_model(mut self, model: &str) -> Self {
         if model == "gemini-3.7-flash" && self.thinking_level == ThinkingLevel::Minimal {
             self.thinking_level = ThinkingLevel::Low;
+            self.reasoning_intent = crate::ReasoningIntent::Effort {
+                level: crate::ReasoningEffortV2::Low,
+            };
         }
         self
     }
@@ -160,6 +187,10 @@ impl InferenceProfile {
     pub const fn for_category(category: InferenceCategory) -> Self {
         match category {
             InferenceCategory::Intent => Self {
+                configuration_epoch: 0,
+                structured_output: None,
+                temperature: None,
+                frequency_penalty: None,
                 thinking_level: ThinkingLevel::Minimal,
                 // Production JSON-object calibration completed at 256 with
                 // ample visible-output headroom. Strict json_schema is not
@@ -167,8 +198,17 @@ impl InferenceProfile {
                 // that different wire contract.
                 max_output_tokens: 256,
                 service_tier: ServiceTier::Standard,
+                reasoning_intent: crate::ReasoningIntent::Effort {
+                    level: crate::ReasoningEffortV2::Minimal,
+                },
+                reasoning_dialect: None,
+                service_tier_intent: crate::ServiceTierIntent::Standard,
             },
             InferenceCategory::Reaction => Self {
+                configuration_epoch: 0,
+                structured_output: None,
+                temperature: None,
+                frequency_penalty: None,
                 // Live arrival-reaction calibration at Low spent ~350-460
                 // hidden thought tokens and pushed TTFT to 2.7-3.7s for a
                 // one-sentence greeting. Minimal preserves the constrained
@@ -176,8 +216,17 @@ impl InferenceProfile {
                 thinking_level: ThinkingLevel::Minimal,
                 max_output_tokens: 1_024,
                 service_tier: ServiceTier::Standard,
+                reasoning_intent: crate::ReasoningIntent::Effort {
+                    level: crate::ReasoningEffortV2::Minimal,
+                },
+                reasoning_dialect: None,
+                service_tier_intent: crate::ServiceTierIntent::Standard,
             },
             InferenceCategory::Dialogue => Self {
+                configuration_epoch: 0,
+                structured_output: None,
+                temperature: None,
+                frequency_penalty: None,
                 // Dialogue needs more judgment than routing/reactions, but
                 // Medium and Low both delayed visible speech behind hundreds
                 // of hidden tokens (Low measured 2.8-3.4s TTFT). Minimal is
@@ -186,14 +235,28 @@ impl InferenceProfile {
                 thinking_level: ThinkingLevel::Minimal,
                 max_output_tokens: 4_096,
                 service_tier: ServiceTier::Standard,
+                reasoning_intent: crate::ReasoningIntent::Effort {
+                    level: crate::ReasoningEffortV2::Minimal,
+                },
+                reasoning_dialect: None,
+                service_tier_intent: crate::ServiceTierIntent::Standard,
             },
             InferenceCategory::Simulation => Self {
+                configuration_epoch: 0,
+                structured_output: None,
+                temperature: None,
+                frequency_penalty: None,
                 // Minimal returned every required NPC and valid canonical
                 // structures. Medium raised Tier-3 p95 from 5.2s to 13.4s
                 // without improving a rubric gate.
                 thinking_level: ThinkingLevel::Minimal,
                 max_output_tokens: 4_096,
                 service_tier: ServiceTier::Standard,
+                reasoning_intent: crate::ReasoningIntent::Effort {
+                    level: crate::ReasoningEffortV2::Minimal,
+                },
+                reasoning_dialect: None,
+                service_tier_intent: crate::ServiceTierIntent::Standard,
             },
         }
     }
@@ -213,9 +276,18 @@ impl InferenceProfile {
         match subrole {
             InferenceSubrole::Tier2Simulation => Self::tier2_simulation(),
             InferenceSubrole::DemoPlayer => Self {
+                configuration_epoch: 0,
+                structured_output: None,
+                temperature: None,
+                frequency_penalty: None,
                 thinking_level: ThinkingLevel::Minimal,
                 max_output_tokens: 200,
                 service_tier: ServiceTier::Standard,
+                reasoning_intent: crate::ReasoningIntent::Effort {
+                    level: crate::ReasoningEffortV2::Minimal,
+                },
+                reasoning_dialect: None,
+                service_tier_intent: crate::ServiceTierIntent::Standard,
             },
             _ => Self::for_category(subrole.category()),
         }
@@ -363,6 +435,10 @@ pub struct ProviderMod {
     pub keyless: bool,
     #[serde(default)]
     pub presets: Vec<ProviderPreset>,
+    /// Explicit authored routing default. V2 never infers this from vector
+    /// order, and it is not qualification/recommendation evidence.
+    #[serde(default)]
+    pub recommended_preset: Option<String>,
 }
 
 fn default_true() -> bool {

@@ -1,4 +1,5 @@
 id = "openrouter"
+recommended_preset = "recommended"
 display_name = "OpenRouter"
 aliases = ["open_router", "open-router"]
 kind = "openai-compat"

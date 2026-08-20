@@ -796,7 +796,7 @@ fn real_loop_watchful_sacred_place_runon_is_clipped() {
 // ── #1565 — invented titled landlord must be denied ─────────────────────────
 
 /// AC-1 (#1565, real-loop): an NPC reply that confirms and elaborates on the
-/// fabricated titled entity "Lord Fitzwilliam of Castlemore" must be replaced
+/// fabricated titled entity "Lord Fitzwilliam of Castlemore" must be rejected
 /// by the fabricated-person guard before the dialogue reaches the transcript.
 #[test]
 fn real_loop_invented_titled_landlord_hearsay_is_declined() {
@@ -810,7 +810,7 @@ fn real_loop_invented_titled_landlord_hearsay_is_declined() {
     h.mock()
         .push_for(&speaker_name, fabricated_landlord.to_string());
     let mut rx = h.app.world.event_bus.subscribe();
-    let _events = h.execute_via_real_loop(
+    let events = h.execute_via_real_loop(
         "Have you heard of Lord Fitzwilliam of Castlemore? I hear he is the \
          great landlord hereabouts",
     );
@@ -824,29 +824,24 @@ fn real_loop_invented_titled_landlord_hearsay_is_declined() {
         })
         .collect();
 
-    assert!(
-        !shown.is_empty(),
-        "expected DialogueOccurred for the invented landlord turn"
+    assert!(shown.is_empty(), "rejection must publish no dialogue event");
+    let terminal = events
+        .iter()
+        .find(|(name, _)| name == "stream-turn-end")
+        .map(|(_, payload)| payload)
+        .expect("rejection should terminate the stream");
+    assert_eq!(
+        terminal.get("status").and_then(serde_json::Value::as_str),
+        Some("failed")
     );
-
-    let joined = shown.join(" ");
-    let lower = joined.to_lowercase();
+    let serialized = serde_json::to_string(&events).unwrap();
     for phrase in [
-        "heard the talk of lord fitzwilliam",
+        "heard the talk of Lord Fitzwilliam",
         "owns most of the land",
         "mighty man",
     ] {
-        assert!(
-            !lower.contains(phrase),
-            "invented landlord elaboration must not reach transcript (#1565); \
-             phrase {phrase:?} found in: {joined:?}"
-        );
+        assert!(!serialized.contains(phrase));
     }
-    assert_eq!(
-        joined,
-        parish_core::npc::INVALID_DIALOGUE_FALLBACK,
-        "invented landlord reply must be replaced as a whole (#1565)"
-    );
 }
 
 // ── #1569 — known place history must not trigger person denial ───────────────

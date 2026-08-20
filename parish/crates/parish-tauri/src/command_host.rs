@@ -60,33 +60,6 @@ impl SystemCommandHost for TauriCommandHost {
         })
     }
 
-    fn rebuild_cloud_client(&self) -> BoxFuture<'_, ()> {
-        Box::pin(async move {
-            let config = self.state.config.lock().await;
-            let base_url = config
-                .cloud_base_url
-                .as_deref()
-                .unwrap_or("https://generativelanguage.googleapis.com/v1")
-                .to_string();
-            let api_key = config.cloud_api_key.clone();
-            let provider_enum = config
-                .cloud_provider_name
-                .as_deref()
-                .and_then(|p| parish_core::config::Provider::from_str_loose(p).ok())
-                .unwrap_or_else(|| {
-                    parish_core::config::Provider::from_id("google").unwrap_or_default()
-                });
-            drop(config);
-            let mut cloud_guard = self.state.cloud_client.lock().await;
-            *cloud_guard = Some(parish_core::inference::build_client(
-                &provider_enum,
-                &base_url,
-                api_key.as_deref(),
-                &self.state.inference_config,
-            ));
-        })
-    }
-
     fn toggle_map(&self) -> BoxFuture<'_, ()> {
         let app = self.app.clone();
         Box::pin(async move {
@@ -234,8 +207,35 @@ impl SystemCommandHost for TauriCommandHost {
                 },
                 secrets: Arc::clone(&state.secret_store),
                 user_config_dir: state.user_config_dir.as_path(),
+                project_config_path: state.project_config_path.as_path(),
+                catalog_user_data: Some(state.catalog_user_data.as_path()),
+                runtime_manager: state.inference_runtime_v2.clone(),
             };
-            let _ = parish_core::ipc::byok::handle_clear_provider_config(ctx).await;
+            if let Err(error) = parish_core::ipc::byok::handle_clear_provider_config(ctx).await {
+                let message = format!("Could not reset provider configuration: {error}");
+                tracing::error!("{message}");
+                {
+                    let mut status = state
+                        .setup_status
+                        .lock()
+                        .unwrap_or_else(|poisoned| poisoned.into_inner());
+                    status.record_done(false, message.clone());
+                }
+                let _ = app.emit(
+                    crate::events::EVENT_SETUP_STATUS,
+                    crate::events::SetupStatusPayload {
+                        message: message.clone(),
+                    },
+                );
+                let _ = app.emit(
+                    crate::events::EVENT_SETUP_DONE,
+                    crate::events::SetupDonePayload {
+                        success: false,
+                        error: message,
+                    },
+                );
+                return;
+            }
             // Also wipe the .onboarded sentinel so the gate fires next launch.
             let marker = state
                 .user_config_dir

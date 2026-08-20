@@ -944,6 +944,7 @@ mod tests {
             Default::default(),
         );
         let global = Arc::new(GlobalState {
+            inference_runtime_v2: None,
             sessions,
             identity_store,
             oauth_config: None,
@@ -967,6 +968,9 @@ mod tests {
             theme_palette: parish_core::game_mod::default_theme_palette(),
             transport: parish_core::world::transport::TransportConfig::default(),
             template_config: crate::state::GameConfig {
+                inference_routes_v2: Default::default(),
+                inference_subrole_routes_v2: Default::default(),
+                inference_configuration_epoch: 0,
                 provider_name: String::new(),
                 base_url: String::new(),
                 api_key: None,
@@ -1033,6 +1037,7 @@ mod tests {
             Default::default(),
         );
         Arc::new(GlobalState {
+            inference_runtime_v2: None,
             sessions,
             identity_store,
             oauth_config: if enable_oauth {
@@ -1064,6 +1069,9 @@ mod tests {
             theme_palette: parish_core::game_mod::default_theme_palette(),
             transport: parish_core::world::transport::TransportConfig::default(),
             template_config: crate::state::GameConfig {
+                inference_routes_v2: Default::default(),
+                inference_subrole_routes_v2: Default::default(),
+                inference_configuration_epoch: 0,
                 provider_name: String::new(),
                 base_url: String::new(),
                 api_key: None,

@@ -43,6 +43,9 @@ pub fn test_app_state() -> Arc<AppState> {
     let pronunciations = Vec::new();
     let reaction_templates = parish_core::npc::reactions::ReactionTemplates::default();
     let game_config = GameConfig {
+        inference_routes_v2: Default::default(),
+        inference_subrole_routes_v2: Default::default(),
+        inference_configuration_epoch: 0,
         provider_name: String::new(),
         base_url: String::new(),
         api_key: None,
@@ -76,6 +79,7 @@ pub fn test_app_state() -> Arc<AppState> {
         ));
 
     Arc::new(AppState {
+        inference_runtime_v2: None,
         persistence_gate: Mutex::new(()),
         world: Mutex::new(world),
         npc_manager: Mutex::new(npc_manager),
@@ -125,6 +129,10 @@ pub fn test_app_state() -> Arc<AppState> {
         sim_cancel: Mutex::new(CancellationToken::new()),
         session_store,
         user_config_dir: std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")),
+        project_config_path: std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("nonexistent-project.toml"),
+        catalog_user_data: std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("nonexistent-user-data"),
         secret_store: std::sync::Arc::new(parish_core::secret_store::InMemorySecretStore::new()),
         inference_file_log: parish_core::inference::file_log::InferenceFileLog::disabled(),
         chat_transcript_log: parish_core::chat_transcript::ChatTranscriptLog::disabled(),

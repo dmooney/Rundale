@@ -14,7 +14,8 @@ use std::collections::BTreeMap;
 /// map rather than merging. Call [`MapConfig::apply_defaults`] after parsing
 /// to fold the baked defaults (OSM, Ireland Historic 6") back into a user-supplied
 /// registry that only overrode a subset.
-#[derive(Debug, Deserialize, Serialize, Clone)]
+#[derive(Debug, Deserialize, Serialize, Clone, schemars::JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct MapConfig {
     /// Id of the source used on first boot (pre-localStorage). Must match one
     /// of the keys in `tile_sources`.
@@ -130,7 +131,8 @@ fn default_tile_sources() -> BTreeMap<String, TileSourceConfig> {
 }
 
 /// A single raster tile source — URL template plus display metadata.
-#[derive(Debug, Deserialize, Serialize, Clone)]
+#[derive(Debug, Deserialize, Serialize, Clone, schemars::JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct TileSourceConfig {
     /// Human-readable label displayed in `/map` listings.
     #[serde(default)]

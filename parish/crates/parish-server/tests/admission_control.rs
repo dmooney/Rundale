@@ -49,6 +49,7 @@ fn default_game_config() -> GameConfig {
         tile_sources: Vec::new(),
         reveal_unexplored_locations: false,
         auto_setup_model: None,
+        ..GameConfig::default()
     }
 }
 
@@ -80,6 +81,7 @@ fn make_global_state(tmp: &tempfile::TempDir, cap: Option<usize>) -> Arc<GlobalS
         std::sync::Arc::new(SqliteIdentityStore::new(identity_conn));
 
     Arc::new(GlobalState {
+        inference_runtime_v2: None,
         sessions,
         identity_store,
         oauth_config: None,

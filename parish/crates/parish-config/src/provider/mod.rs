@@ -35,10 +35,7 @@ mod schema;
 
 pub use category::InferenceCategory;
 pub use registry::{ProviderRegistry, ensure_mods_loaded, registry};
-pub use resolution::{
-    CategoryConfig, CliCloudOverrides, CliOverrides, CloudConfig, ProviderConfig,
-    resolve_category_env_configs, resolve_cloud_config, resolve_config,
-};
+pub use resolution::{CategoryConfig, ProviderConfig};
 pub use schema::{
     InferenceProfile, InferenceProfileOverride, InferenceSubrole, PresetBaseUrls, Provider,
     ProviderKind, ProviderMod, ProviderPreset, ServiceTier, ThinkingLevel, unified_memory_bytes,
@@ -47,7 +44,7 @@ pub use schema::{
 // Private re-imports so the `tests` submodule (which uses `super::*`) keeps
 // reaching the crate-internal helpers it pins.
 #[cfg(test)]
-use resolution::read_toml_config;
+use resolution::*;
 
 #[cfg(test)]
 mod tests {
@@ -93,12 +90,7 @@ featured = false
 
     #[test]
     #[serial(provider_registry)]
-    fn register_mod_providers_last_wins_on_collision() {
-        let original_url = Provider::from_id("simulator")
-            .unwrap()
-            .default_base_url()
-            .to_string();
-
+    fn register_mod_providers_rejects_collision() {
         let overridden = r#"
 id = "simulator"
 display_name = "Simulator OVERRIDDEN"
@@ -109,25 +101,10 @@ requires_model = false
 featured = false
 "#;
         let m: ProviderMod = toml::from_str(overridden).unwrap();
-        registry().register_mod_providers(vec![m]).unwrap();
+        let error = registry().register_mod_providers(vec![m]).unwrap_err();
+        assert!(error.to_string().contains("collision"));
         let p = Provider::from_id("simulator").unwrap();
-        assert_eq!(p.default_base_url(), "http://overridden.example/v1");
-
-        // Restore so subsequent tests see the original builtin.
-        let restore = format!(
-            r#"
-id = "simulator"
-display_name = "Simulator"
-kind = "simulator"
-default_base_url = "{}"
-requires_api_key = false
-requires_model = false
-featured = false
-"#,
-            original_url
-        );
-        let m: ProviderMod = toml::from_str(&restore).unwrap();
-        registry().register_mod_providers(vec![m]).unwrap();
+        assert_ne!(p.default_base_url(), "http://overridden.example/v1");
     }
 
     fn clear_parish_env() {

@@ -21,6 +21,11 @@ anyhow = { workspace = true }
 # Session-cookie path resolution is routed through the shared persistence
 # path helpers (rule #9) instead of an ad-hoc $HOME fallback (TD-003).
 parish-persistence = { workspace = true }
+parish-config = { workspace = true }
+parish-providers = { workspace = true }
+chrono = { workspace = true }
+uuid = { workspace = true }
+keyring = { workspace = true }
 
 [dev-dependencies]
 tempfile = { workspace = true }

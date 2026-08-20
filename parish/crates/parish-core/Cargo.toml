@@ -38,3 +38,4 @@ uuid = { workspace = true }
 tempfile = { workspace = true }
 wiremock = { workspace = true }
 regex = { workspace = true }
+serial_test = { workspace = true }

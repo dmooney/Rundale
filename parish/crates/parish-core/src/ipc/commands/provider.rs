@@ -1,28 +1,16 @@
 //! Provider/model/key commands — base, cloud, per-category, and presets.
 
-use crate::config::{InferenceCategory, Provider};
 use crate::input::Command;
 use crate::ipc::handlers::mask_key;
 
-use super::{CommandEffect, CommandResult};
+use super::CommandResult;
 use crate::ipc::config::GameConfig;
 
 /// Base provider/model/key commands.
 pub(super) fn handle_provider_command(cmd: Command, config: &mut GameConfig) -> CommandResult {
     match cmd {
         Command::ShowProvider => CommandResult::text(format!("Provider: {}", config.provider_name)),
-        Command::SetProvider(name) => match Provider::from_str_loose(&name) {
-            Ok(provider) => {
-                config.base_url = provider.default_base_url().to_string();
-                config.provider_name = provider.id().to_string();
-                config.fill_missing_models_from_presets();
-                CommandResult::with_effect(
-                    format!("Provider changed to {}.", config.provider_name),
-                    CommandEffect::RebuildInference,
-                )
-            }
-            Err(e) => CommandResult::text(format!("{}", e)),
-        },
+        Command::SetProvider(_) => removed_routing_command(),
         Command::ShowModel => {
             if config.model_name.is_empty() {
                 CommandResult::text("Model: (auto-detect)")
@@ -30,80 +18,26 @@ pub(super) fn handle_provider_command(cmd: Command, config: &mut GameConfig) -> 
                 CommandResult::text(format!("Model: {}", config.model_name))
             }
         }
-        Command::SetModel(name) => {
-            config.model_name = name.clone();
-            // Rebind the base worker so the new dialogue/base model takes
-            // effect immediately (#1365) — a model change is a routing change.
-            CommandResult::with_effect(
-                format!("Model changed to {}.", name),
-                CommandEffect::RebuildInference,
-            )
-        }
+        Command::SetModel(_) => removed_routing_command(),
         Command::ShowKey => match &config.api_key {
             Some(key) => CommandResult::text(format!("API key: {}", mask_key(key))),
             None => CommandResult::text("API key: (not set)"),
         },
-        Command::SetKey(value) => {
-            config.api_key = Some(value);
-            CommandResult::with_effect("API key updated.", CommandEffect::RebuildInference)
-        }
+        Command::SetKey(_) => removed_routing_command(),
         Command::ShowBaseUrl => CommandResult::text(format!("Base URL: {}", config.base_url)),
-        Command::SetBaseUrl(url) => {
-            config.base_url = url.clone();
-            CommandResult::with_effect(
-                format!("Base URL changed to {url}."),
-                CommandEffect::RebuildInference,
-            )
-        }
+        Command::SetBaseUrl(_) => removed_routing_command(),
         _ => unreachable!("dispatched only by handle_command for matching variants"),
     }
 }
 
 /// Cloud provider/model/key commands.
 pub(super) fn handle_cloud_provider_command(
-    cmd: Command,
-    config: &mut GameConfig,
+    _cmd: Command,
+    _config: &mut GameConfig,
 ) -> CommandResult {
-    match cmd {
-        Command::ShowCloud => {
-            if let Some(ref provider) = config.cloud_provider_name {
-                let model = config.cloud_model_name.as_deref().unwrap_or("(none)");
-                CommandResult::text(format!("Cloud: {} | Model: {}", provider, model))
-            } else {
-                CommandResult::text("No cloud provider configured.")
-            }
-        }
-        Command::SetCloudProvider(name) => match Provider::from_str_loose(&name) {
-            Ok(provider) => {
-                let base_url = provider.default_base_url().to_string();
-                let provider_name = provider.id().to_string();
-                config.cloud_provider_name = Some(provider_name.clone());
-                config.cloud_base_url = Some(base_url);
-                CommandResult::with_effect(
-                    format!("Cloud provider changed to {}.", provider_name),
-                    CommandEffect::RebuildCloudClient,
-                )
-            }
-            Err(e) => CommandResult::text(format!("{}", e)),
-        },
-        Command::ShowCloudModel => match &config.cloud_model_name {
-            Some(model) => CommandResult::text(format!("Cloud model: {}", model)),
-            None => CommandResult::text("Cloud model: (not set)"),
-        },
-        Command::SetCloudModel(name) => {
-            config.cloud_model_name = Some(name.clone());
-            CommandResult::text(format!("Cloud model changed to {}.", name))
-        }
-        Command::ShowCloudKey => match &config.cloud_api_key {
-            Some(key) => CommandResult::text(format!("Cloud API key: {}", mask_key(key))),
-            None => CommandResult::text("Cloud API key: (not set)"),
-        },
-        Command::SetCloudKey(value) => {
-            config.cloud_api_key = Some(value);
-            CommandResult::with_effect("Cloud API key updated.", CommandEffect::RebuildCloudClient)
-        }
-        _ => unreachable!("dispatched only by handle_command for matching variants"),
-    }
+    CommandResult::text(
+        "Legacy /cloud commands were removed by configuration schema v2; use a named loadout and per-category route instead.",
+    )
 }
 
 /// Per-category provider/model/key commands.
@@ -120,21 +54,7 @@ pub(super) fn handle_category_provider_command(
                 config.provider_name
             )),
         },
-        Command::SetCategoryProvider(cat, name) => match Provider::from_str_loose(&name) {
-            Ok(provider) => {
-                let provider_name = provider.id().to_string();
-                config.category_provider.insert(cat, provider_name.clone());
-                config
-                    .category_base_url
-                    .insert(cat, provider.default_base_url().to_string());
-                config.fill_missing_models_from_presets();
-                CommandResult::with_effect(
-                    format!("{} provider changed to {}.", cat.name(), provider_name),
-                    CommandEffect::RebuildInference,
-                )
-            }
-            Err(e) => CommandResult::text(format!("{}", e)),
-        },
+        Command::SetCategoryProvider(_, _) => removed_routing_command(),
         Command::ShowCategoryModel(cat) => match config.category_model.get(&cat) {
             Some(m) => CommandResult::text(format!("{} model: {}", cat.name(), m)),
             None => CommandResult::text(format!(
@@ -143,30 +63,12 @@ pub(super) fn handle_category_provider_command(
                 config.model_name
             )),
         },
-        Command::SetCategoryModel(cat, name) => {
-            config.category_model.insert(cat, name.clone());
-            // Rebind the worker so the new model takes effect immediately. The
-            // provider/key category commands already rebuild; a model change is
-            // just as much a routing change (a keyless provider whose only knob
-            // is the model would otherwise not re-bind until the next
-            // provider/key command), so it must rebuild too (#1365).
-            CommandResult::with_effect(
-                format!("{} model changed to {}.", cat.name(), name),
-                CommandEffect::RebuildInference,
-            )
-        }
+        Command::SetCategoryModel(_, _) => removed_routing_command(),
         Command::ShowCategoryKey(cat) => match config.category_api_key.get(&cat) {
             Some(key) => CommandResult::text(format!("{} API key: {}", cat.name(), mask_key(key))),
             None => CommandResult::text(format!("{} API key: (not set)", cat.name())),
         },
-        Command::SetCategoryKey(cat, value) => {
-            let cat_name = cat.name().to_string();
-            config.category_api_key.insert(cat, value);
-            CommandResult::with_effect(
-                format!("{} API key updated.", cat_name),
-                CommandEffect::RebuildInference,
-            )
-        }
+        Command::SetCategoryKey(_, _) => removed_routing_command(),
         Command::ShowCategoryBaseUrl(cat) => match config.category_base_url.get(&cat) {
             Some(u) => CommandResult::text(format!("{} base URL: {}", cat.name(), u)),
             None => CommandResult::text(format!(
@@ -175,23 +77,13 @@ pub(super) fn handle_category_provider_command(
                 config.base_url
             )),
         },
-        Command::SetCategoryBaseUrl(cat, url) => {
-            let cat_name = cat.name().to_string();
-            config.category_base_url.insert(cat, url.clone());
-            // A URL change reroutes the category to a different slot/host, so
-            // rebind the worker (multi-slot vllm-mlx + BYOK targets whose URL
-            // differs from the provider default — #1365).
-            CommandResult::with_effect(
-                format!("{cat_name} base URL changed to {url}."),
-                CommandEffect::RebuildInference,
-            )
-        }
+        Command::SetCategoryBaseUrl(_, _) => removed_routing_command(),
         _ => unreachable!("dispatched only by handle_command for matching variants"),
     }
 }
 
 /// Provider preset commands.
-pub(super) fn handle_preset_command(cmd: Command, config: &mut GameConfig) -> CommandResult {
+pub(super) fn handle_preset_command(cmd: Command, _config: &mut GameConfig) -> CommandResult {
     match cmd {
         Command::ShowPreset => {
             use parish_config::registry;
@@ -207,75 +99,13 @@ pub(super) fn handle_preset_command(cmd: Command, config: &mut GameConfig) -> Co
                 ids.join(", ")
             ))
         }
-        Command::ApplyPreset(name) => match Provider::from_str_loose(&name) {
-            Ok(provider) => {
-                if !provider.has_preset() {
-                    CommandResult::text(format!(
-                        "No preset available for '{}'. Configure models manually with /model.<category>.",
-                        name
-                    ))
-                } else {
-                    let provider_name = provider.id().to_string();
-                    let default_url = provider.default_base_url().to_string();
-
-                    // Provider/url writes are identical for both branches.
-                    config.provider_name = provider_name.clone();
-                    config.base_url = default_url.clone();
-                    for cat in InferenceCategory::ALL {
-                        config.category_provider.insert(cat, provider_name.clone());
-                        config.category_base_url.insert(cat, default_url.clone());
-                    }
-
-                    // For Ollama with a recorded auto-setup model: re-pin
-                    // that model across every slot instead of writing the
-                    // static qwen3 preset list. Auto-setup pulled exactly
-                    // one model matched to the user's hardware; the static
-                    // preset would route every category to qwen3 tags the
-                    // user has not downloaded.
-                    if provider.id() == "ollama"
-                        && let Some(auto) = config.auto_setup_model.clone()
-                    {
-                        config.pin_setup_model(auto);
-                    } else {
-                        // Base model: use Dialogue's pick so any code path
-                        // that still falls through to `model_name` gets a
-                        // sensible value.
-                        if let Some(m) = provider.preset_model(InferenceCategory::Dialogue) {
-                            config.model_name = m.to_string();
-                        }
-
-                        // Per-category models: always overwrite (applying
-                        // a preset is an explicit user action). API keys
-                        // are intentionally left alone — see hint below.
-                        for cat in InferenceCategory::ALL {
-                            if let Some(m) = provider.preset_model(cat).map(str::to_string) {
-                                config.category_model.insert(cat, m);
-                            } else {
-                                config.category_model.remove(&cat);
-                            }
-                        }
-                    }
-
-                    let hint = if provider.requires_api_key() && config.api_key.is_none() {
-                        format!(
-                            " Set your API key with `/key <value>` — {} requires one.",
-                            provider_name
-                        )
-                    } else {
-                        String::new()
-                    };
-
-                    CommandResult::with_effect(
-                        format!(
-                            "Applied {} preset (Dialogue/Simulation/Intent/Reaction).{}",
-                            provider_name, hint
-                        ),
-                        CommandEffect::RebuildInference,
-                    )
-                }
-            }
-            Err(e) => CommandResult::text(format!("{}", e)),
-        },
+        Command::ApplyPreset(_) => removed_routing_command(),
         _ => unreachable!("dispatched only by handle_command for matching variants"),
     }
+}
+
+fn removed_routing_command() -> CommandResult {
+    CommandResult::text(
+        "Runtime provider/model/key changes were removed by configuration schema v2; use setup or edit a named loadout, then reload configuration.",
+    )
 }

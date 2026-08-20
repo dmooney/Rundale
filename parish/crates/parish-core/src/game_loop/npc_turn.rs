@@ -495,6 +495,20 @@ pub async fn run_npc_turn(
             &progression_flags,
         );
         guard_reasons.extend(outcome.guard_reasons);
+        if !outcome.accepted_candidate {
+            drop(npc_manager);
+            drop(world);
+            ctx.emitter.emit_event(
+                "stream-turn-end",
+                serde_json::to_value(StreamTurnEndPayload::failed(
+                    req_id,
+                    Some(message_id.clone()),
+                    player_initiated.then(|| DIALOGUE_RETRY_MESSAGE.to_string()),
+                ))
+                .unwrap_or(serde_json::Value::Null),
+            );
+            return None;
+        }
         captured_display_text = outcome.display_text;
         captured_hints = outcome.language_hints;
         assigned_task = outcome.assigned_task;

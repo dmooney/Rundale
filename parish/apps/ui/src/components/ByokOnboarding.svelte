@@ -15,19 +15,19 @@
 		listAvailableProviders,
 		type ValidationOutcome,
 		type SetProviderConfigArgs,
-		type ProviderPresetOption
+		type ProviderPresetOption,
 	} from '$lib/ipc';
 	import {
 		toByokMeta,
 		findProvider,
 		FALLBACK_FEATURED,
-		type ByokProviderMeta
+		type ByokProviderMeta,
 	} from '$lib/byokProviders';
 
 	let {
 		onComplete,
 		onBack,
-		mode = 'fullscreen'
+		mode = 'fullscreen',
 	}: {
 		onComplete: () => void;
 		onBack?: () => void;
@@ -42,6 +42,7 @@
 	let baseUrl = $state('');
 	let modelName = $state('');
 	let revealKey = $state(false);
+	let allowInsecureHttp = $state(false);
 	let validationError = $state<ValidationOutcome | null>(null);
 	let saveError = $state('');
 
@@ -55,7 +56,7 @@
 	// the user the dynamic list is stale (codex P2 regression fix).
 	let providersFallback = $state(false);
 	let chosen = $derived<ByokProviderMeta | undefined>(
-		chosenId ? findProvider(chosenId, featured, other) : undefined
+		chosenId ? findProvider(chosenId, featured, other) : undefined,
 	);
 
 	// Map of {provider_id: has_env_key} fetched once on mount. The backend
@@ -118,7 +119,11 @@
 			saveError = 'Base URL is required.';
 			return;
 		}
-		if (!chosen.keyless && modelName.trim().length === 0 && defaultModelFor(chosen.id) === '') {
+		if (
+			!chosen.keyless &&
+			modelName.trim().length === 0 &&
+			defaultModelFor(chosen.id) === ''
+		) {
 			saveError = 'A model name is required for this provider.';
 			return;
 		}
@@ -130,11 +135,12 @@
 		const outcome = await validateProviderConfig({
 			provider: chosen.id,
 			base_url: baseUrl.trim() || undefined,
-			api_key: apiKey.trim() || undefined
+			api_key: apiKey.trim() || undefined,
+			allow_insecure_http: allowInsecureHttp,
 		}).catch((e) => {
 			return {
 				kind: 'network',
-				message: String(e)
+				message: String(e),
 			} satisfies ValidationOutcome;
 		});
 
@@ -149,7 +155,8 @@
 			provider: chosen.id,
 			base_url: baseUrl.trim() || undefined,
 			model: modelName.trim() || undefined,
-			api_key: apiKey.trim() || undefined
+			api_key: apiKey.trim() || undefined,
+			allow_insecure_http: allowInsecureHttp,
 		};
 		try {
 			await setProviderConfig(args);
@@ -192,7 +199,9 @@
 	{#if step === 'pick'}
 		<div class="byok__inner">
 			<h2>Choose a provider</h2>
-			<p class="byok__sub">Pick the API you want Rundale to use for NPC dialogue.</p>
+			<p class="byok__sub">
+				Pick the API you want Rundale to use for NPC dialogue.
+			</p>
 
 			{#if providersFallback}
 				<p class="byok__fallback" role="status">
@@ -213,7 +222,12 @@
 			<div class="byok__other-label">Other providers</div>
 			<div class="byok__chips">
 				{#each other as p (p.id + p.label)}
-					<button class="byok__chip" type="button" onclick={() => pick(p)} title={p.blurb}>
+					<button
+						class="byok__chip"
+						type="button"
+						onclick={() => pick(p)}
+						title={p.blurb}
+					>
 						{p.label}
 					</button>
 				{/each}
@@ -275,6 +289,20 @@
 				</label>
 			{/if}
 
+			{#if chosen?.needsBaseUrl && baseUrl
+					.trim()
+					.startsWith('http://') && !/^http:\/\/(localhost|127\.0\.0\.1|\[::1\])(?::|\/|$)/i.test(baseUrl.trim())}
+				<label class="byok__field">
+					<span
+						><input type="checkbox" bind:checked={allowInsecureHttp} /> Allow insecure
+						HTTP</span
+					>
+					<small
+						>Credentials and model data will cross the network without TLS.</small
+					>
+				</label>
+			{/if}
+
 			<label class="byok__field">
 				<span>Model (optional)</span>
 				<input
@@ -283,7 +311,9 @@
 					placeholder={defaultModelFor(chosenId) || 'leave blank for default'}
 					disabled={step === 'validating' || step === 'saving'}
 				/>
-				<small>Used for NPC dialogue. Other categories fall back to presets.</small>
+				<small
+					>Used for NPC dialogue. Other categories fall back to presets.</small
+				>
 			</label>
 
 			{#if step === 'error' && validationError}

@@ -3,7 +3,8 @@
 use serde::Deserialize;
 
 /// Session and pacing timeouts.
-#[derive(Debug, Deserialize, Clone)]
+#[derive(Debug, Deserialize, Clone, schemars::JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct SessionConfig {
     /// Real-time silence threshold before nearby NPCs may start banter.
     #[serde(default = "default_idle_banter_after_secs")]

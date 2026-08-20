@@ -1,4 +1,5 @@
 id = "vllm"
+recommended_preset = "recommended"
 display_name = "vLLM (CUDA/ROCm)"
 aliases = []
 kind = "local"

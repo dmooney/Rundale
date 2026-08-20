@@ -1,4 +1,5 @@
 id = "scaleway"
+recommended_preset = "recommended"
 display_name = "Scaleway"
 kind = "openai-compat"
 default_base_url = "https://api.scaleway.ai/v1"

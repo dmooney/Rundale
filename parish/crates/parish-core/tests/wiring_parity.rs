@@ -331,7 +331,6 @@ fn gui_load_command_adapters_route_named_and_bare_forms() {
 const EXPECTED_HOST_METHODS: &[&str] = &[
     "quit",
     "rebuild_inference",
-    "rebuild_cloud_client",
     "toggle_map",
     "open_designer",
     "save_game",

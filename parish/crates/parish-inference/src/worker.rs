@@ -5,12 +5,80 @@ use std::time::{Duration, Instant};
 use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
 
-use crate::any_client::{AnyClient, StreamStats, TOKEN_CHANNEL_CAPACITY};
+use crate::any_client::{AnyClient, InferenceClients, StreamStats, TOKEN_CHANNEL_CAPACITY};
 use crate::google_client::{ProviderCallError, ProviderMetadata};
 use crate::logs::{InferenceLog, InferenceLogEntry};
 use crate::openai_client::{GenerateParams, ResponseFormat};
 use crate::queue::{CancellationToken, InferenceRequest, InferenceResponse};
 use parish_config::InferenceConfig;
+
+/// Internal transport protocol. Candidate deltas remain quarantined until the
+/// provider adapter validates its terminal frame. This is deliberately not a
+/// semantic `Commit`: only the canonical gameplay apply seam may commit.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum StreamTransactionEvent {
+    Begin {
+        request_id: u64,
+        configuration_epoch: u64,
+    },
+    ProvisionalDelta {
+        request_id: u64,
+        configuration_epoch: u64,
+        sequence: u64,
+        text: String,
+    },
+    CandidateComplete {
+        request_id: u64,
+        configuration_epoch: u64,
+    },
+    Abort {
+        request_id: u64,
+        configuration_epoch: u64,
+        reason: String,
+    },
+}
+
+struct StreamAbortGuard {
+    tx: mpsc::Sender<StreamTransactionEvent>,
+    request_id: u64,
+    configuration_epoch: u64,
+    armed: bool,
+}
+
+impl Drop for StreamAbortGuard {
+    fn drop(&mut self) {
+        if self.armed {
+            let _ = self.tx.try_send(StreamTransactionEvent::Abort {
+                request_id: self.request_id,
+                configuration_epoch: self.configuration_epoch,
+                reason: "stream task dropped before terminal publication".into(),
+            });
+        }
+    }
+}
+
+fn resolved_response_format(
+    schema: Option<crate::openai_client::JsonSchemaSpec>,
+    json_mode: bool,
+    contract: Option<parish_config::StructuredOutputMode>,
+) -> Option<ResponseFormat> {
+    use parish_config::StructuredOutputMode;
+    if schema.is_none() && !json_mode {
+        return None;
+    }
+    match contract {
+        Some(StructuredOutputMode::JsonSchema) => schema
+            .map(|json_schema| ResponseFormat::JsonSchema { json_schema })
+            .or(Some(ResponseFormat::JsonObject)),
+        Some(StructuredOutputMode::JsonObject) => Some(ResponseFormat::JsonObject),
+        Some(StructuredOutputMode::PromptValidatedJson) => None,
+        // Legacy/harness profiles predate v2 publication. Preserve their
+        // explicit request contract without weakening a resolved v2 route.
+        None => schema
+            .map(|json_schema| ResponseFormat::JsonSchema { json_schema })
+            .or_else(|| json_mode.then_some(ResponseFormat::JsonObject)),
+    }
+}
 
 /// Wraps an inference future with a timeout *and* an optional cancellation
 /// token, producing consistent error messages so callers don't repeat the
@@ -97,6 +165,17 @@ pub struct InferenceWorkerConfig {
 /// On timeout the worker sends an error response and moves on to the next
 /// request rather than blocking the queue indefinitely. (#343)
 pub fn spawn_inference_worker(client: AnyClient, config: InferenceWorkerConfig) -> JoinHandle<()> {
+    let clients = InferenceClients::new(client, String::new(), Default::default());
+    spawn_inference_worker_with_clients(clients, config)
+}
+
+/// Spawns a worker over one immutable category transport set. Each request
+/// selects its transport from `request.role`, so API flavor is resolved at
+/// the same seam as model and profile selection.
+pub fn spawn_inference_worker_with_clients(
+    clients: InferenceClients,
+    config: InferenceWorkerConfig,
+) -> JoinHandle<()> {
     let InferenceWorkerConfig {
         mut interactive_rx,
         mut background_rx,
@@ -118,29 +197,99 @@ pub fn spawn_inference_worker(client: AnyClient, config: InferenceWorkerConfig) 
 
             let streaming = request.token_tx.is_some();
             let prompt_len = request.prompt.len();
-            let model = request.model.clone();
             let role = request.role;
             let subrole = request.subrole;
             debug_assert_eq!(role, subrole.category());
-            let profile = request
-                .profile
+            let (client, configured_model) = clients.client_for(role);
+            let published_profile = clients.profile_for(subrole);
+            let model = if published_profile.is_some() {
+                configured_model.to_string()
+            } else {
+                request.model.clone()
+            };
+            let profile = published_profile
+                .or(request.profile)
                 .unwrap_or_else(|| parish_config::InferenceProfile::for_subrole(subrole))
                 .for_model(&model);
-            let thinking_level = Some(profile.thinking_level);
-            let service_tier = Some(profile.service_tier);
+            let is_v2 = profile.configuration_epoch > 0;
+            let reasoning_effort = match profile.reasoning_intent {
+                parish_config::ReasoningIntent::Auto if is_v2 => None,
+                parish_config::ReasoningIntent::Auto => request.reasoning_effort,
+                parish_config::ReasoningIntent::Off => Some(parish_config::ReasoningEffort::None),
+                parish_config::ReasoningIntent::Effort { level } => Some(match level {
+                    parish_config::ReasoningEffortV2::Minimal => {
+                        parish_config::ReasoningEffort::Minimal
+                    }
+                    parish_config::ReasoningEffortV2::Low => parish_config::ReasoningEffort::Low,
+                    parish_config::ReasoningEffortV2::Medium => {
+                        parish_config::ReasoningEffort::Medium
+                    }
+                    parish_config::ReasoningEffortV2::High => parish_config::ReasoningEffort::High,
+                    parish_config::ReasoningEffortV2::Xhigh => {
+                        parish_config::ReasoningEffort::Xhigh
+                    }
+                    parish_config::ReasoningEffortV2::Max => parish_config::ReasoningEffort::Max,
+                }),
+                parish_config::ReasoningIntent::Budget { .. } => None,
+            };
+            let thinking_level = match profile.reasoning_intent {
+                parish_config::ReasoningIntent::Off
+                | parish_config::ReasoningIntent::Auto
+                | parish_config::ReasoningIntent::Budget { .. } => None,
+                parish_config::ReasoningIntent::Effort { level } => Some(match level {
+                    parish_config::ReasoningEffortV2::Minimal => {
+                        parish_config::ThinkingLevel::Minimal
+                    }
+                    parish_config::ReasoningEffortV2::Low => parish_config::ThinkingLevel::Low,
+                    parish_config::ReasoningEffortV2::Medium => {
+                        parish_config::ThinkingLevel::Medium
+                    }
+                    parish_config::ReasoningEffortV2::High
+                    | parish_config::ReasoningEffortV2::Xhigh
+                    | parish_config::ReasoningEffortV2::Max => parish_config::ThinkingLevel::High,
+                }),
+            };
+            let service_tier = match profile.service_tier_intent {
+                parish_config::ServiceTierIntent::Auto => None,
+                parish_config::ServiceTierIntent::Standard => {
+                    Some(parish_config::ServiceTier::Standard)
+                }
+                parish_config::ServiceTierIntent::Priority => {
+                    Some(parish_config::ServiceTier::Priority)
+                }
+            };
             let system_prompt = request.system.clone();
             let prompt_prefix_len = system_prompt.as_ref().map(String::len);
             let prompt_prefix_hash = system_prompt.as_deref().map(stable_prefix_hash);
             let prompt_text = request.prompt.clone();
-            let max_tokens = if client.is_google() {
-                // Native Gemini receives the resolved semantic cap exactly.
-                // A provider ceiling is not a performance target, and silently
-                // flooring legacy caps can create runaway latency and spend.
+            // A published v2 profile is authoritative for every adapter.
+            // Legacy requests have no epoch and retain their request fields.
+            let max_tokens = if profile.configuration_epoch > 0 {
                 Some(profile.max_output_tokens)
             } else {
                 request.max_tokens
             };
-            let temperature = request.temperature;
+            let temperature = if is_v2 {
+                profile.temperature
+            } else {
+                profile.temperature.or(request.temperature)
+            };
+            let frequency_penalty = if is_v2 {
+                profile.frequency_penalty
+            } else {
+                profile.frequency_penalty.or(request.frequency_penalty)
+            };
+            let enable_thinking = if is_v2 {
+                match profile.reasoning_intent {
+                    parish_config::ReasoningIntent::Auto => None,
+                    parish_config::ReasoningIntent::Off => Some(false),
+                    parish_config::ReasoningIntent::Effort { .. }
+                    | parish_config::ReasoningIntent::Budget { .. } => Some(true),
+                }
+            } else {
+                request.enable_thinking
+            };
+            let reasoning_intent = is_v2.then_some(profile.reasoning_intent);
             let priority = request.priority;
             let req_id = request.id;
             let start = Instant::now();
@@ -150,38 +299,86 @@ pub fn spawn_inference_worker(client: AnyClient, config: InferenceWorkerConfig) 
             let blocking_timeout = std::time::Duration::from_secs(timeout_config.timeout_secs);
 
             // Resolve effective response_format: schema wins over json_mode.
-            let response_format: Option<ResponseFormat> =
-                match (request.json_schema.clone(), request.json_mode) {
-                    (Some(schema), _) => Some(ResponseFormat::JsonSchema {
-                        json_schema: schema,
-                    }),
-                    (None, true) => Some(ResponseFormat::JsonObject),
-                    (None, false) => None,
-                };
+            let response_format = resolved_response_format(
+                request.json_schema.clone(),
+                request.json_mode,
+                profile.structured_output,
+            );
 
             let (result, stream_stats) = match request.token_tx {
                 Some(token_tx) => {
-                    let (proxy_tx, mut proxy_rx) = mpsc::channel::<String>(TOKEN_CHANNEL_CAPACITY);
+                    let (provider_tx, mut provider_rx) =
+                        mpsc::channel::<String>(TOKEN_CHANNEL_CAPACITY);
+                    let (event_tx, mut event_rx) =
+                        mpsc::channel::<StreamTransactionEvent>(TOKEN_CHANNEL_CAPACITY);
+                    event_tx
+                        .send(StreamTransactionEvent::Begin {
+                            request_id: req_id,
+                            configuration_epoch: profile.configuration_epoch,
+                        })
+                        .await
+                        .ok();
+                    let mut abort_guard = StreamAbortGuard {
+                        tx: event_tx.clone(),
+                        request_id: req_id,
+                        configuration_epoch: profile.configuration_epoch,
+                        armed: true,
+                    };
+                    let bridge_tx = event_tx.clone();
+                    let bridge = tokio::spawn(async move {
+                        let mut sequence = 0;
+                        while let Some(text) = provider_rx.recv().await {
+                            if bridge_tx
+                                .send(StreamTransactionEvent::ProvisionalDelta {
+                                    request_id: req_id,
+                                    configuration_epoch: profile.configuration_epoch,
+                                    sequence,
+                                    text,
+                                })
+                                .await
+                                .is_err()
+                            {
+                                break;
+                            }
+                            sequence = sequence.saturating_add(1);
+                        }
+                    });
                     let observer_start = start;
                     let observer = tokio::spawn(async move {
                         let mut ttft: Option<Duration> = None;
                         let mut tokens: u64 = 0;
                         let mut partial_text = String::new();
-                        while let Some(tok) = proxy_rx.recv().await {
-                            if ttft.is_none() {
-                                ttft = Some(observer_start.elapsed());
-                            }
-                            tokens += 1;
-                            partial_text.push_str(&tok);
-                            if token_tx.send(tok).await.is_err() {
-                                break;
+                        let mut expected_sequence = 0;
+                        let mut committed = false;
+                        while let Some(event) = event_rx.recv().await {
+                            match event {
+                                StreamTransactionEvent::Begin { .. } => {}
+                                StreamTransactionEvent::ProvisionalDelta {
+                                    sequence, text, ..
+                                } if sequence == expected_sequence => {
+                                    if ttft.is_none() {
+                                        ttft = Some(observer_start.elapsed());
+                                    }
+                                    tokens = tokens.saturating_add(1);
+                                    partial_text.push_str(&text);
+                                    expected_sequence = expected_sequence.saturating_add(1);
+                                }
+                                StreamTransactionEvent::CandidateComplete { .. } => {
+                                    committed = true;
+                                    break;
+                                }
+                                StreamTransactionEvent::Abort { .. }
+                                | StreamTransactionEvent::ProvisionalDelta { .. } => break,
                             }
                         }
-                        StreamStats {
-                            ttft,
-                            tokens,
-                            partial_text,
-                        }
+                        (
+                            StreamStats {
+                                ttft,
+                                tokens,
+                                partial_text,
+                            },
+                            committed,
+                        )
                     });
                     let label = match response_format {
                         Some(ResponseFormat::JsonSchema { .. }) => "streaming (schema) inference",
@@ -190,55 +387,89 @@ pub fn spawn_inference_worker(client: AnyClient, config: InferenceWorkerConfig) 
                     };
                     let result = inference_with_timeout(
                         client.generate_stream_detailed_with_format(
-                            &request.model,
+                            &model,
                             &request.prompt,
                             request.system.as_deref(),
-                            proxy_tx,
+                            provider_tx,
                             response_format.clone(),
                             GenerateParams {
                                 max_tokens,
-                                temperature: request.temperature,
-                                frequency_penalty: request.frequency_penalty,
-                                enable_thinking: request.enable_thinking,
-                                reasoning_effort: request.reasoning_effort,
+                                temperature,
+                                frequency_penalty,
+                                enable_thinking,
+                                reasoning_effort,
                                 thinking_level,
                                 service_tier,
+                                reasoning_intent,
+                                reasoning_dialect: profile.reasoning_dialect,
                             },
                         ),
                         streaming_timeout,
                         timeout_config.streaming_timeout_secs,
-                        &request.model,
+                        &model,
                         label,
                         request.cancel.as_ref(),
                     )
                     .await;
-                    let stats = observer.await.unwrap_or(StreamStats {
-                        ttft: None,
-                        tokens: 0,
-                        partial_text: String::new(),
-                    });
+                    let _ = bridge.await;
+                    let terminal = if result.is_ok() {
+                        StreamTransactionEvent::CandidateComplete {
+                            request_id: req_id,
+                            configuration_epoch: profile.configuration_epoch,
+                        }
+                    } else {
+                        StreamTransactionEvent::Abort {
+                            request_id: req_id,
+                            configuration_epoch: profile.configuration_epoch,
+                            reason: result
+                                .as_ref()
+                                .err()
+                                .map(|error| error.message.clone())
+                                .unwrap_or_else(|| "provider stream aborted".into()),
+                        }
+                    };
+                    let _ = event_tx.send(terminal).await;
+                    abort_guard.armed = false;
+                    drop(event_tx);
+                    let (stats, committed) = observer.await.unwrap_or((
+                        StreamStats {
+                            ttft: None,
+                            tokens: 0,
+                            partial_text: String::new(),
+                        },
+                        false,
+                    ));
+                    // Provider chunks are provisional. Publish only after the
+                    // adapter has observed and validated the terminal frame.
+                    // Canonical gameplay callers apply their stricter semantic
+                    // validator before emitting player-visible dialogue.
+                    if committed && !stats.partial_text.is_empty() {
+                        let _ = token_tx.send(stats.partial_text.clone()).await;
+                    }
                     (result, Some(stats))
                 }
                 None => {
                     let result = inference_with_timeout(
                         client.generate_detailed_with_format(
-                            &request.model,
+                            &model,
                             &request.prompt,
                             request.system.as_deref(),
                             response_format.clone(),
                             GenerateParams {
                                 max_tokens,
-                                temperature: request.temperature,
-                                frequency_penalty: request.frequency_penalty,
-                                enable_thinking: request.enable_thinking,
-                                reasoning_effort: request.reasoning_effort,
+                                temperature,
+                                frequency_penalty,
+                                enable_thinking,
+                                reasoning_effort,
                                 thinking_level,
                                 service_tier,
+                                reasoning_intent,
+                                reasoning_dialect: profile.reasoning_dialect,
                             },
                         ),
                         blocking_timeout,
                         timeout_config.timeout_secs,
-                        &request.model,
+                        &model,
                         "inference",
                         request.cancel.as_ref(),
                     )
@@ -263,7 +494,7 @@ pub fn spawn_inference_worker(client: AnyClient, config: InferenceWorkerConfig) 
                     error.partial_text = observed_partial;
                 }
                 if error.metadata.provider == "unknown" {
-                    let mut observed = client.fallback_metadata(&request.model);
+                    let mut observed = client.fallback_metadata(&model);
                     observed.terminal_status =
                         error.metadata.terminal_status.clone().or_else(|| {
                             Some(
@@ -554,6 +785,86 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn production_worker_dispatches_each_category_to_its_published_client() {
+        let (dialogue_client, dialogue_mock) = AnyClient::mock();
+        let (simulation_client, simulation_mock) = AnyClient::mock();
+        dialogue_mock.push_any("dialogue-wire");
+        simulation_mock.push_any("simulation-wire");
+        let clients = InferenceClients::new(
+            dialogue_client.clone(),
+            "dialogue-model".into(),
+            std::collections::HashMap::from([
+                (
+                    parish_config::InferenceCategory::Dialogue,
+                    (dialogue_client, "dialogue-model".into()),
+                ),
+                (
+                    parish_config::InferenceCategory::Simulation,
+                    (simulation_client, "simulation-model".into()),
+                ),
+            ]),
+        );
+        let (interactive_tx, interactive_rx) = mpsc::channel(4);
+        let (background_tx, background_rx) = mpsc::channel(4);
+        let (batch_tx, batch_rx) = mpsc::channel(4);
+        let worker = spawn_inference_worker_with_clients(
+            clients,
+            InferenceWorkerConfig {
+                interactive_rx,
+                background_rx,
+                batch_rx,
+                log: new_inference_log(),
+                file_log: crate::file_log::InferenceFileLog::disabled(),
+                provider: parish_config::Provider::simulator(),
+                timeout_config: InferenceConfig::default(),
+            },
+        );
+        let queue = InferenceQueue::new(interactive_tx, background_tx, batch_tx);
+        let request = |id, role, subrole| QueueRequest {
+            id,
+            model: "caller-model-must-not-select-transport".into(),
+            prompt: "hello".into(),
+            system: None,
+            token_tx: None,
+            max_tokens: Some(8),
+            temperature: None,
+            frequency_penalty: None,
+            enable_thinking: None,
+            reasoning_effort: None,
+            priority: InferencePriority::Interactive,
+            role,
+            subrole,
+            profile: None,
+            json_mode: false,
+            json_schema: None,
+            cancel: None,
+        };
+        let dialogue = queue
+            .send(request(
+                101,
+                parish_config::InferenceCategory::Dialogue,
+                parish_config::InferenceSubrole::Dialogue,
+            ))
+            .await
+            .unwrap()
+            .await
+            .unwrap();
+        let simulation = queue
+            .send(request(
+                102,
+                parish_config::InferenceCategory::Simulation,
+                parish_config::InferenceSubrole::Tier3Simulation,
+            ))
+            .await
+            .unwrap()
+            .await
+            .unwrap();
+        assert_eq!(dialogue.text, "dialogue-wire");
+        assert_eq!(simulation.text, "simulation-wire");
+        worker.abort();
+    }
+
+    #[tokio::test]
     async fn staged_audit_is_hidden_until_commit_in_memory_and_on_disk() {
         let temp = tempfile::tempdir().unwrap();
         let (interactive_tx, interactive_rx) = mpsc::channel::<InferenceRequest>(4);
@@ -796,8 +1107,8 @@ mod tests {
 
     /// A request whose cancel token fires mid-stream must surface
     /// `error: "cancelled"` and free the worker for the next request.
-    /// Uses the simulator (40 ms/token); we fire cancel after the first
-    /// token arrives.
+    /// Uses the simulator (40 ms/token); cancellation occurs while provider
+    /// deltas are still provisional, so presentation must receive none.
     #[tokio::test]
     async fn test_cancellation_fires_mid_stream_yields_error() {
         let (interactive_tx, interactive_rx) = mpsc::channel::<InferenceRequest>(4);
@@ -823,15 +1134,15 @@ mod tests {
         let (resp_tx, resp_rx) = tokio::sync::oneshot::channel();
         let (tok_tx, mut tok_rx) = mpsc::channel::<String>(64);
 
-        // Drain forwarded tokens; fire cancel as soon as the first one
-        // lands so the worker drops its inflight future mid-stream.
+        let cancel_task = cancel.clone();
+        tokio::spawn(async move {
+            tokio::time::sleep(Duration::from_millis(80)).await;
+            cancel_task.cancel();
+        });
         let drain = tokio::spawn(async move {
             let mut count: u64 = 0;
             while tok_rx.recv().await.is_some() {
                 count += 1;
-                if count == 1 {
-                    cancel.cancel();
-                }
             }
             count
         });
@@ -868,9 +1179,9 @@ mod tests {
             err.contains("cancel"),
             "expected error to mention cancel, got {err:?}"
         );
-        assert!(
-            tokens_seen >= 1,
-            "expected at least one token before cancel fired"
+        assert_eq!(
+            tokens_seen, 0,
+            "aborted provisional deltas must never escape"
         );
     }
 

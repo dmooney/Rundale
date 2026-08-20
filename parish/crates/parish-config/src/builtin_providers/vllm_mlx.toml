@@ -1,4 +1,5 @@
 id = "vllmmlx"
+recommended_preset = "recommended"
 display_name = "vLLM (MLX)"
 aliases = ["vllm-mlx", "vllm_mlx"]
 kind = "local"

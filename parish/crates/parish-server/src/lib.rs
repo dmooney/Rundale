@@ -60,6 +60,16 @@ use session::{GlobalState, OAuthConfig, SessionRegistry};
 use session_store_impl::{SqliteIdentityStore, open_sessions_db};
 use state::{GameConfig, UiConfigSnapshot};
 
+fn keychain_secret(slot: &str) -> Option<String> {
+    keyring::Entry::new(
+        "com.parish.rundale",
+        &parish_core::secret_store::provider_account(slot),
+    )
+    .ok()?
+    .get_password()
+    .ok()
+}
+
 /// Specific HTTPS origins the frontend genuinely connects to or loads images
 /// from.  These are the only external endpoints referenced in
 /// `apps/ui/src/` — everything else is same-origin (`'self'`).
@@ -421,15 +431,30 @@ pub async fn run_server_with_engine_config(
         engine_config_path.unwrap_or_else(|| parish_core::config::resolve_config_path(&data_dir));
 
     // ── LLM client + config (template, cloned per session) ───────────────────
-    let (provider_cfg, config) =
-        build_client_and_config(headless_models, Some(&engine_config_path))?;
+    let catalog_user_data = parish_core::persistence::paths::resolve_user_data_dir(
+        parish_core::persistence::paths::DEFAULT_APP_NAME,
+    );
+    let (provider_cfg, config, initial_runtime, project_v2) = build_client_config_runtime(
+        headless_models,
+        Some(&engine_config_path),
+        &catalog_user_data,
+    )?;
     let (config, runtime_processes) = run_llm_bootstrap(provider_cfg, config).await?;
+    let refresh_snapshot = Arc::clone(&initial_runtime.config);
+    let inference_runtime_v2 = Some(Arc::new(
+        parish_core::inference_runtime_v2::InferenceRuntimeManagerV2::new(initial_runtime),
+    ));
+    parish_core::inference_runtime_v2::spawn_catalog_refresh_v2(
+        refresh_snapshot,
+        parish_core::config::CatalogStore::for_user_data_dir(&catalog_user_data),
+        catalog_user_data.clone(),
+    );
 
     // ── Game mod / engine config / UI config ──────────────────────────────────
     let game_mod: Option<GameMod> = load_base_mod_via_source().await;
     let (splash_text, theme_palette) = resolve_splash_and_theme(&game_mod);
 
-    let engine_config = parish_core::config::load_engine_config(&engine_config_path);
+    let engine_config = project_v2.engine;
     let (mut config, _tile_sources_snapshot, _active_tile_source, ui_config) =
         resolve_engine_and_ui_config(
             config,
@@ -438,20 +463,6 @@ pub async fn run_server_with_engine_config(
             &splash_text,
             &theme_palette,
         );
-
-    // Match Tauri and headless semantics: inference effort, token caps, and
-    // service-tier choices are per-user settings, not engine-wide settings.
-    // Resolve the directory once during startup (rule #9) and apply the
-    // non-secret profile fields to the template cloned into every session.
-    let user_config_dir = parish_core::config::user_config::resolve_user_config_dir();
-    match apply_user_inference_profiles_from_dir(&mut config, &user_config_dir) {
-        Ok(()) => {}
-        Err(error) => tracing::warn!(
-            path = %user_config_dir.display(),
-            %error,
-            "Failed to load per-user inference profiles"
-        ),
-    }
 
     // ── Feature flags / session infrastructure / OAuth / WS key ─────────────
     let flags_path = data_dir.join("parish-flags.json");
@@ -476,6 +487,7 @@ pub async fn run_server_with_engine_config(
     let tile_cache = init_tile_cache(&saves_dir, &app_name, &data_dir, &engine_config).await;
     let max_concurrent_sessions = resolve_admission_control(&config, &engine_config);
     let global = Arc::new(GlobalState {
+        inference_runtime_v2,
         sessions,
         identity_store,
         oauth_config,
@@ -523,15 +535,6 @@ pub async fn run_server_with_engine_config(
     )
     .await?;
 
-    Ok(())
-}
-
-fn apply_user_inference_profiles_from_dir(
-    config: &mut GameConfig,
-    user_config_dir: &Path,
-) -> Result<(), parish_core::error::ParishError> {
-    let user_config = parish_core::config::user_config::load_user_config(user_config_dir)?;
-    config.apply_user_inference_profiles(&user_config);
     Ok(())
 }
 
@@ -855,18 +858,11 @@ fn resolve_world_path(data_dir: &Path) -> PathBuf {
     if parish.exists() { parish } else { world }
 }
 
-/// Merges cloud-provider env vars into `config`, runs the shared provider
-/// bootstrap, and populates per-category model slots from presets.
+/// Runs local-runtime management for the already-resolved v2 loadout.
 async fn run_llm_bootstrap(
     provider_cfg: parish_core::config::ProviderConfig,
     mut config: GameConfig,
 ) -> anyhow::Result<(GameConfig, parish_core::inference::client::RuntimeProcesses)> {
-    let cloud_env = build_cloud_client_from_env();
-    config.cloud_provider_name = cloud_env.provider_name;
-    config.cloud_model_name = cloud_env.model_name;
-    config.cloud_api_key = cloud_env.api_key;
-    config.cloud_base_url = cloud_env.base_url;
-
     let progress = parish_core::inference::setup::StdoutProgress;
     let extra_vllm_mlx_slots = config.vllm_mlx_extra_slots();
     let extra_vllm_slots = config.vllm_extra_slots();
@@ -889,9 +885,6 @@ async fn run_llm_bootstrap(
     } else {
         config.model_name = resolved_model;
     }
-    // No-op for Ollama after `pin_setup_model` filled every slot; for
-    // cloud providers fills per-role tier mapping (Opus/Sonnet/Haiku).
-    config.fill_missing_models_from_presets();
     Ok((config, runtime_procs))
 }
 
@@ -1259,35 +1252,124 @@ fn sanitize_base_url(url: &str) -> String {
     format!("{}{}", prefix, trimmed)
 }
 
-/// Builds the provider-setup input and the template `GameConfig` from
-/// environment variables.
-///
-/// Returns a [`ProviderConfig`] suitable for the shared
-/// [`parish_core::inference::setup::setup_provider_client`] bootstrap and
-/// the session `GameConfig` template. The caller runs the bootstrap and
-/// then overwrites `config.model_name` with the auto-resolved tag (for
-/// Ollama, the tier selector's pick).
-fn build_client_and_config(
+fn build_client_config_runtime(
     headless_models: bool,
     config_path: Option<&Path>,
-) -> Result<(parish_core::config::ProviderConfig, GameConfig), parish_core::error::ParishError> {
-    if headless_models {
-        return Ok(build_headless_local_config());
-    }
-    let provider_cfg = parish_core::config::resolve_config(config_path, &Default::default())?;
-    let category_configs = parish_core::config::resolve_category_env_configs(&provider_cfg)?;
+    data_dir: &Path,
+) -> Result<
+    (
+        parish_core::config::ProviderConfig,
+        GameConfig,
+        parish_core::inference_runtime_v2::InferenceRuntimeSnapshotV2,
+        parish_core::config::ProjectConfigV2,
+    ),
+    parish_core::error::ParishError,
+> {
+    let user_path = parish_core::config::user_config::resolve_user_config_dir().join("parish.toml");
+    build_client_config_runtime_with_user(headless_models, config_path, &user_path, data_dir)
+}
 
-    let provider_name = provider_cfg.provider_display();
-    let base_url = provider_cfg.base_url.clone();
-    let api_key = provider_cfg.api_key.clone();
-
-    // `model_name` starts as the resolved model override or `gemma4:e4b` as a
-    // placeholder; the bootstrap replaces it with the auto-selected tier tag
-    // before sessions are built.
-    let model_name = provider_cfg
-        .model
-        .clone()
-        .unwrap_or_else(|| "gemma4:e4b".to_string());
+fn build_client_config_runtime_with_user(
+    headless_models: bool,
+    config_path: Option<&Path>,
+    user_path: &Path,
+    data_dir: &Path,
+) -> Result<
+    (
+        parish_core::config::ProviderConfig,
+        GameConfig,
+        parish_core::inference_runtime_v2::InferenceRuntimeSnapshotV2,
+        parish_core::config::ProjectConfigV2,
+    ),
+    parish_core::error::ParishError,
+> {
+    let project_path = config_path.unwrap_or_else(|| Path::new("parish.toml"));
+    let mut overrides = parish_core::config::routing_overrides_from_env()
+        .map_err(|error| parish_core::error::ParishError::Config(error.to_string()))?;
+    let mut project = parish_core::config::load_project_config_v2(project_path)
+        .map_err(|error| parish_core::error::ParishError::Config(error.to_string()))?;
+    let user = parish_core::config::load_user_config_v2(user_path)
+        .map_err(|error| parish_core::error::ParishError::Config(error.to_string()))?;
+    let catalog = parish_core::config::CatalogStore::for_user_data_dir(data_dir);
+    let (provider_cfg, mut config) = if headless_models {
+        use parish_core::ipc::config::local_models;
+        const HEADLESS_LOADOUT: &str = "__rundale_headless_local";
+        if user.inference.loadouts.contains_key(HEADLESS_LOADOUT) {
+            return Err(parish_core::error::ParishError::Config(format!(
+                "reserved headless loadout {HEADLESS_LOADOUT} is defined in user configuration"
+            )));
+        }
+        project.inference.loadouts.insert(
+            HEADLESS_LOADOUT.into(),
+            parish_core::config::LoadoutDefinition {
+                default: parish_core::config::RoutePatch {
+                    provider: Some("vllmmlx".into()),
+                    endpoint: Some("default".into()),
+                    model: Some(local_models::DIALOGUE_MODEL.into()),
+                    inference_base_url: Some(local_models::DIALOGUE_BASE_URL.into()),
+                    allow_unverified_model: Some(true),
+                    ..Default::default()
+                },
+                routes: parish_core::config::CategoryRoutes {
+                    intent: Some(parish_core::config::RoutePatch {
+                        provider: Some("vllmmlx".into()),
+                        endpoint: Some("default".into()),
+                        model: Some(local_models::INTENT_MODEL.into()),
+                        inference_base_url: Some(local_models::INTENT_BASE_URL.into()),
+                        allow_unverified_model: Some(true),
+                        ..Default::default()
+                    }),
+                    simulation: Some(parish_core::config::RoutePatch {
+                        provider: Some("simulator".into()),
+                        model: Some("simulator".into()),
+                        allow_unverified_model: Some(true),
+                        ..Default::default()
+                    }),
+                    reaction: Some(parish_core::config::RoutePatch {
+                        provider: Some("simulator".into()),
+                        model: Some("simulator".into()),
+                        allow_unverified_model: Some(true),
+                        ..Default::default()
+                    }),
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+        );
+        overrides.active_loadout = Some(HEADLESS_LOADOUT.into());
+        build_headless_local_config()
+    } else {
+        // Temporary values are replaced from the resolved snapshot below.
+        build_headless_local_config()
+    };
+    let runtime = parish_core::inference_runtime_v2::build_inference_runtime_v2_with_catalog(
+        1,
+        &project,
+        &user,
+        &overrides,
+        &catalog,
+        data_dir,
+        keychain_secret,
+    )?;
+    let dialogue = &runtime.config.category_routes["dialogue"];
+    let provider = parish_core::config::Provider::from_str_loose(&dialogue.key.provider_id)
+        .unwrap_or_else(|_| parish_core::config::Provider::custom());
+    let resolved_provider_cfg = parish_core::config::ProviderConfig {
+        provider,
+        base_url: dialogue.inference_base_url.clone(),
+        api_key: dialogue
+            .credential
+            .as_ref()
+            .map(|value| value.expose().to_string()),
+        model: Some(dialogue.key.model_id.clone()),
+    };
+    let provider_name = dialogue.key.provider_id.clone();
+    let base_url = dialogue.inference_base_url.clone();
+    let api_key = dialogue
+        .credential
+        .as_ref()
+        .map(|value| value.expose().to_string());
+    let model_name = dialogue.key.model_id.clone();
 
     tracing::info!(
         provider = %provider_name,
@@ -1297,36 +1379,50 @@ fn build_client_and_config(
         "Resolved inference configuration"
     );
 
-    let mut config = GameConfig {
-        provider_name,
-        base_url,
-        api_key,
-        model_name,
-        cloud_provider_name: None,
-        cloud_model_name: None,
-        cloud_api_key: None,
-        cloud_base_url: None,
-        improv_enabled: false,
-        max_follow_up_turns: 2,
-        idle_banter_after_secs: 25,
-        auto_pause_after_secs: 60,
-        category_provider: Default::default(),
-        category_model: Default::default(),
-        category_api_key: Default::default(),
-        category_base_url: Default::default(),
-        inference_profile_override: Default::default(),
-        category_inference_profile: Default::default(),
-        flags: FeatureFlags::default(),
-        category_rate_limit: Default::default(),
-        // Tile-source fields populated in build_app_state from engine config.
-        active_tile_source: String::new(),
-        tile_sources: Vec::new(),
-        reveal_unexplored_locations: false,
-        auto_setup_model: None,
-    };
-    config.apply_resolved_category_configs(&category_configs);
+    if !headless_models {
+        config = GameConfig {
+            inference_routes_v2: Default::default(),
+            inference_subrole_routes_v2: Default::default(),
+            inference_configuration_epoch: 0,
+            provider_name,
+            base_url,
+            api_key,
+            model_name,
+            cloud_provider_name: None,
+            cloud_model_name: None,
+            cloud_api_key: None,
+            cloud_base_url: None,
+            improv_enabled: false,
+            max_follow_up_turns: 2,
+            idle_banter_after_secs: 25,
+            auto_pause_after_secs: 60,
+            category_provider: Default::default(),
+            category_model: Default::default(),
+            category_api_key: Default::default(),
+            category_base_url: Default::default(),
+            inference_profile_override: Default::default(),
+            category_inference_profile: Default::default(),
+            flags: FeatureFlags::default(),
+            category_rate_limit: Default::default(),
+            // Tile-source fields populated in build_app_state from engine config.
+            active_tile_source: String::new(),
+            tile_sources: Vec::new(),
+            reveal_unexplored_locations: false,
+            auto_setup_model: None,
+        };
+    }
+    config.apply_resolved_inference_v2(&runtime.config);
 
-    Ok((provider_cfg, config))
+    Ok((
+        if headless_models {
+            provider_cfg
+        } else {
+            resolved_provider_cfg
+        },
+        config,
+        runtime,
+        project,
+    ))
 }
 
 /// Builds the provider + game config for `--headless-models` (#1364): the
@@ -1352,6 +1448,9 @@ fn build_headless_local_config() -> (parish_core::config::ProviderConfig, GameCo
     };
 
     let mut config = GameConfig {
+        inference_routes_v2: Default::default(),
+        inference_subrole_routes_v2: Default::default(),
+        inference_configuration_epoch: 0,
         provider_name: local_models::PROVIDER.to_string(),
         base_url: local_models::DIALOGUE_BASE_URL.to_string(),
         api_key: None,
@@ -1389,45 +1488,6 @@ fn build_headless_local_config() -> (parish_core::config::ProviderConfig, GameCo
     );
 
     (provider_cfg, config)
-}
-
-/// Cloud LLM environment configuration loaded from `PARISH_CLOUD_*` vars.
-struct CloudEnvConfig {
-    provider_name: Option<String>,
-    model_name: Option<String>,
-    api_key: Option<String>,
-    base_url: Option<String>,
-}
-
-fn build_cloud_client_from_env() -> CloudEnvConfig {
-    let provider = std::env::var("PARISH_CLOUD_PROVIDER")
-        .ok()
-        .filter(|s| !s.is_empty());
-    let base_url = std::env::var("PARISH_CLOUD_BASE_URL").unwrap_or_else(|_| {
-        provider
-            .as_deref()
-            .and_then(|p| parish_core::config::Provider::from_str_loose(p).ok())
-            .map(|p| p.default_base_url().to_string())
-            .unwrap_or_else(|| "https://generativelanguage.googleapis.com/v1".to_string())
-    });
-    let provider_enum = provider
-        .as_deref()
-        .and_then(|p| parish_core::config::Provider::from_str_loose(p).ok())
-        .unwrap_or_else(|| parish_core::config::Provider::from_id("google").unwrap_or_default());
-    let api_key = provider_enum
-        .api_key_env_var()
-        .and_then(|var| std::env::var(var).ok())
-        .filter(|s| !s.is_empty());
-    let model = std::env::var("PARISH_CLOUD_MODEL")
-        .ok()
-        .filter(|s| !s.is_empty());
-
-    CloudEnvConfig {
-        provider_name: provider,
-        model_name: model,
-        api_key,
-        base_url: Some(base_url),
-    }
 }
 
 /// `GET /metrics` — returns the current auth-failure counter.
@@ -1619,42 +1679,42 @@ mod tests {
     use super::*;
     use serial_test::serial;
 
-    #[test]
-    fn server_template_loads_user_inference_profiles() {
-        let dir = tempfile::tempdir().unwrap();
-        let user = parish_core::config::user_config::UserConfig {
-            thinking_level: Some(parish_core::config::ThinkingLevel::High),
-            max_output_tokens: Some(321),
-            ..Default::default()
-        };
-        parish_core::config::user_config::save_user_config(dir.path(), &user).unwrap();
-        let (_, mut config) = build_headless_local_config();
-
-        apply_user_inference_profiles_from_dir(&mut config, dir.path()).unwrap();
-
-        let intent = config.inference_profile(parish_core::config::InferenceSubrole::Intent);
-        assert_eq!(
-            intent.thinking_level,
-            parish_core::config::ThinkingLevel::High
-        );
-        assert_eq!(intent.max_output_tokens, 321);
+    fn isolated_client_config(
+        headless_models: bool,
+        project_path: Option<&Path>,
+        root: &Path,
+    ) -> Result<(parish_core::config::ProviderConfig, GameConfig), parish_core::error::ParishError>
+    {
+        build_client_config_runtime_with_user(
+            headless_models,
+            project_path,
+            &root.join("user-parish.toml"),
+            root,
+        )
+        .map(|(provider, config, _, _)| (provider, config))
     }
 
     #[test]
     #[serial(parish_env)]
     fn build_client_and_config_defaults() {
-        // In test env, clear PARISH_PROVIDER to ensure it defaults to "simulator"
+        // Avoid depending on a developer's credential-bearing compiled default.
         unsafe {
-            std::env::remove_var("PARISH_PROVIDER");
+            std::env::set_var("PARISH_PROVIDER", "simulator");
+            std::env::set_var("PARISH_MODEL", "simulator");
             for category in ["DIALOGUE", "SIMULATION", "INTENT", "REACTION"] {
                 std::env::remove_var(format!("PARISH_{category}_PROVIDER"));
                 std::env::remove_var(format!("PARISH_{category}_BASE_URL"));
                 std::env::remove_var(format!("PARISH_{category}_MODEL"));
             }
         }
-        let (_client, config) =
-            build_client_and_config(false, None).expect("default provider config resolves");
+        let temp = tempfile::tempdir().expect("temporary config directory");
+        let (_client, config) = isolated_client_config(false, None, temp.path())
+            .expect("default provider config resolves");
         assert_eq!(config.provider_name, "simulator");
+        unsafe {
+            std::env::remove_var("PARISH_PROVIDER");
+            std::env::remove_var("PARISH_MODEL");
+        }
     }
 
     #[test]
@@ -1662,9 +1722,35 @@ mod tests {
     fn build_client_and_config_applies_category_env_routing() {
         use parish_core::config::InferenceCategory;
 
+        let temp = tempfile::tempdir().expect("temporary config directory");
+        let path = temp.path().join("experiment.toml");
+        std::fs::write(
+            &path,
+            r#"
+schema_version = 2
+
+[inference.providers.gateway]
+display_name = "Gateway"
+default_endpoint = "chat"
+
+[inference.providers.gateway.endpoints.chat]
+inference_base_url = "http://127.0.0.1:8010/v1"
+inference_adapter = "openai-chat-v1"
+discovery_adapter = "none"
+auth_adapter = "none"
+default_reasoning_dialect = "none"
+allow_insecure_http = true
+
+[inference.providers.gateway.endpoints.chat.default_openai_generation_wire]
+output_limit_field = "max-tokens"
+structured_output = ["prompt-validated-json"]
+"#,
+        )
+        .expect("write custom provider config");
+
         // SAFETY: serialised with all tests that mutate Parish provider env.
         unsafe {
-            std::env::set_var("PARISH_PROVIDER", "custom");
+            std::env::set_var("PARISH_PROVIDER", "custom:gateway");
             std::env::set_var("PARISH_BASE_URL", "http://127.0.0.1:8010/v1");
             std::env::set_var("PARISH_MODEL", "dialogue-9b");
             std::env::set_var("PARISH_INTENT_PROVIDER", "simulator");
@@ -1672,8 +1758,8 @@ mod tests {
             std::env::set_var("PARISH_REACTION_PROVIDER", "simulator");
         }
 
-        let (_provider, config) =
-            build_client_and_config(false, None).expect("category provider env resolves");
+        let (_provider, config) = isolated_client_config(false, Some(&path), temp.path())
+            .expect("category provider env resolves");
         for category in [
             InferenceCategory::Intent,
             InferenceCategory::Simulation,
@@ -1685,11 +1771,13 @@ mod tests {
                 "{category:?} must not inherit the dialogue generator"
             );
         }
-        assert!(
-            !config
+        assert_eq!(
+            config
                 .category_provider
-                .contains_key(&InferenceCategory::Dialogue),
-            "dialogue should inherit the measured base provider"
+                .get(&InferenceCategory::Dialogue)
+                .map(String::as_str),
+            Some("custom:gateway"),
+            "the v2 snapshot records the resolved dialogue provider explicitly"
         );
 
         unsafe {
@@ -1715,19 +1803,38 @@ mod tests {
         std::fs::write(
             &path,
             r#"
-[provider]
-name = "custom"
-base_url = "http://127.0.0.1:8010/v1"
-model = "qwen-9b"
+schema_version = 2
 
-[engine.inference.dialogue_generation]
-enable_thinking = false
+[inference]
+active_loadout = "experiment"
+
+[inference.providers.gateway]
+display_name = "Gateway"
+default_endpoint = "chat"
+
+[inference.providers.gateway.endpoints.chat]
+inference_base_url = "http://127.0.0.1:8010/v1"
+inference_adapter = "openai-chat-v1"
+discovery_adapter = "none"
+auth_adapter = "none"
+default_reasoning_dialect = "none"
+allow_insecure_http = true
+
+[inference.providers.gateway.endpoints.chat.default_openai_generation_wire]
+output_limit_field = "max-tokens"
+structured_output = ["prompt-validated-json"]
+
+[inference.loadouts.experiment.default]
+provider = "custom:gateway"
+endpoint = "chat"
+model = "qwen-9b"
+allow_unverified_model = true
 "#,
         )
         .expect("write experiment config");
 
-        let (provider, config) =
-            build_client_and_config(false, Some(&path)).expect("explicit config resolves");
+        let (provider, config) = isolated_client_config(false, Some(&path), temp.path())
+            .expect("explicit config resolves");
         assert_eq!(provider.provider.id(), "custom");
         assert_eq!(config.base_url, "http://127.0.0.1:8010/v1");
         assert_eq!(config.model_name, "qwen-9b");
@@ -1742,8 +1849,9 @@ enable_thinking = false
         use parish_core::config::InferenceCategory;
         use parish_core::ipc::config::local_models;
 
-        let (provider_cfg, config) =
-            build_client_and_config(true, None).expect("headless provider config resolves");
+        let temp = tempfile::tempdir().expect("temporary config directory");
+        let (provider_cfg, config) = isolated_client_config(true, None, temp.path())
+            .expect("headless provider config resolves");
 
         // Base slot → 14B @ :8000.
         assert_eq!(provider_cfg.provider.id(), "vllmmlx");

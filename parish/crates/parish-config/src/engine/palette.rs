@@ -3,7 +3,8 @@
 use serde::Deserialize;
 
 /// Color palette contrast configuration.
-#[derive(Debug, Deserialize, Clone)]
+#[derive(Debug, Deserialize, Clone, schemars::JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct PaletteConfig {
     /// Minimum luminance contrast between foreground and background.
     #[serde(default = "default_min_fg_bg_contrast")]

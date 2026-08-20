@@ -1,4 +1,5 @@
 id = "openai"
+recommended_preset = "recommended"
 display_name = "OpenAI"
 aliases = ["open_ai", "open-ai"]
 kind = "openai-compat"

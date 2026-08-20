@@ -17,7 +17,7 @@
 use crate::client_base::ClientBase;
 use crate::rate_limit::InferenceRateLimiter;
 use crate::strip_json_fence;
-use parish_config::InferenceConfig;
+use parish_config::{InferenceConfig, OutputLimitField, ReasoningDialect};
 use parish_types::ParishError;
 use serde::de::DeserializeOwned;
 use std::time::Duration;
@@ -31,7 +31,7 @@ pub use wire::{GenerateParams, JsonSchemaSpec, ResponseFormat};
 use sse::read_sse_stream;
 use wire::{
     ChatCompletionRequest, ChatCompletionResponse, ChatMessage, ChatTemplateKwargs,
-    DeepSeekThinkingConfig, ReasoningConfig, extract_content,
+    DeepSeekThinkingConfig, ReasoningConfig, extract_complete_content,
 };
 
 /// Builds a `reqwest::Client` with the given timeout, falling back to a default
@@ -46,13 +46,20 @@ use wire::{
 /// `parish_inference::validate` can reuse the same hardened builder rather
 /// than constructing bare `reqwest::Client`s with their own panic surface.
 pub fn build_client_or_fallback(timeout: Duration, label: &'static str) -> reqwest::Client {
-    match reqwest::Client::builder().timeout(timeout).build() {
+    match reqwest::Client::builder()
+        .redirect(reqwest::redirect::Policy::none())
+        .timeout(timeout)
+        .build()
+    {
         Ok(client) => client,
         Err(err) => {
             tracing::warn!(
                 "failed to build {label} reqwest client ({err}); falling back to default client with no timeout",
             );
-            reqwest::Client::new()
+            reqwest::Client::builder()
+                .redirect(reqwest::redirect::Policy::none())
+                .build()
+                .expect("static redirect-disabled reqwest configuration must build")
         }
     }
 }
@@ -77,6 +84,11 @@ pub struct OpenAiClient {
     /// [`OpenAiClient::with_completions_path`] for providers that omit the
     /// `/v1` prefix (e.g. GitHub Models uses `"/chat/completions"`).
     completions_path: String,
+    output_limit_field: OutputLimitField,
+    /// `None` preserves legacy host-based behavior. V2 routes always set an
+    /// explicit registry dialect, including `ReasoningDialect::None`.
+    reasoning_dialect: Option<ReasoningDialect>,
+    service_tier: Option<&'static str>,
 }
 
 impl OpenAiClient {
@@ -113,6 +125,32 @@ impl OpenAiClient {
                 config,
             ),
             completions_path: "/v1/chat/completions".to_string(),
+            output_limit_field: OutputLimitField::MaxTokens,
+            reasoning_dialect: None,
+            service_tier: None,
+        }
+    }
+
+    /// Creates a v2 client from an exact API prefix. The supplied prefix is
+    /// preserved verbatim (apart from a trailing slash), and the relative
+    /// completions resource is appended to it.
+    pub fn new_with_api_prefix(
+        api_prefix: &str,
+        api_key: Option<&str>,
+        config: &InferenceConfig,
+    ) -> Self {
+        Self {
+            base: ClientBase::new_preserving_path(
+                api_prefix,
+                api_key,
+                "OpenAI-compatible v2",
+                "OpenAI-compatible v2 streaming",
+                config,
+            ),
+            completions_path: "/chat/completions".to_string(),
+            output_limit_field: OutputLimitField::MaxTokens,
+            reasoning_dialect: Some(ReasoningDialect::None),
+            service_tier: None,
         }
     }
 
@@ -129,6 +167,18 @@ impl OpenAiClient {
         self
     }
 
+    pub fn with_v2_wire_contract(
+        mut self,
+        output_limit_field: OutputLimitField,
+        reasoning_dialect: ReasoningDialect,
+        service_tier: Option<&'static str>,
+    ) -> Self {
+        self.output_limit_field = output_limit_field;
+        self.reasoning_dialect = Some(reasoning_dialect);
+        self.service_tier = service_tier;
+        self
+    }
+
     /// Attaches an outbound rate limiter, returning the modified client.
     ///
     /// All subsequent `generate*` calls will block on the limiter
@@ -138,6 +188,9 @@ impl OpenAiClient {
         Self {
             base: self.base.with_rate_limit(limiter),
             completions_path: self.completions_path,
+            output_limit_field: self.output_limit_field,
+            reasoning_dialect: self.reasoning_dialect,
+            service_tier: self.service_tier,
         }
     }
 
@@ -148,6 +201,9 @@ impl OpenAiClient {
         Self {
             base: self.base.maybe_with_rate_limit(limiter),
             completions_path: self.completions_path,
+            output_limit_field: self.output_limit_field,
+            reasoning_dialect: self.reasoning_dialect,
+            service_tier: self.service_tier,
         }
     }
 
@@ -193,6 +249,20 @@ impl OpenAiClient {
             .is_some_and(|host| host == "generativelanguage.googleapis.com")
     }
 
+    fn effective_reasoning_dialect(&self) -> ReasoningDialect {
+        self.reasoning_dialect.unwrap_or_else(|| {
+            if self.is_openrouter() {
+                ReasoningDialect::OpenrouterReasoning
+            } else if self.is_deepseek() {
+                ReasoningDialect::DeepseekThinking
+            } else if self.is_google_generative_ai() {
+                ReasoningDialect::GoogleThinkingLevel
+            } else {
+                ReasoningDialect::LocalTemplateToggle
+            }
+        })
+    }
+
     /// Sends a non-streaming chat completion request and returns the response text.
     ///
     /// Builds a messages array from the prompt and optional system message,
@@ -213,7 +283,7 @@ impl OpenAiClient {
             .json()
             .await
             .map_err(|e| ParishError::Network(e.to_string()))?;
-        Ok(extract_content(&completion))
+        extract_complete_content(&completion).map_err(ParishError::Inference)
     }
 
     /// Sends a streaming chat completion request, forwarding tokens as they arrive.
@@ -308,7 +378,7 @@ impl OpenAiClient {
             .json()
             .await
             .map_err(|e| ParishError::Network(e.to_string()))?;
-        let trimmed = extract_content(&completion);
+        let trimmed = extract_complete_content(&completion).map_err(ParishError::Inference)?;
         Ok(strip_json_fence(&trimmed).to_string())
     }
 
@@ -375,8 +445,11 @@ impl OpenAiClient {
             content: prompt,
         });
 
+        let reasoning_dialect = params
+            .reasoning_dialect
+            .unwrap_or_else(|| self.effective_reasoning_dialect());
         let (enable_thinking, chat_template_kwargs, reasoning, thinking, reasoning_effort) =
-            if self.is_openrouter() {
+            if reasoning_dialect == ReasoningDialect::OpenrouterReasoning {
                 let reasoning = params
                     .reasoning_effort
                     .map(|effort| ReasoningConfig {
@@ -402,7 +475,7 @@ impl OpenAiClient {
                         })
                     });
                 (None, None, reasoning, None, None)
-            } else if self.is_deepseek() {
+            } else if reasoning_dialect == ReasoningDialect::DeepseekThinking {
                 let explicit_effort = params.reasoning_effort;
                 let enabled = explicit_effort
                     .is_some_and(|effort| effort != parish_config::ReasoningEffort::None)
@@ -429,21 +502,26 @@ impl OpenAiClient {
                     }
                 });
                 (None, None, None, thinking, reasoning_effort)
-            } else if self.is_google_generative_ai() {
-                // Gemini's OpenAI-compat endpoint accepts a top-level effort.
-                // Gemini 3 cannot disable thinking; clamp provider-neutral levels
-                // above its documented maximum and omit an explicit `none`.
-                let reasoning_effort = params.reasoning_effort.and_then(|effort| match effort {
-                    parish_config::ReasoningEffort::None => None,
-                    parish_config::ReasoningEffort::Minimal => Some("minimal"),
-                    parish_config::ReasoningEffort::Low => Some("low"),
-                    parish_config::ReasoningEffort::Medium => Some("medium"),
-                    parish_config::ReasoningEffort::High
-                    | parish_config::ReasoningEffort::Xhigh
-                    | parish_config::ReasoningEffort::Max => Some("high"),
-                });
+            } else if matches!(
+                reasoning_dialect,
+                ReasoningDialect::GoogleThinkingLevel | ReasoningDialect::OpenaiChatEffort
+            ) {
+                let reasoning_effort =
+                    if self.reasoning_dialect.is_none() && self.is_google_generative_ai() {
+                        params.reasoning_effort.and_then(|effort| match effort {
+                            parish_config::ReasoningEffort::None => None,
+                            parish_config::ReasoningEffort::Minimal => Some("minimal"),
+                            parish_config::ReasoningEffort::Low => Some("low"),
+                            parish_config::ReasoningEffort::Medium => Some("medium"),
+                            parish_config::ReasoningEffort::High
+                            | parish_config::ReasoningEffort::Xhigh
+                            | parish_config::ReasoningEffort::Max => Some("high"),
+                        })
+                    } else {
+                        params.reasoning_effort.map(|effort| effort.as_str())
+                    };
                 (None, None, None, None, reasoning_effort)
-            } else {
+            } else if reasoning_dialect == ReasoningDialect::LocalTemplateToggle {
                 let chat_template_kwargs = params
                     .enable_thinking
                     .map(|enable_thinking| ChatTemplateKwargs { enable_thinking });
@@ -454,13 +532,20 @@ impl OpenAiClient {
                     None,
                     None,
                 )
+            } else {
+                (None, None, None, None, None)
             };
+        let (max_tokens, max_completion_tokens) = match self.output_limit_field {
+            OutputLimitField::MaxTokens => (params.max_tokens, None),
+            OutputLimitField::MaxCompletionTokens => (None, params.max_tokens),
+        };
         ChatCompletionRequest {
             model,
             messages,
             stream,
             response_format,
-            max_tokens: params.max_tokens,
+            max_tokens,
+            max_completion_tokens,
             // Recent Gemini Flash models deprecate sampling controls
             // on the first-party API. Google instructs callers to remove
             // temperature; frequency_penalty is not part of its documented
@@ -484,6 +569,7 @@ impl OpenAiClient {
             reasoning,
             thinking,
             reasoning_effort,
+            service_tier: self.service_tier,
         }
     }
 
@@ -725,31 +811,91 @@ mod tests {
     }
 
     #[test]
+    fn v2_contract_selects_output_field_reasoning_dialect_and_service_tier() {
+        let client = OpenAiClient::new("https://api.example.test/v1", None)
+            .with_completions_path("/chat/completions")
+            .with_v2_wire_contract(
+                OutputLimitField::MaxCompletionTokens,
+                ReasoningDialect::OpenaiChatEffort,
+                Some("priority"),
+            );
+        let request = client.build_request(
+            "model",
+            "hello",
+            None,
+            false,
+            None,
+            GenerateParams {
+                max_tokens: Some(512),
+                reasoning_effort: Some(parish_config::ReasoningEffort::Xhigh),
+                ..GenerateParams::default()
+            },
+        );
+        let value = serde_json::to_value(request).unwrap();
+        assert!(value.get("max_tokens").is_none());
+        assert_eq!(value["max_completion_tokens"], 512);
+        assert_eq!(value["reasoning_effort"], "xhigh");
+        assert_eq!(value["service_tier"], "priority");
+    }
+
+    #[test]
+    fn request_reasoning_dialect_overrides_category_client() {
+        let client = OpenAiClient::new("https://gateway.example/v1", None).with_v2_wire_contract(
+            OutputLimitField::MaxTokens,
+            ReasoningDialect::OpenaiChatEffort,
+            None,
+        );
+        let request = client.build_request(
+            "deepseek-v4-pro",
+            "hello",
+            None,
+            false,
+            None,
+            GenerateParams {
+                reasoning_dialect: Some(ReasoningDialect::DeepseekThinking),
+                reasoning_effort: Some(parish_config::ReasoningEffort::Max),
+                ..GenerateParams::default()
+            },
+        );
+        let value = serde_json::to_value(request).unwrap();
+        assert_eq!(value["thinking"]["type"], "enabled");
+        assert_eq!(value["reasoning_effort"], "max");
+    }
+
+    #[test]
     fn test_chat_completion_response_deserialize() {
-        let json = r#"{"choices":[{"message":{"content":"Hello!"}}]}"#;
+        let json = r#"{"choices":[{"message":{"content":"Hello!"},"finish_reason":"stop"}]}"#;
         let resp: ChatCompletionResponse = serde_json::from_str(json).unwrap();
-        assert_eq!(extract_content(&resp), "Hello!");
+        assert_eq!(extract_complete_content(&resp).unwrap(), "Hello!");
     }
 
     #[test]
     fn test_chat_completion_response_empty_choices() {
         let json = r#"{"choices":[]}"#;
         let resp: ChatCompletionResponse = serde_json::from_str(json).unwrap();
-        assert_eq!(extract_content(&resp), "");
+        assert!(extract_complete_content(&resp).is_err());
     }
 
     #[test]
     fn test_chat_completion_response_null_content() {
-        let json = r#"{"choices":[{"message":{"content":null}}]}"#;
+        let json = r#"{"choices":[{"message":{"content":null},"finish_reason":"stop"}]}"#;
         let resp: ChatCompletionResponse = serde_json::from_str(json).unwrap();
-        assert_eq!(extract_content(&resp), "");
+        assert!(extract_complete_content(&resp).is_err());
     }
 
     #[test]
     fn test_chat_completion_response_missing_fields() {
         let json = r#"{}"#;
         let resp: ChatCompletionResponse = serde_json::from_str(json).unwrap();
-        assert_eq!(extract_content(&resp), "");
+        assert!(extract_complete_content(&resp).is_err());
+    }
+
+    #[test]
+    fn test_chat_completion_response_rejects_length_finish() {
+        let json = r#"{"choices":[{"message":{"content":"partial"},"finish_reason":"length"}]}"#;
+        let resp: ChatCompletionResponse = serde_json::from_str(json).unwrap();
+        let error = extract_complete_content(&resp).unwrap_err();
+        assert!(error.contains("finish_reason=length"), "{error}");
     }
 
     #[test]
@@ -783,6 +929,7 @@ mod tests {
                 assert_eq!(c.choices[0].delta.content.as_deref(), Some("hi"));
             }
             SseData::Done => panic!("expected chunk"),
+            SseData::Malformed(error) => panic!("unexpected malformed event: {error}"),
         }
     }
 
@@ -794,6 +941,7 @@ mod tests {
                 assert_eq!(c.choices[0].delta.content.as_deref(), Some("hi"));
             }
             SseData::Done => panic!("expected chunk"),
+            SseData::Malformed(error) => panic!("unexpected malformed event: {error}"),
         }
     }
 
@@ -838,7 +986,20 @@ mod tests {
 
     #[test]
     fn test_parse_sse_line_invalid_json() {
-        assert!(parse_sse_line("data: {invalid}").is_none());
+        assert!(matches!(
+            parse_sse_line("data: {invalid}"),
+            Some(SseData::Malformed(_))
+        ));
+    }
+
+    #[test]
+    fn test_done_without_stop_is_rejected() {
+        let (token_tx, _token_rx) = tokio::sync::mpsc::channel(1);
+        let mut accumulated = String::from("partial");
+        assert!(matches!(
+            process_sse_line("data: [DONE]", &token_tx, &mut accumulated),
+            crate::SseResult::Error(_)
+        ));
     }
 
     #[test]
@@ -1216,7 +1377,7 @@ mod tests {
             .and(wiremock::matchers::path("/v1/chat/completions"))
             .respond_with(
                 wiremock::ResponseTemplate::new(200).set_body_json(serde_json::json!({
-                    "choices": [{"message": {"content": "Hello!"}}]
+                    "choices": [{"message": {"content": "Hello!"}, "finish_reason": "stop"}]
                 })),
             )
             .mount(&server)
@@ -1265,7 +1426,7 @@ mod tests {
             .and(wiremock::matchers::path("/v1/chat/completions"))
             .respond_with(
                 wiremock::ResponseTemplate::new(200).set_body_json(serde_json::json!({
-                    "choices": [{"message": {"content": "Hello!"}}]
+                    "choices": [{"message": {"content": "Hello!"}, "finish_reason": "stop"}]
                 })),
             )
             .mount(&server)

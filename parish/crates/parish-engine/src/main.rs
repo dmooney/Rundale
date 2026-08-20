@@ -2,10 +2,7 @@ use std::path::{Path, PathBuf};
 
 use anyhow::Result;
 use clap::Parser;
-use parish_engine::config::{
-    CliCategoryOverrides, CliCloudOverrides, CliOverrides, InferenceCategory, ProviderConfig,
-    resolve_category_configs, resolve_cloud_config, resolve_config,
-};
+use parish_engine::config::{InferenceCategory, ProviderConfig};
 use parish_engine::headless;
 use parish_engine::inference::InferenceClients;
 use parish_engine::inference::setup::{self, StdoutProgress};
@@ -13,10 +10,23 @@ use tracing_subscriber::EnvFilter;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
 
+fn keychain_secret(slot: &str) -> Option<String> {
+    keyring::Entry::new(
+        "com.parish.rundale",
+        &parish_core::secret_store::provider_account(slot),
+    )
+    .ok()?
+    .get_password()
+    .ok()
+}
+
 /// Parish — An Irish Living World Text Adventure
 #[derive(Parser, Debug)]
 #[command(name = "parish", version, about)]
 struct Cli {
+    /// Select a named schema-v2 inference loadout.
+    #[arg(long)]
+    loadout: Option<String>,
     /// Run in headless mode (plain stdin/stdout REPL) — this is the default
     #[arg(long)]
     headless: bool,
@@ -27,15 +37,15 @@ struct Cli {
 
     /// LLM provider: ollama (default), lmstudio, openrouter, vllm-mlx, openai, google,
     /// groq, xai, mistral, deepseek, together, nvidia-nim, anthropic, custom, simulator
-    #[arg(long, env = "PARISH_PROVIDER")]
+    #[arg(long)]
     provider: Option<String>,
 
     /// Override the model name (required for non-Ollama providers)
-    #[arg(long, env = "PARISH_MODEL")]
+    #[arg(long)]
     model: Option<String>,
 
     /// Override the API base URL
-    #[arg(long, env = "PARISH_BASE_URL")]
+    #[arg(long)]
     base_url: Option<String>,
 
     /// Path to config file (default: parish.toml)
@@ -50,49 +60,53 @@ struct Cli {
     #[arg(long, env = "PARISH_IMPROV")]
     improv: bool,
 
-    /// Cloud LLM provider for player dialogue: google (default), openai,
-    /// google, groq, xai, mistral, deepseek, together, nvidia-nim, anthropic, custom
-    #[arg(long, env = "PARISH_CLOUD_PROVIDER")]
-    cloud_provider: Option<String>,
-
-    /// Cloud LLM model name (required when cloud provider is set)
-    #[arg(long, env = "PARISH_CLOUD_MODEL")]
-    cloud_model: Option<String>,
-
-    /// Cloud LLM API base URL override
-    #[arg(long, env = "PARISH_CLOUD_BASE_URL")]
-    cloud_base_url: Option<String>,
-
     // --- Per-category provider overrides ---
     /// Dialogue LLM provider override
-    #[arg(long, env = "PARISH_DIALOGUE_PROVIDER")]
+    #[arg(long)]
     dialogue_provider: Option<String>,
     /// Dialogue LLM model override
-    #[arg(long, env = "PARISH_DIALOGUE_MODEL")]
+    #[arg(long)]
     dialogue_model: Option<String>,
     /// Dialogue LLM base URL override
-    #[arg(long, env = "PARISH_DIALOGUE_BASE_URL")]
+    #[arg(long)]
     dialogue_base_url: Option<String>,
 
     /// Simulation LLM provider override
-    #[arg(long, env = "PARISH_SIMULATION_PROVIDER")]
+    #[arg(long)]
     simulation_provider: Option<String>,
     /// Simulation LLM model override
-    #[arg(long, env = "PARISH_SIMULATION_MODEL")]
+    #[arg(long)]
     simulation_model: Option<String>,
     /// Simulation LLM base URL override
-    #[arg(long, env = "PARISH_SIMULATION_BASE_URL")]
+    #[arg(long)]
     simulation_base_url: Option<String>,
 
     /// Intent parsing LLM provider override
-    #[arg(long, env = "PARISH_INTENT_PROVIDER")]
+    #[arg(long)]
     intent_provider: Option<String>,
     /// Intent parsing LLM model override
-    #[arg(long, env = "PARISH_INTENT_MODEL")]
+    #[arg(long)]
     intent_model: Option<String>,
     /// Intent parsing LLM base URL override
-    #[arg(long, env = "PARISH_INTENT_BASE_URL")]
+    #[arg(long)]
     intent_base_url: Option<String>,
+
+    /// Reaction LLM provider override
+    #[arg(long)]
+    reaction_provider: Option<String>,
+    /// Reaction LLM model override
+    #[arg(long)]
+    reaction_model: Option<String>,
+    /// Reaction LLM base URL override
+    #[arg(long)]
+    reaction_base_url: Option<String>,
+
+    #[arg(long, hide = true)]
+    cloud_provider: Option<String>,
+    #[arg(long, hide = true)]
+    cloud_model: Option<String>,
+    #[arg(long, hide = true)]
+    cloud_base_url: Option<String>,
 
     /// Path to a game mod directory (default: auto-detect mods/rundale/)
     #[arg(long, value_name = "DIR", env = "PARISH_MOD")]
@@ -139,14 +153,16 @@ fn setup_tracing() -> tracing_appender::non_blocking::WorkerGuard {
     guard
 }
 
-/// Resolves provider config, cloud config, and per-category configs from CLI.
+/// Resolves the v2 provider routes and per-category clients from CLI.
 struct ResolvedConfigs {
     provider_config: ProviderConfig,
-    cloud_config: Option<parish_engine::config::CloudConfig>,
     category_configs:
         std::collections::HashMap<InferenceCategory, parish_engine::config::CategoryConfig>,
     clients: InferenceClients,
     engine_inference: parish_engine::config::InferenceConfig,
+    snapshot: std::sync::Arc<parish_core::config::ResolvedInferenceSnapshot>,
+    catalog_store: parish_core::config::CatalogStore,
+    catalog_user_data: PathBuf,
 }
 
 async fn resolve_configs(
@@ -155,32 +171,77 @@ async fn resolve_configs(
     ResolvedConfigs,
     parish_engine::inference::client::RuntimeProcesses,
 )> {
-    let config_path = cli.config.as_ref().map(|p| Path::new(p.as_str()));
-    let overrides = CliOverrides {
-        provider: cli.provider.clone(),
-        base_url: cli.base_url.clone(),
-        model: cli.model.clone(),
+    let project_path = cli
+        .config
+        .as_deref()
+        .map(PathBuf::from)
+        .unwrap_or_else(|| PathBuf::from("parish.toml"));
+    let user_data = parish_core::persistence::paths::resolve_user_data_dir(
+        parish_core::persistence::paths::DEFAULT_APP_NAME,
+    );
+    let user_path = parish_core::config::user_config::resolve_user_config_dir().join("parish.toml");
+    let overrides = build_v2_overrides(cli);
+    let catalog = parish_core::config::CatalogStore::for_user_data_dir(&user_data);
+    let (project, _user, runtime) =
+        parish_core::inference_runtime_v2::load_inference_runtime_v2_with_catalog(
+            1,
+            &project_path,
+            &user_path,
+            &overrides,
+            &catalog,
+            &user_data,
+            keychain_secret,
+        )?;
+    let snapshot = runtime.config;
+    let clients = runtime.clients;
+
+    let dialogue = &snapshot.category_routes["dialogue"];
+    let provider = parish_engine::config::Provider::from_str_loose(&dialogue.key.provider_id)
+        .unwrap_or_else(|_| parish_engine::config::Provider::custom());
+    let provider_config = ProviderConfig {
+        provider,
+        base_url: dialogue.inference_base_url.clone(),
+        api_key: dialogue
+            .credential
+            .as_ref()
+            .map(|value| value.expose().to_string()),
+        model: Some(dialogue.key.model_id.clone()),
     };
-    let provider_config = resolve_config(config_path, &overrides)?;
+    let category_configs = snapshot
+        .category_routes
+        .iter()
+        .filter_map(|(name, route)| {
+            let category = match name.as_str() {
+                "dialogue" => InferenceCategory::Dialogue,
+                "simulation" => InferenceCategory::Simulation,
+                "intent" => InferenceCategory::Intent,
+                "reaction" => InferenceCategory::Reaction,
+                _ => return None,
+            };
+            let provider = parish_engine::config::Provider::from_str_loose(&route.key.provider_id)
+                .unwrap_or_else(|_| parish_engine::config::Provider::custom());
+            Some((
+                category,
+                parish_engine::config::CategoryConfig {
+                    provider,
+                    base_url: route.inference_base_url.clone(),
+                    api_key: route
+                        .credential
+                        .as_ref()
+                        .map(|value| value.expose().to_string()),
+                    model: Some(route.key.model_id.clone()),
+                },
+            ))
+        })
+        .collect::<std::collections::HashMap<_, _>>();
 
-    let cloud_overrides = CliCloudOverrides {
-        provider: cli.cloud_provider.clone(),
-        base_url: cli.cloud_base_url.clone(),
-        model: cli.cloud_model.clone(),
-    };
-    let cloud_config_opt = resolve_cloud_config(config_path, &cloud_overrides)?;
-
-    let cli_category_overrides = build_cli_category_overrides(cli);
-    let category_configs = resolve_category_configs(
-        config_path,
-        &provider_config,
-        &cli_category_overrides,
-        &cloud_overrides,
-    )?;
-
-    let (client, model, runtime_processes) = setup_provider(cli, &provider_config).await?;
-
-    let clients = build_inference_clients(&provider_config, &client, &model, &category_configs);
+    let runtime_processes =
+        if dialogue.management_adapter == parish_core::config::ManagementAdapter::Ollama {
+            let (_, _, processes) = setup_provider(cli, &provider_config).await?;
+            processes
+        } else {
+            parish_engine::inference::client::RuntimeProcesses::default()
+        };
 
     for (cat, cfg) in &category_configs {
         let key_status = if cfg.api_key.is_some() {
@@ -198,26 +259,70 @@ async fn resolve_configs(
         );
     }
 
-    let engine_config_path = if let Some(p) = cli.engine_config.as_deref() {
-        PathBuf::from(p)
-    } else {
-        let user_data = parish_core::persistence::paths::resolve_user_data_dir(
-            parish_core::persistence::paths::DEFAULT_APP_NAME,
-        );
-        parish_core::config::resolve_config_path(&user_data)
-    };
-    let engine_config = parish_core::config::load_engine_config(&engine_config_path);
-
     Ok((
         ResolvedConfigs {
             provider_config,
-            cloud_config: cloud_config_opt,
             category_configs,
             clients,
-            engine_inference: engine_config.inference,
+            engine_inference: project.engine.inference,
+            snapshot,
+            catalog_store: catalog,
+            catalog_user_data: user_data,
         },
         runtime_processes,
     ))
+}
+
+fn build_v2_overrides(cli: &Cli) -> parish_core::config::RoutingOverrideSet {
+    use parish_core::config::RoutePatch;
+    let route =
+        |provider: &Option<String>, model: &Option<String>, base: &Option<String>| RoutePatch {
+            provider: provider.clone(),
+            model: model.clone(),
+            inference_base_url: base.clone(),
+            ..RoutePatch::default()
+        };
+    let mut overrides = parish_core::config::routing_overrides_from_env()
+        .unwrap_or_else(|error| panic!("invalid v2 inference environment: {error}"));
+    if cli.loadout.is_some() {
+        overrides.active_loadout = cli.loadout.clone();
+    }
+    overrides.global_cli = route(&cli.provider, &cli.model, &cli.base_url);
+    overrides.category_cli = std::collections::BTreeMap::from([
+        (
+            "dialogue".into(),
+            route(
+                &cli.dialogue_provider,
+                &cli.dialogue_model,
+                &cli.dialogue_base_url,
+            ),
+        ),
+        (
+            "simulation".into(),
+            route(
+                &cli.simulation_provider,
+                &cli.simulation_model,
+                &cli.simulation_base_url,
+            ),
+        ),
+        (
+            "intent".into(),
+            route(
+                &cli.intent_provider,
+                &cli.intent_model,
+                &cli.intent_base_url,
+            ),
+        ),
+        (
+            "reaction".into(),
+            route(
+                &cli.reaction_provider,
+                &cli.reaction_model,
+                &cli.reaction_base_url,
+            ),
+        ),
+    ]);
+    overrides
 }
 
 /// Loads the game mod from CLI path or auto-detect.
@@ -244,9 +349,27 @@ fn load_game_mod(cli: &Cli) -> Option<parish_core::game_mod::GameMod> {
 }
 
 #[tokio::main]
-async fn main() -> Result<()> {
+async fn main() {
+    if let Err(error) = run_main().await {
+        eprintln!("{error:#}");
+        let config_error = error.chain().any(|cause| {
+            cause
+                .downcast_ref::<parish_core::error::ParishError>()
+                .is_some_and(|error| matches!(error, parish_core::error::ParishError::Config(_)))
+        });
+        std::process::exit(if config_error { 78 } else { 1 });
+    }
+}
+
+async fn run_main() -> Result<()> {
     dotenvy::dotenv().ok();
     let cli = Cli::parse();
+    if cli.cloud_provider.is_some() || cli.cloud_model.is_some() || cli.cloud_base_url.is_some() {
+        return Err(parish_core::error::ParishError::Config(
+            "--cloud-provider/--cloud-model/--cloud-base-url were removed by configuration schema v2; use --loadout or category route overrides".into(),
+        )
+        .into());
+    }
 
     let game_mod = load_game_mod(&cli);
 
@@ -267,12 +390,14 @@ async fn main() -> Result<()> {
     let result = headless::run_headless(
         cfg.clients.clone(),
         &cfg.provider_config,
-        cfg.cloud_config.as_ref(),
         &cfg.category_configs,
         cli.improv,
         game_mod,
         Some(headless_data_dir),
         cfg.engine_inference,
+        cfg.snapshot,
+        cfg.catalog_store,
+        cfg.catalog_user_data,
         script_mode,
         cli.no_inference_log,
     )
@@ -312,59 +437,6 @@ async fn setup_provider(
     Ok((client, model, process))
 }
 
-/// Builds the per-category inference routing struct from base and category configs.
-///
-/// For categories without an explicit override, falls back to the base
-/// provider's preset model for that role when the preset differs from the
-/// base model. This way, setting only `PARISH_PROVIDER=anthropic` (no
-/// per-category env vars) routes Dialogue → Opus, Simulation/Reaction →
-/// Sonnet, Intent → Haiku — even though `category_configs` is empty.
-fn build_inference_clients(
-    base_provider_config: &parish_engine::config::ProviderConfig,
-    base_client: &parish_engine::inference::AnyClient,
-    base_model: &str,
-    category_configs: &std::collections::HashMap<
-        InferenceCategory,
-        parish_engine::config::CategoryConfig,
-    >,
-) -> InferenceClients {
-    let mut overrides = std::collections::HashMap::new();
-    let inference_cfg = parish_engine::config::InferenceConfig::default();
-    for (category, cfg) in category_configs {
-        let client = parish_engine::inference::build_client(
-            &cfg.provider,
-            &cfg.base_url,
-            cfg.api_key.as_deref(),
-            &inference_cfg,
-        );
-        let model = cfg.model.clone().unwrap_or_else(|| base_model.to_string());
-        overrides.insert(*category, (client, model));
-    }
-
-    // Fill in per-role presets for categories without explicit overrides.
-    // The override reuses the base client (same provider/url/key) but
-    // points the category at the per-role preset model.
-    //
-    // Skipped for Ollama: auto-setup pulls a single hardware-matched model
-    // and the static qwen3 preset would route every role away from it.
-    // Letting these categories fall through to `base_model` keeps every
-    // request on the model that is actually on disk.
-    if base_provider_config.provider.id() != "ollama" {
-        for category in InferenceCategory::ALL {
-            if overrides.contains_key(&category) {
-                continue;
-            }
-            if let Some(preset) = base_provider_config.provider.preset_model(category)
-                && preset != base_model
-            {
-                overrides.insert(category, (base_client.clone(), preset.to_string()));
-            }
-        }
-    }
-
-    InferenceClients::new(base_client.clone(), base_model.to_string(), overrides)
-}
-
 /// Resolves the active mod data directory (containing `world.json` + `npcs.json`)
 /// once at startup.
 ///
@@ -398,43 +470,4 @@ fn find_data_dir() -> PathBuf {
         }
     }
     PathBuf::from(MOD_REL)
-}
-
-/// Builds per-category CLI overrides from the parsed CLI arguments.
-fn build_cli_category_overrides(cli: &Cli) -> CliCategoryOverrides {
-    let mut categories = std::collections::HashMap::new();
-
-    for (name, provider, base_url, model) in [
-        (
-            "dialogue",
-            &cli.dialogue_provider,
-            &cli.dialogue_base_url,
-            &cli.dialogue_model,
-        ),
-        (
-            "simulation",
-            &cli.simulation_provider,
-            &cli.simulation_base_url,
-            &cli.simulation_model,
-        ),
-        (
-            "intent",
-            &cli.intent_provider,
-            &cli.intent_base_url,
-            &cli.intent_model,
-        ),
-    ] {
-        if provider.is_some() || base_url.is_some() || model.is_some() {
-            categories.insert(
-                name.to_string(),
-                CliOverrides {
-                    provider: provider.clone(),
-                    base_url: base_url.clone(),
-                    model: model.clone(),
-                },
-            );
-        }
-    }
-
-    CliCategoryOverrides { categories }
 }

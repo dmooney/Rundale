@@ -62,6 +62,26 @@ fn streamed_text(events: &[(String, serde_json::Value)]) -> String {
         .collect()
 }
 
+fn assert_rejected_with_safe_recovery(events: &[(String, serde_json::Value)]) {
+    assert!(streamed_text(events).is_empty());
+    let terminal = events
+        .iter()
+        .find(|(name, _)| name == "stream-turn-end")
+        .map(|(_, payload)| payload)
+        .expect("rejected candidate should terminate the stream");
+    assert_eq!(
+        terminal.get("status").and_then(serde_json::Value::as_str),
+        Some("failed")
+    );
+    assert_eq!(
+        terminal
+            .get("recovery_message")
+            .and_then(serde_json::Value::as_str),
+        Some(parish_core::game_loop::npc_turn::DIALOGUE_RETRY_MESSAGE)
+    );
+    assert!(terminal.get("final_text").is_none());
+}
+
 fn candidate(dialogue: &str) -> String {
     serde_json::json!({
         "dialogue": dialogue,
@@ -73,7 +93,7 @@ fn candidate(dialogue: &str) -> String {
 }
 
 #[test]
-fn exact_issue_completion_is_replaced_before_real_loop_ui_and_state_effects() {
+fn exact_issue_completion_is_rejected_before_real_loop_ui_and_state_effects() {
     let (mut harness, speaker_id, speaker) = harness_with_priest();
     let original_mood = harness
         .app
@@ -93,22 +113,15 @@ fn exact_issue_completion_is_replaced_before_real_loop_ui_and_state_effects() {
     harness.mock().push_json_for(&speaker, bad_candidate);
 
     let events = harness.execute_via_real_loop(&format!("talk to {speaker} about {ISSUE_INPUT}"));
-    let rendered = streamed_text(&events);
     let serialized = serde_json::to_string(&events).expect("UI events serialize");
 
-    for required in ["Peig Hannigan", "Aiden Carney", "work", "lodging"] {
-        assert!(
-            rendered.contains(required),
-            "missing {required}: {rendered}"
-        );
-    }
+    assert_rejected_with_safe_recovery(&events);
     for rejected in [BAD_REPLY, "offers a room key", "Start work at the rectory"] {
         assert!(
             !serialized.contains(rejected),
             "candidate escaped: {rejected}"
         );
     }
-    assert!(rendered.contains("cannot promise"));
     assert_eq!(
         harness.app.npc_manager.get(speaker_id).unwrap().mood,
         original_mood
@@ -140,7 +153,7 @@ fn complete_noncommittal_completion_survives_the_real_loop() {
 }
 
 #[test]
-fn exact_work_referral_non_answer_is_grounded_in_real_loop_ui_without_task_state() {
+fn exact_work_referral_non_answer_is_rejected_without_task_state() {
     let (mut harness, _speaker_id, speaker) = harness_with_priest();
     let tasks_before = harness.app.world.player_progress.tasks().len();
     harness.mock().push_json_for(
@@ -156,12 +169,9 @@ fn exact_work_referral_non_answer_is_grounded_in_real_loop_ui_without_task_state
 
     let events =
         harness.execute_via_real_loop(&format!("talk to {speaker} about {WORK_REFERRAL_INPUT}"));
-    let rendered = streamed_text(&events);
     let serialized = serde_json::to_string(&events).expect("UI events serialize");
 
-    assert!(rendered.contains("Siobhan Murphy"), "{rendered}");
-    assert!(rendered.contains("Farmer at Murphy's Farm"), "{rendered}");
-    assert!(rendered.contains("cannot say"), "{rendered}");
+    assert_rejected_with_safe_recovery(&events);
     assert!(!serialized.contains("Invent a job"), "{serialized}");
     assert!(!serialized.contains("shrugs"), "{serialized}");
     assert_eq!(
@@ -171,7 +181,7 @@ fn exact_work_referral_non_answer_is_grounded_in_real_loop_ui_without_task_state
 }
 
 #[test]
-fn exact_declarative_work_referral_gets_grounded_real_loop_answer() {
+fn exact_declarative_work_referral_omission_is_rejected() {
     let input = "I came to Kilteevan because I need honest work. Tell me plainly which farmer or tradesperson I should ask for a task today.";
     let (mut harness, _speaker_id, speaker) = harness_with_priest();
     harness.mock().push_json_for(
@@ -180,10 +190,6 @@ fn exact_declarative_work_referral_gets_grounded_real_loop_answer() {
     );
 
     let events = harness.execute_via_real_loop(&format!("talk to {speaker} about {input}"));
-    let rendered = streamed_text(&events);
-
-    assert!(rendered.contains("Siobhan Murphy"), "{rendered}");
-    assert!(rendered.contains("Farmer at Murphy's Farm"), "{rendered}");
-    assert!(rendered.contains("cannot say"), "{rendered}");
+    assert_rejected_with_safe_recovery(&events);
     assert!(harness.app.world.player_progress.is_empty());
 }

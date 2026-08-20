@@ -5,7 +5,8 @@ use crate::provider::InferenceCategory;
 use serde::Deserialize;
 
 /// LLM inference timeouts.
-#[derive(Debug, Deserialize, Clone)]
+#[derive(Debug, Deserialize, Clone, schemars::JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct InferenceConfig {
     /// Non-streaming request timeout in seconds.
     #[serde(default = "default_timeout_secs")]
@@ -71,7 +72,8 @@ impl Default for InferenceConfig {
 }
 
 /// Generation settings for player-facing Tier-1 dialogue.
-#[derive(Debug, Deserialize, Clone, Copy)]
+#[derive(Debug, Deserialize, Clone, Copy, schemars::JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct DialogueGenerationConfig {
     /// Maximum completion-token budget.
     #[serde(default = "default_dialogue_max_tokens")]
@@ -122,7 +124,9 @@ impl DialogueGenerationConfig {
 }
 
 /// Provider-neutral reasoning effort carried by measured dialogue profiles.
-#[derive(Debug, Deserialize, serde::Serialize, Clone, Copy, PartialEq, Eq)]
+#[derive(
+    Debug, Deserialize, serde::Serialize, Clone, Copy, PartialEq, Eq, schemars::JsonSchema,
+)]
 #[serde(rename_all = "lowercase")]
 pub enum ReasoningEffort {
     None,
@@ -219,7 +223,8 @@ fn default_log_to_disk() -> bool {
 /// per_minute = 20
 /// burst = 4
 /// ```
-#[derive(Debug, Default, Deserialize, Clone, Copy)]
+#[derive(Debug, Default, Deserialize, Clone, Copy, schemars::JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct RateLimitConfig {
     /// Default rate limit applied to the base provider client.
     /// Categories without an explicit override share this limiter.
@@ -261,7 +266,8 @@ impl RateLimitConfig {
 /// Implements a token-bucket / GCRA model: up to `burst` requests may
 /// be issued back-to-back, after which new requests are admitted at
 /// `per_minute / 60` per second until the bucket refills.
-#[derive(Debug, Deserialize, Clone, Copy)]
+#[derive(Debug, Deserialize, Clone, Copy, schemars::JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct CategoryRateLimit {
     /// Sustained rate: maximum number of requests admitted per minute.
     /// Must be greater than zero — a value of zero disables the limiter.
