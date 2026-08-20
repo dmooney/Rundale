@@ -1433,8 +1433,11 @@ model = "toml-model"
             google.preset_model(InferenceCategory::Dialogue),
             Some("gemini-3.7-flash"),
         );
-        let arr = google.preset_models();
-        assert!(arr.iter().any(|m| m.is_some()));
+        assert_eq!(
+            google.preset_models(),
+            [Some("gemini-3.7-flash"); 4],
+            "the recommended Google preset must not diverge by runtime: some runtimes inherit the base model while others materialize every category preset"
+        );
 
         let openrouter = registry().get("openrouter").unwrap();
         assert_eq!(

@@ -306,12 +306,24 @@ pub async fn handle_set_provider_config(
     let provider = Provider::from_str_loose(&args.provider)
         .map_err(|_| ByokError::UnknownProvider(args.provider.clone()))?;
 
-    let provider_name = args.provider.to_lowercase();
-    let selected_model = args.model.clone().or_else(|| {
-        provider
-            .preset_model(crate::config::InferenceCategory::Dialogue)
-            .map(str::to_string)
-    });
+    // Persist the registry's canonical id, never a user-supplied alias such as
+    // `gemini`; preset lookup and credential slots must have one stable identity.
+    let provider_name = provider.id().to_string();
+    let requested_model = args
+        .model
+        .as_deref()
+        .map(str::trim)
+        .filter(|model| !model.is_empty())
+        .map(str::to_string);
+    let recommended_model = provider
+        .preset_model(crate::config::InferenceCategory::Dialogue)
+        .map(str::to_string);
+    // The recommended preset is a provider default, not a user pin. Omitting it
+    // from the v2 route lets a future authored promotion take effect.
+    let selected_model = requested_model
+        .as_ref()
+        .filter(|model| Some(model.as_str()) != recommended_model.as_deref())
+        .cloned();
 
     // Providers with needs_base_url_from_user require an explicit, non-empty
     // base URL — check both None and "" since callers may send either.
@@ -1056,6 +1068,12 @@ mod tests {
         // user_config TOML has provider but NOT api_key.
         let body = std::fs::read_to_string(dir.path().join("parish.toml")).unwrap();
         assert!(body.contains("provider = \"anthropic\""));
+        assert!(
+            !body
+                .lines()
+                .any(|line| line.trim_start().starts_with("model =")),
+            "the recommended model is a moving default, not a persisted pin: {body}"
+        );
         assert!(!body.contains("api_key"));
         // Onboarding sentinel exists.
         assert!(dir.path().join(".onboarded").exists());
