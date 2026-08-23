@@ -36,23 +36,94 @@ use std::sync::Arc;
 fn parse_canned_npc_response(
     raw_response: String,
     fallback_mood: String,
-) -> crate::npc::NpcStreamResponse {
-    let parsed = crate::npc::parse_npc_stream_response(&raw_response);
+) -> (
+    crate::npc::NpcStreamResponse,
+    crate::npc::NpcResponseParseDisposition,
+) {
+    let (parsed, disposition) =
+        crate::npc::parse_npc_stream_response_with_disposition(&raw_response);
     if parsed.metadata.is_some() {
-        return parsed;
+        return (parsed, disposition);
     }
 
-    crate::npc::NpcStreamResponse {
-        dialogue: raw_response,
-        metadata: Some(crate::npc::NpcMetadata {
-            action: "responds".to_string(),
-            mood: fallback_mood,
-            internal_thought: None,
-            language_hints: Vec::new(),
-            mentioned_people: Vec::new(),
-            assigned_task: None,
-        }),
+    let disposition = if disposition == crate::npc::NpcResponseParseDisposition::RawText {
+        // `add_canned_response` is a trusted test API equivalent to
+        // `MockClient::push_for`, which wraps plain dialogue in a complete JSON
+        // envelope. Preserve that contract while retaining recovery status for
+        // malformed JSON fixtures.
+        crate::npc::NpcResponseParseDisposition::FullJson
+    } else {
+        disposition
+    };
+    (
+        crate::npc::NpcStreamResponse {
+            dialogue: raw_response,
+            metadata: Some(crate::npc::NpcMetadata {
+                action: "responds".to_string(),
+                mood: fallback_mood,
+                internal_thought: None,
+                language_hints: Vec::new(),
+                mentioned_people: Vec::new(),
+                assigned_task: None,
+            }),
+        },
+        disposition,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn apply_legacy_canned_turn(
+    app: &mut App,
+    conversation: &mut parish_core::ipc::ConversationRuntimeState,
+    speaker_id: NpcId,
+    response: &crate::npc::NpcStreamResponse,
+    parse_disposition: crate::npc::NpcResponseParseDisposition,
+    player_input: &str,
+    player_said_for_journal: &str,
+    speaker_name: &str,
+) -> parish_core::game_session::DialogueTurnOutcome {
+    let location = app.world.player_location;
+    conversation.sync_location(location);
+    let mut grounding = parish_core::game_session::dialogue_grounding_snapshot(
+        &app.world,
+        &app.npc_manager,
+        speaker_id,
+    );
+    conversation.dialogue_referents.observe_player_input(
+        player_input,
+        &grounding.known_person_names,
+        &grounding.known_location_names,
+        grounding.player_name.as_deref(),
+    );
+    grounding.referent_context = conversation.dialogue_referents.clone();
+    grounding.prior_openers = conversation.seen_openers_this_location.clone();
+    grounding.dialogue_obligations =
+        crate::npc::derive_dialogue_obligations(player_input, &grounding.known_person_names);
+    let language = app.language_settings();
+    let game_time = app.world.clock.now();
+    let outcome = parish_core::game_session::apply_npc_dialogue_turn_with_validation(
+        &mut app.world,
+        &mut app.npc_manager,
+        speaker_id,
+        response,
+        parse_disposition,
+        &grounding,
+        crate::npc::DialogueValidationPolicy::default(),
+        player_input,
+        player_said_for_journal,
+        game_time,
+        location,
+        speaker_name,
+        speaker_name,
+        None,
+        &[],
+        &language,
+        &app.flags,
+    );
+    if outcome.accepted_candidate {
+        conversation.record_opener(crate::npc::extract_normalized_opener(&outcome.display_text));
     }
+    outcome
 }
 
 /// The result of executing a command through the test harness.
@@ -145,6 +216,10 @@ pub struct GameTestHarness {
     /// `seen_openers_this_location` accumulates across turns (#1492).
     pub(crate) real_loop_conversation:
         std::sync::Arc<tokio::sync::Mutex<parish_core::ipc::ConversationRuntimeState>>,
+    /// Location-scoped dialogue context for the synchronous legacy harness.
+    /// Kept separate from `real_loop_conversation` so differential tests can
+    /// execute both paths from independent runtime state.
+    legacy_conversation: parish_core::ipc::ConversationRuntimeState,
     /// When true, [`Self::execute`] also runs the real `game_loop` on a
     /// rolled-back copy of the pre-state and records divergences to
     /// `shadow_ledger`. Seeded from the `PARISH_HARNESS_SHADOW` env var at
@@ -314,6 +389,7 @@ impl GameTestHarness {
             real_loop_conversation: std::sync::Arc::new(tokio::sync::Mutex::new(
                 parish_core::ipc::ConversationRuntimeState::new(),
             )),
+            legacy_conversation: parish_core::ipc::ConversationRuntimeState::new(),
             shadow_enabled: crate::shadow::is_enabled(),
             shadow_ledger: crate::shadow::ledger_path(),
             shadow_case: crate::shadow::case_label(),
@@ -853,7 +929,7 @@ impl GameTestHarness {
                 CommandEffect::NewGame => {
                     return self.handle_new_game_effect();
                 }
-                CommandEffect::RebuildInference | CommandEffect::RebuildCloudClient => {
+                CommandEffect::RebuildInference => {
                     // No-op in test mode — no real inference clients
                 }
                 CommandEffect::SaveFlags => {
@@ -1112,30 +1188,37 @@ impl GameTestHarness {
             };
         };
 
-        let Ok(world) = parish_core::game_mod::world_state_from_mod(gm) else {
+        let Ok(mut world) = parish_core::game_mod::world_state_from_mod(gm) else {
             return ActionResult::SystemCommand {
                 response: "New game failed: failed to load world state from mod.".to_string(),
             };
         };
-        self.app.world = world;
-
         let npcs_path = gm.npcs_path();
         if !npcs_path.exists() {
             return ActionResult::SystemCommand {
                 response: "New game failed: could not find NPCs data file.".to_string(),
             };
         }
-        let Ok(mgr) = NpcManager::load_from_file(&npcs_path) else {
+        let Ok(mut mgr) = NpcManager::load_from_file(&npcs_path) else {
             return ActionResult::SystemCommand {
                 response: "New game failed: failed to load NPCs from mod.".to_string(),
             };
         };
+        mgr.assign_tiers(&world, &[]);
+        world.log("New game started.".to_string());
+
+        // Everything above is fallible preparation. Publish the complete
+        // replacement and its fresh runtime-only conversation contexts as one
+        // infallible seam so no referent/opener state crosses new-game.
+        self.app.world = world;
         self.app.npc_manager = mgr;
         self.app.game_mod = game_mod;
-        self.app.npc_manager.assign_tiers(&self.app.world, &[]);
+        self.legacy_conversation = parish_core::ipc::ConversationRuntimeState::new();
+        self.real_loop_conversation = std::sync::Arc::new(tokio::sync::Mutex::new(
+            parish_core::ipc::ConversationRuntimeState::new(),
+        ));
 
         let msg = "New game started.".to_string();
-        self.app.world.log(msg.clone());
         ActionResult::SystemCommand { response: msg }
     }
 
@@ -1472,32 +1555,24 @@ impl GameTestHarness {
                 .get(speaker_id)
                 .map(|npc| npc.mood.clone())
                 .unwrap_or_default();
-            let response = parse_canned_npc_response(responses.remove(0), fallback_mood);
-            let game_time = self.app.world.clock.now();
+            let (response, parse_disposition) =
+                parse_canned_npc_response(responses.remove(0), fallback_mood);
             // Shared per-turn pipeline (#1172 / #1173): run the same five steps
             // as every other backend. Previously this addressed path only did
             // name detection + Tier-1 apply, silently dropping the
             // conversation-log record, witness memories and the
             // `DialogueOccurred` publish — the exact harness/headless drift the
             // consolidation removes.
-            let location = self.app.world.player_location;
             let player_line = strip_dialogue_verb(text);
-            let language = self.app.language_settings();
-            let outcome = parish_core::game_session::apply_npc_dialogue_turn(
-                &mut self.app.world,
-                &mut self.app.npc_manager,
+            let outcome = apply_legacy_canned_turn(
+                &mut self.app,
+                &mut self.legacy_conversation,
                 speaker_id,
                 &response,
+                parse_disposition,
                 text,
                 &player_line,
-                game_time,
-                location,
                 &name,
-                &name,
-                None,
-                &[],
-                &language,
-                &self.app.flags,
             );
             for event in outcome.debug_events {
                 self.app.debug_event(event);
@@ -1505,9 +1580,11 @@ impl GameTestHarness {
 
             // Log + surface the guarded (#1228) + capped (#1224) text, identical
             // to what was stored in the conversation log and event bus.
-            self.app
-                .world
-                .log(format!("{}: {}", name, outcome.display_text));
+            if outcome.accepted_candidate {
+                self.app
+                    .world
+                    .log(format!("{}: {}", name, outcome.display_text));
+            }
             return ActionResult::NpcResponse {
                 npc: name,
                 dialogue: outcome.display_text,
@@ -1676,8 +1753,7 @@ impl GameTestHarness {
             return None;
         }
 
-        let response = parse_canned_npc_response(responses.remove(0), mood);
-        let game_time = self.app.world.clock.now();
+        let (response, parse_disposition) = parse_canned_npc_response(responses.remove(0), mood);
 
         // Build a parsed or synthetic NPC response and run it through the memory pipeline.
         // Shared per-turn pipeline (#1172 / #1173): name detection, Tier-1
@@ -1685,24 +1761,16 @@ impl GameTestHarness {
         // `DialogueOccurred` publish — one definition for every backend
         // (`parish_core::game_session::apply_npc_dialogue_turn`). The player
         // line is verb-stripped for the journal entry.
-        let location = self.app.world.player_location;
         let player_line = strip_dialogue_verb(text);
-        let language = self.app.language_settings();
-        let outcome = parish_core::game_session::apply_npc_dialogue_turn(
-            &mut self.app.world,
-            &mut self.app.npc_manager,
+        let outcome = apply_legacy_canned_turn(
+            &mut self.app,
+            &mut self.legacy_conversation,
             npc_id,
             &response,
+            parse_disposition,
             text,
             &player_line,
-            game_time,
-            location,
             &name,
-            &name,
-            None,
-            &[],
-            &language,
-            &self.app.flags,
         );
         for event in outcome.debug_events {
             self.app.debug_event(event);
@@ -1710,9 +1778,11 @@ impl GameTestHarness {
 
         // Log + surface the guarded (#1228) + capped (#1224) text, identical to
         // what was stored in the conversation log and event bus.
-        self.app
-            .world
-            .log(format!("{}: {}", name, outcome.display_text));
+        if outcome.accepted_candidate {
+            self.app
+                .world
+                .log(format!("{}: {}", name, outcome.display_text));
+        }
         Some(ActionResult::NpcResponse {
             npc: name,
             dialogue: outcome.display_text,
@@ -1946,6 +2016,105 @@ mod tests {
         let h = GameTestHarness::new();
         assert_eq!(h.player_location(), "Kilteevan Village");
         assert_eq!(h.location_id(), DEFAULT_START_LOCATION);
+    }
+
+    #[test]
+    fn successful_new_game_clears_both_conversation_runtime_contexts() {
+        let mut h = GameTestHarness::new();
+        let location = h.app.world.player_location;
+        let known_people: Vec<String> = h
+            .app
+            .npc_manager
+            .all_npcs()
+            .map(|npc| npc.name.clone())
+            .collect();
+        let known_places: Vec<String> = h
+            .app
+            .world
+            .graph
+            .location_ids()
+            .into_iter()
+            .filter_map(|id| h.app.world.graph.get(id).map(|place| place.name.clone()))
+            .collect();
+
+        h.legacy_conversation.sync_location(location);
+        h.legacy_conversation
+            .dialogue_referents
+            .observe_player_input(
+                "Have you seen Cormac Finn?",
+                &known_people,
+                &known_places,
+                None,
+            );
+        h.legacy_conversation
+            .record_opener("a stale opener".to_string());
+        {
+            let mut real = h.real_loop_conversation.try_lock().unwrap();
+            real.sync_location(location);
+            real.dialogue_referents.observe_player_input(
+                "Have you seen Cormac Finn?",
+                &known_people,
+                &known_places,
+                None,
+            );
+            real.record_opener("a stale opener".to_string());
+        }
+
+        assert!(matches!(
+            h.handle_new_game_effect(),
+            ActionResult::SystemCommand { .. }
+        ));
+        assert_eq!(h.app.world.player_location, location);
+        assert!(h.legacy_conversation.location.is_none());
+        assert!(h.legacy_conversation.seen_openers_this_location.is_empty());
+        assert_eq!(
+            h.legacy_conversation.dialogue_referents,
+            crate::npc::DialogueReferentContext::default()
+        );
+        let real = h.real_loop_conversation.try_lock().unwrap();
+        assert!(real.location.is_none());
+        assert!(real.seen_openers_this_location.is_empty());
+        assert_eq!(
+            real.dialogue_referents,
+            crate::npc::DialogueReferentContext::default()
+        );
+    }
+
+    #[test]
+    fn rejected_legacy_canned_turn_does_not_mutate_text_log() {
+        let mut h = GameTestHarness::new();
+        let location = h.app.world.player_location;
+        let speaker_id = h
+            .app
+            .npc_manager
+            .all_npcs()
+            .find(|npc| npc.name == "Peig Hannigan")
+            .map(|npc| npc.id)
+            .expect("Rundale contains Peig Hannigan");
+        h.app
+            .npc_manager
+            .get_mut(speaker_id)
+            .unwrap()
+            .set_location_and_state(location, crate::npc::types::NpcState::Present);
+        h.add_canned_response(
+            "Peig Hannigan",
+            &serde_json::json!({
+                "dialogue": "Council says the planning board has set tongues.",
+                "action": "waves a notice",
+                "mood": "delighted",
+                "assigned_task": "Attend the agricultural show committee"
+            })
+            .to_string(),
+        );
+        let text_log_before = h.app.world.text_log.clone();
+
+        let result = h.handle_npc_interaction_for(
+            "talk to Peig Hannigan about the planning board",
+            speaker_id,
+        );
+
+        assert!(matches!(result, ActionResult::NpcResponse { .. }));
+        assert_eq!(h.app.world.text_log, text_log_before);
     }
 
     #[test]
@@ -2487,7 +2656,7 @@ mod tests {
     }
 
     #[test]
-    fn canned_npc_response_declines_invented_titled_landlord() {
+    fn canned_npc_response_rejects_invented_titled_landlord_without_display_effect() {
         let mut h = GameTestHarness::new();
         let moved = h.execute("go to the forge");
         assert!(matches!(moved, ActionResult::Moved { .. }), "{moved:?}");
@@ -2506,7 +2675,10 @@ mod tests {
 
         assert_eq!(npc, "Colm Gallagher");
         let lower = dialogue.to_lowercase();
-        assert_eq!(dialogue, parish_core::npc::INVALID_DIALOGUE_FALLBACK);
+        assert!(
+            dialogue.is_empty(),
+            "rejected candidate must stay quarantined"
+        );
         assert!(!lower.contains("lord fitzwilliam"), "{dialogue}");
         assert!(!lower.contains("owns most of the land"), "{dialogue}");
     }
@@ -3253,6 +3425,7 @@ mod tests {
             real_loop_conversation: std::sync::Arc::new(tokio::sync::Mutex::new(
                 parish_core::ipc::ConversationRuntimeState::new(),
             )),
+            legacy_conversation: parish_core::ipc::ConversationRuntimeState::new(),
             shadow_enabled: false,
             shadow_ledger: crate::shadow::ledger_path(),
             shadow_case: "test".to_string(),

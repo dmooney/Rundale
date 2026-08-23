@@ -4,7 +4,8 @@
 use serde::Deserialize;
 
 /// World graph tuning parameters.
-#[derive(Debug, Deserialize, Clone)]
+#[derive(Debug, Deserialize, Clone, schemars::JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct WorldConfig {
     /// Minimum Jaro-Winkler similarity (0.0–1.0) for fuzzy location name matching.
     ///
@@ -30,5 +31,6 @@ fn default_fuzzy_threshold() -> f64 {
 /// Currently empty — reserved for future save-system knobs (e.g. compaction,
 /// autosnap interval). The `[engine.persistence]` table is accepted for
 /// backward compatibility but has no effect.
-#[derive(Debug, Default, Deserialize, Clone)]
+#[derive(Debug, Default, Deserialize, Clone, schemars::JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct PersistenceConfig {}

@@ -1,4 +1,5 @@
 id = "lmstudio"
+recommended_preset = "recommended"
 display_name = "LM Studio"
 aliases = ["lm-studio", "lm_studio"]
 kind = "local"

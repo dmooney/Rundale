@@ -7,7 +7,7 @@ use parish_core::npc::NpcId;
 use parish_core::npc::types::NpcState;
 use parish_engine::testing::GameTestHarness;
 
-const SAFE_FALLBACK: &str = parish_core::npc::INVALID_DIALOGUE_FALLBACK;
+const REJECTED_DISPLAY: &str = "";
 
 fn harness_with_speaker(name: &str) -> (GameTestHarness, NpcId, String) {
     let mut harness = GameTestHarness::new();
@@ -79,6 +79,21 @@ fn force_turn(harness: &mut GameTestHarness, speaker: &str, input: &str, reply: 
         !serialized.contains(reply),
         "rejected provider candidate must never enter UI events: {serialized}"
     );
+    let terminal = events
+        .iter()
+        .find(|(name, _)| name == "stream-turn-end")
+        .map(|(_, payload)| payload)
+        .expect("rejected candidate should terminate the stream");
+    assert_eq!(
+        terminal.get("status").and_then(serde_json::Value::as_str),
+        Some("failed")
+    );
+    assert_eq!(
+        terminal
+            .get("recovery_message")
+            .and_then(serde_json::Value::as_str),
+        Some(parish_core::game_loop::npc_turn::DIALOGUE_RETRY_MESSAGE)
+    );
     rendered
 }
 
@@ -101,7 +116,7 @@ fn cormac_and_ruined_abbey_followups_remain_quarantined_across_turns() {
             "Have you seen my cousin Cormac Finn?",
             "Aye, I've seen yer cousin. He was here earlier."
         ),
-        SAFE_FALLBACK
+        REJECTED_DISPLAY
     );
     assert_eq!(
         force_turn(
@@ -110,7 +125,7 @@ fn cormac_and_ruined_abbey_followups_remain_quarantined_across_turns() {
             "Where did he go?",
             "He made for the crossroads, as if in a hurry."
         ),
-        SAFE_FALLBACK
+        REJECTED_DISPLAY
     );
 
     harness.mock().push_json_for(
@@ -134,7 +149,7 @@ fn cormac_and_ruined_abbey_followups_remain_quarantined_across_turns() {
             "How do I reach it?",
             "The ruins are but a walk to the south past the old church; keep your eyes open for the stones swallowed by ivy."
         ),
-        SAFE_FALLBACK
+        REJECTED_DISPLAY
     );
 
     assert_eq!(
@@ -180,7 +195,7 @@ fn festival_role_and_geography_completions_are_rejected_by_real_loop() {
     ] {
         assert_eq!(
             force_turn(&mut harness, &speaker, input, reply),
-            SAFE_FALLBACK
+            REJECTED_DISPLAY
         );
     }
 }
@@ -195,7 +210,7 @@ fn imperative_injection_echo_is_quarantined_by_real_loop() {
     let events = harness.execute_via_real_loop(input);
     let serialized = serde_json::to_string(&events).unwrap();
 
-    assert_eq!(streamed_text(&events), SAFE_FALLBACK);
+    assert_eq!(streamed_text(&events), REJECTED_DISPLAY);
     assert!(!serialized.contains(reply));
     assert!(events.iter().all(|(name, payload)| {
         name != "text-log"
@@ -266,7 +281,7 @@ fn current_session_landmark_and_calendar_contradictions_are_quarantined_by_real_
             "What do you make of tonight's song, and who taught it to the singer?",
             "There are only general airs being hummed, with no one singer taking the floor; tonight 'tis only the general clatter of the room.",
         ),
-        SAFE_FALLBACK
+        REJECTED_DISPLAY
     );
 
     let kilteevan = harness
@@ -313,7 +328,7 @@ fn current_session_landmark_and_calendar_contradictions_are_quarantined_by_real_
     ] {
         assert_eq!(
             force_turn(&mut harness, &speaker, input, reply),
-            SAFE_FALLBACK
+            REJECTED_DISPLAY
         );
     }
     assert_eq!(
@@ -364,7 +379,7 @@ fn player_established_object_material_survives_a_multiturn_real_loop() {
             "What did I tell you about the ribbon?",
             "A small mark like that turns a plain scrap of silk into a whole life's remembrance."
         ),
-        SAFE_FALLBACK
+        REJECTED_DISPLAY
     );
     let facts = harness
         .app

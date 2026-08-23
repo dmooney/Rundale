@@ -102,6 +102,9 @@ pub struct OAuthConfig {
 
 /// Server-wide state shared by all sessions — one instance per process.
 pub struct GlobalState {
+    /// Atomic schema-v2 config and transport publication for session admission.
+    pub inference_runtime_v2:
+        Option<std::sync::Arc<parish_core::inference_runtime_v2::InferenceRuntimeManagerV2>>,
     /// All active sessions, backed by `saves/sessions.db`.
     pub sessions: SessionRegistry,
     /// Identity store — maps OAuth provider identities to stable `account_id`

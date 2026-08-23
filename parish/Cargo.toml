@@ -65,6 +65,10 @@ parish-engine = { path = "crates/parish-engine" }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 serde_yaml = "0.9"
+schemars = { version = "1.2", features = ["chrono04"] }
+fs2 = "0.4"
+sha2 = "0.11"
+keyring = { version = "3", default-features = false, features = ["apple-native", "windows-native", "linux-native-sync-persistent", "sync-secret-service", "crypto-rust", "vendored"] }
 
 # Error handling
 thiserror = "2"
@@ -86,6 +90,7 @@ rusqlite = { version = "0.40", features = ["bundled"] }
 
 # Time and dates
 chrono = { version = "0.4", features = ["serde"] }
+url = { version = "2", features = ["serde"] }
 
 # Logging / tracing
 tracing = "0.1"
@@ -119,6 +124,8 @@ tokio-test = "0.4"
 serial_test = "3"
 rand_chacha = "0.10"
 tracing-test = "0.2"
+windows-sys = "0.61"
+libc = "0.2"
 
 # Temporary upstream security pins for target-specific paths retained in the
 # lockfile. Both crates keep their published package versions while the pinned

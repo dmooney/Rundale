@@ -40,6 +40,12 @@ pub mod local_models {
 /// (`Mutex<GameConfig>` for Tauri/web, direct field for headless `App`).
 #[derive(Clone)]
 pub struct GameConfig {
+    /// Immutable v2 routes for the currently published configuration epoch.
+    /// Empty only in legacy tests and deterministic harnesses.
+    pub inference_routes_v2: HashMap<InferenceCategory, parish_config::ResolvedRoute>,
+    pub inference_subrole_routes_v2:
+        HashMap<parish_config::InferenceSubrole, parish_config::ResolvedRoute>,
+    pub inference_configuration_epoch: u64,
     /// Display name of the current base provider (e.g. "ollama", "openrouter").
     pub provider_name: String,
     /// Base URL for the current provider API.
@@ -138,6 +144,51 @@ impl GameConfig {
         &self,
         subrole: parish_config::InferenceSubrole,
     ) -> parish_config::InferenceProfile {
+        if let Some(route) = self
+            .inference_subrole_routes_v2
+            .get(&subrole)
+            .or_else(|| self.inference_routes_v2.get(&subrole.category()))
+            .filter(|route| route.key.model_id == self.effective_model(subrole.category()))
+        {
+            use parish_config::{ReasoningEffortV2, ReasoningIntent};
+            let thinking_level = match route.effective_profile.reasoning {
+                ReasoningIntent::Effort {
+                    level: ReasoningEffortV2::Minimal,
+                } => parish_config::ThinkingLevel::Minimal,
+                ReasoningIntent::Effort {
+                    level: ReasoningEffortV2::Low,
+                } => parish_config::ThinkingLevel::Low,
+                ReasoningIntent::Effort {
+                    level: ReasoningEffortV2::Medium,
+                } => parish_config::ThinkingLevel::Medium,
+                ReasoningIntent::Effort { .. } | ReasoningIntent::Budget { .. } => {
+                    parish_config::ThinkingLevel::High
+                }
+                ReasoningIntent::Auto | ReasoningIntent::Off => {
+                    parish_config::ThinkingLevel::Medium
+                }
+            };
+            return parish_config::InferenceProfile {
+                configuration_epoch: self.inference_configuration_epoch,
+                structured_output: route.structured_output,
+                thinking_level,
+                max_output_tokens: route.effective_profile.max_output_tokens,
+                temperature: route.effective_profile.temperature,
+                frequency_penalty: route.effective_profile.frequency_penalty,
+                reasoning_intent: route.effective_profile.reasoning,
+                reasoning_dialect: Some(route.reasoning_dialect),
+                service_tier_intent: route.effective_profile.service_tier,
+                service_tier: match route.effective_profile.service_tier {
+                    parish_config::ServiceTierIntent::Priority => {
+                        parish_config::ServiceTier::Priority
+                    }
+                    parish_config::ServiceTierIntent::Auto
+                    | parish_config::ServiceTierIntent::Standard => {
+                        parish_config::ServiceTier::Standard
+                    }
+                },
+            };
+        }
         let category = subrole.category();
         let checked = parish_config::InferenceProfile::for_subrole(subrole);
         let base = self.inference_profile_override.apply(checked, subrole);
@@ -183,6 +234,14 @@ impl GameConfig {
         cat: InferenceCategory,
         base_client: Option<&crate::inference::AnyClient>,
     ) -> (Option<crate::inference::AnyClient>, String) {
+        if let Some(route) = self.inference_routes_v2.get(&cat) {
+            let client = crate::inference::build_client_v2(
+                route,
+                &parish_config::InferenceConfig::default(),
+            )
+            .ok();
+            return (client, route.key.model_id.clone());
+        }
         use parish_config::Provider;
         let model = self
             .category_model
@@ -243,6 +302,62 @@ impl GameConfig {
         };
 
         (client, model)
+    }
+
+    fn effective_model(&self, category: InferenceCategory) -> &str {
+        self.category_model
+            .get(&category)
+            .map(String::as_str)
+            .unwrap_or(&self.model_name)
+    }
+
+    pub fn apply_resolved_inference_v2(
+        &mut self,
+        snapshot: &parish_config::ResolvedInferenceSnapshot,
+    ) {
+        self.inference_configuration_epoch = snapshot.configuration_epoch;
+        self.inference_routes_v2.clear();
+        self.inference_subrole_routes_v2.clear();
+        for (name, route) in &snapshot.category_routes {
+            let category = match name.as_str() {
+                "dialogue" => InferenceCategory::Dialogue,
+                "simulation" => InferenceCategory::Simulation,
+                "intent" => InferenceCategory::Intent,
+                "reaction" => InferenceCategory::Reaction,
+                _ => continue,
+            };
+            if category == InferenceCategory::Dialogue {
+                self.provider_name = route.key.provider_id.clone();
+                self.model_name = route.key.model_id.clone();
+                self.base_url = route.inference_base_url.clone();
+                self.api_key = route
+                    .credential
+                    .as_ref()
+                    .map(|key| key.expose().to_string());
+            }
+            self.category_provider
+                .insert(category, route.key.provider_id.clone());
+            self.category_model
+                .insert(category, route.key.model_id.clone());
+            self.category_base_url
+                .insert(category, route.inference_base_url.clone());
+            if let Some(key) = &route.credential {
+                self.category_api_key
+                    .insert(category, key.expose().to_string());
+            } else {
+                self.category_api_key.remove(&category);
+            }
+            self.inference_routes_v2.insert(category, route.clone());
+        }
+        for (name, route) in &snapshot.subrole_routes {
+            if let Some(subrole) = parish_config::InferenceSubrole::ALL
+                .into_iter()
+                .find(|candidate| candidate.name() == name)
+            {
+                self.inference_subrole_routes_v2
+                    .insert(subrole, route.clone());
+            }
+        }
     }
 
     /// Collects extra vllm-mlx slots beyond the base provider's slot.
@@ -681,6 +796,9 @@ fn attach_rate_limit(
 ) -> crate::inference::AnyClient {
     use crate::inference::AnyClient;
     match (client, limiter) {
+        (AnyClient::OpenAiResponses(c), lim) => {
+            AnyClient::OpenAiResponses(c.maybe_with_rate_limit(lim))
+        }
         (AnyClient::OpenAi(c), lim) => AnyClient::OpenAi(c.maybe_with_rate_limit(lim)),
         (AnyClient::Anthropic(c), lim) => AnyClient::Anthropic(c.maybe_with_rate_limit(lim)),
         (AnyClient::Google(c), lim) => AnyClient::Google(c.maybe_with_rate_limit(lim)),
@@ -692,6 +810,9 @@ fn attach_rate_limit(
 impl Default for GameConfig {
     fn default() -> Self {
         Self {
+            inference_routes_v2: HashMap::new(),
+            inference_subrole_routes_v2: HashMap::new(),
+            inference_configuration_epoch: 0,
             provider_name: "ollama".to_string(),
             base_url: String::new(),
             api_key: None,

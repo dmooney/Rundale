@@ -6,13 +6,17 @@ use std::time::Duration;
 
 use tokio::sync::mpsc;
 
-use parish_config::{InferenceConfig, Provider};
+use parish_config::{
+    InferenceAdapter, InferenceConfig, OutputLimitField, Provider, ReasoningEffortV2,
+    ReasoningIntent, ResolvedRoute, ServiceTierIntent,
+};
 use parish_types::ParishError;
 
 use crate::anthropic_client::AnthropicClient;
 use crate::google_client::{GenerationResult, GoogleClient, ProviderCallError, ProviderMetadata};
 use crate::mock_client::MockClient;
 use crate::openai_client::{GenerateParams, OpenAiClient, ResponseFormat};
+use crate::openai_responses_client::OpenAiResponsesClient;
 use crate::simulator::SimulatorClient;
 
 pub use crate::openai_client::{JsonSchemaSpec, ResponseFormat as AnyResponseFormat};
@@ -84,6 +88,194 @@ pub fn build_client(
     }
 }
 
+/// Constructs a transport strictly from the resolved endpoint contract. No
+/// provider name or model-name heuristic participates in v2 dispatch.
+pub fn build_client_v2(
+    route: &ResolvedRoute,
+    inference_config: &InferenceConfig,
+) -> Result<AnyClient, ParishError> {
+    let key = route.credential.as_ref().map(|secret| secret.expose());
+    match route.inference_adapter {
+        InferenceAdapter::OpenaiResponsesV1 => Ok(AnyClient::OpenAiResponses(
+            OpenAiResponsesClient::new_with_api_prefix(
+                &route.inference_base_url,
+                key,
+                inference_config,
+            ),
+        )),
+        InferenceAdapter::AnthropicMessages2023_06_01 => Ok(AnyClient::Anthropic(
+            AnthropicClient::new_with_api_prefix(&route.inference_base_url, key, inference_config)
+                .with_v2_dialect(route.reasoning_dialect),
+        )),
+        InferenceAdapter::GoogleInteractionsV1 => Ok(AnyClient::Google(
+            GoogleClient::new_with_api_prefix(&route.inference_base_url, key, inference_config),
+        )),
+        InferenceAdapter::Simulator => Ok(AnyClient::simulator()),
+        InferenceAdapter::OpenaiChatV1 => {
+            let field = route
+                .openai_output_limit_field
+                .unwrap_or(OutputLimitField::MaxTokens);
+            Ok(AnyClient::OpenAi(
+                OpenAiClient::new_with_api_prefix(&route.inference_base_url, key, inference_config)
+                    .with_v2_wire_contract(
+                        field,
+                        route.reasoning_dialect,
+                        match route.effective_profile.service_tier {
+                            ServiceTierIntent::Standard => Some("default"),
+                            ServiceTierIntent::Priority => Some("priority"),
+                            ServiceTierIntent::Auto => None,
+                        },
+                    ),
+            ))
+        }
+    }
+}
+
+/// Constructs the complete category client set from one immutable resolved
+/// snapshot. Client construction is all-or-nothing: no caller can publish a
+/// new epoch with a mixture of old and new transports.
+pub fn build_inference_clients_v2(
+    snapshot: &parish_config::ResolvedInferenceSnapshot,
+    inference_config: &InferenceConfig,
+) -> Result<InferenceClients, ParishError> {
+    use parish_config::InferenceCategory;
+    let categories = [
+        ("dialogue", InferenceCategory::Dialogue),
+        ("simulation", InferenceCategory::Simulation),
+        ("intent", InferenceCategory::Intent),
+        ("reaction", InferenceCategory::Reaction),
+    ];
+    let dialogue = snapshot
+        .category_routes
+        .get("dialogue")
+        .ok_or_else(|| ParishError::Config("resolved v2 snapshot omitted dialogue route".into()))?;
+    let base = build_client_v2(dialogue, inference_config)?;
+    let mut overrides = std::collections::HashMap::new();
+    for (name, category) in categories {
+        let route = snapshot.category_routes.get(name).ok_or_else(|| {
+            ParishError::Config(format!("resolved v2 snapshot omitted {name} route"))
+        })?;
+        overrides.insert(
+            category,
+            (
+                build_client_v2(route, inference_config)?,
+                route.key.model_id.clone(),
+            ),
+        );
+    }
+    let profiles = snapshot
+        .subrole_routes
+        .iter()
+        .filter_map(|(name, route)| {
+            parish_config::InferenceSubrole::ALL
+                .into_iter()
+                .find(|subrole| subrole.name() == name)
+                .map(|subrole| {
+                    (
+                        subrole,
+                        inference_profile_from_route(route, snapshot.configuration_epoch),
+                    )
+                })
+        })
+        .collect();
+    Ok(
+        InferenceClients::new(base, dialogue.key.model_id.clone(), overrides)
+            .with_v2_profiles(profiles),
+    )
+}
+
+fn inference_profile_from_route(
+    route: &ResolvedRoute,
+    configuration_epoch: u64,
+) -> parish_config::InferenceProfile {
+    use parish_config::{ReasoningEffortV2, ReasoningIntent};
+    let thinking_level = match route.effective_profile.reasoning {
+        ReasoningIntent::Effort {
+            level: ReasoningEffortV2::Minimal,
+        } => parish_config::ThinkingLevel::Minimal,
+        ReasoningIntent::Effort {
+            level: ReasoningEffortV2::Low,
+        } => parish_config::ThinkingLevel::Low,
+        ReasoningIntent::Effort {
+            level: ReasoningEffortV2::Medium,
+        } => parish_config::ThinkingLevel::Medium,
+        ReasoningIntent::Effort { .. } | ReasoningIntent::Budget { .. } => {
+            parish_config::ThinkingLevel::High
+        }
+        ReasoningIntent::Auto | ReasoningIntent::Off => parish_config::ThinkingLevel::Medium,
+    };
+    parish_config::InferenceProfile {
+        configuration_epoch,
+        structured_output: route.structured_output,
+        thinking_level,
+        max_output_tokens: route.effective_profile.max_output_tokens,
+        temperature: route.effective_profile.temperature,
+        frequency_penalty: route.effective_profile.frequency_penalty,
+        service_tier: match route.effective_profile.service_tier {
+            ServiceTierIntent::Priority => parish_config::ServiceTier::Priority,
+            ServiceTierIntent::Auto | ServiceTierIntent::Standard => {
+                parish_config::ServiceTier::Standard
+            }
+        },
+        reasoning_intent: route.effective_profile.reasoning,
+        reasoning_dialect: Some(route.reasoning_dialect),
+        service_tier_intent: route.effective_profile.service_tier,
+    }
+}
+
+/// Converts the already-validated effective profile into transport knobs.
+pub fn generate_params_v2(route: &ResolvedRoute) -> Result<GenerateParams, ParishError> {
+    let reasoning_effort = match &route.effective_profile.reasoning {
+        ReasoningIntent::Auto => None,
+        ReasoningIntent::Off => Some(parish_config::ReasoningEffort::None),
+        ReasoningIntent::Effort { level } => Some(match level {
+            ReasoningEffortV2::Minimal => parish_config::ReasoningEffort::Minimal,
+            ReasoningEffortV2::Low => parish_config::ReasoningEffort::Low,
+            ReasoningEffortV2::Medium => parish_config::ReasoningEffort::Medium,
+            ReasoningEffortV2::High => parish_config::ReasoningEffort::High,
+            ReasoningEffortV2::Xhigh => parish_config::ReasoningEffort::Xhigh,
+            ReasoningEffortV2::Max => parish_config::ReasoningEffort::Max,
+        }),
+        ReasoningIntent::Budget { .. } => None,
+    };
+    let thinking_level = if route.inference_adapter == InferenceAdapter::GoogleInteractionsV1 {
+        match reasoning_effort {
+            Some(parish_config::ReasoningEffort::Minimal) => Some(crate::ThinkingLevel::Minimal),
+            Some(parish_config::ReasoningEffort::Low) => Some(crate::ThinkingLevel::Low),
+            Some(parish_config::ReasoningEffort::Medium) => Some(crate::ThinkingLevel::Medium),
+            Some(parish_config::ReasoningEffort::High) => Some(crate::ThinkingLevel::High),
+            Some(parish_config::ReasoningEffort::None) | None => None,
+            Some(parish_config::ReasoningEffort::Xhigh | parish_config::ReasoningEffort::Max) => {
+                return Err(ParishError::Config(
+                    "Google native transport does not support xhigh/max thinking levels".into(),
+                ));
+            }
+        }
+    } else {
+        None
+    };
+    let service_tier = match route.effective_profile.service_tier {
+        ServiceTierIntent::Auto => None,
+        ServiceTierIntent::Standard => Some(crate::ServiceTier::Standard),
+        ServiceTierIntent::Priority => Some(crate::ServiceTier::Priority),
+    };
+    Ok(GenerateParams {
+        max_tokens: Some(route.effective_profile.max_output_tokens),
+        temperature: route.effective_profile.temperature,
+        frequency_penalty: route.effective_profile.frequency_penalty,
+        enable_thinking: matches!(route.effective_profile.reasoning, ReasoningIntent::Off)
+            .then_some(false),
+        reasoning_effort,
+        thinking_level,
+        service_tier: match route.inference_adapter {
+            InferenceAdapter::GoogleInteractionsV1 => service_tier,
+            _ => None,
+        },
+        reasoning_intent: Some(route.effective_profile.reasoning),
+        reasoning_dialect: Some(route.reasoning_dialect),
+    })
+}
+
 /// Per-category LLM client routing with a base provider fallback.
 ///
 /// Each inference category (dialogue, simulation, intent) can have its own
@@ -97,6 +289,11 @@ pub struct InferenceClients {
     pub base: AnyClient,
     /// Base model name (e.g. "gemma4:e4b").
     pub base_model: String,
+    /// Immutable subrole profiles from the same published snapshot as the
+    /// clients. A queue therefore cannot mix a reloaded GameConfig profile
+    /// with transports from another epoch.
+    profiles:
+        std::collections::HashMap<parish_config::InferenceSubrole, parish_config::InferenceProfile>,
 }
 
 impl InferenceClients {
@@ -110,7 +307,26 @@ impl InferenceClients {
             overrides,
             base,
             base_model,
+            profiles: std::collections::HashMap::new(),
         }
+    }
+
+    pub fn with_v2_profiles(
+        mut self,
+        profiles: std::collections::HashMap<
+            parish_config::InferenceSubrole,
+            parish_config::InferenceProfile,
+        >,
+    ) -> Self {
+        self.profiles = profiles;
+        self
+    }
+
+    pub fn profile_for(
+        &self,
+        subrole: parish_config::InferenceSubrole,
+    ) -> Option<parish_config::InferenceProfile> {
+        self.profiles.get(&subrole).copied()
     }
 
     /// Returns the client and model for a given inference category.
@@ -162,6 +378,8 @@ impl InferenceClients {
 /// - [`AnyClient::Mock`] is a scriptable, deterministic test stand-in.
 #[derive(Clone)]
 pub enum AnyClient {
+    /// OpenAI's native Responses API (not Chat Completions compatible).
+    OpenAiResponses(OpenAiResponsesClient),
     /// A real OpenAI-compatible HTTP client.
     OpenAi(OpenAiClient),
     /// Anthropic's native Messages API client (see [`AnthropicClient`]).
@@ -216,10 +434,21 @@ impl AnyClient {
         params: GenerateParams,
     ) -> Result<String, ParishError> {
         match self {
+            Self::OpenAiResponses(c) => {
+                c.generate_with_format(model, prompt, system, None, params)
+                    .await
+            }
             Self::OpenAi(c) => c.generate(model, prompt, system, params).await,
             Self::Google(c) => c.generate(model, prompt, system, params).await,
             Self::Anthropic(c) => {
-                c.generate(model, prompt, system, params.max_tokens, params.temperature)
+                let client = match params.reasoning_intent.as_ref() {
+                    Some(intent) => c
+                        .clone()
+                        .with_request_reasoning(params.reasoning_dialect, intent)?,
+                    None => c.clone(),
+                };
+                client
+                    .generate(model, prompt, system, params.max_tokens, params.temperature)
                     .await
             }
             Self::Simulator(c) => {
@@ -244,6 +473,10 @@ impl AnyClient {
         params: GenerateParams,
     ) -> Result<String, ParishError> {
         match self {
+            Self::OpenAiResponses(c) => {
+                c.generate_stream_with_format(model, prompt, system, token_tx, None, params)
+                    .await
+            }
             Self::OpenAi(c) => {
                 c.generate_stream(model, prompt, system, token_tx, params)
                     .await
@@ -253,15 +486,22 @@ impl AnyClient {
                     .await
             }
             Self::Anthropic(c) => {
-                c.generate_stream(
-                    model,
-                    prompt,
-                    system,
-                    token_tx,
-                    params.max_tokens,
-                    params.temperature,
-                )
-                .await
+                let client = match params.reasoning_intent.as_ref() {
+                    Some(intent) => c
+                        .clone()
+                        .with_request_reasoning(params.reasoning_dialect, intent)?,
+                    None => c.clone(),
+                };
+                client
+                    .generate_stream(
+                        model,
+                        prompt,
+                        system,
+                        token_tx,
+                        params.max_tokens,
+                        params.temperature,
+                    )
+                    .await
             }
             Self::Simulator(c) => {
                 c.generate_stream(
@@ -303,6 +543,17 @@ impl AnyClient {
         params: GenerateParams,
     ) -> Result<String, ParishError> {
         match self {
+            Self::OpenAiResponses(c) => {
+                c.generate_stream_with_format(
+                    model,
+                    prompt,
+                    system,
+                    token_tx,
+                    Some(ResponseFormat::JsonObject),
+                    params,
+                )
+                .await
+            }
             Self::OpenAi(c) => {
                 c.generate_stream_json(model, prompt, system, token_tx, params)
                     .await
@@ -365,6 +616,18 @@ impl AnyClient {
         params: GenerateParams,
     ) -> Result<T, ParishError> {
         match self {
+            Self::OpenAiResponses(c) => {
+                let raw = c
+                    .generate_with_format(
+                        model,
+                        prompt,
+                        system,
+                        Some(ResponseFormat::JsonObject),
+                        params,
+                    )
+                    .await?;
+                serde_json::from_str(crate::strip_json_fence(&raw)).map_err(Into::into)
+            }
             Self::OpenAi(c) => c.generate_json::<T>(model, prompt, system, params).await,
             Self::Google(c) => {
                 let raw = c
@@ -414,6 +677,10 @@ impl AnyClient {
         params: GenerateParams,
     ) -> Result<String, ParishError> {
         match self {
+            Self::OpenAiResponses(c) => {
+                c.generate_with_format(model, prompt, system, response_format, params)
+                    .await
+            }
             Self::OpenAi(c) => {
                 c.generate_text_with_format(model, prompt, system, response_format, params)
                     .await
@@ -424,7 +691,14 @@ impl AnyClient {
                 .map(|result| result.text)
                 .map_err(Into::into),
             Self::Anthropic(c) => {
-                c.generate(model, prompt, system, params.max_tokens, params.temperature)
+                let client = match params.reasoning_intent.as_ref() {
+                    Some(intent) => c
+                        .clone()
+                        .with_request_reasoning(params.reasoning_dialect, intent)?,
+                    None => c.clone(),
+                };
+                client
+                    .generate(model, prompt, system, params.max_tokens, params.temperature)
                     .await
             }
             Self::Simulator(c) => {
@@ -496,6 +770,17 @@ impl AnyClient {
         params: GenerateParams,
     ) -> Result<String, ParishError> {
         match self {
+            Self::OpenAiResponses(c) => {
+                c.generate_stream_with_format(
+                    model,
+                    prompt,
+                    system,
+                    token_tx,
+                    response_format,
+                    params,
+                )
+                .await
+            }
             Self::OpenAi(c) => {
                 c.generate_stream_with_format(
                     model,
@@ -520,15 +805,22 @@ impl AnyClient {
                 .map(|result| result.text)
                 .map_err(Into::into),
             Self::Anthropic(c) => {
-                c.generate_stream(
-                    model,
-                    prompt,
-                    system,
-                    token_tx,
-                    params.max_tokens,
-                    params.temperature,
-                )
-                .await
+                let client = match params.reasoning_intent.as_ref() {
+                    Some(intent) => c
+                        .clone()
+                        .with_request_reasoning(params.reasoning_dialect, intent)?,
+                    None => c.clone(),
+                };
+                client
+                    .generate_stream(
+                        model,
+                        prompt,
+                        system,
+                        token_tx,
+                        params.max_tokens,
+                        params.temperature,
+                    )
+                    .await
             }
             Self::Simulator(c) => {
                 // When the caller expects JSON (either schema or json_mode),
@@ -612,7 +904,11 @@ impl AnyClient {
     pub fn as_open_ai(&self) -> Option<&OpenAiClient> {
         match self {
             Self::OpenAi(c) => Some(c),
-            Self::Anthropic(_) | Self::Google(_) | Self::Simulator(_) | Self::Mock(_) => None,
+            Self::OpenAiResponses(_)
+            | Self::Anthropic(_)
+            | Self::Google(_)
+            | Self::Simulator(_)
+            | Self::Mock(_) => None,
         }
     }
 
@@ -620,7 +916,11 @@ impl AnyClient {
     pub fn as_anthropic(&self) -> Option<&AnthropicClient> {
         match self {
             Self::Anthropic(c) => Some(c),
-            Self::OpenAi(_) | Self::Google(_) | Self::Simulator(_) | Self::Mock(_) => None,
+            Self::OpenAiResponses(_)
+            | Self::OpenAi(_)
+            | Self::Google(_)
+            | Self::Simulator(_)
+            | Self::Mock(_) => None,
         }
     }
 
@@ -645,6 +945,7 @@ impl AnyClient {
     /// `false` for `Self::Simulator`.
     pub fn has_rate_limiter(&self) -> bool {
         match self {
+            Self::OpenAiResponses(c) => c.has_rate_limiter(),
             Self::OpenAi(c) => c.has_rate_limiter(),
             Self::Anthropic(c) => c.has_rate_limiter(),
             Self::Google(c) => c.has_rate_limiter(),
@@ -721,6 +1022,7 @@ impl AnyClient {
     /// dropped before the wire response can return final usage.
     pub fn fallback_metadata(&self, model: &str) -> ProviderMetadata {
         let (provider, api_mode) = match self {
+            Self::OpenAiResponses(_) => ("openai", "openai-responses-v1"),
             Self::OpenAi(_) => ("openai-compatible", "openai-chat-completions"),
             Self::Anthropic(_) => ("anthropic", "anthropic-messages"),
             Self::Google(_) => ("google", "google-interactions-v1"),

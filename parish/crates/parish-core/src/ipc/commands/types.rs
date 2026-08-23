@@ -29,8 +29,6 @@ pub enum CommandEffect {
     ShowSpinner(u64),
     /// Start a fresh new game.
     NewGame,
-    /// Rebuild the cloud/dialogue client specifically.
-    RebuildCloudClient,
     /// Persist the current feature flag state to disk.
     SaveFlags,
     /// Apply a user-selected UI theme; frontend resolves the actual palette colors.

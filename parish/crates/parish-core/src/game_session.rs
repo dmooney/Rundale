@@ -579,6 +579,10 @@ fn last_sentence_boundary(s: &str) -> Option<usize> {
 /// both guards.
 #[derive(Debug, Clone)]
 pub struct DialogueTurnOutcome {
+    /// True only when the original candidate passed the canonical parser and
+    /// semantic validator. False outcomes have no state, memory, event, or
+    /// display effects.
+    pub accepted_candidate: bool,
     /// Debug-event strings from Tier-1 apply (step 2) and witness memories
     /// (step 4). The live loop discards these; headless + harness forward them.
     pub debug_events: Vec<String>,
@@ -1099,6 +1103,47 @@ pub fn apply_npc_dialogue_turn(
     language: &LanguageSettings,
     flags: &FeatureFlags,
 ) -> DialogueTurnOutcome {
+    apply_npc_dialogue_turn_with_disposition(
+        world,
+        npc_manager,
+        speaker_id,
+        parsed,
+        crate::npc::NpcResponseParseDisposition::FullJson,
+        player_input,
+        player_said_for_journal,
+        game_time,
+        location,
+        speaker_display_name,
+        speaker_actual_name,
+        request_id,
+        grounded_person_names,
+        language,
+        flags,
+    )
+}
+
+/// Compatibility apply entry point for synchronous callers that retain the
+/// parser's actual response disposition. Raw or recovered provider output must
+/// not be upgraded to a fully valid structured response merely because the
+/// caller is headless or test-backed.
+#[allow(clippy::too_many_arguments)]
+pub fn apply_npc_dialogue_turn_with_disposition(
+    world: &mut WorldState,
+    npc_manager: &mut NpcManager,
+    speaker_id: NpcId,
+    parsed: &crate::npc::NpcStreamResponse,
+    parse_disposition: crate::npc::NpcResponseParseDisposition,
+    player_input: &str,
+    player_said_for_journal: &str,
+    game_time: chrono::DateTime<chrono::Utc>,
+    location: LocationId,
+    speaker_display_name: &str,
+    speaker_actual_name: &str,
+    request_id: Option<u64>,
+    grounded_person_names: &[String],
+    language: &LanguageSettings,
+    flags: &FeatureFlags,
+) -> DialogueTurnOutcome {
     let mut grounding = dialogue_grounding_snapshot(world, npc_manager, speaker_id);
     grounding.dialogue_obligations =
         crate::npc::derive_dialogue_obligations(player_input, &grounding.known_person_names);
@@ -1107,7 +1152,7 @@ pub fn apply_npc_dialogue_turn(
         npc_manager,
         speaker_id,
         parsed,
-        crate::npc::NpcResponseParseDisposition::FullJson,
+        parse_disposition,
         &grounding,
         crate::npc::DialogueValidationPolicy::default(),
         player_input,
@@ -1342,10 +1387,6 @@ pub fn apply_npc_dialogue_turn_with_validation(
     .as_ref()
         != parsed.dialogue;
 
-    // 1. Learn the player's name from a self-introduction *before* recording
-    //    memory, so the addressed speaker's memory uses the real name (#1028).
-    crate::ipc::detect_and_record_player_name(world, npc_manager, player_input, speaker_id);
-
     let validation = crate::npc::validate_dialogue_candidate(
         parsed,
         parse_disposition,
@@ -1357,6 +1398,21 @@ pub fn apply_npc_dialogue_turn_with_validation(
     let accepted_candidate = validation.accepted;
     let mut canonical_response = validation.response;
     let mut guard_reasons = validation.guard_reasons;
+    if !accepted_candidate {
+        return DialogueTurnOutcome {
+            accepted_candidate: false,
+            debug_events,
+            display_text: String::new(),
+            guard_reasons,
+            language_hints: Vec::new(),
+            assigned_task: None,
+            action: None,
+        };
+    }
+
+    // Learn the player's name only after the candidate has passed the single
+    // canonical validator, so rejection has zero canonical side effects.
+    crate::ipc::detect_and_record_player_name(world, npc_manager, player_input, speaker_id);
 
     // Complete the canonical text outcome before any memory, mood, task,
     // identity, event, or UI effect. This repetition guard needs the live
@@ -1585,6 +1641,7 @@ pub fn apply_npc_dialogue_turn_with_validation(
         .map(str::to_string);
 
     DialogueTurnOutcome {
+        accepted_candidate: true,
         debug_events,
         display_text: capped_dialogue.to_string(),
         guard_reasons,
@@ -1712,6 +1769,8 @@ pub async fn enrich_travel_encounter_with_profile_and_audit(
         reasoning_effort: None,
         thinking_level: Some(profile.thinking_level),
         service_tier: Some(profile.service_tier),
+        reasoning_intent: (profile.configuration_epoch > 0).then_some(profile.reasoning_intent),
+        reasoning_dialect: profile.reasoning_dialect,
     };
     let audit = crate::inference::DirectInferenceAudit::new(
         audit_sink,
@@ -2026,6 +2085,9 @@ pub async fn stream_reaction_texts_with_profile(
                             reasoning_effort: None,
                             thinking_level: Some(profile.thinking_level),
                             service_tier: Some(profile.service_tier),
+                            reasoning_intent: (profile.configuration_epoch > 0)
+                                .then_some(profile.reasoning_intent),
+                            reasoning_dialect: profile.reasoning_dialect,
                         };
                         let audit = crate::inference::DirectInferenceAudit::new(
                             audit_sink,
@@ -3185,7 +3247,6 @@ mod tests {
             NpcResponseParseDisposition, NpcStreamResponse,
         };
         use chrono::TimeZone;
-        use parish_types::events::GameEvent;
         use parish_world::WorldState;
 
         let mut world = WorldState::new();
@@ -3247,10 +3308,8 @@ mod tests {
             &FeatureFlags::default(),
         );
 
-        assert_eq!(
-            outcome.display_text,
-            "I beg your pardon; I lost the thread of that."
-        );
+        assert!(!outcome.accepted_candidate);
+        assert!(outcome.display_text.is_empty());
         assert_eq!(outcome.guard_reasons, ["anachronism_output_guard"]);
         assert!(
             outcome.action.is_none(),
@@ -3261,20 +3320,8 @@ mod tests {
             "rejected task metadata must vanish"
         );
         assert_eq!(manager.get(NpcId(1)).unwrap().mood, "sharp");
-        let exchange = world
-            .conversation_log
-            .recent_at(location, 1)
-            .pop()
-            .expect("fallback exchange recorded");
-        assert_eq!(exchange.npc_dialogue, outcome.display_text);
-        assert!(!exchange.npc_dialogue.contains(raw));
-        let event = events.try_recv().expect("canonical dialogue event");
-        match event {
-            GameEvent::DialogueOccurred { npc_said, .. } => {
-                assert_eq!(npc_said.as_deref(), Some(outcome.display_text.as_str()));
-            }
-            other => panic!("expected dialogue event, got {other:?}"),
-        }
+        assert!(world.conversation_log.recent_at(location, 1).is_empty());
+        assert!(events.try_recv().is_err());
     }
 
     #[test]
@@ -3285,7 +3332,6 @@ mod tests {
             NpcResponseParseDisposition, NpcStreamResponse,
         };
         use chrono::TimeZone;
-        use parish_types::events::GameEvent;
         use parish_world::WorldState;
 
         let mut world = WorldState::new();
@@ -3340,14 +3386,13 @@ mod tests {
             &FeatureFlags::default(),
         );
 
-        assert_eq!(outcome.guard_reasons, ["dialogue_obligation_guard"]);
-        assert!(crate::npc::dialogue_fulfills_obligations(
-            &outcome.display_text,
-            &grounding.dialogue_obligations,
-            input,
-            &grounding.work_roster,
-        ));
-        assert!(!outcome.display_text.contains(raw));
+        assert!(!outcome.accepted_candidate);
+        assert!(
+            outcome
+                .guard_reasons
+                .contains(&"dialogue_obligation_guard".to_string())
+        );
+        assert!(outcome.display_text.is_empty());
         assert!(outcome.action.is_none());
         assert!(outcome.assigned_task.is_none());
         assert_eq!(manager.get(NpcId(1)).unwrap().mood, "solemn");
@@ -3358,18 +3403,8 @@ mod tests {
                     && !memory.content.contains("Start work at the rectory")
             }));
         }
-        let exchange = world
-            .conversation_log
-            .recent_at(location, 1)
-            .pop()
-            .expect("safe fallback exchange");
-        assert_eq!(exchange.npc_dialogue, outcome.display_text);
-        match events.try_recv().expect("canonical dialogue event") {
-            GameEvent::DialogueOccurred { npc_said, .. } => {
-                assert_eq!(npc_said.as_deref(), Some(outcome.display_text.as_str()));
-            }
-            other => panic!("expected dialogue event, got {other:?}"),
-        }
+        assert!(world.conversation_log.recent_at(location, 1).is_empty());
+        assert!(events.try_recv().is_err());
     }
 
     #[test]
@@ -3433,11 +3468,13 @@ mod tests {
             &FeatureFlags::default(),
         );
 
-        assert_eq!(outcome.guard_reasons, ["dialogue_obligation_guard"]);
-        assert!(outcome.display_text.contains("Siobhan Murphy"));
-        assert!(outcome.display_text.contains("Farmer"));
-        assert!(outcome.display_text.contains("cannot say"));
-        assert!(!outcome.display_text.contains("hiring"));
+        assert!(!outcome.accepted_candidate);
+        assert!(
+            outcome
+                .guard_reasons
+                .contains(&"dialogue_obligation_guard".to_string())
+        );
+        assert!(outcome.display_text.is_empty());
         assert!(outcome.action.is_none());
         assert!(outcome.assigned_task.is_none());
         assert!(world.player_progress.is_empty());
@@ -3451,7 +3488,6 @@ mod tests {
             NpcResponseParseDisposition, NpcStreamResponse,
         };
         use chrono::TimeZone;
-        use parish_types::events::GameEvent;
         use parish_world::WorldState;
 
         let mut world = WorldState::new();
@@ -3499,7 +3535,8 @@ mod tests {
             &FeatureFlags::default(),
         );
 
-        assert_eq!(outcome.display_text, crate::npc::INVALID_DIALOGUE_FALLBACK);
+        assert!(!outcome.accepted_candidate);
+        assert!(outcome.display_text.is_empty());
         assert_eq!(outcome.guard_reasons, ["typed_grounding_guard"]);
         assert!(outcome.action.is_none());
         assert!(outcome.assigned_task.is_none());
@@ -3517,16 +3554,7 @@ mod tests {
                         && !memory.content.contains("ties a ribbon")
                 })
         );
-        let event = events.try_recv().expect("canonical fallback event");
-        match event {
-            GameEvent::DialogueOccurred { npc_said, .. } => {
-                assert_eq!(
-                    npc_said.as_deref(),
-                    Some(crate::npc::INVALID_DIALOGUE_FALLBACK)
-                );
-            }
-            other => panic!("expected dialogue event, got {other:?}"),
-        }
+        assert!(events.try_recv().is_err());
     }
 
     #[test]
@@ -3537,7 +3565,6 @@ mod tests {
             NpcResponseParseDisposition, NpcStreamResponse,
         };
         use chrono::TimeZone;
-        use parish_types::events::GameEvent;
         use parish_world::WorldState;
 
         let mut world = WorldState::new();
@@ -3594,6 +3621,7 @@ mod tests {
             &FeatureFlags::default(),
         );
 
+        assert!(!outcome.accepted_candidate);
         assert_eq!(outcome.guard_reasons, ["typed_grounding_guard"]);
         assert!(!outcome.display_text.contains("general clatter"));
         assert!(outcome.action.is_none());
@@ -3611,18 +3639,11 @@ mod tests {
         let facts = world
             .conversation_log
             .remembered_object_facts(NpcId(1), location);
-        assert_eq!(facts.len(), 1);
-        assert!(facts[0].attributes.iter().any(|attribute| {
-            attribute.kind == parish_types::RememberedObjectAttributeKind::Material
-                && attribute.value == "wool"
-        }));
-        match events.try_recv().expect("canonical dialogue event") {
-            GameEvent::DialogueOccurred { npc_said, .. } => {
-                assert_eq!(npc_said.as_deref(), Some(outcome.display_text.as_str()));
-                assert!(!npc_said.unwrap_or_default().contains(raw));
-            }
-            other => panic!("expected dialogue event, got {other:?}"),
-        }
+        assert!(
+            facts.is_empty(),
+            "rejection must not learn player-authored facts"
+        );
+        assert!(events.try_recv().is_err());
     }
 
     #[test]
@@ -3679,10 +3700,8 @@ mod tests {
                 &LanguageSettings::english_only(),
                 &FeatureFlags::default(),
             );
-            assert_eq!(
-                outcome.display_text,
-                "I beg your pardon; I lost the thread of that."
-            );
+            assert!(!outcome.accepted_candidate);
+            assert!(outcome.display_text.is_empty());
             assert_eq!(outcome.guard_reasons, ["response_contract_guard"]);
             assert!(outcome.action.is_none());
             assert!(outcome.assigned_task.is_none());

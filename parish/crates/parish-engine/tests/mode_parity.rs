@@ -268,7 +268,7 @@ fn unique_first_name_and_occupation_reveals_identity_across_turn_modes() {
 }
 
 #[test]
-fn rejected_anachronistic_candidate_has_identical_fallback_across_modes() {
+fn rejected_anachronistic_candidate_has_zero_effects_across_modes() {
     let mut harness = GameTestHarness::new();
     let (_speaker_id, speaker_name) = isolate_one_speaker(&mut harness);
     let input = "I'll take the work. What would you have me do first?".to_string();
@@ -303,11 +303,7 @@ fn rejected_anachronistic_candidate_has_identical_fallback_across_modes() {
     assert_eq!(legacy_tasks, real_tasks);
     assert!(real_tasks.is_empty());
     assert!(harness.app.world.player_progress.is_empty());
-    assert!(real.iter().all(|event| !event.contains("planning board")));
-    assert!(
-        real.iter()
-            .any(|event| event.contains("I beg your pardon; I lost the thread of that."))
-    );
+    assert!(real.is_empty());
     assert!(
         serde_json::to_string(&ui_events)
             .unwrap()
@@ -317,7 +313,7 @@ fn rejected_anachronistic_candidate_has_identical_fallback_across_modes() {
 }
 
 #[test]
-fn authored_landmark_rejection_has_identical_fallback_across_modes() {
+fn authored_landmark_rejection_has_zero_effects_across_modes() {
     let mut harness = GameTestHarness::new();
     let (speaker_id, speaker_name) = isolate_one_speaker(&mut harness);
     let kilteevan = harness
@@ -368,11 +364,8 @@ fn authored_landmark_rejection_has_identical_fallback_across_modes() {
     let real = dialogue_events(&drain(&mut real_rx));
 
     assert_eq!(legacy, real);
-    assert_eq!(real.len(), 1);
-    let event = real.iter().next().unwrap();
-    assert!(event.contains("I beg your pardon; I lost the thread of that."));
+    assert!(real.is_empty());
     for rejected in [raw, "points away", "Search elsewhere"] {
-        assert!(!event.contains(rejected));
         assert!(
             !serde_json::to_string(&ui_events)
                 .unwrap()
@@ -382,7 +375,7 @@ fn authored_landmark_rejection_has_identical_fallback_across_modes() {
 }
 
 #[test]
-fn incomplete_multifacet_reply_has_identical_obligation_fallback_across_modes() {
+fn incomplete_multifacet_reply_has_zero_effects_across_modes() {
     let mut harness = GameTestHarness::new();
     let (_speaker_id, speaker_name) = isolate_one_speaker(&mut harness);
     // Peig is a known authored parish person even when not co-located.
@@ -413,13 +406,8 @@ fn incomplete_multifacet_reply_has_identical_obligation_fallback_across_modes() 
     let real = dialogue_events(&drain(&mut real_rx));
 
     assert_eq!(legacy, real);
-    assert_eq!(real.len(), 1);
-    let event = real.iter().next().unwrap();
-    for required in ["Peig Hannigan", "Aiden Carney", "work", "lodging"] {
-        assert!(event.contains(required), "missing {required}: {event}");
-    }
+    assert!(real.is_empty());
     for rejected in [raw, "room key", "Start work tomorrow"] {
-        assert!(!event.contains(rejected));
         assert!(
             !serde_json::to_string(&ui_events)
                 .unwrap()
@@ -487,14 +475,7 @@ fn typed_unknown_person_followup_has_legacy_real_loop_parity() {
     }
 
     assert_eq!(legacy_events, real_events);
-    assert_eq!(legacy_events.len(), 2);
-    assert!(legacy_events.iter().all(|event| {
-        event.contains(parish_core::npc::INVALID_DIALOGUE_FALLBACK)
-            && !event.contains("seen yer cousin")
-            && !event.contains("made for the crossroads")
-            && !event.contains("points away")
-            && !event.contains("Follow Cormac\"")
-    }));
+    assert!(legacy_events.is_empty());
 }
 
 #[test]
@@ -560,7 +541,7 @@ fn grounded_task_assignment_is_identical_in_legacy_and_real_loops() {
 }
 
 #[test]
-fn grounded_work_referral_fallback_is_identical_in_legacy_and_real_loops() {
+fn grounded_work_referral_rejection_has_zero_effects_across_modes() {
     let mut harness = GameTestHarness::new();
     let (_speaker_id, speaker_name) = isolate_one_speaker(&mut harness);
     let input = "Good morning. I'm Eilis Byrne, newly arrived and looking for honest work. Is there anyone needing a hand today?";
@@ -597,10 +578,7 @@ fn grounded_work_referral_fallback_is_identical_in_legacy_and_real_loops() {
     assert_eq!(legacy_tasks, real_tasks);
     assert!(real_tasks.is_empty());
     assert!(harness.app.world.player_progress.is_empty());
-    let rendered = real.iter().cloned().collect::<String>();
-    assert!(rendered.contains("Siobhan Murphy"), "{rendered}");
-    assert!(rendered.contains("Murphy's Farm"), "{rendered}");
-    assert!(!rendered.contains("Invent a job"), "{rendered}");
+    assert!(real.is_empty());
 }
 
 /// C6: the comparison the parity test relies on must flag a path that drops the

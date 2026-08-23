@@ -1,4 +1,5 @@
 id = "deepseek"
+recommended_preset = "recommended"
 display_name = "DeepSeek"
 aliases = ["deep-seek", "deep_seek"]
 kind = "openai-compat"

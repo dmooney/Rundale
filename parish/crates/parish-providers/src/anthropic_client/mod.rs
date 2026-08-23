@@ -41,8 +41,9 @@ mod wire;
 use json_isolation::isolate_system_for_json;
 use sse::process_sse_line;
 use wire::{
-    ANTHROPIC_VERSION, DEFAULT_MAX_TOKENS, Message, MessagesRequest, MessagesResponse, SystemBlock,
-    extract_api_error_message, extract_text,
+    ANTHROPIC_VERSION, DEFAULT_MAX_TOKENS, Message, MessagesRequest, MessagesResponse,
+    OutputConfig, SystemBlock, ThinkingConfig, ensure_successful_stop, extract_api_error_message,
+    extract_text,
 };
 
 /// HTTP client for Anthropic's native Messages API (`/v1/messages`).
@@ -57,6 +58,10 @@ use wire::{
 pub struct AnthropicClient {
     /// Shared HTTP client state (fields, builder methods, rate limiter).
     pub(crate) base: ClientBase,
+    thinking: Option<ThinkingConfig>,
+    output_config: Option<OutputConfig>,
+    reasoning_dialect: Option<parish_config::ReasoningDialect>,
+    messages_path: &'static str,
 }
 
 impl AnthropicClient {
@@ -85,13 +90,100 @@ impl AnthropicClient {
                 "Anthropic streaming",
                 config,
             ),
+            thinking: None,
+            output_config: None,
+            reasoning_dialect: None,
+            messages_path: "v1/messages",
         }
+    }
+
+    /// V2 endpoints are exact API prefixes; only the adapter-owned resource
+    /// segment is appended.
+    pub fn new_with_api_prefix(
+        base_url: &str,
+        api_key: Option<&str>,
+        config: &InferenceConfig,
+    ) -> Self {
+        Self {
+            base: ClientBase::new_preserving_path(
+                base_url,
+                api_key,
+                "Anthropic",
+                "Anthropic streaming",
+                config,
+            ),
+            thinking: None,
+            output_config: None,
+            reasoning_dialect: None,
+            messages_path: "messages",
+        }
+    }
+
+    pub fn with_v2_dialect(mut self, dialect: parish_config::ReasoningDialect) -> Self {
+        self.reasoning_dialect = Some(dialect);
+        self
+    }
+
+    pub fn with_v2_reasoning(
+        mut self,
+        dialect: parish_config::ReasoningDialect,
+        intent: &parish_config::ReasoningIntent,
+    ) -> Result<Self, ParishError> {
+        use parish_config::{ReasoningDialect, ReasoningIntent};
+        self.reasoning_dialect = Some(dialect);
+        self.thinking = None;
+        self.output_config = None;
+        match intent {
+            ReasoningIntent::Auto => {}
+            ReasoningIntent::Off => self.thinking = Some(ThinkingConfig::Disabled),
+            ReasoningIntent::Effort { level } if dialect == ReasoningDialect::AnthropicAdaptive => {
+                self.thinking = Some(ThinkingConfig::Adaptive);
+                self.output_config = Some(OutputConfig {
+                    effort: match level {
+                        parish_config::ReasoningEffortV2::Minimal => "minimal",
+                        parish_config::ReasoningEffortV2::Low => "low",
+                        parish_config::ReasoningEffortV2::Medium => "medium",
+                        parish_config::ReasoningEffortV2::High => "high",
+                        parish_config::ReasoningEffortV2::Xhigh => "xhigh",
+                        parish_config::ReasoningEffortV2::Max => "max",
+                    },
+                });
+            }
+            ReasoningIntent::Budget { tokens }
+                if dialect == ReasoningDialect::AnthropicManualBudget =>
+            {
+                self.thinking = Some(ThinkingConfig::Enabled {
+                    budget_tokens: *tokens,
+                });
+            }
+            _ => {
+                return Err(ParishError::Config(format!(
+                    "reasoning intent {intent:?} is incompatible with Anthropic dialect {dialect:?}"
+                )));
+            }
+        }
+        Ok(self)
+    }
+
+    pub fn with_request_reasoning(
+        self,
+        dialect: Option<parish_config::ReasoningDialect>,
+        intent: &parish_config::ReasoningIntent,
+    ) -> Result<Self, ParishError> {
+        let dialect = dialect.or(self.reasoning_dialect).ok_or_else(|| {
+            ParishError::Config("v2 Anthropic request is missing a reasoning dialect".into())
+        })?;
+        self.with_v2_reasoning(dialect, intent)
     }
 
     /// Attaches an outbound rate limiter, returning the modified client.
     pub fn with_rate_limit(self, limiter: InferenceRateLimiter) -> Self {
         Self {
             base: self.base.with_rate_limit(limiter),
+            thinking: self.thinking,
+            output_config: self.output_config,
+            reasoning_dialect: self.reasoning_dialect,
+            messages_path: self.messages_path,
         }
     }
 
@@ -99,6 +191,10 @@ impl AnthropicClient {
     pub fn maybe_with_rate_limit(self, limiter: Option<InferenceRateLimiter>) -> Self {
         Self {
             base: self.base.maybe_with_rate_limit(limiter),
+            thinking: self.thinking,
+            output_config: self.output_config,
+            reasoning_dialect: self.reasoning_dialect,
+            messages_path: self.messages_path,
         }
     }
 
@@ -142,7 +238,13 @@ impl AnthropicClient {
                 .filter(|s| !s.trim().is_empty())
                 .map(|s| vec![SystemBlock::with_cache_control(s)]),
             max_tokens: max_tokens.unwrap_or(DEFAULT_MAX_TOKENS),
-            temperature,
+            temperature: if self.thinking.is_some() {
+                None
+            } else {
+                temperature
+            },
+            thinking: self.thinking.clone(),
+            output_config: self.output_config.clone(),
             stream,
         }
     }
@@ -165,7 +267,7 @@ impl AnthropicClient {
         &self,
         body: &MessagesRequest<'_>,
     ) -> Result<reqwest::Response, ParishError> {
-        let url = format!("{}/v1/messages", self.base.base_url);
+        let url = format!("{}/{}", self.base.base_url, self.messages_path);
         let response = crate::retry::send_with_retry("anthropic", || {
             let req = self.apply_headers(self.base.client.post(&url).json(body));
             req.send()
@@ -203,6 +305,7 @@ impl AnthropicClient {
             .json()
             .await
             .map_err(|e| ParishError::Network(e.to_string()))?;
+        ensure_successful_stop(&parsed).map_err(ParishError::Inference)?;
         Ok(extract_text(&parsed))
     }
 
@@ -325,7 +428,7 @@ impl AnthropicClient {
         self.acquire_slot().await;
         let body = self.build_request(model, prompt, system, true, max_tokens, temperature);
 
-        let url = format!("{}/v1/messages", self.base.base_url);
+        let url = format!("{}/{}", self.base.base_url, self.messages_path);
         // Retry covers only this initial request/response-status phase —
         // once the SSE loop below has consumed bytes the request is not
         // retryable (#1366 §3.4).
@@ -345,6 +448,7 @@ impl AnthropicClient {
         }
 
         let mut accumulated = String::new();
+        let mut stream_state = sse::AnthropicStreamState::default();
         let mut line_buf = String::new();
         let mut decoder = crate::utf8_stream::Utf8StreamDecoder::new();
 
@@ -358,9 +462,11 @@ impl AnthropicClient {
 
             while let Some(newline_pos) = line_buf.find('\n') {
                 let line: String = line_buf.drain(..=newline_pos).collect();
-                match process_sse_line(&line, &token_tx, &mut accumulated) {
+                match process_sse_line(&line, &token_tx, &mut accumulated, &mut stream_state) {
                     SseResult::Continue => {}
-                    SseResult::Done => return Ok(accumulated),
+                    // Keep consuming framing so malformed/conflicting data after
+                    // the terminal event cannot turn a partial stream into success.
+                    SseResult::Done => {}
                     SseResult::Error(msg) => return Err(ParishError::Inference(msg)),
                 }
             }
@@ -368,13 +474,21 @@ impl AnthropicClient {
 
         line_buf.push_str(&decoder.flush());
         let remaining = line_buf.trim();
-        if !remaining.is_empty()
-            && let SseResult::Error(msg) = process_sse_line(remaining, &token_tx, &mut accumulated)
-        {
-            return Err(ParishError::Inference(msg));
+        if !remaining.is_empty() {
+            match process_sse_line(remaining, &token_tx, &mut accumulated, &mut stream_state) {
+                SseResult::Done => {}
+                SseResult::Error(msg) => return Err(ParishError::Inference(msg)),
+                SseResult::Continue => {}
+            }
         }
 
-        Ok(accumulated)
+        if stream_state.completed {
+            Ok(accumulated)
+        } else {
+            Err(ParishError::Inference(
+                "Anthropic stream ended without a successful message_stop".to_string(),
+            ))
+        }
     }
 }
 
@@ -593,9 +707,84 @@ mod tests {
     }
 
     #[test]
+    fn v2_adaptive_effort_serializes_without_temperature() {
+        let client = AnthropicClient::new("https://api.anthropic.com", None)
+            .with_v2_reasoning(
+                parish_config::ReasoningDialect::AnthropicAdaptive,
+                &parish_config::ReasoningIntent::Effort {
+                    level: parish_config::ReasoningEffortV2::Xhigh,
+                },
+            )
+            .unwrap();
+        let request =
+            client.build_request("claude-opus-4-7", "hi", None, false, Some(4096), Some(0.7));
+        let value = serde_json::to_value(request).unwrap();
+        assert_eq!(value["thinking"]["type"], "adaptive");
+        assert_eq!(value["output_config"]["effort"], "xhigh");
+        assert!(value.get("temperature").is_none());
+    }
+
+    #[test]
+    fn v2_manual_budget_serializes_exact_budget() {
+        let client = AnthropicClient::new("https://api.anthropic.com", None)
+            .with_v2_reasoning(
+                parish_config::ReasoningDialect::AnthropicManualBudget,
+                &parish_config::ReasoningIntent::Budget { tokens: 2048 },
+            )
+            .unwrap();
+        let request = client.build_request("claude-haiku-4-5", "hi", None, false, Some(4096), None);
+        let value = serde_json::to_value(request).unwrap();
+        assert_eq!(value["thinking"]["type"], "enabled");
+        assert_eq!(value["thinking"]["budget_tokens"], 2048);
+    }
+
+    #[test]
+    fn request_reasoning_overrides_category_client_dialect_without_leaking_state() {
+        let category_client = AnthropicClient::new("https://api.anthropic.com", None)
+            .with_v2_dialect(parish_config::ReasoningDialect::AnthropicAdaptive);
+        let budget_client = category_client
+            .clone()
+            .with_request_reasoning(
+                Some(parish_config::ReasoningDialect::AnthropicManualBudget),
+                &parish_config::ReasoningIntent::Budget { tokens: 3072 },
+            )
+            .unwrap();
+        let budget = serde_json::to_value(budget_client.build_request(
+            "claude-haiku-4-5",
+            "hi",
+            None,
+            false,
+            Some(4096),
+            None,
+        ))
+        .unwrap();
+        assert_eq!(budget["thinking"]["type"], "enabled");
+        assert_eq!(budget["thinking"]["budget_tokens"], 3072);
+
+        let automatic = category_client
+            .with_request_reasoning(
+                Some(parish_config::ReasoningDialect::AnthropicAdaptive),
+                &parish_config::ReasoningIntent::Auto,
+            )
+            .unwrap();
+        let automatic = serde_json::to_value(automatic.build_request(
+            "claude-sonnet-4-6",
+            "hi",
+            None,
+            false,
+            Some(4096),
+            None,
+        ))
+        .unwrap();
+        assert!(automatic.get("thinking").is_none());
+        assert!(automatic.get("output_config").is_none());
+    }
+
+    #[test]
     fn test_response_single_text_block() {
-        let json = r#"{"content":[{"type":"text","text":"Hello!"}]}"#;
+        let json = r#"{"content":[{"type":"text","text":"Hello!"}],"stop_reason":"end_turn"}"#;
         let resp: MessagesResponse = serde_json::from_str(json).unwrap();
+        ensure_successful_stop(&resp).unwrap();
         assert_eq!(extract_text(&resp), "Hello!");
     }
 
@@ -624,6 +813,26 @@ mod tests {
         let json = r#"{"content":[]}"#;
         let resp: MessagesResponse = serde_json::from_str(json).unwrap();
         assert_eq!(extract_text(&resp), "");
+    }
+
+    #[test]
+    fn test_response_rejects_max_tokens_stop() {
+        let json = r#"{"content":[{"type":"text","text":"partial"}],"stop_reason":"max_tokens"}"#;
+        let resp: MessagesResponse = serde_json::from_str(json).unwrap();
+        let error = ensure_successful_stop(&resp).unwrap_err();
+        assert!(error.contains("stop_reason=max_tokens"), "{error}");
+    }
+
+    #[test]
+    fn test_response_rejects_thinking_only_and_whitespace_only_success() {
+        for json in [
+            r#"{"content":[{"type":"thinking","thinking":"secret"}],"stop_reason":"end_turn"}"#,
+            r#"{"content":[{"type":"text","text":"  \n "}],"stop_reason":"end_turn"}"#,
+        ] {
+            let resp: MessagesResponse = serde_json::from_str(json).unwrap();
+            let error = ensure_successful_stop(&resp).unwrap_err();
+            assert!(error.contains("no non-empty visible text"), "{error}");
+        }
     }
 
     #[test]
@@ -662,8 +871,9 @@ mod tests {
         let mut acc = String::new();
         let mut done = false;
         let mut error = None;
+        let mut stream_state = sse::AnthropicStreamState::default();
         for line in lines {
-            match process_sse_line(line, &tx, &mut acc) {
+            match process_sse_line(line, &tx, &mut acc, &mut stream_state) {
                 SseResult::Continue => {}
                 SseResult::Done => {
                     done = true;
@@ -693,6 +903,7 @@ mod tests {
         let SseOutput {
             acc, tokens, done, ..
         } = run_sse(&[
+            r#"data: {"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}}"#,
             r#"data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"Hel"}}"#,
             r#"data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"lo"}}"#,
         ]);
@@ -706,13 +917,49 @@ mod tests {
         let SseOutput {
             acc, tokens, done, ..
         } = run_sse(&[
+            r#"data: {"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}}"#,
             r#"data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"hi"}}"#,
+            r#"data: {"type":"content_block_stop","index":0}"#,
+            r#"data: {"type":"message_delta","delta":{"stop_reason":"end_turn"}}"#,
             r#"data: {"type":"message_stop"}"#,
-            r#"data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"ignored"}}"#,
         ]);
         assert_eq!(acc, "hi");
         assert_eq!(tokens, vec!["hi".to_string()]);
         assert!(done);
+    }
+
+    #[test]
+    fn test_sse_rejects_data_after_message_stop() {
+        let (tx, _rx) = mpsc::channel(TOKEN_CHANNEL_CAPACITY);
+        let mut accumulated = "hi".to_string();
+        let mut state = sse::AnthropicStreamState::default();
+        assert!(matches!(
+            process_sse_line(
+                r#"data: {"type":"message_delta","delta":{"stop_reason":"end_turn"}}"#,
+                &tx,
+                &mut accumulated,
+                &mut state,
+            ),
+            SseResult::Continue
+        ));
+        assert!(matches!(
+            process_sse_line(
+                r#"data: {"type":"message_stop"}"#,
+                &tx,
+                &mut accumulated,
+                &mut state,
+            ),
+            SseResult::Done
+        ));
+        assert!(matches!(
+            process_sse_line(
+                r#"data: {"type":"ping"}"#,
+                &tx,
+                &mut accumulated,
+                &mut state,
+            ),
+            SseResult::Error(message) if message.contains("after message_stop")
+        ));
     }
 
     #[test]
@@ -731,12 +978,33 @@ mod tests {
     }
 
     #[test]
-    fn test_sse_ignores_non_text_deltas() {
-        let SseOutput { acc, tokens, .. } = run_sse(&[
+    fn test_sse_rejects_tool_deltas() {
+        let SseOutput {
+            acc, tokens, error, ..
+        } = run_sse(&[
+            r#"data: {"type":"content_block_start","index":0,"content_block":{"type":"tool_use"}}"#,
             r#"data: {"type":"content_block_delta","index":0,"delta":{"type":"input_json_delta","partial_json":"{"}}"#,
         ]);
         assert_eq!(acc, "");
         assert!(tokens.is_empty());
+        assert!(error.is_some());
+    }
+
+    #[test]
+    fn test_sse_quarantines_thinking_blocks_and_emits_only_text() {
+        let SseOutput {
+            acc, tokens, error, ..
+        } = run_sse(&[
+            r#"data: {"type":"content_block_start","index":0,"content_block":{"type":"thinking","thinking":""}}"#,
+            r#"data: {"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":"secret"}}"#,
+            r#"data: {"type":"content_block_delta","index":0,"delta":{"type":"signature_delta","signature":"sig"}}"#,
+            r#"data: {"type":"content_block_stop","index":0}"#,
+            r#"data: {"type":"content_block_start","index":1,"content_block":{"type":"text","text":""}}"#,
+            r#"data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"visible"}}"#,
+        ]);
+        assert_eq!(acc, "visible");
+        assert_eq!(tokens, ["visible"]);
+        assert!(error.is_none());
     }
 
     #[test]
@@ -745,6 +1013,7 @@ mod tests {
             "",
             "   ",
             ": keepalive",
+            r#"data: {"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}}"#,
             r#"data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"ok"}}"#,
         ]);
         assert_eq!(acc, "ok");
@@ -752,13 +1021,23 @@ mod tests {
     }
 
     #[test]
-    fn test_sse_tolerates_invalid_json() {
-        let SseOutput { acc, tokens, .. } = run_sse(&[
-            "data: {not json",
-            r#"data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"recovered"}}"#,
+    fn test_sse_rejects_invalid_json() {
+        let output = run_sse(&["data: {not json"]);
+        assert!(output.error.is_some());
+    }
+
+    #[test]
+    fn test_sse_rejects_max_tokens_at_message_stop() {
+        let output = run_sse(&[
+            r#"data: {"type":"message_delta","delta":{"stop_reason":"max_tokens"}}"#,
+            r#"data: {"type":"message_stop"}"#,
         ]);
-        assert_eq!(acc, "recovered");
-        assert_eq!(tokens, vec!["recovered".to_string()]);
+        assert!(
+            output
+                .error
+                .as_deref()
+                .is_some_and(|error| error.contains("max_tokens"))
+        );
     }
 
     #[test]
@@ -766,6 +1045,7 @@ mod tests {
         let SseOutput {
             acc, error, done, ..
         } = run_sse(&[
+            r#"data: {"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}}"#,
             r#"data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"partial"}}"#,
             r#"data: {"type":"error","error":{"type":"overloaded_error","message":"Overloaded"}}"#,
             r#"data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"ignored"}}"#,
@@ -1145,7 +1425,8 @@ mod tests {
             .and(wiremock::matchers::path("/v1/messages"))
             .respond_with(
                 wiremock::ResponseTemplate::new(200).set_body_json(serde_json::json!({
-                    "content": [{"type": "text", "text": "Hello!"}]
+                    "content": [{"type": "text", "text": "Hello!"}],
+                    "stop_reason": "end_turn"
                 })),
             )
             .mount(&server)

@@ -21,7 +21,8 @@ use tauri::{AppHandle, Emitter};
 use parish_core::config::{InferenceCategory, ProviderConfig};
 use parish_core::debug_snapshot::{DebugEvent, InferenceDebug};
 use parish_core::inference::{
-    AnyClient, InferenceQueue, InferenceWorkerConfig, spawn_inference_worker,
+    AnyClient, InferenceClients, InferenceQueue, InferenceWorkerConfig,
+    spawn_inference_worker_with_clients,
 };
 
 use crate::{
@@ -396,13 +397,22 @@ pub(crate) async fn init_inference_queue(state: &Arc<AppState>) {
         let config = state.config.lock().await;
         config.provider_name.clone()
     };
-    let any_client: Option<AnyClient> = if provider_name == "simulator" {
-        Some(AnyClient::simulator())
+    let clients: Option<InferenceClients> = if let Some(manager) = &state.inference_runtime_v2 {
+        Some(manager.snapshot().clients.clone())
+    } else if provider_name == "simulator" {
+        Some(InferenceClients::new(
+            AnyClient::simulator(),
+            String::new(),
+            Default::default(),
+        ))
     } else {
         let client_guard = state.client.lock().await;
-        client_guard.as_ref().cloned()
+        client_guard
+            .as_ref()
+            .cloned()
+            .map(|client| InferenceClients::new(client, String::new(), Default::default()))
     };
-    let Some(ac) = any_client else {
+    let Some(clients) = clients else {
         return;
     };
 
@@ -411,8 +421,8 @@ pub(crate) async fn init_inference_queue(state: &Arc<AppState>) {
     let (batch_tx, batch_rx) = tokio::sync::mpsc::channel(64);
     let provider =
         parish_core::config::Provider::from_str_loose(&provider_name).unwrap_or_default();
-    let worker = spawn_inference_worker(
-        ac,
+    let worker = spawn_inference_worker_with_clients(
+        clients,
         InferenceWorkerConfig {
             interactive_rx,
             background_rx,

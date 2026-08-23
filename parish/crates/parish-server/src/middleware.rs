@@ -670,6 +670,9 @@ mod tests {
             npc_manager,
             client: None,
             config: crate::state::GameConfig {
+                inference_routes_v2: Default::default(),
+                inference_subrole_routes_v2: Default::default(),
+                inference_configuration_epoch: 0,
                 provider_name: String::new(),
                 base_url: String::new(),
                 api_key: None,
@@ -715,6 +718,7 @@ mod tests {
         );
 
         Arc::new(crate::session::GlobalState {
+            inference_runtime_v2: None,
             sessions,
             identity_store,
             oauth_config: None,
@@ -727,6 +731,9 @@ mod tests {
             theme_palette: app_state.theme_palette.clone(),
             transport: parish_core::world::transport::TransportConfig::default(),
             template_config: crate::state::GameConfig {
+                inference_routes_v2: Default::default(),
+                inference_subrole_routes_v2: Default::default(),
+                inference_configuration_epoch: 0,
                 provider_name: String::new(),
                 base_url: String::new(),
                 api_key: None,

@@ -196,6 +196,9 @@ pub fn test_app_state() -> Arc<crate::state::AppState> {
         npc_manager,
         client: None,
         config: crate::state::GameConfig {
+            inference_routes_v2: Default::default(),
+            inference_subrole_routes_v2: Default::default(),
+            inference_configuration_epoch: 0,
             provider_name: String::new(),
             base_url: String::new(),
             api_key: None,
@@ -1804,11 +1807,10 @@ async fn overlapping_task_input_save_and_branch_switch_recover_exactly_one_branc
     );
 }
 
-/// Regression test for #224 / #231: rebuild_inference must abort the
-/// previously-stored inference worker, otherwise each provider/key/model
-/// change leaks a worker holding an HTTP client and channel state.
+/// A reload must not abort the previous worker: requests already admitted on
+/// the old immutable configuration epoch are allowed to finish on that epoch.
 #[tokio::test]
-async fn rebuild_inference_aborts_previous_worker() {
+async fn rebuild_inference_does_not_abort_previous_worker() {
     let state = test_app_state();
     // Use the simulator so rebuild_inference doesn't try to talk to a real
     // LLM endpoint.
@@ -1834,16 +1836,9 @@ async fn rebuild_inference_aborts_previous_worker() {
 
     rebuild_inference_inner(&state).await;
 
-    // Yield + brief sleep so the runtime processes the abort.
-    for _ in 0..10 {
-        if abort_handle.is_finished() {
-            break;
-        }
-        tokio::time::sleep(std::time::Duration::from_millis(10)).await;
-    }
     assert!(
-        abort_handle.is_finished(),
-        "rebuild_inference must abort the previous worker (#224, #231)"
+        !abort_handle.is_finished(),
+        "reload must let work admitted on the previous epoch drain"
     );
 
     // And a fresh worker handle must be stored.
@@ -1852,6 +1847,8 @@ async fn rebuild_inference_aborts_previous_worker() {
         wh.is_some(),
         "rebuild_inference must install a new worker handle"
     );
+    drop(wh);
+    abort_handle.abort();
 }
 
 /// Regression test for #224 / #231: rebuild_inference must work (and
@@ -2517,6 +2514,9 @@ fn mods_root_derives_from_game_mod_not_cwd() {
         npc_manager,
         client: None,
         config: crate::state::GameConfig {
+            inference_routes_v2: Default::default(),
+            inference_subrole_routes_v2: Default::default(),
+            inference_configuration_epoch: 0,
             provider_name: String::new(),
             base_url: String::new(),
             api_key: None,

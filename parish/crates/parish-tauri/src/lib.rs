@@ -24,7 +24,7 @@ use tokio::sync::Mutex;
 use tokio::task::JoinHandle;
 use tokio_util::sync::CancellationToken;
 
-use parish_core::config::{FeatureFlags, Provider, ProviderConfig};
+use parish_core::config::{FeatureFlags, ProviderConfig};
 use parish_core::debug_snapshot::DebugEvent;
 use parish_core::game_mod::PronunciationEntry;
 use parish_core::inference::{AnyClient, InferenceLog, InferenceQueue, new_inference_log};
@@ -444,6 +444,9 @@ pub const DEBUG_EVENT_CAPACITY: usize = 100;
 /// See `background tick` in [`run`] for the canonical example of holding
 /// `world` and `npc_manager` together through a full tick iteration.
 pub struct AppState {
+    /// Atomic schema-v2 config + client publication used by every live reload.
+    pub inference_runtime_v2:
+        Option<Arc<parish_core::inference_runtime_v2::InferenceRuntimeManagerV2>>,
     /// Outermost barrier for task durability and save lifecycle changes.
     ///
     /// A guarded operation holds this from before in-memory/identity capture
@@ -592,6 +595,10 @@ pub struct AppState {
     /// Hosts `parish.toml` (non-secret BYOK choices) and the `.onboarded`
     /// marker. API keys live in the OS keychain via `secret_store`.
     pub user_config_dir: PathBuf,
+    /// Project-level schema-v2 config authority, resolved once at startup.
+    pub project_config_path: PathBuf,
+    /// Platform user-data root used by model catalog refresh/probe evidence.
+    pub catalog_user_data: PathBuf,
     /// OS keychain (Tauri only). Backed by `keyring` on real builds; tests
     /// can swap in `InMemorySecretStore` via the trait.
     pub secret_store: std::sync::Arc<dyn parish_core::secret_store::SecretStore>,
@@ -894,6 +901,127 @@ pub(crate) fn parse_demo_args(args: &[String]) -> DemoConfig {
     }
 }
 
+#[derive(Clone, Copy)]
+enum DesktopConfigAction {
+    Retry,
+    Reset,
+}
+
+fn reveal_config_file(path: &std::path::Path) {
+    #[cfg(target_os = "macos")]
+    let result = std::process::Command::new("open")
+        .arg("-R")
+        .arg(path)
+        .spawn();
+    #[cfg(target_os = "windows")]
+    let result = std::process::Command::new("explorer")
+        .arg(format!("/select,{}", path.display()))
+        .spawn();
+    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+    let result = std::process::Command::new("xdg-open")
+        .arg(path.parent().unwrap_or(path))
+        .spawn();
+    if let Err(error) = result {
+        tracing::warn!(path = %path.display(), %error, "failed to reveal invalid configuration");
+    }
+}
+
+fn desktop_config_action(
+    path: &std::path::Path,
+    error: &dyn std::fmt::Display,
+    resettable: bool,
+) -> DesktopConfigAction {
+    use rfd::{MessageButtons, MessageDialog, MessageDialogResult, MessageLevel};
+    loop {
+        let result = MessageDialog::new()
+            .set_level(MessageLevel::Error)
+            .set_title("Rundale configuration error")
+            .set_description(format!(
+                "Rundale could not load:\n{}\n\n{}\n\nThe file has not been changed.",
+                path.display(),
+                error
+            ))
+            .set_buttons(MessageButtons::YesNoCancelCustom(
+                "Retry".into(),
+                "Reveal File".into(),
+                if resettable {
+                    "More Options".into()
+                } else {
+                    "Quit".into()
+                },
+            ))
+            .show();
+        match result {
+            MessageDialogResult::Yes => return DesktopConfigAction::Retry,
+            MessageDialogResult::No => reveal_config_file(path),
+            MessageDialogResult::Custom(ref value) if value == "Retry" => {
+                return DesktopConfigAction::Retry;
+            }
+            MessageDialogResult::Custom(ref value) if value == "Reveal File" => {
+                reveal_config_file(path);
+            }
+            MessageDialogResult::Custom(ref value) if value == "More Options" => {
+                let confirm = MessageDialog::new()
+                    .set_level(MessageLevel::Warning)
+                    .set_title("Archive and reset configuration?")
+                    .set_description(
+                        "This preserves the original file as a timestamped backup, then writes a clean schema-version-2 user configuration. No legacy fields are migrated.",
+                    )
+                    .set_buttons(MessageButtons::OkCancelCustom(
+                        "Archive and Reset".into(),
+                        "Cancel".into(),
+                    ))
+                    .show();
+                let confirmed = match confirm {
+                    MessageDialogResult::Ok => true,
+                    MessageDialogResult::Custom(value) => value == "Archive and Reset",
+                    _ => false,
+                };
+                if confirmed {
+                    return DesktopConfigAction::Reset;
+                }
+            }
+            _ => std::process::exit(78),
+        }
+    }
+}
+
+fn load_project_config_desktop(path: &std::path::Path) -> parish_core::config::ProjectConfigV2 {
+    loop {
+        match parish_core::config::load_project_config_v2(path) {
+            Ok(config) => return config,
+            Err(error) => match desktop_config_action(path, &error, false) {
+                DesktopConfigAction::Retry => {}
+                DesktopConfigAction::Reset => std::process::exit(78),
+            },
+        }
+    }
+}
+
+fn load_user_config_desktop(path: &std::path::Path) -> parish_core::config::UserConfigV2 {
+    loop {
+        match parish_core::config::load_user_config_v2(path) {
+            Ok(config) => return config,
+            Err(error) => match desktop_config_action(path, &error, true) {
+                DesktopConfigAction::Retry => {}
+                DesktopConfigAction::Reset => {
+                    if let Err(reset_error) =
+                        parish_core::config::archive_and_reset_user_config_v2(path)
+                    {
+                        let combined = format!(
+                            "Original load error: {error}\n\nConfirmed archive/reset also failed: {reset_error}"
+                        );
+                        match desktop_config_action(path, &combined, false) {
+                            DesktopConfigAction::Retry => {}
+                            DesktopConfigAction::Reset => std::process::exit(78),
+                        }
+                    }
+                }
+            },
+        }
+    }
+}
+
 /// Called from `main.rs`. Initialises game state and launches the Tauri app.
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -1070,7 +1198,8 @@ pub fn run() {
     // Load engine config (parish.toml) early so TOML-configured timeouts are
     // available for provider bootstrap and cloud-client construction. (#417)
     let engine_config_path = parish_core::config::resolve_config_path(&data_dir);
-    let engine_config = parish_core::config::load_engine_config(&engine_config_path);
+    let project_v2 = load_project_config_desktop(&engine_config_path);
+    let engine_config = project_v2.engine.clone();
 
     // Resolve the per-user config dir up-front so provider_config_from_env can
     // hydrate from the BYOK / local-inference wizard's persisted
@@ -1095,13 +1224,11 @@ pub fn run() {
         }
     }
 
-    // Read provider config from env vars (optional). Layers, last-wins:
-    //   1. saved user config (`<user_config_dir>/parish.toml`)
-    //   2. `PARISH_PROVIDER` / `PARISH_BASE_URL` / `PARISH_MODEL` env vars
-    //   3. provider's standard API-key env var (e.g. `ANTHROPIC_API_KEY`)
-    let (provider_config, provider_name, base_url, api_key) =
-        provider_config_from_env(&user_config_dir);
-    let cloud_env = build_cloud_client_from_env(&engine_config.inference);
+    // Placeholder values are replaced atomically from the v2 runtime below,
+    // after the OS keychain is available.
+    let provider_name = "simulator".to_string();
+    let base_url = String::new();
+    let api_key = None;
 
     // Clone inference config before it is moved into AppState so the async
     // setup spawn can still reference it during bootstrap. provider_config
@@ -1217,14 +1344,17 @@ pub fn run() {
     let flags = FeatureFlags::load_from_file(&data_dir.join("parish-flags.json"));
 
     let mut game_config = GameConfig {
+        inference_routes_v2: Default::default(),
+        inference_subrole_routes_v2: Default::default(),
+        inference_configuration_epoch: 0,
         provider_name,
         base_url,
         api_key,
         model_name: String::new(), // filled in after async bootstrap
-        cloud_provider_name: cloud_env.provider_name,
-        cloud_model_name: cloud_env.model_name,
-        cloud_api_key: cloud_env.api_key,
-        cloud_base_url: cloud_env.base_url,
+        cloud_provider_name: None,
+        cloud_model_name: None,
+        cloud_api_key: None,
+        cloud_base_url: None,
         improv_enabled: false,
         max_follow_up_turns: 2,
         idle_banter_after_secs: engine_config.session.idle_banter_after_secs,
@@ -1246,21 +1376,6 @@ pub fn run() {
     if demo_config.auto_start {
         game_config.flags.enable("demo-mode");
     }
-    // Hydrate per-category routing from the wizard-persisted
-    // `parish.toml` BEFORE preset fill, so the wizard's intent→:8001,
-    // reaction→simulator etc. overrides win over the generic presets.
-    // (Without this, vllm-mlx two-slot setups end up routing every
-    // category to the dialogue port and the small-slot inference 404s.)
-    if let Ok(user_cfg) = parish_core::config::user_config::load_user_config(&user_config_dir) {
-        game_config.apply_user_category_overrides(&user_cfg.category_overrides);
-        game_config.apply_user_inference_profiles(&user_cfg);
-    }
-
-    // Fill any unset model fields from the chosen provider's presets so a
-    // user who set only `PARISH_PROVIDER=anthropic` (or `--provider`) gets
-    // sensible Dialogue/Simulation/Intent/Reaction defaults.
-    game_config.fill_missing_models_from_presets();
-
     // Resolve the saves directory once at startup (#771). Subsequent save/load
     // commands read `state.saves_dir` instead of re-probing the cwd. App-name
     // drives the per-user data folder (Rundale → `Rundale`); engine fallback
@@ -1286,22 +1401,47 @@ pub fn run() {
     // wizard config could feed provider_config_from_env.)
     let secret_store: std::sync::Arc<dyn parish_core::secret_store::SecretStore> =
         std::sync::Arc::new(keychain::KeyringSecretStore::new());
-    if game_config.api_key.is_none()
-        && let Ok(provider_enum) =
-            parish_core::config::Provider::from_str_loose(&game_config.provider_name)
-    {
-        let env_key_set = provider_enum
-            .api_key_env_var()
-            .and_then(|v| std::env::var(v).ok())
-            .filter(|v| !v.trim().is_empty())
-            .is_some();
-        if !env_key_set {
-            let account = parish_core::secret_store::provider_account(&game_config.provider_name);
-            if let Ok(Some(k)) = secret_store.get(&account) {
-                game_config.api_key = Some(k);
-            }
-        }
-    }
+    let user_v2_path = user_config_dir.join("parish.toml");
+    let user_v2 = load_user_config_desktop(&user_v2_path);
+    let v2_overrides = parish_core::config::routing_overrides_from_env()
+        .unwrap_or_else(|error| panic!("invalid v2 inference environment: {error}"));
+    let catalog_user_data = parish_core::persistence::paths::resolve_user_data_dir(
+        parish_core::persistence::paths::DEFAULT_APP_NAME,
+    );
+    let catalog = parish_core::config::CatalogStore::for_user_data_dir(&catalog_user_data);
+    let v2_runtime = parish_core::inference_runtime_v2::build_inference_runtime_v2_with_catalog(
+        1,
+        &project_v2,
+        &user_v2,
+        &v2_overrides,
+        &catalog,
+        &catalog_user_data,
+        |slot| {
+            let account = parish_core::secret_store::provider_account(slot);
+            secret_store.get(&account).ok().flatten()
+        },
+    )
+    .unwrap_or_else(|error| panic!("cannot load v2 inference runtime: {error}"));
+    let inference_runtime_v2 = Arc::new(
+        parish_core::inference_runtime_v2::InferenceRuntimeManagerV2::new(v2_runtime.clone()),
+    );
+    parish_core::inference_runtime_v2::spawn_catalog_refresh_v2(
+        Arc::clone(&v2_runtime.config),
+        catalog,
+        catalog_user_data.clone(),
+    );
+    game_config.apply_resolved_inference_v2(&v2_runtime.config);
+    let dialogue = &v2_runtime.config.category_routes["dialogue"];
+    let provider_config = ProviderConfig {
+        provider: parish_core::config::Provider::from_str_loose(&dialogue.key.provider_id)
+            .unwrap_or_else(|_| parish_core::config::Provider::custom()),
+        base_url: dialogue.inference_base_url.clone(),
+        api_key: dialogue
+            .credential
+            .as_ref()
+            .map(|value| value.expose().to_string()),
+        model: Some(dialogue.key.model_id.clone()),
+    };
 
     let log_to_disk = parish_core::inference::file_log::resolve_enabled(
         false, // Tauri does not (yet) expose a --no-inference-log flag; env wins
@@ -1312,12 +1452,13 @@ pub fn run() {
     // Detached log handles spawn no tasks. They are replaced only after
     // persistence has durably committed below.
     let mut state = Arc::new(AppState {
+        inference_runtime_v2: Some(inference_runtime_v2),
         persistence_gate: Mutex::new(()),
         world: Mutex::new(world),
         npc_manager: Mutex::new(npc_manager),
         inference_queue: Mutex::new(None),
         client: Mutex::new(None), // populated after async bootstrap completes
-        cloud_client: Mutex::new(cloud_env.client),
+        cloud_client: Mutex::new(None),
         conversation: Mutex::new(ConversationRuntimeState::new()),
         debug_events: Mutex::new(std::collections::VecDeque::with_capacity(
             DEBUG_EVENT_CAPACITY,
@@ -1361,6 +1502,8 @@ pub fn run() {
         sim_cancel: Mutex::new(CancellationToken::new()),
         session_store,
         user_config_dir,
+        project_config_path: engine_config_path,
+        catalog_user_data,
         secret_store,
         inference_file_log: parish_core::inference::file_log::InferenceFileLog::disabled(),
         chat_transcript_log: parish_core::chat_transcript::ChatTranscriptLog::disabled(),
@@ -1540,64 +1683,6 @@ pub fn run() {
         });
 }
 
-// ── Client initialisation from env ───────────────────────────────────────────
-
-/// Reads configuration from `parish.toml` (if present) and `PARISH_*` env vars
-/// into a [`ProviderConfig`] plus the display strings that populate [`GameConfig`].
-pub(crate) fn provider_config_from_env(
-    user_config_dir: &std::path::Path,
-) -> (ProviderConfig, String, String, Option<String>) {
-    let mut config =
-        parish_core::config::resolve_config(None, &Default::default()).unwrap_or_else(|e| {
-            tracing::warn!(
-                "Failed to resolve configuration: {}; falling back to defaults",
-                e
-            );
-            ProviderConfig {
-                provider: parish_core::config::Provider::default(),
-                base_url: "http://localhost:11434".to_string(),
-                api_key: None,
-                model: None,
-            }
-        });
-
-    // Layer below env: hydrate from the wizard-persisted
-    // `<user_config_dir>/parish.toml` (written by
-    // `handle_set_provider_config`). When the user hasn't pinned anything
-    // via env/CLI/project-root TOML, resolve_config returns the
-    // Simulator default — only in that case do we substitute the saved
-    // wizard choice so a returning user lands back on vllm-mlx without
-    // re-doing onboarding. PARISH_PROVIDER and friends still win.
-    if config.provider.id() == "simulator"
-        && let Ok(mut user_cfg) =
-            parish_core::config::user_config::load_user_config(user_config_dir)
-        && let Some(provider_str) = user_cfg.provider.as_deref()
-        && let Ok(saved_provider) = parish_core::config::Provider::from_str_loose(provider_str)
-    {
-        if user_cfg.migrate_legacy_google_default_model()
-            && let Err(error) =
-                parish_core::config::user_config::save_user_config(user_config_dir, &user_cfg)
-        {
-            tracing::warn!(%error, "failed to persist migrated Google default model");
-        }
-        let saved_default_base = saved_provider.default_base_url().to_string();
-        let saved_model = user_cfg.model.clone().or_else(|| {
-            saved_provider
-                .preset_model(parish_core::config::InferenceCategory::Dialogue)
-                .map(str::to_string)
-        });
-        config.provider = saved_provider;
-        config.base_url = user_cfg.base_url.clone().unwrap_or(saved_default_base);
-        config.model = saved_model;
-    }
-
-    let provider_name = config.provider_display();
-    let base_url = config.base_url.clone();
-    let api_key = config.api_key.clone();
-
-    (config, provider_name, base_url, api_key)
-}
-
 /// Runs the full provider bootstrap (Ollama install / auto-start / GPU
 /// detect / model pull / warmup when applicable) and returns the ready
 /// client, the resolved model tag, and the child-process handle that must
@@ -1636,56 +1721,6 @@ async fn bootstrap_provider(
     )
     .await?;
     Ok((Some(client), model, process))
-}
-
-/// Resolved cloud provider configuration from environment variables.
-struct CloudEnvConfig {
-    /// The constructed client (None if no API key).
-    client: Option<AnyClient>,
-    /// Provider name (e.g. "openrouter").
-    provider_name: Option<String>,
-    /// Model name for cloud dialogue.
-    model_name: Option<String>,
-    /// API key.
-    api_key: Option<String>,
-    /// Base URL for the cloud API.
-    base_url: Option<String>,
-}
-
-fn build_cloud_client_from_env(
-    inference_config: &parish_core::config::InferenceConfig,
-) -> CloudEnvConfig {
-    let provider = std::env::var("PARISH_CLOUD_PROVIDER").ok();
-    let base_url = std::env::var("PARISH_CLOUD_BASE_URL").unwrap_or_else(|_| {
-        provider
-            .as_deref()
-            .and_then(|p| Provider::from_str_loose(p).ok())
-            .map(|p| p.default_base_url().to_string())
-            .unwrap_or_else(|| "https://generativelanguage.googleapis.com/v1".to_string())
-    });
-    let provider_enum = provider
-        .as_deref()
-        .and_then(|p| Provider::from_str_loose(p).ok())
-        .unwrap_or_else(|| Provider::from_id("google").unwrap_or_default());
-    let api_key = provider_enum
-        .api_key_env_var()
-        .and_then(|var| std::env::var(var).ok())
-        .filter(|s| !s.is_empty());
-    let model = std::env::var("PARISH_CLOUD_MODEL")
-        .ok()
-        .filter(|s| !s.is_empty());
-
-    let client = api_key.as_deref().map(|key| {
-        parish_core::inference::build_client(&provider_enum, &base_url, Some(key), inference_config)
-    });
-
-    CloudEnvConfig {
-        client,
-        provider_name: provider,
-        model_name: model,
-        api_key,
-        base_url: Some(base_url),
-    }
 }
 
 #[cfg(test)]

@@ -29,7 +29,8 @@ pub mod worker;
 // their internal `crate::any_client::…` / `crate::openai_client::…` references.
 pub use parish_providers::parse_generation_json;
 pub use parish_providers::{
-    anthropic_client, any_client, google_client, mock_client, openai_client, rate_limit, simulator,
+    anthropic_client, any_client, discovery, fetch_catalog_endpoint, google_client, mock_client,
+    openai_client, rate_limit, simulator,
 };
 
 // ── Setup/bootstrap module: re-exported from parish-setup ─────────────────────
@@ -54,7 +55,10 @@ pub use google_client::{
 pub use parish_config::InferenceConfig;
 pub use rate_limit::InferenceRateLimiter;
 
-pub use any_client::{AnyClient, InferenceClients, TOKEN_CHANNEL_CAPACITY, build_client};
+pub use any_client::{
+    AnyClient, InferenceClients, TOKEN_CHANNEL_CAPACITY, build_client, build_client_v2,
+    build_inference_clients_v2, generate_params_v2,
+};
 pub use logs::{
     BoundedInferenceLog, DeferredInferenceAudit, DirectInferenceAudit, InferenceAuditSink,
     InferenceLog, InferenceLogEntry, new_inference_log, new_inference_log_with_config,
@@ -69,4 +73,6 @@ pub use timeout::{
     INFERENCE_RESPONSE_TIMEOUT_SECS, InferenceAwaitOutcome, QUEUE_REQUEST_ID,
     await_inference_response, submit_json, submit_json_streaming,
 };
-pub use worker::{InferenceWorkerConfig, spawn_inference_worker};
+pub use worker::{
+    InferenceWorkerConfig, spawn_inference_worker, spawn_inference_worker_with_clients,
+};

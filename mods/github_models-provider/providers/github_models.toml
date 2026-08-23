@@ -1,4 +1,5 @@
 id = "github_models"
+recommended_preset = "recommended"
 display_name = "GitHub Models"
 aliases = ["github-models", "githubmodels", "github"]
 kind = "openai-compat"

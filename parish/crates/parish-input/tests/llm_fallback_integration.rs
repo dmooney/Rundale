@@ -17,7 +17,10 @@ async fn mount_intent_response(server: &MockServer, content: &str) {
     Mock::given(method("POST"))
         .and(path("/v1/chat/completions"))
         .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
-            "choices": [{"message": {"role": "assistant", "content": content}}]
+            "choices": [{
+                "message": {"role": "assistant", "content": content},
+                "finish_reason": "stop"
+            }]
         })))
         .mount(server)
         .await;
@@ -114,7 +117,10 @@ async fn llm_fallback_posts_intent_request_contract() {
         .and(body_string_contains("text adventure input parser"))
         .and(body_string_contains("Respond ONLY with valid JSON"))
         .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
-            "choices": [{"message": {"role": "assistant", "content": r#"{"intent":"look","target":"the old mill","dialogue":null}"#}}]
+            "choices": [{
+                "message": {"role": "assistant", "content": r#"{"intent":"look","target":"the old mill","dialogue":null}"#},
+                "finish_reason": "stop"
+            }]
         })))
         .mount(&server)
         .await;
@@ -138,7 +144,10 @@ async fn llm_look_misclassification_downgraded_to_unknown() {
     Mock::given(method("POST"))
         .and(path("/v1/chat/completions"))
         .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
-            "choices": [{"message": {"role": "assistant", "content": r#"{"intent":"look","target":null,"dialogue":null}"#}}]
+            "choices": [{
+                "message": {"role": "assistant", "content": r#"{"intent":"look","target":null,"dialogue":null}"#},
+                "finish_reason": "stop"
+            }]
         })))
         .mount(&server)
         .await;

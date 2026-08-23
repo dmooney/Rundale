@@ -1,4 +1,5 @@
 id = "ollama"
+recommended_preset = "recommended"
 display_name = "Ollama"
 kind = "local"
 default_base_url = "http://localhost:11434"

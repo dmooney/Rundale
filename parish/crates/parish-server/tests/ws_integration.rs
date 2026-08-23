@@ -151,6 +151,7 @@ async fn ws_message_forwarding() {
                 tile_sources: Vec::new(),
                 reveal_unexplored_locations: false,
                 auto_setup_model: None,
+                ..parish_server::state::GameConfig::default()
             },
             cloud_client: None,
             transport,

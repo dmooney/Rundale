@@ -1,4 +1,5 @@
 id = "opencode"
+recommended_preset = "recommended"
 display_name = "OpenCode Zen"
 # "opencode-go" is the provider_id used by the eval harness
 # (rundale-bench/v1/models.toml) and .env.example; "zen" is a short alias.

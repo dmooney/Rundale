@@ -87,10 +87,12 @@ fn build_server(parish_dir: &Path, target_dir: &Path, dist_dir: &Path) -> PathBu
 fn serve_csp(binary: &Path, parish_dir: &Path, target_dir: &Path) -> String {
     let port = available_port();
     let user_data_dir = target_dir.join(format!("user-data-{port}"));
+    let user_config_dir = target_dir.join(format!("user-config-{port}"));
     let server = RunningServer(
         Command::new(binary)
             .current_dir(parish_dir)
             .env("PARISH_USER_DATA_DIR", user_data_dir)
+            .env("PARISH_USER_CONFIG_DIR", user_config_dir)
             .args(["--port", &port.to_string()])
             .stdout(Stdio::null())
             .stderr(Stdio::null())

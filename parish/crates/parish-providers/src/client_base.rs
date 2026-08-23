@@ -44,7 +44,33 @@ impl ClientBase {
         streaming_label: &'static str,
         config: &InferenceConfig,
     ) -> Self {
-        let normalized = {
+        Self::new_inner(base_url, api_key, label, streaming_label, config, false)
+    }
+
+    /// Creates a client whose base URL is an exact, versioned API prefix.
+    /// V2 endpoint contracts own their prefix, so `/v1`, `/api/v1`, and
+    /// provider-specific equivalents must never be normalised away.
+    pub(crate) fn new_preserving_path(
+        base_url: &str,
+        api_key: Option<&str>,
+        label: &'static str,
+        streaming_label: &'static str,
+        config: &InferenceConfig,
+    ) -> Self {
+        Self::new_inner(base_url, api_key, label, streaming_label, config, true)
+    }
+
+    fn new_inner(
+        base_url: &str,
+        api_key: Option<&str>,
+        label: &'static str,
+        streaming_label: &'static str,
+        config: &InferenceConfig,
+        preserve_path: bool,
+    ) -> Self {
+        let normalized = if preserve_path {
+            base_url.trim_end_matches('/').to_string()
+        } else {
             let trimmed = base_url.trim_end_matches('/');
             trimmed.strip_suffix("/v1").unwrap_or(trimmed).to_string()
         };

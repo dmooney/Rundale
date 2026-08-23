@@ -16,9 +16,12 @@
 pub mod anthropic_client;
 pub mod any_client;
 pub(crate) mod client_base;
+pub mod discovery;
 pub mod google_client;
 pub mod mock_client;
 pub mod openai_client;
+pub mod openai_responses_client;
+pub mod probe;
 pub mod rate_limit;
 pub(crate) mod retry;
 pub mod simulator;
@@ -73,11 +76,19 @@ pub fn parse_generation_json<T: serde::de::DeserializeOwned>(
 // ── Public API re-exports ─────────────────────────────────────────────────────
 
 pub use anthropic_client::AnthropicClient;
-pub use any_client::{AnyClient, InferenceClients, TOKEN_CHANNEL_CAPACITY, build_client};
+pub use any_client::{
+    AnyClient, InferenceClients, TOKEN_CHANNEL_CAPACITY, build_client, build_client_v2,
+    build_inference_clients_v2, generate_params_v2,
+};
+pub use discovery::fetch_catalog_endpoint;
 pub use google_client::{
     GenerationResult, GoogleClient, ProviderCallError, ProviderMetadata, ProviderUsage,
     ServiceTier, ThinkingLevel,
 };
 pub use mock_client::{MockClient, MockMatcher};
 pub use openai_client::{GenerateParams, JsonSchemaSpec, ResponseFormat};
+pub use openai_responses_client::OpenAiResponsesClient;
+pub use probe::{
+    RawProbeResponse, is_definitive_model_not_found, probe_route_raw, validate_probe_response,
+};
 pub use rate_limit::InferenceRateLimiter;

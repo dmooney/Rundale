@@ -132,47 +132,16 @@ impl SystemCommandHost for CliCommandHost {
         self.rebuild_inference.store(true, Ordering::SeqCst);
         Box::pin(async move {
             let mut app = self.app.lock().await;
-            if app.provider_name != "simulator" {
-                if !(app.base_url.starts_with("http://") || app.base_url.starts_with("https://")) {
-                    println!(
-                        "[Warning: '{}' doesn't look like a valid URL — NPC conversations may fail.]",
-                        app.base_url
-                    );
+            let route = app
+                .inference_routes_v2
+                .get(&parish_core::config::InferenceCategory::Dialogue)
+                .cloned();
+            if let Some(route) = route {
+                match parish_core::inference::build_client_v2(&route, &app.inference_config) {
+                    Ok(client) => app.client = Some(client),
+                    Err(error) => eprintln!("Inference rebuild rejected: {error}"),
                 }
-                let provider = parish_core::config::Provider::from_str_loose(&app.provider_name)
-                    .unwrap_or_default();
-                app.client = Some(parish_core::inference::build_client(
-                    &provider,
-                    &app.base_url,
-                    app.api_key.as_deref(),
-                    &app.inference_config,
-                ));
             }
-        })
-    }
-
-    fn rebuild_cloud_client(&self) -> BoxFuture<'_, ()> {
-        self.rebuild_inference.store(true, Ordering::SeqCst);
-        Box::pin(async move {
-            let mut app = self.app.lock().await;
-            let base_url = app
-                .cloud_base_url
-                .as_deref()
-                .unwrap_or("https://generativelanguage.googleapis.com/v1")
-                .to_string();
-            let provider = app
-                .cloud_provider_name
-                .as_deref()
-                .and_then(|p| parish_core::config::Provider::from_str_loose(p).ok())
-                .unwrap_or_else(|| {
-                    parish_core::config::Provider::from_id("google").unwrap_or_default()
-                });
-            app.cloud_client = Some(parish_core::inference::build_client(
-                &provider,
-                &base_url,
-                app.cloud_api_key.as_deref(),
-                &app.inference_config,
-            ));
         })
     }
 

@@ -4,10 +4,9 @@
 //! `execute_via_real_loop`, mocking only the provider completion boundary.
 
 use parish_core::npc::types::NpcState;
-use parish_core::world::events::GameEvent;
 use parish_engine::testing::GameTestHarness;
 
-const SAFE_FALLBACK: &str = parish_core::npc::INVALID_DIALOGUE_FALLBACK;
+const SAFE_RECOVERY: &str = parish_core::game_loop::npc_turn::DIALOGUE_RETRY_MESSAGE;
 
 fn harness_with_peig() -> (GameTestHarness, parish_core::npc::NpcId, String) {
     let mut harness = GameTestHarness::new();
@@ -37,6 +36,26 @@ fn streamed_text(events: &[(String, serde_json::Value)]) -> String {
         .collect()
 }
 
+fn assert_failed_without_candidate_effects(events: &[(String, serde_json::Value)]) {
+    assert!(streamed_text(events).is_empty());
+    let terminal = events
+        .iter()
+        .find(|(name, _)| name == "stream-turn-end")
+        .map(|(_, payload)| payload)
+        .expect("rejected candidate should terminate the stream");
+    assert_eq!(
+        terminal.get("status").and_then(serde_json::Value::as_str),
+        Some("failed")
+    );
+    assert_eq!(
+        terminal
+            .get("recovery_message")
+            .and_then(serde_json::Value::as_str),
+        Some(SAFE_RECOVERY)
+    );
+    assert!(terminal.get("final_text").is_none());
+}
+
 #[test]
 fn forbidden_full_json_candidate_has_no_raw_text_or_metadata_effects() {
     let (mut harness, peig_id, speaker) = harness_with_peig();
@@ -51,7 +70,7 @@ fn forbidden_full_json_candidate_has_no_raw_text_or_metadata_effects() {
 
     let ui_events = harness.execute_via_real_loop(&format!("talk to {speaker}"));
 
-    assert_eq!(streamed_text(&ui_events), SAFE_FALLBACK);
+    assert_failed_without_candidate_effects(&ui_events);
     let serialized_ui = serde_json::to_string(&ui_events).unwrap();
     for forbidden in [raw_line, "committee notice", "Attend the agricultural show"] {
         assert!(
@@ -83,16 +102,10 @@ fn forbidden_full_json_candidate_has_no_raw_text_or_metadata_effects() {
             .all(|memory| !memory.content.contains(raw_line))
     );
 
-    let dialogue = loop {
-        match game_events.try_recv() {
-            Ok(GameEvent::DialogueOccurred {
-                npc_id, npc_said, ..
-            }) if npc_id == peig_id => break npc_said.expect("canonical dialogue text"),
-            Ok(_) | Err(tokio::sync::broadcast::error::TryRecvError::Lagged(_)) => continue,
-            Err(error) => panic!("missing dialogue event: {error}"),
-        }
-    };
-    assert_eq!(dialogue, SAFE_FALLBACK);
+    assert!(
+        game_events.try_recv().is_err(),
+        "rejected candidate must not publish a canonical dialogue event"
+    );
 }
 
 #[test]
@@ -105,7 +118,7 @@ fn malformed_and_raw_provider_modes_have_identical_canonical_output() {
         harness.mock().push_json_for(&speaker, candidate);
         let events = harness.execute_via_real_loop(&format!("talk to {speaker}"));
 
-        assert_eq!(streamed_text(&events), SAFE_FALLBACK);
+        assert_failed_without_candidate_effects(&events);
         assert!(!serde_json::to_string(&events).unwrap().contains(candidate));
     }
 }

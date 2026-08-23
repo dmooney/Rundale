@@ -66,33 +66,6 @@ impl SystemCommandHost for AppStateCommandHost {
         })
     }
 
-    fn rebuild_cloud_client(&self) -> BoxFuture<'_, ()> {
-        Box::pin(async move {
-            let config = self.state.config.lock().await;
-            let base_url = config
-                .cloud_base_url
-                .as_deref()
-                .unwrap_or("https://generativelanguage.googleapis.com/v1")
-                .to_string();
-            let api_key = config.cloud_api_key.clone();
-            let provider_enum = config
-                .cloud_provider_name
-                .as_deref()
-                .and_then(|p| parish_core::config::Provider::from_str_loose(p).ok())
-                .unwrap_or_else(|| {
-                    parish_core::config::Provider::from_id("google").unwrap_or_default()
-                });
-            drop(config);
-            let mut cloud_guard = self.state.inference.cloud_client.lock().await;
-            *cloud_guard = Some(parish_core::inference::build_client(
-                &provider_enum,
-                &base_url,
-                api_key.as_deref(),
-                &self.state.inference_config,
-            ));
-        })
-    }
-
     fn toggle_map(&self) -> BoxFuture<'_, ()> {
         Box::pin(async move {
             self.state

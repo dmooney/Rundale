@@ -59,9 +59,6 @@ pub trait SystemCommandHost: Send + Sync {
     /// Handle [`CommandEffect::RebuildInference`] — rebuild the local inference pipeline.
     fn rebuild_inference(&self) -> BoxFuture<'_, ()>;
 
-    /// Handle [`CommandEffect::RebuildCloudClient`] — rebuild the cloud/dialogue client.
-    fn rebuild_cloud_client(&self) -> BoxFuture<'_, ()>;
-
     /// Handle [`CommandEffect::ToggleMap`] — emit toggle event or print text map.
     fn toggle_map(&self) -> BoxFuture<'_, ()>;
 
@@ -209,9 +206,9 @@ pub async fn handle_system_command(
             CommandEffect::RebuildInference => {
                 host.rebuild_inference().await;
             }
-            CommandEffect::RebuildCloudClient => {
-                host.rebuild_cloud_client().await;
-            }
+            // The v2 router has one atomic client set. The legacy effect is
+            // retained as an input compatibility detail, but it can no longer
+            // rebuild an independently configured "cloud" transport.
             CommandEffect::ToggleMap => {
                 host.toggle_map().await;
                 // No text log for map toggle — return early (match GUI behaviour).
@@ -417,10 +414,6 @@ mod tests {
 
         fn rebuild_inference(&self) -> BoxFuture<'_, ()> {
             self.record("rebuild_inference");
-            Box::pin(async {})
-        }
-        fn rebuild_cloud_client(&self) -> BoxFuture<'_, ()> {
-            self.record("rebuild_cloud_client");
             Box::pin(async {})
         }
         fn toggle_map(&self) -> BoxFuture<'_, ()> {

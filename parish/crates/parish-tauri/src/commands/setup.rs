@@ -19,6 +19,9 @@ pub(super) fn byok_ctx<'a>(state: &'a Arc<AppState>) -> parish_core::ipc::byok::
         },
         secrets: std::sync::Arc::clone(&state.secret_store),
         user_config_dir: state.user_config_dir.as_path(),
+        project_config_path: state.project_config_path.as_path(),
+        catalog_user_data: Some(state.catalog_user_data.as_path()),
+        runtime_manager: state.inference_runtime_v2.clone(),
     }
 }
 
@@ -386,6 +389,7 @@ async fn do_start_local_inference_setup_inner(
         base_url: Some(base_url),
         model: Some(model_name),
         api_key: None,
+        allow_insecure_http: false,
         category_overrides,
     };
     parish_core::ipc::byok::handle_set_provider_config(set_args, byok_ctx(&state_arc))
@@ -414,7 +418,16 @@ async fn do_start_local_inference_setup_inner(
         return Err("persistence initialization failed after wizard".to_string());
     }
 
-    let (provider_config, _, _, _) = crate::provider_config_from_env(&state_arc.user_config_dir);
+    let provider_config = {
+        let config = state_arc.config.lock().await;
+        parish_core::config::ProviderConfig {
+            provider: parish_core::config::Provider::from_str_loose(&config.provider_name)
+                .unwrap_or_else(|_| parish_core::config::Provider::custom()),
+            base_url: config.base_url.clone(),
+            api_key: config.api_key.clone(),
+            model: Some(config.model_name.clone()).filter(|model| !model.is_empty()),
+        }
+    };
     let inference_config_clone = state_arc.inference_config.clone();
     let bootstrapped = crate::setup::bootstrap_inference_provider(
         app,

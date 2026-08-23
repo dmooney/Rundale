@@ -3,7 +3,8 @@
 use serde::Deserialize;
 
 /// Tuning for NPC arrival reactions (greetings, nods, introductions).
-#[derive(Debug, Deserialize, Clone)]
+#[derive(Debug, Deserialize, Clone, schemars::JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct ReactionConfig {
     /// Base probability that an NPC reacts when the player arrives.
     #[serde(default = "default_reaction_base_chance")]
