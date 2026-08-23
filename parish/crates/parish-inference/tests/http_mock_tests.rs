@@ -16,6 +16,45 @@ use tokio::sync::mpsc;
 use wiremock::matchers::{header, header_exists, method, path};
 use wiremock::{Mock, MockServer, ResponseTemplate};
 
+fn openai_completion(content: &str) -> serde_json::Value {
+    serde_json::json!({
+        "choices": [{
+            "message": {"role": "assistant", "content": content},
+            "finish_reason": "stop"
+        }]
+    })
+}
+
+fn anthropic_message(content: &str) -> serde_json::Value {
+    serde_json::json!({
+        "content": [{"type": "text", "text": content}],
+        "stop_reason": "end_turn"
+    })
+}
+
+fn anthropic_text_stream(chunks: &[&str]) -> String {
+    let mut events = vec![
+        r#"data: {"type":"message_start"}"#.to_string(),
+        r#"data: {"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}}"#.to_string(),
+    ];
+    events.extend(chunks.iter().map(|chunk| {
+        format!(
+            "data: {}",
+            serde_json::json!({
+                "type": "content_block_delta",
+                "index": 0,
+                "delta": {"type": "text_delta", "text": chunk}
+            })
+        )
+    }));
+    events.extend([
+        r#"data: {"type":"content_block_stop","index":0}"#.to_string(),
+        r#"data: {"type":"message_delta","delta":{"stop_reason":"end_turn"}}"#.to_string(),
+        r#"data: {"type":"message_stop"}"#.to_string(),
+    ]);
+    events.join("\n")
+}
+
 // =============================================================================
 // OpenAiClient — /v1/chat/completions endpoint
 // =============================================================================
@@ -25,11 +64,9 @@ async fn openai_generate_returns_choice_content() {
     let server = MockServer::start().await;
     Mock::given(method("POST"))
         .and(path("/v1/chat/completions"))
-        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
-            "choices": [{
-                "message": {"role": "assistant", "content": "Hello from the mock"}
-            }]
-        })))
+        .respond_with(
+            ResponseTemplate::new(200).set_body_json(openai_completion("Hello from the mock")),
+        )
         .mount(&server)
         .await;
 
@@ -47,9 +84,7 @@ async fn openai_generate_sends_bearer_token_when_api_key_set() {
     Mock::given(method("POST"))
         .and(path("/v1/chat/completions"))
         .and(header("Authorization", "Bearer sk-test-1234"))
-        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
-            "choices": [{"message": {"content": "authed"}}]
-        })))
+        .respond_with(ResponseTemplate::new(200).set_body_json(openai_completion("authed")))
         .mount(&server)
         .await;
 
@@ -68,9 +103,7 @@ async fn openai_generate_omits_bearer_when_api_key_absent() {
     // Mount a mock that DOES match when Authorization is absent.
     Mock::given(method("POST"))
         .and(path("/v1/chat/completions"))
-        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
-            "choices": [{"message": {"content": "ok"}}]
-        })))
+        .respond_with(ResponseTemplate::new(200).set_body_json(openai_completion("ok")))
         .mount(&server)
         .await;
 
@@ -79,9 +112,7 @@ async fn openai_generate_omits_bearer_when_api_key_absent() {
     Mock::given(method("POST"))
         .and(path("/v1/chat/completions"))
         .and(header_exists("Authorization"))
-        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
-            "choices": [{"message": {"content": "auth"}}]
-        })))
+        .respond_with(ResponseTemplate::new(200).set_body_json(openai_completion("auth")))
         .expect(0)
         .mount(&server)
         .await;
@@ -122,12 +153,11 @@ async fn openai_generate_handles_empty_choices() {
         .await;
 
     let client = OpenAiClient::new(&server.uri(), None);
-    let out = client
+    let error = client
         .generate("m", "p", None, GenerateParams::default())
         .await
-        .unwrap();
-    // empty choices degrades gracefully to empty content, not an error
-    assert_eq!(out, "");
+        .expect_err("a response without exactly one choice must be rejected");
+    assert!(error.to_string().contains("expected exactly one"));
 }
 
 #[tokio::test]
@@ -163,7 +193,7 @@ async fn openai_generate_stream_parses_sse_chunks() {
 }
 
 #[tokio::test]
-async fn openai_generate_stream_honors_done_sentinel_before_stop() {
+async fn openai_generate_stream_rejects_done_sentinel_before_stop() {
     let server = MockServer::start().await;
     // No finish_reason on any chunk; only the `[DONE]` sentinel ends the stream.
     let sse = [
@@ -180,11 +210,11 @@ async fn openai_generate_stream_honors_done_sentinel_before_stop() {
 
     let client = OpenAiClient::new(&server.uri(), None);
     let (tx, _rx) = mpsc::channel::<String>(TOKEN_CHANNEL_CAPACITY);
-    let full = client
+    let error = client
         .generate_stream("m", "p", None, tx, GenerateParams::default())
         .await
-        .unwrap();
-    assert_eq!(full, "ab");
+        .expect_err("[DONE] without finish_reason=stop must reject the partial response");
+    assert!(error.to_string().contains("finish_reason=stop"));
 }
 
 #[tokio::test]
@@ -219,6 +249,7 @@ async fn openai_generate_stream_ignores_sse_comments_and_blank_lines() {
         r#"data: {"choices":[{"delta":{"content":"x"},"finish_reason":null}]}"#,
         r#": another comment"#,
         r#"data: {"choices":[{"delta":{"content":"y"},"finish_reason":"stop"}]}"#,
+        r#"data: [DONE]"#,
     ]
     .join("\n");
     Mock::given(method("POST"))
@@ -247,9 +278,9 @@ async fn openai_generate_json_parses_content_as_typed_payload() {
     let server = MockServer::start().await;
     Mock::given(method("POST"))
         .and(path("/v1/chat/completions"))
-        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
-            "choices": [{"message": {"content": "{\"hello\":\"world\"}"}}]
-        })))
+        .respond_with(
+            ResponseTemplate::new(200).set_body_json(openai_completion("{\"hello\":\"world\"}")),
+        )
         .mount(&server)
         .await;
 
@@ -272,9 +303,9 @@ async fn openai_generate_json_errors_on_malformed_inner_content() {
     let server = MockServer::start().await;
     Mock::given(method("POST"))
         .and(path("/v1/chat/completions"))
-        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
-            "choices": [{"message": {"content": "not valid json at all"}}]
-        })))
+        .respond_with(
+            ResponseTemplate::new(200).set_body_json(openai_completion("not valid json at all")),
+        )
         .mount(&server)
         .await;
 
@@ -297,9 +328,7 @@ async fn openai_generate_request_includes_max_tokens_when_set() {
             "model": "m",
             "max_tokens": 42
         })))
-        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
-            "choices": [{"message": {"content": "capped"}}]
-        })))
+        .respond_with(ResponseTemplate::new(200).set_body_json(openai_completion("capped")))
         .mount(&server)
         .await;
 
@@ -334,9 +363,7 @@ async fn openai_generate_request_omits_max_tokens_when_none() {
     Mock::given(method("POST"))
         .and(path("/v1/chat/completions"))
         .and(body_partial_json(serde_json::json!({"model": "m"})))
-        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
-            "choices": [{"message": {"content": "ok"}}]
-        })))
+        .respond_with(ResponseTemplate::new(200).set_body_json(openai_completion("ok")))
         .mount(&server)
         .await;
 
@@ -364,9 +391,7 @@ async fn openai_generate_request_includes_frequency_penalty_when_set() {
             "model": "m",
             "frequency_penalty": 0.5
         })))
-        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
-            "choices": [{"message": {"content": "rep-penalty-on"}}]
-        })))
+        .respond_with(ResponseTemplate::new(200).set_body_json(openai_completion("rep-penalty-on")))
         .mount(&server)
         .await;
 
@@ -407,9 +432,9 @@ async fn anthropic_generate_returns_choice_content() {
     let server = MockServer::start().await;
     Mock::given(method("POST"))
         .and(path("/v1/messages"))
-        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
-            "content": [{"type": "text", "text": "Hello from the mock"}]
-        })))
+        .respond_with(
+            ResponseTemplate::new(200).set_body_json(anthropic_message("Hello from the mock")),
+        )
         .mount(&server)
         .await;
 
@@ -428,9 +453,7 @@ async fn anthropic_generate_sends_x_api_key_when_set() {
         .and(path("/v1/messages"))
         .and(header("x-api-key", "sk-ant-test-1234"))
         .and(header("anthropic-version", "2023-06-01"))
-        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
-            "content": [{"type": "text", "text": "authed"}]
-        })))
+        .respond_with(ResponseTemplate::new(200).set_body_json(anthropic_message("authed")))
         .mount(&server)
         .await;
 
@@ -446,9 +469,7 @@ async fn anthropic_generate_omits_key_when_absent() {
     // This mock matches when x-api-key is absent.
     Mock::given(method("POST"))
         .and(path("/v1/messages"))
-        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
-            "content": [{"type": "text", "text": "ok"}]
-        })))
+        .respond_with(ResponseTemplate::new(200).set_body_json(anthropic_message("ok")))
         .mount(&server)
         .await;
 
@@ -456,9 +477,7 @@ async fn anthropic_generate_omits_key_when_absent() {
     Mock::given(method("POST"))
         .and(path("/v1/messages"))
         .and(header_exists("x-api-key"))
-        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
-            "content": [{"type": "text", "text": "with-key"}]
-        })))
+        .respond_with(ResponseTemplate::new(200).set_body_json(anthropic_message("with-key")))
         .expect(0)
         .mount(&server)
         .await;
@@ -494,13 +513,7 @@ async fn anthropic_generate_stream_parses_sse_chunks() {
     let server = MockServer::start().await;
     // Anthropic SSE format: `data: {"type":"content_block_delta","delta":{"type":"text_delta","text":"…"}}`
     // terminated by `data: {"type":"message_stop"}` (not [DONE]).
-    let sse = [
-        r#"data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"Hel"}}"#,
-        r#"data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"lo"}}"#,
-        r#"data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"!"}}"#,
-        r#"data: {"type":"message_stop"}"#,
-    ]
-    .join("\n");
+    let sse = anthropic_text_stream(&["Hel", "lo", "!"]);
     Mock::given(method("POST"))
         .and(path("/v1/messages"))
         .respond_with(ResponseTemplate::new(200).set_body_string(sse))
@@ -523,17 +536,15 @@ async fn anthropic_generate_stream_parses_sse_chunks() {
 }
 
 #[tokio::test]
-async fn anthropic_generate_stream_honors_done_sentinel() {
+async fn anthropic_generate_stream_rejects_data_after_done_sentinel() {
     // Anthropic's stream sentinel is {"type":"message_stop"}, not [DONE].
-    // Any delta arriving after message_stop must be dropped.
+    // Any delta arriving after message_stop makes the response malformed.
     let server = MockServer::start().await;
-    let sse = [
-        r#"data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"a"}}"#,
-        r#"data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"b"}}"#,
-        r#"data: {"type":"message_stop"}"#,
-        r#"data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"dropped"}}"#,
-    ]
-    .join("\n");
+    let sse = format!(
+        "{}\n{}",
+        anthropic_text_stream(&["a", "b"]),
+        r#"data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"dropped"}}"#
+    );
     Mock::given(method("POST"))
         .and(path("/v1/messages"))
         .respond_with(ResponseTemplate::new(200).set_body_string(sse))
@@ -542,17 +553,17 @@ async fn anthropic_generate_stream_honors_done_sentinel() {
 
     let client = AnthropicClient::new(&server.uri(), None);
     let (tx, mut rx) = mpsc::channel::<String>(TOKEN_CHANNEL_CAPACITY);
-    let full = client
+    let error = client
         .generate_stream("m", "p", None, tx, None, None)
         .await
-        .unwrap();
-    assert_eq!(full, "ab");
+        .expect_err("data after message_stop must reject the response");
+    assert!(error.to_string().contains("after message_stop"));
 
     let mut tokens = Vec::new();
     while let Ok(t) = rx.try_recv() {
         tokens.push(t);
     }
-    // "dropped" must not appear — message_stop terminated the stream.
+    // The malformed trailing delta must never be forwarded.
     assert_eq!(tokens, vec!["a", "b"]);
 }
 
@@ -584,9 +595,9 @@ async fn anthropic_generate_maps_401_with_structured_error_body() {
 }
 
 #[tokio::test]
-async fn anthropic_generate_handles_empty_choices() {
+async fn anthropic_generate_rejects_empty_content() {
     // "empty_choices" name mirrors the OpenAI sibling; Anthropic uses
-    // content blocks — an empty content array degrades gracefully to "".
+    // content blocks, and an empty content array is not a complete response.
     let server = MockServer::start().await;
     Mock::given(method("POST"))
         .and(path("/v1/messages"))
@@ -597,9 +608,11 @@ async fn anthropic_generate_handles_empty_choices() {
         .await;
 
     let client = AnthropicClient::new(&server.uri(), None);
-    let out = client.generate("m", "p", None, None, None).await.unwrap();
-    // empty content degrades gracefully to empty string, not an error
-    assert_eq!(out, "");
+    let error = client
+        .generate("m", "p", None, None, None)
+        .await
+        .expect_err("a response without visible text must be rejected");
+    assert!(error.to_string().contains("non-empty visible text"));
 }
 
 #[tokio::test]
@@ -613,9 +626,9 @@ async fn anthropic_generate_json_parses_typed_payload() {
     let server = MockServer::start().await;
     Mock::given(method("POST"))
         .and(path("/v1/messages"))
-        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
-            "content": [{"type": "text", "text": "{\"hello\":\"world\"}"}]
-        })))
+        .respond_with(
+            ResponseTemplate::new(200).set_body_json(anthropic_message("{\"hello\":\"world\"}")),
+        )
         .mount(&server)
         .await;
 
@@ -639,9 +652,10 @@ async fn anthropic_generate_json_parses_fenced_payload() {
     // Anthropic sometimes wraps JSON in ```json fences
     Mock::given(method("POST"))
         .and(path("/v1/messages"))
-        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
-            "content": [{"type": "text", "text": "```json\n{\"hello\":\"world\"}\n```"}]
-        })))
+        .respond_with(
+            ResponseTemplate::new(200)
+                .set_body_json(anthropic_message("```json\n{\"hello\":\"world\"}\n```")),
+        )
         .mount(&server)
         .await;
 
@@ -666,9 +680,7 @@ async fn anthropic_generate_json_retries_on_parse_failure() {
     // InferenceJsonParseFailed is returned.
     Mock::given(method("POST"))
         .and(path("/v1/messages"))
-        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
-            "content": [{"type": "text", "text": "not valid json"}]
-        })))
+        .respond_with(ResponseTemplate::new(200).set_body_json(anthropic_message("not valid json")))
         .expect(2) // exactly 2 requests (initial + retry)
         .mount(&server)
         .await;
@@ -689,13 +701,7 @@ async fn anthropic_generate_stream_json_parses_sse_chunks() {
     let server = MockServer::start().await;
     // generate_stream_json delegates to generate_stream with augmented system.
     // The stream returns the raw accumulated text (pre-extraction).
-    let sse = [
-        r#"data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"Hel"}}"#,
-        r#"data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"lo"}}"#,
-        r#"data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"!"}}"#,
-        r#"data: {"type":"message_stop"}"#,
-    ]
-    .join("\n");
+    let sse = anthropic_text_stream(&["Hel", "lo", "!"]);
     Mock::given(method("POST"))
         .and(path("/v1/messages"))
         .respond_with(ResponseTemplate::new(200).set_body_string(sse))
@@ -805,7 +811,10 @@ async fn openai_compatible_provider_smoke() {
                 .and(path(completions_path))
                 .and(header("Authorization", bearer.as_str()))
                 .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
-                    "choices": [{"message": {"content": "ok"}}]
+                    "choices": [{
+                        "message": {"content": "ok"},
+                        "finish_reason": "stop"
+                    }]
                 })))
                 .mount(&server)
                 .await;
@@ -815,7 +824,10 @@ async fn openai_compatible_provider_smoke() {
                 .and(path(completions_path))
                 .and(header_exists("Authorization"))
                 .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
-                    "choices": [{"message": {"content": "with-auth"}}]
+                    "choices": [{
+                        "message": {"content": "with-auth"},
+                        "finish_reason": "stop"
+                    }]
                 })))
                 .expect(0)
                 .mount(&server)
@@ -824,7 +836,10 @@ async fn openai_compatible_provider_smoke() {
             Mock::given(method("POST"))
                 .and(path(completions_path))
                 .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
-                    "choices": [{"message": {"content": "ok"}}]
+                    "choices": [{
+                        "message": {"content": "ok"},
+                        "finish_reason": "stop"
+                    }]
                 })))
                 .mount(&server)
                 .await;
