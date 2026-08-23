@@ -15,8 +15,10 @@ The locked semantics (see the redesign plan):
   - Re-running the same (prompt, response) under the same rubric+judge is a
     no-op — the key already has a stored judgment.
 
-Judgments are committed under ``docs/proofs/rundale-bench/judgments/<key>.json``
-so a frozen run is fully reproducible from the repo alone.
+Judgments are stored under the ignored local archive at
+``docs/proofs/rundale-bench/judgments/<key>.json``. On the primary macOS
+workstation that path is an iCloud-backed symlink; concise summaries and
+content hashes, rather than raw paid receipts, are committed.
 """
 
 from __future__ import annotations

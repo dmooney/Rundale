@@ -13,9 +13,7 @@
 #  - Matches backtick-delimited tokens in agent docs that begin with one of the
 #    known repo roots (parish/, crates/, apps/, docs/, mods/, testing/, deploy/,
 #    assets/, scripts/, .skills/).
-#  - Checks ordinary relative Markdown links in every tracked Markdown document
-#    except `docs/proofs/`, whose immutable evidence may cite intentionally
-#    ephemeral artifacts.
+#  - Checks ordinary relative Markdown links in every tracked Markdown document.
 #  - Skips globs (*), template vars ({...}), URLs, anchors, and fenced code
 #    examples. Trailing-slash directory refs work as expected.
 set -euo pipefail
@@ -77,8 +75,6 @@ done
 # `git ls-files` keeps the scan deterministic and avoids generated local docs.
 markdown_checked=0
 while IFS= read -r doc; do
-    [[ "$doc" == docs/proofs/* ]] && continue
-
     # Skip fenced examples: a documentation example may intentionally use a
     # placeholder link, while prose links should always resolve in the checkout.
     while IFS= read -r path; do

@@ -25,8 +25,8 @@ cd "$REPO_ROOT" || exit 1
 
 MANIFEST="parish/Cargo.toml"
 LEDGER="${PARISH_HARNESS_SHADOW_LEDGER:-$REPO_ROOT/parish/target/harness-shadow-ledger.jsonl}"
-# Default summary lives under docs/proofs/ (committed, like the other durable
-# bench artifacts) rather than .proofs/ (gitignored proof bundles).
+# Default summary lives under the ignored local docs/proofs archive rather
+# than .proofs/ (short-lived PR proof bundles).
 SUMMARY="${1:-$REPO_ROOT/docs/proofs/harness-shadow/initial-ledger.md}"
 
 export PARISH_HARNESS_SHADOW=1

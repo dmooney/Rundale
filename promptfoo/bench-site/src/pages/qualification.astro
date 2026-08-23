@@ -7,7 +7,6 @@ const runs = [...data.runs].reverse();
 const pct = (value: number | null | undefined) => value == null ? '—' : `${(value * 100).toFixed(1)}%`;
 const ms = (value: number | null | undefined) => value == null ? '—' : `${Math.round(value)} ms`;
 const rate = (valid: number, calls: number) => calls ? pct(valid / calls) : '—';
-const artifactUrl = (artifactPath: string) => `https://github.com/dmooney/Rundale/blob/main/${artifactPath}`;
 const profile = (run: typeof runs[number]) => run.preflight.request_profile;
 const effort = (run: typeof runs[number]) => {
   const request = profile(run);
@@ -48,7 +47,8 @@ const baseUrl = `${import.meta.env.BASE_URL.replace(/\/?$/, '/')}`;
   <div class="banner">
     A rejected or stopped profile is deliberately <strong>not judged</strong>. Speed
     does not disqualify a reliable cloud profile; it determines that profile's rank.
-    Each row links its immutable receipt and exposes the request profile that produced it.
+    Each row retains its immutable receipt hash and exposes the request profile that produced it.
+    Raw receipts are archived outside Git.
   </div>
 
   {policy && (
@@ -195,7 +195,7 @@ const baseUrl = `${import.meta.env.BASE_URL.replace(/\/?$/, '/')}`;
                       <div><dt>Valid responses</dt><dd>{run.preflight.valid}/{run.preflight.calls} ({rate(run.preflight.valid, run.preflight.calls)})</dd></div>
                       <div><dt>Guard interventions</dt><dd>{run.preflight.guard_interventions} ({pct(run.preflight.guard_rate)})</dd></div>
                       <div><dt>Observed elapsed</dt><dd>{run.preflight.elapsed_min_ms == null ? 'not captured' : `${ms(run.preflight.elapsed_min_ms)}–${ms(run.preflight.elapsed_max_ms)}`}</dd></div>
-                    </dl><a href={artifactUrl(run.preflight.artifact.path)} target="_blank" rel="noreferrer">Open preflight receipt ↗</a><p class="hash"><span>{run.preflight.artifact.path}</span><code title={run.preflight.artifact.sha256}>{run.preflight.artifact.sha256}</code></p></section>
+                    </dl><span class="archive-note">Raw receipt archived outside Git</span><p class="hash"><span>{run.preflight.artifact.path}</span><code title={run.preflight.artifact.sha256}>{run.preflight.artifact.sha256}</code></p></section>
                     <section><h3>Performance evidence</h3>{run.performance ? <><dl>
                       <div><dt>Measurements</dt><dd>{run.performance.measurements}</dd></div>
                       <div><dt>Cold / warm</dt><dd>{run.performance.cold_measurements} / {run.performance.warm_measurements}</dd></div>
@@ -207,7 +207,7 @@ const baseUrl = `${import.meta.env.BASE_URL.replace(/\/?$/, '/')}`;
                       <div><dt>Warm completion p95</dt><dd>{ms(run.performance.warm_completion_p95_ms)}</dd></div>
                       <div><dt>Throughput p50</dt><dd>{run.performance.tokens_per_second_p50?.toFixed(1) ?? '—'} tok/s</dd></div>
                       <div><dt>Error rate</dt><dd>{pct(run.performance.error_rate)}</dd></div>
-                    </dl><a href={artifactUrl(run.performance.artifact.path)} target="_blank" rel="noreferrer">Open performance receipt ↗</a><p class="hash"><span>{run.performance.artifact.path}</span><code title={run.performance.artifact.sha256}>{run.performance.artifact.sha256}</code></p></> : <p class="muted">Not run: this profile did not clear preflight.</p>}</section>
+                    </dl><span class="archive-note">Raw receipt archived outside Git</span><p class="hash"><span>{run.performance.artifact.path}</span><code title={run.performance.artifact.sha256}>{run.performance.artifact.sha256}</code></p></> : <p class="muted">Not run: this profile did not clear preflight.</p>}</section>
                     <section><h3>Quality judgment</h3>{run.judgment ? <><dl>
                       <div><dt>Consensus / rank</dt><dd>{run.judgment.overall == null ? 'pending' : run.judgment.overall.toFixed(2)} · {run.judgment.quality_rank == null ? 'unranked' : `#${run.judgment.quality_rank} of ${run.judgment.quality_cohort_size}`}</dd></div>
                       <div><dt>Verdict</dt><dd>{run.judgment.needs_adjudication ? 'adjudication required' : !run.judgment.complete ? 'panel incomplete' : run.judgment.pass ? 'qualified' : 'rejected'}</dd></div>
@@ -219,7 +219,7 @@ const baseUrl = `${import.meta.env.BASE_URL.replace(/\/?$/, '/')}`;
                     </dl><div class="judge-panel">{run.judgment.judges.map((entry) => <div class="judge-entry">
                       <span class={entry.eligible ? 'eligible' : 'excluded'}>{entry.id}{entry.eligible ? '' : ' · excluded'}</span>
                       <code>{entry.overall.toFixed(2)} · {entry.pass ? 'pass' : 'fail'}</code>
-                      <a href={artifactUrl(entry.artifact.path)} target="_blank" rel="noreferrer">receipt ↗</a>
+                      <span class="archive-note">hash retained</span>
                     </div>)}</div></> : <p class="muted">Not judged: this profile did not clear deterministic screening.</p>}</section>
                   </div>
                   <details class="calls-inspector" data-calls-url={`${baseUrl}${run.calls.path}`}>
@@ -284,6 +284,7 @@ const baseUrl = `${import.meta.env.BASE_URL.replace(/\/?$/, '/')}`;
   .hash span { color: var(--muted); font: .68rem var(--mono); overflow-wrap: anywhere; }
   .hash code { font-size: .66rem; overflow-wrap: anywhere; }
   .calls-inspector { position: static; margin-top: 1rem; border-top: 1px solid var(--border); padding-top: .85rem; }
+  .archive-note { color: var(--muted); font-size: .78rem; }
   .calls-inspector > summary { font-size: .9rem; }
   .call-provenance { margin: .35rem 0 .65rem; color: var(--muted); font-size: .75rem; }
   .calls-state { color: var(--muted); font-size: .8rem; padding: .7rem; border: 1px dashed var(--border); border-radius: 8px; }

@@ -60,7 +60,10 @@ Acceptance criteria: met
 
 The gate requires proof for engine, UI, gameplay content, runtime scripts, CI, agent instructions, and harness changes. PRs that touch no source/runtime paths are exempt: pure documentation (any `*.md` / `*.txt`, e.g. AGENTS.md, README.md, `docs/**`), CI-only (`.github/**`), agent-instruction-only (`.agents/**`, `.claude/**`), check-tooling-only (`parish/scripts/**`), and build-config-only (`justfile`) edits all skip the gate when no code change accompanies them. Dependabot PRs are also exempt at the CI layer — automated dependency bumps have no useful signal to prove.
 
-The two long-lived archives under `docs/proofs/local-perf/` and `docs/proofs/rundale-bench/` are bench artifacts (written by the eval-dialogue skill and ELO benchmarks). They are not per-task proof bundles and are not validated by this gate.
+Historical bench receipts live in the ignored local archive at `docs/proofs/`
+(symlinked to iCloud Drive on the primary macOS workstation). They are not
+per-task proof bundles and are not validated by this gate. Concise leaderboard
+summaries and content hashes remain committed; raw paid receipts do not.
 
 ## Live-proof Tier
 
