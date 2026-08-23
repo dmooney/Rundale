@@ -4,7 +4,7 @@
 
 > Parent: [Architecture Overview](overview.md) | [Docs Index](../index.md) | ADRs: [005](../adr/005-ollama-local-inference.md), [008](../adr/008-structured-json-llm-output.md), [010](../adr/010-prompt-injection-defenses.md)
 >
-> Measurement record: [`docs/proofs/local-perf/evidence.md`](../proofs/local-perf/evidence.md) — raw benchmark data, methodology, and reproductions for the macOS / Apple Silicon path.
+> Measurement record: local archive `docs/proofs/local-perf/evidence.md` — raw benchmark data, methodology, and reproductions for the macOS / Apple Silicon path.
 
 ## Per-Category Latency Budgets
 
@@ -112,7 +112,7 @@ Worker captures streaming stats via `StreamStats { ttft, tokens }` and records t
 
 ### macOS / Apple Silicon + vllm-mlx
 
-Measured May 2026 on a single-model loadout, `mlx-community/gemma-3-4b-it-4bit`, vllm-mlx 0.3.x, M-series unified memory. **Production-faithful refresh**: bench prompts mirror `INTENT_SYSTEM_PROMPT` / `build_reaction_prompt` / `build_tier2_prompt` / `build_tier3_prompt` byte-for-byte; `max_tokens` caps match production (Reaction 100, Tier 2 Sim 200, Tier 3 Batch 600). See [`docs/proofs/local-perf/evidence.md`](../proofs/local-perf/evidence.md) for raw data and methodology; below is the design-relevant summary.
+Measured May 2026 on a single-model loadout, `mlx-community/gemma-3-4b-it-4bit`, vllm-mlx 0.3.x, M-series unified memory. **Production-faithful refresh**: bench prompts mirror `INTENT_SYSTEM_PROMPT` / `build_reaction_prompt` / `build_tier2_prompt` / `build_tier3_prompt` byte-for-byte; `max_tokens` caps match production (Reaction 100, Tier 2 Sim 200, Tier 3 Batch 600). See the local archive at `docs/proofs/local-perf/evidence.md` for raw data and methodology; below is the design-relevant summary.
 
 | Category         | ttft p50      | total p50    | total p95 | budget               | verdict                                                                              |
 | ---------------- | ------------- | ------------ | --------- | -------------------- | ------------------------------------------------------------------------------------ |
@@ -221,10 +221,10 @@ predate the production-prompt holdout, hard-failure, reliability, and
 player-ready-turn gate. The current setup therefore recommends BYOK cloud
 (OpenRouter / Anthropic / Google) for dialogue at every memory tier and labels
 the local profile experimental. Below 16 GB, the small-slot-only fallback also
-produces flat, anachronistic dialogue (Opus-blind 2.96/5). See
-[evidence.md → Qwen two-slot validation](../proofs/local-perf/evidence.md#qwen-two-slot-validation-may-2026)
-and the May 2026 Opus-blind compare in
-[`quality_eval_20260511T163000Z.md`](../proofs/local-perf/quality_eval_20260511T163000Z.md).
+produces flat, anachronistic dialogue (Opus-blind 2.96/5). See the “Qwen
+two-slot validation (May 2026)” section of the local archive at
+`docs/proofs/local-perf/evidence.md` and the May 2026 Opus-blind comparison at
+`docs/proofs/local-perf/quality_eval_20260511T163000Z.md`.
 
 The 7B tier was the prior Dialogue pick. With the sprinkle-only
 `language_directive` patch the 14B → 7B Overall quality gap is only
@@ -466,7 +466,7 @@ Both log `tracing::debug!` at startup. Serialisation errors inside either loop s
 - [Cognitive LOD](cognitive-lod.md) — Tier determines model selection and batch strategy
 - [Player Input](player-input.md) — Natural language input parsed via this pipeline
 - [Debug UI](debug-ui.md) — Debug panel that displays inference call log
-- [Local-perf evidence](../proofs/local-perf/evidence.md) — raw measurements for the macOS / vllm-mlx path, the four-runtime benchmark, and the corrected vllm-mlx-doesn't-hang finding
+- Local archive `docs/proofs/local-perf/evidence.md` — raw measurements for the macOS / vllm-mlx path, the four-runtime benchmark, and the corrected vllm-mlx-doesn't-hang finding
 - [ADR 005: Ollama Local Inference](../adr/005-ollama-local-inference.md)
 - [ADR 008: Structured JSON LLM Output](../adr/008-structured-json-llm-output.md)
 

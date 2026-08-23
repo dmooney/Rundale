@@ -1,6 +1,6 @@
 # docs/agent — agent scope
 
-Reference directory for AI coding agents and human contributors. Human-facing entry point is [`README.md`](README.md). Proof archives, screenshots, and design artifacts live in `docs/proofs/`, `docs/screenshots/`, `docs/adr/`, `docs/design/`, `docs/plans/`, `docs/research/`, `docs/reviews/`, `docs/audits/`.
+Reference directory for AI coding agents and human contributors. Human-facing entry point is [`README.md`](README.md). Historical proof archives live in the ignored, iCloud-backed local `docs/proofs/` directory; screenshots and design artifacts live in `docs/screenshots/`, `docs/adr/`, `docs/design/`, `docs/plans/`, `docs/research/`, `docs/reviews/`, and `docs/audits/`.
 
 ## Scoped commands
 
@@ -17,7 +17,7 @@ witness-scan                                        # catch AI partial-completio
 - **Start orientation at [`codebase-map.md`](codebase-map.md).** Keep its `Parish Crates` table and repository-layout table fresh.
 - **[`gotchas.md`](gotchas.md) is the most mutation-prone file** — Tokio, SQLite, Ollama, and mode-parity pitfalls change as tooling evolves.
 - **Screenshots live in `docs/screenshots/`** — regenerate with `just screenshots` on UI changes.
-- **Proof archives in `docs/proofs/`** — `local-perf/` and `rundale-bench/` are exempt from the proof-evidence gate (rule #10). Per-task bundles go in `.proofs/<task-id>/` (gitignored).
+- **Proof archives in local `docs/proofs/`** — ignored by Git and expected to resolve to the iCloud-backed archive. Per-task bundles go in `.proofs/<task-id>/` (also gitignored); publish concise hashes and summaries in tracked docs or PR bodies.
 - **Witness scan blocks merge.** Docs with partial-completion markers (`[...]`, `TODO` in code blocks, unfinished sentences before stop-tokens) fail `witness-scan`, which gates `just check` and `just verify`.
 - **Scaling guardrails (rule #11)** are in [scaling-rules.md](scaling-rules.md). Every entry-point crate AGENTS.md links here — edits ripple across the workspace.
 - **[`act-local.md`](act-local.md)** is the source of truth for `.actrc` and the `act-*` justfile recipes.

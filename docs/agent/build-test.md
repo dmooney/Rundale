@@ -45,7 +45,8 @@ just demo-profile 300 10 mlx-community/Qwen2.5-14B-Instruct-4bit http://localhos
 ```
 
 The profiler runs `just demo` through a local OpenAI-compatible proxy, writes
-request JSONL plus a Markdown report under `docs/proofs/demo-api-profile/`,
+request JSONL plus a Markdown report under the ignored local archive at
+`docs/proofs/demo-api-profile/`,
 routes intent/reaction to the small vLLM-MLX slot on `localhost:8001` by
 default, and can compare against a saved baseline:
 

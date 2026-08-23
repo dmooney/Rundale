@@ -23,7 +23,8 @@ model@base_url#env:VAR                  # cloud, API key in $VAR
 For blind-judge quality scoring across two or more models, prefer the
 [`/rundale-bench eval-dialogue`](../../../.agents/skills/rundale-bench/SKILL.md)
 Claude slash command — it spawns the judge + candidates, runs the 5-axis rubric,
-and archives a scoring report under `docs/proofs/local-perf/` in one go.
+and archives a scoring report under the ignored local archive at
+`docs/proofs/local-perf/` in one go.
 
 ## Prerequisites
 
@@ -78,10 +79,9 @@ sourced from each call's `usage` block. Static $/M-token rates live in
 
 ## Why keep these alongside the proof bundle?
 
-The bench results in
-[`docs/proofs/local-perf/evidence.md`](../../../docs/proofs/local-perf/evidence.md)
-are only as good as the prompts that produced them. Keeping the scripts
-checked in next to the proof bundle means:
+The locally archived bench results at `docs/proofs/local-perf/evidence.md` are
+only as good as the prompts that produced them. Keeping the scripts checked in
+alongside the code that produces the archive means:
 
 - a future maintainer can re-run the same evaluation on a new model
   without re-deriving the prompts;
