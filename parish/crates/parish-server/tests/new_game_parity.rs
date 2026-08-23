@@ -48,6 +48,7 @@ fn default_game_config() -> GameConfig {
         tile_sources: Vec::new(),
         reveal_unexplored_locations: false,
         auto_setup_model: None,
+        ..GameConfig::default()
     }
 }
 

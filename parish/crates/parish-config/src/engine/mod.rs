@@ -90,7 +90,8 @@ pub fn load_engine_config(path: &Path) -> EngineConfig {
 }
 
 /// Root engine configuration parsed from `[engine]` section of `parish.toml`.
-#[derive(Debug, Default, Deserialize, Clone)]
+#[derive(Debug, Default, Deserialize, Clone, schemars::JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct EngineConfig {
     /// LLM inference timeouts.
     #[serde(default)]

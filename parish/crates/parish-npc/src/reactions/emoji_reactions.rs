@@ -408,6 +408,8 @@ pub async fn infer_player_message_reaction_with_profile_and_audit(
         reasoning_effort: None,
         thinking_level: Some(profile.thinking_level),
         service_tier: Some(profile.service_tier),
+        reasoning_intent: (profile.configuration_epoch > 0).then_some(profile.reasoning_intent),
+        reasoning_dialect: profile.reasoning_dialect,
     };
     let audit = parish_inference::DirectInferenceAudit::new(
         audit_sink,

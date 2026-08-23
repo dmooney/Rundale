@@ -5,7 +5,8 @@ use serde::Deserialize;
 /// Encounter probability thresholds by time of day.
 ///
 /// A random roll in `0.0..1.0` below the threshold triggers an encounter.
-#[derive(Debug, Deserialize, Clone)]
+#[derive(Debug, Deserialize, Clone, schemars::JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct EncounterConfig {
     /// Encounter probability at dawn.
     #[serde(default = "default_encounter_dawn")]

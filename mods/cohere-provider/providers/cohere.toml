@@ -1,4 +1,5 @@
 id = "cohere"
+recommended_preset = "recommended"
 display_name = "Cohere"
 kind = "openai-compat"
 default_base_url = "https://api.cohere.com/compatibility/v1"

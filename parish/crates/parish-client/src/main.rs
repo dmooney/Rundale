@@ -3,7 +3,9 @@ use std::path::PathBuf;
 use anyhow::Result;
 use clap::Parser;
 
+mod catalog_command;
 mod client;
+mod config_command;
 mod render;
 mod repl;
 mod session;
@@ -29,6 +31,12 @@ struct Cli {
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    if config_command::is_invocation() {
+        return config_command::run();
+    }
+    if catalog_command::is_invocation() {
+        return catalog_command::run().await;
+    }
     let cli = Cli::parse();
     let client = client::ParishClient::new(&cli.server)?;
 

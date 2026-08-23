@@ -139,6 +139,11 @@ pub struct App {
         parish_core::config::InferenceCategory,
         parish_core::config::InferenceProfileOverride,
     >,
+    pub inference_routes_v2:
+        HashMap<parish_core::config::InferenceCategory, parish_core::config::ResolvedRoute>,
+    pub inference_subrole_routes_v2:
+        HashMap<parish_core::config::InferenceSubrole, parish_core::config::ResolvedRoute>,
+    pub inference_configuration_epoch: u64,
     /// Loaded game mod data (None if no mod directory was found or specified).
     pub game_mod: Option<GameMod>,
     /// Runtime feature flags (loaded from parish-flags.json at startup).
@@ -230,6 +235,9 @@ impl App {
             reaction: CategoryOverride::default(),
             inference_profile_override: Default::default(),
             category_inference_profile: Default::default(),
+            inference_routes_v2: Default::default(),
+            inference_subrole_routes_v2: Default::default(),
+            inference_configuration_epoch: 0,
             game_mod: None,
             flags: crate::config::FeatureFlags::default(),
             flags_path: None,
@@ -548,6 +556,9 @@ impl App {
         }
         cfg.inference_profile_override = self.inference_profile_override;
         cfg.category_inference_profile = self.category_inference_profile.clone();
+        cfg.inference_routes_v2 = self.inference_routes_v2.clone();
+        cfg.inference_subrole_routes_v2 = self.inference_subrole_routes_v2.clone();
+        cfg.inference_configuration_epoch = self.inference_configuration_epoch;
 
         cfg
     }
@@ -569,6 +580,9 @@ impl App {
         self.flags = cfg.flags.clone();
         self.inference_profile_override = cfg.inference_profile_override;
         self.category_inference_profile = cfg.category_inference_profile.clone();
+        self.inference_routes_v2 = cfg.inference_routes_v2.clone();
+        self.inference_subrole_routes_v2 = cfg.inference_subrole_routes_v2.clone();
+        self.inference_configuration_epoch = cfg.inference_configuration_epoch;
 
         // Apply per-category overrides
         for cat in InferenceCategory::ALL {

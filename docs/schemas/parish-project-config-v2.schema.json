@@ -1,0 +1,1554 @@
+{
+  "$defs": {
+    "AuthAdapter": {
+      "enum": ["none", "bearer", "anthropic-key", "google-key"],
+      "type": "string"
+    },
+    "BudgetCapability": {
+      "additionalProperties": false,
+      "properties": {
+        "dialect": {
+          "$ref": "#/$defs/ReasoningDialect"
+        },
+        "max_tokens": {
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "min_tokens": {
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "min_visible_output_headroom": {
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "dialect",
+        "min_tokens",
+        "max_tokens",
+        "min_visible_output_headroom"
+      ],
+      "type": "object"
+    },
+    "CategoryRateLimit": {
+      "additionalProperties": false,
+      "description": "A single rate-limit quota: sustained rate plus burst capacity.\n\nImplements a token-bucket / GCRA model: up to `burst` requests may\nbe issued back-to-back, after which new requests are admitted at\n`per_minute / 60` per second until the bucket refills.",
+      "properties": {
+        "burst": {
+          "default": 1,
+          "description": "Maximum burst size (token-bucket capacity). Defaults to 1.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "per_minute": {
+          "description": "Sustained rate: maximum number of requests admitted per minute.\nMust be greater than zero — a value of zero disables the limiter.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": ["per_minute"],
+      "type": "object"
+    },
+    "CategoryRoutes": {
+      "additionalProperties": false,
+      "properties": {
+        "dialogue": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/RoutePatch"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "intent": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/RoutePatch"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "reaction": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/RoutePatch"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "simulation": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/RoutePatch"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "type": "object"
+    },
+    "CognitiveTierConfig": {
+      "additionalProperties": false,
+      "description": "Cognitive tier assignment based on distance from player.",
+      "properties": {
+        "tier1_max_distance": {
+          "default": 0,
+          "description": "Maximum distance for Tier 1 (same location).",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "tier2_max_distance": {
+          "default": 2,
+          "description": "Maximum distance for Tier 2 (nearby).",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "tier2_tick_interval_minutes": {
+          "default": 5,
+          "description": "Tier 2 simulation tick interval in game-minutes.",
+          "format": "int64",
+          "type": "integer"
+        },
+        "tier3_batch_size": {
+          "default": 10,
+          "description": "Maximum NPCs per Tier 3 batch LLM call.",
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "tier3_max_distance": {
+          "default": 5,
+          "description": "Maximum distance for Tier 3 (distant but still LLM-simulated).",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "tier3_tick_interval_hours": {
+          "default": 24,
+          "description": "Tier 3 simulation tick interval in game-hours (1 game-day = 24).",
+          "format": "int64",
+          "type": "integer"
+        },
+        "tier4_tick_interval_days": {
+          "default": 90,
+          "description": "Tier 4 rules-engine tick interval in game-days (1 season ≈ 90 days).",
+          "format": "int64",
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    },
+    "CustomEndpointDefinition": {
+      "additionalProperties": false,
+      "properties": {
+        "allow_insecure_http": {
+          "default": false,
+          "type": "boolean"
+        },
+        "auth_adapter": {
+          "$ref": "#/$defs/AuthAdapter"
+        },
+        "default_openai_generation_wire": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/OpenAiChatGenerationWire"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "default_reasoning_dialect": {
+          "$ref": "#/$defs/ReasoningDialect"
+        },
+        "discovery_adapter": {
+          "$ref": "#/$defs/DiscoveryAdapter"
+        },
+        "discovery_base_url": {
+          "type": ["string", "null"]
+        },
+        "inference_adapter": {
+          "$ref": "#/$defs/InferenceAdapter"
+        },
+        "inference_base_url": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "inference_base_url",
+        "inference_adapter",
+        "discovery_adapter",
+        "auth_adapter",
+        "default_reasoning_dialect"
+      ],
+      "type": "object"
+    },
+    "CustomProviderDefinition": {
+      "additionalProperties": false,
+      "properties": {
+        "default_endpoint": {
+          "type": ["string", "null"]
+        },
+        "display_name": {
+          "type": "string"
+        },
+        "endpoints": {
+          "additionalProperties": {
+            "$ref": "#/$defs/CustomEndpointDefinition"
+          },
+          "propertyNames": {
+            "pattern": "^[a-z][a-z0-9_-]{0,62}$"
+          },
+          "type": "object"
+        },
+        "models": {
+          "additionalProperties": {
+            "additionalProperties": {
+              "$ref": "#/$defs/UserModelCapabilityOverride"
+            },
+            "type": "object"
+          },
+          "default": {},
+          "propertyNames": {
+            "pattern": "^[a-z][a-z0-9_-]{0,62}$"
+          },
+          "type": "object"
+        }
+      },
+      "required": ["display_name", "endpoints"],
+      "type": "object"
+    },
+    "DialogueGenerationConfig": {
+      "additionalProperties": false,
+      "description": "Generation settings for player-facing Tier-1 dialogue.",
+      "properties": {
+        "enable_thinking": {
+          "default": null,
+          "description": "Optional OpenAI-compatible reasoning switch. Keep omitted unless a\nmeasured provider/model profile requires it.",
+          "type": ["boolean", "null"]
+        },
+        "frequency_penalty": {
+          "default": 0.5,
+          "description": "OpenAI-compatible repetition penalty. `None` omits the field.",
+          "format": "float",
+          "type": ["number", "null"]
+        },
+        "json_mode": {
+          "default": true,
+          "description": "Request an OpenAI-compatible JSON object response.",
+          "type": "boolean"
+        },
+        "max_tokens": {
+          "default": 768,
+          "description": "Maximum completion-token budget.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "reasoning_effort": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ReasoningEffort"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Optional provider reasoning effort. Currently translated by the\nOpenRouter client; omitted profiles retain provider defaults."
+        },
+        "temperature": {
+          "default": 0.699999988079071,
+          "description": "Sampling temperature.",
+          "format": "float",
+          "type": "number"
+        }
+      },
+      "type": "object"
+    },
+    "DiscoveryAdapter": {
+      "enum": [
+        "none",
+        "openai-models-v1",
+        "anthropic-models-v1",
+        "google-models-v1-beta",
+        "openrouter-models-v1",
+        "ollama-tags-v1"
+      ],
+      "type": "string"
+    },
+    "EffortCapability": {
+      "additionalProperties": false,
+      "properties": {
+        "dialect": {
+          "$ref": "#/$defs/ReasoningDialect"
+        },
+        "minimum_total_output_tokens": {
+          "additionalProperties": {
+            "additionalProperties": false,
+            "properties": {
+              "high": {
+                "format": "uint32",
+                "minimum": 0,
+                "type": "integer"
+              },
+              "low": {
+                "format": "uint32",
+                "minimum": 0,
+                "type": "integer"
+              },
+              "max": {
+                "format": "uint32",
+                "minimum": 0,
+                "type": "integer"
+              },
+              "medium": {
+                "format": "uint32",
+                "minimum": 0,
+                "type": "integer"
+              },
+              "minimal": {
+                "format": "uint32",
+                "minimum": 0,
+                "type": "integer"
+              },
+              "xhigh": {
+                "format": "uint32",
+                "minimum": 0,
+                "type": "integer"
+              }
+            },
+            "type": "object"
+          },
+          "default": {},
+          "type": "object"
+        },
+        "supported_levels": {
+          "items": {
+            "$ref": "#/$defs/ReasoningEffortV2"
+          },
+          "type": "array",
+          "uniqueItems": true
+        }
+      },
+      "required": ["dialect", "supported_levels"],
+      "type": "object"
+    },
+    "EncounterConfig": {
+      "additionalProperties": false,
+      "description": "Encounter probability thresholds by time of day.\n\nA random roll in `0.0..1.0` below the threshold triggers an encounter.",
+      "properties": {
+        "afternoon": {
+          "default": 0.2,
+          "description": "Encounter probability in the afternoon.",
+          "format": "double",
+          "type": "number"
+        },
+        "dawn": {
+          "default": 0.25,
+          "description": "Encounter probability at dawn.",
+          "format": "double",
+          "type": "number"
+        },
+        "dusk": {
+          "default": 0.15,
+          "description": "Encounter probability at dusk.",
+          "format": "double",
+          "type": "number"
+        },
+        "midday": {
+          "default": 0.2,
+          "description": "Encounter probability at midday.",
+          "format": "double",
+          "type": "number"
+        },
+        "midnight": {
+          "default": 0.05,
+          "description": "Encounter probability at midnight.",
+          "format": "double",
+          "type": "number"
+        },
+        "morning": {
+          "default": 0.25,
+          "description": "Encounter probability in the morning.",
+          "format": "double",
+          "type": "number"
+        },
+        "night": {
+          "default": 0.1,
+          "description": "Encounter probability at night.",
+          "format": "double",
+          "type": "number"
+        }
+      },
+      "type": "object"
+    },
+    "EngineConfig": {
+      "additionalProperties": false,
+      "description": "Root engine configuration parsed from `[engine]` section of `parish.toml`.",
+      "properties": {
+        "encounters": {
+          "$ref": "#/$defs/EncounterConfig",
+          "description": "Encounter probability by time of day."
+        },
+        "inference": {
+          "$ref": "#/$defs/InferenceConfig",
+          "description": "LLM inference timeouts."
+        },
+        "map": {
+          "$ref": "#/$defs/MapConfig",
+          "default": {
+            "bundled_tiles_dir": null,
+            "default_tile_source": "historic",
+            "tile_sources": {
+              "historic": {
+                "attribution": "Historic 6\" OS Ireland (1829–1842) — Reproduced with the permission of the National Library of Scotland (CC-BY)",
+                "label": "Historic 6\" OS Ireland (1st ed., via NLS)",
+                "maxzoom": 17,
+                "minzoom": 1,
+                "raster_opacity": 1.0,
+                "raster_saturation": 0.0,
+                "tile_size": 256,
+                "tms": false,
+                "upstream_url": "https://mapseries-tilesets.s3.amazonaws.com/os/roscommon1/{z}/{x}/{y}.png",
+                "url": "/tiles/historic/{z}/{x}/{y}.png"
+              },
+              "osm": {
+                "attribution": "© OpenStreetMap contributors",
+                "label": "OpenStreetMap",
+                "maxzoom": 19,
+                "minzoom": 0,
+                "raster_opacity": 0.8500000238418579,
+                "raster_saturation": -0.4000000059604645,
+                "tile_size": 256,
+                "tms": false,
+                "upstream_url": "",
+                "url": "https://tile.openstreetmap.org/{z}/{x}/{y}.png"
+              }
+            }
+          },
+          "description": "Map tile source registry and active default."
+        },
+        "npc": {
+          "$ref": "#/$defs/NpcConfig",
+          "description": "NPC memory, cognition, and relationship tuning."
+        },
+        "palette": {
+          "$ref": "#/$defs/PaletteConfig",
+          "description": "Color palette contrast configuration."
+        },
+        "persistence": {
+          "$ref": "#/$defs/PersistenceConfig",
+          "description": "Persistence / save system tuning."
+        },
+        "session": {
+          "$ref": "#/$defs/SessionConfig",
+          "description": "Session and pacing timeouts."
+        },
+        "speeds": {
+          "$ref": "#/$defs/SpeedConfig",
+          "default": {
+            "fast": 72.0,
+            "fastest": 144.0,
+            "ludicrous": 864.0,
+            "normal": 36.0,
+            "slow": 18.0
+          },
+          "description": "Game speed presets."
+        },
+        "world": {
+          "$ref": "#/$defs/WorldConfig",
+          "description": "World graph tuning."
+        }
+      },
+      "type": "object"
+    },
+    "GenerationCapabilities": {
+      "additionalProperties": false,
+      "properties": {
+        "frequency_penalty": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/NumericRange"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "max_output_tokens": {
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "min_output_tokens": {
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "service_tiers": {
+          "additionalProperties": false,
+          "default": {},
+          "properties": {
+            "auto": {
+              "$ref": "#/$defs/WireServiceTier"
+            },
+            "priority": {
+              "$ref": "#/$defs/WireServiceTier"
+            },
+            "standard": {
+              "$ref": "#/$defs/WireServiceTier"
+            }
+          },
+          "type": "object"
+        },
+        "temperature": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/NumericRange"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": ["min_output_tokens", "max_output_tokens"],
+      "type": "object"
+    },
+    "GenerationPatch": {
+      "additionalProperties": false,
+      "properties": {
+        "frequency_penalty": {
+          "format": "float",
+          "type": ["number", "null"]
+        },
+        "max_output_tokens": {
+          "format": "uint32",
+          "minimum": 0,
+          "type": ["integer", "null"]
+        },
+        "reasoning": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ReasoningIntent"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "service_tier": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ServiceTierIntent"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "temperature": {
+          "format": "float",
+          "type": ["number", "null"]
+        }
+      },
+      "type": "object"
+    },
+    "InferenceAdapter": {
+      "enum": [
+        "openai-responses-v1",
+        "openai-chat-v1",
+        "anthropic-messages2023-06-01",
+        "google-interactions-v1",
+        "simulator"
+      ],
+      "type": "string"
+    },
+    "InferenceConfig": {
+      "additionalProperties": false,
+      "description": "LLM inference timeouts.",
+      "properties": {
+        "dialogue_generation": {
+          "$ref": "#/$defs/DialogueGenerationConfig",
+          "description": "Tier-1 dialogue generation parameters.\n\nThese are explicit configuration so benchmarked model/backend profiles\ncan carry their measured sampling settings into live gameplay."
+        },
+        "force_model_redownload": {
+          "default": false,
+          "description": "Force Ollama setup to delete the selected local model before pulling.",
+          "type": "boolean"
+        },
+        "log_capacity": {
+          "default": 50,
+          "description": "Maximum entries in the debug inference log ring buffer.",
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "log_to_disk": {
+          "default": true,
+          "description": "Whether to also write every inference call to disk as JSONL.\n\nWhen `true` (default), each backend process writes\n`{saves_dir}/inference_logs/{session}.jsonl` so users can zip the\nfolder and send it with a bug report. The `PARISH_INFERENCE_LOG`\nenv var or the `--no-inference-log` CLI flag overrides this; the\n`/inference-log on|off` slash command toggles it at runtime.\nAPI-key shapes are scrubbed before writing.",
+          "type": "boolean"
+        },
+        "model_download_timeout_secs": {
+          "default": 3600,
+          "description": "Model download timeout in seconds.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "model_loading_timeout_secs": {
+          "default": 300,
+          "description": "Model loading/warmup timeout in seconds.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "rate_limits": {
+          "$ref": "#/$defs/RateLimitConfig",
+          "description": "Per-category outbound request rate limits.\n\nDefaults to no limit. Useful when targeting paid providers\n(OpenRouter, Anthropic, etc.) to avoid burning through quota\nor hitting `429 Too Many Requests`."
+        },
+        "reachability_timeout_secs": {
+          "default": 10,
+          "description": "Ollama reachability check timeout in seconds.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "streaming_timeout_secs": {
+          "default": 300,
+          "description": "Streaming request timeout in seconds.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "timeout_secs": {
+          "default": 300,
+          "description": "Non-streaming request timeout in seconds.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    },
+    "InferenceLayer": {
+      "additionalProperties": false,
+      "properties": {
+        "active_loadout": {
+          "type": ["string", "null"]
+        },
+        "loadouts": {
+          "additionalProperties": {
+            "$ref": "#/$defs/LoadoutDefinition"
+          },
+          "default": {},
+          "propertyNames": {
+            "pattern": "^(?:[a-z][a-z0-9_-]{0,62}|__rundale_managed_ollama)$"
+          },
+          "type": "object"
+        },
+        "providers": {
+          "additionalProperties": {
+            "$ref": "#/$defs/CustomProviderDefinition"
+          },
+          "default": {},
+          "propertyNames": {
+            "pattern": "^[a-z][a-z0-9_-]{0,62}$"
+          },
+          "type": "object"
+        }
+      },
+      "type": "object"
+    },
+    "LoadoutDefinition": {
+      "additionalProperties": false,
+      "properties": {
+        "default": {
+          "$ref": "#/$defs/RoutePatch",
+          "default": {}
+        },
+        "managed_by": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ManagedLoadoutOwner"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "routes": {
+          "$ref": "#/$defs/CategoryRoutes",
+          "default": {}
+        },
+        "subroles": {
+          "additionalProperties": {
+            "$ref": "#/$defs/GenerationPatch"
+          },
+          "default": {},
+          "propertyNames": {
+            "pattern": "^(dialogue|intent|arrival-reaction|message-reaction|travel-encounter|tier2-simulation|tier3-simulation|demo-player)$"
+          },
+          "type": "object"
+        }
+      },
+      "type": "object"
+    },
+    "ManagedLoadoutOwner": {
+      "enum": ["ollama-setup-v1"],
+      "type": "string"
+    },
+    "MapConfig": {
+      "additionalProperties": false,
+      "description": "Map tile source registry and active default.\n\nA registry of named raster-tile sources (XYZ templates) that the frontend\ncan switch between at runtime via the `/map` slash command. Users can\noverride the baked-in defaults by adding `[engine.map.tile_sources.<id>]`\nblocks in `parish.toml`.\n\n**Partial overrides:** serde's BTreeMap deserialisation replaces the whole\nmap rather than merging. Call [`MapConfig::apply_defaults`] after parsing\nto fold the baked defaults (OSM, Ireland Historic 6\") back into a user-supplied\nregistry that only overrode a subset.",
+      "properties": {
+        "bundled_tiles_dir": {
+          "default": null,
+          "description": "Optional path to a pre-seeded tile directory. When set, `TileCache`\nchecks this directory before hitting the upstream network, enabling\noffline play. Path is resolved at startup; relative paths are resolved\nagainst the mod/data directory (see CLAUDE.md rule #9). `None` means\nno bundled tiles — the cache falls through to the upstream fetch as\nnormal. Can also be overridden at startup via `PARISH_BUNDLED_TILES_DIR`.",
+          "type": ["string", "null"]
+        },
+        "default_tile_source": {
+          "default": "historic",
+          "description": "Id of the source used on first boot (pre-localStorage). Must match one\nof the keys in `tile_sources`.",
+          "type": "string"
+        },
+        "tile_sources": {
+          "additionalProperties": {
+            "$ref": "#/$defs/TileSourceConfig"
+          },
+          "default": {
+            "historic": {
+              "attribution": "Historic 6\" OS Ireland (1829–1842) — Reproduced with the permission of the National Library of Scotland (CC-BY)",
+              "label": "Historic 6\" OS Ireland (1st ed., via NLS)",
+              "maxzoom": 17,
+              "minzoom": 1,
+              "raster_opacity": 1.0,
+              "raster_saturation": 0.0,
+              "tile_size": 256,
+              "tms": false,
+              "upstream_url": "https://mapseries-tilesets.s3.amazonaws.com/os/roscommon1/{z}/{x}/{y}.png",
+              "url": "/tiles/historic/{z}/{x}/{y}.png"
+            },
+            "osm": {
+              "attribution": "© OpenStreetMap contributors",
+              "label": "OpenStreetMap",
+              "maxzoom": 19,
+              "minzoom": 0,
+              "raster_opacity": 0.8500000238418579,
+              "raster_saturation": -0.4000000059604645,
+              "tile_size": 256,
+              "tms": false,
+              "upstream_url": "",
+              "url": "https://tile.openstreetmap.org/{z}/{x}/{y}.png"
+            }
+          },
+          "description": "Registry of available raster tile sources, keyed by id.",
+          "type": "object"
+        }
+      },
+      "type": "object"
+    },
+    "NpcConfig": {
+      "additionalProperties": false,
+      "description": "NPC memory, cognition, and relationship tuning.",
+      "properties": {
+        "cognitive_tiers": {
+          "$ref": "#/$defs/CognitiveTierConfig",
+          "description": "Cognitive tier distance thresholds."
+        },
+        "dialogue_anti_repetition": {
+          "default": true,
+          "description": "Enable cross-NPC opener de-duplication within a single multi-NPC turn (#1422).\n\nWhen `true` (the default), the shared orchestration layer strips the\nduplicated stock opener sentence from a co-located NPC's reply when it\nnear-exactly matches an opener already used by an earlier NPC in the same\nturn. This prevents the \"Ye've come to the right place …\" tic from\nappearing across three different NPCs in one run. Deterministic and\nprovider-agnostic. Controlled at runtime by the `dialogue-anti-repetition`\nfeature flag (`flags.is_disabled(\"dialogue-anti-repetition\")` → false).",
+          "type": "boolean"
+        },
+        "dialogue_display_max_chars": {
+          "default": 800,
+          "description": "Hard cap on displayed NPC dialogue length in characters.\n\nApplied as a post-generation guard after inference completes. The\nsystem prompt already asks for \"2-4 sentences\" but small models\noccasionally ignore the instruction; this cap is the defensive\nbackstop that prevents runaway responses reaching the player (#1224).\nSet to 0 to disable (not recommended in production).",
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "dialogue_quality_continuity": {
+          "default": true,
+          "description": "Enable dialogue quality and continuity improvements (#1387, #1388).\n\nWhen `true` (the default), the Tier 1 prompt assembler:\n- injects the NPC's own recent dialogue lines as a \"do not repeat\"\n  list (anti-verbatim-recycling, #1387);\n- adds a \"do not re-ask already-answered questions\" continuity directive\n  to the conversation history block (#1388);\n- uses a familiarity-aware interlocutor address that drops \"stranger\"\n  after sufficient prior exchanges (#1388).\n\nSet to `false` to kill-switch back to the pre-fix behaviour. Controlled\nat runtime by the `dialogue-quality-continuity` feature flag\n(`flags.is_disabled(\"dialogue-quality-continuity\")` → false).",
+          "type": "boolean"
+        },
+        "dialogue_repetition_threshold": {
+          "default": 0.9200000166893005,
+          "description": "Word-level Jaccard similarity (0.0–1.0) at or above which a fresh NPC\nline is treated as a near-identical repeat of that NPC's own previous\nline and replaced with a varied fallback (#1228).\n\nApplied as a post-generation guard after inference completes, in the\nshared dialogue path. Small / quantized models occasionally echo their\nprevious line or loop a single clause; this deterministic backstop keeps\nthe degenerate output from reaching the player regardless of provider.\nIntra-line clause collapse always runs; this threshold only governs the\ncross-turn check. Set to 0.0 to disable the cross-turn check (not\nrecommended in production); 1.0 requires an identical word set.",
+          "format": "float",
+          "type": "number"
+        },
+        "dialogue_sentence_boundary_trim": {
+          "default": true,
+          "description": "Trim the display-length cap back to a sentence boundary (#1400).\n\nWhen `true` (the default), the post-generation display cap\n(`dialogue_display_max_chars`) rewinds to the last sentence terminator\n(`.`, `!`, `?`, `…`, or a closing quote following one) within the budget\nbefore appending `…`, so a clipped reply never ends mid-word or\nmid-clause (\"...out and about, and…\"). When no boundary exists in the\nbudget it falls back to the legacy raw char-boundary clip. Set to\n`false` in `[npc]` config (`dialogue_sentence_boundary_trim = false`) to\nkill-switch back to the raw clip. This shares the post-generation\ndisplay-cap seam (`apply_npc_dialogue_turn`), which reads `NpcConfig`\ndefaults, so the toggle lives on the config rather than the runtime\nfeature-flag layer (matching `dialogue_display_max_chars`).",
+          "type": "boolean"
+        },
+        "event_summary_debug_truncation": {
+          "default": 50,
+          "description": "Max characters for event summary in debug display.",
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "event_summary_truncation": {
+          "default": 100,
+          "description": "Max characters for event summary in simulation.",
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "grounding_enabled": {
+          "default": true,
+          "description": "Inject real place-name grounding into the system prompt (#1394).\n\nWhen `true` (the default), `prepare_npc_conversation_turn` builds a\nsorted list of every location name from the world graph and passes it to\nthe system-prompt assembler, which adds an anti-sycophancy instruction\nforbidding the NPC from confirming nonexistent places or people. Set to\n`false` to disable. Controlled at runtime by the\n`npc-dialogue-grounding` feature flag\n(`flags.is_disabled(\"npc-dialogue-grounding\")` → false).",
+          "type": "boolean"
+        },
+        "memory_capacity": {
+          "default": 20,
+          "description": "Maximum number of entries in NPC short-term memory.",
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "memory_context_count": {
+          "default": 5,
+          "description": "Number of recent memories included in dialogue context.",
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "memory_truncation_dialogue": {
+          "default": 600,
+          "description": "Max characters for dialogue memory entries.",
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "memory_truncation_event_log": {
+          "default": 300,
+          "description": "Max characters for event log memory entries.",
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "person_confirmation_guard_enabled": {
+          "default": true,
+          "description": "Enable the post-generation fabricated-person confirmation guard (#1459).\n\nWhen `true` (the default), a post-generation scan checks the finalized\ndialogue for affirmative confirmation of a named person from the player\ninput who is NOT in the NPC's known-roster. If the guard fires it\nreplaces the entire dialogue with a stock non-recognition decline. The\n14B model ignores the PEOPLE-YOU-KNOW prompt directive for presupposed\nnames; this is the deterministic backstop. Controlled at runtime by the\n`dialogue-person-confirmation-guard` feature flag (default-on).",
+          "type": "boolean"
+        },
+        "reaction_context_count": {
+          "default": 5,
+          "description": "Number of recent player reactions included in dialogue context.",
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "reactions": {
+          "$ref": "#/$defs/ReactionConfig",
+          "description": "NPC arrival reaction tuning."
+        },
+        "relationship_labels": {
+          "$ref": "#/$defs/RelationshipLabelConfig",
+          "description": "Relationship strength label thresholds."
+        },
+        "separator_holdback": {
+          "default": 24,
+          "description": "Buffer size for detecting `---` separator in streamed NPC responses.",
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "verbosity_guard_enabled": {
+          "default": true,
+          "description": "Enable the post-generation verbosity / run-on guard (#1460).\n\nWhen `true` (the default), the finalized dialogue passes through three\nstructural fixes: (a) strip bare leaked mood-adjective, (b) trim\nmid-sentence truncation ellipsis to the last complete sentence, (c) cap\ntrailing question stack to at most one question. These target degenerate\nQwen2.5-14B outputs where the model emits 5-6 identical questions,\ntruncates mid-sentence with \"…\", or leaks the literal mood word.\nControlled at runtime by the `dialogue-verbosity-guard` feature flag\n(default-on).",
+          "type": "boolean"
+        }
+      },
+      "type": "object"
+    },
+    "NumericRange": {
+      "additionalProperties": false,
+      "properties": {
+        "max": {
+          "format": "float",
+          "type": "number"
+        },
+        "min": {
+          "format": "float",
+          "type": "number"
+        }
+      },
+      "required": ["min", "max"],
+      "type": "object"
+    },
+    "OpenAiChatGenerationWire": {
+      "additionalProperties": false,
+      "properties": {
+        "output_limit_field": {
+          "$ref": "#/$defs/OutputLimitField"
+        },
+        "structured_output": {
+          "items": {
+            "$ref": "#/$defs/StructuredOutputMode"
+          },
+          "type": "array",
+          "uniqueItems": true
+        }
+      },
+      "required": ["output_limit_field", "structured_output"],
+      "type": "object"
+    },
+    "OutputContractCapabilities": {
+      "additionalProperties": false,
+      "properties": {
+        "native_json_object": {
+          "type": "boolean"
+        },
+        "native_json_schema": {
+          "type": "boolean"
+        },
+        "prompt_validated_json": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "prompt_validated_json",
+        "native_json_object",
+        "native_json_schema"
+      ],
+      "type": "object"
+    },
+    "OutputLimitField": {
+      "enum": ["max-tokens", "max-completion-tokens"],
+      "type": "string"
+    },
+    "PaletteConfig": {
+      "additionalProperties": false,
+      "description": "Color palette contrast configuration.",
+      "properties": {
+        "min_fg_bg_contrast": {
+          "default": 80.0,
+          "description": "Minimum luminance contrast between foreground and background.",
+          "format": "float",
+          "type": "number"
+        },
+        "min_muted_bg_contrast": {
+          "default": 45.0,
+          "description": "Minimum luminance contrast between muted text and background.",
+          "format": "float",
+          "type": "number"
+        }
+      },
+      "type": "object"
+    },
+    "PersistenceConfig": {
+      "additionalProperties": false,
+      "description": "Persistence / save system tuning parameters.\n\nCurrently empty — reserved for future save-system knobs (e.g. compaction,\nautosnap interval). The `[engine.persistence]` table is accepted for\nbackward compatibility but has no effect.",
+      "type": "object"
+    },
+    "RateLimitConfig": {
+      "additionalProperties": false,
+      "description": "Per-category rate limit configuration for outbound LLM requests.\n\nAll fields are optional. A `None` value disables rate limiting for\nthat category. Categories without an explicit override fall back to\nthe [`RateLimitConfig::default`] field, which applies to the base\nprovider client. Configuration example (`parish.toml`):\n\n```toml\n[engine.inference.rate_limits.default]\nper_minute = 60\nburst = 10\n\n[engine.inference.rate_limits.dialogue]\nper_minute = 20\nburst = 4\n```",
+      "properties": {
+        "default": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CategoryRateLimit"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Default rate limit applied to the base provider client.\nCategories without an explicit override share this limiter."
+        },
+        "dialogue": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CategoryRateLimit"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Override for the player-facing NPC dialogue category."
+        },
+        "intent": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CategoryRateLimit"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Override for the player intent parsing category."
+        },
+        "reaction": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CategoryRateLimit"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Override for the NPC arrival reaction category."
+        },
+        "simulation": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CategoryRateLimit"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Override for the background NPC simulation category."
+        }
+      },
+      "type": "object"
+    },
+    "ReactionConfig": {
+      "additionalProperties": false,
+      "description": "Tuning for NPC arrival reactions (greetings, nods, introductions).",
+      "properties": {
+        "base_chance": {
+          "default": 0.55,
+          "description": "Base probability that an NPC reacts when the player arrives.",
+          "format": "double",
+          "type": "number"
+        },
+        "empathy_bonus": {
+          "default": 0.05,
+          "description": "Bonus when NPC has high emotional intelligence (≥4).",
+          "format": "double",
+          "type": "number"
+        },
+        "indoor_bonus": {
+          "default": 0.1,
+          "description": "Bonus when location is indoors.",
+          "format": "double",
+          "type": "number"
+        },
+        "llm_timeout_secs": {
+          "default": 5,
+          "description": "LLM timeout for reaction greeting calls (seconds).",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "max_reactions": {
+          "default": 2,
+          "description": "Maximum number of NPCs that react on a single arrival (0 = no cap).",
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "negative_mood_penalty": {
+          "default": 0.2,
+          "description": "Penalty when NPC has a negative mood.",
+          "format": "double",
+          "type": "number"
+        },
+        "night_penalty": {
+          "default": 0.15,
+          "description": "Penalty at night or midnight.",
+          "format": "double",
+          "type": "number"
+        },
+        "workplace_bonus": {
+          "default": 0.35,
+          "description": "Bonus when NPC is at their workplace.",
+          "format": "double",
+          "type": "number"
+        }
+      },
+      "type": "object"
+    },
+    "ReasoningCapabilities": {
+      "additionalProperties": false,
+      "properties": {
+        "budget": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/BudgetCapability"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "default_by_subrole": {
+          "additionalProperties": {
+            "$ref": "#/$defs/ReasoningIntent"
+          },
+          "default": {},
+          "type": "object"
+        },
+        "effort": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/EffortCapability"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "mandatory": {
+          "default": false,
+          "type": "boolean"
+        },
+        "off_dialect": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ReasoningDialect"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "translations": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/ReasoningTranslation"
+          },
+          "type": "array"
+        }
+      },
+      "type": "object"
+    },
+    "ReasoningDialect": {
+      "enum": [
+        "none",
+        "openai-responses-effort",
+        "openai-chat-effort",
+        "openrouter-reasoning",
+        "deepseek-thinking",
+        "local-template-toggle",
+        "anthropic-adaptive",
+        "anthropic-manual-budget",
+        "google-thinking-level"
+      ],
+      "type": "string"
+    },
+    "ReasoningEffort": {
+      "description": "Provider-neutral reasoning effort carried by measured dialogue profiles.",
+      "enum": ["none", "minimal", "low", "medium", "high", "xhigh", "max"],
+      "type": "string"
+    },
+    "ReasoningEffortV2": {
+      "enum": ["minimal", "low", "medium", "high", "xhigh", "max"],
+      "type": "string"
+    },
+    "ReasoningIntent": {
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "mode": {
+              "const": "auto",
+              "type": "string"
+            }
+          },
+          "required": ["mode"],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "mode": {
+              "const": "off",
+              "type": "string"
+            }
+          },
+          "required": ["mode"],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "level": {
+              "$ref": "#/$defs/ReasoningEffortV2"
+            },
+            "mode": {
+              "const": "effort",
+              "type": "string"
+            }
+          },
+          "required": ["mode", "level"],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "mode": {
+              "const": "budget",
+              "type": "string"
+            },
+            "tokens": {
+              "format": "uint32",
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          "required": ["mode", "tokens"],
+          "type": "object"
+        }
+      ]
+    },
+    "ReasoningTranslation": {
+      "additionalProperties": false,
+      "properties": {
+        "from": {
+          "$ref": "#/$defs/ReasoningIntent"
+        },
+        "rule_id": {
+          "type": "string"
+        },
+        "to": {
+          "$ref": "#/$defs/ReasoningIntent"
+        }
+      },
+      "required": ["rule_id", "from", "to"],
+      "type": "object"
+    },
+    "RelationshipLabelConfig": {
+      "additionalProperties": false,
+      "description": "Relationship strength thresholds for descriptive labels.",
+      "properties": {
+        "acquainted": {
+          "default": 0.0,
+          "description": "Threshold for \"acquainted\".",
+          "format": "double",
+          "type": "number"
+        },
+        "cool": {
+          "default": -0.3,
+          "description": "Threshold for \"cool\".",
+          "format": "double",
+          "type": "number"
+        },
+        "friendly": {
+          "default": 0.3,
+          "description": "Threshold for \"friendly\".",
+          "format": "double",
+          "type": "number"
+        },
+        "strained": {
+          "default": -0.7,
+          "description": "Threshold for \"strained\".",
+          "format": "double",
+          "type": "number"
+        },
+        "very_close": {
+          "default": 0.7,
+          "description": "Threshold for \"very close\".",
+          "format": "double",
+          "type": "number"
+        }
+      },
+      "type": "object"
+    },
+    "RoutePatch": {
+      "additionalProperties": false,
+      "properties": {
+        "allow_unverified_model": {
+          "type": ["boolean", "null"]
+        },
+        "discovery_base_url": {
+          "type": ["string", "null"]
+        },
+        "endpoint": {
+          "type": ["string", "null"]
+        },
+        "frequency_penalty": {
+          "format": "float",
+          "type": ["number", "null"]
+        },
+        "inference_base_url": {
+          "type": ["string", "null"]
+        },
+        "max_output_tokens": {
+          "format": "uint32",
+          "minimum": 0,
+          "type": ["integer", "null"]
+        },
+        "model": {
+          "type": ["string", "null"]
+        },
+        "provider": {
+          "type": ["string", "null"]
+        },
+        "reasoning": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ReasoningIntent"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "service_tier": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ServiceTierIntent"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "temperature": {
+          "format": "float",
+          "type": ["number", "null"]
+        }
+      },
+      "type": "object"
+    },
+    "ServiceTierIntent": {
+      "enum": ["auto", "standard", "priority"],
+      "type": "string"
+    },
+    "SessionConfig": {
+      "additionalProperties": false,
+      "description": "Session and pacing timeouts.",
+      "properties": {
+        "auto_pause_after_secs": {
+          "default": 300,
+          "description": "Real-time inactivity threshold before the game auto-pauses.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "idle_banter_after_secs": {
+          "default": 120,
+          "description": "Real-time silence threshold before nearby NPCs may start banter.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "max_concurrent_sessions": {
+          "default": 50,
+          "description": "Maximum number of concurrent in-memory sessions per server process.\n\nWhen the live session count reaches this ceiling, new session\ncreation is refused with `503 Service Unavailable`.  Each session\nholds ~50 MB of game state (world graph, NPC manager, inference\nqueue), so this knob is the primary lever for the per-process memory\nbudget: `max_concurrent_sessions * ~50 MB ≈ memory ceiling`.\n\nOverride at runtime with the `PARISH_MAX_SESSIONS` environment\nvariable (takes precedence over both the TOML setting and this\ncompiled-in default).\n\nDefaults to 50, matching the ceiling noted in issue #620.",
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    },
+    "SpeedConfig": {
+      "additionalProperties": false,
+      "description": "Speed multiplier factors. Higher = faster game time.\n\nFactor of 36.0 means 40 real minutes = 1 game day.",
+      "properties": {
+        "fast": {
+          "default": 72.0,
+          "description": "20 real minutes per game day.",
+          "format": "double",
+          "type": "number"
+        },
+        "fastest": {
+          "default": 144.0,
+          "description": "10 real minutes per game day.",
+          "format": "double",
+          "type": "number"
+        },
+        "ludicrous": {
+          "default": 864.0,
+          "description": "~100 real seconds per game day.",
+          "format": "double",
+          "type": "number"
+        },
+        "normal": {
+          "default": 36.0,
+          "description": "40 real minutes per game day.",
+          "format": "double",
+          "type": "number"
+        },
+        "slow": {
+          "default": 18.0,
+          "description": "80 real minutes per game day.",
+          "format": "double",
+          "type": "number"
+        }
+      },
+      "type": "object"
+    },
+    "StructuredOutputMode": {
+      "enum": ["prompt-validated-json", "json-object", "json-schema"],
+      "type": "string"
+    },
+    "TileSourceConfig": {
+      "additionalProperties": false,
+      "description": "A single raster tile source — URL template plus display metadata.",
+      "properties": {
+        "attribution": {
+          "default": "",
+          "description": "Attribution text shown in the MapLibre attribution control.",
+          "type": "string"
+        },
+        "label": {
+          "default": "",
+          "description": "Human-readable label displayed in `/map` listings.",
+          "type": "string"
+        },
+        "maxzoom": {
+          "default": 19,
+          "description": "Maximum zoom level the source serves tiles for.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "minzoom": {
+          "default": 0,
+          "description": "Minimum zoom level the source serves tiles for.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "raster_opacity": {
+          "default": 0.8500000238418579,
+          "description": "MapLibre `raster-opacity` paint (0.0 to 1.0).",
+          "format": "float",
+          "type": "number"
+        },
+        "raster_saturation": {
+          "default": -0.4000000059604645,
+          "description": "MapLibre `raster-saturation` paint (-1.0 to 1.0). Negative values\ndesaturate; 0.0 leaves colours untouched.",
+          "format": "float",
+          "type": "number"
+        },
+        "tile_size": {
+          "default": 256,
+          "description": "Tile edge length in pixels. 256 for classic OSM-style sources.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "tms": {
+          "default": false,
+          "description": "When true, the frontend sets `scheme: 'tms'` on the MapLibre source,\nflipping the y-axis for ArcGIS-style tile services.",
+          "type": "boolean"
+        },
+        "upstream_url": {
+          "default": "",
+          "description": "Upstream XYZ URL template the **server-side tile cache** fetches from\non a cache miss (must be absolute, e.g.\n`https://mapseries-tilesets.s3.amazonaws.com/os/roscommon1/{z}/{x}/{y}.png`).\nEmpty string means this source isn't proxied — the frontend's `url`\nis expected to be an absolute upstream URL the browser hits directly\n(the OSM case), and the tile-proxy route will refuse to serve it.\n\nKept distinct from `url` because the two represent different layers:\n`url` is what MapLibre fetches, `upstream_url` is what `reqwest` fetches\non the server. Conflating them is what caused PR #955.",
+          "type": "string"
+        },
+        "url": {
+          "default": "",
+          "description": "XYZ URL template the **frontend** uses to fetch tiles (e.g.\n`https://…/{z}/{x}/{y}.png`, or a same-origin proxy path like\n`/tiles/historic/{z}/{x}/{y}.png`). Empty string means the source is\nregistered but not yet configured; the frontend falls back to a flat\nbackground.",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "UserModelCapabilityOverride": {
+      "additionalProperties": false,
+      "properties": {
+        "generation": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/GenerationCapabilities"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "openai_generation_wire": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/OpenAiChatGenerationWire"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "output_contracts": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/OutputContractCapabilities"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "reasoning": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ReasoningCapabilities"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "type": "object"
+    },
+    "WireServiceTier": {
+      "enum": ["google-standard", "google-priority"],
+      "type": "string"
+    },
+    "WorldConfig": {
+      "additionalProperties": false,
+      "description": "World graph tuning parameters.",
+      "properties": {
+        "fuzzy_threshold": {
+          "default": 0.82,
+          "description": "Minimum Jaro-Winkler similarity (0.0–1.0) for fuzzy location name matching.\n\nHigher values reduce false positives but miss more typos.",
+          "format": "double",
+          "type": "number"
+        }
+      },
+      "type": "object"
+    }
+  },
+  "$id": "https://rundale.dev/schemas/parish-project-config/v2.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "engine": {
+      "$ref": "#/$defs/EngineConfig"
+    },
+    "inference": {
+      "$ref": "#/$defs/InferenceLayer",
+      "default": {
+        "loadouts": {},
+        "providers": {}
+      }
+    },
+    "schema_version": {
+      "format": "uint8",
+      "maximum": 255,
+      "minimum": 0,
+      "type": "integer"
+    }
+  },
+  "required": ["schema_version"],
+  "title": "ProjectConfigV2",
+  "type": "object"
+}

@@ -36,7 +36,8 @@ parish-core = { workspace = true }
 parish-palette = { workspace = true }
 rand = { workspace = true }
 uuid = { workspace = true }
-keyring = { version = "3", default-features = false, features = ["apple-native", "windows-native", "linux-native-sync-persistent", "sync-secret-service"] }
+keyring = { workspace = true }
+rfd = { version = "0.17.2", default-features = false, features = ["gtk3"] }
 
 # MCP bridge — embedded HTTP listener that mirrors the parish-server IPC routes
 # against this process's live AppState, so an MCP client (parish-mcp) can drive

@@ -177,6 +177,9 @@ pub async fn resolve_llm_greeting(
         reasoning_effort: None,
         thinking_level: Some(params.profile.thinking_level),
         service_tier: Some(params.profile.service_tier),
+        reasoning_intent: (params.profile.configuration_epoch > 0)
+            .then_some(params.profile.reasoning_intent),
+        reasoning_dialect: params.profile.reasoning_dialect,
     };
     let audit = parish_inference::DirectInferenceAudit::new(
         params.audit_sink.clone(),

@@ -603,6 +603,9 @@ mod tests {
 
     fn test_game_config() -> GameConfig {
         GameConfig {
+            inference_routes_v2: Default::default(),
+            inference_subrole_routes_v2: Default::default(),
+            inference_configuration_epoch: 0,
             provider_name: String::new(),
             base_url: String::new(),
             api_key: None,

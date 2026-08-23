@@ -28,7 +28,6 @@ use crate::config::InferenceConfig;
 use crate::inference::file_log::InferenceFileLog;
 use crate::inference::{
     AnyClient, InferenceLog, InferenceQueue, InferenceWorkerConfig, build_client,
-    spawn_inference_worker,
 };
 
 /// The three AppState mutex slots that [`rebuild_inference_worker`] needs.
@@ -106,28 +105,69 @@ pub async fn rebuild_inference_worker(
         built
     };
 
-    // Abort the old worker before spawning a replacement, preventing orphaned
-    // tasks from accumulating (each holds an HTTP client + channel; bug #224).
-    {
-        let mut wh = slots.worker_handle.lock().await;
-        if let Some(old) = wh.take() {
-            old.abort();
-        }
-    }
+    rebuild_inference_worker_with_client(
+        any_client.clone(),
+        provider_enum,
+        inference_config,
+        inference_log,
+        inference_file_log,
+        slots,
+    )
+    .await;
 
-    // Spawn fresh channels, worker task, and queue.
+    (any_client, url_warning)
+}
+
+/// Publishes an already constructed v2 transport into the worker lifecycle.
+/// This keeps adapter selection at the resolved-route seam instead of
+/// reconstructing a client from legacy provider-name heuristics.
+pub async fn rebuild_inference_worker_with_client(
+    any_client: AnyClient,
+    provider: crate::config::Provider,
+    inference_config: &InferenceConfig,
+    inference_log: InferenceLog,
+    inference_file_log: InferenceFileLog,
+    slots: InferenceSlots<'_>,
+) {
+    let clients = crate::inference::InferenceClients::new(
+        any_client.clone(),
+        String::new(),
+        Default::default(),
+    );
+    rebuild_inference_worker_with_clients(
+        clients,
+        any_client,
+        provider,
+        inference_config,
+        inference_log,
+        inference_file_log,
+        slots,
+    )
+    .await;
+}
+
+pub async fn rebuild_inference_worker_with_clients(
+    clients: crate::inference::InferenceClients,
+    dialogue_client: AnyClient,
+    provider: crate::config::Provider,
+    inference_config: &InferenceConfig,
+    inference_log: InferenceLog,
+    inference_file_log: InferenceFileLog,
+    slots: InferenceSlots<'_>,
+) {
+    // Construct the complete replacement before touching the live queue.
     let (interactive_tx, interactive_rx) = tokio::sync::mpsc::channel(16);
     let (background_tx, background_rx) = tokio::sync::mpsc::channel(32);
     let (batch_tx, batch_rx) = tokio::sync::mpsc::channel(64);
-    let worker = spawn_inference_worker(
-        any_client.clone(),
+    let worker = crate::inference::spawn_inference_worker_with_clients(
+        clients,
         InferenceWorkerConfig {
             interactive_rx,
             background_rx,
             batch_rx,
             log: inference_log.clone(),
             file_log: inference_file_log.clone(),
-            provider: provider_enum,
+            provider,
             timeout_config: inference_config.clone(),
         },
     );
@@ -135,9 +175,11 @@ pub async fn rebuild_inference_worker(
         crate::inference::InferenceAuditSink::new(inference_log, inference_file_log),
     );
 
-    // Install the new queue and worker handle.
+    // Publish admission to the new immutable client set. Dropping the old
+    // queue sender lets its detached worker drain already-admitted requests
+    // on their captured epoch instead of cancelling them during reload.
     *slots.inference_queue.lock().await = Some(queue);
-    *slots.worker_handle.lock().await = Some(worker);
-
-    (any_client, url_warning)
+    *slots.client.lock().await = Some(dialogue_client);
+    let old_worker = slots.worker_handle.lock().await.replace(worker);
+    drop(old_worker);
 }

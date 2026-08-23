@@ -29,6 +29,7 @@ fn make_global_state(tmp: &tempfile::TempDir, with_oauth: bool) -> Arc<GlobalSta
         Arc::new(SqliteIdentityStore::new(identity_conn));
 
     Arc::new(GlobalState {
+        inference_runtime_v2: None,
         sessions,
         identity_store,
         oauth_config: if with_oauth {
@@ -103,6 +104,7 @@ fn default_game_config() -> parish_server::state::GameConfig {
         tile_sources: Vec::new(),
         reveal_unexplored_locations: false,
         auto_setup_model: None,
+        ..parish_server::state::GameConfig::default()
     }
 }
 

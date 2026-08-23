@@ -86,6 +86,7 @@ impl From<ProviderCallError> for ParishError {
 #[derive(Clone)]
 pub struct GoogleClient {
     base: ClientBase,
+    interactions_path: &'static str,
 }
 
 impl GoogleClient {
@@ -106,18 +107,38 @@ impl GoogleClient {
                 "Google Interactions streaming",
                 config,
             ),
+            interactions_path: "v1/interactions",
+        }
+    }
+
+    pub fn new_with_api_prefix(
+        base_url: &str,
+        api_key: Option<&str>,
+        config: &InferenceConfig,
+    ) -> Self {
+        Self {
+            base: ClientBase::new_preserving_path(
+                base_url,
+                api_key,
+                "Google Interactions",
+                "Google Interactions streaming",
+                config,
+            ),
+            interactions_path: "interactions",
         }
     }
 
     pub fn with_rate_limit(self, limiter: InferenceRateLimiter) -> Self {
         Self {
             base: self.base.with_rate_limit(limiter),
+            interactions_path: self.interactions_path,
         }
     }
 
     pub fn maybe_with_rate_limit(self, limiter: Option<InferenceRateLimiter>) -> Self {
         Self {
             base: self.base.maybe_with_rate_limit(limiter),
+            interactions_path: self.interactions_path,
         }
     }
 
@@ -131,8 +152,9 @@ impl GoogleClient {
 
     fn interactions_url(&self) -> String {
         format!(
-            "{}/v1/interactions",
-            self.base.base_url.trim_end_matches('/')
+            "{}/{}",
+            self.base.base_url.trim_end_matches('/'),
+            self.interactions_path
         )
     }
 
@@ -149,14 +171,15 @@ impl GoogleClient {
             "input": prompt,
             "stream": stream,
             "store": false,
-            "generation_config": {
-                "thinking_level": params.thinking_level.unwrap_or_default(),
-            }
+            "generation_config": {}
         });
-        // Standard is Google's default and must be requested by omitting the
-        // field. Priority is sent only for an explicit override.
-        if params.service_tier == Some(ServiceTier::Priority) {
-            body["service_tier"] = json!(ServiceTier::Priority);
+        if let Some(thinking_level) = params.thinking_level {
+            body["generation_config"]["thinking_level"] = json!(thinking_level);
+        }
+        // Auto is omission. Explicit intents are serialized exactly so the
+        // request body preserves the resolved configuration.
+        if let Some(service_tier) = params.service_tier {
+            body["service_tier"] = json!(service_tier);
         }
         if let Some(system) = system {
             body["system_instruction"] = Value::String(system.to_string());
@@ -358,7 +381,11 @@ fn finish_non_streaming(
         effective_tier,
     );
     hydrate_metadata(&mut metadata, &value);
-    let text = extract_model_output(&value);
+    let text = extract_model_output(&value).map_err(|message| ProviderCallError {
+        message,
+        partial_text: String::new(),
+        metadata: Box::new(metadata.clone()),
+    })?;
     validate_terminal(text, metadata)
 }
 
@@ -396,7 +423,7 @@ async fn read_google_sse(
     let mut buffer = String::new();
     let mut event_data = Vec::<String>::new();
     let mut decoder = crate::utf8_stream::Utf8StreamDecoder::new();
-    let mut active_model_output: Option<Option<u64>> = None;
+    let mut active_step: Option<ActiveGoogleStep> = None;
     let mut saw_terminal = false;
 
     while let Some(chunk) = response.chunk().await.map_err(|error| ProviderCallError {
@@ -416,7 +443,7 @@ async fn read_google_sse(
                     &mut text,
                     &mut metadata,
                     started,
-                    &mut active_model_output,
+                    &mut active_step,
                     &mut saw_terminal,
                 )
                 .await?;
@@ -434,7 +461,7 @@ async fn read_google_sse(
             &mut text,
             &mut metadata,
             started,
-            &mut active_model_output,
+            &mut active_step,
             &mut saw_terminal,
         )
         .await?;
@@ -449,7 +476,7 @@ async fn read_google_sse(
             &mut text,
             &mut metadata,
             started,
-            &mut active_model_output,
+            &mut active_step,
             &mut saw_terminal,
         )
         .await?;
@@ -518,7 +545,7 @@ async fn process_event(
     accumulated: &mut String,
     metadata: &mut ProviderMetadata,
     started: Instant,
-    active_model_output: &mut Option<Option<u64>>,
+    active_step: &mut Option<ActiveGoogleStep>,
     saw_terminal: &mut bool,
 ) -> Result<(), ProviderCallError> {
     hydrate_metadata(metadata, &value);
@@ -527,6 +554,13 @@ async fn process_event(
         .or_else(|| value.get("type"))
         .and_then(Value::as_str)
         .unwrap_or_default();
+    if *saw_terminal {
+        return Err(ProviderCallError {
+            message: "Google Interactions stream contained data after its terminal event".into(),
+            partial_text: accumulated.clone(),
+            metadata: Box::new(metadata.clone()),
+        });
+    }
     if matches!(event_type, "error" | "interaction.error") {
         metadata.terminal_status = Some("failed".to_string());
         return Err(ProviderCallError {
@@ -550,48 +584,129 @@ async fn process_event(
                 | "refusal"
         )
     {
+        if active_step.is_some() {
+            return google_stream_error(
+                "Google Interactions terminal event arrived before the active step closed",
+                accumulated,
+                metadata,
+            );
+        }
         *saw_terminal = true;
         if metadata.terminal_status.is_none() {
             metadata.terminal_status = Some(status.to_string());
         }
     }
     let visible = if event_type == "step.start" {
-        let is_model_output = value
+        let step_type = value
             .get("step")
             .and_then(|step| step.get("type"))
-            .and_then(Value::as_str)
-            == Some("model_output");
-        *active_model_output = is_model_output.then(|| event_step_index(&value));
-        value
-            .get("step")
-            .filter(|_| is_model_output)
-            .map(extract_content)
-            .unwrap_or_default()
+            .and_then(Value::as_str);
+        if active_step.is_some() {
+            return google_stream_error(
+                "Google Interactions opened a new step before closing the prior step",
+                accumulated,
+                metadata,
+            );
+        }
+        match step_type {
+            Some("model_output") => {
+                *active_step = Some(ActiveGoogleStep {
+                    kind: GoogleStepKind::ModelOutput,
+                    index: event_step_index(&value),
+                });
+                extract_content_strict(value.get("step").unwrap()).map_err(|message| {
+                    ProviderCallError {
+                        message,
+                        partial_text: accumulated.clone(),
+                        metadata: Box::new(metadata.clone()),
+                    }
+                })?
+            }
+            Some("thought") => {
+                *active_step = Some(ActiveGoogleStep {
+                    kind: GoogleStepKind::Thought,
+                    index: event_step_index(&value),
+                });
+                String::new()
+            }
+            Some(other) => {
+                return google_stream_error(
+                    &format!("Google Interactions contained forbidden step type {other}"),
+                    accumulated,
+                    metadata,
+                );
+            }
+            None => {
+                return google_stream_error(
+                    "Google Interactions step.start omitted step type",
+                    accumulated,
+                    metadata,
+                );
+            }
+        }
     } else if event_type == "step.delta" {
         let delta = value.get("delta").unwrap_or(&Value::Null);
-        let matching_step = active_model_output.is_some_and(|active_index| {
+        let matching_step = active_step.as_ref().is_some_and(|active| {
             let delta_index = event_step_index(&value);
-            active_index.is_none() || delta_index.is_none() || active_index == delta_index
+            active.index.is_none() || delta_index.is_none() || active.index == delta_index
         });
-        match (matching_step, delta.get("type").and_then(Value::as_str)) {
-            (true, Some("text" | "text_delta")) => delta
+        match (
+            matching_step,
+            active_step.as_ref().map(|active| active.kind),
+            delta.get("type").and_then(Value::as_str),
+        ) {
+            (true, Some(GoogleStepKind::ModelOutput), Some("text" | "text_delta")) => delta
                 .get("text")
                 .or_else(|| delta.get("delta"))
                 .and_then(Value::as_str)
                 .unwrap_or_default()
                 .to_string(),
-            _ => String::new(),
+            (
+                true,
+                Some(GoogleStepKind::Thought),
+                Some("text" | "text_delta" | "thought" | "thought_delta"),
+            ) => String::new(),
+            _ => {
+                return google_stream_error(
+                    "Google Interactions delta was unknown or did not match the active step",
+                    accumulated,
+                    metadata,
+                );
+            }
         }
     } else if event_type == "step.stop" || event_type == "step.completed" {
         let stopped_index = event_step_index(&value);
-        if active_model_output.is_some_and(|active_index| {
-            active_index.is_none() || stopped_index.is_none() || active_index == stopped_index
-        }) {
-            *active_model_output = None;
+        let matches = active_step.as_ref().is_some_and(|active| {
+            active.index.is_none() || stopped_index.is_none() || active.index == stopped_index
+        });
+        if !matches {
+            return google_stream_error(
+                "Google Interactions closed an unknown or mismatched step",
+                accumulated,
+                metadata,
+            );
         }
+        *active_step = None;
+        String::new()
+    } else if matches!(
+        event_type,
+        "interaction.created"
+            | "interaction.in_progress"
+            | "interaction.completed"
+            | "interaction.failed"
+            | "interaction.cancelled"
+            | "interaction.incomplete"
+            | "interaction.budget_exceeded"
+            | "interaction.requires_action"
+            | "interaction.refusal"
+    ) {
         String::new()
     } else {
-        String::new()
+        return google_stream_error(
+            &format!("unknown Google Interactions stream event {event_type:?}"),
+            accumulated,
+            metadata,
+        );
     };
     if !visible.is_empty() {
         if metadata.ttft_ms.is_none() {
@@ -609,6 +724,30 @@ async fn process_event(
         accumulated.push_str(&visible);
     }
     Ok(())
+}
+
+#[derive(Debug, Clone, Copy)]
+struct ActiveGoogleStep {
+    kind: GoogleStepKind,
+    index: Option<u64>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum GoogleStepKind {
+    ModelOutput,
+    Thought,
+}
+
+fn google_stream_error<T>(
+    message: &str,
+    accumulated: &str,
+    metadata: &ProviderMetadata,
+) -> Result<T, ProviderCallError> {
+    Err(ProviderCallError {
+        message: message.into(),
+        partial_text: accumulated.into(),
+        metadata: Box::new(metadata.clone()),
+    })
 }
 
 fn event_step_index(value: &Value) -> Option<u64> {
@@ -632,31 +771,53 @@ fn provider_error_message(value: &Value) -> String {
         .collect()
 }
 
-fn extract_model_output(value: &Value) -> String {
-    value
+pub(crate) fn extract_model_output(value: &Value) -> Result<String, String> {
+    let steps = value
         .get("steps")
         .and_then(Value::as_array)
-        .map(|steps| {
-            steps
-                .iter()
-                .filter(|step| step.get("type").and_then(Value::as_str) == Some("model_output"))
-                .map(extract_content)
-                .collect::<String>()
-        })
-        .unwrap_or_default()
+        .ok_or_else(|| "Google Interactions response omitted steps".to_string())?;
+    let mut text = String::new();
+    let mut output_steps = 0usize;
+    for step in steps {
+        match step.get("type").and_then(Value::as_str) {
+            Some("thought") => {}
+            Some("model_output") => {
+                output_steps += 1;
+                text.push_str(&extract_content_strict(step)?);
+            }
+            Some(other) => {
+                return Err(format!(
+                    "Google Interactions response contained forbidden step type {other}"
+                ));
+            }
+            None => return Err("Google Interactions response step omitted type".into()),
+        }
+    }
+    if output_steps != 1 {
+        return Err(format!(
+            "Google Interactions response must contain exactly one model_output step, found {output_steps}"
+        ));
+    }
+    Ok(text)
 }
 
-fn extract_content(step: &Value) -> String {
-    step.get("content")
+fn extract_content_strict(step: &Value) -> Result<String, String> {
+    let items = step
+        .get("content")
         .and_then(Value::as_array)
-        .map(|items| {
-            items
-                .iter()
-                .filter(|item| item.get("type").and_then(Value::as_str) == Some("text"))
-                .filter_map(|item| item.get("text").and_then(Value::as_str))
-                .collect::<String>()
-        })
-        .unwrap_or_default()
+        .ok_or_else(|| "Google Interactions model_output omitted content".to_string())?;
+    let mut text = String::new();
+    for item in items {
+        if item.get("type").and_then(Value::as_str) != Some("text") {
+            return Err("Google Interactions model_output contained non-text content".into());
+        }
+        text.push_str(
+            item.get("text")
+                .and_then(Value::as_str)
+                .ok_or_else(|| "Google Interactions text item omitted text".to_string())?,
+        );
+    }
+    Ok(text)
 }
 
 fn hydrate_metadata(metadata: &mut ProviderMetadata, value: &Value) {
@@ -766,13 +927,12 @@ fn u64_field(value: &Value, key: &str) -> Option<u64> {
     value.get(key).and_then(Value::as_u64)
 }
 fn effective_google_cap(params: &GenerateParams) -> u32 {
-    let thinking = params.thinking_level.unwrap_or_default();
     params
         .max_tokens
-        .unwrap_or(match thinking {
-            ThinkingLevel::Minimal | ThinkingLevel::Low => 1_024,
-            ThinkingLevel::Medium => 4_096,
-            ThinkingLevel::High => 8_192,
+        .unwrap_or(match params.thinking_level {
+            Some(ThinkingLevel::Minimal | ThinkingLevel::Low) => 1_024,
+            Some(ThinkingLevel::High) => 8_192,
+            Some(ThinkingLevel::Medium) | None => 4_096,
         })
         .clamp(1, 65_536)
 }
@@ -812,7 +972,7 @@ mod tests {
         assert_eq!(body["generation_config"]["max_output_tokens"], 1024);
         assert_eq!(body["response_format"]["mime_type"], "application/json");
         assert!(body.get("temperature").is_none());
-        assert!(body.get("service_tier").is_none());
+        assert_eq!(body["service_tier"], "standard");
         assert!(body.get("previous_interaction_id").is_none());
 
         let priority = GoogleClient::request_body(
@@ -827,6 +987,21 @@ mod tests {
             },
         );
         assert_eq!(priority["service_tier"], "priority");
+
+        let automatic = GoogleClient::request_body(
+            "unverified-model",
+            "hello",
+            None,
+            false,
+            None,
+            &GenerateParams::default(),
+        );
+        assert!(
+            automatic["generation_config"]
+                .get("thinking_level")
+                .is_none(),
+            "Auto/unknown must omit Google reasoning instead of defaulting to medium"
+        );
     }
 
     #[test]
@@ -882,6 +1057,27 @@ mod tests {
             serde_json::to_value(ServiceTier::Standard).unwrap(),
             "standard"
         );
+        let standard = GoogleClient::request_body(
+            "gemini-3.7-flash",
+            "hello",
+            None,
+            false,
+            None,
+            &GenerateParams {
+                service_tier: Some(ServiceTier::Standard),
+                ..Default::default()
+            },
+        );
+        assert_eq!(standard["service_tier"], "standard");
+        let automatic = GoogleClient::request_body(
+            "gemini-3.7-flash",
+            "hello",
+            None,
+            false,
+            None,
+            &GenerateParams::default(),
+        );
+        assert!(automatic.get("service_tier").is_none());
     }
 
     #[test]
@@ -1080,8 +1276,10 @@ mod tests {
             "data: {\"event_type\":\"interaction.created\",\"interaction_id\":\"int_stream\"}\n\n",
             "data: {\"event_type\":\"step.start\",\"step\":{\"type\":\"thought\",\"content\":[{\"type\":\"text\",\"text\":\"secret\"}]}}\n\n",
             "data: {\"event_type\":\"step.delta\",\"delta\":{\"type\":\"text\",\"text\":\"secret-too\"}}\n\n",
+            "data: {\"event_type\":\"step.stop\"}\n\n",
             "data: {\"event_type\":\"step.start\",\"step\":{\"type\":\"model_output\",\"content\":[{\"type\":\"text\",\"text\":\"Hel\"}]}}\n\n",
             "data: {\"event_type\":\"step.delta\",\"delta\":{\"type\":\"text\",\"text\":\"lo\"}}\n\n",
+            "data: {\"event_type\":\"step.stop\"}\n\n",
             "data: {\"event_type\":\"interaction.completed\",\"interaction_id\":\"int_stream\",\"status\":\"completed\",\"metadata\":{\"total_usage\":{\"total_input_tokens\":10,\"total_output_tokens\":2,\"total_thought_tokens\":3,\"total_tokens\":15}}}\n\n",
             "data: [DONE]\n\n"
         );
@@ -1211,7 +1409,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn streaming_ignores_deltas_from_a_different_step_index() {
+    async fn streaming_rejects_deltas_from_a_different_step_index() {
         let server = MockServer::start().await;
         let sse = concat!(
             "data: {\"event_type\":\"step.start\",\"step_index\":4,\"step\":{\"type\":\"model_output\",\"content\":[{\"type\":\"text\",\"text\":\"A\"}]}}\n\n",
@@ -1229,7 +1427,7 @@ mod tests {
             .mount(&server)
             .await;
         let (tx, mut rx) = mpsc::channel(8);
-        let result = GoogleClient::new(&server.uri(), Some("test-key"))
+        let error = GoogleClient::new(&server.uri(), Some("test-key"))
             .generate_stream_detailed_with_format(
                 "gemini-3.6-flash",
                 "hello",
@@ -1239,17 +1437,14 @@ mod tests {
                 GenerateParams::default(),
             )
             .await
-            .unwrap();
+            .expect_err("a mismatched step delta is unknown mixed output");
         let mut streamed = String::new();
         while let Some(chunk) = rx.recv().await {
             streamed.push_str(&chunk);
         }
-        assert_eq!(streamed, "AB");
-        assert_eq!(result.text, "AB");
-        assert_eq!(
-            result.metadata.effective_service_tier.as_deref(),
-            Some("standard")
-        );
+        assert_eq!(streamed, "A");
+        assert_eq!(error.partial_text, "A");
+        assert!(error.message.contains("did not match"));
     }
 
     #[tokio::test]

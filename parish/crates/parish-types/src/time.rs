@@ -14,7 +14,8 @@ use std::time::Instant;
 /// Speed multiplier factors. Higher = faster game time.
 ///
 /// Factor of 36.0 means 40 real minutes = 1 game day.
-#[derive(Debug, Deserialize, Serialize, Clone)]
+#[derive(Debug, Deserialize, Serialize, Clone, schemars::JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct SpeedConfig {
     /// 80 real minutes per game day.
     #[serde(default = "default_slow")]

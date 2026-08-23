@@ -32,6 +32,13 @@ impl ProviderRegistry {
         for raw in builtin_providers::ALL {
             let m: ProviderMod = toml::from_str(raw)
                 .expect("builtin provider TOML parse failed — check builtin_providers/*.toml");
+            if let Some(recommended) = &m.recommended_preset {
+                assert!(
+                    m.presets.iter().any(|preset| &preset.key == recommended),
+                    "builtin provider {} names missing recommended_preset {recommended}",
+                    m.id
+                );
+            }
             let p = Provider(Arc::new(m));
             by_id.insert(p.id().to_string(), p);
         }
@@ -94,15 +101,18 @@ impl ProviderRegistry {
         v
     }
 
-    /// Merges runtime-loaded providers into the registry. Called from the
-    /// bootstrap path once per process, after `discover_mods` collects
-    /// `ModKind::Providers` mods. Last-wins on id collision with a WARN
-    /// log; the collision message is the only operator signal that two
-    /// mods (or a mod and a builtin) ship the same provider id.
+    /// Registers runtime providers with fatal ID/alias collision checks.
     pub fn register_mod_providers(&self, mods: Vec<ProviderMod>) -> Result<(), ParishError> {
         let mut guard = self.by_id.write().expect("registry poisoned");
         for m in mods {
             let id = m.id.clone();
+            if let Some(recommended) = &m.recommended_preset
+                && !m.presets.iter().any(|preset| &preset.key == recommended)
+            {
+                return Err(ParishError::Config(format!(
+                    "provider {id:?} names missing recommended_preset {recommended:?}"
+                )));
+            }
             if let Some(existing) = guard.get(&id) {
                 // Silent no-op when re-registering identical content — the
                 // auto-loader and bootstrap may both fire in debug builds
@@ -110,10 +120,24 @@ impl ProviderRegistry {
                 if existing.0.as_ref() == &m {
                     continue;
                 }
-                tracing::warn!(
-                    "mod-loaded provider '{}' overrides existing registry entry (last-wins)",
-                    id
-                );
+                return Err(ParishError::Config(format!(
+                    "provider id collision: {id:?} is already registered"
+                )));
+            }
+            let names = guard
+                .values()
+                .flat_map(|provider| {
+                    std::iter::once(provider.id().to_string())
+                        .chain(provider.0.aliases.iter().cloned())
+                })
+                .collect::<std::collections::BTreeSet<_>>();
+            if let Some(collision) = std::iter::once(&m.id)
+                .chain(m.aliases.iter())
+                .find(|name| names.contains(*name))
+            {
+                return Err(ParishError::Config(format!(
+                    "provider id/alias collision: {collision:?} is already registered"
+                )));
             }
             guard.insert(id, Provider(Arc::new(m)));
         }
@@ -202,6 +226,8 @@ pub fn ensure_mods_loaded() {
         // `Once::call_once` and deadlock. Use the underlying static directly,
         // which is guaranteed initialized by the caller in `registry()`.
         let r = REGISTRY.get_or_init(ProviderRegistry::load_with_builtins);
-        let _ = r.register_mod_providers(all);
+        if let Err(error) = r.register_mod_providers(all) {
+            panic!("provider registry bootstrap failed: {error}");
+        }
     });
 }

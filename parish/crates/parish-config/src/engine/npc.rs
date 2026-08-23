@@ -9,7 +9,8 @@ use serde::Deserialize;
 use super::reactions::ReactionConfig;
 
 /// NPC memory, cognition, and relationship tuning.
-#[derive(Debug, Deserialize, Clone)]
+#[derive(Debug, Deserialize, Clone, schemars::JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct NpcConfig {
     /// Maximum number of entries in NPC short-term memory.
     #[serde(default = "default_memory_capacity")]
@@ -247,7 +248,8 @@ fn default_dialogue_anti_repetition() -> bool {
 }
 
 /// Cognitive tier assignment based on distance from player.
-#[derive(Debug, Deserialize, Clone)]
+#[derive(Debug, Deserialize, Clone, schemars::JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct CognitiveTierConfig {
     /// Maximum distance for Tier 1 (same location).
     #[serde(default = "default_tier1_max_distance")]
@@ -309,7 +311,8 @@ fn default_tier4_tick_interval_days() -> i64 {
 }
 
 /// Relationship strength thresholds for descriptive labels.
-#[derive(Debug, Deserialize, Clone)]
+#[derive(Debug, Deserialize, Clone, schemars::JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct RelationshipLabelConfig {
     /// Threshold for "very close".
     #[serde(default = "default_very_close")]

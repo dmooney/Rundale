@@ -456,6 +456,8 @@ pub(crate) struct SubmitByokBody {
     pub(crate) base_url: Option<String>,
     #[serde(default)]
     pub(crate) model: Option<String>,
+    #[serde(default)]
+    pub(crate) allow_insecure_http: bool,
 }
 
 #[allow(clippy::unused_async)]
@@ -536,6 +538,7 @@ pub(crate) async fn do_submit_byok(
         base_url: body.base_url,
         model: body.model,
         api_key: body.api_key,
+        allow_insecure_http: body.allow_insecure_http,
         category_overrides: Default::default(),
     };
     let ctx = parish_core::ipc::byok::ByokContext {
@@ -550,6 +553,9 @@ pub(crate) async fn do_submit_byok(
         },
         secrets: std::sync::Arc::clone(&state.secret_store),
         user_config_dir: state.user_config_dir.as_path(),
+        project_config_path: state.project_config_path.as_path(),
+        catalog_user_data: Some(state.catalog_user_data.as_path()),
+        runtime_manager: state.inference_runtime_v2.clone(),
     };
     parish_core::ipc::byok::handle_set_provider_config(args, ctx)
         .await
@@ -654,6 +660,9 @@ mod tests {
         };
         let theme_palette = parish_core::game_mod::default_theme_palette();
         let game_config = GameConfig {
+            inference_routes_v2: Default::default(),
+            inference_subrole_routes_v2: Default::default(),
+            inference_configuration_epoch: 0,
             provider_name: "simulator".to_string(),
             base_url: String::new(),
             api_key: None,
@@ -685,6 +694,7 @@ mod tests {
         );
 
         Arc::new(AppState {
+            inference_runtime_v2: None,
             persistence_gate: Mutex::new(()),
             world: Mutex::new(world),
             npc_manager: Mutex::new(npc_manager),
@@ -731,6 +741,8 @@ mod tests {
             sim_cancel: Mutex::new(CancellationToken::new()),
             session_store,
             user_config_dir: dir.path().to_path_buf(),
+            project_config_path: dir.path().join("project.toml"),
+            catalog_user_data: dir.path().to_path_buf(),
             secret_store: Arc::new(InMemorySecretStore::new()),
             latest_screenshot_path: Mutex::new(None),
             graphical_launch_token: uuid::Uuid::new_v4().to_string(),
@@ -762,6 +774,7 @@ mod tests {
             api_key: Some("sk-ant-mcp-test".to_string()),
             base_url: None,
             model: Some("claude-opus-4-7".to_string()),
+            allow_insecure_http: false,
         };
         let response = do_submit_byok(&state, body).await.unwrap();
         assert_eq!(response["ok"], serde_json::Value::Bool(true));
@@ -809,6 +822,7 @@ mod tests {
             api_key: None,
             base_url: None,
             model: None,
+            allow_insecure_http: false,
         };
         let err = do_submit_byok(&state, body).await.unwrap_err();
         assert!(err.contains("requires an API key"), "got: {err}");
@@ -826,6 +840,7 @@ mod tests {
             api_key: None,
             base_url: None,
             model: None,
+            allow_insecure_http: false,
         };
         let response = do_submit_byok(&state, body).await.unwrap();
         assert_eq!(response["provider"], "lmstudio");
@@ -842,6 +857,7 @@ mod tests {
             api_key: Some("sk".to_string()),
             base_url: None,
             model: Some("foo".to_string()),
+            allow_insecure_http: false,
         };
         let err = do_submit_byok(&state, body).await.unwrap_err();
         assert!(err.to_lowercase().contains("base_url"), "got: {err}");
@@ -856,6 +872,7 @@ mod tests {
             api_key: Some("sk".to_string()),
             base_url: None,
             model: None,
+            allow_insecure_http: false,
         };
         let err = do_submit_byok(&state, body).await.unwrap_err();
         assert!(err.to_lowercase().contains("provider"), "got: {err}");

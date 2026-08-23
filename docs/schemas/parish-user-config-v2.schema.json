@@ -1,0 +1,756 @@
+{
+  "$defs": {
+    "AuthAdapter": {
+      "enum": ["none", "bearer", "anthropic-key", "google-key"],
+      "type": "string"
+    },
+    "BudgetCapability": {
+      "additionalProperties": false,
+      "properties": {
+        "dialect": {
+          "$ref": "#/$defs/ReasoningDialect"
+        },
+        "max_tokens": {
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "min_tokens": {
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "min_visible_output_headroom": {
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "dialect",
+        "min_tokens",
+        "max_tokens",
+        "min_visible_output_headroom"
+      ],
+      "type": "object"
+    },
+    "CategoryRoutes": {
+      "additionalProperties": false,
+      "properties": {
+        "dialogue": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/RoutePatch"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "intent": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/RoutePatch"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "reaction": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/RoutePatch"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "simulation": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/RoutePatch"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "type": "object"
+    },
+    "CredentialBinding": {
+      "additionalProperties": false,
+      "properties": {
+        "env": {
+          "type": ["string", "null"]
+        }
+      },
+      "type": "object"
+    },
+    "CustomEndpointDefinition": {
+      "additionalProperties": false,
+      "properties": {
+        "allow_insecure_http": {
+          "default": false,
+          "type": "boolean"
+        },
+        "auth_adapter": {
+          "$ref": "#/$defs/AuthAdapter"
+        },
+        "default_openai_generation_wire": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/OpenAiChatGenerationWire"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "default_reasoning_dialect": {
+          "$ref": "#/$defs/ReasoningDialect"
+        },
+        "discovery_adapter": {
+          "$ref": "#/$defs/DiscoveryAdapter"
+        },
+        "discovery_base_url": {
+          "type": ["string", "null"]
+        },
+        "inference_adapter": {
+          "$ref": "#/$defs/InferenceAdapter"
+        },
+        "inference_base_url": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "inference_base_url",
+        "inference_adapter",
+        "discovery_adapter",
+        "auth_adapter",
+        "default_reasoning_dialect"
+      ],
+      "type": "object"
+    },
+    "CustomProviderDefinition": {
+      "additionalProperties": false,
+      "properties": {
+        "default_endpoint": {
+          "type": ["string", "null"]
+        },
+        "display_name": {
+          "type": "string"
+        },
+        "endpoints": {
+          "additionalProperties": {
+            "$ref": "#/$defs/CustomEndpointDefinition"
+          },
+          "propertyNames": {
+            "pattern": "^[a-z][a-z0-9_-]{0,62}$"
+          },
+          "type": "object"
+        },
+        "models": {
+          "additionalProperties": {
+            "additionalProperties": {
+              "$ref": "#/$defs/UserModelCapabilityOverride"
+            },
+            "type": "object"
+          },
+          "default": {},
+          "propertyNames": {
+            "pattern": "^[a-z][a-z0-9_-]{0,62}$"
+          },
+          "type": "object"
+        }
+      },
+      "required": ["display_name", "endpoints"],
+      "type": "object"
+    },
+    "DiscoveryAdapter": {
+      "enum": [
+        "none",
+        "openai-models-v1",
+        "anthropic-models-v1",
+        "google-models-v1-beta",
+        "openrouter-models-v1",
+        "ollama-tags-v1"
+      ],
+      "type": "string"
+    },
+    "EffortCapability": {
+      "additionalProperties": false,
+      "properties": {
+        "dialect": {
+          "$ref": "#/$defs/ReasoningDialect"
+        },
+        "minimum_total_output_tokens": {
+          "additionalProperties": {
+            "additionalProperties": false,
+            "properties": {
+              "high": {
+                "format": "uint32",
+                "minimum": 0,
+                "type": "integer"
+              },
+              "low": {
+                "format": "uint32",
+                "minimum": 0,
+                "type": "integer"
+              },
+              "max": {
+                "format": "uint32",
+                "minimum": 0,
+                "type": "integer"
+              },
+              "medium": {
+                "format": "uint32",
+                "minimum": 0,
+                "type": "integer"
+              },
+              "minimal": {
+                "format": "uint32",
+                "minimum": 0,
+                "type": "integer"
+              },
+              "xhigh": {
+                "format": "uint32",
+                "minimum": 0,
+                "type": "integer"
+              }
+            },
+            "type": "object"
+          },
+          "default": {},
+          "type": "object"
+        },
+        "supported_levels": {
+          "items": {
+            "$ref": "#/$defs/ReasoningEffortV2"
+          },
+          "type": "array",
+          "uniqueItems": true
+        }
+      },
+      "required": ["dialect", "supported_levels"],
+      "type": "object"
+    },
+    "GenerationCapabilities": {
+      "additionalProperties": false,
+      "properties": {
+        "frequency_penalty": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/NumericRange"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "max_output_tokens": {
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "min_output_tokens": {
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "service_tiers": {
+          "additionalProperties": false,
+          "default": {},
+          "properties": {
+            "auto": {
+              "$ref": "#/$defs/WireServiceTier"
+            },
+            "priority": {
+              "$ref": "#/$defs/WireServiceTier"
+            },
+            "standard": {
+              "$ref": "#/$defs/WireServiceTier"
+            }
+          },
+          "type": "object"
+        },
+        "temperature": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/NumericRange"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": ["min_output_tokens", "max_output_tokens"],
+      "type": "object"
+    },
+    "GenerationPatch": {
+      "additionalProperties": false,
+      "properties": {
+        "frequency_penalty": {
+          "format": "float",
+          "type": ["number", "null"]
+        },
+        "max_output_tokens": {
+          "format": "uint32",
+          "minimum": 0,
+          "type": ["integer", "null"]
+        },
+        "reasoning": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ReasoningIntent"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "service_tier": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ServiceTierIntent"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "temperature": {
+          "format": "float",
+          "type": ["number", "null"]
+        }
+      },
+      "type": "object"
+    },
+    "InferenceAdapter": {
+      "enum": [
+        "openai-responses-v1",
+        "openai-chat-v1",
+        "anthropic-messages2023-06-01",
+        "google-interactions-v1",
+        "simulator"
+      ],
+      "type": "string"
+    },
+    "InferenceLayer": {
+      "additionalProperties": false,
+      "properties": {
+        "active_loadout": {
+          "type": ["string", "null"]
+        },
+        "loadouts": {
+          "additionalProperties": {
+            "$ref": "#/$defs/LoadoutDefinition"
+          },
+          "default": {},
+          "propertyNames": {
+            "pattern": "^(?:[a-z][a-z0-9_-]{0,62}|__rundale_managed_ollama)$"
+          },
+          "type": "object"
+        },
+        "providers": {
+          "additionalProperties": {
+            "$ref": "#/$defs/CustomProviderDefinition"
+          },
+          "default": {},
+          "propertyNames": {
+            "pattern": "^[a-z][a-z0-9_-]{0,62}$"
+          },
+          "type": "object"
+        }
+      },
+      "type": "object"
+    },
+    "LoadoutDefinition": {
+      "additionalProperties": false,
+      "properties": {
+        "default": {
+          "$ref": "#/$defs/RoutePatch",
+          "default": {}
+        },
+        "managed_by": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ManagedLoadoutOwner"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "routes": {
+          "$ref": "#/$defs/CategoryRoutes",
+          "default": {}
+        },
+        "subroles": {
+          "additionalProperties": {
+            "$ref": "#/$defs/GenerationPatch"
+          },
+          "default": {},
+          "propertyNames": {
+            "pattern": "^(dialogue|intent|arrival-reaction|message-reaction|travel-encounter|tier2-simulation|tier3-simulation|demo-player)$"
+          },
+          "type": "object"
+        }
+      },
+      "type": "object"
+    },
+    "ManagedLoadoutOwner": {
+      "enum": ["ollama-setup-v1"],
+      "type": "string"
+    },
+    "NumericRange": {
+      "additionalProperties": false,
+      "properties": {
+        "max": {
+          "format": "float",
+          "type": "number"
+        },
+        "min": {
+          "format": "float",
+          "type": "number"
+        }
+      },
+      "required": ["min", "max"],
+      "type": "object"
+    },
+    "OpenAiChatGenerationWire": {
+      "additionalProperties": false,
+      "properties": {
+        "output_limit_field": {
+          "$ref": "#/$defs/OutputLimitField"
+        },
+        "structured_output": {
+          "items": {
+            "$ref": "#/$defs/StructuredOutputMode"
+          },
+          "type": "array",
+          "uniqueItems": true
+        }
+      },
+      "required": ["output_limit_field", "structured_output"],
+      "type": "object"
+    },
+    "OutputContractCapabilities": {
+      "additionalProperties": false,
+      "properties": {
+        "native_json_object": {
+          "type": "boolean"
+        },
+        "native_json_schema": {
+          "type": "boolean"
+        },
+        "prompt_validated_json": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "prompt_validated_json",
+        "native_json_object",
+        "native_json_schema"
+      ],
+      "type": "object"
+    },
+    "OutputLimitField": {
+      "enum": ["max-tokens", "max-completion-tokens"],
+      "type": "string"
+    },
+    "ReasoningCapabilities": {
+      "additionalProperties": false,
+      "properties": {
+        "budget": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/BudgetCapability"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "default_by_subrole": {
+          "additionalProperties": {
+            "$ref": "#/$defs/ReasoningIntent"
+          },
+          "default": {},
+          "type": "object"
+        },
+        "effort": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/EffortCapability"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "mandatory": {
+          "default": false,
+          "type": "boolean"
+        },
+        "off_dialect": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ReasoningDialect"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "translations": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/ReasoningTranslation"
+          },
+          "type": "array"
+        }
+      },
+      "type": "object"
+    },
+    "ReasoningDialect": {
+      "enum": [
+        "none",
+        "openai-responses-effort",
+        "openai-chat-effort",
+        "openrouter-reasoning",
+        "deepseek-thinking",
+        "local-template-toggle",
+        "anthropic-adaptive",
+        "anthropic-manual-budget",
+        "google-thinking-level"
+      ],
+      "type": "string"
+    },
+    "ReasoningEffortV2": {
+      "enum": ["minimal", "low", "medium", "high", "xhigh", "max"],
+      "type": "string"
+    },
+    "ReasoningIntent": {
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "mode": {
+              "const": "auto",
+              "type": "string"
+            }
+          },
+          "required": ["mode"],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "mode": {
+              "const": "off",
+              "type": "string"
+            }
+          },
+          "required": ["mode"],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "level": {
+              "$ref": "#/$defs/ReasoningEffortV2"
+            },
+            "mode": {
+              "const": "effort",
+              "type": "string"
+            }
+          },
+          "required": ["mode", "level"],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "mode": {
+              "const": "budget",
+              "type": "string"
+            },
+            "tokens": {
+              "format": "uint32",
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          "required": ["mode", "tokens"],
+          "type": "object"
+        }
+      ]
+    },
+    "ReasoningTranslation": {
+      "additionalProperties": false,
+      "properties": {
+        "from": {
+          "$ref": "#/$defs/ReasoningIntent"
+        },
+        "rule_id": {
+          "type": "string"
+        },
+        "to": {
+          "$ref": "#/$defs/ReasoningIntent"
+        }
+      },
+      "required": ["rule_id", "from", "to"],
+      "type": "object"
+    },
+    "RoutePatch": {
+      "additionalProperties": false,
+      "properties": {
+        "allow_unverified_model": {
+          "type": ["boolean", "null"]
+        },
+        "discovery_base_url": {
+          "type": ["string", "null"]
+        },
+        "endpoint": {
+          "type": ["string", "null"]
+        },
+        "frequency_penalty": {
+          "format": "float",
+          "type": ["number", "null"]
+        },
+        "inference_base_url": {
+          "type": ["string", "null"]
+        },
+        "max_output_tokens": {
+          "format": "uint32",
+          "minimum": 0,
+          "type": ["integer", "null"]
+        },
+        "model": {
+          "type": ["string", "null"]
+        },
+        "provider": {
+          "type": ["string", "null"]
+        },
+        "reasoning": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ReasoningIntent"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "service_tier": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ServiceTierIntent"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "temperature": {
+          "format": "float",
+          "type": ["number", "null"]
+        }
+      },
+      "type": "object"
+    },
+    "ServiceTierIntent": {
+      "enum": ["auto", "standard", "priority"],
+      "type": "string"
+    },
+    "StructuredOutputMode": {
+      "enum": ["prompt-validated-json", "json-object", "json-schema"],
+      "type": "string"
+    },
+    "UserModelCapabilityOverride": {
+      "additionalProperties": false,
+      "properties": {
+        "generation": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/GenerationCapabilities"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "openai_generation_wire": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/OpenAiChatGenerationWire"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "output_contracts": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/OutputContractCapabilities"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "reasoning": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ReasoningCapabilities"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "type": "object"
+    },
+    "WireServiceTier": {
+      "enum": ["google-standard", "google-priority"],
+      "type": "string"
+    }
+  },
+  "$id": "https://rundale.dev/schemas/parish-user-config/v2.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "credential_bindings": {
+      "additionalProperties": {
+        "$ref": "#/$defs/CredentialBinding"
+      },
+      "default": {},
+      "propertyNames": {
+        "pattern": "^custom:[a-z][a-z0-9_-]{0,62}$"
+      },
+      "type": "object"
+    },
+    "inference": {
+      "$ref": "#/$defs/InferenceLayer",
+      "default": {
+        "loadouts": {},
+        "providers": {}
+      }
+    },
+    "schema_version": {
+      "format": "uint8",
+      "maximum": 255,
+      "minimum": 0,
+      "type": "integer"
+    }
+  },
+  "required": ["schema_version"],
+  "title": "UserConfigV2",
+  "type": "object"
+}

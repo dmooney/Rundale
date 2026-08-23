@@ -212,9 +212,8 @@ pub fn load_base_mod_sync() -> Option<ModBundle> {
     let source = LocalDiskModSource::new().ok()?;
     let root = source.root.clone();
     let discovered = discover_mods_in(&root).ok()?;
-    if let Err(e) = crate::game_mod::register_provider_mods_once(&discovered) {
-        tracing::warn!("Failed to register provider mods: {}", e);
-    }
+    crate::game_mod::register_provider_mods_once(&discovered)
+        .unwrap_or_else(|error| panic!("provider registry bootstrap failed: {error}"));
     match GameMod::load(&discovered.base) {
         Ok(gm) => {
             tracing::info!(

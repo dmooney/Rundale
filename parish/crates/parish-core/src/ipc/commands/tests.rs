@@ -126,7 +126,7 @@ fn toggle_improv() {
 }
 
 #[test]
-fn set_provider_triggers_rebuild() {
+fn set_provider_is_removed_without_rebuild() {
     let (mut world, mut npc, mut config) = default_state();
     let result = handle_command(
         Command::SetProvider("openrouter".to_string()),
@@ -134,12 +134,13 @@ fn set_provider_triggers_rebuild() {
         &mut npc,
         &mut config,
     );
-    assert!(result.response.contains("openrouter"));
-    assert!(result.effects.contains(&CommandEffect::RebuildInference));
+    assert!(result.response.contains("schema v2"));
+    assert!(result.effects.is_empty());
+    assert_ne!(config.provider_name, "openrouter");
 }
 
 #[test]
-fn set_key_triggers_rebuild() {
+fn set_key_is_removed_without_storing_secret() {
     let (mut world, mut npc, mut config) = default_state();
     let result = handle_command(
         Command::SetKey("sk-test12345678".to_string()),
@@ -147,8 +148,9 @@ fn set_key_triggers_rebuild() {
         &mut npc,
         &mut config,
     );
-    assert_eq!(result.response, "API key updated.");
-    assert!(result.effects.contains(&CommandEffect::RebuildInference));
+    assert!(result.response.contains("schema v2"));
+    assert!(result.effects.is_empty());
+    assert!(config.api_key.is_none());
 }
 
 #[test]
@@ -755,7 +757,7 @@ fn toggle_sidebar_returns_message() {
 }
 
 #[test]
-fn set_model_updates_config() {
+fn set_model_is_removed_without_mutation() {
     let (mut world, mut npc, mut config) = default_state();
     let result = handle_command(
         Command::SetModel("qwen3:14b".to_string()),
@@ -763,8 +765,8 @@ fn set_model_updates_config() {
         &mut npc,
         &mut config,
     );
-    assert_eq!(config.model_name, "qwen3:14b");
-    assert!(result.response.contains("qwen3:14b"));
+    assert!(config.model_name.is_empty());
+    assert!(result.response.contains("schema v2"));
 }
 
 #[test]
@@ -811,7 +813,12 @@ fn set_provider_invalid_returns_error() {
 fn show_cloud_not_configured() {
     let (mut world, mut npc, mut config) = default_state();
     let result = handle_command(Command::ShowCloud, &mut world, &mut npc, &mut config);
-    assert!(result.response.contains("No cloud provider"));
+    assert!(
+        result
+            .response
+            .contains("removed by configuration schema v2")
+    );
+    assert!(result.effects.is_empty());
 }
 
 #[test]
@@ -820,12 +827,16 @@ fn show_cloud_configured() {
     config.cloud_provider_name = Some("openrouter".to_string());
     config.cloud_model_name = Some("anthropic/claude-3-haiku".to_string());
     let result = handle_command(Command::ShowCloud, &mut world, &mut npc, &mut config);
-    assert!(result.response.contains("openrouter"));
-    assert!(result.response.contains("claude-3-haiku"));
+    assert!(
+        result
+            .response
+            .contains("removed by configuration schema v2")
+    );
+    assert!(result.effects.is_empty());
 }
 
 #[test]
-fn set_cloud_provider_triggers_rebuild() {
+fn legacy_cloud_commands_are_hard_rejected_without_mutation() {
     let (mut world, mut npc, mut config) = default_state();
     let result = handle_command(
         Command::SetCloudProvider("openrouter".to_string()),
@@ -833,57 +844,15 @@ fn set_cloud_provider_triggers_rebuild() {
         &mut npc,
         &mut config,
     );
-    assert!(result.response.contains("openrouter"));
-    assert!(result.effects.contains(&CommandEffect::RebuildCloudClient));
-    assert_eq!(config.cloud_provider_name.as_deref(), Some("openrouter"));
-}
-
-#[test]
-fn set_cloud_model_updates_config() {
-    let (mut world, mut npc, mut config) = default_state();
-    let result = handle_command(
-        Command::SetCloudModel("gpt-4o".to_string()),
-        &mut world,
-        &mut npc,
-        &mut config,
-    );
-    assert_eq!(config.cloud_model_name.as_deref(), Some("gpt-4o"));
-    assert!(result.response.contains("gpt-4o"));
-}
-
-#[test]
-fn set_cloud_key_triggers_cloud_rebuild() {
-    let (mut world, mut npc, mut config) = default_state();
-    let result = handle_command(
-        Command::SetCloudKey("sk-cloud-secret".to_string()),
-        &mut world,
-        &mut npc,
-        &mut config,
-    );
-    assert!(result.effects.contains(&CommandEffect::RebuildCloudClient));
-    assert_eq!(config.cloud_api_key.as_deref(), Some("sk-cloud-secret"));
-}
-
-#[test]
-fn show_cloud_model_not_set() {
-    let (mut world, mut npc, mut config) = default_state();
-    let result = handle_command(Command::ShowCloudModel, &mut world, &mut npc, &mut config);
-    assert!(result.response.contains("not set"));
-}
-
-#[test]
-fn show_cloud_key_masks_when_set() {
-    let (mut world, mut npc, mut config) = default_state();
-    config.cloud_api_key = Some("sk-cloudabcd1234".to_string());
-    let result = handle_command(Command::ShowCloudKey, &mut world, &mut npc, &mut config);
-    assert!(result.response.contains("Cloud API key"));
-    assert!(!result.response.contains("cloudabcd1234"));
+    assert!(result.response.contains("schema v2"));
+    assert!(result.effects.is_empty());
+    assert!(config.cloud_provider_name.is_none());
 }
 
 // ── Category-specific commands ───────────────────────────────────────────
 
 #[test]
-fn set_category_provider_stores_and_triggers_rebuild() {
+fn set_category_provider_is_removed_without_mutation() {
     let (mut world, mut npc, mut config) = default_state();
     let result = handle_command(
         Command::SetCategoryProvider(InferenceCategory::Dialogue, "openrouter".to_string()),
@@ -891,18 +860,17 @@ fn set_category_provider_stores_and_triggers_rebuild() {
         &mut npc,
         &mut config,
     );
-    assert!(result.effects.contains(&CommandEffect::RebuildInference));
-    assert_eq!(
-        config
+    assert!(result.response.contains("schema v2"));
+    assert!(result.effects.is_empty());
+    assert!(
+        !config
             .category_provider
-            .get(&InferenceCategory::Dialogue)
-            .map(String::as_str),
-        Some("openrouter")
+            .contains_key(&InferenceCategory::Dialogue)
     );
 }
 
 #[test]
-fn set_category_model_stores_override() {
+fn set_category_model_is_removed_without_mutation() {
     let (mut world, mut npc, mut config) = default_state();
     let result = handle_command(
         Command::SetCategoryModel(InferenceCategory::Simulation, "mini-model".to_string()),
@@ -910,18 +878,13 @@ fn set_category_model_stores_override() {
         &mut npc,
         &mut config,
     );
-    assert_eq!(
-        config
+    assert!(result.response.contains("schema v2"));
+    assert!(result.effects.is_empty());
+    assert!(
+        !config
             .category_model
-            .get(&InferenceCategory::Simulation)
-            .map(String::as_str),
-        Some("mini-model")
+            .contains_key(&InferenceCategory::Simulation)
     );
-    assert!(result.response.contains("mini-model"));
-    // A per-category model change must rebind the worker so the new model
-    // takes effect immediately (#1365) — a keyless provider whose only knob is
-    // the model would otherwise not re-bind.
-    assert!(result.effects.contains(&CommandEffect::RebuildInference));
 }
 
 #[test]
@@ -949,7 +912,7 @@ fn show_category_key_not_set() {
 }
 
 #[test]
-fn set_category_key_triggers_rebuild() {
+fn set_category_key_is_removed_without_storing_secret() {
     let (mut world, mut npc, mut config) = default_state();
     let result = handle_command(
         Command::SetCategoryKey(InferenceCategory::Dialogue, "sk-cat-key".to_string()),
@@ -957,92 +920,57 @@ fn set_category_key_triggers_rebuild() {
         &mut npc,
         &mut config,
     );
-    assert!(result.effects.contains(&CommandEffect::RebuildInference));
-    assert_eq!(
-        config
+    assert!(result.response.contains("schema v2"));
+    assert!(result.effects.is_empty());
+    assert!(
+        !config
             .category_api_key
-            .get(&InferenceCategory::Dialogue)
-            .map(String::as_str),
-        Some("sk-cat-key")
+            .contains_key(&InferenceCategory::Dialogue)
     );
 }
 
 // ── Provider presets ────────────────────────────────────────────────────
 
 #[test]
-fn apply_preset_anthropic_populates_all_four_slots() {
+fn apply_preset_is_removed_without_mutating_routes() {
     let (mut world, mut npc, mut config) = default_state();
+    let prior_provider = config.provider_name.clone();
     let result = handle_command(
         Command::ApplyPreset("anthropic".to_string()),
         &mut world,
         &mut npc,
         &mut config,
     );
-    assert!(result.effects.contains(&CommandEffect::RebuildInference));
-    assert_eq!(config.provider_name, "anthropic");
-    assert_eq!(config.base_url, "https://api.anthropic.com");
-    assert_eq!(config.model_name, "claude-opus-4-7");
-
-    assert_eq!(
-        config
-            .category_model
-            .get(&InferenceCategory::Dialogue)
-            .map(String::as_str),
-        Some("claude-opus-4-7")
-    );
-    assert_eq!(
-        config
-            .category_model
-            .get(&InferenceCategory::Simulation)
-            .map(String::as_str),
-        Some("claude-sonnet-4-6")
-    );
-    assert_eq!(
-        config
-            .category_model
-            .get(&InferenceCategory::Intent)
-            .map(String::as_str),
-        Some("claude-haiku-4-5")
-    );
-    assert_eq!(
-        config
-            .category_model
-            .get(&InferenceCategory::Reaction)
-            .map(String::as_str),
-        Some("claude-sonnet-4-6")
-    );
-    for cat in InferenceCategory::ALL {
-        assert_eq!(
-            config.category_provider.get(&cat).map(String::as_str),
-            Some("anthropic")
-        );
-        assert_eq!(
-            config.category_base_url.get(&cat).map(String::as_str),
-            Some("https://api.anthropic.com")
-        );
-    }
+    assert!(result.response.contains("schema v2"));
+    assert!(result.effects.is_empty());
+    assert_eq!(config.provider_name, prior_provider);
+    assert!(config.category_provider.is_empty());
+    assert!(config.category_model.is_empty());
+    assert!(config.category_base_url.is_empty());
 }
 
 #[test]
-fn apply_preset_overwrites_existing_category_models() {
+fn apply_preset_does_not_overwrite_existing_category_models() {
     let (mut world, mut npc, mut config) = default_state();
     config.category_model.insert(
         InferenceCategory::Dialogue,
         "old-dialogue-model".to_string(),
     );
 
-    handle_command(
+    let result = handle_command(
         Command::ApplyPreset("ollama".to_string()),
         &mut world,
         &mut npc,
         &mut config,
     );
+    assert!(result.response.contains("schema v2"));
+    assert!(result.effects.is_empty());
     assert_eq!(
         config
             .category_model
             .get(&InferenceCategory::Dialogue)
             .map(String::as_str),
-        Some("qwen3:32b")
+        Some("old-dialogue-model")
     );
 }
 
@@ -1071,7 +999,7 @@ fn apply_preset_does_not_touch_api_keys() {
 }
 
 #[test]
-fn apply_preset_hints_when_api_key_missing() {
+fn removed_preset_does_not_offer_legacy_api_key_hint() {
     let (mut world, mut npc, mut config) = default_state();
     let result = handle_command(
         Command::ApplyPreset("openai".to_string()),
@@ -1079,8 +1007,9 @@ fn apply_preset_hints_when_api_key_missing() {
         &mut npc,
         &mut config,
     );
-    assert!(result.response.contains("API key"));
-    assert!(result.effects.contains(&CommandEffect::RebuildInference));
+    assert!(result.response.contains("schema v2"));
+    assert!(!result.response.contains("API key"));
+    assert!(result.effects.is_empty());
 }
 
 #[test]
@@ -1111,7 +1040,7 @@ fn apply_preset_unknown_provider_returns_error() {
 }
 
 #[test]
-fn apply_preset_custom_returns_no_preset_message() {
+fn apply_preset_custom_is_removed_without_mutation() {
     let (mut world, mut npc, mut config) = default_state();
     let prior_provider = config.provider_name.clone();
     let result = handle_command(
@@ -1120,38 +1049,25 @@ fn apply_preset_custom_returns_no_preset_message() {
         &mut npc,
         &mut config,
     );
-    assert!(result.response.contains("No preset"));
-    assert!(!result.effects.contains(&CommandEffect::RebuildInference));
+    assert!(result.response.contains("schema v2"));
+    assert!(result.effects.is_empty());
     assert_eq!(config.provider_name, prior_provider);
 }
 
 #[test]
-fn set_provider_fills_missing_models_from_preset() {
+fn removed_set_provider_does_not_fill_models_from_preset() {
     let (mut world, mut npc, mut config) = default_state();
+    let prior_provider = config.provider_name.clone();
     let result = handle_command(
         Command::SetProvider("anthropic".to_string()),
         &mut world,
         &mut npc,
         &mut config,
     );
-    assert!(result.effects.contains(&CommandEffect::RebuildInference));
-    assert_eq!(config.provider_name, "anthropic");
-    assert_eq!(config.model_name, "claude-opus-4-7");
-    // All four per-category slots should be filled from the Anthropic preset.
-    assert_eq!(
-        config
-            .category_model
-            .get(&InferenceCategory::Intent)
-            .map(String::as_str),
-        Some("claude-haiku-4-5"),
-    );
-    assert_eq!(
-        config
-            .category_model
-            .get(&InferenceCategory::Simulation)
-            .map(String::as_str),
-        Some("claude-sonnet-4-6"),
-    );
+    assert!(result.response.contains("schema v2"));
+    assert!(result.effects.is_empty());
+    assert_eq!(config.provider_name, prior_provider);
+    assert!(config.category_model.is_empty());
 }
 
 #[test]
@@ -1172,26 +1088,27 @@ fn set_provider_does_not_overwrite_existing_model() {
 }
 
 #[test]
-fn set_category_provider_fills_missing_model_from_preset() {
+fn removed_set_category_provider_does_not_fill_model_from_preset() {
     let (mut world, mut npc, mut config) = default_state();
-    handle_command(
+    let result = handle_command(
         Command::SetCategoryProvider(InferenceCategory::Intent, "anthropic".to_string()),
         &mut world,
         &mut npc,
         &mut config,
     );
-    assert_eq!(
-        config
+    assert!(result.response.contains("schema v2"));
+    assert!(result.effects.is_empty());
+    assert!(
+        !config
             .category_model
-            .get(&InferenceCategory::Intent)
-            .map(String::as_str),
-        Some("claude-haiku-4-5"),
+            .contains_key(&InferenceCategory::Intent)
     );
 }
 
 #[test]
-fn apply_preset_ollama_uses_auto_setup_model_when_present() {
+fn removed_ollama_preset_preserves_auto_setup_without_mutating_routes() {
     let (mut world, mut npc, mut config) = default_state();
+    let prior_provider = config.provider_name.clone();
     config.auto_setup_model = Some("gemma4:e4b".to_string());
     let result = handle_command(
         Command::ApplyPreset("ollama".to_string()),
@@ -1199,45 +1116,28 @@ fn apply_preset_ollama_uses_auto_setup_model_when_present() {
         &mut npc,
         &mut config,
     );
-    assert!(result.effects.contains(&CommandEffect::RebuildInference));
-    assert_eq!(config.provider_name, "ollama");
-    assert_eq!(config.model_name, "gemma4:e4b");
-    for cat in InferenceCategory::ALL {
-        assert_eq!(
-            config.category_model.get(&cat).map(String::as_str),
-            Some("gemma4:e4b"),
-            "category {:?} should match auto-setup model",
-            cat
-        );
-    }
+    assert!(result.response.contains("schema v2"));
+    assert!(result.effects.is_empty());
+    assert_eq!(config.provider_name, prior_provider);
+    assert!(config.category_model.is_empty());
     assert_eq!(config.auto_setup_model.as_deref(), Some("gemma4:e4b"));
 }
 
 #[test]
-fn apply_preset_ollama_falls_back_to_static_when_no_auto_setup() {
+fn removed_ollama_preset_does_not_install_static_fallbacks() {
     let (mut world, mut npc, mut config) = default_state();
+    let prior_provider = config.provider_name.clone();
     config.auto_setup_model = None;
-    handle_command(
+    let result = handle_command(
         Command::ApplyPreset("ollama".to_string()),
         &mut world,
         &mut npc,
         &mut config,
     );
-    assert_eq!(config.provider_name, "ollama");
-    assert_eq!(
-        config
-            .category_model
-            .get(&InferenceCategory::Dialogue)
-            .map(String::as_str),
-        Some("qwen3:32b"),
-    );
-    assert_eq!(
-        config
-            .category_model
-            .get(&InferenceCategory::Intent)
-            .map(String::as_str),
-        Some("qwen3:4b"),
-    );
+    assert!(result.response.contains("schema v2"));
+    assert!(result.effects.is_empty());
+    assert_eq!(config.provider_name, prior_provider);
+    assert!(config.category_model.is_empty());
 }
 
 #[test]

@@ -1,4 +1,5 @@
 id = "qwen"
+recommended_preset = "recommended"
 display_name = "Qwen (Alibaba)"
 kind = "openai-compat"
 default_base_url = "https://dashscope-intl.aliyuncs.com/compatible-mode/v1"

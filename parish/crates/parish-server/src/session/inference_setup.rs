@@ -7,7 +7,8 @@ use std::path::Path;
 use std::sync::Arc;
 
 use parish_core::inference::{
-    AnyClient, InferenceQueue, InferenceWorkerConfig, spawn_inference_worker,
+    AnyClient, InferenceClients, InferenceQueue, InferenceWorkerConfig,
+    spawn_inference_worker_with_clients,
 };
 use parish_core::ipc::GameConfig;
 
@@ -17,58 +18,37 @@ use super::GlobalState;
 
 // ── Inference client construction ─────────────────────────────────────────────
 
-pub(super) fn build_session_client(global: &GlobalState) -> (Option<AnyClient>, GameConfig) {
-    let config = global.template_config.clone();
-    let client = if config.provider_name == "simulator" {
-        Some(AnyClient::simulator())
-    } else if config.model_name.is_empty() && config.provider_name != "ollama" {
-        None
-    } else {
-        let provider_enum = parish_core::config::Provider::from_str_loose(&config.provider_name)
-            .unwrap_or_default();
-        Some(parish_core::inference::build_client(
-            &provider_enum,
-            &config.base_url,
-            config.api_key.as_deref(),
-            &global.inference_config, // (#417) use TOML-configured timeouts
-        ))
-    };
-    (client, config)
+pub(super) fn build_session_client(global: &GlobalState) -> (Option<InferenceClients>, GameConfig) {
+    let mut config = global.template_config.clone();
+    if let Some(manager) = &global.inference_runtime_v2 {
+        let runtime = manager.snapshot();
+        config.apply_resolved_inference_v2(&runtime.config);
+        return (Some(runtime.clients.clone()), config);
+    }
+    let (client, _) =
+        config.resolve_category_client(parish_core::config::InferenceCategory::Dialogue, None);
+    (
+        client.map(|client| InferenceClients::new(client, String::new(), Default::default())),
+        config,
+    )
 }
 
 pub(super) fn build_session_cloud_client(global: &GlobalState) -> Option<AnyClient> {
-    let config = &global.template_config;
-    config.cloud_api_key.as_deref().map(|key| {
-        let provider_enum = config
-            .cloud_provider_name
-            .as_deref()
-            .and_then(|p| parish_core::config::Provider::from_str_loose(p).ok())
-            .unwrap_or_else(|| {
-                parish_core::config::Provider::from_id("google").unwrap_or_default()
-            });
-        parish_core::inference::build_client(
-            &provider_enum,
-            config
-                .cloud_base_url
-                .as_deref()
-                .unwrap_or("https://generativelanguage.googleapis.com/v1"),
-            Some(key),
-            &global.inference_config, // (#417) use TOML-configured timeouts
-        )
-    })
+    let _ = global;
+    None
 }
 
 // ── Inference queue initialisation ───────────────────────────────────────────
 
-pub(super) async fn init_inference_queue(app_state: &Arc<AppState>, client: AnyClient) {
+pub(super) async fn init_inference_queue(app_state: &Arc<AppState>, clients: InferenceClients) {
     let (interactive_tx, interactive_rx) = tokio::sync::mpsc::channel(16);
     let (background_tx, background_rx) = tokio::sync::mpsc::channel(32);
     let (batch_tx, batch_rx) = tokio::sync::mpsc::channel(64);
     let provider =
         parish_core::config::Provider::from_str_loose(&app_state.config.lock().await.provider_name)
             .unwrap_or_default();
-    let worker = spawn_inference_worker(
-        client,
+    let worker = spawn_inference_worker_with_clients(
+        clients,
         InferenceWorkerConfig {
             interactive_rx,
             background_rx,

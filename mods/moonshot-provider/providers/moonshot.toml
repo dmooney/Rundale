@@ -1,4 +1,5 @@
 id = "moonshot"
+recommended_preset = "recommended"
 display_name = "Moonshot AI"
 kind = "openai-compat"
 default_base_url = "https://api.moonshot.cn/v1"

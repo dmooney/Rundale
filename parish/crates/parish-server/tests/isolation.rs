@@ -275,6 +275,7 @@ async fn second_ws_upgrade_same_account_is_409() {
             tile_sources: Vec::new(),
             reveal_unexplored_locations: false,
             auto_setup_model: None,
+            ..GameConfig::default()
         },
         cloud_client: None,
         transport: TransportConfig::default(),
@@ -398,6 +399,7 @@ async fn debug_snapshot_no_deadlock_with_concurrent_readers() {
             tile_sources: Vec::new(),
             reveal_unexplored_locations: false,
             auto_setup_model: None,
+            ..GameConfig::default()
         },
         cloud_client: None,
         transport: TransportConfig::default(),

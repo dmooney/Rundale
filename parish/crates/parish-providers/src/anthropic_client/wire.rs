@@ -94,9 +94,26 @@ pub(super) struct MessagesRequest<'a> {
     pub(super) max_tokens: u32,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(super) temperature: Option<f32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(super) thinking: Option<ThinkingConfig>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(super) output_config: Option<OutputConfig>,
     /// Only serialise when `true`; omitted flag defaults to non-streaming.
     #[serde(skip_serializing_if = "std::ops::Not::not")]
     pub(super) stream: bool,
+}
+
+#[derive(Serialize, Debug, Clone)]
+#[serde(tag = "type", rename_all = "lowercase")]
+pub(super) enum ThinkingConfig {
+    Disabled,
+    Adaptive,
+    Enabled { budget_tokens: u32 },
+}
+
+#[derive(Serialize, Debug, Clone)]
+pub(super) struct OutputConfig {
+    pub(super) effort: &'static str,
 }
 
 // --- Response types -----------------------------------------------------
@@ -106,18 +123,55 @@ pub(super) struct MessagesRequest<'a> {
 pub(super) struct MessagesResponse {
     #[serde(default)]
     pub(super) content: Vec<ContentBlock>,
+    #[serde(default)]
+    pub(super) stop_reason: Option<String>,
 }
 
-/// One block in the response `content` array. Anthropic returns multiple
-/// block types; we only emit text from `text` blocks and ignore others
-/// (e.g. `tool_use`) for now.
+pub(super) fn ensure_successful_stop(resp: &MessagesResponse) -> Result<(), String> {
+    if resp
+        .content
+        .iter()
+        .any(|block| matches!(block, ContentBlock::Other))
+    {
+        return Err("Anthropic response contained a forbidden non-text content block".into());
+    }
+    if !resp
+        .content
+        .iter()
+        .any(|block| matches!(block, ContentBlock::Text { text } if !text.trim().is_empty()))
+    {
+        return Err("Anthropic response contained no non-empty visible text".into());
+    }
+    match resp.stop_reason.as_deref() {
+        Some("end_turn" | "stop_sequence") => Ok(()),
+        Some(reason) => Err(format!(
+            "Anthropic response was incomplete or non-textual (stop_reason={reason})"
+        )),
+        None => Err("Anthropic response omitted the required stop_reason".to_string()),
+    }
+}
+
+/// One block in the response `content` array. Non-text blocks deserialize so
+/// terminal validation can reject mixed tool/text responses explicitly.
 #[derive(Deserialize, Debug)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub(super) enum ContentBlock {
     /// A span of plain text — the only kind we extract today.
     Text { text: String },
-    /// Any other block type (tool_use, tool_result, …). Kept so
-    /// deserialization doesn't fail when models return them.
+    /// Hidden chain-of-thought blocks are valid protocol output but never
+    /// escape into player-visible text.
+    Thinking {
+        #[serde(default)]
+        #[serde(rename = "thinking")]
+        _thinking: String,
+    },
+    RedactedThinking {
+        #[serde(default)]
+        #[serde(rename = "data")]
+        _data: String,
+    },
+    /// Any other block type (tool_use, tool_result, …) is rejected by
+    /// `ensure_successful_stop` before text can escape.
     #[serde(other)]
     Other,
 }
