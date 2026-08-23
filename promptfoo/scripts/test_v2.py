@@ -1340,9 +1340,7 @@ if qdash.DEFAULT_RUNS.is_dir():
     )
 else:
     print("SKIP: cloud judge panel source receipts are in the local archive")
-    _cloud_judge_items = [
-        {"prompt_id": f"offline-contract-{index}"} for index in range(18)
-    ]
+    _cloud_judge_items = [{"prompt_id": f"offline-contract-{index}"} for index in range(18)]
 check(
     "cloud judge profiles pin three independent OpenRouter families",
     {judge["family"] for judge in cloud_judge.JUDGES} == {"openai", "anthropic", "google"}
