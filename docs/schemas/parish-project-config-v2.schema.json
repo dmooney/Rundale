@@ -1,12 +1,7 @@
 {
   "$defs": {
     "AuthAdapter": {
-      "enum": [
-        "none",
-        "bearer",
-        "anthropic-key",
-        "google-key"
-      ],
+      "enum": ["none", "bearer", "anthropic-key", "google-key"],
       "type": "string"
     },
     "BudgetCapability": {
@@ -57,9 +52,7 @@
           "type": "integer"
         }
       },
-      "required": [
-        "per_minute"
-      ],
+      "required": ["per_minute"],
       "type": "object"
     },
     "CategoryRoutes": {
@@ -188,10 +181,7 @@
           "$ref": "#/$defs/DiscoveryAdapter"
         },
         "discovery_base_url": {
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "inference_adapter": {
           "$ref": "#/$defs/InferenceAdapter"
@@ -213,10 +203,7 @@
       "additionalProperties": false,
       "properties": {
         "default_endpoint": {
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "display_name": {
           "type": "string"
@@ -244,10 +231,7 @@
           "type": "object"
         }
       },
-      "required": [
-        "display_name",
-        "endpoints"
-      ],
+      "required": ["display_name", "endpoints"],
       "type": "object"
     },
     "DialogueGenerationConfig": {
@@ -257,19 +241,13 @@
         "enable_thinking": {
           "default": null,
           "description": "Optional OpenAI-compatible reasoning switch. Keep omitted unless a\nmeasured provider/model profile requires it.",
-          "type": [
-            "boolean",
-            "null"
-          ]
+          "type": ["boolean", "null"]
         },
         "frequency_penalty": {
           "default": 0.5,
           "description": "OpenAI-compatible repetition penalty. `None` omits the field.",
           "format": "float",
-          "type": [
-            "number",
-            "null"
-          ]
+          "type": ["number", "null"]
         },
         "json_mode": {
           "default": true,
@@ -369,10 +347,7 @@
           "uniqueItems": true
         }
       },
-      "required": [
-        "dialect",
-        "supported_levels"
-      ],
+      "required": ["dialect", "supported_levels"],
       "type": "object"
     },
     "EncounterConfig": {
@@ -554,10 +529,7 @@
           ]
         }
       },
-      "required": [
-        "min_output_tokens",
-        "max_output_tokens"
-      ],
+      "required": ["min_output_tokens", "max_output_tokens"],
       "type": "object"
     },
     "GenerationPatch": {
@@ -565,18 +537,12 @@
       "properties": {
         "frequency_penalty": {
           "format": "float",
-          "type": [
-            "number",
-            "null"
-          ]
+          "type": ["number", "null"]
         },
         "max_output_tokens": {
           "format": "uint32",
           "minimum": 0,
-          "type": [
-            "integer",
-            "null"
-          ]
+          "type": ["integer", "null"]
         },
         "reasoning": {
           "anyOf": [
@@ -600,10 +566,7 @@
         },
         "temperature": {
           "format": "float",
-          "type": [
-            "number",
-            "null"
-          ]
+          "type": ["number", "null"]
         }
       },
       "type": "object"
@@ -689,10 +652,7 @@
       "additionalProperties": false,
       "properties": {
         "active_loadout": {
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "loadouts": {
           "additionalProperties": {
@@ -752,9 +712,7 @@
       "type": "object"
     },
     "ManagedLoadoutOwner": {
-      "enum": [
-        "ollama-setup-v1"
-      ],
+      "enum": ["ollama-setup-v1"],
       "type": "string"
     },
     "MapConfig": {
@@ -764,10 +722,7 @@
         "bundled_tiles_dir": {
           "default": null,
           "description": "Optional path to a pre-seeded tile directory. When set, `TileCache`\nchecks this directory before hitting the upstream network, enabling\noffline play. Path is resolved at startup; relative paths are resolved\nagainst the mod/data directory (see CLAUDE.md rule #9). `None` means\nno bundled tiles — the cache falls through to the upstream fetch as\nnormal. Can also be overridden at startup via `PARISH_BUNDLED_TILES_DIR`.",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "default_tile_source": {
           "default": "historic",
@@ -940,10 +895,7 @@
           "type": "number"
         }
       },
-      "required": [
-        "min",
-        "max"
-      ],
+      "required": ["min", "max"],
       "type": "object"
     },
     "OpenAiChatGenerationWire": {
@@ -960,10 +912,7 @@
           "uniqueItems": true
         }
       },
-      "required": [
-        "output_limit_field",
-        "structured_output"
-      ],
+      "required": ["output_limit_field", "structured_output"],
       "type": "object"
     },
     "OutputContractCapabilities": {
@@ -987,10 +936,7 @@
       "type": "object"
     },
     "OutputLimitField": {
-      "enum": [
-        "max-tokens",
-        "max-completion-tokens"
-      ],
+      "enum": ["max-tokens", "max-completion-tokens"],
       "type": "string"
     },
     "PaletteConfig": {
@@ -1206,26 +1152,11 @@
     },
     "ReasoningEffort": {
       "description": "Provider-neutral reasoning effort carried by measured dialogue profiles.",
-      "enum": [
-        "none",
-        "minimal",
-        "low",
-        "medium",
-        "high",
-        "xhigh",
-        "max"
-      ],
+      "enum": ["none", "minimal", "low", "medium", "high", "xhigh", "max"],
       "type": "string"
     },
     "ReasoningEffortV2": {
-      "enum": [
-        "minimal",
-        "low",
-        "medium",
-        "high",
-        "xhigh",
-        "max"
-      ],
+      "enum": ["minimal", "low", "medium", "high", "xhigh", "max"],
       "type": "string"
     },
     "ReasoningIntent": {
@@ -1238,9 +1169,7 @@
               "type": "string"
             }
           },
-          "required": [
-            "mode"
-          ],
+          "required": ["mode"],
           "type": "object"
         },
         {
@@ -1251,9 +1180,7 @@
               "type": "string"
             }
           },
-          "required": [
-            "mode"
-          ],
+          "required": ["mode"],
           "type": "object"
         },
         {
@@ -1267,10 +1194,7 @@
               "type": "string"
             }
           },
-          "required": [
-            "mode",
-            "level"
-          ],
+          "required": ["mode", "level"],
           "type": "object"
         },
         {
@@ -1286,10 +1210,7 @@
               "type": "integer"
             }
           },
-          "required": [
-            "mode",
-            "tokens"
-          ],
+          "required": ["mode", "tokens"],
           "type": "object"
         }
       ]
@@ -1307,11 +1228,7 @@
           "$ref": "#/$defs/ReasoningIntent"
         }
       },
-      "required": [
-        "rule_id",
-        "from",
-        "to"
-      ],
+      "required": ["rule_id", "from", "to"],
       "type": "object"
     },
     "RelationshipLabelConfig": {
@@ -1355,55 +1272,31 @@
       "additionalProperties": false,
       "properties": {
         "allow_unverified_model": {
-          "type": [
-            "boolean",
-            "null"
-          ]
+          "type": ["boolean", "null"]
         },
         "discovery_base_url": {
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "endpoint": {
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "frequency_penalty": {
           "format": "float",
-          "type": [
-            "number",
-            "null"
-          ]
+          "type": ["number", "null"]
         },
         "inference_base_url": {
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "max_output_tokens": {
           "format": "uint32",
           "minimum": 0,
-          "type": [
-            "integer",
-            "null"
-          ]
+          "type": ["integer", "null"]
         },
         "model": {
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "provider": {
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "reasoning": {
           "anyOf": [
@@ -1427,20 +1320,13 @@
         },
         "temperature": {
           "format": "float",
-          "type": [
-            "number",
-            "null"
-          ]
+          "type": ["number", "null"]
         }
       },
       "type": "object"
     },
     "ServiceTierIntent": {
-      "enum": [
-        "auto",
-        "standard",
-        "priority"
-      ],
+      "enum": ["auto", "standard", "priority"],
       "type": "string"
     },
     "SessionConfig": {
@@ -1509,11 +1395,7 @@
       "type": "object"
     },
     "StructuredOutputMode": {
-      "enum": [
-        "prompt-validated-json",
-        "json-object",
-        "json-schema"
-      ],
+      "enum": ["prompt-validated-json", "json-object", "json-schema"],
       "type": "string"
     },
     "TileSourceConfig": {
@@ -1628,10 +1510,7 @@
       "type": "object"
     },
     "WireServiceTier": {
-      "enum": [
-        "google-standard",
-        "google-priority"
-      ],
+      "enum": ["google-standard", "google-priority"],
       "type": "string"
     },
     "WorldConfig": {
@@ -1669,9 +1548,7 @@
       "type": "integer"
     }
   },
-  "required": [
-    "schema_version"
-  ],
+  "required": ["schema_version"],
   "title": "ProjectConfigV2",
   "type": "object"
 }

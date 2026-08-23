@@ -80,6 +80,52 @@ fn generated_schema<T: JsonSchema>(schema_id: &str) -> serde_json::Value {
 mod generated_schema_tests {
     use super::*;
 
+    fn json_semantic_difference(
+        left: &serde_json::Value,
+        right: &serde_json::Value,
+        path: &str,
+    ) -> Option<String> {
+        match (left, right) {
+            (serde_json::Value::Number(left), serde_json::Value::Number(right)) => {
+                let numerically_equal =
+                    left.as_f64()
+                        .zip(right.as_f64())
+                        .is_some_and(|(left, right)| {
+                            // Prettier parses JSON numbers through JavaScript doubles and can
+                            // move generated f32 defaults by one f64 ULP while reformatting.
+                            (left - right).abs()
+                                <= f64::EPSILON * left.abs().max(right.abs()).max(1.0) * 2.0
+                        });
+                (left != right && !numerically_equal)
+                    .then(|| format!("{path} (checked-in {left:?}, generated {right:?})"))
+            }
+            (serde_json::Value::Array(left), serde_json::Value::Array(right)) => {
+                if left.len() != right.len() {
+                    return Some(format!("{path} (array length)"));
+                }
+                left.iter()
+                    .zip(right)
+                    .enumerate()
+                    .find_map(|(index, (left, right))| {
+                        json_semantic_difference(left, right, &format!("{path}/{index}"))
+                    })
+            }
+            (serde_json::Value::Object(left), serde_json::Value::Object(right)) => {
+                if left.len() != right.len() {
+                    return Some(format!("{path} (object length)"));
+                }
+                left.iter().find_map(|(key, left)| {
+                    let key_path = format!("{path}/{key}");
+                    right.get(key).map_or_else(
+                        || Some(key_path.clone()),
+                        |right| json_semantic_difference(left, right, &key_path),
+                    )
+                })
+            }
+            _ => (left != right).then(|| path.to_owned()),
+        }
+    }
+
     #[test]
     fn checked_in_v2_schemas_match_generator() {
         let docs = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../docs/schemas");
@@ -95,11 +141,11 @@ mod generated_schema_tests {
         ] {
             let checked_in = std::fs::read_to_string(docs.join(name))
                 .unwrap_or_else(|error| panic!("read {name}: {error}"));
-            assert_eq!(
-                checked_in,
-                format!("{}\n", serde_json::to_string_pretty(&generated).unwrap()),
-                "{name} drifted; run the v2 schema generator",
-            );
+            let checked_in: serde_json::Value = serde_json::from_str(&checked_in)
+                .unwrap_or_else(|error| panic!("parse {name}: {error}"));
+            if let Some(path) = json_semantic_difference(&checked_in, &generated, "") {
+                panic!("{name} drifted at {path}; run the v2 schema generator");
+            }
         }
     }
 }
