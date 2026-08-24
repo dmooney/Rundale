@@ -45,7 +45,7 @@ jsonwebtoken = { version = "10", features = ["rust_crypto"] }
 hmac = "0.13"
 sha2 = "0.11"
 hex = "0.4"
-base64 = "0.22"
+base64 = "0.23"
 governor = { workspace = true }
 lru = { workspace = true }
 toml = { workspace = true }
