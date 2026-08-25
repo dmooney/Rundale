@@ -30,6 +30,10 @@ saves
 # Python local tooling
 .venv*/
 
+# Graphify knowledge graphs are reproducible local indexes, not repository
+# source. This component-level rule covers root and nested scans.
+**/graphify-out/
+
 # Proof bundles — written by /task-start and the live-proof skills.
 # Bundles are attached to PRs via `just attach-proof`, not committed.
 /.proofs/
