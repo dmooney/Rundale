@@ -191,7 +191,7 @@ jobs:
 
       - name: Judge session
         id: judge
-        uses: actions/ai-inference@v2
+        uses: actions/ai-inference@v3
         with:
           model: openai/gpt-4o
           system-prompt: |
@@ -362,7 +362,7 @@ jobs:
 
       - name: Judge session
         id: judge
-        uses: actions/ai-inference@v2
+        uses: actions/ai-inference@v3
         with:
           model: openai/gpt-4o
           system-prompt: |
