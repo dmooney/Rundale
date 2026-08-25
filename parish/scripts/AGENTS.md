@@ -6,6 +6,7 @@ Shell and Python dev scripts used by CI, agents, and local development. Most enf
 
 ```sh
 bash parish/scripts/agent-check.sh --source=local          # validate .proofs/ on disk
+bash parish/scripts/check-repository-artifacts.sh          # validate tracked artifacts
 bash parish/scripts/parish-mcp-backend.sh start            # boot backend for mcp__parish__* tools
 just attach-proof <task-id>                                # post proof bundle as PR comment
 ```
@@ -79,6 +80,13 @@ just attach-proof <task-id>                                # post proof bundle a
 ### `check-doc-paths.sh` — Validate documentation cross-reference paths
 
 - Scans `docs/` for broken relative links. Run after restructuring documentation.
+
+### `check-repository-artifacts.sh` — Validate tracked artifacts
+
+- Rejects tracked generated-output paths, retired binaries, stale large-file
+  exceptions, and unreferenced documentation screenshots.
+- Enforces the 8 MiB tracked-file ceiling using exact size/hash/owner/purpose
+  exceptions in `repository-artifact-exceptions.txt`.
 
 ### `harness-audit.sh` — Audit the game harness
 
