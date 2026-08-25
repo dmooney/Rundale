@@ -42,6 +42,25 @@ one requires intentional review of shipping/offline needs, provenance, license,
 and the appropriate external destination. Remove an exception as soon as its
 file is optimized or archived.
 
+## Retirement ledger
+
+Wave 2 (base commit `d9aff21b3de86cdf1339647f399336c5392d4fa3`) removed the
+following generated/intermediate files from the current tree. Their exact
+original bytes and SHA-256 values are retained here so the deletion is
+auditable. The CF pipeline can regenerate its outputs from the tracked source
+mosaic and scripts; the original blobs remain recoverable from Git history and
+the verified bare mirror `Rundale-pre-rewrite-20260823T215406Z.git` in the
+documented operator backup location.
+
+| Path                                                                                                                      | Original bytes | SHA-256                                                            |
+| ------------------------------------------------------------------------------------------------------------------------- | -------------: | ------------------------------------------------------------------ |
+| `docs/graphics-v2/overhead-art/cycle-cf-production-county-pipeline/masked-seam-repair-template/seam-contract-overlay.png` |        9484931 | `6aa96a2dcef26323cb07148ff168b08820d76a05864aa4519661a0f669442363` |
+| `docs/graphics-v2/overhead-art/cycle-cf-production-county-pipeline/seam-validation-overlay.png`                           |        9406614 | `9bc16003c3da3a75e0f588fb8ac2ca2e37cd088deaa10211059156568210f9f9` |
+| `docs/graphics-v2/overhead-art/cycle-cf-production-county-pipeline/county-base-grid-overlay.png`                          |        9406614 | `9bc16003c3da3a75e0f588fb8ac2ca2e37cd088deaa10211059156568210f9f9` |
+| `docs/graphics-v2/overhead-art/cycle-cf-production-county-pipeline/runtime-reassembled.png`                               |        9341111 | `9fbe7c715828928ba2840d784e154e7a2c761b34e24c907c9dfa5a3e46f3368a` |
+| `docs/graphics-v2/overhead-art/cycle-cf-production-county-pipeline/county-base-supertile.png`                             |        9341111 | `9fbe7c715828928ba2840d784e154e7a2c761b34e24c907c9dfa5a3e46f3368a` |
+| `parish/apps/ui/art/notebook-person-art/experiments/roisin-art-progression.png`                                           |        8492224 | `becdeaec87bebf0063d7611cec764254948b0fcad6820235a4da3173f3828331` |
+
 Forward Markdown links remain covered by
 `parish/scripts/check-doc-paths.sh`; the screenshot rule is the reverse check
 that catches files no document or generator contract consumes.
