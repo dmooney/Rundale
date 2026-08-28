@@ -289,3 +289,6 @@ bottom; don't lengthen items past 2-3 lines.
 - **Exact no-time-advance assertions must freeze `GameClock` first.** Its default
   36× wall-clock mapping crosses a whole game second after about 28 ms, so a
   loaded parallel test can otherwise turn scheduler delay into a false mutation.
+- **A Playwright readiness deadline must preserve the last completed probe's
+  semantic error.** The final fetch can straddle the shared deadline and abort;
+  do not replace an ownership or identity diagnosis with that timer artifact.

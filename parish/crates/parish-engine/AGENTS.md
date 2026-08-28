@@ -25,6 +25,7 @@ The crate ships both a library (`parish_engine`) and a binary (`parish-engine`).
 - **Script mode skips LLM init entirely.** `--script FILE` invokes `run_script_mode` in `src/testing.rs`, which uses `SimulatorClient` and never touches Ollama or any cloud provider.
 - **`#[deprecated]` `find_data_dir()` violates rule #9.** Marked deprecated in `src/main.rs` — new code must resolve runtime paths from explicit config on `AppState`, not `std::env::current_dir()`. Exists only until all paths are migrated to `saves_dir` / `log_app_name` on `App`.
 - **`real_loop.rs` and `shadow.rs` are harness-correctness infrastructure (#1159).** `real_loop.rs` routes harness input through the real `game_loop` path; `shadow.rs` canonicalizes event streams so the legacy router and real loop outputs can be compared semantically. Do not remove either module.
+- **Freeze the game clock in sequential mode-parity fixtures.** The default clock runs at 36x, so host load can advance nested gameplay timestamps between legacy and real-loop executions even after a snapshot restore. Construct parity fixtures through the paused-clock helper and keep a delay-based regression assertion.
 
 ## Module map
 
