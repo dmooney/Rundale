@@ -276,3 +276,10 @@ bottom; don't lengthen items past 2-3 lines.
 - **Model-catalog evidence is valid only for one full route identity.** The same provider/endpoint/model key cannot denote multiple base paths or adapter versions in one snapshot; use distinct custom provider/endpoint IDs or eligibility becomes ambiguous.
 - **Live catalog probes need an explicit project loadout and provider-specific output minima.** Catalog commands do not consume route-selection environment overrides, and OpenAI Responses rejects `max_output_tokens` below 16; keep its outgoing probe body covered by a request-shape regression with `store: false`.
 - **Server subprocess tests must isolate both user-data and user-config roots.** Setting only `PARISH_USER_DATA_DIR` still lets strict v2 startup read the developer's platform `parish.toml`; give every spawned server a dedicated `PARISH_USER_CONFIG_DIR` so host configuration cannot determine the result.
+- **Cycle CF county proof renders are reproducible intermediates.** The large
+  supertile, reassembly, grid, seam, and contract-overlay PNGs are retired from
+  the current tree; regenerate them with `docs/graphics-v2/scripts/county_tile_pipeline.py`
+  or recover their original blobs from Git history.
+- **zsh reserves lowercase `path` as its executable-search array.** A
+  `while read path` loop rewrites command lookup and makes tools appear missing;
+  use a task-specific name such as `candidate_path` in cleanup scripts.
