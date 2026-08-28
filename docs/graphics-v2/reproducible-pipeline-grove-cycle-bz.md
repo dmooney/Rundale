@@ -8,7 +8,7 @@ subagent imagegen call, and independent audit.
 ## Source And Goal
 
 - Source crop: `grove-map-target-site-crop.png`
-- Visual style target: `pipeline-experiments/idea-bu-e2-bu-e1-concept-realism-final-tighten.png`
+- Visual style target: `authorities/beechwood-concept-realism-bu-e2.png`
 - Primary control: `pipeline-experiments/idea-bz-grove-subagent-control-literal-paint-control.png`
 - Camera cue: `pipeline-experiments/idea-bz-grove-subagent-control-oblique-raw-warp.png`
 - Render: `pipeline-experiments/idea-bz-grove-subagent-bu-style.png`
