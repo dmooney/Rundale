@@ -19,14 +19,21 @@ tile seam continuity plus lossless reassembly.
 ## Outputs
 
 - `source-mosaic.png`
-- `county-base-supertile.png`
+- `county-base-supertile.png` (retired from Git; regenerate with the pipeline)
 - `semantic-mask.png`
 - `seam-contracts.json`
 - `runtime-tiles/`
-- `runtime-reassembled.png`
+- `runtime-reassembled.png` (retired from Git; regenerate with the pipeline)
 - `county-pipeline-proof-contact-sheet.png`
 - `masked-seam-repair-template/`
 - `masked-seam-repair-proof/`
+
+The generated county supertile, reassembly, grid overlay, seam-validation
+overlay, and seam-contract overlay are retired from the clean checkout. They
+are generation outputs, not runtime assets; the tracked source mosaic,
+semantic layer, manifests, metrics, and reproducible pipeline remain the source
+of truth for regenerating the proof. Original blobs are recoverable from Git
+history and the Wave 2 retirement ledger in `docs/agent/repository-artifacts.md`.
 
 ## Metrics
 

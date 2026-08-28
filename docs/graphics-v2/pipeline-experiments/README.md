@@ -10,6 +10,21 @@ plate pipeline. Each experiment has:
 No experiment used hand-authored per-location road, wall, river, building, or
 landmark hints.
 
+## Binary Archive
+
+Wave 3 moved this directory's 474 PNGs to the verified, content-addressed
+external archive
+`graphics-v2-pipeline-experiments-b467cae6-20260826T020635Z-manifest-078b3883c20c`.
+[`archive-index.tsv`](archive-index.tsv) records every original path, byte
+count, SHA-256, Git blob ID, provenance class, and licensing obligation. The
+image names below are archive-relative identifiers; the prompt, report, and
+audit sidecars remain tracked here.
+
+New PNGs under this directory are ignored working output. Archive a retained
+run and update the index, or deliberately promote a reviewed clean-checkout
+input to [`../map-sources/`](../map-sources/README.md) or
+[`../authorities/`](../authorities/README.md). Do not force-add experiment PNGs.
+
 ## Outputs
 
 | ID         | Image                                                                                                                                                     | Prompt                                                | Report                                                | Result                                                                                                                                                               |
