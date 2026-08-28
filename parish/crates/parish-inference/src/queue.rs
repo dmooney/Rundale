@@ -204,7 +204,7 @@ impl InferenceQueue {
     pub async fn send(
         &self,
         req: QueueRequest,
-    ) -> Result<oneshot::Receiver<InferenceResponse>, mpsc::error::SendError<InferenceRequest>>
+    ) -> Result<oneshot::Receiver<InferenceResponse>, Box<mpsc::error::SendError<InferenceRequest>>>
     {
         let priority = req.priority;
         let (response_tx, response_rx) = oneshot::channel();
@@ -234,7 +234,7 @@ impl InferenceQueue {
             InferencePriority::Background => &self.background_tx,
             InferencePriority::Batch => &self.batch_tx,
         };
-        lane.send(request).await?;
+        lane.send(request).await.map_err(Box::new)?;
         Ok(response_rx)
     }
 }
@@ -305,6 +305,41 @@ mod tests {
         assert_eq!(received.id, 1);
         assert_eq!(received.text, "world");
         assert!(received.error.is_none());
+    }
+
+    #[tokio::test]
+    async fn closed_queue_error_is_pointer_sized_and_preserves_request() {
+        let (queue, irx, _brx, _batrx) = make_queue();
+        drop(irx);
+
+        let error = match queue
+            .send(QueueRequest {
+                id: 99,
+                model: "test-model".to_string(),
+                prompt: "hello".to_string(),
+                system: None,
+                token_tx: None,
+                max_tokens: None,
+                temperature: None,
+                frequency_penalty: None,
+                enable_thinking: None,
+                reasoning_effort: None,
+                priority: InferencePriority::Interactive,
+                role: parish_config::InferenceCategory::Dialogue,
+                subrole: parish_config::InferenceSubrole::Dialogue,
+                profile: None,
+                json_mode: false,
+                json_schema: None,
+                cancel: None,
+            })
+            .await
+        {
+            Ok(_) => panic!("closed queue unexpectedly accepted the request"),
+            Err(error) => error,
+        };
+
+        assert_eq!(std::mem::size_of_val(&error), std::mem::size_of::<usize>());
+        assert_eq!(error.0.id, 99);
     }
 
     /// TODO #10 / #23 / #34 — `QueueRequest::frequency_penalty` must be

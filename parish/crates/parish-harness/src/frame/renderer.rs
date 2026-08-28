@@ -185,8 +185,8 @@ fn is_blank(pixels: &[u8]) -> bool {
     if pixels.len() < 3 {
         return true;
     }
-    let first = &pixels[0..3];
-    pixels.chunks_exact(3).all(|px| px == first)
+    let first = [pixels[0], pixels[1], pixels[2]];
+    pixels.as_chunks::<3>().0.iter().all(|px| *px == first)
 }
 
 /// Encode an RGB buffer as PNG bytes.
