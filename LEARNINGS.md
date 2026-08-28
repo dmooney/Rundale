@@ -196,6 +196,10 @@ bottom; don't lengthen items past 2-3 lines.
 - **GitHub merge queues are unavailable on user-owned repositories.** Use strict required checks plus required conversation resolution as the fallback; the exact unblock trigger is transfer to an eligible organization or future GitHub support.
 - **Illustrated-notebook tabs are page navigation, not overlay routes (#1755).** Keep their visible Pixi content and accessibility semantics sourced from `illustrated-parish/sections.ts`; reserve `notebookOverlay` for transient sheets such as Map, Time, and utilities so Places cannot collapse back into Map.
 - **The production server build needs the frontend output before Cargo runs.** `parish-server` embeds CSP hashes from `parish/apps/ui/dist` in its build script; copying the UI only into the runtime image can produce a health-green container whose browser bootstrap is blocked by CSP. Keep the frontend-to-builder copy and its deploy sensor together.
+- **The Docker frontend stage must preserve the repository-relative UI path.**
+  Notebook-art provenance derives labels from `parish/apps/ui`, so build under
+  `/build/parish/apps/ui` and keep every cross-stage `dist` path aligned. Its
+  Rust builder must also copy `parish/config/` for compile-time `include_str!`.
 - **Toolchain pins must trigger the Rust runtime suite.** Keep root
   `rust-toolchain.toml` in `ci.yml`'s runtime filter; otherwise a Dependabot
   compiler bump can skip compilation and hide newly enabled rustc/Clippy lints.
