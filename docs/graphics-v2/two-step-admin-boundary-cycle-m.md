@@ -24,7 +24,7 @@ Both sites used the same generic procedure:
 
 Grove used `pipeline-experiments/map-crop-grove-wide-admin-boundary-test.png`,
 a wider crop made from the original attachment. Beechwood used
-`pipeline-experiments/map-crop-control-02.png`, which was already the full
+`map-sources/beechwood-map-crop-control-02.png`, which was already the full
 control attachment.
 
 The M2 isomorphic pass additionally received the M1 cleaned top-down plate for
