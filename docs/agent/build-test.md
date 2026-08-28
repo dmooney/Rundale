@@ -63,7 +63,8 @@ cd parish/apps/ui && npm run test:e2e       # same config-managed e2e path
 just ui-test
 just ui-e2e
 just ui-e2e-update             # update visual baselines after a fresh UI build
-just screenshots                 # regenerate docs/screenshots/*.png
+just screenshots               # exercise the dedicated Playwright screenshot baselines
+just repository-artifacts      # enforce generated-output and large-file policy
 ```
 
 `just ui-e2e` needs no per-worktree setup. Every managed-server launch first
@@ -71,6 +72,11 @@ runs the UI's normal `npm run build`, so direct `npx playwright test`, baseline,
 and screenshot commands cannot capture a missing or stale `dist`. Package
 scripts (`test:e2e`, `test:e2e:update`) and the `just ui-e2e-update` and
 `just screenshots` recipes all enter that same config-managed lifecycle.
+`screenshots.spec.ts` writes Playwright baselines under
+`parish/apps/ui/e2e/screenshots/baseline/`; it does not write documentation
+images. Curated images under `docs/screenshots/` are promoted deliberately and
+must be referenced from tracked source or documentation.
+
 `npm`/`npx` supplies the absolute `npm_execpath` used to invoke npm's JavaScript
 entry point through the current Node runtime without a shell. A deliberate
 direct `node scripts/playwright-worktree-server.js` launch must instead set

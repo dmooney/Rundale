@@ -23,7 +23,7 @@ just act-pr         # simulate the pull_request fast lane
 
 ## Local gotchas
 
-- **`ci.yml` is the fast lane for non-runtime changes.** Pull requests whose path detector reports `changes.runtime == true` call the reusable `full-ci.yml` suite, and the single required `CI gate` fails closed unless it succeeds. Main/develop pushes, merge-group events, the nightly schedule, and manual dispatch remain independent full-suite backstops.
+- **`ci.yml` is the fast lane for non-runtime changes.** Pull requests whose path detector reports `changes.runtime == true` call the reusable `full-ci.yml` suite, and the single required `CI gate` fails closed unless it succeeds. Its docs-consistency job also enforces the tracked-artifact size/path/orphan policy. Main/develop pushes, merge-group events, the nightly schedule, and manual dispatch remain independent full-suite backstops.
 - **A shipped default-surface replacement owns the complete E2E contract.** Migrate or explicitly retire every prior Playwright assertion in the same pull request; a focused smoke spec is not a substitute for a green complete suite.
 - **Agent-check runs on PRs only (non-dependabot).** Push events to `main`/`develop` skip the gate — it already ran on the PR. Dependabot bumps are exempt (root AGENTS.md rule #10).
 - **Key PR-author exemptions to immutable authorship.** Use `github.event.pull_request.user.login`, never `github.actor`: the event actor changes when a coordinator refreshes an existing automation-authored branch, while the pull-request author does not.
@@ -41,7 +41,7 @@ just act-pr         # simulate the pull_request fast lane
 ### `ci.yml` — Fast CI pipeline
 
 - **Triggers:** `pull_request`, `push` to `main`/`develop`, `workflow_dispatch`.
-- **Jobs:** changes, agent-check, docs-consistency, format-quality, python-quality, shell-quality, toml-quality, Windows launcher lifecycle, conditional reusable `runtime-suite`, and the aggregate `ci-gate`.
+- **Jobs:** changes, agent-check, docs-consistency (links + repository artifacts), format-quality, python-quality, shell-quality, toml-quality, Windows launcher lifecycle, conditional reusable `runtime-suite`, and the aggregate `ci-gate`.
 - **Runtime contract:** `runtime-suite` calls `full-ci.yml` only for pull requests with `changes.runtime == true`. `ci-gate.sh` requires `success` when the suite is expected and `skipped` when it is not, so a failure, cancellation, or unexpected skip cannot produce a green required check.
 - **agent-check** runs `bash parish/scripts/agent-check.sh --source=pr "$PR_NUMBER"`. Skipped for dependabot.
 - **Concurrency:** `ci-${{ github.workflow }}-${{ github.ref }}`, cancel-in-progress.

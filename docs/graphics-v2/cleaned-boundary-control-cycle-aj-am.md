@@ -17,7 +17,7 @@ Prototype tool:
 `scripts/suppress_dot_chains.py`
 
 Source crop:
-`pipeline-experiments/idea-ah-kilteevan-z17-map-crop.png`
+`map-sources/kilteevan-z17-map-crop.png`
 
 Accepted render input:
 
