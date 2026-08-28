@@ -6,7 +6,7 @@ isometric/2.5D stage, no crop-to-playable-camera step.
 
 ## Inputs
 
-- Source crop: `../../pipeline-experiments/map-crop-control-02.png`
+- Source crop: `../../map-sources/beechwood-map-crop-control-02.png`
   - Beechwood high-resolution map crop, `1956 x 1450`.
   - Treated as the only layout authority.
 - Legend reference: `../../web-references/os-6inch-map-key/os-6inch-map-key-reference-sheet.png`

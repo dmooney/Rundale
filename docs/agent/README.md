@@ -16,6 +16,7 @@ Quick reference for AI coding agents and human contributors working in this repo
 | **Harness map** — what fires when, every sensor and gate          | [harness.md](harness.md)                                   |
 | **Driving the live game via the parish MCP** (QA / harness)       | [driving-the-game-via-mcp.md](driving-the-game-via-mcp.md) |
 | Running CI locally with `act`                                     | [act-local.md](act-local.md)                               |
+| Generated output and large-file policy                            | [repository-artifacts.md](repository-artifacts.md)         |
 | Idempotency-Key support (#619)                                    | [idempotency.md](idempotency.md)                           |
 | **Scaling guardrails** — per-session state, seam review checklist | [scaling-rules.md](scaling-rules.md)                       |
 | Visual client, notebook UI, and graphics research                 | [../graphics-v2/README.md](../graphics-v2/README.md)       |
