@@ -196,6 +196,9 @@ bottom; don't lengthen items past 2-3 lines.
 - **GitHub merge queues are unavailable on user-owned repositories.** Use strict required checks plus required conversation resolution as the fallback; the exact unblock trigger is transfer to an eligible organization or future GitHub support.
 - **Illustrated-notebook tabs are page navigation, not overlay routes (#1755).** Keep their visible Pixi content and accessibility semantics sourced from `illustrated-parish/sections.ts`; reserve `notebookOverlay` for transient sheets such as Map, Time, and utilities so Places cannot collapse back into Map.
 - **The production server build needs the frontend output before Cargo runs.** `parish-server` embeds CSP hashes from `parish/apps/ui/dist` in its build script; copying the UI only into the runtime image can produce a health-green container whose browser bootstrap is blocked by CSP. Keep the frontend-to-builder copy and its deploy sensor together.
+- **Toolchain pins must trigger the Rust runtime suite.** Keep root
+  `rust-toolchain.toml` in `ci.yml`'s runtime filter; otherwise a Dependabot
+  compiler bump can skip compilation and hide newly enabled rustc/Clippy lints.
 - **Dependabot automation classifies but never lands PRs.** The coordinator owns every merge after applicable proof, risk, CI, and review gates; `.github/scripts/dependabot-merge-ownership.test.cjs` rejects workflow-level merge mechanisms.
 - **A fresh visual branch is not a fresh implementation.** For “start fresh,” inventory and exclude rejected code, assets, and proof; retain only explicit user-approved exceptions, and capture a new comparison against the named concept.
 - **Pixi/WebGL screenshot surfaces must opt into `preserveDrawingBuffer`.** A requestAnimationFrame pixel probe can see a good frame and the later Playwright or `toDataURL()` capture can still see cleared black texture regions when Pixi's default remains `false`; validate the produced PNG too.
@@ -283,6 +286,9 @@ bottom; don't lengthen items past 2-3 lines.
 - **zsh reserves lowercase `path` as its executable-search array.** A
   `while read path` loop rewrites command lookup and makes tools appear missing;
   use a task-specific name such as `candidate_path` in cleanup scripts.
+- **Exact no-time-advance assertions must freeze `GameClock` first.** Its default
+  36× wall-clock mapping crosses a whole game second after about 28 ms, so a
+  loaded parallel test can otherwise turn scheduler delay into a false mutation.
 - **A Playwright readiness deadline must preserve the last completed probe's
   semantic error.** The final fetch can straddle the shared deadline and abort;
   do not replace an ownership or identity diagnosis with that timer artifact.

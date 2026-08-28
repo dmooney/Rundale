@@ -58,6 +58,7 @@ jobs:
               - 'parish/apps/ui/**'
               - 'parish/Cargo.toml'
               - 'parish/Cargo.lock'
+              - 'rust-toolchain.toml'
               - 'parish/testing/**'
               - 'parish/scripts/**'
               - 'parish/justfile'
