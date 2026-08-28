@@ -19,8 +19,7 @@ vi.mock('$lib/ipc', () => ({
 const fitBoundsSpy = vi.fn();
 const moveUnsubscribeSpy = vi.fn();
 let locationClickHandler:
-	| ((info: { id: string; name: string; adjacent: boolean }) => void)
-	| undefined;
+	((info: { id: string; name: string; adjacent: boolean }) => void) | undefined;
 
 vi.mock('$lib/map/controller', () => {
 	class FakeMapController {
