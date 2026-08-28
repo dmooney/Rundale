@@ -86,8 +86,11 @@ into runtime assets.
 
 ## Progression Composite
 
-`roisin-art-progression.png` traces 13 milestones from the earlier Conversation
-Lens and Illustrated Parish Notebook concepts through portrait cycles A-E,
-chat calibration, API failures and corrections, and the approved production
-pair. `build-roisin-art-progression.sh` reproduces the composite from the exact
-source artifacts without repainting them.
+The progression composite that traced 13 milestones from the earlier
+Conversation Lens and Illustrated Parish Notebook concepts through portrait
+cycles A-E, chat calibration, API failures and corrections, and the approved
+production pair is retired from the current tree; its original content hash
+and byte count are recorded in the repository-artifact retirement ledger. The
+tracked `build-roisin-art-progression.sh` script still reproduces the composite
+from the exact source artifacts without repainting them, and the original blob
+is recoverable from Git history and the verified operator mirror.
