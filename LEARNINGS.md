@@ -36,6 +36,7 @@ bottom; don't lengthen items past 2-3 lines.
 ## rundale-bench v2 (promptfoo)
 
 - **Validate `promptfoo/bench-site` from a clean dependency tree.** The site uses pnpm inside the npm-managed `promptfoo/` parent; with parent `node_modules` present, Astro 7.2+ prerendering can resolve the parent's `cookie@0.7` instead of the site's `cookie@2` and fail on `parseCookie`. The Pages workflow installs only the site, so reproduce it in a fresh worktree.
+- **Validate `promptfoo/package-lock.json` with npm 10 as well as the npm version that generated it.** npm 11 can omit an optional peer's nested package while still accepting `npm ci`; npm 10 then rejects the same lock as out of sync (observed with MongoDB's optional `gcp-metadata@7` peer alongside a hoisted v8). Preserve platform `libc` metadata and add the missing nested entry rather than regenerating the whole lock with npm 10.
 - **The v2 manifest used to omit multiturn and was not enforced by the dataset loader.** Keep every generated slice in `pin_manifest.py::SLICES` and verify hash + record count on load; otherwise changed prompts/rubrics can retain an old leaderboard merkle and look comparable when they are not.
 - **Runtime prompt capture needs a worktree-keyed Cargo target.** A workspace-wide
   target can be replaced by another worktree after Cargo releases its lock,
