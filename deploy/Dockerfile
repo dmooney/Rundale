@@ -3,7 +3,7 @@
 #
 # ── Stage 1: build Svelte frontend ───────────────────────────────────────────
 FROM node:26-slim AS frontend
-WORKDIR /build
+WORKDIR /build/parish/apps/ui
 COPY parish/apps/ui/package*.json ./
 RUN npm ci
 COPY parish/apps/ui/ ./
@@ -18,11 +18,12 @@ WORKDIR /build
 # Mirror the repo layout so source-relative include_str! paths
 # (parish/crates/parish-server/src/lib.rs → ../../../../LICENSE) resolve.
 COPY parish/Cargo.toml parish/Cargo.lock parish/
+COPY parish/config/ parish/config/
 COPY parish/crates/ parish/crates/
 # Compile-time embedding targets (see parish-server/src/lib.rs)
 COPY LICENSE NOTICE THIRD_PARTY_NOTICES.md ./
 # parish-server's build script derives CSP script hashes from the built UI.
-COPY --from=frontend /build/dist /build/parish/apps/ui/dist/
+COPY --from=frontend /build/parish/apps/ui/dist /build/parish/apps/ui/dist/
 # Build only the web-server binary (excludes the desktop and thin-client binaries).
 WORKDIR /build/parish
 RUN cargo build --release -p parish-server --bin parish-server
@@ -56,7 +57,7 @@ RUN cd /tmp \
 
 WORKDIR /app
 COPY --from=builder /build/parish/target/release/parish-server ./parish-server
-COPY --from=frontend /build/dist ./apps/ui/dist/
+COPY --from=frontend /build/parish/apps/ui/dist ./apps/ui/dist/
 COPY mods/ ./mods/
 RUN useradd -m -u 1000 app && chown -R app:app /app
 USER app
