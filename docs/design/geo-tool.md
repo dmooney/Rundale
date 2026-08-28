@@ -98,30 +98,30 @@ The metadata sidecar (`parish-generated.meta.json`) records the tier for each lo
 
 The extractor classifies OSM features into these game-relevant types:
 
-| Type          | Indoor? | Public? | Example OSM tags                    |
-| ------------- | ------- | ------- | ----------------------------------- | ------- | ------- |
-| Pub           | Yes     | Yes     | `amenity=pub`                       |
-| Church        | Yes     | Yes     | `amenity=place_of_worship`          |
-| Shop          | Yes     | Yes     | `shop=*`                            |
-| School        | Yes     | Yes     | `amenity=school`                    |
-| PostOffice    | Yes     | Yes     | `amenity=post_office`               |
-| Farm          | No      | No      | `building=farmhouse`                |
-| Crossroads    | No      | Yes     | Road junction (3+ ways meeting)     |
-| Bridge        | No      | Yes     | `man_made=bridge`                   |
-| Well          | No      | Yes     | `historic=holy_well`                |
-| Waterside     | No      | Yes     | `natural=water`                     |
-| Bog           | No      | Yes     | `natural=wetland`                   |
-| Woodland      | No      | Yes     | `natural=wood`                      |
-| RingFort      | No      | Yes     | `historic=ring_fort`                |
-| StandingStone | No      | Yes     | `historic=standing_stone`           |
-| Graveyard     | No      | Yes     | `landuse=cemetery`                  |
-| Mill          | Yes     | Yes     | `man_made=watermill`                |
-| Forge         | Yes     | Yes     | `craft=blacksmith`                  |
-| LimeKiln      | No      | Yes     | `man_made=kiln`                     |
-| Harbour       | No      | Yes     | `leisure=harbour`                   |
-| Hill          | No      | Yes     | `natural=peak`                      |
-| Ruin          | No      | Yes     | `historic=castle`, `historic=ruins` |
-| NamedPlace    | No      | Yes     | `place=townland                     | village | hamlet` |
+| Type          | Indoor? | Public? | Example OSM tags                                     |
+| ------------- | ------- | ------- | ---------------------------------------------------- |
+| Pub           | Yes     | Yes     | `amenity=pub`                                        |
+| Church        | Yes     | Yes     | `amenity=place_of_worship`                           |
+| Shop          | Yes     | Yes     | `shop=*`                                             |
+| School        | Yes     | Yes     | `amenity=school`                                     |
+| PostOffice    | Yes     | Yes     | `amenity=post_office`                                |
+| Farm          | No      | No      | `building=farmhouse`                                 |
+| Crossroads    | No      | Yes     | Road junction (3+ ways meeting)                      |
+| Bridge        | No      | Yes     | `man_made=bridge`                                    |
+| Well          | No      | Yes     | `historic=holy_well`                                 |
+| Waterside     | No      | Yes     | `natural=water`                                      |
+| Bog           | No      | Yes     | `natural=wetland`                                    |
+| Woodland      | No      | Yes     | `natural=wood`                                       |
+| RingFort      | No      | Yes     | `historic=ring_fort`                                 |
+| StandingStone | No      | Yes     | `historic=standing_stone`                            |
+| Graveyard     | No      | Yes     | `landuse=cemetery`                                   |
+| Mill          | Yes     | Yes     | `man_made=watermill`                                 |
+| Forge         | Yes     | Yes     | `craft=blacksmith`                                   |
+| LimeKiln      | No      | Yes     | `man_made=kiln`                                      |
+| Harbour       | No      | Yes     | `leisure=harbour`                                    |
+| Hill          | No      | Yes     | `natural=peak`                                       |
+| Ruin          | No      | Yes     | `historic=castle`, `historic=ruins`                  |
+| NamedPlace    | No      | Yes     | `place=townland`, `place=village`, or `place=hamlet` |
 
 ## Connection Generation
 
