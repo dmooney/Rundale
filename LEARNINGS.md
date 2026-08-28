@@ -280,3 +280,6 @@ bottom; don't lengthen items past 2-3 lines.
   supertile, reassembly, grid, seam, and contract-overlay PNGs are retired from
   the current tree; regenerate them with `docs/graphics-v2/scripts/county_tile_pipeline.py`
   or recover their original blobs from Git history.
+- **zsh reserves lowercase `path` as its executable-search array.** A
+  `while read path` loop rewrites command lookup and makes tools appear missing;
+  use a task-specific name such as `candidate_path` in cleanup scripts.

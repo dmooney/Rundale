@@ -79,6 +79,9 @@ while IFS= read -r -d '' path; do
         graphify-out/* | */graphify-out/*)
             report_error "$path" "Graphify output is generated; keep it local under an ignored graphify-out directory."
             ;;
+        docs/graphics-v2/pipeline-experiments/*.png)
+            report_error "$path" "Graphics V2 experiment PNGs are archived output; keep them untracked or promote an approved input outside pipeline-experiments."
+            ;;
         parish/docs/screenshots/*)
             report_error "$path" "legacy parish/docs screenshots are retired; use Playwright baselines or a referenced docs/screenshots image."
             ;;
