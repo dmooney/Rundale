@@ -11,7 +11,7 @@ while making ordinary field and parcel lines softer, broken, or invisible.
 ## Inputs
 
 - Original map crop:
-  `pipeline-experiments/idea-ah-kilteevan-z17-map-crop.png`
+  `map-sources/kilteevan-z17-map-crop.png`
 - Cleaned no-admin control:
   `pipeline-experiments/idea-aj2-kilteevan-dot-suppressed-no-admin-map-crop.png`
 - Oblique camera cue:

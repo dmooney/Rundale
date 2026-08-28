@@ -327,7 +327,8 @@ server:
 Together they provide:
 
 - **Real browser rendering** — headless Chromium, no X11/GDK/xvfb required
-- **Screenshot generation** — captures 4 times of day to `docs/screenshots/`
+- **Screenshot generation** — captures four times of day as pinned Playwright
+  baselines under `apps/ui/e2e/screenshots/baseline/`
 - **Visual regression** — baseline comparison via `toHaveScreenshot()`
 - **Interaction testing** — input submission, streaming, theme transitions
 
@@ -351,7 +352,7 @@ cd ui && npx playwright test           # or: just ui-e2e
 cd ui && npm run test:e2e:contract
 cd ui && npm run test:e2e:fullstack
 
-# Screenshots only
+# Screenshot baselines only
 cd ui && npx playwright test e2e/screenshots.spec.ts  # or: just screenshots
 
 # Update visual regression baselines
