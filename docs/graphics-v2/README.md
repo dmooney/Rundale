@@ -23,7 +23,8 @@ from longer-term visual-client alternatives so agents do not mix their constrain
 ## Research map
 
 - **Exterior pipeline:** [map-to-background-plate pipeline](map-to-background-plate-pipeline.md) records the earlier research; [map-to-BU reproducible pipeline](map-to-bu-style-reproducible-pipeline.md) is the current reusable procedure. Use [Irish dry-stone-wall reference](irish-dry-stone-wall-reference.md) whenever an exterior could contain a real stone wall.
-- **Evidence and comparison:** [cartographic comparisons](cartographic-comparisons/README.md) and the [pipeline experiments](pipeline-experiments/README.md) preserve source/control/render chains. Do not treat an edited visual target as fresh-render recipe proof.
+- **Evidence and comparison:** [cartographic comparisons](cartographic-comparisons/README.md) and the [pipeline experiments](pipeline-experiments/README.md) preserve source/control/render chains through tracked sidecars and the external archive index. Do not treat an edited visual target as fresh-render recipe proof.
+- **Canonical clean-checkout inputs:** [map sources](map-sources/README.md) retain the three map crops consumed by current tools, while [authorities](authorities/README.md) retains the accepted BU E2 style target.
 - **Visual language:** [style crops](style-crops/README.md) identifies safe reusable references and superseded, leaky ones. The original [notebook concept](illustrated-parish-notebook.png) and [environment-only plate](illustrated-parish-scene-no-ui.png) are direction references, not asset sheets.
 - **Interior concepts:** [interior-concepts](interior-concepts/README.md) records the small playable cutaway targets and historical anchors.
 - **Portraits:** [NPC portrait workflow](npc-portraits/README.md) describes experiments, approval, derivatives, and manifest ownership.
@@ -40,6 +41,7 @@ from longer-term visual-client alternatives so agents do not mix their constrain
 - Generated plates are stable base layers. Time, weather, actors, props, and
   interaction state should be runtime layers where possible; see
   [runtime-layers-and-independent-variables.md](runtime-layers-and-independent-variables.md).
-- Keep every prompt, report, control, comparison, and audit next to the relevant
-  artifact. This makes a result independently reviewable and prevents a visually
-  appealing but unsupported render from becoming a production source of truth.
+- Keep every prompt, report, and audit beside the artifact's archive-relative
+  name, and index each archived control, comparison, and render by path and hash.
+  This makes a result independently reviewable without making every clone carry
+  the binary corpus.

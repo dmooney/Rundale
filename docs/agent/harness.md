@@ -9,6 +9,7 @@ The framing comes from OpenAI's [harness-engineering post](https://openai.com/in
 | When you...                                                                                          | The harness...                                                               | Lives at                                                                                                       |
 | ---------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
 | Edit a doc that links to a path                                                                      | Rejects broken relative Markdown links and nonexistent agent-path references | `parish/scripts/check-doc-paths.sh` (CI: `docs-consistency`, local: `just check`)                              |
+| Track generated output, an oversized file, or an orphaned documentation screenshot                   | Repository-artifact gate fails with the exact policy violation               | `parish/scripts/check-repository-artifacts.sh` (CI: `docs-consistency`, local: `just check`)                   |
 | Edit `AGENTS.md`                                                                                     | `CLAUDE.md` follows automatically                                            | `CLAUDE.md` is a symlink to `AGENTS.md`                                                                        |
 | Add a runtime dep (`axum`, `tauri`, etc.) to a leaf crate                                            | Test fails citing the rule                                                   | `parish/crates/parish-core/tests/architecture_fitness.rs` → `backend_agnostic_crates_do_not_pull_runtime_deps` |
 | Create a top-level module under `parish/crates/parish-engine/src/` that shadows one in `parish-core` | Test fails with the canonical fix (extend the leaf crate)                    | `architecture_fitness.rs` → `parish_engine_does_not_duplicate_parish_core_modules`                             |
@@ -28,20 +29,20 @@ Slash commands defined in `.agents/skills/` (with `.claude/skills` as the symlin
 1. **`/parish-engine prove <feature>`** — after implementing, drive the feature through the script harness and read the JSON critically. Required for any gameplay change.
 2. **`/parish-engine rubric`** — sister to `prove`: deterministic snapshot-diff + structural rubrics over baselined fixtures. Cheaper than reading JSON; runs on every `cargo test`.
 3. **`/parish-engine play [scenario]`** — autonomous play-test, exploration-style. (`/parish-engine` also covers `harness`, `demo`, `browser`, and `screenshot` modes.)
-4. **`/check`** — both gate levels: `just check` (`agent-check + fmt + clippy + test + witness-scan + check-doc-paths`, pre-commit) and `just verify` (adds the full harness walkthrough, pre-push).
+4. **`/check`** — both gate levels: `just check` (`agent-check + fmt + clippy + test + witness-scan + doc/artifact checks`, pre-commit) and `just verify` (adds the full harness walkthrough, pre-push).
 
 ## Quality gates in order
 
 ```text
 local:  just agent-check      # proof evidence + judge verdict + fast debt scan
-        just check    # agent-check + fmt + clippy + test + witness-scan + check-doc-paths
+        just check    # agent-check + fmt + clippy + test + witness-scan + doc/artifact checks
         just verify   # check + game-test fixture sweep
         just baselines        # only after intentional gameplay output changes (UPDATE_BASELINES=1)
         just harness-audit    # read-only coverage report
 
 CI fast lane (`ci.yml`):
         agent-check           # proof evidence + judge verdict + fast debt scan
-        docs-consistency      # check-doc-paths
+        docs-consistency      # check-doc-paths + repository-artifacts
         format/python/shell/toml quality
         runtime-suite         # reusable full-ci.yml, runtime-change PRs only
         ci-gate               # stable required status; aggregates conditional runtime proof
