@@ -2828,6 +2828,9 @@ mod tests {
         // Navigate to a location with no NPCs (e.g., the hurling green)
         h.execute("go to crossroads");
         h.execute("go to hurling green");
+        // Freeze the accelerated wall clock so this assertion measures only
+        // command-driven time changes, not scheduler delay during the command.
+        h.app.world.clock.pause();
         let before = h.app.world.clock.now();
         let result = h.execute("hello there");
         let after = h.app.world.clock.now();

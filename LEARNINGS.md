@@ -286,3 +286,6 @@ bottom; don't lengthen items past 2-3 lines.
 - **zsh reserves lowercase `path` as its executable-search array.** A
   `while read path` loop rewrites command lookup and makes tools appear missing;
   use a task-specific name such as `candidate_path` in cleanup scripts.
+- **Exact no-time-advance assertions must freeze `GameClock` first.** Its default
+  36× wall-clock mapping crosses a whole game second after about 28 ms, so a
+  loaded parallel test can otherwise turn scheduler delay into a false mutation.
