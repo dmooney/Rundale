@@ -45,6 +45,17 @@ git add nested/graphify-out/graph.json
 expect_failure "Graphify output is generated"
 git rm -q -f nested/graphify-out/graph.json
 
+mkdir -p docs/graphics-v2/pipeline-experiments/nested
+printf 'direct experiment image\n' \
+    >docs/graphics-v2/pipeline-experiments/direct.png
+printf 'nested experiment image\n' \
+    >docs/graphics-v2/pipeline-experiments/nested/control.png
+git add docs/graphics-v2/pipeline-experiments/direct.png \
+    docs/graphics-v2/pipeline-experiments/nested/control.png
+expect_failure "Graphics V2 experiment PNGs are archived output"
+git rm -q -f docs/graphics-v2/pipeline-experiments/direct.png \
+    docs/graphics-v2/pipeline-experiments/nested/control.png
+
 mkdir -p parish/docs/screenshots
 printf 'legacy\n' >parish/docs/screenshots/gui-morning.png
 git add parish/docs/screenshots/gui-morning.png
