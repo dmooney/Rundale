@@ -159,12 +159,7 @@ export interface EditorSaveResponse {
 }
 
 export type EditorDoc =
-	| 'manifest'
-	| 'npcs'
-	| 'world'
-	| 'festivals'
-	| 'encounters'
-	| 'anachronisms';
+	'manifest' | 'npcs' | 'world' | 'festivals' | 'encounters' | 'anachronisms';
 
 export type EditorTab = 'mods' | 'npcs' | 'locations' | 'validator' | 'saves';
 

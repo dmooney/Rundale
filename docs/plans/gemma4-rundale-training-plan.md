@@ -488,7 +488,7 @@ DeepSeek V4-pro is API-side and contributes no GPU footprint. Headroom is suffic
 - Stage 3 packaging + `/prove`: ~1 h
 - **Total: ~24–38 h per run** (Stage 0 runs in parallel with Stage 1 so wall-clock is dominated by SFT + DPO + packaging)
 - **RunPod cost:** A100-80GB at ~$1.89/h × ~30 h ≈ **~$45–75**
-- **DeepSeek V4-pro cost** (current discount, ~40 k judge calls across DPO + nightly best-of-K eval): **~$12** before 2026-05-31 15:59 UTC ($0.435 / $0.87 per MTok in/out, cache-hit input $0.003625 / MTok);**~$48** after the discount expires ($1.74 / $3.48 per MTok). Sonnet 4.6 batch+cache fallback for the _judge_ role: ~$38 for the same workload.
+- **DeepSeek V4-pro cost** (current discount, about 40k judge calls across DPO + nightly best-of-K eval): about $12 before 2026-05-31 15:59 UTC ($0.435 / $0.87 per MTok in/out, cache-hit input $0.003625 / MTok); about $48 after the discount expires ($1.74 / $3.48 per MTok). Sonnet 4.6 batch+cache fallback for the _judge_ role: about $38 for the same workload.
 - **Anthropic Sonnet 4.6 cost** (always-on, calibration-distractor generator): ~$2 per run for ~400 distractor generations.
 
 ### Local alternative (RX 9070 16 GB) — not the canonical path
