@@ -30,6 +30,26 @@ saves
 # Python local tooling
 .venv*/
 
+# Graphify knowledge graphs are reproducible local indexes, not repository
+# source. This component-level rule covers root and nested scans.
+**/graphify-out/
+
+# Graphics V2 experiment PNGs are local working output. Retained runs go to
+# the content-addressed external archive; only reviewed authorities and source
+# crops may be promoted into their canonical tracked directories.
+/docs/graphics-v2/pipeline-experiments/*.png
+/docs/graphics-v2/pipeline-experiments/**/*.png
+
+# Retired generated proof outputs; the reproducible pipeline and manifests
+# remain tracked, but these large render intermediates are not clean-checkout
+# assets and can be regenerated from the tracked source inputs.
+docs/graphics-v2/overhead-art/cycle-cf-production-county-pipeline/county-base-supertile.png
+docs/graphics-v2/overhead-art/cycle-cf-production-county-pipeline/runtime-reassembled.png
+docs/graphics-v2/overhead-art/cycle-cf-production-county-pipeline/county-base-grid-overlay.png
+docs/graphics-v2/overhead-art/cycle-cf-production-county-pipeline/seam-validation-overlay.png
+docs/graphics-v2/overhead-art/cycle-cf-production-county-pipeline/masked-seam-repair-template/seam-contract-overlay.png
+parish/apps/ui/art/notebook-person-art/experiments/roisin-art-progression.png
+
 # Proof bundles — written by /task-start and the live-proof skills.
 # Bundles are attached to PRs via `just attach-proof`, not committed.
 /.proofs/

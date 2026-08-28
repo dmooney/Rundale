@@ -231,10 +231,12 @@ Regenerate Rundale GUI screenshots after UI changes via headless Playwright — 
 1. **Install deps** (if needed): `cd apps/ui && npm install`.
 2. **Capture**: `cd apps/ui && npx playwright test e2e/screenshots.spec.ts` — captures the GUI at 4 times of
    day (morning, midday, dusk, night) on headless Chromium with mocked Tauri IPC.
-3. **Verify output**: check `docs/screenshots/` for updated PNGs; list files and sizes.
-4. **Report** which were generated; remind the user to commit them alongside the UI change.
+3. **Verify output**: check `apps/ui/e2e/screenshots/baseline/` for updated PNGs; list files and sizes.
+4. **Report** which baselines changed; remind the user to commit them alongside the UI change.
 
 Notes:
 
 - To update visual-regression baselines: `npx playwright test e2e/screenshots.spec.ts --update-snapshots`.
+- `docs/screenshots/` contains separately curated, referenced documentation images; do not copy every
+  Playwright baseline there.
 - Full E2E suite: `npx playwright test` or `just ui-e2e`.
