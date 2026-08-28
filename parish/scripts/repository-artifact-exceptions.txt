@@ -1,0 +1,2 @@
+# kind|path|bytes|sha256|owner|purpose
+orphan|docs/screenshots/thumbnails/rundale-thumbnail.png|24819|e92624f35ea6f33b96d61245b2dbece8ffd781a57b72ea316b4ca83d27de33d7|documentation|Legacy derived thumbnail retained pending a README gallery decision.
