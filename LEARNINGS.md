@@ -283,3 +283,7 @@ bottom; don't lengthen items past 2-3 lines.
 - **zsh reserves lowercase `path` as its executable-search array.** A
   `while read path` loop rewrites command lookup and makes tools appear missing;
   use a task-specific name such as `candidate_path` in cleanup scripts.
+- **Release assets still anchor a Git tag.** The stable `bug-evidence` Release
+  keeps its target commit reachable through `refs/tags/bug-evidence`; any later
+  history rewrite must retarget that tag during cutover or the old object graph
+  remains reachable even after ordinary branch refs are rewritten.

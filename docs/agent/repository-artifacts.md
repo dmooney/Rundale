@@ -15,7 +15,7 @@ files. The same gate runs in CI.
 | Graphify indexes, HTML, reports, caches, and snapshots | Local `graphify-out/` beside the scanned corpus                                          | Ignored at every depth; regenerate locally. Publish a content-addressed release archive only when a frozen graph must be shared.                                                                         |
 | Playwright visual baselines                            | `parish/apps/ui/e2e/screenshots/baseline/`                                               | Keep in Git because tests consume them. `just screenshots` exercises this path.                                                                                                                          |
 | Documentation images                                   | `docs/screenshots/`                                                                      | Keep only current images referenced by tracked docs or their generation contract. Promote deliberately; do not mirror every Playwright capture.                                                          |
-| Bug evidence                                           | GitHub issue attachment or a hash-keyed external archive                                 | Until the reporter is migrated, only reporter-created, issue-linked files may remain under `bug-reports/`; do not stage diagnostic bundles manually.                                                     |
+| Bug evidence                                           | Stable `bug-evidence` GitHub Release plus a hash-keyed external archive                   | Reporter screenshots are Release assets linked from their issues. Never track `bug-reports/`; dry-run bundles stay under the resolved user-data path.                                                   |
 | Promptfoo output and local proof bundles               | `promptfoo/output/`, `docs/proofs/`, and `.proofs/`                                      | Ignored local output. Keep only canonical datasets, rubrics, manifests, promotion receipts, and published leaderboard data in Git.                                                                       |
 | Rundale-bench generated runs                           | External archive for retained historical runs                                            | Do not add new generated runs to Git. Existing v1 artifacts remain temporarily until their approved archive wave.                                                                                        |
 | Character art                                          | Generate and review outside the runtime tree; promote only approved release transactions | Approved masters, raw provenance, manifests, and receipts stay in Git while clean/offline builds require them. Experiments and review packets await their approved archive wave.                         |
@@ -28,7 +28,7 @@ Git index:
 
 - no tracked path may contain a `graphify-out` component;
 - no PNG may be tracked under `docs/graphics-v2/pipeline-experiments/`;
-- retired screenshot, orphan bug-image, and rejected scene-plate paths cannot
+- retired screenshot, every `bug-reports/` path, and rejected scene-plate paths cannot
   be reintroduced;
 - files larger than 8 MiB fail unless
   `parish/scripts/repository-artifact-exceptions.txt` records the exact path,
@@ -82,6 +82,27 @@ its full manifest SHA-256 is
 `078b3883c20c43e8da72b422329d8b99b82ea893d52206735eb1218bf6d8671e`.
 All 474 payload checks passed after the archive was copied. The pre-rewrite
 rollback mirror independently contains all 393 blobs.
+
+### Wave 4: Bug-report screenshots
+
+Wave 4 (base commit `4e95b3027f54475426d1923dae1f98bd26215ba2`)
+archived and retired all 22 tracked root `bug-reports/*.png` files. Their
+35,533,311 original bytes comprise 21 unique Git blobs totaling 28,793,485
+bytes. The complete path, size, SHA-256, blob, issue, old URL, and Release URL
+mapping is recorded in
+[`bug-evidence-wave4-ledger.tsv`](bug-evidence-wave4-ledger.tsv).
+
+The verified iCloud Drive archive ID is
+`bug-evidence-wave4-20260828T160101Z`; its manifest SHA-256 is
+`70f10ce18ac52baadd0e60567e8f38dc10e746ddf1ebb77f6e77a0c33383b9c8`.
+It also preserves complete pre-edit JSON snapshots for all 22 linked issues.
+The same PNG bytes are available as assets on the stable GitHub Release tagged
+[`bug-evidence`](https://github.com/dmooney/Rundale/releases/tag/bug-evidence),
+and the issue bodies now use those Release download URLs. Future live reports
+upload uniquely named PNG assets to that Release; the GitHub Contents API is no
+longer used for reporter evidence. A future history rewrite must retarget the
+Release tag during cutover; leaving `refs/tags/bug-evidence` on this base commit
+would keep its old object graph reachable even after branch refs were rewritten.
 
 Forward Markdown links remain covered by
 `parish/scripts/check-doc-paths.sh`; the screenshot rule is the reverse check
