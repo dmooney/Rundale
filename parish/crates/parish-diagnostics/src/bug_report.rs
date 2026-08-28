@@ -12,10 +12,8 @@
 //!
 //! ## Screenshot handling
 //!
-//! GitHub has no REST endpoint for issue attachments — the web-UI drag-drop
-//! flow uploads to a private signed-upload pipeline that isn't part of the
-//! public API. So we commit the PNG into the repository via the Contents API
-//! and embed the returned raw URL in the issue body, which renders inline.
+//! Screenshots are uploaded as assets on the stable `bug-evidence` GitHub
+//! release and the returned browser URL is embedded in the issue body.
 //!
 //! ## Dry-run / no-token
 //!
@@ -64,6 +62,7 @@ pub trait WorldSnapshotFields {
 /// Default target repository when `PARISH_BUG_REPORT_REPO` is unset.
 pub const DEFAULT_REPO: &str = "dmooney/rundale";
 const GITHUB_API: &str = "https://api.github.com";
+const BUG_EVIDENCE_RELEASE_TAG: &str = "bug-evidence";
 const USER_AGENT: &str = "parish-bug-reporter";
 /// Labels applied to every auto-filed issue, so they are filterable.
 const ISSUE_LABELS: &[&str] = &["bug", "agent-filed"];
@@ -413,8 +412,6 @@ pub struct GitHubBugConfig {
     pub token: Option<String>,
     /// `owner/repo` target (default [`DEFAULT_REPO`]).
     pub repo: String,
-    /// Branch to commit screenshots to. `None` ⇒ the repo's default branch.
-    pub asset_branch: Option<String>,
     /// Force dry-run (compose + write to disk, never touch the network).
     pub dry_run: bool,
     /// GitHub REST API base (default [`GITHUB_API`]). Overridable via
@@ -432,14 +429,12 @@ impl GitHubBugConfig {
             .or_else(gh_cli_token);
         let repo =
             non_empty_env("PARISH_BUG_REPORT_REPO").unwrap_or_else(|| DEFAULT_REPO.to_string());
-        let asset_branch = non_empty_env("PARISH_BUG_REPORT_ASSET_BRANCH");
         let api_base =
             non_empty_env("PARISH_BUG_REPORT_API_BASE").unwrap_or_else(|| GITHUB_API.to_string());
         let dry_run = env_is_truthy("PARISH_BUG_REPORT_DRY_RUN");
         Self {
             token,
             repo,
-            asset_branch,
             dry_run,
             api_base,
         }
@@ -768,7 +763,7 @@ pub async fn create_bug_report(
     // Live path: upload screenshot (best-effort inline render), then file.
     // The screenshot is best-effort — the issue itself is the core value, so a
     // failed upload (e.g. an issues-only token, or a protected branch that
-    // rejects the Contents API commit) must not abort the report. Fall back to
+    // rejects the release asset upload) must not abort the report. Fall back to
     // filing without an image.
     let screenshot_url = match screenshot_png {
         Some(bytes) if !bytes.is_empty() => match upload_screenshot(http, cfg, &id, bytes).await {
@@ -846,7 +841,9 @@ async fn write_offline_bundle(
     })
 }
 
-/// Commits the screenshot via the Contents API and returns its raw URL.
+/// Uploads the screenshot to the stable bug-evidence release and returns its
+/// browser download URL. The release lookup is deliberately separate from the
+/// upload so tests and callers can prove that no Contents API commit occurs.
 async fn upload_screenshot(
     http: &reqwest::Client,
     cfg: &GitHubBugConfig,
@@ -854,26 +851,45 @@ async fn upload_screenshot(
     bytes: &[u8],
 ) -> Result<String, BugReportError> {
     let token = cfg.token.as_deref().unwrap_or_default();
-    let path = format!("bug-reports/{id}.png");
-    let url = format!("{}/repos/{}/contents/{path}", cfg.api_base, cfg.repo);
-    let mut body = json!({
-        "message": format!("chore(bug-report): screenshot {id}"),
-        "content": base64::engine::general_purpose::STANDARD.encode(bytes),
-    });
-    if let Some(branch) = &cfg.asset_branch {
-        body["branch"] = Value::String(branch.clone());
-    }
-
-    let resp = http
-        .put(&url)
+    let release_url = format!(
+        "{}/repos/{}/releases/tags/{BUG_EVIDENCE_RELEASE_TAG}",
+        cfg.api_base, cfg.repo
+    );
+    let release_resp = http
+        .get(&release_url)
         .bearer_auth(token)
         .header(reqwest::header::USER_AGENT, USER_AGENT)
         .header(reqwest::header::ACCEPT, "application/vnd.github+json")
-        .json(&body)
         .send()
         .await
         .map_err(|e| BugReportError::Http(e.to_string()))?;
-
+    let release_status = release_resp.status();
+    let release: Value = parse_json(release_resp).await?;
+    if !release_status.is_success() {
+        return Err(BugReportError::GitHub {
+            status: release_status.as_u16(),
+            body: release.to_string(),
+        });
+    }
+    let upload_url = release
+        .get("upload_url")
+        .and_then(|u| u.as_str())
+        .map(|u| u.replace("{?name,label}", ""))
+        .ok_or_else(|| BugReportError::GitHub {
+            status: release_status.as_u16(),
+            body: "missing release.upload_url in response".into(),
+        })?;
+    let upload_url = format!("{upload_url}?name={id}.png");
+    let resp = http
+        .post(&upload_url)
+        .bearer_auth(token)
+        .header(reqwest::header::USER_AGENT, USER_AGENT)
+        .header(reqwest::header::ACCEPT, "application/vnd.github+json")
+        .header(reqwest::header::CONTENT_TYPE, "image/png")
+        .body(bytes.to_vec())
+        .send()
+        .await
+        .map_err(|e| BugReportError::Http(e.to_string()))?;
     let status = resp.status();
     let payload: Value = parse_json(resp).await?;
     if !status.is_success() {
@@ -882,15 +898,13 @@ async fn upload_screenshot(
             body: payload.to_string(),
         });
     }
-    // `content.download_url` is the raw URL that renders inline in markdown.
     payload
-        .get("content")
-        .and_then(|c| c.get("download_url"))
+        .get("browser_download_url")
         .and_then(|u| u.as_str())
         .map(String::from)
         .ok_or_else(|| BugReportError::GitHub {
             status: status.as_u16(),
-            body: "missing content.download_url in response".into(),
+            body: "missing asset.browser_download_url in response".into(),
         })
 }
 
@@ -1005,7 +1019,6 @@ mod tests {
         GitHubBugConfig {
             token: None,
             repo: DEFAULT_REPO.into(),
-            asset_branch: None,
             dry_run: true,
             api_base: GITHUB_API.into(),
         }
@@ -1015,7 +1028,6 @@ mod tests {
         GitHubBugConfig {
             token: Some("test-token".into()),
             repo: "acme/widgets".into(),
-            asset_branch: None,
             dry_run: false,
             api_base: api_base.into(),
         }
@@ -1264,15 +1276,24 @@ mod tests {
 
     #[tokio::test]
     async fn live_path_uploads_then_files_issue() {
-        use wiremock::matchers::{method, path};
+        use wiremock::matchers::{header, method, path, path_regex};
         use wiremock::{Mock, MockServer, ResponseTemplate};
 
         let server = MockServer::start().await;
-        // Contents API: screenshot commit succeeds, returns a raw download_url.
-        // (Path carries a per-report UUID, so match on method.)
-        Mock::given(method("PUT"))
+        // Release lookup, then binary asset upload. (The report UUID is
+        // generated inside the call, so match on method/path only.)
+        Mock::given(method("GET"))
+            .and(path("/repos/acme/widgets/releases/tags/bug-evidence"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "upload_url": format!("{}/upload/{{?name,label}}", server.uri())
+            })))
+            .mount(&server)
+            .await;
+        Mock::given(method("POST"))
+            .and(path_regex(r"/upload/.*"))
+            .and(header("content-type", "image/png"))
             .respond_with(ResponseTemplate::new(201).set_body_json(json!({
-                "content": {"download_url": "https://raw.example/acme/widgets/bug-reports/x.png"}
+                "browser_download_url": "https://github.com/acme/widgets/releases/download/bug-evidence/x.png"
             })))
             .mount(&server)
             .await;
@@ -1306,7 +1327,34 @@ mod tests {
         );
         assert_eq!(
             result.screenshot_url.as_deref(),
-            Some("https://raw.example/acme/widgets/bug-reports/x.png")
+            Some("https://github.com/acme/widgets/releases/download/bug-evidence/x.png")
+        );
+        let requests = server.received_requests().await.expect("requests");
+        assert_eq!(
+            requests.len(),
+            3,
+            "release lookup, asset upload, issue create"
+        );
+        assert_eq!(requests[0].method, "GET");
+        assert_eq!(
+            requests[0].url.path(),
+            "/repos/acme/widgets/releases/tags/bug-evidence"
+        );
+        assert_eq!(requests[1].method, "POST");
+        assert!(requests[1].url.path().starts_with("/upload/"));
+        let query: Vec<_> = requests[1].url.query_pairs().collect();
+        assert_eq!(query.len(), 1);
+        assert_eq!(query[0].0, "name");
+        let asset_name = query[0].1.as_ref();
+        let report_id = asset_name.strip_suffix(".png").expect("PNG asset name");
+        uuid::Uuid::parse_str(report_id).expect("UUID asset name");
+        assert_eq!(requests[1].body, png);
+        assert_eq!(requests[2].method, "POST");
+        assert_eq!(requests[2].url.path(), "/repos/acme/widgets/issues");
+        assert!(
+            requests
+                .iter()
+                .all(|r| !r.url.path().contains("/contents/"))
         );
     }
 
@@ -1316,9 +1364,9 @@ mod tests {
         use wiremock::{Mock, MockServer, ResponseTemplate};
 
         let server = MockServer::start().await;
-        // Contents API rejects the commit (e.g. issues-only token / protected
-        // branch) — the report must still be filed, without an image.
-        Mock::given(method("PUT"))
+        // Release lookup rejects the upload (e.g. missing release/token) —
+        // the report must still be filed, without an image.
+        Mock::given(method("GET"))
             .respond_with(ResponseTemplate::new(403).set_body_json(json!({
                 "message": "Resource not accessible by personal access token"
             })))

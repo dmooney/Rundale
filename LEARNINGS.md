@@ -286,3 +286,7 @@ bottom; don't lengthen items past 2-3 lines.
 - **A Playwright readiness deadline must preserve the last completed probe's
   semantic error.** The final fetch can straddle the shared deadline and abort;
   do not replace an ownership or identity diagnosis with that timer artifact.
+- **Release assets still anchor a Git tag.** The stable `bug-evidence` Release
+  keeps its target commit reachable through `refs/tags/bug-evidence`; any later
+  history rewrite must retarget that tag during cutover or the old object graph
+  remains reachable even after ordinary branch refs are rewritten.
