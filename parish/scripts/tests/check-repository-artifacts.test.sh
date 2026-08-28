@@ -39,6 +39,12 @@ expect_failure() {
 
 run_checker >/dev/null
 
+mkdir -p bug-reports
+printf 'PNG fixture\n' >bug-reports/future.png
+git add bug-reports/future.png
+expect_failure "bug-report screenshots belong in the stable bug-evidence release"
+git rm -q -f bug-reports/future.png
+
 mkdir -p nested/graphify-out
 printf '{}\n' >nested/graphify-out/graph.json
 git add nested/graphify-out/graph.json

@@ -285,7 +285,6 @@ mod tests {
         let dry_run_cfg = GitHubBugConfig {
             token: None,
             repo: "test/repo".into(),
-            asset_branch: None,
             dry_run: true,
             api_base: "https://api.github.com".into(),
         };
