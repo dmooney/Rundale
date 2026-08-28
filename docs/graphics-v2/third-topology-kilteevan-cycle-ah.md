@@ -21,7 +21,7 @@ generic rubric.
 | -------------------- | --------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
 | Source crop report   | `pipeline-experiments/idea-ah-kilteevan-z17-map-crop.report.md`             | Documents tile source, zoom, tile neighborhood, crop center, and crop origin.                               |
 | Source mosaic        | `pipeline-experiments/idea-ah-kilteevan-z17-mosaic.png`                     | 3x3 fetched NLS tile mosaic at z17.                                                                         |
-| Source crop          | `pipeline-experiments/idea-ah-kilteevan-z17-map-crop.png`                   | North-up 16:9 crop used as the layout authority.                                                            |
+| Source crop          | `map-sources/kilteevan-z17-map-crop.png`                                    | North-up 16:9 crop used as the layout authority.                                                            |
 | Map-reader notes     | `pipeline-experiments/idea-ah-kilteevan-map-reader-notes.md`                | Clean-context, generic-rubric, confidence-graded observations.                                              |
 | Oblique pitch cue    | `pipeline-experiments/idea-ah-kilteevan-third-control-oblique-raw-warp.png` | Camera cue only, not source truth.                                                                          |
 | Linework control     | `pipeline-experiments/idea-ah-kilteevan-third-control-linework-control.png` | Useful for rough line placement only.                                                                       |

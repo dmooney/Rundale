@@ -67,6 +67,10 @@ check:
 agent-check *ARGS:
     bash parish/scripts/agent-check.sh {{ARGS}}
 
+# Enforce generated-output, large-file, and documentation-screenshot policy.
+repository-artifacts:
+    bash parish/scripts/check-repository-artifacts.sh
+
 # Attach a proof bundle to a PR. The bundle lives at .proofs/<TASK_ID>/
 # (gitignored). By default it is written into the PR body (race-free) and is
 # idempotent. Extra args pass through: a PR number (defaults to the current
