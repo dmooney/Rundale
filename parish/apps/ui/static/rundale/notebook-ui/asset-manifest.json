@@ -3,12 +3,6 @@
 	"version": 3,
 	"source": "Generated bitmap runtime kit plus approved notebook person art. Concept art is visual reference only.",
 	"assets": {
-		"scenePlate": "scene-crossroads.png",
-		"scenePlates": {
-			"crossroads": "scene-crossroads.png",
-			"kilteevanVillage": "scene-kilteevan-village.png",
-			"murphysFarm": "scene-murphys-farm.png"
-		},
 		"topRibbon": "top-ribbon.png",
 		"spiralNotebookPage": "spiral-notebook-page.png",
 		"notebookBindingRings": "notebook-binding-rings.png",
