@@ -5,7 +5,7 @@ regenerate after dependency changes.
 
 ## Overview
 
-- [MIT License](#MIT) — 637 crates
+- [MIT License](#MIT) — 651 crates
 - [Apache License 2.0](#Apache-2.0) — 24 crates
 - [Unicode License v3](#Unicode-3.0) — 19 crates
 - [BSD 3-Clause &quot;New&quot; or &quot;Revised&quot; License](#BSD-3-Clause) — 9 crates
@@ -3109,9 +3109,12 @@ DEALINGS IN THE SOFTWARE.
 - [log 0.4.29](https://github.com/rust-lang/log)
 - [num-bigint-dig 0.8.6](https://github.com/dignifiedquire/num-bigint)
 - [num-bigint 0.4.6](https://github.com/rust-num/num-bigint)
+- [num-complex 0.4.6](https://github.com/rust-num/num-complex)
 - [num-integer 0.1.46](https://github.com/rust-num/num-integer)
 - [num-iter 0.1.45](https://github.com/rust-num/num-iter)
+- [num-rational 0.4.2](https://github.com/rust-num/num-rational)
 - [num-traits 0.2.19](https://github.com/rust-num/num-traits)
+- [num 0.4.3](https://github.com/rust-num/num)
 - [regex-automata 0.4.14](https://github.com/rust-lang/regex)
 - [regex-syntax 0.8.11](https://github.com/rust-lang/regex)
 - [regex 1.13.0](https://github.com/rust-lang/regex)
@@ -3625,6 +3628,7 @@ DEALINGS IN THE SOFTWARE.
 
 **Used by:**
 
+- [fs2 0.4.3](https://github.com/danburkert/fs2-rs)
 - [heck 0.4.1](https://github.com/withoutboats/heck)
 - [heck 0.5.0](https://github.com/withoutboats/heck)
 - [unicode-segmentation 1.13.2](https://github.com/unicode-rs/unicode-segmentation)
@@ -4378,6 +4382,40 @@ DEALINGS IN THE SOFTWARE.
 
 **Used by:**
 
+- [cipher 0.4.4](https://github.com/RustCrypto/traits)
+
+```
+Copyright (c) 2016-2020 RustCrypto Developers
+
+Permission is hereby granted, free of charge, to any
+person obtaining a copy of this software and associated
+documentation files (the &quot;Software&quot;), to deal in the
+Software without restriction, including without
+limitation the rights to use, copy, modify, merge,
+publish, distribute, sublicense, and/or sell copies of
+the Software, and to permit persons to whom the Software
+is furnished to do so, subject to the following
+conditions:
+
+The above copyright notice and this permission notice
+shall be included in all copies or substantial portions
+of the Software.
+
+THE SOFTWARE IS PROVIDED &quot;AS IS&quot;, WITHOUT WARRANTY OF
+ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED
+TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT
+SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
+IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+DEALINGS IN THE SOFTWARE.
+
+```
+
+
+**Used by:**
+
 - [reqwest 0.12.28](https://github.com/seanmonstar/reqwest)
 
 ```
@@ -4882,7 +4920,7 @@ SOFTWARE.
 
 **Used by:**
 
-- [h2 0.4.14](https://github.com/hyperium/h2)
+- [h2 0.4.16](https://github.com/hyperium/h2)
 
 ```
 Copyright (c) 2017 h2 authors
@@ -5087,6 +5125,40 @@ DEALINGS IN THE SOFTWARE.
 
 **Used by:**
 
+- [aes 0.8.4](https://github.com/RustCrypto/block-ciphers)
+
+```
+Copyright (c) 2018 Artyom Pavlov
+
+Permission is hereby granted, free of charge, to any
+person obtaining a copy of this software and associated
+documentation files (the &quot;Software&quot;), to deal in the
+Software without restriction, including without
+limitation the rights to use, copy, modify, merge,
+publish, distribute, sublicense, and/or sell copies of
+the Software, and to permit persons to whom the Software
+is furnished to do so, subject to the following
+conditions:
+
+The above copyright notice and this permission notice
+shall be included in all copies or substantial portions
+of the Software.
+
+THE SOFTWARE IS PROVIDED &quot;AS IS&quot;, WITHOUT WARRANTY OF
+ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED
+TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT
+SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
+IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+DEALINGS IN THE SOFTWARE.
+
+```
+
+
+**Used by:**
+
 - [bytes 1.11.1](https://github.com/tokio-rs/bytes)
 
 ```
@@ -5219,6 +5291,7 @@ THE SOFTWARE.
 **Used by:**
 
 - [block-buffer 0.10.4](https://github.com/RustCrypto/utils)
+- [block-padding 0.3.3](https://github.com/RustCrypto/utils)
 
 ```
 Copyright (c) 2018-2019 The RustCrypto Project Developers
@@ -5286,6 +5359,41 @@ SOFTWARE.
 
 ```
 Copyright (c) 2018-2022 RustCrypto Developers
+
+Permission is hereby granted, free of charge, to any
+person obtaining a copy of this software and associated
+documentation files (the &quot;Software&quot;), to deal in the
+Software without restriction, including without
+limitation the rights to use, copy, modify, merge,
+publish, distribute, sublicense, and/or sell copies of
+the Software, and to permit persons to whom the Software
+is furnished to do so, subject to the following
+conditions:
+
+The above copyright notice and this permission notice
+shall be included in all copies or substantial portions
+of the Software.
+
+THE SOFTWARE IS PROVIDED &quot;AS IS&quot;, WITHOUT WARRANTY OF
+ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED
+TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT
+SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
+IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+DEALINGS IN THE SOFTWARE.
+
+```
+
+
+**Used by:**
+
+- [cbc 0.1.2](https://github.com/RustCrypto/block-modes)
+
+```
+Copyright (c) 2018-2022 RustCrypto Developers
+Copyright (c) 2018 Artyom Pavlov
 
 Permission is hereby granted, free of charge, to any
 person obtaining a copy of this software and associated
@@ -6573,6 +6681,41 @@ DEALINGS IN THE SOFTWARE.
 
 **Used by:**
 
+- [inout 0.1.4](https://github.com/RustCrypto/utils)
+
+```
+Copyright (c) 2022 The RustCrypto Project Developers
+Copyright (c) 2022 Artyom Pavlov
+
+Permission is hereby granted, free of charge, to any
+person obtaining a copy of this software and associated
+documentation files (the &quot;Software&quot;), to deal in the
+Software without restriction, including without
+limitation the rights to use, copy, modify, merge,
+publish, distribute, sublicense, and/or sell copies of
+the Software, and to permit persons to whom the Software
+is furnished to do so, subject to the following
+conditions:
+
+The above copyright notice and this permission notice
+shall be included in all copies or substantial portions
+of the Software.
+
+THE SOFTWARE IS PROVIDED &quot;AS IS&quot;, WITHOUT WARRANTY OF
+ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED
+TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT
+SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
+IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+DEALINGS IN THE SOFTWARE.
+
+```
+
+
+**Used by:**
+
 - [cmov 0.5.4](https://github.com/RustCrypto/utils)
 - [hybrid-array 0.4.12](https://github.com/RustCrypto/hybrid-array)
 
@@ -7719,7 +7862,9 @@ THE SOFTWARE IS PROVIDED &quot;AS IS&quot;, WITHOUT WARRANTY OF ANY KIND, EXPRES
 **Used by:**
 
 - [schemars 0.8.22](https://github.com/GREsau/schemars)
+- [schemars 1.2.1](https://github.com/GREsau/schemars)
 - [schemars_derive 0.8.22](https://github.com/GREsau/schemars)
+- [schemars_derive 1.2.1](https://github.com/GREsau/schemars)
 
 ```
 MIT License
@@ -8171,6 +8316,36 @@ SOFTWARE.
 MIT License
 
 Copyright (c) 2021 the Deno authors
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the &quot;Software&quot;), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED &quot;AS IS&quot;, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+```
+
+
+**Used by:**
+
+- [rfd 0.17.2](https://github.com/PolyMeilex/rfd)
+
+```
+MIT License
+
+Copyright (c) 2022 Bartłomiej Maryńczak
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the &quot;Software&quot;), to deal
@@ -8889,6 +9064,8 @@ DEALINGS IN THE SOFTWARE.
 - [proc-macro-crate 3.5.0](https://github.com/bkchr/proc-macro-crate)
 - [proc-macro2 1.0.106](https://github.com/dtolnay/proc-macro2)
 - [quote 1.0.45](https://github.com/dtolnay/quote)
+- [ref-cast-impl 1.0.25](https://github.com/dtolnay/ref-cast)
+- [ref-cast 1.0.25](https://github.com/dtolnay/ref-cast)
 - [rustix 0.38.44](https://github.com/bytecodealliance/rustix)
 - [rustix 1.1.4](https://github.com/bytecodealliance/rustix)
 - [rustversion 1.0.22](https://github.com/dtolnay/rustversion)
@@ -9573,7 +9750,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 **Used by:**
 
-- [jsonwebtoken 10.4.0](https://github.com/Keats/jsonwebtoken)
+- [jsonwebtoken 11.0.0](https://github.com/Keats/jsonwebtoken)
 
 ```
 The MIT License (MIT)
