@@ -133,7 +133,9 @@ fn load_png_icon(path: &Path) -> Result<tauri::image::Image<'static>, String> {
     let rgba = match info.color_type {
         png::ColorType::Rgba => bytes.to_vec(),
         png::ColorType::Rgb => bytes
-            .chunks_exact(3)
+            .as_chunks::<3>()
+            .0
+            .iter()
             .flat_map(|chunk| [chunk[0], chunk[1], chunk[2], 255])
             .collect(),
         png::ColorType::Grayscale => bytes
@@ -141,7 +143,9 @@ fn load_png_icon(path: &Path) -> Result<tauri::image::Image<'static>, String> {
             .flat_map(|value| [*value, *value, *value, 255])
             .collect(),
         png::ColorType::GrayscaleAlpha => bytes
-            .chunks_exact(2)
+            .as_chunks::<2>()
+            .0
+            .iter()
             .flat_map(|chunk| [chunk[0], chunk[0], chunk[0], chunk[1]])
             .collect(),
         png::ColorType::Indexed => {

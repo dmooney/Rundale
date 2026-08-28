@@ -92,6 +92,9 @@ while IFS= read -r -d '' path; do
             parish/apps/ui/static/rundale/notebook-ui/scene-murphys-farm.png)
             report_error "$path" "this retired Wave 1 artifact must not be reintroduced."
             ;;
+        bug-reports/*)
+            report_error "$path" "bug-report screenshots belong in the stable bug-evidence release; keep runtime bundles under resolved user-data paths."
+            ;;
     esac
 
     [[ -f "$path" ]] || continue

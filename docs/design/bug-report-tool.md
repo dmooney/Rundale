@@ -17,7 +17,8 @@ real, reproducible issue for a fix-agent to pick up.
 
 - **`parish-core`** (`src/ipc/bug_report.rs`, new) — the entire orchestration:
   payload structs, `GitHubBugConfig::from_env`, the pure `compose_issue_body`,
-  and the async `create_bug_report` (screenshot upload via GitHub Contents API,
+  and the async `create_bug_report` (screenshot upload via the fixed
+  `bug-evidence` GitHub Release asset API,
   issue creation via Issues API, dry-run/disk fallback). Backend-agnostic; uses
   the existing `snapshot_from_world` and `build_debug_snapshot`. Reuses the
   workspace `reqwest`, `serde_json`, `base64`, `uuid` deps — **no new deps**.
@@ -67,5 +68,6 @@ explicit token in the environment; with no token (or `PARISH_BUG_REPORT_DRY_RUN=
 the report is composed and written to disk instead — the safe default for CI,
 agent-check, and the sandbox where `api.github.com` may be blocked. Auto-filed
 issues carry `bug` + `agent-filed` labels for filtering. The screenshot is
-committed to `bug-reports/<uuid>.png` (GitHub has no REST issue-attachment
-endpoint) and embedded as a `raw.githubusercontent.com` URL.
+uploaded to the stable `bug-evidence` Release as `<uuid>.png` (GitHub has no
+REST issue-attachment endpoint) and the returned Release download URL is
+embedded in the issue.
