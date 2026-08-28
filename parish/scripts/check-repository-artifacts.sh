@@ -76,9 +76,6 @@ while IFS= read -r -d '' path; do
     tracked_count=$((tracked_count + 1))
 
     case "$path" in
-        bug-reports/*)
-            report_error "$path" "bug-report screenshots belong in the stable bug-evidence release; keep runtime bundles under resolved user-data paths."
-            ;;
         graphify-out/* | */graphify-out/*)
             report_error "$path" "Graphify output is generated; keep it local under an ignored graphify-out directory."
             ;;
@@ -94,6 +91,9 @@ while IFS= read -r -d '' path; do
             parish/apps/ui/static/rundale/notebook-ui/scene-kilteevan-village.png | \
             parish/apps/ui/static/rundale/notebook-ui/scene-murphys-farm.png)
             report_error "$path" "this retired Wave 1 artifact must not be reintroduced."
+            ;;
+        bug-reports/*)
+            report_error "$path" "bug-report screenshots belong in the stable bug-evidence release; keep runtime bundles under resolved user-data paths."
             ;;
     esac
 
