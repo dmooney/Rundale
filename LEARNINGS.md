@@ -283,3 +283,6 @@ bottom; don't lengthen items past 2-3 lines.
 - **zsh reserves lowercase `path` as its executable-search array.** A
   `while read path` loop rewrites command lookup and makes tools appear missing;
   use a task-specific name such as `candidate_path` in cleanup scripts.
+- **A Playwright readiness deadline must preserve the last completed probe's
+  semantic error.** The final fetch can straddle the shared deadline and abort;
+  do not replace an ownership or identity diagnosis with that timer artifact.
