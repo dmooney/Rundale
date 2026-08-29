@@ -214,7 +214,16 @@ every judge call, so a silent rubric edit fails loudly.
 candidate request shapes, deterministic asserts, judge bundle assembly +
 envelope parse, report aggregation, game-time cost) with mocked HTTP — no keys,
 no network. `scripts/mock_server.py` is an OpenAI-compat test double for a full
-keyless end-to-end promptfoo run.
+keyless end-to-end promptfoo run. After `npm ci`, run the real CLI/provider/judge
+path with:
+
+```sh
+cd promptfoo
+npm run test:keyless
+```
+
+The smoke launches and retires the mock server itself, evaluates one frozen
+dialogue row, and fails unless promptfoo reports exactly one passing result.
 
 ## Known limitations
 
