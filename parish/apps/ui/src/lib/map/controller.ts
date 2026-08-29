@@ -106,11 +106,11 @@ export class MapController {
 	 *  the same `submitInput` runs N times. */
 	private layerEventsWired = false;
 	private layerClickHandler:
-		| ((e: MapMouseEvent & { features?: MapGeoJSONFeature[] }) => void)
-		| null = null;
+		((e: MapMouseEvent & { features?: MapGeoJSONFeature[] }) => void) | null =
+		null;
 	private layerMouseEnterHandler:
-		| ((e: MapMouseEvent & { features?: MapGeoJSONFeature[] }) => void)
-		| null = null;
+		((e: MapMouseEvent & { features?: MapGeoJSONFeature[] }) => void) | null =
+		null;
 	private layerMouseLeaveHandler: (() => void) | null = null;
 
 	constructor(options: MapControllerOptions) {

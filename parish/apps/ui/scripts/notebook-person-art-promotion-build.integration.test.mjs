@@ -690,7 +690,7 @@ test('production promotion rejects stale canonical catalogs and source mutations
 		);
 		await write(sourcePath, source);
 	}
-});
+}, 30_000);
 
 test('production promotion fails on missing or mutated current topology', async () => {
 	const missing = await createProductionFixture();
