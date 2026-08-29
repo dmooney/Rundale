@@ -17,13 +17,14 @@
  *     (used by the minimap's off-screen radar indicators)
  */
 
-import maplibregl, {
+import {
 	Map as MapLibreMap,
 	Marker,
 	LngLatBounds,
 	type LngLatLike,
 	type MapMouseEvent,
 	type MapGeoJSONFeature,
+	type GeoJSONSource,
 } from 'maplibre-gl';
 import type { MapData, TileSource, TravelWaypoint } from '$lib/types';
 import { buildStyle, readThemeColors, type MapVariant } from './style';
@@ -37,6 +38,7 @@ import {
 } from './geojson';
 import type { FeatureCollection, Point, LineString } from 'geojson';
 import { ICON_PATHS, type LocationIcon } from '$lib/map-icons';
+import { configureMapLibreWorker } from '$lib/maplibre-worker';
 
 /** Options passed to the controller at construction time. */
 export interface MapControllerOptions {
@@ -117,7 +119,8 @@ export class MapController {
 		this.variant = options.variant;
 		this.tileSource = options.tileSource;
 		const theme = readThemeColors();
-		this.map = new maplibregl.Map({
+		configureMapLibreWorker();
+		this.map = new MapLibreMap({
 			container: options.container,
 			style: buildStyle(options.variant, theme, this.tileSource),
 			center: options.initialCenter ?? [-8.15, 53.59], // Kiltoom/Kilteevan fallback; pass from mod config
@@ -145,19 +148,24 @@ export class MapController {
 	 * Swaps the base tile source at runtime.
 	 *
 	 * MapLibre's `setStyle()` wipes all existing sources and layers, so after
-	 * the new style's `styledata` event fires we re-push the last `MapData`
+	 * the new style's `style.load` event fires we re-push the last `MapData`
 	 * to restore the location/edge overlays. Using `.once()` avoids re-entry
-	 * on repeated `styledata` fires.
+	 * on later style loads.
 	 *
 	 * Called by map components' `$effect`s when the `tiles` store's active id
 	 * changes (driven by the `tiles-switch` event from `/tiles`).
 	 */
 	setTileSource(source: TileSource | undefined): void {
+		// Store subscriptions emit their current value immediately. Replacing an
+		// as-yet-unloaded style with the identical source is redundant and can
+		// strand MapLibre 6's initial lifecycle before `load` fires.
+		if (source === this.tileSource) return;
 		this.tileSource = source;
 		const theme = readThemeColors();
 		this.ready = false;
-		this.map.setStyle(buildStyle(this.variant, theme, source));
-		this.map.once('styledata', () => {
+		// Register before setStyle(): MapLibre 6 may emit early style events
+		// synchronously while replacing the style.
+		this.map.once('style.load', () => {
 			registerLocationIcons(this.map);
 			this.ready = true;
 			this.wireLayerEvents();
@@ -165,6 +173,7 @@ export class MapController {
 			this.pendingMapData = null;
 			if (data) this.updateMap(data, this.lastVisibleIds ?? undefined);
 		});
+		this.map.setStyle(buildStyle(this.variant, theme, source));
 	}
 
 	/**
@@ -257,7 +266,7 @@ export class MapController {
 		const el = document.createElement('div');
 		el.className = 'travel-dot-marker';
 
-		const marker = new maplibregl.Marker({ element: el, anchor: 'center' })
+		const marker = new Marker({ element: el, anchor: 'center' })
 			.setLngLat([waypoints[0].lon, waypoints[0].lat])
 			.addTo(this.map);
 
@@ -486,7 +495,7 @@ function setSourceData(
 ): void {
 	const source = map.getSource(id);
 	if (source && source.type === 'geojson') {
-		(source as maplibregl.GeoJSONSource).setData(data);
+		(source as GeoJSONSource).setData(data);
 	}
 }
 
