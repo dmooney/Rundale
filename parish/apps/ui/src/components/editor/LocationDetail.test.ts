@@ -100,6 +100,7 @@ vi.mock('maplibre-gl', () => {
 	class FakeNavigationControl {}
 
 	return {
+		setWorkerUrl: vi.fn(),
 		default: {
 			Map: FakeMap,
 			NavigationControl: FakeNavigationControl,
