@@ -8563,8 +8563,8 @@ SOFTWARE.
 
 ---
 
-This project contains portions of code and architectural concepts originally
-derived from the &quot;nipper&quot; project (https://github.com/importcjj/nipper),
+This project contains portions of code and architectural concepts originally 
+derived from the &quot;nipper&quot; project (https://github.com/importcjj/nipper), 
 developed by Chen Jiaju, licensed under the MIT License and the Apache License 2.0 (dual licensed).
 ```
 
@@ -11661,3 +11661,4 @@ the following restrictions:
 
 3. This notice may not be removed or altered from any source distribution.
 ```
+
