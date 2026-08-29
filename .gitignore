@@ -19,6 +19,9 @@ __pycache__/
 *.db-journal
 *.db-wal
 logs/
+# Reporter screenshots belong in the immutable bug-evidence release; runtime
+# dry-run bundles resolve under user data and never use this repository path.
+/bug-reports/*.png
 .claude/worktrees
 parish/apps/ui/dist/
 test-results/

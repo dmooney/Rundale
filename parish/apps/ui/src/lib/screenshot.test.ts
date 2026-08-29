@@ -64,8 +64,7 @@ describe('captureScreen()', () => {
 		const { captureScreen } = await import('./screenshot');
 		await captureScreen();
 		const opts = toPngMock.mock.calls[0]?.[1] as
-			| Record<string, unknown>
-			| undefined;
+			Record<string, unknown> | undefined;
 		expect(opts?.cacheBust).toBeUndefined();
 		expect(typeof opts?.pixelRatio).toBe('number');
 		expect(opts?.pixelRatio).toBeGreaterThan(0);

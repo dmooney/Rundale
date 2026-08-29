@@ -1354,7 +1354,12 @@ export async function waitForServedCsp({
 				);
 			}
 		} catch (error) {
-			lastError = error;
+			// A request that straddles the overall deadline is aborted by
+			// fetchTextBeforeDeadline. Keep the last completed probe's semantic
+			// diagnosis instead of replacing it with that timer artifact.
+			if (lastError === undefined || Date.now() < deadline) {
+				lastError = error;
+			}
 		}
 		const remaining = deadline - Date.now();
 		if (remaining > 0) await delay(Math.min(100, remaining));

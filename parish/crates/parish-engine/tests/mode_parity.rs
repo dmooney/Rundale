@@ -96,6 +96,28 @@ fn first_word(s: &str) -> &str {
     s.split_whitespace().next().unwrap_or(s)
 }
 
+/// Mode-parity comparisons run two paths sequentially from one captured state.
+/// Freeze the accelerated game clock so host load cannot make nested gameplay
+/// timestamps differ merely because one path took longer to execute.
+fn parity_harness() -> GameTestHarness {
+    let mut harness = GameTestHarness::new();
+    harness.app.world.clock.pause();
+    harness
+}
+
+#[test]
+fn parity_harness_keeps_game_time_frozen_under_host_delay() {
+    let harness = parity_harness();
+    let frozen_at = harness.app.world.clock.now();
+
+    // The normal 36x clock advances by at least one game second over this
+    // interval. A paused parity fixture must stay exactly at its captured time.
+    std::thread::sleep(std::time::Duration::from_millis(50));
+
+    assert!(harness.app.world.clock.is_paused());
+    assert_eq!(harness.app.world.clock.now(), frozen_at);
+}
+
 fn isolate_one_speaker(harness: &mut GameTestHarness) -> (NpcId, String) {
     let player_location = harness.app.world.player_location;
     let speaker_id = harness
@@ -185,7 +207,7 @@ fn isolate_one_unintroduced_speaker(harness: &mut GameTestHarness) -> (NpcId, St
 
 #[test]
 fn dialogue_turn_publishes_identical_event_across_legacy_and_real_loop() {
-    let mut h = GameTestHarness::new();
+    let mut h = parity_harness();
     let (_speaker_id, speaker_name) = isolate_one_speaker(&mut h);
 
     let input = format!("talk to {speaker_name} about the harvest");
@@ -227,7 +249,7 @@ fn dialogue_turn_publishes_identical_event_across_legacy_and_real_loop() {
 
 #[test]
 fn unique_first_name_and_occupation_reveals_identity_across_turn_modes() {
-    let mut legacy_harness = GameTestHarness::new();
+    let mut legacy_harness = parity_harness();
     let (legacy_id, speaker_name, occupation) =
         isolate_one_unintroduced_speaker(&mut legacy_harness);
     let first_name = first_word(&speaker_name);
@@ -253,7 +275,7 @@ fn unique_first_name_and_occupation_reveals_identity_across_turn_modes() {
         "legacy harness route must commit the identity transition"
     );
 
-    let mut real_harness = GameTestHarness::new();
+    let mut real_harness = parity_harness();
     let (real_id, real_name, real_occupation) = isolate_one_unintroduced_speaker(&mut real_harness);
     assert_eq!(
         (real_name, real_occupation),
@@ -269,7 +291,7 @@ fn unique_first_name_and_occupation_reveals_identity_across_turn_modes() {
 
 #[test]
 fn rejected_anachronistic_candidate_has_zero_effects_across_modes() {
-    let mut harness = GameTestHarness::new();
+    let mut harness = parity_harness();
     let (_speaker_id, speaker_name) = isolate_one_speaker(&mut harness);
     let input = "I'll take the work. What would you have me do first?".to_string();
     let response = serde_json::json!({
@@ -314,7 +336,7 @@ fn rejected_anachronistic_candidate_has_zero_effects_across_modes() {
 
 #[test]
 fn authored_landmark_rejection_has_zero_effects_across_modes() {
-    let mut harness = GameTestHarness::new();
+    let mut harness = parity_harness();
     let (speaker_id, speaker_name) = isolate_one_speaker(&mut harness);
     let kilteevan = harness
         .app
@@ -376,7 +398,7 @@ fn authored_landmark_rejection_has_zero_effects_across_modes() {
 
 #[test]
 fn incomplete_multifacet_reply_has_zero_effects_across_modes() {
-    let mut harness = GameTestHarness::new();
+    let mut harness = parity_harness();
     let (_speaker_id, speaker_name) = isolate_one_speaker(&mut harness);
     // Peig is a known authored parish person even when not co-located.
     let request =
@@ -418,9 +440,9 @@ fn incomplete_multifacet_reply_has_zero_effects_across_modes() {
 
 #[test]
 fn typed_unknown_person_followup_has_legacy_real_loop_parity() {
-    let mut legacy_harness = GameTestHarness::new();
+    let mut legacy_harness = parity_harness();
     let (legacy_id, legacy_speaker) = isolate_one_speaker(&mut legacy_harness);
-    let mut real_harness = GameTestHarness::new();
+    let mut real_harness = parity_harness();
     let (real_id, real_speaker) = isolate_one_speaker(&mut real_harness);
     assert_eq!(legacy_speaker, real_speaker);
 
@@ -480,7 +502,7 @@ fn typed_unknown_person_followup_has_legacy_real_loop_parity() {
 
 #[test]
 fn grounded_task_assignment_is_identical_in_legacy_and_real_loops() {
-    let mut harness = GameTestHarness::new();
+    let mut harness = parity_harness();
     let (speaker_id, speaker_name) = isolate_one_speaker(&mut harness);
     let input = "I'll take the work. What would you have me do first?".to_string();
     let response = serde_json::json!({
@@ -542,7 +564,7 @@ fn grounded_task_assignment_is_identical_in_legacy_and_real_loops() {
 
 #[test]
 fn grounded_work_referral_rejection_has_zero_effects_across_modes() {
-    let mut harness = GameTestHarness::new();
+    let mut harness = parity_harness();
     let (_speaker_id, speaker_name) = isolate_one_speaker(&mut harness);
     let input = "Good morning. I'm Eilis Byrne, newly arrived and looking for honest work. Is there anyone needing a hand today?";
     let response = serde_json::json!({
@@ -620,7 +642,7 @@ fn parity_comparison_catches_a_dropped_dialogue_event() {
 fn potato_patch_action_progresses_identically_in_legacy_and_real_loops() {
     const ACTION: &str = "I take up a spade, break the clods in the potato patch, and plant the seed as Siobhan instructed.";
 
-    let mut harness = GameTestHarness::new();
+    let mut harness = parity_harness();
     let location = harness.app.world.player_location;
     let assigned_at = harness.app.world.clock.now();
     let task_id = harness
