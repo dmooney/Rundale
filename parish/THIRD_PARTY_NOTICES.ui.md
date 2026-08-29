@@ -25,7 +25,7 @@
 - [@tauri-apps/api@2.11.1](https://github.com/tauri-apps/tauri) - Apache-2.0 OR MIT
 - [@types/estree@1.0.8](https://github.com/DefinitelyTyped/DefinitelyTyped) - MIT
 - [@types/geojson@7946.0.16](https://github.com/DefinitelyTyped/DefinitelyTyped) - MIT
-- [@types/node@25.9.3](https://github.com/DefinitelyTyped/DefinitelyTyped) - MIT
+- [@types/node@26.4.0](https://github.com/DefinitelyTyped/DefinitelyTyped) - MIT
 - [@types/trusted-types@2.0.7](https://github.com/DefinitelyTyped/DefinitelyTyped) - MIT
 - [@typescript-eslint/types@8.67.0](https://github.com/typescript-eslint/typescript-eslint) - MIT
 - [acorn@8.16.0](https://github.com/acornjs/acorn) - MIT
@@ -73,6 +73,6 @@
 - [svelte@5.56.10](https://github.com/sveltejs/svelte) - MIT
 - [tinyglobby@0.2.17](https://github.com/SuperchupuDev/tinyglobby) - MIT
 - [tinyqueue@3.0.0](https://github.com/mourner/tinyqueue) - ISC
-- [undici-types@7.24.6](https://github.com/nodejs/undici) - MIT
+- [undici-types@8.3.0](https://github.com/nodejs/undici) - MIT
 - [vite@8.2.2](https://github.com/vitejs/vite) - MIT
 - [zimmerframe@1.1.4](https://github.com/sveltejs/zimmerframe) - MIT
