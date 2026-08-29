@@ -58,11 +58,14 @@ jobs:
               - 'parish/apps/ui/**'
               - 'parish/Cargo.toml'
               - 'parish/Cargo.lock'
+              - 'parish/config/**'
+              - 'rust-toolchain.toml'
               - 'parish/testing/**'
               - 'parish/scripts/**'
               - 'parish/justfile'
               - 'parish/.config/nextest.toml'
               - 'mods/**'
+              - 'deploy/**'
               - '.github/workflows/ci.yml'
               - '.github/workflows/full-ci.yml'
 
@@ -156,7 +159,7 @@ jobs:
         uses: actions/checkout@v6
 
       - name: Setup Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@v7
         with:
           python-version: "3.12"
 

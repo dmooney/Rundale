@@ -1301,11 +1301,14 @@ test('validated readiness marker gates the live build identity and CSP', async (
 test('another run on the same port cannot satisfy readiness', async () => {
 	const root = mkdtempSync(join(tmpdir(), 'parish-playwright-owner-gate-'));
 	const readyFile = join(root, '.playwright-ready-b');
-	const ownerRun = '0123456789abcdef';
 	const waitingRun = 'fedcba9876543210';
+	let requestCount = 0;
 	const server = createServer((request, response) => {
-		response.statusCode = request.url?.endsWith(ownerRun) ? 503 : 404;
-		response.end();
+		requestCount += 1;
+		if (requestCount === 1) {
+			response.statusCode = 404;
+			response.end();
+		}
 	});
 	server.listen(0, '127.0.0.1');
 	await once(server, 'listening');
