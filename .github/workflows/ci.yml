@@ -44,6 +44,7 @@ jobs:
         working-directory: ${{ github.workspace }}
     outputs:
       runtime: ${{ steps.filter.outputs.runtime || 'true' }}
+      promptfoo: ${{ steps.filter.outputs.promptfoo || 'true' }}
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -68,6 +69,9 @@ jobs:
               - 'deploy/**'
               - '.github/workflows/ci.yml'
               - '.github/workflows/full-ci.yml'
+            promptfoo:
+              - 'promptfoo/**'
+              - '.github/workflows/ci.yml'
 
   agent-check:
     name: Agent proof gate
@@ -181,6 +185,40 @@ jobs:
       - name: Pytest
         run: pytest
 
+  promptfoo-quality:
+    name: Promptfoo keyless end-to-end
+    needs: changes
+    if: github.event_name != 'pull_request' || needs.changes.outputs.promptfoo == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: promptfoo
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: promptfoo/package-lock.json
+
+      - name: Setup Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+
+      - name: Install promptfoo
+        run: npm ci --ignore-scripts
+
+      - name: Run offline seam tests
+        run: npm test
+
+      - name: Run keyless promptfoo dialogue
+        run: npm run test:keyless
+
   shell-quality:
     name: Shell quality (shellcheck + shfmt)
     runs-on: ubuntu-latest
@@ -278,6 +316,7 @@ jobs:
         format-quality,
         python-quality,
         playwright-launcher-windows,
+        promptfoo-quality,
         shell-quality,
         toml-quality,
         runtime-suite,

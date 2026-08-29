@@ -11,7 +11,11 @@
  * `$lib/editor-map`.
  */
 
-import maplibregl from 'maplibre-gl';
+import {
+	Map as MapLibreMap,
+	NavigationControl,
+	type GeoJSONSource,
+} from 'maplibre-gl';
 
 import {
 	applyDraggedCoordinates,
@@ -20,6 +24,7 @@ import {
 } from '$lib/editor-map';
 import { getUiConfig } from '$lib/ipc';
 import { buildStyle, readThemeColors } from '$lib/map/style';
+import { configureMapLibreWorker } from '$lib/maplibre-worker';
 import type { LocationData } from '$lib/editor-types';
 import type { TileSource } from '$lib/types';
 
@@ -53,7 +58,7 @@ function readLocationId(event: {
 }
 
 export class EditorLocationMap {
-	private map: maplibregl.Map | null = null;
+	private map: MapLibreMap | null = null;
 	private mapLoaded = false;
 	private mapInitializing = false;
 
@@ -92,11 +97,11 @@ export class EditorLocationMap {
 			nextSelectedId,
 			preview,
 		);
-		(map.getSource('editor-locations') as maplibregl.GeoJSONSource)?.setData({
+		(map.getSource('editor-locations') as GeoJSONSource)?.setData({
 			type: 'FeatureCollection',
 			features,
 		});
-		(map.getSource('editor-edges') as maplibregl.GeoJSONSource)?.setData({
+		(map.getSource('editor-edges') as GeoJSONSource)?.setData({
 			type: 'FeatureCollection',
 			features: edgeFeatures,
 		});
@@ -158,7 +163,8 @@ export class EditorLocationMap {
 			return;
 		}
 
-		const nextMap = new maplibregl.Map({
+		configureMapLibreWorker();
+		const nextMap = new MapLibreMap({
 			container: mapContainer,
 			style: buildStyle('full', readThemeColors(), initialTile),
 			center: [-8.0, 53.5],
@@ -167,7 +173,7 @@ export class EditorLocationMap {
 		});
 		this.map = nextMap;
 		nextMap.addControl(
-			new maplibregl.NavigationControl({ showCompass: false }),
+			new NavigationControl({ showCompass: false }),
 			'top-right',
 		);
 		nextMap.on('load', () => {
