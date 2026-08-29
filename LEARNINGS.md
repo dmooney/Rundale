@@ -303,3 +303,6 @@ bottom; don't lengthen items past 2-3 lines.
   keeps its target commit reachable through `refs/tags/bug-evidence`; any later
   history rewrite must retarget that tag during cutover or the old object graph
   remains reachable even after ordinary branch refs are rewritten.
+- **Keep the promptfoo mock judge in lockstep with every rubric axis and flag.**
+  Run `npm run test:keyless` after rubric edits; the loopback server bypasses
+  `HTTPServer` reverse DNS so local DNS cannot stall the smoke before bind.
