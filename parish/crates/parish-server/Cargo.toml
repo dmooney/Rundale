@@ -41,7 +41,7 @@ uuid = { version = "1", features = ["v4"] }
 dashmap = "6"
 reqwest = { workspace = true, features = ["json"] }
 rusqlite = { workspace = true }
-jsonwebtoken = { version = "10", features = ["rust_crypto"] }
+jsonwebtoken = { version = "11", features = ["rust_crypto"] }
 hmac = "0.13"
 sha2 = "0.11"
 hex = "0.4"

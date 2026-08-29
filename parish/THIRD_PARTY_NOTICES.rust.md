@@ -9710,7 +9710,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 **Used by:**
 
-- [jsonwebtoken 10.4.0](https://github.com/Keats/jsonwebtoken)
+- [jsonwebtoken 11.0.0](https://github.com/Keats/jsonwebtoken)
 
 ```
 The MIT License (MIT)
