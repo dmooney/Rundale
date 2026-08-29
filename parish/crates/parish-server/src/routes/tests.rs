@@ -2735,7 +2735,6 @@ async fn audit_loop_detects_mismatch_and_files_full_payload() {
     let cfg = bug_report::GitHubBugConfig {
         token: None,
         repo: bug_report::DEFAULT_REPO.into(),
-        asset_branch: None,
         dry_run: true,
         api_base: "https://api.github.com".into(),
     };

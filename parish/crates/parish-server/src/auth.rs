@@ -155,7 +155,7 @@ pub async fn callback_google(
     .await
     {
         Ok(id) => id,
-        Err(response) => return response,
+        Err(response) => return *response,
     };
 
     tracing::info!(
@@ -345,7 +345,7 @@ pub async fn callback_google_tower(
     .await
     {
         Ok(id) => id,
-        Err(response) => return response,
+        Err(response) => return *response,
     };
 
     // Fix: cycle the session ID to prevent session fixation attacks (#364).
@@ -455,13 +455,13 @@ async fn resolve_oauth_link(
     provider_user_id: &str,
     display_name: &str,
     current_session_id: Option<String>,
-) -> Result<String, Response> {
+) -> Result<String, Box<Response>> {
     let target_session_id = if let Some(existing) =
         global.sessions.find_by_oauth("google", provider_user_id)
     {
         let (resolved_id, _, is_new) = match get_or_create_session(global, Some(&existing)).await {
             Ok(t) => t,
-            Err(error) => return Err(session_resolution_failure_response(error)),
+            Err(error) => return Err(Box::new(session_resolution_failure_response(error))),
         };
         if !is_new {
             resolved_id
@@ -481,7 +481,9 @@ async fn resolve_oauth_link(
             _ => {
                 let (new_id, _, _) = match get_or_create_session(global, None).await {
                     Ok(t) => t,
-                    Err(error) => return Err(session_resolution_failure_response(error)),
+                    Err(error) => {
+                        return Err(Box::new(session_resolution_failure_response(error)));
+                    }
                 };
                 global.sessions.persist_new(&new_id);
                 new_id
