@@ -39,6 +39,7 @@ class FakeLngLatBounds {
 		return this;
 	}
 }
+function setWorkerUrl() {}
 const def = {
 	Map: FakeMap,
 	Marker: FakeMarker,
@@ -49,4 +50,5 @@ export {
 	FakeMap as Map,
 	FakeMarker as Marker,
 	FakeLngLatBounds as LngLatBounds,
+	setWorkerUrl,
 };

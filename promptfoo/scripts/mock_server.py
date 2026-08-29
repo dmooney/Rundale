@@ -16,6 +16,7 @@ This is a TEST DOUBLE for wiring/proof only — not a model. Run:
 from __future__ import annotations
 
 import json
+import socketserver
 import sys
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -50,7 +51,17 @@ def _synth(schema):
 
 
 _SLICE_AXES = {
-    "dialogue": {"character": 3, "authenticity": 3, "language": 4, "responsiveness": 4, "craft": 3},
+    "dialogue": {
+        "character": 3,
+        "authenticity": 3,
+        "language": 4,
+        "responsiveness": 4,
+        "craft": 3,
+        "brevity": 4,
+        "repetition": 4,
+        "mood_fidelity": 3,
+        "grounding": 5,
+    },
     "reaction": {"in_character": 3},
     "tier2-sim": {"plausibility": 3},
     "tier3-sim": {"plausibility": 3},
@@ -86,7 +97,13 @@ def _judge_envelope(body) -> str:
                 "prompt_id": it["prompt_id"],
                 "axes": axes,
                 "overall": round(sum(axes.values()) / len(axes), 1),
-                "flags": {"bench_bug": False, "non_latin_detected": False, "refused": False},
+                "flags": {
+                    "bench_bug": False,
+                    "non_latin_detected": False,
+                    "refused": False,
+                    "degenerate_loop": False,
+                    "fabricated": False,
+                },
             }
         )
     return json.dumps(
@@ -186,7 +203,21 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.flush()
 
 
+class LoopbackHTTPServer(ThreadingHTTPServer):
+    """Bind without HTTPServer's unnecessary reverse-DNS lookup.
+
+    ``HTTPServer.server_bind`` calls ``socket.getfqdn()`` even when the caller
+    supplies a numeric loopback address. A missing or slow reverse-DNS service
+    can therefore stall this local-only test double before it starts listening.
+    """
+
+    def server_bind(self):
+        socketserver.TCPServer.server_bind(self)
+        self.server_name = str(self.server_address[0])
+        self.server_port = int(self.server_address[1])
+
+
 if __name__ == "__main__":
     port = int(sys.argv[1]) if len(sys.argv) > 1 else 8000
     print(f"mock OpenAI-compat server on :{port}")
-    ThreadingHTTPServer(("127.0.0.1", port), Handler).serve_forever()
+    LoopbackHTTPServer(("127.0.0.1", port), Handler).serve_forever()
