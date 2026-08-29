@@ -32,14 +32,23 @@ reject_text() {
 }
 
 require_line \
+    "preserves repository-relative UI paths for provenance checks" \
+    "WORKDIR /build/parish/apps/ui"
+require_line \
+    "copies compile-time inference configuration" \
+    "COPY parish/config/ parish/config/"
+require_line \
     "builds the parish-server package and binary" \
     "RUN cargo build --release -p parish-server --bin parish-server"
 require_line \
     "makes the built UI visible to parish-server's CSP build script" \
-    "COPY --from=frontend /build/dist /build/parish/apps/ui/dist/"
+    "COPY --from=frontend /build/parish/apps/ui/dist /build/parish/apps/ui/dist/"
 require_line \
     "copies the built parish-server binary" \
     "COPY --from=builder /build/parish/target/release/parish-server ./parish-server"
+require_line \
+    "packages the repository-relative frontend output" \
+    "COPY --from=frontend /build/parish/apps/ui/dist ./apps/ui/dist/"
 require_line \
     "starts parish-server with explicit packaged paths" \
     'CMD ["sh", "-c", "exec ./parish-server --port ${PORT:-3001} --data-dir /app/mods/rundale --static-dir /app/apps/ui/dist"]'

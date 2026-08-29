@@ -17,7 +17,8 @@ the lower leaf crates (`parish-types`, `parish-config`, `parish-inference`,
   the Tauri/Svelte debug panel via IPC. `build_inference_categories` and
   `build_configured_providers` build the per-role inference table.
 - `bug_report` — turns an in-app (or MCP-driven) bug report into a well-formed
-  GitHub issue (`create_bug_report`), or, in dry-run / no-token mode, an offline
+  GitHub issue (`create_bug_report`) with screenshots uploaded to the stable
+  `bug-evidence` release, or, in dry-run / no-token mode, an offline
   disk bundle (`issue.md` + optional `screenshot.png`). `BugReportState`
   folds a world snapshot + a `DebugSnapshot` into the issue body and validates
   the payload against GitHub's body-size limit before sending.

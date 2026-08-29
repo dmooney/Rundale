@@ -197,7 +197,7 @@ fn walk_for_marker(
         }
     }
     #[cfg(not(debug_assertions))]
-    let _ = (markers,); // silence unused in release
+    let _ = (rel, markers); // silence debug-only inputs in release
     fallback_default(default_rel, kind, flag_hint)
 }
 
