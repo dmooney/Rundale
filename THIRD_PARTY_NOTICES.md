@@ -64,7 +64,7 @@ for the frontend. The generated output is written alongside this file as
 
 | Package | Version (minimum) | Licence | Copyright |
 |---|---|---|---|
-| [maplibre-gl](https://github.com/maplibre/maplibre-gl-js) | ^5.22 | **BSD-3-Clause** (plus MPL-2.0 components inherited from the Mapbox fork point) | © 2020 MapLibre contributors; © 2014–2020 Mapbox, Inc. |
+| [maplibre-gl](https://github.com/maplibre/maplibre-gl-js) | ^6.4.1 | **BSD-3-Clause** (plus MPL-2.0 components inherited from the Mapbox fork point) | © 2020 MapLibre contributors; © 2014–2020 Mapbox, Inc. |
 | [phosphor-svelte](https://github.com/haruaki07/phosphor-svelte) | ^3.1 | **MIT** | © 2020 Phosphor Icons; © Haruaki Tanaka |
 | [@tauri-apps/api](https://github.com/tauri-apps/tauri) | ^2.10 | **MIT OR Apache-2.0** | © Tauri Programme within The Commons Conservancy |
 
