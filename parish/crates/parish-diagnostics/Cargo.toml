@@ -22,7 +22,7 @@ chrono = { workspace = true }
 thiserror = { workspace = true }
 tracing = { workspace = true }
 uuid = { workspace = true }
-base64 = "0.22"
+base64 = "0.23"
 
 [dev-dependencies]
 tempfile = { workspace = true }
