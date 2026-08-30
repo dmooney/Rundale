@@ -5,7 +5,7 @@ regenerate after dependency changes.
 
 ## Overview
 
-- [MIT License](#MIT) — 652 crates
+- [MIT License](#MIT) — 653 crates
 - [Apache License 2.0](#Apache-2.0) — 24 crates
 - [Unicode License v3](#Unicode-3.0) — 19 crates
 - [BSD 3-Clause &quot;New&quot; or &quot;Revised&quot; License](#BSD-3-Clause) — 9 crates
@@ -1096,7 +1096,7 @@ Software.
 
 **Used by:**
 
-- [xcap 0.9.6](https://github.com/nashaofu/xcap.git)
+- [xcap 0.9.8](https://github.com/nashaofu/xcap.git)
 
 ```
                                  Apache License
@@ -2030,7 +2030,7 @@ limitations under the License.
 
 **Used by:**
 
-- [libwayshot-xcap 0.3.2](https://github.com/nashaofu/wayshot)
+- [libwayshot-xcap 0.3.3](https://github.com/nashaofu/wayshot)
 
 ```
 Copyright (c) &lt;year&gt; &lt;owner&gt; 
@@ -3115,9 +3115,9 @@ DEALINGS IN THE SOFTWARE.
 - [num-rational 0.4.2](https://github.com/rust-num/num-rational)
 - [num-traits 0.2.19](https://github.com/rust-num/num-traits)
 - [num 0.4.3](https://github.com/rust-num/num)
-- [regex-automata 0.4.14](https://github.com/rust-lang/regex)
+- [regex-automata 0.4.18](https://github.com/rust-lang/regex)
 - [regex-syntax 0.8.11](https://github.com/rust-lang/regex)
-- [regex 1.13.0](https://github.com/rust-lang/regex)
+- [regex 1.13.1](https://github.com/rust-lang/regex)
 
 ```
 Copyright (c) 2014 The Rust Project Developers
@@ -3151,7 +3151,7 @@ DEALINGS IN THE SOFTWARE.
 
 **Used by:**
 
-- [uuid 1.23.5](https://github.com/uuid-rs/uuid)
+- [uuid 1.24.1](https://github.com/uuid-rs/uuid)
 
 ```
 Copyright (c) 2014 The Rust Project Developers
@@ -3222,8 +3222,8 @@ DEALINGS IN THE SOFTWARE.
 
 **Used by:**
 
-- [libsqlite3-sys 0.38.1](https://github.com/rusqlite/rusqlite)
-- [rusqlite 0.40.1](https://github.com/rusqlite/rusqlite)
+- [libsqlite3-sys 0.38.2](https://github.com/rusqlite/rusqlite)
+- [rusqlite 0.40.2](https://github.com/rusqlite/rusqlite)
 
 ```
 Copyright (c) 2014 The rusqlite developers
@@ -3878,14 +3878,14 @@ THE SOFTWARE.
 
 **Used by:**
 
-- [futures-channel 0.3.32](https://github.com/rust-lang/futures-rs)
-- [futures-core 0.3.32](https://github.com/rust-lang/futures-rs)
+- [futures-channel 0.3.34](https://github.com/rust-lang/futures-rs)
+- [futures-core 0.3.34](https://github.com/rust-lang/futures-rs)
 - [futures-executor 0.3.32](https://github.com/rust-lang/futures-rs)
-- [futures-io 0.3.32](https://github.com/rust-lang/futures-rs)
-- [futures-macro 0.3.32](https://github.com/rust-lang/futures-rs)
-- [futures-sink 0.3.32](https://github.com/rust-lang/futures-rs)
-- [futures-task 0.3.32](https://github.com/rust-lang/futures-rs)
-- [futures-util 0.3.32](https://github.com/rust-lang/futures-rs)
+- [futures-io 0.3.34](https://github.com/rust-lang/futures-rs)
+- [futures-macro 0.3.34](https://github.com/rust-lang/futures-rs)
+- [futures-sink 0.3.34](https://github.com/rust-lang/futures-rs)
+- [futures-task 0.3.34](https://github.com/rust-lang/futures-rs)
+- [futures-util 0.3.34](https://github.com/rust-lang/futures-rs)
 - [futures 0.3.32](https://github.com/rust-lang/futures-rs)
 
 ```
@@ -6967,11 +6967,11 @@ DEALINGS IN THE SOFTWARE.
 
 **Used by:**
 
-- [zbus 5.16.0](https://github.com/z-galaxy/zbus/)
-- [zbus_macros 5.16.0](https://github.com/z-galaxy/zbus/)
-- [zbus_names 4.3.2](https://github.com/z-galaxy/zbus/)
-- [zvariant 5.12.0](https://github.com/z-galaxy/zbus/)
-- [zvariant_derive 5.12.0](https://github.com/z-galaxy/zbus/)
+- [zbus 5.19.0](https://github.com/z-galaxy/zbus/)
+- [zbus_macros 5.19.0](https://github.com/z-galaxy/zbus/)
+- [zbus_names 4.3.4](https://github.com/z-galaxy/zbus/)
+- [zvariant 5.15.0](https://github.com/z-galaxy/zbus/)
+- [zvariant_derive 5.15.0](https://github.com/z-galaxy/zbus/)
 
 ```
 Copyright (c) 2024 Zeeshan Ali Khan &amp; zbus contributors
@@ -7039,15 +7039,49 @@ DEALINGS IN THE SOFTWARE.
 
 **Used by:**
 
+- [zcheapstr 1.1.0](https://github.com/z-galaxy/zcheapstr/)
+
+```
+Copyright (c) 2026 Zeeshan Ali Khan &amp; zcheapstr contributors
+
+Permission is hereby granted, free of charge, to any
+person obtaining a copy of this software and associated
+documentation files (the &quot;Software&quot;), to deal in the
+Software without restriction, including without
+limitation the rights to use, copy, modify, merge,
+publish, distribute, sublicense, and/or sell copies of
+the Software, and to permit persons to whom the Software
+is furnished to do so, subject to the following
+conditions:
+
+The above copyright notice and this permission notice
+shall be included in all copies or substantial portions
+of the Software.
+
+THE SOFTWARE IS PROVIDED &quot;AS IS&quot;, WITHOUT WARRANTY OF
+ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED
+TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT
+SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
+IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+DEALINGS IN THE SOFTWARE.
+
+```
+
+
+**Used by:**
+
 - [annotate-snippets 0.11.5](https://github.com/rust-lang/annotate-snippets-rs)
 - [anstream 1.0.0](https://github.com/rust-cli/anstyle.git)
 - [anstyle-parse 1.0.0](https://github.com/rust-cli/anstyle.git)
 - [anstyle-query 1.1.5](https://github.com/rust-cli/anstyle.git)
 - [anstyle-wincon 3.0.11](https://github.com/rust-cli/anstyle.git)
 - [anstyle 1.0.14](https://github.com/rust-cli/anstyle.git)
-- [clap 4.6.1](https://github.com/clap-rs/clap)
-- [clap_builder 4.6.0](https://github.com/clap-rs/clap)
-- [clap_derive 4.6.1](https://github.com/clap-rs/clap)
+- [clap 4.6.6](https://github.com/clap-rs/clap)
+- [clap_builder 4.6.6](https://github.com/clap-rs/clap)
+- [clap_derive 4.6.4](https://github.com/clap-rs/clap)
 - [clap_lex 1.1.0](https://github.com/clap-rs/clap)
 - [colorchoice 1.0.5](https://github.com/rust-cli/anstyle.git)
 - [is_terminal_polyfill 1.70.2](https://github.com/polyfill-rs/is_terminal_polyfill)
@@ -7149,7 +7183,7 @@ SOFTWARE.
 
 **Used by:**
 
-- [libc 0.2.186](https://github.com/rust-lang/libc)
+- [libc 0.2.189](https://github.com/rust-lang/libc)
 
 ```
 Copyright (c) The Rust Project Developers
@@ -7389,10 +7423,10 @@ DEALINGS IN THE SOFTWARE.
 
 **Used by:**
 
-- [libspa-sys 0.9.2](https://gitlab.freedesktop.org/pipewire/pipewire-rs)
-- [libspa 0.9.2](https://gitlab.freedesktop.org/pipewire/pipewire-rs)
-- [pipewire-sys 0.9.2](https://gitlab.freedesktop.org/pipewire/pipewire-rs)
-- [pipewire 0.9.2](https://gitlab.freedesktop.org/pipewire/pipewire-rs)
+- [libspa-sys 0.10.1](https://gitlab.freedesktop.org/pipewire/pipewire-rs)
+- [libspa 0.10.1](https://gitlab.freedesktop.org/pipewire/pipewire-rs)
+- [pipewire-sys 0.10.1](https://gitlab.freedesktop.org/pipewire/pipewire-rs)
+- [pipewire 0.10.1](https://gitlab.freedesktop.org/pipewire/pipewire-rs)
 
 ```
 Copyright The pipewire-rs Contributors.
@@ -7421,7 +7455,7 @@ DEALINGS IN THE SOFTWARE.
 
 **Used by:**
 
-- [lru 0.18.1](https://github.com/jeromefroe/lru-rs.git)
+- [lru 0.18.2](https://github.com/jeromefroe/lru-rs.git)
 
 ```
 MIT License
@@ -7862,9 +7896,9 @@ THE SOFTWARE IS PROVIDED &quot;AS IS&quot;, WITHOUT WARRANTY OF ANY KIND, EXPRES
 **Used by:**
 
 - [schemars 0.8.22](https://github.com/GREsau/schemars)
-- [schemars 1.2.1](https://github.com/GREsau/schemars)
+- [schemars 1.2.2](https://github.com/GREsau/schemars)
 - [schemars_derive 0.8.22](https://github.com/GREsau/schemars)
-- [schemars_derive 1.2.1](https://github.com/GREsau/schemars)
+- [schemars_derive 1.2.2](https://github.com/GREsau/schemars)
 
 ```
 MIT License
@@ -8046,24 +8080,6 @@ CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
 OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
 IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
-```
-
-
-**Used by:**
-
-- [cfg_aliases 0.2.1](https://github.com/katharostech/cfg_aliases)
-
-```
-MIT License
-
-Copyright (c) 2020 Katharos Technology
-
-Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the &quot;Software&quot;), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED &quot;AS IS&quot;, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-
 ```
 
 
@@ -8645,35 +8661,6 @@ SOFTWARE.
 
 **Used by:**
 
-- [convert_case 0.8.0](https://github.com/rutrum/convert-case)
-
-```
-MIT License
-
-Copyright (c) 2025 rutrum
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the &quot;Software&quot;), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED &quot;AS IS&quot;, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
-```
-
-
-**Used by:**
-
 - [block2 0.6.2](https://github.com/madsmtm/objc2)
 - [brotli-decompressor 5.0.0](https://github.com/dropbox/rust-brotli-decompressor)
 - [cargo_toml 0.22.3](https://gitlab.com/lib.rs/cargo_toml)
@@ -8822,8 +8809,8 @@ USE OR OTHER DEALINGS IN THE SOFTWARE.
 **Used by:**
 
 - [tokio-stream 0.1.18](https://github.com/tokio-rs/tokio)
-- [tokio-util 0.7.18](https://github.com/tokio-rs/tokio)
-- [tokio 1.52.3](https://github.com/tokio-rs/tokio)
+- [tokio-util 0.7.19](https://github.com/tokio-rs/tokio)
+- [tokio 1.53.1](https://github.com/tokio-rs/tokio)
 
 ```
 MIT License
@@ -9014,7 +9001,7 @@ DEALINGS IN THE SOFTWARE.
 **Used by:**
 
 - [adler2 2.0.1](https://github.com/oyvindln/adler2)
-- [anyhow 1.0.103](https://github.com/dtolnay/anyhow)
+- [anyhow 1.0.104](https://github.com/dtolnay/anyhow)
 - [async-channel 2.5.0](https://github.com/smol-rs/async-channel)
 - [async-executor 1.14.0](https://github.com/smol-rs/async-executor)
 - [async-io 2.6.0](https://github.com/smol-rs/async-io)
@@ -9022,7 +9009,7 @@ DEALINGS IN THE SOFTWARE.
 - [async-process 2.5.0](https://github.com/smol-rs/async-process)
 - [async-signal 0.2.14](https://github.com/smol-rs/async-signal)
 - [async-task 4.7.1](https://github.com/smol-rs/async-task)
-- [async-trait 0.1.89](https://github.com/dtolnay/async-trait)
+- [async-trait 0.1.92](https://github.com/dtolnay/async-trait)
 - [atomic-waker 1.1.2](https://github.com/smol-rs/atomic-waker)
 - [blocking 1.6.2](https://github.com/smol-rs/blocking)
 - [camino 1.2.2](https://github.com/camino-rs/camino)
@@ -9034,6 +9021,7 @@ DEALINGS IN THE SOFTWARE.
 - [drm-ffi 0.9.1](https://github.com/Smithay/drm-rs)
 - [drm-sys 0.8.1](https://github.com/Smithay/drm-rs)
 - [drm 0.14.1](https://github.com/Smithay/drm-rs)
+- [drm 0.15.0](https://github.com/Smithay/drm-rs)
 - [dtoa 1.0.11](https://github.com/dtolnay/dtoa)
 - [dyn-clone 1.0.20](https://github.com/dtolnay/dyn-clone)
 - [endi 1.1.1](https://github.com/zeenix/endi)
@@ -9075,19 +9063,21 @@ DEALINGS IN THE SOFTWARE.
 - [serde_core 1.0.228](https://github.com/serde-rs/serde)
 - [serde_derive 1.0.228](https://github.com/serde-rs/serde)
 - [serde_derive_internals 0.29.1](https://github.com/serde-rs/serde)
-- [serde_json 1.0.150](https://github.com/serde-rs/json)
+- [serde_derive_internals 0.30.0](https://github.com/serde-rs/serde)
+- [serde_json 1.0.151](https://github.com/serde-rs/json)
 - [serde_path_to_error 0.1.20](https://github.com/dtolnay/path-to-error)
 - [serde_repr 0.1.20](https://github.com/dtolnay/serde-repr)
 - [serde_yaml 0.9.34+deprecated](https://github.com/dtolnay/serde-yaml)
 - [servo_arc 0.4.3](https://github.com/servo/stylo)
 - [syn 1.0.109](https://github.com/dtolnay/syn)
 - [syn 2.0.117](https://github.com/dtolnay/syn)
+- [syn 3.0.4](https://github.com/dtolnay/syn)
 - [system-deps 6.2.2](https://github.com/gdesmott/system-deps)
 - [system-deps 7.0.8](https://github.com/gdesmott/system-deps)
 - [thiserror-impl 1.0.69](https://github.com/dtolnay/thiserror)
-- [thiserror-impl 2.0.18](https://github.com/dtolnay/thiserror)
+- [thiserror-impl 2.0.20](https://github.com/dtolnay/thiserror)
 - [thiserror 1.0.69](https://github.com/dtolnay/thiserror)
-- [thiserror 2.0.18](https://github.com/dtolnay/thiserror)
+- [thiserror 2.0.20](https://github.com/dtolnay/thiserror)
 - [typeid 1.0.3](https://github.com/dtolnay/typeid)
 - [unicode-ident 1.0.24](https://github.com/dtolnay/unicode-ident)
 - [unsafe-libyaml 0.2.11](https://github.com/dtolnay/unsafe-libyaml)
@@ -9101,7 +9091,7 @@ DEALINGS IN THE SOFTWARE.
 - [x11-dl 2.21.0](https://github.com/AltF02/x11-rs.git)
 - [x11 2.21.0](https://github.com/AltF02/x11-rs.git)
 - [zmij 1.0.21](https://github.com/dtolnay/zmij)
-- [zvariant_utils 3.4.0](https://github.com/z-galaxy/zbus/)
+- [zvariant_utils 4.2.0](https://github.com/z-galaxy/zbus/)
 
 ```
 Permission is hereby granted, free of charge, to any
@@ -9568,36 +9558,6 @@ THE SOFTWARE.
 
 **Used by:**
 
-- [nix 0.30.1](https://github.com/nix-rust/nix)
-
-```
-The MIT License (MIT)
-
-Copyright (c) 2015 Carl Lerche + nix-rust Authors
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the &quot;Software&quot;), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in
-all copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED &quot;AS IS&quot;, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
-THE SOFTWARE.
-
-```
-
-
-**Used by:**
-
 - [strsim 0.11.1](https://github.com/rapidfuzz/strsim-rs)
 
 ```
@@ -9750,7 +9710,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 **Used by:**
 
-- [jsonwebtoken 10.4.0](https://github.com/Keats/jsonwebtoken)
+- [jsonwebtoken 11.0.0](https://github.com/Keats/jsonwebtoken)
 
 ```
 The MIT License (MIT)
