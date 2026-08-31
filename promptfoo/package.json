@@ -10,6 +10,6 @@
     "test:keyless": "python3 scripts/test_keyless_e2e.py"
   },
   "devDependencies": {
-    "promptfoo": "^0.122.0"
+    "promptfoo": "^0.122.1"
   }
 }
