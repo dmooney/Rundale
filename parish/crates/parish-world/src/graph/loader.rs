@@ -1,5 +1,8 @@
 //! Graph loading and validation — JSON deserialisation, duplicate-id checks,
 //! coordinate validation, bidirectionality enforcement, and orphan detection.
+//! A singleton graph is also valid for the embedded Phase 2 slice before its
+//! first playable exit is authored; orphan nodes remain invalid in larger
+//! graphs.
 
 use std::collections::HashMap;
 use std::path::Path;
@@ -47,7 +50,9 @@ impl WorldGraph {
     /// Checks that:
     /// - All connection targets exist in the graph
     /// - All connections are bidirectional
-    /// - There are no orphan nodes (nodes with no connections)
+    /// - There are no orphan nodes (nodes with no connections), except for a
+    ///   deliberately supported singleton graph used by the embedded Phase 2
+    ///   slice before its first playable exit is authored
     /// - Every `relative_to.anchor` resolves to an existing location and is
     ///   not a self-reference (TD-002)
     /// - No alias collides (case-insensitively) with another location's alias
@@ -58,13 +63,30 @@ impl WorldGraph {
     /// so the Parish Designer editor can re-run it on an in-memory graph
     /// after edits without reloading the JSON file.
     pub fn validate(&self) -> Result<(), ParishError> {
-        for (id, loc) in &self.locations {
-            if loc.connections.is_empty() {
-                return Err(ParishError::WorldGraph(format!(
-                    "orphan location with no connections: {} (id {})",
-                    loc.name, id.0
-                )));
+        // HashMap iteration order is randomized. Validate in ID order so a
+        // malformed graph reports the same violated rule on every load (and
+        // so an orphan is not sometimes masked by a later edge check).
+        let mut ids: Vec<_> = self.locations.keys().copied().collect();
+        ids.sort_by_key(|id| id.0);
+
+        // Check every node before validating any edge. Otherwise a malformed
+        // edge on an earlier node can mask a later orphan, making the error
+        // depend on the shape of the graph instead of the first structural
+        // invariant that is violated.
+        if self.locations.len() > 1 {
+            for id in &ids {
+                let loc = &self.locations[id];
+                if loc.connections.is_empty() {
+                    return Err(ParishError::WorldGraph(format!(
+                        "orphan location with no connections: {} (id {})",
+                        loc.name, id.0
+                    )));
+                }
             }
+        }
+
+        for id in ids {
+            let loc = &self.locations[&id];
             for conn in &loc.connections {
                 // Check target exists
                 if !self.locations.contains_key(&conn.target) {
@@ -75,7 +97,7 @@ impl WorldGraph {
                 }
                 // Check bidirectionality
                 let target_loc = &self.locations[&conn.target];
-                let has_reverse = target_loc.connections.iter().any(|c| c.target == *id);
+                let has_reverse = target_loc.connections.iter().any(|c| c.target == id);
                 if !has_reverse {
                     return Err(ParishError::WorldGraph(format!(
                         "connection from {} to {} is not bidirectional",
@@ -418,7 +440,7 @@ mod tests {
     }
 
     #[test]
-    fn test_validation_orphan_node() {
+    fn test_validation_allows_singleton_without_exit() {
         let json = r#"{
             "locations": [
                 {
@@ -432,9 +454,34 @@ mod tests {
             ]
         }"#;
         let result = WorldGraph::load_from_str(json);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_validation_rejects_orphan_in_larger_graph() {
+        let json = r#"{
+            "locations": [
+                {
+                    "id": 1,
+                    "name": "A",
+                    "description_template": "A",
+                    "indoor": false,
+                    "public": true,
+                    "connections": [{"target": 2, "path_description": "path"}]
+                },
+                {
+                    "id": 2,
+                    "name": "B",
+                    "description_template": "B",
+                    "indoor": false,
+                    "public": true,
+                    "connections": []
+                }
+            ]
+        }"#;
+        let result = WorldGraph::load_from_str(json);
         assert!(result.is_err());
-        let err = result.unwrap_err().to_string();
-        assert!(err.contains("orphan"));
+        assert!(result.unwrap_err().to_string().contains("orphan"));
     }
 
     #[test]

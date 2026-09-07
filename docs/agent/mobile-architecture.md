@@ -19,7 +19,7 @@ The Product & Technical Specification defines a native iPhone experience: SwiftU
 
 - Shared game behavior is composed through parish-core and its leaf crates under parish/crates/, including world, input, NPC, inference, persistence, and type layers. parish-engine is a thin headless/CLI entry point, not a second copy of the engine.
 - The current player-facing frontend is the Svelte 5 application under parish/apps/ui/. parish-tauri hosts the desktop application; parish-server provides the Axum HTTP/WebSocket server; parish-client is a thin HTTP client. Existing ADRs and design notes describe those desktop/web modes.
-- No native SwiftUI iOS client, Swift/Rust binding package, or embedded iOS runtime is present in the current repository tree. Those are proposed work for the reset and need a deliberate portability boundary around the reusable Rust crates.
+- The native fixture-only SwiftUI prototype starts under [mobile/](../../mobile/README.md), with an independent semantic presentation package. It is Phase 1 work, not evidence of physical-device acceptance. Swift/Rust bindings and an embedded iOS runtime remain Phase 2 work and need a deliberate portability boundary around the reusable Rust crates.
 - Existing local inference and desktop setup paths include provider/process/server concerns that the proposed iOS runtime must not inherit accidentally. Reuse is a repository-audit decision, not an assumption made from this map.
 
 ## Boundary map

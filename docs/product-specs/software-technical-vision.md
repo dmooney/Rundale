@@ -452,6 +452,12 @@ Keep signing credentials and service secrets out of source and build artifacts. 
 
 The six phases below retain the scope and order of the product spec. Each phase adds the architecture needed for its own acceptance and establishes the minimum durable boundary needed by later work. They are not six opportunities to rebuild the application. All existing product checklists remain applicable. [P1]
 
+Repository delivery addition (2026-09-07): each phase concludes with a user
+demonstration under the product specification's phase-end demonstration
+requirement. Follow the [phase demo plan](phase-demo-plan.md), preserve a
+reproducible starting point, and distinguish demonstrated behavior from any
+unverified acceptance gates.
+
 ### Phase 1 — Static native interaction prototype
 
 Player outcome. A fixture-only SwiftUI screen proves the reading-and-typing interaction on a physical iPhone: header, transcript, composer, streaming, Stop, history recall, temporary completion, and accessibility. There is no live LLM and no embedded Parish runtime in the delivered prototype.

@@ -1,0 +1,80 @@
+name: Rundale
+
+options:
+  deploymentTarget:
+    iOS: "17.0"
+  createIntermediateGroups: true
+  groupSortPosition: top
+
+packages:
+  RundaleKit:
+    path: RundaleKit
+  RundaleBridge:
+    path: RundaleBridge
+  ParishEndpointKit:
+    path: ParishEndpointKit
+  Firebase:
+    url: https://github.com/firebase/firebase-ios-sdk.git
+    exactVersion: 12.18.0
+
+targets:
+  Rundale:
+    type: application
+    platform: iOS
+    deploymentTarget: "17.0"
+    sources:
+      - path: Rundale
+    dependencies:
+      - package: RundaleKit
+      - package: RundaleBridge
+      - package: ParishEndpointKit
+      - framework: .build/rust-mobile/ParishMobileFFI.xcframework
+        embed: false
+      - package: Firebase
+        product: FirebaseAuth
+      - package: Firebase
+        product: FirebaseAppCheck
+      - package: Firebase
+        product: FirebaseCore
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.rundale.mobile
+        CODE_SIGN_ENTITLEMENTS: Rundale/Rundale.entitlements
+        SWIFT_VERSION: "6.0"
+        TARGETED_DEVICE_FAMILY: "1"
+        GENERATE_INFOPLIST_FILE: true
+        INFOPLIST_KEY_CFBundleDisplayName: Rundale
+        INFOPLIST_KEY_UILaunchScreen_Generation: true
+        SUPPORTS_MACCATALYST: false
+
+  RundaleUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    deploymentTarget: "17.0"
+    sources:
+      - path: RundaleUITests
+    dependencies:
+      - target: Rundale
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.rundale.mobile.uitests
+        SWIFT_VERSION: "6.0"
+        TARGETED_DEVICE_FAMILY: "1"
+        GENERATE_INFOPLIST_FILE: true
+
+schemes:
+  Rundale:
+    build:
+      targets:
+        Rundale: all
+        RundaleUITests: [test]
+    test:
+      gatherCoverageData: false
+      targets:
+        - name: RundaleUITests
+          parallelizable: false
+          randomExecutionOrder: false
+    run:
+      config: Debug
+    archive:
+      config: Release

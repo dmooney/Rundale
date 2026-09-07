@@ -1,0 +1,30 @@
+{
+  "accepted": false,
+  "attemptID": null,
+  "clarification": null,
+  "content": "The crossroads",
+  "contractVersion": {
+    "major": 1,
+    "minor": 0
+  },
+  "eventID": "fixture-event-scene-1",
+  "gameTime": null,
+  "kind": "scene_changed",
+  "logicalRequestID": null,
+  "metadata": {
+    "sceneID": "crossroads",
+    "sceneName": "The crossroads"
+  },
+  "provisional": false,
+  "sequence": {
+    "rawValue": 1
+  },
+  "sessionID": "fixture-session",
+  "sourceDraftID": null,
+  "stateRevision": null,
+  "streamSequence": null,
+  "streamUpdate": "replace",
+  "speaker": null,
+  "terminalOutcome": null,
+  "transcriptItemID": "opening:scene"
+}

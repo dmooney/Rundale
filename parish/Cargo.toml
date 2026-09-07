@@ -25,6 +25,7 @@ members = [
     "crates/parish-client",
     "crates/parish-harness",
     "crates/parish-scenario",
+    "crates/parish-mobile-ffi",
 ]
 # parish-mcp is a default member so a plain `cargo build` / `just build` produces the
 # stdio MCP binary as part of the normal build — without it, a cold worktree has no
@@ -48,7 +49,7 @@ parish-types = { path = "crates/parish-types" }
 parish-config = { path = "crates/parish-config" }
 parish-providers = { path = "crates/parish-providers" }
 parish-setup = { path = "crates/parish-setup" }
-parish-inference = { path = "crates/parish-inference" }
+parish-inference = { path = "crates/parish-inference", default-features = false }
 parish-world = { path = "crates/parish-world" }
 parish-palette = { path = "crates/parish-palette" }
 parish-npc = { path = "crates/parish-npc" }

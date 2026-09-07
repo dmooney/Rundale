@@ -12,6 +12,11 @@ milestones: first a fixture-only interaction prototype, then embedded gameplay
 in a tiny world.
 These requirements are not a claim that the mobile client is complete.
 
+Milestone 1 development starts in [mobile/](mobile/README.md): a native,
+fixture-only SwiftUI application with an independent presentation package.
+Run `./verify --phase 1` for its automated verification and separate pending
+physical-device gates. The prototype does not integrate Parish or live inference.
+
 ## Existing engine and clients
 
 The capabilities, screenshots, and commands below describe the existing game,

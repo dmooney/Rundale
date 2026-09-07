@@ -210,22 +210,23 @@ fn mod_toml_invalid_toml_returns_err() {
 }
 
 // ---------------------------------------------------------------------------
-// 3. world.json — orphan location (no connections)
+// 3. world.json — orphan location in a larger graph (no connections)
 // ---------------------------------------------------------------------------
 //
-// WorldGraph::validate() rejects locations with no connections because a
-// player can never reach or leave them — they are always a bug.
+// WorldGraph::validate() rejects locations with no connections in a
+// multi-location world because a player can never reach or leave them.
 
 #[test]
-fn world_json_orphan_location_returns_err() {
+fn world_json_orphan_location_in_larger_graph_returns_err() {
     let json = r#"{"locations": [
-        {"id": 1, "name": "Nowhere", "description_template": "{time}", "indoor": false, "public": true, "connections": []}
+        {"id": 1, "name": "The Crossroads", "description_template": "{time}", "indoor": false, "public": true, "connections": []},
+        {"id": 2, "name": "Nowhere", "description_template": "{time}", "indoor": false, "public": true, "connections": []}
     ]}"#;
     let result = parish_world::graph::WorldGraph::load_from_str(json);
     assert!(result.is_err(), "orphan location should fail validation");
     let msg = result.unwrap_err().to_string();
     assert!(
-        msg.contains("orphan") || msg.contains("connections") || msg.contains("Nowhere"),
+        msg.contains("orphan"),
         "error should mention the orphan; got: {msg}"
     );
 }

@@ -9,7 +9,7 @@ description = "NPC simulation, memory, schedules, and reaction systems for the P
 [dependencies]
 parish-types = { workspace = true }
 parish-config = { workspace = true }
-parish-inference = { workspace = true }
+parish-inference = { workspace = true, default-features = false }
 parish-world = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }

@@ -28,6 +28,18 @@ pnpm-lock.yaml
 parish/crates/parish-tauri/gen/
 promptfoo/bench-site/
 **/graphify-out/
+mobile/.build/
+mobile/.verification/
+mobile/.verification-small/
+mobile/.verification-*/
+mobile/RundaleKit/.build/
+mobile/RundaleBridge/.build/
+mobile/ParishEndpointKit/.build/
+mobile/binding-spike/.build/
+parish/target-mobile-*/
+target-mobile-*/
+mobile/Rundale.xcodeproj/
+mobile/DerivedData/
 
 # Asserted byte-for-byte / prompt content (formatting would break tests or
 # perturb eval prompts sent to judge models)

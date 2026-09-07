@@ -4360,6 +4360,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "parish-mobile-ffi"
+version = "0.1.0"
+dependencies = [
+ "parish-core",
+ "serde",
+ "serde_json",
+ "tempfile",
+]
+
+[[package]]
 name = "parish-mod"
 version = "0.1.0"
 dependencies = [
@@ -4426,6 +4436,7 @@ name = "parish-persistence"
 version = "0.1.0"
 dependencies = [
  "chrono",
+ "fs2",
  "libc",
  "parish-npc",
  "parish-types",

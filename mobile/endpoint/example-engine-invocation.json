@@ -1,0 +1,72 @@
+{
+  "contractVersion": {
+    "major": 1,
+    "minor": 0
+  },
+  "sessionID": "fixture-session",
+  "logicalRequestID": "fixture-logical-request",
+  "attemptID": "fixture-attempt",
+  "baseRevision": {
+    "rawValue": 0
+  },
+  "idempotencyKey": "fixture-logical-request:fixture-attempt",
+  "role": "npc_dialogue",
+  "playerInput": "ask Peig about the old church",
+  "speaker": {
+    "id": "npc-peig",
+    "displayName": "Peig",
+    "role": "village widow and keen observer",
+    "currentLocationId": 1,
+    "currentLocationName": "The crossroads"
+  },
+  "currentLocation": {
+    "id": "place-crossroads",
+    "displayName": "The crossroads",
+    "description": "A low stone wall borders the road here.",
+    "playable": true
+  },
+  "knownPeople": [
+    {
+      "id": "npc-peig",
+      "displayName": "Peig",
+      "role": "village widow and keen observer",
+      "currentLocationId": 1,
+      "currentLocationName": "The crossroads"
+    }
+  ],
+  "knownPlaces": [
+    {
+      "id": "place-old-church",
+      "displayName": "the old church",
+      "description": "It stands beyond the alder trees where the path bends toward the hill.",
+      "playable": false
+    },
+    {
+      "id": "place-alder-lane",
+      "displayName": "the alder lane",
+      "description": "The lane runs east from the crossroads beneath alder trees.",
+      "playable": false
+    },
+    {
+      "id": "place-crossroads",
+      "displayName": "The crossroads",
+      "description": "A low stone wall borders the road here.",
+      "playable": true
+    }
+  ],
+  "authoredFacts": [
+    {
+      "id": "fact-old-church-location",
+      "statement": "The old church stands beyond the alder trees, where the path bends toward the hill.",
+      "source": "authored"
+    },
+    {
+      "id": "fact-crossroads-stone-wall",
+      "statement": "A low stone wall borders the road at the crossroads.",
+      "source": "authored"
+    }
+  ],
+  "recentConversation": [],
+  "maxOutputChars": 8192,
+  "maxStreamBytes": 16384
+}

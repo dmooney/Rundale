@@ -1,0 +1,25 @@
+[package]
+name = "parish-mobile-ffi"
+version = "0.1.0"
+edition = "2024"
+license = "GPL-3.0-only"
+publish = false
+description = "Owned presentation boundary for the on-device Parish runtime"
+
+[features]
+# The normal mobile crate build is the production engine path. Keeping the
+# feature explicit also lets a boundary-only host compile when debugging the
+# C ABI in isolation.
+default = ["engine-api"]
+engine-api = []
+
+[lib]
+crate-type = ["staticlib", "rlib"]
+
+[dependencies]
+parish-core = { path = "../parish-core", default-features = false, features = ["mobile"] }
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }

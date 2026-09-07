@@ -139,5 +139,34 @@ index.lock
 # cargo-tarpaulin coverage artifacts
 *.profraw
 
+# Native mobile generated projects, build products, and verification evidence.
+/mobile/.build/
+/mobile/.verification/
+/mobile/.verification-small/
+/mobile/.verification-*/
+/mobile/RundaleKit/.build/
+/mobile/RundaleKit/.swiftpm/
+/mobile/Rundale.xcodeproj/*
+!/mobile/Rundale.xcodeproj/project.xcworkspace/
+/mobile/Rundale.xcodeproj/project.xcworkspace/*
+!/mobile/Rundale.xcodeproj/project.xcworkspace/xcshareddata/
+/mobile/Rundale.xcodeproj/project.xcworkspace/xcshareddata/*
+!/mobile/Rundale.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/
+/mobile/Rundale.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/*
+!/mobile/Rundale.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved
+/mobile/RundaleBridge/.build/
+/mobile/RundaleBridge/.swiftpm/
+/mobile/ParishEndpointKit/.build/
+/mobile/ParishEndpointKit/.swiftpm/
+/mobile/binding-spike/target/
+/mobile/binding-spike/.build/
+/parish/target-mobile-*/
+/target-mobile-*/
+/mobile/DerivedData/
+**/xcuserdata/
+
 # Local pnpm content-addressed package store
 .pnpm-store/
+
+# Firebase client configuration is supplied privately for local/CI builds.
+/mobile/Rundale/Resources/GoogleService-Info.plist

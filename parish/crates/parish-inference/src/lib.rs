@@ -9,8 +9,13 @@
 //! its former `parish_inference::*` path so downstream consumers need no
 //! import changes.
 
+// The Ollama/vllm process handles are desktop setup infrastructure. Keep the
+// historical module path for desktop callers while leaving it out of the
+// portable mobile dependency graph.
+#[cfg(feature = "desktop")]
 pub mod client;
 pub mod file_log;
+#[cfg(feature = "desktop")]
 pub mod hf_downloader;
 pub mod logs;
 pub mod queue;
@@ -43,6 +48,7 @@ pub use parish_providers::{
 // crate as `setup` keeps every one of those paths valid without a single
 // import change. The dependency edge is one-directional: parish-setup depends
 // on parish-providers (not on this crate), so there is no cycle.
+#[cfg(feature = "desktop")]
 pub use parish_setup as setup;
 
 // ── Re-exports: public API (unchanged paths for downstream crates) ────────────
