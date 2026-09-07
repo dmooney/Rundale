@@ -24,25 +24,14 @@ witness-scan                                        # catch AI partial-completio
 - **Scaling guardrails (rule #11)** are in [scaling-rules.md](scaling-rules.md). Every entry-point crate AGENTS.md links here — edits ripple across the workspace.
 - **[`act-local.md`](act-local.md)** is the source of truth for `.actrc` and the `act-*` justfile recipes.
 
-## Doc index
+## Documentation routing
 
-| File                                                 | Purpose                                                                   | Cross-references from                                                            |
-| ---------------------------------------------------- | ------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
-| [`README.md`](README.md)                             | Human-facing table of contents for this directory                         | root `AGENTS.md`, entry point                                                    |
-| [`build-test.md`](build-test.md)                     | Cargo, harness, frontend, web, and Tauri commands                         | `codebase-map.md`, root `AGENTS.md`, crate AGENTS.md files                       |
-| [`architecture.md`](architecture.md)                 | Workspace layout, crate dependency graph, module ownership                | `codebase-map.md`, `code-style.md`, design docs (`docs/design/overview.md`)      |
-| [`code-style.md`](code-style.md)                     | Rust + Svelte conventions, naming, formatting, dep rules                  | `architecture.md`, crate AGENTS.md files                                         |
-| [`gotchas.md`](gotchas.md)                           | Tokio, SQLite, Ollama, mode parity, platform pitfalls                     | root `AGENTS.md` rule block, `parish-engine/AGENTS.md`, every crate AGENTS.md    |
-| [`git-workflow.md`](git-workflow.md)                 | Commits, tests, PR standards, review expectations                         | root `AGENTS.md` commit section                                                  |
-| [`improvement-drain.md`](improvement-drain.md)       | Event-driven portfolio, readiness contract, WIP and authoritative linkage | `triage-vocabulary.md`, `.github/workflows/triage-audit.yml`, issue/PR templates |
-| [`witness.md`](witness.md)                           | Witness-style completion gates (AI partial-completion markers)            | `harness.md` witness row, `justfile` witness-scan recipe                         |
-| [`agent-check.md`](agent-check.md)                   | PR proof-evidence gate (rule #10), local and CI source modes              | root `AGENTS.md` rule #10, `harness.md`, `justfile`                              |
-| [`skills.md`](skills.md)                             | Agent slash commands (`/check`, `/parish-engine`, `/backlog`, ...)        | root `AGENTS.md` skill list, `harness.md` skills section, `.agents/skills/`      |
-| [`harness.md`](harness.md)                           | One-page map of every sensor, skill, gate — what fires when               | root `AGENTS.md`, `codebase-map.md`, `agent-check.md`, `skills.md`, `witness.md` |
-| [`act-local.md`](act-local.md)                       | Running CI workflows locally with `nektos/act`                            | `justfile` act-\* recipes, `.actrc`                                              |
-| [`idempotency.md`](idempotency.md)                   | `Idempotency-Key` header support (#619) on mutating routes                | `parish-server/AGENTS.md`, scaling review (#614–#622)                            |
-| [`scaling-rules.md`](scaling-rules.md)               | Scaling guardrails — per-session state, seam review checklist (rule #11)  | root `AGENTS.md` rule #11, `parish-core/AGENTS.md`, `parish-server/AGENTS.md`    |
-| [`repository-artifacts.md`](repository-artifacts.md) | Generated output, large-file, screenshot, art, and benchmark policy       | `harness.md`, repository artifact gate                                           |
-| [`codebase-map.md`](codebase-map.md)                 | Top-level directory index, Parish crate table, entry points               | root `AGENTS.md`, every AGENTS.md file across workspace                          |
-| [`triage-vocabulary.md`](triage-vocabulary.md)       | Canonical labels for issue triage (priorities + themes)                   | `.github/triage-labels.json`, `/backlog` skill                                   |
-| [`tracing.md`](tracing.md)                           | `tracing` / OpenTelemetry OTLP conventions (#621)                         | `parish-server/AGENTS.md`, scaling review                                        |
+Use [README.md](README.md) as the maintained index rather than duplicating its
+full inventory here. Current requirements live in [product specs](../product-specs/README.md).
+The [engineering rule index](engineering-rules.md) preserves the original rule
+numbers and routes to scoped references; root AGENTS.md is only the short map.
+
+When reorganizing docs, preserve requirement wording and provenance, repair
+relative links, and distinguish current requirements, proposed architecture,
+existing implementation, and historical product directions. Do not turn a
+requested future verification command into a claim that it exists or passed.

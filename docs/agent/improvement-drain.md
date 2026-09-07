@@ -2,14 +2,18 @@
 
 This repository manages improvement work by queue state and evidence gates, not
 calendar estimates. GitHub issue [#1684](https://github.com/dmooney/Rundale/issues/1684)
-is the bootstrap record for the current portfolio reset.
+is the bootstrap record for the earlier portfolio workflow.
+The [mobile product specs](../product-specs/README.md) now govern product scope
+and milestone sequencing; this document governs an explicitly invoked backlog
+workflow, not automatic authorization to expand the mobile product.
 
 ## Sources of truth
 
 1. GitHub Issues are executable work records.
 2. An active epic owns each funded initiative's outcome and child work.
-3. The [roadmap](../requirements/roadmap.md) records product strategy and
-   capability status; it is not an implementation queue.
+3. The [product specs](../product-specs/README.md) govern current strategy.
+   The [earlier roadmap](../requirements/roadmap.md) preserves existing capability
+   status; neither is an implementation queue.
 4. `TODO.md` files are discovery ledgers. A validated item must link to an open
    issue before it can be scheduled.
 5. Audit reports are dated evidence. A newer reconciliation must mark the old

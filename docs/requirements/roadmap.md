@@ -4,11 +4,10 @@
 >
 > Last updated: 2026-07-14
 
-This is the authoritative status view for Rundale + the Parish engine. The
-project no longer tracks a single linear phase pointer — it ships features
-across many subsystems in parallel. The **feature-status matrix** below is the
-source of truth; the historical linear phases are preserved at the bottom for
-provenance.
+This is the **pre-reset feature-status reference** for the existing engine and
+clients. The [mobile product specifications](../product-specs/README.md) now
+govern product direction and the six reset milestones. Entries below preserve
+historical status claims; they do not establish mobile implementation or acceptance.
 
 ## Portfolio tracking
 

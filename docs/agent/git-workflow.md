@@ -15,7 +15,7 @@ just verify    # check + harness walkthrough
 
 ## Engineering standards
 
-- All new code must have accompanying unit tests.
+- Behavior changes require appropriate tests of observable behavior and failure cases.
 - The Rust coverage ratchet must pass (`just coverage-check`). Raise the ratchet floor as coverage-recovery work lands; the long-term target is **90%**.
 - No `#[allow]` without a justifying comment.
 - When creating PRs, make sure the PR content makes it into a design doc.
@@ -60,7 +60,12 @@ nightly schedule, and manual dispatch. Until a merge queue is available,
 dispatch it explicitly for high-risk PR heads and let the post-merge run catch
 any remaining integration failure.
 
-Replacing the shipped default UI surface is one logical contract migration:
+Replacing the existing Svelte default UI surface is one logical contract migration:
 the same pull request must migrate or explicitly retire every canonical E2E
 assertion for the prior surface, and the complete `just ui-e2e` suite must pass.
 A focused smoke test does not satisfy this gate by itself.
+
+The separate native mobile reset does not require Svelte feature parity. It follows
+the [current product specifications](../product-specs/README.md); preserve existing
+shared-engine contracts and do not silently retire tests of maintained surfaces.
+Mobile interaction evidence includes the required physical-iPhone gates.
