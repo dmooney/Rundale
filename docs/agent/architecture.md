@@ -1,5 +1,9 @@
 # Architecture & Layout
 
+Scope: existing repository implementation. For the target iPhone runtime and
+Swift/Rust boundary, read [mobile-architecture.md](mobile-architecture.md).
+Existing crate availability does not establish mobile portability or product scope.
+
 See [docs/design/overview.md](../design/overview.md) for the full architecture and [docs/index.md](../index.md) for all documentation.
 
 **Rundale** is the Irish living world game. **Parish** is the Rust engine it runs on. The repository is a **Cargo workspace** — all engine crates live under `parish/crates/`, the game content lives under `mods/rundale/`, frontends under `parish/apps/`, test fixtures under `parish/testing/`, and deploy artifacts under `deploy/`.
