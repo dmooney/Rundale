@@ -2,6 +2,22 @@
 
 An Irish Living World Text Adventure, set in 1820 rural Ireland; powered by the custom **Parish** engine. 1820 was chosen as it in the middle of the period after the [Acts of Union 1800](https://en.wikipedia.org/wiki/Acts_of_Union_1800) that brought Ireland into the United Kingdom of Great Britian and Ireland, and prior to the [Great Famine](<https://en.wikipedia.org/wiki/Great_Famine_(Ireland)>).
 
+## Current direction
+
+Rundale is resetting around a native iPhone text adventure: SwiftUI presents a
+status header, transcript, and composer; the Parish Rust runtime and authoritative
+saves live on device; remote inference goes through Parish Endpoints.
+The [product specifications](docs/product-specs/README.md) define the six gated
+milestones: first a fixture-only interaction prototype, then embedded gameplay
+in a tiny world.
+These requirements are not a claim that the mobile client is complete.
+
+## Existing engine and clients
+
+The capabilities, screenshots, and commands below describe the existing game,
+desktop/web clients, and developer tools retained as implementation reference.
+They do not define feature-parity requirements for the mobile reset.
+
 The player arrives as a newcomer to Kilteevan Village, about two miles south-east of Roscommon town in County Roscommon. The village and surrounding area is populated with numerous non-player characters. NPCs are driven by LLM inference. A cognitive level-of-detail (LOD) system simulates NPCs at varying fidelity based on proximity to the player. The geography is based on real early 19th century Ireland. The characters and establishments are fictional.
 
 [![Rundale](docs/screenshots/rundale.png)](docs/screenshots/rundale.png)
@@ -98,7 +114,7 @@ A four-tier simulation that scales hundreds of NPCs at varying fidelity based on
 - **Free-text dialogue** parsed by an LLM intent extractor (Move / Talk / Look / Examine / Interact), with a regex fallback.
 - **`@mention` targeting** to address a specific NPC in a crowded room.
 - **Slash-command surface** spanning save management, time control, provider config, debug, theming, and map switching — the same set works in the GUI, web, and CLI.
-- **Chat-first play screen** — the readable transcript, enriched command input, nearby people, language hints, map context, and status are available on the default desktop and mobile route.
+- **Chat-first play screen** — the readable transcript, enriched command input, nearby people, language hints, map context, and status are available on the existing desktop and responsive-web routes.
 - **Responsive illustrated context** — approved watercolor scene plates, NPC portraits, and a selected map icon render as ordinary responsive DOM images without a canvas renderer.
 - **Coordinated secondary surfaces** — Map, Save/Load, Debug, Mod, Bug Report, and shortcuts share one presentation-neutral coordinator with focus restoration and required-mod blocking.
 - **Streaming responses** rendered word-by-word in the visible transcript with smooth per-chunk timing.

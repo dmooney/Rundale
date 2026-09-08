@@ -9,21 +9,26 @@ subcollections keep their own indexes so large evidence corpora stay navigable.
 
 ## Project status
 
-Rundale ships features across many subsystems in parallel rather than along a
-single linear phase. The authoritative status view is the **feature-status
-matrix** in the [Roadmap](requirements/roadmap.md).
+The current product direction is the **native iPhone text-adventure reset**.
+Start with the [versioned product specifications](product-specs/README.md) for
+scope, the six milestones, acceptance criteria, and the Quality Gate. The
+[mobile architecture guide](agent/mobile-architecture.md) maps the proposed
+technical direction and decisions that still need evidence.
 
-Quick orientation: the core simulation (world graph, time/weather, cognitive
-LOD tiers 1–4, NPC memory/gossip, branching persistence, natural-language
-input), the Tauri + Svelte desktop GUI, the web server, per-category + cloud +
-MLX inference, the Parish Designer editor, and the rundale-bench harness are all
-shipped. Active design work centres on world expansion, the save/load UI,
-mythology hooks, and dialogue-quality evals.
+Existing engine, Tauri/Svelte, web, tooling, and content documentation remains
+useful implementation reference. The [earlier feature matrix](requirements/roadmap.md)
+records that work; it is not the mobile roadmap or evidence of mobile completion.
+No mobile milestone is certified by this documentation reorganization.
+
+The [Phase 1 and Phase 2 test plans](test-plans/README.md) provide companion cases
+for interaction and embedded-runtime verification; they do not record test results.
 
 ## How docs are organised
 
 | Folder           | Contains                                                        | Status vocabulary                |
 | ---------------- | --------------------------------------------------------------- | -------------------------------- |
+| `product-specs/` | Current mobile requirements and proposed technical vision       | Requirements · Proposed          |
+| `agent/`         | Task routing, scoped invariants, build and proof procedures     | Engineering guidance             |
 | `design/`        | Durable subsystem reference — how a shipped/extant system works | Implemented · Partial            |
 | `design/ideas/`  | Brainstorms, RFCs, speculative proposals                        | Brainstorm · Proposed            |
 | `plans/`         | Active implementation plans                                     | In progress · Proposed · Planned |
@@ -67,13 +72,14 @@ Every design/plan doc carries a `> Status: …` header. See
 
 ## Visual client and graphics research
 
-The visual work has three related but distinct tracks. The active default client
-is the semantic chat-first shell with responsive DOM art. The retired Pixi
-notebook, Diorama, and Godot documents remain historical or exploratory records.
+The existing desktop/web visual work has three related but distinct tracks.
+Its default implementation is the semantic chat-first shell with responsive DOM
+art; it is reference material for the native reset. The retired Pixi notebook,
+Diorama, and Godot documents remain historical or exploratory records.
 
 | Need                                                                  | Start here                                                                         | Follow with                                                           |
 | --------------------------------------------------------------------- | ---------------------------------------------------------------------------------- | --------------------------------------------------------------------- |
-| Default visual play surface                                           | [Chat-first stabilization contract](../parish/apps/ui/CHAT_FIRST_STABILIZATION.md) | [GUI features](features.md#chat-first-illustrated-viewport)           |
+| Existing desktop/web play surface                                     | [Chat-first stabilization contract](../parish/apps/ui/CHAT_FIRST_STABILIZATION.md) | [GUI features](features.md#chat-first-illustrated-viewport)           |
 | Concept art, exterior pipeline, interiors, portraits, or map evidence | [Graphics V2 research index](graphics-v2/README.md)                                | Its task-oriented links and scoped guidance                           |
 | Runtime-composed visual scene system                                  | [Interactive Parish Diorama RFC](design/ideas/parish-diorama.md)                   | [Diorama implementation plan](plans/parish-diorama-implementation.md) |
 | Separate Godot presentation client                                    | [Godot-Based Rundale plan](design/godot-parish-game-plan.md)                       | Treat as an exploratory alternative client                            |
