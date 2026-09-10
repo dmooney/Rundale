@@ -18,6 +18,7 @@ export interface FakeProviderBehavior {
 
 export class FakeProvider implements ModelProvider {
   readonly id = "fake" as const;
+  readonly supportsStreaming = true;
   private callCount = 0;
 
   constructor(private readonly behavior: FakeProviderBehavior = {}) {}
@@ -48,6 +49,12 @@ export class FakeProvider implements ModelProvider {
       providerRequestId: `fake_${this.callCount}`,
       finishReason: "stop",
     };
+  }
+
+  async *stream(_invocation: ProviderInvocation, context: ProviderExecutionContext) {
+    const result = await this.execute(_invocation, context);
+    yield { type: "delta" as const, text: JSON.stringify(result.output) };
+    yield { type: "completed" as const, result };
   }
 }
 

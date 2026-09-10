@@ -46,6 +46,26 @@ function definition(value: unknown): EndpointDefinition {
   if (temperature !== undefined && typeof temperature !== "number") {
     throw new ControlError("INVALID_DEFINITION", "temperature must be a number.");
   }
+  const streaming = inference.streaming;
+  let streamingConfig: { version: 1; textField: string } | undefined;
+  if (streaming !== undefined) {
+    const value = streaming as Record<string, unknown>;
+    if (
+      streaming === null ||
+      typeof streaming !== "object" ||
+      Array.isArray(streaming) ||
+      value.version !== 1 ||
+      typeof value.textField !== "string" ||
+      value.textField.trim().length === 0 ||
+      value.textField.length > 128
+    ) {
+      throw new ControlError(
+        "INVALID_DEFINITION",
+        "streaming must specify version 1 and a textField.",
+      );
+    }
+    streamingConfig = { version: 1, textField: value.textField };
+  }
   return {
     inputSchema: record(body.inputSchema, "inputSchema") as JsonSchema,
     outputSchema: record(body.outputSchema, "outputSchema") as JsonSchema,
@@ -55,6 +75,7 @@ function definition(value: unknown): EndpointDefinition {
       maxOutputTokens: integer(inference.maxOutputTokens, "maxOutputTokens"),
       retryCount,
       ...(temperature === undefined ? {} : { temperature }),
+      ...(streamingConfig === undefined ? {} : { streaming: streamingConfig }),
     },
   };
 }

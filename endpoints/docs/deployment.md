@@ -16,6 +16,13 @@ Cloud Run connects to Cloud SQL through its managed Unix socket. Store the compl
 
 Use `AUTH_MODE=firebase`, `FIREBASE_PROJECT_ID=cottage-d6dc9`, `PROVIDER_MODE=live`, and `GOOGLE_PROVIDER_AUTH=vertex-ai`. Set `GOOGLE_CLOUD_PROJECT=cottage-d6dc9` and `GOOGLE_CLOUD_LOCATION=global`. Keep the Google model allowlist narrow for the Gemini-only live gate. The OpenAI adapter remains available and its allowlist/configuration may remain present for the current runtime, but its live smoke is deferred by owner decision. `MODEL_PRICES_JSON` must contain non-negative per-million input and output token prices for every allowed model; configuration fails closed when a price is missing.
 
+Set `MOBILE_APP_BINDINGS_JSON` to a strict JSON array only after resolving the
+actual organization UUID and published versions. Each item contains `appId`,
+`organizationId`, `organizationSlug`, an `endpointVersions` object mapping each
+allowed slug to a non-empty integer-version array, and `dailyInvocationQuota`.
+Production rejects missing bindings, unknown keys, synthetic organization IDs,
+duplicate app IDs, aliases, and versions absent from the allowlist.
+
 The web image needs `NEXT_PUBLIC_API_URL` plus the Firebase API key, auth domain, project ID, and app ID at build time. Firebase web configuration identifies the project and is public configuration; server credentials must never be Docker build arguments or repository files.
 
 ## Build and release
@@ -55,3 +62,16 @@ Custom DNS is outside the MVP completion gate. If it is added later, verify both
 ## Rollback
 
 Behavior rollback moves the Endpoint's `production` Deployment Alias and never modifies an immutable Endpoint Version. Application rollback moves Cloud Run traffic to a previous healthy revision. Database migrations must remain forward-compatible with overlapping revisions.
+
+## Rundale mobile release evidence (2026-09-09)
+
+The mobile streaming release is Cloud Run revision `parish-server-00006-kew`
+at image digest
+`sha256:a10e328c9c698bb9f881ca8f903ddd7b4418663a1c6d05950323daf86a996dad`.
+Migration execution `parish-migrate-z2qbw` completed before the revision received
+traffic; `parish-server-00004-xiq` remains the rollback revision. Health and
+missing-auth preflight passed before the traffic move. The live native simulator
+then proved both a successful validated Vertex Google stream and an authenticated
+Stop whose invocation row ended `REQUEST_CANCELLED` with its durable cancellation
+marker set. Full request metadata and the remaining physical-device boundary are
+recorded in the [mobile handoff](../../mobile/endpoint/phase2-handoff.md).

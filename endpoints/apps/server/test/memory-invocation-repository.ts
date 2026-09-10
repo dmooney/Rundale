@@ -19,6 +19,8 @@ export class MemoryInvocationRepository implements InvocationRepository {
   public productionVersion = 1;
   public forceFinalizationFailure = false;
   private readonly invocationStates = new Map<string, "running" | "succeeded" | "failed">();
+  private readonly invocationIdsByRequest = new Map<string, string>();
+  private readonly cancellationRequested = new Set<string>();
 
   constructor(
     public key: InvocationApiKey,
@@ -60,15 +62,29 @@ export class MemoryInvocationRepository implements InvocationRepository {
   }
 
   async createInvocation(_start: InvocationStart, dailyInvocationQuota: number): Promise<string> {
-    void _start;
-    if (this.used >= Math.min(this.key.dailyInvocationQuota, dailyInvocationQuota)) {
+    if (this.used >= dailyInvocationQuota) {
       throw new InvocationQuotaExceededError();
     }
     this.created += 1;
     this.used += 1;
     const id = `invocation_${this.created}`;
+    this.lastStart = structuredClone(_start);
     this.invocationStates.set(id, "running");
+    this.invocationIdsByRequest.set(_start.requestId, id);
     return id;
+  }
+
+  async requestCancellation(requestId: string): Promise<boolean> {
+    const invocationId = this.invocationIdsByRequest.get(requestId);
+    if (invocationId === undefined || this.invocationStates.get(invocationId) !== "running") {
+      return false;
+    }
+    this.cancellationRequested.add(invocationId);
+    return true;
+  }
+
+  async isCancellationRequested(invocationId: string): Promise<boolean> {
+    return this.cancellationRequested.has(invocationId);
   }
 
   async recordAttempts(_invocationId: string, attempts: readonly RuntimeAttempt[]): Promise<void> {
@@ -79,10 +95,14 @@ export class MemoryInvocationRepository implements InvocationRepository {
     _invocationId: string,
     result: Parameters<InvocationRepository["finalizeSuccess"]>[1],
   ): Promise<boolean> {
-    this.finalSuccessResult = result;
-    if (this.forceFinalizationFailure || this.invocationStates.get(_invocationId) !== "running") {
+    if (
+      this.forceFinalizationFailure ||
+      this.invocationStates.get(_invocationId) !== "running" ||
+      this.cancellationRequested.has(_invocationId)
+    ) {
       return false;
     }
+    this.finalSuccessResult = result;
     this.invocationStates.set(_invocationId, "succeeded");
     this.finalStatus = "succeeded";
     return true;
@@ -102,4 +122,6 @@ export class MemoryInvocationRepository implements InvocationRepository {
   }
 
   async touchApiKey(): Promise<void> {}
+
+  public lastStart: InvocationStart | null = null;
 }

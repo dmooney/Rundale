@@ -51,12 +51,16 @@ provisional text before validation; this is not the legacy runtime policy of
 quarantining all candidate text. Rejected or interrupted output must remain
 visibly uncommitted and have no canonical effects.
 
-Production inference must use Parish Endpoints. A simulated transport is
-permitted only for deterministic verification and cannot count as evidence of
-real streaming. The Endpoint audit found that the current service implements
-synchronous responses and API-key consumer authorization. Mobile streaming
-and authentication therefore require additional service integration. Cottage
-is the user-selected reference for that authentication work.
+Production inference uses Parish Endpoints. A simulated transport is permitted
+only for deterministic verification and cannot count as evidence of real
+streaming. The integrated service accepts direct Firebase Auth plus mandatory
+App Check mobile principals, authorizes them through a strict app-to-tenant and
+Endpoint binding, and provides a versioned Google SSE stream. Existing consumer
+API-key and creator authorization remain separate. No shared invocation or
+provider key enters the iOS app. Deployment, published-contract, live Firebase,
+and live Google evidence were recorded separately on 2026-09-09; see
+[the current handoff](endpoint/phase2-handoff.md). Cottage is the user-selected
+reference for Firebase authentication. Physical App Attest remains separate.
 
 ## Build and evidence
 

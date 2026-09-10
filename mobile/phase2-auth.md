@@ -1,8 +1,8 @@
 # Phase 2 mobile Endpoint authentication
 
 This note records the mobile credential boundary for the Phase 2 vertical
-slice. It describes the implementation and its open acceptance gates; it is
-not evidence that a live Endpoint or physical iPhone gate has passed.
+slice. It describes the implementation and separates the exercised simulator
+path from the still-open physical-iPhone gate.
 
 ## Boundary
 
@@ -18,7 +18,7 @@ SDK objects on the main actor and lets transport tests inject
 - `Authorization: Bearer <Firebase Auth ID token>` is the per-user Firebase
   ID token issued for the configured Firebase project. Its Firebase audience
   is the `cottage-d6dc9` project, and it authenticates the anonymous Firebase
-  user to the Parish Endpoint; it is not an arbitrary model-provider ID token
+  user to Parish Endpoints; it is not an arbitrary model-provider ID token
   and it is not a provider credential.
 - `X-Firebase-AppCheck: <App Check token>` proves that the request came from
   an accepted Rundale app instance. The provider never saves either value,
@@ -28,6 +28,12 @@ Firebase errors are propagated to the caller. Configuration and empty-token
 failures use safe, token-free errors. The transport owns request retry and may
 ask for a forced refresh after a server-authentication failure; this boundary
 does not silently turn an auth failure into an unauthenticated request.
+
+Parish Endpoints validates both mobile credentials before resolving a configured
+app-to-organization/Endpoint binding or invoking a provider. Mobile identity is
+separate from creator Firebase authorization and existing consumer API-key
+invocation. See [the integration handoff](endpoint/phase2-handoff.md) for the
+streaming contract and deployed evidence.
 
 ## Lazy configuration
 
@@ -79,19 +85,23 @@ The App Attest capability and production entitlement/signing configuration
 remain project and Apple Developer Portal work. A simulator debug token can
 prove development wiring; it cannot prove production attestation.
 
-## Acceptance still required
+## Acceptance status
 
 The following evidence remains separate from source-level implementation:
 
-1. Build the generated project with Firebase 12.18.0 for device and
-   simulator targets.
-2. Exercise the simulator debug provider with a privately injected registered
-   debug token, without checking that token into the repository.
-3. Exercise App Attest on a signed physical iPhone with the production
-   entitlement and verify that the Parish Endpoint accepts both headers.
-4. Verify backend rejection for a wrong Firebase audience, wrong App Check
-   app ID, expired/revoked token, missing header, and malformed bearer value.
-5. Verify the local/offline launch path without invoking this provider.
+1. The generated project built with Firebase 12.18.0 for simulator and an
+   unsigned device target in the Phase 2 gate.
+2. The live simulator exercised the debug provider with a privately registered
+   token, real anonymous Auth, a completed stream, and an explicit Stop. No
+   token is checked into the repository or recorded in evidence.
+3. Still required: exercise App Attest on a signed physical iPhone with the production
+   entitlement and verify that Parish Endpoints accepts both headers.
+4. Deterministic server tests cover wrong App Check app ID, missing App Check,
+   malformed/missing bearer credentials, strict bindings, tenant/version
+   hiding, quotas, switches, and rate limits. Live missing-auth rejection is
+   recorded; additional live expired/revoked identities are not available and
+   remain deterministic evidence.
+5. The local/offline launch path remains covered without invoking Firebase.
 
 These checks must be reported as live/device evidence only when they are
 actually run; deterministic fake-provider tests do not satisfy them.

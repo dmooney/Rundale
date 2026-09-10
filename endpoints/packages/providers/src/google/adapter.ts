@@ -6,10 +6,12 @@ import {
   type ProviderErrorMetadata,
   type ProviderInvocation,
   type ProviderResult,
+  type ProviderStreamEvent,
 } from "@parish/runtime";
 
 export class GoogleProvider implements ModelProvider {
   readonly id = "google" as const;
+  readonly supportsStreaming = true;
 
   constructor(
     private readonly client: GoogleGenAI,
@@ -144,6 +146,160 @@ export class GoogleProvider implements ModelProvider {
         finishReason: interaction.status,
       };
     } catch (error) {
+      throw normalizeGoogleError(error);
+    }
+  }
+
+  async *stream(
+    invocation: ProviderInvocation,
+    context: ProviderExecutionContext,
+  ): AsyncIterable<ProviderStreamEvent> {
+    const input = [
+      {
+        type: "text" as const,
+        text: `Endpoint input values:\n${JSON.stringify(invocation.values)}`,
+      },
+      ...invocation.attachments.map((attachment) => ({
+        type: "image" as const,
+        mime_type: attachment.mediaType,
+        data: Buffer.from(attachment.bytes).toString("base64"),
+      })),
+    ];
+    let raw = "";
+    let requestId: string | undefined;
+    let usage: ProviderResult["usage"] = {};
+    let finishReason: string | undefined;
+    const maxRawBytes = 256 * 1024;
+    try {
+      if (this.transport === "generate-content") {
+        const chunks = await this.client.models.generateContentStream({
+          model: invocation.model,
+          contents: [
+            {
+              role: "user",
+              parts: [
+                { text: `Endpoint input values:\n${JSON.stringify(invocation.values)}` },
+                ...invocation.attachments.map((attachment) => ({
+                  inlineData: {
+                    mimeType: attachment.mediaType,
+                    data: Buffer.from(attachment.bytes).toString("base64"),
+                  },
+                })),
+              ],
+            },
+          ],
+          config: {
+            systemInstruction: invocation.instructions,
+            responseMimeType: "application/json",
+            responseJsonSchema: invocation.outputSchema,
+            maxOutputTokens: invocation.parameters.maxOutputTokens,
+            httpOptions: { retryOptions: { attempts: 1 } },
+            abortSignal: context.signal,
+          },
+        });
+        for await (const chunk of chunks) {
+          if (typeof chunk.text === "string" && chunk.text.length > 0) {
+            raw += chunk.text;
+            if (new TextEncoder().encode(raw).length > maxRawBytes)
+              throw new RuntimeError(
+                "REQUEST_TOO_LARGE",
+                "The streamed provider response is too large.",
+              );
+            yield { type: "delta", text: chunk.text };
+          }
+          usage = normalizeGenerateContentUsage(chunk.usageMetadata);
+          finishReason = chunk.candidates?.[0]?.finishReason ?? finishReason;
+          requestId = (chunk as { responseId?: string }).responseId ?? requestId;
+        }
+        if (finishReason !== "STOP")
+          throw new RuntimeError(
+            "MODEL_ERROR",
+            "The model did not complete a structured response.",
+            false,
+            undefined,
+            providerMetadata(usage, requestId, finishReason),
+          );
+      } else {
+        const stream = await this.client.interactions.create(
+          {
+            model: invocation.model,
+            system_instruction: invocation.instructions,
+            input,
+            response_format: [
+              { type: "text", mime_type: "application/json", schema: invocation.outputSchema },
+            ],
+            generation_config: { max_output_tokens: invocation.parameters.maxOutputTokens },
+            store: false,
+            stream: true,
+          },
+          { retries: { strategy: "none" }, fetchOptions: { signal: context.signal } },
+        );
+        for await (const event of stream as AsyncIterable<Record<string, unknown>>) {
+          const data = event;
+          if (typeof data.interaction_id === "string") requestId = data.interaction_id;
+          const delta = data.delta as { text?: string; type?: string } | undefined;
+          if (delta?.type === "text" && typeof delta.text === "string") {
+            raw += delta.text;
+            if (new TextEncoder().encode(raw).length > maxRawBytes)
+              throw new RuntimeError(
+                "REQUEST_TOO_LARGE",
+                "The streamed provider response is too large.",
+              );
+            yield { type: "delta", text: delta.text };
+          }
+          const interaction = data.interaction as
+            { id?: string; status?: string; usage?: unknown } | undefined;
+          if (interaction?.id) requestId = interaction.id;
+          if (interaction?.usage)
+            usage = normalizeInteractionUsage(
+              interaction.usage as Parameters<typeof normalizeInteractionUsage>[0],
+            );
+          if (data.event_type === "interaction.completed") finishReason = "completed";
+          if (
+            data.event_type === "error" ||
+            ["failed", "cancelled", "incomplete", "budget_exceeded"].includes(
+              interaction?.status ?? "",
+            ) ||
+            (data.event_type === "interaction.status_update" &&
+              ["failed", "cancelled", "incomplete", "budget_exceeded"].includes(
+                String(data.status),
+              ))
+          )
+            throw new RuntimeError(
+              "MODEL_ERROR",
+              "The model did not complete a structured response.",
+              false,
+              undefined,
+              providerMetadata(usage, requestId, interaction?.status ?? String(data.status)),
+            );
+        }
+        if (finishReason !== "completed")
+          throw new RuntimeError(
+            "MODEL_ERROR",
+            "The model did not complete a structured response.",
+            false,
+            undefined,
+            providerMetadata(usage, requestId, finishReason),
+          );
+      }
+      const output = parseStructuredOutput(raw, providerMetadata(usage, requestId, finishReason));
+      yield {
+        type: "completed",
+        result: {
+          output,
+          usage,
+          ...(requestId === undefined ? {} : { providerRequestId: requestId }),
+          finishReason,
+        },
+      };
+    } catch (error) {
+      if (requestId !== undefined && context.signal.aborted && this.transport === "interactions") {
+        try {
+          await this.client.interactions.cancel(requestId);
+        } catch {
+          /* preserve original cancellation */
+        }
+      }
       throw normalizeGoogleError(error);
     }
   }

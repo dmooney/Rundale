@@ -67,7 +67,13 @@ export class PostgresInvocationRepository implements InvocationRepository {
     endpointSlug: string,
   ): Promise<ResolvedEndpoint | null> {
     const [result] = await this.database
-      .select({ endpoint: endpoints, version: endpointVersions, organizationId: organizations.id })
+      .select({
+        endpoint: endpoints,
+        version: endpointVersions,
+        organizationId: organizations.id,
+        organizationStatus: organizations.status,
+        organizationInferenceEnabled: organizations.inferenceEnabled,
+      })
       .from(organizations)
       .innerJoin(endpoints, eq(endpoints.organizationId, organizations.id))
       .innerJoin(
@@ -93,6 +99,8 @@ export class PostgresInvocationRepository implements InvocationRepository {
           endpointSlug: result.endpoint.slug,
           endpointStatus: result.endpoint.status,
           endpointInferenceEnabled: result.endpoint.inferenceEnabled,
+          organizationStatus: result.organizationStatus,
+          organizationInferenceEnabled: result.organizationInferenceEnabled,
           version: versionSnapshot(result.version, result.organizationId),
         };
   }
@@ -103,7 +111,13 @@ export class PostgresInvocationRepository implements InvocationRepository {
     versionNumber: number,
   ): Promise<ResolvedEndpoint | null> {
     const [result] = await this.database
-      .select({ endpoint: endpoints, version: endpointVersions, organizationId: organizations.id })
+      .select({
+        endpoint: endpoints,
+        version: endpointVersions,
+        organizationId: organizations.id,
+        organizationStatus: organizations.status,
+        organizationInferenceEnabled: organizations.inferenceEnabled,
+      })
       .from(organizations)
       .innerJoin(endpoints, eq(endpoints.organizationId, organizations.id))
       .innerJoin(endpointVersions, eq(endpointVersions.endpointId, endpoints.id))
@@ -122,6 +136,8 @@ export class PostgresInvocationRepository implements InvocationRepository {
           endpointSlug: result.endpoint.slug,
           endpointStatus: result.endpoint.status,
           endpointInferenceEnabled: result.endpoint.inferenceEnabled,
+          organizationStatus: result.organizationStatus,
+          organizationInferenceEnabled: result.organizationInferenceEnabled,
           version: versionSnapshot(result.version, result.organizationId),
         };
   }
@@ -209,6 +225,24 @@ export class PostgresInvocationRepository implements InvocationRepository {
     );
   }
 
+  async requestCancellation(requestId: string): Promise<boolean> {
+    const updated = await this.database
+      .update(invocations)
+      .set({ cancellationRequested: true })
+      .where(and(eq(invocations.requestId, requestId), eq(invocations.status, "running")))
+      .returning({ id: invocations.id });
+    return updated.length > 0;
+  }
+
+  async isCancellationRequested(invocationId: string): Promise<boolean> {
+    const [row] = await this.database
+      .select({ cancellationRequested: invocations.cancellationRequested })
+      .from(invocations)
+      .where(eq(invocations.id, invocationId))
+      .limit(1);
+    return row?.cancellationRequested ?? false;
+  }
+
   async finalizeSuccess(
     invocationId: string,
     result: Parameters<InvocationRepository["finalizeSuccess"]>[1],
@@ -229,7 +263,13 @@ export class PostgresInvocationRepository implements InvocationRepository {
         ...(result.outputTokens === undefined ? {} : { outputTokens: result.outputTokens }),
         ...(result.totalTokens === undefined ? {} : { totalTokens: result.totalTokens }),
       })
-      .where(and(eq(invocations.id, invocationId), eq(invocations.status, "running")))
+      .where(
+        and(
+          eq(invocations.id, invocationId),
+          eq(invocations.status, "running"),
+          eq(invocations.cancellationRequested, false),
+        ),
+      )
       .returning({ id: invocations.id });
     return updated.length > 0;
   }

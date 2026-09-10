@@ -190,6 +190,7 @@ export const invocations = pgTable(
     apiKeyId: uuid("api_key_id").references(() => apiKeys.id),
     isTest: boolean("is_test").notNull().default(false),
     status: invocationStatus("status").notNull().default("running"),
+    cancellationRequested: boolean("cancellation_requested").notNull().default(false),
     startedAt: timestamp("started_at", { withTimezone: true }).notNull().defaultNow(),
     completedAt: timestamp("completed_at", { withTimezone: true }),
     durationMs: integer("duration_ms"),

@@ -53,7 +53,8 @@ Parish is the working umbrella name and parish.dev is the working domain.
 Parish may ultimately encompass multiple developer tools, including:
 * Parish Engine — the Rundale-derived game/simulation engine.
 * Parish Endpoints — the hosted AI API product described in this document.
-These should remain separate repositories and deployables even if they share the Parish identity.
+These remain separate runtime boundaries and deployables even when the
+Endpoints workspace is maintained inside the Rundale repository.
 Within this product, Endpoint is the working first-class noun.
 An Endpoint is not a Lambda-style serverless function. A creator does not upload arbitrary code and does not define event-triggered compute. Instead, the creator defines a hosted HTTP API behavior consisting of:
 * an HTTP-facing input contract,

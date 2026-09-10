@@ -67,10 +67,10 @@ operation targets are proposals, not measurements of this application.
 
 ## Phase 2 implementation evidence — 2026-09-07
 
-The embedded Rust runtime, Swift/C boundary, SQLite journal, and one-location,
-one-NPC content slice are implemented. Phase 2 acceptance remains open for
-live Parish Endpoint integration and physical-iPhone validation. The separate
-service task owns the [Endpoint handoff](endpoint/phase2-handoff.md).
+The embedded Rust runtime, Swift/C boundary, SQLite journal, one-location,
+one-NPC content slice, and deployed Parish Endpoint integration are implemented.
+Phase 2 acceptance remains open for physical-iPhone validation. Deployment and
+live simulator evidence are in the [Endpoint handoff](endpoint/phase2-handoff.md).
 
 The combined `./verify --phase all` run in `mobile/.verification-phase2-final/`
 passed 23 RundaleKit tests, 17 Phase 1 native UI tests, six Phase 2 native UI
@@ -80,13 +80,13 @@ an obsolete FFI event-count expectation after the complete `/look` event batch
 fix, and an intermittent alias bootstrap lock. Those failures were fixed and
 are retained in the historical report rather than erased.
 
-The corrected run was:
+The corrected deterministic run was:
 
 ```sh
 ./verify --phase 2 --simulator E8B8E33F-91D9-467A-B8E5-7CC1779F78DF --report-dir mobile/.verification-phase2-confirmed
 ```
 
-It passed all 14 automated checks: 18 runtime tests, 20 persistence tests,
+At that point it passed all 14 automated checks: 18 runtime tests, 20 persistence tests,
 six FFI tests, one production Endpoint fixture test, 23 presentation tests,
 two bridge tests, seven Endpoint client tests, six native UI tests, mobile
 packaging/dependency checks, and the unsigned device build. The report has no
@@ -101,11 +101,37 @@ They select a deterministic Endpoint transport. They do not call a provider.
 The [recorded native preview](demo.md#phase-2-native-implementation-preview--2026-09-07)
 also shows local `/look`, streamed dialogue, and actual process-relaunch recovery.
 
-Remaining acceptance requires a deployed pinned Endpoint, consumer policy and
-quota setup, successful native authentication/App Check, a real streamed reply,
-and a signed build exercised on the selected physical iPhones. An unsigned
-arm64 build and an iOS 26.5 simulator run do not establish those gates or iOS 17
-runtime compatibility. No provider key or shared invocation secret is bundled.
+## Phase 2 deployed Endpoint evidence — 2026-09-09
+
+Cloud Run revision `parish-server-00006-kew` serves the pinned
+`parish-demo/rundale-dialogue@1` contract. After its forward-compatible migration
+and no-traffic health/auth preflight, two opt-in native UI tests passed against
+the production path: a real Firebase/Auth App Check Vertex Google stream
+committed a validated final dialogue, and Stop produced `Interrupted; not
+applied` with no late dialogue. The authoritative invocation row for Stop ended
+`failed`, `REQUEST_CANCELLED`, with its durable cancellation marker set. The
+full immutable image/contract hashes, migration execution, timings, rollback
+revision, and review result are in the Endpoint handoff.
+
+The final source tree also passed the normal deterministic Phase 2 gate:
+
+```sh
+./verify --phase 2 --simulator E8B8E33F-91D9-467A-B8E5-7CC1779F78DF \
+  --report-dir mobile/.verification-endpoint-integration
+```
+
+Result: 14 passed, no failures, one already-booted simulator skip, one opt-in
+live gate reported separately as unavailable to the deterministic runner, and
+two physical gates marked not automatable. Included results were 16
+ParishEndpointKit tests, two Rust production-wire fixture tests, and six Phase 2
+simulator tests. The opt-in live UI class was then run directly and passed both
+tests as recorded above.
+
+Remaining acceptance requires a signed build exercised on the selected physical
+iPhones, including App Attest and the device usability/accessibility matrix. An
+unsigned arm64 build and an iOS 26.5 simulator run do not establish those gates
+or iOS 17 runtime compatibility. No provider key or shared invocation secret is
+bundled.
 
 A final targeted native rerun after the fixture overflow-save adjustment passed
 both Phase 1 restoration cases: interrupted stream/retry and transcript/draft

@@ -10,7 +10,9 @@
 ## Product Boundary
 
 - Parish Endpoints is a hosted runtime for versioned, typed AI API behavior. It is not a prompt marketplace, arbitrary-code FaaS, chatbot product, or workflow/agent platform.
-- Keep Parish Engine separate: it belongs in a different repository and deployable.
+- Keep Parish Engine and Parish Endpoints as separate runtime boundaries and
+  deployables. In Rundale, Endpoints is a self-contained `endpoints/` pnpm
+  workspace; it must not enter the Rust or player-frontend dependency graphs.
 - Use **Endpoint** as the first-class product noun. Preserve the distinctions among Endpoint, mutable Endpoint Draft, immutable Endpoint Version, Deployment Alias, control-plane Parish API, and data-plane Invocation API.
 - The first production dogfood target is `image -> Cottage SeedPacket JSON`, but the runtime must contain no Cottage- or seed-packet-specific behavior.
 
@@ -36,7 +38,10 @@
 
 ## Scope Discipline
 
-- Do not pull marketplace search, billing, payouts, ratings, arbitrary user code, RAG, tool calling, multi-step agents, streaming, extra model providers, or sophisticated evaluation infrastructure into the MVP.
+- Mobile-safe structured streaming is an approved extension for Rundale's
+  dialogue Endpoint. Do not pull marketplace search, billing, payouts,
+  ratings, arbitrary user code, RAG, tool calling, multi-step agents, extra
+  model providers, or sophisticated evaluation infrastructure into this work.
 - Prefer the simplest implementation that proves a creator can define, test, publish, invoke, observe, promote, and roll back a generic Endpoint.
 - When a decision changes or refines the architecture, add a concise ADR under `docs/adr/` and update conflicting documentation in the same change.
 

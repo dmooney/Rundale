@@ -10,6 +10,7 @@ import {
 
 export class OpenAIProvider implements ModelProvider {
   readonly id = "openai" as const;
+  readonly supportsStreaming = false;
 
   constructor(private readonly client: OpenAI) {}
 
@@ -91,6 +92,16 @@ export class OpenAIProvider implements ModelProvider {
     } catch (error) {
       throw normalizeOpenAIError(error);
     }
+  }
+
+  async *stream(
+    _invocation: ProviderInvocation,
+    _context: ProviderExecutionContext,
+  ): AsyncIterable<never> {
+    void _invocation;
+    void _context;
+    yield* [];
+    throw new RuntimeError("MODEL_ERROR", "OpenAI streaming is not supported.");
   }
 }
 

@@ -29,7 +29,9 @@ struct LaunchConfiguration: Sendable {
     let draftFileURL: URL?
     let resetFixture: Bool
     let forceDarkAppearance: Bool
-    let endpointBaseURL: URL
+    /// A trusted Parish Endpoints base URL supplied by deployment
+    /// configuration. There is intentionally no baked-in production default.
+    let endpointBaseURL: URL?
     let endpointOrganization: String
     let endpointSlug: String
     let endpointVersion: Int
@@ -53,16 +55,15 @@ struct LaunchConfiguration: Sendable {
         resetFixture = arguments.contains("--reset-fixture")
         forceDarkAppearance = isUITesting && arguments.contains("--force-dark-appearance")
 
-        let environmentBase = environment["RUNDALE_ENDPOINT_BASE_URL"]
-            ?? "https://parish-server-q57uxauysq-ue.a.run.app"
-        endpointBaseURL = URL(string: environmentBase) ?? URL(string: "https://parish-server-q57uxauysq-ue.a.run.app")!
+        endpointBaseURL = environment["RUNDALE_ENDPOINT_BASE_URL"].flatMap(URL.init(string:))
         endpointOrganization = environment["RUNDALE_ENDPOINT_ORGANIZATION"] ?? "rundale"
         endpointSlug = environment["RUNDALE_ENDPOINT_SLUG"] ?? "rundale-dialogue"
         endpointVersion = max(1, Int(environment["RUNDALE_ENDPOINT_VERSION"] ?? "1") ?? 1)
     }
 
-    var endpointStreamURL: URL {
-        endpointBaseURL
+    var endpointURL: URL? {
+        guard let endpointBaseURL else { return nil }
+        return endpointBaseURL
             .appendingPathComponent("v1")
             .appendingPathComponent("endpoints")
             .appendingPathComponent(endpointOrganization)

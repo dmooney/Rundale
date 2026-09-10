@@ -10,6 +10,7 @@ export function createDatabase(databaseUrl: string) {
   const db = drizzle(pool, { schema });
   return {
     db,
+    pool,
     ping: async () => void (await db.execute(sql`select 1`)),
     close: () => pool.end(),
   };

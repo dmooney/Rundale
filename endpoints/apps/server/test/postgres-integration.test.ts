@@ -22,6 +22,7 @@ import { PlaygroundService } from "../src/control/playground-service.js";
 import { PostgresControlRepository } from "../src/infrastructure/postgres-control-repository.js";
 import { PostgresInvocationRepository } from "../src/infrastructure/postgres-invocation-repository.js";
 import { InvocationQuotaExceededError } from "../src/invocation/contracts.js";
+import { PostgresInvocationCancellationCoordinator } from "../src/invocation/cancellation.js";
 import { InvocationService } from "../src/invocation/service.js";
 
 const databaseUrl = process.env.DATABASE_URL_TEST;
@@ -225,6 +226,34 @@ suite("PostgreSQL workflow integration", () => {
     expect(summaries.find((summary) => summary.endpointVersionId === versionTwo.id)).toMatchObject({
       endpointVersionNumber: 2,
     });
+  });
+
+  it("broadcasts stream cancellation across server coordinators and retains registration races", async () => {
+    const publisher = await PostgresInvocationCancellationCoordinator.create(database.pool);
+    const subscriber = await PostgresInvocationCancellationCoordinator.create(database.pool);
+    try {
+      const activeKey = `active-${randomUUID()}`;
+      let resolveActive!: () => void;
+      const active = new Promise<void>((resolve) => {
+        resolveActive = resolve;
+      });
+      subscriber.register(activeKey, resolveActive);
+      await publisher.cancel(activeKey);
+      await expect(active).resolves.toBeUndefined();
+
+      const racedKey = `raced-${randomUUID()}`;
+      await publisher.cancel(racedKey);
+      await new Promise((resolve) => setTimeout(resolve, 25));
+      let resolveRaced!: () => void;
+      const raced = new Promise<void>((resolve) => {
+        resolveRaced = resolve;
+      });
+      subscriber.register(racedKey, resolveRaced);
+      await expect(raced).resolves.toBeUndefined();
+    } finally {
+      await publisher.close();
+      await subscriber.close();
+    }
   });
 
   it("reserves daily quota atomically for concurrent invocation creation", async () => {

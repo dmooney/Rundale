@@ -34,6 +34,11 @@ export interface InferenceConfig {
   temperature?: number;
   maxOutputTokens: number;
   retryCount: 0 | 1;
+  /** Versioned projection used by the streaming runtime. */
+  streaming?: {
+    version: 1;
+    textField: string;
+  };
 }
 
 export interface EndpointDefinition {

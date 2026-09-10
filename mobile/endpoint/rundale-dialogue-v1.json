@@ -138,6 +138,7 @@
       "knownPeople": {
         "type": "array",
         "description": "Grounding people, capped by the engine at 32 entries.",
+        "maxItems": 32,
         "items": {
           "title": "Grounded person",
           "type": "object",
@@ -181,6 +182,7 @@
       "knownPlaces": {
         "type": "array",
         "description": "Grounding places, capped by the engine at 32 entries.",
+        "maxItems": 32,
         "items": {
           "title": "Grounded place",
           "type": "object",
@@ -211,6 +213,7 @@
       "authoredFacts": {
         "type": "array",
         "description": "Authored grounding facts, capped by the engine at 32 entries.",
+        "maxItems": 32,
         "items": {
           "title": "Authored grounding fact",
           "type": "object",
@@ -238,6 +241,7 @@
       "recentConversation": {
         "type": "array",
         "description": "Canonical conversation exchanges for this location, capped by the engine at 8 entries.",
+        "maxItems": 8,
         "items": {
           "title": "Canonical conversation exchange",
           "type": "object",
@@ -341,6 +345,7 @@
     "maxOutputTokens": 1024,
     "retryCount": 0,
     "streaming": {
+      "version": 1,
       "textField": "dialogue"
     }
   }

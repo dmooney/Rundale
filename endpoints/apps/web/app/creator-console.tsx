@@ -18,7 +18,12 @@ type Definition = {
   outputSchema: Record<string, unknown>;
   instructions: string;
   providerConfig: ModelOption;
-  inferenceConfig: { maxOutputTokens: number; retryCount: 0 | 1; temperature?: number };
+  inferenceConfig: {
+    maxOutputTokens: number;
+    retryCount: 0 | 1;
+    temperature?: number;
+    streaming?: { version: 1; textField: string };
+  };
 };
 type Draft = Definition & { id: string; endpointId: string; revision: number };
 type Version = {
@@ -117,6 +122,14 @@ function definitionFromDraft(draft: Draft): Definition {
     providerConfig: draft.providerConfig,
     inferenceConfig: draft.inferenceConfig,
   };
+}
+
+function withoutStreaming(
+  inferenceConfig: Definition["inferenceConfig"],
+): Definition["inferenceConfig"] {
+  const { streaming, ...remaining } = inferenceConfig;
+  void streaming;
+  return remaining;
 }
 
 function definitionFingerprint(definition: Definition): string {
@@ -676,6 +689,32 @@ function ConsoleWithToken({
                   <option value="0">0</option>
                   <option value="1">1</option>
                 </select>
+              </label>
+              <label>
+                Streamed text field
+                <input
+                  type="text"
+                  maxLength={128}
+                  placeholder="Disabled"
+                  value={draft.inferenceConfig.streaming?.textField ?? ""}
+                  onChange={(event) => {
+                    const textField = event.target.value.trim();
+                    setDraft((current) =>
+                      current === null
+                        ? current
+                        : {
+                            ...current,
+                            inferenceConfig:
+                              textField.length === 0
+                                ? withoutStreaming(current.inferenceConfig)
+                                : {
+                                    ...current.inferenceConfig,
+                                    streaming: { version: 1, textField },
+                                  },
+                          },
+                    );
+                  }}
+                />
               </label>
             </div>
             <div className="actions">

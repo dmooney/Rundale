@@ -12,11 +12,21 @@ export interface InvocationApiKey {
   organizationInferenceEnabled: boolean;
 }
 
+export interface InvocationPrincipal {
+  kind: "api-key" | "mobile";
+  organizationId: Id;
+  rateIdentity: string;
+  dailyInvocationQuota: number;
+  apiKeyId: Id | null;
+}
+
 export interface ResolvedEndpoint {
   endpointId: Id;
   endpointSlug: string;
   endpointStatus: "active" | "disabled";
   endpointInferenceEnabled: boolean;
+  organizationStatus: "active" | "suspended";
+  organizationInferenceEnabled: boolean;
   version: EndpointVersionSnapshot;
 }
 
@@ -53,6 +63,8 @@ export interface InvocationRepository {
   ): Promise<ResolvedEndpoint | null>;
   isInferenceEnabled(provider: string, model: string): Promise<boolean>;
   createInvocation(start: InvocationStart, dailyInvocationQuota: number): Promise<Id>;
+  requestCancellation(requestId: string): Promise<boolean>;
+  isCancellationRequested(invocationId: Id): Promise<boolean>;
   recordAttempts(invocationId: Id, attempts: readonly RuntimeAttempt[]): Promise<void>;
   finalizeSuccess(
     invocationId: Id,

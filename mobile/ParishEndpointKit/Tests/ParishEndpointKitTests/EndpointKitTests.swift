@@ -3,6 +3,236 @@ import XCTest
 @testable import ParishEndpointKit
 
 final class EndpointKitTests: XCTestCase {
+    private struct CompletedMockTransport: EndpointTransport {
+        let status: Int
+        let contentType: String
+        let body: Data
+        let delay: UInt64
+
+        func open(_ request: URLRequest) -> EndpointByteStream {
+            let events = AsyncThrowingStream<EndpointTransportEvent, Error> { continuation in
+                Task {
+                    do {
+                        if delay > 0 { try await Task.sleep(nanoseconds: delay) }
+                        continuation.yield(.response(statusCode: status, headers: ["content-type": contentType]))
+                        continuation.yield(.bytes(body))
+                        continuation.finish()
+                    } catch {
+                        continuation.finish(throwing: error)
+                    }
+                }
+            }
+            return EndpointByteStream(events: events)
+        }
+    }
+
+    private final class RecordingCompletedTransport: EndpointTransport, @unchecked Sendable {
+        private let response: Data
+        private(set) var request: URLRequest?
+
+        init(response: Data) { self.response = response }
+
+        func open(_ request: URLRequest) -> EndpointByteStream {
+            self.request = request
+            let events = AsyncThrowingStream<EndpointTransportEvent, Error> { continuation in
+                continuation.yield(.response(statusCode: 200, headers: ["content-type": "application/json"]))
+                continuation.yield(.bytes(self.response))
+                continuation.finish()
+            }
+            return EndpointByteStream(events: events)
+        }
+    }
+
+    private final class CancellationRecordingTransport: EndpointTransport, @unchecked Sendable {
+        private var cancelled = false
+        private var opened = false
+        private let lock = NSLock()
+
+        func open(_ request: URLRequest) -> EndpointByteStream {
+            lock.lock()
+            opened = true
+            lock.unlock()
+            let events = AsyncThrowingStream<EndpointTransportEvent, Error> { continuation in
+                continuation.yield(.response(statusCode: 200, headers: ["content-type": "text/event-stream"]))
+            }
+            return EndpointByteStream(events: events) { [weak self] in
+                self?.lock.lock()
+                self?.cancelled = true
+                self?.lock.unlock()
+            }
+        }
+
+        func wasCancelled() -> Bool {
+            lock.lock(); defer { lock.unlock() }
+            return cancelled
+        }
+
+        func wasOpened() -> Bool {
+            lock.lock(); defer { lock.unlock() }
+            return opened
+        }
+    }
+
+    /// Models Firebase callbacks that may finish after their calling Swift
+    /// task has already been cancelled.
+    private final class DeferredCredentialProvider: EndpointCredentialProvider, @unchecked Sendable {
+        private let lock = NSLock()
+        private var continuation: CheckedContinuation<EndpointCredentials, any Error>?
+
+        func credentials() async throws -> EndpointCredentials {
+            try await withCheckedThrowingContinuation { continuation in
+                lock.lock()
+                self.continuation = continuation
+                lock.unlock()
+            }
+        }
+
+        func hasWaiter() -> Bool {
+            lock.lock(); defer { lock.unlock() }
+            return continuation != nil
+        }
+
+        func resume() {
+            lock.lock()
+            let continuation = continuation
+            self.continuation = nil
+            lock.unlock()
+            continuation?.resume(returning: .init(authorizationToken: "late-token"))
+        }
+    }
+
+    private func completedRequest() throws -> EndpointRequest {
+        try EndpointRequest(
+            url: URL(string: "https://endpoint.example.test/dialogue")!,
+            requestID: "request-1",
+            attemptID: "attempt-1",
+            body: Data(#"{"input":{"playerInput":"hello"}}"#.utf8)
+        )
+    }
+
+    func testCompletedResponseReturnsStrictJSONAndRequestIdentity() async throws {
+        let body = Data(#"{"dialogue":"The rain has eased."}"#.utf8)
+        let client = ParishEndpointClient(
+            credentials: StaticEndpointCredentialProvider(.init(authorizationToken: "firebase-id-token")),
+            transport: CompletedMockTransport(status: 200, contentType: "application/json; charset=utf-8", body: body, delay: 0)
+        )
+
+        let response = try await client.complete(try completedRequest())
+
+        XCTAssertEqual(response.requestID, "request-1")
+        XCTAssertEqual(response.statusCode, 200)
+        XCTAssertEqual(try response.validatedDialogue(), "The rain has eased.")
+    }
+
+    func testCompletedRequestUsesJSONHeadersAndCorrelation() async throws {
+        let transport = RecordingCompletedTransport(response: Data(#"{"dialogue":"ok"}"#.utf8))
+        let client = ParishEndpointClient(
+            credentials: StaticEndpointCredentialProvider(.init(authorizationToken: "firebase-id-token", appCheckToken: "app-check")),
+            transport: transport
+        )
+        _ = try await client.complete(try completedRequest())
+        let request = try XCTUnwrap(transport.request)
+        XCTAssertEqual(request.httpMethod, "POST")
+        XCTAssertEqual(request.value(forHTTPHeaderField: "Accept"), "application/json")
+        XCTAssertEqual(request.value(forHTTPHeaderField: "Content-Type"), "application/json")
+        XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer firebase-id-token")
+        XCTAssertEqual(request.value(forHTTPHeaderField: "X-Firebase-AppCheck"), "app-check")
+        XCTAssertEqual(request.value(forHTTPHeaderField: "X-Request-Id"), "request-1")
+        XCTAssertEqual(request.value(forHTTPHeaderField: "X-Attempt-Id"), "attempt-1")
+        XCTAssertEqual(request.value(forHTTPHeaderField: "Idempotency-Key"), "request-1")
+        XCTAssertEqual(request.httpBody, Data(#"{"input":{"playerInput":"hello"}}"#.utf8))
+    }
+
+    func testCancellationUsesAuthenticatedCorrelationWithoutRequestBody() async throws {
+        let transport = RecordingCompletedTransport(response: Data(#"{"status":"cancellation_requested"}"#.utf8))
+        let client = ParishEndpointClient(
+            credentials: StaticEndpointCredentialProvider(.init(authorizationToken: "firebase-id-token", appCheckToken: "app-check")),
+            transport: transport
+        )
+
+        try await client.cancel(try completedRequest())
+
+        let request = try XCTUnwrap(transport.request)
+        XCTAssertEqual(request.httpMethod, "DELETE")
+        XCTAssertNil(request.httpBody)
+        XCTAssertEqual(request.value(forHTTPHeaderField: "Accept"), "application/json")
+        XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer firebase-id-token")
+        XCTAssertEqual(request.value(forHTTPHeaderField: "X-Firebase-AppCheck"), "app-check")
+        XCTAssertEqual(request.value(forHTTPHeaderField: "X-Request-Id"), "request-1")
+        XCTAssertEqual(request.value(forHTTPHeaderField: "X-Attempt-Id"), "attempt-1")
+    }
+
+    func testCompletedResponseRejectsStatusContentTypeAndMalformedJSON() async throws {
+        let credentials = StaticEndpointCredentialProvider(.init(authorizationToken: "firebase-id-token"))
+        let request = try completedRequest()
+
+        do {
+            _ = try await ParishEndpointClient(
+                credentials: credentials,
+                transport: CompletedMockTransport(status: 502, contentType: "application/json", body: Data(#"{"error":{"code":"upstream_unavailable","message":"temporary","request_id":"server-r"}}"#.utf8), delay: 0)
+            ).complete(request)
+            XCTFail("HTTP errors must be surfaced without decoding output")
+        } catch {
+            XCTAssertEqual(
+                error as? ParishEndpointError,
+                .responseFailure(status: 502, requestID: "server-r", code: "upstream_unavailable", message: "temporary")
+            )
+        }
+
+        do {
+            _ = try await ParishEndpointClient(
+                credentials: credentials,
+                transport: CompletedMockTransport(status: 200, contentType: "text/plain", body: Data("ok".utf8), delay: 0)
+            ).complete(request)
+            XCTFail("non-JSON responses must be rejected")
+        } catch { XCTAssertEqual(error as? ParishEndpointError, .responseNotJSON) }
+
+        do {
+            _ = try await ParishEndpointClient(
+                credentials: credentials,
+                transport: CompletedMockTransport(status: 200, contentType: "application/json", body: Data("[]".utf8), delay: 0)
+            ).complete(request)
+            XCTFail("schema output must be a JSON object")
+        } catch { XCTAssertEqual(error as? ParishEndpointError, .malformedResponse("output is not a JSON object")) }
+    }
+
+    func testCompletedDialogueRejectsMissingExtraAndOversizeFields() async throws {
+        let credentials = StaticEndpointCredentialProvider(.init(authorizationToken: "firebase-id-token"))
+        let outputs = [
+            Data(#"{}"#.utf8),
+            Data(#"{"dialogue":"ok","extra":true}"#.utf8),
+            Data(#"{"dialogue":""}"#.utf8),
+            Data((#"{"dialogue":""# + String(repeating: "x", count: 8_193) + #""}"#).utf8)
+        ]
+        for body in outputs {
+            do {
+                _ = try await ParishEndpointClient(
+                    credentials: credentials,
+                    transport: CompletedMockTransport(status: 200, contentType: "application/json", body: body, delay: 0)
+                ).complete(try completedRequest())
+                XCTFail("invalid dialogue output must be rejected")
+            } catch {
+                XCTAssertEqual(error as? ParishEndpointError, .malformedResponse("output does not match the dialogue schema"))
+            }
+        }
+    }
+
+    func testCompletedResponseCancellationDoesNotRetry() async throws {
+        let client = ParishEndpointClient(
+            credentials: StaticEndpointCredentialProvider(.init(authorizationToken: "firebase-id-token")),
+            transport: CompletedMockTransport(status: 200, contentType: "application/json", body: Data(#"{"dialogue":"late"}"#.utf8), delay: 2_000_000_000)
+        )
+        let request = try completedRequest()
+        let task = Task { try await client.complete(request) }
+        task.cancel()
+        do {
+            _ = try await task.value
+            XCTFail("cancelled completed requests must not produce a result")
+        } catch is CancellationError {
+            // Cancellation is terminal; the client deliberately does not retry.
+        }
+    }
+
     private func event(
         type: String,
         sequence: Int,
@@ -42,6 +272,80 @@ final class EndpointKitTests: XCTestCase {
         XCTAssertEqual(events.count, 1)
         XCTAssertEqual(events[0].event, "progress")
         XCTAssertTrue(try parser.finish().isEmpty)
+    }
+
+    func testVersionedRepositoryFixtureParsesWithFragmentedUTF8Chunks() throws {
+        let fixtureURL = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("endpoint/fixtures/dialogue-v1.sse")
+        let fixture = try Data(contentsOf: fixtureURL)
+        let emojiOffset = try XCTUnwrap(fixture.firstIndex(of: 0xF0))
+        XCTAssertGreaterThan(emojiOffset % 11, 7, "fixture emoji must cross a transport chunk boundary")
+        var parser = BoundedSSEParser()
+        var validator = EndpointStreamValidator(
+            expectedRequestID: "request-fixture",
+            expectedAttemptID: "attempt-fixture",
+            expectedInvocationID: "invocation-fixture"
+        )
+        var frames: [EndpointStreamFrame] = []
+        for index in stride(from: 0, to: fixture.count, by: 11) {
+            let end = min(index + 11, fixture.count)
+            for event in try parser.append(fixture[index..<end]) {
+                frames.append(try validator.accept(event))
+            }
+        }
+        _ = try parser.finish()
+        try validator.finish()
+        XCTAssertEqual(frames.map(\.kind), [.progress, .textDelta, .textDelta, .final])
+        XCTAssertEqual(frames.last?.payload.flatMap { try? JSONSerialization.jsonObject(with: $0) as? [String: Any] }?["dialogue"] as? String, "The rain keeps the old road quiet. 🌧")
+    }
+
+    func testStreamCancellationCallsUnderlyingTransportCancel() async throws {
+        let transport = CancellationRecordingTransport()
+        let client = ParishEndpointClient(
+            credentials: StaticEndpointCredentialProvider(.init(authorizationToken: "token")),
+            transport: transport
+        )
+        let request = try EndpointRequest(
+            url: URL(string: "https://endpoint.example.test/v1/endpoints/rundale/rundale-dialogue/versions/1/stream")!,
+            requestID: "r", attemptID: "a", invocationID: "i", body: Data("{}".utf8)
+        )
+        let task = Task {
+            for try await _ in client.stream(request) { }
+        }
+        try await Task.sleep(nanoseconds: 50_000_000)
+        task.cancel()
+        _ = await task.result
+        for _ in 0..<20 where !transport.wasCancelled() {
+            try await Task.sleep(nanoseconds: 10_000_000)
+        }
+        XCTAssertTrue(transport.wasCancelled())
+    }
+
+    func testStreamCancelledDuringCredentialCallbackNeverStartsTransport() async throws {
+        let credentials = DeferredCredentialProvider()
+        let transport = CancellationRecordingTransport()
+        let client = ParishEndpointClient(credentials: credentials, transport: transport)
+        let request = try EndpointRequest(
+            url: URL(string: "https://endpoint.example.test/v1/endpoints/rundale/rundale-dialogue/versions/1/stream")!,
+            requestID: "r", attemptID: "a", invocationID: "i", body: Data("{}".utf8)
+        )
+        let task = Task {
+            for try await _ in client.stream(request) { }
+        }
+        for _ in 0..<20 where !credentials.hasWaiter() {
+            try await Task.sleep(nanoseconds: 10_000_000)
+        }
+        XCTAssertTrue(credentials.hasWaiter())
+
+        task.cancel()
+        credentials.resume()
+        _ = await task.result
+
+        XCTAssertFalse(transport.wasOpened())
     }
 
     func testValidatorRejectsCrossCorrelationAndBadOrder() throws {
@@ -116,6 +420,14 @@ final class EndpointKitTests: XCTestCase {
             ])
         )
         XCTAssertThrowsError(try validator.accept(scalarEventID))
+
+        var extraOutputValidator = EndpointStreamValidator(expectedRequestID: "r", expectedAttemptID: "a")
+        let extraOutput = try event(type: "final", sequence: 1, output: ["dialogue": "ok", "extra": true])
+        XCTAssertThrowsError(try extraOutputValidator.accept(extraOutput))
+
+        var emptyOutputValidator = EndpointStreamValidator(expectedRequestID: "r", expectedAttemptID: "a")
+        let emptyOutput = try event(type: "final", sequence: 1, output: ["dialogue": ""])
+        XCTAssertThrowsError(try emptyOutputValidator.accept(emptyOutput))
     }
 
     func testValidatorRejectsBooleanFractionalAndWrongTerminalTypes() throws {

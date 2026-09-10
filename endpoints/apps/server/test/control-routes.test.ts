@@ -27,6 +27,7 @@ const config: ServerConfig = {
   allowedModels: new Set(["fake/fake-v1"]),
   providerTimeoutMs: 1_000,
   modelPrices: {},
+  mobileAppBindings: [],
 };
 const actor = { userId: "user_1", organizationId: "org_1", role: "owner" as const };
 const auth: CreatorAuthenticator = {
@@ -68,6 +69,8 @@ function services(repository: MemoryControlRepository) {
       endpointSlug: "unused",
       endpointStatus: "active",
       endpointInferenceEnabled: true,
+      organizationStatus: "active",
+      organizationInferenceEnabled: true,
     },
     [],
   );

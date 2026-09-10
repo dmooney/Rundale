@@ -8,11 +8,12 @@ Endpoint definition for the Phase 2 NPC dialogue role. It is the
 secret-free serialization produced by the Rust `EndpointInvocation` DTO and
 checked against it in the `parish-core` fixture test.
 
-The proposed public identity is slug `rundale-dialogue`, version `1`. This
-repository artifact is configuration for publication; it does not claim that
-an Endpoint record, production alias, API key, or deployed service exists.
+The public identity is organization `parish-demo`, slug `rundale-dialogue`,
+version `1`. The exact artifact was published and promoted on 2026-09-09; its
+deployed content hash is
+`sha256:d2a58dc263543789c19a3bc5d3d934db7fee7e8fba81d5d01716bcf03315cae1`.
 The first provider target is `google/gemini-3.5-flash-lite`, with 1,024 output
-tokens, no retry, and the required streaming projection
+tokens, no retry, and the versioned streaming projection
 `inferenceConfig.streaming.textField = "dialogue"`.
 
 ## Engine wire agreement
@@ -50,13 +51,39 @@ partial text is provisional and never changes game state.
 
 ## Publication and invocation notes
 
-Publish this definition as an immutable Endpoint version, then route the
-mobile worker through the deployed Parish Endpoints invocation API using the
-normal authenticated consumer path. The JSON invocation body is wrapped by
-that API as `{ "input": <EndpointInvocation> }`; the worker supplies its
-idempotency and attempt correlation headers from the same request identities.
-The mobile client never receives provider credentials or creator instructions.
+Publish this definition as an immutable Endpoint version and bind the Rundale
+Firebase App Check app ID to its organization and slug in the deployed Parish
+Endpoints configuration. The JSON request body is exactly
+`{ "input": <EndpointInvocation> }`. The mobile worker sends the engine's stable
+request and attempt identities as bounded correlation headers. The server
+verifies both Firebase credentials, tenant and Endpoint bindings, quotas, kill
+switches, and the pinned version before provider dispatch. The client never
+receives provider credentials, a shared consumer key, or creator instructions.
+
+The `/stream` route returns the version 1 SSE contract frozen in
+[`fixtures/dialogue-v1.sse`](fixtures/dialogue-v1.sse): ordered `progress` and
+`text_delta` frames followed by exactly one validated `final` or `error`
+terminal frame. Partial dialogue is provisional. The final output remains the
+exact `{ "dialogue": "..." }` object and is validated again by the embedded
+engine before commit. See [the current integration handoff](phase2-handoff.md)
+for deployment and live-proof status.
 
 The definition intentionally contains no API keys, Firebase tokens, endpoint
 URLs, organization identifiers, or deployment alias. Fill those values in
 the authorized service/configuration path when the Endpoint is provisioned.
+
+## Deterministic boundary checks
+
+Run the shared transport and schema checks from the repository root:
+
+```sh
+swift test --package-path mobile/ParishEndpointKit
+cd parish && cargo test -p parish-core --features mobile --test mobile_endpoint_fixture
+cd ../endpoints && pnpm exec vitest run apps/server/test/mobile-invocation.test.ts
+```
+
+These use fake provider responses and credentials. They establish agreement
+between Swift, Rust, and TypeScript. The separate live evidence in
+[phase2-handoff.md](phase2-handoff.md) establishes publication, simulator
+Firebase/App Check, Google delivery, and Stop accounting; physical-iPhone App
+Attest remains unverified.

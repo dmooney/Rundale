@@ -1,3 +1,5 @@
+import type { MobileAppBinding } from "./auth/mobile-auth.js";
+
 export interface ServerConfig {
   port: number;
   host: string;
@@ -21,6 +23,7 @@ export interface ServerConfig {
   googleCloudProject?: string;
   googleCloudLocation?: string;
   modelPrices: Record<string, { inputPerMillionUsd: number; outputPerMillionUsd: number }>;
+  mobileAppBindings: readonly MobileAppBinding[];
 }
 
 function positiveInteger(value: string | undefined, fallback: number, name: string): number {
@@ -84,6 +87,84 @@ export function readServerConfig(environment: NodeJS.ProcessEnv = process.env): 
       ? requiredEnvironmentValue(environment, "FIREBASE_PROJECT_ID", "when AUTH_MODE=firebase")
       : environment.FIREBASE_PROJECT_ID?.trim();
   const requiresDeploymentSettings = authMode === "firebase" || isProduction || isCloudRun;
+  const mobileBindingsText = environment.MOBILE_APP_BINDINGS_JSON?.trim();
+  const mobileAppBindings: MobileAppBinding[] = [];
+  if (mobileBindingsText !== undefined && mobileBindingsText.length > 0) {
+    const parsed: unknown = JSON.parse(mobileBindingsText);
+    if (!Array.isArray(parsed)) throw new Error("MOBILE_APP_BINDINGS_JSON must be an array.");
+    for (const item of parsed) {
+      if (item === null || typeof item !== "object" || Array.isArray(item)) {
+        throw new Error("Invalid mobile app binding.");
+      }
+      const value = item as Record<string, unknown>;
+      const allowedKeys = new Set([
+        "appId",
+        "organizationId",
+        "organizationSlug",
+        "endpointVersions",
+        "dailyInvocationQuota",
+      ]);
+      if (Object.keys(value).some((key) => !allowedKeys.has(key))) {
+        throw new Error("Invalid mobile app binding.");
+      }
+      const strings = ["appId", "organizationId", "organizationSlug"];
+      if (
+        strings.some(
+          (key) => typeof value[key] !== "string" || (value[key] as string).trim() === "",
+        )
+      ) {
+        throw new Error("Invalid mobile app binding.");
+      }
+      if (
+        value.endpointVersions === null ||
+        typeof value.endpointVersions !== "object" ||
+        Array.isArray(value.endpointVersions)
+      ) {
+        throw new Error("Invalid mobile app binding endpoint versions.");
+      }
+      const endpointVersions = value.endpointVersions as Record<string, unknown>;
+      if (
+        Object.keys(endpointVersions).length === 0 ||
+        Object.entries(endpointVersions).some(
+          ([slug, versions]) =>
+            !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug) ||
+            !Array.isArray(versions) ||
+            versions.length === 0 ||
+            versions.some((version) => !Number.isSafeInteger(version) || (version as number) < 1) ||
+            new Set(versions).size !== versions.length,
+        )
+      ) {
+        throw new Error("Invalid mobile app binding endpoint versions.");
+      }
+      if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(value.organizationSlug as string)) {
+        throw new Error("Invalid mobile app binding organization slug.");
+      }
+      if (
+        isProduction &&
+        !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(
+          value.organizationId as string,
+        )
+      ) {
+        throw new Error("Production mobile organizationId must be a UUID.");
+      }
+      if (mobileAppBindings.some((binding) => binding.appId === value.appId)) {
+        throw new Error("Mobile app IDs must be unique.");
+      }
+      const quota = value.dailyInvocationQuota;
+      if (!Number.isSafeInteger(quota) || (quota as number) < 1 || (quota as number) > 10_000_000) {
+        throw new Error("Invalid mobile app binding quota.");
+      }
+      mobileAppBindings.push({
+        appId: value.appId as string,
+        organizationId: value.organizationId as string,
+        organizationSlug: value.organizationSlug as string,
+        endpointVersions: endpointVersions as Record<string, number[]>,
+        dailyInvocationQuota: quota as number,
+      });
+    }
+  } else if (isProduction || isCloudRun) {
+    throw new Error("MOBILE_APP_BINDINGS_JSON is required for production mobile authentication.");
+  }
   const databaseUrl = requiresDeploymentSettings
     ? requiredEnvironmentValue(environment, "DATABASE_URL", "for Firebase or production deployment")
     : (environment.DATABASE_URL ?? "postgres://parish:parish@localhost:5432/parish");
@@ -182,5 +263,6 @@ export function readServerConfig(environment: NodeJS.ProcessEnv = process.env): 
     ...(googleProviderAuth !== "vertex-ai"
       ? {}
       : { googleCloudLocation: environment.GOOGLE_CLOUD_LOCATION ?? "global" }),
+    mobileAppBindings,
   };
 }

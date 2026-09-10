@@ -58,6 +58,7 @@ const config: ServerConfig = {
   allowedModels: new Set(["fake/fake-v1"]),
   providerTimeoutMs: 1_000,
   modelPrices: {},
+  mobileAppBindings: [],
 };
 
 function repository() {
@@ -77,6 +78,8 @@ function repository() {
       endpointSlug: "generic-transform",
       endpointStatus: "active",
       endpointInferenceEnabled: true,
+      organizationStatus: "active",
+      organizationInferenceEnabled: true,
     },
     structuredClone(versions),
   );

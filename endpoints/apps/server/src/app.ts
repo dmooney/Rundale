@@ -47,6 +47,8 @@ export async function buildServer(
       "x-request-id",
       "idempotency-key",
       "x-parish-owner-id",
+      "x-firebase-appcheck",
+      "x-attempt-id",
     ],
   });
   await server.register(rateLimit, {

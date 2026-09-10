@@ -61,6 +61,18 @@ function validateDefinition(
   if (![0, 1].includes(definition.inferenceConfig.retryCount)) {
     throw new ControlError("INVALID_DEFINITION", "retryCount must be 0 or 1.");
   }
+  const streaming = definition.inferenceConfig.streaming;
+  if (
+    streaming !== undefined &&
+    (streaming.version !== 1 ||
+      streaming.textField.trim().length === 0 ||
+      streaming.textField.length > 128)
+  ) {
+    throw new ControlError(
+      "INVALID_DEFINITION",
+      "streaming must specify version 1 and a textField.",
+    );
+  }
   if (
     definition.inferenceConfig.temperature !== undefined &&
     (definition.inferenceConfig.temperature < 0 || definition.inferenceConfig.temperature > 2)

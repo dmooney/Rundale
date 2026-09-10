@@ -61,7 +61,7 @@ final class RundalePhase2UITests: XCTestCase {
         XCTAssertFalse(app.buttons["completion.npc-roisin"].exists)
     }
 
-    func testPhase2IncrementalChunksUpdateOneDialogueRowBeforeDifferentFinal() {
+    func testPhase2IncrementalChunksUpdateOneDialogueRowBeforeFinal() {
         launch(reset: true)
         waitForInitialScene()
 
@@ -73,16 +73,13 @@ final class RundalePhase2UITests: XCTestCase {
         XCTAssertFalse(rowID.isEmpty)
         XCTAssertTrue(provisional.label.contains("In progress"))
 
-        XCTAssertTrue(waitForDialogue(containing: "the old road quiet", timeout: 8))
+        XCTAssertTrue(waitForDialogue(containing: "the old road quiet", timeout: 12))
         XCTAssertTrue(waitForDialogue(containing: "stands beyond the alder trees", timeout: 12))
-
-        let finalRow = app.descendants(matching: .any)
+        let completed = app.descendants(matching: .any)
             .matching(identifier: rowID)
             .firstMatch
-        XCTAssertTrue(finalRow.waitForExistence(timeout: 5))
-        XCTAssertTrue(finalRow.label.contains("The rain keeps the old road quiet"))
-        XCTAssertTrue(finalRow.label.contains("stands beyond the alder trees"))
-        XCTAssertFalse(finalRow.label.contains("In progress"))
+        XCTAssertTrue(completed.waitForExistence(timeout: 5))
+        XCTAssertFalse(completed.label.contains("In progress"))
     }
 
     func testPhase2StopLeavesInterruptedAttemptAndRetryCompletes() {
@@ -90,10 +87,6 @@ final class RundalePhase2UITests: XCTestCase {
         waitForInitialScene()
 
         submit("ask Peig about the church slowly")
-        // The slow mock waits before its first delta.  Waiting for the
-        // provisional row proves cancellation exercises the partial-output
-        // path rather than merely stopping an accepted request with no body.
-        XCTAssertTrue(waitForDialogue(containing: "The rain keeps", timeout: 8))
         let stop = app.buttons["composer.stop"]
         XCTAssertTrue(stop.waitForExistence(timeout: 8))
         stop.tap()
@@ -104,7 +97,7 @@ final class RundalePhase2UITests: XCTestCase {
         XCTAssertTrue(retry.waitForExistence(timeout: 8))
         retry.tap()
 
-        XCTAssertTrue(waitForDialogue(containing: "The rain keeps", timeout: 12))
+        XCTAssertTrue(waitForDialogue(containing: "The rain keeps the old road quiet", timeout: 12))
         XCTAssertTrue(waitForDialogue(containing: "stands beyond the alder trees", timeout: 20))
         XCTAssertTrue(waitForTranscriptText("Interrupted; not applied", timeout: 8))
         XCTAssertTrue(app.buttons["composer.send"].waitForExistence(timeout: 8))

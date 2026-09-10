@@ -14,7 +14,11 @@ public enum ParishEndpointError: Error, Equatable, Sendable, LocalizedError {
     case loopbackHTTPNotAllowed
     case invalidCredential
     case responseStatus(Int)
+    case responseFailure(status: Int, requestID: String, code: String?, message: String?)
     case responseNotSSE
+    case responseNotJSON
+    case responseBodyTooLarge
+    case malformedResponse(String)
     case malformedEvent(String)
     case invalidUTF8
     case lineTooLarge
@@ -40,7 +44,11 @@ public enum ParishEndpointError: Error, Equatable, Sendable, LocalizedError {
         case .loopbackHTTPNotAllowed: return "HTTP is allowed only for the controlled loopback test transport."
         case .invalidCredential: return "The Parish Endpoint credentials are invalid."
         case let .responseStatus(status): return "The Parish Endpoint returned HTTP \(status)."
+        case let .responseFailure(status, _, _, _): return "The Parish Endpoint returned HTTP \(status) for this request."
         case .responseNotSSE: return "The Parish Endpoint did not return a streaming response."
+        case .responseNotJSON: return "The Parish Endpoint did not return a JSON response."
+        case .responseBodyTooLarge: return "The Parish Endpoint response is too large."
+        case let .malformedResponse(message): return "The Parish Endpoint response is malformed: \(message)"
         case let .malformedEvent(message): return "The Parish Endpoint stream is malformed: \(message)"
         case .invalidUTF8: return "The Parish Endpoint stream contains invalid UTF-8."
         case .lineTooLarge: return "The Parish Endpoint stream line is too large."
@@ -71,6 +79,8 @@ public enum EndpointResourceLimits {
     public static let maximumEventBytes = 64 * 1024
     public static let maximumFrames = 4_096
     public static let maximumBufferedTransportEvents = 64 * 1024
+    public static let maximumCompletedResponseBytes = 256 * 1024
+    public static let maximumDialogueScalars = 8_192
 }
 
 /// Credentials are fetched for each request so the Endpoint client never
@@ -513,7 +523,10 @@ public struct EndpointStreamValidator: Sendable {
         }
         if kind == .final {
             guard let output = values["output"] as? [String: Any],
-                  output["dialogue"] as? String != nil else {
+                  Set(output.keys) == ["dialogue"],
+                  let dialogue = output["dialogue"] as? String,
+                  !dialogue.isEmpty,
+                  dialogue.unicodeScalars.count <= EndpointResourceLimits.maximumDialogueScalars else {
                 throw ParishEndpointError.malformedEvent("final output.dialogue is missing")
             }
         }
@@ -576,6 +589,46 @@ public struct EndpointByteStream: Sendable {
     public func cancel() { cancelOperation() }
 }
 
+/// One completed (non-streaming) Endpoint response. The request identity is
+/// retained even though the Parish response body is the schema-defined output
+/// object; callers can use it when correlating the result with the pending
+/// mobile attempt. No retry is performed by this boundary.
+public struct EndpointCompletedResponse: Equatable, Sendable {
+    public let requestID: String
+    public let statusCode: Int
+    public let body: Data
+
+    public init(requestID: String, statusCode: Int, body: Data) {
+        self.requestID = requestID
+        self.statusCode = statusCode
+        self.body = body
+    }
+
+    /// Validates the completed body as one bounded JSON object. Schema
+    /// validation remains with the caller because the schema is deployed
+    /// independently of this transport package.
+    public func validatedJSON() throws -> [String: Any] {
+        guard let object = try? JSONSerialization.jsonObject(with: body),
+              let object = object as? [String: Any] else {
+            throw ParishEndpointError.malformedResponse("output is not a JSON object")
+        }
+        return object
+    }
+
+    /// Validates the deployed v1 output schema exactly. Codable decoding alone
+    /// is insufficient here because it ignores unknown properties.
+    public func validatedDialogue() throws -> String {
+        let object = try validatedJSON()
+        guard Set(object.keys) == ["dialogue"],
+              let dialogue = object["dialogue"] as? String,
+              !dialogue.isEmpty,
+              dialogue.unicodeScalars.count <= EndpointResourceLimits.maximumDialogueScalars else {
+            throw ParishEndpointError.malformedResponse("output does not match the dialogue schema")
+        }
+        return dialogue
+    }
+}
+
 public protocol EndpointTransport: Sendable {
     func open(_ request: URLRequest) -> EndpointByteStream
 }
@@ -583,75 +636,147 @@ public protocol EndpointTransport: Sendable {
 /// Production URLSession transport. It emits response metadata first and then
 /// forwards each byte chunk without buffering the body or retrying failures.
 public final class URLSessionEndpointTransport: EndpointTransport, @unchecked Sendable {
-    private let session: URLSession
+    private let configuration: URLSessionConfiguration
+    private let delegateQueue: OperationQueue?
 
     public init(session: URLSession = .shared) {
-        self.session = session
+        configuration = session.configuration
+        delegateQueue = session.delegateQueue
     }
 
     public func open(_ request: URLRequest) -> EndpointByteStream {
-        final class TaskBox: @unchecked Sendable {
-            var task: Task<Void, Never>?
-            let lock = NSLock()
-
-            func set(_ task: Task<Void, Never>) {
-                lock.lock(); defer { lock.unlock() }
-                self.task = task
-            }
-
-            func cancel() {
-                lock.lock(); let task = self.task; lock.unlock()
-                task?.cancel()
-            }
-        }
-
-        let box = TaskBox()
+        let box = URLSessionEndpointTaskBox()
         let stream = AsyncThrowingStream<EndpointTransportEvent, Error>(
             bufferingPolicy: .bufferingOldest(EndpointResourceLimits.maximumBufferedTransportEvents)
         ) { continuation in
-            let task = Task {
-                do {
-                    let (bytes, response) = try await session.bytes(for: request)
-                    let headers = (response as? HTTPURLResponse)?.allHeaderFields.reduce(into: [String: String]()) { result, entry in
-                        result[String(describing: entry.key).lowercased()] = String(describing: entry.value)
-                    } ?? [:]
-                    let status = (response as? HTTPURLResponse)?.statusCode ?? 0
-                    switch continuation.yield(.response(statusCode: status, headers: headers)) {
-                    case .enqueued:
-                        break
-                    case .dropped:
-                        throw ParishEndpointError.streamTooLarge
-                    case .terminated:
-                        return
-                    @unknown default:
-                        throw ParishEndpointError.streamTooLarge
-                    }
-                    for try await byte in bytes {
-                        try Task.checkCancellation()
-                        switch continuation.yield(.bytes(Data([byte]))) {
-                        case .enqueued:
-                            break
-                        case .dropped:
-                            throw ParishEndpointError.streamTooLarge
-                        case .terminated:
-                            return
-                        @unknown default:
-                            throw ParishEndpointError.streamTooLarge
-                        }
-                    }
-                    continuation.finish()
-                } catch {
-                    if Task.isCancelled {
-                        continuation.finish(throwing: CancellationError())
-                    } else {
-                        continuation.finish(throwing: error)
-                    }
-                }
-            }
-            box.set(task)
-            continuation.onTermination = { _ in task.cancel() }
+            let delegate = URLSessionEndpointDelegate(continuation: continuation, taskBox: box)
+            let session = URLSession(
+                configuration: configuration,
+                delegate: delegate,
+                delegateQueue: delegateQueue
+            )
+            let task = session.dataTask(with: request)
+            box.start(session: session, task: task)
+            continuation.onTermination = { _ in box.cancel() }
         }
         return EndpointByteStream(events: stream, cancel: { box.cancel() })
+    }
+}
+
+private final class URLSessionEndpointTaskBox: @unchecked Sendable {
+    private let lock = NSLock()
+    private var session: URLSession?
+    private var task: URLSessionDataTask?
+    private var cancelled = false
+
+    func start(session: URLSession, task: URLSessionDataTask) {
+        lock.lock()
+        let shouldCancel = cancelled
+        if !shouldCancel {
+            self.session = session
+            self.task = task
+        }
+        lock.unlock()
+        if shouldCancel {
+            task.cancel()
+            session.invalidateAndCancel()
+        } else {
+            task.resume()
+        }
+    }
+
+    func cancel() {
+        lock.lock()
+        cancelled = true
+        let task = task
+        let session = session
+        self.task = nil
+        self.session = nil
+        lock.unlock()
+        task?.cancel()
+        session?.invalidateAndCancel()
+    }
+
+    func finish() {
+        lock.lock()
+        let session = session
+        task = nil
+        self.session = nil
+        lock.unlock()
+        session?.finishTasksAndInvalidate()
+    }
+}
+
+private final class URLSessionEndpointDelegate: NSObject, URLSessionDataDelegate, @unchecked Sendable {
+    private let continuation: AsyncThrowingStream<EndpointTransportEvent, Error>.Continuation
+    private let taskBox: URLSessionEndpointTaskBox
+
+    init(
+        continuation: AsyncThrowingStream<EndpointTransportEvent, Error>.Continuation,
+        taskBox: URLSessionEndpointTaskBox
+    ) {
+        self.continuation = continuation
+        self.taskBox = taskBox
+    }
+
+    func urlSession(
+        _ session: URLSession,
+        dataTask: URLSessionDataTask,
+        didReceive response: URLResponse,
+        completionHandler: @escaping (URLSession.ResponseDisposition) -> Void
+    ) {
+        let headers = (response as? HTTPURLResponse)?.allHeaderFields.reduce(into: [String: String]()) { result, entry in
+            result[String(describing: entry.key).lowercased()] = String(describing: entry.value)
+        } ?? [:]
+        let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+        switch continuation.yield(.response(statusCode: status, headers: headers)) {
+        case .enqueued:
+            completionHandler(.allow)
+        case .dropped:
+            continuation.finish(throwing: ParishEndpointError.streamTooLarge)
+            completionHandler(.cancel)
+            taskBox.cancel()
+        case .terminated:
+            completionHandler(.cancel)
+            taskBox.cancel()
+        @unknown default:
+            continuation.finish(throwing: ParishEndpointError.streamTooLarge)
+            completionHandler(.cancel)
+            taskBox.cancel()
+        }
+    }
+
+    func urlSession(_ session: URLSession, dataTask: URLSessionDataTask, didReceive data: Data) {
+        guard !data.isEmpty else { return }
+        switch continuation.yield(.bytes(data)) {
+        case .enqueued:
+            break
+        case .dropped:
+            continuation.finish(throwing: ParishEndpointError.streamTooLarge)
+            taskBox.cancel()
+        case .terminated:
+            taskBox.cancel()
+        @unknown default:
+            continuation.finish(throwing: ParishEndpointError.streamTooLarge)
+            taskBox.cancel()
+        }
+    }
+
+    func urlSession(
+        _ session: URLSession,
+        task: URLSessionTask,
+        didCompleteWithError error: (any Error)?
+    ) {
+        if let error {
+            if (error as NSError).code == NSURLErrorCancelled {
+                continuation.finish(throwing: CancellationError())
+            } else {
+                continuation.finish(throwing: error)
+            }
+        } else {
+            continuation.finish()
+        }
+        taskBox.finish()
     }
 }
 
@@ -685,13 +810,15 @@ public final class ParishEndpointClient: @unchecked Sendable {
     private let policy: EndpointURLPolicy
     private let limits: BoundedSSEParser.Limits
     private let maximumFrames: Int
+    private let maximumCompletedResponseBytes: Int
 
     public init(
         credentials: any EndpointCredentialProvider,
         transport: any EndpointTransport = URLSessionEndpointTransport(),
         policy: EndpointURLPolicy = EndpointURLPolicy(),
         limits: BoundedSSEParser.Limits = .init(),
-        maximumFrames: Int = 512
+        maximumFrames: Int = 512,
+        maximumCompletedResponseBytes: Int = EndpointResourceLimits.maximumCompletedResponseBytes
     ) {
         self.credentials = credentials
         self.transport = transport
@@ -701,14 +828,146 @@ public final class ParishEndpointClient: @unchecked Sendable {
             max(1, maximumFrames),
             EndpointResourceLimits.maximumFrames
         )
+        self.maximumCompletedResponseBytes = min(
+            max(1, maximumCompletedResponseBytes),
+            EndpointResourceLimits.maximumCompletedResponseBytes
+        )
+    }
+
+    /// Sends the schema-defined request and waits for Parish's completed JSON
+    /// response. This is deliberately separate from `stream`: the deployed
+    /// Parish contract returns output directly, and this method never
+    /// interprets body bytes as token deltas or retries an ambiguous timeout.
+    public func complete(_ endpointRequest: EndpointRequest) async throws -> EndpointCompletedResponse {
+        try Task.checkCancellation()
+        try policy.validate(endpointRequest.url)
+        let auth = try await credentials.credentials()
+        try Task.checkCancellation()
+        guard !auth.authorizationToken.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            throw ParishEndpointError.invalidCredential
+        }
+
+        var request = URLRequest(url: endpointRequest.url)
+        request.httpMethod = "POST"
+        request.httpBody = endpointRequest.body
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.setValue("Bearer \(auth.authorizationToken)", forHTTPHeaderField: "Authorization")
+        if let appCheck = auth.appCheckToken, !appCheck.isEmpty {
+            request.setValue(appCheck, forHTTPHeaderField: "X-Firebase-AppCheck")
+        }
+        request.setValue(endpointRequest.requestID, forHTTPHeaderField: "X-Request-Id")
+        if let attemptID = endpointRequest.attemptID {
+            request.setValue(attemptID, forHTTPHeaderField: "X-Attempt-Id")
+        }
+        request.setValue(endpointRequest.idempotencyKey, forHTTPHeaderField: "Idempotency-Key")
+
+        let byteStream = transport.open(request)
+        defer { byteStream.cancel() }
+        var statusCode: Int?
+        var contentType: String?
+        var body = Data()
+        for try await transportEvent in byteStream.events {
+            try Task.checkCancellation()
+            switch transportEvent {
+            case let .response(status, headers):
+                statusCode = status
+                contentType = headers["content-type"]?.lowercased()
+                guard status == 200 else {
+                    continue
+                }
+                guard contentType?.contains("application/json") == true else {
+                    throw ParishEndpointError.responseNotJSON
+                }
+            case let .bytes(bytes):
+                guard body.count + bytes.count <= maximumCompletedResponseBytes else {
+                    throw ParishEndpointError.responseBodyTooLarge
+                }
+                body.append(bytes)
+            }
+        }
+        try Task.checkCancellation()
+        guard let statusCode else { throw ParishEndpointError.malformedResponse("response metadata is missing") }
+        guard !body.isEmpty else { throw ParishEndpointError.malformedResponse("response body is empty") }
+        if statusCode != 200 {
+            let errorObject = (try? JSONSerialization.jsonObject(with: body)) as? [String: Any]
+            let nestedError = errorObject?["error"] as? [String: Any]
+            let requestID = (errorObject?["request_id"] as? String)
+                ?? (nestedError?["request_id"] as? String)
+                ?? endpointRequest.requestID
+            let code = (nestedError?["code"] as? String) ?? (errorObject?["code"] as? String)
+            let message = (nestedError?["message"] as? String) ?? (errorObject?["message"] as? String)
+            throw ParishEndpointError.responseFailure(
+                status: statusCode,
+                requestID: requestID,
+                code: code,
+                message: message
+            )
+        }
+        let result = EndpointCompletedResponse(requestID: endpointRequest.requestID, statusCode: statusCode, body: body)
+        _ = try result.validatedDialogue()
+        return result
+    }
+
+    /// Requests cancellation of the matching active stream through the same
+    /// authenticated, pinned Endpoint route. This complements transport-level
+    /// socket cancellation because an HTTP edge may not propagate a client
+    /// disconnect to the serving instance before a fast provider completes.
+    public func cancel(_ endpointRequest: EndpointRequest) async throws {
+        try Task.checkCancellation()
+        try policy.validate(endpointRequest.url)
+        guard let attemptID = endpointRequest.attemptID else {
+            throw ParishEndpointError.malformedResponse("cancellation attempt identity is missing")
+        }
+        let auth = try await credentials.credentials()
+        try Task.checkCancellation()
+        guard !auth.authorizationToken.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            throw ParishEndpointError.invalidCredential
+        }
+
+        var request = URLRequest(url: endpointRequest.url)
+        request.httpMethod = "DELETE"
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.setValue("Bearer \(auth.authorizationToken)", forHTTPHeaderField: "Authorization")
+        if let appCheck = auth.appCheckToken, !appCheck.isEmpty {
+            request.setValue(appCheck, forHTTPHeaderField: "X-Firebase-AppCheck")
+        }
+        request.setValue(endpointRequest.requestID, forHTTPHeaderField: "X-Request-Id")
+        request.setValue(attemptID, forHTTPHeaderField: "X-Attempt-Id")
+
+        let byteStream = transport.open(request)
+        defer { byteStream.cancel() }
+        var statusCode: Int?
+        var bodyBytes = 0
+        for try await event in byteStream.events {
+            try Task.checkCancellation()
+            switch event {
+            case let .response(status, _):
+                statusCode = status
+            case let .bytes(bytes):
+                bodyBytes += bytes.count
+                guard bodyBytes <= maximumCompletedResponseBytes else {
+                    throw ParishEndpointError.responseBodyTooLarge
+                }
+            }
+        }
+        try Task.checkCancellation()
+        guard let statusCode else {
+            throw ParishEndpointError.malformedResponse("cancellation response metadata is missing")
+        }
+        guard (200..<300).contains(statusCode) else {
+            throw ParishEndpointError.responseStatus(statusCode)
+        }
     }
 
     public func stream(_ endpointRequest: EndpointRequest) -> AsyncThrowingStream<EndpointStreamFrame, Error> {
         AsyncThrowingStream(bufferingPolicy: .bufferingOldest(maximumFrames)) { continuation in
             let task = Task {
                 do {
+                    try Task.checkCancellation()
                     try policy.validate(endpointRequest.url)
                     let auth = try await credentials.credentials()
+                    try Task.checkCancellation()
                     guard !auth.authorizationToken.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
                         throw ParishEndpointError.invalidCredential
                     }

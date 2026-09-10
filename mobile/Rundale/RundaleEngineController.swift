@@ -22,6 +22,7 @@ final class RundaleEngineController: ObservableObject, RundaleSessionControlling
     private var bootstrapTask: Task<Void, Never>?
     private var eventTask: Task<Void, Never>?
     private var endpointTask: Task<Void, Never>?
+    private var activeEndpointRequest: EndpointRequest?
     private var didStart = false
     private var didHydrateRuntime = false
 
@@ -68,7 +69,8 @@ final class RundaleEngineController: ObservableObject, RundaleSessionControlling
             )
             endpointClient = ParishEndpointClient(
                 credentials: credentials,
-                transport: Phase2MockEndpointTransport()
+                transport: Phase2MockEndpointTransport(),
+                policy: EndpointURLPolicy(allowLoopbackHTTP: true)
             )
         } else {
             let credentials = FirebaseEndpointCredentialAdapter(
@@ -177,12 +179,18 @@ final class RundaleEngineController: ObservableObject, RundaleSessionControlling
     }
 
     func stop() async throws -> StopReceipt {
+        let cancellationRequest = activeEndpointRequest
         endpointTask?.cancel()
         endpointTask = nil
+        activeEndpointRequest = nil
+        let cancellationTask = cancellationRequest.map { request in
+            Task { [endpointClient] in try? await endpointClient.cancel(request) }
+        }
         guard let runtime else { return StopReceipt(result: .noActiveRequest) }
         let receipt = try await runtime.stop()
         try? refreshFromSnapshot(try await runtime.snapshotJSON())
         _ = persistSessionState()
+        _ = await cancellationTask?.value
         return receipt
     }
 
@@ -370,21 +378,32 @@ final class RundaleEngineController: ObservableObject, RundaleSessionControlling
         endpointTask = Task { [weak self, runtime] in
             do {
                 let body = try invocation.requestBody()
+                guard let endpointURL = configuration.endpointURL
+                    ?? (configuration.phase2MockTransport ? URL(string: "http://127.0.0.1/mock") : nil) else {
+                    throw ParishEndpointError.invalidURL
+                }
                 let request = try EndpointRequest(
-                    url: configuration.endpointStreamURL,
+                    url: endpointURL,
                     requestID: invocation.logicalRequestID.rawValue,
                     attemptID: invocation.attemptID.rawValue,
                     idempotencyKey: invocation.idempotencyKey,
                     endpointVersion: configuration.endpointVersion,
+                    policy: configuration.phase2MockTransport ? EndpointURLPolicy(allowLoopbackHTTP: true) : EndpointURLPolicy(),
                     body: body
                 )
+                self?.activeEndpointRequest = request
+                defer {
+                    if self?.activeEndpointRequest?.attemptID == request.attemptID {
+                        self?.activeEndpointRequest = nil
+                    }
+                }
                 for try await frame in endpointClient.stream(request) {
                     try Task.checkCancellation()
                     switch frame.kind {
                     case .progress:
                         continue
                     case .textDelta:
-                        guard let text = frame.text else { continue }
+                        guard let text = frame.text, !text.isEmpty else { continue }
                         let operation = try EndpointOperation.frame(
                             attemptID: invocation.attemptID,
                             baseRevision: invocation.baseRevision,
@@ -394,12 +413,16 @@ final class RundaleEngineController: ObservableObject, RundaleSessionControlling
                             done: false
                         )
                         let response = try await runtime.dispatchJSON(operation)
+                        guard !Task.isCancelled else { return }
                         self?.consumeOperation(response)
                     case .final:
                         guard let payload = frame.payload else {
                             throw ParishEndpointError.malformedEvent("final output is missing")
                         }
                         let output = try FixtureJSON.decode(EndpointOutput.self, from: payload)
+                        guard !output.dialogue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+                            throw ParishEndpointError.malformedEvent("final dialogue is empty")
+                        }
                         let operation = try EndpointOperation.candidate(
                             attemptID: invocation.attemptID,
                             baseRevision: invocation.baseRevision,
@@ -408,6 +431,7 @@ final class RundaleEngineController: ObservableObject, RundaleSessionControlling
                             structured: true
                         )
                         let response = try await runtime.dispatchJSON(operation)
+                        guard !Task.isCancelled else { return }
                         self?.consumeOperation(response)
                     case .error:
                         throw ParishEndpointError.malformedEvent("Endpoint returned an error frame")
@@ -669,47 +693,30 @@ private final class Phase2MockEndpointTransport: EndpointTransport, @unchecked S
                         throw ParishEndpointError.invalidURL
                     }
                     let identities = try Self.identities(from: request.httpBody, url: requestURL)
-                    continuation.yield(.response(statusCode: 200, headers: ["content-type": "text/event-stream"]))
                     let input = identities.input.lowercased()
+                    continuation.yield(.response(statusCode: 200, headers: ["content-type": "text/event-stream; charset=utf-8"]))
                     if input.contains("fail") {
-                        try await Self.pause(nanoseconds: 75_000_000)
                         continuation.yield(.bytes(try Self.frame(
                             type: "error", sequence: 1, identities: identities,
                             error: ["message": "The Endpoint test response failed."]
                         )))
                     } else {
-                        try await Self.pause(nanoseconds: input.contains("slow") ? 500_000_000 : 100_000_000)
-                        continuation.yield(.bytes(try Self.frame(
-                            type: "progress", sequence: 1, identities: identities,
-                            text: "Peig listens."
-                        )))
-                        try await Self.pause(nanoseconds: input.contains("slow") ? 500_000_000 : 100_000_000)
                         let dialogue = "The rain keeps the old road quiet. The old church stands beyond the alder trees."
-                        let chunks = [
-                            "The rain keeps ",
-                            "the old road quiet, ",
-                            "but I remember the church beyond it."
-                        ]
+                        // Keep the fixture observably incremental so UI tests
+                        // can assert the provisional Rust presentation before
+                        // the terminal candidate arrives.
+                        try await Self.pause(nanoseconds: 100_000_000)
+                        let chunks = ["The rain keeps ", "the old road quiet. ", "The old church stands beyond the alder trees."]
+                        for (index, chunk) in chunks.enumerated() {
+                            continuation.yield(.bytes(try Self.frame(
+                                type: "text_delta", sequence: index + 1, identities: identities, text: chunk
+                            )))
+                            if index + 1 < chunks.count {
+                                try await Self.pause(nanoseconds: input.contains("slow") ? 3_000_000_000 : 2_000_000_000)
+                            }
+                        }
                         continuation.yield(.bytes(try Self.frame(
-                            type: "text_delta", sequence: 2, identities: identities,
-                            text: chunks[0]
-                        )))
-                        // Hold observable provisional stages for XCTest's
-                        // accessibility polling; the production transport has
-                        // no artificial pacing.
-                        try await Self.pause(nanoseconds: input.contains("slow") ? 3_000_000_000 : 2_000_000_000)
-                        continuation.yield(.bytes(try Self.frame(
-                            type: "text_delta", sequence: 3, identities: identities,
-                            text: chunks[1]
-                        )))
-                        try await Self.pause(nanoseconds: input.contains("slow") ? 3_000_000_000 : 2_000_000_000)
-                        continuation.yield(.bytes(try Self.frame(
-                            type: "text_delta", sequence: 4, identities: identities,
-                            text: chunks[2]
-                        )))
-                        try await Self.pause(nanoseconds: 3_000_000_000)
-                        continuation.yield(.bytes(try Self.frame(
-                            type: "final", sequence: 5, identities: identities,
+                            type: "final", sequence: chunks.count + 1, identities: identities,
                             output: ["dialogue": dialogue]
                         )))
                     }

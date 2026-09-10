@@ -20,6 +20,7 @@ const config: ServerConfig = {
   allowedModels: new Set(["fake/fake-v1"]),
   providerTimeoutMs: 1_000,
   modelPrices: {},
+  mobileAppBindings: [],
 };
 
 let server: FastifyInstance | undefined;

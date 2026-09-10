@@ -227,6 +227,86 @@ describe("live provider adapter contracts", () => {
     });
   });
 
+  it("projects completed Interactions stream events and cancels on abort", async () => {
+    let cancelled: string | undefined;
+    const client = {
+      interactions: {
+        create: async () =>
+          (async function* () {
+            yield { event_type: "interaction.created", interaction: { id: "int_stream" } };
+            yield { event_type: "step.delta", delta: { type: "text", text: '{"result":"ok"}' } };
+            yield {
+              event_type: "interaction.completed",
+              interaction: { id: "int_stream", status: "completed", usage: { total_tokens: 3 } },
+            };
+          })(),
+        cancel: async (id: string) => {
+          cancelled = id;
+          return {};
+        },
+      },
+    } as unknown as GoogleGenAI;
+    const result = [];
+    for await (const event of new GoogleProvider(client).stream(invocation, context))
+      result.push(event);
+    expect(result).toEqual([
+      { type: "delta", text: '{"result":"ok"}' },
+      {
+        type: "completed",
+        result: {
+          output: { result: "ok" },
+          usage: { totalTokens: 3 },
+          providerRequestId: "int_stream",
+          finishReason: "completed",
+        },
+      },
+    ]);
+    expect(cancelled).toBeUndefined();
+  });
+
+  it("rejects a non-STOP Vertex stream termination", async () => {
+    const client = {
+      models: {
+        generateContentStream: async function* () {
+          yield { text: '{"result":"partial"}', candidates: [{ finishReason: "MAX_TOKENS" }] };
+        },
+      },
+    } as unknown as GoogleGenAI;
+    await expect(
+      (async () => {
+        for await (const event of new GoogleProvider(client, "generate-content").stream(
+          invocation,
+          context,
+        )) {
+          void event;
+        }
+      })(),
+    ).rejects.toMatchObject({ code: "MODEL_ERROR" });
+  });
+
+  it("rejects a cancelled Interactions lifecycle", async () => {
+    const client = {
+      interactions: {
+        create: async () =>
+          (async function* () {
+            yield { event_type: "interaction.created", interaction: { id: "int_cancel" } };
+            yield {
+              event_type: "interaction.status_update",
+              interaction_id: "int_cancel",
+              status: "cancelled",
+            };
+          })(),
+      },
+    } as unknown as GoogleGenAI;
+    await expect(
+      (async () => {
+        for await (const event of new GoogleProvider(client).stream(invocation, context)) {
+          void event;
+        }
+      })(),
+    ).rejects.toMatchObject({ code: "MODEL_ERROR" });
+  });
+
   it("normalizes malformed provider JSON without returning raw content", async () => {
     const client = {
       responses: {

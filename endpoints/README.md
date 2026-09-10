@@ -27,6 +27,10 @@ pnpm check
 
 This runs formatting, lint, TypeScript checks, deterministic tests, and all builds. Set `DATABASE_URL_TEST` to include the real PostgreSQL workflow suite. Live provider tests are opt-in and require `LIVE_PROVIDER_TESTS=true` plus the relevant provider key.
 
+From the Rundale repository root, the equivalent command is
+`just endpoints-check`; `just endpoints-dev`, `just endpoints-test`, and
+`just endpoints-db-migrate` retain the workspace's independent lifecycle.
+
 ## Node image client
 
 ```sh
@@ -59,7 +63,7 @@ The runtime also enforces organization and Endpoint switches, daily organization
 The production topology uses isolated resources in the existing Cottage Google Cloud project: `parish-server` and `parish-web` Cloud Run services, a dedicated Cloud SQL PostgreSQL instance, Secret Manager, a least-privilege runtime identity, and Artifact Registry images built by Cloud Build.
 
 1. Provision the Parish Cloud SQL database and runtime service account in `us-east1`.
-2. Build the server with `deploy/google/cloudbuild.server.yaml` and the web app with `deploy/google/cloudbuild.web.yaml`.
+2. From the Rundale root, build the server with `endpoints/deploy/google/cloudbuild.server.yaml` and the web app with `endpoints/deploy/google/cloudbuild.web.yaml`; both Cloud Build steps use `endpoints/` as their build directory.
 3. Store the database URL and OpenAI credential in Secret Manager; configure the Firebase project and exact owner UID as non-secret environment values.
 4. Use Vertex AI Application Default Credentials for Google inference; no Google API key is required in Cloud Run.
 5. Run migrations through the explicit `parish-migrate` Cloud Run job before server rollout.
@@ -69,4 +73,13 @@ See [the deployment runbook](docs/deployment.md) for configuration and release v
 
 ## Security posture
 
-Control routes live under `/api/control/v1` and require the configured creator owner. Invocation routes live under `/v1/endpoints/{organizationSlug}/{endpointSlug}` and accept only hashed, scoped consumer keys. Provider credentials, creator instructions, raw images, raw inputs, and raw outputs are excluded from consumer responses and persistent logs. Invocation records contain metadata, validation, usage, latency, and estimated provider cost only.
+Control routes live under `/api/control/v1` and require the configured creator owner. Invocation routes live under `/v1/endpoints/{organizationSlug}/{endpointSlug}`. Server callers use hashed, scoped consumer keys; mobile callers use a Firebase Auth ID token plus mandatory App Check, mapped by server configuration to one explicit organization and immutable Endpoint-version allowlist. Mobile principals cannot use alias routes. Neither invocation principal can authorize creator routes.
+
+Completed JSON remains available on the base and pinned-version routes. Their
+`/stream` counterparts use the versioned SSE contract described in
+[ADR 012](docs/adr/012-mobile-invocation-streaming.md). Google supports
+validated structured streaming; OpenAI retains completed Responses calls.
+Provider credentials, creator instructions, raw images, raw inputs, and raw
+outputs are excluded from persistent logs. Invocation records contain safe
+metadata, validation, usage, latency, cancellation/failure status, and
+estimated provider cost only.

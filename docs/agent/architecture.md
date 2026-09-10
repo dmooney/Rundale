@@ -6,7 +6,7 @@ Existing crate availability does not establish mobile portability or product sco
 
 See [docs/design/overview.md](../design/overview.md) for the full architecture and [docs/index.md](../index.md) for all documentation.
 
-**Rundale** is the Irish living world game. **Parish** is the Rust engine it runs on. The repository is a **Cargo workspace** — all engine crates live under `parish/crates/`, the game content lives under `mods/rundale/`, frontends under `parish/apps/`, test fixtures under `parish/testing/`, and deploy artifacts under `deploy/`.
+**Rundale** is the Irish living world game. **Parish** is the Rust engine it runs on. Engine code is a Cargo workspace under `parish/`; game content lives under `mods/rundale/`. The repository also contains the self-contained `endpoints/` pnpm workspace for the separately deployable Parish Endpoints inference service and creator console. Its Node dependencies, lockfile, database migrations, and images remain outside the Rust and existing frontend workspaces.
 
 ## Workspace crates
 
@@ -43,6 +43,11 @@ The workspace has **24 member crates** (see `parish/Cargo.toml`). Shared game lo
 
 ```text
 Rundale (on Parish engine)/
+├── endpoints/              # Separate pnpm workspace: inference service + console
+│   ├── apps/              # Fastify server and Next.js creator console
+│   ├── packages/          # Domain, schemas, runtime, providers, auth, database
+│   ├── deploy/            # Separately built Cloud Run images
+│   └── pnpm-lock.yaml     # Endpoints-only dependency lock
 ├── parish/                 # Engine code (Rust workspace + frontends)
 │   ├── crates/                 # 24 workspace members (see table above)
 │   │

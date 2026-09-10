@@ -34,7 +34,10 @@ The Parish umbrella may include:
 Parish
 ├── Parish Engine      # Rundale-derived game/simulation engine
 └── Parish Endpoints   # hosted AI API product in this document
-These are conceptually related developer tools but should remain separate repositories and deployables.
+These are conceptually related systems with separate runtime boundaries and
+deployables. Rundale vendors Endpoints as a self-contained nested pnpm
+workspace without merging its dependencies into the Rust or player frontend
+workspaces.
 For this product, the first-class object is an Endpoint.
 An Endpoint is a hosted HTTP API interface whose implementation is managed by Parish. The creator does not deploy arbitrary code. Instead, an Endpoint definition contains:
 input schema

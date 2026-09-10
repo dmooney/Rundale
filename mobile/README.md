@@ -3,8 +3,8 @@
 This checkout contains the Phase 1 native client and the Phase 2 embedded Parish
 vertical slice from the [mobile reset](../docs/product-specs/product-technical-spec.md).
 Phase 2 adds the portable Rust runtime, local persistence, the Swift FFI bridge,
-and the one-location, one-NPC gameplay fixture. Remote Endpoint delivery and
-physical-iPhone acceptance remain separate evidence gates.
+and the one-location, one-NPC gameplay fixture. The deployed remote Endpoint
+path has simulator evidence; physical-iPhone acceptance remains a separate gate.
 
 ## Build and run
 
@@ -32,6 +32,15 @@ The build script requires Rust 1.98.0 and its `aarch64-apple-ios` and
 
 For remote authentication, supply the ignored Firebase configuration described
 in [phase2-auth.md](phase2-auth.md) before generating the Xcode project.
+Configure `RUNDALE_ENDPOINT_BASE_URL` with the verified Parish Endpoints service
+origin; no production origin is baked into the app. The client appends the
+pinned `/v1/endpoints/{organization}/{slug}/versions/{version}/stream` route.
+`RUNDALE_ENDPOINT_ORGANIZATION`, `RUNDALE_ENDPOINT_SLUG`, and
+`RUNDALE_ENDPOINT_VERSION` override the versioned deployment identity. The
+mobile request carries short-lived Firebase Auth and App Check credentials
+directly to Parish Endpoints; provider credentials and shared Endpoint keys
+never enter the app. See the [Endpoint handoff](endpoint/phase2-handoff.md) for
+the SSE contract, deployed revision, live evidence, and remaining device gate.
 
 Choose the Rundale scheme and an iPhone simulator in Xcode. For a physical
 iPhone, choose your development signing team in the generated project and run
@@ -74,11 +83,12 @@ row design, Dynamic Type, VoiceOver labels, and command-recall action.
 
 The [Phase 1 test plan](../docs/test-plans/phase-1-test-cases.md),
 [Phase 2 test plan](../docs/test-plans/phase-2-test-cases.md), and full product
-checklist all apply. Automated success does not establish physical-device or
-live Endpoint acceptance. Record those results in [acceptance.md](acceptance.md).
+checklist all apply. Automated success does not establish physical-device
+acceptance. Record live Endpoint and device results separately in
+[acceptance.md](acceptance.md).
 Use the [demo walkthrough](demo.md) to present the running client at delivery.
 
 The verification entry point distinguishes automated failures and unavailable
 infrastructure from human/device gates. It must not report a missing simulator
-as a passing UI suite. Phase 2 physical-device and live Endpoint gates remain
-visible in the report without being represented as automated passes.
+as a passing UI suite. The Phase 2 verifier still reports live Endpoint and
+physical-device gates separately from its deterministic automated suite.

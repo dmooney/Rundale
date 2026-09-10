@@ -1,12 +1,14 @@
 import { createDatabase } from "@parish/database";
 import { applicationDefault, initializeApp } from "firebase-admin/app";
 import { getAuth } from "firebase-admin/auth";
+import { getAppCheck } from "firebase-admin/app-check";
 import { buildServer } from "./app.js";
 import { readServerConfig } from "./config.js";
 import {
   DevelopmentCreatorAuthenticator,
   FirebaseCreatorAuthenticator,
 } from "./auth/creator-auth.js";
+import { FirebaseMobileAuthenticator } from "./auth/mobile-auth.js";
 import { ControlService } from "./control/service.js";
 import { PlaygroundService } from "./control/playground-service.js";
 import { PostgresControlRepository } from "./infrastructure/postgres-control-repository.js";
@@ -21,6 +23,7 @@ import {
 } from "@parish/providers";
 import { DeterministicRuntime, type ModelProvider } from "@parish/runtime";
 import { InvocationService } from "./invocation/service.js";
+import { PostgresInvocationCancellationCoordinator } from "./invocation/cancellation.js";
 
 const config = readServerConfig();
 const database = createDatabase(config.databaseUrl);
@@ -38,6 +41,20 @@ const authenticator =
         identities,
       )
     : new DevelopmentCreatorAuthenticator(identities);
+const firebaseApp = config.authMode === "firebase" ? getAuth().app : undefined;
+const mobileAuthenticator =
+  config.authMode === "firebase"
+    ? new FirebaseMobileAuthenticator(
+        {
+          verifyIdToken: (token) => getAuth().verifyIdToken(token, true),
+          verifyAppCheckToken: async (token) => {
+            const decoded = await getAppCheck(firebaseApp!).verifyToken(token);
+            return { appId: decoded.appId };
+          },
+        },
+        config.mobileAppBindings,
+      )
+    : undefined;
 const controlService = new ControlService(new PostgresControlRepository(database.db), {
   allowedModels: config.allowedModels,
 });
@@ -56,6 +73,9 @@ const runtime = new DeterministicRuntime(
   new FixedPriceCostCalculator(config.modelPrices),
   { allowedModels: config.allowedModels },
 );
+const cancellationCoordinator = await PostgresInvocationCancellationCoordinator.create(
+  database.pool,
+);
 const invocationService = new InvocationService(
   new PostgresInvocationRepository(database.db),
   runtime,
@@ -64,6 +84,8 @@ const invocationService = new InvocationService(
     requestsPerMinute: config.requestsPerMinute,
     timeoutMs: config.providerTimeoutMs,
     requestsPerDay: config.requestsPerDay,
+    cancellationCoordinator,
+    ...(mobileAuthenticator === undefined ? {} : { mobileAuthenticator }),
   },
 );
 const playgroundService = new PlaygroundService(
@@ -84,6 +106,7 @@ const server = await buildServer(config, {
 
 const shutdown = async () => {
   await server.close();
+  await cancellationCoordinator.close();
   await database.close();
 };
 process.once("SIGINT", () => void shutdown());
