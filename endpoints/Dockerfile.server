@@ -1,0 +1,14 @@
+FROM node:22-alpine
+ENV PNPM_HOME=/pnpm
+ENV COREPACK_HOME=/pnpm/corepack
+ENV HOME=/home/node
+ENV PATH=$PNPM_HOME:$PATH
+RUN corepack enable
+WORKDIR /app
+RUN mkdir -p "$PNPM_HOME" "$COREPACK_HOME" && chown -R node:node /app "$PNPM_HOME"
+COPY --chown=node:node . .
+USER node
+RUN pnpm install --frozen-lockfile
+RUN pnpm --filter @parish/server... build
+ENV NODE_ENV=production
+CMD ["node", "apps/server/dist/main.js"]
