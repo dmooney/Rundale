@@ -4,6 +4,8 @@
 
 # Owned by another formatter / scope
 parish/apps/ui/
+endpoints/docs/
+endpoints/packages/database/migrations/
 .opencode/
 .codex/
 target/

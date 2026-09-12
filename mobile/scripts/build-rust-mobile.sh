@@ -47,17 +47,17 @@ build_target() {
     local minimum_flag="$2"
     echo "Building parish-mobile-ffi for $target with Rust $rust_toolchain"
     CARGO_TARGET_DIR="$target_root" \
-    RUSTC_WRAPPER= \
-    RUSTC="$rustc_path" \
-    RUSTFLAGS="${RUSTFLAGS:-} -C link-arg=$minimum_flag" \
+        RUSTC_WRAPPER='' \
+        RUSTC="$rustc_path" \
+        RUSTFLAGS="${RUSTFLAGS:-} -C link-arg=$minimum_flag" \
         rustup run "$rust_toolchain" cargo build \
-            --manifest-path "$parish_root/Cargo.toml" \
-            --package parish-mobile-ffi \
-            --no-default-features \
-            --features engine-api \
-            --target "$target" \
-            --release \
-            --locked
+        --manifest-path "$parish_root/Cargo.toml" \
+        --package parish-mobile-ffi \
+        --no-default-features \
+        --features engine-api \
+        --target "$target" \
+        --release \
+        --locked
 }
 
 build_target "$device_target" "-mios-version-min=$minimum_ios"

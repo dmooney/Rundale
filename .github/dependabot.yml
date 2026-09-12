@@ -43,7 +43,13 @@ updates:
 
   - package-ecosystem: "npm"
     directories:
-      ["/", "/endpoints", "/parish/apps/ui", "/promptfoo", "/promptfoo/bench-site"]
+      [
+        "/",
+        "/endpoints",
+        "/parish/apps/ui",
+        "/promptfoo",
+        "/promptfoo/bench-site",
+      ]
     schedule:
       { interval: "weekly", day: "monday", time: "06:17", timezone: "Etc/UTC" }
     open-pull-requests-limit: 5

@@ -1128,16 +1128,38 @@ class VerificationRun:
         name = "Phase 3 canonical-world iOS simulator suite"
         phase3_sources = sorted(self.ui_tests_path.rglob("*Phase3*.swift"))
         if not xcodegen_ok:
-            self._skip(identifier, name, 3, "blocked because XcodeGen did not produce a usable project", required=True)
+            self._skip(
+                identifier,
+                name,
+                3,
+                "blocked because XcodeGen did not produce a usable project",
+                required=True,
+            )
             return
         if not self.project.exists():
-            self._missing(identifier, name, 3, f"required Xcode project is missing: {_relative(self.project, self.root)}")
+            self._missing(
+                identifier,
+                name,
+                3,
+                f"required Xcode project is missing: {_relative(self.project, self.root)}",
+            )
             return
         if not phase3_sources:
-            self._missing(identifier, name, 3, f"Phase 3 native UI test sources are missing under {_relative(self.ui_tests_path, self.root)}")
+            self._missing(
+                identifier,
+                name,
+                3,
+                f"Phase 3 native UI test sources are missing under {_relative(self.ui_tests_path, self.root)}",
+            )
             return
         if not ready or self.simulator is None:
-            self._skip(identifier, name, 3, "blocked because the selected simulator is not ready", required=True)
+            self._skip(
+                identifier,
+                name,
+                3,
+                "blocked because the selected simulator is not ready",
+                required=True,
+            )
             return
         destination = f"platform=iOS Simulator,id={self.simulator['udid']}"
         record = self._xcodebuild(
@@ -1149,7 +1171,9 @@ class VerificationRun:
             only_testing="RundaleUITests/RundalePhase3UITests",
         )
         if record["status"] == PASSED:
-            self._validate_result(record, phase=3, summary_identifier="phase3-ios-simulator-test-results")
+            self._validate_result(
+                record, phase=3, summary_identifier="phase3-ios-simulator-test-results"
+            )
 
     def _phase2_physical(self) -> None:
         for identifier, name, reason in (
@@ -1318,7 +1342,13 @@ class VerificationRun:
             identifier="parish-core-phase3-tests",
             name="Parish canonical tiny-world tests",
             package="parish-core",
-            cargo_args=("--no-default-features", "--features", "mobile", "--lib", "mobile::tests::phase3_"),
+            cargo_args=(
+                "--no-default-features",
+                "--features",
+                "mobile",
+                "--lib",
+                "mobile::tests::phase3_",
+            ),
         )
         if not reuse_native_setup:
             self._mobile_dependency_graph()
@@ -1336,20 +1366,52 @@ class VerificationRun:
                 phase=3,
             )
         else:
-            xcodegen_ok = any(record["id"] == "xcodegen" and record["status"] == PASSED for record in self.records)
+            xcodegen_ok = any(
+                record["id"] == "xcodegen" and record["status"] == PASSED for record in self.records
+            )
             selected = self.simulator
-            selection_passed = any(record["id"] == "simulator-selection" and record["status"] == PASSED for record in self.records)
-            boot_ready = any(record["id"] == "simulator-bootstatus" and record["status"] == PASSED for record in self.records) or any(
-                record["id"] == "simulator-boot" and record["status"] == SKIPPED and record["kind"] == "infrastructure" for record in self.records
+            selection_passed = any(
+                record["id"] == "simulator-selection" and record["status"] == PASSED
+                for record in self.records
+            )
+            boot_ready = any(
+                record["id"] == "simulator-bootstatus" and record["status"] == PASSED
+                for record in self.records
+            ) or any(
+                record["id"] == "simulator-boot"
+                and record["status"] == SKIPPED
+                and record["kind"] == "infrastructure"
+                for record in self.records
             )
             ready = selected is not None and selection_passed and boot_ready
         self._phase3_simulator_tests(xcodegen_ok, ready)
         for identifier, name, reason in (
-            ("physical-iphone-phase3-world", "Physical iPhone Phase 3 world traversal", "requires a human to visit all three canonical locations on a connected iPhone"),
-            ("physical-iphone-phase3-presence", "Physical iPhone Phase 3 presence and clarification", "requires human observation of schedule movement, availability, and ambiguity on a connected iPhone"),
-            ("physical-iphone-phase3-resume", "Physical iPhone Phase 3 save/resume consistency", "requires a human relaunch check on a connected iPhone"),
+            (
+                "physical-iphone-phase3-world",
+                "Physical iPhone Phase 3 world traversal",
+                "requires a human to visit all three canonical locations on a connected iPhone",
+            ),
+            (
+                "physical-iphone-phase3-presence",
+                "Physical iPhone Phase 3 presence and clarification",
+                "requires human observation of schedule movement, availability, and ambiguity on a connected iPhone",
+            ),
+            (
+                "physical-iphone-phase3-resume",
+                "Physical iPhone Phase 3 save/resume consistency",
+                "requires a human relaunch check on a connected iPhone",
+            ),
         ):
-            self._record(identifier=identifier, name=name, phase=3, status=NOT_AUTOMATABLE, required=True, automatable=False, kind="physical", reason=reason)
+            self._record(
+                identifier=identifier,
+                name=name,
+                phase=3,
+                status=NOT_AUTOMATABLE,
+                required=True,
+                automatable=False,
+                kind="physical",
+                reason=reason,
+            )
 
     def _phase1(self) -> None:
         self._swift_tests()

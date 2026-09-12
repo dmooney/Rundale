@@ -10,7 +10,7 @@ mkdir -p "$build_root/module-cache"
 # The repository pins Rust 1.98.0, while the Homebrew rustc/cargo on PATH is
 # 1.95.0. Keep the spike reproducible and avoid the shared sccache path in the
 # host environment; this script does not install targets or invoke Xcode.
-CARGO_TARGET_DIR="$target_root" RUSTC_WRAPPER= \
+CARGO_TARGET_DIR="$target_root" RUSTC_WRAPPER='' \
     rustup run 1.98.0 cargo build --manifest-path "$spike_root/Cargo.toml"
 
 swiftc \

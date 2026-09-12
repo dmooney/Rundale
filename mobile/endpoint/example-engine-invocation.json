@@ -14,55 +14,69 @@
   "playerInput": "ask Peig about the old church",
   "speaker": {
     "id": "npc-peig",
-    "displayName": "Peig",
-    "role": "village widow and keen observer",
+    "displayName": "Peig Hannigan",
+    "role": "letter-office keeper and village observer",
     "currentLocationId": 1,
-    "currentLocationName": "The crossroads"
+    "currentLocationName": "Kilteevan Village"
   },
   "currentLocation": {
-    "id": "place-crossroads",
-    "displayName": "The crossroads",
-    "description": "A low stone wall borders the road here.",
+    "id": "kilteevan-village",
+    "displayName": "Kilteevan Village",
+    "description": "Kilteevan Village · a muddy road, low stone walls, and smoke lifting from clustered roofs.",
     "playable": true
   },
   "knownPeople": [
     {
       "id": "npc-peig",
-      "displayName": "Peig",
-      "role": "village widow and keen observer",
+      "displayName": "Peig Hannigan",
+      "role": "letter-office keeper and village observer",
       "currentLocationId": 1,
-      "currentLocationName": "The crossroads"
+      "currentLocationName": "Kilteevan Village"
+    },
+    {
+      "id": "npc-micheal",
+      "displayName": "Mícheál Connolly",
+      "role": "smallholder and cattle drover",
+      "currentLocationId": 13,
+      "currentLocationName": "Connolly Cottage"
+    },
+    {
+      "id": "npc-roisin",
+      "displayName": "Róisín Connolly",
+      "role": "spinner and household bookkeeper",
+      "currentLocationId": 13,
+      "currentLocationName": "Connolly Cottage"
     }
   ],
   "knownPlaces": [
     {
-      "id": "place-old-church",
-      "displayName": "the old church",
-      "description": "It stands beyond the alder trees where the path bends toward the hill.",
-      "playable": false
+      "id": "kilteevan-village",
+      "displayName": "Kilteevan Village",
+      "description": "Kilteevan Village · a muddy road, low stone walls, and smoke lifting from clustered roofs.",
+      "playable": true
     },
     {
-      "id": "place-alder-lane",
-      "displayName": "the alder lane",
-      "description": "The lane runs east from the crossroads beneath alder trees.",
-      "playable": false
+      "id": "letter-office",
+      "displayName": "Letter Office",
+      "description": "Letter Office · a narrow counter, pigeonholes of folded paper, and a small turf fire.",
+      "playable": true
     },
     {
-      "id": "place-crossroads",
-      "displayName": "The crossroads",
-      "description": "A low stone wall borders the road here.",
+      "id": "connolly-cottage",
+      "displayName": "Connolly Cottage",
+      "description": "Connolly Cottage · a peat fire, a scrubbed table, and rain-dark coats by the door.",
       "playable": true
     }
   ],
   "authoredFacts": [
     {
-      "id": "fact-old-church-location",
-      "statement": "The old church stands beyond the alder trees, where the path bends toward the hill.",
+      "id": "fact-peig-post",
+      "statement": "Peig keeps the Letter Office and knows who has received news from beyond the parish.",
       "source": "authored"
     },
     {
-      "id": "fact-crossroads-stone-wall",
-      "statement": "A low stone wall borders the road at the crossroads.",
+      "id": "fact-peig-connollys",
+      "statement": "Mícheál and Róisín Connolly share the cottage west of the village.",
       "source": "authored"
     }
   ],
