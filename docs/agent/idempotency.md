@@ -1,6 +1,6 @@
 # Idempotency-Key support (#619)
 
-The Parish web server supports the `Idempotency-Key` request header on mutating
+The Limerick web server supports the `Idempotency-Key` request header on mutating
 routes so clients can safely retry network failures without side-effects being
 applied twice.
 
@@ -65,7 +65,7 @@ cache or de-duplicate at the effect site.
 
 ## Cache key
 
-`(session_id, idempotency_key)` — the `session_id` is the `parish_sid` UUID
+`(session_id, idempotency_key)` — the `session_id` is the `limerick_sid` UUID
 injected by the session middleware. This scopes each key to one browser session
 so two users cannot share or collide on each other's keys.
 
@@ -75,7 +75,7 @@ The middleware is controlled by the `idempotency-key` feature flag. The flag is
 **default-on** (per CLAUDE.md rule #6): the middleware is active unless the flag
 is explicitly disabled.
 
-To disable, add `"idempotency-key": false` to `parish-flags.json`:
+To disable, add `"idempotency-key": false` to `limerick-flags.json`:
 
 ```json
 {
@@ -86,13 +86,13 @@ To disable, add `"idempotency-key": false` to `parish-flags.json`:
 ## Mode parity note
 
 Idempotency keys are an HTTP concept and apply **only to the web server**
-(`parish-server`). Tauri IPC and the headless CLI use direct in-process function
+(`limerick-server`). Tauri IPC and the headless CLI use direct in-process function
 calls and do not benefit from or require this mechanism.
 
 ## Implementation files
 
-| File                                            | Purpose                                                                               |
-| ----------------------------------------------- | ------------------------------------------------------------------------------------- |
-| `parish/crates/parish-server/src/middleware.rs` | `idempotency_middleware`, `IDEMPOTENCY_KEY_HEADER`, `IdempotencyKeyExt`               |
-| `parish/crates/parish-server/src/session.rs`    | `CachedResponse`, `IdempotencyCache`, `IDEMPOTENCY_CACHE_CAPACITY`, `IDEMPOTENCY_TTL` |
-| `parish/crates/parish-server/src/lib.rs`        | Wires the middleware into the router stack                                            |
+| File                                                | Purpose                                                                               |
+| --------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| `limerick/crates/limerick-server/src/middleware.rs` | `idempotency_middleware`, `IDEMPOTENCY_KEY_HEADER`, `IdempotencyKeyExt`               |
+| `limerick/crates/limerick-server/src/session.rs`    | `CachedResponse`, `IdempotencyCache`, `IDEMPOTENCY_CACHE_CAPACITY`, `IDEMPOTENCY_TTL` |
+| `limerick/crates/limerick-server/src/lib.rs`        | Wires the middleware into the router stack                                            |

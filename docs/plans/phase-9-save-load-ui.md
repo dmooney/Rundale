@@ -89,7 +89,7 @@ For `list_save_branches`: query `list_branches()`, then for each branch call `lo
 - Add `AsyncDatabase` to `AppState` (it's currently missing from the Tauri AppState — the persistence layer exists but isn't wired into the GUI)
 - Add `active_branch_id: Mutex<i64>` and `latest_snapshot_id: Mutex<i64>` to `AppState`
 - Register new commands in `generate_handler!`
-- Initialize database on startup (open `parish_saves.db`, create "main" branch if needed, save initial snapshot)
+- Initialize database on startup (open `limerick_saves.db`, create "main" branch if needed, save initial snapshot)
 
 ### 2. TypeScript Types
 
@@ -206,7 +206,7 @@ Action buttons:
 
 ```rust
 // After loading world + NPCs, before building AppState:
-let db_path = data_dir.parent().unwrap_or(&data_dir).join("parish_saves.db");
+let db_path = data_dir.parent().unwrap_or(&data_dir).join("limerick_saves.db");
 let db = Database::open(&db_path).expect("Failed to open save database");
 let async_db = AsyncDatabase::new(db);
 
@@ -240,14 +240,14 @@ pub latest_snapshot_id: Mutex<i64>,
 | `ui/src/components/SaveLoadOverlay.svelte` | **New file** — full overlay component                                                                     |
 | `ui/src/routes/+page.svelte`               | Add overlay integration + keyboard shortcut                                                               |
 | `ui/src/components/StatusBar.svelte`       | Add "Timelines" trigger button                                                                            |
-| `src-tauri/Cargo.toml`                     | Ensure `parish-core` persistence module is accessible                                                     |
+| `src-tauri/Cargo.toml`                     | Ensure `limerick-core` persistence module is accessible                                                   |
 
 ## Key Reuse
 
 - `AsyncDatabase` from `src/persistence/database.rs` — all DB operations
 - `GameSnapshot::capture()` from `src/persistence/snapshot.rs` — for save/fork
 - `replay_journal()` from `src/persistence/journal.rs` — for load
-- `compute_palette()` from `parish-core` — for theme refresh after load
+- `compute_palette()` from `limerick-core` — for theme refresh after load
 - CSS variables from `theme.ts` — all overlay styling
 - Existing component patterns (StatusBar button style, Sidebar details pattern)
 

@@ -5,25 +5,25 @@
       "name": "vite-dev",
       "runtimeExecutable": "npm",
       "runtimeArgs": ["run", "dev"],
-      "cwd": "parish/apps/ui",
+      "cwd": "limerick/apps/ui",
       "port": 5173,
       "autoPort": true
     },
     {
-      "name": "parish-web",
+      "name": "limerick-web",
       "runtimeExecutable": "/bin/sh",
       "runtimeArgs": ["-c", "source $HOME/.cargo/env && cargo run -- --web"],
-      "cwd": "parish",
+      "cwd": "limerick",
       "port": 3001
     },
     {
-      "name": "parish-e2e",
+      "name": "limerick-e2e",
       "runtimeExecutable": "/bin/sh",
       "runtimeArgs": [
         "-c",
         "source $HOME/.cargo/env && cargo run -- --web 3099"
       ],
-      "cwd": "parish",
+      "cwd": "limerick",
       "port": 3099
     },
     {
@@ -38,9 +38,9 @@
       "runtimeExecutable": "/bin/sh",
       "runtimeArgs": [
         "-c",
-        "source $HOME/.cargo/env && cargo run -p parish-harness -- serve --port 8787"
+        "source $HOME/.cargo/env && cargo run -p limerick-harness -- serve --port 8787"
       ],
-      "cwd": "parish",
+      "cwd": "limerick",
       "port": 8787
     }
   ]

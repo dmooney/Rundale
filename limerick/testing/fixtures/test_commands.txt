@@ -1,0 +1,11 @@
+# Limerick regression test — system commands
+# Tests all system commands
+
+/help
+/status
+/pause
+/status
+/resume
+/status
+/save
+/quit

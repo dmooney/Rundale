@@ -16,7 +16,7 @@ emotion system`) has landed and completed human playtest. See the
 
 ## Context
 
-Today, NPCs in Rundale "sleep" only in the sense that their scheduled `activity` string is `"sleeping"` (see `mods/rundale/npcs.json` — e.g., Padraig Darcy sleeps 00–05h, winter extends to 00–06h, Sunday lie-ins). There is no sleep _state_, no fatigue, no dream content, and no memory consolidation. NPCs currently accumulate memory in a 20-entry `ShortTermMemory` ring buffer (`crates/parish-npc/src/memory.rs:18–157`) plus a 50-entry keyword-indexed `LongTermMemory`. As game sessions lengthen, short-term memory overflow means NPCs forget days in bulk without any abstraction pass.
+Today, NPCs in Rundale "sleep" only in the sense that their scheduled `activity` string is `"sleeping"` (see `mods/rundale/npcs.json` — e.g., Padraig Darcy sleeps 00–05h, winter extends to 00–06h, Sunday lie-ins). There is no sleep _state_, no fatigue, no dream content, and no memory consolidation. NPCs currently accumulate memory in a 20-entry `ShortTermMemory` ring buffer (`crates/limerick-npc/src/memory.rs:18–157`) plus a 50-entry keyword-indexed `LongTermMemory`. As game sessions lengthen, short-term memory overflow means NPCs forget days in bulk without any abstraction pass.
 
 This plan adds:
 
@@ -46,17 +46,17 @@ PR #443 (emotion system) is open, not yet playtested, and touches several of the
 
 ### File overlap table
 
-| File                                               | #443 uses                                                                                             | This plan will add                                                              | Overlap                 |
-| -------------------------------------------------- | ----------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- | ----------------------- |
-| `crates/parish-npc/src/lib.rs`                     | `Npc.emotion`, `Npc.temperament`, `set_emotion`, `apply_emotion_impulse`, `NpcMetadata.emotion_delta` | `Npc.sleep_state`, `Npc.fatigue`, `Npc.core_memories`, `Npc.consolidations`     | **High** — same struct  |
-| `crates/parish-npc/src/manager.rs`                 | Tier 4 emits structured emotion impulses                                                              | Tier 4 fatigue-biased rules; end-of-sleep-window detection                      | **High**                |
-| `crates/parish-npc/src/ticks.rs`                   | `decay_emotions_tick`, `propagate_contagion`, emotion deltas on Tier 2/3 schemas                      | New `run_dream_consolidation` pass; fatigue tick                                | Medium                  |
-| `crates/parish-persistence/src/snapshot.rs`        | `#[serde(default)]` for `emotion` / `temperament`; legacy-mood reseed                                 | Same pattern for `sleep_state` / `fatigue` / `consolidations` / `core_memories` | Medium — mechanical     |
-| `crates/parish-config/src/engine.rs`               | `NpcConfig.emotions_enabled` flag                                                                     | `NpcConfig.dreams_enabled` flag                                                 | Medium                  |
-| `crates/parish-engine/src/debug.rs` + `testing.rs` | `/debug emotion`, `/stub-emotion`                                                                     | `/debug dreams`, `/stub-fatigue`, `/force-dream`                                | Low — parallel patterns |
-| `crates/parish-core/prompts/*.prompt.yml`          | `npc_tier1` emotion preamble                                                                          | New `npc_dream_consolidation.prompt.yml`                                        | Low — new file          |
-| `crates/parish-npc/src/memory.rs`                  | (untouched by #443)                                                                                   | Consolidation logic, core-memory marker, decay of old summaries                 | None                    |
-| `crates/parish-npc/src/types.rs`                   | (untouched by #443)                                                                                   | Extend `NpcState` with `Sleeping` variant                                       | None                    |
+| File                                                 | #443 uses                                                                                             | This plan will add                                                              | Overlap                 |
+| ---------------------------------------------------- | ----------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- | ----------------------- |
+| `crates/limerick-npc/src/lib.rs`                     | `Npc.emotion`, `Npc.temperament`, `set_emotion`, `apply_emotion_impulse`, `NpcMetadata.emotion_delta` | `Npc.sleep_state`, `Npc.fatigue`, `Npc.core_memories`, `Npc.consolidations`     | **High** — same struct  |
+| `crates/limerick-npc/src/manager.rs`                 | Tier 4 emits structured emotion impulses                                                              | Tier 4 fatigue-biased rules; end-of-sleep-window detection                      | **High**                |
+| `crates/limerick-npc/src/ticks.rs`                   | `decay_emotions_tick`, `propagate_contagion`, emotion deltas on Tier 2/3 schemas                      | New `run_dream_consolidation` pass; fatigue tick                                | Medium                  |
+| `crates/limerick-persistence/src/snapshot.rs`        | `#[serde(default)]` for `emotion` / `temperament`; legacy-mood reseed                                 | Same pattern for `sleep_state` / `fatigue` / `consolidations` / `core_memories` | Medium — mechanical     |
+| `crates/limerick-config/src/engine.rs`               | `NpcConfig.emotions_enabled` flag                                                                     | `NpcConfig.dreams_enabled` flag                                                 | Medium                  |
+| `crates/limerick-engine/src/debug.rs` + `testing.rs` | `/debug emotion`, `/stub-emotion`                                                                     | `/debug dreams`, `/stub-fatigue`, `/force-dream`                                | Low — parallel patterns |
+| `crates/limerick-core/prompts/*.prompt.yml`          | `npc_tier1` emotion preamble                                                                          | New `npc_dream_consolidation.prompt.yml`                                        | Low — new file          |
+| `crates/limerick-npc/src/memory.rs`                  | (untouched by #443)                                                                                   | Consolidation logic, core-memory marker, decay of old summaries                 | None                    |
+| `crates/limerick-npc/src/types.rs`                   | (untouched by #443)                                                                                   | Extend `NpcState` with `Sleeping` variant                                       | None                    |
 
 ### Design coupling (bigger reason than files)
 
@@ -70,23 +70,23 @@ PR #443 (emotion system) is open, not yet playtested, and touches several of the
 
 These exist today and should be **reused**, not reinvented:
 
-- **`ShortTermMemory`** (ring buffer, cap 20) — `crates/parish-npc/src/memory.rs:18–80`. `MemoryEntry { timestamp, content, participants, location, kind }`. Kinds: `SpokeWithPlayer`, `SpokeWithNpc`, `OverheardConversation`, `ReceivedGossip`.
-- **`LongTermMemory`** (scored, keyword-indexed, cap 50) — `crates/parish-npc/src/memory.rs:80–157`. `try_promote()` already uses importance ≥ 0.5 (player involvement + emotional-word detection). This is the **existing analogue** of "core memory" — we extend it with a never-compact tier rather than building parallel storage.
-- **`Npc.last_activity: Option<String>`** — `crates/parish-npc/src/lib.rs:105`. Written by Tier 3. Becomes one input to the dream prompt.
-- **`NpcState` enum** — `crates/parish-npc/src/types.rs:472–484`. Currently `Present` / `InTransit`. Add `Sleeping`.
-- **`ScheduleEntry.activity: String`** — `crates/parish-npc/src/types.rs:319`. The literal string `"sleeping"` (and substrings like "sleeping in the rooms above the pub", "sleeping late on the Lord's day") in `mods/rundale/npcs.json` is our sleep-window signal. Use substring match, not exact equality.
-- **Tier 3 batch pipeline** — `crates/parish-npc/src/ticks.rs::tick_tier3`, output type `Tier3Update { activity_summary, mood, new_location, relationship_changes }`. Async LLM call via `parish_inference`. We piggyback on this infra for dream consolidation — same batching pattern, different prompt and response schema.
-- **Prompts infra** — `crates/parish-core/src/prompts/mod.rs`. `.prompt.yml` files with `include_str!()` + `LazyLock<PromptFile>` parsing. `{{key}}` substitution. Add `npc_dream_consolidation.prompt.yml` following the same shape.
-- **Persistence** — `crates/parish-persistence/src/snapshot.rs:70–145`. NPC is a JSON blob inside SQLite snapshots. Add `#[serde(default)]` on all new `Npc` fields so old saves load cleanly (same backwards-compat story #443 uses).
-- **Feature flags** — `crates/parish-config/src/engine.rs`. Follow the `NpcConfig.emotions_enabled` pattern exactly for `dreams_enabled` and `sleep_state_enabled`.
-- **Deflation/inflation** — `crates/parish-npc/src/transitions.rs:37–123`. `deflate_npc_state` already captures up to 3 recent memories into `NpcSummary` when an NPC leaves Tier 1. The dream summary can feed this pipeline — post-consolidation, the deflated summary becomes a recompaction-of-summaries rather than a raw-memory snapshot.
+- **`ShortTermMemory`** (ring buffer, cap 20) — `crates/limerick-npc/src/memory.rs:18–80`. `MemoryEntry { timestamp, content, participants, location, kind }`. Kinds: `SpokeWithPlayer`, `SpokeWithNpc`, `OverheardConversation`, `ReceivedGossip`.
+- **`LongTermMemory`** (scored, keyword-indexed, cap 50) — `crates/limerick-npc/src/memory.rs:80–157`. `try_promote()` already uses importance ≥ 0.5 (player involvement + emotional-word detection). This is the **existing analogue** of "core memory" — we extend it with a never-compact tier rather than building parallel storage.
+- **`Npc.last_activity: Option<String>`** — `crates/limerick-npc/src/lib.rs:105`. Written by Tier 3. Becomes one input to the dream prompt.
+- **`NpcState` enum** — `crates/limerick-npc/src/types.rs:472–484`. Currently `Present` / `InTransit`. Add `Sleeping`.
+- **`ScheduleEntry.activity: String`** — `crates/limerick-npc/src/types.rs:319`. The literal string `"sleeping"` (and substrings like "sleeping in the rooms above the pub", "sleeping late on the Lord's day") in `mods/rundale/npcs.json` is our sleep-window signal. Use substring match, not exact equality.
+- **Tier 3 batch pipeline** — `crates/limerick-npc/src/ticks.rs::tick_tier3`, output type `Tier3Update { activity_summary, mood, new_location, relationship_changes }`. Async LLM call via `limerick_inference`. We piggyback on this infra for dream consolidation — same batching pattern, different prompt and response schema.
+- **Prompts infra** — `crates/limerick-core/src/prompts/mod.rs`. `.prompt.yml` files with `include_str!()` + `LazyLock<PromptFile>` parsing. `{{key}}` substitution. Add `npc_dream_consolidation.prompt.yml` following the same shape.
+- **Persistence** — `crates/limerick-persistence/src/snapshot.rs:70–145`. NPC is a JSON blob inside SQLite snapshots. Add `#[serde(default)]` on all new `Npc` fields so old saves load cleanly (same backwards-compat story #443 uses).
+- **Feature flags** — `crates/limerick-config/src/engine.rs`. Follow the `NpcConfig.emotions_enabled` pattern exactly for `dreams_enabled` and `sleep_state_enabled`.
+- **Deflation/inflation** — `crates/limerick-npc/src/transitions.rs:37–123`. `deflate_npc_state` already captures up to 3 recent memories into `NpcSummary` when an NPC leaves Tier 1. The dream summary can feed this pipeline — post-consolidation, the deflated summary becomes a recompaction-of-summaries rather than a raw-memory snapshot.
 - **Relationships, mood** — already per-NPC (`HashMap<NpcId, Relationship>`, `mood: String`). Dream prompt takes these as context.
 
 ---
 
 ## Design — data model
 
-Add to `crates/parish-npc/src/lib.rs` `Npc` struct (all `#[serde(default)]` for snapshot compat):
+Add to `crates/limerick-npc/src/lib.rs` `Npc` struct (all `#[serde(default)]` for snapshot compat):
 
 ```rust
 /// Current wakefulness state. Orthogonal to NpcState::Present/InTransit.
@@ -108,7 +108,7 @@ core_memories: Vec<CoreMemory>,
 last_consolidation_at: Option<DateTime<Utc>>,
 ```
 
-New types in `crates/parish-npc/src/memory.rs`:
+New types in `crates/limerick-npc/src/memory.rs`:
 
 ```rust
 pub enum SleepState { Awake, Sleeping }
@@ -139,7 +139,7 @@ pub enum CorePromotionReason {
 }
 ```
 
-Extend `crates/parish-npc/src/types.rs` `NpcState`:
+Extend `crates/limerick-npc/src/types.rs` `NpcState`:
 
 ```rust
 pub enum NpcState {
@@ -157,7 +157,7 @@ pub enum NpcState {
 
 ### Entering / exiting sleep
 
-In `crates/parish-npc/src/ticks.rs`, during each game-clock advancement:
+In `crates/limerick-npc/src/ticks.rs`, during each game-clock advancement:
 
 1. For each NPC, compute their _current_ scheduled activity via `SeasonalSchedule::entry_at(hour)` (already exists).
 2. If previous-tick activity did NOT contain `"sleeping"` and current-tick activity DOES → set `sleep_state = Sleeping`, emit `GameEvent::NpcSleepStart`.
@@ -259,7 +259,7 @@ JUST NOW: <ShortTermMemory since last sleep>
 
 ## Prompt file — `npc_dream_consolidation.prompt.yml`
 
-Location: `crates/parish-core/prompts/npc_dream_consolidation.prompt.yml`. Follow the existing format (messages: `[role, content]`, `{{key}}` substitution).
+Location: `crates/limerick-core/prompts/npc_dream_consolidation.prompt.yml`. Follow the existing format (messages: `[role, content]`, `{{key}}` substitution).
 
 System message sketch (condensed — full text to be written at implementation):
 
@@ -285,7 +285,7 @@ Recompaction at higher levels uses the same prompt with a different user-message
 
 ## Feature flags
 
-Add to `crates/parish-config/src/engine.rs` `NpcConfig`:
+Add to `crates/limerick-config/src/engine.rs` `NpcConfig`:
 
 - `sleep_state_enabled: bool` (default `true`) — if off, `NpcState::Sleeping` never entered; fatigue not tracked or surfaced.
 - `dreams_enabled: bool` (default `true`) — if off, no consolidation runs; only raw memories and existing `LongTermMemory` are used. Useful for offline / cheap-mode / automated-test runs where Ollama round-trips are undesirable.
@@ -296,7 +296,7 @@ Both follow the `emotions_enabled` pattern from #443 exactly: kill-switch for _e
 
 ## Persistence
 
-Update `crates/parish-persistence/src/snapshot.rs` `NpcSnapshot`:
+Update `crates/limerick-persistence/src/snapshot.rs` `NpcSnapshot`:
 
 - Add `#[serde(default)]` fields for all new `Npc` struct fields (`sleep_state`, `fatigue`, `consolidations`, `core_memories`, `last_consolidation_at`).
 - Old saves re-hydrate with: `Awake`, `0.0`, empty vecs, `None`. First post-upgrade sleep then seeds the consolidation pipeline.
@@ -312,7 +312,7 @@ Following the #443 `/debug emotion` / `/stub-emotion` pattern:
 - `/debug dreams <npc>` → print `sleep_state`, `fatigue`, last 3 `consolidations` (with levels and time spans), count of `core_memories`, head of list.
 - `/stub-fatigue <npc> <value>` → set fatigue directly for testing.
 - `/force-dream <npc>` → run dream-consolidation synchronously right now regardless of schedule (test harness).
-- Add a gameplay-proof fixture `parish/testing/proofs/play_prove_dreams.txt` that:
+- Add a gameplay-proof fixture `limerick/testing/proofs/play_prove_dreams.txt` that:
   1. Has the player converse extensively with one NPC across an in-game day.
   2. Advances time through the night.
   3. Uses `/debug dreams` to confirm a `level: 0` consolidation entry was created.
@@ -326,7 +326,7 @@ This fixture is the `/prove` target per CLAUDE.md rule #4.
 
 ## Non-negotiable engineering rules (CLAUDE.md)
 
-1. Shared logic (sleep detection, consolidation, fatigue dynamics) goes in `crates/parish-core` / `crates/parish-npc` only. Do not duplicate into `parish-engine`. ✓
+1. Shared logic (sleep detection, consolidation, fatigue dynamics) goes in `crates/limerick-core` / `crates/limerick-npc` only. Do not duplicate into `limerick-engine`. ✓
 2. **Mode parity:** Tauri, headless CLI, web server must all run sleep/dream identically. Thread the flags through all three entry points (same gap #443 had to close in audit items #14 / #28).
 3. **Tests with behaviour changes:** unit tests for sleep entry/exit detection, fatigue clamp, recompaction threshold, core-memory de-dup, snapshot round-trip. Integration test for a full night → consolidation → next-day Tier 1 prompt including consolidation summary.
 4. **Gameplay proof:** `/prove dreams` fixture described above. Unit tests are not sufficient.
@@ -340,7 +340,7 @@ This fixture is the `/prove` target per CLAUDE.md rule #4.
 
 1. `just check` — fmt + clippy + workspace test suite green.
 2. `just verify` — harness walkthrough green.
-3. `cargo run --manifest-path parish/Cargo.toml -p parish-engine -- --script parish/testing/proofs/play_prove_dreams.txt` — passes.
+3. `cargo run --manifest-path limerick/Cargo.toml -p limerick-engine -- --script limerick/testing/proofs/play_prove_dreams.txt` — passes.
 4. Manual Tauri session: start a new game, play ≥ 1 in-game day, advance through night, open dev-mode NPC debug panel, confirm a consolidation entry is visible with a sensible summary.
 5. Manual regression on #443 coverage (assuming it has landed): `/prove emotions` still passes unchanged; the combined `/debug emotion` + `/debug dreams` shows fatigue biasing emotion decay baseline as designed.
 6. Save a game mid-way through, reload, confirm `consolidations` and `core_memories` survived the round-trip.
@@ -351,22 +351,22 @@ This fixture is the `/prove` target per CLAUDE.md rule #4.
 
 **New files:**
 
-- `crates/parish-core/prompts/npc_dream_consolidation.prompt.yml`
-- `parish/testing/proofs/play_prove_dreams.txt`
+- `crates/limerick-core/prompts/npc_dream_consolidation.prompt.yml`
+- `limerick/testing/proofs/play_prove_dreams.txt`
 
 **Extend:**
 
-- `crates/parish-npc/src/lib.rs` — `Npc` new fields.
-- `crates/parish-npc/src/memory.rs` — `SleepState`, `ConsolidationEntry`, `CoreMemory`, `CorePromotionReason`, consolidation + recompaction functions.
-- `crates/parish-npc/src/types.rs` — `NpcState::Sleeping` variant.
-- `crates/parish-npc/src/ticks.rs` — sleep entry/exit detection, fatigue tick, dream-consolidation dispatch (Tier 3-style batch).
-- `crates/parish-npc/src/manager.rs` — fatigue-biased Tier 4 rules, unscheduled collapse-into-sleep check.
-- `crates/parish-npc/src/transitions.rs` — feed `consolidations[0]` into `deflate_npc_state` so deflated NPCs carry their dream summary.
-- `crates/parish-npc/src/data.rs` — load any optional sleep/dream tuning from `npcs.json` (e.g. personality-specific sleep needs) if designers want it later; minimal initially.
-- `crates/parish-persistence/src/snapshot.rs` — snapshot fields with `#[serde(default)]`.
-- `crates/parish-config/src/engine.rs` — `sleep_state_enabled`, `dreams_enabled` flags.
-- `crates/parish-engine/src/debug.rs` + `crates/parish-engine/src/testing.rs` — `/debug dreams`, `/stub-fatigue`, `/force-dream`.
-- `crates/parish-core/src/prompts/mod.rs` — register new prompt file via `include_str!` + `LazyLock<PromptFile>`.
+- `crates/limerick-npc/src/lib.rs` — `Npc` new fields.
+- `crates/limerick-npc/src/memory.rs` — `SleepState`, `ConsolidationEntry`, `CoreMemory`, `CorePromotionReason`, consolidation + recompaction functions.
+- `crates/limerick-npc/src/types.rs` — `NpcState::Sleeping` variant.
+- `crates/limerick-npc/src/ticks.rs` — sleep entry/exit detection, fatigue tick, dream-consolidation dispatch (Tier 3-style batch).
+- `crates/limerick-npc/src/manager.rs` — fatigue-biased Tier 4 rules, unscheduled collapse-into-sleep check.
+- `crates/limerick-npc/src/transitions.rs` — feed `consolidations[0]` into `deflate_npc_state` so deflated NPCs carry their dream summary.
+- `crates/limerick-npc/src/data.rs` — load any optional sleep/dream tuning from `npcs.json` (e.g. personality-specific sleep needs) if designers want it later; minimal initially.
+- `crates/limerick-persistence/src/snapshot.rs` — snapshot fields with `#[serde(default)]`.
+- `crates/limerick-config/src/engine.rs` — `sleep_state_enabled`, `dreams_enabled` flags.
+- `crates/limerick-engine/src/debug.rs` + `crates/limerick-engine/src/testing.rs` — `/debug dreams`, `/stub-fatigue`, `/force-dream`.
+- `crates/limerick-core/src/prompts/mod.rs` — register new prompt file via `include_str!` + `LazyLock<PromptFile>`.
 - Tauri + server entry points to thread config flags to NPC tick calls (parity).
 - `docs/design/npc-system.md` — add a "Sleep & Dream Consolidation" cross-link to this doc.
 
@@ -415,5 +415,5 @@ Summarised from web search performed during planning. The design above deliberat
 1. **Decouple online write from offline consolidate** — our end-of-sleep trigger.
 2. **Hierarchical abstraction** episodic → semantic → reflection — our `level 0 / 1 / 2` consolidations.
 3. **Importance/salience scoring to gate promotion** — our `CORE_MEMORY_IMPORTANCE_THRESHOLD` reusing the existing `try_promote` signal.
-4. **Graph-shaped over vector-shaped** for relational recall — we defer this; Parish already has a bidirectional relationship graph and we index `ConsolidationEntry` by `key_participants` rather than building a new graph store.
+4. **Graph-shaped over vector-shaped** for relational recall — we defer this; Limerick already has a bidirectional relationship graph and we index `ConsolidationEntry` by `key_participants` rather than building a new graph store.
 5. **Explicit forgetting as a first-class operation** — our natural decay + never-compacted core memories tier.

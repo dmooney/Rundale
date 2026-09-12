@@ -2,13 +2,13 @@
 
 ## Executive summary
 
-Parish has a **strong gameplay-correctness harness** (snapshot baselines,
+Limerick has a **strong gameplay-correctness harness** (snapshot baselines,
 structural rubrics, 74-test fixture suite, architecture-fitness gates)
 and a **strong inference-protocol harness** (mocked-HTTP suites for
 Ollama and OpenAI, exhaustive `resolve_config` precedence tests). Where
 coverage is thin or absent, the gaps cluster in five places:
 
-1. **Tauri / GUI runtime surface** — `parish-tauri` ships with zero
+1. **Tauri / GUI runtime surface** — `limerick-tauri` ships with zero
    tests; 11 of 17 Svelte components have no unit test (`SavePicker`,
    `DebugPanel`, the entire mod editor pane).
 2. **Mod-content validation** — none of the 11 mod artefact loaders has
@@ -45,7 +45,7 @@ Per-area reports live under [`docs/audits/regression/`](regression/).
 | 5   | LLM / Inference | **Partial** (Ollama + OpenAI gold standard; rest thin)                                                                    | Anthropic has zero mocked-HTTP test (**P0**); 9 of 13 providers untested at wire shape (**P0**)                                                                                 | [05-llm-inference.md](regression/05-llm-inference.md) |
 | 6   | GUI             | **Thin** (~35% of components have unit tests)                                                                             | `SavePicker.svelte` no test (**P0**); `DebugPanel.svelte` 5 tabs no test (**P0**); 6 of 7 editor components no test (**P0**)                                                    | [06-gui.md](regression/06-gui.md)                     |
 | 7   | Mod System      | **Thin** (`world.json` strong; everything else light)                                                                     | No malformed-mod tests for any of 11 artefacts (**P0**); prompt template `{placeholder}` interpolation untested (**P0**); no round-trip mod-load count assertion (**P0**)       | [07-mod-system.md](regression/07-mod-system.md)       |
-| 8   | Runtime Modes   | **Partial** (web server good; Tauri none; wiring parity none)                                                             | Wiring parity has zero enforcement (**P0**); `parish-tauri` has zero test files (**P0**)                                                                                        | [08-runtime-modes.md](regression/08-runtime-modes.md) |
+| 8   | Runtime Modes   | **Partial** (web server good; Tauri none; wiring parity none)                                                             | Wiring parity has zero enforcement (**P0**); `limerick-tauri` has zero test files (**P0**)                                                                                      | [08-runtime-modes.md](regression/08-runtime-modes.md) |
 | 9   | Developer Tools | **Partial** (90 in-source unit tests; no integration)                                                                     | No Overpass/Nominatim HTTP mock (**P1**); coordinate-resolver fallback chain untested (**P1**)                                                                                  | [09-dev-tools.md](regression/09-dev-tools.md)         |
 
 Coverage tiers: **Good** (multi-layer with rubrics) · **Partial**
@@ -54,14 +54,14 @@ or worse).
 
 ## Cross-cutting findings
 
-- **The leaf crates are healthier than the binaries.** `parish-world`,
-  `parish-npc`, `parish-input`, `parish-config`, `parish-persistence`,
-  `parish-inference` all have 100+ in-source tests and at least one
-  integration test file. `parish-tauri` has zero. `parish-cli` is
+- **The leaf crates are healthier than the binaries.** `limerick-world`,
+  `limerick-npc`, `limerick-input`, `limerick-config`, `limerick-persistence`,
+  `limerick-inference` all have 100+ in-source tests and at least one
+  integration test file. `limerick-tauri` has zero. `limerick-engine` is
   intermediate. Where bugs land, they tend to land at the
   binary/wiring layer that the harness is thinnest at.
 - **The harness has world-class snapshot + rubric infrastructure**
-  (`crates/parish-cli/tests/eval_baselines.rs:35-207`) that **only 3 of
+  (`crates/limerick-engine/tests/eval_baselines.rs:35-207`) that **only 3 of
   31 fixtures opt into**. Several P1 gaps below are simply
   "promote a working fixture into `BASELINED_FIXTURES`."
 - **`just harness-audit`** (`scripts/harness-audit.sh`) already
@@ -72,7 +72,7 @@ or worse).
 - **A "test the prompt" gap appears in three reports.** NPC mood,
   intelligence profile, anachronism category, and prompt-template
   interpolation all flow into LLM prompts but no test asserts what
-  string actually reaches the LLM. One `parish-inference` test that
+  string actually reaches the LLM. One `limerick-inference` test that
   renders a full prompt and asserts content fragments would close
   multiple silent regressions at once.
 
@@ -98,7 +98,7 @@ issue. Each issue cites its area report.
 - [ ] **[P0]** Mod System — No malformed-input tests for any of 11 mod artefacts
 - [ ] **[P0]** Mod System — Prompt template `{placeholder}` interpolation untested
 - [ ] **[P0]** Runtime Modes — Wiring parity has zero enforcement; IPC drift between web/Tauri ships silently
-- [ ] **[P0]** Runtime Modes — `parish-tauri` has zero test files
+- [ ] **[P0]** Runtime Modes — `limerick-tauri` has zero test files
 
 ### Tracking issue (rolled up)
 

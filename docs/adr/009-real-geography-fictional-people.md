@@ -13,7 +13,7 @@ Rundale is set in rural Ireland, centered on a parish near Roscommon, County Ros
 Ireland has exceptionally rich geographic data available:
 
 - **OpenStreetMap** (via Geofabrik Ireland extract): Roads, buildings, waterways, railways, places, land use. ODbL licensed.
-- **Townlands.ie**: Parish and townland boundaries in GeoJSON/Shapefile/CSV. Roscommon alone has 7 baronies, 62 civil parishes, 110 electoral divisions, and 2,082 townlands.
+- **Townlands.ie**: Limerick and townland boundaries in GeoJSON/Shapefile/CSV. Roscommon alone has 7 baronies, 62 civil parishes, 110 electoral divisions, and 2,082 townlands.
 - **Tailte Eireann** (formerly Ordnance Survey Ireland): Official civil parish, townland, county, and barony boundaries. CC-BY licensed.
 - **Historical maps**: GeoHive historical OS maps and Down Survey maps for world-building reference.
 

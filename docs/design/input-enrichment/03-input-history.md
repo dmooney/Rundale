@@ -23,7 +23,7 @@ Press Up/Down arrow keys to cycle through previously submitted inputs, like a te
 ```typescript
 import { writable, get } from 'svelte/store';
 
-const STORAGE_KEY = 'parish-input-history';
+const STORAGE_KEY = 'limerick-input-history';
 const MAX_HISTORY = 50;
 
 function loadHistory(): string[] {
@@ -240,7 +240,7 @@ if (
   !showSlash &&
   isCursorOnFirstLine()
 ) {
-  // ... history navigation
+  // Delegate other keys to the history navigation handler.
 }
 
 if (
@@ -249,7 +249,7 @@ if (
   !showSlash &&
   isCursorOnLastLine()
 ) {
-  // ... history navigation
+  // Delegate other keys to the history navigation handler.
 }
 ```
 

@@ -28,13 +28,13 @@ path checker and the configured Prettier/Markdown lint tools on changed files.
 
 ## Cargo
 
-Most engine commands should be run from the `parish/` directory:
+Most engine commands should be run from the `limerick/` directory:
 
-- Build: `cargo build` (builds the default member, `parish-engine`)
+- Build: `cargo build` (builds the default member, `limerick-engine`)
 - Build everything: `cargo build --workspace`
 - Release build: `cargo build --release`
-- Run (headless REPL): `cargo run -p parish-engine` (or `cargo run`, default member)
-- Run (HTTP client against server): `cargo run -p parish-client`
+- Run (headless REPL): `cargo run -p limerick-engine` (or `cargo run`, default member)
+- Run (HTTP client against server): `cargo run -p limerick-client`
 - Test all: `cargo test --workspace`
 - Test one: `cargo test <test_name>`
 - Format check: `cargo fmt --check` (apply: `cargo fmt`)
@@ -44,11 +44,11 @@ Alternatively, use the top-level `justfile` proxies from the repository root.
 
 ## Game harness
 
-Scripted gameplay fixtures live in `parish/testing/fixtures/`. Run one with:
+Scripted gameplay fixtures live in `limerick/testing/fixtures/`. Run one with:
 
 ```sh
-# From parish/ directory (local headless runtime — no LLM):
-cargo run -p parish-engine -- --script testing/fixtures/test_walkthrough.txt
+# From limerick/ directory (local headless runtime — no LLM):
+cargo run -p limerick-engine -- --script testing/fixtures/test_walkthrough.txt
 
 # Or from root via just:
 just game-test
@@ -56,8 +56,8 @@ just game-test-one test_movement_errors
 just game-test-all
 
 # Against a live server (real LLM, real NPCs):
-cargo run -p parish-client -- "look"          # single-shot
-cargo run -p parish-client -- --script testing/fixtures/test_walkthrough.txt
+cargo run -p limerick-client -- "look"          # single-shot
+cargo run -p limerick-client -- --script testing/fixtures/test_walkthrough.txt
 just run-client                               # interactive REPL
 ```
 
@@ -77,15 +77,15 @@ routes intent/reaction to the small vLLM-MLX slot on `localhost:8001` by
 default, and can compare against a saved baseline:
 
 ```sh
-python3 parish/scripts/profile-demo-requests.py --baseline docs/proofs/demo-api-profile/baseline.json
+python3 limerick/scripts/profile-demo-requests.py --baseline docs/proofs/demo-api-profile/baseline.json
 ```
 
 ## Frontend
 
 ```sh
-cd parish/apps/ui && npx vitest run    # unit tests
-cd parish/apps/ui && npx playwright test    # e2e (auto-starts axum server)
-cd parish/apps/ui && npm run test:e2e       # same config-managed e2e path
+cd limerick/apps/ui && npx vitest run    # unit tests
+cd limerick/apps/ui && npx playwright test    # e2e (auto-starts axum server)
+cd limerick/apps/ui && npm run test:e2e       # same config-managed e2e path
 just ui-test
 just ui-e2e
 just ui-e2e-update             # update visual baselines after a fresh UI build
@@ -99,20 +99,20 @@ and screenshot commands cannot capture a missing or stale `dist`. Package
 scripts (`test:e2e`, `test:e2e:update`) and the `just ui-e2e-update` and
 `just screenshots` recipes all enter that same config-managed lifecycle.
 `screenshots.spec.ts` writes Playwright baselines under
-`parish/apps/ui/e2e/screenshots/baseline/`; it does not write documentation
+`limerick/apps/ui/e2e/screenshots/baseline/`; it does not write documentation
 images. Curated images under `docs/screenshots/` are promoted deliberately and
 must be referenced from tracked source or documentation.
 
 `npm`/`npx` supplies the absolute `npm_execpath` used to invoke npm's JavaScript
 entry point through the current Node runtime without a shell. A deliberate
 direct `node scripts/playwright-worktree-server.js` launch must instead set
-`PARISH_PLAYWRIGHT_NPM_EXEC_PATH` to an absolute npm `.js`, `.cjs`, or `.mjs`
+`LIMERICK_PLAYWRIGHT_NPM_EXEC_PATH` to an absolute npm `.js`, `.cjs`, or `.mjs`
 entry point. The helper then uses the normal shared Cargo target for dependency
 reuse, snapshots the invoking worktree's fresh UI `dist`, embeds a
 worktree/snapshot build identity, and publishes a content-addressed server copy
 only after validating that identity and its CSP hashes. The server then echoes
 the identity through a per-run readiness URL before Playwright proceeds.
-Default runs allocate a free loopback port; set `PARISH_TEST_PORT` only when a
+Default runs allocate a free loopback port; set `LIMERICK_TEST_PORT` only when a
 fixed port is required. A heartbeat lease serializes helper builds. Before
 releasing that lock, the helper publishes a second heartbeat lease for the
 exact binary and UI snapshot used by the live server. Losing that lease fences
@@ -125,7 +125,7 @@ cache directory and artifact type, removes empty cache directories, and applies
 a 24-hour age limit to bound cross-worktree residue. The same helper path runs
 locally and on GitHub-hosted/self-hosted CI.
 
-To unit-test the isolation helper from `parish/apps/ui/`:
+To unit-test the isolation helper from `limerick/apps/ui/`:
 
 ```sh
 node --test scripts/playwright-worktree-server.test.js
@@ -147,10 +147,10 @@ just ui-e2e-update
 ## Web server (browser testing)
 
 ```sh
-(cd parish/apps/ui && npm run build)
-cd parish
-cargo run -p parish-server                     # default port 3001
-cargo run -p parish-server -- --port 8080
+(cd limerick/apps/ui && npm run build)
+cd limerick
+cargo run -p limerick-server                     # default port 3001
+cargo run -p limerick-server -- --port 8080
 ```
 
 Then open `http://localhost:3001`.
@@ -179,9 +179,9 @@ Restart the editor/agent session afterwards so the new binaries are picked up.
 ## Quality gates
 
 - `/check` — both gate levels: `just check` (fmt + clippy + tests + doc-consistency) and `just verify` (adds the harness walkthrough)
-- `/parish-engine prove <feature>` — required after implementing any gameplay feature
-- `/parish-engine rubric` — snapshot baselines + structural rubrics (sister to `prove`)
-- `/parish-engine harness [script]` — fixture-script harness run
+- `/limerick-engine prove <feature>` — required after implementing any gameplay feature
+- `/limerick-engine rubric` — snapshot baselines + structural rubrics (sister to `prove`)
+- `/limerick-engine harness [script]` — fixture-script harness run
 - `just agent-check` — requires proof evidence and a judge verdict for proof-relevant PRs
 
 ## Eval baselines
@@ -191,7 +191,7 @@ just baselines       # regenerate gameplay-output snapshots after intentional ch
 just harness-audit   # cross-reference fixtures, baselines, and roadmap for gaps
 ```
 
-See [../design/testing.md](../design/testing.md) §Eval baselines for the schema. See reference in `parish/crates/parish-engine/tests/eval_baselines.rs`.
+See [../design/testing.md](../design/testing.md) §Eval baselines for the schema. See reference in `limerick/crates/limerick-engine/tests/eval_baselines.rs`.
 
 ## Coverage
 

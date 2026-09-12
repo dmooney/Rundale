@@ -8,11 +8,11 @@ argument-hint: 'npc_record=<one npcs[] JSON object from npc-art-inputs-v1.json>'
 # Rundale Notebook Person Art Prompt
 
 Use this prompt file to turn one NPC record from
-`parish/apps/ui/art/notebook-person-art/npc-art-inputs-v1.json` into one
+`limerick/apps/ui/art/notebook-person-art/npc-art-inputs-v1.json` into one
 identity-locked image-model request for a tiny notebook portrait and tiny
 in-scene marker generated together.
 
-The visual authority is `docs/graphics-v2/illustrated-parish-notebook.png`.
+The visual authority is `docs/graphics-v2/illustrated-rundale-notebook.png`.
 Do not use prior experimental portrait sheets, marker concept sheets,
 procedural busts, or unrelated graphics cycles as source art.
 
@@ -83,7 +83,7 @@ needed by the image model.
 
 ## Shared Style Contract
 
-Use the Illustrated Parish Notebook concept-art style:
+Use the Illustrated Limerick Notebook concept-art style:
 
 - painted watercolor only for actual world/scene assets and in-world markers
 - uncolored pen-and-ink for UI portraits, tabs, icons, notes, and UI furniture
@@ -142,7 +142,7 @@ Use the Illustrated Parish Notebook concept-art style:
 
 ## Concept Palette
 
-Use the palette from `docs/graphics-v2/illustrated-parish-notebook.png`.
+Use the palette from `docs/graphics-v2/illustrated-rundale-notebook.png`.
 
 - parchment anchors: #deccae, #d7c6a7, #c7b393
 - sepia/graphite ink anchors: #36362e, #454339, #5c5747
@@ -177,7 +177,7 @@ Left portrait artifact/lore: A quick observational head-and-shoulders sketch the
 Left portrait style: Sparse uncolored sepia/graphite contours, economical irregular lines, open shapes, and only a few isolated short structural hatch marks. Do not cross-hatch or shade any broad region of the face, hair, neck, scarf, waistcoat, coat, dress, or apron, and do not render a dark garment as a filled or densely hatched mass. Keep the complete ink drawing between 40 and 60 percent of the left-cell height with generous key-visible padding. Every pixel that is not a dark ink stroke must remain flat #ff00ff, including uninked regions inside the face, hair, neck, clothing, and optional simply outlined props <PORTRAIT_IDENTITY.props>. Any portrait prop stays entirely in the left cell. No white, cream, parchment, skin-tone, gray, watercolor, wash, or other fill. Keep hair/head covering and shoulders fully visible.
 Right marker role: One tiny static full-body transparent character-only cutout designed for compositing into the painted parish world. Use <MARKER_IDENTITY.silhouette>; stance <MARKER_IDENTITY.stance>; empty-hand pose <MARKER_IDENTITY.empty_hand_pose>; intrinsic readability cues <MARKER_IDENTITY.readability_cues>. Keep the complete figure roughly 45 percent of the right-cell height, acceptable range 40 to 60 percent, centered with complete feet and generous key-visible margins. The marker contains the person only. Both hands are empty. Do not add or copy any held or carried object, tool, book, container, bundle, baby or other person, furniture, counter, architecture, vegetation, scenery fragment, ground plane, or shadow. Worn clothing and headwear are allowed. Identity must read from the person alone. Do not illustrate the biography cue's occupation, workplace, activity, or narrative context around the marker.
 Right marker style: Loose sepia/graphite contours with restrained translucent watercolor. Use only olive-grey, weathered tan, umber, muted wool grey, bog green, dull brick red, peat brown, and faded indigo as subordinate accents. Keep the face simple but preserve the shared identity cues.
-Reference role: Use only the attached full Illustrated Parish Notebook concept. Read its notebook portrait line language for the left cell and its painted-world marker language for the right cell. Do not attach or copy a named character's full-face portrait or full-body marker as a shared cast reference; subject identity comes only from the structured facts above.
+Reference role: Use only the attached full Illustrated Limerick Notebook concept. Read its notebook portrait line language for the left cell and its painted-world marker language for the right cell. Do not attach or copy a named character's full-face portrait or full-body marker as a shared cast reference; subject identity comes only from the structured facts above.
 Sheet constraints: Exactly two depictions of one character, one per assigned cell. Keep the center boundary flat key. No labels, dividers, panels, frames, cards, duplicate poses, shared props, extra people, sprite-sheet poses, modern or fantasy elements, text, watermark, or <ART_DIRECTION.avoid>. Never copy a left-cell portrait prop into the marker.
 Final invariant: Portrait, marker, and cross-asset identity form one atomic candidate. If either cell fails, regenerate the pair together.
 ```

@@ -1,5 +1,5 @@
 {
-  "name": "Parish Dev",
+  "name": "Limerick Dev",
   "build": {
     "dockerfile": "Dockerfile",
     "context": ".."
@@ -33,6 +33,6 @@
       "onAutoForward": "silent"
     }
   },
-  "postCreateCommand": "cd parish && cargo build",
+  "postCreateCommand": "cd limerick && cargo build",
   "remoteUser": "vscode"
 }

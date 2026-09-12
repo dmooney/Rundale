@@ -293,7 +293,7 @@ County scale needs more than one level of detail.
 | LOD                | Use                                                             | Generation                                                                                         |
 | ------------------ | --------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
 | County overview    | Travel map, far zoom, orientation.                              | Mostly deterministic watercolor render from vector/raster layers; avoid per-field detail.          |
-| Parish/local       | Player walking between nearby exterior nodes.                   | Imagegen supertiles with semantic controls and overlap.                                            |
+| Limerick/local     | Player walking between nearby exterior nodes.                   | Imagegen supertiles with semantic controls and overlap.                                            |
 | Named-site closeup | Dense interaction areas such as farms, chapel, pub, crossroads. | Separate high-detail local art or enlarged overhead plates, using the same coordinate/mask system. |
 
 The county overview should not be made from thousands of independent imagegen

@@ -5,7 +5,7 @@ past roughly double its current size or a second frontend appears.
 
 ## The question
 
-`parish/apps/ui/src/lib/types.ts` (~600 lines) hand-mirrors the Rust IPC
+`limerick/apps/ui/src/lib/types.ts` (~600 lines) hand-mirrors the Rust IPC
 structs that cross the Tauri/Axum boundary. The 2026-06 architecture review
 asked whether to generate these bindings from Rust (`ts-rs` / `specta`) or
 document why manual sync is kept. This note records the decision: **manual
@@ -16,12 +16,12 @@ sync stays, backed by the existing two-direction parity sensor.**
 Drift is not unguarded today. A three-part contract test gates CI in both
 directions (TD-053 / #1202):
 
-- `parish/apps/ui/src/lib/types-manifest.json` — the shared ground-truth
+- `limerick/apps/ui/src/lib/types-manifest.json` — the shared ground-truth
   list of required fields per IPC struct.
-- `parish/crates/parish-core/tests/ipc_field_parity.rs` — serializes a
+- `limerick/crates/limerick-core/tests/ipc_field_parity.rs` — serializes a
   representative instance of every mirrored Rust struct and asserts the
   JSON keys cover the manifest.
-- `parish/apps/ui/src/lib/types.test.ts` — parses `types.ts` source and
+- `limerick/apps/ui/src/lib/types.test.ts` — parses `types.ts` source and
   asserts each interface declares the manifest's fields.
 
 A rename is a three-place edit (Rust struct, `types.ts`, manifest), but a
@@ -30,8 +30,8 @@ missed place is a CI failure, not a silent `undefined` at runtime.
 ## Why not ts-rs / specta now
 
 - **The annotation burden lands on every leaf crate.** The mirrored types
-  live across `parish-core::ipc`, `parish-diagnostics`, `parish-editor`,
-  and `parish-types`. Deriving `TS`/`specta::Type` adds a build-time
+  live across `limerick-core::ipc`, `limerick-diagnostics`, `limerick-editor`,
+  and `limerick-types`. Deriving `TS`/`specta::Type` adds a build-time
   dependency and attribute noise to backend-agnostic leaf crates whose
   dependency surface is deliberately minimal (root AGENTS.md rule 1; the
   architecture-fitness test polices leaf-crate deps).

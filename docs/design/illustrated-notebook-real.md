@@ -6,13 +6,13 @@ Status: Retired experiment; superseded by the chat-first stabilization contract
 > coordinator, and default-route contracts described below were removed. The
 > approved scene plates and portraits were retained for responsive DOM use by
 > the chat shell. See
-> [`parish/apps/ui/CHAT_FIRST_STABILIZATION.md`](../../parish/apps/ui/CHAT_FIRST_STABILIZATION.md).
+> [`limerick/apps/ui/CHAT_FIRST_STABILIZATION.md`](../../limerick/apps/ui/CHAT_FIRST_STABILIZATION.md).
 
 ## Player Experience
 
 Rundale opens directly into a full-screen illustrated game scene that follows
 the named
-[notebook concept](../graphics-v2/illustrated-parish-notebook.png), not a web
+[notebook concept](../graphics-v2/illustrated-rundale-notebook.png), not a web
 dashboard. The player sees a watercolor parish plate with in-world labels and
 people, a parchment ribbon, nearby portrait strip, right-hand hand-sewn notebook
 page, action strip, and handwritten intent strip. The approved sewn page has no
@@ -21,26 +21,26 @@ overlays, but the default play surface is a Pixi-rendered notebook interface.
 
 ## Affected Subsystems
 
-- `parish/apps/ui/src/routes/+page.svelte`: keep page lifecycle, global
+- `limerick/apps/ui/src/routes/+page.svelte`: keep page lifecycle, global
   shortcuts, screenshot/setup, and controller setup while mounting the Pixi
   play surface and one overlay host.
-- `parish/apps/ui/src/components/illustrated-notebook/`: Svelte canvas host,
+- `limerick/apps/ui/src/components/illustrated-notebook/`: Svelte canvas host,
   accessibility input, and notebook-styled overlay host.
-- `parish/apps/ui/src/lib/illustrated-parish/`: fresh renderer, responsive
+- `limerick/apps/ui/src/lib/illustrated-limerick/`: fresh renderer, responsive
   layout, asset manifest, interaction routing, types, and tests. This namespace
   is the visual implementation boundary for the #1630 rebuild.
-- `parish/apps/ui/src/stores/notebookOverlay.ts`: canonical routing and focus
+- `limerick/apps/ui/src/stores/notebookOverlay.ts`: canonical routing and focus
   restoration for notebook overlays.
-- `parish/apps/ui/src/stores/game.ts`: read existing stores only; do not fork
+- `limerick/apps/ui/src/stores/game.ts`: read existing stores only; do not fork
   transport or create parallel state ownership.
-- `parish/apps/ui/src/lib/ipc.ts`: submit commands through existing `submitInput`.
-- `parish/apps/ui/static/rundale/illustrated-notebook-v2/`: fresh runtime scene
+- `limerick/apps/ui/src/lib/ipc.ts`: submit commands through existing `submitInput`.
+- `limerick/apps/ui/static/rundale/illustrated-notebook-v2/`: fresh runtime scene
   plates, temporary people-layout stand-ins, and the explicitly approved
   hand-sewn page. Portrait-system work remains separate.
-- `parish/apps/ui/static/rundale/illustrated-notebook-v2/visual-scenes.json`:
+- `limerick/apps/ui/static/rundale/illustrated-notebook-v2/visual-scenes.json`:
   fresh plate paths, written visual summary, camera hint, anchors, and depth
   bands kept inside the same provenance boundary as the runtime art.
-- `parish/crates/parish-world`: validation for visual-scene prompt/metadata
+- `limerick/crates/limerick-world`: validation for visual-scene prompt/metadata
   language that rejects historical-map-reference dependencies and strict
   isometric/isomorphic requirements.
 
@@ -60,11 +60,11 @@ Frontend rendering derives from existing state:
 
 New frontend-only models:
 
-- `ParishLayout`: responsive rectangles and scene anchors for the concept's
+- `LimerickLayout`: responsive rectangles and scene anchors for the concept's
   desktop and mobile composition.
-- `ParishHitTarget`: ordered hit regions and semantic activations for portraits,
+- `LimerickHitTarget`: ordered hit regions and semantic activations for portraits,
   tabs, actions, intent, cards, and overflow controls.
-- `ParishRenderState`: the existing world/map/NPC state presented to Pixi.
+- `LimerickRenderState`: the existing world/map/NPC state presented to Pixi.
 - `NotebookSurface`: the canonical journal, people, Focail, map, save, debug,
   mod, bug, shortcuts, utility, time, intents, and rumours overlay routes.
 
@@ -74,7 +74,7 @@ not require coordinate edits.
 ## Runtime Art Assets
 
 The clean runtime asset kit lives under
-`parish/apps/ui/static/rundale/illustrated-notebook-v2/`. It contains:
+`limerick/apps/ui/static/rundale/illustrated-notebook-v2/`. It contains:
 
 - `parish-crossroads-watercolor.png` and
   `parish-crossroads-watercolor-mobile.png`: fresh desktop and vertical scene
@@ -111,7 +111,7 @@ Do not require strict isometric or isomorphic projection. The renderer maps its
 current people and exit anchors through the plate's actual cover crop. The
 metadata depth bands remain available to the separate person/marker slice.
 
-Add tests in `parish-world` or the nearest existing visual-scene validation
+Add tests in `limerick-world` or the nearest existing visual-scene validation
 module to reject:
 
 - `historical map`, `map crop`, `NLS`, `Ordnance Survey`, or equivalent source
@@ -177,13 +177,13 @@ the default viewport.
 
 ## Observable Signals
 
-- `cargo run -p parish-engine -- --script
+- `cargo run -p limerick-engine -- --script
 testing/proofs/play_illustrated-notebook-real.txt` proves the backend
   behavior path still returns status, scene, NPCs, map, time, natural-language
   command handling, and movement.
 - Unit tests prove target ordering, layout/crop mapping, and command input
   submit/stream-flush behavior.
-- `parish-world` tests prove prompt/metadata language rejects historical map
+- `limerick-world` tests prove prompt/metadata language rejects historical map
   dependencies and strict isometric/isomorphic requirements.
 - Desktop and mobile screenshots prove the first viewport meets the notebook
   concept and lacks the old dashboard/InputField treatment.

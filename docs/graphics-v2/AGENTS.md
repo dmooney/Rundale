@@ -12,16 +12,16 @@ runtime assets.
 - `concept-7c-roads-and-schedules.png` — original reference for the preferred
   wider isometric zoom level. Useful for camera distance, exits, road context,
   and schedule/navigation readability.
-- `illustrated-parish-notebook.png` — selected visual direction combining the
+- `illustrated-rundale-notebook.png` — selected visual direction combining the
   7A conversation gameplay with the wider 7C camera.
-- `illustrated-parish-notebook-prompt.md` — the prompt that produced the
+- `illustrated-rundale-notebook-prompt.md` — the prompt that produced the
   selected notebook UI render.
-- `illustrated-parish-notebook-standalone-prompt.md` — a self-contained prompt
+- `illustrated-rundale-notebook-standalone-prompt.md` — a self-contained prompt
   for one-shot testing in other image models, replacing references to 7A/7C
   with explicit text.
-- `illustrated-parish-scene-no-ui.png` — environment-only plate in the same
+- `illustrated-rundale-scene-no-ui.png` — environment-only plate in the same
   illustrated style, with no UI.
-- `illustrated-parish-scene-no-ui-prompt.md` — layout-first prompt for the
+- `illustrated-rundale-scene-no-ui-prompt.md` — layout-first prompt for the
   no-UI environment plate, with explicit river, bridge, road, building, field,
   and footpath continuity constraints.
 - `portable-background-plate-one-shot-template.md` — generic cleanroom prompt

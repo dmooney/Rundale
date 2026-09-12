@@ -1,0 +1,41 @@
+[package]
+name = "limerick-core"
+version = "0.1.0"
+edition = "2024"
+license = "GPL-3.0-only"
+publish = false
+description = "Orchestration layer for the Limerick engine: game session, IPC, mod loading, prompts"
+
+[dependencies]
+limerick-types = { workspace = true }
+limerick-config = { workspace = true }
+limerick-inference = { workspace = true }
+limerick-world = { workspace = true }
+limerick-palette = { workspace = true }
+limerick-npc = { workspace = true }
+limerick-mod = { workspace = true }
+limerick-editor = { workspace = true }
+limerick-chronicle = { workspace = true }
+limerick-diagnostics = { workspace = true }
+limerick-persistence = { workspace = true }
+limerick-input = { workspace = true }
+tokio = { workspace = true }
+tokio-util = { workspace = true }
+reqwest = { workspace = true, features = ["json"] }
+serde = { workspace = true }
+serde_json = { workspace = true }
+serde_yaml = { workspace = true }
+anyhow = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+chrono = { workspace = true }
+rand = { workspace = true }
+toml = { workspace = true }
+base64 = "0.23"
+uuid = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }
+wiremock = { workspace = true }
+regex = { workspace = true }
+serial_test = { workspace = true }

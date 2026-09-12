@@ -18,7 +18,7 @@ AY used:
 - Edit target:
   `pipeline-experiments/idea-au-kilteevan-at2-wall-door-repair.png`
 - Full notebook UI sample, style only:
-  `illustrated-parish-notebook.png`
+  `illustrated-rundale-notebook.png`
 - Clean single-building slate and thatch references:
   `style-crops/illustrated-style-low-camera-slate-single-house-door-clean.png`
   and

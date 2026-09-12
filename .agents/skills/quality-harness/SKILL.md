@@ -1,12 +1,12 @@
 ---
 name: quality-harness
-description: Run a game quality-control playtest — YOU drive the LIVE Rundale game via the parish MCP against real models, play in-character for N turns, observe the world, then judge it CRITICALLY (anchored rubric, discrete findings) and file bugs. Trigger when the user says "run the quality harness", "do a harness run", "playtest the game", "QA the game", "drive a playtest", or similar. NOT for model benchmarking (that is /rundale-bench) and NOT for scripted bug-probing (that is /demo-audit-mcp).
+description: Run a game quality-control playtest — YOU drive the LIVE Rundale game via the limerick MCP against real models, play in-character for N turns, observe the world, then judge it CRITICALLY (anchored rubric, discrete findings) and file bugs. Trigger when the user says "run the quality harness", "do a harness run", "playtest the game", "QA the game", "drive a playtest", or similar. NOT for model benchmarking (that is /rundale-bench) and NOT for scripted bug-probing (that is /demo-audit-mcp).
 argument-hint: '[turns N] [persona "..."] [goal "..."]'
 ---
 
 # quality-harness — agent-driven critical playtest
 
-**You are the harness.** You drive the live game through the parish MCP, play it like a real
+**You are the harness.** You drive the live game through the limerick MCP, play it like a real
 player, observe the world (dialogue **and** the async simulation), then judge it as a
 **hard-to-please human playtester** and file every defect. No standalone binary, no `/api`, no
 headless, no reading a database. Full background:
@@ -16,7 +16,7 @@ Args (all optional): `turns N` (default 12), `persona "..."`, `goal "..."`.
 
 ## Hard rules (non-negotiable)
 
-- **Tauri + parish MCP only.** Drive via `mcp__parish__*`. Never the headless `parish-server`,
+- **Tauri + limerick MCP only.** Drive via `mcp__limerick__*`. Never the headless `limerick-server`,
   never raw `/api/*` curl, never read a SQLite DB. The cloud env runs the desktop app.
 - **Real models.** Dialogue is real (vllm-mlx Qwen). Do not "simulate" a run.
 - **Control time explicitly** (see below). Never rely on window focus.
@@ -27,7 +27,7 @@ Args (all optional): `turns N` (default 12), `persona "..."`, `goal "..."`.
   non-dialogue input (look / examine / move / system command), screenshot and confirm the UI
   renders it in a distinct command/narration style with **no** "You" speech bubble and **no**
   NPC speaker chip. A command drawn as dialogue, or pinned to an NPC who never replied, is a
-  real defect that the API transcript hides — `parish_turn` / `get_transcript` will look clean.
+  real defect that the API transcript hides — `limerick_turn` / `get_transcript` will look clean.
 - **Attribute every line to its source before scoring.** Tag each transcript/screen line as one
   of: player speech, player command, **system/time narration**, NPC dialogue, or autonomous
   world event. The time levers emit narration — `/resume` → "Time stirs again in the parish",
@@ -37,16 +37,16 @@ Args (all optional): `turns N` (default 12), `persona "..."`, `goal "..."`.
 
 ## 1. Preflight (do this first, every time)
 
-1. Confirm the MCP tools exist: call `mcp__parish__parish_engine_state`.
-   - **If `mcp__parish__*` is unavailable**, the parish MCP server did not register. It only
+1. Confirm the MCP tools exist: call `mcp__limerick__limerick_engine_state`.
+   - **If `mcp__limerick__*` is unavailable**, the limerick MCP server did not register. It only
      spawns at **session init** and there is **no in-session reload**. Tell the user to **start a
      fresh session** (Tauri must be running first); pre-build with
-     `cargo build -p parish-mcp`. Do NOT fall back to headless/`/api`. (See #1352.)
-2. Confirm the game is up: `parish_engine_state` returns a scene. If it errors with a transport
+     `cargo build -p limerick-mcp`. Do NOT fall back to headless/`/api`. (See #1352.)
+2. Confirm the game is up: `limerick_engine_state` returns a scene. If it errors with a transport
    error, the Tauri app isn't running — launch it with
-   `bash parish/scripts/launch-tauri-screenshottable.sh 3030` (it builds the current worktree UI
+   `bash limerick/scripts/launch-tauri-screenshottable.sh 3030` (it builds the current worktree UI
    and launches Tauri against static frontend assets, so no Vite lifecycle can leave the window
-   blank). Plain `cargo run -p parish-tauri -- --mcp-port 3030` uses `devUrl` and is not a
+   blank). Plain `cargo run -p limerick-tauri -- --mcp-port 3030` uses `devUrl` and is not a
    graphical-harness runtime. For SCREENSHOTS specifically: use the helper above, and
    note the in-app fix wakes a **slept** display before capture — a screen that idled off reports
    as locked and used to fast-fail; it now wakes + holds the display (`caffeinate -u -d`). The
@@ -59,10 +59,10 @@ Args (all optional): `turns N` (default 12), `persona "..."`, `goal "..."`.
 
 ## 2. Set up the run
 
-- `mcp__parish__parish_new_game` for a clean transcript.
-- `parish_submit_input("/pause")` — freeze the world so it can't drift while you think.
-- Read the opening: `parish_engine_state` + `parish_world_snapshot` (scene description) +
-  `parish_npcs_here`.
+- `mcp__limerick__limerick_new_game` for a clean transcript.
+- `limerick_submit_input("/pause")` — freeze the world so it can't drift while you think.
+- Read the opening: `limerick_engine_state` + `limerick_world_snapshot` (scene description) +
+  `limerick_npcs_here`.
 - Adopt the persona/goal (default persona: a curious newcomer to the parish, 1820; default
   goal: meet villagers and find your feet). Play in-character — a real player, not a command
   fuzzer.
@@ -71,11 +71,11 @@ Args (all optional): `turns N` (default 12), `persona "..."`, `goal "..."`.
 
 For each turn:
 
-1. **OBSERVE** — `parish_engine_state` (+ `parish_world_snapshot` / `parish_npcs_here` as
-   needed). Once #1356 lands, use `tauri_invoke("get_turn")` (or `parish_turn`) for the slim
+1. **OBSERVE** — `limerick_engine_state` (+ `limerick_world_snapshot` / `limerick_npcs_here` as
+   needed). Once #1356 lands, use `tauri_invoke("get_turn")` (or `limerick_turn`) for the slim
    bundle (last exchanges + world events + state) — **do not** pull `get_debug_snapshot`
    per turn (≈357 KB).
-2. **ACT** — choose one meaningful in-character input; `parish_submit_input(text, addressed_to:
+2. **ACT** — choose one meaningful in-character input; `limerick_submit_input(text, addressed_to:
 [npc])` for dialogue. Vary: greet, ask, move (`go to X`), act, use a slash command.
 3. **RESULT** — read the NPC reply. Once #1356 lands, `submit_input` returns the exchange
    directly; until then read `tauri_invoke("get_transcript")` (NOTE: it is **location-scoped** —
@@ -84,7 +84,7 @@ For each turn:
    re-read state. NPCs arrive/leave, gossip spreads, weather/mood shift — capture these deltas.
    The transcript will NOT show them; engine_state + events will.
 5. **SCREENSHOT (every turn)** — after the reply has rendered and the log has autoscrolled to
-   the bottom (sticky-bottom #1529 lands new dialogue at the fold), call `parish_take_screenshot`
+   the bottom (sticky-bottom #1529 lands new dialogue at the fold), call `limerick_take_screenshot`
    and save the returned PNG straight to **this turn's** `turns/NNN/frame.png`. One real,
    distinct capture per turn — do **not** reuse a prior turn's frame. (A single capture fanned
    across the run is the "every screenshot looks the same" bug — proven in the artifacts: runs
@@ -142,7 +142,7 @@ state change for several turns.
 
 Produce: per-turn log, the 7 axis scores + rationale, the weighted quality (or GATED + reason),
 and the full findings list. Then **file every finding** via
-`mcp__parish__parish_file_bug(title, description, context)` — it bundles a screenshot + logs +
+`mcp__limerick__limerick_file_bug(title, description, context)` — it bundles a screenshot + logs +
 state into a GitHub issue labeled for the `/backlog` drain and **returns the issue URL**.
 **Record that URL against the finding's `signature`** — §6 step 2 writes it into the payload so
 the dashboard links the finding to its issue.
@@ -158,7 +158,7 @@ with no `issue_url` and no dup note is a filing miss.
 
 ## 6. Persist to the dashboard
 
-A skill run is invisible to the `parish-harness` dashboard unless you ingest it. Do this at the
+A skill run is invisible to the `limerick-harness` dashboard unless you ingest it. Do this at the
 end of every run so it shows on `serve` (`http://localhost:8787`) next to binary runs.
 
 1. **Lay out an artifact dir.** Pick a `uuid` for the run and create
@@ -205,17 +205,17 @@ end of every run so it shows on `serve` (`http://localhost:8787`) next to binary
    `look`, a system command). Turns without a log render non-clickable.
 
 2. **Emit the payload JSON** (schema in
-   [`parish/crates/parish-harness/README.md`](../../../parish/crates/parish-harness/README.md)
+   [`limerick/crates/limerick-harness/README.md`](../../../limerick/crates/limerick-harness/README.md)
    under `ingest`). Fill `git` from the worktree (`git rev-parse HEAD` / `--abbrev-ref HEAD` /
    `status --porcelain`), set `rubric_sha256` to the binary's pinned rubric sha
-   (`cargo run -p parish-harness -- ...` records it; or read the rubric file hash), include all
+   (`cargo run -p limerick-harness -- ...` records it; or read the rubric file hash), include all
    `turns`, the 7 `axes` with rationales, every `finding` (with the same `signature` you used
-   when filing the issue **and its `issue_url`** — the URL `parish_file_bug` returned in §5, so
+   when filing the issue **and its `issue_url`** — the URL `limerick_file_bug` returned in §5, so
    ingest links the finding on the dashboard), and a `cost` tally. On a hard fail set `gate` and
    omit `quality_score`.
 
    **Cost must come from complete provider telemetry, never a hand estimate.** Sum
-   `parish.estimated_cost_usd`, `gen_ai.usage.input_tokens`,
+   `limerick.estimated_cost_usd`, `gen_ai.usage.input_tokens`,
    `gen_ai.usage.output_tokens`, `gen_ai.usage.cached_tokens`, and call count across every raw
    inference _session_ JSONL produced during the run. Exclude `.transcript.jsonl` and any
    concatenated aggregate that duplicates those session files. This must include intent,
@@ -227,10 +227,10 @@ end of every run so it shows on `serve` (`http://localhost:8787`) next to binary
 3. **Ingest, then backfill any missing issue links:**
 
    ```sh
-   cargo run -p parish-harness -- ingest --payload <run.json> --artifacts <root>
+   cargo run -p limerick-harness -- ingest --payload <run.json> --artifacts <root>
    # safety net: link any finding whose issue_url wasn't set inline (e.g. a dedup against a
    # prior run's issue) by matching its signature to the filed issue body.
-   cargo run -p parish-harness -- backfill-issues
+   cargo run -p limerick-harness -- backfill-issues
    ```
 
    Read the ingested run back from `/api/runs/<id>` (or the `runs` row) and require its
@@ -246,15 +246,15 @@ A run **owns** the Rundale desktop app it drove — shut it down once the run is
 persisted, so the bundled models and window are released. This is the final step, after the
 ingest in §6; do it whether the run completed or hard-failed (a gated run still closes the app).
 **Order matters:** ingest first, then close — quitting the app drops the MCP bridge on
-`127.0.0.1:3030`, so no `mcp__parish__*` call will work afterward.
+`127.0.0.1:3030`, so no `mcp__limerick__*` call will work afterward.
 
 ```sh
 # Graceful quit of the packaged desktop app, then a fallback for the dev binary:
 osascript -e 'quit app "Rundale"' 2>/dev/null || true
-pkill -f 'parish-tauri' 2>/dev/null || true
+pkill -f 'limerick-tauri' 2>/dev/null || true
 # Release the display-awake hold from the launch helper. It self-exits when the app dies
 # (`caffeinate -w "$APP_PID"`), but kill the pidfile too in case the bridge stayed up:
-kill "$(cat "/tmp/parish-caffeinate-${USER:-shared}.pid" 2>/dev/null)" 2>/dev/null || true
+kill "$(cat "/tmp/limerick-caffeinate-${USER:-shared}.pid" 2>/dev/null)" 2>/dev/null || true
 ```
 
 Do **not** touch the dashboard `serve` process (port 8787) — only the game app is closed, so the

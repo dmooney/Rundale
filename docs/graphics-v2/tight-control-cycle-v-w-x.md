@@ -18,7 +18,7 @@ The useful reference stack is:
 2. A deterministic oblique raw warp of that crop, used only as camera-pitch
    cue.
 3. The previous successful render for structure/style continuity.
-4. `illustrated-parish-notebook.png` for broad ink/watercolor/camera mood.
+4. `illustrated-rundale-notebook.png` for broad ink/watercolor/camera mood.
 5. `style-crops/illustrated-style-low-camera-slate-single-house-door-clean.png`.
 6. `style-crops/illustrated-style-low-camera-thatched-single-house-door-clean.png`.
 7. Cleaned material swatches for walls, roofs, fields, and ground.

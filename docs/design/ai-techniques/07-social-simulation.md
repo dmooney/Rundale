@@ -1,7 +1,7 @@
 # Social Simulation — Beliefs, Gossip, Multi-Agent
 
-**Target crate:** `crates/parish-npc/` (new `beliefs` + `gossip` modules),
-Tier 2 tick overhaul, `crates/parish-core/` social graph.
+**Target crate:** `crates/limerick-npc/` (new `beliefs` + `gossip` modules),
+Tier 2 tick overhaul, `crates/limerick-core/` social graph.
 
 ## Problem
 

@@ -1,12 +1,12 @@
 # Rundale
 
-An Irish Living World Text Adventure, set in 1820 rural Ireland; powered by the custom **Parish** engine. 1820 was chosen as it in the middle of the period after the [Acts of Union 1800](https://en.wikipedia.org/wiki/Acts_of_Union_1800) that brought Ireland into the United Kingdom of Great Britian and Ireland, and prior to the [Great Famine](<https://en.wikipedia.org/wiki/Great_Famine_(Ireland)>).
+An Irish Living World Text Adventure, set in 1820 rural Ireland; powered by the custom **Limerick** engine. 1820 was chosen as it in the middle of the period after the [Acts of Union 1800](https://en.wikipedia.org/wiki/Acts_of_Union_1800) that brought Ireland into the United Kingdom of Great Britian and Ireland, and prior to the [Great Famine](<https://en.wikipedia.org/wiki/Great_Famine_(Ireland)>).
 
 ## Current direction
 
 Rundale is resetting around a native iPhone text adventure: SwiftUI presents a
-status header, transcript, and composer; the Parish Rust runtime and authoritative
-saves live on device; remote inference goes through Parish Endpoints.
+status header, transcript, and composer; the Limerick Rust runtime and authoritative
+saves live on device; remote inference goes through Limerick Endpoints.
 The [product specifications](docs/product-specs/README.md) define the six gated
 milestones: first a fixture-only interaction prototype, then embedded gameplay
 in a tiny world.
@@ -26,28 +26,28 @@ The player arrives as a newcomer to Kilteevan Village, about two miles south-eas
   <tr>
     <td align="center"><a href="docs/screenshots/map.png"><img src="docs/screenshots/thumbnails/map-thumbnail.png" alt="Map view of Kilteevan and surrounding area" width="160"/><br/><b>Map</b></a></td>
     <td align="center"><a href="docs/screenshots/ledger.png"><img src="docs/screenshots/thumbnails/ledger-thumbnail.png" alt="Ledger panel showing game log entries" width="160"/><br/><b>Ledger</b></a></td>
-    <td align="center"><a href="docs/screenshots/npc-designer.png"><img src="docs/screenshots/thumbnails/npc-designer-thumbnail.png" alt="NPC designer panel for editing character details" width="160"/><br/><b>NPCs</b></a></td>
-    <td align="center"><a href="docs/screenshots/location-designer.png"><img src="docs/screenshots/thumbnails/location-designer-thumbnail.png" alt="Location designer panel for editing world locations" width="160"/><br/><b>Locations</b></a></td>
+    <td align="center"><a href="docs/screenshots/limerick-npc-designer.png"><img src="docs/screenshots/limerick-npc-designer.png" alt="Limerick Designer NPC panel for editing character details" width="160"/><br/><b>NPCs</b></a></td>
+    <td align="center"><a href="docs/screenshots/limerick-location-designer.png"><img src="docs/screenshots/limerick-location-designer.png" alt="Limerick Designer location panel for editing world locations" width="160"/><br/><b>Locations</b></a></td>
   </tr>
 </table>
 
-## Ways to run Parish
+## Ways to run Limerick
 
 Four binaries built from this workspace, each with a single job:
 
 ```mermaid
 flowchart LR
-    subgraph Engine["Parish engine (parish-core composes 14 leaf crates)"]
+    subgraph Engine["Limerick engine (limerick-core composes 14 leaf crates)"]
         Core[("game loop · world · NPCs · inference · save store")]
     end
 
-    Repl["**parish-engine --headless**<br/>stdin/stdout REPL<br/>(also `--script` batch)"]
-    Tauri["**parish-tauri**<br/>desktop app<br/>(Svelte 5 UI + Tauri IPC)"]
-    Server["**parish-server --port PORT**<br/>Axum HTTP/WS server<br/>(library + binary)"]
+    Repl["**limerick-engine --headless**<br/>stdin/stdout REPL<br/>(also `--script` batch)"]
+    Tauri["**limerick-tauri**<br/>desktop app<br/>(Svelte 5 UI + Tauri IPC)"]
+    Server["**limerick-server --port PORT**<br/>Axum HTTP/WS server<br/>(library + binary)"]
 
     Browser["Browser<br/>(serves the same Svelte UI)"]
-    Client["**parish-client**<br/>thin HTTP shell<br/>(single-shot · script · REPL · JSON)"]
-    MCP["**parish-mcp**<br/>MCP bridge for AI agents"]
+    Client["**limerick-client**<br/>thin HTTP shell<br/>(single-shot · script · REPL · JSON)"]
+    MCP["**limerick-mcp**<br/>MCP bridge for AI agents"]
 
     Repl --> Core
     Tauri --> Core
@@ -57,15 +57,15 @@ flowchart LR
     MCP -. HTTP .-> Server
 ```
 
-| Binary          | Mode                                                                        | Has engine in-process?              | When to use                                                                                                               |
-| --------------- | --------------------------------------------------------------------------- | ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
-| `parish-tauri`  | `just run`                                                                  | yes                                 | Default desktop experience — full GUI.                                                                                    |
-| `parish-engine` | `--headless` (`just run-headless`), `--script FILE`                         | yes                                 | Single-process terminal play; deterministic `--script` runs drive the test harness.                                       |
-| `parish-server` | `--port PORT` (`just web`)                                                  | yes (one engine per cookie session) | Multi-user web server; serves the same Svelte UI; the target for `parish-client`, MCP, and browser sessions.              |
-| `parish-client` | single-shot / `--script` / `--json` / REPL (`cd parish && just run-client`) | **no — thin shell**                 | Drive a running `parish-server` over HTTP. Use from scripts, CI, or as a lightweight terminal alternative to the browser. |
-| `parish-mcp`    | MCP server (`bash parish/scripts/parish-mcp-backend.sh start`)              | no — bridge                         | Expose `mcp__parish__*` tools to AI agents (Claude Code, etc.). Also bridges over HTTP to a running backend.              |
+| Binary            | Mode                                                                          | Has engine in-process?              | When to use                                                                                                                 |
+| ----------------- | ----------------------------------------------------------------------------- | ----------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| `limerick-tauri`  | `just run`                                                                    | yes                                 | Default desktop experience — full GUI.                                                                                      |
+| `limerick-engine` | `--headless` (`just run-headless`), `--script FILE`                           | yes                                 | Single-process terminal play; deterministic `--script` runs drive the test harness.                                         |
+| `limerick-server` | `--port PORT` (`just web`)                                                    | yes (one engine per cookie session) | Multi-user web server; serves the same Svelte UI; the target for `limerick-client`, MCP, and browser sessions.              |
+| `limerick-client` | single-shot / `--script` / `--json` / REPL (`cd limerick && just run-client`) | **no — thin shell**                 | Drive a running `limerick-server` over HTTP. Use from scripts, CI, or as a lightweight terminal alternative to the browser. |
+| `limerick-mcp`    | MCP server (`bash limerick/scripts/limerick-mcp-backend.sh start`)            | no — bridge                         | Expose `mcp__limerick__*` tools to AI agents (Claude Code, etc.). Also bridges over HTTP to a running backend.              |
 
-Shared rule: **mode parity**. Every gameplay feature behaves identically across Tauri, headless, and web. Shared orchestration lives in `parish-core`; entry-point crates contain only thin wiring (see [docs/agent/architecture.md](docs/agent/architecture.md)).
+Shared rule: **mode parity**. Every gameplay feature behaves identically across Tauri, headless, and web. Shared orchestration lives in `limerick-core`; entry-point crates contain only thin wiring (see [docs/agent/architecture.md](docs/agent/architecture.md)).
 
 ## Features
 
@@ -142,36 +142,36 @@ A four-tier simulation that scales hundreds of NPCs at varying fidelity based on
 - **Status and context chrome** — location, time, weather, season, festival, and pause state remain legible while secondary tools stay out of the primary conversation flow.
 - **Three themes** selectable with `/theme` — default cream/parchment, Solarized Light, Solarized Dark — driven by CSS custom properties and persisted in `localStorage` so reloads don't flash the wrong palette.
 - **Coordinated Debug records** (F12) — eight tabs (Overview, NPCs, World, Weather, Gossip, Conversations, Events, Inference) in one modal surface.
-- **Bug reporter** — opened from Developer tools or a 🐛 next to a debug record; it captures the visible DOM game state, recent logs, and current game state and files a GitHub issue on the configured repo (`dmooney/rundale` by default), embedding the screenshot inline. Per-record buttons attach the exact inference call / event / conversation as context. Every report also carries a "black box" diagnostic payload — the raw LLM prompt/response history, the canonical `get_engine_state` snapshot, and the last raw user intent — so local-inference drift is reproducible. Also available to auto-QA agents via the `parish_file_bug` MCP tool. Gated by the default-on `bug-report` flag; configured via `PARISH_BUG_REPORT_TOKEN` / `PARISH_BUG_REPORT_REPO`, with `PARISH_BUG_REPORT_DRY_RUN=1` writing the report to disk instead of filing.
-- **MCP automated-QA loop** — the `parish_engine_state` MCP tool exposes the canonical, deterministic engine state (active scene, clock, weather, player, NPCs, gossip grapevine) so an agent can assert the UI resolved each state transition. The `parish/scripts/parish-mcp-audit.sh` lifecycle script wraps a strict Init → Execute → Validate (UI vs `get_engine_state`) → Teardown (file a bug on mismatch, kill the backend cleanly) loop. Gated by the default-on `engine-state` flag.
+- **Bug reporter** — opened from Developer tools or a 🐛 next to a debug record; it captures the visible DOM game state, recent logs, and current game state and files a GitHub issue on the configured repo (`dmooney/rundale` by default), embedding the screenshot inline. Per-record buttons attach the exact inference call / event / conversation as context. Every report also carries a "black box" diagnostic payload — the raw LLM prompt/response history, the canonical `get_engine_state` snapshot, and the last raw user intent — so local-inference drift is reproducible. Also available to auto-QA agents via the `limerick_file_bug` MCP tool. Gated by the default-on `bug-report` flag; configured via `LIMERICK_BUG_REPORT_TOKEN` / `LIMERICK_BUG_REPORT_REPO`, with `LIMERICK_BUG_REPORT_DRY_RUN=1` writing the report to disk instead of filing.
+- **MCP automated-QA loop** — the `limerick_engine_state` MCP tool exposes the canonical, deterministic engine state (active scene, clock, weather, player, NPCs, gossip grapevine) so an agent can assert the UI resolved each state transition. The `limerick/scripts/limerick-mcp-audit.sh` lifecycle script wraps a strict Init → Execute → Validate (UI vs `get_engine_state`) → Teardown (file a bug on mismatch, kill the backend cleanly) loop. Gated by the default-on `engine-state` flag.
 - **Save picker** (F5) with a DAG visualization of branches and inline fork form.
 - **Keyboard shortcuts** — F2 screenshot, F5 Ledger, F10 demo, F11 fullscreen, F12 Debug, M map, `?` help, Tab through semantic controls, Enter activate/send, and Esc close a dismissible surface or stop the demo.
-- **Parish Designer** — integrated GUI editor at `/editor` for authoring NPCs, locations, schedules, and mod data without touching JSON directly; see the [Parish Designer](#parish-designer-gui-editor) section below.
+- **Limerick Designer** — integrated GUI editor at `/editor` for authoring NPCs, locations, schedules, and mod data without touching JSON directly; see the [Limerick Designer](#limerick-designer-gui-editor) section below.
 - **Accessibility** — ARIA-labelled controls, visible focus rings, semantic HTML, WCAG-AA contrast across all theme variants.
 
 ### Web server
 
-- **Axum backend** in `crates/parish-server` serves the same Svelte UI over HTTP + WebSocket, one isolated session per `parish_sid` cookie.
+- **Axum backend** in `crates/limerick-server` serves the same Svelte UI over HTTP + WebSocket, one isolated session per `limerick_sid` cookie.
 - **Auth** — Cloudflare Access JWT validation in production, optional Google OAuth, loopback bypass for local dev, fail-closed when misconfigured.
 - **WebSocket events** for world updates, streaming tokens, theme changes, and map source switches.
-- **Per-session save isolation** — game state lives under `<user-data>/saves/<session_id>/` and survives restarts. The user-data root is platform-native (`~/Library/Application Support/Rundale` on macOS, `$XDG_DATA_HOME/rundale` on Linux, `%APPDATA%\Rundale` on Windows) and named after the active mod's `save_root`. Override with `PARISH_SAVES_DIR` (saves), `PARISH_TILE_CACHE_DIR` (tile cache), or `PARISH_USER_DATA_DIR` (root).
+- **Per-session save isolation** — game state lives under `<user-data>/saves/<session_id>/` and survives restarts. The user-data root is platform-native (`~/Library/Application Support/Rundale` on macOS, `$XDG_DATA_HOME/rundale` on Linux, `%APPDATA%\Rundale` on Windows) and named after the active mod's `save_root`. Override with `LIMERICK_SAVES_DIR` (saves), `LIMERICK_TILE_CACHE_DIR` (tile cache), or `LIMERICK_USER_DATA_DIR` (root).
 - **Prometheus-style `/metrics`** for auth failures, session counts, and inference call stats.
 - **Deploy artifacts** — multi-stage `Dockerfile` in `deploy/`.
 
 ### Headless / CLI
 
-- **`parish-engine`** — single-process binary with two modes: `--headless` (stdin/stdout REPL), `--script FILE` (deterministic batch driver), no flag (Tauri-launch). HTTP serving is no longer muxed in — `parish-server` is now a runnable binary in its own right.
+- **`limerick-engine`** — single-process binary with two modes: `--headless` (stdin/stdout REPL), `--script FILE` (deterministic batch driver), no flag (Tauri-launch). HTTP serving is no longer muxed in — `limerick-server` is now a runnable binary in its own right.
 - **Plain stdin/stdout REPL** for scripting, fixtures, and headless servers.
 - **Interactive save picker** with the same branch model as the GUI.
 - **ANSI-coloured output** matching the GUI palette (NPC names, system messages, errors).
 - **`--script <file>`** mode for deterministic JSON-in/JSON-out execution — the backbone of the test harness.
 - **The full slash-command surface** works identically to the GUI.
 
-### Thin HTTP client (`parish-client`)
+### Thin HTTP client (`limerick-client`)
 
-- **Separate `parish` binary** that talks to a running `parish-server` over HTTP — no engine in-process, no game state owned locally.
-- **Four modes:** `parish "<cmd>"` single-shot, `parish --script <file>` for batch fixtures, `parish` no-arg REPL, `parish --json "<cmd>"` for raw `CommandResponse` JSON suitable for piping into `jq` / automation.
-- **Cookie persistence** — the server's `parish_sid` cookie is saved between runs so subsequent invocations resume the same save branch.
+- **Separate `limerick` binary** that talks to a running `limerick-server` over HTTP — no engine in-process, no game state owned locally.
+- **Four modes:** `limerick "<cmd>"` single-shot, `limerick --script <file>` for batch fixtures, `limerick` no-arg REPL, `limerick --json "<cmd>"` for raw `CommandResponse` JSON suitable for piping into `jq` / automation.
+- **Cookie persistence** — the server's `limerick_sid` cookie is saved between runs so subsequent invocations resume the same save branch.
 - **Use cases:** CI scripts, agent harnesses, lightweight terminal play against a remote or local server, anything that doesn't want to boot the full engine just to issue a command.
 
 ### Modding & content
@@ -184,9 +184,9 @@ A four-tier simulation that scales hundreds of NPCs at varying fidelity based on
 - **Festivals, encounters, transport speeds, and Irish-word pronunciations** are all data-driven.
 - **Backend-agnostic loading** — the same mod loads identically in Tauri, the web server, and the test harness.
 
-### Parish Designer (GUI editor)
+### Limerick Designer (GUI editor)
 
-A GUI editor embedded in the SvelteKit UI at the `/editor` route, accessible from both the Tauri desktop app and the web server (`PARISH_ENABLE_EDITOR=1`). Follows the mode-parity rule — every editor command is implemented once in `parish-core` and wired to both backends.
+A GUI editor embedded in the SvelteKit UI at the `/editor` route, accessible from both the Tauri desktop app and the web server (`LIMERICK_ENABLE_EDITOR=1`). Follows the mode-parity rule — every editor command is implemented once in `limerick-core` and wired to both backends.
 
 - **Mod browser** — lists all mods under `mods/`, switch between them without restarting.
 - **NPC editor** — edit identity, six-axis intelligence (tunable via sliders), home/workplace (location picker, no id-memorizing), knowledge items, gossip seeds, and relationships with automatic bidirectional bookkeeping.
@@ -199,13 +199,13 @@ A GUI editor embedded in the SvelteKit UI at the `/editor` route, accessible fro
 
 ### Developer & modder tooling
 
-- **`parish-geo-tool`** — Overpass-API CLI that pulls real Irish features into `world.json` by named area or bounding box, with cached responses, dry-run preview, hand-curated merge mode, and a `realign-coords` utility for snapping to historical map coordinates.
-- **`parish-npc-tool`** — SQLite-backed NPC builder: bulk-generate parish or county populations with seedable randomness and 1820s demographic weights, query/filter by parish/occupation/tier, edit moods, promote tiers, batch-elaborate backstories with an LLM, validate referential integrity, and export/import JSON. Also splits the monolithic `mods/rundale/npcs.json` catalogue into per-NPC source files (`split-catalog`) and re-joins them into a byte-identical canonical file (`join-catalog`), with a standalone `validate-catalog` integrity pass.
-- **`parish-harness`** — headless game quality-control harness: runs automated multi-turn playtests where an LLM plays the player and an LLM judges the finished transcript, against `parish-server` over HTTP. Each run captures canonical engine state and a rendered telemetry "state-frame" per turn—not a player-visible UI screenshot; evaluates deterministic hard-fail **gates** (crash / parser-reject / timeout / empty-turn-burn); scores ~7 quality **axes** (0–100) when gates pass; records findings; and persists everything to SQLite plus on-disk artifacts. The Tauri bridge does not expose the `/api/command` endpoint this client uses, so desktop/UI quality is covered separately by the live MCP quality harness and Playwright lanes. Run knobs (engine models per category, feature flags, player persona, judge rubric pinned by sha256) are content-addressed for exact A/B comparison and correlated with git history. The player/judge seam runs either deterministic scripted actors (CI, no key) or `parish-inference`-backed LLMs (Anthropic / OpenAI-compat / local vllm-mlx). Drive with `cargo run -p parish-harness -- run --config <cfg> --turns N` against a running server. For a **fully headless real-model game** to drive, boot the web server with `parish-server --headless-models` (or `PARISH_HEADLESS_MODELS=1`): it detect-reuses (or spawns) the bundled vllm-mlx Qwen two-slot loadout and binds the four inference categories to it, so `POST /api/command` produces genuine NPC dialogue. The harness applies per-run **BYOK** model overrides (`engine_models.<category>`) through runtime slash commands over `/api/command`, resolving provider keys from the harness environment at apply-time (never persisted into the content-addressed run config). For unattended CI/cron runs, `parish-harness run --player api --judge api` is driven solely by env API keys—no Claude Code session, MCP, or subagent queue—and `--player`/`--judge` select each actor's driver independently.
-- **`parish-scenario`** — versioned YAML regression runner for agents and CI. Every step drives the shipping `parish_core::game_loop`, mocks only inference, and evaluates explicit assertions over emitted IPC events and post-step state. Run all scenarios with `just scenario-test` or print one JSON report with `just scenario-run <file>`.
+- **`limerick-geo-tool`** — Overpass-API CLI that pulls real Irish features into `world.json` by named area or bounding box, with cached responses, dry-run preview, hand-curated merge mode, and a `realign-coords` utility for snapping to historical map coordinates.
+- **`limerick-npc-tool`** — SQLite-backed NPC builder: bulk-generate parish or county populations with seedable randomness and 1820s demographic weights, query/filter by parish/occupation/tier, edit moods, promote tiers, batch-elaborate backstories with an LLM, validate referential integrity, and export/import JSON. Also splits the monolithic `mods/rundale/npcs.json` catalogue into per-NPC source files (`split-catalog`) and re-joins them into a byte-identical canonical file (`join-catalog`), with a standalone `validate-catalog` integrity pass.
+- **`limerick-harness`** — headless game quality-control harness: runs automated multi-turn playtests where an LLM plays the player and an LLM judges the finished transcript, against `limerick-server` over HTTP. Each run captures canonical engine state and a rendered telemetry "state-frame" per turn—not a player-visible UI screenshot; evaluates deterministic hard-fail **gates** (crash / parser-reject / timeout / empty-turn-burn); scores ~7 quality **axes** (0–100) when gates pass; records findings; and persists everything to SQLite plus on-disk artifacts. The Tauri bridge does not expose the `/api/command` endpoint this client uses, so desktop/UI quality is covered separately by the live MCP quality harness and Playwright lanes. Run knobs (engine models per category, feature flags, player persona, judge rubric pinned by sha256) are content-addressed for exact A/B comparison and correlated with git history. The player/judge seam runs either deterministic scripted actors (CI, no key) or `limerick-inference`-backed LLMs (Anthropic / OpenAI-compat / local vllm-mlx). Drive with `cargo run -p limerick-harness -- run --config <cfg> --turns N` against a running server. For a **fully headless real-model game** to drive, boot the web server with `limerick-server --headless-models` (or `LIMERICK_HEADLESS_MODELS=1`): it detect-reuses (or spawns) the bundled vllm-mlx Qwen two-slot loadout and binds the four inference categories to it, so `POST /api/command` produces genuine NPC dialogue. The harness applies per-run **BYOK** model overrides (`engine_models.<category>`) through runtime slash commands over `/api/command`, resolving provider keys from the harness environment at apply-time (never persisted into the content-addressed run config). For unattended CI/cron runs, `limerick-harness run --player api --judge api` is driven solely by env API keys—no Claude Code session, MCP, or subagent queue—and `--player`/`--judge` select each actor's driver independently.
+- **`limerick-scenario`** — versioned YAML regression runner for agents and CI. Every step drives the shipping `limerick_core::game_loop`, mocks only inference, and evaluates explicit assertions over emitted IPC events and post-step state. Run all scenarios with `just scenario-test` or print one JSON report with `just scenario-run <file>`.
 - **Legacy script harness** — `test_*.txt` fixtures in `testing/fixtures/` retain compatibility coverage through structured `ScriptResult` output. One-off demonstrations are separated under `testing/proofs/` and are not counted as regression tests merely because they execute without crashing.
 - **Eval rubrics & baselines** — snapshot `Vec<ScriptResult>` JSONs in `testing/evals/baselines/`, with structural rubrics that gate against empty look descriptions, frozen clocks, and anachronistic vocabulary.
-- **Architecture fitness tests** — `crates/parish-core/tests/architecture_fitness.rs` mechanically enforces leaf-crate purity (no `tauri`/`axum`/`tower` in shared logic), CLI-vs-leaf duplication bans, and orphaned-module detection. Each failure prints a self-correcting hint.
+- **Architecture fitness tests** — `crates/limerick-core/tests/architecture_fitness.rs` mechanically enforces leaf-crate purity (no `tauri`/`axum`/`tower` in shared logic), CLI-vs-leaf duplication bans, and orphaned-module detection. Each failure prints a self-correcting hint.
 - **`justfile`** with ~50 recipes grouping build, test, harness, lint, screenshots, deps, geo/NPC tooling, Ollama control, and local CI via `act`.
 - **Witness-marker scan** — `just witness-scan` rejects AI completion stubs (the usual `todo!` and ellipsis-comment patterns) in changed files.
 - **Doc-path validator** — `just check-doc-paths` ensures every backtick-cited file path in `docs/` actually exists.
@@ -228,7 +228,7 @@ Rundale ships with its own reproducible LLM benchmark that scores models as the 
 
 ## AI disclosure
 
-Rundale/Parish is an experiment in building a world too detailed and too improvisational to author by hand. The premise is that AI can simulate a parish of hundreds of NPCs (or more) at varying fidelity, generate their dialogue and reactions on the fly, and remain coherent over long play sessions. I wanted to build something using AI that would be impossible any other way, at least for a solo dev.
+Rundale/Limerick is an experiment in building a world too detailed and too improvisational to author by hand. The premise is that AI can simulate a parish of hundreds of NPCs (or more) at varying fidelity, generate their dialogue and reactions on the fly, and remain coherent over long play sessions. I wanted to build something using AI that would be impossible any other way, at least for a solo dev.
 
 To that end, the project is developed entirely by AI coding agents — mostly **Claude Code**, with **Codex** and **Gemini** on specific tasks. Quality control is an evolving combination of agents reviewing each other's work and extensive automated checks — the architecture-fitness tests, gameplay harness, eval rubrics, and snapshot baselines described above are designed to keep AI-written code honest. Human play-testing is the final gate.
 
@@ -240,7 +240,7 @@ Character dialogue, mood, and behaviour are generated **in real time** by whiche
 
 The workspace ships with a [`justfile`](justfile); run `just` for the full set of recipes.
 
-**Requirements:** Rust (edition 2024), [Node.js](https://nodejs.org/) (v20+), [`just`](https://github.com/casey/just) (`cargo install just` or your package manager's equivalent), and an LLM endpoint configured in `parish.toml` or `.env`. See .env.example for environment variables. There is no packaged release yet.
+**Requirements:** Rust (edition 2024), [Node.js](https://nodejs.org/) (v20+), [`just`](https://github.com/casey/just) (`cargo install just` or your package manager's equivalent), and an LLM endpoint configured in `limerick.toml` or `.env`. See .env.example for environment variables. There is no packaged release yet.
 
 ```sh
 # One-time: install system deps, Rust, Node, and frontend packages
@@ -260,18 +260,18 @@ just run          # launches cargo tauri dev
 ```sh
 just run-headless                     # stdin/stdout REPL, engine in-process
 just web                              # Axum web server on :3001 (Svelte UI in browser)
-cd parish && just run-client          # thin HTTP REPL against just-web
+cd limerick && just run-client          # thin HTTP REPL against just-web
 ```
 
-Single-shot / scripted / JSON modes for `parish-client`:
+Single-shot / scripted / JSON modes for `limerick-client`:
 
 ```sh
-cargo run -p parish-client -- "look"                                # one command, formatted output
-cargo run -p parish-client -- --script testing/proofs/play_X.txt  # batch fixture
-cargo run -p parish-client -- --json "look" | jq .outcome           # raw CommandResponse JSON
+cargo run -p limerick-client -- "look"                                # one command, formatted output
+cargo run -p limerick-client -- --script testing/proofs/play_X.txt  # batch fixture
+cargo run -p limerick-client -- --json "look" | jq .outcome           # raw CommandResponse JSON
 ```
 
-See the [Ways to run Parish](#ways-to-run-parish) diagram for how these binaries fit together.
+See the [Ways to run Limerick](#ways-to-run-limerick) diagram for how these binaries fit together.
 
 ### Packaged macOS build with bundled local inference
 
@@ -281,12 +281,12 @@ the app:
 
 ```sh
 just build-vllm-mlx-bundle    # ~5 min, ~360 MB compressed, Apple Silicon only
-cd parish && cargo tauri build --target aarch64-apple-darwin
+cd limerick && cargo tauri build --target aarch64-apple-darwin
 ```
 
 The first command materialises a relocatable Python runtime with
 vllm-mlx pip-installed straight into its site-packages at
-`parish/dist/vllm-mlx/python-runtime/` (using `python-build-standalone`'s
+`limerick/dist/vllm-mlx/python-runtime/` (using `python-build-standalone`'s
 `install_only` tarball — no venv, since absolute paths in `pyvenv.cfg`
 would break when the bundle moves into `Rundale.app/Contents/Resources/`).
 `cargo tauri build` then includes that tree under
@@ -309,34 +309,34 @@ crate-by-crate map lives in [docs/agent/architecture.md](docs/agent/architecture
 ```mermaid
 flowchart TB
     subgraph clients["Frontends & clients"]
-        UI["Svelte 5 UI<br/>parish/apps/ui<br/>(one transport.ts for both backends)"]
-        CLI["parish CLI client<br/>parish-client"]
-        MCP["parish-mcp<br/>MCP bridge for AI agents"]
+        UI["Svelte 5 UI<br/>limerick/apps/ui<br/>(one transport.ts for both backends)"]
+        CLI["Limerick CLI client<br/>limerick-client"]
+        MCP["limerick-mcp<br/>MCP bridge for AI agents"]
     end
 
     subgraph entry["Runtime entry points (thin adapters, mode parity)"]
-        TAURI["parish-tauri<br/>Tauri 2 desktop"]
-        SERVER["parish-server<br/>Axum HTTP + WS<br/>(sessions, auth, idempotency)"]
-        ENGINE["parish-engine<br/>headless REPL / --script / Tauri launch"]
+        TAURI["limerick-tauri<br/>Tauri 2 desktop"]
+        SERVER["limerick-server<br/>Axum HTTP + WS<br/>(sessions, auth, idempotency)"]
+        ENGINE["limerick-engine<br/>headless REPL / --script / Tauri launch"]
     end
 
-    CORE["parish-core — composition + orchestration<br/>ipc/ • game_loop/ • game_session<br/>event_bus • prompts<br/>(re-exports parish-mod as game_mod,<br/>parish-editor as editor,<br/>parish-chronicle as character_log/location_log/chat_transcript,<br/>parish-diagnostics as debug_snapshot)"]
+    CORE["limerick-core — composition + orchestration<br/>ipc/ • game_loop/ • game_session<br/>event_bus • prompts<br/>(re-exports limerick-mod as game_mod,<br/>limerick-editor as editor,<br/>limerick-chronicle as character_log/location_log/chat_transcript,<br/>limerick-diagnostics as debug_snapshot)"]
 
     subgraph leaf["Shared leaf crates (backend-agnostic, enforced)"]
-        WORLD["parish-world<br/>graph, movement, weather, geo"]
-        NPC["parish-npc<br/>cognitive LOD tiers 1–4, mood,<br/>memory, ticks, gossip<br/>(tier 4 = CPU rules, no LLM)"]
-        INPUT["parish-input<br/>parsing, intent (local + LLM)"]
-        INFER["parish-inference<br/>queue, priority lanes, worker, validation"]
-        PROVIDERS["parish-providers<br/>provider HTTP clients, simulator/mock,<br/>AnyClient dispatch, rate limits"]
-        SETUP["parish-setup<br/>GPU detect, model select,<br/>Ollama/vllm bootstrap"]
-        PERSIST["parish-persistence<br/>SQLite WAL, journal, snapshots, branches"]
-        CONFIG["parish-config<br/>TOML + env + flags"]
-        PALETTE["parish-palette<br/>day/night palette"]
-        MOD["parish-mod<br/>content-mod loader<br/>(manifest, discovery, world bridge)"]
-        EDITOR["parish-editor<br/>Designer backend<br/>(mod I/O, validation, persistence, save inspect)"]
-        CHRONICLE["parish-chronicle<br/>on-disk chronicle writers<br/>(character/location markdown logs, chat transcript)"]
-        DIAG["parish-diagnostics<br/>debug-snapshot builders +<br/>bug-report orchestration"]
-        TYPES["parish-types<br/>ids, time, events, errors (zero internal deps)"]
+        WORLD["limerick-world<br/>graph, movement, weather, geo"]
+        NPC["limerick-npc<br/>cognitive LOD tiers 1–4, mood,<br/>memory, ticks, gossip<br/>(tier 4 = CPU rules, no LLM)"]
+        INPUT["limerick-input<br/>parsing, intent (local + LLM)"]
+        INFER["limerick-inference<br/>queue, priority lanes, worker, validation"]
+        PROVIDERS["limerick-providers<br/>provider HTTP clients, simulator/mock,<br/>AnyClient dispatch, rate limits"]
+        SETUP["limerick-setup<br/>GPU detect, model select,<br/>Ollama/vllm bootstrap"]
+        PERSIST["limerick-persistence<br/>SQLite WAL, journal, snapshots, branches"]
+        CONFIG["limerick-config<br/>TOML + env + flags"]
+        PALETTE["limerick-palette<br/>day/night palette"]
+        MOD["limerick-mod<br/>content-mod loader<br/>(manifest, discovery, world bridge)"]
+        EDITOR["limerick-editor<br/>Designer backend<br/>(mod I/O, validation, persistence, save inspect)"]
+        CHRONICLE["limerick-chronicle<br/>on-disk chronicle writers<br/>(character/location markdown logs, chat transcript)"]
+        DIAG["limerick-diagnostics<br/>debug-snapshot builders +<br/>bug-report orchestration"]
+        TYPES["limerick-types<br/>ids, time, events, errors (zero internal deps)"]
     end
 
     subgraph external["Content & external systems"]
@@ -387,7 +387,7 @@ flowchart TB
 ## Repository Layout
 
 ```text
-parish/
+limerick/
   crates/              24 workspace members (runtime, scenario/harness tools, and leaf logic crates)
   apps/ui/             Svelte 5 + TypeScript frontend
   testing/fixtures/    scripted gameplay fixtures
@@ -416,17 +416,17 @@ The game icon was generated with **ChatGPT** (OpenAI image generation) from a ha
 
 ## Licence
 
-Rundale on the Parish engine is © 2026 Dave Mooney and is licensed under the
+Rundale on the Limerick engine is © 2026 Dave Mooney and is licensed under the
 [GNU General Public License v3.0](LICENSE) (`GPL-3.0-only`). Source code is
 free to use, modify, and redistribute under the terms of that licence.
 
-"Rundale" and "Parish" are unregistered trademarks of Dave Mooney. The
+"Rundale" and "Limerick" are unregistered trademarks of Dave Mooney. The
 GPL covers source reuse but not the project names or logos: forks must
 rename. (A formal trademark policy lives at `TRADEMARK.md` once published.)
 
 ## Credits
 
-Parish is built on a stack of excellent open-source projects, including
+Rundale is built on a stack of excellent open-source projects, including
 [Rust](https://www.rust-lang.org/), [Tokio](https://tokio.rs/),
 [Axum](https://github.com/tokio-rs/axum), [Tauri](https://tauri.app/),
 [Svelte](https://svelte.dev/) / [SvelteKit](https://kit.svelte.dev/),

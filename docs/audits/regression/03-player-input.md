@@ -2,9 +2,9 @@
 
 **Scope:** NL intents (Move/Talk/Look/Interact/Examine/Unknown — local keyword + LLM
 fallback) and the slash-command surface enumerated in `docs/features.md`.
-**Sources sampled:** `crates/parish-input/src/{lib.rs,parser.rs,commands.rs,intent_*.rs}`,
-`crates/parish-input/tests/llm_fallback_integration.rs`,
-`crates/parish-cli/tests/{headless_script_tests.rs,persistence_integration.rs,game_harness_integration.rs,eval_baselines.rs}`,
+**Sources sampled:** `crates/limerick-input/src/{lib.rs,parser.rs,commands.rs,intent_*.rs}`,
+`crates/limerick-input/tests/llm_fallback_integration.rs`,
+`crates/limerick-engine/tests/{headless_script_tests.rs,persistence_integration.rs,game_harness_integration.rs,eval_baselines.rs}`,
 `apps/ui/src/lib/slash-commands.{ts,test.ts}`, `testing/fixtures/test_*.txt`.
 
 ## 1. Sub-features audited
@@ -79,12 +79,12 @@ dot variant as its own token): **41 tokens**.
 
 - Movement keyword parsing is exhaustively asserted: ≈25 verbs (saunter, mosey,
   meander, sprint, traipse, …) plus case-insensitive and bare-verb branches
-  (`crates/parish-input/src/lib.rs:160–482`). Cross-checked against
+  (`crates/limerick-input/src/lib.rs:160–482`). Cross-checked against
   `testing/fixtures/test_movement_verbs.txt` and `test_aliases.txt`.
 - LLM fallback HTTP path is mocked via wiremock for success / 5xx / malformed JSON
-  / missing-field branches — `crates/parish-input/tests/llm_fallback_integration.rs:39–133`.
+  / missing-field branches — `crates/limerick-input/tests/llm_fallback_integration.rs:39–133`.
 - Persistence commands (`/save /load /fork /branches /log`) have a dedicated
-  end-to-end integration suite at `crates/parish-cli/tests/persistence_integration.rs`
+  end-to-end integration suite at `crates/limerick-engine/tests/persistence_integration.rs`
   exercising real round-trips.
 - Feature-flag commands have a fixture (`testing/fixtures/test_flags.txt`) **and**
   headless integration coverage (`headless_script_tests.rs:1268–1322`), including
@@ -96,7 +96,7 @@ dot variant as its own token): **41 tokens**.
   `dialogue`, `simulation`, `intent` only — `/model.reaction`, `/provider.reaction`,
   `/key.reaction` are untested. Add unit cases mirroring `test_parse_category_*`.
   _Test type:_ unit. _Suggested name:_ `test_parse_category_reaction_show_set` in
-  `crates/parish-input/src/lib.rs`.
+  `crates/limerick-input/src/lib.rs`.
 - **[P0] Slash autocomplete registry is essentially untested.**
   `apps/ui/src/lib/slash-commands.test.ts` asserts only `/unexplored` (1/32). A
   registry drift between Rust parser and frontend list would silently regress.
@@ -131,10 +131,10 @@ dot variant as its own token): **41 tokens**.
 
 1. **Close the registry-parity gap (P0).** Add a single UI-unit test that
    asserts every backend command in `parse_system_command` is also in
-   `SLASH_COMMANDS`, and vice versa. Pair with a `parish-core` architecture
+   `SLASH_COMMANDS`, and vice versa. Pair with a `limerick-core` architecture
    fitness sensor that surfaces the canonical list to consumers.
 2. **Fill the per-category `reaction` and `Interact` holes (P0).** Two small
-   unit tests in `crates/parish-input/src/lib.rs`; cheapest highest-value fix.
+   unit tests in `crates/limerick-input/src/lib.rs`; cheapest highest-value fix.
 3. **Add a fixture-driven baseline for provider/model/key/cloud (P1).** Create
    `testing/fixtures/test_provider_settings.txt` exercising the show → set →
    show round-trip plus the per-category variants, then baseline it via

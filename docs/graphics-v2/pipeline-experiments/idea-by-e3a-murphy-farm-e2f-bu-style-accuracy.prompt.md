@@ -4,7 +4,7 @@ Use case: style-transfer / historical-scene
 Asset type: Murphy's Farm Graphics V2 no-UI background plate, style-last pass.
 
 Intent:
-Apply the established BU E2 concept-realism / parish-notebook art style to the
+Apply the established BU E2 concept-realism / rundale-notebook art style to the
 accepted Murphy E2f geometry candidate while preserving map accuracy.
 
 Input roles:

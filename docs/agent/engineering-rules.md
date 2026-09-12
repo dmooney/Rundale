@@ -7,7 +7,7 @@ unambiguous when the documents are rearranged. The complete rule text lives in
 exactly one topical file.
 
 Rules marked **(enforced)** are checked mechanically by `cargo test` / CI — see
-`parish/crates/parish-core/tests/architecture_fitness.rs`. The rest are still
+`limerick/crates/limerick-core/tests/architecture_fitness.rs`. The rest are still
 convention.
 
 ## Canonical rule map
@@ -67,8 +67,8 @@ requirements that apply to every runtime or client.
 
 ## Rule 1 — **Module ownership (enforced):**
 
-Shared logic belongs in a leaf crate; `parish-core` composes them. Never
-duplicate leaf-crate logic in `parish/crates/parish-engine/src/`. Orphaned
+Shared logic belongs in a leaf crate; `limerick-core` composes them. Never
+duplicate leaf-crate logic in `limerick/crates/limerick-engine/src/`. Orphaned
 source files (on disk but not declared as `mod`) are rejected. Crate map:
 [docs/agent/architecture.md](architecture.md).
 
@@ -95,7 +95,7 @@ Add/adjust tests for every behavior change.
 
 ## Rule 4 — **Gameplay proof:**
 
-For gameplay features, run `/parish-engine prove <feature>` — unit tests alone
+For gameplay features, run `/limerick-engine prove <feature>` — unit tests alone
 are not sufficient.
 
 <a id="rule-5"></a>
@@ -135,7 +135,7 @@ against the seam checklist in [docs/agent/scaling-rules.md](scaling-rules.md).
 
 <a id="rule-12"></a>
 
-## Rule 12 — **Cross-runtime orchestration belongs in `parish-core`:**
+## Rule 12 — **Cross-runtime orchestration belongs in `limerick-core`:**
 
 Game-loop, IPC, and session handlers shared by the server, Tauri, and CLI
 entry points — including their constants, payload structs, and helpers — are

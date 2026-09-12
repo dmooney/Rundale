@@ -1,7 +1,7 @@
 # Structured Generation & Constrained Decoding
 
-**Target crate:** `crates/parish-inference/` (new `schema` module), consumers in
-`crates/parish-npc/ticks.rs`.
+**Target crate:** `crates/limerick-inference/` (new `schema` module), consumers in
+`crates/limerick-npc/ticks.rs`.
 
 ## Problem
 
@@ -71,9 +71,9 @@ directly into `04-agent-planning`.
 
 ## Minimal first cut
 
-1. Add `crates/parish-schema` with `NpcTickOutput`, `DialogueTurn`,
+1. Add `crates/limerick-schema` with `NpcTickOutput`, `DialogueTurn`,
    `IntentResult` types + `schemars` schemas.
-2. Extend `parish-inference::provider` with an optional `grammar: Option<Grammar>`
+2. Extend `limerick-inference::provider` with an optional `grammar: Option<Grammar>`
    field on `InferenceRequest`.
 3. Generate GBNF from the schemars schema at build time (cache as `OnceLock`).
 4. Wire Tier 2 ticks to the grammar path first (no streaming, pure win).

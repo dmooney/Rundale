@@ -91,7 +91,7 @@ As the player types `*...*`, the asterisk-enclosed text could render in italics 
 
 ## Backend Changes
 
-### Input Classification — `crates/parish-core/src/input/mod.rs`
+### Input Classification — `crates/limerick-core/src/input/mod.rs`
 
 Add action detection to the input parsing pipeline. This runs after `classify_input()` returns `GameInput` and before intent parsing.
 
@@ -163,7 +163,7 @@ pub fn extract_actions(raw: &str) -> EnrichedInput {
 }
 ```
 
-### NPC Prompt Context — `crates/parish-core/src/npc/ticks.rs`
+### NPC Prompt Context — `crates/limerick-core/src/npc/ticks.rs`
 
 Modify `build_enhanced_context()` to accept `EnrichedInput` instead of a raw string. The context prompt changes based on whether the input contains actions:
 
@@ -309,12 +309,12 @@ Chat log renders:
 
 ## Files to Modify
 
-| File                                  | Change                                                                                   |
-| ------------------------------------- | ---------------------------------------------------------------------------------------- |
-| `crates/parish-core/src/input/mod.rs` | Add `EnrichedInput` struct, `extract_actions()` function                                 |
-| `crates/parish-server/src/routes.rs`  | Use `extract_actions()` in `handle_game_input()`, pass to conversation handler           |
-| `crates/parish-core/src/npc/ticks.rs` | Modify `build_enhanced_context()` to accept `EnrichedInput`, add `format_player_input()` |
-| `ui/src/components/ChatPanel.svelte`  | Add `parseSegments()`, render italic action text                                         |
+| File                                    | Change                                                                                   |
+| --------------------------------------- | ---------------------------------------------------------------------------------------- |
+| `crates/limerick-core/src/input/mod.rs` | Add `EnrichedInput` struct, `extract_actions()` function                                 |
+| `crates/limerick-server/src/routes.rs`  | Use `extract_actions()` in `handle_game_input()`, pass to conversation handler           |
+| `crates/limerick-core/src/npc/ticks.rs` | Modify `build_enhanced_context()` to accept `EnrichedInput`, add `format_player_input()` |
+| `ui/src/components/ChatPanel.svelte`    | Add `parseSegments()`, render italic action text                                         |
 
 ## Effort Estimate
 

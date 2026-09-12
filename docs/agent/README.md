@@ -31,9 +31,9 @@ alongside the full product milestone requirements.
 | Event-driven portfolio and work-in-progress contract              | [improvement-drain.md](improvement-drain.md)               |
 | Witness-style completion gates                                    | [witness.md](witness.md)                                   |
 | PR proof evidence gate                                            | [agent-check.md](agent-check.md)                           |
-| Agent skills (`/check`, `/parish-engine`, ...)                    | [skills.md](skills.md)                                     |
+| Agent skills (`/check`, `/limerick-engine`, ...)                  | [skills.md](skills.md)                                     |
 | **Harness map** — what fires when, every sensor and gate          | [harness.md](harness.md)                                   |
-| **Driving the live game via the parish MCP** (QA / harness)       | [driving-the-game-via-mcp.md](driving-the-game-via-mcp.md) |
+| **Driving the live game via the limerick MCP** (QA / harness)     | [driving-the-game-via-mcp.md](driving-the-game-via-mcp.md) |
 | Running CI locally with `act`                                     | [act-local.md](act-local.md)                               |
 | Generated output and large-file policy                            | [repository-artifacts.md](repository-artifacts.md)         |
 | Idempotency-Key support (#619)                                    | [idempotency.md](idempotency.md)                           |
@@ -41,3 +41,7 @@ alongside the full product milestone requirements.
 | Visual client, notebook UI, and graphics research                 | [../graphics-v2/README.md](../graphics-v2/README.md)       |
 
 The root `CLAUDE.md` and `AGENTS.md` are slim indexes — start there if you're new, then come here for the details.
+
+Engine identity, exact naming exceptions, and future merge requirements are documented in [engine naming](engine-naming.md).
+
+The [rename verification record](limerick-rename-verification.md) records runtime, preservation, packaging, and platform evidence.

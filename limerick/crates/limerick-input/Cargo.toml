@@ -1,0 +1,19 @@
+[package]
+name = "limerick-input"
+version = "0.1.0"
+edition = "2024"
+license = "GPL-3.0-only"
+publish = false
+description = "Player input parsing and command interpretation for the Limerick engine — local parsers first, with LLM-backed intent inference as the fallback for unrecognised input"
+
+[dependencies]
+limerick-types = { workspace = true }
+limerick-config = { workspace = true }
+limerick-inference = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+[dev-dependencies]
+wiremock = { workspace = true }
+tokio = { workspace = true }
+# limerick-inference is already in [dependencies]; no need to repeat it in dev-deps

@@ -1,5 +1,5 @@
 # Controlled local-dialogue experiment: lower temperature plus an upper bound
-# on runaway generations. Pass with parish-server --engine-config.
+# on runaway generations. Pass with limerick-server --engine-config.
 [engine.inference.dialogue_generation]
 max_tokens = 256
 temperature = 0.3

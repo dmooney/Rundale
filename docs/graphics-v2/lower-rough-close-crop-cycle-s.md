@@ -13,7 +13,7 @@ Both Grove and Beechwood used the same generic procedure:
 2. Cycle Q output for the same site as secondary continuity evidence.
 3. Cycle M cleaned top-down control as topology authority.
 4. Original historic map crop as source evidence.
-5. `illustrated-parish-notebook.png` as art-style, roughness, detail-density,
+5. `illustrated-rundale-notebook.png` as art-style, roughness, detail-density,
    and lower-camera-feel reference.
 6. Deterministic oblique warp of the Cycle M cleaned control as pitch cue.
 7. The same cleaned style/material swatches.

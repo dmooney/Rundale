@@ -24,7 +24,7 @@ import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-OUT_PATH = os.environ.get("CAPTURE_OUT", "/tmp/parish_capture.jsonl")
+OUT_PATH = os.environ.get("CAPTURE_OUT", "/tmp/limerick_capture.jsonl")
 _LOCK = threading.Lock()
 _COUNTER = {"n": 0}
 

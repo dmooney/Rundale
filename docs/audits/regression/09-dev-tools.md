@@ -1,36 +1,36 @@
 # Regression Audit: Developer Tools
 
-Scope: `parish-geo-tool` (OSM extraction, lat/lon pinning, world graph
-building), `parish-npc-tool`. These don't ship to end users at runtime
+Scope: `limerick-geo-tool` (OSM extraction, lat/lon pinning, world graph
+building), `limerick-npc-tool`. These don't ship to end users at runtime
 but are used to _generate_ shipped data (`mods/rundale/world.json` etc.),
 so regressions can poison the default mod silently.
 
 ## 1. Sub-features audited
 
-- `parish-geo-tool` modules: `extract.rs`, `cache.rs`, `connections.rs`,
+- `limerick-geo-tool` modules: `extract.rs`, `cache.rs`, `connections.rs`,
   `descriptions.rs`, `lod.rs`, `merge.rs`, `osm_model.rs`, `output.rs`,
   `overpass.rs`, `pipeline.rs`, plus binaries under `bin/`
-- `parish-geo-tool` features per repo skills doc: coordinate resolver
+- `limerick-geo-tool` features per repo skills doc: coordinate resolver
   (absolute + `relative_to` + graph-delta fallback), `geo_kind`
   (real/manual/fictional), `realign_rundale_coords`, Overpass/Nominatim
   integration
-- `parish-npc-tool` (single `main.rs`)
+- `limerick-npc-tool` (single `main.rs`)
 
 ## 2. Coverage matrix
 
-| Sub-feature / module                                    | In-source tests                                                     | Integration / dedicated tests dir                         |
-| ------------------------------------------------------- | ------------------------------------------------------------------- | --------------------------------------------------------- |
-| `parish-geo-tool` (whole crate)                         | 90 in-source `#[test]` markers across 12 source files               | **none** — `crates/parish-geo-tool/tests/` does not exist |
-| `parish-npc-tool` (whole crate)                         | 10 in-source `#[test]` markers in `main.rs`                         | **none** — `crates/parish-npc-tool/tests/` does not exist |
-| Coordinate resolver (absolute + relative + graph-delta) | likely in-source in `parish-geo-tool/src/` (need closer inspection) | none                                                      |
-| Overpass / Nominatim HTTP integration                   | unclear from grep; no `tests/http_mock_*` exists for geo-tool       | none                                                      |
-| `geo_kind` real/manual/fictional dispatch               | in-source only                                                      | none                                                      |
-| `realign_rundale_coords` (data-mutating subcommand)     | in-source only                                                      | none                                                      |
-| CLI argument parsing (clap)                             | in-source only                                                      | none                                                      |
+| Sub-feature / module                                    | In-source tests                                                       | Integration / dedicated tests dir                           |
+| ------------------------------------------------------- | --------------------------------------------------------------------- | ----------------------------------------------------------- |
+| `limerick-geo-tool` (whole crate)                       | 90 in-source `#[test]` markers across 12 source files                 | **none** — `crates/limerick-geo-tool/tests/` does not exist |
+| `limerick-npc-tool` (whole crate)                       | 10 in-source `#[test]` markers in `main.rs`                           | **none** — `crates/limerick-npc-tool/tests/` does not exist |
+| Coordinate resolver (absolute + relative + graph-delta) | likely in-source in `limerick-geo-tool/src/` (need closer inspection) | none                                                        |
+| Overpass / Nominatim HTTP integration                   | unclear from grep; no `tests/http_mock_*` exists for geo-tool         | none                                                        |
+| `geo_kind` real/manual/fictional dispatch               | in-source only                                                        | none                                                        |
+| `realign_rundale_coords` (data-mutating subcommand)     | in-source only                                                        | none                                                        |
+| CLI argument parsing (clap)                             | in-source only                                                        | none                                                        |
 
 ## 3. Strong spots
 
-- 90 in-source unit tests in `parish-geo-tool` is non-trivial for a
+- 90 in-source unit tests in `limerick-geo-tool` is non-trivial for a
   developer tool — the team clearly cares about this surface.
 - The crate is split into 12 focused modules (cache, connections,
   descriptions, extract, lod, merge, osm_model, output, overpass,
@@ -43,8 +43,8 @@ so regressions can poison the default mod silently.
   (or our parsing drifts) the next `realign_rundale_coords` run could
   silently produce bad coordinates that ship in a future
   `mods/rundale/world.json`. Suggested integration test in
-  `crates/parish-geo-tool/tests/overpass_mock_tests.rs` mirroring the
-  pattern of `parish-inference/tests/http_mock_tests.rs`.
+  `crates/limerick-geo-tool/tests/overpass_mock_tests.rs` mirroring the
+  pattern of `limerick-inference/tests/http_mock_tests.rs`.
 - **[P1] No round-trip test pinning a known place to known coordinates.**
   Add a fixture (a stored Overpass response for one Roscommon village)
   and a test asserting the pipeline produces the expected lat/lon
@@ -55,13 +55,13 @@ so regressions can poison the default mod silently.
   the wrong layer (e.g. always uses graph-delta when an absolute is
   available) would be silent. Suggested unit test asserting layer
   ordering on a synthetic graph.
-- **[P2] `parish-npc-tool` is essentially untested at the integration
+- **[P2] `limerick-npc-tool` is essentially untested at the integration
   level.** 10 in-source tests in a single 1-file binary is light.
   Suggested: at least one CLI smoke test exercising the binary's
   primary subcommand.
 - **[P2] No CLI argument-parsing smoke test for either tool.** clap
   errors are usually fine, but flag renames are silent until the next
-  user runs the command. Suggested: one `cargo run -p parish-geo-tool
+  user runs the command. Suggested: one `cargo run -p limerick-geo-tool
 -- --help` snapshot.
 
 ## 5. Recommendations

@@ -1,13 +1,13 @@
-# Design: game-quality-harness (`parish-harness` crate)
+# Design: game-quality-harness (`limerick-harness` crate)
 
 > Full architecture lives in the approved plan. This note is the crate-scoped design of
 > record and names the observable signals for the proof gate.
 
 ## What it does
 
-`parish-harness` is a new tool/entry-point crate that runs automated multi-turn playtests of
+`limerick-harness` is a new tool/entry-point crate that runs automated multi-turn playtests of
 Rundale. An LLM plays the player; an LLM judges the finished transcript. Each run drives a
-**live Parish backend over HTTP** (`127.0.0.1:3030`), plays N turns, captures per-turn state
+**live Limerick backend over HTTP** (`127.0.0.1:3030`), plays N turns, captures per-turn state
 
 - artifacts, evaluates deterministic hard-fail **gates**, scores ~7 judge **axes** into a
   weighted-mean quality score, records discrete human-like **findings**, and persists
@@ -20,21 +20,21 @@ game through existing public IPC.
 
 ## Affected subsystems
 
-- **New crate** `parish/crates/parish-harness/` (binary `parish-harness` + library). Added to
-  `parish/Cargo.toml` members. Tool/entry-point crate like `parish-geo-tool`.
+- **New crate** `limerick/crates/limerick-harness/` (binary `limerick-harness` + library). Added to
+  `limerick/Cargo.toml` members. Tool/entry-point crate like `limerick-geo-tool`.
 - **Reused, unchanged:**
-  - `parish-inference` — `AnyClient` / `build_client` / `generate_json::<T>` for the Player +
+  - `limerick-inference` — `AnyClient` / `build_client` / `generate_json::<T>` for the Player +
     Judge LLM transport (native Anthropic Messages + OpenAI-compat + local vllm-mlx, with
     rate-limit/retry/timeout/secret-scrub). No new Anthropic SDK.
-  - `parish-core` — `EngineState`, `DiagnosticPayload`, and `ipc::bug_report::create_bug_report`
+  - `limerick-core` — `EngineState`, `DiagnosticPayload`, and `ipc::bug_report::create_bug_report`
     (issue filing, Phase 2).
-  - `parish-persistence` — `paths::resolve_user_data_dir` for the DB/artifact root; the WAL +
+  - `limerick-persistence` — `paths::resolve_user_data_dir` for the DB/artifact root; the WAL +
     hand-rolled `migrate()` idiom (own DB, own schema).
-  - `parish-mcp` `backend.rs` HTTP-client shape (kebab path, null=GET/else=POST) — mirrored,
+  - `limerick-mcp` `backend.rs` HTTP-client shape (kebab path, null=GET/else=POST) — mirrored,
     not depended on.
-- **No change to runtime-shipping crates** (`parish-tauri`/`parish-server`/game logic). The
-  harness depends on `parish-core` only and talks HTTP; wire types (`CommandResponse`,
-  `StateBundle`) are mirrored locally like `parish-client` does, with a key-set parity test.
+- **No change to runtime-shipping crates** (`limerick-tauri`/`limerick-server`/game logic). The
+  harness depends on `limerick-core` only and talks HTTP; wire types (`CommandResponse`,
+  `StateBundle`) are mirrored locally like `limerick-client` does, with a key-set parity test.
 
 ## Data model
 
@@ -50,14 +50,14 @@ plan file.
 The deliverable is a tool, so the harness driving a live backend is the proof, not an in-game
 fixture. Signals:
 
-- `cargo test -p parish-harness` — deterministic core: `gate_*`, `axes_*`, `rubric_*`
+- `cargo test -p limerick-harness` — deterministic core: `gate_*`, `axes_*`, `rubric_*`
   (sha256 drift → `Err`), `config_hash`, `signature_*`, `wire_parity`, `frame_nonblank`.
-- `parish-harness run` summary line: `run_id=… turns=N status={completed|gated} gate_reason=…
+- `limerick-harness run` summary line: `run_id=… turns=N status={completed|gated} gate_reason=…
 quality_score=…`.
 - `harness.db`: one `runs` row with `turn_count`, gate fields, `quality_score`,
   `rubric_sha256`, `git_sha`/`git_branch`; N `turns` rows; 7 `axis_scores` rows on a passing
   run; on-disk non-blank state-frame PNGs.
-- `cargo test -p parish-core architecture_fitness` green (no tauri/server dependency edge).
+- `cargo test -p limerick-core architecture_fitness` green (no tauri/server dependency edge).
 
 ## Feature flag
 

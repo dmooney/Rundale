@@ -4,7 +4,7 @@
 
 Rundale will reset its player experience around a mobile-first, pure-text adventure. The new client should feel less like a conventional game UI and more like a polished coding harness applied to an interactive living world: a persistent transcript, a powerful text composer, clear interpretation of player intent, streaming responses, and dependable recovery.
 
-This is a deliberate product reset. Existing Parish engine capabilities remain available, but the new player experience will not attempt feature parity with the current UI or content set. Features and content will be reintroduced only after the smaller experience is stable, understandable, testable, and pleasant to use.
+This is a deliberate product reset. Existing Limerick engine capabilities remain available, but the new player experience will not attempt feature parity with the current UI or content set. Features and content will be reintroduced only after the smaller experience is stable, understandable, testable, and pleasant to use.
 
 ## 2. Product Principles
 
@@ -78,7 +78,7 @@ The reset covers both:
 1. the player-facing UI; and
 2. the initial Rundale world/NPC data.
 
-The existing Parish simulation engine is retained and adapted for portable on-device use.
+The existing Limerick simulation engine is retained and adapted for portable on-device use.
 
 The existing Rundale content and frontend remain reference material. They do not define compatibility requirements for the new experience.
 
@@ -246,11 +246,11 @@ Every submitted request has a clear lifecycle:
 
 1. Player submits text.
 2. A PlayerCommand event is committed.
-3. Parish interprets the command.
+3. Limerick interprets the command.
 4. An interpretation receipt is emitted if appropriate.
 5. If clarification is required, execution stops pending player choice.
 6. Deterministic work executes locally.
-7. If inference is required, Parish makes a remote inference request.
+7. If inference is required, Limerick makes a remote inference request.
 8. Output streams into the transcript.
 9. State changes are committed atomically.
 10. A completion event marks the request finished and eligible for persistence/synchronization.
@@ -286,7 +286,7 @@ Requirements:
 
 ## 9. Minimal Semantic Event Protocol
 
-SwiftUI should not consume arbitrary internal Parish structures. Parish exposes a small, presentation-oriented semantic event protocol.
+SwiftUI should not consume arbitrary internal Limerick structures. Limerick exposes a small, presentation-oriented semantic event protocol.
 
 **Initial event kinds should include concepts equivalent to:**
 
@@ -345,9 +345,9 @@ Reasons include direct control over:
 - haptics;
 - platform conventions.
 
-### 10.2 Embedded Parish runtime
+### 10.2 Embedded Limerick runtime
 
-Parish runs on-device as compiled Rust code exposed to Swift through a deliberately small FFI boundary.
+Limerick runs on-device as compiled Rust code exposed to Swift through a deliberately small FFI boundary.
 
 **Conceptual API:**
 
@@ -364,7 +364,7 @@ The Swift layer should not manipulate internal NPC, world, inference, or persist
 
 ### 10.3 Portable runtime boundary
 
-The iOS build should include only Parish components required for gameplay.
+The iOS build should include only Limerick components required for gameplay.
 
 Desktop/server infrastructure must not become accidental dependencies of the portable runtime.
 
@@ -379,13 +379,13 @@ Desktop/server infrastructure must not become accidental dependencies of the por
 - browser-specific code;
 - developer-only tooling.
 
-This portability boundary should improve the architecture of Parish generally.
+This portability boundary should improve the architecture of Limerick generally.
 
 ## 11. Inference Architecture
 
 Inference is the primary remote runtime dependency.
 
-Parish remains responsible for deciding:
+Limerick remains responsible for deciding:
 
 - whether inference is necessary;
 - which inference role is required;
@@ -397,9 +397,9 @@ Parish remains responsible for deciding:
 
 SwiftUI should not contain game-specific LLM orchestration.
 
-All production remote inference from the Rundale mobile client must be performed through Parish Endpoints. The iOS application must not communicate directly with model-provider APIs or contain provider credentials. Parish Endpoints are responsible for securely holding provider credentials and providing the authenticated remote inference boundary.
+All production remote inference from the Rundale mobile client must be performed through Limerick Endpoints. The iOS application must not communicate directly with model-provider APIs or contain provider credentials. Limerick Endpoints are responsible for securely holding provider credentials and providing the authenticated remote inference boundary.
 
-The on-device Parish runtime remains responsible for game-specific inference orchestration and authoritative game state. It prepares the inference request and sends only the context needed for that inference role to the Parish Endpoint. The Parish Endpoint handles the remote provider call, including provider/model routing and streaming the response back to the device. The Endpoint does not become authoritative for the game world or require the complete save state.
+The on-device Limerick runtime remains responsible for game-specific inference orchestration and authoritative game state. It prepares the inference request and sends only the context needed for that inference role to the Limerick Endpoint. The Limerick Endpoint handles the remote provider call, including provider/model routing and streaming the response back to the device. The Endpoint does not become authoritative for the game world or require the complete save state.
 
 On-device LLM inference is explicitly out of scope for the initial reset.
 
@@ -430,7 +430,7 @@ Conflict handling and multi-device branching are later design problems and shoul
 
 ### 12.3 Branching
 
-Parish's existing branching capability may remain underneath the system, but the initial player UI should not expose a save DAG.
+Limerick's existing branching capability may remain underneath the system, but the initial player UI should not expose a save DAG.
 
 A future /undo or alternate-timeline feature may use branching internally without requiring players to understand the implementation.
 
@@ -539,7 +539,7 @@ The following existing or proposed capabilities do not define the new UI and sho
 - NPC sidebar;
 - emoji reactions;
 - save DAG UI;
-- Parish Designer;
+- Limerick Designer;
 - player-facing debug panels;
 - inference-provider configuration UI;
 - multiple custom visual themes;
@@ -577,7 +577,7 @@ Each milestone is intentionally narrow. The checklist describes required outcome
 
 Milestone 1 — Static native interaction prototype
 
-Build a SwiftUI prototype using fixture data only. The purpose is to establish the fundamental iPhone reading-and-typing experience before integrating Parish.
+Build a SwiftUI prototype using fixture data only. The purpose is to establish the fundamental iPhone reading-and-typing experience before integrating Limerick.
 
 **Requirements checklist**
 
@@ -601,7 +601,7 @@ Build a SwiftUI prototype using fixture data only. The purpose is to establish t
 - Dynamic Type remains usable through accessibility text sizes without hiding essential controls or making the composer unusable.
 - Core transcript and composer interactions are usable with VoiceOver.
 - Basic focus behavior is predictable when entering text, submitting, stopping, scrolling, and returning to the composer.
-- The prototype uses no live LLM and no Parish runtime; all behavior needed for this milestone is reproducible from fixtures.
+- The prototype uses no live LLM and no Limerick runtime; all behavior needed for this milestone is reproducible from fixtures.
 - No graphical map, portrait, scene art, tab bar, NPC sidebar, save UI, debug UI, or other legacy player surface is introduced.
 
 **Exit criteria**
@@ -614,8 +614,8 @@ Establish the Swift/Rust boundary and make the prototype into a tiny real game. 
 
 **Requirements checklist**
 
-- Parish gameplay code runs locally on the iPhone rather than through a remote Parish game server.
-- SwiftUI communicates with Parish through a small, presentation-oriented boundary rather than depending directly on internal engine structures.
+- Limerick gameplay code runs locally on the iPhone rather than through a remote Limerick game server.
+- SwiftUI communicates with Limerick through a small, presentation-oriented boundary rather than depending directly on internal engine structures.
 - The iOS gameplay runtime does not require Tauri, the web server, desktop process management, local-model launching, or other desktop-only facilities.
 - A new game can be created locally.
 - An existing local game can be resumed.
@@ -623,20 +623,20 @@ Establish the Swift/Rust boundary and make the prototype into a tiny real game. 
 - /look returns authoritative local game information through the same transcript event path used by the UI.
 - The player can address the NPC using ordinary free text.
 - The game makes its interpretation of the player's request visible when doing so helps the player understand what will happen.
-- A real remote inference request through a Parish Endpoint can produce an NPC response.
+- A real remote inference request through a Limerick Endpoint can produce an NPC response.
 - NPC output streams into the transcript.
 - The player can stop an active inference-backed response.
 - Stopping a response leaves the game in a coherent, resumable state.
 - A failed inference request produces a comprehensible player-facing error without corrupting the session.
 - Failed requests can be retried without unintentionally applying the same game action twice.
 - Gameplay that does not inherently require inference works without network access.
-- Provider credentials or other long-lived secrets are not embedded in the shipped application; production inference reaches model providers only through Parish Endpoints.
+- Provider credentials or other long-lived secrets are not embedded in the shipped application; production inference reaches model providers only through Limerick Endpoints.
 - Completed state-changing actions are persisted locally.
 - Force-quitting after a completed action and relaunching restores the correct game state.
 - An interrupted request cannot leave partially committed authoritative world state.
 - Transcript events have durable identities sufficient to prevent duplicate display after restoration.
 - Request-related events can be correlated so the UI can associate a command, its interpretation, streaming response, errors, and completion.
-- The same semantic event fixtures used for UI testing can represent real Parish output.
+- The same semantic event fixtures used for UI testing can represent real Limerick output.
 - The one-location/one-NPC game can be played without exposing engine configuration, provider selection, debugging tools, or other developer infrastructure.
 
 **Exit criteria**
@@ -813,7 +813,7 @@ Use fixture event streams to test:
 
 No live LLM should be necessary for UI regression tests.
 
-Parish runtime tests
+Limerick runtime tests
 
 Use the tiny canonical world to test:
 
@@ -829,7 +829,7 @@ Use the tiny canonical world to test:
 
 Integration tests
 
-Exercise Swift-facing Parish APIs with deterministic/mock inference.
+Exercise Swift-facing Limerick APIs with deterministic/mock inference.
 
 Live inference tests
 

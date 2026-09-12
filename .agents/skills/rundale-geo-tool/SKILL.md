@@ -5,11 +5,11 @@ description: >-
   `mods/rundale/world.json` coordinates, pinning real-world locations to
   historical maps, subordinating village clusters via `relative_to`, choosing
   between `geo_kind: real`/`manual`/`fictional`, or deciding when to use modern
-  geocoders vs historical OS maps. Covers the `parish-geo-tool` CLI suite, the
+  geocoders vs historical OS maps. Covers the `limerick-geo-tool` CLI suite, the
   coordinate resolver (absolute + relative + graph-delta fallback), how to
   compute historical offsets from earlier commits, and why Nominatim alone is
   the wrong primary source for a 1820s Irish world. Trigger eagerly: any task
-  involving lat/lon in Rundale, the Parish Designer editor's geographic fields,
+  involving lat/lon in Rundale, the Limerick Designer editor's geographic fields,
   "pin X to coord Y", "move the Kilteevan cluster", "the fictional
   establishments didn't follow the village", or similar.
 ---
@@ -20,9 +20,9 @@ The game is set in 1820s rural Ireland. `mods/rundale/world.json` stores lat/lon
 
 ## The two binaries
 
-**`parish-geo-tool`** (`crates/parish-geo-tool/src/main.rs`) — the OSM extraction pipeline. Runs Overpass queries against OpenStreetMap, extracts game-relevant features (pubs, churches, roads, holy wells, etc.) within a bounding box, and emits a candidate `world.json`. This is the world-generation side; you'll rarely rerun it unless bootstrapping a new mod or expanding the world footprint.
+**`limerick-geo-tool`** (`crates/limerick-geo-tool/src/main.rs`) — the OSM extraction pipeline. Runs Overpass queries against OpenStreetMap, extracts game-relevant features (pubs, churches, roads, holy wells, etc.) within a bounding box, and emits a candidate `world.json`. This is the world-generation side; you'll rarely rerun it unless bootstrapping a new mod or expanding the world footprint.
 
-**`realign_rundale_coords`** (`crates/parish-geo-tool/src/bin/realign_rundale_coords.rs`) — the day-to-day tool. Reads `mods/rundale/world.json`, geocodes `Real` locations via Nominatim, resolves `Manual` pins and `relative_to` references, then graph-delta-realigns any remaining `Fictional` locations based on how nearby anchors moved. Writes the result back with 4-space indent. Justfile wrapper: `just realign-coords`.
+**`realign_rundale_coords`** (`crates/limerick-geo-tool/src/bin/realign_rundale_coords.rs`) — the day-to-day tool. Reads `mods/rundale/world.json`, geocodes `Real` locations via Nominatim, resolves `Manual` pins and `relative_to` references, then graph-delta-realigns any remaining `Fictional` locations based on how nearby anchors moved. Writes the result back with 4-space indent. Justfile wrapper: `just realign-coords`.
 
 ## The coordinate model
 
@@ -75,7 +75,7 @@ Is this a real-world place that still exists today and modern geocoders find cor
 ### Pin a real-world location to a historical coord
 
 ```bash
-cargo run -p parish-geo-tool --bin realign_rundale_coords -- \
+cargo run -p limerick-geo-tool --bin realign_rundale_coords -- \
   --world mods/rundale/world.json --in-place \
   --set-coord "Kilteevan Village=53.6320798910683,-8.102070946274374" \
   --set-source "Kilteevan Village=OS 6-inch First Edition, Roscommon sheet, ca. 1837"
@@ -124,7 +124,7 @@ When you've edited `world.json` coords by hand and want the graph-delta to apply
 ```bash
 cp mods/rundale/world.json /tmp/world_baseline.json
 # ... hand-edit the anchor coords ...
-cargo run -p parish-geo-tool --bin realign_rundale_coords -- \
+cargo run -p limerick-geo-tool --bin realign_rundale_coords -- \
   --world mods/rundale/world.json \
   --baseline-world /tmp/world_baseline.json \
   --no-geocode --in-place
@@ -145,30 +145,30 @@ print({k: loc[k] for k in ['name','lat','lon','geo_kind','relative_to','geo_sour
 
 ## Data sources
 
-| Source                                 | URL                                  | Used?                                                       | For what                                                                                                                                                                                                                                                               |
-| -------------------------------------- | ------------------------------------ | ----------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Nominatim**                          | `nominatim.openstreetmap.org/search` | Yes, runtime                                                | Modern geocoding of `Real` locations in `realign_rundale_coords`. Rate-limited (~1 req/sec); not suitable at island scale.                                                                                                                                             |
-| **Overpass**                           | `overpass-api.de/api/interpreter`    | Yes, runtime                                                | Bulk OSM feature extraction in the main `parish-geo-tool` binary. Run rarely.                                                                                                                                                                                          |
-| **OSM raster tiles**                   | `tile.openstreetmap.org`             | Yes, UI                                                     | Map background layer in the frontend.                                                                                                                                                                                                                                  |
-| **OS 6-inch First Edition** (ca. 1837) | `map.geohive.ie` (viewer)            | Yes, **manually**                                           | Authoritative source for 1820s Irish settlements. Get coords by clicking labels in the GeoHive viewer. No programmatic integration — manual transcription to `Manual` pins.                                                                                            |
-| **OS 25-inch** (ca. 1887–1913)         | `map.geohive.ie`                     | Occasionally                                                | Higher-resolution historical map for later-era details.                                                                                                                                                                                                                |
-| **Tailte Éireann MapGenie / WMTS**     | `tailte.ie/services/mapgenie/`       | No (referenced in `parish.example.toml:145`, commented out) | Planned future source for tiled historical maps.                                                                                                                                                                                                                       |
-| **logainm.ie**                         | `logainm.ie`                         | No (only cited in `docs/research/irish-language.md`)        | Authoritative for Irish placename etymology and admin hierarchy. Does **not** have "village" as a category — it describes administrative identity (townland/civil parish/etc.), not physical settlements. Good for name disambiguation, not for village-center coords. |
-| **townlands.ie**                       | `townlands.ie`                       | No (referenced in design docs)                              | Townland/civil parish polygons. Planned for Stage B.                                                                                                                                                                                                                   |
-| **Geofabrik Ireland extract**          | `download.geofabrik.de`              | No                                                          | Planned for offline OSM bulk processing at island scale.                                                                                                                                                                                                               |
-| **Wikipedia/Wikidata**                 | —                                    | No                                                          | Modern village centers; useful sanity checks, wrong for 1820s settlements.                                                                                                                                                                                             |
+| Source                                 | URL                                  | Used?                                                         | For what                                                                                                                                                                                                                                                                 |
+| -------------------------------------- | ------------------------------------ | ------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Nominatim**                          | `nominatim.openstreetmap.org/search` | Yes, runtime                                                  | Modern geocoding of `Real` locations in `realign_rundale_coords`. Rate-limited (~1 req/sec); not suitable at island scale.                                                                                                                                               |
+| **Overpass**                           | `overpass-api.de/api/interpreter`    | Yes, runtime                                                  | Bulk OSM feature extraction in the main `limerick-geo-tool` binary. Run rarely.                                                                                                                                                                                          |
+| **OSM raster tiles**                   | `tile.openstreetmap.org`             | Yes, UI                                                       | Map background layer in the frontend.                                                                                                                                                                                                                                    |
+| **OS 6-inch First Edition** (ca. 1837) | `map.geohive.ie` (viewer)            | Yes, **manually**                                             | Authoritative source for 1820s Irish settlements. Get coords by clicking labels in the GeoHive viewer. No programmatic integration — manual transcription to `Manual` pins.                                                                                              |
+| **OS 25-inch** (ca. 1887–1913)         | `map.geohive.ie`                     | Occasionally                                                  | Higher-resolution historical map for later-era details.                                                                                                                                                                                                                  |
+| **Tailte Éireann MapGenie / WMTS**     | `tailte.ie/services/mapgenie/`       | No (referenced in `limerick.example.toml:145`, commented out) | Planned future source for tiled historical maps.                                                                                                                                                                                                                         |
+| **logainm.ie**                         | `logainm.ie`                         | No (only cited in `docs/research/irish-language.md`)          | Authoritative for Irish placename etymology and admin hierarchy. Does **not** have "village" as a category — it describes administrative identity (townland/civil limerick/etc.), not physical settlements. Good for name disambiguation, not for village-center coords. |
+| **townlands.ie**                       | `townlands.ie`                       | No (referenced in design docs)                                | Townland/civil parish polygons. Planned for Stage B.                                                                                                                                                                                                                     |
+| **Geofabrik Ireland extract**          | `download.geofabrik.de`              | No                                                            | Planned for offline OSM bulk processing at island scale.                                                                                                                                                                                                                 |
+| **Wikipedia/Wikidata**                 | —                                    | No                                                            | Modern village centers; useful sanity checks, wrong for 1820s settlements.                                                                                                                                                                                               |
 
 **Key lesson:** for a 1820s world, the OS 6-inch First Edition is the authoritative map, not any modern geocoder. The physical village cluster often sat hundreds of metres away from what today's Nominatim or Google Maps calls "Kilteevan" — see the Kilteevan example: modern village center is ~1.3 km NW of the OS 6" labeled feature.
 
 ## Gotchas (in rough order of how likely you are to hit them)
 
-1. **Nominatim doesn't know "Kilteevan Village."** OSM tags it `place=townland name=Kilteevan`, not `Kilteevan Village`. The tool auto-retries with trailing type words stripped (`Village`, `Town`, `Parish`, `Hamlet`, `Townland`, `Cross`, `Crossroads`), so `Kilteevan Village` falls back to `Kilteevan` and returns the townland centroid. When that's still wrong (townland centroid ≠ village center), use `Manual` with the OS 6" coord.
+1. **Nominatim doesn't know "Kilteevan Village."** OSM tags it `place=townland name=Kilteevan`, not `Kilteevan Village`. The tool auto-retries with trailing type words stripped (`Village`, `Town`, `Limerick`, `Hamlet`, `Townland`, `Cross`, `Crossroads`), so `Kilteevan Village` falls back to `Kilteevan` and returns the townland centroid. When that's still wrong (townland centroid ≠ village center), use `Manual` with the OS 6" coord.
 2. **Graph-delta realignment is a weighted average, not a rigid translation.** When a `Real` or `Manual` anchor moves, fictionals without `relative_to` get nudged by the BFS-weighted mean of nearby anchor deltas. For a cluster that _must_ stay rigid relative to the anchor (village buildings around the crossroads), use `relative_to` — not graph-delta. The Kilteevan pin in commit `1f6efdd` drifted the whole village cluster ~10 km off before we set up `relative_to` in `7d05463`.
 3. **`--set-coord` alone does not subordinate the cluster.** It only records a delta for the pinned location. Absolute-positioned fictionals around it get the graph-delta treatment. If you want clean cluster propagation, wire up `relative_to` first (see the recipe above) and then `--set-coord`.
 4. **4-space indent.** All files in `mods/rundale/*.json` use 4-space indent, and the editor's byte-identity test enforces it. `realign_rundale_coords` writes with `PrettyFormatter::with_indent(b"    ")`. If you hand-edit with Python, use `json.dump(w, f, indent=4)` and append `'\n'` at the end. 2-space output will silently break the editor round-trip test.
 5. **`geo_source`, `relative_to`, and `lat`/`lon` all coexist.** `relative_to` overrides `lat`/`lon` on resolve; but `lat`/`lon` is still written back as a cache. `geo_source` is purely informational.
-6. **Weather test brittleness.** If you shift a lot of coords, `test_full_world_state_roundtrip` in `crates/parish-cli/tests/persistence_integration.rs` can trip because the stochastic weather engine transitions at different game-times. Fix at the test (move the weather-set to just before `/save`), not at the data.
-7. **Travel-time bound.** `test_parish_computed_travel_times_reasonable` asserts every edge fits in `1..=300` minutes at 1.25 m/s walking. Currently the longest edge is Kilteevan ↔ Curraghboy Road at ~16 km / 220 min. If a future coord shift pushes an edge past 300 min, consider adding intermediate nodes rather than bumping the bound further.
+6. **Weather test brittleness.** If you shift a lot of coords, `test_full_world_state_roundtrip` in `crates/limerick-engine/tests/persistence_integration.rs` can trip because the stochastic weather engine transitions at different game-times. Fix at the test (move the weather-set to just before `/save`), not at the data.
+7. **Travel-time bound.** `test_limerick_computed_travel_times_reasonable` asserts every edge fits in `1..=300` minutes at 1.25 m/s walking. Currently the longest edge is Kilteevan ↔ Curraghboy Road at ~16 km / 220 min. If a future coord shift pushes an edge past 300 min, consider adding intermediate nodes rather than bumping the bound further.
 8. **Nominatim usage policy.** Rate-limited at ~1 req/sec and production use requires a self-hosted instance. The current tool has 4 real locations so fine; at island scale (thousands of places) the plan is to switch to a local canonical registry built from logainm + townlands.ie + Geofabrik bulk exports.
 9. **`logainm` vs `OS 6"` for historical geocoding.** logainm is the Irish state placename authority but it only covers administrative identity (townland, civil parish, ED). It has no "village" category and no 1830s point features. The OS 6-inch First Edition is what you want for "where was the physical settlement in 1830."
 
@@ -190,9 +190,9 @@ cargo test --workspace
 
 Specific tests worth re-running after big coord shifts:
 
-- `cargo test -p parish --test world_graph_integration test_parish_computed_travel_times_reasonable` — asserts all edges are walkable in a day
-- `cargo test -p parish --test persistence_integration test_full_world_state_roundtrip` — save/load fidelity
-- `cargo test -p parish-core --lib editor::persist::tests::save_mod_byte_identical_to_source` — editor round-trip byte-identity (depends on 4-space indent)
+- `cargo test -p limerick-engine --test world_graph_integration test_limerick_computed_travel_times_reasonable` — asserts all edges are walkable in a day
+- `cargo test -p limerick-engine --test persistence_integration test_full_world_state_roundtrip` — save/load fidelity
+- `cargo test -p limerick-core --lib editor::persist::tests::save_mod_byte_identical_to_source` — editor round-trip byte-identity (depends on 4-space indent)
 
 ## Bundled scripts and references
 

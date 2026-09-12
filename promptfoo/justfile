@@ -85,7 +85,7 @@ bench-holdout target=DEFAULT_TARGET limit="":
 promote candidate evidence:
     python3 {{ PF }}/scripts/promotion_gate.py {{ OUT }} --candidate '{{ candidate }}' --evidence '{{ evidence }}'
 
-# Drive a running Parish backend through the canonical parser/guard path.
+# Drive a running Limerick backend through the canonical parser/guard path.
 soak candidate output calls="500" base_url="http://127.0.0.1:3030":
     python3 {{ PF }}/scripts/soak_dialogue.py --candidate '{{ candidate }}' --output '{{ output }}' --calls {{ calls }} --base-url '{{ base_url }}'
 

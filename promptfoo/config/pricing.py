@@ -1,6 +1,6 @@
 """Pricing + game-time token profile for rundale-bench v2 (promptfoo).
 
-`COSTS` is a snapshot of `parish/scripts/local-eval/eval_lib.py::COSTS`, copied
+`COSTS` is a snapshot of `limerick/scripts/local-eval/eval_lib.py::COSTS`, copied
 here so the promptfoo suite is reproducible without the legacy harness (USD per
 1M tokens, `(input, output)`; unknown ids → 0.0).
 

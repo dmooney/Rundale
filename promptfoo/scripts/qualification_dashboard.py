@@ -125,7 +125,7 @@ def _preflight_calls(
                 or None,
                 "metrics": {
                     "elapsed_ms": raw.get("gen_ai.response.duration_ms") or turn.get("elapsed_ms"),
-                    "ttft_ms": raw.get("parish.ttft_ms"),
+                    "ttft_ms": raw.get("limerick.ttft_ms"),
                     "stream_chunks": raw.get("gen_ai.usage.output_tokens"),
                 },
                 "outcome": {
@@ -183,7 +183,7 @@ def _diagnostic_calls(
     source_path = path.parent / str(source_meta.get("artifact", ""))
     source_rows = _jsonl(source_path) if source_path.is_file() else []
     request_id = source_meta.get("request_id")
-    source = next((row for row in source_rows if row.get("parish.request_id") == request_id), {})
+    source = next((row for row in source_rows if row.get("limerick.request_id") == request_id), {})
     sources = [_artifact(diagnosis_path)]
     if source_path.is_file():
         sources.append(_artifact(source_path))

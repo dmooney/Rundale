@@ -34,7 +34,7 @@ phrases = [
     "Searching for the right word...",
 ]
 
-# Atmospheric flavour text — moved here from parish-core during the
+# Atmospheric flavour text — moved here from limerick-core during the
 # rundale-extraction refactor. Both arrays are optional; mods that omit
 # them get the engine's minimal neutral fallback.
 

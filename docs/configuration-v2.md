@@ -1,8 +1,8 @@
 # Inference configuration v2
 
-Parish has two non-secret configuration authorities. The project file is the
-explicit `--config` path (or the startup-resolved project `parish.toml`); the
-user file is `<user-config-dir>/parish.toml`. Both require
+Limerick has two non-secret configuration authorities. The project file is the
+explicit `--config` path (or the startup-resolved project `limerick.toml`); the
+user file is `<user-config-dir>/limerick.toml`. Both require
 `schema_version = 2`. Secrets remain in the OS keychain or named environment
 variables and are never serialized into either file.
 
@@ -57,13 +57,13 @@ the prior observation.
 Operational commands:
 
 ```sh
-parish config validate --project parish.toml
-parish config validate --user /path/to/user/parish.toml
-parish config show-effective --project parish.toml --json
-parish catalog list
-parish catalog refresh --project parish.toml
+limerick config validate --project limerick.toml
+limerick config validate --user /path/to/user/limerick.toml
+limerick config show-effective --project limerick.toml --json
+limerick catalog list
+limerick catalog refresh --project limerick.toml
 # Remote probes can incur cost and require explicit acknowledgement:
-parish catalog probe --category dialogue --billable-confirm --project parish.toml
+limerick catalog probe --category dialogue --billable-confirm --project limerick.toml
 ```
 
 Catalog documents live under
@@ -79,12 +79,12 @@ authenticated caching while anonymous catalog entries remain available.
 
 Checked-in JSON Schemas:
 
-- `docs/schemas/parish-project-config-v2.schema.json`
-- `docs/schemas/parish-user-config-v2.schema.json`
+- `docs/schemas/limerick-project-config-v2.schema.json`
+- `docs/schemas/limerick-user-config-v2.schema.json`
 
 Regenerate them with:
 
 ```sh
-cd parish
-cargo run -p parish-config --example generate_v2_schemas
+cd limerick
+cargo run -p limerick-config --example generate_v2_schemas
 ```

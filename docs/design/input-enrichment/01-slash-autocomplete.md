@@ -281,7 +281,7 @@ Reuse `.mention-dropdown` positioning but with command-specific styling:
 
 ## Backend Changes
 
-**None.** The command registry is purely frontend. The backend already parses commands in `crates/parish-core/src/input/mod.rs:parse_system_command()`. The autocomplete is cosmetic — it helps the player type valid commands but doesn't change how they're processed.
+**None.** The command registry is purely frontend. The backend already parses commands in `crates/limerick-core/src/input/mod.rs:parse_system_command()`. The autocomplete is cosmetic — it helps the player type valid commands but doesn't change how they're processed.
 
 ### Future: Server-Driven Registry
 

@@ -4,26 +4,26 @@
 
 > Parent: [Architecture Overview](overview.md) | [Docs Index](../index.md) | ADR: [011](../adr/011-geo-tool-osm-pipeline.md)
 
-A development tool that downloads real geographic data from OpenStreetMap and converts it into the `parish.json` world graph format used by the Parish game engine.
+A development tool that downloads real geographic data from OpenStreetMap and converts it into the `world.json` world graph format used by the Limerick game engine.
 
 ## Purpose
 
-The game world is built on real Irish geography (see [World Geography](world-geography.md)). The parish-geo-tool automates the process of:
+The game world is built on real Irish geography (see [World Geography](world-geography.md)). The limerick-geo-tool automates the process of:
 
 1. Downloading geographic features from the Overpass API
 2. Classifying them into game-relevant location types
 3. Generating connections from the road network
 4. Creating description templates in 1820s style
-5. Outputting validated `parish.json` files
+5. Outputting validated `world.json` files
 
 This enables scaling from the current 15 hand-authored locations to thousands or millions of locations across Ireland.
 
 ## Architecture
 
-The parish-geo-tool is a separate binary (`crates/parish-geo-tool/src/`) that shares types with the main game crate.
+The limerick-geo-tool is a separate binary (`crates/limerick-geo-tool/src/`) that shares types with the main game crate.
 
 ```text
-crates/parish-geo-tool/src/
+crates/limerick-geo-tool/src/
 ├── main.rs          # CLI entry point (clap)
 ├── pipeline.rs      # Orchestrates the full conversion workflow
 ├── overpass.rs      # Overpass API client with caching & retries
@@ -34,31 +34,31 @@ crates/parish-geo-tool/src/
 ├── lod.rs           # Level-of-detail filtering
 ├── merge.rs         # Merge logic for curated + generated data
 ├── cache.rs         # File-based response cache
-└── output.rs        # parish.json + metadata output & validation
+└── output.rs        # world.json + metadata output & validation
 ```
 
 ## Usage
 
 ```sh
 # Generate parish data for a named area at a given admin level
-cargo run -p parish-geo-tool -- --area "Kiltoom" --level parish
+cargo run -p limerick-geo-tool -- --area "Kiltoom" --level parish
 
 # Generate for a full county
-cargo run -p parish-geo-tool -- --area "Roscommon" --level county
+cargo run -p limerick-geo-tool -- --area "Roscommon" --level county
 
 # Use a bounding box
-cargo run -p parish-geo-tool -- --bbox 53.45,-8.05,53.55,-7.95
+cargo run -p limerick-geo-tool -- --bbox 53.45,-8.05,53.55,-7.95
 
 # Merge with existing hand-authored data
-cargo run -p parish-geo-tool -- --area "Kiltoom" --merge mods/rundale/world.json
+cargo run -p limerick-geo-tool -- --area "Kiltoom" --merge mods/rundale/world.json
 
 # Dry run — show Overpass queries without executing
-cargo run -p parish-geo-tool -- --area "Kiltoom" --dry-run
+cargo run -p limerick-geo-tool -- --area "Kiltoom" --dry-run
 
 # Control detail level
-cargo run -p parish-geo-tool -- --area "Kiltoom" --detail full    # Every feature
-cargo run -p parish-geo-tool -- --area "Kiltoom" --detail notable # POIs only
-cargo run -p parish-geo-tool -- --area "Kiltoom" --detail sparse  # Major landmarks
+cargo run -p limerick-geo-tool -- --area "Kiltoom" --detail full    # Every feature
+cargo run -p limerick-geo-tool -- --area "Kiltoom" --detail notable # POIs only
+cargo run -p limerick-geo-tool -- --area "Kiltoom" --detail sparse  # Major landmarks
 ```
 
 ### Administrative Levels
@@ -66,7 +66,7 @@ cargo run -p parish-geo-tool -- --area "Kiltoom" --detail sparse  # Major landma
 | Level      | OSM admin_level | Description                         |
 | ---------- | --------------- | ----------------------------------- |
 | `townland` | 10              | Single townland (~50-200 acres)     |
-| `parish`   | 8               | Civil parish (group of townlands)   |
+| `limerick` | 8               | Civil parish (group of townlands)   |
 | `barony`   | 7               | Barony (group of parishes)          |
 | `county`   | 6               | County                              |
 | `province` | 5               | Province (Connacht, Leinster, etc.) |
@@ -79,7 +79,7 @@ cargo run -p parish-geo-tool -- --area "Kiltoom" --detail sparse  # Major landma
 4. **Connect** — Generates connections from road network with traversal times
 5. **Build** — Creates `LocationData` with descriptions and mythological hooks
 6. **Merge** — Combines with existing curated data (if `--merge`)
-7. **Output** — Writes validated `parish.json` + metadata sidecar
+7. **Output** — Writes validated `world.json` + metadata sidecar
 8. **Validate** — Verifies output against `WorldGraph` validation rules
 
 ## Description Tiers
@@ -92,7 +92,7 @@ Each location tracks how its description was generated:
 | `template`    | Auto-generated from OSM tags    | Yes                    |
 | `llm_pending` | Placeholder for future LLM pass | Yes                    |
 
-The metadata sidecar (`parish-generated.meta.json`) records the tier for each location, enabling selective LLM enrichment later.
+The metadata sidecar (`limerick-generated.meta.json`) records the tier for each location, enabling selective LLM enrichment later.
 
 ## Location Types
 
@@ -139,10 +139,10 @@ Overpass API responses are cached in `data/cache/geo/` to avoid redundant downlo
 
 ## Output Files
 
-- `data/parish-generated.json` — Game-loadable parish data (standard format, includes lat/lon coordinates)
-- `data/parish-generated.meta.json` — Provenance metadata (description tiers, OSM IDs)
+- `data/limerick-generated.json` — Game-loadable parish data (standard format, includes lat/lon coordinates)
+- `data/limerick-generated.meta.json` — Provenance metadata (description tiers, OSM IDs)
 
-All generated locations include WGS 84 `lat`/`lon` coordinates in the main parish.json, sourced from OSM geometry. The GUI map panel uses these coordinates for geographic positioning.
+All generated locations include WGS 84 `lat`/`lon` coordinates in the main world.json, sourced from OSM geometry. The GUI map panel uses these coordinates for geographic positioning.
 
 ## Scale Considerations
 

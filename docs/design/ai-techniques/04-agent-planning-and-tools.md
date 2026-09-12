@@ -1,7 +1,7 @@
 # Agent Planning & Tool-Using NPCs
 
-**Target crate:** `crates/parish-npc/` (new `planner` module),
-`crates/parish-core/` (read-only world query API), `crates/parish-inference/`
+**Target crate:** `crates/limerick-npc/` (new `planner` module),
+`crates/limerick-core/` (read-only world query API), `crates/limerick-inference/`
 (function-calling support).
 
 ## Problem
@@ -31,7 +31,7 @@ answer on budget overrun.
 
 ### 2. Typed tool surface — read-only v1, mutating v2
 
-**v1 (read-only).** Whitelist safe read tools backed by `parish-core`:
+**v1 (read-only).** Whitelist safe read tools backed by `limerick-core`:
 
 - `locate(npc) -> Location`
 - `relationship(a, b) -> f32`
@@ -101,10 +101,10 @@ cheap and catches the bulk of continuity bugs that reach Tier 4.
 
 ## Minimal first cut
 
-1. Add `crates/parish-worldview` — read-only snapshot struct, deterministic.
-2. Define tool schemas in `parish-schema`; hook into inference via the
+1. Add `crates/limerick-worldview` — read-only snapshot struct, deterministic.
+2. Define tool schemas in `limerick-schema`; hook into inference via the
    function-calling field.
-3. Implement ReAct in `parish-npc::planner::react` with a hard step limit.
+3. Implement ReAct in `limerick-npc::planner::react` with a hard step limit.
 4. Gate `agentic-tier1` flag. Ship to hero NPCs only; measure latency before
    expanding.
 

@@ -62,7 +62,7 @@ Rundale works out of the box with Ollama defaults. To use an alternative LLM pro
 cp .env.example .env
 ```
 
-Edit `.env` to set your provider, API key, and model. See the comments in `.env.example` for options. You can also configure via `parish.toml` or CLI flags — see [Architecture Overview](design/overview.md) for details.
+Edit `.env` to set your provider, API key, and model. See the comments in `.env.example` for options. You can also configure via `limerick.toml` or CLI flags — see [Architecture Overview](design/overview.md) for details.
 
 ---
 
@@ -97,8 +97,8 @@ curl http://localhost:11434/api/tags
 ### Build & Run
 
 ```sh
-git clone <repo-url> parish
-cd parish
+git clone <repo-url> Rundale
+cd limerick
 
 # GUI Mode (Tauri Desktop App)
 cd ui && npm install && cd ..           # one-time frontend deps
@@ -202,8 +202,8 @@ GPU acceleration is optional but strongly recommended for larger models.
 ### Build & Run
 
 ```sh
-git clone <repo-url> parish
-cd parish
+git clone <repo-url> Rundale
+cd limerick
 
 # GUI Mode (Tauri Desktop App)
 cd ui && npm install && cd ..           # one-time frontend deps
@@ -288,8 +288,8 @@ curl http://localhost:11434/api/tags
 ### Build & Run
 
 ```powershell
-git clone <repo-url> parish
-cd parish
+git clone <repo-url> Rundale
+cd limerick
 
 # GUI Mode (Tauri Desktop App)
 cd ui

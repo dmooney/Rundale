@@ -10,7 +10,7 @@ Get a single-location, single-NPC game loop running end-to-end: player types nat
 
 ## Prerequisites
 
-- Rust project scaffolded (done: Cargo.toml, module stubs, `ParishError`, tokio/tracing init)
+- Rust project scaffolded (done: Cargo.toml, module stubs, `LimerickError`, tokio/tracing init)
 - Ollama running on `localhost:11434` with Qwen3 14B loaded (for manual testing)
 
 ## Tasks

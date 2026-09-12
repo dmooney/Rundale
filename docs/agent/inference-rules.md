@@ -14,10 +14,10 @@ does not waive the cross-cutting inference, state, or evidence rules.
 ## Rule 15 — **Dialogue prompts must ground the model in the actual world:**
 
 Every NPC system prompt includes a `PEOPLE YOU KNOW` and a `PLACES IN THIS
-PARISH` list with instructions to decline to confirm anyone or anywhere not on
+LIMERICK` list with instructions to decline to confirm anyone or anywhere not on
 them. Enforcement: `build_enhanced_system_prompt_with_config` in
-`parish-npc/src/ticks/prompt.rs` (`location_names` must be `Some(...)` in
-production); test: `parish-core/tests/dialogue_prompt_anchor.rs`; flag
+`limerick-npc/src/ticks/prompt.rs` (`location_names` must be `Some(...)` in
+production); test: `limerick-core/tests/dialogue_prompt_anchor.rs`; flag
 `npc-dialogue-grounding`, default-on (#1394).
 
 <a id="rule-33"></a>

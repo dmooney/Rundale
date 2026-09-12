@@ -1,7 +1,7 @@
 # Knowledge-Graph Grounding
 
-**Target crate:** new `crates/parish-knowledge/` (SQLite-backed),
-read/write hooks from `crates/parish-npc/`. Complements — does not replace —
+**Target crate:** new `crates/limerick-knowledge/` (SQLite-backed),
+read/write hooks from `crates/limerick-npc/`. Complements — does not replace —
 semantic memory (doc 01).
 
 ## Problem
@@ -59,13 +59,13 @@ _and_ queries the graph for hard facts the NPC may reference.
 
 ## Minimal first cut
 
-1. `parish-knowledge` crate with a SQLite schema of three tables:
+1. `limerick-knowledge` crate with a SQLite schema of three tables:
    `fact`, `belief` (per-NPC view with confidence), `provenance`.
 2. Predicate registry in a mod file (`mods/rundale/predicates.json`) to keep
    the vocabulary controlled.
 3. Utility-lane extraction after every Tier 1 and Tier 2 turn; write triples
    at low confidence.
-4. Prompt builder in `parish-npc` queries the per-NPC `belief` view to
+4. Prompt builder in `limerick-npc` queries the per-NPC `belief` view to
    populate a "You know these things:" stanza; removes anything the NPC
    does not hold.
 5. Flag `knowledge-graph`; default off until extraction stabilises.

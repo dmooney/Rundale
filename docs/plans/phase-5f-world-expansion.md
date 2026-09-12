@@ -77,7 +77,7 @@ Extend `WorldGraph::load_from_file` or add a new method:
 ```rust
 impl WorldGraph {
     /// Loads and merges multiple region data files into one graph.
-    pub fn load_from_files(paths: &[&Path]) -> Result<Self, ParishError>;
+    pub fn load_from_files(paths: &[&Path]) -> Result<Self, LimerickError>;
 }
 ```
 
@@ -112,18 +112,18 @@ Extend `movement.rs` to generate multi-segment travel narration for journeys > 3
 
 ## Tests
 
-| Test                                | What it verifies                                             |
-| ----------------------------------- | ------------------------------------------------------------ |
-| `test_load_roscommon_data`          | Roscommon JSON parses correctly, all 10 nodes present        |
-| `test_load_athlone_data`            | Athlone JSON parses correctly                                |
-| `test_load_dublin_data`             | Dublin JSON parses correctly                                 |
-| `test_multi_file_graph_merge`       | All regions merge into one graph with correct connections    |
-| `test_cross_region_pathfinding`     | BFS finds path from parish to Dublin via Roscommon + Athlone |
-| `test_cross_region_travel_time`     | Parish to Dublin total travel time = 30+40+120 = 190 minutes |
-| `test_tier_assignment_cross_region` | NPCs in Dublin are Tier 4 when player is in parish           |
-| `test_tier_inflation_on_travel`     | Traveling to Roscommon inflates Roscommon NPCs to Tier 1/2   |
-| `test_long_journey_narration`       | Travel > 30 min produces multi-segment narration             |
-| `test_location_ids_unique`          | No duplicate location IDs across all data files              |
+| Test                                | What it verifies                                               |
+| ----------------------------------- | -------------------------------------------------------------- |
+| `test_load_roscommon_data`          | Roscommon JSON parses correctly, all 10 nodes present          |
+| `test_load_athlone_data`            | Athlone JSON parses correctly                                  |
+| `test_load_dublin_data`             | Dublin JSON parses correctly                                   |
+| `test_multi_file_graph_merge`       | All regions merge into one graph with correct connections      |
+| `test_cross_region_pathfinding`     | BFS finds path from parish to Dublin via Roscommon + Athlone   |
+| `test_cross_region_travel_time`     | Limerick to Dublin total travel time = 30+40+120 = 190 minutes |
+| `test_tier_assignment_cross_region` | NPCs in Dublin are Tier 4 when player is in parish             |
+| `test_tier_inflation_on_travel`     | Traveling to Roscommon inflates Roscommon NPCs to Tier 1/2     |
+| `test_long_journey_narration`       | Travel > 30 min produces multi-segment narration               |
+| `test_location_ids_unique`          | No duplicate location IDs across all data files                |
 
 ## Acceptance Criteria
 

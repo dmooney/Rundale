@@ -26,8 +26,8 @@ test('server-side Playwright seam changes require the real launcher integration'
 		(match) => match[1],
 	);
 	assert.ok(
-		runtimePatterns.includes('parish/crates/**'),
-		'parish-server build and readiness changes must select the runtime suite',
+		runtimePatterns.includes('limerick/crates/**'),
+		'limerick-server build and readiness changes must select the runtime suite',
 	);
 
 	const runtimeSuiteJob = section(

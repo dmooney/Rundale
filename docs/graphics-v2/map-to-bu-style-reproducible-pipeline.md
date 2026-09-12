@@ -4,7 +4,7 @@
 
 This pipeline turns historical map data for a Kilteevan parish exterior into a
 Graphics V2 background plate that is geometrically accurate, low 3/4
-orthographic, and in the accepted BU E2 / parish-notebook concept-realism style.
+orthographic, and in the accepted BU E2 / rundale-notebook concept-realism style.
 
 This is not yet a production batch renderer. Current image models are not
 reliable enough for arbitrary real-world locations or fully automated runtime
@@ -265,7 +265,7 @@ Perspective:
 
 Style:
 
-- BU E2 / parish-notebook family: warm worn paper, rough ink, watercolor grain,
+- BU E2 / rundale-notebook family: warm worn paper, rough ink, watercolor grain,
   stained limewash, rough roof texture, moss, weeds, ochre mud, handmade
   irregularity,
 - neutral daylight base plate, readable and not over-dark,

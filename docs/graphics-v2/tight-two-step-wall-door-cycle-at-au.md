@@ -23,7 +23,7 @@ AT used only generic, repeatable inputs:
 - Tight oblique camera cue:
   `pipeline-experiments/idea-ar-kilteevan-playable-control-oblique-raw-warp.png`
 - Full illustrated notebook sample, style only:
-  `illustrated-parish-notebook.png`
+  `illustrated-rundale-notebook.png`
 - Clean single-building slate and thatch references:
   `style-crops/illustrated-style-low-camera-slate-single-house-door-clean.png`
   and

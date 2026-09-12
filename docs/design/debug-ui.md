@@ -8,11 +8,11 @@ Comprehensive in-game debug UI for inspecting all game state, events, and intern
 
 ## Overview
 
-The debug UI exposes a tabbed panel showing live game internals. It is toggled with **F12** or a **Debug** button in the StatusBar. All debug data flows through a `DebugSnapshot` struct in `parish-core`, consumed by the Tauri GUI frontend.
+The debug UI exposes a tabbed panel showing live game internals. It is toggled with **F12** or a **Debug** button in the StatusBar. All debug data flows through a `DebugSnapshot` struct in `limerick-core`, consumed by the Tauri GUI frontend.
 
 ## Data Architecture
 
-### `DebugSnapshot` (parish-core)
+### `DebugSnapshot` (limerick-core)
 
 A single serializable struct aggregates all inspectable state:
 
@@ -186,17 +186,17 @@ Events are timestamped with game time and categorized for optional filtering.
 
 ## Implementation Files
 
-| File                                            | Purpose                                   |
-| ----------------------------------------------- | ----------------------------------------- |
-| `crates/parish-diagnostics/src/debug_snapshot/` | `DebugSnapshot` + builder                 |
-| `src/debug.rs`                                  | Updated `/debug` commands to use snapshot |
-| `crates/parish-tauri/src/commands.rs`           | `get_debug_snapshot` command              |
-| `crates/parish-tauri/src/events.rs`             | `EVENT_DEBUG_UPDATE` constant             |
-| `crates/parish-tauri/src/lib.rs`                | Debug tick task (2s interval)             |
-| `apps/ui/src/lib/types.ts`                      | TypeScript debug interfaces               |
-| `apps/ui/src/lib/ipc.ts`                        | `getDebugSnapshot()` + `onDebugUpdate()`  |
-| `apps/ui/src/stores/debug.ts`                   | Debug state store                         |
-| `apps/ui/src/components/DebugPanel.svelte`      | Main debug panel component                |
+| File                                              | Purpose                                   |
+| ------------------------------------------------- | ----------------------------------------- |
+| `crates/limerick-diagnostics/src/debug_snapshot/` | `DebugSnapshot` + builder                 |
+| `src/debug.rs`                                    | Updated `/debug` commands to use snapshot |
+| `crates/limerick-tauri/src/commands.rs`           | `get_debug_snapshot` command              |
+| `crates/limerick-tauri/src/events.rs`             | `EVENT_DEBUG_UPDATE` constant             |
+| `crates/limerick-tauri/src/lib.rs`                | Debug tick task (2s interval)             |
+| `apps/ui/src/lib/types.ts`                        | TypeScript debug interfaces               |
+| `apps/ui/src/lib/ipc.ts`                          | `getDebugSnapshot()` + `onDebugUpdate()`  |
+| `apps/ui/src/stores/debug.ts`                     | Debug state store                         |
+| `apps/ui/src/components/DebugPanel.svelte`        | Main debug panel component                |
 
 ## Related
 

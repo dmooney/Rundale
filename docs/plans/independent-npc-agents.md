@@ -11,7 +11,7 @@ switch.
 Commit: `feat(npc): add persisted NPC agendas and wake scheduler`
 
 - Add typed goals, activities, plan steps, wake reasons, and agenda generation
-  to `parish-npc`.
+  to `limerick-npc`.
 - Add a min-heap scheduler index and bounded/coalesced pending wakes to
   `NpcManager`.
 - Seed default agendas from game time and authored schedules.
@@ -34,9 +34,9 @@ Commit: `feat(persistence): round-trip NPC agent agendas`
 Commit: `feat(core): orchestrate autonomous NPC intent commits`
 
 - Define immutable revision-stamped planning snapshots, typed intent envelopes,
-  localized preconditions, and outcomes in `parish-npc`.
+  localized preconditions, and outcomes in `limerick-npc`.
 - Add bounded due-work collection and deterministic intent reduction in
-  `parish-core::game_loop`.
+  `limerick-core::game_loop`.
 - Keep all awaits outside world/NPC locks; collect each state domain in a
   separate lock scope so world and NPC locks are never held together.
 - Publish existing semantic `GameEvent`s; add variants only for behavior that
@@ -104,7 +104,7 @@ Commit: `feat(npc): plan distant NPC work through agent batches`
 
 Commit: `refactor(core): consolidate NPC agent dispatcher wiring`
 
-- Put the shared async dispatch body and constants in `parish-core`.
+- Put the shared async dispatch body and constants in `limerick-core`.
 - Keep server and Tauri pollers as thin per-session lifecycle wiring using
   existing cancellation/shutdown tokens.
 - Make headless/script mode use the same collect and commit seams.
@@ -123,7 +123,7 @@ Commit: `docs: document independent NPC agent scheduling`
 - Map every acceptance criterion in `evidence.md`, obtain the independent
   judge verdict, and run `just agent-check`.
 - Run `just check`, `just verify`, and
-  `/parish-engine prove independent-npc-agents`.
+  `/limerick-engine prove independent-npc-agents`.
 - Attach the proof bundle to the PR body before review.
 
 ## Stop point for this design pass

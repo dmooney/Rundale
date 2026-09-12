@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Measure local dialogue reliability and guard use through the live runtime.
 
-The target model must already be configured on a running Parish backend. Every
+The target model must already be configured on a running Limerick backend. Every
 attempt goes through `/api/command`; the response carries parser and guard
 telemetry emitted by the canonical NPC turn path. This deliberately does not
 reimplement the parser or guards in Python.
@@ -95,7 +95,7 @@ class RuntimeClient:
 class LoopbackSecureCookiePolicy(http.cookiejar.DefaultCookiePolicy):
     """Return Secure session cookies to an HTTP loopback test server only.
 
-    Parish intentionally marks its production session cookie Secure. Browsers
+    Limerick intentionally marks its production session cookie Secure. Browsers
     treat localhost as a trustworthy context, but Python's cookie jar otherwise
     suppresses the cookie on ``http://127.0.0.1``. A long soak would then create
     one server session per request and hit admission control at 50 calls.

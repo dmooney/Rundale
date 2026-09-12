@@ -1,0 +1,33 @@
+[package]
+name = "limerick-config"
+version = "0.1.0"
+edition = "2024"
+license = "GPL-3.0-only"
+publish = false
+description = "Engine and LLM-provider configuration loader for the Limerick engine"
+
+[dependencies]
+limerick-types = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+toml = { workspace = true }
+tracing = { workspace = true }
+schemars = { workspace = true }
+chrono = { workspace = true }
+url = { workspace = true }
+thiserror = { workspace = true }
+fs2 = { workspace = true }
+sha2 = { workspace = true }
+hmac = "0.13"
+rand = { workspace = true }
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { workspace = true, features = ["Win32_Storage_FileSystem"] }
+
+[target.'cfg(unix)'.dependencies]
+libc = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }
+serial_test = { workspace = true }
+toml = { workspace = true }

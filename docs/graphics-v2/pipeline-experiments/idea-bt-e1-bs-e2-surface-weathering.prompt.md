@@ -13,7 +13,7 @@ Local paths:
 
 - /Users/dmooney/.codex/worktrees/a718/Rundale/docs/graphics-v2/pipeline-experiments/idea-bs-e2-beechwood-door-height-20pct-zoomout.png
 - /Users/dmooney/.codex/worktrees/a718/Rundale/docs/graphics-v2/cartographic-comparisons/bs-e1-e2-concept-art-comparison.png
-- /Users/dmooney/.codex/worktrees/a718/Rundale/docs/graphics-v2/illustrated-parish-notebook.png
+- /Users/dmooney/.codex/worktrees/a718/Rundale/docs/graphics-v2/illustrated-rundale-notebook.png
 
 Experiment focus:
 Surface weathering only. Do not add new props or new structures. Make existing surfaces less clean:

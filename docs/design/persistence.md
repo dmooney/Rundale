@@ -89,8 +89,8 @@ Index: `idx_journal_branch_snap_seq ON journal_events(branch_id, after_snapshot_
 
 ## Source Modules
 
-- [`parish-persistence/src/lib.rs`](../../parish/crates/parish-persistence/src/lib.rs) — Module root and re-exports
-- [`database/`](../../parish/crates/parish-persistence/src/database/) — Database, AsyncDatabase, schema, and CRUD
-- [`snapshot/`](../../parish/crates/parish-persistence/src/snapshot/) — GameSnapshot, ClockSnapshot, and NpcSnapshot
-- [`database/journal.rs`](../../parish/crates/parish-persistence/src/database/journal.rs) — WorldEvent enum and replay logic
-- [`picker.rs`](../../parish/crates/parish-persistence/src/picker.rs) — Save-file discovery, picker display, and startup/load selection
+- [`limerick-persistence/src/lib.rs`](../../limerick/crates/limerick-persistence/src/lib.rs) — Module root and re-exports
+- [`database/`](../../limerick/crates/limerick-persistence/src/database/) — Database, AsyncDatabase, schema, and CRUD
+- [`snapshot/`](../../limerick/crates/limerick-persistence/src/snapshot/) — GameSnapshot, ClockSnapshot, and NpcSnapshot
+- [`database/journal.rs`](../../limerick/crates/limerick-persistence/src/database/journal.rs) — WorldEvent enum and replay logic
+- [`picker.rs`](../../limerick/crates/limerick-persistence/src/picker.rs) — Save-file discovery, picker display, and startup/load selection

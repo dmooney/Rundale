@@ -1,7 +1,7 @@
 # Drama Manager / AI Director
 
-**Target crate:** `crates/parish-npc/` (new `director` module) or a new
-`crates/parish-director/`, a new Tier 5 lane in `crates/parish-inference/`.
+**Target crate:** `crates/limerick-npc/` (new `director` module) or a new
+`crates/limerick-director/`, a new Tier 5 lane in `crates/limerick-inference/`.
 
 ## Problem
 
@@ -70,7 +70,7 @@ table.
 ## Minimal first cut
 
 1. Author `mods/rundale/director.toml` with 10 archetypes.
-2. Add `DirectedEvent` struct in `parish-types`; persist per-save.
+2. Add `DirectedEvent` struct in `limerick-types`; persist per-save.
 3. Add a daily Tier 5 job that calls the director model (start with cloud
    Tier 1 quality; migrate to local after grammar + corpus are stable).
 4. Tier 2 reads pending events and factors them into NPC context.

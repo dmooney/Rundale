@@ -1,10 +1,10 @@
-# Parish Designer — GUI Editor for Game Data
+# Limerick Designer — GUI Editor for Game Data
 
 > Status: Implemented · Updated: 2026-05-25 · [Docs Index](../index.md)
 
 ## Context
 
-Parish (Rundale) is a text adventure set in 1820s rural Ireland with a rich body
+Limerick (Rundale) is a text adventure set in 1820s rural Ireland with a rich body
 of authored game content: locations, NPCs, schedules, relationships, festivals,
 encounters, anachronisms, pronunciations, loading screens, engine
 tuning, and a branching SQLite save format. Today **none of it has a GUI editor**.
@@ -12,12 +12,12 @@ Designers must hand-edit JSON/TOML files, rely on deserialization errors to flag
 mistakes, and restart the game to see changes. There is no save inspector, no
 validator command, and no way to visualize NPC schedules or the location graph.
 
-This document designs **Parish Designer**, a GUI editor that lives inside the
+This document designs **Limerick Designer**, a GUI editor that lives inside the
 existing SvelteKit UI (reachable via a `/editor` route and menu toggle) and is
-backed by a new `editor` module in `parish-core`. It follows the project's
-mode-parity rule: editor commands are implemented once in `parish-core`, then
-wired to both Tauri (`parish-tauri`) and Axum (`parish-server`). The same editor
-therefore runs in the desktop app and in `parish --web`.
+backed by a new `editor` module in `limerick-core`. It follows the project's
+mode-parity rule: editor commands are implemented once in `limerick-core`, then
+wired to both Tauri (`limerick-tauri`) and Axum (`limerick-server`). The same editor
+therefore runs in the desktop app and in `limerick-server`.
 
 The plan is organized into three phases. **Phase 1** is the concrete
 implementation deliverable: mod browser, NPC editor, location editor,
@@ -26,7 +26,7 @@ roadmap for follow-up work.
 
 ## Designer needs — brainstorm
 
-What a game designer working on Parish actually needs day-to-day:
+What a game designer working on Limerick actually needs day-to-day:
 
 **Content authoring**
 
@@ -41,7 +41,7 @@ What a game designer working on Parish actually needs day-to-day:
 - Enforce bidirectional edges when editing connections
 - Edit festivals, encounter flavor text by time-of-day, anachronism table, pronunciation hints
 - Edit transport modes, UI palette (with live preview), loading screen phrases
-- Edit engine tuning in `parish.toml` (speeds, encounter probs, cognitive tiers)
+- Edit engine tuning in `limerick.toml` (speeds, encounter probs, cognitive tiers)
 
 **Validation & safety**
 
@@ -78,11 +78,11 @@ What a game designer working on Parish actually needs day-to-day:
 Reachable from the main UI via a menu entry; fully usable standalone (does not
 require a running game session).
 
-**Backend:** The `parish-editor` crate (`crates/parish-editor/`, re-exported as `parish_core::editor`) owns all editor logic —
+**Backend:** The `limerick-editor` crate (`crates/limerick-editor/`, re-exported as `limerick_core::editor`) owns all editor logic —
 loading a mod from disk, validating it, writing it back, inspecting save files.
-Exposed via new IPC types in `crates/parish-core/src/ipc/editor.rs`.
+Exposed via new IPC types in `crates/limerick-core/src/ipc/editor.rs`.
 
-**Transports:** Both `parish-tauri` and `parish-server` add thin wrappers that
+**Transports:** Both `limerick-tauri` and `limerick-server` add thin wrappers that
 deserialize args, call the shared editor functions, and return JSON. This
 preserves the **mode-parity rule** — the editor works identically in Tauri and
 web modes.
@@ -100,20 +100,20 @@ this separation is the single most important architectural rule of the feature.
 - Reuses the IPC abstraction at `apps/ui/src/lib/ipc.ts:29` (one codebase, two transports)
 - Reuses Svelte stores, CSS variable theme, typography, and the paper aesthetic
 - Designers can flip between playing and editing in one window
-- Avoids duplicating parish-core wiring, Tauri/Axum setup, and build pipeline
-- Module-ownership rule forces shared logic into `parish-core` anyway
+- Avoids duplicating limerick-core wiring, Tauri/Axum setup, and build pipeline
+- Module-ownership rule forces shared logic into `limerick-core` anyway
 
 ## Reusable primitives (use these, don't rebuild)
 
 **Backend**
 
-- `crates/parish-mod/` (re-exported as `parish_core::game_mod`) — `GameMod::load()` is the _reference implementation_ for parsing every mod file; the editor mirrors it but loads each file independently (see Phase 1 backend)
-- `crates/parish-world/src/graph.rs:130` — `WorldGraph::validate()` enforces orphan/bidirectional checks and emits `ParishError::WorldGraph(String)`
-- `crates/parish-types/src/error.rs` — `ParishError` enum (use for all editor errors)
-- `crates/parish-core/src/ipc/handlers.rs` — pattern for pure state → IPC-type handlers
-- `crates/parish-persistence/src/picker.rs:63` `discover_saves` + `crates/parish-persistence/src/database.rs` `list_branches` / `load_latest_snapshot` — save inspector never opens rusqlite directly
-- `crates/parish-engine/src/testing.rs` — `GameTestHarness` for Phase 2 live preview
-- `crates/parish-world/src/description.rs::render_description` — reuse for live placeholder preview
+- `crates/limerick-mod/` (re-exported as `limerick_core::game_mod`) — `GameMod::load()` is the _reference implementation_ for parsing every mod file; the editor mirrors it but loads each file independently (see Phase 1 backend)
+- `crates/limerick-world/src/graph.rs:130` — `WorldGraph::validate()` enforces orphan/bidirectional checks and emits `LimerickError::WorldGraph(String)`
+- `crates/limerick-types/src/error.rs` — `LimerickError` enum (use for all editor errors)
+- `crates/limerick-core/src/ipc/handlers.rs` — pattern for pure state → IPC-type handlers
+- `crates/limerick-persistence/src/picker.rs:63` `discover_saves` + `crates/limerick-persistence/src/database.rs` `list_branches` / `load_latest_snapshot` — save inspector never opens rusqlite directly
+- `crates/limerick-engine/src/testing.rs` — `GameTestHarness` for Phase 2 live preview
+- `crates/limerick-world/src/description.rs::render_description` — reuse for live placeholder preview
 
 **Frontend**
 
@@ -137,12 +137,12 @@ Internally split into three cohesive sub-deliverables that can land sequentially
 - **Phase 1b** — NPC editor (identity, intelligence, home/workplace, relationships, knowledge). Schedule is **read-only** here (a visual 24-hour timeline). Full schedule editing moves to Phase 2.
 - **Phase 1c** — Read-only save inspector. Independent of everything above.
 
-### Backend — `crates/parish-core/src/editor/`
+### Backend — `crates/limerick-core/src/editor/`
 
 Create a new module with these files:
 
 ```text
-crates/parish-core/src/editor/
+crates/limerick-core/src/editor/
 ├── mod.rs              # Re-exports
 ├── types.rs            # DTOs: ModSummary, EditorModSnapshot, ValidationReport, ValidationIssue
 ├── handlers.rs         # Pure functions: list_mods, load_mod_snapshot, validate_snapshot
@@ -168,18 +168,18 @@ hide a working `npcs.json` from the designer. Post-save revalidation uses
 
 Reuses:
 
-- `crates/parish-core/src/game_mod.rs:420` `GameMod::load` as a _reference implementation_ only
-- `crates/parish-world/src/graph.rs:130` `WorldGraph::validate` (needs to become `pub`)
-- `crates/parish-world/src/description.rs::render_description` for placeholder preview
-- `crates/parish-persistence/src/picker.rs:63` `discover_saves` + `database.rs::list_branches` / `load_latest_snapshot` for the save inspector
+- `crates/limerick-core/src/game_mod.rs:420` `GameMod::load` as a _reference implementation_ only
+- `crates/limerick-world/src/graph.rs:130` `WorldGraph::validate` (needs to become `pub`)
+- `crates/limerick-world/src/description.rs::render_description` for placeholder preview
+- `crates/limerick-persistence/src/picker.rs:63` `discover_saves` + `database.rs::list_branches` / `load_latest_snapshot` for the save inspector
 
-### Schema exposure in `parish-npc` and `parish-world`
+### Schema exposure in `limerick-npc` and `limerick-world`
 
 Two small but critical upstream changes:
 
-1. **`crates/parish-npc/src/data.rs:24-36`** — change `struct NpcFile` → `pub struct NpcFile`, `struct NpcFileEntry` → `pub struct NpcFileEntry`, and derive `Serialize` in addition to `Deserialize` on both (and on subtypes: `IntelligenceFileEntry`, `ScheduleFileEntry`, `ScheduleVariantFileEntry`, `RelationshipFileEntry`). Re-export from `crates/parish-npc/src/lib.rs`. Without this, the editor cannot round-trip `npcs.json`.
+1. **`crates/limerick-npc/src/data.rs:24-36`** — change `struct NpcFile` → `pub struct NpcFile`, `struct NpcFileEntry` → `pub struct NpcFileEntry`, and derive `Serialize` in addition to `Deserialize` on both (and on subtypes: `IntelligenceFileEntry`, `ScheduleFileEntry`, `ScheduleVariantFileEntry`, `RelationshipFileEntry`). Re-export from `crates/limerick-npc/src/lib.rs`. Without this, the editor cannot round-trip `npcs.json`.
 
-2. **`crates/parish-world/src/graph.rs:130`** — change `fn validate(&self)` → `pub fn validate(&self)`. The editor needs to re-run it on an in-memory graph without reloading the JSON file.
+2. **`crates/limerick-world/src/graph.rs:130`** — change `fn validate(&self)` → `pub fn validate(&self)`. The editor needs to re-run it on an in-memory graph without reloading the JSON file.
 
 **`brief_description` round-trip gotcha.** `NpcFileEntry.brief_description` is
 `Option<String>` with a load-time fallback that synthesizes a description from
@@ -188,7 +188,7 @@ from disk — never the computed fallback — or saving will silently add
 synthesized descriptions to every NPC in source. The UI should expose an
 explicit "override brief description" checkbox; unchecked → write `None`.
 
-### Backend — `crates/parish-core/src/ipc/editor.rs`
+### Backend — `crates/limerick-core/src/ipc/editor.rs`
 
 New IPC module (add to `ipc/mod.rs`). Contains serde DTOs mirroring editor ops
 and pure handler functions that call into `editor::*`. No game-state access.
@@ -214,17 +214,17 @@ All commands return `Result<T, String>` (string errors for easy UI display).
 
 ### Backend — Tauri wiring
 
-- **New file** `crates/parish-tauri/src/editor_commands.rs` parallels `commands.rs` and holds the `#[tauri::command]` wrappers
-- Extend `AppState` in `crates/parish-tauri/src/lib.rs` with `pub editor: Mutex<EditorState>` where `EditorState { current_mod_path: Option<PathBuf>, snapshot: Option<EditorModSnapshot>, dirty: bool }`. **This field is completely independent** of `world` / `npc_manager` / `inference_queue`. The editor never touches live gameplay state.
-- Register new commands in the `tauri::generate_handler!` block at `crates/parish-tauri/src/lib.rs:538-554`
+- **New file** `crates/limerick-tauri/src/editor_commands.rs` parallels `commands.rs` and holds the `#[tauri::command]` wrappers
+- Extend `AppState` in `crates/limerick-tauri/src/lib.rs` with `pub editor: Mutex<EditorState>` where `EditorState { current_mod_path: Option<PathBuf>, snapshot: Option<EditorModSnapshot>, dirty: bool }`. **This field is completely independent** of `world` / `npc_manager` / `inference_queue`. The editor never touches live gameplay state.
+- Register new commands in the `tauri::generate_handler!` block at `crates/limerick-tauri/src/lib.rs:538-554`
 
 ### Backend — Axum wiring
 
-- **New file** `crates/parish-server/src/editor_routes.rs` mirrors `editor_commands.rs` as REST routes
-- Extend `AppState` in `crates/parish-server/src/state.rs:94-133` with the same `editor: Mutex<EditorState>` field
-- Register new routes in `crates/parish-server/src/lib.rs:130-146`
+- **New file** `crates/limerick-server/src/editor_routes.rs` mirrors `editor_commands.rs` as REST routes
+- Extend `AppState` in `crates/limerick-server/src/state.rs:94-133` with the same `editor: Mutex<EditorState>` field
+- Register new routes in `crates/limerick-server/src/lib.rs:130-146`
 - Route naming follows the auto-rewrite in `apps/ui/src/lib/ipc.ts:39`: `editor_list_mods` → `/api/editor-list-mods`. Flat kebab-case, no hierarchy needed for Phase 1.
-- **Deployed-web gate.** `parish --web` can run on a server where `mods/` is ephemeral and writes would be silently discarded. Gate editor route registration behind an env var `PARISH_ENABLE_EDITOR=1`. In deployed modes (containers, managed hosts), leave it unset so the editor 404s cleanly.
+- **Deployed-web gate.** `limerick-server` can run on a server where `mods/` is ephemeral and writes would be silently discarded. Gate editor route registration behind an env var `LIMERICK_ENABLE_EDITOR=1`. In deployed modes (containers, managed hosts), leave it unset so the editor 404s cleanly.
 
 ### Frontend — `apps/ui/src/`
 
@@ -288,7 +288,7 @@ for minimal code because the underlying functions already exist:
 
 1. **"Who is where at T?" query.** Pick season / day_type / hour, render a table
    of every NPC → scheduled location. Uses existing `Npc::desired_location` at
-   `crates/parish-npc/src/lib.rs:151`. Two IPC commands, one table component.
+   `crates/limerick-npc/src/lib.rs:151`. Two IPC commands, one table component.
 2. **Location template preview.** Side-by-side view of a location's
    `description_template` source and three rendered variants
    (morning/clear, dusk/rain, night/fog). Reuses `render_description` —
@@ -303,7 +303,7 @@ for minimal code because the underlying functions already exist:
 
 ### Save-inspector scope (read-only for Phase 1c)
 
-- List save `.db` files under the save directory (reuse `parish-persistence`)
+- List save `.db` files under the save directory (reuse `limerick-persistence`)
 - Per save: show branches table, with parent edges
 - Per branch: list snapshots with game_time and real_time
 - Per snapshot: deserialize the JSON `world_state` blob into `GameSnapshot` and render each section (clock, weather, player, NPCs, gossip network, conversation log) as a read-only tree view
@@ -313,26 +313,26 @@ for minimal code because the underlying functions already exist:
 
 **Rust — new**
 
-- `crates/parish-core/src/editor/mod.rs`
-- `crates/parish-core/src/editor/types.rs`
-- `crates/parish-core/src/editor/handlers.rs`
-- `crates/parish-core/src/editor/persist.rs`
-- `crates/parish-core/src/editor/save_inspect.rs`
-- `crates/parish-core/src/editor/format.rs`
-- `crates/parish-core/src/ipc/editor.rs`
-- `crates/parish-tauri/src/editor_commands.rs`
-- `crates/parish-server/src/editor_routes.rs`
-- `crates/parish-server/tests/editor_routes.rs`
+- `crates/limerick-core/src/editor/mod.rs`
+- `crates/limerick-core/src/editor/types.rs`
+- `crates/limerick-core/src/editor/handlers.rs`
+- `crates/limerick-core/src/editor/persist.rs`
+- `crates/limerick-core/src/editor/save_inspect.rs`
+- `crates/limerick-core/src/editor/format.rs`
+- `crates/limerick-core/src/ipc/editor.rs`
+- `crates/limerick-tauri/src/editor_commands.rs`
+- `crates/limerick-server/src/editor_routes.rs`
+- `crates/limerick-server/tests/editor_routes.rs`
 
 **Rust — modify**
 
-- `crates/parish-core/src/lib.rs` — `pub mod editor;`
-- `crates/parish-core/src/ipc/mod.rs` — `pub mod editor;`
-- `crates/parish-npc/src/data.rs:24-36` — make `NpcFile` / `NpcFileEntry` + subtypes `pub` and derive `Serialize` (+ re-export from `parish-npc/src/lib.rs`)
-- `crates/parish-world/src/graph.rs:130` — `fn validate` → `pub fn validate`
-- `crates/parish-tauri/src/lib.rs` — add `editor: Mutex<EditorState>` to `AppState`, register handlers in `generate_handler!` at line 538
-- `crates/parish-server/src/state.rs:94` — add `editor: Mutex<EditorState>` to `AppState`
-- `crates/parish-server/src/lib.rs:130` — register editor routes behind `PARISH_ENABLE_EDITOR` gate
+- `crates/limerick-core/src/lib.rs` — `pub mod editor;`
+- `crates/limerick-core/src/ipc/mod.rs` — `pub mod editor;`
+- `crates/limerick-npc/src/data.rs:24-36` — make `NpcFile` / `NpcFileEntry` + subtypes `pub` and derive `Serialize` (+ re-export from `limerick-npc/src/lib.rs`)
+- `crates/limerick-world/src/graph.rs:130` — `fn validate` → `pub fn validate`
+- `crates/limerick-tauri/src/lib.rs` — add `editor: Mutex<EditorState>` to `AppState`, register handlers in `generate_handler!` at line 538
+- `crates/limerick-server/src/state.rs:94` — add `editor: Mutex<EditorState>` to `AppState`
+- `crates/limerick-server/src/lib.rs:130` — register editor routes behind `LIMERICK_ENABLE_EDITOR` gate
 
 **Frontend — new**
 
@@ -356,7 +356,7 @@ for minimal code because the underlying functions already exist:
 - **Location map editor**: SVG canvas using lat/lon; drag to move; draw connections visually (reuses `MapPanel.svelte` projection)
 - **Placeholder live preview**: render `description_template` with chosen time-of-day / weather / NPCs (reuse `render_description`)
 - **Content tables**: festivals, encounters, anachronisms, pronunciations, transport — flat tabular editors
-- **Config editors**: `ui.toml`, `loading.toml`, `parish.toml` with live palette preview
+- **Config editors**: `ui.toml`, `loading.toml`, `limerick.toml` with live palette preview
 - **GameTestHarness preview**: run a test script against in-memory edits without writing to disk
 - **"Who is where at T?"** query: pick season / day / hour, see all NPCs mapped to their scheduled location
 
@@ -371,44 +371,44 @@ for minimal code because the underlying functions already exist:
 
 ## Gotchas
 
-- **Module ownership.** Editor logic lives in `parish-core`. Tauri and Axum wrappers are thin. `CLAUDE.md` non-negotiable #1.
+- **Module ownership.** Editor logic lives in `limerick-core`. Tauri and Axum wrappers are thin. `CLAUDE.md` non-negotiable #1.
 - **Mode parity.** Every editor feature works in both Tauri and web. The `ipc.ts` auto-detection at `apps/ui/src/lib/ipc.ts:29` handles this if backend commands are mirrored.
 - **Running-game isolation is the central design rule.** The editor's `EditorState` is fully separate from the live gameplay `AppState` (`world`, `npc_manager`, `inference_queue`, autosave thread, tick loop). The editor operates on a **fresh in-memory copy loaded from disk**, never the live game. Closing the editor drops this state without touching gameplay. This prevents tick races, stale-data autosave writes, file/memory divergence, and broken "close editor" UX.
 - **Don't use `GameMod::load` to read for editing.** It's all-or-nothing (one broken file aborts the whole mod) and it runs post-processing (relationship reciprocation, reaction template merge) that would pollute source files on save. The editor uses a granular per-file loader that collects errors per file.
 - **`brief_description` round-trip.** See Schema exposure. Must preserve raw `Option<String>` from disk; never write the synthesized fallback.
-- **File-locking.** `GameMod::load` reads each file into memory and releases the handle (`crates/parish-core/src/game_mod.rs:427`). The editor can write `npcs.json` / `world.json` while a game is running with no collision. The running game's autosave writes to its SQLite `.db`, not to mod JSON — also no collision.
+- **File-locking.** `GameMod::load` reads each file into memory and releases the handle (`crates/limerick-core/src/game_mod.rs:427`). The editor can write `npcs.json` / `world.json` while a game is running with no collision. The running game's autosave writes to its SQLite `.db`, not to mod JSON — also no collision.
 - **Atomic writes.** Always `std::fs::write` to `foo.json.tmp`, then `std::fs::rename` to `foo.json`. Prevents partial writes if the editor crashes mid-save.
 - **JSON determinism.** Serde's default map ordering is unstable. Use `BTreeMap` in serializable types where key order matters, `serde_json::to_string_pretty` with 2-space indent, and a single `write_json_deterministic` helper in `editor/format.rs`. Goal: editing and re-saving `mods/rundale/npcs.json` unchanged produces an **empty** `git diff`.
 - **Save-format evolution.** `GameSnapshot` uses `#[serde(default)]` for backward compat. The inspector parses into `serde_json::Value` first, then tries `GameSnapshot`, falling back to raw JSON view on failure.
 - **Validation error positions.** Editor edits structured data, not text. Translate serde errors into `field_path` (e.g. `npcs[3].relationships[1].target_id`) so the UI can jump to the field.
 - **Bidirectional edge enforcement** must be atomic at the frontend level: when `LocationDetail` adds `A→B`, it must also insert `B→A` in the `locations` array before the save command fires. Same for deletion. Never leave it to the user.
-- **Deployed-web gate.** Gate editor route registration in `parish-server` behind `PARISH_ENABLE_EDITOR=1` so a deployed instance (containers, managed hosts) doesn't expose writable editor endpoints against an ephemeral filesystem.
+- **Deployed-web gate.** Gate editor route registration in `limerick-server` behind `LIMERICK_ENABLE_EDITOR=1` so a deployed instance (containers, managed hosts) doesn't expose writable editor endpoints against an ephemeral filesystem.
 - **Test coverage.** `CLAUDE.md` rule #3 requires ≥90%. Editor handler and persist functions need inline unit tests.
 - **Frontend routes.** SvelteKit with `adapter-static` + `fallback: 'index.html'` + `ssr = false` means new routes work unchanged. Set `export const ssr = false` in `apps/ui/src/routes/editor/+page.ts` to match the layout.
 
 ## Verification
 
-**Backend unit tests** (`cargo test -p parish-core editor::`):
+**Backend unit tests** (`cargo test -p limerick-core editor::`):
 
 - `validate_snapshot` reports the correct `field_path` for: missing relationship target, missing NPC home, schedule location orphan, non-bidirectional edge, duplicate location id, lat/lon out of range
 - `persist::save_npcs` round-trip: build an `EditorModSnapshot` in a `tempfile::TempDir` → save → re-load with the granular loader → assert equality
 - `format::write_json_deterministic` is idempotent: write twice, bytes are identical
 
-**Upstream schema test** (`cargo test -p parish-npc`):
+**Upstream schema test** (`cargo test -p limerick-npc`):
 
 - Load the real `mods/rundale/npcs.json`, re-serialize via the newly `Serialize`-derived `NpcFile`, deserialize again, assert structural equality (modulo the known reciprocal-relationship reshuffle). This catches drift between editor and game loader — the single most important schema test.
 
-**Integration tests** (`cargo test -p parish-server`):
+**Integration tests** (`cargo test -p limerick-server`):
 
-- New `crates/parish-server/tests/editor_routes.rs`: start an in-process server with a temp mods dir, hit each `/api/editor-*` endpoint, assert JSON shape
-- Assert editor routes return 404 when `PARISH_ENABLE_EDITOR` is unset
+- New `crates/limerick-server/tests/editor_routes.rs`: start an in-process server with a temp mods dir, hit each `/api/editor-*` endpoint, assert JSON shape
+- Assert editor routes return 404 when `LIMERICK_ENABLE_EDITOR` is unset
 
 **Frontend e2e** (Playwright, `apps/ui/e2e/editor.spec.ts`):
 
 - Against Tauri mocks: navigate to `/editor`, open `rundale`, edit an NPC name, see dirty indicator, save, verify mock IPC payload
 - Trigger a validation error, verify it appears in the validator panel
 - Browse a save snapshot, verify NPC and clock data render
-- Against real `parish --web` (new spec): full happy-path, catches mode parity regressions
+- Against real `limerick-server` (new spec): full happy-path, catches mode parity regressions
 
 **The critical acceptance test (manual, one-shot):**
 
@@ -421,7 +421,7 @@ for minimal code because the underlying functions already exist:
 - `just ui-check` (svelte-check) — must pass
 - Coverage via `cargo tarpaulin` stays ≥90%
 - Manual smoke: `cargo tauri dev` → `/editor` → full happy-path edit & save
-- Manual smoke: `PARISH_ENABLE_EDITOR=1 cargo run -- --web 3001` → browser → same happy-path
+- Manual smoke: `LIMERICK_ENABLE_EDITOR=1 cargo run -- --web 3001` → browser → same happy-path
 
 Because the editor is a dev tool and not a gameplay feature, `/prove` is not
 required. Standard `/check` + `/verify` + the Playwright e2e and the critical

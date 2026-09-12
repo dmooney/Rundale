@@ -1,5 +1,5 @@
 # Controlled local-dialogue experiment: isolate temperature from every other
-# production request parameter. Pass with parish-server --engine-config.
+# production request parameter. Pass with limerick-server --engine-config.
 [engine.inference.dialogue_generation]
 max_tokens = 768
 temperature = 0.3

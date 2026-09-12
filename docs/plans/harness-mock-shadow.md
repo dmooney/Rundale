@@ -4,7 +4,7 @@ Ordered, one logical change per commit. The whole sequence is additive — the
 legacy harness path stays default and the existing suite must remain green at
 every step (shadow mode off).
 
-## Step 1 — Scriptable mock client (`parish-inference`)
+## Step 1 — Scriptable mock client (`limerick-inference`)
 
 - `feat(inference): scriptable AnyClient::Mock for deterministic tests`
 - Add `mock_client/` (or `simulator/`-adjacent) `MockClient`: a `Mutex` queue of
@@ -16,7 +16,7 @@ every step (shadow mode off).
   `Mock` arms to `generate` / `generate_stream` matches.
 - Unit tests → **C1**.
 
-## Step 2 — Capturing emitter (`parish-core`)
+## Step 2 — Capturing emitter (`limerick-core`)
 
 - `test(core): CapturingEmitter test double for EventEmitter`
 - `ipc/event_emitter.rs` (or a `testing` submodule): `CapturingEmitter` with
@@ -25,20 +25,20 @@ every step (shadow mode off).
   double per existing convention.
 - Unit test → **C2**.
 
-## Step 3 — Real-loop execution path (`parish-engine`)
+## Step 3 — Real-loop execution path (`limerick-engine`)
 
 - `feat(engine): GameTestHarness::execute_via_real_loop over game_loop`
 - Build a `SystemCommandHost` / game-input context backed by the harness's
   existing `AppState`, the `CapturingEmitter`, and an injected `AnyClient::Mock`.
 - `execute_via_real_loop(line)`: classify line (system vs game input) and call
-  `parish_core::game_loop::handle_system_command` / `handle_game_input`; needs a
+  `limerick_core::game_loop::handle_system_command` / `handle_game_input`; needs a
   `block_on` shim (current-thread runtime owned by the harness) since the loop is
   async and the harness is sync. Reconstruct an `ActionResult`-equivalent from
   captured events.
 - Test: `look` through the real path → non-empty `text-log`/`world-update`
   describing the start location → **C3**.
 
-## Step 4 — Normalizer (`parish-engine`)
+## Step 4 — Normalizer (`limerick-engine`)
 
 - `feat(engine): normalize(events) canonical form for shadow comparison`
 - `Canonical` + `normalize(&[(String, Value)]) -> Canonical`: drop timestamps /
@@ -46,9 +46,9 @@ every step (shadow mode off).
   semantic.
 - Positive + negative unit tests → **C4**.
 
-## Step 5 — Shadow mode wrapper (`parish-engine`)
+## Step 5 — Shadow mode wrapper (`limerick-engine`)
 
-- `feat(engine): PARISH_HARNESS_SHADOW lockstep + divergence ledger`
+- `feat(engine): LIMERICK_HARNESS_SHADOW lockstep + divergence ledger`
 - Wrap `execute`: if env set, also run `execute_via_real_loop` on a cloned
   pre-state, normalize both, append `{case, input, old, new}` to
   `target/harness-shadow-ledger.jsonl` on mismatch. Case label from
@@ -59,8 +59,8 @@ every step (shadow mode off).
 ## Step 6 — Corpus runner + CI job (tooling)
 
 - `ci: non-gating harness-shadow job emitting the divergence ledger`
-- `just harness-shadow`: `PARISH_HARNESS_SHADOW=1 cargo test -p parish-engine
--p parish-core` (covers all five files), then summarize the JSONL into
+- `just harness-shadow`: `LIMERICK_HARNESS_SHADOW=1 cargo test -p limerick-engine
+-p limerick-core` (covers all five files), then summarize the JSONL into
   `docs/proofs/harness-shadow/initial-ledger.md`.
 - `.github/workflows/…`: new job, `continue-on-error: true` (non-gating),
   uploads the ledger artifact.
@@ -68,8 +68,8 @@ every step (shadow mode off).
 
 ## Step 7 — Verify the guards held
 
-- `cargo test -p parish-engine -p parish-core -p parish-inference` green with env
-  unset → **C7**; `cargo test -p parish-core --test architecture_fitness` green
+- `cargo test -p limerick-engine -p limerick-core -p limerick-inference` green with env
+  unset → **C7**; `cargo test -p limerick-core --test architecture_fitness` green
   → **C8**.
 
 ## Tests to add/update

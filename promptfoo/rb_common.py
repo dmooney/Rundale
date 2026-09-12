@@ -27,7 +27,7 @@ RUBRICS_DIR = V2_DIR / "rubrics"
 CONFIG_DIR = PROMPTFOO_DIR / "config"
 
 # eval_lib lives with the local-eval scripts; grade.py lives in rundale-bench.
-sys.path.insert(0, str(REPO_ROOT / "parish" / "scripts" / "local-eval"))
+sys.path.insert(0, str(REPO_ROOT / "limerick" / "scripts" / "local-eval"))
 sys.path.insert(0, str(REPO_ROOT / "rundale-bench"))
 sys.path.insert(0, str(CONFIG_DIR))
 
