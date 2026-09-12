@@ -9,6 +9,8 @@ export interface IssuedApiKey {
 }
 
 export function hashApiKey(secret: string): string {
+  // API keys contain 256 bits of CSPRNG entropy; this is identifier hashing, not password hashing.
+  // codeql[js/insufficient-password-hash]
   return createHash("sha256").update(secret, "utf8").digest("hex");
 }
 
