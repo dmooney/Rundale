@@ -49,6 +49,7 @@
     "promptfoo/output/**",
     "parish/testing/**",
     "parish/apps/ui/**",
+    "endpoints/docs/**",
     "rundale-bench/bench-site/**",
     "**/graphify-out/**",
     ".opencode/**",
