@@ -137,3 +137,34 @@ A final targeted native rerun after the fixture overflow-save adjustment passed
 both Phase 1 restoration cases: interrupted stream/retry and transcript/draft
 relaunch. Its xcresult is
 `mobile/.verification-phase2-confirmed/xcresults/phase1-final-restoration.xcresult`.
+
+## Phase 3 implementation evidence — 2026-09-12
+
+The canonical three-location/three-NPC tiny world is implemented in the
+embedded Parish path. The authored bundle and independent
+[world sheet](content/canonical-world.md) define Kilteevan Village, the Letter
+Office, Connolly Cottage, Peig Hannigan, Mícheál Connolly, and Róisín Connolly.
+Rust owns graph travel, explicit game-time advancement, scheduled presence,
+offline `/look`/`/people`/`/exits`, unavailable-person rejection, bounded local
+reference resolution, clarification, and save/resume state. SwiftUI consumes
+the resulting scene, time, weather, people, exits, and clarification events.
+
+The final deterministic run was:
+
+```sh
+./verify --phase 3 --report-dir mobile/.verification-phase3-confirmed
+```
+
+Result: 10 automated gates passed with no failures or unavailable gates. The
+already-running simulator produced one benign boot skip. Coverage included 22
+portable runtime tests, mobile dependency isolation, arm64 device/simulator
+Rust packaging, 23 RundaleKit tests, two bridge tests, an unsigned iOS device
+build, and three Phase 3 native UI tests. The UI suite traversed all three
+places, observed authoritative presence and schedule movement, selected an
+ambiguous Connolly reference before Endpoint work began, and restored travel
+and presence after process relaunch.
+
+Phase 3 physical acceptance remains open: the same traversal, schedule,
+clarification, and resume cases have not been performed on a signed iPhone.
+This evidence does not close the outstanding Phase 1–2 accessibility,
+App Attest, keyboard, lifecycle, or device-baseline gates.

@@ -283,6 +283,7 @@ fn validate_operation(operation: &str) -> Result<(), BackendError> {
         .ok_or_else(|| BackendError::protocol("operation requires string field `op`"))?;
     let allowed = [
         "submit",
+        "answer_clarification",
         "retry",
         "stop",
         "fail",
@@ -502,6 +503,19 @@ mod core_backend {
                     as_json(
                         self.session
                             .retry(&logical_request_id)
+                            .map_err(|error| BackendError::protocol(error.to_string()))?,
+                    )?
+                }
+                "answer_clarification" => {
+                    let logical_request_id = parse_id::<LogicalRequestId>(
+                        object,
+                        "logical_request_id",
+                        "logicalRequestID",
+                    )?;
+                    let choice_id: String = parse(required(object, "choice_id")?, "choice_id")?;
+                    as_json(
+                        self.session
+                            .answer_clarification(&logical_request_id, &choice_id)
                             .map_err(|error| BackendError::protocol(error.to_string()))?,
                     )?
                 }

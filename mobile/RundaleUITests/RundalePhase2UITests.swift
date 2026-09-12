@@ -19,16 +19,16 @@ final class RundalePhase2UITests: XCTestCase {
         super.tearDown()
     }
 
-    func testPhase2BootShowsCrossroadsAndPeig() {
+    func testPhase2FoundationBootsCanonicalWorldAndPeig() {
         launch(reset: true)
 
         let header = app.otherElements["status.header"]
         XCTAssertTrue(header.waitForExistence(timeout: 8))
-        XCTAssertTrue(header.label.localizedCaseInsensitiveContains("crossroads"))
-        XCTAssertTrue(waitForTranscriptText("Rain darkens the road", timeout: 8))
+        XCTAssertTrue(header.label.localizedCaseInsensitiveContains("Kilteevan Village"))
+        XCTAssertTrue(waitForTranscriptText("Morning gathers over Kilteevan", timeout: 8))
 
         submit("/look")
-        XCTAssertTrue(waitForTranscriptText("Crossroads · stone wall · lane to the east", timeout: 8))
+        XCTAssertTrue(waitForTranscriptText("Kilteevan Village", timeout: 8))
         submit("/people")
         XCTAssertTrue(waitForTranscriptText("Peig", timeout: 8))
     }
@@ -42,7 +42,7 @@ final class RundalePhase2UITests: XCTestCase {
         input.typeText("/look")
         app.buttons["composer.send"].tap()
 
-        XCTAssertTrue(waitForTranscriptText("Crossroads · stone wall · lane to the east", timeout: 8))
+        XCTAssertTrue(waitForTranscriptText("Kilteevan Village", timeout: 8))
         XCTAssertTrue(waitForValue("", on: input, timeout: 8))
         XCTAssertTrue(app.buttons["composer.send"].waitForExistence(timeout: 3))
     }
@@ -139,7 +139,7 @@ final class RundalePhase2UITests: XCTestCase {
 
     private func waitForInitialScene() {
         XCTAssertTrue(
-            waitForTranscriptText("Rain darkens the road", timeout: 8),
+            waitForTranscriptText("Morning gathers over Kilteevan", timeout: 8),
             "The embedded Rust runtime should publish its opening scene"
         )
         XCTAssertTrue(

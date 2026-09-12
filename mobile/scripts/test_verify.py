@@ -117,6 +117,9 @@ def create_phase2_fixture(root: Path) -> None:
     (root / "mobile" / "RundaleUITests" / "RundalePhase2UITests.swift").write_text(
         "// fixture\n", encoding="utf-8"
     )
+    (root / "mobile" / "RundaleUITests" / "RundalePhase3UITests.swift").write_text(
+        "// fixture\n", encoding="utf-8"
+    )
     endpoint_kit = root / "mobile" / "ParishEndpointKit"
     (endpoint_kit / "Tests" / "ParishEndpointKitTests").mkdir(parents=True)
     (endpoint_kit / "Package.swift").write_text("// fixture\n", encoding="utf-8")
@@ -237,10 +240,10 @@ class VerificationRunnerTests(unittest.TestCase):
             report = VerificationRun(root, command_runner=FakeRunner()).run()
 
             future = [suite for suite in report["suites"] if suite["kind"] == "future-phase"]
-            self.assertEqual([suite["phase"] for suite in future], [3, 4, 5, 6])
+            self.assertEqual([suite["phase"] for suite in future], [4, 5, 6])
             self.assertTrue(all(suite["status"] == "unavailable" for suite in future))
             self.assertTrue(all(not suite["blocking"] for suite in future))
-            self.assertEqual(report["implemented_phases"], [1, 2])
+            self.assertEqual(report["implemented_phases"], [1, 2, 3])
             self.assertEqual(
                 {suite["status"] for suite in report["suites"] if suite["phase"] == 2}
                 - {"passed", "not_automatable", "unavailable"},
@@ -282,10 +285,10 @@ class VerificationRunnerTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             (root / "mobile").mkdir()
-            report = VerificationRun(root, command_runner=FakeRunner()).run(3)
+            report = VerificationRun(root, command_runner=FakeRunner()).run(4)
 
             self.assertEqual(report["exit_code"], 1)
-            self.assertEqual(report["suites"][0]["id"], "phase-3-verification")
+            self.assertEqual(report["suites"][0]["id"], "phase-4-verification")
             self.assertEqual(report["suites"][0]["status"], "unavailable")
             self.assertTrue(report["suites"][0]["blocking"])
 

@@ -1,10 +1,12 @@
 # Native Rundale client
 
-This checkout contains the Phase 1 native client and the Phase 2 embedded Parish
-vertical slice from the [mobile reset](../docs/product-specs/product-technical-spec.md).
-Phase 2 adds the portable Rust runtime, local persistence, the Swift FFI bridge,
-and the one-location, one-NPC gameplay fixture. The deployed remote Endpoint
-path has simulator evidence; physical-iPhone acceptance remains a separate gate.
+This checkout contains the first three phases of the
+[mobile reset](../docs/product-specs/product-technical-spec.md). Phase 2 added
+the embedded Parish runtime, local persistence, Swift FFI bridge, and deployed
+Endpoint path. Phase 3 replaces the one-room slice with the canonical
+three-location, three-NPC Kilteevan world, authoritative travel and presence,
+explicit schedule movement, and resumable clarification. Physical-iPhone
+acceptance remains a separate gate.
 
 ## Build and run
 
@@ -20,9 +22,10 @@ xcodegen generate --spec mobile/project.yml
 open mobile/Rundale.xcodeproj
 ./verify --phase 1
 ./verify --phase 2
+./verify --phase 3
 ```
 
-Running `./verify` (or `./verify --phase all`) runs both implemented phases and
+Running `./verify` (or `./verify --phase all`) runs all three implemented phases and
 records later phases as non-blocking unavailable work. The report is written to
 `mobile/.verification/`.
 
@@ -50,7 +53,8 @@ The generated Xcode project and build/test results are ignored. The XcodeGen
 specification and Swift sources are the reproducible inputs. The application
 launches directly into the transcript; only the compact status header,
 transcript, and native composer are persistent gameplay regions. Normal
-launches use the Phase 2 Rust runtime; `--ui-tests` without `--phase2`, or an
+launches use the embedded Rust runtime; `--ui-tests` without `--phase2` or
+`--phase3`, or an
 explicit `--fixture=...` argument, selects the deterministic Phase 1 adapter.
 
 ## Ownership
@@ -66,10 +70,11 @@ explicit `--fixture=...` argument, selects the deterministic Phase 1 adapter.
 - `scripts` supplies the phase verification runner and its regression tests.
 
 The renderer consumes semantic presentation state. Game rules, request identity,
-validation, and committed state remain in the embedded Parish runtime rather than
-in SwiftUI views. Phase 2 intentionally stays at one location and one NPC;
-fixture dialogue and completion names are not the canonical three-location world
-required in Milestone 3.
+validation, travel, presence, schedules, clarification, and committed state
+remain in the embedded Parish runtime rather than in SwiftUI views. The
+[canonical world sheet](content/canonical-world.md) is the independent Phase 3
+acceptance oracle; `content/phase3-tiny-world.json` is the machine-readable
+authority.
 
 The transcript uses one isolated UIKit collection scroller with SwiftUI-hosted
 rows. Phase 1 simulator checks showed that a lazy SwiftUI stack could report
@@ -82,7 +87,8 @@ row design, Dynamic Type, VoiceOver labels, and command-recall action.
 ## Acceptance
 
 The [Phase 1 test plan](../docs/test-plans/phase-1-test-cases.md),
-[Phase 2 test plan](../docs/test-plans/phase-2-test-cases.md), and full product
+[Phase 2 test plan](../docs/test-plans/phase-2-test-cases.md), Milestone 3
+acceptance criteria, and full product
 checklist all apply. Automated success does not establish physical-device
 acceptance. Record live Endpoint and device results separately in
 [acceptance.md](acceptance.md).
@@ -90,5 +96,5 @@ Use the [demo walkthrough](demo.md) to present the running client at delivery.
 
 The verification entry point distinguishes automated failures and unavailable
 infrastructure from human/device gates. It must not report a missing simulator
-as a passing UI suite. The Phase 2 verifier still reports live Endpoint and
-physical-device gates separately from its deterministic automated suite.
+as a passing UI suite. The verifier reports live Endpoint and physical-device
+gates separately from deterministic automated suites.

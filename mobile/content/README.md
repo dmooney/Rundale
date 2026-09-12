@@ -1,4 +1,12 @@
-# Phase 2 authored content
+# Mobile authored content
+
+`phase3-tiny-world.json` is the active native bundle. It contains exactly the
+three playable locations and three interactive NPCs listed in
+[`canonical-world.md`](canonical-world.md), including reciprocal travel edges,
+stable IDs, relationships, grounded knowledge, and explicit daily schedules.
+The engine validates those invariants before opening or restoring a save.
+
+## Historical Phase 2 slice
 
 `phase2-crossroads.json` is the bounded Phase 2 content bundle. It is based on
 the Phase 1 `crossroads` scene and `Peig` fixture, but deliberately contains

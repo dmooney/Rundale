@@ -1,4 +1,4 @@
-//! Portable Phase 2 game-session orchestration.
+//! Portable native game-session orchestration.
 //!
 //! This module is deliberately synchronous.  A host (Swift, a C ABI, or a
 //! deterministic test) calls one method at a time on [`MobileSession`].
@@ -7,8 +7,8 @@
 //! [`MobileSession::receive_candidate`], or [`MobileSession::receive_failure`].
 //! No provider client, task runtime, or UI type belongs in this module.
 //!
-//! The session owns the one authoritative `WorldState` and `NpcManager` for a
-//! Phase 2 game.  A successful candidate is applied to cloned domain values,
+//! The session owns the one authoritative `WorldState` and `NpcManager`. A
+//! successful candidate is applied to cloned domain values,
 //! request state, and final semantic events before the complete durable value
 //! replaces the live value.  This gives the mobile persistence adapter one
 //! atomic value to write and makes a late callback harmless.
@@ -273,9 +273,7 @@ pub struct SemanticEvent {
     pub metadata: BTreeMap<String, String>,
 }
 
-/// A finite choice set for future clarification UI.  Phase 2 only emits
-/// deterministic capability metadata, but keeping this shape stable avoids a
-/// second FFI contract when clarification is introduced.
+/// A finite authored choice set for native clarification UI.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ClarificationChoice {
@@ -292,12 +290,13 @@ pub struct ClarificationPrompt {
     pub choices: Vec<ClarificationChoice>,
 }
 
-/// Phase 2 request phases.  A request can have multiple attempts, but only
+/// Mobile request phases. A request can have multiple attempts, but only
 /// the current non-terminal attempt may deliver a candidate.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum RequestPhase {
     Accepted,
+    AwaitingClarification,
     Executing,
     Validating,
     Completed,
@@ -352,6 +351,17 @@ pub struct RequestRecord {
     pub phase: RequestPhase,
     pub terminal_outcome: Option<ResponseTerminalOutcome>,
     pub committed_state_revision: Option<StateRevision>,
+    #[serde(default, rename = "selectedNpcID")]
+    pub selected_npc_id: Option<String>,
+    #[serde(default)]
+    pub pending_clarification: Option<PendingClarification>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PendingClarification {
+    pub question: String,
+    pub choices: Vec<ClarificationChoice>,
 }
 
 impl RequestRecord {
@@ -409,6 +419,8 @@ pub struct MobileReadModel {
     pub scene: SceneSummary,
     pub nearby_people: Vec<NearbyPerson>,
     pub exits: Vec<ExitSummary>,
+    pub time_of_day: String,
+    pub weather: String,
 }
 
 /// Full snapshot returned alongside an event cursor.  The event vector is a
@@ -460,9 +472,9 @@ pub struct CapabilityCompletion {
     pub entity_id: Option<String>,
 }
 
-/// Authored, versioned Phase 2 content identity.  Stable IDs remain separate
-/// from mutable engine IDs and are included in Endpoint grounding.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+/// Authored, versioned mobile content. Stable IDs remain separate from engine
+/// IDs and are used for presentation, references, and save compatibility.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Phase2ContentDefinition {
     pub schema_version: u16,
@@ -483,37 +495,99 @@ pub struct Phase2ContentDefinition {
     pub npc_known_places: Vec<GroundedPlace>,
     pub npc_facts: Vec<GroundedFact>,
     pub exits: Vec<ExitSummary>,
+    pub starting_minute: u16,
+    pub locations: Vec<MobileLocationDefinition>,
+    pub npcs: Vec<MobileNpcDefinition>,
+    pub relationships: Vec<MobileRelationshipDefinition>,
+}
+
+/// Canonical playable place in the mobile bundle.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MobileLocationDefinition {
+    pub id: String,
+    pub engine_location_id: u32,
+    pub display_name: String,
+    pub aliases: Vec<String>,
+    pub playable: bool,
+    pub indoor: bool,
+    pub latitude: f64,
+    pub longitude: f64,
+    pub opening_description: String,
+    pub look_text: String,
+    pub initial_npc_ids: Vec<String>,
+    pub exits: Vec<ExitSummary>,
+}
+
+/// Canonical interactive person in the mobile bundle.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MobileNpcDefinition {
+    pub id: String,
+    pub engine_npc_id: u32,
+    pub display_name: String,
+    pub aliases: Vec<String>,
+    pub interactive: bool,
+    pub initial_location_id: String,
+    pub home_location_id: String,
+    pub role: String,
+    pub personality: Vec<String>,
+    pub schedule: Vec<MobileScheduleDefinition>,
+    pub known_people: Vec<String>,
+    pub known_places: Vec<String>,
+    pub known_facts: Vec<GroundedFact>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub struct MobileScheduleDefinition {
+    pub start_hour: u8,
+    pub end_hour: u8,
+    pub location_id: String,
+    pub activity: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub struct MobileRelationshipDefinition {
+    pub source_id: String,
+    pub target_id: String,
+    pub kind: String,
+    pub strength: f64,
 }
 
 #[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 struct Phase2ContentBundle {
     schema_version: u16,
     content_version: u16,
     content_id: String,
+    starting_location_id: String,
+    starting_minute: u16,
     locations: Vec<Phase2LocationContent>,
     npcs: Vec<Phase2NpcContent>,
+    relationships: Vec<MobileRelationshipDefinition>,
 }
 
 #[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 struct Phase2LocationContent {
     id: String,
     engine_location_id: u32,
     display_name: String,
+    aliases: Vec<String>,
     playable: bool,
+    indoor: bool,
+    latitude: f64,
+    longitude: f64,
     opening_description: String,
-    commands: Phase2Commands,
+    look_text: String,
     initial_npc_ids: Vec<String>,
     exits: Vec<Phase2ExitContent>,
 }
 
 #[derive(Debug, Deserialize)]
-struct Phase2Commands {
-    look: String,
-    people: String,
-    exits: String,
-}
-
-#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 struct Phase2ExitContent {
     id: String,
     direction: String,
@@ -524,57 +598,48 @@ struct Phase2ExitContent {
 }
 
 #[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 struct Phase2NpcContent {
     id: String,
     engine_npc_id: u32,
     display_name: String,
+    aliases: Vec<String>,
     interactive: bool,
     initial_location_id: String,
     home_location_id: String,
     role: String,
     personality: Vec<String>,
-    known_places: Vec<Phase2PlaceContent>,
+    schedule: Vec<MobileScheduleDefinition>,
+    known_people: Vec<String>,
+    known_places: Vec<String>,
     known_facts: Vec<Phase2FactContent>,
 }
 
 #[derive(Debug, Deserialize)]
-struct Phase2PlaceContent {
-    id: String,
-    display_name: String,
-    description: String,
-    playable: bool,
-}
-
-#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 struct Phase2FactContent {
     id: String,
     statement: String,
-    #[serde(default)]
-    known_people: Vec<String>,
-    #[serde(default)]
-    known_places: Vec<String>,
     source: String,
 }
 
 impl Phase2ContentDefinition {
-    /// The canonical one-location/one-NPC content used by the mobile slice.
-    /// Scenic/non-playable places are grounding facts only. The authored JSON
-    /// is the sole content source; this projection is the engine-facing view.
+    /// Canonical Phase 3 content used by the native client.
     pub fn canonical() -> Self {
-        Self::try_canonical().expect("embedded Phase 2 content must be valid")
+        Self::try_canonical().expect("embedded mobile content must be valid")
     }
 
     pub fn try_canonical() -> Result<Self, MobileError> {
         let bundle: Phase2ContentBundle = serde_json::from_str(include_str!(concat!(
             env!("CARGO_MANIFEST_DIR"),
-            "/../../../mobile/content/phase2-crossroads.json"
+            "/../../../mobile/content/phase3-tiny-world.json"
         )))
-        .map_err(|error| MobileError::Content(format!("invalid Phase 2 content JSON: {error}")))?;
+        .map_err(|error| MobileError::Content(format!("invalid Phase 3 content JSON: {error}")))?;
         Self::from_bundle(bundle)
     }
 
     pub fn content_version_key(&self) -> String {
-        format!("phase2-{}", self.content_version)
+        format!("phase3-{}", self.content_version)
     }
 
     /// Stable identity for the embedded authored content. The fingerprint is
@@ -589,119 +654,269 @@ impl Phase2ContentDefinition {
     }
 
     fn from_bundle(bundle: Phase2ContentBundle) -> Result<Self, MobileError> {
-        if bundle.schema_version != 1 || bundle.content_version == 0 {
-            return Err(MobileError::Content(
-                "unsupported Phase 2 content schema/version".to_string(),
-            ));
-        }
-        if bundle.locations.len() != 1 || bundle.npcs.len() != 1 {
-            return Err(MobileError::Content(
-                "Phase 2 content must contain exactly one location and one NPC".to_string(),
-            ));
-        }
-        let location = bundle.locations.into_iter().next().expect("one location");
-        let npc = bundle.npcs.into_iter().next().expect("one NPC");
-        if !location.playable
-            || location.id.is_empty()
-            || npc.id.is_empty()
-            || !npc.interactive
-            || npc.initial_location_id != location.id
-            || npc.home_location_id != location.id
-            || location.initial_npc_ids != vec![npc.id.clone()]
-            || location.engine_location_id == 0
-            || npc.engine_npc_id == 0
-            || npc.known_places.is_empty()
-            || npc.known_facts.is_empty()
+        if bundle.schema_version != 1
+            || bundle.content_version == 0
+            || bundle.starting_minute >= 1440
         {
             return Err(MobileError::Content(
-                "Phase 2 content has invalid location/NPC references".to_string(),
+                "unsupported Phase 3 content schema/version or start time".to_string(),
             ));
         }
-        let known_place_ids: std::collections::HashSet<&str> = npc
+        if bundle.locations.len() != 3 || bundle.npcs.len() != 3 || bundle.relationships.len() != 3
+        {
+            return Err(MobileError::Content(
+                "Phase 3 content must contain exactly three locations, NPCs, and relationships"
+                    .to_string(),
+            ));
+        }
+        let location_ids: std::collections::HashSet<&str> = bundle
+            .locations
+            .iter()
+            .map(|value| value.id.as_str())
+            .collect();
+        let location_engine_ids: std::collections::HashSet<u32> = bundle
+            .locations
+            .iter()
+            .map(|value| value.engine_location_id)
+            .collect();
+        let npc_ids: std::collections::HashSet<&str> =
+            bundle.npcs.iter().map(|value| value.id.as_str()).collect();
+        let npc_engine_ids: std::collections::HashSet<u32> = bundle
+            .npcs
+            .iter()
+            .map(|value| value.engine_npc_id)
+            .collect();
+        if location_ids.len() != 3
+            || location_engine_ids.len() != 3
+            || npc_ids.len() != 3
+            || npc_engine_ids.len() != 3
+            || !location_ids.contains(bundle.starting_location_id.as_str())
+            || bundle.locations.iter().any(|location| {
+                !location.playable
+                    || location.id.is_empty()
+                    || location.engine_location_id == 0
+                    || location.look_text.is_empty()
+                    || location.opening_description.is_empty()
+            })
+            || bundle.npcs.iter().any(|npc| {
+                !npc.interactive
+                    || npc.id.is_empty()
+                    || npc.engine_npc_id == 0
+                    || !location_ids.contains(npc.initial_location_id.as_str())
+                    || !location_ids.contains(npc.home_location_id.as_str())
+                    || npc.known_facts.is_empty()
+                    || npc.schedule.is_empty()
+            })
+        {
+            return Err(MobileError::Content(
+                "Phase 3 content has invalid or duplicate location/NPC definitions".to_string(),
+            ));
+        }
+        if bundle.locations.iter().any(|location| {
+            location.exits.is_empty()
+                || location
+                    .initial_npc_ids
+                    .iter()
+                    .any(|id| !npc_ids.contains(id.as_str()))
+                || location.exits.iter().any(|exit| {
+                    exit.id.is_empty()
+                        || !exit.playable
+                        || exit
+                            .destination_id
+                            .as_ref()
+                            .is_none_or(|id| !location_ids.contains(id.as_str()))
+                })
+        }) || bundle.npcs.iter().any(|npc| {
+            npc.known_people
+                .iter()
+                .any(|id| !npc_ids.contains(id.as_str()))
+                || npc
+                    .known_places
+                    .iter()
+                    .any(|id| !location_ids.contains(id.as_str()))
+                || npc.schedule.iter().any(|entry| {
+                    entry.start_hour > 23
+                        || entry.end_hour > 23
+                        || entry.activity.is_empty()
+                        || !location_ids.contains(entry.location_id.as_str())
+                })
+                || npc.known_facts.iter().any(|fact| {
+                    fact.id.is_empty() || fact.statement.is_empty() || fact.source.is_empty()
+                })
+        }) || bundle.relationships.iter().any(|relationship| {
+            relationship.source_id == relationship.target_id
+                || !npc_ids.contains(relationship.source_id.as_str())
+                || !npc_ids.contains(relationship.target_id.as_str())
+                || relationship.kind.is_empty()
+                || !(-1.0..=1.0).contains(&relationship.strength)
+        }) {
+            return Err(MobileError::Content(
+                "Phase 3 content has invalid authored references".to_string(),
+            ));
+        }
+        for location in &bundle.locations {
+            for exit in &location.exits {
+                let destination = exit
+                    .destination_id
+                    .as_deref()
+                    .expect("validated destination");
+                let reciprocal = bundle
+                    .locations
+                    .iter()
+                    .find(|candidate| candidate.id == destination)
+                    .is_some_and(|candidate| {
+                        candidate.exits.iter().any(|candidate_exit| {
+                            candidate_exit.destination_id.as_deref() == Some(location.id.as_str())
+                        })
+                    });
+                if !reciprocal {
+                    return Err(MobileError::Content(format!(
+                        "Phase 3 connection {} is not reciprocal",
+                        exit.id
+                    )));
+                }
+            }
+        }
+        let starting = bundle
+            .locations
+            .iter()
+            .find(|location| location.id == bundle.starting_location_id)
+            .expect("validated start");
+        let first_npc = bundle
+            .npcs
+            .iter()
+            .find(|npc| npc.id == "npc-peig")
+            .unwrap_or(&bundle.npcs[0]);
+        if !starting.initial_npc_ids.contains(&first_npc.id) {
+            return Err(MobileError::Content(
+                "Phase 3 starting presence must include Peig".to_string(),
+            ));
+        }
+        let locations: Vec<MobileLocationDefinition> = bundle
+            .locations
+            .into_iter()
+            .map(|location| MobileLocationDefinition {
+                id: location.id,
+                engine_location_id: location.engine_location_id,
+                display_name: location.display_name,
+                aliases: location.aliases,
+                playable: location.playable,
+                indoor: location.indoor,
+                latitude: location.latitude,
+                longitude: location.longitude,
+                opening_description: location.opening_description,
+                look_text: location.look_text,
+                initial_npc_ids: location.initial_npc_ids,
+                exits: location
+                    .exits
+                    .into_iter()
+                    .map(|exit| ExitSummary {
+                        id: exit.id,
+                        direction: exit.direction,
+                        display_name: exit.display_name,
+                        description: exit.description,
+                        destination_id: exit.destination_id,
+                        playable: exit.playable,
+                    })
+                    .collect(),
+            })
+            .collect();
+        let npcs: Vec<MobileNpcDefinition> = bundle
+            .npcs
+            .into_iter()
+            .map(|npc| MobileNpcDefinition {
+                id: npc.id,
+                engine_npc_id: npc.engine_npc_id,
+                display_name: npc.display_name,
+                aliases: npc.aliases,
+                interactive: npc.interactive,
+                initial_location_id: npc.initial_location_id,
+                home_location_id: npc.home_location_id,
+                role: npc.role,
+                personality: npc.personality,
+                schedule: npc.schedule,
+                known_people: npc.known_people,
+                known_places: npc.known_places,
+                known_facts: npc
+                    .known_facts
+                    .into_iter()
+                    .map(|fact| GroundedFact {
+                        id: fact.id,
+                        statement: fact.statement,
+                        source: fact.source,
+                    })
+                    .collect(),
+            })
+            .collect();
+        let starting = locations
+            .iter()
+            .find(|location| location.id == bundle.starting_location_id)
+            .expect("validated start");
+        let first_npc = npcs
+            .iter()
+            .find(|npc| npc.id == "npc-peig")
+            .unwrap_or(&npcs[0]);
+        let known_places = first_npc
             .known_places
             .iter()
-            .map(|place| place.id.as_str())
-            .collect();
-        if known_place_ids.len() != npc.known_places.len()
-            || npc
-                .known_places
-                .iter()
-                .filter(|place| place.playable)
-                .count()
-                != 1
-            || npc.known_facts.iter().any(|fact| {
-                fact.id.is_empty()
-                    || fact.statement.is_empty()
-                    || fact.source.is_empty()
-                    || fact
-                        .known_places
-                        .iter()
-                        .any(|place_id| !known_place_ids.contains(place_id.as_str()))
-                    || fact
-                        .known_people
-                        .iter()
-                        .any(|person_id| person_id != &npc.id)
-            })
-        {
-            return Err(MobileError::Content(
-                "Phase 2 content has invalid authored grounding".to_string(),
-            ));
-        }
-        if location.exits.iter().any(|exit| exit.id.is_empty()) {
-            return Err(MobileError::Content(
-                "Phase 2 content has an exit without a stable ID".to_string(),
-            ));
-        }
-        let known_places = npc
-            .known_places
-            .into_iter()
-            .map(|place| GroundedPlace {
-                id: place.id,
-                display_name: place.display_name,
-                description: place.description,
-                playable: place.playable,
-            })
-            .collect();
-        let exits = location
-            .exits
-            .into_iter()
-            .map(|exit| ExitSummary {
-                id: exit.id,
-                direction: exit.direction,
-                display_name: exit.display_name,
-                description: exit.description,
-                destination_id: exit.destination_id,
-                playable: exit.playable,
-            })
+            .filter_map(|id| locations.iter().find(|location| &location.id == id))
+            .map(location_as_grounded)
             .collect();
         Ok(Self {
             schema_version: bundle.schema_version,
             content_version: bundle.content_version,
             content_id: bundle.content_id,
-            location_id: location.id,
-            engine_location_id: location.engine_location_id,
-            location_name: location.display_name,
-            opening_description: location.opening_description,
-            look_text: location.commands.look,
-            people_text: location.commands.people,
-            exits_text: location.commands.exits,
-            npc_id: npc.id,
-            engine_npc_id: npc.engine_npc_id,
-            npc_name: npc.display_name,
-            npc_role: npc.role,
-            npc_personality: npc.personality,
+            location_id: starting.id.clone(),
+            engine_location_id: starting.engine_location_id,
+            location_name: starting.display_name.clone(),
+            opening_description: starting.opening_description.clone(),
+            look_text: starting.look_text.clone(),
+            people_text: format!("Nearby: {}.", first_npc.display_name),
+            exits_text: format!(
+                "Exits: {}.",
+                starting
+                    .exits
+                    .iter()
+                    .map(|exit| exit.display_name.as_str())
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ),
+            npc_id: first_npc.id.clone(),
+            engine_npc_id: first_npc.engine_npc_id,
+            npc_name: first_npc.display_name.clone(),
+            npc_role: first_npc.role.clone(),
+            npc_personality: first_npc.personality.clone(),
             npc_known_places: known_places,
-            npc_facts: npc
-                .known_facts
-                .into_iter()
-                .map(|fact| GroundedFact {
-                    id: fact.id,
-                    statement: fact.statement,
-                    source: fact.source,
-                })
-                .collect(),
-            exits,
+            npc_facts: first_npc.known_facts.clone(),
+            exits: starting.exits.clone(),
+            starting_minute: bundle.starting_minute,
+            locations,
+            npcs,
+            relationships: bundle.relationships,
         })
+    }
+
+    fn location_by_engine_id(&self, id: LocationId) -> Option<&MobileLocationDefinition> {
+        self.locations
+            .iter()
+            .find(|location| location.engine_location_id == id.0)
+    }
+
+    fn npc_by_engine_id(&self, id: NpcId) -> Option<&MobileNpcDefinition> {
+        self.npcs.iter().find(|npc| npc.engine_npc_id == id.0)
+    }
+
+    fn npc_by_stable_id(&self, id: &str) -> Option<&MobileNpcDefinition> {
+        self.npcs.iter().find(|npc| npc.id == id)
+    }
+}
+
+fn location_as_grounded(location: &MobileLocationDefinition) -> GroundedPlace {
+    GroundedPlace {
+        id: location.id.clone(),
+        display_name: location.display_name.clone(),
+        description: location.look_text.clone(),
+        playable: location.playable,
     }
 }
 
@@ -1180,7 +1395,7 @@ impl MobileStore for SqliteMobileStore {
     }
 }
 
-/// The single-writer Phase 2 runtime.  Methods take `&mut self`; callers that
+/// The single-writer mobile runtime. Methods take `&mut self`; callers that
 /// need thread-safe FFI use a host mutex/actor and re-enter this same lane.
 pub struct MobileSession {
     session_id: SessionId,
@@ -1211,7 +1426,7 @@ impl std::fmt::Debug for MobileSession {
 }
 
 impl MobileSession {
-    /// Create a new Phase 2 game with a fresh opaque session identity.
+    /// Create a new mobile game with a fresh opaque session identity.
     pub fn open_new() -> Result<Self, MobileError> {
         Self::open_new_with_store(None)
     }
@@ -1469,14 +1684,20 @@ impl MobileSession {
                 });
             }
         }
-        if lower.is_empty() || "@peig".starts_with(&lower) {
-            values.push(CapabilityCompletion {
-                id: self.content.npc_id.clone(),
-                kind: "npc_reference".to_string(),
-                label: self.content.npc_name.clone(),
-                insertion_text: format!("@{}", self.content.npc_name),
-                entity_id: Some(self.content.npc_id.clone()),
-            });
+        for npc in self.npcs.npcs_at(self.world.player_location) {
+            let Some(definition) = self.content.npc_by_engine_id(npc.id) else {
+                continue;
+            };
+            let insertion = format!("@{}", definition.display_name);
+            if lower.is_empty() || insertion.to_lowercase().starts_with(&lower) {
+                values.push(CapabilityCompletion {
+                    id: definition.id.clone(),
+                    kind: "npc_reference".to_string(),
+                    label: definition.display_name.clone(),
+                    insertion_text: insertion,
+                    entity_id: Some(definition.id.clone()),
+                });
+            }
         }
         values.truncate(MAX_COMPLETIONS);
         values
@@ -1551,6 +1772,8 @@ impl MobileSession {
             phase: RequestPhase::Accepted,
             terminal_outcome: None,
             committed_state_revision: None,
+            selected_npc_id: None,
+            pending_clarification: None,
         };
         // Acceptance is persisted before interpreting the command or handing
         // work to the platform.  If storage fails, no request is published.
@@ -1612,9 +1835,78 @@ impl MobileSession {
             ));
         }
 
-        let grounding = self.grounding_snapshot();
+        if let Some((target, interpreted)) = movement_target(&text) {
+            let mut result = self.commit_travel(&request_id, &attempt_id, &target, interpreted)?;
+            result.events.insert(0, command_event);
+            return Ok(result);
+        }
+
+        let selected_npc_id = match self.resolve_dialogue_target(&text) {
+            DialogueTarget::Selected(id) => id,
+            DialogueTarget::Unavailable(message) => {
+                let mut result = self.complete_local_response(
+                    &request_id,
+                    &attempt_id,
+                    message,
+                    "unavailable_npc",
+                )?;
+                result.events.insert(0, command_event);
+                return Ok(result);
+            }
+            DialogueTarget::Ambiguous(ids) => {
+                let choices: Vec<ClarificationChoice> = ids
+                    .iter()
+                    .filter_map(|id| self.content.npc_by_stable_id(id))
+                    .map(|npc| ClarificationChoice {
+                        id: format!("choose-{}", npc.id),
+                        label: npc.display_name.clone(),
+                        entity_id: Some(npc.id.clone()),
+                    })
+                    .collect();
+                let prompt = PendingClarification {
+                    question: "Which person do you mean?".to_string(),
+                    choices,
+                };
+                if let Some(stored) = self
+                    .requests
+                    .iter_mut()
+                    .find(|record| record.id == request_id)
+                {
+                    stored.phase = RequestPhase::AwaitingClarification;
+                    stored.pending_clarification = Some(prompt.clone());
+                    stored.current_attempt_mut().expect("current attempt").phase =
+                        RequestPhase::AwaitingClarification;
+                }
+                let clarification = self.emit_clarification(&request_id, &attempt_id, &prompt);
+                if let Err(error) = self.persist_current() {
+                    self.requests = accepted_requests;
+                    self.events = accepted_events;
+                    self.has_older_events = accepted_has_older_events;
+                    self.next_event_sequence = accepted_next_sequence;
+                    self.active_request_id = accepted_active;
+                    self.provisional_events = accepted_provisional;
+                    return Err(error);
+                }
+                return Ok(self.operation_result(
+                    true,
+                    Some(request_id),
+                    Some(attempt_id),
+                    vec![command_event, clarification],
+                    None,
+                    None,
+                    false,
+                    None,
+                ));
+            }
+        };
+        let selected_npc = self
+            .content
+            .npc_by_stable_id(&selected_npc_id)
+            .expect("resolved NPC exists");
+        let grounding = self.grounding_snapshot(NpcId(selected_npc.engine_npc_id));
         if let Some(stored) = self.requests.iter_mut().find(|r| r.id == request_id) {
             stored.phase = RequestPhase::Executing;
+            stored.selected_npc_id = Some(selected_npc_id);
             stored.current_attempt_mut().expect("current attempt").phase = RequestPhase::Executing;
             stored
                 .current_attempt_mut()
@@ -1637,6 +1929,115 @@ impl MobileSession {
             Some(request_id),
             Some(attempt_id),
             vec![command_event],
+            Some(invocation),
+            None,
+            false,
+            None,
+        ))
+    }
+
+    /// Continue an accepted request after the player selects one authored
+    /// clarification choice. Availability is checked again at selection time.
+    pub fn answer_clarification(
+        &mut self,
+        logical_request_id: &LogicalRequestId,
+        choice_id: &str,
+    ) -> Result<MobileOperationResult, MobileError> {
+        if self.active_request_id.is_some() {
+            return Err(MobileError::RequestInProgress);
+        }
+        let request_index = self
+            .requests
+            .iter()
+            .position(|request| &request.id == logical_request_id)
+            .ok_or_else(|| MobileError::RequestNotFound(logical_request_id.raw_value.clone()))?;
+        let request = &self.requests[request_index];
+        if request.phase != RequestPhase::AwaitingClarification {
+            return Err(MobileError::RequestNotRetryable(
+                logical_request_id.raw_value.clone(),
+            ));
+        }
+        let choice = request
+            .pending_clarification
+            .as_ref()
+            .and_then(|prompt| prompt.choices.iter().find(|choice| choice.id == choice_id))
+            .cloned()
+            .ok_or_else(|| MobileError::Content("unknown clarification choice".to_string()))?;
+        let npc_id = choice
+            .entity_id
+            .as_deref()
+            .and_then(|id| self.content.npc_by_stable_id(id))
+            .ok_or_else(|| {
+                MobileError::Content("clarification choice has no authored NPC".to_string())
+            })?;
+        let engine_npc_id = NpcId(npc_id.engine_npc_id);
+        let display_name = npc_id.display_name.clone();
+        let stable_id = npc_id.id.clone();
+        let attempt_id = request
+            .current_attempt_id
+            .clone()
+            .expect("clarification has attempt");
+        if !self
+            .npcs
+            .npcs_at(self.world.player_location)
+            .iter()
+            .any(|npc| npc.id == engine_npc_id)
+        {
+            return self.complete_local_response(
+                logical_request_id,
+                &attempt_id,
+                format!("{display_name} is no longer here."),
+                "unavailable_npc",
+            );
+        }
+        let grounding = self.grounding_snapshot(engine_npc_id);
+        let prior_requests = self.requests.clone();
+        let prior_events = self.events.clone();
+        let prior_sequence = self.next_event_sequence;
+        let prior_older = self.has_older_events;
+        {
+            let request = &mut self.requests[request_index];
+            request.phase = RequestPhase::Executing;
+            request.selected_npc_id = Some(stable_id.clone());
+            request.pending_clarification = None;
+            let attempt = request
+                .current_attempt_mut()
+                .expect("clarification has attempt");
+            attempt.phase = RequestPhase::Executing;
+            attempt.grounding = Some(grounding.clone());
+        }
+        self.active_request_id = Some(logical_request_id.clone());
+        let selected = self.emit(
+            SemanticEventKind::ClarificationSelected,
+            Some(display_name),
+            None,
+            Some(logical_request_id),
+            Some(&attempt_id),
+            None,
+            false,
+            None,
+            None,
+            true,
+            None,
+            Some(self.state_revision),
+            metadata([("choiceID", choice_id.to_string()), ("entityID", stable_id)]),
+        );
+        let text = self.requests[request_index].original_text.clone();
+        let invocation =
+            self.endpoint_invocation(logical_request_id, &attempt_id, &text, &grounding);
+        if let Err(error) = self.persist_current() {
+            self.requests = prior_requests;
+            self.events = prior_events;
+            self.next_event_sequence = prior_sequence;
+            self.has_older_events = prior_older;
+            self.active_request_id = None;
+            return Err(error);
+        }
+        Ok(self.operation_result(
+            true,
+            Some(logical_request_id.clone()),
+            Some(attempt_id),
+            vec![selected],
             Some(invocation),
             None,
             false,
@@ -1670,7 +2071,13 @@ impl MobileSession {
 
         let text = self.requests[request_index].original_text.clone();
         let attempt_id = ExecutionAttemptId::fresh();
-        let grounding = self.grounding_snapshot();
+        let selected = self.requests[request_index]
+            .selected_npc_id
+            .as_deref()
+            .and_then(|id| self.content.npc_by_stable_id(id))
+            .map(|npc| NpcId(npc.engine_npc_id))
+            .unwrap_or(NpcId(self.content.engine_npc_id));
+        let grounding = self.grounding_snapshot(selected);
         let attempt = RequestAttempt {
             id: attempt_id.clone(),
             original_text: text.clone(),
@@ -2019,11 +2426,16 @@ impl MobileSession {
         }
         attempt.last_stream_sequence = frame.sequence;
         attempt.provisional_text = candidate_text.clone();
+        let speaker_name = attempt
+            .grounding
+            .as_ref()
+            .map(|grounding| grounding.speaker_name.clone())
+            .unwrap_or_else(|| self.content.npc_name.clone());
         let item_id = TranscriptItemId::new(format!("{}:response", frame.attempt_id.raw_value));
         let event = self.emit(
             SemanticEventKind::NpcDialogue,
             Some(candidate_text),
-            Some(self.content.npc_name.clone()),
+            Some(speaker_name),
             Some(&request_id),
             Some(&frame.attempt_id),
             Some(item_id),
@@ -2151,7 +2563,29 @@ impl MobileSession {
                 "on foot",
                 false,
             ),
-            _ => capability.content().to_string(),
+            DeterministicCapability::People => {
+                let people: Vec<String> = self
+                    .read_model()
+                    .nearby_people
+                    .into_iter()
+                    .map(|person| person.display_name)
+                    .collect();
+                if people.is_empty() {
+                    "Nobody is nearby.".to_string()
+                } else {
+                    format!("Nearby: {}.", people.join(", "))
+                }
+            }
+            DeterministicCapability::Exits => {
+                let exits: Vec<String> = self
+                    .read_model()
+                    .exits
+                    .into_iter()
+                    .map(|exit| format!("{} — {}", exit.direction, exit.display_name))
+                    .collect();
+                format!("Exits: {}.", exits.join("; "))
+            }
+            DeterministicCapability::Help => capability.content().to_string(),
         };
         let event = self.emit(
             SemanticEventKind::ActionResult,
@@ -2192,6 +2626,382 @@ impl MobileSession {
         Ok((event, terminal))
     }
 
+    fn resolve_dialogue_target(&self, text: &str) -> DialogueTarget {
+        let lower = text.to_lowercase();
+        let matched: Vec<&MobileNpcDefinition> = self
+            .content
+            .npcs
+            .iter()
+            .filter(|npc| {
+                let surname = npc
+                    .display_name
+                    .split_whitespace()
+                    .last()
+                    .unwrap_or_default();
+                std::iter::once(npc.display_name.as_str())
+                    .chain(npc.aliases.iter().map(String::as_str))
+                    .chain(std::iter::once(surname))
+                    .any(|name| !name.is_empty() && lower.contains(&name.to_lowercase()))
+            })
+            .collect();
+        let nearby: Vec<&MobileNpcDefinition> = self
+            .npcs
+            .npcs_at(self.world.player_location)
+            .into_iter()
+            .filter_map(|npc| self.content.npc_by_engine_id(npc.id))
+            .collect();
+        let available_matches: Vec<&MobileNpcDefinition> = matched
+            .iter()
+            .copied()
+            .filter(|candidate| nearby.iter().any(|npc| npc.id == candidate.id))
+            .collect();
+        match (matched.len(), available_matches.len(), nearby.len()) {
+            (_, 1, _) => DialogueTarget::Selected(available_matches[0].id.clone()),
+            (_, count, _) if count > 1 => DialogueTarget::Ambiguous(
+                available_matches.iter().map(|npc| npc.id.clone()).collect(),
+            ),
+            (1, 0, _) => {
+                DialogueTarget::Unavailable(format!("{} is not here.", matched[0].display_name))
+            }
+            (count, 0, _) if count > 1 => {
+                DialogueTarget::Unavailable("Neither of the Connollys is here.".to_string())
+            }
+            (0, 0, 1) => DialogueTarget::Selected(nearby[0].id.clone()),
+            (0, 0, count) if count > 1 => {
+                DialogueTarget::Ambiguous(nearby.iter().map(|npc| npc.id.clone()).collect())
+            }
+            _ => DialogueTarget::Unavailable("Nobody is here to answer.".to_string()),
+        }
+    }
+
+    fn emit_clarification(
+        &mut self,
+        request_id: &LogicalRequestId,
+        attempt_id: &ExecutionAttemptId,
+        prompt: &PendingClarification,
+    ) -> SemanticEvent {
+        let mut event = self.make_event(
+            SemanticEventKind::ClarificationRequired,
+            Some(prompt.question.clone()),
+            None,
+            Some(request_id),
+            Some(attempt_id),
+            Some(TranscriptItemId::new(format!(
+                "{}:clarification",
+                attempt_id.raw_value
+            ))),
+            false,
+            None,
+            None,
+            true,
+            None,
+            Some(self.state_revision),
+            metadata([("capability", "clarification".to_string())]),
+        );
+        event.clarification = Some(ClarificationPrompt {
+            question: prompt.question.clone(),
+            choices: prompt.choices.clone(),
+        });
+        self.next_event_sequence += 1;
+        self.events.push_back(event.clone());
+        trim_events(&mut self.events, &mut self.has_older_events);
+        event
+    }
+
+    fn complete_local_response(
+        &mut self,
+        request_id: &LogicalRequestId,
+        attempt_id: &ExecutionAttemptId,
+        text: String,
+        capability: &str,
+    ) -> Result<MobileOperationResult, MobileError> {
+        let prior_requests = self.requests.clone();
+        let prior_events = self.events.clone();
+        let prior_sequence = self.next_event_sequence;
+        let prior_older = self.has_older_events;
+        let action = self.emit(
+            SemanticEventKind::ActionResult,
+            Some(text),
+            None,
+            Some(request_id),
+            Some(attempt_id),
+            Some(TranscriptItemId::new(format!(
+                "{}:action",
+                attempt_id.raw_value
+            ))),
+            false,
+            None,
+            None,
+            true,
+            None,
+            Some(self.state_revision),
+            metadata([("capability", capability.to_string())]),
+        );
+        let terminal = self.emit(
+            SemanticEventKind::ResponseCompleted,
+            None,
+            None,
+            Some(request_id),
+            Some(attempt_id),
+            None,
+            false,
+            None,
+            None,
+            true,
+            None,
+            Some(self.state_revision),
+            terminal_metadata(ResponseTerminalOutcome::Succeeded),
+        );
+        let request = self
+            .requests
+            .iter_mut()
+            .find(|request| &request.id == request_id)
+            .expect("accepted request exists");
+        request.phase = RequestPhase::Completed;
+        request.terminal_outcome = Some(ResponseTerminalOutcome::Succeeded);
+        request.committed_state_revision = Some(self.state_revision);
+        let attempt = request
+            .current_attempt_mut()
+            .expect("accepted attempt exists");
+        attempt.phase = RequestPhase::Completed;
+        attempt.terminal_outcome = Some(ResponseTerminalOutcome::Succeeded);
+        attempt.terminal_event_id = Some(terminal.event_id.clone());
+        attempt.committed_state_revision = Some(self.state_revision);
+        if let Err(error) = self.persist_current() {
+            self.requests = prior_requests;
+            self.events = prior_events;
+            self.next_event_sequence = prior_sequence;
+            self.has_older_events = prior_older;
+            return Err(error);
+        }
+        Ok(self.operation_result(
+            true,
+            Some(request_id.clone()),
+            Some(attempt_id.clone()),
+            vec![action, terminal],
+            None,
+            Some(ResponseTerminalOutcome::Succeeded),
+            false,
+            None,
+        ))
+    }
+
+    fn commit_travel(
+        &mut self,
+        request_id: &LogicalRequestId,
+        attempt_id: &ExecutionAttemptId,
+        target: &str,
+        interpreted: bool,
+    ) -> Result<MobileOperationResult, MobileError> {
+        use parish_world::movement::MovementResult;
+        use parish_world::transport::TransportMode;
+
+        let movement = parish_world::movement::resolve_movement(
+            target,
+            &self.world.graph,
+            self.world.player_location,
+            &TransportMode::walking(),
+        );
+        let (mut next_world, mut next_npcs) = (self.world.clone(), self.npcs.clone());
+        let mut changed = false;
+        let action_text: String;
+        let mut scene = None;
+        let mut schedule_lines = Vec::new();
+        match movement {
+            MovementResult::Arrived {
+                destination,
+                path,
+                minutes,
+                narration,
+            } => {
+                next_world.player_location = destination;
+                next_world.record_path_traversal(&path);
+                next_world.mark_visited(destination);
+                next_world.clock.advance(i64::from(minutes.max(1)));
+                let schedule_events = next_npcs.tick_schedules(
+                    &next_world.clock,
+                    &next_world.graph,
+                    next_world.weather,
+                    &next_world.event_bus,
+                );
+                for event in schedule_events {
+                    let line = match event.kind {
+                        parish_npc::schedule::ScheduleEventKind::Departed { to_name, .. } => {
+                            format!("{} leaves for {}.", event.npc_name, to_name)
+                        }
+                        parish_npc::schedule::ScheduleEventKind::Arrived {
+                            location_name, ..
+                        } => format!("{} arrives at {}.", event.npc_name, location_name),
+                    };
+                    schedule_lines.push(line);
+                }
+                action_text = narration;
+                scene = self.content.location_by_engine_id(destination).cloned();
+                changed = true;
+            }
+            MovementResult::AlreadyHere => action_text = "You are already there.".to_string(),
+            MovementResult::NotFound(_) => {
+                action_text = format!("You cannot find a route to {target}.")
+            }
+            MovementResult::BlockedByWeather { reason, .. } => action_text = reason,
+        }
+        let revision = if changed {
+            StateRevision::new(self.state_revision.raw_value + 1)
+        } else {
+            self.state_revision
+        };
+        let mut next_sequence = self.next_event_sequence;
+        let mut emitted = Vec::new();
+        if interpreted {
+            next_sequence += 1;
+            emitted.push(self.make_event_at(
+                EventSequence::new(next_sequence),
+                SemanticEventKind::CommandInterpreted,
+                Some(format!("Travel to {target}.")),
+                None,
+                Some(request_id),
+                Some(attempt_id),
+                None,
+                false,
+                None,
+                None,
+                true,
+                None,
+                Some(revision),
+                metadata([("intent", "travel".to_string())]),
+            ));
+        }
+        next_sequence += 1;
+        emitted.push(self.make_event_at(
+            EventSequence::new(next_sequence),
+            SemanticEventKind::ActionResult,
+            Some(action_text),
+            None,
+            Some(request_id),
+            Some(attempt_id),
+            Some(TranscriptItemId::new(format!(
+                "{}:action",
+                attempt_id.raw_value
+            ))),
+            false,
+            None,
+            None,
+            true,
+            None,
+            Some(revision),
+            metadata([("capability", "travel".to_string())]),
+        ));
+        for line in schedule_lines {
+            next_sequence += 1;
+            emitted.push(self.make_event_at(
+                EventSequence::new(next_sequence),
+                SemanticEventKind::Narration,
+                Some(line),
+                None,
+                Some(request_id),
+                Some(attempt_id),
+                None,
+                false,
+                None,
+                None,
+                true,
+                None,
+                Some(revision),
+                metadata([("source", "schedule".to_string())]),
+            ));
+        }
+        if let Some(scene) = scene {
+            next_sequence += 1;
+            emitted.push(self.make_event_at(
+                EventSequence::new(next_sequence),
+                SemanticEventKind::SceneChanged,
+                Some(scene.opening_description.clone()),
+                None,
+                Some(request_id),
+                Some(attempt_id),
+                None,
+                false,
+                None,
+                None,
+                true,
+                None,
+                Some(revision),
+                metadata([
+                    ("sceneID", scene.id),
+                    ("sceneName", scene.display_name),
+                    ("sceneDetail", scene.look_text),
+                ]),
+            ));
+        }
+        next_sequence += 1;
+        let terminal = self.make_event_at(
+            EventSequence::new(next_sequence),
+            SemanticEventKind::ResponseCompleted,
+            None,
+            None,
+            Some(request_id),
+            Some(attempt_id),
+            None,
+            false,
+            None,
+            None,
+            true,
+            None,
+            Some(revision),
+            terminal_metadata(ResponseTerminalOutcome::Succeeded),
+        );
+        emitted.push(terminal.clone());
+        for event in &mut emitted {
+            event.game_time = Some(next_world.clock.now());
+        }
+        let mut next_requests = self.requests.clone();
+        let request = next_requests
+            .iter_mut()
+            .find(|request| &request.id == request_id)
+            .expect("accepted request exists");
+        request.phase = RequestPhase::Completed;
+        request.terminal_outcome = Some(ResponseTerminalOutcome::Succeeded);
+        request.committed_state_revision = Some(revision);
+        let attempt = request
+            .current_attempt_mut()
+            .expect("accepted attempt exists");
+        attempt.phase = RequestPhase::Completed;
+        attempt.terminal_outcome = Some(ResponseTerminalOutcome::Succeeded);
+        attempt.terminal_event_id = Some(terminal.event_id.clone());
+        attempt.committed_state_revision = Some(revision);
+        let mut next_events = self.events.clone();
+        next_events.extend(emitted.iter().cloned());
+        let mut next_older = self.has_older_events;
+        trim_events(&mut next_events, &mut next_older);
+        let save = self.to_save_with(
+            next_world.clone(),
+            next_npcs.clone(),
+            revision,
+            next_requests.clone(),
+            next_events.iter().cloned().collect(),
+            next_sequence,
+            next_older,
+        );
+        self.persist_candidate(&save)?;
+        self.world = next_world;
+        self.npcs = next_npcs;
+        self.state_revision = revision;
+        self.requests = next_requests;
+        self.events = next_events;
+        self.has_older_events = next_older;
+        self.next_event_sequence = next_sequence;
+        Ok(self.operation_result(
+            true,
+            Some(request_id.clone()),
+            Some(attempt_id.clone()),
+            emitted,
+            None,
+            Some(ResponseTerminalOutcome::Succeeded),
+            false,
+            None,
+        ))
+    }
+
     fn commit_dialogue(
         &mut self,
         request_id: &LogicalRequestId,
@@ -2215,9 +3025,33 @@ impl MobileSession {
             .find(|record| &record.id == request_id)
             .and_then(|record| record.current_attempt())
             .and_then(|attempt| attempt.grounding.clone())
-            .unwrap_or_else(|| self.grounding_snapshot());
+            .unwrap_or_else(|| {
+                let selected = self
+                    .requests
+                    .iter()
+                    .find(|record| &record.id == request_id)
+                    .and_then(|record| record.selected_npc_id.as_deref())
+                    .and_then(|id| self.content.npc_by_stable_id(id))
+                    .map(|npc| NpcId(npc.engine_npc_id))
+                    .unwrap_or(NpcId(self.content.engine_npc_id));
+                self.grounding_snapshot(selected)
+            });
         let mut next_world = self.world.clone();
         let mut next_npcs = self.npcs.clone();
+        if !self
+            .npcs
+            .npcs_at(self.world.player_location)
+            .iter()
+            .any(|npc| npc.id == grounding.speaker_id)
+        {
+            return self.finish_uncommitted(
+                request_id,
+                attempt_id,
+                ResponseTerminalOutcome::Failed,
+                Some(format!("{} is no longer here.", grounding.speaker_name)),
+                Some("speaker_unavailable"),
+            );
+        }
         let parsed = NpcStreamResponse {
             dialogue,
             metadata: None,
@@ -2232,7 +3066,7 @@ impl MobileSession {
         let apply = crate::dialogue_apply::apply_npc_dialogue_turn_with_validation(
             &mut next_world,
             &mut next_npcs,
-            NpcId(self.content.engine_npc_id),
+            grounding.speaker_id,
             &parsed,
             parse_disposition,
             &dialogue_grounding,
@@ -2240,9 +3074,9 @@ impl MobileSession {
             &player_input,
             &player_input,
             game_time,
-            LocationId(self.content.engine_location_id),
-            &self.content.npc_name,
-            &self.content.npc_name,
+            self.world.player_location,
+            &grounding.speaker_name,
+            &grounding.speaker_name,
             None,
             &dialogue_grounding.known_person_names,
             &parish_npc::LanguageSettings::english_only(),
@@ -2253,7 +3087,10 @@ impl MobileSession {
                 request_id,
                 attempt_id,
                 ResponseTerminalOutcome::Failed,
-                Some("Peig could not make sense of that request.".to_string()),
+                Some(format!(
+                    "{} could not make sense of that request.",
+                    grounding.speaker_name
+                )),
                 Some("semantic_validation"),
             );
         }
@@ -2263,7 +3100,10 @@ impl MobileSession {
                 request_id,
                 attempt_id,
                 ResponseTerminalOutcome::Failed,
-                Some("Peig did not return a usable response.".to_string()),
+                Some(format!(
+                    "{} did not return a usable response.",
+                    grounding.speaker_name
+                )),
                 Some("semantic_validation"),
             );
         }
@@ -2279,7 +3119,7 @@ impl MobileSession {
             EventSequence::new(response_sequence),
             SemanticEventKind::NpcDialogue,
             Some(dialogue),
-            Some(self.content.npc_name.clone()),
+            Some(grounding.speaker_name.clone()),
             Some(request_id),
             Some(attempt_id),
             Some(TranscriptItemId::new(format!(
@@ -2507,7 +3347,9 @@ impl MobileSession {
         let active: Vec<(LogicalRequestId, ExecutionAttemptId)> = self
             .requests
             .iter()
-            .filter(|request| !request.phase.is_terminal())
+            .filter(|request| {
+                !request.phase.is_terminal() && request.phase != RequestPhase::AwaitingClarification
+            })
             .filter_map(|request| {
                 request
                     .current_attempt()
@@ -2554,24 +3396,31 @@ impl MobileSession {
     }
 
     fn read_model(&self) -> MobileReadModel {
-        let location_id = LocationId(self.content.engine_location_id);
-        let location_name = self.content.location_name.clone();
-        let nearby_people = self
+        let location_id = self.world.player_location;
+        let location = self
+            .content
+            .location_by_engine_id(location_id)
+            .expect("world location belongs to canonical mobile content");
+        let mut nearby_people: Vec<NearbyPerson> = self
             .npcs
             .npcs_at(location_id)
             .into_iter()
-            .map(|npc| NearbyPerson {
-                id: self.content.npc_id.clone(),
-                display_name: npc.name.clone(),
-                role: npc.occupation.clone(),
-                location_id: npc.location().0,
+            .filter_map(|npc| {
+                let definition = self.content.npc_by_engine_id(npc.id)?;
+                Some(NearbyPerson {
+                    id: definition.id.clone(),
+                    display_name: npc.name.clone(),
+                    role: npc.occupation.clone(),
+                    location_id: npc.location().0,
+                })
             })
             .collect();
+        nearby_people.sort_by(|left, right| left.id.cmp(&right.id));
         MobileReadModel {
             state_revision: self.state_revision,
             scene: SceneSummary {
-                id: self.content.location_id.clone(),
-                name: location_name,
+                id: location.id.clone(),
+                name: location.display_name.clone(),
                 detail: Some(crate::portable_look::render_look_text(
                     &self.world,
                     &self.npcs,
@@ -2581,13 +3430,23 @@ impl MobileSession {
                 )),
             },
             nearby_people,
-            exits: self.content.exits.clone(),
+            exits: location.exits.clone(),
+            time_of_day: self.world.clock.time_of_day().to_string(),
+            weather: self.world.weather.to_string(),
         }
     }
 
-    fn grounding_snapshot(&self) -> GroundingSnapshot {
-        let location_id = LocationId(self.content.engine_location_id);
-        let current_name = self.content.location_name.clone();
+    fn grounding_snapshot(&self, speaker_id: NpcId) -> GroundingSnapshot {
+        let location_id = self.world.player_location;
+        let current_location = self
+            .content
+            .location_by_engine_id(location_id)
+            .expect("current location belongs to mobile content");
+        let current_name = current_location.display_name.clone();
+        let speaker = self
+            .content
+            .npc_by_engine_id(speaker_id)
+            .expect("speaker belongs to mobile content");
         let recent_player_inputs: Vec<String> = self
             .world
             .conversation_log
@@ -2595,30 +3454,27 @@ impl MobileSession {
             .into_iter()
             .map(|exchange| exchange.player_input.clone())
             .collect();
-        let mut dialogue = crate::dialogue_apply::dialogue_grounding_snapshot(
-            &self.world,
-            &self.npcs,
-            NpcId(self.content.engine_npc_id),
-        );
-        // Phase 2 keeps scenic places in authored grounding without making
-        // them playable world locations. The canonical snapshot supplies the
-        // live calendar, weather/session, relationship, and safety facts;
-        // these authored entries complete its location vocabulary.
+        let mut dialogue =
+            crate::dialogue_apply::dialogue_grounding_snapshot(&self.world, &self.npcs, speaker_id);
         dialogue.current_location_name = current_name.clone();
         dialogue.known_location_names = self
             .content
-            .npc_known_places
+            .locations
             .iter()
-            .map(|place| place.display_name.clone())
+            .map(|location| location.display_name.clone())
             .collect();
         dialogue.location_facts = self
             .content
-            .npc_known_places
+            .locations
             .iter()
-            .map(|place| parish_npc::GroundedLocationFact {
-                name: place.display_name.clone(),
-                nearby_locations: Vec::new(),
-                landmarks: vec![place.description.clone()],
+            .map(|location| parish_npc::GroundedLocationFact {
+                name: location.display_name.clone(),
+                nearby_locations: location
+                    .exits
+                    .iter()
+                    .map(|exit| exit.display_name.clone())
+                    .collect(),
+                landmarks: vec![location.look_text.clone()],
             })
             .collect();
         dialogue.prior_player_inputs = recent_player_inputs.clone();
@@ -2629,22 +3485,42 @@ impl MobileSession {
             .is_empty();
         GroundingSnapshot {
             dialogue,
-            known_people: vec![GroundedPerson {
-                id: self.content.npc_id.clone(),
-                display_name: self.content.npc_name.clone(),
-                role: self.content.npc_role.clone(),
-                current_location_id: self.content.engine_location_id,
-                current_location_name: current_name.clone(),
-            }],
-            known_places: self.content.npc_known_places.clone(),
-            authored_facts: self.content.npc_facts.clone(),
+            known_people: self
+                .content
+                .npcs
+                .iter()
+                .filter_map(|definition| {
+                    let npc = self.npcs.get(NpcId(definition.engine_npc_id))?;
+                    let location = self.content.location_by_engine_id(npc.location())?;
+                    Some(GroundedPerson {
+                        id: definition.id.clone(),
+                        display_name: definition.display_name.clone(),
+                        role: definition.role.clone(),
+                        current_location_id: npc.location().0,
+                        current_location_name: location.display_name.clone(),
+                    })
+                })
+                .collect(),
+            known_places: speaker
+                .known_places
+                .iter()
+                .filter_map(|id| {
+                    self.content
+                        .locations
+                        .iter()
+                        .find(|location| &location.id == id)
+                })
+                .map(location_as_grounded)
+                .collect(),
+            authored_facts: speaker.known_facts.clone(),
             current_location_name: current_name,
-            speaker_name: self.content.npc_name.clone(),
+            speaker_id,
+            speaker_name: speaker.display_name.clone(),
             canonical_mood: self
                 .npcs
-                .get(NpcId(self.content.engine_npc_id))
+                .get(speaker_id)
                 .map(|npc| npc.mood.clone())
-                .unwrap_or_else(|| "watchful".to_string()),
+                .unwrap_or_else(|| "attentive".to_string()),
             recent_player_inputs,
             had_prior_exchange: !self
                 .world
@@ -2663,22 +3539,31 @@ impl MobileSession {
     ) -> EndpointInvocation {
         let speaker = grounding
             .known_people
-            .first()
+            .iter()
+            .find(|person| {
+                person.id
+                    == self
+                        .content
+                        .npc_by_engine_id(grounding.speaker_id)
+                        .map(|npc| npc.id.as_str())
+                        .unwrap_or_default()
+            })
             .cloned()
             .unwrap_or_else(|| GroundedPerson {
                 id: self.content.npc_id.clone(),
-                display_name: self.content.npc_name.clone(),
-                role: self.content.npc_role.clone(),
-                current_location_id: self.content.engine_location_id,
-                current_location_name: self.content.location_name.clone(),
+                display_name: grounding.speaker_name.clone(),
+                role: self
+                    .content
+                    .npc_by_engine_id(grounding.speaker_id)
+                    .map(|npc| npc.role.clone())
+                    .unwrap_or_default(),
+                current_location_id: self.world.player_location.0,
+                current_location_name: grounding.current_location_name.clone(),
             });
         let recent_conversation = self
             .world
             .conversation_log
-            .recent_at(
-                LocationId(self.content.engine_location_id),
-                MAX_RECENT_CONVERSATION,
-            )
+            .recent_at(self.world.player_location, MAX_RECENT_CONVERSATION)
             .into_iter()
             .cloned()
             .collect();
@@ -2695,12 +3580,19 @@ impl MobileSession {
             current_location: grounding
                 .known_places
                 .iter()
-                .find(|place| place.playable)
+                .find(|place| {
+                    place.id
+                        == self
+                            .content
+                            .location_by_engine_id(self.world.player_location)
+                            .map(|location| location.id.as_str())
+                            .unwrap_or_default()
+                })
                 .cloned()
                 .unwrap_or_else(|| GroundedPlace {
-                    id: self.content.location_id.clone(),
-                    display_name: self.content.location_name.clone(),
-                    description: self.content.look_text.clone(),
+                    id: self.read_model().scene.id,
+                    display_name: self.read_model().scene.name,
+                    description: self.read_model().scene.detail.unwrap_or_default(),
                     playable: true,
                 }),
             known_people: grounding
@@ -2917,6 +3809,7 @@ struct GroundingSnapshot {
     known_places: Vec<GroundedPlace>,
     authored_facts: Vec<GroundedFact>,
     current_location_name: String,
+    speaker_id: NpcId,
     speaker_name: String,
     canonical_mood: String,
     recent_player_inputs: Vec<String>,
@@ -2929,6 +3822,7 @@ impl PartialEq for GroundingSnapshot {
             && self.known_places == other.known_places
             && self.authored_facts == other.authored_facts
             && self.current_location_name == other.current_location_name
+            && self.speaker_id == other.speaker_id
             && self.speaker_name == other.speaker_name
             && self.canonical_mood == other.canonical_mood
             && self.recent_player_inputs == other.recent_player_inputs
@@ -2962,10 +3856,10 @@ impl DeterministicCapability {
 
     const fn content(self) -> &'static str {
         match self {
-            Self::Look => "Crossroads · stone wall · lane to the east",
-            Self::People => "Nearby: Peig.",
-            Self::Exits => "The alder lane runs east, but the way is closed tonight.",
-            Self::Help => "/look · /people · /exits · /help. Address Peig in ordinary text.",
+            Self::Look | Self::People | Self::Exits => "",
+            Self::Help => {
+                "/look · /people · /exits · /help. Travel with “go to …” and address a nearby person in ordinary text."
+            }
         }
     }
 }
@@ -2978,6 +3872,39 @@ fn deterministic_capability(text: &str) -> Option<DeterministicCapability> {
         "/help" | "help" => Some(DeterministicCapability::Help),
         _ => None,
     }
+}
+
+fn movement_target(text: &str) -> Option<(String, bool)> {
+    let trimmed = text.trim().trim_end_matches(['.', '!', '?']);
+    let lower = trimmed.to_lowercase();
+    for (prefix, interpreted) in [
+        ("/go ", false),
+        ("go to ", true),
+        ("walk to ", true),
+        ("walk over to ", true),
+        ("head to ", true),
+        ("head over to ", true),
+        ("visit ", true),
+    ] {
+        if lower.starts_with(prefix) {
+            let byte_index = trimmed
+                .char_indices()
+                .nth(prefix.chars().count())
+                .map(|(index, _)| index)
+                .unwrap_or(trimmed.len());
+            let target = trimmed[byte_index..].trim();
+            if !target.is_empty() {
+                return Some((target.to_string(), interpreted));
+            }
+        }
+    }
+    None
+}
+
+enum DialogueTarget {
+    Selected(String),
+    Ambiguous(Vec<String>),
+    Unavailable(String),
 }
 
 fn validate_command_text(text: &str) -> Result<(), MobileError> {
@@ -3003,96 +3930,151 @@ fn validate_candidate_text(text: &str) -> Result<(), MobileError> {
 fn make_phase2_domain(
     content: &Phase2ContentDefinition,
 ) -> Result<(WorldState, NpcManager), MobileError> {
-    let location_id = LocationId(content.engine_location_id);
-    let graph_json = serde_json::json!({
-        "locations": [{
-            "id": content.engine_location_id,
-            "name": content.location_name,
-            "description_template": content.look_text,
-            "landmarks": content
-                .npc_known_places
+    let starting_location = content
+        .locations
+        .iter()
+        .find(|location| location.id == content.location_id)
+        .expect("validated starting location");
+    let location_id = LocationId(starting_location.engine_location_id);
+    let graph_locations: Vec<serde_json::Value> = content
+        .locations
+        .iter()
+        .map(|location| {
+            let connections: Vec<serde_json::Value> = location
+                .exits
                 .iter()
-                .filter(|place| place.playable)
-                .map(|place| place.description.clone())
-                .collect::<Vec<_>>(),
-            "indoor": false,
-            "public": true,
-            "connections": [],
-            "lat": 53.618,
-            "lon": -8.095,
-            "associated_npcs": [content.engine_npc_id],
-            "aliases": ["crossroads"],
-            "geo_kind": "fictional"
-        }]
-    });
+                .filter_map(|exit| {
+                    let destination = content.locations.iter().find(|candidate| {
+                        exit.destination_id.as_deref() == Some(candidate.id.as_str())
+                    })?;
+                    Some(serde_json::json!({
+                        "target": destination.engine_location_id,
+                        "path_description": exit.description,
+                    }))
+                })
+                .collect();
+            let associated_npcs: Vec<u32> = content
+                .npcs
+                .iter()
+                .filter(|npc| npc.home_location_id == location.id)
+                .map(|npc| npc.engine_npc_id)
+                .collect();
+            serde_json::json!({
+                "id": location.engine_location_id,
+                "name": location.display_name,
+                "description_template": location.look_text,
+                "landmarks": [location.look_text.clone()],
+                "indoor": location.indoor,
+                "public": true,
+                "connections": connections,
+                "lat": location.latitude,
+                "lon": location.longitude,
+                "associated_npcs": associated_npcs,
+                "aliases": location.aliases,
+                "geo_kind": "fictional"
+            })
+        })
+        .collect();
+    let graph_json = serde_json::json!({ "locations": graph_locations });
     let graph = WorldGraph::load_from_str(&graph_json.to_string())
-        .map_err(|error| MobileError::Content(format!("invalid Phase 2 world graph: {error}")))?;
-    if graph.location_count() != 1 || graph.get(location_id).is_none() {
+        .map_err(|error| MobileError::Content(format!("invalid Phase 3 world graph: {error}")))?;
+    if graph.location_count() != 3 || graph.get(location_id).is_none() {
         return Err(MobileError::Content(
-            "Phase 2 world must contain exactly one location".to_string(),
+            "Phase 3 world must contain exactly three locations".to_string(),
         ));
     }
-    let location = graph
-        .get(location_id)
-        .expect("validated Phase 2 graph location")
-        .clone();
     let mut world = WorldState::new();
     world.graph = graph;
     world.player_location = location_id;
     world.locations.clear();
-    world.locations.insert(
-        location_id,
-        Location {
-            id: location_id,
-            name: location.name,
-            description: location.description_template,
-            indoor: location.indoor,
-            public: location.public,
-            lat: location.lat,
-            lon: location.lon,
-        },
-    );
+    for location in &content.locations {
+        let id = LocationId(location.engine_location_id);
+        world.locations.insert(
+            id,
+            Location {
+                id,
+                name: location.display_name.clone(),
+                description: location.look_text.clone(),
+                indoor: location.indoor,
+                public: true,
+                lat: location.latitude,
+                lon: location.longitude,
+            },
+        );
+    }
     world.visited_locations.clear();
     world.visited_locations.insert(location_id);
     world.visited_order = vec![location_id];
-    // Phase 2 opens at the authored evening crossroads scene. Pausing keeps
-    // the fixture stable while still exercising the real clock/weather state.
-    world.clock.advance(9 * 60);
+    // Game time is explicit and advances only through accepted actions.
+    world
+        .clock
+        .advance(i64::from(content.starting_minute.saturating_sub(8 * 60)));
     world.clock.pause();
-    world.weather = Weather::LightRain;
+    world.weather = Weather::Clear;
     world
         .weather_engine
-        .force(Weather::LightRain, world.clock.now());
+        .force(Weather::Clear, world.clock.now());
 
-    let npc_json = serde_json::json!({
-        "npcs": [{
-            "id": content.engine_npc_id,
-            "name": content.npc_name,
-            "brief_description": "a keen-eyed widow",
-            "age": 58,
-            "occupation": content.npc_role,
-            "personality": content.npc_personality.join(", "),
-            "pronouns": "she/her",
-            "home": content.engine_location_id,
+    let npc_values: Vec<serde_json::Value> = content.npcs.iter().map(|npc| {
+        let home = content.locations.iter().find(|location| location.id == npc.home_location_id).expect("validated home");
+        let schedule: Vec<serde_json::Value> = npc.schedule.iter().map(|entry| {
+            let location = content.locations.iter().find(|location| location.id == entry.location_id).expect("validated schedule location");
+            serde_json::json!({
+                "start_hour": entry.start_hour,
+                "end_hour": entry.end_hour,
+                "location": location.engine_location_id,
+                "activity": entry.activity,
+            })
+        }).collect();
+        let relationships: Vec<serde_json::Value> = content.relationships.iter().filter_map(|relationship| {
+            let (target, kind, strength) = if relationship.source_id == npc.id {
+                (&relationship.target_id, &relationship.kind, relationship.strength)
+            } else if relationship.target_id == npc.id {
+                (&relationship.source_id, &relationship.kind, relationship.strength)
+            } else {
+                return None;
+            };
+            let target = content.npcs.iter().find(|candidate| candidate.id == *target).expect("validated relationship");
+            Some(serde_json::json!({ "target_id": target.engine_npc_id, "kind": kind, "strength": strength }))
+        }).collect();
+        serde_json::json!({
+            "id": npc.engine_npc_id,
+            "name": npc.display_name,
+            "brief_description": npc.role,
+            "age": 40,
+            "occupation": npc.role,
+            "personality": npc.personality.join(", "),
+            "pronouns": "they/them",
+            "home": home.engine_location_id,
             "workplace": null,
-            "mood": "watchful",
-            "relationships": [],
-            "knowledge": content
-                .npc_facts
-                .iter()
-                .map(|fact| fact.statement.clone())
-                .collect::<Vec<_>>()
-        }]
-    });
+            "mood": "attentive",
+            "schedule": schedule,
+            "relationships": relationships,
+            "knowledge": npc.known_facts.iter().map(|fact| fact.statement.clone()).collect::<Vec<_>>()
+        })
+    }).collect();
+    let npc_json = serde_json::json!({ "npcs": npc_values });
     let loaded = parish_npc::data::load_npcs_from_str(&npc_json.to_string())
-        .map_err(|error| MobileError::Content(format!("invalid Phase 2 NPC data: {error}")))?;
+        .map_err(|error| MobileError::Content(format!("invalid Phase 3 NPC data: {error}")))?;
     let mut npcs = NpcManager::new();
-    for npc in loaded {
+    for mut npc in loaded {
+        let definition = content
+            .npc_by_engine_id(npc.id)
+            .expect("validated NPC definition");
+        let initial = content
+            .locations
+            .iter()
+            .find(|location| location.id == definition.initial_location_id)
+            .expect("validated initial location");
+        npc.set_location_and_state(
+            LocationId(initial.engine_location_id),
+            parish_npc::types::NpcState::Present,
+        );
         npcs.add_npc(npc);
     }
-    if npcs.all_npcs().count() != 1 {
+    if npcs.all_npcs().count() != 3 {
         return Err(MobileError::Content(
-            "Phase 2 world must contain exactly one NPC".to_string(),
+            "Phase 3 world must contain exactly three NPCs".to_string(),
         ));
     }
     Ok((world, npcs))
@@ -3157,16 +4139,18 @@ mod tests {
     use super::*;
 
     fn session() -> MobileSession {
-        MobileSession::open_new().expect("phase2 session")
+        MobileSession::open_new().expect("phase3 session")
     }
 
     #[test]
-    fn new_session_is_exactly_one_location_and_one_npc() {
+    fn phase3_session_has_exactly_three_locations_and_three_npcs() {
         let session = session();
         assert_eq!(session.content().engine_location_id, 1);
-        assert_eq!(session.npcs().all_npcs().count(), 1);
-        assert_eq!(session.npcs().get(NpcId(22)).unwrap().name, "Peig");
+        assert_eq!(session.world().graph.location_count(), 3);
+        assert_eq!(session.npcs().all_npcs().count(), 3);
+        assert_eq!(session.npcs().get(NpcId(22)).unwrap().name, "Peig Hannigan");
         assert_eq!(session.snapshot().read_model.nearby_people.len(), 1);
+        assert_eq!(session.snapshot().read_model.exits.len(), 2);
     }
 
     #[test]
@@ -3256,12 +4240,153 @@ mod tests {
     }
 
     #[test]
+    fn phase3_natural_travel_commits_once_and_updates_scene_and_schedule() {
+        let mut session = session();
+        let result = session
+            .submit(None, "walk to Connolly Cottage", None)
+            .unwrap();
+        assert!(result.endpoint_invocation.is_none());
+        assert_eq!(session.state_revision(), StateRevision::new(1));
+        assert_eq!(session.world().player_location, LocationId(13));
+        assert_eq!(session.snapshot().read_model.scene.id, "connolly-cottage");
+        assert!(
+            result
+                .events
+                .iter()
+                .any(|event| event.kind == SemanticEventKind::CommandInterpreted)
+        );
+        assert_eq!(
+            result
+                .events
+                .iter()
+                .filter(|event| event.kind == SemanticEventKind::SceneChanged)
+                .count(),
+            1
+        );
+        assert!(result.events.iter().any(|event| {
+            event.kind == SemanticEventKind::Narration
+                && event
+                    .content
+                    .as_deref()
+                    .is_some_and(|text| text.contains("Peig Hannigan leaves"))
+        }));
+        let mut nearby: Vec<String> = session
+            .snapshot()
+            .read_model
+            .nearby_people
+            .into_iter()
+            .map(|person| person.id)
+            .collect();
+        nearby.sort();
+        assert_eq!(
+            nearby,
+            vec!["npc-micheal".to_string(), "npc-roisin".to_string()]
+        );
+    }
+
+    #[test]
+    fn phase3_people_exits_and_unavailable_npc_are_authoritative_offline() {
+        let mut session = session();
+        session.submit(None, "/go Connolly Cottage", None).unwrap();
+        let people = session.submit(None, "/people", None).unwrap();
+        let people_text = people
+            .events
+            .iter()
+            .find(|event| event.kind == SemanticEventKind::ActionResult)
+            .and_then(|event| event.content.as_deref())
+            .unwrap();
+        assert!(people_text.contains("Mícheál Connolly"));
+        assert!(people_text.contains("Róisín Connolly"));
+        let exits = session.submit(None, "/exits", None).unwrap();
+        let exits_text = exits
+            .events
+            .iter()
+            .find(|event| event.kind == SemanticEventKind::ActionResult)
+            .and_then(|event| event.content.as_deref())
+            .unwrap();
+        assert!(exits_text.contains("Kilteevan Village"));
+        let unavailable = session
+            .submit(None, "ask Peig about the post", None)
+            .unwrap();
+        assert!(unavailable.endpoint_invocation.is_none());
+        assert!(unavailable.events.iter().any(|event| {
+            event
+                .content
+                .as_deref()
+                .is_some_and(|text| text.contains("Peig Hannigan is not here"))
+        }));
+    }
+
+    #[test]
+    fn phase3_ambiguity_survives_resume_and_selection_continues_original_request() {
+        let mut session = session();
+        session.submit(None, "/go Connolly Cottage", None).unwrap();
+        let ambiguous = session
+            .submit(None, "ask Connolly about the household", None)
+            .unwrap();
+        assert!(ambiguous.endpoint_invocation.is_none());
+        let request_id = ambiguous.logical_request_id.unwrap();
+        assert_eq!(
+            session.snapshot().requests.last().unwrap().phase,
+            RequestPhase::AwaitingClarification
+        );
+        let prompt = ambiguous
+            .events
+            .iter()
+            .find(|event| event.kind == SemanticEventKind::ClarificationRequired)
+            .and_then(|event| event.clarification.as_ref())
+            .unwrap();
+        assert_eq!(prompt.choices.len(), 2);
+
+        let save = session.save();
+        let mut resumed = MobileSession::open_resume(save).unwrap();
+        assert_eq!(resumed.world().player_location, LocationId(13));
+        assert_eq!(
+            resumed.snapshot().requests.last().unwrap().phase,
+            RequestPhase::AwaitingClarification
+        );
+        let selected = resumed
+            .answer_clarification(&request_id, "choose-npc-roisin")
+            .unwrap();
+        let invocation = selected.endpoint_invocation.unwrap();
+        assert_eq!(invocation.player_input, "ask Connolly about the household");
+        assert_eq!(invocation.speaker.id, "npc-roisin");
+        assert_eq!(invocation.speaker.display_name, "Róisín Connolly");
+        assert!(
+            selected
+                .events
+                .iter()
+                .any(|event| event.kind == SemanticEventKind::ClarificationSelected)
+        );
+    }
+
+    #[test]
+    fn phase3_travel_and_presence_survive_save_resume() {
+        let mut session = session();
+        session
+            .submit(None, "go to Connolly Cottage", None)
+            .unwrap();
+        let save = session.save();
+        let resumed = MobileSession::open_resume(save).unwrap();
+        assert_eq!(resumed.state_revision(), StateRevision::new(1));
+        assert_eq!(resumed.snapshot().read_model.scene.name, "Connolly Cottage");
+        assert_eq!(resumed.snapshot().read_model.nearby_people.len(), 2);
+        assert!(
+            !resumed
+                .npcs()
+                .npcs_at(LocationId(1))
+                .iter()
+                .any(|npc| npc.id == NpcId(22))
+        );
+    }
+
+    #[test]
     fn acceptance_precedes_endpoint_and_has_grounding() {
         let mut session = session();
         let result = session
             .submit(
                 Some(LogicalRequestId::new("logical-1")),
-                "ask Peig about the old church",
+                "ask Peig about the Letter Office",
                 None,
             )
             .unwrap();
@@ -3272,7 +4397,7 @@ mod tests {
             invocation
                 .known_places
                 .iter()
-                .any(|place| place.display_name == "the old church")
+                .any(|place| place.display_name == "Letter Office")
         );
         assert_eq!(
             session.snapshot().requests[0].phase,
@@ -3285,10 +4410,10 @@ mod tests {
     }
 
     #[test]
-    fn authored_scenic_place_is_grounded_but_invented_place_is_rejected() {
+    fn authored_phase3_fact_is_grounded_but_invented_place_is_rejected() {
         let mut dialogue_session = session();
         let accepted = dialogue_session
-            .submit(None, "ask Peig about the old church", None)
+            .submit(None, "ask Peig about the Letter Office", None)
             .unwrap();
         let attempt = accepted.attempt_id.unwrap();
         let base = accepted.endpoint_invocation.unwrap().base_revision;
@@ -3296,7 +4421,7 @@ mod tests {
             .receive_candidate(EndpointCandidate {
                 attempt_id: attempt,
                 base_revision: base,
-                dialogue: "The old church stands beyond the alder trees, where the path bends toward the hill.".to_string(),
+                dialogue: "I keep the Letter Office and know who has received news from beyond the parish.".to_string(),
                 metadata: BTreeMap::new(),
                 structured: true,
             })
@@ -3860,7 +4985,7 @@ mod tests {
     #[test]
     fn sqlite_store_round_trips_and_pages_durable_events() {
         let directory = tempfile::tempdir().unwrap();
-        let path = directory.path().join("phase2.sqlite");
+        let path = directory.path().join("phase3.sqlite");
         let mut session = MobileSession::open_new_sqlite(&path).unwrap();
         session.submit(None, "/look", None).unwrap();
         drop(session);
@@ -3874,7 +4999,7 @@ mod tests {
         drop(store);
 
         let resumed = MobileSession::open_resume_sqlite(&path).unwrap().unwrap();
-        assert_eq!(resumed.npcs().all_npcs().count(), 1);
+        assert_eq!(resumed.npcs().all_npcs().count(), 3);
         assert_eq!(
             resumed
                 .world()

@@ -1,16 +1,15 @@
 # Mobile verification runner
 
-The repository entry point is `./verify`. It runs the native Phase 1 checks
+The repository entry point is `./verify`. It runs the native mobile checks
 sequentially and writes evidence under `mobile/.verification/`.
 
 ## Phases
 
-- `./verify --phase 1` runs the implemented Phase 1 checks.
-- `./verify` and `./verify --phase all` run Phase 1 and report Phases 2–6 as
-  unavailable, without making those future phases block the Phase 1 result.
-- `./verify --phase 2` through `./verify --phase 6` select one future phase.
-  They report the required phase as unavailable and exit nonzero until that
-  phase is implemented.
+- `./verify --phase 1`, `--phase 2`, or `--phase 3` runs that implemented gate.
+- `./verify` and `./verify --phase all` run Phases 1–3 and report Phases 4–6 as
+  non-blocking future work.
+- `./verify --phase 4` through `./verify --phase 6` report the selected phase as
+  unavailable and exit nonzero until it is implemented.
 
 ## Options
 

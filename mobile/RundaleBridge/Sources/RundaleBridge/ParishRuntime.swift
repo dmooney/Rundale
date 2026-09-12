@@ -177,10 +177,14 @@ public actor ParishRuntime: SessionAdapter {
         logicalRequestID: LogicalRequestID,
         choiceID: String
     ) async throws -> SubmissionReceipt {
-        _ = (logicalRequestID, choiceID)
-        throw ParishRuntimeError.protocolError(
-            "Clarification answers are not part of the Phase 2 mobile engine contract."
-        )
+        let response = try dispatch([
+            "op": "answer_clarification",
+            "logical_request_id": logicalRequestID.rawValue,
+            "choice_id": choiceID
+        ])
+        let result = try decodeValue(MobileOperationResult.self, from: response)
+        publish(result.events)
+        return try submissionReceipt(from: result, isRetry: false)
     }
 
     public func stop() async throws -> StopReceipt {
@@ -344,6 +348,7 @@ public actor ParishRuntime: SessionAdapter {
         }
         return [
             "submit",
+            "answer_clarification",
             "retry",
             "stop",
             "fail",

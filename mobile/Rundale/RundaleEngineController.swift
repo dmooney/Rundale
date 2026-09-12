@@ -4,7 +4,7 @@ import ParishEndpointKit
 import RundaleBridge
 import RundaleKit
 
-/// The Phase 2 application adapter. Rust owns the game/session state and its
+/// The native application adapter. Rust owns the game/session state and its
 /// SQLite transaction boundaries; this main-actor object only projects Rust
 /// semantic events for SwiftUI and owns the platform Endpoint stream.
 @MainActor
@@ -25,14 +25,16 @@ final class RundaleEngineController: ObservableObject, RundaleSessionControlling
     private var activeEndpointRequest: EndpointRequest?
     private var didStart = false
     private var didHydrateRuntime = false
+    private var engineTimeOfDay = "Morning"
+    private var engineWeather = "Clear"
 
     var statePublisher: AnyPublisher<SessionState, Never> { $state.eraseToAnyPublisher() }
 
     var currentHeader: PresentedHeader {
         PresentedHeader(
-            location: state.scene?.name ?? "The crossroads",
-            timeOfDay: "Late evening",
-            weather: "Rain easing"
+            location: state.scene?.name ?? "Kilteevan Village",
+            timeOfDay: engineTimeOfDay,
+            weather: engineWeather
         )
     }
 
@@ -212,8 +214,19 @@ final class RundaleEngineController: ObservableObject, RundaleSessionControlling
     }
 
     func answerClarification(choiceID: String) async throws {
-        _ = choiceID
-        throw FixtureAdapterError.noClarificationPending
+        guard let runtime else { throw ParishRuntimeError.closed }
+        guard let request = state.requests.last(where: { $0.phase == .awaitingClarification }) else {
+            throw FixtureAdapterError.noClarificationPending
+        }
+        let receipt = try await runtime.answerClarification(
+            logicalRequestID: request.id,
+            choiceID: choiceID
+        )
+        try refreshFromSnapshot(try await runtime.snapshotJSON())
+        _ = persistSessionState()
+        if receipt.accepted, let invocation = try await pendingInvocation(runtime: runtime) {
+            startEndpoint(invocation, runtime: runtime)
+        }
     }
 
     func suggestions(for text: String) -> [CompletionItem] {
@@ -260,6 +273,8 @@ final class RundaleEngineController: ObservableObject, RundaleSessionControlling
 
     private func refreshFromSnapshot(_ data: Data) throws {
         let snapshot = try FixtureJSON.decode(EngineSnapshot.self, from: data)
+        engineTimeOfDay = snapshot.readModel.timeOfDay
+        engineWeather = snapshot.readModel.weather
         completionRegistry = FixtureCompletionRegistry(
             nearbyNPCs: snapshot.readModel.nearbyPeople.map {
                 FixtureNPCReference(id: $0.id, displayName: $0.displayName)
@@ -471,11 +486,11 @@ final class RundaleEngineController: ObservableObject, RundaleSessionControlling
     private static func playerFacingFailure(_ kind: ParishRuntimeFailureKind) -> String {
         switch kind {
         case .transport:
-            return "Peig's response could not be reached. You can retry this request."
+            return "The response could not be reached. You can retry this request."
         case .missingTerminal:
-            return "Peig's response ended before it was complete. You can retry this request."
+            return "The response ended before it was complete. You can retry this request."
         case .protocolViolation:
-            return "Peig's response could not be validated. You can retry this request."
+            return "The response could not be validated. You can retry this request."
         case .interrupted:
             return "The response was interrupted. You can retry this request."
         }
@@ -517,6 +532,8 @@ private struct EngineSnapshot: Decodable {
 private struct EngineReadModel: Decodable {
     let scene: EngineScene
     let nearbyPeople: [EngineNearbyPerson]
+    let timeOfDay: String
+    let weather: String
 }
 
 private struct EngineScene: Decodable {
@@ -701,12 +718,22 @@ private final class Phase2MockEndpointTransport: EndpointTransport, @unchecked S
                             error: ["message": "The Endpoint test response failed."]
                         )))
                     } else {
-                        let dialogue = "The rain keeps the old road quiet. The old church stands beyond the alder trees."
+                        let dialogue: String
+                        let chunks: [String]
+                        if identities.speakerName == "Róisín Connolly" {
+                            dialogue = "I trade spun yarn in the village when the household work allows."
+                            chunks = ["I trade spun yarn ", "in the village when ", "the household work allows."]
+                        } else if identities.speakerName == "Mícheál Connolly" {
+                            dialogue = "The wet ground has made moving cattle difficult this week."
+                            chunks = ["The wet ground ", "has made moving cattle ", "difficult this week."]
+                        } else {
+                            dialogue = "The rain keeps the old road quiet. The old church stands beyond the alder trees."
+                            chunks = ["The rain keeps ", "the old road quiet. ", "The old church stands beyond the alder trees."]
+                        }
                         // Keep the fixture observably incremental so UI tests
                         // can assert the provisional Rust presentation before
                         // the terminal candidate arrives.
                         try await Self.pause(nanoseconds: 100_000_000)
-                        let chunks = ["The rain keeps ", "the old road quiet. ", "The old church stands beyond the alder trees."]
                         for (index, chunk) in chunks.enumerated() {
                             continuation.yield(.bytes(try Self.frame(
                                 type: "text_delta", sequence: index + 1, identities: identities, text: chunk
@@ -736,6 +763,7 @@ private final class Phase2MockEndpointTransport: EndpointTransport, @unchecked S
         let attemptID: String
         let invocationID: String
         let input: String
+        let speakerName: String
         let endpointVersion: Int
     }
 
@@ -746,7 +774,9 @@ private final class Phase2MockEndpointTransport: EndpointTransport, @unchecked S
               let requestID = input["logicalRequestID"] as? String,
               let attemptID = input["attemptID"] as? String,
               let invocationID = input["idempotencyKey"] as? String,
-              let playerInput = input["playerInput"] as? String else {
+              let playerInput = input["playerInput"] as? String,
+              let speaker = input["speaker"] as? [String: Any],
+              let speakerName = speaker["displayName"] as? String else {
             throw ParishEndpointError.malformedEvent("mock request input is invalid")
         }
         return Identities(
@@ -754,6 +784,7 @@ private final class Phase2MockEndpointTransport: EndpointTransport, @unchecked S
             attemptID: attemptID,
             invocationID: invocationID,
             input: playerInput,
+            speakerName: speakerName,
             endpointVersion: Self.endpointVersion(from: url)
         )
     }

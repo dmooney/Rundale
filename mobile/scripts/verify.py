@@ -25,8 +25,8 @@ SKIPPED = "skipped"
 UNAVAILABLE = "unavailable"
 NOT_AUTOMATABLE = "not_automatable"
 STATUSES = {PASSED, FAILED, SKIPPED, UNAVAILABLE, NOT_AUTOMATABLE}
-IMPLEMENTED_PHASE = 2
-IMPLEMENTED_PHASES = (1, 2)
+IMPLEMENTED_PHASE = 3
+IMPLEMENTED_PHASES = (1, 2, 3)
 LAST_PHASE = 6
 RUST_TOOLCHAIN = "1.98.0"
 FORBIDDEN_MOBILE_DEPENDENCIES = (
@@ -1123,6 +1123,34 @@ class VerificationRun:
                 summary_identifier="phase2-ios-simulator-test-results",
             )
 
+    def _phase3_simulator_tests(self, xcodegen_ok: bool, ready: bool) -> None:
+        identifier = "phase3-ios-simulator-tests"
+        name = "Phase 3 canonical-world iOS simulator suite"
+        phase3_sources = sorted(self.ui_tests_path.rglob("*Phase3*.swift"))
+        if not xcodegen_ok:
+            self._skip(identifier, name, 3, "blocked because XcodeGen did not produce a usable project", required=True)
+            return
+        if not self.project.exists():
+            self._missing(identifier, name, 3, f"required Xcode project is missing: {_relative(self.project, self.root)}")
+            return
+        if not phase3_sources:
+            self._missing(identifier, name, 3, f"Phase 3 native UI test sources are missing under {_relative(self.ui_tests_path, self.root)}")
+            return
+        if not ready or self.simulator is None:
+            self._skip(identifier, name, 3, "blocked because the selected simulator is not ready", required=True)
+            return
+        destination = f"platform=iOS Simulator,id={self.simulator['udid']}"
+        record = self._xcodebuild(
+            "phase3-simulator",
+            destination,
+            phase=3,
+            identifier=identifier,
+            name=name,
+            only_testing="RundaleUITests/RundalePhase3UITests",
+        )
+        if record["status"] == PASSED:
+            self._validate_result(record, phase=3, summary_identifier="phase3-ios-simulator-test-results")
+
     def _phase2_physical(self) -> None:
         for identifier, name, reason in (
             (
@@ -1285,6 +1313,44 @@ class VerificationRun:
         self._phase2_live_endpoint()
         self._phase2_physical()
 
+    def _phase3(self, *, reuse_native_setup: bool) -> None:
+        self._cargo_test(
+            identifier="parish-core-phase3-tests",
+            name="Parish canonical tiny-world tests",
+            package="parish-core",
+            cargo_args=("--no-default-features", "--features", "mobile", "--lib", "mobile::tests::phase3_"),
+        )
+        if not reuse_native_setup:
+            self._mobile_dependency_graph()
+            self._mobile_rust_packaging()
+            self._swift_tests(phase=3, identifier="swift-package-tests-phase3")
+            xcodegen_ok = self._xcodegen(phase=3)
+            self._device(xcodegen_ok, phase=3)
+            selected, selection = self._select(phase=3)
+            ready = selection["status"] == PASSED and self._boot(selected, phase=3)
+            bridge_path = self.root / "mobile" / "RundaleBridge"
+            self._swift_package_tests(
+                package_path=bridge_path,
+                identifier="swift-bridge-tests-phase3",
+                name="RundaleBridge Phase 3 clarification tests",
+                phase=3,
+            )
+        else:
+            xcodegen_ok = any(record["id"] == "xcodegen" and record["status"] == PASSED for record in self.records)
+            selected = self.simulator
+            selection_passed = any(record["id"] == "simulator-selection" and record["status"] == PASSED for record in self.records)
+            boot_ready = any(record["id"] == "simulator-bootstatus" and record["status"] == PASSED for record in self.records) or any(
+                record["id"] == "simulator-boot" and record["status"] == SKIPPED and record["kind"] == "infrastructure" for record in self.records
+            )
+            ready = selected is not None and selection_passed and boot_ready
+        self._phase3_simulator_tests(xcodegen_ok, ready)
+        for identifier, name, reason in (
+            ("physical-iphone-phase3-world", "Physical iPhone Phase 3 world traversal", "requires a human to visit all three canonical locations on a connected iPhone"),
+            ("physical-iphone-phase3-presence", "Physical iPhone Phase 3 presence and clarification", "requires human observation of schedule movement, availability, and ambiguity on a connected iPhone"),
+            ("physical-iphone-phase3-resume", "Physical iPhone Phase 3 save/resume consistency", "requires a human relaunch check on a connected iPhone"),
+        ):
+            self._record(identifier=identifier, name=name, phase=3, status=NOT_AUTOMATABLE, required=True, automatable=False, kind="physical", reason=reason)
+
     def _phase1(self) -> None:
         self._swift_tests()
         xcodegen_ok = self._xcodegen()
@@ -1308,11 +1374,14 @@ class VerificationRun:
             self._mobile_rust_packaging()
             self._phase1()
             self._phase2(reuse_phase1_native_setup=True, rust_packaging_already_run=True)
+            self._phase3(reuse_native_setup=True)
             self._future()
         elif phase == 1:
             self._phase1()
         elif phase == 2:
             self._phase2(reuse_phase1_native_setup=False)
+        elif phase == 3:
+            self._phase3(reuse_native_setup=False)
         else:
             self._missing(
                 f"phase-{phase}-verification",

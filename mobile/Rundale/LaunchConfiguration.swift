@@ -40,8 +40,12 @@ struct LaunchConfiguration: Sendable {
          environment: [String: String] = ProcessInfo.processInfo.environment) {
         isUITesting = arguments.contains("--ui-tests")
         let hasExplicitFixture = arguments.contains { $0.hasPrefix("--fixture=") }
-        phase2 = arguments.contains("--phase2") || (!isUITesting && !hasExplicitFixture)
-        phase2MockTransport = phase2 && isUITesting && arguments.contains("--phase2-mock")
+        phase2 = arguments.contains("--phase2")
+            || arguments.contains("--phase3")
+            || (!isUITesting && !hasExplicitFixture)
+        phase2MockTransport = phase2
+            && isUITesting
+            && (arguments.contains("--phase2-mock") || arguments.contains("--phase3-mock"))
         let requestedFixture = arguments.first(where: { $0.hasPrefix("--fixture=") })
             .flatMap { Fixture(rawValue: String($0.dropFirst("--fixture=".count))) }
             ?? .standard
