@@ -854,6 +854,10 @@ private struct Composer: View {
     @ObservedObject var model: RundalePresentationModel
     @FocusState.Binding var focused: Bool
 
+    private var canSubmitDraft: Bool {
+        !model.draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
     var body: some View {
         VStack(spacing: 8) {
             HStack(alignment: .bottom, spacing: 8) {
@@ -903,10 +907,10 @@ private struct Composer: View {
                             Image(systemName: "arrow.up")
                                 .frame(width: 42, height: 42)
                         }
-                        .buttonStyle(.borderedProminent)
-                        .tint(RundaleTheme.accent)
-                        .disabled(model.draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                        .buttonStyle(ComposerSendButtonStyle())
+                        .disabled(!canSubmitDraft)
                         .accessibilityLabel("Send command")
+                        .accessibilityValue(canSubmitDraft ? "Ready to send" : "Enter a command to enable")
                         .accessibilityIdentifier("composer.send")
                     }
 
@@ -962,5 +966,29 @@ private struct Composer: View {
         .background(RundaleTheme.canvas)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("composer")
+    }
+}
+
+private struct ComposerSendButtonStyle: ButtonStyle {
+    @Environment(\.isEnabled) private var isEnabled
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .padding(10)
+            .foregroundStyle(isEnabled ? RundaleTheme.canvas : RundaleTheme.secondaryInk)
+            .background(
+                Circle().fill(isEnabled ? RundaleTheme.accent : Color.clear)
+            )
+            .overlay(
+                Circle().stroke(
+                    isEnabled ? Color.clear : RundaleTheme.rule,
+                    lineWidth: 1.2
+                )
+            )
+            .contentShape(Circle())
+            .scaleEffect(configuration.isPressed && isEnabled ? 0.96 : 1)
+            .opacity(configuration.isPressed && isEnabled ? 0.82 : 1)
+            .animation(.easeOut(duration: 0.12), value: configuration.isPressed)
+            .animation(.easeOut(duration: 0.12), value: isEnabled)
     }
 }

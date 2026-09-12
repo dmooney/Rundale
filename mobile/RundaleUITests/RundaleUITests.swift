@@ -34,6 +34,21 @@ final class RundaleUITests: XCTestCase {
         XCTAssertEqual(input.value as? String, "")
     }
 
+    func testSendButtonExposesDistinctDisabledAndEnabledStates() {
+        launch(fixture: "standard")
+
+        let send = app.buttons["composer.send"]
+        XCTAssertTrue(send.waitForExistence(timeout: 3))
+        XCTAssertFalse(send.isEnabled)
+        XCTAssertEqual(send.value as? String, "Enter a command to enable")
+
+        commandInput.tap()
+        commandInput.typeText("Look")
+
+        XCTAssertTrue(send.isEnabled)
+        XCTAssertEqual(send.value as? String, "Ready to send")
+    }
+
     func testDraftTypedDuringAcceptedStreamSurvivesStop() {
         launch(fixture: "manual-stream")
 
