@@ -293,11 +293,11 @@ final class RundaleUITests: XCTestCase {
             return
         }
         XCTAssertNotEqual(
-            historical.label,
-            newestVisible.label,
+            historical.identifier,
+            newestVisible.identifier,
             "A history gesture must change the visible transcript rows"
         )
-        let historicalLabel = historical.label
+        let historicalIdentifier = historical.identifier
         let historicalY = historical.frame.minY
 
         app.buttons["composer.send"].tap()
@@ -307,7 +307,7 @@ final class RundaleUITests: XCTestCase {
         step.tap()
         let newText = app.buttons["transcript.new-text"]
         XCTAssertTrue(newText.waitForExistence(timeout: 3))
-        let sameHistorical = app.staticTexts[historicalLabel]
+        let sameHistorical = app.staticTexts[historicalIdentifier]
         XCTAssertTrue(sameHistorical.waitForExistence(timeout: 3))
         XCTAssertTrue(sameHistorical.isHittable)
         XCTAssertTrue(sameHistorical.frame.intersects(scroll.frame))

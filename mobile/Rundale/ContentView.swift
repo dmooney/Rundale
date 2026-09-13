@@ -296,6 +296,7 @@ private final class TranscriptCollectionViewController: UIViewController,
     private var isApplyingPosition = false
     private var lastBoundsSize: CGSize = .zero
     private var lastContentSize: CGSize = .zero
+    private var wasScrollable = false
 
     var onFollowModeChanged: ((Bool, TranscriptAnchor?) -> Void)?
     var onReadingAnchorChanged: ((TranscriptAnchor?) -> Void)?
@@ -320,7 +321,9 @@ private final class TranscriptCollectionViewController: UIViewController,
         let view = TranscriptCollectionView(frame: .zero, collectionViewLayout: layout)
         view.translatesAutoresizingMaskIntoConstraints = false
         view.backgroundColor = .clear
-        view.showsVerticalScrollIndicator = false
+        view.showsVerticalScrollIndicator = true
+        view.indicatorStyle = .default
+        view.verticalScrollIndicatorInsets = UIEdgeInsets(top: 12, left: 0, bottom: 12, right: 4)
         view.alwaysBounceVertical = true
         view.keyboardDismissMode = .interactive
         view.accessibilityIdentifier = "transcript"
@@ -364,6 +367,11 @@ private final class TranscriptCollectionViewController: UIViewController,
         ])
     }
 
+    override func viewDidAppear(_ animated: Bool) {
+        super.viewDidAppear(animated)
+        flashScrollIndicatorIfNeeded(after: .milliseconds(250))
+    }
+
     override func viewDidLayoutSubviews() {
         super.viewDidLayoutSubviews()
         collectionView.layoutIfNeeded()
@@ -372,6 +380,12 @@ private final class TranscriptCollectionViewController: UIViewController,
         let contentChanged = collectionView.contentSize != lastContentSize
         lastBoundsSize = collectionView.bounds.size
         lastContentSize = collectionView.contentSize
+
+        let isScrollable = collectionView.contentSize.height > collectionView.bounds.height + 1
+        if isScrollable, !wasScrollable {
+            flashScrollIndicatorIfNeeded()
+        }
+        wasScrollable = isScrollable
 
         guard !isApplyingPosition else { return }
         if isFollowingNewest {
@@ -514,6 +528,17 @@ private final class TranscriptCollectionViewController: UIViewController,
                 + collectionView.adjustedContentInset.bottom
         )
         return max(0, maximumOffset - collectionView.contentOffset.y)
+    }
+
+    private func flashScrollIndicatorIfNeeded(after delay: DispatchTimeInterval = .milliseconds(0)) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
+            guard let self,
+                  self.viewIfLoaded?.window != nil,
+                  self.collectionView.contentSize.height > self.collectionView.bounds.height + 1 else {
+                return
+            }
+            self.collectionView.flashScrollIndicators()
+        }
     }
 
     private func pinToNewest() {
