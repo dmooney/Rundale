@@ -55,7 +55,7 @@ final class RundalePhase2UITests: XCTestCase {
         input.tap()
         input.typeText("/look\n")
 
-        XCTAssertTrue(waitForTranscriptText("/look", timeout: 8))
+        XCTAssertTrue(waitForTranscriptItem("/look", timeout: 8))
         XCTAssertTrue(waitForValue("", on: input, timeout: 8))
         XCTAssertTrue(app.buttons["composer.send"].waitForExistence(timeout: 3))
     }
@@ -207,6 +207,15 @@ final class RundalePhase2UITests: XCTestCase {
     private func waitForTranscriptText(_ text: String, timeout: TimeInterval) -> Bool {
         app.descendants(matching: .any).matching(
             NSPredicate(format: "label CONTAINS %@", text)
+        ).firstMatch.waitForExistence(timeout: timeout)
+    }
+
+    private func waitForTranscriptItem(_ text: String, timeout: TimeInterval) -> Bool {
+        app.descendants(matching: .any).matching(
+            NSPredicate(
+                format: "identifier BEGINSWITH 'transcript.item.' AND label CONTAINS %@",
+                text
+            )
         ).firstMatch.waitForExistence(timeout: timeout)
     }
 

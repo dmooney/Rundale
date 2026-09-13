@@ -916,15 +916,8 @@ private struct Composer: View {
     var body: some View {
         VStack(spacing: 8) {
             HStack(alignment: .bottom, spacing: 8) {
-                // A vertical-axis TextField keeps the native text-entry
-                // surface content-sized: it starts at one line, grows with
-                // multiline input, and scrolls internally after five lines.
-                // That keeps a blank composer compact on small iPhones while
-                // preserving multiline editing, selection, dictation, and
-                // paste on devices. Simulator builds repurpose Return below.
-                TextField("What do you do?", text: $model.draft, axis: .vertical)
+                commandField
                     .font(.system(.body, design: .serif))
-                    .lineLimit(1...5)
                     .textFieldStyle(.plain)
                     .focused($focused)
                     .padding(.horizontal, 12)
@@ -935,19 +928,12 @@ private struct Composer: View {
                             .stroke(RundaleTheme.rule, lineWidth: 0.9)
                     )
                     .accessibilityLabel("Command draft")
-                    .accessibilityHint("Enter a multiline command")
+                    .accessibilityHint(commandFieldHint)
                     .accessibilityIdentifier("composer.input")
-                    .onChange(of: model.draft) { _, draft in
+                    .onChange(of: model.draft) { _, _ in
                         model.noteDraftMutation()
                         model.refreshCompletions()
-                        #if targetEnvironment(simulator)
-                        if draft.contains(where: \.isNewline) {
-                            model.submitDraft()
-                            focused = true
-                        }
-                        #endif
                     }
-                    .modifier(SimulatorReturnKeyLabel())
 
                 VStack(spacing: 7) {
                     if model.isStreaming {
@@ -1030,20 +1016,101 @@ private struct Composer: View {
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("composer")
     }
-}
 
-private struct SimulatorReturnKeyLabel: ViewModifier {
     @ViewBuilder
-    func body(content: Content) -> some View {
+    private var commandField: some View {
         #if targetEnvironment(simulator)
-        content
-            .submitLabel(.send)
-            .accessibilityHint("Press Return or activate Send to submit")
+        // The Simulator is primarily driven from a Mac keyboard. A single-line
+        // field gives Return its native submit semantics instead of relying on
+        // a multiline draft mutation that can differ between input methods.
+        SimulatorCommandTextField(text: $model.draft) {
+            guard !model.isStreaming, canSubmitDraft else { return false }
+            model.submitDraft()
+            focused = true
+            return true
+        }
+        .frame(height: 22)
         #else
-        content
+        // Physical devices retain the growing multiline composer used for
+        // selection, dictation, paste, and explicit line breaks.
+        TextField("What do you do?", text: $model.draft, axis: .vertical)
+            .lineLimit(1...5)
+        #endif
+    }
+
+    private var commandFieldHint: String {
+        #if targetEnvironment(simulator)
+        "Press Return or activate Send to submit"
+        #else
+        "Enter a multiline command"
         #endif
     }
 }
+
+#if targetEnvironment(simulator)
+private struct SimulatorCommandTextField: UIViewRepresentable {
+    @Binding var text: String
+    let onSubmit: () -> Bool
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(parent: self)
+    }
+
+    func makeUIView(context: Context) -> UITextField {
+        let field = UITextField()
+        field.delegate = context.coordinator
+        field.addTarget(
+            context.coordinator,
+            action: #selector(Coordinator.textChanged(_:)),
+            for: .editingChanged
+        )
+        field.returnKeyType = .send
+        field.adjustsFontForContentSizeCategory = true
+        let descriptor = UIFontDescriptor.preferredFontDescriptor(withTextStyle: .body)
+        field.font = UIFont(descriptor: descriptor.withDesign(.serif) ?? descriptor, size: 0)
+        field.placeholder = "What do you do?"
+        field.backgroundColor = .clear
+        field.accessibilityLabel = "Command draft"
+        field.accessibilityHint = "Press Return or activate Send to submit"
+        field.accessibilityIdentifier = "composer.input"
+        return field
+    }
+
+    func updateUIView(_ field: UITextField, context: Context) {
+        context.coordinator.parent = self
+        if field.text != text {
+            field.text = text
+        }
+    }
+
+    final class Coordinator: NSObject, UITextFieldDelegate {
+        var parent: SimulatorCommandTextField
+
+        init(parent: SimulatorCommandTextField) {
+            self.parent = parent
+        }
+
+        @objc func textChanged(_ field: UITextField) {
+            parent.text = field.text ?? ""
+        }
+
+        func textFieldShouldReturn(_ textField: UITextField) -> Bool {
+            guard !(textField.text ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+                return false
+            }
+            let submit = parent.onSubmit
+            // UIKit delivers shouldReturn before SwiftUI's observation of the
+            // final edit is guaranteed to settle. Submit on the next main turn
+            // so the model captures the correct revision for its acceptance
+            // guard and can safely clear the durable draft.
+            DispatchQueue.main.async {
+                _ = submit()
+            }
+            return false
+        }
+    }
+}
+#endif
 
 private struct ComposerSendButtonStyle: ButtonStyle {
     @Environment(\.isEnabled) private var isEnabled
