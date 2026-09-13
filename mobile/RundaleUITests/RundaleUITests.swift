@@ -173,15 +173,21 @@ final class RundaleUITests: XCTestCase {
         XCTAssertTrue(waitForTranscriptText("/"))
     }
 
-    func testHistoryRecallCopiesAnEarlierCommandForEditing() {
+    func testTranscriptCommandRecallWorksWithoutAHistoryButton() {
         launch(fixture: "standard")
 
         submitAndFinish("look around")
         submitAndFinish("walk to the bridge")
 
-        let history = app.buttons["composer.history"]
-        XCTAssertTrue(history.waitForExistence(timeout: 3))
-        history.tap()
+        XCTAssertFalse(app.buttons["composer.history"].exists)
+        let latestCommand = app.descendants(matching: .any).matching(
+            NSPredicate(
+                format: "identifier BEGINSWITH 'transcript.item.' AND label CONTAINS %@",
+                "walk to the bridge"
+            )
+        ).firstMatch
+        XCTAssertTrue(latestCommand.waitForExistence(timeout: 3))
+        latestCommand.tap()
         let input = commandInput
         XCTAssertEqual(input.value as? String, "walk to the bridge")
         input.typeText(" slowly")

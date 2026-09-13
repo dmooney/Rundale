@@ -963,18 +963,6 @@ private struct Composer: View {
                         .accessibilityIdentifier("composer.send")
                     }
 
-                    if model.hasHistory {
-                        Button {
-                            model.recallPreviousCommand()
-                            focused = true
-                        } label: {
-                            Image(systemName: "clock.arrow.circlepath")
-                                .frame(width: 42, height: 32)
-                        }
-                        .buttonStyle(.bordered)
-                        .accessibilityLabel("Recall previous command")
-                        .accessibilityIdentifier("composer.history")
-                    }
                 }
             }
 

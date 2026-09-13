@@ -55,8 +55,6 @@ final class RundalePresentationModel: ObservableObject {
     let launch: LaunchConfiguration
     private let session: any RundaleSessionControlling
     private var eventTask: Task<Void, Never>?
-    private var submittedCommands: [CommandHistoryEntry] = []
-    private var historyIndex: Int?
     private var draftRevision: UInt64 = 0
     private var activeSourceDraftID: DraftID?
 
@@ -80,7 +78,6 @@ final class RundalePresentationModel: ObservableObject {
         draft = launch.initialDraft ?? self.session.restoredDraft()?.text ?? ""
         clarification = state.pendingClarification.map(Self.presentedClarification)
         isStreaming = state.activeRequestID != nil
-        submittedCommands = state.commandHistory
     }
 
     deinit {
@@ -131,7 +128,6 @@ final class RundalePresentationModel: ObservableObject {
         let command = draft.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !command.isEmpty, !isStreaming else { return }
 
-        historyIndex = nil
         submissionMessage = nil
         session.updateDraft(draft)
         let sourceDraftID = session.state.draft.id
@@ -165,10 +161,6 @@ final class RundalePresentationModel: ObservableObject {
                 refreshFromSession()
             }
         }
-    }
-
-    var hasHistory: Bool {
-        !submittedCommands.isEmpty
     }
 
     var canRetry: Bool {
@@ -224,22 +216,8 @@ final class RundalePresentationModel: ObservableObject {
         refreshFromSession()
     }
 
-    func recallPreviousCommand() {
-        guard !submittedCommands.isEmpty else { return }
-        let nextIndex: Int
-        if let historyIndex {
-            nextIndex = max(0, historyIndex - 1)
-        } else {
-            nextIndex = submittedCommands.count - 1
-        }
-        historyIndex = nextIndex
-        draft = submittedCommands[nextIndex].text
-        completions = []
-    }
-
     func recallCommand(_ command: String) {
         guard !command.isEmpty else { return }
-        historyIndex = submittedCommands.lastIndex(where: { $0.text == command })
         draft = command
         completions = []
     }
@@ -279,7 +257,6 @@ final class RundalePresentationModel: ObservableObject {
         let nextHeader = session.currentHeader
         if nextHeader != header { header = nextHeader }
         updateTranscript(from: state.transcript)
-        submittedCommands = state.commandHistory
         clarification = state.pendingClarification.map(Self.presentedClarification)
         isStreaming = state.activeRequestID != nil
         if let persistenceError = session.persistenceError {
