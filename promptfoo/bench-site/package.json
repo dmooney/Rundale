@@ -11,13 +11,13 @@
   },
   "dependencies": {
     "@astrojs/svelte": "^9.0.1",
-    "astro": "^7.2.4",
-    "simple-icons": "^16.28.0",
-    "svelte": "^5.56.10"
+    "astro": "^7.3.2",
+    "simple-icons": "^16.30.0",
+    "svelte": "^5.57.0"
   },
   "devDependencies": {
     "@astrojs/check": "^0.9.10",
-    "@types/node": "^26.2.0",
+    "@types/node": "^26.5.1",
     "typescript": "^5.9.3"
   }
 }
