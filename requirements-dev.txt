@@ -6,6 +6,6 @@
 # and .yamllint.yml.
 ruff==0.16.5
 mypy==2.3.1
-pydantic>=2.13.4
+pydantic>=2.13.5
 pytest==9.1.1
 yamllint==1.38.0
