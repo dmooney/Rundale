@@ -467,6 +467,9 @@ private final class TranscriptCollectionViewController: UIViewController,
 
     func scrollViewWillBeginDragging(_ scrollView: UIScrollView) {
         anchorLock = nil
+        guard isFollowingNewest else { return }
+        isFollowingNewest = false
+        onFollowModeChanged?(false, currentAnchor(preferFullyVisible: true))
     }
 
     func scrollViewDidScroll(_ scrollView: UIScrollView) {

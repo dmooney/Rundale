@@ -35,6 +35,19 @@ final class RundalePhase3UITests: XCTestCase {
         XCTAssertTrue(waitForText("Peig Hannigan", timeout: 8))
     }
 
+    func testExitDirectionsTravelWithoutEndpointInference() {
+        launch(reset: true)
+        XCTAssertTrue(headerLabel(contains: "Kilteevan Village").waitForExistence(timeout: 8))
+
+        submit("go east")
+        XCTAssertTrue(headerLabel(contains: "Letter Office").waitForExistence(timeout: 8))
+        XCTAssertFalse(app.buttons["composer.stop"].exists)
+
+        submit("go west")
+        XCTAssertTrue(headerLabel(contains: "Kilteevan Village").waitForExistence(timeout: 8))
+        XCTAssertFalse(app.buttons["composer.stop"].exists)
+    }
+
     func testAmbiguousConnollyRequiresSelectionBeforeEndpointWork() {
         launch(reset: true)
         submit("/go Connolly Cottage")

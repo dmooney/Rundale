@@ -2842,8 +2842,11 @@ impl MobileSession {
         use parish_world::movement::MovementResult;
         use parish_world::transport::TransportMode;
 
+        let resolved_target = self
+            .directional_travel_target(target)
+            .unwrap_or_else(|| target.to_string());
         let movement = parish_world::movement::resolve_movement(
-            target,
+            &resolved_target,
             &self.world.graph,
             self.world.player_location,
             &TransportMode::walking(),
@@ -2903,7 +2906,7 @@ impl MobileSession {
             emitted.push(self.make_event_at(
                 EventSequence::new(next_sequence),
                 SemanticEventKind::CommandInterpreted,
-                Some(format!("Travel to {target}.")),
+                Some(format!("Travel to {resolved_target}.")),
                 None,
                 Some(request_id),
                 Some(attempt_id),
@@ -3046,6 +3049,22 @@ impl MobileSession {
             false,
             None,
         ))
+    }
+
+    fn directional_travel_target(&self, target: &str) -> Option<String> {
+        let current = self
+            .content
+            .location_by_engine_id(self.world.player_location)?;
+        let exit = current
+            .exits
+            .iter()
+            .find(|exit| exit.playable && exit.direction.eq_ignore_ascii_case(target.trim()))?;
+        let destination_id = exit.destination_id.as_deref()?;
+        self.content
+            .locations
+            .iter()
+            .find(|location| location.id == destination_id && location.playable)
+            .map(|location| location.display_name.clone())
     }
 
     fn commit_dialogue(
@@ -3926,6 +3945,7 @@ fn movement_target(text: &str) -> Option<(String, bool)> {
     for (prefix, interpreted) in [
         ("/go ", false),
         ("go to ", true),
+        ("go ", true),
         ("walk to ", true),
         ("walk over to ", true),
         ("head to ", true),
@@ -4328,6 +4348,25 @@ mod tests {
             nearby,
             vec!["npc-micheal".to_string(), "npc-roisin".to_string()]
         );
+    }
+
+    #[test]
+    fn phase3_exit_direction_travel_is_authoritative_offline() {
+        let mut session = session();
+
+        let east = session.submit(None, "go east", None).unwrap();
+        assert!(east.endpoint_invocation.is_none());
+        assert_eq!(session.state_revision(), StateRevision::new(1));
+        assert_eq!(session.snapshot().read_model.scene.id, "letter-office");
+        assert!(east.events.iter().any(|event| {
+            event.kind == SemanticEventKind::CommandInterpreted
+                && event.content.as_deref() == Some("Travel to Letter Office.")
+        }));
+
+        let west = session.submit(None, "go west", None).unwrap();
+        assert!(west.endpoint_invocation.is_none());
+        assert_eq!(session.state_revision(), StateRevision::new(2));
+        assert_eq!(session.snapshot().read_model.scene.id, "kilteevan-village");
     }
 
     #[test]

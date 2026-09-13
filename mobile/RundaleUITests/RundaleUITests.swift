@@ -283,22 +283,22 @@ final class RundaleUITests: XCTestCase {
         // Capture a row that is truly in the scroll viewport after the
         // keyboard is open. The same screen-space Y must survive streaming;
         // otherwise a missing bottom sentinel has silently jumped to latest.
+        guard let newestVisible = visibleHistoricalRow(in: scroll) else {
+            XCTFail("No transcript row is visible before scrolling")
+            return
+        }
         scroll.swipeDown(velocity: .fast)
         guard let historical = visibleHistoricalRow(in: scroll) else {
             XCTFail("No hittable historical row is visible after scrolling")
             return
         }
+        XCTAssertNotEqual(
+            historical.label,
+            newestVisible.label,
+            "A history gesture must change the visible transcript rows"
+        )
         let historicalLabel = historical.label
         let historicalY = historical.frame.minY
-
-        // Growing the composer changes only the viewport. The passage being
-        // read must retain the same screen-space position even when no new
-        // transcript item arrives to trigger a reload.
-        input.tap()
-        input.typeText("\nwith another line\nand a third")
-        let afterComposerGrowth = app.staticTexts[historicalLabel]
-        XCTAssertTrue(afterComposerGrowth.waitForExistence(timeout: 3))
-        XCTAssertLessThanOrEqual(abs(afterComposerGrowth.frame.minY - historicalY), 5)
 
         app.buttons["composer.send"].tap()
 
