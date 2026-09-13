@@ -8,7 +8,7 @@ Proposed (2026-04-26). No implementation yet.
 
 ## Context
 
-NPCs in Rundale carry two memory stores today (see [docs/design/npc-system.md](../design/npc-system.md) and `crates/parish-npc/src/memory.rs`):
+NPCs in Rundale carry two memory stores today (see [docs/design/npc-system.md](../design/npc-system.md) and `crates/limerick-npc/src/memory.rs`):
 
 1. **Short-term** — a 20-entry ring buffer of recent observations and conversations.
 2. **Long-term** — accumulating entries with no eviction beyond manual pruning.
@@ -30,7 +30,7 @@ The standard fix is **embedding-based retrieval**: store each memory as a vector
 
 When we revisit, the candidate decision is:
 
-> **Long-term memory entries are stored both as plaintext (the existing `Memory` struct) and as an embedding vector. At Tier 1 prompt-build time, the engine embeds the scene context (player input + location + speakers) and selects the top-K (K ≈ 6) memories by cosine similarity, falling back to recency if the embedding store is unavailable. Short-term memory is unchanged. Vector storage piggy-backs on `parish-persistence`'s SQLite — likely [`sqlite-vss`](https://github.com/asg017/sqlite-vss) or an in-process kNN over a `BLOB` column.**
+> **Long-term memory entries are stored both as plaintext (the existing `Memory` struct) and as an embedding vector. At Tier 1 prompt-build time, the engine embeds the scene context (player input + location + speakers) and selects the top-K (K ≈ 6) memories by cosine similarity, falling back to recency if the embedding store is unavailable. Short-term memory is unchanged. Vector storage piggy-backs on `limerick-persistence`'s SQLite — likely [`sqlite-vss`](https://github.com/asg017/sqlite-vss) or an in-process kNN over a `BLOB` column.**
 
 ## Consequences
 
@@ -79,4 +79,4 @@ Cleanest code, violates [ADR-005](005-ollama-local-inference.md). Rejected.
 - [ADR-017 Per-Category Inference Providers](017-per-category-inference-providers.md) — needs a new category for embedding.
 - [docs/design/npc-system.md](../design/npc-system.md) — current memory model. The "Consider embedding-based retrieval" sentence there is the seed for this ADR.
 - [LLM Quality Evals Plan](../plans/llm-quality-evals.md) — measurement framework that should land before this decision.
-- `crates/parish-npc/src/memory.rs` — the module to extend.
+- `crates/limerick-npc/src/memory.rs` — the module to extend.

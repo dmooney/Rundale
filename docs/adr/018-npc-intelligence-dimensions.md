@@ -78,7 +78,7 @@ words" for V1). Dimensions at 3 produce no hints to save tokens.
 
 ## Implementation
 
-- `Intelligence` struct in `crates/parish-core/src/npc/types.rs`
+- `Intelligence` struct in `crates/limerick-core/src/npc/types.rs`
 - `intelligence` field on `Npc`, `NpcFileEntry`, `NpcSnapshot`
 - Injected into Tier 1 system prompts via `prompt_guidance()` (behavioral
   directives only; `prompt_tag()` and `prompt_legend()` were removed)

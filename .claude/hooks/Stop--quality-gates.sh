@@ -65,14 +65,14 @@ if [[ -z "$CHANGED_RS" && -z "$UNSTAGED_RS" && -z "$UNTRACKED_RS" ]]; then
     exit 0
 fi
 
-# Cargo workspace lives under parish/ since the 855f2a9 relocation refactor.
-if [ ! -f "parish/Cargo.toml" ]; then
-    log "no parish/Cargo.toml at $ROOT; skipping"
+# Cargo workspace lives under limerick/ since the 855f2a9 relocation refactor.
+if [ ! -f "limerick/Cargo.toml" ]; then
+    log "no limerick/Cargo.toml at $ROOT; skipping"
     exit 0
 fi
-cd parish
+cd limerick
 
-LOG_FILE="$(mktemp -t parish-quality-gates.XXXXXX.log)"
+LOG_FILE="$(mktemp -t limerick-quality-gates.XXXXXX.log)"
 trap 'rm -f "$LOG_FILE"' EXIT
 
 run_step() {
@@ -89,7 +89,7 @@ run_step() {
 }
 
 {
-    echo "=== Parish Quality Gates ==="
+    echo "=== Limerick Quality Gates ==="
     echo "Rust files changed -- running checks at $(date -u +%FT%TZ)"
 } >&2
 
@@ -115,8 +115,8 @@ REASON="$(printf '%s\n' \
     "documented bypass with an explicit reason), then continue. The Stop" \
     "gate will re-fire until it clears." \
     "" \
-    "Parish quality gates failed (cargo fmt / clippy / test). Address the" \
-    "failure(s) below before stopping. Re-run \`cd parish && cargo fmt &&" \
+    "Limerick quality gates failed (cargo fmt / clippy / test). Address the" \
+    "failure(s) below before stopping. Re-run \`cd limerick && cargo fmt &&" \
     "cargo clippy -- -D warnings && cargo test\` after fixing." \
     "" \
     "Bypass (only for unfixable env issues): include [skip-quality-hook] in" \

@@ -220,7 +220,7 @@ Potential extension to NPC structured output (illustrative):
 
 ### Phase 2: Deterministic core state
 
-- Introduce engine-side emotion dimensions in `parish-core` NPC state.
+- Introduce engine-side emotion dimensions in `limerick-core` NPC state.
 - Update tick logic with simple deltas from events and relationships.
 
 ### Phase 3: Gameplay hooks

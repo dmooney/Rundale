@@ -21,7 +21,7 @@ concurrency:
 
 defaults:
   run:
-    working-directory: parish
+    working-directory: limerick
 
 env:
   CARGO_TERM_COLOR: always
@@ -145,7 +145,7 @@ jobs:
       - name: Enforce coverage floor
         env:
           NEXTEST_PROFILE: ci
-        run: cargo llvm-cov nextest --workspace --all-targets --exclude parish-client --ignore-filename-regex 'build\.rs' --fail-under-lines 60.8
+        run: cargo llvm-cov nextest --workspace --all-targets --exclude limerick-client --ignore-filename-regex 'build\.rs' --fail-under-lines 60.8
 
   rust-multi-channel:
     name: Rust channel matrix
@@ -215,7 +215,7 @@ jobs:
             librsvg2-dev
 
       - name: Build engine once
-        run: cargo build -p parish-engine
+        run: cargo build -p limerick-engine
 
       - name: Run every legacy regression fixture (parallel)
         shell: bash
@@ -232,26 +232,26 @@ jobs:
             fi
             echo "ok: $f"
           EOF
-          export BIN="$PWD/target/debug/parish-engine"
+          export BIN="$PWD/target/debug/limerick-engine"
           find testing/fixtures -maxdepth 1 -name 'test_*.txt' -print0 \
             | xargs -0 -P "$(nproc)" -I{} bash "$runner" {}
 
       - name: Run asserted shipping-loop scenarios
-        run: cargo test -p parish-scenario --test scenarios
+        run: cargo test -p limerick-scenario --test scenarios
 
       - name: Build server + client
-        run: cargo build -p parish-server -p parish-client
+        run: cargo build -p limerick-server -p limerick-client
 
-      - name: parish-client smoke test
+      - name: limerick-client smoke test
         shell: bash
         run: |
           set -euo pipefail
-          bash scripts/parish-mcp-backend.sh start
-          trap 'bash scripts/parish-mcp-backend.sh stop' EXIT
-          out=$(PARISH_SERVER=http://127.0.0.1:3030 ./target/debug/parish "look")
+          bash scripts/limerick-mcp-backend.sh start
+          trap 'bash scripts/limerick-mcp-backend.sh stop' EXIT
+          out=$(LIMERICK_SERVER=http://127.0.0.1:3030 ./target/debug/limerick "look")
           echo "$out"
           grep -q "Kilteevan" <<<"$out" || {
-            echo "::error::parish-client smoke: 'look' output did not include the starting location"
+            echo "::error::limerick-client smoke: 'look' output did not include the starting location"
             exit 1
           }
 
@@ -261,7 +261,7 @@ jobs:
     timeout-minutes: 20
     defaults:
       run:
-        working-directory: parish/apps/ui
+        working-directory: limerick/apps/ui
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -273,7 +273,7 @@ jobs:
         with:
           node-version: 22
           cache: npm
-          cache-dependency-path: parish/apps/ui/package-lock.json
+          cache-dependency-path: limerick/apps/ui/package-lock.json
 
       - name: Install dependencies
         run: npm ci
@@ -299,7 +299,7 @@ jobs:
     timeout-minutes: 30
     defaults:
       run:
-        working-directory: parish/apps/ui
+        working-directory: limerick/apps/ui
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -311,7 +311,7 @@ jobs:
         with:
           node-version: 22
           cache: npm
-          cache-dependency-path: parish/apps/ui/package-lock.json
+          cache-dependency-path: limerick/apps/ui/package-lock.json
 
       - name: Install Rust toolchain
         uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659 # v1.17.0
@@ -340,9 +340,9 @@ jobs:
         if: runner.os == 'macOS'
         run: npx playwright install chromium
 
-      - name: Prebuild parish web server binary
-        working-directory: ${{ github.workspace }}/parish
-        run: cargo build -p parish-server
+      - name: Prebuild limerick web server binary
+        working-directory: ${{ github.workspace }}/limerick
+        run: cargo build -p limerick-server
 
       - name: Run Playwright e2e
         run: npx playwright test
@@ -353,8 +353,8 @@ jobs:
         with:
           name: playwright-report
           path: |
-            parish/apps/ui/playwright-report/
-            parish/apps/ui/e2e/test-results/
+            limerick/apps/ui/playwright-report/
+            limerick/apps/ui/e2e/test-results/
           if-no-files-found: ignore
 
   full-ci-gate:

@@ -31,7 +31,7 @@ Most modern provider APIs (Anthropic, OpenAI, Google) expose **structured tool-c
 Two complications:
 
 - **Local Ollama doesn't reliably support tool-calling** for the model sizes we target (14B, 9B). [ADR-005 Ollama Local Inference](005-ollama-local-inference.md) commits us to a local-first option. Any decision must keep the offline path viable.
-- **Streaming.** Today Tier 1 streams the prose to the client token-by-token (see `parish-server/src/ws.rs`, `parish-inference/src/utf8_stream.rs`); the JSON sidecar is parsed at the end. Tool-calling typically returns a single structured response, defeating the streaming UX.
+- **Streaming.** Today Tier 1 streams the prose to the client token-by-token (see `limerick-server/src/ws.rs`, `limerick-inference/src/utf8_stream.rs`); the JSON sidecar is parsed at the end. Tool-calling typically returns a single structured response, defeating the streaming UX.
 
 ## Decision
 
@@ -59,7 +59,7 @@ When we revisit, the candidate decision is:
 
 - **Two code paths per tier.** Cloud Tier 1 uses tool-calling; local Tier 1 uses the existing protocol. Mode parity (AGENTS.md §2) requires both to produce the same `Tier1Response` struct. Likely materializes as a `Tier1ResponseAdapter` trait with `CloudToolCallAdapter` and `JsonSidecarAdapter` impls.
 - **Streaming UX.** Need to design how a tool-call response surfaces dialogue tokens to the client. Options: (a) keep dialogue as a streamed prose field on the tool's argument (token-stream within structured args is supported by Anthropic/OpenAI), (b) accept non-streaming Tier 1 on cloud and rely on cloud latency being low enough.
-- **Prompt rewrite.** `tier1_system.txt` must teach the cloud path to call the tool _and_ the local path to emit the sidecar. Prompt-template branching, gated on provider category from `parish-config`'s provider routing.
+- **Prompt rewrite.** `tier1_system.txt` must teach the cloud path to call the tool _and_ the local path to emit the sidecar. Prompt-template branching, gated on provider category from `limerick-config`'s provider routing.
 
 ### If rejected
 

@@ -1,7 +1,7 @@
 Use the seven attached reference images by index. Generate exactly one finished native 16:9 PNG image, with no UI, no labels, no border, no characters.
 
 Use case: historical-scene
-Asset type: third-topology direct map/control illustrated parish-notebook game background plate, native 16:9 desktop, no UI
+Asset type: third-topology direct map/control illustrated rundale-notebook game background plate, native 16:9 desktop, no UI
 
 Input images and roles:
 Image 1: target historic map crop. This is the primary layout and content authority. Treat it as a north-up source ground plan, not as visual style.

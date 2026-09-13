@@ -45,13 +45,13 @@ just act-pr         # simulate the pull_request fast lane
 - **Triggers:** `pull_request`, `push` to `main`/`develop`, `workflow_dispatch`.
 - **Jobs:** changes, agent-check, docs-consistency (links + repository artifacts), format-quality, python-quality, shell-quality, toml-quality, Windows launcher lifecycle, conditional reusable `runtime-suite`, and the aggregate `ci-gate`.
 - **Runtime contract:** `runtime-suite` calls `full-ci.yml` only for pull requests with `changes.runtime == true`. `ci-gate.sh` requires `success` when the suite is expected and `skipped` when it is not, so a failure, cancellation, or unexpected skip cannot produce a green required check.
-- **agent-check** runs `bash parish/scripts/agent-check.sh --source=pr "$PR_NUMBER"`. Skipped for dependabot.
+- **agent-check** runs `bash limerick/scripts/agent-check.sh --source=pr "$PR_NUMBER"`. Skipped for dependabot.
 - **Concurrency:** `ci-${{ github.workflow }}-${{ github.ref }}`, cancel-in-progress.
 
 ### `full-ci.yml` — Preserved full-suite pipeline
 
 - **Triggers:** reusable `workflow_call`, `push` to `main`/`develop`, `merge_group`, nightly `schedule`, `workflow_dispatch`.
-- **Jobs:** rust-quality-gate (fmt+clippy+tests), rust-coverage-ratchet (cargo-llvm-cov floor 60.8%), rust-multi-channel (stable+beta), game-harness (fixture sweep + parish-client smoke), ui-quality (svelte-check+lint+format+build+vitest), ui-e2e (Playwright), and `Full CI gate`.
+- **Jobs:** rust-quality-gate (fmt+clippy+tests), rust-coverage-ratchet (cargo-llvm-cov floor 60.8%), rust-multi-channel (stable+beta), game-harness (fixture sweep + limerick-client smoke), ui-quality (svelte-check+lint+format+build+vitest), ui-e2e (Playwright), and `Full CI gate`.
 - **Concurrency:** `full-ci-${{ github.workflow }}-${{ github.ref }}`, cancel-in-progress.
 
 ### `gemini-dispatch.yml.disabled` + `gemini-review.yml.disabled` — paused Gemini review
@@ -81,8 +81,8 @@ just act-pr         # simulate the pull_request fast lane
 
 ### `eval-inference.yml` — Inference evaluation
 
-- **Triggers:** `schedule` (nightly 02:00 UTC), `workflow_dispatch` with scenario selection. The player shares one cookie jar across all Parish HTTP requests so the run stays in one server session.
-- Builds `parish-server`, spawns it with `PARISH_PROVIDER=github_models` and `PLAYER_MODEL=microsoft/Phi-4`, runs a Python player agent across scenarios (smoke=10t, intent=25t, reactions=15t, tier2=12t, dialogue=20t, full_session=50t). Judges with gpt-4o via `actions/ai-inference@v1`. Aggregates into a CI summary table.
+- **Triggers:** `schedule` (nightly 02:00 UTC), `workflow_dispatch` with scenario selection. The player shares one cookie jar across all Limerick HTTP requests so the run stays in one server session.
+- Builds `limerick-server`, spawns it with `LIMERICK_PROVIDER=github_models` and `PLAYER_MODEL=microsoft/Phi-4`, runs a Python player agent across scenarios (smoke=10t, intent=25t, reactions=15t, tier2=12t, dialogue=20t, full_session=50t). Judges with gpt-4o via `actions/ai-inference@v1`. Aggregates into a CI summary table.
 - **Concurrency:** `eval-inference-${{ github.ref }}`, cancel-in-progress.
 
 ### `publish-bench-site.yml` — Publish the v2 (promptfoo) bench site
@@ -94,7 +94,7 @@ just act-pr         # simulate the pull_request fast lane
 ### `release.yml` — Tag-driven release pipeline
 
 - **Triggers:** `push` tags matching `v[0-9]+.[0-9]+.[0-9]+*`; `workflow_dispatch` with `dry_run: true` (default).
-- Validates tag matches `parish-engine/Cargo.toml` version. Builds Linux x86_64 release binary, packages tarball with `LICENSE`, `NOTICE`, `README.md`, creates GitHub Release via `softprops/action-gh-release`.
+- Validates tag matches `limerick-engine/Cargo.toml` version. Builds Linux x86_64 release binary, packages tarball with `LICENSE`, `NOTICE`, `README.md`, creates GitHub Release via `softprops/action-gh-release`.
 - **Permissions:** `contents: write`.
 - **Concurrency:** `release-${{ github.ref }}`, cancel-in-progress: **false**.
 

@@ -1,0 +1,944 @@
+//! Default `SessionStore` + `IdentityStore` implementations.
+//!
+//! [`DbSessionStore`] is now defined in `limerick_core::session_store` so that
+//! all three runtimes (server, Tauri, CLI) can use it without depending on
+//! `limerick-server`.  Re-exported here for backward compatibility with server
+//! internal code.
+//!
+//! [`SqliteIdentityStore`] uses server-only helpers (direct rusqlite access
+//! for sessions/oauth tables).  The canonical [`SessionRegistry`] is the
+//! concrete type in [`crate::session::SessionRegistry`], which combines an
+//! in-memory `DashMap` with the same `sessions.db` SQLite file.
+
+use std::path::{Path, PathBuf};
+use std::sync::{Arc, Mutex, MutexGuard};
+
+use limerick_core::identity::IdentityStore;
+#[cfg(test)]
+use limerick_core::session_store::{BoxFuture, SessionStore, SnapshotId};
+
+/// Re-export so existing server code continues to compile without change.
+pub use limerick_core::session_store::DbSessionStore;
+
+// ── SqliteTowerSessionStore ──────────────────────────────────────────────────
+
+/// Durable backing store for tower-sessions' opaque cookie-id → record map.
+///
+/// The record contains the canonical Limerick session UUID. Keeping it in the
+/// durable sessions database lets the same browser cookie recover the same
+/// isolated save ledger after a server process restart.
+#[derive(Clone, Debug)]
+pub struct SqliteTowerSessionStore {
+    db_path: PathBuf,
+}
+
+impl SqliteTowerSessionStore {
+    pub fn new(saves_dir: &Path) -> rusqlite::Result<Self> {
+        let db_path = saves_dir.join("sessions.db");
+        let conn = rusqlite::Connection::open(&db_path)?;
+        initialize_sessions_schema(&conn)?;
+        Ok(Self { db_path })
+    }
+
+    async fn with_connection<T, F>(&self, operation: F) -> tower_sessions::session_store::Result<T>
+    where
+        T: Send + 'static,
+        F: FnOnce(rusqlite::Connection) -> tower_sessions::session_store::Result<T>
+            + Send
+            + 'static,
+    {
+        let path = self.db_path.clone();
+        tokio::task::spawn_blocking(move || {
+            let conn = rusqlite::Connection::open(path).map_err(|error| {
+                tower_sessions::session_store::Error::Backend(error.to_string())
+            })?;
+            operation(conn)
+        })
+        .await
+        .map_err(|error| tower_sessions::session_store::Error::Backend(error.to_string()))?
+    }
+}
+
+#[async_trait::async_trait]
+impl tower_sessions::SessionStore for SqliteTowerSessionStore {
+    async fn create(
+        &self,
+        record: &mut tower_sessions::session::Record,
+    ) -> tower_sessions::session_store::Result<()> {
+        loop {
+            let candidate = record.clone();
+            let inserted = self
+                .with_connection(move |conn| {
+                    let json = serde_json::to_string(&candidate).map_err(|error| {
+                        tower_sessions::session_store::Error::Encode(error.to_string())
+                    })?;
+                    conn.execute(
+                        "INSERT OR IGNORE INTO tower_sessions (id, record_json, expires_at) VALUES (?1, ?2, ?3)",
+                        rusqlite::params![candidate.id.to_string(), json, candidate.expiry_date.unix_timestamp()],
+                    )
+                    .map(|rows| rows == 1)
+                    .map_err(|error| tower_sessions::session_store::Error::Backend(error.to_string()))
+                })
+                .await?;
+            if inserted {
+                return Ok(());
+            }
+            record.id = tower_sessions::session::Id::default();
+        }
+    }
+
+    async fn save(
+        &self,
+        record: &tower_sessions::session::Record,
+    ) -> tower_sessions::session_store::Result<()> {
+        let record = record.clone();
+        self.with_connection(move |conn| {
+            let json = serde_json::to_string(&record).map_err(|error| {
+                tower_sessions::session_store::Error::Encode(error.to_string())
+            })?;
+            conn.execute(
+                "INSERT INTO tower_sessions (id, record_json, expires_at) VALUES (?1, ?2, ?3) \
+                 ON CONFLICT(id) DO UPDATE SET record_json = excluded.record_json, expires_at = excluded.expires_at",
+                rusqlite::params![record.id.to_string(), json, record.expiry_date.unix_timestamp()],
+            )
+            .map(|_| ())
+            .map_err(|error| tower_sessions::session_store::Error::Backend(error.to_string()))
+        })
+        .await
+    }
+
+    async fn load(
+        &self,
+        session_id: &tower_sessions::session::Id,
+    ) -> tower_sessions::session_store::Result<Option<tower_sessions::session::Record>> {
+        let id = session_id.to_string();
+        self.with_connection(move |conn| {
+            use rusqlite::OptionalExtension as _;
+            let row = conn
+                .query_row(
+                    "SELECT record_json, expires_at FROM tower_sessions WHERE id = ?1",
+                    [&id],
+                    |row| Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)?)),
+                )
+                .optional()
+                .map_err(|error| {
+                    tower_sessions::session_store::Error::Backend(error.to_string())
+                })?;
+            let Some((json, expires_at)) = row else {
+                return Ok(None);
+            };
+            if expires_at <= chrono::Utc::now().timestamp() {
+                conn.execute("DELETE FROM tower_sessions WHERE id = ?1", [&id])
+                    .map_err(|error| {
+                        tower_sessions::session_store::Error::Backend(error.to_string())
+                    })?;
+                return Ok(None);
+            }
+            serde_json::from_str(&json)
+                .map(Some)
+                .map_err(|error| tower_sessions::session_store::Error::Decode(error.to_string()))
+        })
+        .await
+    }
+
+    async fn delete(
+        &self,
+        session_id: &tower_sessions::session::Id,
+    ) -> tower_sessions::session_store::Result<()> {
+        let id = session_id.to_string();
+        self.with_connection(move |conn| {
+            conn.execute("DELETE FROM tower_sessions WHERE id = ?1", [&id])
+                .map(|_| ())
+                .map_err(|error| tower_sessions::session_store::Error::Backend(error.to_string()))
+        })
+        .await
+    }
+}
+
+// ── Helpers (used by SqliteIdentityStore) ──────────────────────────────────────
+
+fn now_iso() -> String {
+    chrono::Utc::now().to_rfc3339()
+}
+
+fn lock_db(mutex: &Mutex<rusqlite::Connection>) -> MutexGuard<'_, rusqlite::Connection> {
+    match mutex.lock() {
+        Ok(g) => g,
+        Err(poisoned) => poisoned.into_inner(),
+    }
+}
+
+// ── SqliteIdentityStore ───────────────────────────────────────────────────────
+
+/// Shared reference-counted SQLite connection for the identity/session DB.
+pub type SharedConn = Arc<Mutex<rusqlite::Connection>>;
+
+/// [`IdentityStore`] backed by the `oauth_accounts` table in `sessions.db`.
+pub struct SqliteIdentityStore {
+    conn: SharedConn,
+}
+
+impl SqliteIdentityStore {
+    pub fn new(conn: SharedConn) -> Self {
+        Self { conn }
+    }
+}
+
+impl IdentityStore for SqliteIdentityStore {
+    fn lookup_by_provider(&self, provider: &str, provider_user_id: &str) -> Option<String> {
+        let db = lock_db(&self.conn);
+        db.query_row(
+            "SELECT session_id FROM oauth_accounts
+             WHERE provider = ?1 AND provider_user_id = ?2",
+            rusqlite::params![provider, provider_user_id],
+            |row| row.get(0),
+        )
+        .ok()
+    }
+
+    fn link_provider(
+        &self,
+        provider: &str,
+        provider_user_id: &str,
+        account_id: &str,
+        display_name: &str,
+    ) {
+        let db = lock_db(&self.conn);
+        match db.execute(
+            "INSERT OR REPLACE INTO oauth_accounts
+             (provider, provider_user_id, session_id, display_name) VALUES (?1, ?2, ?3, ?4)",
+            rusqlite::params![provider, provider_user_id, account_id, display_name],
+        ) {
+            Ok(rows) => tracing::info!(
+                provider = %provider,
+                provider_user_id = %provider_user_id,
+                account_id = %account_id,
+                rows = rows,
+                "SqliteIdentityStore: link_provider stored account"
+            ),
+            Err(e) => tracing::error!(
+                provider = %provider,
+                provider_user_id = %provider_user_id,
+                account_id = %account_id,
+                error = %e,
+                "SqliteIdentityStore: link_provider DB write failed"
+            ),
+        }
+    }
+
+    fn get_account(&self, account_id: &str) -> Option<(String, String)> {
+        let db = lock_db(&self.conn);
+        db.query_row(
+            "SELECT provider_user_id, display_name FROM oauth_accounts \
+             WHERE session_id = ?1 AND provider = 'google'",
+            rusqlite::params![account_id],
+            |row: &rusqlite::Row<'_>| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?)),
+        )
+        .ok()
+    }
+
+    fn create_account(&self, account_id: &str) {
+        let now = now_iso();
+        let db = lock_db(&self.conn);
+        if let Err(e) = db.execute(
+            "INSERT OR IGNORE INTO sessions (id, created_at, last_active) VALUES (?1, ?2, ?2)",
+            rusqlite::params![account_id, now],
+        ) {
+            tracing::warn!(account_id = %account_id, error = %e, "SqliteIdentityStore: create_account failed");
+        }
+    }
+}
+
+// ── Schema migration ───────────────────────────────────────────────────────────
+
+/// Creates the account, OAuth, and tower-session tables if they don't exist,
+/// then applies any idempotent ALTER TABLE migrations for schema evolution.
+pub fn initialize_sessions_schema(conn: &rusqlite::Connection) -> rusqlite::Result<()> {
+    conn.execute_batch(
+        "CREATE TABLE IF NOT EXISTS sessions (
+            id           TEXT PRIMARY KEY,
+            created_at   TEXT NOT NULL,
+            last_active  TEXT NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS oauth_accounts (
+            provider         TEXT NOT NULL,
+            provider_user_id TEXT NOT NULL,
+            session_id       TEXT NOT NULL,
+            display_name     TEXT NOT NULL DEFAULT '',
+            PRIMARY KEY (provider, provider_user_id)
+        );
+        CREATE TABLE IF NOT EXISTS tower_sessions (
+            id          TEXT PRIMARY KEY,
+            record_json TEXT NOT NULL,
+            expires_at  INTEGER NOT NULL
+        );",
+    )?;
+    let _ = conn.execute_batch(
+        "ALTER TABLE oauth_accounts ADD COLUMN display_name TEXT NOT NULL DEFAULT ''",
+    );
+    Ok(())
+}
+
+// ── open_sessions_db ──────────────────────────────────────────────────────────
+
+/// Opens (or creates) `saves/sessions.db`, runs [`initialize_sessions_schema`],
+/// and returns a shared `Arc<Mutex<Connection>>` for [`SqliteIdentityStore`].
+pub fn open_sessions_db(saves_dir: &Path) -> rusqlite::Result<SharedConn> {
+    let db_path = saves_dir.join("sessions.db");
+    let conn = rusqlite::Connection::open(&db_path)?;
+    initialize_sessions_schema(&conn)?;
+    Ok(Arc::new(Mutex::new(conn)))
+}
+
+#[cfg(test)]
+mod tower_session_tests {
+    use super::*;
+    use std::sync::Arc;
+    use tower_sessions::cookie::time::Duration;
+    use tower_sessions::{Expiry, Session};
+
+    #[tokio::test]
+    async fn tower_session_record_survives_store_reopen_and_remains_isolated() {
+        let temp = tempfile::tempdir().unwrap();
+        let first_store = SqliteTowerSessionStore::new(temp.path()).unwrap();
+        let first = Session::new(
+            None,
+            Arc::new(first_store),
+            Some(Expiry::OnInactivity(Duration::days(365))),
+        );
+        first
+            .insert("limerick_session_id", "browser-a")
+            .await
+            .unwrap();
+        first.save().await.unwrap();
+        let cookie_id = first.id().expect("saved tower session has an id");
+
+        // Model a process restart by dropping every old handle and reopening
+        // sessions.db before resolving the browser's opaque cookie id.
+        drop(first);
+        let reopened = SqliteTowerSessionStore::new(temp.path()).unwrap();
+        let restored = Session::new(
+            Some(cookie_id),
+            Arc::new(reopened.clone()),
+            Some(Expiry::OnInactivity(Duration::days(365))),
+        );
+        assert_eq!(
+            restored
+                .get::<String>("limerick_session_id")
+                .await
+                .unwrap()
+                .as_deref(),
+            Some("browser-a")
+        );
+
+        let isolated = Session::new(
+            None,
+            Arc::new(reopened),
+            Some(Expiry::OnInactivity(Duration::days(365))),
+        );
+        assert_eq!(
+            isolated.get::<String>("limerick_session_id").await.unwrap(),
+            None,
+            "a browser without the cookie must not inherit another ledger"
+        );
+    }
+}
+
+// ── InMemorySessionStore (test-only) ─────────────────────────────────────────
+
+/// Minimal in-memory [`SessionStore`] for unit tests.
+///
+/// Stores snapshots in a `HashMap<(session_id, branch_id), Vec<GameSnapshot>>`.
+/// Branches are auto-created on first use with monotonically increasing IDs.
+/// Journals are stored per `(session_id, branch_id, snapshot_id)` key.
+///
+/// This implementation exists solely to prove the trait is genuinely backend-
+/// agnostic — production code always uses [`DbSessionStore`].
+#[cfg(test)]
+pub(crate) struct InMemorySessionStore {
+    snapshots: std::sync::Mutex<
+        std::collections::HashMap<(String, i64), Vec<limerick_core::persistence::GameSnapshot>>,
+    >,
+    branches: std::sync::Mutex<
+        std::collections::HashMap<String, Vec<limerick_core::persistence::BranchInfo>>,
+    >,
+    next_branch_id: std::sync::Mutex<i64>,
+    next_snapshot_id: std::sync::Mutex<i64>,
+    journal: std::sync::Mutex<
+        std::collections::HashMap<(String, i64, i64), Vec<limerick_core::persistence::WorldEvent>>,
+    >,
+}
+
+#[cfg(test)]
+impl InMemorySessionStore {
+    pub(crate) fn new() -> Self {
+        Self {
+            snapshots: std::sync::Mutex::new(std::collections::HashMap::new()),
+            branches: std::sync::Mutex::new(std::collections::HashMap::new()),
+            next_branch_id: std::sync::Mutex::new(1),
+            next_snapshot_id: std::sync::Mutex::new(1),
+            journal: std::sync::Mutex::new(std::collections::HashMap::new()),
+        }
+    }
+
+    fn next_branch_id(&self) -> i64 {
+        let mut id = self.next_branch_id.lock().unwrap();
+        let v = *id;
+        *id += 1;
+        v
+    }
+
+    fn next_snapshot_id(&self) -> i64 {
+        let mut id = self.next_snapshot_id.lock().unwrap();
+        let v = *id;
+        *id += 1;
+        v
+    }
+}
+
+#[cfg(test)]
+impl SessionStore for InMemorySessionStore {
+    fn prepare_active_save<'a>(
+        &'a self,
+        _session_id: &str,
+        _save_path: &Path,
+    ) -> Result<
+        limerick_core::session_store::PreparedSaveBinding<'a>,
+        limerick_core::error::LimerickError,
+    > {
+        // The session ID already selects an isolated in-memory namespace.
+        Ok(limerick_core::session_store::PreparedSaveBinding::new(
+            || {},
+        ))
+    }
+
+    fn load_latest_snapshot(
+        &self,
+        session_id: &str,
+        branch_id: i64,
+    ) -> BoxFuture<
+        '_,
+        Result<
+            Option<(SnapshotId, limerick_core::persistence::GameSnapshot)>,
+            limerick_core::error::LimerickError,
+        >,
+    > {
+        let key = (session_id.to_string(), branch_id);
+        let snaps = self.snapshots.lock().unwrap();
+        let result = snaps.get(&key).and_then(|v| {
+            if v.is_empty() {
+                None
+            } else {
+                let snap_id = v.len() as i64;
+                Some((snap_id, v.last().unwrap().clone()))
+            }
+        });
+        Box::pin(std::future::ready(Ok(result)))
+    }
+
+    fn save_snapshot(
+        &self,
+        session_id: &str,
+        branch_id: i64,
+        snapshot: &limerick_core::persistence::GameSnapshot,
+    ) -> BoxFuture<'_, Result<SnapshotId, limerick_core::error::LimerickError>> {
+        let snap_id = self.next_snapshot_id();
+        let key = (session_id.to_string(), branch_id);
+        self.snapshots
+            .lock()
+            .unwrap()
+            .entry(key)
+            .or_default()
+            .push(snapshot.clone());
+        Box::pin(std::future::ready(Ok(snap_id)))
+    }
+
+    fn list_branches(
+        &self,
+        session_id: &str,
+    ) -> BoxFuture<
+        '_,
+        Result<Vec<limerick_core::persistence::BranchInfo>, limerick_core::error::LimerickError>,
+    > {
+        let branches = self.branches.lock().unwrap();
+        let result = branches.get(session_id).cloned().unwrap_or_default();
+        Box::pin(std::future::ready(Ok(result)))
+    }
+
+    fn create_branch(
+        &self,
+        session_id: &str,
+        name: &str,
+        parent_branch_id: Option<i64>,
+    ) -> BoxFuture<'_, Result<i64, limerick_core::error::LimerickError>> {
+        let branch_id = self.next_branch_id();
+        let branch = limerick_core::persistence::BranchInfo {
+            id: branch_id,
+            name: name.to_string(),
+            parent_branch_id,
+            created_at: chrono::Utc::now().to_rfc3339(),
+        };
+        self.branches
+            .lock()
+            .unwrap()
+            .entry(session_id.to_string())
+            .or_default()
+            .push(branch);
+        Box::pin(std::future::ready(Ok(branch_id)))
+    }
+
+    fn create_branch_with_snapshot(
+        &self,
+        session_id: &str,
+        name: &str,
+        parent_branch_id: Option<i64>,
+        snapshot: &limerick_core::persistence::GameSnapshot,
+    ) -> BoxFuture<'_, Result<(i64, SnapshotId), limerick_core::error::LimerickError>> {
+        let branch_id = self.next_branch_id();
+        let snapshot_id = self.next_snapshot_id();
+        let branch = limerick_core::persistence::BranchInfo {
+            id: branch_id,
+            name: name.to_string(),
+            parent_branch_id,
+            created_at: chrono::Utc::now().to_rfc3339(),
+        };
+        self.branches
+            .lock()
+            .unwrap()
+            .entry(session_id.to_string())
+            .or_default()
+            .push(branch);
+        self.snapshots
+            .lock()
+            .unwrap()
+            .entry((session_id.to_string(), branch_id))
+            .or_default()
+            .push(snapshot.clone());
+        Box::pin(std::future::ready(Ok((branch_id, snapshot_id))))
+    }
+
+    fn load_branch(
+        &self,
+        session_id: &str,
+        name: &str,
+    ) -> BoxFuture<
+        '_,
+        Result<Option<limerick_core::persistence::BranchInfo>, limerick_core::error::LimerickError>,
+    > {
+        let branches = self.branches.lock().unwrap();
+        let result = branches
+            .get(session_id)
+            .and_then(|v| v.iter().find(|b| b.name == name).cloned());
+        Box::pin(std::future::ready(Ok(result)))
+    }
+
+    fn branch_log(
+        &self,
+        session_id: &str,
+        branch_id: i64,
+    ) -> BoxFuture<
+        '_,
+        Result<Vec<limerick_core::persistence::SnapshotInfo>, limerick_core::error::LimerickError>,
+    > {
+        let snaps = self.snapshots.lock().unwrap();
+        let count = snaps
+            .get(&(session_id.to_string(), branch_id))
+            .map(|v| v.len())
+            .unwrap_or(0);
+        // Return fake SnapshotInfo entries — enough for length assertions.
+        let now = chrono::Utc::now().to_rfc3339();
+        let result: Vec<limerick_core::persistence::SnapshotInfo> = (0..count as i64)
+            .rev()
+            .map(|i| limerick_core::persistence::SnapshotInfo {
+                id: i + 1,
+                game_time: now.clone(),
+                real_time: now.clone(),
+            })
+            .collect();
+        Box::pin(std::future::ready(Ok(result)))
+    }
+
+    fn acquire_save_lock(
+        &self,
+        _session_id: &str,
+    ) -> BoxFuture<'_, Option<limerick_core::persistence::SaveFileLock>> {
+        // In-memory impl has no file to lock.
+        Box::pin(std::future::ready(None))
+    }
+
+    fn save_path(&self, _session_id: &str) -> Option<std::path::PathBuf> {
+        None
+    }
+
+    fn append_journal_event(
+        &self,
+        session_id: &str,
+        branch_id: i64,
+        snapshot_id: SnapshotId,
+        event: &limerick_core::persistence::WorldEvent,
+        _game_time: &str,
+    ) -> BoxFuture<'_, Result<(), limerick_core::error::LimerickError>> {
+        self.journal
+            .lock()
+            .unwrap()
+            .entry((session_id.to_string(), branch_id, snapshot_id))
+            .or_default()
+            .push(event.clone());
+        Box::pin(std::future::ready(Ok(())))
+    }
+
+    fn read_journal(
+        &self,
+        session_id: &str,
+        branch_id: i64,
+        snapshot_id: SnapshotId,
+    ) -> BoxFuture<
+        '_,
+        Result<Vec<limerick_core::persistence::WorldEvent>, limerick_core::error::LimerickError>,
+    > {
+        let journal = self.journal.lock().unwrap();
+        let events = journal
+            .get(&(session_id.to_string(), branch_id, snapshot_id))
+            .cloned()
+            .unwrap_or_default();
+        Box::pin(std::future::ready(Ok(events)))
+    }
+
+    fn append_task_mutations_exact<'a>(
+        &'a self,
+        target: &'a limerick_core::session_store::TaskJournalTarget,
+        tasks: &'a [limerick_core::session_store::PlayerTask],
+    ) -> BoxFuture<'a, Result<usize, limerick_core::error::LimerickError>> {
+        if tasks.is_empty() {
+            return Box::pin(std::future::ready(Ok(0)));
+        }
+
+        let snapshot_id = self
+            .snapshots
+            .lock()
+            .unwrap()
+            .get(&(target.session_id.clone(), target.branch_id))
+            .map(Vec::len)
+            .filter(|count| *count > 0)
+            .map(|count| count as i64);
+        let Some(snapshot_id) = snapshot_id else {
+            return Box::pin(std::future::ready(Err(
+                limerick_core::error::LimerickError::Database(format!(
+                    "cannot journal player task: save {} branch {} has no snapshot",
+                    target.save_path.display(),
+                    target.branch_id
+                )),
+            )));
+        };
+
+        let events = tasks
+            .iter()
+            .cloned()
+            .map(|task| limerick_core::persistence::WorldEvent::PlayerTaskStateChanged { task });
+        self.journal
+            .lock()
+            .unwrap()
+            .entry((target.session_id.clone(), target.branch_id, snapshot_id))
+            .or_default()
+            .extend(events);
+        Box::pin(std::future::ready(Ok(tasks.len())))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use limerick_core::persistence::Database;
+    use limerick_core::persistence::WorldEvent;
+
+    fn make_snapshot() -> limerick_core::persistence::GameSnapshot {
+        use chrono::TimeZone;
+        use limerick_core::persistence::snapshot::{ClockSnapshot, GameSnapshot};
+        use limerick_core::world::LocationId;
+        GameSnapshot {
+            player_location: LocationId(1),
+            weather: "Clear".to_string(),
+            text_log: vec![],
+            clock: ClockSnapshot {
+                game_time: chrono::Utc.with_ymd_and_hms(1820, 3, 20, 8, 0, 0).unwrap(),
+                speed_factor: 36.0,
+                paused: false,
+            },
+            npcs: vec![],
+            last_tier2_game_time: None,
+            last_tier3_game_time: None,
+            last_tier4_game_time: None,
+            introduced_npcs: Default::default(),
+            visited_locations: std::collections::HashSet::new(),
+            visited_order: Vec::new(),
+            edge_traversals: Default::default(),
+            gossip_network: Default::default(),
+            conversation_log: Default::default(),
+            player_name: None,
+            player_progress: Default::default(),
+            npcs_who_know_player_name: Default::default(),
+            active_session: None,
+        }
+    }
+
+    // ── SqliteIdentityStore round-trip ────────────────────────────────────────
+
+    #[test]
+    fn identity_store_link_and_lookup() {
+        let tmp = tempfile::tempdir().unwrap();
+        let conn = open_sessions_db(tmp.path()).unwrap();
+        let store = SqliteIdentityStore::new(Arc::clone(&conn));
+
+        store.create_account("sess_001");
+        store.link_provider("google", "sub_abc", "sess_001", "Alice Test");
+
+        assert_eq!(
+            store.lookup_by_provider("google", "sub_abc"),
+            Some("sess_001".to_string()),
+            "lookup_by_provider must return the linked account_id"
+        );
+        assert_eq!(
+            store.get_account("sess_001"),
+            Some(("sub_abc".to_string(), "Alice Test".to_string())),
+            "get_account must return (sub, display_name)"
+        );
+    }
+
+    #[test]
+    fn identity_store_lookup_missing_returns_none() {
+        let tmp = tempfile::tempdir().unwrap();
+        let conn = open_sessions_db(tmp.path()).unwrap();
+        let store = SqliteIdentityStore::new(conn);
+        assert_eq!(store.lookup_by_provider("google", "nobody"), None);
+        assert_eq!(store.get_account("no_session"), None);
+    }
+
+    // ── DbSessionStore round-trip ─────────────────────────────────────────────
+
+    #[tokio::test]
+    async fn db_session_store_save_and_load_roundtrip() {
+        let tmp = tempfile::tempdir().unwrap();
+        let session_id = "a1b2c3d4-e5f6-4789-abcd-ef0123456789";
+        // Pre-create session directory (as session.rs does).
+        let session_dir = tmp.path().join(session_id);
+        std::fs::create_dir_all(&session_dir).unwrap();
+
+        // Seed a save file so DbSessionStore can find it.
+        let save_path = session_dir.join("limerick_001.db");
+        {
+            let db = Database::open(&save_path).unwrap();
+            let main_branch = db.find_branch("main").unwrap().unwrap();
+            db.save_snapshot(main_branch.id, &make_snapshot()).unwrap();
+        }
+
+        let store = DbSessionStore::new(tmp.path().to_path_buf());
+
+        // List branches — should return ["main"].
+        let branches = store.list_branches(session_id).await.unwrap();
+        assert_eq!(branches.len(), 1);
+        assert_eq!(branches[0].name, "main");
+
+        let branch_id = branches[0].id;
+
+        // Load latest snapshot — should succeed.
+        let loaded = store
+            .load_latest_snapshot(session_id, branch_id)
+            .await
+            .unwrap();
+        assert!(
+            loaded.is_some(),
+            "load_latest_snapshot must return Some after seeding"
+        );
+
+        // Save a new snapshot.
+        let snap_id = store
+            .save_snapshot(session_id, branch_id, &make_snapshot())
+            .await
+            .unwrap();
+        assert!(snap_id > 0);
+
+        // Branch log should now have 2 snapshots.
+        let log = store.branch_log(session_id, branch_id).await.unwrap();
+        assert_eq!(log.len(), 2, "branch_log must reflect both snapshots");
+    }
+
+    #[tokio::test]
+    async fn db_session_store_create_branch() {
+        let tmp = tempfile::tempdir().unwrap();
+        let session_id = "b1b2c3d4-e5f6-4789-abcd-ef0123456789";
+        let session_dir = tmp.path().join(session_id);
+        std::fs::create_dir_all(&session_dir).unwrap();
+        let save_path = session_dir.join("limerick_001.db");
+        Database::open(&save_path).unwrap();
+
+        let store = DbSessionStore::new(tmp.path().to_path_buf());
+        let fork_id = store.create_branch(session_id, "fork", None).await.unwrap();
+        let found = store.load_branch(session_id, "fork").await.unwrap();
+        assert!(found.is_some());
+        assert_eq!(found.unwrap().id, fork_id);
+    }
+
+    #[tokio::test]
+    async fn db_session_store_journal_append_and_read() {
+        let tmp = tempfile::tempdir().unwrap();
+        let session_id = "c1b2c3d4-e5f6-4789-abcd-ef0123456789";
+        let session_dir = tmp.path().join(session_id);
+        std::fs::create_dir_all(&session_dir).unwrap();
+        let save_path = session_dir.join("limerick_001.db");
+        {
+            let db = Database::open(&save_path).unwrap();
+            let main = db.find_branch("main").unwrap().unwrap();
+            db.save_snapshot(main.id, &make_snapshot()).unwrap();
+        }
+
+        let store = DbSessionStore::new(tmp.path().to_path_buf());
+        let branches = store.list_branches(session_id).await.unwrap();
+        let branch_id = branches[0].id;
+        let (snap_id, _) = store
+            .load_latest_snapshot(session_id, branch_id)
+            .await
+            .unwrap()
+            .unwrap();
+
+        let event = WorldEvent::ClockAdvanced { minutes: 30 };
+        store
+            .append_journal_event(
+                session_id,
+                branch_id,
+                snap_id,
+                &event,
+                "1820-03-20T08:00:00Z",
+            )
+            .await
+            .unwrap();
+
+        let events = store
+            .read_journal(session_id, branch_id, snap_id)
+            .await
+            .unwrap();
+        assert_eq!(events.len(), 1);
+        assert_eq!(events[0], event);
+    }
+
+    #[test]
+    fn db_session_store_acquire_lock() {
+        let tmp = tempfile::tempdir().unwrap();
+        let session_id = "d1b2c3d4-e5f6-4789-abcd-ef0123456789";
+        let session_dir = tmp.path().join(session_id);
+        std::fs::create_dir_all(&session_dir).unwrap();
+        let save_path = session_dir.join("limerick_001.db");
+        Database::open(&save_path).unwrap();
+
+        let store = DbSessionStore::new(tmp.path().to_path_buf());
+        // save_path must resolve even before the async_db is opened.
+        let path = store.save_path(session_id);
+        assert!(
+            path.is_some(),
+            "save_path must return Some for an existing save file"
+        );
+    }
+
+    // ── InMemorySessionStore round-trip ───────────────────────────────────────
+    //
+    // Exercises the `SessionStore` trait against a pure in-memory backend to
+    // prove the trait is backend-agnostic and not accidentally coupled to
+    // `AsyncDatabase` or the filesystem.
+
+    #[tokio::test]
+    async fn in_memory_session_store_roundtrip() {
+        let store = InMemorySessionStore::new();
+        let session_id = "e1b2c3d4-e5f6-4789-abcd-ef0123456789";
+
+        // Create branch.
+        let branch_id = store
+            .create_branch(session_id, "main", None)
+            .await
+            .expect("create_branch must succeed");
+        assert!(branch_id > 0);
+
+        // Branch appears in list.
+        let branches = store.list_branches(session_id).await.unwrap();
+        assert_eq!(branches.len(), 1);
+        assert_eq!(branches[0].name, "main");
+
+        // Load branch by name.
+        let found = store.load_branch(session_id, "main").await.unwrap();
+        assert!(found.is_some());
+        assert_eq!(found.unwrap().id, branch_id);
+
+        // No snapshot yet — load_latest returns None.
+        let loaded = store
+            .load_latest_snapshot(session_id, branch_id)
+            .await
+            .unwrap();
+        assert!(loaded.is_none(), "no snapshots yet");
+
+        // Save a snapshot.
+        let snap_id = store
+            .save_snapshot(session_id, branch_id, &make_snapshot())
+            .await
+            .unwrap();
+        assert!(snap_id > 0);
+
+        // Now load_latest returns Some.
+        let (loaded_id, _snap) = store
+            .load_latest_snapshot(session_id, branch_id)
+            .await
+            .unwrap()
+            .expect("snapshot must be present after saving");
+        assert!(loaded_id > 0);
+
+        // Branch log has one entry.
+        let log = store.branch_log(session_id, branch_id).await.unwrap();
+        assert_eq!(log.len(), 1, "branch_log must reflect the saved snapshot");
+
+        // Journal append and read.
+        let event = WorldEvent::ClockAdvanced { minutes: 15 };
+        store
+            .append_journal_event(
+                session_id,
+                branch_id,
+                snap_id,
+                &event,
+                "1820-03-20T09:00:00Z",
+            )
+            .await
+            .unwrap();
+
+        let events = store
+            .read_journal(session_id, branch_id, snap_id)
+            .await
+            .unwrap();
+        assert_eq!(events.len(), 1);
+        assert_eq!(events[0], event);
+
+        // acquire_save_lock returns None for in-memory (no file to lock) — no panic.
+        let lock = store.acquire_save_lock(session_id).await;
+        assert!(lock.is_none(), "in-memory store has no file lock");
+
+        // save_path returns None.
+        assert!(store.save_path(session_id).is_none());
+    }
+
+    #[tokio::test]
+    async fn in_memory_session_store_multiple_snapshots() {
+        // Verify branch_log grows with each save.
+        let store = InMemorySessionStore::new();
+        let session_id = "f1b2c3d4-e5f6-4789-abcd-ef0123456789";
+        let branch_id = store.create_branch(session_id, "main", None).await.unwrap();
+
+        for _ in 0..3 {
+            store
+                .save_snapshot(session_id, branch_id, &make_snapshot())
+                .await
+                .unwrap();
+        }
+
+        let log = store.branch_log(session_id, branch_id).await.unwrap();
+        assert_eq!(
+            log.len(),
+            3,
+            "three saves must produce three branch_log entries"
+        );
+    }
+}

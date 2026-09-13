@@ -1,5 +1,5 @@
 // Repo-wide Prettier config for docs/data formats (Markdown, JSON, YAML).
-// The game frontend (parish/apps/ui) has its own .prettierrc and is excluded
+// The game frontend (limerick/apps/ui) has its own .prettierrc and is excluded
 // here via .prettierignore. Matches the frontend's tab/quote conventions so a
 // file moved between scopes formats identically.
 /** @type {import("prettier").Config} */

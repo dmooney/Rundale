@@ -13,7 +13,7 @@ Use this exact reference order:
 2. `style-crops/illustrated-style-field-wall-no-animals.png`
 3. `style-crops/illustrated-style-wall-roof-no-props.png`
 
-Do not include the full `illustrated-parish-notebook.png` as a style reference
+Do not include the full `illustrated-rundale-notebook.png` as a style reference
 for batch map-to-plate tests. It is visually strong, but it leaked churches,
 graveyards, bridges, water, carts, signs, people, and UI semantics into unrelated
 locations.

@@ -21,7 +21,7 @@ concurrency:
 
 defaults:
   run:
-    working-directory: parish
+    working-directory: limerick
 
 env:
   CARGO_TERM_COLOR: always
@@ -55,16 +55,16 @@ jobs:
         with:
           filters: |
             runtime:
-              - 'parish/crates/**'
-              - 'parish/apps/ui/**'
-              - 'parish/Cargo.toml'
-              - 'parish/Cargo.lock'
-              - 'parish/config/**'
+              - 'limerick/crates/**'
+              - 'limerick/apps/ui/**'
+              - 'limerick/Cargo.toml'
+              - 'limerick/Cargo.lock'
+              - 'limerick/config/**'
               - 'rust-toolchain.toml'
-              - 'parish/testing/**'
-              - 'parish/scripts/**'
-              - 'parish/justfile'
-              - 'parish/.config/nextest.toml'
+              - 'limerick/testing/**'
+              - 'limerick/scripts/**'
+              - 'limerick/justfile'
+              - 'limerick/.config/nextest.toml'
               - 'mods/**'
               - 'deploy/**'
               - '.github/workflows/ci.yml'
@@ -100,7 +100,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
-        run: bash parish/scripts/agent-check.sh --source=pr "$PR_NUMBER"
+        run: bash limerick/scripts/agent-check.sh --source=pr "$PR_NUMBER"
 
   docs-consistency:
     name: Docs and repository artifacts
@@ -112,18 +112,18 @@ jobs:
 
       - name: Check cited paths exist
         working-directory: ${{ github.workspace }}
-        run: ./parish/scripts/check-doc-paths.sh
+        run: ./limerick/scripts/check-doc-paths.sh
 
       - name: Check tracked repository artifacts
         working-directory: ${{ github.workspace }}
-        run: ./parish/scripts/check-repository-artifacts.sh
+        run: ./limerick/scripts/check-repository-artifacts.sh
 
   format-quality:
     name: Docs/data formatting (Prettier + markdownlint)
     runs-on: ubuntu-latest
     timeout-minutes: 10
     # Root-scoped tooling (configs + package.json live at the repo root, not in
-    # parish/ which is this workflow's global default working-directory).
+    # limerick/ which is this workflow's global default working-directory).
     defaults:
       run:
         working-directory: ${{ github.workspace }}
@@ -249,7 +249,7 @@ jobs:
 
       - name: Proof-tooling unit tests
         run: |
-          for t in parish/scripts/tests/*.test.sh; do
+          for t in limerick/scripts/tests/*.test.sh; do
             echo "== $t =="
             bash "$t"
           done
@@ -290,7 +290,7 @@ jobs:
     timeout-minutes: 10
     defaults:
       run:
-        working-directory: parish/apps/ui
+        working-directory: limerick/apps/ui
     steps:
       - name: Checkout
         uses: actions/checkout@v6

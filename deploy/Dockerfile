@@ -1,12 +1,12 @@
 # Build context: repository root.
-# Build:  docker build -f deploy/Dockerfile -t parish .
+# Build:  docker build -f deploy/Dockerfile -t limerick .
 #
 # ── Stage 1: build Svelte frontend ───────────────────────────────────────────
 FROM node:26-slim AS frontend
-WORKDIR /build/parish/apps/ui
-COPY parish/apps/ui/package*.json ./
+WORKDIR /build/limerick/apps/ui
+COPY limerick/apps/ui/package*.json ./
 RUN npm ci
-COPY parish/apps/ui/ ./
+COPY limerick/apps/ui/ ./
 RUN npm run build
 
 # ── Stage 2: build Rust binary ────────────────────────────────────────────────
@@ -16,17 +16,17 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 WORKDIR /build
 # Mirror the repo layout so source-relative include_str! paths
-# (parish/crates/parish-server/src/lib.rs → ../../../../LICENSE) resolve.
-COPY parish/Cargo.toml parish/Cargo.lock parish/
-COPY parish/config/ parish/config/
-COPY parish/crates/ parish/crates/
-# Compile-time embedding targets (see parish-server/src/lib.rs)
+# (limerick/crates/limerick-server/src/lib.rs → ../../../../LICENSE) resolve.
+COPY limerick/Cargo.toml limerick/Cargo.lock limerick/
+COPY limerick/config/ limerick/config/
+COPY limerick/crates/ limerick/crates/
+# Compile-time embedding targets (see limerick-server/src/lib.rs)
 COPY LICENSE NOTICE THIRD_PARTY_NOTICES.md ./
-# parish-server's build script derives CSP script hashes from the built UI.
-COPY --from=frontend /build/parish/apps/ui/dist /build/parish/apps/ui/dist/
+# limerick-server's build script derives CSP script hashes from the built UI.
+COPY --from=frontend /build/limerick/apps/ui/dist /build/limerick/apps/ui/dist/
 # Build only the web-server binary (excludes the desktop and thin-client binaries).
-WORKDIR /build/parish
-RUN cargo build --release -p parish-server --bin parish-server
+WORKDIR /build/limerick
+RUN cargo build --release -p limerick-server --bin limerick-server
 
 # ── Stage 3: minimal runtime image ────────────────────────────────────────────
 FROM debian:bookworm-slim
@@ -56,8 +56,8 @@ RUN cd /tmp \
  && rm cloudflared
 
 WORKDIR /app
-COPY --from=builder /build/parish/target/release/parish-server ./parish-server
-COPY --from=frontend /build/parish/apps/ui/dist ./apps/ui/dist/
+COPY --from=builder /build/limerick/target/release/limerick-server ./limerick-server
+COPY --from=frontend /build/limerick/apps/ui/dist ./apps/ui/dist/
 COPY mods/ ./mods/
 RUN useradd -m -u 1000 app && chown -R app:app /app
 USER app
@@ -65,4 +65,4 @@ USER app
 ENV RUST_LOG=info
 EXPOSE 3001
 # Host platforms commonly inject $PORT; fall back to 3001 for local docker testing.
-CMD ["sh", "-c", "exec ./parish-server --port ${PORT:-3001} --data-dir /app/mods/rundale --static-dir /app/apps/ui/dist"]
+CMD ["sh", "-c", "exec ./limerick-server --port ${PORT:-3001} --data-dir /app/mods/rundale --static-dir /app/apps/ui/dist"]

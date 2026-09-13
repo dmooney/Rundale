@@ -47,7 +47,7 @@ interrupted by the player's arrival.
 - Keep one authoritative, deterministic mutation path for world and NPC state.
 - Make save/load restore agent continuity without serializing tasks or futures.
 - Preserve server, Tauri, and headless behavior parity through shared
-  orchestration in `parish-core`.
+  orchestration in `limerick-core`.
 - Bound work during long time jumps, crowded scenes, and inference outages.
 - Make every accepted or rejected autonomous action observable in diagnostics.
 
@@ -126,7 +126,7 @@ The flow has three explicit phases:
    against current state, apply it through one reducer, emit semantic events,
    and schedule the NPC's next wake.
 
-The collect and commit orchestration belongs in `parish-core`. Runtime crates
+The collect and commit orchestration belongs in `limerick-core`. Runtime crates
 only provide lifecycle wiring, cancellation tokens, and event emission.
 
 ## Data model
@@ -357,12 +357,12 @@ continues to come from the existing text log and semantic events.
 
 ## Runtime integration
 
-`parish-core::game_loop::advance_world` remains the shared pump. It gains the
+`limerick-core::game_loop::advance_world` remains the shared pump. It gains the
 pure scheduling phase or calls an adjacent shared `advance_agent_scheduler`
 helper after clock-dependent world rules and tier assignment. The helper
 returns due work; it does not await inference.
 
-A shared async dispatcher in `parish-core` handles planner execution and commit
+A shared async dispatcher in `limerick-core` handles planner execution and commit
 through injected inference/event traits. Server and Tauri keep thin per-session
 pollers that call this orchestration. Script/headless mode invokes the same
 collect and reducer seams synchronously with deterministic planner stubs.
@@ -372,20 +372,20 @@ after shadow parity and live gameplay proof.
 
 ## Affected subsystems
 
-- `parish-npc`: agenda, goals, intents, scheduler index, tier planner policy,
+- `limerick-npc`: agenda, goals, intents, scheduler index, tier planner policy,
   scene grouping, and reducer-facing state transitions.
-- `parish-core`: shared collect/dispatch/commit orchestration and world-pump
+- `limerick-core`: shared collect/dispatch/commit orchestration and world-pump
   integration.
-- `parish-types`: semantic event variants only where existing events cannot
+- `limerick-types`: semantic event variants only where existing events cannot
   represent an accepted action.
-- `parish-inference` / `parish-providers`: existing priority and cancellation
+- `limerick-inference` / `limerick-providers`: existing priority and cancellation
   APIs; no provider-specific dependency in agent logic.
-- `parish-persistence`: snapshot fields, backward-compatible defaults,
+- `limerick-persistence`: snapshot fields, backward-compatible defaults,
   restore/rebuild, and journal replay for new mutations.
-- `parish-config`: bounded work and cadence knobs plus the feature flag.
-- `parish-engine`: `/debug agents` harness rendering and deterministic fixture
+- `limerick-config`: bounded work and cadence knobs plus the feature flag.
+- `limerick-engine`: `/debug agents` harness rendering and deterministic fixture
   support only; no duplicated orchestration.
-- `parish-server` and `parish-tauri`: thin lifecycle wiring using existing
+- `limerick-server` and `limerick-tauri`: thin lifecycle wiring using existing
   session cancellation.
 - `mods/rundale`: optional authored goal/exception data in a later phase; none
   required for the first scheduler slice.
@@ -439,11 +439,11 @@ Integration tests:
 
 Gameplay proof:
 
-- Run `parish/testing/proofs/play_independent-npc-agents.txt`.
+- Run `limerick/testing/proofs/play_independent-npc-agents.txt`.
 - Capture `/debug agents` before and after waits, movement, save, and load.
 - Confirm semantic output shows autonomous consequences without scheduler
   jargon leaking into player-facing prose.
-- Run `/parish-engine prove independent-npc-agents` and judge continuity,
+- Run `/limerick-engine prove independent-npc-agents` and judge continuity,
   coherence, latency, and absence of synchronized NPC behavior.
 
 ## Risks and mitigations

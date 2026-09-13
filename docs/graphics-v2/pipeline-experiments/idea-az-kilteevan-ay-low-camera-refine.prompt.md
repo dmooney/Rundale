@@ -4,7 +4,7 @@ Primary request: Refine the provided isomorphic rural Irish background plate so 
 
 Input images:
 Image 1 is the edit target and the absolute topology/composition authority.
-Image 2 is the original illustrated parish notebook UI scene. Use it only for camera feel, facade readability, hand-ink density, watercolor richness, muddy-road scumbling, rough paper texture, and handmade parish-notebook atmosphere. Do not copy any UI, text, people, church, river, bridge, shop, signs, carts, animals, labels, smoke, chimneys, or scene layout from it.
+Image 2 is the original illustrated parish notebook UI scene. Use it only for camera feel, facade readability, hand-ink density, watercolor richness, muddy-road scumbling, rough paper texture, and handmade rundale-notebook atmosphere. Do not copy any UI, text, people, church, river, bridge, shop, signs, carts, animals, labels, smoke, chimneys, or scene layout from it.
 Image 3 is a slate-roof cottage style reference. Use only its facade/door/slate/limewash treatment.
 Image 4 is a thatched no-chimney cottage style reference. Use only its thatch, wall texture, and plank-door treatment.
 Image 5 is a watercolor vegetation reference. Use only its loose mottled fields, tree masses, and dry-brush grass.

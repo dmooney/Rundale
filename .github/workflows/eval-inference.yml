@@ -20,9 +20,9 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  # ── Build parish binary ───────────────────────────────────────────────────
+  # ── Build limerick binary ───────────────────────────────────────────────────
   build:
-    name: Build parish
+    name: Build limerick
     runs-on: ubuntu-latest
     timeout-minutes: 30
     # rust-toolchain.toml would pin this to the repo channel; this job tracks
@@ -41,21 +41,21 @@ jobs:
           path: |
             ~/.cargo/registry
             ~/.cargo/git
-            parish/target
-          key: eval-cargo-${{ hashFiles('parish/Cargo.lock') }}
+            limerick/target
+          key: eval-cargo-${{ hashFiles('limerick/Cargo.lock') }}
           restore-keys: eval-cargo-
 
       - name: Build
-        working-directory: parish
-        # Build parish-server (HTTP/WS server binary)
+        working-directory: limerick
+        # Build limerick-server (HTTP/WS server binary)
 
-        run: cargo build -p parish-server --release
+        run: cargo build -p limerick-server --release
 
       - name: Upload binary
         uses: actions/upload-artifact@v7
         with:
-          name: parish-bin
-          path: parish/target/release/parish-server
+          name: limerick-bin
+          path: limerick/target/release/limerick-server
           retention-days: 1
 
   # ── Select scenarios ──────────────────────────────────────────────────────
@@ -113,51 +113,51 @@ jobs:
     env:
       # Provider config read at server startup via resolve_config env vars.
       # No separate setup-byok call needed — the server picks these up directly.
-      PARISH_PROVIDER: github_models
+      LIMERICK_PROVIDER: github_models
       GITHUB_TOKEN: ${{ github.token }}
       PLAYER_MODEL: microsoft/Phi-4
       JUDGE_MODEL: openai/gpt-4o
-      PARISH_PORT: 3030
+      LIMERICK_PORT: 3030
 
     steps:
       - uses: actions/checkout@v6
 
-      - name: Download parish binary
+      - name: Download limerick binary
         uses: actions/download-artifact@v8
         with:
-          name: parish-bin
-          path: parish/target/release/
+          name: limerick-bin
+          path: limerick/target/release/
 
       - name: Make binary executable
-        run: chmod +x parish/target/release/parish-server
+        run: chmod +x limerick/target/release/limerick-server
 
       - name: Set up Python
         uses: actions/setup-python@v7
         with:
           python-version: "3.12"
 
-      - name: Start parish web server
-        working-directory: parish
+      - name: Start limerick web server
+        working-directory: limerick
         run: |
           set -euo pipefail
-          ./target/release/parish-server --port "$PARISH_PORT" &
-          echo $! > .parish-pid
+          ./target/release/limerick-server --port "$LIMERICK_PORT" &
+          echo $! > .limerick-pid
           ready=0
           for _ in $(seq 1 60); do
-            if curl -fsS "http://127.0.0.1:$PARISH_PORT/api/health" >/dev/null 2>&1; then
-              echo "parish ready"
+            if curl -fsS "http://127.0.0.1:$LIMERICK_PORT/api/health" >/dev/null 2>&1; then
+              echo "limerick ready"
               ready=1
               break
             fi
             sleep 1
           done
           if [ "$ready" -ne 1 ]; then
-            echo "::error::parish-server did not become ready"
+            echo "::error::limerick-server did not become ready"
             exit 1
           fi
 
       - name: Run player agent
-        working-directory: parish
+        working-directory: limerick
         run: |
           mkdir -p testing/eval/logs
           python testing/eval/player_agent.py \
@@ -171,7 +171,7 @@ jobs:
           # Truncate to 6000 chars to stay within the model's context limit.
           LOG=$(python3 -c "
           import pathlib
-          raw = pathlib.Path('parish/testing/eval/logs/${{ matrix.scenario }}-latest.json').read_text()
+          raw = pathlib.Path('limerick/testing/eval/logs/${{ matrix.scenario }}-latest.json').read_text()
           print(raw[:6000] + ('...(truncated)' if len(raw) > 6000 else ''))
           ")
           {
@@ -185,7 +185,7 @@ jobs:
         run: |
           {
             echo "rubric<<EOF"
-            cat parish/testing/eval/rubrics/${{ matrix.scenario }}.md
+            cat limerick/testing/eval/rubrics/${{ matrix.scenario }}.md
             echo "EOF"
           } >> "$GITHUB_OUTPUT"
 
@@ -240,7 +240,7 @@ jobs:
               "scores": scores,
               "notes": notes,
           }
-          pathlib.Path(f"parish/testing/eval/logs/{scenario}-judge.json").write_text(
+          pathlib.Path(f"limerick/testing/eval/logs/{scenario}-judge.json").write_text(
               json.dumps(result, indent=2)
           )
 
@@ -266,13 +266,13 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: eval-${{ matrix.scenario }}
-          path: parish/testing/eval/logs/
+          path: limerick/testing/eval/logs/
           retention-days: 30
 
-      - name: Stop parish web server
+      - name: Stop limerick web server
         if: always()
-        working-directory: parish
-        run: kill "$(cat .parish-pid)" 2>/dev/null || true; rm -f .parish-pid
+        working-directory: limerick
+        run: kill "$(cat .limerick-pid)" 2>/dev/null || true; rm -f .limerick-pid
 
   # ── Full session (nightly only, 50 turns) ─────────────────────────────────
   full-session:
@@ -285,51 +285,51 @@ jobs:
       github.event.inputs.scenario == 'full_session'
 
     env:
-      PARISH_PROVIDER: github_models
+      LIMERICK_PROVIDER: github_models
       GITHUB_TOKEN: ${{ github.token }}
       PLAYER_MODEL: microsoft/Phi-4
       JUDGE_MODEL: openai/gpt-4o
-      PARISH_PORT: 3030
+      LIMERICK_PORT: 3030
 
     steps:
       - uses: actions/checkout@v6
 
-      - name: Download parish binary
+      - name: Download limerick binary
         uses: actions/download-artifact@v8
         with:
-          name: parish-bin
-          path: parish/target/release/
+          name: limerick-bin
+          path: limerick/target/release/
 
       - name: Make binary executable
-        run: chmod +x parish/target/release/parish-server
+        run: chmod +x limerick/target/release/limerick-server
 
       - name: Set up Python
         uses: actions/setup-python@v7
         with:
           python-version: "3.12"
 
-      - name: Start parish web server
-        working-directory: parish
+      - name: Start limerick web server
+        working-directory: limerick
         run: |
           set -euo pipefail
-          ./target/release/parish-server --port "$PARISH_PORT" &
-          echo $! > .parish-pid
+          ./target/release/limerick-server --port "$LIMERICK_PORT" &
+          echo $! > .limerick-pid
           ready=0
           for _ in $(seq 1 60); do
-            if curl -fsS "http://127.0.0.1:$PARISH_PORT/api/health" >/dev/null 2>&1; then
-              echo "parish ready"
+            if curl -fsS "http://127.0.0.1:$LIMERICK_PORT/api/health" >/dev/null 2>&1; then
+              echo "limerick ready"
               ready=1
               break
             fi
             sleep 1
           done
           if [ "$ready" -ne 1 ]; then
-            echo "::error::parish-server did not become ready"
+            echo "::error::limerick-server did not become ready"
             exit 1
           fi
 
       - name: Run player agent (50 turns, scripted+llm mix)
-        working-directory: parish
+        working-directory: limerick
         run: |
           mkdir -p testing/eval/logs
           python testing/eval/player_agent.py \
@@ -342,7 +342,7 @@ jobs:
         run: |
           LOG=$(python3 -c "
           import pathlib
-          raw = pathlib.Path('parish/testing/eval/logs/full_session-latest.json').read_text()
+          raw = pathlib.Path('limerick/testing/eval/logs/full_session-latest.json').read_text()
           print(raw[:8000] + ('...(truncated)' if len(raw) > 8000 else ''))
           ")
           {
@@ -356,7 +356,7 @@ jobs:
         run: |
           {
             echo "rubric<<EOF"
-            cat parish/testing/eval/rubrics/full_session.md
+            cat limerick/testing/eval/rubrics/full_session.md
             echo "EOF"
           } >> "$GITHUB_OUTPUT"
 
@@ -398,7 +398,7 @@ jobs:
               "scores": scores,
               "notes": notes,
           }
-          pathlib.Path("parish/testing/eval/logs/full_session-judge.json").write_text(
+          pathlib.Path("limerick/testing/eval/logs/full_session-judge.json").write_text(
               json.dumps(result, indent=2)
           )
 
@@ -422,13 +422,13 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: eval-full_session
-          path: parish/testing/eval/logs/
+          path: limerick/testing/eval/logs/
           retention-days: 30
 
-      - name: Stop parish web server
+      - name: Stop limerick web server
         if: always()
-        working-directory: parish
-        run: kill "$(cat .parish-pid)" 2>/dev/null || true; rm -f .parish-pid
+        working-directory: limerick
+        run: kill "$(cat .limerick-pid)" 2>/dev/null || true; rm -f .limerick-pid
 
   # ── Aggregate report ──────────────────────────────────────────────────────
   report:

@@ -13,7 +13,7 @@ Establish the cross-tier event bus and implement NPC state inflation/deflation s
 
 ## Tasks
 
-### 1. Event Bus (`crates/parish-core/src/world/events.rs` — new file)
+### 1. Event Bus (`crates/limerick-core/src/world/events.rs` — new file)
 
 Define the `WorldEvent` enum and `EventBus` struct.
 
@@ -95,7 +95,7 @@ impl EventBus {
 
 **Integration point**: `WorldState` gains an `event_bus: EventBus` field. The bus is created once at world initialization and shared via `&EventBus` references.
 
-### 2. Tier Inflation — distant → close (`crates/parish-core/src/npc/transitions.rs` — new file)
+### 2. Tier Inflation — distant → close (`crates/limerick-core/src/npc/transitions.rs` — new file)
 
 When `NpcManager::assign_tiers` promotes an NPC from Tier 3/4 to Tier 1/2:
 
@@ -112,7 +112,7 @@ pub fn inflate_npc_context(
 - Build a summary: "You are {name}. Recently, you've been {activity}. Your mood has been {mood}. {relationship_changes_narrative}."
 - Add the summary as a synthetic `MemoryEntry` to the NPC's `ShortTermMemory`.
 
-### 3. Tier Deflation — close → distant (`crates/parish-core/src/npc/transitions.rs`)
+### 3. Tier Deflation — close → distant (`crates/limerick-core/src/npc/transitions.rs`)
 
 When an NPC is demoted from Tier 1/2 to Tier 3/4:
 

@@ -1,6 +1,6 @@
 # rundale-bench
 
-Frozen, reproducible benchmark for in-character 1820 Irish gameplay inference. Its target definitions inform the model and provider choices configured in [`parish-config/src/provider/`](../parish/crates/parish-config/src/provider/) and the broader cloud / local inference selection.
+Frozen, reproducible benchmark for in-character 1820 Irish gameplay inference. Its target definitions inform the model and provider choices configured in [`limerick-config/src/provider/`](../limerick/crates/limerick-config/src/provider/) and the broader cloud / local inference selection.
 
 Spec + roadmap: [`docs/plans/rundale-bench.md`](../docs/plans/rundale-bench.md).
 
@@ -119,7 +119,7 @@ While `frozen=false` (i.e. `v1-dev`), prompts can still be added/changed:
 3. Run the smoke probe to confirm scoring is sane:
 
    ```sh
-   python3 parish/scripts/local-eval/flaw_scan.py \
+   python3 limerick/scripts/local-eval/flaw_scan.py \
        --target '<your target>' --prompts 25 --workers 2
    ```
 

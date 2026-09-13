@@ -1,13 +1,13 @@
 # Dialogue Quality Loops
 
-**Target crate:** `crates/parish-inference/` (critic lane), `crates/parish-npc/`
+**Target crate:** `crates/limerick-inference/` (critic lane), `crates/limerick-npc/`
 (post-processing), new `testing/judges/`.
 
 ## Problem
 
 A Tier 1 reply can be grammatically fine yet wrong for Rundale: wrong dialect,
 wrong century, out-of-character knowledge, or violates an NPC's mood.
-`crates/parish-npc/src/anachronism.rs` catches word-level leaks but misses
+`crates/limerick-npc/src/anachronism.rs` catches word-level leaks but misses
 _semantic_ anachronism ("sure, I'll check my calendar on Tuesday").
 
 ## SOTA techniques
@@ -76,7 +76,7 @@ from doc 05 (~150–300 ms on a 1–3B model).
 
 ### 7. Critic in the pipeline, not the client
 
-Add a `CriticJob` variant to `parish-inference::job`. It runs on the Background
+Add a `CriticJob` variant to `limerick-inference::job`. It runs on the Background
 lane with a shared KV cache off the original Tier 1 context (see
 `05-inference-performance`). The draft is shown immediately; if the critic
 flags, a _correction_ bubble replaces the turn before the player can respond.
@@ -112,14 +112,14 @@ exists to allow disabling, not to stage rollout — eval gating belongs in CI,
 not in flag-flip choreography.
 
 The sampler wraps the existing JSON serving contract without modifying it
-(`NpcJsonResponse` at `parish/crates/parish-npc/src/lib.rs:216`,
-`extract_dialogue_from_partial_json` at `parish/crates/parish-types/src/ids.rs:229`)
+(`NpcJsonResponse` at `limerick/crates/limerick-npc/src/lib.rs:216`,
+`extract_dialogue_from_partial_json` at `limerick/crates/limerick-types/src/ids.rs:229`)
 — same schema applied to all K candidates.
 
 ## Minimal first cut
 
 1. Offline only: build `testing/judges/tier1_judge.py` with a 5-criterion
-   rubric; run nightly over sampled conversations from `parish-types/conversation.rs`
+   rubric; run nightly over sampled conversations from `limerick-types/conversation.rs`
    logs; publish scorecard.
 2. Gate `self-refine-tier1` flag; on flag, add one critic pass per turn using
    the 3B intent model re-prompted as a coach.

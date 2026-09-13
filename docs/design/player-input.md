@@ -45,7 +45,7 @@ The backend matches `@mentions` case-insensitively against NPC display names:
 
 ### Source
 
-- `parish_core::input::extract_mention()` — Extracts `@name` from input
+- `limerick_core::input::extract_mention()` — Extracts `@name` from input
 - `NpcManager::find_by_name()` — Case-insensitive NPC lookup at a location
 - `InputField.svelte` — Autocomplete dropdown UI
 
@@ -98,5 +98,5 @@ Debug commands use the same `/` prefix as system commands. All are feature-gated
 
 ## Source Modules
 
-- [`parish-input`](../../parish/crates/parish-input/src/) — Player input parsing and command detection
-- [`parish-inference`](../../parish/crates/parish-inference/src/) — LLM-based intent parsing
+- [`limerick-input`](../../limerick/crates/limerick-input/src/) — Player input parsing and command detection
+- [`limerick-inference`](../../limerick/crates/limerick-inference/src/) — LLM-based intent parsing

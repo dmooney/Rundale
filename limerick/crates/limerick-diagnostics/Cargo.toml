@@ -1,0 +1,29 @@
+[package]
+name = "limerick-diagnostics"
+version = "0.1.0"
+edition = "2024"
+license = "GPL-3.0-only"
+publish = false
+description = "Backend-agnostic diagnostics for Limerick: debug-snapshot builders and bug-report orchestration"
+
+[dependencies]
+limerick-types = { workspace = true }
+limerick-config = { workspace = true }
+limerick-inference = { workspace = true }
+limerick-world = { workspace = true }
+limerick-npc = { workspace = true }
+tokio = { workspace = true }
+# reqwest stays a direct dep: bug_report.rs makes its own GitHub REST calls
+# (issue create + screenshot upload). Only the `json` feature is needed.
+reqwest = { workspace = true, features = ["json"] }
+serde = { workspace = true }
+serde_json = { workspace = true }
+chrono = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+uuid = { workspace = true }
+base64 = "0.23"
+
+[dev-dependencies]
+tempfile = { workspace = true }
+wiremock = { workspace = true }

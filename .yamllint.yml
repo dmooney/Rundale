@@ -28,7 +28,7 @@ ignore: |
   node_modules/
   .venv-dev/
   target/
-  parish/apps/ui/
+  limerick/apps/ui/
   promptfoo/bench-site/
   **/pnpm-lock.yaml
-  parish/testing/
+  limerick/testing/

@@ -98,7 +98,7 @@ jobs:
           max-completion-tokens: 120
           prompt-file: triage-prompt.txt
           system-prompt: |
-            You are an issue-triage classifier for the Rundale/Parish repo
+            You are an issue-triage classifier for the Rundale/Limerick repo
             (Rust game engine + Svelte UI). Assign exactly one priority and one
             or more theme labels.
 
@@ -118,7 +118,7 @@ jobs:
             mode-parity, npc-reactions, witness-scan, infra
             - bug: existing behavior is wrong
             - enhancement: requested feature/improvement, not a regression
-            - frontend: anything in parish/apps/ui (Svelte, MapLibre, styles)
+            - frontend: anything in limerick/apps/ui (Svelte, MapLibre, styles)
             - infra: CI, deploy, Docker, Cloudflare, GitHub Actions, runners
             - mode-parity: Tauri / web server / headless CLI divergence
             - performance: latency, throughput, allocation, resource use

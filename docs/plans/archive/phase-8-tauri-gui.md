@@ -20,11 +20,11 @@ modes are preserved unchanged. This phase lays the foundation for Phase 7's mobi
 ## Workspace Structure (after migration)
 
 ```text
-parish/
+limerick/
 ├── Cargo.toml                    ← workspace manifest
 ├── CLAUDE.md                     ← updated build/test instructions
 ├── crates/
-│   └── parish-core/              ← extracted game-logic library
+│   └── limerick-core/              ← extracted game-logic library
 │       ├── Cargo.toml
 │       └── src/
 │           ├── lib.rs
@@ -101,22 +101,22 @@ Remove: `eframe = "0.31"` and `image` (PNG encoding only needed for egui screens
 
 1. **Convert `Cargo.toml` to a workspace manifest**
 
-   - Replace `[package]` with `[workspace]` containing `members = ["crates/parish-core", "src-tauri", "."]`
-   - Keep the root `[[bin]]` entries for `parish` (CLI) and `parish-geo-tool`
-   - Move all current `[dependencies]` (minus `eframe` and `image`) to `crates/parish-core/Cargo.toml`
-   - Root `Cargo.toml` depends on `parish-core = { path = "crates/parish-core" }`
+   - Replace `[package]` with `[workspace]` containing `members = ["crates/limerick-core", "src-tauri", "."]`
+   - Keep the root `[[bin]]` entries for `limerick` (CLI) and `limerick-geo-tool`
+   - Move all current `[dependencies]` (minus `eframe` and `image`) to `crates/limerick-core/Cargo.toml`
+   - Root `Cargo.toml` depends on `limerick-core = { path = "crates/limerick-core" }`
 
-2. **Create `crates/parish-core/` library crate**
+2. **Create `crates/limerick-core/` library crate**
 
-   - Move `src/{error,config,headless,testing,debug}.rs` and `src/{input,world,npc,inference,persistence}/` into `crates/parish-core/src/`
-   - Update `crates/parish-core/src/lib.rs` to re-export all public modules
+   - Move `src/{error,config,headless,testing,debug}.rs` and `src/{input,world,npc,inference,persistence}/` into `crates/limerick-core/src/`
+   - Update `crates/limerick-core/src/lib.rs` to re-export all public modules
    - All internal `use crate::` paths remain valid; only the crate name changes for external consumers
-   - Run `cargo test -p parish-core` — all existing tests must pass before proceeding
+   - Run `cargo test -p limerick-core` — all existing tests must pass before proceeding
 
 3. **Delete `src/gui/`**
    - Remove `src/gui/mod.rs`, `theme.rs`, `chat_panel.rs`, `map_panel.rs`, `sidebar.rs`,
      `status_bar.rs`, `input_field.rs`, `screenshot.rs`
-   - Remove `pub mod gui;` from `src/lib.rs` (or `crates/parish-core/src/lib.rs`)
+   - Remove `pub mod gui;` from `src/lib.rs` (or `crates/limerick-core/src/lib.rs`)
    - Remove the `gui::run_gui(...)` call from `src/main.rs`; the CLI binary now only launches TUI or headless mode
    - Confirm `cargo build` still succeeds for the CLI binary
 
@@ -125,8 +125,8 @@ Remove: `eframe = "0.31"` and `image` (PNG encoding only needed for egui screens
 4. **Initialise the Tauri crate at `src-tauri/`**
 
    - Run `cargo tauri init` from the repo root, pointing devUrl at `http://localhost:5173` and distDir at `../ui/dist`
-   - Edit `src-tauri/Cargo.toml`: add `parish-core = { path = "../crates/parish-core" }` as a dependency
-   - Set `productName = "Rundale"`, `version` from workspace, `identifier = "ie.parish.app"` in `tauri.conf.json`
+   - Edit `src-tauri/Cargo.toml`: add `limerick-core = { path = "../crates/limerick-core" }` as a dependency
+   - Set `productName = "Rundale"`, `version` from workspace, `identifier = "ie.limerick.app"` in `tauri.conf.json`
 
 5. **Define the shared IPC type surface in `src-tauri/src/lib.rs`**
    Serde-serialisable structs mirrored in `ui/src/lib/types.ts`:
@@ -216,7 +216,7 @@ Remove: `eframe = "0.31"` and `image` (PNG encoding only needed for egui screens
        -> Result<ThemePalette, String>
    ```
 
-   `submit_input` processes input through the `parish-core` pipeline (classify → movement or NPC
+   `submit_input` processes input through the `limerick-core` pipeline (classify → movement or NPC
    conversation → inference) and emits events as the response streams.
 
 7. **Implement the streaming event bridge in `src-tauri/src/events.rs`**
@@ -235,7 +235,7 @@ Remove: `eframe = "0.31"` and `image` (PNG encoding only needed for egui screens
 
 8. **Wire up Tauri app setup in `src-tauri/src/lib.rs`**
 
-   - Initialise `AppState` (load `data/parish.json`, `data/npcs.json`, set up inference clients)
+   - Initialise `AppState` (load `data/world.json`, `data/npcs.json`, set up inference clients)
    - Register commands: `tauri::generate_handler![submit_input, get_world_snapshot, get_map, get_npcs_here, get_theme]`
    - Start idle-tick background task (`tokio::spawn`) that fires every 20 s and emits `"world-update"`
    - Start theme-tick task that emits `"theme-update"` every 500 ms with the current palette
@@ -421,7 +421,7 @@ Remove: `eframe = "0.31"` and `image` (PNG encoding only needed for egui screens
     - Replace `cargo build` / `cargo run` instructions with Tauri equivalents:
       - Dev: `cargo tauri dev` (starts Vite dev server + Tauri app with hot-reload)
       - Build: `cargo tauri build` (production bundle)
-      - Tests: `cargo test -p parish-core && cargo test -p parish-tauri && cd ui && npm test`
+      - Tests: `cargo test -p limerick-core && cargo test -p limerick-tauri && cd ui && npm test`
     - Update screenshot command
     - Update architecture tree to reflect new workspace layout
 
@@ -456,16 +456,16 @@ Remove: `eframe = "0.31"` and `image` (PNG encoding only needed for egui screens
 
 ## Testing Strategy
 
-**parish-core (Rust)**
+**limerick-core (Rust)**
 
 - All existing unit tests must pass without modification after the extraction
-- Run with `cargo test -p parish-core`
+- Run with `cargo test -p limerick-core`
 
 **src-tauri (Rust)**
 
 - Command handler unit tests via `tauri::test::mock_app()`
 - Streaming bridge: test that tokens accumulate and emit correctly with a mock `InferenceQueue`
-- `cargo test -p parish-tauri`
+- `cargo test -p limerick-tauri`
 
 **ui (TypeScript/Svelte)**
 

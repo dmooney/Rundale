@@ -2,17 +2,17 @@
 
 Architecture for the text-first reset and all six delivery phases
 
-> Status: Proposed technical direction, version 1.1. Scope: Native iPhone client, embedded Parish Engine, Rundale content, and the integration contract with Parish Endpoints. This is a companion to the current Product & Technical Specification, not a replacement for its requirements or a claim that any milestone is complete.
+> Status: Proposed technical direction, version 1.1. Scope: Native iPhone client, embedded Limerick Engine, Rundale content, and the integration contract with Limerick Endpoints. This is a companion to the current Product & Technical Specification, not a replacement for its requirements or a claim that any milestone is complete.
 
 Editorial import note: references to the native Product & Technical Specification, including [P1], resolve within this repository to the versioned [Product & Technical Specification](product-technical-spec.md). The native document remains source provenance; this note does not change the imported source text or its proposed status.
 
 ## 1. Technical north star
 
-Rundale should become a small, dependable local application that can grow into a richer living world without changing who owns the game. SwiftUI provides the reading-and-typing experience. The embedded Rust Parish Engine interprets commands, enforces rules, advances simulated time, manages NPC state, and commits saves. Parish Endpoints supplies remote inference. The network never becomes the authority for location, knowledge, tasks, or story history. [P1]
+Rundale should become a small, dependable local application that can grow into a richer living world without changing who owns the game. SwiftUI provides the reading-and-typing experience. The embedded Rust Limerick Engine interprets commands, enforces rules, advances simulated time, manages NPC state, and commits saves. Limerick Endpoints supplies remote inference. The network never becomes the authority for location, knowledge, tasks, or story history. [P1]
 
 The important investment is not an elaborate framework. It is a few durable boundaries: intent versus execution, proposed output versus committed facts, authored content versus mutable saves, presentation events versus engine internals, and remote computation versus local authority. These boundaries must exist in the tiny implementation even when only one NPC and one location are enabled.
 
-The first prototype should therefore be deliberately narrow but structurally representative. A fixture response and a real Parish response should pass through the same presentation contract. A one-NPC conversation should use the same request identity, cancellation, persistence, and validation rules that will later protect gossip and tasks. The three-location world should be ordinary validated content, not a special engine mode built around three hard-coded objects.
+The first prototype should therefore be deliberately narrow but structurally representative. A fixture response and a real Limerick response should pass through the same presentation contract. A one-NPC conversation should use the same request identity, cancellation, persistence, and validation rules that will later protect gossip and tasks. The three-location world should be ordinary validated content, not a special engine mode built around three hard-coded objects.
 
 The desired end state remains a text adventure. Supporting more NPCs, richer memory, optional undo, or eventual save synchronization must not require a new player interface. Conversely, keeping future options open does not authorize building those features early. The project can remain text-only indefinitely. [P1]
 
@@ -22,7 +22,7 @@ Architectural success test: adding a new world behavior should normally require 
 
 ### 2.1 What this document treats as fixed
 
-The current native Google Docs specification is the governing product source. It requires SwiftUI on iPhone, on-device Rust gameplay, authoritative local saves, remote inference exclusively through Parish Endpoints, and the six existing delivery milestones. It deliberately resets both frontend and world/NPC data while retaining useful Parish Engine capabilities. Existing graphical interfaces and old content do not define compatibility obligations. [P1]
+The current native Google Docs specification is the governing product source. It requires SwiftUI on iPhone, on-device Rust gameplay, authoritative local saves, remote inference exclusively through Limerick Endpoints, and the six existing delivery milestones. It deliberately resets both frontend and world/NPC data while retaining useful Limerick Engine capabilities. Existing graphical interfaces and old content do not define compatibility obligations. [P1]
 
 This vision makes additional technical recommendations. Where the product spec does not choose a mechanism, recommendations below are defaults to validate, not retroactively approved product requirements. No individual class hierarchy, exact database table inventory, or comprehensive internal API is prescribed.
 
@@ -30,9 +30,9 @@ This is a target architecture, not a repository audit. Before modifying the engi
 
 ### 2.2 A cross-project dependency that must be resolved
 
-The Rundale spec requires streaming NPC output through Parish Endpoints during Phase 2. The separate Parish Endpoints architecture currently excludes streaming from its original MVP. It also describes client-safe OIDC/JWT invocation as planned, while allowing owner-only dogfood work to precede that capability. Those are document-level integration gaps; they are not evidence of the deployed service's actual feature set. [P1, P2]
+The Rundale spec requires streaming NPC output through Limerick Endpoints during Phase 2. The separate Limerick Endpoints architecture currently excludes streaming from its original MVP. It also describes client-safe OIDC/JWT invocation as planned, while allowing owner-only dogfood work to precede that capability. Those are document-level integration gaps; they are not evidence of the deployed service's actual feature set. [P1, P2]
 
-Rundale therefore needs a small, explicit Endpoint capability agreement before Phase 2 can be accepted: a versioned inference contract, authenticated mobile-safe invocation, incremental response delivery, a validated terminal result, bounded failure/cancellation behavior, and request correlation. Implement missing capabilities in the generic Parish Endpoints product rather than bypassing it with direct provider calls or inventing a Rundale game server.
+Rundale therefore needs a small, explicit Endpoint capability agreement before Phase 2 can be accepted: a versioned inference contract, authenticated mobile-safe invocation, incremental response delivery, a validated terminal result, bounded failure/cancellation behavior, and request correlation. Implement missing capabilities in the generic Limerick Endpoints product rather than bypassing it with direct provider calls or inventing a Rundale game server.
 
 This document does not change either source document. The integration owner should reconcile their requirements when implementation work begins. Marketplace features, billing systems, and a broad Endpoint platform expansion are not prerequisites for this narrow integration.
 
@@ -52,7 +52,7 @@ These assumptions reduce concurrency and lifecycle ambiguity without making the 
 | Request execution         | Durable command receipt; staged outcome; one atomic world commit                        | Safe retry, future undo, and reliable long-running inference                   |
 | Local storage             | Prefer one transactional SQLite-backed save boundary, subject to existing-engine review | Migrations, paging, consistent export, and later synchronization               |
 | Foreign-function boundary | Small owned-value interface; evaluate generated Swift bindings before choosing          | Change binding tooling without changing the game contract                      |
-| Networking                | Parish Endpoint adapter behind a narrow transport capability                            | Provider changes and endpoint evolution without provider SDKs in the client    |
+| Networking                | Limerick Endpoint adapter behind a narrow transport capability                          | Provider changes and endpoint evolution without provider SDKs in the client    |
 | Time and randomness       | Explicit game clock and persisted/versioned randomness state                            | Reproducible schedules, controlled catch-up, and deterministic tests           |
 | Content                   | Stable entity IDs; immutable content definitions; separate mutable state                | New content packs and save-compatible expansion                                |
 | NPC cognition             | Structured knowledge/provenance; model output is a proposal                             | Gossip, memory, and tasks without transcript-driven state inference            |
@@ -67,17 +67,17 @@ Do not build a plugin marketplace, distributed simulation, generic workflow engi
 
 These are responsibility boundaries, not a requirement to create a separate package or class for each row.
 
-| Component                  | Owns                                                                                                | Must not own                                                   |
-| -------------------------- | --------------------------------------------------------------------------------------------------- | -------------------------------------------------------------- |
-| iOS presentation           | Transcript rendering, composer, focus, scrolling, accessibility, transient UI state                 | World rules, NPC memory, provider routing, save-state mutation |
-| iOS platform services      | App lifecycle, native networking, credential access, sandbox paths, OS integration                  | Game-specific prompt selection or adjudication                 |
-| Parish application runtime | Request lifecycle, intent resolution, validation, orchestration, commit ordering                    | UIKit/SwiftUI layout and provider secrets                      |
-| Parish simulation          | Locations, presence, time, schedules, weather, relationships, knowledge, tasks                      | HTTP, view identity, or app navigation                         |
-| Local persistence boundary | Durable requests, committed world state, transcript records, migration/export                       | Inferring state from prose or making network calls             |
-| Rundale content            | Authored definitions, initial conditions, bounded rules and fixtures                                | Mutable player progress or hidden per-device state             |
-| Parish Endpoints           | Authorized inference execution, provider credentials/routing, published behavior versions, metering | Authoritative game state or autonomous changes to the save     |
+| Component                    | Owns                                                                                                | Must not own                                                   |
+| ---------------------------- | --------------------------------------------------------------------------------------------------- | -------------------------------------------------------------- |
+| iOS presentation             | Transcript rendering, composer, focus, scrolling, accessibility, transient UI state                 | World rules, NPC memory, provider routing, save-state mutation |
+| iOS platform services        | App lifecycle, native networking, credential access, sandbox paths, OS integration                  | Game-specific prompt selection or adjudication                 |
+| Limerick application runtime | Request lifecycle, intent resolution, validation, orchestration, commit ordering                    | UIKit/SwiftUI layout and provider secrets                      |
+| Limerick simulation          | Locations, presence, time, schedules, weather, relationships, knowledge, tasks                      | HTTP, view identity, or app navigation                         |
+| Local persistence boundary   | Durable requests, committed world state, transcript records, migration/export                       | Inferring state from prose or making network calls             |
+| Rundale content              | Authored definitions, initial conditions, bounded rules and fixtures                                | Mutable player progress or hidden per-device state             |
+| Limerick Endpoints           | Authorized inference execution, provider credentials/routing, published behavior versions, metering | Authoritative game state or autonomous changes to the save     |
 
-The client-to-engine dependency points inward. Platform capabilities are injected through narrow interfaces where the engine needs them. The simulation must be testable without SwiftUI, a network connection, or a model provider. The iOS renderer must be testable without compiling or launching Parish.
+The client-to-engine dependency points inward. Platform capabilities are injected through narrow interfaces where the engine needs them. The simulation must be testable without SwiftUI, a network connection, or a model provider. The iOS renderer must be testable without compiling or launching Limerick.
 
 ### 4.2 Keep three representations separate
 
@@ -186,9 +186,9 @@ The achievable promise is at-most-once committed local effects for a logical req
 
 ### 7.1 Storage recommendation
 
-Prefer a single transactional SQLite-backed persistence boundary owned by the Parish runtime for requests, authoritative world state, and committed transcript history. A consistent transactional store makes the gameplay commit boundary practical; SQLite documents atomic transaction behavior and recovery mechanisms. This recommendation still requires verification of the chosen binding, journal configuration, durability settings, and iOS file behavior. [T4]
+Prefer a single transactional SQLite-backed persistence boundary owned by the Limerick runtime for requests, authoritative world state, and committed transcript history. A consistent transactional store makes the gameplay commit boundary practical; SQLite documents atomic transaction behavior and recovery mechanisms. This recommendation still requires verification of the chosen binding, journal configuration, durability settings, and iOS file behavior. [T4]
 
-First inspect existing Parish persistence and branching. Reuse it if it satisfies these boundaries and works on-device. Do not add a second authoritative database because SQLite appears in this document. If replacement is necessary, identify the missing property and migrate deliberately rather than maintaining two save systems indefinitely.
+First inspect existing Limerick persistence and branching. Reuse it if it satisfies these boundaries and works on-device. Do not add a second authoritative database because SQLite appears in this document. If replacement is necessary, identify the missing property and migrate deliberately rather than maintaining two save systems indefinitely.
 
 Avoid making SwiftData/Core Data the authoritative game model while Rust maintains a separate mutable copy. Avoid a single ever-growing JSON save rewritten for every token, or an append-only prose file from which game state must be guessed. Simple JSON remains appropriate for test fixtures, content exchange, or an export format; it is not a substitute for defined transaction semantics.
 
@@ -282,15 +282,15 @@ Never allow a Rust panic to unwind unsafely across a foreign boundary. Use falli
 
 The engine owns inference decisions and the logical request/response contract. An iOS platform adapter may own HTTP streaming, lifecycle cancellation, TLS handling, and credential retrieval. URLSession exposes incremental asynchronous byte delivery suitable for consuming a framed response. Keeping these platform mechanics in Swift does not move game orchestration out of Rust. [T7]
 
-If an existing Rust transport is retained, apply the same separation and prove its iOS cancellation/lifecycle behavior. Do not add both a Rust provider SDK path and a Swift provider SDK path. The production destination remains Parish Endpoints either way.
+If an existing Rust transport is retained, apply the same separation and prove its iOS cancellation/lifecycle behavior. Do not add both a Rust provider SDK path and a Swift provider SDK path. The production destination remains Limerick Endpoints either way.
 
 Use one documented concurrency model. Avoid a task/thread per NPC, synchronous callback chains into SwiftUI, and several independent async runtimes created accidentally by dependencies. Bound queues and make session shutdown cancel and drain outstanding callbacks before releasing associated state.
 
-## 10. Parish Endpoints: the required remote contract
+## 10. Limerick Endpoints: the required remote contract
 
 ### 10.1 Responsibility split
 
-The on-device engine decides whether inference is needed, the inference role, which context is permitted, the game-specific interpretation of output, and whether resulting changes may commit. It constructs the logical prompt/context for that role. Parish Endpoints owns the provider call, credentials, provider/model routing, and the remote execution boundary. [P1]
+The on-device engine decides whether inference is needed, the inference role, which context is permitted, the game-specific interpretation of output, and whether resulting changes may commit. It constructs the logical prompt/context for that role. Limerick Endpoints owns the provider call, credentials, provider/model routing, and the remote execution boundary. [P1]
 
 Published Endpoint definitions may hold reusable private instructions and provider-formatting templates, but must not independently redefine game rules or receive an entire save merely for convenience. Define the split once: the engine supplies authoritative role-specific facts and constraints; the Endpoint applies a versioned inference definition. Avoid contradictory copies of the same rule in client code, client prompt text, and Endpoint templates.
 
@@ -300,7 +300,7 @@ Start with one real Rundale Endpoint integration in Phase 2. Later roles such as
 
 The agreement needs an input/output contract version, published Endpoint version or compatible alias policy, logical request/attempt correlation, bounded input context, output limits, and cancellation/deadline behavior. The engine retains the base world revision locally; include only an opaque correlation value remotely when needed, not an assumption that the Endpoint can validate the world.
 
-A successful final response includes validated role output, resolved Endpoint version, and sufficient invocation metadata for diagnosis. Provider/model identification and usage metadata belong in diagnostics where available, not in gameplay prose. Immutable Endpoint versions and deployment aliases already appear in the Parish architecture; record the resolved version so an alias change does not erase reproducibility. [P2]
+A successful final response includes validated role output, resolved Endpoint version, and sufficient invocation metadata for diagnosis. Provider/model identification and usage metadata belong in diagnostics where available, not in gameplay prose. Immutable Endpoint versions and deployment aliases already appear in the Limerick architecture; record the resolved version so an alias change does not erase reproducibility. [P2]
 
 Initial release behavior should prefer a pinned compatible Endpoint version or a rigorously compatibility-tested alias. Retrying one invocation must not silently resolve to a new behavior version. Rollback of provider/prompt behavior must not require rewriting player saves.
 
@@ -312,13 +312,13 @@ Stream only renderable text and safe progress information. Do not expose raw par
 
 Specify how output limits, malformed frames, missing terminal frames, duplicate frames, validation failure after partial text, and provider interruptions are represented. Automatic model repair/retry must not splice output from two different attempts into one apparently continuous NPC statement. Once text has streamed, a restarted attempt must be distinguishable.
 
-Before Phase 2 acceptance, demonstrate real incremental delivery through Parish Endpoints. Simulating a typewriter effect after receiving a complete response does not prove the required streaming integration.
+Before Phase 2 acceptance, demonstrate real incremental delivery through Limerick Endpoints. Simulating a typewriter effect after receiving a complete response does not prove the required streaming integration.
 
 ### 10.4 Authentication and secret handling
 
-No provider credential or reusable shared Parish invocation key may be embedded in a distributed iOS binary, resource file, or remotely fetched public configuration. Storing a shared secret in Keychain after shipping it inside the app does not make that original distribution safe. [P1, P2]
+No provider credential or reusable shared Limerick invocation key may be embedded in a distributed iOS binary, resource file, or remotely fetched public configuration. Storing a shared secret in Keychain after shipping it inside the app does not make that original distribution safe. [P1, P2]
 
-The documented direction for client-safe Parish invocation is trusted-issuer token validation. For an interactive native login, use a standards-based public-client flow with an external authorization agent and Authorization Code + PKCE. Send an access token intended for the Endpoint audience; do not substitute an arbitrary identity token for API authorization. Validate issuer, signature, audience, expiry, and authorization claims server-side. [P2, T8]
+The documented direction for client-safe Limerick invocation is trusted-issuer token validation. For an interactive native login, use a standards-based public-client flow with an external authorization agent and Authorization Code + PKCE. Send an access token intended for the Endpoint audience; do not substitute an arbitrary identity token for API authorization. Validate issuer, signature, audience, expiry, and authorization claims server-side. [P2, T8]
 
 Store acquired tokens in appropriate platform credential storage and keep them out of save exports, logs, fixtures, and source control. The exact identity provider and token acquisition experience are decisions to close before a distributed inference-enabled build. Owner-only development provisioning may be separate, but no secret-bearing development path may leak into a shipped app.
 
@@ -328,9 +328,9 @@ Local launch, local saves, deterministic inspection, and local navigation must n
 
 Set finite time, context, output, and retry budgets. Distinguish a transport retry from a new inference attempt; prevent retries at the client, Endpoint, and provider-adapter layers from multiplying independently. The Endpoint owns provider-level policy within an agreed overall limit; the engine owns whether the gameplay request is retried.
 
-Persist correlation and remote idempotency information before starting the call when recovery depends on it. The Parish architecture contemplates bounded result reuse by idempotency key and request fingerprint, but does not guarantee it exists. Do not design Phase 2 around unverified result lookup, stream resumption, or remote cancellation features. Where unavailable, interruption must still leave a coherent local game. [P2]
+Persist correlation and remote idempotency information before starting the call when recovery depends on it. The Limerick architecture contemplates bounded result reuse by idempotency key and request fingerprint, but does not guarantee it exists. Do not design Phase 2 around unverified result lookup, stream resumption, or remote cancellation features. Where unavailable, interruption must still leave a coherent local game. [P2]
 
-Enforce per-principal authorization, rate limits, concurrency limits, and output ceilings at Parish Endpoints. Client limits improve UX but are not an abuse boundary. Cancellation may stop local work before a provider stops billing; measure canceled/failed usage rather than promising cost-free Stop.
+Enforce per-principal authorization, rate limits, concurrency limits, and output ceilings at Limerick Endpoints. Client limits improve UX but are not an abuse boundary. Cancellation may stop local work before a provider stops billing; measure canceled/failed usage rather than promising cost-free Stop.
 
 Avoid whole-world and whole-transcript prompts. Build context from the current scene, the addressed NPC's permitted knowledge, relevant relationships and memories, a bounded recent exchange, and the current action. Cache only when the role, content, Endpoint version, and relevant state/context fingerprint make reuse valid. Stale cached dialogue must never revive obsolete world facts.
 
@@ -454,7 +454,7 @@ The six phases below retain the scope and order of the product spec. Each phase 
 
 ### Phase 1 — Static native interaction prototype
 
-Player outcome. A fixture-only SwiftUI screen proves the reading-and-typing interaction on a physical iPhone: header, transcript, composer, streaming, Stop, history recall, temporary completion, and accessibility. There is no live LLM and no embedded Parish runtime in the delivered prototype.
+Player outcome. A fixture-only SwiftUI screen proves the reading-and-typing interaction on a physical iPhone: header, transcript, composer, streaming, Stop, history recall, temporary completion, and accessibility. There is no live LLM and no embedded Limerick runtime in the delivered prototype.
 
 Technical work now. Define the first semantic event/projection contract and stable visible-item identity. Build a renderer/presentation state layer that accepts a fixture session through the same boundary the real session will later implement. Include fixtures for command interpretation, clarification, failed response, interrupted partial output, scene transition, restoration, and long history—not only a successful NPC greeting.
 
@@ -474,11 +474,11 @@ Exit evidence. The product's physical-device interaction gate passes; fixture pl
 
 ### Phase 2 — Embedded Rust vertical slice
 
-Player outcome. Exactly one location and one interactive NPC form a real local game. The player can start/resume, inspect with /look, converse through a real Parish Endpoint, stop/retry, quit, and continue from correct local state.
+Player outcome. Exactly one location and one interactive NPC form a real local game. The player can start/resume, inspect with /look, converse through a real Limerick Endpoint, stop/retry, quit, and continue from correct local state.
 
-Technical work now. Inspect the existing Parish code and isolate the smallest portable runtime without rewriting unrelated engine systems. Complete the Swift/Rust binding and device/simulator build spike. Establish one mutation authority, accepted-request persistence, atomic outcome commit, durable transcript IDs, and the distinction between logical request and execution attempt.
+Technical work now. Inspect the existing Limerick code and isolate the smallest portable runtime without rewriting unrelated engine systems. Complete the Swift/Rust binding and device/simulator build spike. Establish one mutation authority, accepted-request persistence, atomic outcome commit, durable transcript IDs, and the distinction between logical request and execution attempt.
 
-Implement one real Endpoint role with versioned inputs/outputs, authentic incremental streaming, bounded context, error handling, and safe credential acquisition. Resolve the Parish streaming/authentication dependency; do not bypass it. Implement the preferred transactional save path or document why an existing mechanism provides equivalent guarantees. Establish content/save versioning even though the data set is tiny.
+Implement one real Endpoint role with versioned inputs/outputs, authentic incremental streaming, bounded context, error handling, and safe credential acquisition. Resolve the Limerick streaming/authentication dependency; do not bypass it. Implement the preferred transactional save path or document why an existing mechanism provides equivalent guarantees. Establish content/save versioning even though the data set is tiny.
 
 Protect later phases. The first NPC already has a stable identity and an authored definition separate from mutable state. The engine API is not “send message to the only NPC.” The turn model can stage a future memory/task update without changing the UI contract. A successful completed turn persists before completion is reported. One-request deduplication is a real guarantee, not an assumption about users pressing Send only once.
 
@@ -488,11 +488,11 @@ Automated verification. Extend the Phase 1 verification entry point so a coding 
 
 Phase 2 fault automation. Provide deterministic injection points around durable acceptance, inference start, each stream stage, validation, gameplay commit, persistence, callback delivery, cancellation, and restoration. Automated cases must cover duplicate submissions/events, Stop racing the terminal response, a late obsolete callback, disconnect during streaming, malformed or truncated stream frames, validation failure after provisional text, force-termination after acceptance but before commit, force-termination immediately after commit but before UI acknowledgment, storage/write failure, failed migration fixtures when applicable, and retry after interruption. Assertions must inspect authoritative domain state and durable records, not merely the visible transcript, and must prove that an accepted/committed logical request produces at most one committed effect.
 
-Inference testing must be split. The default verification gate uses deterministic Endpoint doubles, recorded validated results, and protocol fixtures so correctness does not depend on network availability, provider nondeterminism, latency, or model quality. A separate opt-in live-integration suite exercises real Parish authentication, real incremental streaming through the deployed path, schema compatibility, cancellation behavior available from the service, and basic grounding/output validity. Live inference may block the explicit Phase 2 integration acceptance gate when required by the product spec, but it must not replace deterministic regression coverage or become the oracle for persistence and game-state correctness.
+Inference testing must be split. The default verification gate uses deterministic Endpoint doubles, recorded validated results, and protocol fixtures so correctness does not depend on network availability, provider nondeterminism, latency, or model quality. A separate opt-in live-integration suite exercises real Limerick authentication, real incremental streaming through the deployed path, schema compatibility, cancellation behavior available from the service, and basic grounding/output validity. Live inference may block the explicit Phase 2 integration acceptance gate when required by the product spec, but it must not replace deterministic regression coverage or become the oracle for persistence and game-state correctness.
 
 Agent completion rule. Codex or another coding agent may use the verification output as its primary completion contract, but it may not make a task pass by deleting, skipping, quarantining, weakening, broadening tolerances in, or rewriting an existing test, fixture, invariant, fault case, performance threshold, or acceptance check unless the task itself explicitly changes the underlying requirement. Any legitimate test change must accompany the production change, state which requirement changed, and preserve equivalent or stronger coverage. The verification report must identify skipped tests and distinguish agent-executable checks from physical-device or qualitative gates that remain unverified.
 
-Exit evidence. A physical device proves real local runtime execution and real Parish streaming. Tests cover Stop/final-result races, storage failure, force-quit after commit, interruption before commit, retry without duplicate effects, and /look without network. Shipping artifacts contain no provider/shared invocation secrets. The fixture renderer still works unchanged.
+Exit evidence. A physical device proves real local runtime execution and real Limerick streaming. Tests cover Stop/final-result races, storage failure, force-quit after commit, interruption before commit, retry without duplicate effects, and /look without network. Shipping artifacts contain no provider/shared invocation secrets. The fixture renderer still works unchanged.
 
 ### Phase 3 — Tiny world navigation
 
@@ -559,7 +559,7 @@ Use lightweight architecture decision records for consequential choices. Each sh
 | Supported iOS/device baseline                                | Phase 1 acceptance                               | Choose based on required interactions and physical test access; revisit when an actual platform capability justifies dropping support          |
 | Transcript/composer implementation                           | Phase 1 acceptance                               | SwiftUI first with isolated native fallback; revisit only for demonstrated input, scrolling, or accessibility limitations                      |
 | Swift/Rust bindings and packaging                            | Early Phase 2                                    | Prove generated bindings and device/simulator binaries; fall back to a narrow C ABI if the selected toolchain exposes unacceptable limitations |
-| Save storage and migration boundary                          | Before Phase 2 real saves                        | Reuse sound Parish persistence or prefer one transactional SQLite boundary; no parallel authoritative stores                                   |
+| Save storage and migration boundary                          | Before Phase 2 real saves                        | Reuse sound Limerick persistence or prefer one transactional SQLite boundary; no parallel authoritative stores                                 |
 | Endpoint streaming and mobile authentication                 | Before Phase 2 acceptance                        | Agree and test actual capabilities; missing support is an integration blocker, not permission for direct provider calls                        |
 | Inference result/stream contract                             | Before Phase 2 acceptance                        | Distinguish provisional text from validated final output and bound retries; revisit for a concrete new inference role                          |
 | Action time and schedule precedence                          | Before Phase 3 acceptance                        | Local action-driven time with deterministic ordering; revisit before long actions or concurrent simulation                                     |
@@ -578,7 +578,7 @@ At the start of engine integration, inventory existing simulation, persistence, 
 
 Extract or expose the portable gameplay boundary incrementally. Keep old frontend/content as reference material or a separately buildable legacy target where that is inexpensive. Do not couple the mobile milestone to deleting every old system, migrating every legacy save, or achieving a perfect repository layout. Conversely, do not let legacy dependencies dictate the new UI or silently become the mobile runtime.
 
-The iOS app and engine should evolve in coordinated changes with versioned contracts. Parish Endpoints remains a separate product/deployable; use a documented client contract and test fixtures rather than shared database access or a dependency on its private internal implementation. [P2]
+The iOS app and engine should evolve in coordinated changes with versioned contracts. Limerick Endpoints remains a separate product/deployable; use a documented client contract and test fixtures rather than shared database access or a dependency on its private internal implementation. [P2]
 
 ### 16.2 What an implementation agent should receive
 
@@ -586,7 +586,7 @@ For each phase, provide the current product requirements, this technical vision,
 
 An agent may choose ordinary internal types, helper functions, package layout, and libraries within these boundaries. It may not silently relax local authority, skip physical-device evidence, embed secrets, convert provisional text into state, or restore out-of-scope legacy features. A green unit-test run is not permission to mark a physical-device requirement complete.
 
-Keep mock/fixture execution available throughout development. When a new behavior cannot be exercised without a live provider, treat that as a testability problem to resolve before adding more content. When an integration requires a missing Parish Endpoint capability, create a bounded dependency task instead of working around the agreed architecture.
+Keep mock/fixture execution available throughout development. When a new behavior cannot be exercised without a live provider, treat that as a testability problem to resolve before adding more content. When an integration requires a missing Limerick Endpoint capability, create a bounded dependency task instead of working around the agreed architecture.
 
 ### 16.3 Definition of architectural readiness
 
@@ -598,9 +598,9 @@ That explanation should come from code boundaries and recorded state—not from 
 
 Project sources establish requirements and prior architectural direction. External references substantiate platform capabilities and constraints, not unmeasured claims about Rundale's implementation. All other architectural choices in this document are proposals with the deadlines and validation gates described above.
 
-[P1] Product requirements. Rundale Mobile Text Adventure — Product & Technical Specification, current native Google Docs copy in Projects/Rundale. Primary source for all six phases, the mobile reset, local authority, and the Parish Endpoints requirement. Rundale Mobile Text Adventure — Product & Technical Specification
+[P1] Product requirements. Rundale Mobile Text Adventure — Product & Technical Specification, current native Google Docs copy in Projects/Rundale. Primary source for all six phases, the mobile reset, local authority, and the Limerick Endpoints requirement. Rundale Mobile Text Adventure — Product & Technical Specification
 
-[P2] Endpoint platform direction. Parish Endpoints — Software Architecture, in Projects/Parish. Relevant sections include product boundary, original MVP non-goals, immutable versions/deployment aliases, idempotency, and client-safe end-user authentication. This is an architecture source, not proof of deployed capabilities. Parish Endpoints - Software Architecture
+[P2] Endpoint platform direction. Limerick Endpoints — Software Architecture, in Projects/Limerick. Relevant sections include product boundary, original MVP non-goals, immutable versions/deployment aliases, idempotency, and client-safe end-user authentication. This is an architecture source, not proof of deployed capabilities. Limerick Endpoints - Software Architecture
 
 [T1] Rust iOS target support. The rustc book, Apple iOS targets. Device/simulator targets, SDK requirements, and build/test distinctions. Official reference (doc.rust-lang.org)
 

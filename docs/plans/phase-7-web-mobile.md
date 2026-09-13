@@ -106,7 +106,7 @@ Deliver Rundale as a full game client in web browsers and on mobile devices (iOS
 
 7. **Create web client workspace member in `web/`**
 
-   - `web/Cargo.toml`: workspace member, depends on `parish` (library), `eframe` with `wasm` feature, `wasm-bindgen`, `web-sys`, `gloo-net` (WebSocket)
+   - `web/Cargo.toml`: workspace member, depends on `limerick` (library), `eframe` with `wasm` feature, `wasm-bindgen`, `web-sys`, `gloo-net` (WebSocket)
    - `web/src/lib.rs`: WASM entry point via `#[wasm_bindgen(start)]`
    - `web/index.html`: minimal HTML shell loading the WASM bundle
    - Build with `trunk` (Rust WASM bundler): `trunk build --release` → outputs to `web/dist/`
@@ -148,14 +148,14 @@ Deliver Rundale as a full game client in web browsers and on mobile devices (iOS
     - `mobile/` directory with Tauri v2 project structure
     - `mobile/src-tauri/` — Rust backend (Tauri commands, app config)
     - `mobile/src/` — Frontend (loads the same egui WASM bundle from Part B)
-    - `mobile/src-tauri/tauri.conf.json` — app name "Rundale", bundle ID `com.parish.app`, permissions
+    - `mobile/src-tauri/tauri.conf.json` — app name "Rundale", bundle ID `com.limerick.app`, permissions
 
 13. **Configure Tauri for iOS and Android**
 
     - iOS: `tauri ios init` → Xcode project in `mobile/src-tauri/gen/apple/`
     - Android: `tauri android init` → Gradle project in `mobile/src-tauri/gen/android/`
     - Both targets load the egui WASM frontend in Tauri's webview
-    - Deep link support: `parish://` URL scheme for save sharing (future)
+    - Deep link support: `rundale://` URL scheme for save sharing (future)
 
 14. **Implement mobile-specific adaptations**
 
@@ -179,9 +179,9 @@ Deliver Rundale as a full game client in web browsers and on mobile devices (iOS
 
 ### Part D: Shared Infrastructure
 
-17. **Extract GUI panels into a shared crate `parish-ui`**
+17. **Extract GUI panels into a shared crate `limerick-ui`**
 
-    - Move `src/gui/theme.rs`, `chat_panel.rs`, `map_panel.rs`, `sidebar.rs`, `status_bar.rs`, `input_field.rs` to `crates/parish-ui/src/`
+    - Move `src/gui/theme.rs`, `chat_panel.rs`, `map_panel.rs`, `sidebar.rs`, `status_bar.rs`, `input_field.rs` to `crates/limerick-ui/src/`
     - These modules render with egui and take data structs as input (not game engine references)
     - Define `UiState` trait or struct: text log, location info, map data, NPC list, time/weather
     - Desktop GUI (`src/gui/`): populates `UiState` from local `WorldState`
@@ -199,7 +199,7 @@ Deliver Rundale as a full game client in web browsers and on mobile devices (iOS
 
     - `Dockerfile`: multi-stage build (Rust builder → minimal runtime image with WASM assets)
     - `docker-compose.yml`: server + volume for SQLite persistence
-    - Environment variables: `PARISH_CLOUD_API_KEY`, `PARISH_CLOUD_MODEL`, `PARISH_SERVER_PORT`, `PARISH_MAX_SESSIONS`
+    - Environment variables: `LIMERICK_CLOUD_API_KEY`, `LIMERICK_CLOUD_MODEL`, `LIMERICK_SERVER_PORT`, `LIMERICK_MAX_SESSIONS`
     - Health check endpoint at `/health` for orchestrators (Kubernetes, ECS, etc.)
 
 20. **Monitoring and observability**
@@ -226,10 +226,10 @@ Deliver Rundale as a full game client in web browsers and on mobile devices (iOS
 ## Workspace Structure
 
 ```text
-Parish/
+Limerick/
 ├── Cargo.toml              # Workspace root
 ├── crates/
-│   └── parish-ui/          # Shared egui panels (theme, chat, map, sidebar)
+│   └── limerick-ui/          # Shared egui panels (theme, chat, map, sidebar)
 │       ├── Cargo.toml
 │       └── src/
 ├── src/                    # Main binary (TUI, GUI, headless, server modes)

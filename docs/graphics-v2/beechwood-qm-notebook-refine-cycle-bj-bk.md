@@ -28,7 +28,7 @@ BJ used:
   as edit target and primary topology/style target,
 - `pipeline-experiments/idea-m-beechwood-admin-topdown-cleaned.png` as topology
   veto,
-- `illustrated-parish-notebook.png` as style-only reference,
+- `illustrated-rundale-notebook.png` as style-only reference,
 - `pipeline-experiments/idea-bh-grove-bg-upper-structure-repair.png` as a
   no-UI notebook-style texture reference only,
 - cleaned single-building slate and thatch crops plus field/wall and roof/wall

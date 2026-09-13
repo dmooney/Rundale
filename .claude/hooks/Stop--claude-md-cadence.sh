@@ -30,7 +30,7 @@ done < <(find . -name CLAUDE.md \
     -not -path "./.claude/worktrees/*" \
     -not -path "./node_modules/*" \
     -not -path "*/node_modules/*" \
-    -not -path "./parish/target/*" \
+    -not -path "./limerick/target/*" \
     -not -path "./target/*" 2>/dev/null)
 
 if [ "$oldest_age" -gt "$THRESHOLD_DAYS" ] && [ -n "$oldest_path" ]; then

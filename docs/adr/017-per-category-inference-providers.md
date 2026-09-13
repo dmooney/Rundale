@@ -26,9 +26,9 @@ Each inference category can independently configure its own provider, model, bas
 
 1. Base `[provider]` config (fallback)
 2. TOML `[provider.<category>]` section
-3. `PARISH_<CATEGORY>_*` environment variables
+3. `LIMERICK_<CATEGORY>_*` environment variables
 4. `--<category>-*` CLI flags
-5. Legacy `[cloud]` / `PARISH_CLOUD_*` / `--cloud-*` (dialogue only, lowest priority override)
+5. Legacy `[cloud]` / `LIMERICK_CLOUD_*` / `--cloud-*` (dialogue only, lowest priority override)
 
 ### Runtime slash commands (all modes):
 
@@ -48,7 +48,7 @@ Where `<category>` is `dialogue`, `simulation`, or `intent`. The base `/model`, 
 ## Consequences
 
 - Full flexibility: any category can use any OpenAI-compatible provider
-- Backward compatible: existing `[cloud]` config, `--cloud-*` flags, and `PARISH_CLOUD_*` env vars continue to work
+- Backward compatible: existing `[cloud]` config, `--cloud-*` flags, and `LIMERICK_CLOUD_*` env vars continue to work
 - The `InferenceClients` struct is now generic over categories rather than hardcoded to local/cloud
 - Adding new inference categories in the future requires only adding a variant to the enum
 - Slightly more complex configuration surface, but all overrides are optional

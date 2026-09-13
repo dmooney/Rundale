@@ -8,7 +8,7 @@ Accepted (2026-03-23)
 
 ## Context
 
-Rundale currently supports three UI modes — TUI (Ratatui), GUI (egui/eframe), and headless — all running as local desktop processes. The Parish engine, LLM inference, and persistence are tightly coupled to the local process. To reach players on web browsers and mobile devices (iOS/Android), we need a client-server architecture where thin clients connect to a cloud-hosted game server.
+Rundale currently supports three UI modes — TUI (Ratatui), GUI (egui/eframe), and headless — all running as local desktop processes. The Limerick engine, LLM inference, and persistence are tightly coupled to the local process. To reach players on web browsers and mobile devices (iOS/Android), we need a client-server architecture where thin clients connect to a cloud-hosted game server.
 
 Key constraints:
 
@@ -46,13 +46,13 @@ Adopt a **thin-client, thick-server** architecture using Rust-native technologie
 
 ### Shared UI Crate
 
-- `parish-ui` crate extracts egui panel components (chat, map, sidebar, status bar, theme)
+- `limerick-ui` crate extracts egui panel components (chat, map, sidebar, status bar, theme)
 - Desktop GUI, web client, and mobile client all depend on this crate
 - Panels accept data structs as input, decoupled from game engine internals
 
 ## Consequences
 
-- **Code reuse**: ~80% of GUI code is shared across desktop, web, and mobile via `parish-ui`.
+- **Code reuse**: ~80% of GUI code is shared across desktop, web, and mobile via `limerick-ui`.
 - **Rust everywhere**: No JavaScript/TypeScript in the stack. All clients are Rust compiled to native or WASM.
 - **Server cost**: Cloud hosting + cloud LLM inference adds operational cost per player session.
 - **Latency**: WebSocket adds network latency to every player action. Mitigated by token streaming for LLM responses and optimistic UI updates.

@@ -86,7 +86,7 @@ Every LLM turn logs:
 - Seed / sampling params.
 - Tool calls made (doc 04).
 
-Stored alongside the conversation in `parish-types::conversation`. Essential
+Stored alongside the conversation in `limerick-types::conversation`. Essential
 for reproducing bugs and, later, for producing preference-data triples
 (doc 06).
 

@@ -63,6 +63,6 @@ An event bus must propagate state changes across tier boundaries to maintain coh
 
 ## Source Modules
 
-- [`parish-npc`](../../parish/crates/parish-npc/src/) — NPC behavior, cognition tiers
-- [`parish-inference`](../../parish/crates/parish-inference/src/) — inference queue and worker
-- [`parish-world`](../../parish/crates/parish-world/src/) — World state and location graph
+- [`limerick-npc`](../../limerick/crates/limerick-npc/src/) — NPC behavior, cognition tiers
+- [`limerick-inference`](../../limerick/crates/limerick-inference/src/) — inference queue and worker
+- [`limerick-world`](../../limerick/crates/limerick-world/src/) — World state and location graph

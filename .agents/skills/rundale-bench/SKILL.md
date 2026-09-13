@@ -119,12 +119,12 @@ have standing permission to install tooling, upgrade packages, kill/restart your
 
 ```sh
 # llama.cpp backend (GGUF; the right choice for mandatory reasoners — see below)
-parish/scripts/local-eval/serve_local.sh --backend llama-server \
+limerick/scripts/local-eval/serve_local.sh --backend llama-server \
   --model unsloth/<repo>-GGUF:UD-Q4_K_XL --alias <clean-id> --port <free-port>
 #   → spec:  <clean-id>@http://127.0.0.1:<port>/v1
 
 # vllm-mlx backend (MLX; fast for mlx-community/* that serve cleanly)
-parish/scripts/local-eval/serve_local.sh --backend vllm-mlx \
+limerick/scripts/local-eval/serve_local.sh --backend vllm-mlx \
   --model mlx-community/<repo> --port <free-port>
 ```
 
@@ -213,7 +213,7 @@ A blind A/B/N where **a Sonnet 4.6 Agent subagent is the judge** — no persiste
 no inline self-scoring. Opus (this conversation) handles the workflow (target classification, sample
 generation, report writing); a single Agent dispatch with `model: "sonnet"` does the scoring against the
 rubric. Use it to decide which model + provider combo to wire into
-`parish-config::presets::preset_models()` for an `InferenceCategory`. Invoke with target specs:
+`limerick-config::presets::preset_models()` for an `InferenceCategory`. Invoke with target specs:
 `/rundale-bench eval-dialogue <target-spec> <target-spec> [...]`.
 
 **Why Sonnet, not Opus-in-chat.** Project-wide rule: all rundale-bench judging is Sonnet 4.6 (see
@@ -231,8 +231,8 @@ mlx-community/Qwen2.5-7B-Instruct-4bit@http://localhost:8000/v1
 
 # Cloud (API key in environment)
 claude-sonnet-4-6@https://api.anthropic.com/v1#env:ANTHROPIC_API_KEY
-llama-3.3-70b-versatile@https://api.groq.com/openai/v1#env:PARISH_GROQ_API_KEY
-gpt-5.5@https://api.openai.com/v1#env:PARISH_OPENAI_API_KEY
+llama-3.3-70b-versatile@https://api.groq.com/openai/v1#env:LIMERICK_GROQ_API_KEY
+gpt-5.5@https://api.openai.com/v1#env:LIMERICK_OPENAI_API_KEY
 ```
 
 `mlx-community/*` targets pointing at `http://localhost:*` are treated as local — the skill spawns a
@@ -265,7 +265,7 @@ using the API key from `$VAR`. Pass at least two specs; three is the sweet spot 
    Then for each candidate:
 
    ```sh
-   python3 parish/scripts/local-eval/gen_dlg.py '<target-spec>' "$RUN_DIR/cand_<letter>.txt"
+   python3 limerick/scripts/local-eval/gen_dlg.py '<target-spec>' "$RUN_DIR/cand_<letter>.txt"
    ```
 
    `gen_dlg.py` uses the canonical 5 prompts and writes a transcript plus a `=== Cost: ... ===` footer.
@@ -327,11 +327,11 @@ mean of the five sub-scores (1-5, one decimal). No prose, no markdown.
   is mechanical enough that the effect is usually small. For Opus candidates the bias risk is higher;
   cross-check by spawning a second judge in a different family if the delta is load-bearing.
 - Costs come from each provider's `usage` block (where reported). Local targets show $0.00. Static
-  $/M-token rates live in `parish/scripts/local-eval/eval_lib.py::COSTS` — verify before treating totals as
+  $/M-token rates live in `limerick/scripts/local-eval/eval_lib.py::COSTS` — verify before treating totals as
   gospel; providers change pricing without warning.
 - Memory (local only): each candidate vllm-mlx process keeps the model resident. On a 32 GB Mac, judge + 2
   candidates is comfortable; 3 pushes memory. Cloud candidates use no local RAM.
-- Companion scripts live at `parish/scripts/local-eval/` — `gen_samples.py` (per-category sweep),
+- Companion scripts live at `limerick/scripts/local-eval/` — `gen_samples.py` (per-category sweep),
   `flaw_scan.py` (100-prompt non-Latin script audit), `gen_dlg.py` (5-prompt dialogue), all taking the same
   `model@base_url[#env:VAR]` spec.
 

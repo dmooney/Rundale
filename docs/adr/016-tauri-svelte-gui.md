@@ -17,7 +17,7 @@ matures:
   theme calls for decorative typography, textured panel backgrounds, animated transitions, and
   authentic Celtic visual motifs — none of which egui handles naturally.
 - **Map limitations**: The current `map_panel.rs` places locations in a fixed circular arrangement
-  that ignores the real OSM-derived geography already extracted by `parish-geo-tool`. A proper interactive
+  that ignores the real OSM-derived geography already extracted by `limerick-geo-tool`. A proper interactive
   map (SVG, canvas, or WebGL) is not achievable in egui without substantial bespoke code.
 - **Text rendering**: The adventure log needs markdown-like formatting (bold NPC names, italicised
   narration, coloured speaker attribution). egui treats text as flat paragraphs; rich inline styling
@@ -38,17 +38,17 @@ backend, communicating via the Tauri IPC bridge.
 
 Replace the egui/eframe GUI with **Tauri 2 + Svelte**:
 
-- The project becomes a **Cargo workspace** with two crates: `parish-core` (all game logic) and
+- The project becomes a **Cargo workspace** with two crates: `limerick-core` (all game logic) and
   `src-tauri` (the Tauri backend shell).
 - Game logic (`world/`, `npc/`, `inference/`, `input/`, `persistence/`, `headless/`, `testing/`)
-  moves into `crates/parish-core/` as a reusable library crate.
-- The Tauri backend (`src-tauri/src/lib.rs`) wires Tauri commands and events to the `parish-core`
+  moves into `crates/limerick-core/` as a reusable library crate.
+- The Tauri backend (`src-tauri/src/lib.rs`) wires Tauri commands and events to the `limerick-core`
   engine. The Tokio runtime lives here alongside all async game tasks.
 - The frontend (`ui/src/`) is a **Svelte 5 + TypeScript** single-page app bundled by **Vite**.
   It communicates with the Rust backend exclusively through typed Tauri `invoke()` calls and
   `listen()` event subscriptions.
 - The existing CLI binary (TUI + headless modes) is preserved as a separate workspace binary that
-  depends on `parish-core` directly.
+  depends on `limerick-core` directly.
 - `eframe` and `egui` are removed from `Cargo.toml`.
 
 ## Consequences
@@ -57,7 +57,7 @@ Replace the egui/eframe GUI with **Tauri 2 + Svelte**:
 
 - Full HTML/CSS design freedom: Celtic typography, textured backgrounds, CSS animations, SVG
   illustrations, and responsive layout are all first-class.
-- Real interactive map: The OSM coordinates from `parish-geo-tool` can drive a proper SVG or canvas map
+- Real interactive map: The OSM coordinates from `limerick-geo-tool` can drive a proper SVG or canvas map
   with zoom, pan, and click-to-travel.
 - Rich text: Markdown-formatted adventure log, speaker-coloured dialogue, inline Irish word
   tooltips — all trivial in HTML.

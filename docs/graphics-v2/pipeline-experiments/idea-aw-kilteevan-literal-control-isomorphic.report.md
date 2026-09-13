@@ -6,7 +6,7 @@ Output file: `docs/graphics-v2/pipeline-experiments/idea-aw-kilteevan-literal-co
 
 ## Audit
 
-- Format/style: Pass. The result is a 16:9 illustrated low 3/4 orthographic plate with strong parish-notebook ink, watercolor, muddy roads, readable facades, and no UI.
+- Format/style: Pass. The result is a 16:9 illustrated low 3/4 orthographic plate with strong rundale-notebook ink, watercolor, muddy roads, readable facades, and no UI.
 - Negative leakage: Mostly pass. I see no people, animals, visible text, water, church/shop/bridge objects, smoke, or obvious chimneys.
 - Doors/thresholds: Pass visually. The visible buildings have dark doorway reads and small thresholds/yard connections.
 - Walkability: Partial pass. The main roads are broad and continuous, but some gates/walls narrow and formalize yards more than requested.

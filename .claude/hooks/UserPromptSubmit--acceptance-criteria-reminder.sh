@@ -29,7 +29,7 @@ This looks like an implementation task. Before writing any code:
 
   1. Run /task-start <task-id>
        → writes docs/proofs/<task-id>/acceptance-criteria.md
-       → writes parish/testing/fixtures/play_<task-id>.txt
+       → writes limerick/testing/fixtures/play_<task-id>.txt
        → stops for human review before any code is written
 
   2. After approval: implement, then run the verification script and

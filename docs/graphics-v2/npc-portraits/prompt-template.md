@@ -15,7 +15,7 @@ Identity brief: [ONE_SENTENCE_VISIBLE_IDENTITY].
 Expression/posture: [VISIBLE_MOOD_OR_TEMPERAMENT], restrained and natural.
 Clothing/status cues: [PERIOD_CLOTHING_AND_CLASS_CUES].
 
-Style target: tiny rough head doodle from the Illustrated Parish Notebook UI, matching the left-side people list in `illustrated-parish-notebook.png`. It should look drawn quickly in a notebook margin, not like a finished portrait. Sepia ink contour lines on warm cream paper, a few scratchy pencil hatching marks, almost no paint, slight hand-drawn wobble. Drawn as if it was only ever meant to be a native `72 x 82` UI asset.
+Style target: tiny rough head doodle from the Illustrated Rundale Notebook UI, matching the left-side people list in `illustrated-rundale-notebook.png`. It should look drawn quickly in a notebook margin, not like a finished portrait. Sepia ink contour lines on warm cream paper, a few scratchy pencil hatching marks, almost no paint, slight hand-drawn wobble. Drawn as if it was only ever meant to be a native `72 x 82` UI asset.
 
 Line/detail budget: very sparse, about 25 to 40 visible drawing strokes total. Simple contour lines, a few loose hair lines, a few clothing lines. No dense crosshatching, no facial shading, no realistic rendered planes, no polished portrait anatomy. Face must remain readable at `72 x 82` and `64 x 64`.
 

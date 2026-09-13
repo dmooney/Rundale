@@ -48,7 +48,7 @@ from pathlib import Path
 
 _BENCH_DIR = Path(__file__).resolve().parent
 _REPO_ROOT = _BENCH_DIR.parent
-sys.path.insert(0, str(_REPO_ROOT / "parish" / "scripts" / "local-eval"))
+sys.path.insert(0, str(_REPO_ROOT / "limerick" / "scripts" / "local-eval"))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from eval_lib import CostTracker, Target, call_chat  # noqa: E402

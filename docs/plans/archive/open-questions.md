@@ -8,15 +8,15 @@ Deferred design decisions that affect multiple phases. Each question includes co
 
 ---
 
-## 1. Exact Parish Location — RESOLVED
+## 1. Exact Rundale Location — RESOLVED
 
 **Decision**: **Kiltoom** (Barony of Athlone South)
 
 **Rationale**: Best combination of water features (Lough Ree, Shannon), proximity to Athlone for urban contrast, and enough townlands (~25) for dense node mapping. River and lake access provide natural geographic variety for location descriptions and movement constraints.
 
-**Resolved**: Phase 2 prerequisite. Location data in `data/parish.json` uses Kiltoom townlands and geography. Starting location is **Kilteevan Village** (location ID 15).
+**Resolved**: Phase 2 prerequisite. Location data in `data/world.json` uses Kiltoom townlands and geography. Starting location is **Kilteevan Village** (location ID 15).
 
-| Parish        | Barony        | Features                                   | Townlands | Notes                                             |
+| Limerick      | Barony        | Features                                   | Townlands | Notes                                             |
 | ------------- | ------------- | ------------------------------------------ | --------- | ------------------------------------------------- |
 | **Kiltoom** ✓ | Athlone South | River Shannon, Lough Ree shore, Hodson Bay | ~25       | Close to Athlone, good water features, accessible |
 | Kilbride      | Roscommon     | Near Roscommon town, some lake access      | ~20       | Central, but less dramatic geography              |

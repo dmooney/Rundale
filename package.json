@@ -2,7 +2,7 @@
   "name": "rundale-repo-tooling",
   "private": true,
   "type": "module",
-  "description": "Repo-wide dev tooling (Prettier + markdownlint) for docs/data formats. The game frontend has its own package under parish/apps/ui.",
+  "description": "Repo-wide dev tooling (Prettier + markdownlint) for docs/data formats. The game frontend has its own package under limerick/apps/ui.",
   "scripts": {
     "format": "prettier --write \"**/*.{md,json,jsonc,yml,yaml}\"",
     "format:check": "prettier --check \"**/*.{md,json,jsonc,yml,yaml}\"",

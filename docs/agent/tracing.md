@@ -2,7 +2,7 @@
 
 ## Overview
 
-The Parish web server ships structured tracing via the [`tracing`] crate with an optional
+The Limerick web server ships structured tracing via the [`tracing`] crate with an optional
 OpenTelemetry (OTel) OTLP export path. Everything is gated so local development produces zero
 network I/O by default.
 
@@ -16,9 +16,9 @@ network I/O by default.
 
 ## Environment variables
 
-| Variable               | Effect                                                                                                                                                                 |
-| ---------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `PARISH_OTEL_ENDPOINT` | Base URL of an OTLP/HTTP collector (e.g. `http://localhost:4318`). When unset, the OTel exporter pipeline is skipped entirely — no background threads, no network I/O. |
+| Variable                 | Effect                                                                                                                                                                 |
+| ------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `LIMERICK_OTEL_ENDPOINT` | Base URL of an OTLP/HTTP collector (e.g. `http://localhost:4318`). When unset, the OTel exporter pipeline is skipped entirely — no background threads, no network I/O. |
 
 ## Standard span fields
 
@@ -43,7 +43,7 @@ The `request_id` is echoed in the `X-Request-Id` response header so clients can 
 `request_id_layer` also emits a structured `tracing` event at `INFO` level on completion:
 
 ```text
-target: "parish_server::metrics"
+target: "limerick_server::metrics"
 event:  "http.request.complete"
 fields: request_id, route, method, status, latency_ms
 ```
@@ -56,21 +56,21 @@ a separate Prometheus endpoint.
 The world-tick background task emits a `DEBUG`-level event each tick:
 
 ```text
-target: "parish_server::metrics"
+target: "limerick_server::metrics"
 event:  "session.tick"
 fields: session_id, tick (generation counter)
 ```
 
 ## Code locations
 
-| Concern                 | File                                                         |
-| ----------------------- | ------------------------------------------------------------ |
-| OTel provider setup     | `parish/crates/parish-server/src/tracing_setup.rs`           |
-| Request-ID middleware   | `parish/crates/parish-server/src/middleware.rs`              |
-| Subscriber composition  | `parish/crates/parish-engine/src/main.rs`                    |
-| Session field recording | `parish/crates/parish-server/src/middleware.rs`              |
-| Account-id recording    | `parish/crates/parish-server/src/lib.rs` (`cf_access_guard`) |
-| Per-session tick metric | `parish/crates/parish-server/src/session.rs`                 |
+| Concern                 | File                                                             |
+| ----------------------- | ---------------------------------------------------------------- |
+| OTel provider setup     | `limerick/crates/limerick-server/src/tracing_setup.rs`           |
+| Request-ID middleware   | `limerick/crates/limerick-server/src/middleware.rs`              |
+| Subscriber composition  | `limerick/crates/limerick-engine/src/main.rs`                    |
+| Session field recording | `limerick/crates/limerick-server/src/middleware.rs`              |
+| Account-id recording    | `limerick/crates/limerick-server/src/lib.rs` (`cf_access_guard`) |
+| Per-session tick metric | `limerick/crates/limerick-server/src/session.rs`                 |
 
 ## Dep version matrix (locked)
 

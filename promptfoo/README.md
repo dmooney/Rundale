@@ -127,7 +127,7 @@ content-addressed receipt against the frozen holdout:
 # gate can reject development output.
 just -f promptfoo/justfile bench-holdout '<target-spec>'
 
-# With the candidate configured on a running Parish backend, collect 500 live
+# With the candidate configured on a running Limerick backend, collect 500 live
 # turns through the canonical parser and guard path. The command is resumable.
 just -f promptfoo/justfile soak '<target-spec>' artifacts/soak.json 500
 
@@ -173,7 +173,7 @@ selecting experiments, but cannot qualify a production preset.
 
 Shipped qualification claims are separately fail-closed. Exact passing
 provider/model pairs live in
-`parish/crates/parish-config/src/local_dialogue.rs`; setup calls every other
+`limerick/crates/limerick-config/src/local_dialogue.rs`; setup calls every other
 local profile experimental. `just -f promptfoo/justfile qualification-check`
 requires a passing receipt for the current frozen manifest before a registry
 entry is valid and rejects a `Recommended` label on unqualified local presets.

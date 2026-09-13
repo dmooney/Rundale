@@ -27,10 +27,10 @@ Rule-based suggestions appear instantly. LLM suggestions arrive asynchronously a
 
 ### Location-Type Rules
 
-Suggestions based on location properties from `LocationData` (defined in `crates/parish-core/src/world/graph.rs`):
+Suggestions based on location properties from `LocationData` (defined in `crates/limerick-core/src/world/graph.rs`):
 
 ```rust
-// crates/parish-core/src/npc/suggestions.rs (new file)
+// crates/limerick-core/src/npc/suggestions.rs (new file)
 
 /// Generate rule-based action suggestions for the current context.
 pub fn generate_suggestions(
@@ -337,7 +337,7 @@ onEvent('text-log', (payload: TextLogPayload) => {
 ### IPC Types — Backend
 
 ```rust
-// crates/parish-core/src/ipc/types.rs
+// crates/limerick-core/src/ipc/types.rs
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SuggestionsPayload {
@@ -444,16 +444,16 @@ tokio::spawn(async move { /* ... generate_llm_suggestions ... */ });
 
 ## Files to Modify
 
-| File                                        | Change                                                                  |
-| ------------------------------------------- | ----------------------------------------------------------------------- |
-| `crates/parish-core/src/npc/suggestions.rs` | **New** — rule-based engine + LLM prompt/context                        |
-| `crates/parish-core/src/npc/mod.rs`         | Re-export suggestions module                                            |
-| `crates/parish-core/src/ipc/types.rs`       | Add `SuggestionsPayload`                                                |
-| `crates/parish-server/src/routes.rs`        | Emit suggestions after `handle_look()` and `handle_npc_conversation()`  |
-| `ui/src/components/Suggestions.svelte`      | **New** — suggestion chip bar                                           |
-| `ui/src/stores/game.ts`                     | Add `suggestions` writable store                                        |
-| `ui/src/lib/types.ts`                       | Add `SuggestionsPayload`                                                |
-| `ui/src/routes/+page.svelte`                | Wire up `suggestions` event listener, place `<Suggestions />` in layout |
+| File                                          | Change                                                                  |
+| --------------------------------------------- | ----------------------------------------------------------------------- |
+| `crates/limerick-core/src/npc/suggestions.rs` | **New** — rule-based engine + LLM prompt/context                        |
+| `crates/limerick-core/src/npc/mod.rs`         | Re-export suggestions module                                            |
+| `crates/limerick-core/src/ipc/types.rs`       | Add `SuggestionsPayload`                                                |
+| `crates/limerick-server/src/routes.rs`        | Emit suggestions after `handle_look()` and `handle_npc_conversation()`  |
+| `ui/src/components/Suggestions.svelte`        | **New** — suggestion chip bar                                           |
+| `ui/src/stores/game.ts`                       | Add `suggestions` writable store                                        |
+| `ui/src/lib/types.ts`                         | Add `SuggestionsPayload`                                                |
+| `ui/src/routes/+page.svelte`                  | Wire up `suggestions` event listener, place `<Suggestions />` in layout |
 
 ## Effort Estimate
 

@@ -18,7 +18,7 @@ hierarchy at the end of Phase 3. By mid-2026 the tree had drifted again:
 1. **`docs/index.md` was badly stale** — it described the project as "Phases 1–3
    complete, Phase 4 next," its ADR table stopped at 017, and it linked only
    about half of the design docs and a third of the plans. The actual project
-   had shipped the Tauri GUI, web server, cloud + MLX inference, the Parish
+   had shipped the Tauri GUI, web server, cloud + MLX inference, the Limerick
    Designer, rundale-bench, and demo mode.
 2. **ADR number collision** — three files shared the number `018`
    (`npc-intelligence-dimensions`, `engine-config-extraction`,

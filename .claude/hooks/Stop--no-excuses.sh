@@ -89,10 +89,10 @@ Anything a human can do manually, an agent can automate. No excuses.
 Here are the automated paths for the most common cases:
 
   'No display / no graphical environment / headless'
-    → Start the Parish headless backend (no display needed):
-        bash parish/scripts/parish-mcp-backend.sh start
-    → Drive the game via mcp__parish__* tools
-    → Screenshot via mcp__parish__parish_latest_screenshot (press F2 in desktop)
+    → Start the Limerick headless backend (no display needed):
+        bash limerick/scripts/limerick-mcp-backend.sh start
+    → Drive the game via mcp__limerick__* tools
+    → Screenshot via mcp__limerick__limerick_latest_screenshot (press F2 in desktop)
     → Use cargo test / just check / just verify for backend logic
     → Use npx playwright test --headless for UI behavior
 
@@ -100,11 +100,11 @@ Here are the automated paths for the most common cases:
     → Write a test that encodes what you'd check manually
     → Use Bash to exercise the code path and assert the output
     → Use cargo nextest, npm run test, just ui-test, or just ui-e2e
-    → Drive through the Parish MCP bridge if it's gameplay behavior
+    → Drive through the Limerick MCP bridge if it's gameplay behavior
 
   'Cannot test / unable to verify / I can't demonstrate'
     → Think harder: what tool can observe this behavior?
-    → cargo test, parish MCP, playwright, just verify — pick one
+    → cargo test, limerick MCP, playwright, just verify — pick one
     → If you're missing a tool, say exactly which one and ask
 
   'Out of scope / deferred / beyond scope'

@@ -1,6 +1,6 @@
 # Graphical World View — Procedural Pixel Scenes
 
-> Status: Superseded — see [Interactive Parish Diorama](parish-diorama.md) · Updated: 2026-06-17 · [Docs Index](../../index.md)
+> Status: Superseded — see [Interactive Limerick Diorama](rundale-diorama.md) · Updated: 2026-06-17 · [Docs Index](../../index.md)
 >
 > The runtime-composed diorama RFC incorporates this document's deterministic
 > sprite/scene-composition direction while keeping the newer diorama UX,
@@ -22,7 +22,7 @@ This document proposes adding that view as a new panel alongside chat — a comp
 
 - A pixel-art scene panel that visualizes the player's current location and the NPCs present.
 - Per-NPC pixel portraits usable inline in the chat (speaker headers) and the Designer editor.
-- Time-of-day / season / weather mood applied via the existing `parish-palette` output.
+- Time-of-day / season / weather mood applied via the existing `limerick-palette` output.
 - Deterministic, snapshot-testable, no required art assets for the MVP.
 
 **Non-goals (v1)**
@@ -35,19 +35,19 @@ This document proposes adding that view as a new panel alongside chat — a comp
 
 ## Architecture
 
-A new leaf crate **`parish-sprite`** exposes two pure, deterministic functions:
+A new leaf crate **`limerick-sprite`** exposes two pure, deterministic functions:
 
 ```rust
 pub fn render_npc(npc: &Npc, palette: &RawPalette) -> Vec<u8>;            // PNG bytes
 pub fn render_scene(location: &Location, present: &[&Npc], palette: &RawPalette) -> Vec<u8>;
 ```
 
-Same inputs always produce the same bytes. NPC sprites are composed from a parts library (silhouette, garments, hair, accessories), each part chosen by hashing `npc.id` salted with attributes (`occupation`, `age`, `mood`). Location scenes pick one of ~10 hand-authored templates keyed by `building_form` / location name, then stamp NPC sprites into slot positions. Output is tinted by the current `parish-palette` palette without re-rendering.
+Same inputs always produce the same bytes. NPC sprites are composed from a parts library (silhouette, garments, hair, accessories), each part chosen by hashing `npc.id` salted with attributes (`occupation`, `age`, `mood`). Location scenes pick one of ~10 hand-authored templates keyed by `building_form` / location name, then stamp NPC sprites into slot positions. Output is tinted by the current `limerick-palette` palette without re-rendering.
 
 ### Crate layout
 
 ```text
-crates/parish-sprite/
+crates/limerick-sprite/
 ├── Cargo.toml
 └── src/
     ├── lib.rs           // public API: render_npc, render_scene, recipe types
@@ -59,21 +59,21 @@ crates/parish-sprite/
     │   ├── mod.rs       // SceneTemplate registry + slot resolution
     │   └── templates.rs // CABIN, CHAPEL, PUB, MILL, BOG, CROSSROADS, ...
     ├── compose.rs       // RGBA buffer + blit + 1-bit ordered dither
-    ├── tint.rs          // value-channel multiplicative tint from parish-palette
+    ├── tint.rs          // value-channel multiplicative tint from limerick-palette
     └── png.rs           // encode RGBA → PNG (via `png` crate)
 ```
 
-Constraints: backend-agnostic (no `tauri`/`axum`/`tower`/`wry`/`tao` deps), re-exported via `parish-core` per rule #1, registered in `crates/parish-core/tests/architecture_fitness.rs`.
+Constraints: backend-agnostic (no `tauri`/`axum`/`tower`/`wry`/`tao` deps), re-exported via `limerick-core` per rule #1, registered in `crates/limerick-core/tests/architecture_fitness.rs`.
 
 ### Files touched outside the new crate
 
 | File                                                                      | Change                                                                                    |
 | ------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
-| `crates/parish-core/Cargo.toml`, `src/lib.rs`                             | Add + re-export `parish-sprite`                                                           |
-| `crates/parish-core/tests/architecture_fitness.rs`                        | Register crate, assert no backend deps                                                    |
-| `crates/parish-server/src/routes.rs` (or equiv)                           | `GET /api/sprite/npc/{id}.png`, `GET /api/scene/{location_id}.png?t=<minute>&w=<weather>` |
-| `crates/parish-tauri/src/commands.rs`                                     | IPC commands `get_npc_sprite`, `get_location_scene`                                       |
-| `crates/parish-cli/src/...`                                               | `parish sprites dump <out_dir>` for headless snapshot diffs                               |
+| `crates/limerick-core/Cargo.toml`, `src/lib.rs`                           | Add + re-export `limerick-sprite`                                                         |
+| `crates/limerick-core/tests/architecture_fitness.rs`                      | Register crate, assert no backend deps                                                    |
+| `crates/limerick-server/src/routes.rs` (or equiv)                         | `GET /api/sprite/npc/{id}.png`, `GET /api/scene/{location_id}.png?t=<minute>&w=<weather>` |
+| `crates/limerick-tauri/src/commands.rs`                                   | IPC commands `get_npc_sprite`, `get_location_scene`                                       |
+| `crates/limerick-engine/src/...`                                          | `limerick sprites dump <out_dir>` for headless snapshot diffs                             |
 | `apps/ui/src/components/LocationScenePanel.svelte`                        | **New** — the visible feature                                                             |
 | `apps/ui/src/components/CharacterPortrait.svelte`                         | **New** — inline chat portraits                                                           |
 | `apps/ui/src/routes/+page.svelte`                                         | Slot scene panel above chat; portrait per message author                                  |
@@ -141,13 +141,13 @@ Initial set (~10): `Cabin`, `Chapel`, `Pub`, `Mill`, `Schoolhouse`, `Crossroads`
 
 ## Palette integration
 
-`parish-palette::compute_palette(hour, minute, season, weather)` yields a 7-colour UI palette. The tint pipeline (`tint.rs`) does **not** remap the scene into that 7-colour set; it converts the rendered RGBA to HSV, multiplies the V channel by a coefficient derived from `palette.bg` luminance, and nudges hue toward `palette.accent` by a small clamped amount. Hue is preserved, so dawn/dusk/night feel right without re-rendering, and cached scene bytes can be re-tinted cheaply per game-minute. A `tint_strength` knob in palette config controls weather mood without letting `tint.rs` shift hue freely.
+`limerick-palette::compute_palette(hour, minute, season, weather)` yields a 7-colour UI palette. The tint pipeline (`tint.rs`) does **not** remap the scene into that 7-colour set; it converts the rendered RGBA to HSV, multiplies the V channel by a coefficient derived from `palette.bg` luminance, and nudges hue toward `palette.accent` by a small clamped amount. Hue is preserved, so dawn/dusk/night feel right without re-rendering, and cached scene bytes can be re-tinted cheaply per game-minute. A `tint_strength` knob in palette config controls weather mood without letting `tint.rs` shift hue freely.
 
 ## Play-view wiring sequence
 
 1. Game state advances → `current_location_id` and `present` NPCs change.
 2. Frontend requests `/api/scene/{location_id}.png?t=<minute>&w=<weather>` (or Tauri IPC).
-3. Server calls `parish_sprite::render_scene(location, present, palette)`, returns PNG.
+3. Server calls `limerick_sprite::render_scene(location, present, palette)`, returns PNG.
 4. `LocationScenePanel.svelte` swaps `<img>` src with a soft CSS cross-fade.
 5. Each chat message renders `CharacterPortrait.svelte` from `/api/sprite/npc/{id}.png` (browser-cached by URL).
 
@@ -155,19 +155,19 @@ Rendering is on the request path (fast enough); no streaming/lazy generation.
 
 ## Phasing
 
-- **Phase 0 — NPC portraits only (~1 week wedge).** `parish-sprite` crate + NPC parts library + `CharacterPortrait.svelte` in chat. Demo: chat with Maeve, see her portrait. Snapshot tests for ~6 NPCs.
+- **Phase 0 — NPC portraits only (~1 week wedge).** `limerick-sprite` crate + NPC parts library + `CharacterPortrait.svelte` in chat. Demo: chat with Maeve, see her portrait. Snapshot tests for ~6 NPCs.
 - **Phase 1 — Static location scenes.** Scene templates + `LocationScenePanel.svelte`. Demo: travel to the pub, see a pub vignette, tinted by existing palette.
 - **Phase 2 — Populate scenes with present NPCs.** Resolve `present` against scene slots and render NPCs in. Demo: enter the pub, see Darcy behind the bar.
-- **Phase 3 — Polish & extensibility.** Weather overlays; PNG override path for hand-pixeled parts; optional LLM-stylist hook (Background lane, `crates/parish-inference/src/lib.rs`) emitting recipe overrides for high-attention NPCs.
+- **Phase 3 — Polish & extensibility.** Weather overlays; PNG override path for hand-pixeled parts; optional LLM-stylist hook (Background lane, `crates/limerick-inference/src/lib.rs`) emitting recipe overrides for high-attention NPCs.
 - **Phase 4 (stretch).** Animation frames; per-season template variants; optional "click a map location → open its scene" wire-up in `MapPanel.svelte`.
 
 ## Verification
 
-- **Unit tests (`parish-sprite`):** `derive_npc_recipe_is_deterministic`, `recipe_serde_roundtrip`, `tint_preserves_hue_modulates_value`.
-- **Snapshot tests:** golden PNGs under `crates/parish-sprite/snapshots/` for 6 NPCs + 4 scenes; CI fails on diff with a byte-diff report.
-- **Architecture-fitness:** extend `architecture_fitness.rs` to register `parish-sprite` and forbid backend deps.
+- **Unit tests (`limerick-sprite`):** `derive_npc_recipe_is_deterministic`, `recipe_serde_roundtrip`, `tint_preserves_hue_modulates_value`.
+- **Snapshot tests:** golden PNGs under `crates/limerick-sprite/snapshots/` for 6 NPCs + 4 scenes; CI fails on diff with a byte-diff report.
+- **Architecture-fitness:** extend `architecture_fitness.rs` to register `limerick-sprite` and forbid backend deps.
 - **`/prove sprites`** (`testing/proofs/prove_sprites.txt`):
-  1. Capture Maeve portrait via `parish sprites dump`; assert valid PNG header.
+  1. Capture Maeve portrait via `limerick sprites dump`; assert valid PNG header.
   2. Save → restart → load → re-capture; assert byte-identical (determinism survives persistence).
   3. Fast-forward dawn→midday→dusk; assert scene hashes differ (tint applied) but underlying indexed mask is identical.
   4. Travel pub→chapel; assert template changes and matches snapshot.

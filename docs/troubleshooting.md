@@ -13,7 +13,7 @@ Every backend process writes two paired JSONL files to
 The transcript is fed from the same `GameEvent` bus that drives the
 per-character and per-location journals, so it captures NPC dialogue,
 player travel, off-screen NPC interactions, weather shifts and festivals.
-Every `npc_dialogue` line carries a `parish.request_id` matching the
+Every `npc_dialogue` line carries a `limerick.request_id` matching the
 corresponding inference-log line, so a weird NPC reply can be grepped
 straight back to the full prompt + response that produced it.
 
@@ -29,6 +29,6 @@ content (player input, NPC names, places) is kept verbatim so the bug
 remains reproducible — review the files before sharing.
 
 **Opt-out**: pass `--no-inference-log` on the CLI, set the env var
-`PARISH_INFERENCE_LOG=off`, or set `[engine.inference] log_to_disk = false`
-in your `parish.toml`. The in-game slash command `/inference-log on|off|
+`LIMERICK_INFERENCE_LOG=off`, or set `[engine.inference] log_to_disk = false`
+in your `limerick.toml`. The in-game slash command `/inference-log on|off|
 status|path` toggles writes at runtime.

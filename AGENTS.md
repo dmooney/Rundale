@@ -1,6 +1,6 @@
 # Rundale Agent Guide
 
-Rundale is the game. Parish is the Rust game engine.
+Rundale is the game. Limerick is the Rust game engine.
 `CLAUDE.md` and `GEMINI.md` are symlinks to this file; keep that single source intact.
 
 ## Start here
@@ -19,8 +19,8 @@ Do not load every reference for every task.
 
 - Mobile-first text adventure, with iPhone as the primary client.
 - SwiftUI player UI: compact status header, transcript, native composer.
-- Parish Rust gameplay runs on device; local saves remain authoritative.
-- Production remote inference goes through Parish Endpoints. No provider credentials
+- Limerick Rust gameplay runs on device; local saves remain authoritative.
+- Production remote inference goes through Limerick Endpoints. No provider credentials
   or shared invocation secrets ship in the app.
 - Start with fixtures, then one location/one NPC, then the canonical three-location,
   three-NPC world. Expand only after the applicable milestone gates pass.
@@ -48,7 +48,7 @@ Keep source provenance and requirement changes reviewable in the repository.
 
 ## Core engineering invariants
 
-- Shared domain logic belongs in leaf crates; `parish-core` composes them and owns
+- Shared domain logic belongs in leaf crates; `limerick-core` composes them and owns
   shared application orchestration. Entry-point crates remain thin wiring.
 - Keep shared orchestration backend-agnostic. Preserve existing runtime contracts
   when changing shared behavior; mobile scope does not require legacy UI parity.
@@ -91,10 +91,10 @@ just verify         # existing checks plus harness walkthrough
 just agent-check    # proof evidence and judge verdict gate
 just ui-test        # existing Svelte frontend tests
 just ui-e2e         # existing browser Playwright contracts
-bash parish/scripts/check-doc-paths.sh  # documentation links and paths
+bash limerick/scripts/check-doc-paths.sh  # documentation links and paths
 ```
 
-For gameplay changes, use `/parish-engine prove <feature>` on the affected production
+For gameplay changes, use `/limerick-engine prove <feature>` on the affected production
 path. Read [build/test](docs/agent/build-test.md) for mobile verification requirements;
 the specified phase-selectable `./verify` must not be confused with `just verify`.
 Use [runtime driving](docs/agent/runtime-driving-reference.md) for existing MCP/CLI

@@ -1,7 +1,7 @@
 # Plan: harness-skill-ingest
 
 Ordered, one commit per step, conventional-commit prefixes. All code changes are confined to
-`parish/crates/parish-harness/` plus the skill doc.
+`limerick/crates/limerick-harness/` plus the skill doc.
 
 ## Step 1 — `feat(harness): add IngestPayload + load_and_ingest` (no CLI yet)
 
@@ -46,9 +46,9 @@ Ordered, one commit per step, conventional-commit prefixes. All code changes are
 
 ## Step 4 — `test(harness): end-to-end ingest fixture`
 
-- `parish/crates/parish-harness/tests/ingest.rs`: in-memory + temp-dir e2e covering all AC
+- `limerick/crates/limerick-harness/tests/ingest.rs`: in-memory + temp-dir e2e covering all AC
   (scored, gated, cost, 7 axes, findings, config dedup).
-- `parish/testing/fixtures/ingest_harness_skill/` (already scaffolded): `sample-payload.json` +
+- `limerick/testing/fixtures/ingest_harness_skill/` (already scaffolded): `sample-payload.json` +
   `artifacts/runs/<uuid>/turns/000/frame.png` + `verify.sh` that ingests then curls the serve
   API and asserts each signal.
 
@@ -60,19 +60,19 @@ Ordered, one commit per step, conventional-commit prefixes. All code changes are
     provenance + cost (token/cost estimate from the run).
   - Create `runs/<uuid>/turns/NNN/frame.png` from captured screenshots (nearest-prior mapping;
     bundled placeholder for pre-first-capture turns) and `lines.json` per turn.
-  - Run `cargo run -p parish-harness -- ingest --payload <json> --artifacts <root>`.
+  - Run `cargo run -p limerick-harness -- ingest --payload <json> --artifacts <root>`.
   - Surface the printed run id + `http://localhost:8787` so the user can open it.
-- Note the same payload schema in `parish/crates/parish-harness/README.md` so the contract has
+- Note the same payload schema in `limerick/crates/limerick-harness/README.md` so the contract has
   one documented source.
 
 ## Tests to add / update
 
 - `sink.rs` unit tests (Step 2), `tests/ingest.rs` integration (Step 4).
-- `cargo clippy -p parish-harness --all-targets -- -D warnings` clean.
+- `cargo clippy -p limerick-harness --all-targets -- -D warnings` clean.
 - No game-runtime tests change. No `architecture_fitness` impact (no new cross-crate dep).
 
 ## Proof
 
-Tooling change, so `/parish-engine prove` does not apply. Evidence = `cargo test -p
-parish-harness ingest` transcript + `verify.sh` transcript showing the dashboard API returning
+Tooling change, so `/limerick-engine prove` does not apply. Evidence = `cargo test -p
+limerick-harness ingest` transcript + `verify.sh` transcript showing the dashboard API returning
 the ingested run. `evidence.md` maps each AC criterion to those lines; `judge.md` verifies each.

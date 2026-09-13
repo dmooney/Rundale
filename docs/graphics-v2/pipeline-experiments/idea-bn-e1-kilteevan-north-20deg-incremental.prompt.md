@@ -24,7 +24,7 @@ Local paths:
 - /Users/dmooney/.codex/worktrees/a718/Rundale/docs/graphics-v2/pipeline-experiments/idea-bn-kilteevan-z17-north-20deg-source-window.png
 - /Users/dmooney/.codex/worktrees/a718/Rundale/docs/graphics-v2/pipeline-experiments/idea-bn-kilteevan-z17-north-20deg-compressed-cue.png
 - /Users/dmooney/.codex/worktrees/a718/Rundale/docs/graphics-v2/pipeline-experiments/idea-bn-kilteevan-north-20deg-map-control-cue.png
-- /Users/dmooney/.codex/worktrees/a718/Rundale/docs/graphics-v2/illustrated-parish-notebook.png
+- /Users/dmooney/.codex/worktrees/a718/Rundale/docs/graphics-v2/illustrated-rundale-notebook.png
 - /Users/dmooney/.codex/worktrees/a718/Rundale/docs/graphics-v2/style-crops/illustrated-style-low-camera-slate-single-house-door-fixed.png
 - /Users/dmooney/.codex/worktrees/a718/Rundale/docs/graphics-v2/style-crops/illustrated-style-low-camera-thatched-single-house-door-fixed.png
 

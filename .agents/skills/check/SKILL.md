@@ -6,8 +6,8 @@ disable-model-invocation: true
 
 Run the Rundale quality gates. There are two levels — run the one that matches where you are.
 
-**Important:** the Cargo workspace lives in `parish/`. There is no `Cargo.toml` at the repo root. Use the
-top-level `just` commands (they `cd parish` for you) OR prefix cargo commands with `cd parish &&`.
+**Important:** the Cargo workspace lives in `limerick/`. There is no `Cargo.toml` at the repo root. Use the
+top-level `just` commands (they `cd limerick` for you) OR prefix cargo commands with `cd limerick &&`.
 
 ## Level 1 — `just check` (before every commit)
 
@@ -19,9 +19,9 @@ If it fails, diagnose by running the steps individually:
 1. **Proof gate**: `just agent-check`. Add or fix the proof bundle under `.proofs/<task-id>/` when it
    reports missing evidence. The bundle is posted to the PR via `just attach-proof <task-id>`; it is not
    committed.
-2. **Format**: `cd parish && cargo fmt --check`. Fix with `cd parish && cargo fmt`, then re-check.
-3. **Lint**: `cd parish && cargo clippy -- -D warnings`. Fix warnings before proceeding.
-4. **Tests**: `cd parish && cargo test`. All tests must pass.
+2. **Format**: `cd limerick && cargo fmt --check`. Fix with `cd limerick && cargo fmt`, then re-check.
+3. **Lint**: `cd limerick && cargo clippy -- -D warnings`. Fix warnings before proceeding.
+4. **Tests**: `cd limerick && cargo test`. All tests must pass.
 
 Report which steps passed/failed with relevant error output and suggested fixes. Do NOT commit or push —
 just report status.
@@ -31,7 +31,7 @@ just report status.
 Run `just verify` from the repo root. This runs everything in `just check` **plus** the game-harness
 walkthrough script — it's the full pre-push gate.
 
-If it fails, diagnose the shared steps as above, then: 5. **Game harness**: `cd parish && cargo run -p parish -- --script testing/fixtures/test_walkthrough.txt`
+If it fails, diagnose the shared steps as above, then: 5. **Game harness**: `cd limerick && cargo run -p limerick-engine -- --script testing/fixtures/test_walkthrough.txt`
 and inspect the JSON output for correctness.
 
 Only if ALL steps pass, confirm it is safe to push. If any step fails, stop and report — do NOT push; fix
@@ -43,7 +43,7 @@ Known quirks where CI reports a failure that isn't a real defect.
 
 ### agent-check: debt-marker false positives
 
-`parish/scripts/agent-check.sh` runs `scan_for_debt_markers()` over every changed file. It greps for:
+`limerick/scripts/agent-check.sh` runs `scan_for_debt_markers()` over every changed file. It greps for:
 
 ```text
 todo!\(
@@ -73,6 +73,6 @@ prose → false positive. If in `.rs` source → real debt.
 | `` `todo!()`, `unimplemented!()` `` | `` `todo!` / `unimplemented!` calls `` |
 | `panic!("Not implemented ...")`     | `panic!("unimplemented ...")`          |
 
-**Known skip-list gap:** `agent-check.sh` skips `parish/scripts/agent-check.sh`, `parish/justfile`, and
+**Known skip-list gap:** `agent-check.sh` skips `limerick/scripts/agent-check.sh`, `limerick/justfile`, and
 `docs/agent/witness.md`. It does NOT skip `docs/design/*`. If false positives from design docs become
 frequent, add `docs/design/*` to the skip list.

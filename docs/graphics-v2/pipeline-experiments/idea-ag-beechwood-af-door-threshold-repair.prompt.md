@@ -6,7 +6,7 @@ Built-in `image_gen` prompt used verbatim:
 Use case: precise-object-edit
 Asset type: game environment background plate repair, 16:9 desktop plate
 Edit target: the attached Beechwood AF background plate
-Reference style: preserve the existing illustrated parish-notebook look: hand-inked linework, watercolor wash, rough stone, muddy road texture, quiet Irish rural palette, no UI.
+Reference style: preserve the existing illustrated rundale-notebook look: hand-inked linework, watercolor wash, rough stone, muddy road texture, quiet Irish rural palette, no UI.
 Primary request: make the plate pass a door/threshold audit without changing the map-derived layout.
 Required edit: the lower-right foreground thatched cottage currently has a blank visible wall. Add one clear, believable dark doorway with a small threshold to that cottage on its visible front-facing wall. The doorway must be readable at game scale.
 Audit rule: every visible standalone building or visible building wing must have at least one readable door, doorway, gate opening, or threshold on a visible wall unless it is clearly only a ruin or wall segment. Do not leave any foreground/background cottage as a blank sealed box.

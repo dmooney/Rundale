@@ -26,7 +26,7 @@ BP mostly checked the first part. BQ adds the second.
 - Pure scale-lock reference:
   `pipeline-experiments/idea-bq-isomorphic-scale-lock-reference.png`
 - Style target:
-  `illustrated-parish-notebook.png`
+  `illustrated-rundale-notebook.png`
 
 ## Outputs
 

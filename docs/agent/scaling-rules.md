@@ -17,7 +17,7 @@ stored in a `static` or module-level `Mutex` / `RwLock`. This keeps each
 session isolated and makes horizontal scaling possible without shared-memory
 coordination between workers.
 
-**Seam:** [`parish/crates/parish-core/src/ipc/state.rs`](../../parish/crates/parish-core/src/ipc/state.rs) — state is owned by
+**Seam:** [`limerick/crates/limerick-core/src/ipc/state.rs`](../../limerick/crates/limerick-core/src/ipc/state.rs) — state is owned by
 `AppState`, injected via Axum `Extension` or Tauri `State`.
 **What this prevents:** session bleed-through and race conditions when
 multiple users or game instances share a process.
@@ -28,11 +28,11 @@ multiple users or game instances share a process.
 
 Route handlers must not construct or borrow a raw `Database` handle.
 All game-session reads and writes go through the `SessionStore` trait
-([`parish/crates/parish-core/src/session_store.rs`](../../parish/crates/parish-core/src/session_store.rs)).
+([`limerick/crates/limerick-core/src/session_store.rs`](../../limerick/crates/limerick-core/src/session_store.rs)).
 The concrete implementation is injected at startup; callers see only the
 trait object. Direct `Database` calls in route code are a merge blocker.
 
-**Seam:** [`parish/crates/parish-core/src/session_store.rs`](../../parish/crates/parish-core/src/session_store.rs) — see issue #614.
+**Seam:** [`limerick/crates/limerick-core/src/session_store.rs`](../../limerick/crates/limerick-core/src/session_store.rs) — see issue #614.
 **What this prevents:** unmediated database access that bypasses session
 lifecycle management and makes future backend swaps impossible.
 
@@ -41,13 +41,13 @@ lifecycle management and makes future backend swaps impossible.
 ### Rule 3: Real-time pushes only through `EventBus` with an explicit `Topic`
 
 Server-sent events and real-time notifications must go through the `EventBus`
-trait ([`parish/crates/parish-core/src/event_bus.rs`](../../parish/crates/parish-core/src/event_bus.rs)).
+trait ([`limerick/crates/limerick-core/src/event_bus.rs`](../../limerick/crates/limerick-core/src/event_bus.rs)).
 Callers supply an explicit `Topic` variant so events are addressable and
 filterable. Direct calls to `broadcast::Sender::send` from route handlers or
 game-logic crates are forbidden — they bypass the subscriber model and make
 it impossible to fan out across processes.
 
-**Seam:** [`parish/crates/parish-core/src/event_bus.rs`](../../parish/crates/parish-core/src/event_bus.rs) — see issue #616.
+**Seam:** [`limerick/crates/limerick-core/src/event_bus.rs`](../../limerick/crates/limerick-core/src/event_bus.rs) — see issue #616.
 **What this prevents:** hard-wired in-process broadcast calls that cannot
 be replaced with a pub/sub broker when the service scales horizontally.
 
@@ -60,7 +60,7 @@ provider construction must go through `build_client`. Route and game-logic code
 must not construct `AnthropicClient` or `OpenAiClient` directly. Inject the
 dispatch client from runtime state; tests use its `Simulator` or `Mock` variant.
 
-**Seam:** [`parish/crates/parish-providers/src/any_client.rs`](../../parish/crates/parish-providers/src/any_client.rs).
+**Seam:** [`limerick/crates/limerick-providers/src/any_client.rs`](../../limerick/crates/limerick-providers/src/any_client.rs).
 Issue #617 proposed an `InferenceClient` trait, but that dead abstraction was
 removed by #1189; the current provider-neutral enum/factory seam was extracted
 in #1392.
@@ -74,11 +74,11 @@ and tightly coupling the game engine to a single LLM vendor.
 Authentication and session code must key game data on the stable `account_id`
 returned by `IdentityStore`, never on raw OAuth email, provider user ID, or
 cookie value. The `IdentityStore` and `SessionRegistry` traits
-([`parish/crates/parish-core/src/identity.rs`](../../parish/crates/parish-core/src/identity.rs)) are the sole
+([`limerick/crates/limerick-core/src/identity.rs`](../../limerick/crates/limerick-core/src/identity.rs)) are the sole
 source of truth for the mapping between external credentials and internal
 account keys.
 
-**Seam:** [`parish/crates/parish-core/src/identity.rs`](../../parish/crates/parish-core/src/identity.rs) — see closed issues #615
+**Seam:** [`limerick/crates/limerick-core/src/identity.rs`](../../limerick/crates/limerick-core/src/identity.rs) — see closed issues #615
 (IdentityStore) and #618 (`account_id` keying).
 **What this prevents:** account fragmentation when a user reconnects with
 a refreshed token, and security bugs from keying on mutable external values.
@@ -95,7 +95,7 @@ Any HTTP handler that creates or modifies persistent state must:
 3. Be written so that executing it twice with identical inputs produces the
    same outcome (no duplicate records, no double-charges).
 
-**Seam:** idempotency middleware in `parish/crates/parish-server/` — implemented
+**Seam:** idempotency middleware in `limerick/crates/limerick-server/` — implemented
 under closed issue #619. The documented restart-cache limitation remains an
 accepted risk; see [idempotency.md](idempotency.md).
 **What this prevents:** duplicate game actions caused by client retries or
@@ -105,14 +105,14 @@ network hiccups, which corrupt save state and leaderboard data.
 
 ### Rule 7: Every HTTP request carries `request_id`; spans include `account_id` and `session_id`
 
-The request-ID middleware ([`parish/crates/parish-server/src/middleware.rs`](../../parish/crates/parish-server/src/middleware.rs))
+The request-ID middleware ([`limerick/crates/limerick-server/src/middleware.rs`](../../limerick/crates/limerick-server/src/middleware.rs))
 assigns a UUID to every inbound request and injects it as the `X-Request-Id`
 response header and as a `RequestId` Axum extension. Tracing spans opened by
 route handlers must attach `account_id` and `session_id` fields where those
 values are available on `AppState`. Do not open spans without a request-ID in
 server code.
 
-**Seam:** [`parish/crates/parish-server/src/middleware.rs`](../../parish/crates/parish-server/src/middleware.rs) — see issue #621
+**Seam:** [`limerick/crates/limerick-server/src/middleware.rs`](../../limerick/crates/limerick-server/src/middleware.rs) — see issue #621
 (merged).
 **What this prevents:** untraceble production failures where a cascade of
 errors cannot be tied back to the originating request or account.
@@ -123,11 +123,11 @@ errors cannot be tied back to the originating request or account.
 
 The web tier (nginx or any future reverse proxy) must be configured
 to route requests from the same browser session to the same server instance,
-keyed on the `parish_sid` cookie. In-memory game state on `AppState` is not
+keyed on the `limerick_sid` cookie. In-memory game state on `AppState` is not
 replicated across instances; load-balancing without stickiness sends requests
 to cold instances with no session state.
 
-**Seam:** `parish_sid` cookie set by `parish/crates/parish-server/src/middleware.rs` —
+**Seam:** `limerick_sid` cookie set by `limerick/crates/limerick-server/src/middleware.rs` —
 the infrastructure configuration that enforces stickiness lives outside the
 Rust codebase (load-balancer config).
 **What this prevents:** session state loss mid-game when a request lands on
@@ -139,13 +139,13 @@ the wrong server instance, and the cascade of 500 errors that follows.
 
 Runtime code must not read mod files directly from the filesystem via paths
 like `mods/<id>/world.json`. All mod-content access goes through `ModSource`
-([`parish/crates/parish-core/src/mod_source.rs`](../../parish/crates/parish-core/src/mod_source.rs)).
+([`limerick/crates/limerick-core/src/mod_source.rs`](../../limerick/crates/limerick-core/src/mod_source.rs)).
 The concrete implementation (`LocalDiskModSource`) is injected at startup;
 tests use an in-memory stub. Direct `fs::read` / `std::fs::File::open` calls
 that target mod directories in route handlers or game-logic crates are a
 merge blocker.
 
-**Seam:** [`parish/crates/parish-core/src/mod_source.rs`](../../parish/crates/parish-core/src/mod_source.rs) — see issue #622
+**Seam:** [`limerick/crates/limerick-core/src/mod_source.rs`](../../limerick/crates/limerick-core/src/mod_source.rs) — see issue #622
 (merged).
 **What this prevents:** filesystem coupling that makes remote mod hosting,
 in-memory test fixtures, and future CDN-backed mod delivery impossible.
@@ -154,14 +154,14 @@ in-memory test fixtures, and future CDN-backed mod delivery impossible.
 
 ## Quick-reference table
 
-| Rule | Keyword                | Seam file                            | Issue                |
-| ---- | ---------------------- | ------------------------------------ | -------------------- |
-| 1    | No global state        | `ipc/state.rs`                       | —                    |
-| 2    | `SessionStore` only    | `session_store.rs`                   | #614                 |
-| 3    | `EventBus` + `Topic`   | `event_bus.rs`                       | #616                 |
-| 4    | Provider dispatch      | `parish-providers/src/any_client.rs` | #617 / #1189 / #1392 |
-| 5    | `account_id` keying    | `identity.rs`                        | #615 / #618 (closed) |
-| 6    | Idempotency-Key        | `parish-server/src/middleware.rs`    | #619 (closed)        |
-| 7    | `request_id` + tracing | `middleware.rs`                      | #621                 |
-| 8    | Sticky-session routing | `parish_sid` cookie                  | —                    |
-| 9    | `ModSource` trait      | `mod_source.rs`                      | #622                 |
+| Rule | Keyword                | Seam file                              | Issue                |
+| ---- | ---------------------- | -------------------------------------- | -------------------- |
+| 1    | No global state        | `ipc/state.rs`                         | —                    |
+| 2    | `SessionStore` only    | `session_store.rs`                     | #614                 |
+| 3    | `EventBus` + `Topic`   | `event_bus.rs`                         | #616                 |
+| 4    | Provider dispatch      | `limerick-providers/src/any_client.rs` | #617 / #1189 / #1392 |
+| 5    | `account_id` keying    | `identity.rs`                          | #615 / #618 (closed) |
+| 6    | Idempotency-Key        | `limerick-server/src/middleware.rs`    | #619 (closed)        |
+| 7    | `request_id` + tracing | `middleware.rs`                        | #621                 |
+| 8    | Sticky-session routing | `limerick_sid` cookie                  | —                    |
+| 9    | `ModSource` trait      | `mod_source.rs`                        | #622                 |

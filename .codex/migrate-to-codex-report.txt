@@ -19,5 +19,5 @@ Migration report:
   resolved: .agents/skills/source-command-demo-audit/SKILL.md - Converted source command `demo-audit` to a Codex skill; replaced placeholder and slash-command boilerplate with Codex invocation guidance.
   resolved: .agents/skills/source-command-todo-drain/SKILL.md - Converted source command `todo-drain` to a Codex skill; replaced Claude worktree and co-author assumptions with Codex guidance.
   rewritten: .codex/config.toml - Converted 1 MCP server entries.
-  resolved: .codex/config.toml - MCP server `parish` converted; unsupported Claude `description` preserved as a Codex comment pointing to AGENTS.md.
+  resolved: .codex/config.toml - MCP server `limerick` converted; unsupported Claude `description` preserved as a Codex comment pointing to AGENTS.md.
   resolved: .codex/agents/vibecoder-security-review.toml - Converted subagent; replaced Claude file-memory instructions with Codex-safe review notes.

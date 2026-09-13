@@ -1,7 +1,7 @@
 version: 2
 updates:
   - package-ecosystem: "cargo"
-    directory: "/parish"
+    directory: "/limerick"
     schedule:
       { interval: "weekly", day: "monday", time: "06:17", timezone: "Etc/UTC" }
     open-pull-requests-limit: 5
@@ -42,7 +42,8 @@ updates:
     labels: ["dependencies", "infra"]
 
   - package-ecosystem: "npm"
-    directories: ["/", "/parish/apps/ui", "/promptfoo", "/promptfoo/bench-site"]
+    directories:
+      ["/", "/limerick/apps/ui", "/promptfoo", "/promptfoo/bench-site"]
     schedule:
       { interval: "weekly", day: "monday", time: "06:17", timezone: "Etc/UTC" }
     open-pull-requests-limit: 5

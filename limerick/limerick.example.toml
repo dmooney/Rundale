@@ -1,0 +1,179 @@
+# Limerick — Example Engine Configuration
+#
+# Copy this file to `limerick.toml` to override engine defaults.
+# All sections and fields are optional — omitted values use compiled-in defaults.
+# Delete any section you don't need to change.
+#
+# NOTE: Game content (prompts, loading screen, encounter text, etc.) is
+# configured via the mod system in mods/<mod-name>/. This file only covers
+# engine-level tuning parameters.
+
+# ---------------------------------------------------------------------------
+# Provider (existing — not part of engine config)
+# ---------------------------------------------------------------------------
+#
+# See docs/design/inference-pipeline.md (Recommended Models) for current picks.
+# The engine resolves four inference categories — Dialogue, Simulation, Intent,
+# Reaction — each of which can override the base provider below.
+
+# [provider]
+# name = "ollama"
+# base_url = "http://localhost:11434"
+# model = "gemma4:e4b"        # or gemma4:26b / gemma4:31b — see inference-pipeline.md
+# api_key = ""
+#
+# Anthropic (Claude) via the native Messages API. Uses the
+# dedicated AnthropicClient (x-api-key + anthropic-version headers,
+# /v1/messages endpoint) rather than the OpenAI-compatible path.
+# Model names are Anthropic-native IDs (no `anthropic/` prefix —
+# that prefix is only for OpenRouter).
+#
+# [provider]
+# name = "anthropic"
+# base_url = "https://api.anthropic.com"
+# model = "claude-sonnet-4-5"
+# api_key = "sk-ant-..."
+#
+# Vercel AI Gateway — routes to any upstream model through your Vercel project.
+# `base_url` is required: paste the gateway URL from your Vercel dashboard
+# (e.g. https://ai.vercel.com/v1 or your project-scoped endpoint). The model
+# field is the upstream model ID in Vercel's notation (e.g. "anthropic/claude-sonnet-4-5").
+#
+# [provider]
+# name = "vercel-ai"
+# base_url = "https://ai.vercel.com/v1"   # <-- replace with your Vercel AI Gateway URL
+# model = "anthropic/claude-sonnet-4-5"
+# api_key = "$VERCEL_API_KEY"
+#
+# GitHub Models — uses GITHUB_TOKEN (auto-injected in Actions with
+# `permissions: models: read`) or a personal access token with the
+# `models: read` scope. Free for open source repositories.
+#
+# [provider]
+# name = "github_models"
+# model = "meta/Llama-3.1-405B-Instruct"
+# api_key = "ghp_..."   # or set GITHUB_TOKEN env var
+
+# Example: "Cloud-light" starter — Claude for dialogue, Gemini Flash-Lite for
+# background simulation, local Ministral 3 3B for intent + reaction. Uncomment
+# and populate keys to use. Remove or swap categories you don't want to split.
+#
+# [provider.dialogue]
+# name = "openrouter"
+# model = "anthropic/claude-sonnet-4-6"
+# api_key = "$OPENROUTER_API_KEY"
+#
+# [provider.simulation]
+# name = "google"
+# model = "gemini-2.5-flash-lite"
+# api_key = "$GOOGLE_API_KEY"
+
+# ---------------------------------------------------------------------------
+# Engine Configuration
+# ---------------------------------------------------------------------------
+
+[engine.inference]
+timeout_secs = 30 # Non-streaming request timeout
+streaming_timeout_secs = 300 # Streaming request timeout
+reachability_timeout_secs = 10 # Ollama reachability check timeout
+model_download_timeout_secs = 3600 # Model download timeout (1 hour)
+force_model_redownload = false # Delete local Ollama model before pulling (debug/testing)
+model_loading_timeout_secs = 300 # Model loading/warmup timeout
+log_capacity = 50 # Max entries in debug inference log ring buffer
+
+[engine.speeds]
+slow = 18.0 # 80 real minutes per game day
+normal = 36.0 # 40 real minutes per game day
+fast = 72.0 # 20 real minutes per game day
+fastest = 144.0 # 10 real minutes per game day
+ludicrous = 864.0 # ~100 real seconds per game day
+
+[engine.encounters]
+dawn = 0.25 # Encounter probability at dawn
+morning = 0.25
+midday = 0.20
+afternoon = 0.20
+dusk = 0.15
+night = 0.10
+midnight = 0.05
+
+[engine.npc]
+memory_capacity = 20 # Max entries in NPC short-term memory
+separator_holdback = 24 # Buffer for detecting --- in streamed responses
+memory_context_count = 5 # Recent memories in dialogue context
+memory_truncation_dialogue = 80 # Max chars for dialogue memory entries
+memory_truncation_event_log = 60
+event_summary_truncation = 100
+event_summary_debug_truncation = 50
+
+[engine.npc.cognitive_tiers]
+tier1_max_distance = 0 # Same location = Tier 1 (full LLM)
+tier2_max_distance = 2 # Within 2 hops = Tier 2 (periodic simulation)
+tier2_tick_interval_minutes = 5
+
+[engine.npc.relationship_labels]
+very_close = 0.7
+friendly = 0.3
+acquainted = 0.0
+cool = -0.3
+strained = -0.7
+
+[engine.palette]
+min_fg_bg_contrast = 80.0
+min_muted_bg_contrast = 45.0
+
+[engine.world]
+fuzzy_threshold = 0.82 # Jaro-Winkler similarity for fuzzy location matching (0.0–1.0)
+
+# ---------------------------------------------------------------------------
+# Map tile sources
+# ---------------------------------------------------------------------------
+# The full-map overlay fetches raster tiles from whichever entry below is
+# selected at runtime via `/map <id>` (see /help). The OSM default is
+# anachronistic for Rundale's 1820 setting; see docs/design/map-evolution.md
+# for the Phase D.1 motivation.
+#
+# Baked-in defaults (no config needed): `osm` and `historic`.
+# Overriding any entry replaces it; entries you don't list stay intact —
+# see MapConfig::apply_defaults in crates/limerick-config/src/engine.rs.
+#
+# [engine.map]
+# default_tile_source = "historic"
+# Optional pre-seeded offline tile bundle. Relative paths are resolved
+# against the game data directory at startup (so "tiles" with the default
+# Rundale data_dir resolves to mods/rundale/tiles). Use an absolute path
+# if you want to point outside the data directory.
+# bundled_tiles_dir = "tiles"
+#
+# [engine.map.tile_sources.osm]
+# label = "OpenStreetMap"
+# url = "https://tile.openstreetmap.org/{z}/{x}/{y}.png"
+# tile_size = 256
+# minzoom = 0
+# maxzoom = 19
+# attribution = "© OpenStreetMap contributors"
+# raster_saturation = -0.4         # -1.0 fully grey, 0.0 untouched, 1.0 saturated
+# raster_opacity = 0.85
+# tms = false                      # true flips y-axis (ArcGIS-style services)
+#
+# [engine.map.tile_sources.historic]
+# # Ordnance Survey of Ireland First Edition 6-inch (surveyed 1829–1842),
+# # scanned and hosted by the National Library of Scotland under CC-BY.
+# # NLS serves Ireland as 32 per-county tilesets under `os/<county>1/` — there
+# # is no seamless all-Ireland layer. The baked-in default is Roscommon (where
+# # Rundale is set); expanding to whole-island coverage is tracked in #360.
+# #
+# # Alternatives if you need another projection or higher fidelity:
+# #   - Tailte Éireann MapGenie (https://tailte.ie/services/mapgenie/) — gated
+# #     behind the National Mapping Agreement.
+# #   - GeoHive viewer (https://map.geohive.ie/) — free, capture the tile URL
+# #     from browser DevTools; scheme is ArcGIS (`tms = true`).
+# label = 'Historic 6" OS Ireland (1st ed., via NLS)'
+# url = "https://mapseries-tilesets.s3.amazonaws.com/os/roscommon1/{z}/{x}/{y}.png"
+# tile_size = 256
+# minzoom = 1
+# maxzoom = 17
+# attribution = 'Historic 6" OS Ireland (1829–1842), via National Library of Scotland'
+# raster_saturation = 0.0
+# raster_opacity = 1.0
+# tms = false                      # NLS uses standard XYZ; set true only for ArcGIS y-flipped services

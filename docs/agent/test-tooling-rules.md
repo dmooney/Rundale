@@ -30,8 +30,8 @@ asserting `payload.len() <= budget` is required for every such code path
 
 ## Rule 17 — **Survey existing tooling before building any:**
 
-Check whether the repo already provides it — the `parish-harness` binary
-(built-in web server/dashboard), `justfile` recipes, `parish/scripts/**`,
+Check whether the repo already provides it — the `limerick-harness` binary
+(built-in web server/dashboard), `justfile` recipes, `limerick/scripts/**`,
 `.claude/skills/` — and run or extend the existing tool in place. Never
 hand-roll a throwaway duplicate.
 

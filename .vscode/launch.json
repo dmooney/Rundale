@@ -4,21 +4,21 @@
     {
       "type": "lldb",
       "request": "launch",
-      "name": "Debug (parish)",
+      "name": "Debug (limerick)",
       "cargo": {
         "args": [
           "build",
-          "--manifest-path=${workspaceFolder}/parish/Cargo.toml",
-          "--bin=parish",
-          "--package=parish"
+          "--manifest-path=${workspaceFolder}/limerick/Cargo.toml",
+          "--bin=limerick-engine",
+          "--package=limerick-engine"
         ],
         "filter": {
-          "name": "parish",
+          "name": "limerick",
           "kind": "bin"
         }
       },
       "args": [],
-      "cwd": "${workspaceFolder}/parish",
+      "cwd": "${workspaceFolder}/limerick",
       "env": {
         "RUST_LOG": "debug"
       },
@@ -27,22 +27,22 @@
     {
       "type": "lldb",
       "request": "launch",
-      "name": "Release (parish)",
+      "name": "Release (limerick)",
       "cargo": {
         "args": [
           "build",
           "--release",
-          "--manifest-path=${workspaceFolder}/parish/Cargo.toml",
-          "--bin=parish",
-          "--package=parish"
+          "--manifest-path=${workspaceFolder}/limerick/Cargo.toml",
+          "--bin=limerick-engine",
+          "--package=limerick-engine"
         ],
         "filter": {
-          "name": "parish",
+          "name": "limerick",
           "kind": "bin"
         }
       },
       "args": [],
-      "cwd": "${workspaceFolder}/parish",
+      "cwd": "${workspaceFolder}/limerick",
       "env": {
         "RUST_LOG": "info"
       },
@@ -56,16 +56,16 @@
         "args": [
           "test",
           "--no-run",
-          "--manifest-path=${workspaceFolder}/parish/Cargo.toml",
+          "--manifest-path=${workspaceFolder}/limerick/Cargo.toml",
           "--lib",
-          "--package=parish"
+          "--package=limerick-engine"
         ],
         "filter": {
           "kind": "lib"
         }
       },
       "args": [],
-      "cwd": "${workspaceFolder}/parish",
+      "cwd": "${workspaceFolder}/limerick",
       "env": {
         "RUST_LOG": "debug"
       }
@@ -78,16 +78,16 @@
         "args": [
           "test",
           "--no-run",
-          "--manifest-path=${workspaceFolder}/parish/Cargo.toml",
+          "--manifest-path=${workspaceFolder}/limerick/Cargo.toml",
           "--lib",
-          "--package=parish"
+          "--package=limerick-engine"
         ],
         "filter": {
           "kind": "lib"
         }
       },
       "args": ["${input:testName}"],
-      "cwd": "${workspaceFolder}/parish",
+      "cwd": "${workspaceFolder}/limerick",
       "env": {
         "RUST_LOG": "debug"
       }

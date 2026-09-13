@@ -27,13 +27,13 @@ Open `TODO.md`. Prefer the smallest-scope unaddressed P0/P1. If the entry has a 
 Before any code change:
 
 - `.proofs/todo-<id>/acceptance-criteria.md` — observable criteria, sized concretely (e.g. "`frequency_penalty: Option<f32>` field on `InferenceRequest`", not "improve repetition handling"). Include a "Deferred items" section listing anything intentionally punted from this round.
-- `parish/testing/fixtures/play_todo-<id>.txt` — harness commands that exercise the new code path in `parish-engine --headless --script`.
+- `limerick/testing/fixtures/play_todo-<id>.txt` — harness commands that exercise the new code path in `limerick-engine --headless --script`.
 
 ## 4. Implement
 
 Smallest possible diff. When threading a new param through multiple layers (inference, IPC, UI), delegate the mechanical pass-through edits to a sonnet sub-agent — saves opus context.
 
-Then decide whether this finding's _category_ warrants a permanent guard: if it has now been fixed more than once (e.g. auto-player movement, mid-conversation farewells, mood→emoji sign), add a `rubric_*` test in `parish/crates/parish-engine/tests/eval_baselines.rs` in the same PR so the regression cannot silently return. See `docs/agent/harness.md` → "Turning a recurring mistake into a sensor".
+Then decide whether this finding's _category_ warrants a permanent guard: if it has now been fixed more than once (e.g. auto-player movement, mid-conversation farewells, mood→emoji sign), add a `rubric_*` test in `limerick/crates/limerick-engine/tests/eval_baselines.rs` in the same PR so the regression cannot silently return. See `docs/agent/harness.md` → "Turning a recurring mistake into a sensor".
 
 ## 5. Run quality gates
 
@@ -48,14 +48,14 @@ cargo test -p <changed-crate>
 For UI changes also:
 
 ```sh
-cd parish/apps/ui && npx vitest run && pnpm run check
+cd limerick/apps/ui && npx vitest run && pnpm run check
 ```
 
 ## 6. Capture live transcript
 
 ```sh
-cargo run -p parish-engine -- --headless --script \
-  parish/testing/fixtures/play_todo-<id>.txt > /tmp/transcript.txt
+cargo run -p limerick-engine -- --headless --script \
+  limerick/testing/fixtures/play_todo-<id>.txt > /tmp/transcript.txt
 cp /tmp/transcript.txt .proofs/todo-<id>/transcript.json
 ```
 
@@ -96,7 +96,7 @@ Include risk-check (save compatibility, prompt budget, mode parity, architecture
 From the worktree:
 
 ```sh
-bash parish/scripts/attach-proof.sh todo-<id> <pr-num>
+bash limerick/scripts/attach-proof.sh todo-<id> <pr-num>
 ```
 
 Do NOT call `just attach-proof` from a worktree — that uses the main repo's `justfile` and posts the wrong bundle.

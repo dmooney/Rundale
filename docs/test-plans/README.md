@@ -16,7 +16,7 @@ used, evidence, failures, and gates that were not run or could not be automated.
 The plans do not replace the product's complete milestone checklists, Definition
 of Done, or Quality Gate, or the technical vision's verification requirements.
 Read the cases together with those contracts: composer clearing follows durable
-acceptance, and production remote inference uses Parish Endpoints. The shorter
+acceptance, and production remote inference uses Limerick Endpoints. The shorter
 case wording does not waive those requirements.
 
 Use [build/test](../agent/build-test.md) to distinguish existing commands from

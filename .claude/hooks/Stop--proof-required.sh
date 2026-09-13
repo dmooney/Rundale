@@ -4,13 +4,13 @@
 #
 # Accepted proof signals (read from the transcript's tool_use entries, not
 # from raw conversational text — bot review feedback #973):
-#   - Tool name `mcp__parish__*`           : Parish MCP
+#   - Tool name `mcp__limerick__*`           : Limerick MCP
 #   - Tool name `mcp__claude-in-chrome__*` : Chrome MCP
 #   - Tool name `Bash` with command containing one of:
 #       cargo test, cargo nextest, npm test, npm run (test|check|e2e),
 #       npx playwright, just (check|verify|agent-check|ui-test|ui-e2e)
 #   - Tool name `Skill` with input.skill in
-#       {parish-engine (live harness), check (test gate)}
+#       {limerick-engine (live harness), check (test gate)}
 #
 # Code-change detection (covers the "agent committed before stopping"
 # bypass — bot review feedback #973):
@@ -78,29 +78,29 @@ CODE_REGEX='\.(rs|svelte|ts|tsx|js|mjs|cjs|py|go|java|kt|swift|c|h|cc|cpp|hpp|rb
 # Paths that ship NO runtime behavior and are explicitly exempt per
 # CLAUDE.md / AGENTS.md "non-negotiable engineering rules" (rule 10). A
 # change limited to these prefixes does not require a proof bundle:
-#   - parish/scripts/**  : check-tooling (CLAUDE.md exempt list)
+#   - limerick/scripts/**  : check-tooling (CLAUDE.md exempt list)
 #   - rundale-bench/**   : bench harness/orchestrator (not a runtime path;
 #                          changes are exercised by running the bench
 #                          itself, not by the engine proof flow)
 #   - bench-site/**      : static Astro site that publishes bench results;
 #                          verified by `pnpm build` not by the engine
 #                          proof flow.
-EXEMPT_PATH_REGEX='(^|/)(parish/scripts/|rundale-bench/|bench-site/)'
+EXEMPT_PATH_REGEX='(^|/)(limerick/scripts/|rundale-bench/|bench-site/)'
 
 # Subset of CODE_REGEX paths that ship runtime behavior. When any changed
 # file is under one of these prefixes, unit-test signals (cargo test /
 # just check / npm run check) are no longer sufficient on their own —
 # the agent must additionally exercise the change at runtime
-# (mcp__parish__*, mcp__claude-in-chrome__*, the parish-engine Skill,
+# (mcp__limerick__*, mcp__claude-in-chrome__*, the limerick-engine Skill,
 # or a Bash invocation of just demo / just play / just run
-# / cargo tauri dev / cargo run -p parish-*). This closes the gap where
+# / cargo tauri dev / cargo run -p limerick-*). This closes the gap where
 # unit tests are green but the runtime-only seam is never touched
 # (e.g. Tauri startup paths that only fire in `just demo`).
 # Per-branch trailing tokens (each branch carries its own `/` or `.rs`
 # suffix). A single trailing `/` outside the group would force every
 # alternative to be a directory, mis-matching the `.rs` file leaves
 # (`setup.rs`, `client.rs`, `ticks.rs`, `manager.rs`).
-RUNTIME_PATH_REGEX='^(parish/crates/parish-(tauri/|server/|engine/|client/|core/src/(game_loop|game_session|ipc)/|inference/src/(setup|client)\.rs|npc/src/(ticks|manager)\.rs|npc/src/(reactions|autonomous)/|world/|input/)|parish/apps/ui/src/|mods/|\.claude/hooks/|\.claude/skills/)'
+RUNTIME_PATH_REGEX='^(limerick/crates/limerick-(tauri/|server/|engine/|client/|core/src/(game_loop|game_session|ipc)/|inference/src/(setup|client)\.rs|npc/src/(ticks|manager)\.rs|npc/src/(reactions|autonomous)/|world/|input/)|limerick/apps/ui/src/|mods/|\.claude/hooks/|\.claude/skills/)'
 
 # ── Code-change detection ──────────────────────────────────────────────
 # Source 1: tracked diff vs HEAD + untracked code files.
@@ -234,12 +234,12 @@ RUNTIME_CHANGED="$(printf '%s\n' "$CHANGED" | grep -E "$RUNTIME_PATH_REGEX" || t
 # Two tiers:
 #
 #   LIVE proof  = the change actually ran in a real process.
-#     - mcp__parish__* (drives a live backend)
+#     - mcp__limerick__* (drives a live backend)
 #     - mcp__claude-in-chrome__* (drives a live browser)
-#     - Skill parish-engine (live harness: prove/play/demo/rubric/browser)
+#     - Skill limerick-engine (live harness: prove/play/demo/rubric/browser)
 #     - Bash matching LIVE_BASH_PATTERN (just demo|play|run|run-headless
-#       |web; cargo tauri dev; cargo run -p parish-engine|parish-tauri
-#       |parish-server)
+#       |web; cargo tauri dev; cargo run -p limerick-engine|limerick-tauri
+#       |limerick-server)
 #
 #   TEST proof  = static / unit / integration tests passed.
 #     - Skill check (just check / just verify gates)
@@ -250,8 +250,8 @@ RUNTIME_CHANGED="$(printf '%s\n' "$CHANGED" | grep -E "$RUNTIME_PATH_REGEX" || t
 # When RUNTIME_CHANGED is non-empty, only LIVE proof clears the gate
 # (TEST proof on its own is rejected — unit tests don't exercise the
 # Tauri/server/CLI seam and won't catch startup-only regressions like
-# the parish.toml category_overrides drop). When RUNTIME_CHANGED is
-# empty (e.g. only parish-config / parish-types touched), either tier
+# the limerick.toml category_overrides drop). When RUNTIME_CHANGED is
+# empty (e.g. only limerick-config / limerick-types touched), either tier
 # is accepted.
 LIVE_PROOF=""
 TEST_PROOF=""
@@ -262,7 +262,7 @@ if [ -n "$TRANSCRIPT" ] && [ -r "$TRANSCRIPT" ]; then
         jq -rc '
       (.message.content // [])[]?
       | select(.type == "tool_use")
-      | select(.name | test("^mcp__(parish|claude-in-chrome)__"))
+      | select(.name | test("^mcp__(limerick|claude-in-chrome)__"))
       | .name
     ' "$TRANSCRIPT" 2>/dev/null | head -1 || true
     )"
@@ -274,7 +274,7 @@ if [ -n "$TRANSCRIPT" ] && [ -r "$TRANSCRIPT" ]; then
         (.message.content // [])[]?
         | select(.type == "tool_use")
         | select(.name == "Skill")
-        | select(.input.skill == "parish-engine")
+        | select(.input.skill == "limerick-engine")
         | "skill: \(.input.skill)"
       ' "$TRANSCRIPT" 2>/dev/null | head -1 || true
         )"
@@ -282,7 +282,7 @@ if [ -n "$TRANSCRIPT" ] && [ -r "$TRANSCRIPT" ]; then
 
     # LIVE-3: Bash calls that boot a real process against the workspace.
     if [ -z "$LIVE_PROOF" ]; then
-        LIVE_BASH_PATTERN='just[[:space:]]+(demo|play|run|run-headless|web)\b|cargo[[:space:]]+tauri[[:space:]]+dev|cargo[[:space:]]+run[[:space:]]+(--manifest-path[[:space:]]+\S+[[:space:]]+)?-p[[:space:]]+parish-(engine|tauri|server|client)\b|parish-mcp-backend\.sh[[:space:]]+start'
+        LIVE_BASH_PATTERN='just[[:space:]]+(demo|play|run|run-headless|web)\b|cargo[[:space:]]+tauri[[:space:]]+dev|cargo[[:space:]]+run[[:space:]]+(--manifest-path[[:space:]]+\S+[[:space:]]+)?-p[[:space:]]+limerick-(engine|tauri|server|client)\b|limerick-mcp-backend\.sh[[:space:]]+start'
         LIVE_PROOF="$(
             jq -rc '
         (.message.content // [])[]?
@@ -387,15 +387,15 @@ they don't exercise the Tauri / server / CLI startup seams. You must
 additionally drive the change through a real process before claiming
 done."
     EXAMPLES="  Backend (Rust, gameplay, Tauri)
-    - bash parish/scripts/parish-mcp-backend.sh start  (then mcp__parish__*)
-    - cargo run -p parish-tauri  (live desktop window)
-    - cargo run -p parish-engine -- --headless  (REPL)
+    - bash limerick/scripts/limerick-mcp-backend.sh start  (then mcp__limerick__*)
+    - cargo run -p limerick-tauri  (live desktop window)
+    - cargo run -p limerick-engine -- --headless  (REPL)
     - just demo  /  just play  /  just run
-    - /parish-engine prove <feature>  /  /parish-engine play
+    - /limerick-engine prove <feature>  /  /limerick-engine play
 
-  Frontend (parish/apps/ui)
+  Frontend (limerick/apps/ui)
     - mcp__claude-in-chrome__* against vite dev server
-    - /parish-engine browser
+    - /limerick-engine browser
     - npx playwright e2e/<spec>.spec.ts  (real browser, not just type-check)"
 else
     TIER_BANNER="TEST proof required: code changed this session."
@@ -404,7 +404,7 @@ else
   - npm run check / npm run e2e / npx playwright
   - just check / just verify / just agent-check
   - /check
-  - mcp__parish__* or mcp__claude-in-chrome__* (these also satisfy)"
+  - mcp__limerick__* or mcp__claude-in-chrome__* (these also satisfy)"
 fi
 
 REASON="ACTION REQUIRED — do not stop, do not summarize this back to the user. Take corrective action now (run the gate, write the missing file, or apply the documented bypass with an explicit reason), then continue. The Stop gate will re-fire until it clears.
