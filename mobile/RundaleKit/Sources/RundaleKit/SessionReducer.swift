@@ -165,6 +165,12 @@ public struct SessionReducer: Sendable {
         case .clarificationSelected:
             updateRequest(event, phase: .executing, in: &state)
             state.updatePendingClarification(nil)
+            state.removeTranscriptItems { item in
+                item.kind == .clarificationRequired
+                    && item.logicalRequestID == event.logicalRequestID
+                    && item.attemptID == event.attemptID
+                    && item.id != event.transcriptItemID
+            }
             upsertTranscript(for: event, state: &state, stateOverride: .committed)
         case .progress:
             updateRequest(event, phase: .executing, in: &state)

@@ -364,6 +364,10 @@ public struct SessionState: Codable, Equatable, Sendable {
         }
     }
 
+    mutating func removeTranscriptItems(where shouldRemove: (TranscriptItem) -> Bool) {
+        transcript.removeAll(where: shouldRemove)
+    }
+
     mutating func updateTranscriptItem(id: TranscriptItemID, _ update: (inout TranscriptItem) -> Void) {
         guard let index = transcript.firstIndex(where: { $0.id == id }) else { return }
         update(&transcript[index])

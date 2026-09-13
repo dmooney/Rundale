@@ -490,6 +490,52 @@ final class RundaleKitTests: XCTestCase {
         await adapter.finishEventStream()
     }
 
+    func testClarificationSelectionCollapsesLegacyPromptWithDifferentTranscriptID() {
+        let sessionID = SessionID("session-legacy-clarification")
+        let requestID = LogicalRequestID("request-legacy-clarification")
+        let attemptID = ExecutionAttemptID("attempt-legacy-clarification")
+        var state = SessionState(sessionID: sessionID)
+        var reducer = SessionReducer()
+
+        let command = SemanticEvent(
+            eventID: SemanticEventID("event-legacy-command"),
+            sessionID: sessionID,
+            sequence: 1,
+            kind: .playerCommand,
+            content: "hello",
+            logicalRequestID: requestID,
+            attemptID: attemptID,
+            transcriptItemID: TranscriptItemID("item-legacy-command"),
+            accepted: true
+        )
+        let prompt = SemanticEvent(
+            eventID: SemanticEventID("event-legacy-prompt"),
+            sessionID: sessionID,
+            sequence: 2,
+            kind: .clarificationRequired,
+            content: "Which person do you mean?",
+            logicalRequestID: requestID,
+            attemptID: attemptID,
+            transcriptItemID: TranscriptItemID("item-legacy-prompt")
+        )
+        let selected = SemanticEvent(
+            eventID: SemanticEventID("event-legacy-selection"),
+            sessionID: sessionID,
+            sequence: 3,
+            kind: .clarificationSelected,
+            content: "Directed to Mícheál Connolly.",
+            logicalRequestID: requestID,
+            attemptID: attemptID,
+            transcriptItemID: TranscriptItemID("item-legacy-selection")
+        )
+
+        XCTAssertEqual(reducer.reduce(.apply(command), in: &state), .applied)
+        XCTAssertEqual(reducer.reduce(.apply(prompt), in: &state), .applied)
+        XCTAssertEqual(reducer.reduce(.apply(selected), in: &state), .applied)
+        XCTAssertFalse(state.transcript.contains { $0.kind == .clarificationRequired })
+        XCTAssertEqual(state.transcript.filter { $0.kind == .clarificationSelected }.map(\.content), ["Directed to Mícheál Connolly."])
+    }
+
     func testFixtureClarificationDoesNotInventTheSelectedSpeaker() async throws {
         let adapter = FixtureSessionAdapter(sessionID: SessionID("session-clarify-roisin"), script: .phase1)
         let requestID = LogicalRequestID("clarify-roisin-request")
