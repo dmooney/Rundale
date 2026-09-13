@@ -575,6 +575,19 @@ Passing tests alone does not establish Done. A milestone must produce the observ
 
 Each milestone is intentionally narrow. The checklist describes required outcomes and observable behavior, not a prescribed internal implementation. A milestone is complete only when all applicable requirements are satisfied and the resulting build is stable enough to serve as the foundation for the next milestone.
 
+### Phase-end demonstrations
+
+Repository requirement added 2026-09-07 at the user's request: conclude every
+phase with a demonstration for the user. Walk through the phase's observable
+player experience in the running application, including the relevant failure
+and recovery behavior. Present the build and evidence being demonstrated,
+summarize verification, and identify any acceptance gates still pending.
+A demonstration does not replace the phase's tests, Exit Criteria, or required
+physical-iPhone validation. An interim demo may show completed implementation
+while those gates remain pending, but must not be described as phase completion.
+
+Use the [phase demo plan](phase-demo-plan.md) to prepare each demonstration.
+
 Milestone 1 — Static native interaction prototype
 
 Build a SwiftUI prototype using fixture data only. The purpose is to establish the fundamental iPhone reading-and-typing experience before integrating Parish.

@@ -1,0 +1,18 @@
+# Cloud Build in this repository is scoped to the self-contained Endpoints
+# workspace. Keep the upload small and prevent unrelated local artifacts from
+# becoming part of the remote build source.
+**
+!endpoints/
+!endpoints/**
+
+endpoints/node_modules/
+endpoints/**/node_modules/
+endpoints/**/dist/
+endpoints/apps/web/.next/
+endpoints/.env
+endpoints/.env.*
+!endpoints/.env.example
+endpoints/coverage/
+endpoints/**/coverage/
+endpoints/**/*.tsbuildinfo
+endpoints/graphify-out/

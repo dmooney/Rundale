@@ -13,6 +13,7 @@ default:
 # One-time developer setup: install system deps, Rust, Node, and frontend packages
 setup:
     cd parish && just setup
+    cd endpoints && pnpm install --frozen-lockfile
     just install-hooks
 
 # Point git at the versioned hooks in .githooks/ (idempotent). The pre-push
@@ -56,6 +57,22 @@ web PORT="3001":
     cd parish && just web {{PORT}}
 
 # ─── Quality Gates ──────────────────────────────────────────────────────────
+
+# Run the imported Parish Endpoints format, lint, type, test, and build gates.
+endpoints-check:
+    cd endpoints && pnpm check
+
+# Run Parish Endpoints tests only.
+endpoints-test:
+    cd endpoints && pnpm test
+
+# Start the separately deployable Endpoints server and creator console.
+endpoints-dev:
+    cd endpoints && pnpm dev
+
+# Apply the Endpoints PostgreSQL migrations using DATABASE_URL.
+endpoints-db-migrate:
+    cd endpoints && pnpm db:migrate
 
 # Pre-commit gate: format, lint, tests, placeholder scan, doc-paths
 check:

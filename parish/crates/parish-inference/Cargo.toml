@@ -6,6 +6,15 @@ license = "GPL-3.0-only"
 publish = false
 description = "LLM inference queue and provider clients (OpenAI/Anthropic/simulator) for Parish"
 
+[features]
+# Desktop keeps the local-model bootstrap and HuggingFace onboarding paths
+# available at their historical public paths. Mobile consumers use the
+# portable queue/worker/validation/transport surface without pulling in
+# process management or model download code.
+default = ["desktop"]
+desktop = ["dep:parish-setup", "dep:hf-hub"]
+mobile = []
+
 [dependencies]
 parish-types = { workspace = true }
 parish-config = { workspace = true }
@@ -16,7 +25,7 @@ parish-providers = { workspace = true }
 # downstream consumers need no import change. The edge is one-directional:
 # parish-setup does NOT depend back on parish-inference (it reaches the client
 # factory and rate limiter via parish-providers), so there is no cycle.
-parish-setup = { workspace = true }
+parish-setup = { workspace = true, optional = true }
 # reqwest stays a direct dep: validate.rs (provider reachability/auth probes)
 # and hf_downloader.rs (model download) make their own HTTP calls. Only the
 # `json` feature is needed here; the streaming clients (and the `stream`
@@ -27,7 +36,7 @@ tokio = { workspace = true }
 tokio-util = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
-hf-hub = { workspace = true }
+hf-hub = { workspace = true, optional = true }
 
 tracing = { workspace = true }
 chrono = { workspace = true }

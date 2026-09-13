@@ -1,0 +1,3 @@
+ALTER TABLE "deployment_aliases" ALTER COLUMN "endpoint_version_id" DROP NOT NULL;--> statement-breakpoint
+ALTER TABLE "deployment_aliases" ADD COLUMN "endpoint_draft_id" uuid;--> statement-breakpoint
+ALTER TABLE "deployment_aliases" ADD CONSTRAINT "deployment_aliases_endpoint_draft_id_endpoint_drafts_id_fk" FOREIGN KEY ("endpoint_draft_id") REFERENCES "public"."endpoint_drafts"("id") ON DELETE no action ON UPDATE no action;

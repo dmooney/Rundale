@@ -1,0 +1,237 @@
+{
+  "schema_version": 1,
+  "content_version": 1,
+  "content_id": "rundale-phase3-kilteevan",
+  "starting_location_id": "kilteevan-village",
+  "starting_minute": 538,
+  "locations": [
+    {
+      "id": "kilteevan-village",
+      "engine_location_id": 1,
+      "display_name": "Kilteevan Village",
+      "aliases": ["village", "kilteevan"],
+      "playable": true,
+      "indoor": false,
+      "latitude": 53.618,
+      "longitude": -8.095,
+      "opening_description": "Morning gathers over Kilteevan as smoke rises from the cottages and the road begins to stir.",
+      "look_text": "Kilteevan Village · a muddy road, low stone walls, and smoke lifting from clustered roofs.",
+      "initial_npc_ids": ["npc-peig"],
+      "exits": [
+        {
+          "id": "exit-village-letter-office",
+          "direction": "east",
+          "display_name": "Letter Office",
+          "description": "A short lane leads east to the whitewashed Letter Office.",
+          "destination_id": "letter-office",
+          "playable": true
+        },
+        {
+          "id": "exit-village-connolly-cottage",
+          "direction": "west",
+          "display_name": "Connolly Cottage",
+          "description": "A rutted boreen runs west to Connolly Cottage.",
+          "destination_id": "connolly-cottage",
+          "playable": true
+        }
+      ]
+    },
+    {
+      "id": "letter-office",
+      "engine_location_id": 4,
+      "display_name": "Letter Office",
+      "aliases": ["office", "post office"],
+      "playable": true,
+      "indoor": true,
+      "latitude": 53.6195,
+      "longitude": -8.093,
+      "opening_description": "The Letter Office smells of sealing wax, turf smoke, and damp wool.",
+      "look_text": "Letter Office · a narrow counter, pigeonholes of folded paper, and a small turf fire.",
+      "initial_npc_ids": [],
+      "exits": [
+        {
+          "id": "exit-letter-office-village",
+          "direction": "west",
+          "display_name": "Kilteevan Village",
+          "description": "The lane returns west to the village road.",
+          "destination_id": "kilteevan-village",
+          "playable": true
+        }
+      ]
+    },
+    {
+      "id": "connolly-cottage",
+      "engine_location_id": 13,
+      "display_name": "Connolly Cottage",
+      "aliases": ["cottage", "connollys", "connolly house"],
+      "playable": true,
+      "indoor": true,
+      "latitude": 53.6165,
+      "longitude": -8.097,
+      "opening_description": "A peat fire warms the single room of Connolly Cottage.",
+      "look_text": "Connolly Cottage · a peat fire, a scrubbed table, and rain-dark coats by the door.",
+      "initial_npc_ids": ["npc-micheal", "npc-roisin"],
+      "exits": [
+        {
+          "id": "exit-connolly-cottage-village",
+          "direction": "east",
+          "display_name": "Kilteevan Village",
+          "description": "The boreen climbs east to the village road.",
+          "destination_id": "kilteevan-village",
+          "playable": true
+        }
+      ]
+    }
+  ],
+  "npcs": [
+    {
+      "id": "npc-peig",
+      "engine_npc_id": 22,
+      "display_name": "Peig Hannigan",
+      "aliases": ["peig", "hannigan"],
+      "interactive": true,
+      "initial_location_id": "kilteevan-village",
+      "home_location_id": "letter-office",
+      "role": "letter-office keeper and village observer",
+      "personality": ["sharp-witted", "plain-spoken", "kind beneath the wit"],
+      "schedule": [
+        {
+          "start_hour": 0,
+          "end_hour": 8,
+          "location_id": "kilteevan-village",
+          "activity": "collecting the morning post"
+        },
+        {
+          "start_hour": 9,
+          "end_hour": 23,
+          "location_id": "letter-office",
+          "activity": "sorting letters behind the counter"
+        }
+      ],
+      "known_people": ["npc-micheal", "npc-roisin"],
+      "known_places": [
+        "kilteevan-village",
+        "letter-office",
+        "connolly-cottage"
+      ],
+      "known_facts": [
+        {
+          "id": "fact-peig-post",
+          "statement": "Peig keeps the Letter Office and knows who has received news from beyond the parish.",
+          "source": "authored"
+        },
+        {
+          "id": "fact-peig-connollys",
+          "statement": "Mícheál and Róisín Connolly share the cottage west of the village.",
+          "source": "authored"
+        }
+      ]
+    },
+    {
+      "id": "npc-micheal",
+      "engine_npc_id": 24,
+      "display_name": "Mícheál Connolly",
+      "aliases": ["mícheál", "micheal", "michael"],
+      "interactive": true,
+      "initial_location_id": "connolly-cottage",
+      "home_location_id": "connolly-cottage",
+      "role": "smallholder and cattle drover",
+      "personality": ["deliberate", "practical", "slow to trust"],
+      "schedule": [
+        {
+          "start_hour": 0,
+          "end_hour": 9,
+          "location_id": "connolly-cottage",
+          "activity": "readying tools for the day"
+        },
+        {
+          "start_hour": 10,
+          "end_hour": 23,
+          "location_id": "kilteevan-village",
+          "activity": "seeing to business along the village road"
+        }
+      ],
+      "known_people": ["npc-peig", "npc-roisin"],
+      "known_places": [
+        "kilteevan-village",
+        "letter-office",
+        "connolly-cottage"
+      ],
+      "known_facts": [
+        {
+          "id": "fact-micheal-stock",
+          "statement": "The wet ground has made moving cattle difficult this week.",
+          "source": "authored"
+        },
+        {
+          "id": "fact-micheal-family",
+          "statement": "Róisín is Mícheál's sister and manages the household accounts.",
+          "source": "authored"
+        }
+      ]
+    },
+    {
+      "id": "npc-roisin",
+      "engine_npc_id": 4,
+      "display_name": "Róisín Connolly",
+      "aliases": ["róisín", "roisin"],
+      "interactive": true,
+      "initial_location_id": "connolly-cottage",
+      "home_location_id": "connolly-cottage",
+      "role": "spinner and household bookkeeper",
+      "personality": ["observant", "warm", "quick with figures"],
+      "schedule": [
+        {
+          "start_hour": 0,
+          "end_hour": 11,
+          "location_id": "connolly-cottage",
+          "activity": "spinning by the cottage fire"
+        },
+        {
+          "start_hour": 12,
+          "end_hour": 23,
+          "location_id": "kilteevan-village",
+          "activity": "trading yarn and household goods"
+        }
+      ],
+      "known_people": ["npc-peig", "npc-micheal"],
+      "known_places": [
+        "kilteevan-village",
+        "letter-office",
+        "connolly-cottage"
+      ],
+      "known_facts": [
+        {
+          "id": "fact-roisin-yarn",
+          "statement": "Róisín trades spun yarn in the village when the household work allows.",
+          "source": "authored"
+        },
+        {
+          "id": "fact-roisin-letters",
+          "statement": "Peig can be trusted to keep private letters private.",
+          "source": "authored"
+        }
+      ]
+    }
+  ],
+  "relationships": [
+    {
+      "source_id": "npc-peig",
+      "target_id": "npc-micheal",
+      "kind": "Neighbor",
+      "strength": 0.55
+    },
+    {
+      "source_id": "npc-peig",
+      "target_id": "npc-roisin",
+      "kind": "Friend",
+      "strength": 0.72
+    },
+    {
+      "source_id": "npc-micheal",
+      "target_id": "npc-roisin",
+      "kind": "Family",
+      "strength": 0.9
+    }
+  ]
+}

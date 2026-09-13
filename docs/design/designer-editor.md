@@ -108,7 +108,7 @@ this separation is the single most important architectural rule of the feature.
 **Backend**
 
 - `crates/parish-mod/` (re-exported as `parish_core::game_mod`) — `GameMod::load()` is the _reference implementation_ for parsing every mod file; the editor mirrors it but loads each file independently (see Phase 1 backend)
-- `crates/parish-world/src/graph.rs:130` — `WorldGraph::validate()` enforces orphan/bidirectional checks and emits `ParishError::WorldGraph(String)`
+- `crates/parish-world/src/graph.rs:130` — `WorldGraph::validate()` enforces orphan/bidirectional checks and emits `ParishError::WorldGraph(String)`; the embedded Phase 2 fixture is the one validated singleton exception, while orphan nodes remain invalid in larger graphs
 - `crates/parish-types/src/error.rs` — `ParishError` enum (use for all editor errors)
 - `crates/parish-core/src/ipc/handlers.rs` — pattern for pure state → IPC-type handlers
 - `crates/parish-persistence/src/picker.rs:63` `discover_saves` + `crates/parish-persistence/src/database.rs` `list_branches` / `load_latest_snapshot` — save inspector never opens rusqlite directly
@@ -269,7 +269,7 @@ save inspector's modal/list layout.
 
 `editor_validate()` should catch:
 
-- All existing `WorldGraph::validate()` failures (orphans, non-bidirectional edges, bad targets)
+- All existing `WorldGraph::validate()` failures (orphans in multi-location graphs, non-bidirectional edges, bad targets); a one-location embedded Phase 2 graph may intentionally have no exit yet
 - NPC `home` / `workplace` reference a nonexistent location
 - NPC `relationships[].target_id` references a nonexistent NPC
 - NPC `seasonal_schedule[].entries[].location` references a nonexistent location

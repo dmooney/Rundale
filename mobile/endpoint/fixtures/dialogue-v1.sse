@@ -1,0 +1,18 @@
+: fixture: fragmented UTF-8 and SSE contract v1
+event: progress
+id: invocation-fixture:1
+data: {"attempt_id":"attempt-fixture","contract_version":1,"endpoint_version":1,"event_id":"invocation-fixture:1","invocation_id":"invocation-fixture","request_id":"request-fixture","sequence":1,"terminal":false,"text":"Peig listens.","type":"progress"}
+
+event: text_delta
+id: invocation-fixture:2
+data: {"attempt_id":"attempt-fixture","contract_version":1,"endpoint_version":1,"event_id":"invocation-fixture:2","invocation_id":"invocation-fixture","request_id":"request-fixture","sequence":2,"terminal":false,"text":"The rain keeps ","type":"text_delta"}
+
+event: text_delta
+id: invocation-fixture:3
+data: {"attempt_id":"attempt-fixture","contract_version":1,"endpoint_version":1,"event_id":"invocation-fixture:3","invocation_id":"invocation-fixture","request_id":"request-fixture","sequence":3,"terminal":false,"text":"the old road quiet. ","type":"text_delta"}
+
+event: final
+id: invocation-fixture:4
+data: {"attempt_id":"attempt-fixture","contract_version":1,"endpoint_version":1,"event_id":"invocation-fixture:4","invocation_id":"invocation-fixture","request_id":"request-fixture","sequence":4,"terminal":true,"type":"final","output":{"dialogue":"The rain keeps the old road quiet. 🌧"}}
+
+: fixture-end

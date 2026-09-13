@@ -1,0 +1,19 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: parish
+      POSTGRES_PASSWORD: parish
+      POSTGRES_DB: parish
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U parish -d parish"]
+      interval: 2s
+      timeout: 2s
+      retries: 15
+    volumes:
+      - parish-postgres:/var/lib/postgresql/data
+
+volumes:
+  parish-postgres:

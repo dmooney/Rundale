@@ -11,6 +11,7 @@ symlink where present.
 | ------------------------------------------------- | ---------------------------------------------------------------------------- | --------------------------------------- | ------------------------------------------- |
 | `AGENTS.md`, `CLAUDE.md`                          | Repo-wide agent instructions. `CLAUDE.md` is a symlink to `AGENTS.md`        | [AGENTS.md](../../AGENTS.md)            | [AGENTS.md](../../AGENTS.md)                |
 | `LEARNINGS.md`                                    | Short-lived gotchas and surprising defaults for future agents                | [LEARNINGS.md](../../LEARNINGS.md)      | -                                           |
+| `mobile/`                                         | Native Phase 1 SwiftUI fixture prototype and presentation package            | [README](../../mobile/README.md)        | Root instructions                           |
 | `parish/`                                         | Main Rust workspace and frontend workspace for the Parish engine             | [Cargo.toml](../../parish/Cargo.toml)   | -                                           |
 | `parish/crates/`                                  | 24 Rust workspace crates: binaries, composition crate, and leaf logic crates | see [Parish crates](#parish-crates)     | per crate                                   |
 | `parish/apps/ui/`                                 | Svelte 5 + TypeScript frontend shared by desktop and web modes               | `src/routes/`, `src/lib/`               | [AGENTS.md](../../parish/apps/ui/AGENTS.md) |

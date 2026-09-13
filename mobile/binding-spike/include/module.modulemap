@@ -1,0 +1,4 @@
+module RundaleBindingSpike {
+    header "rundale_binding_spike.h"
+    export *
+}

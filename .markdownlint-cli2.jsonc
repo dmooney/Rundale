@@ -28,6 +28,13 @@
   "ignores": [
     "**/node_modules/**",
     "**/target/**",
+    // Native build products and downloaded Swift dependencies are generated.
+    "mobile/**/.build/**",
+    "mobile/.verification*/**",
+    "mobile/DerivedData/**",
+    "mobile/Rundale.xcodeproj/**",
+    "parish/target-mobile-*/**",
+    "target-mobile-*/**",
     ".venv-dev/**",
     "**/.pytest_cache/**",
     "**/.mypy_cache/**",
@@ -42,6 +49,7 @@
     "promptfoo/output/**",
     "parish/testing/**",
     "parish/apps/ui/**",
+    "endpoints/docs/**",
     "rundale-bench/bench-site/**",
     "**/graphify-out/**",
     ".opencode/**",

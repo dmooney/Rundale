@@ -6,17 +6,33 @@ license = "GPL-3.0-only"
 publish = false
 description = "Orchestration layer for the Parish engine: game session, IPC, mod loading, prompts"
 
+[features]
+# Preserve the existing desktop crate surface by default. The mobile feature
+# intentionally exposes only the leaf-crate aliases below; the legacy
+# orchestration modules remain behind `desktop` until their portable worker
+# boundary is added.
+default = ["desktop"]
+desktop = [
+    "dep:parish-palette",
+    "dep:parish-mod",
+    "dep:parish-editor",
+    "dep:parish-chronicle",
+    "dep:parish-diagnostics",
+    "parish-inference/desktop",
+]
+mobile = ["parish-inference/mobile"]
+
 [dependencies]
 parish-types = { workspace = true }
 parish-config = { workspace = true }
-parish-inference = { workspace = true }
+parish-inference = { workspace = true, default-features = false }
 parish-world = { workspace = true }
-parish-palette = { workspace = true }
+parish-palette = { workspace = true, optional = true }
 parish-npc = { workspace = true }
-parish-mod = { workspace = true }
-parish-editor = { workspace = true }
-parish-chronicle = { workspace = true }
-parish-diagnostics = { workspace = true }
+parish-mod = { workspace = true, optional = true }
+parish-editor = { workspace = true, optional = true }
+parish-chronicle = { workspace = true, optional = true }
+parish-diagnostics = { workspace = true, optional = true }
 parish-persistence = { workspace = true }
 parish-input = { workspace = true }
 tokio = { workspace = true }

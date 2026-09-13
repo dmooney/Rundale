@@ -33,7 +33,7 @@ exclude = ['\.venv-dev', 'target', 'rundale-bench/artifacts', 'docs/proofs']
 [tool.pytest.ini_options]
 # The bench has bespoke phase tests; the scheduled player agent has transport
 # contract tests under parish/testing/eval. Collect both in the CI pytest gate.
-testpaths = ["rundale-bench", "parish/testing/eval"]
+testpaths = ["rundale-bench", "parish/testing/eval", "mobile/scripts"]
 python_files = ["test_*.py"]
 norecursedirs = [".venv-dev", "target", "artifacts", "node_modules", "*.egg"]
 addopts = "-q"
