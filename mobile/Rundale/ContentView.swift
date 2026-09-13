@@ -920,7 +920,8 @@ private struct Composer: View {
                 // surface content-sized: it starts at one line, grows with
                 // multiline input, and scrolls internally after five lines.
                 // That keeps a blank composer compact on small iPhones while
-                // preserving return, selection, dictation, and paste.
+                // preserving multiline editing, selection, dictation, and
+                // paste on devices. Simulator builds repurpose Return below.
                 TextField("What do you do?", text: $model.draft, axis: .vertical)
                     .font(.system(.body, design: .serif))
                     .lineLimit(1...5)
@@ -936,10 +937,17 @@ private struct Composer: View {
                     .accessibilityLabel("Command draft")
                     .accessibilityHint("Enter a multiline command")
                     .accessibilityIdentifier("composer.input")
-                    .onChange(of: model.draft) { _, _ in
+                    .onChange(of: model.draft) { _, draft in
                         model.noteDraftMutation()
                         model.refreshCompletions()
+                        #if targetEnvironment(simulator)
+                        if draft.contains(where: \.isNewline) {
+                            model.submitDraft()
+                            focused = true
+                        }
+                        #endif
                     }
+                    .modifier(SimulatorReturnKeyLabel())
 
                 VStack(spacing: 7) {
                     if model.isStreaming {
@@ -1021,6 +1029,19 @@ private struct Composer: View {
         .background(RundaleTheme.canvas)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("composer")
+    }
+}
+
+private struct SimulatorReturnKeyLabel: ViewModifier {
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        #if targetEnvironment(simulator)
+        content
+            .submitLabel(.send)
+            .accessibilityHint("Press Return or activate Send to submit")
+        #else
+        content
+        #endif
     }
 }
 

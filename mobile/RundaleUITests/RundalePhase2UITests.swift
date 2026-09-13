@@ -47,6 +47,19 @@ final class RundalePhase2UITests: XCTestCase {
         XCTAssertTrue(app.buttons["composer.send"].waitForExistence(timeout: 3))
     }
 
+    func testSimulatorReturnKeySubmitsDraft() {
+        launch(reset: true)
+        waitForInitialScene()
+
+        let input = commandInput
+        input.tap()
+        input.typeText("/look\n")
+
+        XCTAssertTrue(waitForTranscriptText("/look", timeout: 8))
+        XCTAssertTrue(waitForValue("", on: input, timeout: 8))
+        XCTAssertTrue(app.buttons["composer.send"].waitForExistence(timeout: 3))
+    }
+
     func testPhase2CompletionsUseRustNearbyPeople() {
         launch(reset: true)
         waitForInitialScene()
