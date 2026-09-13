@@ -82,6 +82,21 @@ final class RundalePhase2UITests: XCTestCase {
         XCTAssertFalse(completed.label.contains("In progress"))
     }
 
+    func testPhase2EndpointErrorNamesTheFailureCategory() {
+        launch(reset: true)
+        waitForInitialScene()
+
+        submit("ask Peig to fail")
+
+        XCTAssertTrue(
+            waitForTranscriptText(
+                "The storyteller service is temporarily unavailable. You can retry this request.",
+                timeout: 8
+            )
+        )
+        XCTAssertFalse(waitForTranscriptText("The response could not be validated.", timeout: 1))
+    }
+
     func testPhase2StopLeavesInterruptedAttemptAndRetryCompletes() {
         launch(reset: true)
         waitForInitialScene()

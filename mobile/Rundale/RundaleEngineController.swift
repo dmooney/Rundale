@@ -449,7 +449,7 @@ final class RundaleEngineController: ObservableObject, RundaleSessionControlling
                         guard !Task.isCancelled else { return }
                         self?.consumeOperation(response)
                     case .error:
-                        throw ParishEndpointError.malformedEvent("Endpoint returned an error frame")
+                        throw EndpointReportedFailure(payload: frame.error)
                     }
                 }
             } catch is CancellationError {
@@ -457,23 +457,12 @@ final class RundaleEngineController: ObservableObject, RundaleSessionControlling
             } catch {
                 guard !Task.isCancelled else { return }
                 do {
-                    let kind: ParishRuntimeFailureKind
-                    if error is CancellationError {
-                        kind = .interrupted
-                    } else if error is ParishEndpointError,
-                              (error as? ParishEndpointError) == .missingTerminal
-                                || (error as? ParishEndpointError) == .truncatedEvent {
-                        kind = .missingTerminal
-                    } else if error is ParishEndpointError {
-                        kind = .protocolViolation
-                    } else {
-                        kind = .transport
-                    }
+                    let failure = Self.playerFacingFailure(error)
                     let response = try await runtime.receiveFailure(
                         attemptID: invocation.attemptID,
                         baseRevision: invocation.baseRevision,
-                        kind: kind,
-                        message: Self.playerFacingFailure(kind)
+                        kind: failure.kind,
+                        message: failure.message
                     )
                     self?.consumeOperation(response)
                 } catch {
@@ -483,17 +472,146 @@ final class RundaleEngineController: ObservableObject, RundaleSessionControlling
         }
     }
 
-    private static func playerFacingFailure(_ kind: ParishRuntimeFailureKind) -> String {
-        switch kind {
-        case .transport:
-            return "The response could not be reached. You can retry this request."
-        case .missingTerminal:
-            return "The response ended before it was complete. You can retry this request."
-        case .protocolViolation:
-            return "The response could not be validated. You can retry this request."
-        case .interrupted:
-            return "The response was interrupted. You can retry this request."
+    private static func playerFacingFailure(_ error: Error) -> PlayerFacingFailure {
+        if let reported = error as? EndpointReportedFailure {
+            return playerFacingEndpointFailure(code: reported.code)
         }
+        guard let endpoint = error as? ParishEndpointError else {
+            return PlayerFacingFailure(
+                kind: .transport,
+                message: "The response service could not be reached. You can retry this request."
+            )
+        }
+
+        switch endpoint {
+        case .invalidURL, .insecureURL, .loopbackHTTPNotAllowed:
+            return PlayerFacingFailure(
+                kind: .protocolViolation,
+                message: "The response service is not configured correctly for this build."
+            )
+        case .invalidCredential:
+            return authorizationFailure
+        case let .responseStatus(status):
+            return playerFacingHTTPFailure(status: status)
+        case let .responseFailure(status, _, code, _):
+            return code.map { playerFacingEndpointFailure(code: $0) }
+                ?? playerFacingHTTPFailure(status: status)
+        case .missingTerminal, .truncatedEvent:
+            return PlayerFacingFailure(
+                kind: .missingTerminal,
+                message: "The response ended before it was complete. You can retry this request."
+            )
+        case .requestTooLarge:
+            return PlayerFacingFailure(
+                kind: .protocolViolation,
+                message: "This request was too large for the response service. Try a shorter message."
+            )
+        case .responseBodyTooLarge, .lineTooLarge, .eventTooLarge, .streamTooLarge:
+            return PlayerFacingFailure(
+                kind: .protocolViolation,
+                message: "The response was too large for the game to process. You can retry this request."
+            )
+        case .unsupportedVersion, .endpointVersionMismatch:
+            return PlayerFacingFailure(
+                kind: .protocolViolation,
+                message: "The game and response service are using incompatible versions."
+            )
+        case .responseNotSSE, .responseNotJSON, .malformedResponse, .malformedEvent,
+             .invalidUTF8, .missingRequestID, .crossCorrelation, .missingSequence,
+             .outOfOrderSequence, .duplicateEvent, .duplicateTerminal, .terminalBeforeStream:
+            return PlayerFacingFailure(
+                kind: .protocolViolation,
+                message: "The response service returned data in an unexpected format. The reply was discarded; you can retry."
+            )
+        }
+    }
+
+    private static func playerFacingHTTPFailure(status: Int) -> PlayerFacingFailure {
+        switch status {
+        case 401, 403:
+            return authorizationFailure
+        case 429:
+            return busyFailure
+        case 500...599:
+            return unavailableFailure
+        default:
+            return PlayerFacingFailure(
+                kind: .protocolViolation,
+                message: "The response service rejected this request (HTTP \(status)). You can retry."
+            )
+        }
+    }
+
+    private static func playerFacingEndpointFailure(code: String?) -> PlayerFacingFailure {
+        switch code {
+        case "AUTHENTICATION_FAILED", "AUTHORIZATION_FAILED":
+            return authorizationFailure
+        case "RATE_LIMITED", "QUOTA_EXCEEDED", "PROVIDER_RATE_LIMITED":
+            return busyFailure
+        case "PROVIDER_UNAVAILABLE":
+            return unavailableFailure
+        case "REQUEST_TIMEOUT":
+            return PlayerFacingFailure(
+                kind: .transport,
+                message: "The storyteller took too long to respond. You can retry this request."
+            )
+        case "OUTPUT_VALIDATION_FAILED":
+            return PlayerFacingFailure(
+                kind: .protocolViolation,
+                message: "The storyteller returned a reply in the wrong format. You can retry this request."
+            )
+        case "MODEL_ERROR":
+            return PlayerFacingFailure(
+                kind: .protocolViolation,
+                message: "The storyteller could not complete its reply. You can retry this request."
+            )
+        case "ENDPOINT_NOT_FOUND", "VERSION_NOT_FOUND", "ENDPOINT_DISABLED":
+            return PlayerFacingFailure(
+                kind: .protocolViolation,
+                message: "The response service is unavailable for this version of the game."
+            )
+        case "INVALID_INPUT", "UNSUPPORTED_MEDIA_TYPE", "REQUEST_TOO_LARGE":
+            return PlayerFacingFailure(
+                kind: .protocolViolation,
+                message: "The response service could not process this request. Try a shorter message."
+            )
+        case "REQUEST_CANCELLED":
+            return PlayerFacingFailure(
+                kind: .interrupted,
+                message: "The response was cancelled before it completed. You can retry this request."
+            )
+        case "INTERNAL_ERROR":
+            return PlayerFacingFailure(
+                kind: .protocolViolation,
+                message: "The response service had an internal error. You can retry this request."
+            )
+        default:
+            return PlayerFacingFailure(
+                kind: .protocolViolation,
+                message: "The response service reported an error. You can retry this request."
+            )
+        }
+    }
+
+    private static var authorizationFailure: PlayerFacingFailure {
+        PlayerFacingFailure(
+            kind: .protocolViolation,
+            message: "The response service could not authorize this device. Please try again later."
+        )
+    }
+
+    private static var busyFailure: PlayerFacingFailure {
+        PlayerFacingFailure(
+            kind: .transport,
+            message: "The storyteller service is busy right now. You can retry this request shortly."
+        )
+    }
+
+    private static var unavailableFailure: PlayerFacingFailure {
+        PlayerFacingFailure(
+            kind: .transport,
+            message: "The storyteller service is temporarily unavailable. You can retry this request."
+        )
     }
 
     private func consumeOperation(_ data: Data) {
@@ -627,6 +745,28 @@ private struct Phase2Projection: Codable, Sendable {
     let viewport: TranscriptViewport
 }
 
+private struct PlayerFacingFailure: Sendable {
+    let kind: ParishRuntimeFailureKind
+    let message: String
+}
+
+private struct EndpointReportedFailure: Error, Sendable {
+    private struct Payload: Decodable {
+        let code: String?
+    }
+
+    let code: String?
+
+    init(payload: Data?) {
+        guard let payload,
+              let decoded = try? JSONDecoder().decode(Payload.self, from: payload) else {
+            code = nil
+            return
+        }
+        code = decoded.code
+    }
+}
+
 private struct Phase2ProjectionStore: Sendable {
     let url: URL
     let engineURL: URL
@@ -715,7 +855,10 @@ private final class Phase2MockEndpointTransport: EndpointTransport, @unchecked S
                     if input.contains("fail") {
                         continuation.yield(.bytes(try Self.frame(
                             type: "error", sequence: 1, identities: identities,
-                            error: ["message": "The Endpoint test response failed."]
+                            error: [
+                                "code": "PROVIDER_UNAVAILABLE",
+                                "message": "The Endpoint test response failed."
+                            ]
                         )))
                     } else {
                         let dialogue: String
