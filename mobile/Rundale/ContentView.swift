@@ -112,9 +112,8 @@ private struct StatusHeader: View {
 
     private var headerContent: some View {
         VStack(alignment: .leading, spacing: 5) {
-            Text(model.header.location.uppercased())
-                .font(.system(.headline, design: .serif, weight: .semibold))
-                .tracking(1.1)
+            Text(model.header.location)
+                .font(.system(.headline, design: .serif, weight: .medium))
                 .accessibilityAddTraits(.isHeader)
 
             HStack(spacing: 8) {
@@ -651,13 +650,15 @@ private struct TranscriptEntry: View {
             case .actionResult:
                 deterministic
             case .error:
-                statusLine(RundaleTheme.error)
+                errorLine
             case .progress:
-                statusLine(RundaleTheme.secondaryInk)
+                mutedLine
             case .responseCompleted:
-                statusLine(RundaleTheme.secondaryInk)
-            case .clarificationRequired, .clarificationSelected:
-                statusLine(RundaleTheme.secondaryInk)
+                mutedLine
+            case .clarificationRequired:
+                clarificationPrompt
+            case .clarificationSelected:
+                clarificationSelection
             default:
                 narration
             }
@@ -669,7 +670,7 @@ private struct TranscriptEntry: View {
         if let speaker = item.speaker, !speaker.isEmpty {
             parts.append(speaker)
         }
-        parts.append(item.text)
+        parts.append(displayText)
         if item.isInterrupted {
             parts.append("Interrupted; not applied")
         } else if item.isProvisional {
@@ -688,39 +689,66 @@ private struct TranscriptEntry: View {
         case .error: return "Error"
         case .progress: return "Progress"
         case .responseCompleted: return "Response"
-        case .clarificationRequired, .clarificationSelected: return "Clarification"
+        case .clarificationRequired: return "Clarification"
+        case .clarificationSelected: return "Direction"
         default: return "Narration"
         }
     }
 
-    private var sceneTransition: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Rectangle()
-                .fill(RundaleTheme.rule)
-                .frame(height: 1)
-            Text(item.text.uppercased())
-                .font(.system(.subheadline, design: .serif, weight: .semibold))
-                .tracking(1.35)
-            Rectangle()
-                .fill(RundaleTheme.rule)
-                .frame(height: 1)
+    private var displayText: String {
+        switch item.kind {
+        case .clarificationSelected:
+            return "Directed to \(item.text)."
+        default:
+            return item.text
         }
-        .padding(.vertical, 2)
     }
 
+    private var sceneTransition: some View {
+        HStack(alignment: .top, spacing: 12) {
+            Rectangle()
+                .fill(RundaleTheme.accent.opacity(0.55))
+                .frame(width: 2)
+
+            VStack(alignment: .leading, spacing: 4) {
+                if let sceneName = item.metadata["sceneName"], !sceneName.isEmpty {
+                    Text(sceneName)
+                        .font(.caption.weight(.medium))
+                        .foregroundStyle(RundaleTheme.accent)
+                }
+                Text(item.text)
+                    .font(.system(.body, design: .serif))
+                    .italic()
+                    .lineSpacing(4)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .padding(.vertical, 4)
+        .fixedSize(horizontal: false, vertical: true)
+    }
+
+    @ViewBuilder
     private var narration: some View {
-        Text(item.text)
-            .font(.system(.body, design: .serif))
-            .lineSpacing(4)
-            .fixedSize(horizontal: false, vertical: true)
+        if item.metadata["source"] == "schedule" {
+            Text(item.text)
+                .font(.system(.body, design: .serif))
+                .italic()
+                .foregroundStyle(RundaleTheme.secondaryInk)
+                .lineSpacing(4)
+                .fixedSize(horizontal: false, vertical: true)
+        } else {
+            Text(item.text)
+                .font(.system(.body, design: .serif))
+                .lineSpacing(4)
+                .fixedSize(horizontal: false, vertical: true)
+        }
     }
 
     private var npcDialogue: some View {
         VStack(alignment: .leading, spacing: 5) {
             if let speaker = item.speaker, !speaker.isEmpty {
-                Text(speaker.uppercased())
-                    .font(.caption.weight(.bold))
-                    .tracking(1.05)
+                Text(speaker)
+                    .font(.caption.weight(.medium))
                     .foregroundStyle(RundaleTheme.secondaryInk)
             }
             Text("“\(item.text)”")
@@ -732,39 +760,66 @@ private struct TranscriptEntry: View {
     }
 
     private var playerCommand: some View {
-        Text("> \(item.text)")
-            .font(.system(.body, design: .monospaced))
-            .foregroundStyle(RundaleTheme.accent)
-            .lineSpacing(3)
-            .fixedSize(horizontal: false, vertical: true)
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+            Text("›")
+                .font(.body.weight(.medium))
+                .foregroundStyle(RundaleTheme.accent)
+                .accessibilityHidden(true)
+            Text(item.text)
+                .font(.system(.body, design: .serif, weight: .medium))
+                .foregroundStyle(RundaleTheme.ink)
+                .lineSpacing(4)
+                .fixedSize(horizontal: false, vertical: true)
+        }
     }
 
     private var interpretation: some View {
-        Text("↳ \(item.text)")
-            .font(.system(.subheadline, design: .monospaced))
+        Text(item.text)
+            .font(.system(.subheadline, design: .serif))
+            .italic()
             .foregroundStyle(RundaleTheme.secondaryInk)
-            .padding(.leading, 8)
+            .padding(.leading, 20)
             .fixedSize(horizontal: false, vertical: true)
     }
 
     private var deterministic: some View {
         Text(item.text)
-            .font(.system(.subheadline, design: .monospaced))
+            .font(.system(.body, design: .serif))
+            .foregroundStyle(RundaleTheme.secondaryInk)
+            .lineSpacing(4)
+            .fixedSize(horizontal: false, vertical: true)
+    }
+
+    private var clarificationPrompt: some View {
+        Text(item.text)
+            .font(.system(.body, design: .serif))
             .foregroundStyle(RundaleTheme.secondaryInk)
             .fixedSize(horizontal: false, vertical: true)
     }
 
-    private func statusLine(_ color: Color) -> some View {
-        HStack(alignment: .firstTextBaseline, spacing: 8) {
-            Circle()
-                .fill(color)
-                .frame(width: 5, height: 5)
-                .accessibilityHidden(true)
-            Text(item.text)
-                .font(.footnote)
-                .foregroundStyle(color)
-                .fixedSize(horizontal: false, vertical: true)
-        }
+    private var clarificationSelection: some View {
+        Text(displayText)
+            .font(.system(.subheadline, design: .serif))
+            .italic()
+            .foregroundStyle(RundaleTheme.secondaryInk)
+            .padding(.leading, 20)
+            .fixedSize(horizontal: false, vertical: true)
+    }
+
+    private var mutedLine: some View {
+        Text(item.text)
+            .font(.system(.footnote, design: .serif))
+            .foregroundStyle(RundaleTheme.secondaryInk)
+            .fixedSize(horizontal: false, vertical: true)
+    }
+
+    private var errorLine: some View {
+        (Text(Image(systemName: "exclamationmark.circle.fill"))
+            + Text("  ")
+            + Text(item.text))
+            .font(.system(.footnote, design: .serif))
+            .foregroundStyle(RundaleTheme.error)
+            .fixedSize(horizontal: false, vertical: true)
     }
 }
 

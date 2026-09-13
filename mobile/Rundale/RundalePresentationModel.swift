@@ -8,6 +8,7 @@ struct PresentedTranscriptItem: Identifiable, Equatable, Sendable {
     let text: String
     let speaker: String?
     let state: TranscriptItemState
+    let metadata: [String: String]
 
     var isProvisional: Bool { state == .provisional }
     var isInterrupted: Bool {
@@ -354,7 +355,8 @@ final class RundalePresentationModel: ObservableObject {
             kind: item.kind,
             text: item.content,
             speaker: item.speaker,
-            state: item.state
+            state: item.state,
+            metadata: item.metadata
         )
     }
 

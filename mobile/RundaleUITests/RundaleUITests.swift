@@ -254,8 +254,10 @@ final class RundaleUITests: XCTestCase {
             NSPredicate(format: "identifier BEGINSWITH 'clarification.option.'")
         ).firstMatch
         XCTAssertTrue(option.exists)
+        let selectedName = option.label
         option.tap()
         XCTAssertTrue(app.otherElements["clarification"].waitForNonExistence(timeout: 3))
+        XCTAssertTrue(waitForTranscriptText("Directed to \(selectedName)."))
     }
 
     func testReadingHistoryExposesNewTextAndReturnsToNewest() {
