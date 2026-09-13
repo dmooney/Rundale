@@ -42,6 +42,4 @@ alongside the full product milestone requirements.
 
 The root `CLAUDE.md` and `AGENTS.md` are slim indexes — start there if you're new, then come here for the details.
 
-Engine identity, exact naming exceptions, and future merge requirements are documented in [engine naming](engine-naming.md).
-
 The [rename verification record](limerick-rename-verification.md) records runtime, preservation, packaging, and platform evidence.

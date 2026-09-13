@@ -178,7 +178,6 @@ tauri-dev:
 # Build the Tauri desktop app for production
 tauri-build:
     eval "$(fnm env)" && cargo tauri build
-    python3 scripts/check-engine-naming.py --root .. --generated-root limerick/crates/limerick-tauri/gen
 
 # Run the Svelte frontend dev server standalone (no Tauri backend)
 ui-dev:
@@ -191,7 +190,6 @@ ui-dev:
 # shuffle file mtimes in ways that confuse Vite's cache invalidation.
 ui-build:
     eval "$(fnm env)" && cd apps/ui && rm -rf .svelte-kit dist && npm run build
-    python3 scripts/check-engine-naming.py --root .. --generated-root limerick/apps/ui/dist --generated-exceptions scripts/engine-generated-exceptions.json
 
 # Run svelte-check (TypeScript + Svelte validation)
 ui-check:
@@ -373,11 +371,6 @@ clippy-fix:
 check-doc-paths:
     ./scripts/check-doc-paths.sh
 
-# Reject old engine identity in every current tracked surface.
-engine-naming:
-    python3 scripts/check-engine-naming.py --root ..
-    python3 -m unittest discover -s scripts/tests -p test_check_engine_naming.py
-
 # Enforce generated-output, large-file, and documentation-screenshot policy.
 repository-artifacts:
     ./scripts/check-repository-artifacts.sh
@@ -400,10 +393,10 @@ agent-check:
     bash ./scripts/agent-check.sh
 
 # Pre-commit gate: proof, format, lint, tests, placeholder scan, doc-paths, frontend lint/format/check
-check: engine-naming agent-check fmt-check clippy test witness-scan check-doc-paths repository-artifacts ui-check ui-lint ui-format-check
+check: agent-check fmt-check clippy test witness-scan check-doc-paths repository-artifacts ui-check ui-lint ui-format-check
 
 # Pre-push gate: proof, check + game harness walkthrough
-verify: engine-naming agent-check fmt-check clippy test game-test witness-scan check-doc-paths repository-artifacts ui-check ui-lint ui-format-check
+verify: agent-check fmt-check clippy test game-test witness-scan check-doc-paths repository-artifacts ui-check ui-lint ui-format-check
 
 # Witness-style deterministic scan for AI partial-completion markers in changed files
 witness-scan:

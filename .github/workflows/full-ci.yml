@@ -71,10 +71,6 @@ jobs:
       - name: Clippy (deny warnings)
         run: cargo clippy --workspace --all-targets -- -D warnings
 
-      - name: Check generated desktop schemas for engine identity
-        working-directory: ${{ github.workspace }}
-        run: python3 limerick/scripts/check-engine-naming.py --generated-root limerick/crates/limerick-tauri/gen
-
       - name: Unit and integration tests
         run: |
           set -o pipefail
@@ -294,10 +290,6 @@ jobs:
       - name: Build UI
         run: npm run build
 
-      - name: Check generated UI engine identity
-        working-directory: ${{ github.workspace }}
-        run: python3 limerick/scripts/check-engine-naming.py --generated-root limerick/apps/ui/dist --generated-exceptions limerick/scripts/engine-generated-exceptions.json
-
       - name: Unit tests
         run: npx vitest run
 
@@ -336,10 +328,6 @@ jobs:
 
       - name: Build UI
         run: npm run build
-
-      - name: Check generated UI engine identity
-        working-directory: ${{ github.workspace }}
-        run: python3 limerick/scripts/check-engine-naming.py --generated-root limerick/apps/ui/dist --generated-exceptions limerick/scripts/engine-generated-exceptions.json
 
       - name: Run managed-server integration races
         run: npm run test:playwright-launcher-integration

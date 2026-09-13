@@ -110,12 +110,6 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
 
-      - name: Enforce engine naming on every change
-        working-directory: ${{ github.workspace }}
-        run: |
-          python3 limerick/scripts/check-engine-naming.py
-          python3 -m unittest discover -s limerick/scripts/tests -p test_check_engine_naming.py
-
       - name: Check cited paths exist
         working-directory: ${{ github.workspace }}
         run: ./limerick/scripts/check-doc-paths.sh

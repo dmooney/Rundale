@@ -67,10 +67,6 @@ check:
 agent-check *ARGS:
     bash limerick/scripts/agent-check.sh {{ARGS}}
 
-# Check all current engine identities and exact reviewed exceptions.
-engine-naming:
-    cd limerick && just engine-naming
-
 # Enforce generated-output, large-file, and documentation-screenshot policy.
 repository-artifacts:
     bash limerick/scripts/check-repository-artifacts.sh

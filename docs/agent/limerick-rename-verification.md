@@ -7,13 +7,9 @@ registration/tools, storage identities, desktop identifiers, and current
 instruction/tooling references use the new engine identity without aliases or
 migration reads.
 
-The required naming guard covers tracked paths, symlinks, hidden configuration,
-and first-party text. Exact geographic exceptions retain real district and
-historical vocabulary. Immutable exceptions carry SHA-256 hashes; generated
-outputs have a separate exact inventory. Repeated builds and the final Linux
-Docker/macOS builds produced367 byte-identical frontend files; every declared
-build-input directory and configuration file is covered by a regression test. See [engine naming](engine-naming.md)
-for commands and the requirements for the deferred Endpoints branch.
+This is a one-time rename. Geographic parish vocabulary and historical evidence
+retain their original meaning and bytes. No naming checker, exception inventory,
+or ongoing naming enforcement is added.
 
 ## Runtime and packaging
 
@@ -59,6 +55,13 @@ directory is still the repository's empty directory; a working embedded model
 runtime is not claimed. No paid benchmark rerun was performed.
 
 Independent adversarial implementation review: **THUMBS UP** after the
-runtime, naming, preservation, packaging, and aggregate gates were reviewed.
+runtime, preservation, packaging, and aggregate gates were reviewed.
+The subsequent removal of naming-prevention machinery also received independent
+review and **THUMBS UP**.
 Required CI runs automatically on the pull request; local receipts do not claim
 that remote CI has already passed.
+
+After removing the naming-prevention machinery, `just check`, `just verify`,
+the UI production build, workflow validation, documentation formatting, and
+Markdown lint passed again. The frontend check ran the 44 existing Node tests
+and reported no Svelte errors or warnings.
