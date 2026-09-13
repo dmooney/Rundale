@@ -258,6 +258,10 @@ final class RundaleUITests: XCTestCase {
         option.tap()
         XCTAssertTrue(app.otherElements["clarification"].waitForNonExistence(timeout: 3))
         XCTAssertTrue(waitForTranscriptText("Directed to \(selectedName)."))
+        let resolvedPrompt = app.descendants(matching: .any).matching(
+            NSPredicate(format: "label CONTAINS %@", "I’m not sure which Connolly you mean.")
+        ).firstMatch
+        XCTAssertFalse(resolvedPrompt.exists)
     }
 
     func testReadingHistoryExposesNewTextAndReturnsToNewest() {

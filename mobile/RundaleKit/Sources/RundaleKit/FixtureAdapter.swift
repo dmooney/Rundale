@@ -558,6 +558,7 @@ public actor FixtureSessionAdapter: SessionAdapter {
             content: choice.label,
             logicalRequestID: logicalRequestID,
             attemptID: active.attemptID,
+            transcriptItemID: TranscriptItemID("\(active.attemptID.rawValue):clarification"),
             metadata: ["choiceID": choice.id, "entityID": choice.entityID ?? ""]
         )
         emit(selected)

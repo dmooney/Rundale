@@ -44,12 +44,36 @@ final class RundalePhase3UITests: XCTestCase {
         XCTAssertTrue(app.buttons["clarification.option.choose-npc-micheal"].waitForExistence(timeout: 3))
         let roisin = app.buttons["clarification.option.choose-npc-roisin"]
         XCTAssertTrue(roisin.waitForExistence(timeout: 3))
+        let unresolvedPrompt = app.descendants(matching: .any).matching(
+            NSPredicate(format: "label CONTAINS %@", "Which person do you mean?")
+        ).firstMatch
+        XCTAssertTrue(unresolvedPrompt.exists)
         XCTAssertFalse(app.buttons["composer.stop"].exists)
         roisin.tap()
 
         XCTAssertTrue(waitForText("Róisín Connolly", timeout: 8))
         XCTAssertFalse(app.otherElements["clarification"].exists)
+        XCTAssertTrue(unresolvedPrompt.waitForNonExistence(timeout: 3))
         XCTAssertTrue(waitForText("household work allows", timeout: 15))
+    }
+
+    func testTaggedNearbyPersonBypassesClarification() {
+        launch(reset: true)
+        submit("/go Connolly Cottage")
+
+        let input = app.descendants(matching: .any)
+            .matching(identifier: "composer.input")
+            .firstMatch
+        input.tap()
+        input.typeText("Hello @Mich")
+        let micheal = app.buttons["completion.npc-micheal"]
+        XCTAssertTrue(micheal.waitForExistence(timeout: 3))
+        micheal.tap()
+        XCTAssertEqual(input.value as? String, "Hello @Mícheál Connolly")
+        app.buttons["composer.send"].tap()
+
+        XCTAssertFalse(app.otherElements["clarification"].waitForExistence(timeout: 2))
+        XCTAssertTrue(waitForText("moving cattle", timeout: 15))
     }
 
     func testTravelAndPresenceRestoreAfterRelaunch() {

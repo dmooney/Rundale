@@ -2013,7 +2013,10 @@ impl MobileSession {
             None,
             Some(logical_request_id),
             Some(&attempt_id),
-            None,
+            Some(TranscriptItemId::new(format!(
+                "{}:clarification",
+                attempt_id.raw_value
+            ))),
             false,
             None,
             None,
@@ -2628,6 +2631,38 @@ impl MobileSession {
 
     fn resolve_dialogue_target(&self, text: &str) -> DialogueTarget {
         let lower = text.to_lowercase();
+        let explicitly_tagged: Vec<&MobileNpcDefinition> = self
+            .content
+            .npcs
+            .iter()
+            .filter(|npc| Self::contains_explicit_npc_tag(&lower, &npc.display_name))
+            .collect();
+        if !explicitly_tagged.is_empty() {
+            let nearby: Vec<&MobileNpcDefinition> = self
+                .npcs
+                .npcs_at(self.world.player_location)
+                .into_iter()
+                .filter_map(|npc| self.content.npc_by_engine_id(npc.id))
+                .collect();
+            let available: Vec<&MobileNpcDefinition> = explicitly_tagged
+                .iter()
+                .copied()
+                .filter(|candidate| nearby.iter().any(|npc| npc.id == candidate.id))
+                .collect();
+            return match (explicitly_tagged.len(), available.len()) {
+                (_, 1) => DialogueTarget::Selected(available[0].id.clone()),
+                (_, count) if count > 1 => {
+                    DialogueTarget::Ambiguous(available.iter().map(|npc| npc.id.clone()).collect())
+                }
+                (1, 0) => DialogueTarget::Unavailable(format!(
+                    "{} is not here.",
+                    explicitly_tagged[0].display_name
+                )),
+                _ => DialogueTarget::Unavailable(
+                    "None of the people you addressed are here.".to_string(),
+                ),
+            };
+        }
         let matched: Vec<&MobileNpcDefinition> = self
             .content
             .npcs
@@ -2672,6 +2707,17 @@ impl MobileSession {
             }
             _ => DialogueTarget::Unavailable("Nobody is here to answer.".to_string()),
         }
+    }
+
+    fn contains_explicit_npc_tag(text_lowercase: &str, display_name: &str) -> bool {
+        let tag = format!("@{}", display_name.to_lowercase());
+        text_lowercase.match_indices(&tag).any(|(start, matched)| {
+            let remainder = &text_lowercase[start + matched.len()..];
+            remainder
+                .chars()
+                .next()
+                .is_none_or(|character| !character.is_alphanumeric())
+        })
     }
 
     fn emit_clarification(
@@ -4357,6 +4403,28 @@ mod tests {
                 .events
                 .iter()
                 .any(|event| event.kind == SemanticEventKind::ClarificationSelected)
+        );
+    }
+
+    #[test]
+    fn phase3_explicit_full_name_tag_selects_one_person_without_clarification() {
+        let mut session = session();
+        session.submit(None, "/go Connolly Cottage", None).unwrap();
+
+        let tagged = session
+            .submit(None, "Hello @Mícheál Connolly", None)
+            .unwrap();
+
+        assert!(tagged.endpoint_invocation.is_some());
+        assert_eq!(
+            tagged.endpoint_invocation.unwrap().speaker.id,
+            "npc-micheal"
+        );
+        assert!(
+            tagged
+                .events
+                .iter()
+                .all(|event| event.kind != SemanticEventKind::ClarificationRequired)
         );
     }
 
