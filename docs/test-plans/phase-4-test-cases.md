@@ -41,6 +41,19 @@ Then deliberately scroll up during a reply: history must stay anchored and
 **New text** must appear. Sending a new accepted message must rejoin its latest
 exchange; an empty or ignored Send must preserve the reading position.
 
+## Arrival feedback regression
+
+Enter Connolly Cottage for the first time: show its description and
+“Mícheál Connolly and Róisín Connolly are here.” Return through the village to
+Letter Office after Peig's scheduled journey: show “Peig Hannigan is here.”
+Close and reopen the app, then revisit the cottage. Show current presence
+without repeating its opening description. `/look` must still describe the room.
+An empty destination must not invent occupants or produce a dangling “are here.”
+
+Native simulator coverage:
+`RundalePhase3UITests.testArrivalsListPeopleAndKeepRepeatVisitsBriefAfterRelaunch`.
+Rust session regressions cover persisted visit history and post-schedule presence.
+
 ## Physical sessions and phase-end demo
 
 Run at least 20 minutes on both the primary iPhone and a supported small-screen

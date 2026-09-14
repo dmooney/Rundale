@@ -3,6 +3,8 @@
 Brief notes worth a future agent's time. Append new entries at the
 bottom; don't lengthen items past 2-3 lines.
 
+- **Native accessibility frames can differ from exact point dimensions by floating-point noise.** On iPhone 17 Pro, XCUITest reported a 44-point control as `43.99999999999994`. Keep hit-target assertions at 44 points with a tiny numerical tolerance (`1e-9` points), alongside containment and hittability checks; do not relax them by a whole point or pixel.
+
 ## Engine + runtime
 
 - **A mentioned NPC is not necessarily the addressee.** Mobile dialogue target resolution must distinguish “Michael said…” and “tell me Michael’s story” from “ask Michael…” before applying presence checks. Cover both ordinary speech and explicit unavailable targets through the native runtime.

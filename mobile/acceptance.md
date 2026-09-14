@@ -333,3 +333,42 @@ Apple accepted **0.1.0 (5)**; upload completed successfully and ContentDelivery
 metadata confirms build 5. **Testing in Internal Beta remains unverified**
 because the website sign-in is unavailable. This records successful upload,
 not confirmed distribution or physical acceptance of these two corrections.
+
+## September 14 room-arrival feedback
+
+First visits show the opening description followed by the current occupants;
+repeat visits retain only the current occupants. Empty arrivals have no invented
+presence line. `/look` still describes familiar rooms. Visit history uses the
+existing saved world state; no save schema or content identity changed.
+
+Native production-path proof used the iPhone SE (3rd generation) / iOS 26.5
+simulator, SwiftUI, embedded Rust, and SQLite. It followed cottage → village →
+office → terminate/relaunch → village → cottage → `/look`. The focused test
+passed, and visual inspection confirmed singular/plural text and no repeated
+opening on return. The full release suite also passed the stronger return-presence assertion on
+an iPhone 17 Pro / iOS 26.5 simulator: the row must have a new identity, preventing
+a historical row from satisfying it.
+
+[First arrival](../docs/screenshots/ios-first-arrival.png) and
+[return after save/resume](../docs/screenshots/ios-repeat-arrival.png) show the
+actual native transcript. These are simulator receipts, not physical-iPhone
+acceptance.
+
+`just verify` and the coverage ratchet passed (70.12%, 33,235 / 47,397 lines;
+60.8% floor). The initial `just testflight-update` verification ran 65 native
+tests with one failure: the accessibility test compared a computed
+`43.99999999999994`-point frame against exact 44. The assertion now tolerates
+`1e-9` points of arithmetic noise, while retaining containment and hittability
+checks. Independent review accepted this test-only correction. All eight
+Phase 4 native tests then passed on the same simulator, completing the 65-test
+verification across the original run and focused recovery. The final repository
+gate passed again; no production source changed during recovery.
+
+The original failed full-run report remains intact. The affected-suite rerun
+and its result summary supplement it; they do not relabel that command as a
+pass. Archive/upload follows the documented manual TestFlight recovery using
+the already-verified production framework. Apple accepted **0.1.0 (6)**; exact
+numeric ContentDelivery metadata confirms the received version/build. The signed
+archive retains Boolean `ITSAppUsesNonExemptEncryption=false`. **Testing in
+Internal Beta remains unverified** because App Store Connect website sign-in is
+unavailable. Upload success does not close that delivery or physical-device gate.

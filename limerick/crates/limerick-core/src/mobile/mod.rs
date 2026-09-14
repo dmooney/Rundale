@@ -920,6 +920,28 @@ fn location_as_grounded(location: &MobileLocationDefinition) -> GroundedPlace {
     }
 }
 
+/// Render the people currently present after an authoritative schedule tick.
+/// Ordering follows display names so the same state produces stable text.
+fn arrival_presence_text(npcs: &NpcManager, location: LocationId) -> Option<String> {
+    let mut names: Vec<(NpcId, String)> = npcs
+        .npcs_at(location)
+        .into_iter()
+        .map(|npc| (npc.id, npc.name.clone()))
+        .collect();
+    names.sort_by_key(|(_, name)| name.to_lowercase());
+    let names: Vec<String> = names.into_iter().map(|(_, name)| name).collect();
+    match names.as_slice() {
+        [] => None,
+        [name] => Some(format!("{name} is here.")),
+        [first, second] => Some(format!("{first} and {second} are here.")),
+        _ => {
+            let last = names.last().expect("non-empty names");
+            let preceding = &names[..names.len() - 1];
+            Some(format!("{}, and {last} are here.", preceding.join(", ")))
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct GroundedPlace {
@@ -1571,7 +1593,12 @@ impl MobileSession {
         };
         let event = session.emit(
             SemanticEventKind::SceneChanged,
-            Some(session.content.opening_description.clone()),
+            Some(
+                match arrival_presence_text(&session.npcs, session.world.player_location) {
+                    Some(people) => format!("{}\n\n{people}", session.content.opening_description),
+                    None => session.content.opening_description.clone(),
+                },
+            ),
             None,
             None,
             None,
@@ -3093,6 +3120,8 @@ impl MobileSession {
         let mut changed = false;
         let action_text: String;
         let mut scene = None;
+        let mut first_visit = false;
+        let mut arrival_people = None;
         let mut schedule_lines = Vec::new();
         match movement {
             MovementResult::Arrived {
@@ -3103,6 +3132,7 @@ impl MobileSession {
             } => {
                 next_world.player_location = destination;
                 next_world.record_path_traversal(&path);
+                first_visit = !next_world.visited_locations.contains(&destination);
                 next_world.mark_visited(destination);
                 next_world.clock.advance(i64::from(minutes.max(1)));
                 let schedule_events = next_npcs.tick_schedules(
@@ -3123,6 +3153,7 @@ impl MobileSession {
                     };
                     schedule_lines.push(line);
                 }
+                arrival_people = arrival_presence_text(&next_npcs, destination);
                 action_text = narration;
                 scene = self.content.location_by_engine_id(destination).cloned();
                 changed = true;
@@ -3203,7 +3234,14 @@ impl MobileSession {
             emitted.push(self.make_event_at(
                 EventSequence::new(next_sequence),
                 SemanticEventKind::SceneChanged,
-                Some(scene.opening_description.clone()),
+                if first_visit {
+                    Some(match arrival_people {
+                        Some(people) => format!("{}\n\n{people}", scene.opening_description),
+                        None => scene.opening_description.clone(),
+                    })
+                } else {
+                    arrival_people.clone()
+                },
                 None,
                 Some(request_id),
                 Some(attempt_id),
@@ -4448,6 +4486,14 @@ mod tests {
     }
 
     #[test]
+    fn arrival_presence_text_is_empty_for_empty_room() {
+        assert_eq!(
+            arrival_presence_text(&NpcManager::new(), LocationId(1)),
+            None
+        );
+    }
+
+    #[test]
     fn phase3_session_has_exactly_three_locations_and_three_npcs() {
         let session = session();
         assert_eq!(session.content().engine_location_id, 1);
@@ -4586,6 +4632,65 @@ mod tests {
         assert_eq!(
             nearby,
             vec!["npc-micheal".to_string(), "npc-roisin".to_string()]
+        );
+        let scene = result
+            .events
+            .iter()
+            .find(|event| event.kind == SemanticEventKind::SceneChanged)
+            .expect("arrival scene");
+        assert_eq!(
+            scene.content.as_deref(),
+            Some(
+                "A peat fire warms the single room of Connolly Cottage.\n\nMícheál Connolly and Róisín Connolly are here."
+            )
+        );
+    }
+
+    #[test]
+    fn repeat_arrival_uses_presence_and_save_resume_preserves_visit_memory() {
+        let mut session = session();
+        session
+            .submit(None, "go to Connolly Cottage", None)
+            .unwrap();
+        let save = session.save();
+        let mut resumed = MobileSession::open_resume(save).unwrap();
+        resumed
+            .submit(None, "go to Kilteevan Village", None)
+            .unwrap();
+        let result = resumed
+            .submit(None, "go to Connolly Cottage", None)
+            .unwrap();
+        let scene = result
+            .events
+            .iter()
+            .find(|event| event.kind == SemanticEventKind::SceneChanged)
+            .expect("repeat arrival scene");
+        assert_eq!(
+            scene.content.as_deref(),
+            Some("Mícheál Connolly and Róisín Connolly are here.")
+        );
+    }
+
+    #[test]
+    fn singular_arrival_uses_current_schedule_presence() {
+        let mut session = session();
+        session
+            .submit(None, "go to Connolly Cottage", None)
+            .unwrap();
+        session
+            .submit(None, "go to Kilteevan Village", None)
+            .unwrap();
+        let result = session.submit(None, "go to Letter Office", None).unwrap();
+        let scene = result
+            .events
+            .iter()
+            .find(|event| event.kind == SemanticEventKind::SceneChanged)
+            .expect("office arrival scene");
+        assert_eq!(
+            scene.content.as_deref(),
+            Some(
+                "The Letter Office smells of sealing wax, turf smoke, and damp wool.\n\nPeig Hannigan is here."
+            )
         );
     }
 

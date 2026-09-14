@@ -89,6 +89,11 @@ remain in the embedded Parish runtime rather than in SwiftUI views. The
 acceptance oracle; `content/phase3-tiny-world.json` is the machine-readable
 authority.
 
+On arrival, the transcript describes a place only on its first visit and lists
+the people currently there, using “is here” or “are here.” Visit history survives
+save/resume; `/look` still provides a description whenever requested. Presence
+comes from the committed world after schedules advance.
+
 The transcript uses one isolated UIKit collection scroller with SwiftUI-hosted
 rows. Phase 1 simulator checks showed that a lazy SwiftUI stack could report
 incomplete bottom and row geometry while it materialized a long history; proxy

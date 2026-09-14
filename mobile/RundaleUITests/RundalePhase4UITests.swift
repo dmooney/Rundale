@@ -151,8 +151,11 @@ final class RundalePhase4UITests: XCTestCase {
             let button = app.buttons[identifier]
             XCTAssertTrue(button.isHittable)
             XCTAssertTrue(app.frame.contains(button.frame))
-            XCTAssertGreaterThanOrEqual(button.frame.width, 44)
-            XCTAssertGreaterThanOrEqual(button.frame.height, 44)
+            // Accessibility-frame subtraction can report 44 points as
+            // 43.99999999999994. Tolerate arithmetic noise, not subpixel undersizing.
+            let minimumHitDimension: CGFloat = 44 - 1e-9
+            XCTAssertGreaterThanOrEqual(button.frame.width, minimumHitDimension)
+            XCTAssertGreaterThanOrEqual(button.frame.height, minimumHitDimension)
         }
         attach("Native world at accessibility size")
     }
