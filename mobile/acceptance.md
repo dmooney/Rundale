@@ -282,3 +282,21 @@ in **Internal Beta** remains unverified. The remote user can finish any complian
 prompt and verify that status from their phone. This records an accepted upload,
 not confirmed distribution; retained receipts are in the release log and the
 `ios-beta-feedback` proof bundle.
+
+## Export declaration follow-up — September 14, 2026
+
+Build **0.1.0 (4)** includes the same interaction fixes plus the reviewed
+`ITSAppUsesNonExemptEncryption=false` declaration. The signed archive contains
+the Boolean value, and upload metadata confirms Apple received build 4.
+`just testflight-update` passed the complete mobile gate again at 12:55 EDT:
+23 passed gates, zero failures, one boot skip, three opt-in/future unavailable
+gates and 11 nonautomated physical gates. Native receipts use timestamp
+`20260914T164229380370Z`. Release validation, declaration rejection cases,
+plist lint and Python lint/format checks also passed.
+
+The declaration rationale and reassessment requirements are in
+[testflight.md](testflight.md#encryption-declaration). Build 4 should avoid the
+repeated questionnaire for the current internal distribution. Website sign-in
+remains unavailable, so **Testing in Internal Beta is not yet verified**.
+This metadata change does not modify gameplay, dependencies or save formats,
+and it does not close the outstanding physical-device acceptance gates.

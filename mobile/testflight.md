@@ -97,9 +97,32 @@ Wait for Apple processing, resolve any compliance prompts accurately, and verify
 the new build is **Testing** in **Internal Beta**. The existing tester is
 `apple@dmooney.org`; a new invitation is unnecessary. The initial build contained
 standard encryption outside Apple OS (`ring` AES-GCM/ChaCha20-Poly1305) and was
-declared for internal distribution without France. Reassess those answers if
-dependencies or distribution change; do not blindly add an encryption exemption
-flag to bypass the questionnaire.
+declared for internal distribution without France.
+
+### Encryption declaration
+
+The app's `Info.plist` declares `ITSAppUsesNonExemptEncryption` as Boolean `false`.
+This records exemption from Apple's documentation requirement; it does not claim
+that the app contains no encryption. The release validator checks the packaged
+app for this exact Boolean before upload, including rejecting a missing key or a
+string such as `"NO"`.
+
+The September 14, 2026 review covers the current internal beta without France:
+Endpoint requests use Apple `URLSession` HTTPS; Firebase provides authentication
+and App Attest; the Rust dependency tree includes standard TLS cryptography via
+`reqwest`/`rustls`/`ring`. No proprietary encryption is implemented by the game.
+Apple's [documentation requirements](https://developer.apple.com/help/app-store-connect/reference/app-information/export-compliance-documentation-for-encryption)
+list no upload for Apple OS encryption, and a French declaration for standard
+non-Apple algorithms only when distributing on the App Store in France.
+Apple's [property-list guidance](https://developer.apple.com/documentation/security/complying-with-encryption-export-regulations)
+permits `false` when the app and linked libraries use only encryption exempt from
+documentation requirements.
+
+Reassess this declaration before changing encryption, SDKs, or distribution,
+especially adding France. If documentation becomes required, update both the
+plist and release validation and supply Apple's reviewed compliance code.
+This key does not settle any separate government reporting obligations.
+Previously uploaded builds retain their original metadata and may still prompt.
 
 Tell the user the version/build, what changed and what to try, actual checks,
 and remaining device validation. They can use **TestFlight → Rundale → Update**

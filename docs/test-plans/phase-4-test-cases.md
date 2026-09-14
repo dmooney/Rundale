@@ -14,22 +14,22 @@ device packaging, native controller tests, and the Phase 4 native recovery suite
 Deterministic network cases inject faults only at the Endpoint transport boundary.
 They do not establish live Firebase, App Attest, or cellular network behavior.
 
-| Case  | Exercise                                                                   | Required outcome                                                                |
-| ----- | -------------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
-| P4-01 | Travel, type an unsent draft, switch apps, terminate, relaunch             | Location, exact draft, and one committed travel command survive                 |
-| P4-02 | Background while dialogue streams with a newer draft                       | Uncommitted reply is interrupted; newer draft survives; retry completes once    |
-| P4-03 | Terminate during streaming, relaunch, retry, relaunch again                | One logical command, one completed reply, no spontaneous duplicate request      |
-| P4-04 | Lose connection before any response; retry after recovery                  | Recoverable failure, no committed dialogue before retry, normal continuation    |
-| P4-05 | Lose connection after partial output; retry                                | Partial text remains visibly uncommitted; only the validated retry commits      |
-| P4-06 | Complete dialogue and switch apps repeatedly                               | Completed action stays completed and offers no misleading retry                 |
-| P4-07 | Use the native world at accessibility text size in dark mode               | Header, draft and Send remain available; travel succeeds                        |
-| P4-08 | Earlier phase long-history, resize and anchor cases                        | Visible historical row keeps its offset during streaming and relaunch           |
-| P4-09 | Storage transaction failure, incompatible schema and interrupted bootstrap | Committed save remains intact; failure cannot masquerade as a successful action |
-| P4-10 | Replayed, late and duplicate events/candidates                             | Existing identity, sequence and commit guards reject duplication                |
-| P4-11 | At Peig's Letter Office, say Michael directed you there; try explicit absent addressing separately | Ordinary speech reaches Peig; only explicit unavailable targets fail presence checks |
-| P4-12 | Touch/bounce at the tail, append and grow rows, resize the keyboard         | Automatic following remains active; deliberate history reading remains anchored |
-| P4-13 | Tap People and Commands using the alphabetic keyboard, including large text | Browsing retains the draft; selection is editable before Send; controls remain accessible |
-| P4-14 | Start, stop and complete a response, including Reduce Motion              | Native Celtic knot indicates activity; stationary with Reduce Motion; no stale activity after termination |
+| Case  | Exercise                                                                                           | Required outcome                                                                                          |
+| ----- | -------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| P4-01 | Travel, type an unsent draft, switch apps, terminate, relaunch                                     | Location, exact draft, and one committed travel command survive                                           |
+| P4-02 | Background while dialogue streams with a newer draft                                               | Uncommitted reply is interrupted; newer draft survives; retry completes once                              |
+| P4-03 | Terminate during streaming, relaunch, retry, relaunch again                                        | One logical command, one completed reply, no spontaneous duplicate request                                |
+| P4-04 | Lose connection before any response; retry after recovery                                          | Recoverable failure, no committed dialogue before retry, normal continuation                              |
+| P4-05 | Lose connection after partial output; retry                                                        | Partial text remains visibly uncommitted; only the validated retry commits                                |
+| P4-06 | Complete dialogue and switch apps repeatedly                                                       | Completed action stays completed and offers no misleading retry                                           |
+| P4-07 | Use the native world at accessibility text size in dark mode                                       | Header, draft and Send remain available; travel succeeds                                                  |
+| P4-08 | Earlier phase long-history, resize and anchor cases                                                | Visible historical row keeps its offset during streaming and relaunch                                     |
+| P4-09 | Storage transaction failure, incompatible schema and interrupted bootstrap                         | Committed save remains intact; failure cannot masquerade as a successful action                           |
+| P4-10 | Replayed, late and duplicate events/candidates                                                     | Existing identity, sequence and commit guards reject duplication                                          |
+| P4-11 | At Peig's Letter Office, say Michael directed you there; try explicit absent addressing separately | Ordinary speech reaches Peig; only explicit unavailable targets fail presence checks                      |
+| P4-12 | Touch/bounce at the tail, append and grow rows, resize the keyboard                                | Automatic following remains active; deliberate history reading remains anchored                           |
+| P4-13 | Tap People and Commands using the alphabetic keyboard, including large text                        | Browsing retains the draft; selection is editable before Send; controls remain accessible                 |
+| P4-14 | Start, stop and complete a response, including Reduce Motion                                       | Native Celtic knot indicates activity; stationary with Reduce Motion; no stale activity after termination |
 
 ## Physical sessions and phase-end demo
 

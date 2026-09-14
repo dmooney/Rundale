@@ -75,6 +75,7 @@ class ReleaseTests(unittest.TestCase):
             "CFBundleShortVersionString": "0.1.0",
             "CFBundleVersion": "8",
             "CFBundleExecutable": "Rundale",
+            "ITSAppUsesNonExemptEncryption": False,
             **release.ENDPOINT_SETTINGS,
         }
         (app / "Info.plist").write_bytes(plistlib.dumps(info))
@@ -88,6 +89,17 @@ class ReleaseTests(unittest.TestCase):
         self.assertTrue(options["testFlightInternalTestingOnly"])
         self.assertTrue(options["manageAppVersionAndBuildNumber"])
         self.assertEqual(self.commands[-1][0], "codesign")
+
+        for value in (None, True, "NO", 0):
+            with self.subTest(encryption_declaration=value):
+                invalid_info = dict(info)
+                if value is None:
+                    del invalid_info["ITSAppUsesNonExemptEncryption"]
+                else:
+                    invalid_info["ITSAppUsesNonExemptEncryption"] = value
+                (app / "Info.plist").write_bytes(plistlib.dumps(invalid_info))
+                with self.assertRaisesRegex(RuntimeError, "encryption exemption"):
+                    runner.validate_archive(expected_build=8)
 
         del info["CFBundleExecutable"]
         (app / "Info.plist").write_bytes(plistlib.dumps(info))

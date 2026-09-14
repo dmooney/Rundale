@@ -329,6 +329,11 @@ class Release:
         if not info_path.is_file() or not (app / "GoogleService-Info.plist").is_file():
             raise RuntimeError("packaged app is missing Info.plist or GoogleService-Info.plist")
         info = plistlib.loads(info_path.read_bytes())
+        # Reassess the declaration when crypto or distribution changes; see testflight.md.
+        if info.get("ITSAppUsesNonExemptEncryption") is not False:
+            raise RuntimeError(
+                "packaged app is missing the reviewed encryption exemption declaration"
+            )
         expected = {
             "CFBundleIdentifier": BUNDLE_ID,
             "CFBundleShortVersionString": project_value(
