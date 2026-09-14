@@ -3436,6 +3436,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "limerick-mobile-ffi"
+version = "0.1.0"
+dependencies = [
+ "limerick-core",
+ "serde",
+ "serde_json",
+ "tempfile",
+]
+
+[[package]]
 name = "limerick-mod"
 version = "0.1.0"
 dependencies = [
@@ -3502,6 +3512,7 @@ name = "limerick-persistence"
 version = "0.1.0"
 dependencies = [
  "chrono",
+ "fs2",
  "libc",
  "limerick-npc",
  "limerick-types",

@@ -1,0 +1,86 @@
+{
+  "contractVersion": {
+    "major": 1,
+    "minor": 0
+  },
+  "sessionID": "fixture-session",
+  "logicalRequestID": "fixture-logical-request",
+  "attemptID": "fixture-attempt",
+  "baseRevision": {
+    "rawValue": 0
+  },
+  "idempotencyKey": "fixture-logical-request:fixture-attempt",
+  "role": "npc_dialogue",
+  "playerInput": "ask Peig about the old church",
+  "speaker": {
+    "id": "npc-peig",
+    "displayName": "Peig Hannigan",
+    "role": "letter-office keeper and village observer",
+    "currentLocationId": 1,
+    "currentLocationName": "Kilteevan Village"
+  },
+  "currentLocation": {
+    "id": "kilteevan-village",
+    "displayName": "Kilteevan Village",
+    "description": "Kilteevan Village · a muddy road, low stone walls, and smoke lifting from clustered roofs.",
+    "playable": true
+  },
+  "knownPeople": [
+    {
+      "id": "npc-peig",
+      "displayName": "Peig Hannigan",
+      "role": "letter-office keeper and village observer",
+      "currentLocationId": 1,
+      "currentLocationName": "Kilteevan Village"
+    },
+    {
+      "id": "npc-micheal",
+      "displayName": "Mícheál Connolly",
+      "role": "smallholder and cattle drover",
+      "currentLocationId": 13,
+      "currentLocationName": "Connolly Cottage"
+    },
+    {
+      "id": "npc-roisin",
+      "displayName": "Róisín Connolly",
+      "role": "spinner and household bookkeeper",
+      "currentLocationId": 13,
+      "currentLocationName": "Connolly Cottage"
+    }
+  ],
+  "knownPlaces": [
+    {
+      "id": "kilteevan-village",
+      "displayName": "Kilteevan Village",
+      "description": "Kilteevan Village · a muddy road, low stone walls, and smoke lifting from clustered roofs.",
+      "playable": true
+    },
+    {
+      "id": "letter-office",
+      "displayName": "Letter Office",
+      "description": "Letter Office · a narrow counter, pigeonholes of folded paper, and a small turf fire.",
+      "playable": true
+    },
+    {
+      "id": "connolly-cottage",
+      "displayName": "Connolly Cottage",
+      "description": "Connolly Cottage · a peat fire, a scrubbed table, and rain-dark coats by the door.",
+      "playable": true
+    }
+  ],
+  "authoredFacts": [
+    {
+      "id": "fact-peig-post",
+      "statement": "Peig keeps the Letter Office and knows who has received news from beyond the parish.",
+      "source": "authored"
+    },
+    {
+      "id": "fact-peig-connollys",
+      "statement": "Mícheál and Róisín Connolly share the cottage west of the village.",
+      "source": "authored"
+    }
+  ],
+  "recentConversation": [],
+  "maxOutputChars": 8192,
+  "maxStreamBytes": 16384
+}

@@ -6,9 +6,10 @@ The [product specs](../product-specs/README.md) define the required mobile gates
 The [Phase 1 and Phase 2 test plans](../test-plans/README.md) provide the companion
 case lists; they are test instructions, not completed verification reports.
 The technical vision requires a phase-selectable repository entry point such as
-`./verify --phase 1`, extended for Phase 2. At this reorganization (2026-09-07),
-this checkout has no root `./verify` or Swift/iOS project. These are implementation
-requirements, not commands this documentation change supplies or claims to pass.
+`./verify --phase 1`, extended for Phase 2. The native fixture prototype in [mobile/](../../mobile/README.md) supplies
+`./verify --phase 1` and an XcodeGen project specification. The runner reports
+automated checks separately from pending physical-device acceptance; the presence
+of this command does not establish milestone completion.
 The existing `just verify` below runs the existing engine harness; it is not an
 equivalent iPhone acceptance gate.
 

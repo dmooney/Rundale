@@ -11,6 +11,7 @@ limerick-types = { workspace = true }
 limerick-world = { workspace = true }
 limerick-npc = { workspace = true }
 rusqlite = { workspace = true }
+fs2 = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 tracing = { workspace = true }

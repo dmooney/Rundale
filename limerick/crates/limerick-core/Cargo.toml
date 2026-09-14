@@ -6,17 +6,33 @@ license = "GPL-3.0-only"
 publish = false
 description = "Orchestration layer for the Limerick engine: game session, IPC, mod loading, prompts"
 
+[features]
+# Preserve the existing desktop crate surface by default. The mobile feature
+# intentionally exposes only the leaf-crate aliases below; the legacy
+# orchestration modules remain behind `desktop` until their portable worker
+# boundary is added.
+default = ["desktop"]
+desktop = [
+    "dep:limerick-palette",
+    "dep:limerick-mod",
+    "dep:limerick-editor",
+    "dep:limerick-chronicle",
+    "dep:limerick-diagnostics",
+    "limerick-inference/desktop",
+]
+mobile = ["limerick-inference/mobile"]
+
 [dependencies]
 limerick-types = { workspace = true }
 limerick-config = { workspace = true }
-limerick-inference = { workspace = true }
+limerick-inference = { workspace = true, default-features = false }
 limerick-world = { workspace = true }
-limerick-palette = { workspace = true }
+limerick-palette = { workspace = true, optional = true }
 limerick-npc = { workspace = true }
-limerick-mod = { workspace = true }
-limerick-editor = { workspace = true }
-limerick-chronicle = { workspace = true }
-limerick-diagnostics = { workspace = true }
+limerick-mod = { workspace = true, optional = true }
+limerick-editor = { workspace = true, optional = true }
+limerick-chronicle = { workspace = true, optional = true }
+limerick-diagnostics = { workspace = true, optional = true }
 limerick-persistence = { workspace = true }
 limerick-input = { workspace = true }
 tokio = { workspace = true }

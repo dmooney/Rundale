@@ -1,0 +1,86 @@
+{
+  "schema_version": 1,
+  "content_version": 1,
+  "content_id": "rundale-phase2-crossroads",
+  "locations": [
+    {
+      "id": "crossroads",
+      "engine_location_id": 1,
+      "display_name": "The crossroads",
+      "playable": true,
+      "opening_description": "Rain darkens the road while the village settles into evening.",
+      "commands": {
+        "look": "Crossroads · stone wall · lane to the east",
+        "people": "Nearby: Peig.",
+        "exits": "The alder lane runs east, but the way is closed tonight."
+      },
+      "initial_npc_ids": ["npc-peig"],
+      "exits": [
+        {
+          "id": "exit-crossroads-east",
+          "direction": "east",
+          "display_name": "the alder lane",
+          "description": "The lane runs east beneath alder trees, but the way is closed tonight.",
+          "destination_id": null,
+          "playable": false
+        }
+      ]
+    }
+  ],
+  "npcs": [
+    {
+      "id": "npc-peig",
+      "engine_npc_id": 22,
+      "display_name": "Peig",
+      "interactive": true,
+      "aliases": ["peig"],
+      "initial_location_id": "crossroads",
+      "home_location_id": "crossroads",
+      "role": "village widow and keen observer",
+      "personality": ["sharp-witted", "plain-spoken", "kind beneath the wit"],
+      "known_people": [
+        {
+          "id": "npc-peig",
+          "display_name": "Peig",
+          "relationship": "self"
+        }
+      ],
+      "known_places": [
+        {
+          "id": "place-old-church",
+          "display_name": "the old church",
+          "description": "It stands beyond the alder trees where the path bends toward the hill.",
+          "playable": false
+        },
+        {
+          "id": "place-alder-lane",
+          "display_name": "the alder lane",
+          "description": "The lane runs east from the crossroads beneath alder trees.",
+          "playable": false
+        },
+        {
+          "id": "place-crossroads",
+          "display_name": "The crossroads",
+          "description": "A low stone wall borders the road here.",
+          "playable": true
+        }
+      ],
+      "known_facts": [
+        {
+          "id": "fact-old-church-location",
+          "statement": "The old church stands beyond the alder trees, where the path bends toward the hill.",
+          "known_people": ["npc-peig"],
+          "known_places": ["place-old-church", "place-alder-lane"],
+          "source": "authored"
+        },
+        {
+          "id": "fact-crossroads-stone-wall",
+          "statement": "A low stone wall borders the road at the crossroads.",
+          "known_people": ["npc-peig"],
+          "known_places": ["place-crossroads"],
+          "source": "authored"
+        }
+      ]
+    }
+  ]
+}

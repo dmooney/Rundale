@@ -12,6 +12,12 @@ milestones: first a fixture-only interaction prototype, then embedded gameplay
 in a tiny world.
 These requirements are not a claim that the mobile client is complete.
 
+Native development lives in [mobile/](mobile/README.md). Milestones 1–3 now
+cover the SwiftUI interaction shell, embedded Parish and Endpoint vertical
+slice, and canonical three-location/three-NPC tiny world. Run
+`./verify --phase 3` for the current feature gate; physical-device acceptance
+remains separate.
+
 ## Existing engine and clients
 
 The capabilities, screenshots, and commands below describe the existing game,

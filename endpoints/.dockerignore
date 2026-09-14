@@ -1,0 +1,18 @@
+node_modules
+.next
+dist
+**/node_modules
+**/.next
+**/dist
+coverage
+.git
+# Keep local dotenv files, including nested and mode-specific variants, out of
+# every Docker build context. The checked-in example contains only synthetic
+# values and is safe to retain for image documentation.
+.env*
+**/.env*
+!.env.example
+*.log
+*.tsbuildinfo
+**/*.tsbuildinfo
+graphify-out

@@ -25,6 +25,7 @@ members = [
     "crates/limerick-client",
     "crates/limerick-harness",
     "crates/limerick-scenario",
+    "crates/limerick-mobile-ffi",
 ]
 # limerick-mcp is a default member so a plain `cargo build` / `just build` produces the
 # stdio MCP binary as part of the normal build — without it, a cold worktree has no
@@ -48,7 +49,7 @@ limerick-types = { path = "crates/limerick-types" }
 limerick-config = { path = "crates/limerick-config" }
 limerick-providers = { path = "crates/limerick-providers" }
 limerick-setup = { path = "crates/limerick-setup" }
-limerick-inference = { path = "crates/limerick-inference" }
+limerick-inference = { path = "crates/limerick-inference", default-features = false }
 limerick-world = { path = "crates/limerick-world" }
 limerick-palette = { path = "crates/limerick-palette" }
 limerick-npc = { path = "crates/limerick-npc" }

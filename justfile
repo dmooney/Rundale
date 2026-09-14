@@ -13,6 +13,7 @@ default:
 # One-time developer setup: install system deps, Rust, Node, and frontend packages
 setup:
     cd limerick && just setup
+    cd endpoints && pnpm install --frozen-lockfile
     just install-hooks
 
 # Point git at the versioned hooks in .githooks/ (idempotent). The pre-push
@@ -35,6 +36,14 @@ build:
 build-release:
     cd limerick && just build-release
 
+# Build the Release iPhone app, including the embedded Rust runtime
+mobile-build *ARGS:
+    python3 mobile/scripts/release.py build {{ARGS}}
+
+# Verify, sign, and upload an internal TestFlight update
+testflight-update *ARGS:
+    python3 mobile/scripts/release.py testflight {{ARGS}}
+
 # Run the game (Tauri desktop GUI)
 run:
     cd limerick && just run
@@ -56,6 +65,22 @@ web PORT="3001":
     cd limerick && just web {{PORT}}
 
 # ─── Quality Gates ──────────────────────────────────────────────────────────
+
+# Run the imported Parish Endpoints format, lint, type, test, and build gates.
+endpoints-check:
+    cd endpoints && pnpm check
+
+# Run Parish Endpoints tests only.
+endpoints-test:
+    cd endpoints && pnpm test
+
+# Start the separately deployable Endpoints server and creator console.
+endpoints-dev:
+    cd endpoints && pnpm dev
+
+# Apply the Endpoints PostgreSQL migrations using DATABASE_URL.
+endpoints-db-migrate:
+    cd endpoints && pnpm db:migrate
 
 # Pre-commit gate: format, lint, tests, placeholder scan, doc-paths
 check:

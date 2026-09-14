@@ -1,0 +1,6 @@
+#!/bin/sh
+# Stable repository entry point for the native mobile verification contract.
+set -eu
+
+repo_root="$(cd -P "$(dirname "$0")" && pwd)"
+exec python3 "$repo_root/mobile/scripts/verify.py" "$@"

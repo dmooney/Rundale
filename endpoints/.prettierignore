@@ -1,0 +1,4 @@
+AGENTS.md
+docs/
+packages/database/migrations/
+*.tsbuildinfo

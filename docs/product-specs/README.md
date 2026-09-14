@@ -14,6 +14,7 @@ Editorial import note: references in the imported technical vision to the native
 
 - [Product & Technical Specification](product-technical-spec.md) — governing player experience, reset scope, requirements, milestones, quality gate, and success definition.
 - [Software Technical Vision](software-technical-vision.md) — proposed architecture and delivery guidance subordinate to the product specification.
+- [Phase demo plan](phase-demo-plan.md) — user-requested demonstrations at the conclusion of every phase, added locally on 2026-09-07.
 
 The companion [Phase 1 and Phase 2 test plans](../test-plans/README.md) preserve
 the imported test cases. They supplement these requirements and do not constitute

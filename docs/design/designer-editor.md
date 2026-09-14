@@ -108,7 +108,7 @@ this separation is the single most important architectural rule of the feature.
 **Backend**
 
 - `crates/limerick-mod/` (re-exported as `limerick_core::game_mod`) — `GameMod::load()` is the _reference implementation_ for parsing every mod file; the editor mirrors it but loads each file independently (see Phase 1 backend)
-- `crates/limerick-world/src/graph.rs:130` — `WorldGraph::validate()` enforces orphan/bidirectional checks and emits `LimerickError::WorldGraph(String)`
+- `crates/limerick-world/src/graph.rs:130` — `WorldGraph::validate()` enforces orphan/bidirectional checks and emits `LimerickError::WorldGraph(String)`; the embedded Phase 2 fixture is the one validated singleton exception, while orphan nodes remain invalid in larger graphs
 - `crates/limerick-types/src/error.rs` — `LimerickError` enum (use for all editor errors)
 - `crates/limerick-core/src/ipc/handlers.rs` — pattern for pure state → IPC-type handlers
 - `crates/limerick-persistence/src/picker.rs:63` `discover_saves` + `crates/limerick-persistence/src/database.rs` `list_branches` / `load_latest_snapshot` — save inspector never opens rusqlite directly
@@ -269,7 +269,7 @@ save inspector's modal/list layout.
 
 `editor_validate()` should catch:
 
-- All existing `WorldGraph::validate()` failures (orphans, non-bidirectional edges, bad targets)
+- All existing `WorldGraph::validate()` failures (orphans in multi-location graphs, non-bidirectional edges, bad targets); a one-location embedded Phase 2 graph may intentionally have no exit yet
 - NPC `home` / `workplace` reference a nonexistent location
 - NPC `relationships[].target_id` references a nonexistent NPC
 - NPC `seasonal_schedule[].entries[].location` references a nonexistent location

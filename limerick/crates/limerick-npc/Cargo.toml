@@ -9,7 +9,7 @@ description = "NPC simulation, memory, schedules, and reaction systems for the L
 [dependencies]
 limerick-types = { workspace = true }
 limerick-config = { workspace = true }
-limerick-inference = { workspace = true }
+limerick-inference = { workspace = true, default-features = false }
 limerick-world = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
