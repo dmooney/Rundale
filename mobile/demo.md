@@ -85,3 +85,27 @@ control. To reproduce the isolated simulator preview, launch with
 
 Live integration work follows the [Endpoint handoff](endpoint/phase2-handoff.md).
 Phase 2 remains open until live Endpoint and physical-device evidence is recorded.
+
+## Phase 4 reliability demonstration
+
+Use the canonical tiny world in the updated native build. Keep the
+[physical acceptance matrix](../docs/test-plans/phase-4-test-cases.md) open as the
+record of device work still required.
+
+1. Travel to the Letter Office, type an unsent draft, switch apps, then relaunch.
+   Show the restored destination and exact draft.
+2. Start dialogue, type a different draft while it streams, and background the
+   app. Return to the explicit interruption, use Retry, and show one completed
+   response with the newer draft retained.
+3. Repeat with connectivity lost before a response and during streaming.
+   Restore connectivity and recover without restarting the game or repeating a
+   committed action.
+4. Read far back in a long saved transcript. Keep the passage in place during
+   new output, relaunch at the same reading position, then return to newest.
+5. Show the native composer and travel at accessibility text size in dark mode.
+   Perform the separate VoiceOver and physical keyboard/dictation checks on device.
+
+The automated simulator version uses `--phase3 --ui-tests --phase3-mock` and
+injects network faults only at the Endpoint transport. Its screenshots and
+xcresults prove that native path with deterministic responses. They do not
+establish cellular connectivity, App Attest, or the two physical 20-minute sessions.

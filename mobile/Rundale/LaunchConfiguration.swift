@@ -24,6 +24,9 @@ struct LaunchConfiguration: Sendable {
     }
 
     let isUITesting: Bool
+    /// UI tests normally exercise the iPhone multiline composer. The explicit
+    /// simulator keyboard case retains coverage of Mac Return-to-send behavior.
+    let usesMultilineSimulatorComposer: Bool
     /// The embedded Parish runtime is the normal product launch. Fixture
     /// launches remain available for the deterministic Phase 1 UI suite and
     /// for explicit fixture invocations.
@@ -47,6 +50,7 @@ struct LaunchConfiguration: Sendable {
          environment: [String: String] = ProcessInfo.processInfo.environment,
          bundle: [String: Any] = Bundle.main.infoDictionary ?? [:]) {
         isUITesting = arguments.contains("--ui-tests")
+        usesMultilineSimulatorComposer = isUITesting && !arguments.contains("--simulator-return-key")
         let hasExplicitFixture = arguments.contains { $0.hasPrefix("--fixture=") }
         phase2 = arguments.contains("--phase2")
             || arguments.contains("--phase3")

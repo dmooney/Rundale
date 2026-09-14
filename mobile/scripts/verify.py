@@ -25,8 +25,8 @@ SKIPPED = "skipped"
 UNAVAILABLE = "unavailable"
 NOT_AUTOMATABLE = "not_automatable"
 STATUSES = {PASSED, FAILED, SKIPPED, UNAVAILABLE, NOT_AUTOMATABLE}
-IMPLEMENTED_PHASE = 3
-IMPLEMENTED_PHASES = (1, 2, 3)
+IMPLEMENTED_PHASE = 4
+IMPLEMENTED_PHASES = (1, 2, 3, 4)
 LAST_PHASE = 6
 RUST_TOOLCHAIN = "1.98.0"
 FORBIDDEN_MOBILE_DEPENDENCIES = (
@@ -756,7 +756,12 @@ class VerificationRun:
     ) -> dict[str, Any]:
         project, derived, bundle = (
             _relative(self.project, self.root),
-            _relative(self.report_dir / "DerivedData" / f"{kind}-{self.run_stamp}", self.root),
+            _relative(
+                self.report_dir
+                / "DerivedData"
+                / f"{'device' if destination is None else 'simulator'}-{self.run_stamp}",
+                self.root,
+            ),
             self._bundle(kind),
         )
         command = [
@@ -1413,6 +1418,88 @@ class VerificationRun:
                 reason=reason,
             )
 
+    def _phase4(self) -> None:
+        """Reliability builds on the earlier native/runtime regression gates."""
+        xcodegen_ok = any(
+            record["id"] == "xcodegen" and record["status"] == PASSED for record in self.records
+        )
+        ready = self.simulator is not None and any(
+            record["id"] == "simulator-bootstatus"
+            and record["status"] == PASSED
+            or record["id"] == "simulator-boot"
+            and record["status"] == SKIPPED
+            and record["kind"] == "infrastructure"
+            for record in self.records
+        )
+        for identifier, name, source, target in (
+            (
+                "phase4-ios-simulator-tests",
+                "Phase 4 native reliability suite",
+                self.ui_tests_path / "RundalePhase4UITests.swift",
+                "RundaleUITests/RundalePhase4UITests",
+            ),
+            (
+                "phase4-ios-controller-tests",
+                "Native controller and launch contracts",
+                self.root / "mobile" / "RundaleTests" / "RundalePhase4Tests.swift",
+                "RundaleTests",
+            ),
+        ):
+            if not source.exists():
+                self._missing(
+                    identifier,
+                    name,
+                    4,
+                    f"required native test source is missing: {_relative(source, self.root)}",
+                )
+                continue
+            if not xcodegen_ok or not ready or self.simulator is None:
+                self._skip(
+                    identifier,
+                    name,
+                    4,
+                    "blocked because the native project or simulator is not ready",
+                    required=True,
+                )
+                continue
+            record = self._xcodebuild(
+                identifier,
+                f"platform=iOS Simulator,id={self.simulator['udid']}",
+                phase=4,
+                identifier=identifier,
+                name=name,
+                only_testing=target,
+            )
+            if record["status"] == PASSED:
+                self._validate_result(record, phase=4, summary_identifier=f"{identifier}-results")
+        for identifier, name, reason in (
+            (
+                "physical-iphone-phase4-session",
+                "20-minute physical iPhone reliability sessions",
+                "requires recorded sessions on the primary and small-screen supported iPhones, including lifecycle, connectivity, and save recovery",
+            ),
+            (
+                "physical-iphone-phase4-accessibility",
+                "Physical keyboard, dictation, and VoiceOver",
+                "requires human judgment of the core loop, focus, announcements, text entry, and accessibility Dynamic Type",
+            ),
+            (
+                "physical-iphone-phase4-performance",
+                "Physical long-history performance budgets",
+                "requires device-calibrated latency and memory measurements, scroll stability, and storage/file-protection checks",
+            ),
+        ):
+            self._record(
+                identifier=identifier,
+                name=name,
+                phase=4,
+                status=NOT_AUTOMATABLE,
+                required=True,
+                automatable=False,
+                kind="physical",
+                reason=reason,
+            )
+
     def _phase1(self) -> None:
         self._swift_tests()
         xcodegen_ok = self._xcodegen()
@@ -1429,7 +1516,7 @@ class VerificationRun:
         return {**counts, "blocking": sum(record["blocking"] for record in self.records)}
 
     def run(self, phase: int | None = None) -> dict[str, Any]:
-        if phase is None:
+        if phase is None or phase == 4:
             # The generated iOS project consumes the Rust XCFramework. Build it
             # before Phase 1 generates/builds that project, then retain the
             # single packaging result when Phase 2 runs its remaining gates.
@@ -1437,7 +1524,9 @@ class VerificationRun:
             self._phase1()
             self._phase2(reuse_phase1_native_setup=True, rust_packaging_already_run=True)
             self._phase3(reuse_native_setup=True)
-            self._future()
+            self._phase4()
+            if phase is None:
+                self._future()
         elif phase == 1:
             self._phase1()
         elif phase == 2:
@@ -1550,7 +1639,11 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--scheme", default="Rundale")
     parser.add_argument("--package-path", type=Path)
     parser.add_argument("--ui-tests-path", type=Path)
-    parser.add_argument("--simulator", help="specific available simulator UDID or name")
+    parser.add_argument(
+        "--simulator",
+        default=os.environ.get("RUNDALE_IOS_SIMULATOR"),
+        help="specific available simulator UDID or name (or RUNDALE_IOS_SIMULATOR)",
+    )
     parser.add_argument("--configuration", default="Debug")
     parser.add_argument("--report-dir", type=Path)
     return parser

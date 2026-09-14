@@ -3,13 +3,22 @@
 
 from __future__ import annotations
 
+import importlib
 import plistlib
 import tempfile
 import unittest
-from unittest.mock import patch
 from pathlib import Path
+from typing import TYPE_CHECKING
+from unittest.mock import patch
 
-import release
+if TYPE_CHECKING:
+    from . import release
+else:  # support both package-based pytest and direct unittest discovery
+    release = (
+        importlib.import_module(".release", __package__)
+        if __package__
+        else importlib.import_module("release")
+    )
 
 
 class ReleaseTests(unittest.TestCase):
@@ -21,7 +30,9 @@ class ReleaseTests(unittest.TestCase):
         (self.root / "mobile" / "project.yml").write_text(
             'MARKETING_VERSION: "0.1.0"\nCURRENT_PROJECT_VERSION: "8"\n', encoding="utf-8"
         )
-        (self.root / "mobile" / "Rundale" / "Resources" / "GoogleService-Info.plist").write_bytes(b"private")
+        (self.root / "mobile" / "Rundale" / "Resources" / "GoogleService-Info.plist").write_bytes(
+            b"private"
+        )
         self.paths = release.Paths(self.root)
         self.commands: list[list[str]] = []
 
@@ -64,6 +75,7 @@ class ReleaseTests(unittest.TestCase):
             "CFBundleShortVersionString": "0.1.0",
             "CFBundleVersion": "8",
             "CFBundleExecutable": "Rundale",
+            "ITSAppUsesNonExemptEncryption": False,
             **release.ENDPOINT_SETTINGS,
         }
         (app / "Info.plist").write_bytes(plistlib.dumps(info))
@@ -77,6 +89,17 @@ class ReleaseTests(unittest.TestCase):
         self.assertTrue(options["testFlightInternalTestingOnly"])
         self.assertTrue(options["manageAppVersionAndBuildNumber"])
         self.assertEqual(self.commands[-1][0], "codesign")
+
+        for value in (None, True, "NO", 0):
+            with self.subTest(encryption_declaration=value):
+                invalid_info = dict(info)
+                if value is None:
+                    del invalid_info["ITSAppUsesNonExemptEncryption"]
+                else:
+                    invalid_info["ITSAppUsesNonExemptEncryption"] = value
+                (app / "Info.plist").write_bytes(plistlib.dumps(invalid_info))
+                with self.assertRaisesRegex(RuntimeError, "encryption exemption"):
+                    runner.validate_archive(expected_build=8)
 
         del info["CFBundleExecutable"]
         (app / "Info.plist").write_bytes(plistlib.dumps(info))

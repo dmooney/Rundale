@@ -206,6 +206,7 @@ public struct RequestRecord: Codable, Equatable, Sendable {
     public var phase: RequestPhase
     public var terminalOutcome: ResponseTerminalOutcome?
     public var committedStateRevision: StateRevision?
+    public var pendingClarification: ClarificationPrompt?
 
     public init(
         id: LogicalRequestID,
@@ -215,7 +216,8 @@ public struct RequestRecord: Codable, Equatable, Sendable {
         currentAttemptID: ExecutionAttemptID? = nil,
         phase: RequestPhase = .accepted,
         terminalOutcome: ResponseTerminalOutcome? = nil,
-        committedStateRevision: StateRevision? = nil
+        committedStateRevision: StateRevision? = nil,
+        pendingClarification: ClarificationPrompt? = nil
     ) {
         self.id = id
         self.originalText = originalText
@@ -225,6 +227,7 @@ public struct RequestRecord: Codable, Equatable, Sendable {
         self.phase = phase
         self.terminalOutcome = terminalOutcome
         self.committedStateRevision = committedStateRevision
+        self.pendingClarification = pendingClarification
     }
 
     public var currentAttempt: RequestAttempt? {
@@ -266,6 +269,9 @@ public struct StreamProgress: Codable, Equatable, Hashable, Sendable {
 }
 
 public struct SessionState: Codable, Equatable, Sendable {
+    // Optional storage preserves decoding of projections written before paging.
+    private var detachedHistoryWindow: Bool?
+    public var isHistoricalWindow: Bool { detachedHistoryWindow == true }
     public let contractVersion: PresentationContractVersion
     public let sessionID: SessionID
     public private(set) var stateRevision: StateRevision
@@ -298,6 +304,7 @@ public struct SessionState: Codable, Equatable, Sendable {
         pendingClarification: PendingClarification? = nil,
         scene: SceneSummary? = nil,
         viewport: TranscriptViewport = TranscriptViewport(),
+        isHistoricalWindow: Bool = false,
         activeRequestID: LogicalRequestID? = nil,
         lastError: String? = nil,
         transcriptCapacity: Int = 500,
@@ -319,6 +326,7 @@ public struct SessionState: Codable, Equatable, Sendable {
         self.pendingClarification = pendingClarification
         self.scene = scene
         self.viewport = viewport
+        self.detachedHistoryWindow = isHistoricalWindow ? true : nil
         self.activeRequestID = activeRequestID
         self.lastError = lastError
         self.processedEventIDs = Array(processedEventIDs.suffix(max(1, processedEventCapacity)))
@@ -347,6 +355,10 @@ public struct SessionState: Codable, Equatable, Sendable {
         self.viewport = viewport
     }
 
+    mutating func setHistoricalWindow(_ enabled: Bool) {
+        detachedHistoryWindow = enabled ? true : nil
+    }
+
     mutating func setTranscript(_ transcript: [TranscriptItem], hasOlder: Bool) {
         self.transcript = Array(transcript.suffix(transcriptCapacity))
         self.hasOlderTranscript = hasOlder || transcript.count > transcriptCapacity
@@ -355,6 +367,11 @@ public struct SessionState: Codable, Equatable, Sendable {
     mutating func upsertTranscriptItem(_ item: TranscriptItem) {
         if let index = transcript.firstIndex(where: { $0.id == item.id }) {
             transcript[index] = item
+        } else if isHistoricalWindow && !viewport.isFollowingNewest {
+            // A history reader owns the visible bounded window. Keep newly
+            // arriving tail items in the durable engine until followNewest
+            // explicitly requests the authoritative tail again.
+            hasOlderTranscript = true
         } else {
             transcript.append(item)
             if transcript.count > transcriptCapacity {

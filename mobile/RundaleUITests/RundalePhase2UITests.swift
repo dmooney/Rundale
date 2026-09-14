@@ -48,7 +48,7 @@ final class RundalePhase2UITests: XCTestCase {
     }
 
     func testSimulatorReturnKeySubmitsDraft() {
-        launch(reset: true)
+        launch(reset: true, simulatorReturnKey: true)
         waitForInitialScene()
 
         let input = commandInput
@@ -152,7 +152,7 @@ final class RundalePhase2UITests: XCTestCase {
         XCTAssertTrue(app.buttons["composer.send"].waitForExistence(timeout: 8))
     }
 
-    private func launch(reset: Bool) {
+    private func launch(reset: Bool, simulatorReturnKey: Bool = false) {
         app.launchArguments = [
             "--ui-tests",
             "--phase2",
@@ -161,6 +161,9 @@ final class RundalePhase2UITests: XCTestCase {
         ]
         if reset {
             app.launchArguments.append("--reset-fixture")
+        }
+        if simulatorReturnKey {
+            app.launchArguments.append("--simulator-return-key")
         }
         app.launch()
     }

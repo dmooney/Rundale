@@ -173,6 +173,43 @@ final class RundaleUITests: XCTestCase {
         XCTAssertTrue(waitForTranscriptText("/"))
     }
 
+    func testPeopleAndCommandsButtonsAvoidSymbolKeyboardAndPreserveDraftUntilSelection() {
+        launch(fixture: "standard")
+        let input = commandInput
+        input.tap()
+        input.typeText("Could you help me?")
+        app.buttons["composer.people"].tap()
+        XCTAssertEqual(input.value as? String, "Could you help me?")
+        let person = app.buttons["completion.npc-micheal"]
+        XCTAssertTrue(person.waitForExistence(timeout: 3))
+        person.tap()
+        XCTAssertEqual(input.value as? String, "@Mícheál Connolly Could you help me?")
+        app.buttons["composer.commands"].tap()
+        let look = app.buttons["completion.look"]
+        XCTAssertTrue(look.waitForExistence(timeout: 3))
+        look.tap()
+        XCTAssertEqual(input.value as? String, "/look")
+        app.buttons["composer.send"].tap()
+        XCTAssertTrue(waitForTranscriptText("/look"))
+    }
+
+    func testWaitingKnotAppearsDuringRequestAndDisappearsOnStopAndCompletion() {
+        launch(fixture: "standard")
+        commandInput.tap()
+        commandInput.typeText("Hello")
+        app.buttons["composer.send"].tap()
+        let waiting = app.descendants(matching: .any).matching(identifier: "composer.waiting").firstMatch
+        XCTAssertTrue(waiting.waitForExistence(timeout: 3))
+        let attachment = XCTAttachment(screenshot: app.screenshot())
+        attachment.name = "Native Celtic knot and composer shortcuts"
+        attachment.lifetime = .keepAlways
+        add(attachment)
+        app.buttons["composer.stop"].tap()
+        XCTAssertTrue(waiting.waitForNonExistence(timeout: 3))
+        submitAndFinish("Hello again")
+        XCTAssertTrue(waiting.waitForNonExistence(timeout: 3))
+    }
+
     func testTranscriptCommandRecallWorksWithoutAHistoryButton() {
         launch(fixture: "standard")
 
@@ -279,14 +316,21 @@ final class RundaleUITests: XCTestCase {
         let input = commandInput
         input.tap()
         input.typeText("continue the account")
+        app.buttons["composer.send"].tap()
+        let step = app.buttons["fixture.step"]
+        XCTAssertTrue(step.waitForExistence(timeout: 3))
 
         // Capture a row that is truly in the scroll viewport after the
-        // keyboard is open. The same screen-space Y must survive streaming;
+        // accepted Send has returned to the live exchange. An intentional
+        // history gesture during the response must survive later streaming;
         // otherwise a missing bottom sentinel has silently jumped to latest.
         guard let newestVisible = visibleHistoricalRow(in: scroll) else {
             XCTFail("No transcript row is visible before scrolling")
             return
         }
+        // XCUIElement queries resolve lazily; capture the value before the
+        // gesture rather than re-resolving the first visible row afterward.
+        let newestIdentifier = newestVisible.identifier
         scroll.swipeDown(velocity: .fast)
         guard let historical = visibleHistoricalRow(in: scroll) else {
             XCTFail("No hittable historical row is visible after scrolling")
@@ -294,16 +338,12 @@ final class RundaleUITests: XCTestCase {
         }
         XCTAssertNotEqual(
             historical.identifier,
-            newestVisible.identifier,
+            newestIdentifier,
             "A history gesture must change the visible transcript rows"
         )
         let historicalIdentifier = historical.identifier
         let historicalY = historical.frame.minY
 
-        app.buttons["composer.send"].tap()
-
-        let step = app.buttons["fixture.step"]
-        XCTAssertTrue(step.waitForExistence(timeout: 3))
         step.tap()
         let newText = app.buttons["transcript.new-text"]
         XCTAssertTrue(newText.waitForExistence(timeout: 3))
@@ -319,6 +359,43 @@ final class RundaleUITests: XCTestCase {
         ).firstMatch
         XCTAssertTrue(latest.waitForExistence(timeout: 3))
         XCTAssertTrue(latest.frame.intersects(scroll.frame))
+    }
+
+    func testAcceptedMessagesFollowLatestAcrossRepeatedTurnsAndHistoryReading() {
+        launch(fixture: "long-history")
+        let scroll = transcriptScroll
+        XCTAssertTrue(scroll.waitForExistence(timeout: 3))
+        let input = commandInput
+        let newest = app.buttons["transcript.new-text"]
+
+        for (index, command) in ["first new exchange", "second new exchange", "third new exchange"].enumerated() {
+            input.tap()
+            input.typeText(command)
+            if index == 1 {
+                // Sending a new message explicitly leaves an older reading position.
+                scroll.swipeDown(velocity: .fast)
+                XCTAssertNotNil(visibleHistoricalRow(in: scroll))
+            }
+            app.buttons["composer.send"].tap()
+            let step = app.buttons["fixture.step"]
+            XCTAssertTrue(step.waitForExistence(timeout: 3))
+            let commandRow = app.descendants(matching: .any).matching(NSPredicate(
+                format: "identifier BEGINSWITH 'transcript.item.' AND label CONTAINS %@", command
+            )).firstMatch
+            XCTAssertTrue(waitForVisible(commandRow, in: scroll))
+            XCTAssertFalse(newest.exists, "Accepted messages must rejoin the latest exchange")
+            step.tap()
+            XCTAssertFalse(newest.exists, "A growing reply must not enable history mode")
+            finishManualStreamIfNeeded()
+            XCTAssertTrue(app.buttons["composer.send"].waitForExistence(timeout: 3))
+            XCTAssertFalse(newest.exists)
+            XCTAssertTrue(app.keyboards.firstMatch.exists)
+        }
+
+        let attachment = XCTAttachment(screenshot: app.screenshot())
+        attachment.name = "Repeated conversations follow newest above the keyboard"
+        attachment.lifetime = .keepAlways
+        add(attachment)
     }
 
     func testFollowingNewestStartsAtLatestAndTracksComposerResize() {

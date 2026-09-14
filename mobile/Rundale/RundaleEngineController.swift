@@ -12,6 +12,8 @@ final class RundaleEngineController: ObservableObject, RundaleSessionControlling
     @Published private(set) var state: SessionState
     @Published private(set) var lastEvent: SemanticEvent?
     @Published private(set) var persistenceError: String?
+    // Retained locally for diagnostics; never rendered or sent to inference.
+    private(set) var persistenceDiagnostic: String?
 
     private let configuration: LaunchConfiguration
     private let projectionStore: Phase2ProjectionStore
@@ -25,6 +27,13 @@ final class RundaleEngineController: ObservableObject, RundaleSessionControlling
     private var activeEndpointRequest: EndpointRequest?
     private var didStart = false
     private var didHydrateRuntime = false
+    private var allowsInference = true
+    private var inferenceGeneration: UInt64 = 0
+    private var historyExhausted = false
+    private var historyWindowShifted = false
+    private var historyBeforeCursor: EventCursor?
+    private let restoredHistoryCursor: EventCursor?
+    private let restoredSessionID: SessionID?
     private var engineTimeOfDay = "Morning"
     private var engineWeather = "Clear"
 
@@ -50,6 +59,8 @@ final class RundaleEngineController: ObservableObject, RundaleSessionControlling
         }
 
         let projection = projectionStore.restore()
+        restoredHistoryCursor = projection?.anchorEventCursor
+        restoredSessionID = projection?.sessionID
         let initialState = SessionState(
             draft: projection?.draft ?? Draft(text: configuration.initialDraft ?? ""),
             viewport: projection?.viewport ?? TranscriptViewport()
@@ -81,7 +92,7 @@ final class RundaleEngineController: ObservableObject, RundaleSessionControlling
             endpointClient = ParishEndpointClient(credentials: credentials)
         }
 
-        if let error = projectionStore.restoreError {
+        if !configuration.resetFixture, let error = projectionStore.restoreError {
             persistenceError = error
         }
     }
@@ -106,16 +117,54 @@ final class RundaleEngineController: ObservableObject, RundaleSessionControlling
                     return
                 }
                 self.runtime = runtime
-                try self.refreshFromSnapshot(try await runtime.snapshotJSON())
+                let data = try await runtime.snapshotJSON()
+                let snapshot = try FixtureJSON.decode(EngineSnapshot.self, from: data)
+                var historyPage: ParishEventPage?
+                if !self.state.viewport.isFollowingNewest,
+                   self.restoredSessionID == snapshot.sessionID,
+                   let cursor = self.restoredHistoryCursor,
+                   cursor.rawValue < UInt64.max {
+                    historyPage = try await runtime.readEventPageBefore(
+                        before: EventCursor(cursor.rawValue + 1), limit: 100
+                    )
+                }
+                try self.refreshFromSnapshot(data, restoredHistoryPage: historyPage)
                 self.startEventSubscription(runtime: runtime)
-                if let invocation = try await self.pendingInvocation(runtime: runtime) {
+                guard self.allowsInference else { return }
+                if let invocation = try await self.pendingInvocation(runtime: runtime),
+                   self.allowsInference {
                     self.startEndpoint(invocation, runtime: runtime)
                 }
             } catch {
                 guard let self else { return }
-                self.persistenceError = error.localizedDescription
+                self.persistenceDiagnostic = String(reflecting: error)
+                self.persistenceError = Self.playerFacingPersistenceError(error)
             }
         }
+    }
+
+    func setInferenceAllowed(_ allowed: Bool) {
+        allowsInference = allowed
+        inferenceGeneration &+= 1
+        guard !allowed else {
+            guard let runtime else { return }
+            let generation = inferenceGeneration
+            Task { [weak self, runtime] in
+                guard let self, self.allowsInference, self.inferenceGeneration == generation else { return }
+                do {
+                    if let invocation = try await self.pendingInvocation(runtime: runtime),
+                       self.allowsInference,
+                       self.inferenceGeneration == generation {
+                        self.startEndpoint(invocation, runtime: runtime)
+                    }
+                } catch {
+                    self.persistenceError = Self.playerFacingPersistenceError(error)
+                }
+            }
+            return
+        }
+        endpointTask?.cancel()
+        endpointTask = nil
     }
 
     func updateDraft(_ text: String) {
@@ -147,7 +196,7 @@ final class RundaleEngineController: ObservableObject, RundaleSessionControlling
             do {
                 _ = try await runtime.snapshotJSON()
             } catch {
-                persistenceError = error.localizedDescription
+                persistenceError = Self.playerFacingPersistenceError(error)
             }
         }
         _ = persistSessionState()
@@ -157,12 +206,64 @@ final class RundaleEngineController: ObservableObject, RundaleSessionControlling
         presentation.followNewest()
         state = presentation.state
         _ = persistSessionState()
+        guard historyWindowShifted, let runtime else { return }
+        Task { [weak self, runtime] in
+            do {
+                let data = try await runtime.snapshotJSON()
+                guard let self else { return }
+                try self.refreshFromSnapshot(data)
+                self.historyWindowShifted = false
+            } catch {
+                self?.persistenceError = Self.playerFacingPersistenceError(error)
+            }
+        }
     }
 
     func readHistory(anchor: TranscriptAnchor? = nil) {
         presentation.readHistory(anchor: anchor)
         state = presentation.state
         _ = persistSessionState()
+    }
+
+    /// Loads one bounded page immediately before the retained transcript edge.
+    /// The backward cursor is independent from the live subscription cursor,
+    /// so a long history does not require replaying the save from sequence 0.
+    func loadOlderTranscript() async {
+        guard let runtime,
+              state.hasOlderTranscript,
+              !historyExhausted else { return }
+        guard let oldestSequence = state.transcript.first?.lastEventSequence.rawValue,
+              oldestSequence > 0 else {
+            historyExhausted = true
+            presentation.loadOlderTranscript(items: [], hasOlderItems: false)
+            state = presentation.state
+            return
+        }
+        do {
+            let page = try await runtime.readEventPageBefore(
+                before: historyBeforeCursor ?? EventCursor(oldestSequence),
+                limit: 100
+            )
+            let olderEvents = page.events.filter { $0.sequence.rawValue < oldestSequence }
+            guard !olderEvents.isEmpty else {
+                historyExhausted = true
+                presentation.loadOlderTranscript(items: [], hasOlderItems: false)
+                state = presentation.state
+                return
+            }
+            historyBeforeCursor = page.nextCursor
+            let items = Self.transcriptItems(
+                from: olderEvents,
+                sessionID: state.sessionID,
+                capacity: state.transcriptCapacity
+            )
+            presentation.loadOlderTranscript(items: items, hasOlderItems: page.hasMore)
+            state = presentation.state
+            historyWindowShifted = true
+            _ = persistSessionState()
+        } catch {
+            persistenceError = "Older transcript could not be loaded. Try again."
+        }
     }
 
     func submit(_ text: String) async throws -> SubmissionReceipt {
@@ -250,7 +351,7 @@ final class RundaleEngineController: ObservableObject, RundaleSessionControlling
                 }
             } catch {
                 guard !Task.isCancelled, let self else { return }
-                self.persistenceError = error.localizedDescription
+                self.persistenceError = Self.playerFacingPersistenceError(error)
                 do {
                     // The runtime journal is authoritative. Rebuild the
                     // presentation from its latest snapshot, then subscribe
@@ -259,7 +360,7 @@ final class RundaleEngineController: ObservableObject, RundaleSessionControlling
                     try self.refreshFromSnapshot(try await runtime.snapshotJSON())
                     self.startEventSubscription(runtime: runtime)
                 } catch {
-                    self.persistenceError = error.localizedDescription
+                    self.persistenceError = Self.playerFacingPersistenceError(error)
                 }
             }
         }
@@ -271,7 +372,7 @@ final class RundaleEngineController: ObservableObject, RundaleSessionControlling
         state = presentation.state
     }
 
-    private func refreshFromSnapshot(_ data: Data) throws {
+    private func refreshFromSnapshot(_ data: Data, restoredHistoryPage: ParishEventPage? = nil) throws {
         let snapshot = try FixtureJSON.decode(EngineSnapshot.self, from: data)
         engineTimeOfDay = snapshot.readModel.timeOfDay
         engineWeather = snapshot.readModel.weather
@@ -288,6 +389,16 @@ final class RundaleEngineController: ObservableObject, RundaleSessionControlling
         // no longer contained its PlayerCommand could not reconstruct the
         // request or command history.
         if !didHydrateRuntime || state.sessionID != snapshot.sessionID {
+            hydrateFromSnapshot(snapshot, restoredHistoryPage: restoredHistoryPage)
+            didHydrateRuntime = true
+            return
+        }
+
+        // A history window intentionally ignores new transcript rows while
+        // it is anchored near the older edge. Once the player follows newest,
+        // rebuild the bounded tail from the authoritative snapshot instead of
+        // trying to stitch a live suffix onto that older window.
+        if historyWindowShifted, state.viewport.isFollowingNewest {
             hydrateFromSnapshot(snapshot)
             didHydrateRuntime = true
             return
@@ -311,9 +422,10 @@ final class RundaleEngineController: ObservableObject, RundaleSessionControlling
             draft: current.draft,
             requests: snapshot.requests,
             commandHistory: commandHistory(for: snapshot.requests),
-            pendingClarification: current.pendingClarification,
+            pendingClarification: Self.pendingClarification(in: snapshot.requests),
             scene: snapshot.readModel.scene.summary,
             viewport: current.viewport,
+            isHistoricalWindow: current.isHistoricalWindow,
             activeRequestID: snapshot.activeRequestID,
             lastError: current.lastError,
             transcriptCapacity: current.transcriptCapacity,
@@ -325,30 +437,52 @@ final class RundaleEngineController: ObservableObject, RundaleSessionControlling
         state = reconciled
     }
 
-    private func hydrateFromSnapshot(_ snapshot: EngineSnapshot) {
+    private func hydrateFromSnapshot(_ snapshot: EngineSnapshot, restoredHistoryPage: ParishEventPage? = nil) {
+        historyExhausted = !snapshot.hasOlderEvents
+        historyWindowShifted = false
+        historyBeforeCursor = nil
         let replay = PresentationSession(state: SessionState(
             sessionID: snapshot.sessionID,
             contractVersion: snapshot.contractVersion,
-            draft: state.draft,
-            viewport: state.viewport
+            draft: state.draft
         ))
         for event in snapshot.events.sorted(by: { $0.sequence < $1.sequence }) {
             replay.apply(event)
         }
         let replayed = replay.state
+        var transcript = replayed.transcript
+        var viewport = state.viewport
+        if !viewport.isFollowingNewest, let anchor = viewport.anchor {
+            if let page = restoredHistoryPage {
+                let older = Self.transcriptItems(from: page.events, sessionID: snapshot.sessionID,
+                                                capacity: replayed.transcriptCapacity)
+                if older.contains(where: { $0.id == anchor.itemID }) {
+                    transcript = older
+                    historyWindowShifted = true
+                    historyBeforeCursor = page.nextCursor
+                    historyExhausted = !page.hasMore
+                }
+            }
+            if !transcript.contains(where: { $0.id == anchor.itemID }) {
+                // Older projections have no durable cursor. Fall back to the
+                // current tail explicitly instead of retaining a dangling lock.
+                viewport.followNewest()
+            }
+        }
         let hydrated = SessionState(
             sessionID: snapshot.sessionID,
             contractVersion: snapshot.contractVersion,
             stateRevision: snapshot.stateRevision,
             eventCursor: snapshot.eventCursor,
-            transcript: replayed.transcript,
+            transcript: transcript,
             hasOlderTranscript: replayed.hasOlderTranscript || snapshot.hasOlderEvents,
             draft: state.draft,
             requests: snapshot.requests,
             commandHistory: commandHistory(for: snapshot.requests),
-            pendingClarification: replayed.pendingClarification,
+            pendingClarification: Self.pendingClarification(in: snapshot.requests),
             scene: snapshot.readModel.scene.summary,
-            viewport: state.viewport,
+            viewport: viewport,
+            isHistoricalWindow: historyWindowShifted,
             activeRequestID: snapshot.activeRequestID,
             lastError: replayed.lastError,
             transcriptCapacity: replayed.transcriptCapacity,
@@ -358,6 +492,28 @@ final class RundaleEngineController: ObservableObject, RundaleSessionControlling
         )
         presentation = PresentationSession(state: hydrated)
         state = hydrated
+    }
+
+    private static func transcriptItems(
+        from events: [SemanticEvent],
+        sessionID: SessionID,
+        capacity: Int
+    ) -> [TranscriptItem] {
+        let replay = PresentationSession(state: SessionState(
+            sessionID: sessionID,
+            transcriptCapacity: capacity
+        ))
+        for event in events.sorted(by: { $0.sequence < $1.sequence }) {
+            replay.apply(event)
+        }
+        return replay.state.transcript
+    }
+
+    private static func pendingClarification(in requests: [RequestRecord]) -> PendingClarification? {
+        guard let request = requests.last(where: { $0.phase == .awaitingClarification }),
+              let attemptID = request.currentAttemptID,
+              let prompt = request.pendingClarification else { return nil }
+        return PendingClarification(requestID: request.id, attemptID: attemptID, prompt: prompt)
     }
 
     private func commandHistory(for requests: [RequestRecord]) -> [CommandHistoryEntry] {
@@ -390,8 +546,13 @@ final class RundaleEngineController: ObservableObject, RundaleSessionControlling
         endpointTask?.cancel()
         let configuration = self.configuration
         let endpointClient = self.endpointClient
+        let generation = inferenceGeneration
         endpointTask = Task { [weak self, runtime] in
             do {
+                guard let self,
+                      self.allowsInference,
+                      self.inferenceGeneration == generation,
+                      !Task.isCancelled else { return }
                 let body = try invocation.requestBody()
                 guard let endpointURL = configuration.endpointURL
                     ?? (configuration.phase2MockTransport ? URL(string: "http://127.0.0.1/mock") : nil) else {
@@ -406,10 +567,13 @@ final class RundaleEngineController: ObservableObject, RundaleSessionControlling
                     policy: configuration.phase2MockTransport ? EndpointURLPolicy(allowLoopbackHTTP: true) : EndpointURLPolicy(),
                     body: body
                 )
-                self?.activeEndpointRequest = request
+                guard self.allowsInference,
+                      self.inferenceGeneration == generation,
+                      !Task.isCancelled else { return }
+                self.activeEndpointRequest = request
                 defer {
-                    if self?.activeEndpointRequest?.attemptID == request.attemptID {
-                        self?.activeEndpointRequest = nil
+                    if self.activeEndpointRequest?.attemptID == request.attemptID {
+                        self.activeEndpointRequest = nil
                     }
                 }
                 for try await frame in endpointClient.stream(request) {
@@ -429,7 +593,7 @@ final class RundaleEngineController: ObservableObject, RundaleSessionControlling
                         )
                         let response = try await runtime.dispatchJSON(operation)
                         guard !Task.isCancelled else { return }
-                        self?.consumeOperation(response)
+                        self.consumeOperation(response)
                     case .final:
                         guard let payload = frame.payload else {
                             throw ParishEndpointError.malformedEvent("final output is missing")
@@ -447,7 +611,7 @@ final class RundaleEngineController: ObservableObject, RundaleSessionControlling
                         )
                         let response = try await runtime.dispatchJSON(operation)
                         guard !Task.isCancelled else { return }
-                        self?.consumeOperation(response)
+                        self.consumeOperation(response)
                     case .error:
                         throw EndpointReportedFailure(payload: frame.error)
                     }
@@ -455,7 +619,9 @@ final class RundaleEngineController: ObservableObject, RundaleSessionControlling
             } catch is CancellationError {
                 return
             } catch {
-                guard !Task.isCancelled else { return }
+                guard !Task.isCancelled,
+                      self?.allowsInference == true,
+                      self?.inferenceGeneration == generation else { return }
                 do {
                     let failure = Self.playerFacingFailure(error)
                     let response = try await runtime.receiveFailure(
@@ -466,7 +632,7 @@ final class RundaleEngineController: ObservableObject, RundaleSessionControlling
                     )
                     self?.consumeOperation(response)
                 } catch {
-                    self?.persistenceError = error.localizedDescription
+                    self?.persistenceError = Self.playerFacingPersistenceError(error)
                 }
             }
         }
@@ -624,12 +790,25 @@ final class RundaleEngineController: ObservableObject, RundaleSessionControlling
         _ = persistSessionState()
     }
 
+    private static func playerFacingPersistenceError(_ error: Error) -> String {
+        if let projectionError = error as? Phase2ProjectionStoreError,
+           let description = projectionError.errorDescription {
+            return description
+        }
+        return "The saved game could not be updated. Your current game remains available; try again."
+    }
+
     private func persistProjection(draft: Draft, viewport: TranscriptViewport) -> String? {
         do {
-            try projectionStore.save(Phase2Projection(draft: draft, viewport: viewport))
+            let cursor = viewport.anchor.flatMap { anchor in
+                state.transcript.first(where: { $0.id == anchor.itemID })
+                    .map { EventCursor($0.lastEventSequence.rawValue) }
+            }
+            try projectionStore.save(Phase2Projection(draft: draft, viewport: viewport,
+                                                     sessionID: state.sessionID, anchorEventCursor: cursor))
             return nil
         } catch {
-            persistenceError = error.localizedDescription
+            persistenceError = Self.playerFacingPersistenceError(error)
             return persistenceError
         }
     }
@@ -743,6 +922,8 @@ private enum EndpointOperation {
 private struct Phase2Projection: Codable, Sendable {
     let draft: Draft
     let viewport: TranscriptViewport
+    let sessionID: SessionID?
+    let anchorEventCursor: EventCursor?
 }
 
 private struct PlayerFacingFailure: Sendable {
@@ -778,7 +959,19 @@ private struct Phase2ProjectionStore: Sendable {
                 .appendingPathComponent("Rundale/phase2-projection.json")
         url = base
         engineURL = base.deletingLastPathComponent().appendingPathComponent("phase2.sqlite")
-        restoreError = nil
+        if FileManager.default.fileExists(atPath: base.path) {
+            do {
+                _ = try FixtureJSON.decode(Phase2Projection.self, from: Data(contentsOf: base))
+                restoreError = nil
+            } catch {
+                // Keep the engine save authoritative and report the broken
+                // presentation projection instead of silently replacing a
+                // player's draft with an empty one.
+                restoreError = "The saved mobile session could not be restored. Existing projection data was preserved; retrying will not overwrite it."
+            }
+        } else {
+            restoreError = nil
+        }
     }
 
     var engineOpenPayload: Data {
@@ -792,6 +985,10 @@ private struct Phase2ProjectionStore: Sendable {
     }
 
     func save(_ projection: Phase2Projection) throws {
+        if restoreError != nil,
+           FileManager.default.fileExists(atPath: url.path) {
+            throw Phase2ProjectionStoreError.restoreRequired(restoreError!)
+        }
         let directory = url.deletingLastPathComponent()
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         let data = try FixtureJSON.encode(projection)
@@ -804,6 +1001,17 @@ private struct Phase2ProjectionStore: Sendable {
         try? fileManager.removeItem(at: engineURL)
         try? fileManager.removeItem(atPath: engineURL.path + "-wal")
         try? fileManager.removeItem(atPath: engineURL.path + "-shm")
+    }
+}
+
+private enum Phase2ProjectionStoreError: LocalizedError {
+    case restoreRequired(String)
+
+    var errorDescription: String? {
+        switch self {
+        case let .restoreRequired(message):
+            return "\(message) Existing projection data was preserved; retrying will not overwrite it."
+        }
     }
 }
 
@@ -825,6 +1033,13 @@ private final class FirebaseEndpointCredentialAdapter: ParishEndpointKit.Endpoin
 }
 
 private final class Phase2MockEndpointTransport: EndpointTransport, @unchecked Sendable {
+    /// Fault-injection state is transport-owned rather than request-owned so a
+    /// retry of the same logical request can recover deterministically. Each
+    /// mode is consumed once per logical request and a new attempt therefore
+    /// receives the normal successful stream.
+    private let injectedFailureLock = NSLock()
+    private var consumedInjectedFailures = Set<String>()
+
     private final class TaskBox: @unchecked Sendable {
         var task: Task<Void, Never>?
         let lock = NSLock()
@@ -852,6 +1067,10 @@ private final class Phase2MockEndpointTransport: EndpointTransport, @unchecked S
                     let identities = try Self.identities(from: request.httpBody, url: requestURL)
                     let input = identities.input.lowercased()
                     continuation.yield(.response(statusCode: 200, headers: ["content-type": "text/event-stream; charset=utf-8"]))
+                    if input.contains("offline once"),
+                       self.claimInjectedFailure(mode: "offline", requestID: identities.requestID) {
+                        throw URLError(.notConnectedToInternet)
+                    }
                     if input.contains("fail") {
                         continuation.yield(.bytes(try Self.frame(
                             type: "error", sequence: 1, identities: identities,
@@ -881,6 +1100,11 @@ private final class Phase2MockEndpointTransport: EndpointTransport, @unchecked S
                             continuation.yield(.bytes(try Self.frame(
                                 type: "text_delta", sequence: index + 1, identities: identities, text: chunk
                             )))
+                            if input.contains("disconnect once"),
+                               index == 0,
+                               self.claimInjectedFailure(mode: "disconnect", requestID: identities.requestID) {
+                                throw URLError(.networkConnectionLost)
+                            }
                             if index + 1 < chunks.count {
                                 try await Self.pause(nanoseconds: input.contains("slow") ? 3_000_000_000 : 2_000_000_000)
                             }
@@ -974,5 +1198,12 @@ private final class Phase2MockEndpointTransport: EndpointTransport, @unchecked S
 
     private static func pause(nanoseconds: UInt64) async throws {
         try await Task.sleep(nanoseconds: nanoseconds)
+    }
+
+    private func claimInjectedFailure(mode: String, requestID: String) -> Bool {
+        let key = "\(requestID):\(mode)"
+        injectedFailureLock.lock()
+        defer { injectedFailureLock.unlock() }
+        return consumedInjectedFailures.insert(key).inserted
     }
 }

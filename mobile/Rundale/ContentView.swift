@@ -72,12 +72,23 @@ struct ContentView: View {
                 hasNewText = true
             }
         }
+        .onChange(of: model.isFollowingNewest) { _, following in
+            guard followsNewest != following else { return }
+            followsNewest = following
+            if following {
+                hasNewText = false
+            }
+        }
+        .onChange(of: model.accessibilityNotice) { _, notice in
+            guard let notice, !notice.isEmpty else { return }
+            UIAccessibility.post(notification: .announcement, argument: notice)
+        }
         .onChange(of: scenePhase) { _, phase in
             if phase == .background || phase == .inactive {
                 model.persistDraft()
-                Task {
-                    await model.persistLifecycleSnapshot()
-                }
+                model.handleBackgrounding()
+            } else if phase == .active {
+                model.handleForegrounding()
             }
         }
         .preferredColorScheme(model.launch.forceDarkAppearance ? .dark : nil)
@@ -116,11 +127,19 @@ private struct StatusHeader: View {
                 .font(.system(.headline, design: .serif, weight: .medium))
                 .accessibilityAddTraits(.isHeader)
 
-            HStack(spacing: 8) {
-                Label(model.header.timeOfDay, systemImage: "clock")
-                Text("·")
-                    .accessibilityHidden(true)
-                Label(model.header.weather, systemImage: "cloud.rain")
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: 8) {
+                    Label(model.header.timeOfDay, systemImage: "clock")
+                    Text("·")
+                        .accessibilityHidden(true)
+                    if let symbol = model.header.weatherSymbol {
+                        Label(model.header.weather, systemImage: symbol)
+                    } else {
+                        Text(model.header.weather)
+                    }
+                }
+                Text("\(model.header.timeOfDay) · \(model.header.weather)")
+                    .fixedSize(horizontal: false, vertical: true)
             }
             .font(.caption)
             .foregroundStyle(RundaleTheme.secondaryInk)
@@ -148,6 +167,7 @@ private struct TranscriptView: View {
                 hasNewText: $hasNewText,
                 onRecall: model.recallCommand,
                 onReadHistory: model.readHistory,
+                onLoadOlder: model.loadOlderTranscript,
                 onFollowNewest: model.followNewest
             )
 
@@ -187,6 +207,7 @@ private struct NativeTranscriptScroller: UIViewControllerRepresentable {
     @Binding var hasNewText: Bool
     let onRecall: (String) -> Void
     let onReadHistory: (TranscriptAnchor?) -> Void
+    let onLoadOlder: () -> Void
     let onFollowNewest: () -> Void
 
     func makeCoordinator() -> Coordinator {
@@ -253,6 +274,10 @@ private struct NativeTranscriptScroller: UIViewControllerRepresentable {
                 guard let self, self.connectedController === controller else { return }
                 self.parent.onReadHistory(anchor)
             }
+            controller.onLoadOlder = { [weak self, weak controller] in
+                guard let self, self.connectedController === controller else { return }
+                self.parent.onLoadOlder()
+            }
             controller.onRecall = { [weak self, weak controller] command in
                 guard let self, self.connectedController === controller else { return }
                 self.parent.onRecall(command)
@@ -270,6 +295,13 @@ private struct NativeTranscriptScroller: UIViewControllerRepresentable {
 @MainActor
 private final class TranscriptCollectionView: UICollectionView {
     var accessibilityScrollDidFinish: (() -> Void)?
+    var contentSizeDidChange: (() -> Void)?
+
+    override var contentSize: CGSize {
+        didSet {
+            if contentSize != oldValue { contentSizeDidChange?() }
+        }
+    }
 
     override func accessibilityScroll(_ direction: UIAccessibilityScrollDirection) -> Bool {
         let didScroll = super.accessibilityScroll(direction)
@@ -281,7 +313,7 @@ private final class TranscriptCollectionView: UICollectionView {
 }
 
 @MainActor
-private final class TranscriptCollectionViewController: UIViewController,
+final class TranscriptCollectionViewController: UIViewController,
                                                         UICollectionViewDataSource,
                                                         UICollectionViewDelegate {
     private struct LockedAnchor {
@@ -297,10 +329,16 @@ private final class TranscriptCollectionViewController: UIViewController,
     private var lastBoundsSize: CGSize = .zero
     private var lastContentSize: CGSize = .zero
     private var wasScrollable = false
+    // A drag is a user intent boundary. Content and bounds can change while a
+    // finger is down (streamed row sizing and keyboard transitions are common
+    // examples), so do not infer history mode from those intermediate offsets.
+    private var userScrollInProgress = false
+    private var userScrollReadHistory = false
 
     var onFollowModeChanged: ((Bool, TranscriptAnchor?) -> Void)?
     var onReadingAnchorChanged: ((TranscriptAnchor?) -> Void)?
     var onRecall: ((String) -> Void)?
+    var onLoadOlder: (() -> Void)?
 
     private lazy var collectionView: TranscriptCollectionView = {
         let itemSize = NSCollectionLayoutSize(
@@ -330,6 +368,12 @@ private final class TranscriptCollectionViewController: UIViewController,
         view.accessibilityLabel = "Transcript"
         view.dataSource = self
         view.delegate = self
+        // Hosting cells can finish measuring after the controller's layout
+        // pass. Observe the actual content extent so that later measurements
+        // also restore the bottom (or the reader's locked history anchor).
+        view.contentSizeDidChange = { [weak self] in
+            self?.view.setNeedsLayout()
+        }
         view.accessibilityScrollDidFinish = { [weak self] in
             self?.anchorLock = nil
             self?.updateFollowModeFromCurrentPosition()
@@ -390,6 +434,7 @@ private final class TranscriptCollectionViewController: UIViewController,
         guard !isApplyingPosition else { return }
         if isFollowingNewest {
             if (boundsChanged || contentChanged || hasLoadedInitialItems),
+               !userScrollInProgress,
                !collectionView.isTracking,
                !collectionView.isDragging,
                !collectionView.isDecelerating {
@@ -481,9 +526,10 @@ private final class TranscriptCollectionViewController: UIViewController,
 
     func scrollViewWillBeginDragging(_ scrollView: UIScrollView) {
         anchorLock = nil
-        guard isFollowingNewest else { return }
-        isFollowingNewest = false
-        onFollowModeChanged?(false, currentAnchor(preferFullyVisible: true))
+        userScrollInProgress = true
+        userScrollReadHistory = false
+        // Touching or bouncing at the bottom is not an intent to read history.
+        // Change follow mode only when the gesture actually leaves the tail.
     }
 
     func scrollViewDidScroll(_ scrollView: UIScrollView) {
@@ -492,7 +538,24 @@ private final class TranscriptCollectionViewController: UIViewController,
             return
         }
 
-        updateFollowModeFromCurrentPosition()
+        if userScrollInProgress {
+            // Pan translation is independent of content-size and viewport
+            // changes. This keeps a keyboard resize or a self-sizing streamed
+            // row from being mistaken for a deliberate history scroll.
+            let translation = scrollView.panGestureRecognizer.translation(in: scrollView)
+            if translation.y > 8 {
+                // Publish a history transition as soon as a downward finger
+                // pan has meaningfully moved away from the tail. Stream updates
+                // during a held gesture can surface New text immediately, while
+                // a stationary touch remains protected until it ends.
+                userScrollReadHistory = true
+                updateFollowModeFromCurrentPosition()
+            }
+        }
+
+        if scrollView.contentOffset.y <= -scrollView.adjustedContentInset.top + 80 {
+            onLoadOlder?()
+        }
     }
 
     func scrollViewDidEndDragging(_ scrollView: UIScrollView,
@@ -507,17 +570,21 @@ private final class TranscriptCollectionViewController: UIViewController,
     }
 
     func scrollViewDidEndScrollingAnimation(_ scrollView: UIScrollView) {
-        updateFollowModeFromCurrentPosition()
-        finishUserScrolling()
+        // This delegate callback is also emitted by programmatic layout and
+        // pinning. Those operations already establish their exact position;
+        // classifying their transient geometry can spuriously enable New text.
+        // VoiceOver scrolling uses accessibilityScrollDidFinish instead.
     }
 
     func disconnect() {
         onFollowModeChanged = nil
         onReadingAnchorChanged = nil
         onRecall = nil
+        onLoadOlder = nil
         collectionView.delegate = nil
         collectionView.dataSource = nil
         collectionView.accessibilityScrollDidFinish = nil
+        collectionView.contentSizeDidChange = nil
     }
 
     private var distanceFromNewest: CGFloat {
@@ -619,6 +686,18 @@ private final class TranscriptCollectionViewController: UIViewController,
     }
 
     private func finishUserScrolling() {
+        let preserveTailFollow = isFollowingNewest && !userScrollReadHistory
+        userScrollInProgress = false
+        userScrollReadHistory = false
+        if preserveTailFollow {
+            // A stationary touch or movement toward newest keeps following.
+            // Final geometry may still reflect keyboard or hosted-row resizing.
+            isFollowingNewest = true
+            pinToNewest()
+            return
+        }
+
+        updateFollowModeFromCurrentPosition()
         if isFollowingNewest {
             pinToNewest()
         } else {
@@ -936,6 +1015,7 @@ private struct ClarificationStrip: View {
 private struct Composer: View {
     @ObservedObject var model: RundalePresentationModel
     @FocusState.Binding var focused: Bool
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     private var canSubmitDraft: Bool {
         !model.draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -943,6 +1023,10 @@ private struct Composer: View {
 
     var body: some View {
         VStack(spacing: 8) {
+            if model.isStreaming {
+                WaitingAnimation()
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
             HStack(alignment: .bottom, spacing: 8) {
                 commandField
                     .font(.system(.body, design: .serif))
@@ -995,10 +1079,26 @@ private struct Composer: View {
             }
 
             HStack(spacing: 13) {
-                Text("@ people")
-                    .accessibilityHidden(true)
-                Text("/ commands")
-                    .accessibilityHidden(true)
+                Button {
+                    model.browseCompletions("@")
+                    focused = true
+                } label: {
+                    shortcutLabel("People", systemImage: "person")
+                        .frame(minWidth: 44, minHeight: 44, alignment: .leading)
+                        .contentShape(Rectangle())
+                }
+                .accessibilityHint("Choose a nearby person to address without typing an at sign")
+                .accessibilityIdentifier("composer.people")
+                Button {
+                    model.browseCompletions("/")
+                    focused = true
+                } label: {
+                    shortcutLabel("Commands", systemImage: "list.bullet")
+                        .frame(minWidth: 44, minHeight: 44, alignment: .leading)
+                        .contentShape(Rectangle())
+                }
+                .accessibilityHint("Choose a command to put in the draft")
+                .accessibilityIdentifier("composer.commands")
                 Spacer()
                 if model.launch.isUITesting && model.launch.manualStream && model.isStreaming {
                     Button("Next") {
@@ -1022,6 +1122,8 @@ private struct Composer: View {
                 }
             }
             .font(.caption)
+            .buttonStyle(.plain)
+            .frame(minHeight: 44)
             .foregroundStyle(RundaleTheme.secondaryInk)
             .padding(.horizontal, 4)
         }
@@ -1034,29 +1136,51 @@ private struct Composer: View {
     }
 
     @ViewBuilder
+    private func shortcutLabel(_ title: String, systemImage: String) -> some View {
+        ViewThatFits(in: .horizontal) {
+            if !dynamicTypeSize.isAccessibilitySize {
+                Label(title, systemImage: systemImage)
+                    .fixedSize(horizontal: true, vertical: false)
+            }
+            Text(title).fixedSize(horizontal: true, vertical: false)
+            Image(systemName: systemImage).accessibilityLabel(title)
+        }
+        .accessibilityLabel(title)
+    }
+
+    @ViewBuilder
     private var commandField: some View {
         #if targetEnvironment(simulator)
         // The Simulator is primarily driven from a Mac keyboard. A single-line
         // field gives Return its native submit semantics instead of relying on
         // a multiline draft mutation that can differ between input methods.
-        SimulatorCommandTextField(text: $model.draft) {
-            guard !model.isStreaming, canSubmitDraft else { return false }
-            model.submitDraft()
-            focused = true
-            return true
+        if model.launch.usesMultilineSimulatorComposer {
+            // Exercise the physical-device multiline control in native UI
+            // tests, including newlines, editing, and keyboard resizing.
+            multilineCommandField
+        } else {
+            SimulatorCommandTextField(text: $model.draft) {
+                guard !model.isStreaming, canSubmitDraft else { return false }
+                model.submitDraft()
+                focused = true
+                return true
+            }
         }
-        .frame(height: 22)
         #else
         // Physical devices retain the growing multiline composer used for
         // selection, dictation, paste, and explicit line breaks.
+        multilineCommandField
+        #endif
+    }
+
+    private var multilineCommandField: some View {
         TextField("What do you do?", text: $model.draft, axis: .vertical)
             .lineLimit(1...5)
-        #endif
     }
 
     private var commandFieldHint: String {
         #if targetEnvironment(simulator)
-        "Press Return or activate Send to submit"
+        model.launch.usesMultilineSimulatorComposer ? "Enter a multiline command" : "Press Return or activate Send to submit"
         #else
         "Enter a multiline command"
         #endif
@@ -1082,6 +1206,7 @@ private struct SimulatorCommandTextField: UIViewRepresentable {
         )
         field.returnKeyType = .send
         field.adjustsFontForContentSizeCategory = true
+        field.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
         let descriptor = UIFontDescriptor.preferredFontDescriptor(withTextStyle: .body)
         field.font = UIFont(descriptor: descriptor.withDesign(.serif) ?? descriptor, size: 0)
         field.placeholder = "What do you do?"
@@ -1097,6 +1222,11 @@ private struct SimulatorCommandTextField: UIViewRepresentable {
         if field.text != text {
             field.text = text
         }
+    }
+
+    func sizeThatFits(_ proposal: ProposedViewSize, uiView: UITextField, context: Context) -> CGSize? {
+        guard let width = proposal.width else { return nil }
+        return CGSize(width: width, height: max(22, ceil(uiView.font?.lineHeight ?? 22)))
     }
 
     final class Coordinator: NSObject, UITextFieldDelegate {

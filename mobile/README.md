@@ -1,12 +1,13 @@
 # Native Rundale client
 
-This checkout contains the first three phases of the
+This checkout contains the first four phases of the
 [mobile reset](../docs/product-specs/product-technical-spec.md). Phase 2 added
 the embedded Parish runtime, local persistence, Swift FFI bridge, and deployed
 Endpoint path. Phase 3 replaces the one-room slice with the canonical
 three-location, three-NPC Kilteevan world, authoritative travel and presence,
-explicit schedule movement, and resumable clarification. Physical-iPhone
-acceptance remains a separate gate.
+explicit schedule movement, and resumable clarification. Phase 4 adds interruption and connectivity recovery checks and freezes gameplay
+breadth while hardening the existing client. Physical-iPhone acceptance remains
+a separate gate.
 
 ## Build and run
 
@@ -31,9 +32,10 @@ open mobile/Rundale.xcodeproj
 ./verify --phase 1
 ./verify --phase 2
 ./verify --phase 3
+./verify --phase 4
 ```
 
-Running `./verify` (or `./verify --phase all`) runs all three implemented phases and
+Running `./verify` (or `./verify --phase all`) runs all four implemented phases and
 records later phases as non-blocking unavailable work. The report is written to
 `mobile/.verification/`.
 
@@ -87,6 +89,11 @@ remain in the embedded Parish runtime rather than in SwiftUI views. The
 acceptance oracle; `content/phase3-tiny-world.json` is the machine-readable
 authority.
 
+On arrival, the transcript describes a place only on its first visit and lists
+the people currently there, using “is here” or “are here.” Visit history survives
+save/resume; `/look` still provides a description whenever requested. Presence
+comes from the committed world after schedules advance.
+
 The transcript uses one isolated UIKit collection scroller with SwiftUI-hosted
 rows. Phase 1 simulator checks showed that a lazy SwiftUI stack could report
 incomplete bottom and row geometry while it materialized a long history; proxy
@@ -94,6 +101,9 @@ scroll requests then landed before the newest entry, moved a passage during
 streaming, or failed to restore its logical row. The native boundary makes the
 real content offset and drag state authoritative while preserving the SwiftUI
 row design, Dynamic Type, VoiceOver labels, and command-recall action.
+
+See the [reliability contract](reliability.md) and [Phase 4 case matrix](../docs/test-plans/phase-4-test-cases.md)
+for interruption policy, save compatibility, and the device sessions.
 
 ## Acceptance
 

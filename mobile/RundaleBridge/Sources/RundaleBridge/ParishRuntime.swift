@@ -259,6 +259,21 @@ public actor ParishRuntime: SessionAdapter {
         return try decodeValue(ParishEventPage.self, from: dispatch(operation))
     }
 
+    /// Reads the bounded durable page immediately before a retained event.
+    /// The direction is explicit so history paging never scans from sequence
+    /// zero or shares state with the live subscription cursor.
+    public func readEventPageBefore(
+        before cursor: EventCursor,
+        limit: Int = 100
+    ) throws -> ParishEventPage {
+        let operation: [String: Any] = [
+            "op": "read_event_page_before",
+            "before": cursor.rawValue,
+            "limit": max(1, min(limit, 100))
+        ]
+        return try decodeValue(ParishEventPage.self, from: dispatch(operation))
+    }
+
     /// Records a bounded transport/authentication/protocol failure against the
     /// current attempt. The engine turns it into a durable failed terminal
     /// event; it is never represented as an invalid candidate response.

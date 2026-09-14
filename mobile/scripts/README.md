@@ -15,11 +15,16 @@ sequentially and writes evidence under `mobile/.verification/`.
 
 ## Phases
 
-- `./verify --phase 1`, `--phase 2`, or `--phase 3` runs that implemented gate.
-- `./verify` and `./verify --phase all` run Phases 1–3 and report Phases 4–6 as
+- `./verify --phase 1`, `--phase 2`, `--phase 3`, or `--phase 4` runs that implemented gate.
+- `./verify` and `./verify --phase all` run Phases 1–4 and report Phases 5–6 as
   non-blocking future work.
-- `./verify --phase 4` through `./verify --phase 6` report the selected phase as
+- `./verify --phase 5` and `./verify --phase 6` report the selected phase as
   unavailable and exit nonzero until it is implemented.
+
+Phase 4 includes the earlier regression suites and native lifecycle/connectivity
+recovery tests. Its physical sessions, accessibility judgment, and performance
+budgets remain separate recorded gates. Simulator suites share compiled products
+within each run while retaining separate result bundles.
 
 ## Options
 
@@ -36,6 +41,10 @@ The runner accepts these options:
 --configuration NAME
 --report-dir PATH
 ```
+
+Set `RUNDALE_IOS_SIMULATOR` to pin the simulator used by release verification;
+an explicit `--simulator` takes precedence. This avoids altering unrelated booted
+simulators.
 
 The path overrides are useful for fixtures and isolated test projects. The
 simulator override accepts an available simulator UDID or name; otherwise the

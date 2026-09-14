@@ -19,6 +19,7 @@ protocol RundaleSessionControlling: AnyObject {
     var initialUnreadCount: Int { get }
 
     func start()
+    func setInferenceAllowed(_ allowed: Bool)
     func updateDraft(_ text: String)
     func restoredDraft() -> Draft?
     @discardableResult
@@ -29,6 +30,7 @@ protocol RundaleSessionControlling: AnyObject {
 
     func followNewest()
     func readHistory(anchor: TranscriptAnchor?)
+    func loadOlderTranscript() async
 
     func submit(_ text: String) async throws -> SubmissionReceipt
     func stop() async throws -> StopReceipt

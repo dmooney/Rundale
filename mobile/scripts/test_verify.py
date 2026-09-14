@@ -5,11 +5,13 @@ from __future__ import annotations
 
 import importlib
 import json
+import os
 import tempfile
 import unittest
 import xml.etree.ElementTree as ET
 from pathlib import Path
 from typing import TYPE_CHECKING
+from unittest.mock import patch
 
 if TYPE_CHECKING:
     from . import verify as verify_module
@@ -120,6 +122,11 @@ def create_phase2_fixture(root: Path) -> None:
     (root / "mobile" / "RundaleUITests" / "RundalePhase3UITests.swift").write_text(
         "// fixture\n", encoding="utf-8"
     )
+    (root / "mobile" / "RundaleUITests" / "RundalePhase4UITests.swift").write_text(
+        "// fixture\n", encoding="utf-8"
+    )
+    (root / "mobile" / "RundaleTests").mkdir()
+    (root / "mobile" / "RundaleTests" / "RundalePhase4Tests.swift").write_text("// fixture\n")
     endpoint_kit = root / "mobile" / "ParishEndpointKit"
     (endpoint_kit / "Tests" / "ParishEndpointKitTests").mkdir(parents=True)
     (endpoint_kit / "Package.swift").write_text("// fixture\n", encoding="utf-8")
@@ -132,6 +139,14 @@ def create_phase2_fixture(root: Path) -> None:
 
 
 class VerificationRunnerTests(unittest.TestCase):
+    def test_release_can_pin_simulator_without_changing_other_booted_devices(self):
+        with patch.dict(os.environ, {"RUNDALE_IOS_SIMULATOR": "small-phone"}):
+            parser = verify_module.build_parser()
+            self.assertEqual(parser.parse_args([]).simulator, "small-phone")
+            self.assertEqual(
+                parser.parse_args(["--simulator", "primary-phone"]).simulator, "primary-phone"
+            )
+
     def test_simulator_type_identifier_accepts_custom_iphone_name_only(self):
         payload = {
             "devices": {
@@ -240,10 +255,10 @@ class VerificationRunnerTests(unittest.TestCase):
             report = VerificationRun(root, command_runner=FakeRunner()).run()
 
             future = [suite for suite in report["suites"] if suite["kind"] == "future-phase"]
-            self.assertEqual([suite["phase"] for suite in future], [4, 5, 6])
+            self.assertEqual([suite["phase"] for suite in future], [5, 6])
             self.assertTrue(all(suite["status"] == "unavailable" for suite in future))
             self.assertTrue(all(not suite["blocking"] for suite in future))
-            self.assertEqual(report["implemented_phases"], [1, 2, 3])
+            self.assertEqual(report["implemented_phases"], [1, 2, 3, 4])
             self.assertEqual(
                 {suite["status"] for suite in report["suites"] if suite["phase"] == 2}
                 - {"passed", "not_automatable", "unavailable"},
@@ -285,12 +300,63 @@ class VerificationRunnerTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             (root / "mobile").mkdir()
-            report = VerificationRun(root, command_runner=FakeRunner()).run(4)
+            report = VerificationRun(root, command_runner=FakeRunner()).run(5)
 
             self.assertEqual(report["exit_code"], 1)
-            self.assertEqual(report["suites"][0]["id"], "phase-4-verification")
+            self.assertEqual(report["suites"][0]["id"], "phase-5-verification")
             self.assertEqual(report["suites"][0]["status"], "unavailable")
             self.assertTrue(report["suites"][0]["blocking"])
+
+    def test_phase4_runs_reliability_and_prior_regressions_once(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            create_phase2_fixture(root)
+            fake = FakeRunner()
+            report = VerificationRun(root, command_runner=fake).run(4)
+            self.assertEqual(report["exit_code"], 0)
+            by_id = {suite["id"]: suite for suite in report["suites"]}
+            for identifier in (
+                "ios-simulator-tests",
+                "phase2-ios-simulator-tests",
+                "phase3-ios-simulator-tests",
+                "phase4-ios-simulator-tests",
+                "phase4-ios-controller-tests",
+            ):
+                self.assertEqual(by_id[identifier]["status"], "passed")
+            physical = by_id["physical-iphone-phase4-session"]
+            self.assertEqual(physical["status"], "not_automatable")
+            self.assertFalse(physical["blocking"])
+            builds = [
+                call["argv"]
+                for call in fake.calls
+                if call["argv"][0] == "xcodebuild" and "test" in call["argv"]
+            ]
+            # All simulator phases share products within a run, not separate
+            # dependency recompilations for every test class.
+            self.assertEqual(len({b[b.index("-derivedDataPath") + 1] for b in builds}), 1)
+            self.assertEqual(len(builds), 5)
+
+    def test_phase4_missing_suite_is_blocking(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            create_phase2_fixture(root)
+            (root / "mobile/RundaleUITests/RundalePhase4UITests.swift").unlink()
+            report = VerificationRun(root, command_runner=FakeRunner()).run(4)
+            self.assertEqual(report["exit_code"], 1)
+            suite = next(s for s in report["suites"] if s["id"] == "phase4-ios-simulator-tests")
+            self.assertEqual(suite["status"], "unavailable")
+            self.assertTrue(suite["blocking"])
+
+    def test_phase4_missing_controller_reliability_source_is_blocking(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            create_phase2_fixture(root)
+            (root / "mobile/RundaleTests/RundalePhase4Tests.swift").unlink()
+            report = VerificationRun(root, command_runner=FakeRunner()).run(4)
+            self.assertEqual(report["exit_code"], 1)
+            suite = next(s for s in report["suites"] if s["id"] == "phase4-ios-controller-tests")
+            self.assertEqual(suite["status"], "unavailable")
+            self.assertTrue(suite["blocking"])
 
     def test_phase2_runs_rust_bridge_and_targeted_ui_gates(self):
         with tempfile.TemporaryDirectory() as directory:

@@ -920,6 +920,28 @@ fn location_as_grounded(location: &MobileLocationDefinition) -> GroundedPlace {
     }
 }
 
+/// Render the people currently present after an authoritative schedule tick.
+/// Ordering follows display names so the same state produces stable text.
+fn arrival_presence_text(npcs: &NpcManager, location: LocationId) -> Option<String> {
+    let mut names: Vec<(NpcId, String)> = npcs
+        .npcs_at(location)
+        .into_iter()
+        .map(|npc| (npc.id, npc.name.clone()))
+        .collect();
+    names.sort_by_key(|(_, name)| name.to_lowercase());
+    let names: Vec<String> = names.into_iter().map(|(_, name)| name).collect();
+    match names.as_slice() {
+        [] => None,
+        [name] => Some(format!("{name} is here.")),
+        [first, second] => Some(format!("{first} and {second} are here.")),
+        _ => {
+            let last = names.last().expect("non-empty names");
+            let preceding = &names[..names.len() - 1];
+            Some(format!("{}, and {last} are here.", preceding.join(", ")))
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct GroundedPlace {
@@ -1105,6 +1127,15 @@ pub trait MobileStore {
         after: Option<EventCursor>,
         limit: usize,
     ) -> Result<EventPage, MobileError>;
+
+    /// Read the page immediately before `before`, in chronological order.
+    /// This is deliberately separate from the live-tail `after` cursor so a
+    /// history viewport can page backwards without scanning from the origin.
+    fn read_event_page_before(
+        &self,
+        before: EventCursor,
+        limit: usize,
+    ) -> Result<EventPage, MobileError>;
 }
 
 /// In-memory store used by headless tests and by callers that supply their own
@@ -1170,6 +1201,44 @@ impl MobileStore for MemoryMobileStore {
             .last()
             .map(|event| EventCursor::new(event.sequence.raw_value))
             .unwrap_or_else(|| EventCursor::new(after));
+        Ok(EventPage {
+            events,
+            next_cursor,
+            has_more,
+            has_older_events: save.has_older_events,
+        })
+    }
+
+    fn read_event_page_before(
+        &self,
+        before: EventCursor,
+        limit: usize,
+    ) -> Result<EventPage, MobileError> {
+        let before = before.raw_value;
+        let limit = limit.clamp(1, MAX_SEMANTIC_EVENTS);
+        let Some(save) = &self.save else {
+            return Ok(EventPage {
+                events: Vec::new(),
+                next_cursor: EventCursor::new(before),
+                has_more: false,
+                has_older_events: false,
+            });
+        };
+        let mut events: Vec<SemanticEvent> = save
+            .events
+            .iter()
+            .filter(|event| event.sequence.raw_value < before)
+            .rev()
+            .take(limit + 1)
+            .cloned()
+            .collect();
+        let has_more = events.len() > limit;
+        events.truncate(limit);
+        events.reverse();
+        let next_cursor = events
+            .first()
+            .map(|event| EventCursor::new(event.sequence.raw_value))
+            .unwrap_or_else(|| EventCursor::new(before));
         Ok(EventPage {
             events,
             next_cursor,
@@ -1306,6 +1375,42 @@ impl SqliteMobileStore {
         })
     }
 
+    /// Read a bounded indexed page immediately before `before`, avoiding the
+    /// origin scan used by the legacy forward cursor API.
+    pub fn read_event_page_before(
+        &self,
+        before: EventCursor,
+        limit: usize,
+    ) -> Result<EventPage, MobileError> {
+        let limit = limit.clamp(1, MAX_SEMANTIC_EVENTS);
+        let durable = self
+            .inner
+            .read_events_before(before.raw_value, limit + 1)
+            .map_err(|error| MobileError::Storage(error.to_string()))?;
+        let has_more = durable.len() > limit;
+        let mut events = durable
+            .into_iter()
+            .map(|event| {
+                serde_json::from_value::<SemanticEvent>(event.json).map_err(|error| {
+                    MobileError::Storage(format!("invalid durable semantic event: {error}"))
+                })
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        if events.len() > limit {
+            events.remove(0);
+        }
+        let next_cursor = events
+            .first()
+            .map(|event| EventCursor::new(event.sequence.raw_value))
+            .unwrap_or(before);
+        Ok(EventPage {
+            events,
+            next_cursor,
+            has_more,
+            has_older_events: has_more,
+        })
+    }
+
     fn decode_domain(&self, value: serde_json::Value) -> Result<MobileSave, MobileError> {
         let domain: DurableMobileDomain = serde_json::from_value(value)
             .map_err(|error| MobileError::Storage(format!("invalid mobile domain: {error}")))?;
@@ -1392,6 +1497,14 @@ impl MobileStore for SqliteMobileStore {
         limit: usize,
     ) -> Result<EventPage, MobileError> {
         SqliteMobileStore::read_event_page(self, after, limit)
+    }
+
+    fn read_event_page_before(
+        &self,
+        before: EventCursor,
+        limit: usize,
+    ) -> Result<EventPage, MobileError> {
+        SqliteMobileStore::read_event_page_before(self, before, limit)
     }
 }
 
@@ -1480,7 +1593,12 @@ impl MobileSession {
         };
         let event = session.emit(
             SemanticEventKind::SceneChanged,
-            Some(session.content.opening_description.clone()),
+            Some(
+                match arrival_presence_text(&session.npcs, session.world.player_location) {
+                    Some(people) => format!("{}\n\n{people}", session.content.opening_description),
+                    None => session.content.opening_description.clone(),
+                },
+            ),
             None,
             None,
             None,
@@ -1666,6 +1784,42 @@ impl MobileSession {
             return store.read_event_page(after, limit);
         }
         Ok(self.read_events(after, limit))
+    }
+
+    /// Read the durable page immediately before a cursor. A store-backed
+    /// session uses its indexed query; the fallback is bounded to the live
+    /// in-memory tail.
+    pub fn read_event_page_before(
+        &self,
+        before: EventCursor,
+        limit: usize,
+    ) -> Result<EventPage, MobileError> {
+        let limit = limit.clamp(1, MAX_SEMANTIC_EVENTS);
+        if let Some(store) = &self.store {
+            return store.read_event_page_before(before, limit);
+        }
+        let events: Vec<SemanticEvent> = self
+            .events
+            .iter()
+            .filter(|event| event.sequence.raw_value < before.raw_value)
+            .rev()
+            .take(limit + 1)
+            .cloned()
+            .collect();
+        let has_more = events.len() > limit;
+        let mut events = events;
+        events.truncate(limit);
+        events.reverse();
+        let next_cursor = events
+            .first()
+            .map(|event| EventCursor::new(event.sequence.raw_value))
+            .unwrap_or(before);
+        Ok(EventPage {
+            events,
+            next_cursor,
+            has_more,
+            has_older_events: self.has_older_events,
+        })
     }
 
     /// Fetch deterministic slash and NPC completion data from authored Rust
@@ -2663,22 +2817,10 @@ impl MobileSession {
                 ),
             };
         }
-        let matched: Vec<&MobileNpcDefinition> = self
-            .content
-            .npcs
-            .iter()
-            .filter(|npc| {
-                let surname = npc
-                    .display_name
-                    .split_whitespace()
-                    .last()
-                    .unwrap_or_default();
-                std::iter::once(npc.display_name.as_str())
-                    .chain(npc.aliases.iter().map(String::as_str))
-                    .chain(std::iter::once(surname))
-                    .any(|name| !name.is_empty() && lower.contains(&name.to_lowercase()))
-            })
-            .collect();
+        // A name in the message body is context, not an addressee. Only
+        // names in an explicit address clause (or a leading vocative) pin the
+        // target; otherwise ordinary dialogue falls back to people present.
+        let matched = Self::explicit_addressee_candidates(&lower, &self.content.npcs);
         let nearby: Vec<&MobileNpcDefinition> = self
             .npcs
             .npcs_at(self.world.player_location)
@@ -2718,6 +2860,129 @@ impl MobileSession {
                 .next()
                 .is_none_or(|character| !character.is_alphanumeric())
         })
+    }
+
+    fn explicit_addressee_clause(text_lowercase: &str) -> Option<&str> {
+        let text_lowercase = text_lowercase.trim();
+        let prefix = [
+            "ask ",
+            "tell ",
+            "talk to ",
+            "talk with ",
+            "speak to ",
+            "speak with ",
+            "say to ",
+            "address ",
+            "hello ",
+            "hi ",
+            "hey ",
+            "good morning ",
+            "good afternoon ",
+            "good evening ",
+        ]
+        .into_iter()
+        .find(|prefix| text_lowercase.starts_with(prefix))?;
+        let remainder = &text_lowercase[prefix.len()..];
+        let end = [
+            " about ",
+            " regarding ",
+            " what ",
+            " who ",
+            " where ",
+            " when ",
+            " why ",
+            " how ",
+            " if ",
+            " whether ",
+            " that ",
+            " for ",
+        ]
+        .into_iter()
+        .filter_map(|delimiter| remainder.find(delimiter))
+        .min()
+        .unwrap_or(remainder.len());
+        let clause = remainder[..end].trim_matches(|character: char| {
+            character.is_whitespace() || matches!(character, ',' | ':' | '?')
+        });
+        (!clause.is_empty()).then_some(clause)
+    }
+
+    fn trim_addressee_slot(text: &str) -> &str {
+        text.trim_start_matches(|character: char| {
+            character.is_whitespace() || matches!(character, ',' | ':' | '?' | '!')
+        })
+    }
+
+    fn npc_name_prefix(text: &str, npc: &MobileNpcDefinition) -> Option<usize> {
+        let surname = npc
+            .display_name
+            .split_whitespace()
+            .last()
+            .unwrap_or_default();
+        std::iter::once(npc.display_name.as_str())
+            .chain(npc.aliases.iter().map(String::as_str))
+            .chain(std::iter::once(surname))
+            .filter(|name| !name.is_empty())
+            .filter_map(|name| {
+                let name = name.to_lowercase();
+                text.strip_prefix(&name).and_then(|remainder| {
+                    remainder
+                        .chars()
+                        .next()
+                        .is_none_or(|character| !character.is_alphanumeric())
+                        .then_some(name.len())
+                })
+            })
+            .max()
+    }
+
+    fn explicit_addressee_candidates<'a>(
+        text_lowercase: &str,
+        npcs: &'a [MobileNpcDefinition],
+    ) -> Vec<&'a MobileNpcDefinition> {
+        let text_lowercase = text_lowercase.trim();
+        let Some(clause) = Self::explicit_addressee_clause(text_lowercase) else {
+            // A leading name followed by punctuation is a natural vocative.
+            // A bare leading name may be a narrative subject ("Michael said").
+            return npcs
+                .iter()
+                .filter(|npc| {
+                    Self::npc_name_prefix(text_lowercase, npc).is_some_and(|length| {
+                        let remainder = text_lowercase[length..].trim_start();
+                        remainder.is_empty()
+                            || remainder
+                                .chars()
+                                .next()
+                                .is_some_and(|character| matches!(character, ',' | ':' | ';' | '!'))
+                    })
+                })
+                .collect();
+        };
+
+        let mut remaining = Self::trim_addressee_slot(clause);
+        let mut candidates: Vec<&MobileNpcDefinition> = Vec::new();
+        loop {
+            let slot_matches: Vec<_> = npcs
+                .iter()
+                .filter_map(|npc| Self::npc_name_prefix(remaining, npc).map(|length| (length, npc)))
+                .collect();
+            let Some(length) = slot_matches.iter().map(|(length, _)| *length).max() else {
+                break;
+            };
+            for (candidate_length, npc) in slot_matches {
+                if candidate_length == length
+                    && !candidates.iter().any(|candidate| candidate.id == npc.id)
+                {
+                    candidates.push(npc);
+                }
+            }
+            remaining = Self::trim_addressee_slot(&remaining[length..]);
+            let Some(after_and) = remaining.strip_prefix("and ") else {
+                break;
+            };
+            remaining = Self::trim_addressee_slot(after_and);
+        }
+        candidates
     }
 
     fn emit_clarification(
@@ -2855,6 +3120,8 @@ impl MobileSession {
         let mut changed = false;
         let action_text: String;
         let mut scene = None;
+        let mut first_visit = false;
+        let mut arrival_people = None;
         let mut schedule_lines = Vec::new();
         match movement {
             MovementResult::Arrived {
@@ -2865,6 +3132,7 @@ impl MobileSession {
             } => {
                 next_world.player_location = destination;
                 next_world.record_path_traversal(&path);
+                first_visit = !next_world.visited_locations.contains(&destination);
                 next_world.mark_visited(destination);
                 next_world.clock.advance(i64::from(minutes.max(1)));
                 let schedule_events = next_npcs.tick_schedules(
@@ -2885,6 +3153,7 @@ impl MobileSession {
                     };
                     schedule_lines.push(line);
                 }
+                arrival_people = arrival_presence_text(&next_npcs, destination);
                 action_text = narration;
                 scene = self.content.location_by_engine_id(destination).cloned();
                 changed = true;
@@ -2965,7 +3234,14 @@ impl MobileSession {
             emitted.push(self.make_event_at(
                 EventSequence::new(next_sequence),
                 SemanticEventKind::SceneChanged,
-                Some(scene.opening_description.clone()),
+                if first_visit {
+                    Some(match arrival_people {
+                        Some(people) => format!("{}\n\n{people}", scene.opening_description),
+                        None => scene.opening_description.clone(),
+                    })
+                } else {
+                    arrival_people.clone()
+                },
                 None,
                 Some(request_id),
                 Some(attempt_id),
@@ -4210,6 +4486,14 @@ mod tests {
     }
 
     #[test]
+    fn arrival_presence_text_is_empty_for_empty_room() {
+        assert_eq!(
+            arrival_presence_text(&NpcManager::new(), LocationId(1)),
+            None
+        );
+    }
+
+    #[test]
     fn phase3_session_has_exactly_three_locations_and_three_npcs() {
         let session = session();
         assert_eq!(session.content().engine_location_id, 1);
@@ -4349,6 +4633,65 @@ mod tests {
             nearby,
             vec!["npc-micheal".to_string(), "npc-roisin".to_string()]
         );
+        let scene = result
+            .events
+            .iter()
+            .find(|event| event.kind == SemanticEventKind::SceneChanged)
+            .expect("arrival scene");
+        assert_eq!(
+            scene.content.as_deref(),
+            Some(
+                "A peat fire warms the single room of Connolly Cottage.\n\nMícheál Connolly and Róisín Connolly are here."
+            )
+        );
+    }
+
+    #[test]
+    fn repeat_arrival_uses_presence_and_save_resume_preserves_visit_memory() {
+        let mut session = session();
+        session
+            .submit(None, "go to Connolly Cottage", None)
+            .unwrap();
+        let save = session.save();
+        let mut resumed = MobileSession::open_resume(save).unwrap();
+        resumed
+            .submit(None, "go to Kilteevan Village", None)
+            .unwrap();
+        let result = resumed
+            .submit(None, "go to Connolly Cottage", None)
+            .unwrap();
+        let scene = result
+            .events
+            .iter()
+            .find(|event| event.kind == SemanticEventKind::SceneChanged)
+            .expect("repeat arrival scene");
+        assert_eq!(
+            scene.content.as_deref(),
+            Some("Mícheál Connolly and Róisín Connolly are here.")
+        );
+    }
+
+    #[test]
+    fn singular_arrival_uses_current_schedule_presence() {
+        let mut session = session();
+        session
+            .submit(None, "go to Connolly Cottage", None)
+            .unwrap();
+        session
+            .submit(None, "go to Kilteevan Village", None)
+            .unwrap();
+        let result = session.submit(None, "go to Letter Office", None).unwrap();
+        let scene = result
+            .events
+            .iter()
+            .find(|event| event.kind == SemanticEventKind::SceneChanged)
+            .expect("office arrival scene");
+        assert_eq!(
+            scene.content.as_deref(),
+            Some(
+                "The Letter Office smells of sealing wax, turf smoke, and damp wool.\n\nPeig Hannigan is here."
+            )
+        );
     }
 
     #[test]
@@ -4401,6 +4744,93 @@ mod tests {
                 .as_deref()
                 .is_some_and(|text| text.contains("Peig Hannigan is not here"))
         }));
+    }
+
+    #[test]
+    fn dialogue_body_mention_does_not_address_absent_npc() {
+        let mut session = session();
+        let result = session
+            .submit(
+                None,
+                "Well I’m looking for work and a place to stay. Michael said maybe you could direct me.",
+                None,
+            )
+            .unwrap();
+        let invocation = result
+            .endpoint_invocation
+            .expect("ordinary dialogue should reach the person who is present");
+        assert_eq!(invocation.speaker.id, "npc-peig");
+    }
+
+    #[test]
+    fn dialogue_resolution_separates_body_mentions_from_explicit_addresses() {
+        let current = session();
+        for text in [
+            "Can you tell me about Michael?",
+            "Michael said he could help.",
+            "I spoke to Michael yesterday.",
+            "Tell me Michael’s story.",
+            "Tell me if Michael is hiring.",
+            "tell Peig about Michael",
+            "ask Peig about Michael",
+            "ask Peig whether Michael is hiring",
+        ] {
+            assert!(
+                matches!(
+                    current.resolve_dialogue_target(text),
+                    DialogueTarget::Selected(ref id) if id == "npc-peig"
+                ),
+                "unexpected target for {text:?}"
+            );
+        }
+        assert!(matches!(
+            current.resolve_dialogue_target("Michael, hello"),
+            DialogueTarget::Unavailable(message) if message.contains("Mícheál Connolly is not here")
+        ));
+        assert!(matches!(
+            current.resolve_dialogue_target("Michael"),
+            DialogueTarget::Unavailable(message) if message.contains("Mícheál Connolly is not here")
+        ));
+        assert!(matches!(
+            current.resolve_dialogue_target(
+                "Ask Peig whether Michael is hiring and Róisín is well"
+            ),
+            DialogueTarget::Selected(ref id) if id == "npc-peig"
+        ));
+
+        let mut cottage = session();
+        cottage.submit(None, "/go Connolly Cottage", None).unwrap();
+        assert!(matches!(
+            cottage.resolve_dialogue_target("Tell me a story and Michael can wait"),
+            DialogueTarget::Ambiguous(ids) if ids.len() == 2
+        ));
+    }
+
+    #[test]
+    fn explicit_absent_addressee_does_not_fall_back_to_present_npc() {
+        let mut session = session();
+        let result = session
+            .submit(None, "ask Michael about work", None)
+            .unwrap();
+        assert!(result.endpoint_invocation.is_none());
+        assert!(result.events.iter().any(|event| {
+            event
+                .content
+                .as_deref()
+                .is_some_and(|content| content.contains("Mícheál Connolly is not here"))
+        }));
+    }
+
+    #[test]
+    fn leading_vocative_still_selects_explicit_present_npc() {
+        let mut session = session();
+        let result = session
+            .submit(None, "Hello Peig, could you help?", None)
+            .unwrap();
+        let invocation = result
+            .endpoint_invocation
+            .expect("leading vocative should address Peig");
+        assert_eq!(invocation.speaker.id, "npc-peig");
     }
 
     #[test]

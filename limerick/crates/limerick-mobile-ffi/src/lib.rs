@@ -292,6 +292,7 @@ fn validate_operation(operation: &str) -> Result<(), BackendError> {
         "receive_candidate",
         "read_events",
         "read_event_page",
+        "read_event_page_before",
         "snapshot",
         "pending_endpoint",
     ];
@@ -300,11 +301,13 @@ fn validate_operation(operation: &str) -> Result<(), BackendError> {
             "unknown mobile operation `{operation}`"
         )));
     }
-    if matches!(operation, "read_events" | "read_event_page")
-        && object
-            .get("limit")
-            .and_then(Value::as_u64)
-            .is_some_and(|limit| limit == 0 || limit > MAX_EVENT_PAGE as u64)
+    if matches!(
+        operation,
+        "read_events" | "read_event_page" | "read_event_page_before"
+    ) && object
+        .get("limit")
+        .and_then(Value::as_u64)
+        .is_some_and(|limit| limit == 0 || limit > MAX_EVENT_PAGE as u64)
     {
         return Err(BackendError::protocol(format!(
             "read_events limit must be between 1 and {MAX_EVENT_PAGE}"
@@ -332,15 +335,24 @@ fn open_backend(
 
 #[cfg(feature = "engine-api")]
 mod core_backend {
-    use super::{Backend, BackendError, MAX_EVENT_PAGE, Value, parish_mobile_open_kind_t};
+    use super::{
+        Backend, BackendError, MAX_EVENT_PAGE, MAX_RESPONSE_BYTES, Value, parish_mobile_open_kind_t,
+    };
     use limerick_core::mobile::{
-        DraftId, EndpointCandidate, EndpointFailureKind, EndpointFrame, EventCursor,
-        ExecutionAttemptId, LogicalRequestId, MobileSave, MobileSession, StateRevision,
-        StreamUpdate,
+        DraftId, EndpointCandidate, EndpointFailureKind, EndpointFrame, EventCursor, EventPage,
+        ExecutionAttemptId, LogicalRequestId, MobileSave, MobileSession, MobileSnapshot,
+        RequestPhase, RequestRecord, SemanticEvent, StateRevision, StreamUpdate,
     };
     use serde::{Serialize, de::DeserializeOwned};
-    use serde_json::Map;
+    use serde_json::{Map, json};
     use std::path::Path;
+
+    // The C boundary has a hard response cap. Keep the presentation projection
+    // below it while the session/save remains complete and authoritative in
+    // core and SQLite. These are presentation windows, not persistence limits.
+    const MAX_SNAPSHOT_REQUESTS: usize = 128;
+    const MAX_SNAPSHOT_EVENTS: usize = 256;
+    const MAX_PRESENTATION_ATTEMPTS: usize = 2;
 
     fn parse<T: DeserializeOwned>(value: &Value, field: &str) -> Result<T, BackendError> {
         serde_json::from_value(value.clone())
@@ -460,6 +472,184 @@ mod core_backend {
     fn as_json<T: Serialize>(value: T) -> Result<Value, BackendError> {
         serde_json::to_value(value)
             .map_err(|error| BackendError::internal(format!("encode operation result: {error}")))
+    }
+
+    fn fits_response(value: &Value) -> bool {
+        serde_json::to_vec(&json!({ "ok": true, "value": value }))
+            .is_ok_and(|bytes| bytes.len() <= MAX_RESPONSE_BYTES)
+    }
+
+    fn bounded_page_value(page: EventPage, backwards: bool) -> Result<Value, BackendError> {
+        let EventPage {
+            mut events,
+            next_cursor: original_cursor,
+            has_more: original_has_more,
+            has_older_events: original_has_older_events,
+        } = page;
+        let original_len = events.len();
+
+        loop {
+            let next_cursor = (if backwards {
+                events.first()
+            } else {
+                events.last()
+            })
+            .map(|event| event.sequence.raw_value)
+            .or(Some(original_cursor.raw_value))
+            .map(EventCursor::new)
+            .unwrap_or(original_cursor);
+            let candidate = EventPage {
+                events: events.clone(),
+                next_cursor,
+                has_more: original_has_more || events.len() < original_len,
+                has_older_events: original_has_older_events
+                    || (backwards && events.len() < original_len),
+            };
+            let value = as_json(candidate)?;
+            if fits_response(&value) {
+                return Ok(value);
+            }
+            if events.len() <= 1 {
+                return Err(BackendError {
+                    code: "response_too_large",
+                    message: format!(
+                        "presentation event exceeds {} byte response bound",
+                        MAX_RESPONSE_BYTES
+                    ),
+                    status: super::parish_mobile_status_t::PARISH_MOBILE_TOO_LARGE,
+                });
+            }
+            if backwards {
+                events.remove(0);
+            } else {
+                events.pop();
+            }
+        }
+    }
+
+    fn retryable(record: &RequestRecord) -> bool {
+        matches!(
+            record.phase,
+            RequestPhase::Failed | RequestPhase::Cancelled | RequestPhase::Interrupted
+        )
+    }
+
+    fn awaiting_clarification(record: &RequestRecord) -> bool {
+        record.phase == RequestPhase::AwaitingClarification
+            && record.pending_clarification.is_some()
+    }
+
+    fn presentation_record(record: &RequestRecord) -> RequestRecord {
+        if record.attempts.len() <= MAX_PRESENTATION_ATTEMPTS {
+            return record.clone();
+        }
+        let current_index = record
+            .current_attempt_id
+            .as_ref()
+            .and_then(|id| record.attempts.iter().position(|attempt| &attempt.id == id));
+        // Keep the original attempt for command-history ordering and the
+        // current attempt for retry/active metadata. Older intermediate
+        // attempts remain in the authoritative request ledger.
+        let mut keep = vec![0];
+        if let Some(index) = current_index
+            && !keep.contains(&index)
+        {
+            keep.push(index);
+        }
+        let mut projected = record.clone();
+        projected.attempts = keep
+            .into_iter()
+            .map(|index| record.attempts[index].clone())
+            .collect();
+        projected
+    }
+
+    fn bounded_snapshot_value(snapshot: MobileSnapshot) -> Result<Value, BackendError> {
+        let has_older_events = snapshot.has_older_events;
+        let active_request_id = snapshot.active_request_id.clone();
+        let latest_retryable_id = snapshot
+            .requests
+            .iter()
+            .rev()
+            .find(|record| retryable(record))
+            .map(|record| record.id.clone());
+        // Swift exposes a single clarification sheet. Preserve only the
+        // newest unresolved prompt in the bounded presentation projection;
+        // every request and prompt remains intact in the authoritative save.
+        let latest_clarification_id = snapshot
+            .requests
+            .iter()
+            .rev()
+            .find(|record| awaiting_clarification(record))
+            .map(|record| record.id.clone());
+
+        // Keep all active/retryable metadata, then the newest ordinary
+        // records. The full request ledger is still in MobileSession::save;
+        // this list only feeds the native presentation on hydration.
+        let ordinary_start = snapshot
+            .requests
+            .len()
+            .saturating_sub(MAX_SNAPSHOT_REQUESTS);
+        let mut requests: Vec<RequestRecord> = snapshot
+            .requests
+            .iter()
+            .enumerate()
+            .filter(|(index, record)| {
+                Some(&record.id) == active_request_id.as_ref()
+                    || Some(&record.id) == latest_retryable_id.as_ref()
+                    || Some(&record.id) == latest_clarification_id.as_ref()
+                    || *index >= ordinary_start
+            })
+            .map(|(_, record)| presentation_record(record))
+            .collect();
+        let mut events: Vec<SemanticEvent> = snapshot
+            .events
+            .iter()
+            .skip(snapshot.events.len().saturating_sub(MAX_SNAPSHOT_EVENTS))
+            .cloned()
+            .collect();
+
+        loop {
+            let candidate = MobileSnapshot {
+                contract_version: snapshot.contract_version,
+                session_id: snapshot.session_id.clone(),
+                state_revision: snapshot.state_revision,
+                event_cursor: snapshot.event_cursor,
+                read_model: snapshot.read_model.clone(),
+                requests: requests.clone(),
+                active_request_id: active_request_id.clone(),
+                events: events.clone(),
+                has_older_events: has_older_events || events.len() < snapshot.events.len(),
+            };
+            let value = as_json(candidate)?;
+            if fits_response(&value) {
+                return Ok(value);
+            }
+
+            // Preserve the recent event presentation while making progress
+            // toward the wire cap. Ordinary request metadata is expendable;
+            // active/retryable records are protected below.
+            if let Some(index) = requests.iter().position(|record| {
+                Some(&record.id) != active_request_id.as_ref()
+                    && Some(&record.id) != latest_retryable_id.as_ref()
+                    && Some(&record.id) != latest_clarification_id.as_ref()
+            }) {
+                requests.remove(index);
+                continue;
+            }
+            if events.len() > 1 {
+                events.remove(0);
+                continue;
+            }
+            return Err(BackendError {
+                code: "response_too_large",
+                message: format!(
+                    "presentation snapshot exceeds {} byte response bound",
+                    MAX_RESPONSE_BYTES
+                ),
+                status: super::parish_mobile_status_t::PARISH_MOBILE_TOO_LARGE,
+            });
+        }
     }
 
     struct CoreBackend {
@@ -628,7 +818,7 @@ mod core_backend {
                         .map(|value| parse(value, "limit"))
                         .transpose()?
                         .unwrap_or(MAX_EVENT_PAGE);
-                    as_json(self.session.read_events(after, limit))?
+                    bounded_page_value(self.session.read_events(after, limit), false)?
                 }
                 "read_event_page" => {
                     let after = object
@@ -641,13 +831,36 @@ mod core_backend {
                         .map(|value| parse(value, "limit"))
                         .transpose()?
                         .unwrap_or(MAX_EVENT_PAGE);
-                    as_json(
+                    bounded_page_value(
                         self.session
                             .read_event_page(after, limit)
                             .map_err(|error| BackendError::internal(error.to_string()))?,
+                        false,
                     )?
                 }
-                "snapshot" => as_json(self.session.snapshot())?,
+                "read_event_page_before" => {
+                    let before = object
+                        .get("before")
+                        .map(|value| parse_cursor(value, "before"))
+                        .transpose()?
+                        .ok_or_else(|| {
+                            BackendError::protocol(
+                                "read_event_page_before requires cursor field `before`",
+                            )
+                        })?;
+                    let limit = object
+                        .get("limit")
+                        .map(|value| parse(value, "limit"))
+                        .transpose()?
+                        .unwrap_or(MAX_EVENT_PAGE);
+                    bounded_page_value(
+                        self.session
+                            .read_event_page_before(before, limit)
+                            .map_err(|error| BackendError::internal(error.to_string()))?,
+                        true,
+                    )?
+                }
+                "snapshot" => bounded_snapshot_value(self.session.snapshot())?,
                 "pending_endpoint" => as_json(self.session.take_pending_invocation())?,
                 other => {
                     return Err(BackendError::protocol(format!(
@@ -1022,6 +1235,7 @@ mod tests {
         );
         let pending = take(pending);
         let invocation = &pending["value"]["endpointInvocation"];
+        let logical_request_id = invocation["logicalRequestID"].clone();
         let attempt_id = invocation["attemptID"].clone();
         let base_revision = invocation["baseRevision"].clone();
         assert!(invocation.is_object());
@@ -1041,6 +1255,67 @@ mod tests {
         );
         let failed = take(failed);
         assert_eq!(failed["value"]["terminalOutcome"], "failed");
+
+        // Repeated transport failures grow the durable attempt history. The
+        // presentation projection keeps the retryable record and its current
+        // attempt metadata bounded without pruning the authoritative ledger.
+        for _ in 0..4 {
+            let retry_operation = format!(
+                "{{\"op\":\"retry\",\"logicalRequestID\":{}}}",
+                serde_json::to_string(&logical_request_id).unwrap()
+            );
+            let mut retry_response = parish_mobile_owned_bytes_t {
+                ptr: ptr::null_mut(),
+                len: 0,
+            };
+            assert_eq!(
+                parish_mobile_dispatch(handle, borrowed(&retry_operation), &mut retry_response),
+                parish_mobile_status_t::PARISH_MOBILE_OK
+            );
+            let retry = take(retry_response);
+            let retry_invocation = &retry["value"]["endpointInvocation"];
+            let retry_failure = format!(
+                "{{\"op\":\"receive_failure\",\"attemptID\":{},\"baseRevision\":{},\"errorKind\":\"transport\",\"message\":\"Endpoint unavailable\"}}",
+                serde_json::to_string(&retry_invocation["attemptID"]).unwrap(),
+                serde_json::to_string(&retry_invocation["baseRevision"]).unwrap(),
+            );
+            let mut retry_failure_response = parish_mobile_owned_bytes_t {
+                ptr: ptr::null_mut(),
+                len: 0,
+            };
+            assert_eq!(
+                parish_mobile_dispatch(
+                    handle,
+                    borrowed(&retry_failure),
+                    &mut retry_failure_response,
+                ),
+                parish_mobile_status_t::PARISH_MOBILE_OK
+            );
+            let retry_failure = take(retry_failure_response);
+            assert_eq!(retry_failure["value"]["terminalOutcome"], "failed");
+        }
+
+        let mut failed_snapshot = parish_mobile_owned_bytes_t {
+            ptr: ptr::null_mut(),
+            len: 0,
+        };
+        assert_eq!(
+            parish_mobile_dispatch(
+                handle,
+                borrowed(r#"{"op":"snapshot"}"#),
+                &mut failed_snapshot,
+            ),
+            parish_mobile_status_t::PARISH_MOBILE_OK
+        );
+        let failed_snapshot = take(failed_snapshot);
+        let failed_record = failed_snapshot["value"]["requests"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|record| record["id"] == logical_request_id)
+            .unwrap();
+        assert_eq!(failed_record["phase"], "failed");
+        assert!(failed_record["attempts"].as_array().unwrap().len() <= 2);
 
         assert_eq!(
             parish_mobile_close(handle),
@@ -1095,5 +1370,280 @@ mod tests {
         assert_eq!(handle, 0);
         assert!(!response.ptr.is_null());
         release_owned_bytes(response);
+    }
+
+    #[cfg(feature = "engine-api")]
+    #[test]
+    fn long_session_presentation_stays_bounded_across_restart() {
+        fn borrowed(value: &str) -> parish_mobile_bytes_t {
+            parish_mobile_bytes_t {
+                ptr: value.as_ptr(),
+                len: value.len(),
+            }
+        }
+
+        fn take(response: parish_mobile_owned_bytes_t) -> (Value, usize) {
+            let length = response.len;
+            let value = unsafe {
+                serde_json::from_slice(slice::from_raw_parts(response.ptr, response.len)).unwrap()
+            };
+            assert_eq!(
+                parish_mobile_owned_bytes_free(response),
+                parish_mobile_status_t::PARISH_MOBILE_OK
+            );
+            (value, length)
+        }
+
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("long-session.sqlite");
+        let open_request = format!(r#"{{"save_path":"{}"}}"#, path.display());
+        let mut handle = 0;
+        let mut opening = parish_mobile_owned_bytes_t {
+            ptr: ptr::null_mut(),
+            len: 0,
+        };
+        assert_eq!(
+            parish_mobile_open(
+                parish_mobile_open_kind_t::PARISH_MOBILE_OPEN_NEW,
+                borrowed(&open_request),
+                &mut handle,
+                &mut opening,
+            ),
+            parish_mobile_status_t::PARISH_MOBILE_OK
+        );
+        let (_, opening_bytes) = take(opening);
+        assert!(opening_bytes <= MAX_RESPONSE_BYTES);
+
+        // Each deterministic command appends three durable semantic events.
+        // This is deliberately larger than the in-memory presentation tail;
+        // the complete ledger remains in SQLite for paging after restart.
+        for _ in 0..400 {
+            let command = r#"{"op":"submit","text":"/look"}"#;
+            let mut response = parish_mobile_owned_bytes_t {
+                ptr: ptr::null_mut(),
+                len: 0,
+            };
+            assert_eq!(
+                parish_mobile_dispatch(handle, borrowed(command), &mut response),
+                parish_mobile_status_t::PARISH_MOBILE_OK
+            );
+            let (value, bytes) = take(response);
+            assert!(value["ok"].as_bool().unwrap());
+            assert!(bytes <= MAX_RESPONSE_BYTES);
+        }
+
+        fn dispatch(handle: parish_mobile_handle_t, operation: &str) -> (Value, usize) {
+            let mut response = parish_mobile_owned_bytes_t {
+                ptr: ptr::null_mut(),
+                len: 0,
+            };
+            assert_eq!(
+                parish_mobile_dispatch(handle, borrowed(operation), &mut response),
+                parish_mobile_status_t::PARISH_MOBILE_OK
+            );
+            take(response)
+        }
+
+        let (snapshot, snapshot_bytes) = dispatch(handle, r#"{"op":"snapshot"}"#);
+        assert!(snapshot_bytes <= MAX_RESPONSE_BYTES);
+        assert!(snapshot["ok"].as_bool().unwrap());
+        let snapshot_events = snapshot["value"]["events"].as_array().unwrap();
+        assert!(!snapshot_events.is_empty());
+        assert!(snapshot["value"]["hasOlderEvents"].as_bool().unwrap());
+
+        let (page, page_bytes) =
+            dispatch(handle, r#"{"op":"read_event_page","after":0,"limit":100}"#);
+        assert!(page_bytes <= MAX_RESPONSE_BYTES);
+        let page_events = page["value"]["events"].as_array().unwrap();
+        assert!(!page_events.is_empty());
+        assert_eq!(
+            page["value"]["nextCursor"],
+            page_events.last().unwrap()["sequence"]
+        );
+
+        let (backward, backward_bytes) = dispatch(
+            handle,
+            r#"{"op":"read_event_page_before","before":1201,"limit":100}"#,
+        );
+        assert!(backward_bytes <= MAX_RESPONSE_BYTES);
+        let backward_events = backward["value"]["events"].as_array().unwrap();
+        assert!(!backward_events.is_empty());
+        assert_eq!(
+            backward["value"]["nextCursor"],
+            backward_events.first().unwrap()["sequence"]
+        );
+        assert_eq!(
+            parish_mobile_close(handle),
+            parish_mobile_status_t::PARISH_MOBILE_OK
+        );
+
+        // Reopening must return the same bounded presentation contract while
+        // retaining the full durable event/request ledger for the next page.
+        let mut resumed_handle = 0;
+        let mut resumed = parish_mobile_owned_bytes_t {
+            ptr: ptr::null_mut(),
+            len: 0,
+        };
+        assert_eq!(
+            parish_mobile_open(
+                parish_mobile_open_kind_t::PARISH_MOBILE_OPEN_RESUME,
+                borrowed(&open_request),
+                &mut resumed_handle,
+                &mut resumed,
+            ),
+            parish_mobile_status_t::PARISH_MOBILE_OK
+        );
+        let (resumed_snapshot, resumed_bytes) = take(resumed);
+        assert!(resumed_bytes <= MAX_RESPONSE_BYTES);
+        assert!(resumed_snapshot["ok"].as_bool().unwrap());
+        assert!(
+            !resumed_snapshot["value"]["events"]
+                .as_array()
+                .unwrap()
+                .is_empty()
+        );
+        assert_eq!(
+            parish_mobile_close(resumed_handle),
+            parish_mobile_status_t::PARISH_MOBILE_OK
+        );
+    }
+
+    #[cfg(feature = "engine-api")]
+    #[test]
+    fn unresolved_clarification_survives_bounded_restart_projection() {
+        fn borrowed(value: &str) -> parish_mobile_bytes_t {
+            parish_mobile_bytes_t {
+                ptr: value.as_ptr(),
+                len: value.len(),
+            }
+        }
+
+        fn take(response: parish_mobile_owned_bytes_t) -> Value {
+            let value = unsafe {
+                serde_json::from_slice(slice::from_raw_parts(response.ptr, response.len)).unwrap()
+            };
+            assert_eq!(
+                parish_mobile_owned_bytes_free(response),
+                parish_mobile_status_t::PARISH_MOBILE_OK
+            );
+            value
+        }
+
+        fn dispatch(handle: parish_mobile_handle_t, operation: &str) -> Value {
+            let mut response = parish_mobile_owned_bytes_t {
+                ptr: ptr::null_mut(),
+                len: 0,
+            };
+            let status = parish_mobile_dispatch(handle, borrowed(operation), &mut response);
+            if status != parish_mobile_status_t::PARISH_MOBILE_OK {
+                panic!(
+                    "dispatch {operation} failed with {status:?}: {}",
+                    take(response)
+                );
+            }
+            take(response)
+        }
+
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("clarification.sqlite");
+        let open_request = format!(r#"{{"save_path":"{}"}}"#, path.display());
+        let mut handle = 0;
+        let mut opening = parish_mobile_owned_bytes_t {
+            ptr: ptr::null_mut(),
+            len: 0,
+        };
+        assert_eq!(
+            parish_mobile_open(
+                parish_mobile_open_kind_t::PARISH_MOBILE_OPEN_NEW,
+                borrowed(&open_request),
+                &mut handle,
+                &mut opening,
+            ),
+            parish_mobile_status_t::PARISH_MOBILE_OK
+        );
+        let _ = take(opening);
+
+        assert!(dispatch(
+            handle,
+            r#"{"op":"submit","text":"go to Connolly Cottage"}"#,
+        )["value"]["accepted"]
+            .as_bool()
+            .unwrap());
+        let ambiguous = dispatch(
+            handle,
+            r#"{"op":"submit","text":"ask Connolly about the household"}"#,
+        );
+        let logical_request_id = ambiguous["value"]["logicalRequestID"].clone();
+        assert!(
+            ambiguous["value"]["events"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|event| event["kind"] == "clarification_required")
+        );
+
+        // Move the prompt beyond both the native request tail and the native
+        // event tail. Its pending choices are still needed after force quit.
+        for _ in 0..140 {
+            let response = dispatch(handle, r#"{"op":"submit","text":"/look"}"#);
+            assert!(response["value"]["accepted"].as_bool().unwrap());
+        }
+
+        let snapshot = dispatch(handle, r#"{"op":"snapshot"}"#);
+        let prompt_record = snapshot["value"]["requests"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|record| record["id"] == logical_request_id)
+            .unwrap();
+        assert_eq!(prompt_record["phase"], "awaiting_clarification");
+        assert_eq!(
+            prompt_record["pendingClarification"]["choices"][0]["id"],
+            "choose-npc-micheal"
+        );
+
+        assert_eq!(
+            parish_mobile_close(handle),
+            parish_mobile_status_t::PARISH_MOBILE_OK
+        );
+
+        let mut resumed_handle = 0;
+        let mut resumed = parish_mobile_owned_bytes_t {
+            ptr: ptr::null_mut(),
+            len: 0,
+        };
+        assert_eq!(
+            parish_mobile_open(
+                parish_mobile_open_kind_t::PARISH_MOBILE_OPEN_RESUME,
+                borrowed(&open_request),
+                &mut resumed_handle,
+                &mut resumed,
+            ),
+            parish_mobile_status_t::PARISH_MOBILE_OK
+        );
+        let resumed_snapshot = take(resumed);
+        let resumed_record = resumed_snapshot["value"]["requests"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|record| record["id"] == logical_request_id)
+            .unwrap();
+        assert_eq!(resumed_record["phase"], "awaiting_clarification");
+        assert_eq!(
+            resumed_record["pendingClarification"]["choices"][1]["id"],
+            "choose-npc-roisin"
+        );
+
+        let answer = format!(
+            "{{\"op\":\"answer_clarification\",\"logicalRequestID\":{},\"choice_id\":\"choose-npc-roisin\"}}",
+            serde_json::to_string(&logical_request_id).unwrap()
+        );
+        let answered = dispatch(resumed_handle, &answer);
+        assert!(answered["value"]["accepted"].as_bool().unwrap());
+        assert!(answered["value"]["endpointInvocation"].is_object());
+        assert_eq!(
+            parish_mobile_close(resumed_handle),
+            parish_mobile_status_t::PARISH_MOBILE_OK
+        );
     }
 }
