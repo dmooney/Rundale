@@ -750,6 +750,56 @@ impl MobileStore {
         .collect()
     }
 
+    /// Read the indexed page immediately before `before_sequence`. The
+    /// descending query keeps this bounded even for a very long save; rows
+    /// are reversed before returning so callers retain chronological order.
+    pub fn read_events_before(
+        &self,
+        before_sequence: u64,
+        limit: usize,
+    ) -> Result<Vec<MobileEvent>, LimerickError> {
+        let before_sequence = i64::try_from(before_sequence)
+            .map_err(|_| config_error("event cursor exceeds SQLite integer range"))?;
+        let limit = limit.min(MAX_EVENT_PAGE_SIZE);
+        if limit == 0 {
+            return Ok(Vec::new());
+        }
+        let limit = i64::try_from(limit).expect("MAX_EVENT_PAGE_SIZE fits SQLite integer");
+        let mut statement = self
+            .connection
+            .prepare(
+                "SELECT event_id, sequence, event_json
+                 FROM mobile_events
+                 WHERE sequence < ?1
+                 ORDER BY sequence DESC
+                 LIMIT ?2",
+            )
+            .db_err()?;
+        let rows = statement
+            .query_map(params![before_sequence, limit], |row| {
+                let event_id: String = row.get(0)?;
+                let sequence: i64 = row.get(1)?;
+                let json: String = row.get(2)?;
+                Ok((event_id, sequence, json))
+            })
+            .db_err()?;
+
+        let mut events: Vec<MobileEvent> = rows
+            .map(|row| {
+                let (event_id, sequence, json) = row.db_err()?;
+                let sequence = u64::try_from(sequence)
+                    .map_err(|_| database_error("mobile event has a negative sequence"))?;
+                Ok(MobileEvent {
+                    event_id,
+                    sequence,
+                    json: serde_json::from_str(&json)?,
+                })
+            })
+            .collect::<Result<_, LimerickError>>()?;
+        events.reverse();
+        Ok(events)
+    }
+
     /// Atomically update state, upsert logical requests, and append events.
     ///
     /// The metadata generation is compared and incremented in the same
@@ -2073,6 +2123,27 @@ mod tests {
             .unwrap();
         assert_eq!(second.len(), 10);
         assert_eq!(second.first().unwrap().sequence, first.len() as u64 + 1);
+    }
+
+    #[test]
+    fn history_pages_before_are_bounded_and_adjacent_on_large_history() {
+        let (_directory, store) = test_store();
+        let events: Vec<_> = (0..10_000)
+            .map(|index| event(&format!("large-event-{index}"), "terminal"))
+            .collect();
+        store.commit(0, None, &[], &events).unwrap();
+
+        let newest_before = store.read_events_before(10_000, 101).unwrap();
+        assert_eq!(newest_before.len(), 101);
+        assert_eq!(newest_before.first().unwrap().sequence, 9_899);
+        assert_eq!(newest_before.last().unwrap().sequence, 9_999);
+
+        let preceding = store
+            .read_events_before(newest_before.first().unwrap().sequence, 100)
+            .unwrap();
+        assert_eq!(preceding.len(), 100);
+        assert_eq!(preceding.first().unwrap().sequence, 9_799);
+        assert_eq!(preceding.last().unwrap().sequence, 9_898);
     }
 
     #[test]

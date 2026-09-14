@@ -9,6 +9,8 @@ repository review, with source provenance retained in each plan.
 | 1     | [Phase 1 test cases](phase-1-test-cases.md) | Fixture-only transcript/composer interaction, streaming, keyboard, accessibility, and UI scope |
 | 2     | [Phase 2 test cases](phase-2-test-cases.md) | Embedded Rust, one location/one NPC, inference, cancellation/retry, and local recovery         |
 
+| 4 | [Phase 4 test cases](phase-4-test-cases.md) | Lifecycle, connectivity, retry, save safety, long history, accessibility, and physical sessions |
+
 These are test instructions, not execution reports or evidence that a milestone
 has passed. Record actual results separately, including the build/device or fixture
 used, evidence, failures, and gates that were not run or could not be automated.

@@ -415,6 +415,73 @@ final class RundaleKitTests: XCTestCase {
         XCTAssertFalse(state.hasOlderTranscript)
     }
 
+    func testLongHistoryPagesBackwardsWithoutGrowingThePresentationWindow() {
+        let sessionID = SessionID("session-10k-history")
+        func item(_ sequence: Int) -> TranscriptItem {
+            TranscriptItem(
+                id: TranscriptItemID("item-\(sequence)"), kind: .narration,
+                content: "entry \(sequence)", state: .committed,
+                lastEventSequence: EventSequence(UInt64(sequence))
+            )
+        }
+
+        var state = SessionState(
+            sessionID: sessionID,
+            transcript: (9_500..<10_000).map(item),
+            hasOlderTranscript: true,
+            transcriptCapacity: 500
+        )
+        var reducer = SessionReducer()
+
+        for pageStart in stride(from: 9_400, through: 0, by: -100) {
+            let page = (pageStart..<(pageStart + 100)).map(item)
+            XCTAssertEqual(
+                reducer.reduce(
+                    .loadOlderTranscript(items: page, hasOlderItems: pageStart > 0),
+                    in: &state
+                ),
+                .applied
+            )
+            XCTAssertEqual(state.transcript.count, 500)
+            XCTAssertEqual(state.transcript.first?.lastEventSequence.rawValue, UInt64(pageStart))
+            XCTAssertEqual(state.transcript.last?.lastEventSequence.rawValue, UInt64(pageStart + 499))
+        }
+
+        XCTAssertFalse(state.hasOlderTranscript)
+        XCTAssertEqual(state.transcript.map(\.lastEventSequence.rawValue), Array(0..<500).map(UInt64.init))
+    }
+
+    func testOlderHistoryWindowDoesNotEvictItsAnchorForLiveEvents() {
+        let sessionID = SessionID("session-history-live")
+        let older = (1...500).map {
+            TranscriptItem(
+                id: TranscriptItemID("item-\($0)"), kind: .narration,
+                content: "entry \($0)", state: .committed,
+                lastEventSequence: EventSequence(UInt64($0))
+            )
+        }
+        var state = SessionState(
+            sessionID: sessionID,
+            transcript: older,
+            hasOlderTranscript: true,
+            viewport: TranscriptViewport(
+                anchor: TranscriptAnchor(itemID: older[20].id, offset: 14),
+                isFollowingNewest: false
+            ),
+            isHistoricalWindow: true
+        )
+        var reducer = SessionReducer()
+        let live = SemanticEvent(
+            eventID: SemanticEventID("live"), sessionID: sessionID,
+            sequence: 10_001, kind: .narration, content: "newest"
+        )
+
+        XCTAssertEqual(reducer.reduce(.apply(live), in: &state), .applied)
+        XCTAssertEqual(state.transcript.map(\.id), older.map(\.id))
+        XCTAssertEqual(state.viewport.anchor?.itemID, older[20].id)
+        XCTAssertTrue(state.viewport.hasNewText)
+    }
+
     func testCompletionRegistrySupportsSlashNPCAndAccents() {
         let registry = FixtureCompletionRegistry.phase1
         XCTAssertEqual(registry.suggestions(for: "/lo").map(\.id), ["look"])

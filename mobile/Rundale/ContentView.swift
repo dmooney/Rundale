@@ -72,12 +72,16 @@ struct ContentView: View {
                 hasNewText = true
             }
         }
+        .onChange(of: model.accessibilityNotice) { _, notice in
+            guard let notice, !notice.isEmpty else { return }
+            UIAccessibility.post(notification: .announcement, argument: notice)
+        }
         .onChange(of: scenePhase) { _, phase in
             if phase == .background || phase == .inactive {
                 model.persistDraft()
-                Task {
-                    await model.persistLifecycleSnapshot()
-                }
+                model.handleBackgrounding()
+            } else if phase == .active {
+                model.handleForegrounding()
             }
         }
         .preferredColorScheme(model.launch.forceDarkAppearance ? .dark : nil)
@@ -116,11 +120,15 @@ private struct StatusHeader: View {
                 .font(.system(.headline, design: .serif, weight: .medium))
                 .accessibilityAddTraits(.isHeader)
 
-            HStack(spacing: 8) {
-                Label(model.header.timeOfDay, systemImage: "clock")
-                Text("·")
-                    .accessibilityHidden(true)
-                Label(model.header.weather, systemImage: "cloud.rain")
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: 8) {
+                    Label(model.header.timeOfDay, systemImage: "clock")
+                    Text("·")
+                        .accessibilityHidden(true)
+                    Label(model.header.weather, systemImage: "cloud.rain")
+                }
+                Text("\(model.header.timeOfDay) · \(model.header.weather)")
+                    .fixedSize(horizontal: false, vertical: true)
             }
             .font(.caption)
             .foregroundStyle(RundaleTheme.secondaryInk)
@@ -148,6 +156,7 @@ private struct TranscriptView: View {
                 hasNewText: $hasNewText,
                 onRecall: model.recallCommand,
                 onReadHistory: model.readHistory,
+                onLoadOlder: model.loadOlderTranscript,
                 onFollowNewest: model.followNewest
             )
 
@@ -187,6 +196,7 @@ private struct NativeTranscriptScroller: UIViewControllerRepresentable {
     @Binding var hasNewText: Bool
     let onRecall: (String) -> Void
     let onReadHistory: (TranscriptAnchor?) -> Void
+    let onLoadOlder: () -> Void
     let onFollowNewest: () -> Void
 
     func makeCoordinator() -> Coordinator {
@@ -253,6 +263,10 @@ private struct NativeTranscriptScroller: UIViewControllerRepresentable {
                 guard let self, self.connectedController === controller else { return }
                 self.parent.onReadHistory(anchor)
             }
+            controller.onLoadOlder = { [weak self, weak controller] in
+                guard let self, self.connectedController === controller else { return }
+                self.parent.onLoadOlder()
+            }
             controller.onRecall = { [weak self, weak controller] command in
                 guard let self, self.connectedController === controller else { return }
                 self.parent.onRecall(command)
@@ -301,6 +315,7 @@ private final class TranscriptCollectionViewController: UIViewController,
     var onFollowModeChanged: ((Bool, TranscriptAnchor?) -> Void)?
     var onReadingAnchorChanged: ((TranscriptAnchor?) -> Void)?
     var onRecall: ((String) -> Void)?
+    var onLoadOlder: (() -> Void)?
 
     private lazy var collectionView: TranscriptCollectionView = {
         let itemSize = NSCollectionLayoutSize(
@@ -492,6 +507,10 @@ private final class TranscriptCollectionViewController: UIViewController,
             return
         }
 
+        if scrollView.contentOffset.y <= -scrollView.adjustedContentInset.top + 80 {
+            onLoadOlder?()
+        }
+
         updateFollowModeFromCurrentPosition()
     }
 
@@ -515,6 +534,7 @@ private final class TranscriptCollectionViewController: UIViewController,
         onFollowModeChanged = nil
         onReadingAnchorChanged = nil
         onRecall = nil
+        onLoadOlder = nil
         collectionView.delegate = nil
         collectionView.dataSource = nil
         collectionView.accessibilityScrollDidFinish = nil
@@ -936,6 +956,7 @@ private struct ClarificationStrip: View {
 private struct Composer: View {
     @ObservedObject var model: RundalePresentationModel
     @FocusState.Binding var focused: Bool
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     private var canSubmitDraft: Bool {
         !model.draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -995,10 +1016,12 @@ private struct Composer: View {
             }
 
             HStack(spacing: 13) {
-                Text("@ people")
-                    .accessibilityHidden(true)
-                Text("/ commands")
-                    .accessibilityHidden(true)
+                if !dynamicTypeSize.isAccessibilitySize {
+                    Text("@ people")
+                        .accessibilityHidden(true)
+                    Text("/ commands")
+                        .accessibilityHidden(true)
+                }
                 Spacer()
                 if model.launch.isUITesting && model.launch.manualStream && model.isStreaming {
                     Button("Next") {
@@ -1039,24 +1062,33 @@ private struct Composer: View {
         // The Simulator is primarily driven from a Mac keyboard. A single-line
         // field gives Return its native submit semantics instead of relying on
         // a multiline draft mutation that can differ between input methods.
-        SimulatorCommandTextField(text: $model.draft) {
-            guard !model.isStreaming, canSubmitDraft else { return false }
-            model.submitDraft()
-            focused = true
-            return true
+        if model.launch.usesMultilineSimulatorComposer {
+            // Exercise the physical-device multiline control in native UI
+            // tests, including newlines, editing, and keyboard resizing.
+            multilineCommandField
+        } else {
+            SimulatorCommandTextField(text: $model.draft) {
+                guard !model.isStreaming, canSubmitDraft else { return false }
+                model.submitDraft()
+                focused = true
+                return true
+            }
         }
-        .frame(height: 22)
         #else
         // Physical devices retain the growing multiline composer used for
         // selection, dictation, paste, and explicit line breaks.
+        multilineCommandField
+        #endif
+    }
+
+    private var multilineCommandField: some View {
         TextField("What do you do?", text: $model.draft, axis: .vertical)
             .lineLimit(1...5)
-        #endif
     }
 
     private var commandFieldHint: String {
         #if targetEnvironment(simulator)
-        "Press Return or activate Send to submit"
+        model.launch.usesMultilineSimulatorComposer ? "Enter a multiline command" : "Press Return or activate Send to submit"
         #else
         "Enter a multiline command"
         #endif
@@ -1082,6 +1114,7 @@ private struct SimulatorCommandTextField: UIViewRepresentable {
         )
         field.returnKeyType = .send
         field.adjustsFontForContentSizeCategory = true
+        field.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
         let descriptor = UIFontDescriptor.preferredFontDescriptor(withTextStyle: .body)
         field.font = UIFont(descriptor: descriptor.withDesign(.serif) ?? descriptor, size: 0)
         field.placeholder = "What do you do?"
@@ -1097,6 +1130,11 @@ private struct SimulatorCommandTextField: UIViewRepresentable {
         if field.text != text {
             field.text = text
         }
+    }
+
+    func sizeThatFits(_ proposal: ProposedViewSize, uiView: UITextField, context: Context) -> CGSize? {
+        guard let width = proposal.width else { return nil }
+        return CGSize(width: width, height: max(22, ceil(uiView.font?.lineHeight ?? 22)))
     }
 
     final class Coordinator: NSObject, UITextFieldDelegate {

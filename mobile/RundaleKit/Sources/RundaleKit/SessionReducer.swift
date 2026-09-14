@@ -46,6 +46,7 @@ public struct SessionReducer: Sendable {
             return .applied
 
         case .followNewest:
+            state.setHistoricalWindow(false)
             var viewport = state.viewport
             viewport.followNewest()
             state.updateViewport(viewport)
@@ -71,6 +72,7 @@ public struct SessionReducer: Sendable {
             // normal newest-tail trimming policy.
             var seenIDs = Set(state.transcript.map(\.id))
             let uniqueOlder = items.filter { seenIDs.insert($0.id).inserted }
+            if !uniqueOlder.isEmpty { state.setHistoricalWindow(true) }
             let merged = uniqueOlder + state.transcript
             state.setTranscript(Array(merged.prefix(state.transcriptCapacity)), hasOlder: hasOlderItems)
             return .applied
@@ -481,6 +483,10 @@ public final class PresentationSession {
 
     public func updateDraft(_ text: String) {
         reducer.reduce(.updateDraft(text), in: &state)
+        // A draft identity represents one editing generation. Mint it for
+        // every actual composer mutation so an acceptance receipt for an old
+        // generation cannot clear a newly retyped identical command.
+        state.updateDraft(Draft(text: text))
     }
 
     public func followNewest() {
@@ -493,5 +499,9 @@ public final class PresentationSession {
 
     public func recallCommand(_ id: LogicalRequestID) {
         reducer.reduce(.recallCommand(id), in: &state)
+    }
+
+    public func loadOlderTranscript(items: [TranscriptItem], hasOlderItems: Bool) {
+        reducer.reduce(.loadOlderTranscript(items: items, hasOlderItems: hasOlderItems), in: &state)
     }
 }

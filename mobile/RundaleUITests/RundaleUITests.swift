@@ -287,6 +287,9 @@ final class RundaleUITests: XCTestCase {
             XCTFail("No transcript row is visible before scrolling")
             return
         }
+        // XCUIElement queries resolve lazily; capture the value before the
+        // gesture rather than re-resolving the first visible row afterward.
+        let newestIdentifier = newestVisible.identifier
         scroll.swipeDown(velocity: .fast)
         guard let historical = visibleHistoricalRow(in: scroll) else {
             XCTFail("No hittable historical row is visible after scrolling")
@@ -294,7 +297,7 @@ final class RundaleUITests: XCTestCase {
         }
         XCTAssertNotEqual(
             historical.identifier,
-            newestVisible.identifier,
+            newestIdentifier,
             "A history gesture must change the visible transcript rows"
         )
         let historicalIdentifier = historical.identifier

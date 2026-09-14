@@ -141,6 +141,8 @@ final class RundaleFixtureController: ObservableObject, RundaleSessionControllin
 
     }
 
+    func setInferenceAllowed(_ allowed: Bool) {}
+
     private func beginAutomaticStepping() {
         guard automaticTask == nil, !manualStream else { return }
         let adapter = self.adapter
@@ -173,6 +175,12 @@ final class RundaleFixtureController: ObservableObject, RundaleSessionControllin
         presentation.readHistory(anchor: anchor)
         state = presentation.state
         persistSessionState()
+    }
+
+    func loadOlderTranscript() async {
+        // The fixture adapter's authored histories are already delivered in
+        // one deterministic bounded session. Production paging is owned by
+        // the SQLite-backed Parish controller below.
     }
 
     func restoredDraft() -> Draft? {

@@ -1105,6 +1105,15 @@ pub trait MobileStore {
         after: Option<EventCursor>,
         limit: usize,
     ) -> Result<EventPage, MobileError>;
+
+    /// Read the page immediately before `before`, in chronological order.
+    /// This is deliberately separate from the live-tail `after` cursor so a
+    /// history viewport can page backwards without scanning from the origin.
+    fn read_event_page_before(
+        &self,
+        before: EventCursor,
+        limit: usize,
+    ) -> Result<EventPage, MobileError>;
 }
 
 /// In-memory store used by headless tests and by callers that supply their own
@@ -1170,6 +1179,44 @@ impl MobileStore for MemoryMobileStore {
             .last()
             .map(|event| EventCursor::new(event.sequence.raw_value))
             .unwrap_or_else(|| EventCursor::new(after));
+        Ok(EventPage {
+            events,
+            next_cursor,
+            has_more,
+            has_older_events: save.has_older_events,
+        })
+    }
+
+    fn read_event_page_before(
+        &self,
+        before: EventCursor,
+        limit: usize,
+    ) -> Result<EventPage, MobileError> {
+        let before = before.raw_value;
+        let limit = limit.clamp(1, MAX_SEMANTIC_EVENTS);
+        let Some(save) = &self.save else {
+            return Ok(EventPage {
+                events: Vec::new(),
+                next_cursor: EventCursor::new(before),
+                has_more: false,
+                has_older_events: false,
+            });
+        };
+        let mut events: Vec<SemanticEvent> = save
+            .events
+            .iter()
+            .filter(|event| event.sequence.raw_value < before)
+            .rev()
+            .take(limit + 1)
+            .cloned()
+            .collect();
+        let has_more = events.len() > limit;
+        events.truncate(limit);
+        events.reverse();
+        let next_cursor = events
+            .first()
+            .map(|event| EventCursor::new(event.sequence.raw_value))
+            .unwrap_or_else(|| EventCursor::new(before));
         Ok(EventPage {
             events,
             next_cursor,
@@ -1306,6 +1353,42 @@ impl SqliteMobileStore {
         })
     }
 
+    /// Read a bounded indexed page immediately before `before`, avoiding the
+    /// origin scan used by the legacy forward cursor API.
+    pub fn read_event_page_before(
+        &self,
+        before: EventCursor,
+        limit: usize,
+    ) -> Result<EventPage, MobileError> {
+        let limit = limit.clamp(1, MAX_SEMANTIC_EVENTS);
+        let durable = self
+            .inner
+            .read_events_before(before.raw_value, limit + 1)
+            .map_err(|error| MobileError::Storage(error.to_string()))?;
+        let has_more = durable.len() > limit;
+        let mut events = durable
+            .into_iter()
+            .map(|event| {
+                serde_json::from_value::<SemanticEvent>(event.json).map_err(|error| {
+                    MobileError::Storage(format!("invalid durable semantic event: {error}"))
+                })
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        if events.len() > limit {
+            events.remove(0);
+        }
+        let next_cursor = events
+            .first()
+            .map(|event| EventCursor::new(event.sequence.raw_value))
+            .unwrap_or(before);
+        Ok(EventPage {
+            events,
+            next_cursor,
+            has_more,
+            has_older_events: has_more,
+        })
+    }
+
     fn decode_domain(&self, value: serde_json::Value) -> Result<MobileSave, MobileError> {
         let domain: DurableMobileDomain = serde_json::from_value(value)
             .map_err(|error| MobileError::Storage(format!("invalid mobile domain: {error}")))?;
@@ -1392,6 +1475,14 @@ impl MobileStore for SqliteMobileStore {
         limit: usize,
     ) -> Result<EventPage, MobileError> {
         SqliteMobileStore::read_event_page(self, after, limit)
+    }
+
+    fn read_event_page_before(
+        &self,
+        before: EventCursor,
+        limit: usize,
+    ) -> Result<EventPage, MobileError> {
+        SqliteMobileStore::read_event_page_before(self, before, limit)
     }
 }
 
@@ -1666,6 +1757,42 @@ impl MobileSession {
             return store.read_event_page(after, limit);
         }
         Ok(self.read_events(after, limit))
+    }
+
+    /// Read the durable page immediately before a cursor. A store-backed
+    /// session uses its indexed query; the fallback is bounded to the live
+    /// in-memory tail.
+    pub fn read_event_page_before(
+        &self,
+        before: EventCursor,
+        limit: usize,
+    ) -> Result<EventPage, MobileError> {
+        let limit = limit.clamp(1, MAX_SEMANTIC_EVENTS);
+        if let Some(store) = &self.store {
+            return store.read_event_page_before(before, limit);
+        }
+        let events: Vec<SemanticEvent> = self
+            .events
+            .iter()
+            .filter(|event| event.sequence.raw_value < before.raw_value)
+            .rev()
+            .take(limit + 1)
+            .cloned()
+            .collect();
+        let has_more = events.len() > limit;
+        let mut events = events;
+        events.truncate(limit);
+        events.reverse();
+        let next_cursor = events
+            .first()
+            .map(|event| EventCursor::new(event.sequence.raw_value))
+            .unwrap_or(before);
+        Ok(EventPage {
+            events,
+            next_cursor,
+            has_more,
+            has_older_events: self.has_older_events,
+        })
     }
 
     /// Fetch deterministic slash and NPC completion data from authored Rust

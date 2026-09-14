@@ -1,7 +1,8 @@
 # Mobile acceptance record
 
-Status: Phase 1 implementation and automated verification complete; physical
-acceptance remains open. No physical-iPhone acceptance has been performed.
+Status: Phase 4 reliability implementation and automated verification are
+complete; physical acceptance remains open across the implemented phases. No physical-iPhone
+acceptance has been performed.
 This document records remaining evidence, not a waiver of the product checklist.
 
 Delivery includes the user's [Phase 1 demo](../docs/product-specs/phase-demo-plan.md).
@@ -168,3 +169,79 @@ Phase 3 physical acceptance remains open: the same traversal, schedule,
 clarification, and resume cases have not been performed on a signed iPhone.
 This evidence does not close the outstanding Phase 1–2 accessibility,
 App Attest, keyboard, lifecycle, or device-baseline gates.
+
+## Phase 4 implementation evidence — 2026-09-14
+
+The reliability work covers background interruption, explicit retry, draft
+identity during delayed acceptance, serialized foreground recovery, transport
+failure before/during output, bounded durable-history paging, restored reading
+anchors, and accessibility-size composer layout. The SQLite format remains 1;
+the full authoritative request ledger and event journal are preserved. Optional
+viewport cursor fields remain compatible with earlier draft projections.
+
+The native iPhone 17 Pro simulator checks exposed and verified fixes for a
+256 KiB bridge overflow when reopening a 400-command save, a missing far-back
+anchor on relaunch, and a composer extending outside the screen at accessibility
+sizes. The final controller run passed 13 tests, including three actual
+packaged-Rust/SQLite history and clarification cases. Six native recovery UI cases passed, and the
+corrected accessibility case passed separately with fullscreen control bounds.
+After the small-screen assertion corrections below, all seven Phase 4 recovery
+UI cases passed together on the iPhone SE (3rd generation) simulator.
+Earlier failed runs are retained in `mobile/.verification-phase4-smoke/`.
+
+Independent review also required unresolved clarification recovery beyond the
+presentation tail. The native regression passed after 800 later commands,
+relaunch, and answering the original choice.
+
+The first combined release gate exposed two earlier-phase test issues: the
+simulator Return-submit field did not exercise the production multiline composer,
+and a lazy UI query reread its pre-scroll identifier after scrolling. Testing the
+production control and capturing that identifier exposed a real missing New text
+affordance, which was fixed with explicit detached-history state. All 18 Phase 1
+UI cases then passed together on the iPhone SE (3rd generation) simulator. The
+Phase 2 simulator Return-submit case now explicitly selects the Mac keyboard
+field, retaining coverage of that behavior alongside the production multiline
+composer. The small-screen recovery suite also required scanning the scrollable
+transcript when counting commands: virtualized rows above the keyboard are not
+present in a visible-element query. The recorded travel failure showed the
+correct Letter Office state; the revised assertion walks to the opening scene
+and counts stable command IDs before returning to the tail.
+
+Final Rust coverage passed at 70.07% (33,146/47,304 lines), above the 60.8%
+ratchet. Verifier/release tooling passed 27 Python tests. `just check` and
+`just verify` passed with `AGENT_CHECK_BASE_REF=origin/ios-port`, including the
+existing Rust suite, harness walkthrough, documentation and frontend checks. The
+first repository gate attempt lacked the worktree frontend dependencies; `npm ci`
+installed the existing lockfile without dependency changes before the passing run.
+
+The final combined Phase 1–4 gate passed on the iPhone SE (3rd generation),
+iOS 26.5, with 23 passed gates, zero failures, one already-booted simulator skip,
+three nonblocking unavailable gates (opt-in live Endpoint and future Phases 5–6),
+and 11 explicitly nonautomated physical gates. All 51 native tests passed:
+18 Phase 1 UI, eight Phase 2 UI, five Phase 3 UI, seven Phase 4 UI, and 13 native
+controller tests. Receipts are in `mobile/.verification/verify.json`, JUnit, logs
+and timestamped xcresults for `20260914T144738259459Z`.
+
+### Beta upload and remaining delivery blocker
+
+`just testflight-update` signed and validated version 0.1.0, local archive build 2,
+and Apple accepted the upload at 11:02 EDT on 2026-09-14 (`EXPORT SUCCEEDED`).
+The upload package metadata records `cfBundleVersion` 2. Receipts are retained in
+`mobile/.build/release/release.log` and `receipt.json`.
+
+App Store Connect remains at its password/passkey sign-in screen. The actual
+portal build record, processing/compliance outcome, and **Testing** status in
+**Internal Beta** could not be confirmed. This is an uploaded build with an
+external delivery blocker, not a verified installable beta. The browser login
+has been left for the user to complete; no additional tester invitation is needed.
+Deterministic transport tests do not establish real connectivity or App Attest.
+
+### Remaining physical Phase 4 gates
+
+The primary iPhone 16 Pro Max was listed by Xcode but unavailable. No supported
+small-screen physical iPhone was available. Neither required 20-minute session
+has been performed. VoiceOver, dictation/text selection, lock/unlock, real
+connectivity loss, physical force-quit timing, and Instruments measurements
+remain open on both device classes. The simulator evidence cannot establish
+iOS 17 compatibility or waive those gates. Use the
+[Phase 4 cases](../docs/test-plans/phase-4-test-cases.md) for sign-off before Phase 5.
