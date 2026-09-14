@@ -67,6 +67,9 @@ for later world expansion:
 - Follow the newest transcript through delayed UIKit cell measurement and
   keyboard resizing. A touch or bottom bounce does not disable following;
   scrolling up still preserves the reading anchor and exposes **New text**.
+  Gesture direction distinguishes deliberate history reading from changing
+  content size. An accepted new message returns to the newest exchange; an
+  ignored or rejected submission leaves the reading position alone.
 - A person's name in dialogue is context, not automatically its addressee.
   The local Rust mobile resolver first handles deterministic commands/travel,
   then resolves an explicit address or asks which nearby person to address.
@@ -89,6 +92,14 @@ Regression coverage includes the reported Letter Office conversation about
 absent Michael through the packaged Rust/SQLite runtime, explicit unavailable
 addressees, UIKit follow behavior, completion controls, and activity cleanup.
 No save format or content identity changes are required.
+
+### Weather in the compact header
+
+The weather label and icon describe the same engine condition. Clear and partly
+cloudy conditions use night variants during the game's Night/Midnight periods;
+other canonical conditions use their corresponding system symbols. Unknown
+weather prose is displayed without an inferred condition icon. The fixture's
+"Rain easing" text shares the light-rain symbol.
 
 ### Running the checks
 

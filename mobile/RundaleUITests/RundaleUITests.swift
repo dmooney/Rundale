@@ -316,9 +316,13 @@ final class RundaleUITests: XCTestCase {
         let input = commandInput
         input.tap()
         input.typeText("continue the account")
+        app.buttons["composer.send"].tap()
+        let step = app.buttons["fixture.step"]
+        XCTAssertTrue(step.waitForExistence(timeout: 3))
 
         // Capture a row that is truly in the scroll viewport after the
-        // keyboard is open. The same screen-space Y must survive streaming;
+        // accepted Send has returned to the live exchange. An intentional
+        // history gesture during the response must survive later streaming;
         // otherwise a missing bottom sentinel has silently jumped to latest.
         guard let newestVisible = visibleHistoricalRow(in: scroll) else {
             XCTFail("No transcript row is visible before scrolling")
@@ -340,10 +344,6 @@ final class RundaleUITests: XCTestCase {
         let historicalIdentifier = historical.identifier
         let historicalY = historical.frame.minY
 
-        app.buttons["composer.send"].tap()
-
-        let step = app.buttons["fixture.step"]
-        XCTAssertTrue(step.waitForExistence(timeout: 3))
         step.tap()
         let newText = app.buttons["transcript.new-text"]
         XCTAssertTrue(newText.waitForExistence(timeout: 3))
@@ -359,6 +359,43 @@ final class RundaleUITests: XCTestCase {
         ).firstMatch
         XCTAssertTrue(latest.waitForExistence(timeout: 3))
         XCTAssertTrue(latest.frame.intersects(scroll.frame))
+    }
+
+    func testAcceptedMessagesFollowLatestAcrossRepeatedTurnsAndHistoryReading() {
+        launch(fixture: "long-history")
+        let scroll = transcriptScroll
+        XCTAssertTrue(scroll.waitForExistence(timeout: 3))
+        let input = commandInput
+        let newest = app.buttons["transcript.new-text"]
+
+        for (index, command) in ["first new exchange", "second new exchange", "third new exchange"].enumerated() {
+            input.tap()
+            input.typeText(command)
+            if index == 1 {
+                // Sending a new message explicitly leaves an older reading position.
+                scroll.swipeDown(velocity: .fast)
+                XCTAssertNotNil(visibleHistoricalRow(in: scroll))
+            }
+            app.buttons["composer.send"].tap()
+            let step = app.buttons["fixture.step"]
+            XCTAssertTrue(step.waitForExistence(timeout: 3))
+            let commandRow = app.descendants(matching: .any).matching(NSPredicate(
+                format: "identifier BEGINSWITH 'transcript.item.' AND label CONTAINS %@", command
+            )).firstMatch
+            XCTAssertTrue(waitForVisible(commandRow, in: scroll))
+            XCTAssertFalse(newest.exists, "Accepted messages must rejoin the latest exchange")
+            step.tap()
+            XCTAssertFalse(newest.exists, "A growing reply must not enable history mode")
+            finishManualStreamIfNeeded()
+            XCTAssertTrue(app.buttons["composer.send"].waitForExistence(timeout: 3))
+            XCTAssertFalse(newest.exists)
+            XCTAssertTrue(app.keyboards.firstMatch.exists)
+        }
+
+        let attachment = XCTAttachment(screenshot: app.screenshot())
+        attachment.name = "Repeated conversations follow newest above the keyboard"
+        attachment.lifetime = .keepAlways
+        add(attachment)
     }
 
     func testFollowingNewestStartsAtLatestAndTracksComposerResize() {

@@ -300,3 +300,36 @@ repeated questionnaire for the current internal distribution. Website sign-in
 remains unavailable, so **Testing in Internal Beta is not yet verified**.
 This metadata change does not modify gameplay, dependencies or save formats,
 and it does not close the outstanding physical-device acceptance gates.
+
+## Follow-up phone feedback — September 14, 2026
+
+The user confirmed the other interaction fixes are good, but supplied another
+screenshot showing **New text** during an active reply with the keyboard visible.
+They also identified Clear paired with a rain icon. This keeps transcript-follow
+acceptance open and adds a header-icon correction to the next beta. The report
+is limited physical feedback, not the full Phase 4 device/session acceptance.
+
+The follow-recovery regression now fails on the old scroller for both held-touch
+layout changes and programmatic animation-end callbacks, and passes with the
+correction. Focused verification passed 26 native tests: 22 controller/model/
+launch/weather cases and four UI cases covering repeated conversation, accepted
+Send from history, deliberate history reading during a reply, composer resizing
+and the native Letter Office conversation. Root inspected screenshots showing
+the latest Peig reply above the keyboard, no spurious New text, and a sun beside
+Clear. See the `ios-follow-recovery` proof bundle for red/green receipts.
+
+`AGENT_CHECK_BASE_REF=origin/ios-port just verify`, repository formatting and
+Markdown lint passed. No Rust implementation, dependencies, save schema or
+content identity changed. The existing export declaration remains in place.
+
+The complete release gate passed at 14:10 EDT: 23 automated gates, zero
+failures, and all 64 native tests (21/8/5/8 UI cases plus 22 controller/model/
+launch/weather cases). The runner separately reports one benign boot skip,
+three opt-in/future unavailable gates and 11 physical gates. Receipts use
+`20260914T175635309510Z`. The signed **0.1.0 (5)** archive passed metadata
+and signature validation and retains the Boolean export exemption declaration.
+
+Apple accepted **0.1.0 (5)**; upload completed successfully and ContentDelivery
+metadata confirms build 5. **Testing in Internal Beta remains unverified**
+because the website sign-in is unavailable. This records successful upload,
+not confirmed distribution or physical acceptance of these two corrections.

@@ -31,6 +31,16 @@ They do not establish live Firebase, App Attest, or cellular network behavior.
 | P4-13 | Tap People and Commands using the alphabetic keyboard, including large text                        | Browsing retains the draft; selection is editable before Send; controls remain accessible                 |
 | P4-14 | Start, stop and complete a response, including Reduce Motion                                       | Native Celtic knot indicates activity; stationary with Reduce Motion; no stale activity after termination |
 
+### Follow recovery during conversation
+
+Repeat short and long dialogue turns with the alphabetic keyboard visible.
+Include a touch at the transcript tail while text arrives, a held touch during
+composer/keyboard resizing, and activity appearing/disappearing. These layout
+changes must keep the newest response visible without exposing **New text**.
+Then deliberately scroll up during a reply: history must stay anchored and
+**New text** must appear. Sending a new accepted message must rejoin its latest
+exchange; an empty or ignored Send must preserve the reading position.
+
 ## Physical sessions and phase-end demo
 
 Run at least 20 minutes on both the primary iPhone and a supported small-screen

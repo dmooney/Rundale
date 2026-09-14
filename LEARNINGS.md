@@ -333,3 +333,5 @@ bottom; don't lengthen items past 2-3 lines.
 - **Exercise long saves through the packaged C boundary, not only the bridge's test doubles.** A complete in-memory snapshot can exceed the native response cap after hundreds of commands. Bound presentation events, request metadata and attempts while retaining the authoritative ledger, and persist an anchor cursor to restore a far-back reading window.
 
 - **Live game-clock equality is not an action-duration assertion.** `GameClock::now()` includes `Instant::elapsed()` at 36× speed: about 28 ms of test execution can add one game second. Pause the clock or compare its explicit anchor when asserting that an action does not advance time; the legacy empty-location harness assertion can otherwise fail under load.
+
+- **Transcript distance is geometry, not scroll intent.** Reply growth and keyboard resizing can move the tail while a finger is stationary. Classify a history gesture using finger translation (positive Y toward older content), and propagate accepted-message follow state through both the session and SwiftUI binding.

@@ -47,6 +47,7 @@ final class RundalePresentationModel: ObservableObject {
     @Published private(set) var completions: [PresentedCompletion] = []
     @Published private(set) var clarification: PresentedClarification?
     @Published private(set) var isStreaming = false
+    @Published private(set) var isFollowingNewest: Bool
     @Published private(set) var streamRevision = 0
     @Published private(set) var submissionMessage: String?
     @Published private(set) var accessibilityNotice: String? = nil
@@ -87,6 +88,7 @@ final class RundalePresentationModel: ObservableObject {
         draft = launch.initialDraft ?? self.session.restoredDraft()?.text ?? ""
         clarification = state.pendingClarification.map(Self.presentedClarification)
         isStreaming = state.activeRequestID != nil
+        isFollowingNewest = state.viewport.isFollowingNewest
         lastAnnouncedEventID = self.session.lastEvent?.eventID
     }
 
@@ -198,6 +200,13 @@ final class RundalePresentationModel: ObservableObject {
                     return
                 }
                 let receipt = try await session.submit(command)
+                if receipt.accepted {
+                    // A newly accepted command is the player's return to the
+                    // live conversation. Rejoin the newest tail even when the
+                    // player had been reading older history; rejected or
+                    // failed submissions leave that deliberate viewport alone.
+                    session.followNewest()
+                }
                 // Acceptance is durable even if the scene transition races
                 // the receipt. Clear only the exact draft that crossed the
                 // boundary; newer typing remains the next command.
@@ -401,6 +410,9 @@ final class RundalePresentationModel: ObservableObject {
         presentedCursor = state.eventCursor
         clarification = state.pendingClarification.map(Self.presentedClarification)
         isStreaming = state.activeRequestID != nil
+        if state.viewport.isFollowingNewest != isFollowingNewest {
+            isFollowingNewest = state.viewport.isFollowingNewest
+        }
         if let persistenceError = session.persistenceError {
             submissionMessage = persistenceError
         }

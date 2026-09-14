@@ -72,6 +72,13 @@ struct ContentView: View {
                 hasNewText = true
             }
         }
+        .onChange(of: model.isFollowingNewest) { _, following in
+            guard followsNewest != following else { return }
+            followsNewest = following
+            if following {
+                hasNewText = false
+            }
+        }
         .onChange(of: model.accessibilityNotice) { _, notice in
             guard let notice, !notice.isEmpty else { return }
             UIAccessibility.post(notification: .announcement, argument: notice)
@@ -125,7 +132,11 @@ private struct StatusHeader: View {
                     Label(model.header.timeOfDay, systemImage: "clock")
                     Text("·")
                         .accessibilityHidden(true)
-                    Label(model.header.weather, systemImage: "cloud.rain")
+                    if let symbol = model.header.weatherSymbol {
+                        Label(model.header.weather, systemImage: symbol)
+                    } else {
+                        Text(model.header.weather)
+                    }
                 }
                 Text("\(model.header.timeOfDay) · \(model.header.weather)")
                     .fixedSize(horizontal: false, vertical: true)
@@ -318,6 +329,11 @@ final class TranscriptCollectionViewController: UIViewController,
     private var lastBoundsSize: CGSize = .zero
     private var lastContentSize: CGSize = .zero
     private var wasScrollable = false
+    // A drag is a user intent boundary. Content and bounds can change while a
+    // finger is down (streamed row sizing and keyboard transitions are common
+    // examples), so do not infer history mode from those intermediate offsets.
+    private var userScrollInProgress = false
+    private var userScrollReadHistory = false
 
     var onFollowModeChanged: ((Bool, TranscriptAnchor?) -> Void)?
     var onReadingAnchorChanged: ((TranscriptAnchor?) -> Void)?
@@ -418,6 +434,7 @@ final class TranscriptCollectionViewController: UIViewController,
         guard !isApplyingPosition else { return }
         if isFollowingNewest {
             if (boundsChanged || contentChanged || hasLoadedInitialItems),
+               !userScrollInProgress,
                !collectionView.isTracking,
                !collectionView.isDragging,
                !collectionView.isDecelerating {
@@ -509,6 +526,8 @@ final class TranscriptCollectionViewController: UIViewController,
 
     func scrollViewWillBeginDragging(_ scrollView: UIScrollView) {
         anchorLock = nil
+        userScrollInProgress = true
+        userScrollReadHistory = false
         // Touching or bouncing at the bottom is not an intent to read history.
         // Change follow mode only when the gesture actually leaves the tail.
     }
@@ -519,11 +538,24 @@ final class TranscriptCollectionViewController: UIViewController,
             return
         }
 
+        if userScrollInProgress {
+            // Pan translation is independent of content-size and viewport
+            // changes. This keeps a keyboard resize or a self-sizing streamed
+            // row from being mistaken for a deliberate history scroll.
+            let translation = scrollView.panGestureRecognizer.translation(in: scrollView)
+            if translation.y > 8 {
+                // Publish a history transition as soon as a downward finger
+                // pan has meaningfully moved away from the tail. Stream updates
+                // during a held gesture can surface New text immediately, while
+                // a stationary touch remains protected until it ends.
+                userScrollReadHistory = true
+                updateFollowModeFromCurrentPosition()
+            }
+        }
+
         if scrollView.contentOffset.y <= -scrollView.adjustedContentInset.top + 80 {
             onLoadOlder?()
         }
-
-        updateFollowModeFromCurrentPosition()
     }
 
     func scrollViewDidEndDragging(_ scrollView: UIScrollView,
@@ -538,8 +570,10 @@ final class TranscriptCollectionViewController: UIViewController,
     }
 
     func scrollViewDidEndScrollingAnimation(_ scrollView: UIScrollView) {
-        updateFollowModeFromCurrentPosition()
-        finishUserScrolling()
+        // This delegate callback is also emitted by programmatic layout and
+        // pinning. Those operations already establish their exact position;
+        // classifying their transient geometry can spuriously enable New text.
+        // VoiceOver scrolling uses accessibilityScrollDidFinish instead.
     }
 
     func disconnect() {
@@ -652,6 +686,17 @@ final class TranscriptCollectionViewController: UIViewController,
     }
 
     private func finishUserScrolling() {
+        let preserveTailFollow = isFollowingNewest && !userScrollReadHistory
+        userScrollInProgress = false
+        userScrollReadHistory = false
+        if preserveTailFollow {
+            // A stationary touch or movement toward newest keeps following.
+            // Final geometry may still reflect keyboard or hosted-row resizing.
+            isFollowingNewest = true
+            pinToNewest()
+            return
+        }
+
         updateFollowModeFromCurrentPosition()
         if isFollowingNewest {
             pinToNewest()

@@ -122,6 +122,7 @@ final class RundalePhase4UITests: XCTestCase {
         let scroll = app.collectionViews["transcript"]
         XCTAssertLessThanOrEqual(reply.frame.maxY, scroll.frame.maxY + 2,
                                  "The full new reply should be visible above the keyboard")
+        XCTAssertFalse(app.buttons["transcript.new-text"].exists)
         XCTAssertFalse(rows(containing: "is not here").firstMatch.exists)
         attach("Mentioning absent Michael while speaking to Peig")
         assertSingleCommand(command)

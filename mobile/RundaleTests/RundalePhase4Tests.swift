@@ -100,6 +100,42 @@ final class RundalePhase4Tests: XCTestCase {
         XCTAssertEqual(model.draft, "look around")
     }
 
+    func testAcceptedSubmissionFromHistoryReturnsToNewest() async {
+        let session = Phase4TestSession(active: false)
+        session.setReadingHistory()
+        let model = RundalePresentationModel(
+            launch: LaunchConfiguration(arguments: ["--fixture=standard"], environment: [:], bundle: [:]),
+            session: session
+        )
+
+        model.draft = "look around"
+        model.noteDraftMutation()
+        model.submitDraft()
+        await waitUntil { session.followNewestCalls == 1 }
+
+        XCTAssertEqual(session.followNewestCalls, 1)
+        XCTAssertTrue(model.isFollowingNewest)
+    }
+
+    func testRejectedSubmissionFromHistoryKeepsReadingHistory() async {
+        let session = Phase4TestSession(active: false)
+        session.setReadingHistory()
+        session.acceptedReceipt = false
+        let model = RundalePresentationModel(
+            launch: LaunchConfiguration(arguments: ["--fixture=standard"], environment: [:], bundle: [:]),
+            session: session
+        )
+
+        model.draft = "look around"
+        model.noteDraftMutation()
+        model.submitDraft()
+        await waitUntil { session.submitCalls == 1 }
+
+        XCTAssertEqual(session.followNewestCalls, 0)
+        XCTAssertFalse(session.state.viewport.isFollowingNewest)
+        XCTAssertFalse(model.isFollowingNewest)
+    }
+
     func testBackgroundDuringRetryStopsTheLatestFailedRequest() async {
         let session = Phase4TestSession(active: false, failedRequests: 2)
         session.gateSubmit = true
@@ -150,15 +186,17 @@ final class RundalePhase4Tests: XCTestCase {
 
 @MainActor
 private final class Phase4TestSession: RundaleSessionControlling {
-    private let presentation = PresentationSession()
+    private var presentation: PresentationSession
     private let subject = CurrentValueSubject<SessionState, Never>(SessionState())
 
     private(set) var state: SessionState
     private(set) var stopCalls = 0
     private(set) var submitCalls = 0
+    private(set) var followNewestCalls = 0
     private(set) var submitStarted = false
     var gateSubmit = false
     var acceptedRequestRemainsActive = false
+    var acceptedReceipt = true
     private(set) var inferenceAllowed = true
     private var submitContinuation: CheckedContinuation<Void, Never>?
     private(set) var lifecycleEvents: [String] = []
@@ -181,6 +219,7 @@ private final class Phase4TestSession: RundaleSessionControlling {
             : SessionState(requests: (0..<failedRequests).map {
                 RequestRecord(id: LogicalRequestID("failed-\($0)"), originalText: "question \($0)", phase: .failed)
             })
+        presentation = PresentationSession(state: state)
         subject.send(state)
     }
 
@@ -208,7 +247,14 @@ private final class Phase4TestSession: RundaleSessionControlling {
         lifecycleEvents.append("persist")
     }
 
-    func followNewest() {}
+    func followNewest() {
+        followNewestCalls += 1
+        var viewport = state.viewport
+        viewport.followNewest()
+        state = replacingViewport(viewport)
+        presentation = PresentationSession(state: state)
+        subject.send(state)
+    }
     func readHistory(anchor: TranscriptAnchor?) {}
     func loadOlderTranscript() async {}
 
@@ -229,9 +275,39 @@ private final class Phase4TestSession: RundaleSessionControlling {
             logicalRequestID: LogicalRequestID("request-new"),
             attemptID: ExecutionAttemptID("attempt-new"),
             commandEventID: nil,
-            accepted: true,
+            accepted: acceptedReceipt,
             isRetry: false,
             cursor: EventCursor(1)
+        )
+    }
+
+    func setReadingHistory() {
+        presentation.readHistory(anchor: TranscriptAnchor(itemID: TranscriptItemID("older"), offset: 0))
+        state = presentation.state
+        subject.send(state)
+    }
+
+    private func replacingViewport(_ viewport: TranscriptViewport) -> SessionState {
+        SessionState(
+            sessionID: state.sessionID,
+            contractVersion: state.contractVersion,
+            stateRevision: state.stateRevision,
+            eventCursor: state.eventCursor,
+            transcript: state.transcript,
+            hasOlderTranscript: state.hasOlderTranscript,
+            draft: state.draft,
+            requests: state.requests,
+            commandHistory: state.commandHistory,
+            pendingClarification: state.pendingClarification,
+            scene: state.scene,
+            viewport: viewport,
+            isHistoricalWindow: state.isHistoricalWindow,
+            activeRequestID: state.activeRequestID,
+            lastError: state.lastError,
+            transcriptCapacity: state.transcriptCapacity,
+            processedEventCapacity: state.processedEventCapacity,
+            processedEventIDs: state.processedEventIDs,
+            streamProgress: state.streamProgress
         )
     }
 
