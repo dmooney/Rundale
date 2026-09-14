@@ -58,6 +58,40 @@ remain part of device acceptance; an unsigned build cannot establish them.
 
 ## Evidence and diagnostics
 
+### iPhone beta feedback: transcript, intent and composer
+
+The September 14 phone playtest exposed interaction gaps in the existing
+Phase 1–4 scope. These are corrections to that experience, not deferred work
+for later world expansion:
+
+- Follow the newest transcript through delayed UIKit cell measurement and
+  keyboard resizing. A touch or bottom bounce does not disable following;
+  scrolling up still preserves the reading anchor and exposes **New text**.
+- A person's name in dialogue is context, not automatically its addressee.
+  The local Rust mobile resolver first handles deterministic commands/travel,
+  then resolves an explicit address or asks which nearby person to address.
+  With one nearby person, ordinary speech goes to that person. Only then does
+  the Endpoint receive the unchanged player message and grounded speaker/scene
+  context to generate dialogue. This remains bounded local interpretation,
+  not a general language-model intent classifier.
+- **People** opens nearby choices without editing the draft; selecting a person
+  prefixes their explicit reference and retains the text. **Commands** opens the
+  runtime's supported command registry; choosing a command places it in the
+  draft for review and Send. A nonempty draft gets a **Replace draft** caption.
+  Typing `@` and `/` remains supported.
+- Port the old UI's rotating/drawing Celtic knot into SwiftUI request activity.
+  It starts on submission, stays visible during the response, and disappears
+  at completion, cancellation or failure. Reduce Motion uses a stationary knot;
+  VoiceOver gets one stable **Generating response** label. The animation is
+  presentation only and is never saved as transcript content.
+
+Regression coverage includes the reported Letter Office conversation about
+absent Michael through the packaged Rust/SQLite runtime, explicit unavailable
+addressees, UIKit follow behavior, completion controls, and activity cleanup.
+No save format or content identity changes are required.
+
+### Running the checks
+
 Use `./verify --phase 4` for the Phase 1–4 regression set or `./verify --phase all`
 for release verification. JSON, JUnit, command logs and native xcresults are
 stored under the selected ignored report directory. Native recovery tests attach

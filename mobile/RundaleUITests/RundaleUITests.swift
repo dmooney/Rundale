@@ -173,6 +173,43 @@ final class RundaleUITests: XCTestCase {
         XCTAssertTrue(waitForTranscriptText("/"))
     }
 
+    func testPeopleAndCommandsButtonsAvoidSymbolKeyboardAndPreserveDraftUntilSelection() {
+        launch(fixture: "standard")
+        let input = commandInput
+        input.tap()
+        input.typeText("Could you help me?")
+        app.buttons["composer.people"].tap()
+        XCTAssertEqual(input.value as? String, "Could you help me?")
+        let person = app.buttons["completion.npc-micheal"]
+        XCTAssertTrue(person.waitForExistence(timeout: 3))
+        person.tap()
+        XCTAssertEqual(input.value as? String, "@Mícheál Connolly Could you help me?")
+        app.buttons["composer.commands"].tap()
+        let look = app.buttons["completion.look"]
+        XCTAssertTrue(look.waitForExistence(timeout: 3))
+        look.tap()
+        XCTAssertEqual(input.value as? String, "/look")
+        app.buttons["composer.send"].tap()
+        XCTAssertTrue(waitForTranscriptText("/look"))
+    }
+
+    func testWaitingKnotAppearsDuringRequestAndDisappearsOnStopAndCompletion() {
+        launch(fixture: "standard")
+        commandInput.tap()
+        commandInput.typeText("Hello")
+        app.buttons["composer.send"].tap()
+        let waiting = app.descendants(matching: .any).matching(identifier: "composer.waiting").firstMatch
+        XCTAssertTrue(waiting.waitForExistence(timeout: 3))
+        let attachment = XCTAttachment(screenshot: app.screenshot())
+        attachment.name = "Native Celtic knot and composer shortcuts"
+        attachment.lifetime = .keepAlways
+        add(attachment)
+        app.buttons["composer.stop"].tap()
+        XCTAssertTrue(waiting.waitForNonExistence(timeout: 3))
+        submitAndFinish("Hello again")
+        XCTAssertTrue(waiting.waitForNonExistence(timeout: 3))
+    }
+
     func testTranscriptCommandRecallWorksWithoutAHistoryButton() {
         launch(fixture: "standard")
 

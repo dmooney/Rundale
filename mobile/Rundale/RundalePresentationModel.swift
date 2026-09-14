@@ -57,6 +57,7 @@ final class RundalePresentationModel: ObservableObject {
     private let session: any RundaleSessionControlling
     private var eventTask: Task<Void, Never>?
     private var draftRevision: UInt64 = 0
+    private var completionBrowser: String?
     private var activeSourceDraftID: DraftID?
     private var lifecycleGeneration: UInt64 = 0
     private var allowsSubmission = true
@@ -317,10 +318,12 @@ final class RundalePresentationModel: ObservableObject {
     func recallCommand(_ command: String) {
         guard !command.isEmpty else { return }
         draft = command
+        completionBrowser = nil
         completions = []
     }
 
     func refreshCompletions() {
+        completionBrowser = nil
         completions = session.suggestions(for: draft).map {
             PresentedCompletion(
                 id: $0.id,
@@ -331,11 +334,31 @@ final class RundalePresentationModel: ObservableObject {
         }
     }
 
+    func browseCompletions(_ trigger: String) {
+        completionBrowser = completionBrowser == trigger ? nil : trigger
+        completions = completionBrowser.map { query in
+            session.suggestions(for: query).map {
+                PresentedCompletion(id: $0.id, label: $0.label,
+                                    insertion: $0.insertionText,
+                                    detail: $0.entityID == nil
+                                        ? (draft.isEmpty ? nil : "Replace draft") : "Address this person")
+            }
+        } ?? []
+    }
+
     func selectCompletion(_ completion: PresentedCompletion) {
-        guard let source = session.suggestions(for: draft).first(where: { $0.id == completion.id }) else {
+        guard let source = session.suggestions(for: completionBrowser ?? draft)
+            .first(where: { $0.id == completion.id }) else {
             return
         }
-        draft = session.insert(source, into: draft)
+        if let completionBrowser {
+            draft = completionBrowser == "@"
+                ? source.insertionText + " " + draft
+                : source.insertionText
+        } else {
+            draft = session.insert(source, into: draft)
+        }
+        completionBrowser = nil
         completions = []
     }
 

@@ -245,3 +245,40 @@ connectivity loss, physical force-quit timing, and Instruments measurements
 remain open on both device classes. The simulator evidence cannot establish
 iOS 17 compatibility or waive those gates. Use the
 [Phase 4 cases](../docs/test-plans/phase-4-test-cases.md) for sign-off before Phase 5.
+
+### September 14 iPhone feedback corrections
+
+The user reported intermittent transcript following, an unavailable-Michael
+error while talking about him to Peig, awkward symbol-keyboard completion, and
+the missing waiting animation. These are existing interaction-scope corrections,
+tracked as P4-11–P4-14 in the case matrix and described in [reliability.md](reliability.md).
+The phone screenshot is useful defect evidence; it does not close the full
+physical session or accessibility gates above.
+
+The corrected native Letter Office regression follows the canonical morning
+route so Peig has arrived, sends Hello, then the exact reported Michael-reference
+message. It verifies a new Peig reply, one accepted command, no absent-Michael
+error and the reply above the keyboard. Fixture interaction tests exercise the
+People/Commands controls and knot cleanup; UIKit tests cover delayed row growth,
+keyboard resizing and touching the tail without leaving it.
+
+Final `just check`, `just verify`, and the Rust coverage ratchet passed; coverage
+was 70.11% (33,215/47,376 lines) against a 60.8% floor. Independent review accepted
+the final address-slot parser and native controls. `just testflight-update` ran
+the complete mobile gate on SE3/iOS 26.5, finishing at 12:28 EDT: 23 passed gates,
+zero failures, 56 native tests passed (20/8/5/8 UI cases by phase and 15 controller
+cases). It separately reported one benign boot skip, three opt-in/future
+unavailable gates and 11 nonautomated physical gates. Receipts use xcresult
+timestamp `20260914T161442749055Z` under `mobile/.verification/`.
+
+These corrections change no save schema or content identity. The user can
+continue the existing save; physical VoiceOver, session and device-performance
+acceptance remain open.
+
+Apple accepted version **0.1.0 (3)** at 12:30 EDT on September 14. Signed archive
+validation and upload passed; ContentDelivery metadata confirms build 3. The
+App Store Connect website rejected the saved sign-in on this Mac, so **Testing**
+in **Internal Beta** remains unverified. The remote user can finish any compliance
+prompt and verify that status from their phone. This records an accepted upload,
+not confirmed distribution; retained receipts are in the release log and the
+`ios-beta-feedback` proof bundle.

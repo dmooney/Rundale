@@ -99,6 +99,34 @@ final class RundalePhase4UITests: XCTestCase {
         XCTAssertFalse(app.buttons["composer.retry"].exists)
     }
 
+    func testTalkingAboutAbsentMichaelStillGetsPeigsReplyAtTheLetterOffice() {
+        launch(reset: true)
+        // Use the canonical morning route so Peig has reached the office;
+        // on the first turn she is still travelling from the village.
+        submit("go west")
+        submit("go east")
+        submit("go east")
+        XCTAssertTrue(header(containing: "Letter Office").waitForExistence(timeout: 8))
+        submit("Hello")
+        waitForCompletedDialogue()
+        let firstReplyID = completedDialogue.firstMatch.identifier
+        let command = "Well I’m looking for work and a place to stay. Michael said maybe you could direct me."
+        submit(command)
+        XCTAssertTrue(app.buttons["composer.send"].waitForExistence(timeout: 25))
+        let reply = rows(containing: "Peig Hannigan").matching(NSPredicate(
+            format: "identifier != %@ AND label CONTAINS 'Dialogue' AND NOT label CONTAINS 'In progress'",
+            firstReplyID
+        )).firstMatch
+        XCTAssertTrue(reply.waitForExistence(timeout: 5))
+        XCTAssertTrue(reply.label.contains("Peig Hannigan"))
+        let scroll = app.collectionViews["transcript"]
+        XCTAssertLessThanOrEqual(reply.frame.maxY, scroll.frame.maxY + 2,
+                                 "The full new reply should be visible above the keyboard")
+        XCTAssertFalse(rows(containing: "is not here").firstMatch.exists)
+        attach("Mentioning absent Michael while speaking to Peig")
+        assertSingleCommand(command)
+    }
+
     func testNativeWorldCoreLoopAtAccessibilitySizeAndDarkAppearance() {
         launch(reset: true, extra: ["--force-dark-appearance", "-UIPreferredContentSizeCategoryName",
                                     "UICTContentSizeCategoryAccessibilityXXXL"])
@@ -118,6 +146,13 @@ final class RundalePhase4UITests: XCTestCase {
         XCTAssertTrue(app.frame.contains(app.buttons["composer.send"].frame),
                       "Send must remain fully inside the screen at accessibility sizes")
         XCTAssertTrue(app.frame.contains(input.frame))
+        for identifier in ["composer.people", "composer.commands"] {
+            let button = app.buttons[identifier]
+            XCTAssertTrue(button.isHittable)
+            XCTAssertTrue(app.frame.contains(button.frame))
+            XCTAssertGreaterThanOrEqual(button.frame.width, 44)
+            XCTAssertGreaterThanOrEqual(button.frame.height, 44)
+        }
         attach("Native world at accessibility size")
     }
 

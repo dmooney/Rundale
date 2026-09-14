@@ -284,6 +284,13 @@ private struct NativeTranscriptScroller: UIViewControllerRepresentable {
 @MainActor
 private final class TranscriptCollectionView: UICollectionView {
     var accessibilityScrollDidFinish: (() -> Void)?
+    var contentSizeDidChange: (() -> Void)?
+
+    override var contentSize: CGSize {
+        didSet {
+            if contentSize != oldValue { contentSizeDidChange?() }
+        }
+    }
 
     override func accessibilityScroll(_ direction: UIAccessibilityScrollDirection) -> Bool {
         let didScroll = super.accessibilityScroll(direction)
@@ -295,7 +302,7 @@ private final class TranscriptCollectionView: UICollectionView {
 }
 
 @MainActor
-private final class TranscriptCollectionViewController: UIViewController,
+final class TranscriptCollectionViewController: UIViewController,
                                                         UICollectionViewDataSource,
                                                         UICollectionViewDelegate {
     private struct LockedAnchor {
@@ -345,6 +352,12 @@ private final class TranscriptCollectionViewController: UIViewController,
         view.accessibilityLabel = "Transcript"
         view.dataSource = self
         view.delegate = self
+        // Hosting cells can finish measuring after the controller's layout
+        // pass. Observe the actual content extent so that later measurements
+        // also restore the bottom (or the reader's locked history anchor).
+        view.contentSizeDidChange = { [weak self] in
+            self?.view.setNeedsLayout()
+        }
         view.accessibilityScrollDidFinish = { [weak self] in
             self?.anchorLock = nil
             self?.updateFollowModeFromCurrentPosition()
@@ -496,9 +509,8 @@ private final class TranscriptCollectionViewController: UIViewController,
 
     func scrollViewWillBeginDragging(_ scrollView: UIScrollView) {
         anchorLock = nil
-        guard isFollowingNewest else { return }
-        isFollowingNewest = false
-        onFollowModeChanged?(false, currentAnchor(preferFullyVisible: true))
+        // Touching or bouncing at the bottom is not an intent to read history.
+        // Change follow mode only when the gesture actually leaves the tail.
     }
 
     func scrollViewDidScroll(_ scrollView: UIScrollView) {
@@ -538,6 +550,7 @@ private final class TranscriptCollectionViewController: UIViewController,
         collectionView.delegate = nil
         collectionView.dataSource = nil
         collectionView.accessibilityScrollDidFinish = nil
+        collectionView.contentSizeDidChange = nil
     }
 
     private var distanceFromNewest: CGFloat {
@@ -639,6 +652,7 @@ private final class TranscriptCollectionViewController: UIViewController,
     }
 
     private func finishUserScrolling() {
+        updateFollowModeFromCurrentPosition()
         if isFollowingNewest {
             pinToNewest()
         } else {
@@ -964,6 +978,10 @@ private struct Composer: View {
 
     var body: some View {
         VStack(spacing: 8) {
+            if model.isStreaming {
+                WaitingAnimation()
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
             HStack(alignment: .bottom, spacing: 8) {
                 commandField
                     .font(.system(.body, design: .serif))
@@ -1016,12 +1034,26 @@ private struct Composer: View {
             }
 
             HStack(spacing: 13) {
-                if !dynamicTypeSize.isAccessibilitySize {
-                    Text("@ people")
-                        .accessibilityHidden(true)
-                    Text("/ commands")
-                        .accessibilityHidden(true)
+                Button {
+                    model.browseCompletions("@")
+                    focused = true
+                } label: {
+                    shortcutLabel("People", systemImage: "person")
+                        .frame(minWidth: 44, minHeight: 44, alignment: .leading)
+                        .contentShape(Rectangle())
                 }
+                .accessibilityHint("Choose a nearby person to address without typing an at sign")
+                .accessibilityIdentifier("composer.people")
+                Button {
+                    model.browseCompletions("/")
+                    focused = true
+                } label: {
+                    shortcutLabel("Commands", systemImage: "list.bullet")
+                        .frame(minWidth: 44, minHeight: 44, alignment: .leading)
+                        .contentShape(Rectangle())
+                }
+                .accessibilityHint("Choose a command to put in the draft")
+                .accessibilityIdentifier("composer.commands")
                 Spacer()
                 if model.launch.isUITesting && model.launch.manualStream && model.isStreaming {
                     Button("Next") {
@@ -1045,6 +1077,8 @@ private struct Composer: View {
                 }
             }
             .font(.caption)
+            .buttonStyle(.plain)
+            .frame(minHeight: 44)
             .foregroundStyle(RundaleTheme.secondaryInk)
             .padding(.horizontal, 4)
         }
@@ -1054,6 +1088,19 @@ private struct Composer: View {
         .background(RundaleTheme.canvas)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("composer")
+    }
+
+    @ViewBuilder
+    private func shortcutLabel(_ title: String, systemImage: String) -> some View {
+        ViewThatFits(in: .horizontal) {
+            if !dynamicTypeSize.isAccessibilitySize {
+                Label(title, systemImage: systemImage)
+                    .fixedSize(horizontal: true, vertical: false)
+            }
+            Text(title).fixedSize(horizontal: true, vertical: false)
+            Image(systemName: systemImage).accessibilityLabel(title)
+        }
+        .accessibilityLabel(title)
     }
 
     @ViewBuilder

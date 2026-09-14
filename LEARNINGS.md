@@ -5,6 +5,9 @@ bottom; don't lengthen items past 2-3 lines.
 
 ## Engine + runtime
 
+- **A mentioned NPC is not necessarily the addressee.** Mobile dialogue target resolution must distinguish “Michael said…” and “tell me Michael’s story” from “ask Michael…” before applying presence checks. Cover both ordinary speech and explicit unavailable targets through the native runtime.
+- **Hosted transcript cells can resize after their parent layout.** Observe UICollectionView content-size changes to restore the tail or locked reading anchor. Entering a drag alone is not evidence that the reader left the tail; classify the resulting position.
+
 - **Headless execution uses package/binary `limerick-engine` and library `limerick_engine`.** The HTTP client owns the separate `limerick` binary; release archives must keep these names distinct.
 - **New `limerick-client` crate builds the `limerick` binary** — thin HTTP client calling `POST /api/command` on a running server. Use `cargo run -p limerick-client` or `just run-client`.
 - **`--script` runs `run_script_mode` → `GameTestHarness`**, NOT `run_headless`. Different code path. Wire features in both.

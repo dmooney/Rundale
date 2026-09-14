@@ -2790,22 +2790,10 @@ impl MobileSession {
                 ),
             };
         }
-        let matched: Vec<&MobileNpcDefinition> = self
-            .content
-            .npcs
-            .iter()
-            .filter(|npc| {
-                let surname = npc
-                    .display_name
-                    .split_whitespace()
-                    .last()
-                    .unwrap_or_default();
-                std::iter::once(npc.display_name.as_str())
-                    .chain(npc.aliases.iter().map(String::as_str))
-                    .chain(std::iter::once(surname))
-                    .any(|name| !name.is_empty() && lower.contains(&name.to_lowercase()))
-            })
-            .collect();
+        // A name in the message body is context, not an addressee. Only
+        // names in an explicit address clause (or a leading vocative) pin the
+        // target; otherwise ordinary dialogue falls back to people present.
+        let matched = Self::explicit_addressee_candidates(&lower, &self.content.npcs);
         let nearby: Vec<&MobileNpcDefinition> = self
             .npcs
             .npcs_at(self.world.player_location)
@@ -2845,6 +2833,129 @@ impl MobileSession {
                 .next()
                 .is_none_or(|character| !character.is_alphanumeric())
         })
+    }
+
+    fn explicit_addressee_clause(text_lowercase: &str) -> Option<&str> {
+        let text_lowercase = text_lowercase.trim();
+        let prefix = [
+            "ask ",
+            "tell ",
+            "talk to ",
+            "talk with ",
+            "speak to ",
+            "speak with ",
+            "say to ",
+            "address ",
+            "hello ",
+            "hi ",
+            "hey ",
+            "good morning ",
+            "good afternoon ",
+            "good evening ",
+        ]
+        .into_iter()
+        .find(|prefix| text_lowercase.starts_with(prefix))?;
+        let remainder = &text_lowercase[prefix.len()..];
+        let end = [
+            " about ",
+            " regarding ",
+            " what ",
+            " who ",
+            " where ",
+            " when ",
+            " why ",
+            " how ",
+            " if ",
+            " whether ",
+            " that ",
+            " for ",
+        ]
+        .into_iter()
+        .filter_map(|delimiter| remainder.find(delimiter))
+        .min()
+        .unwrap_or(remainder.len());
+        let clause = remainder[..end].trim_matches(|character: char| {
+            character.is_whitespace() || matches!(character, ',' | ':' | '?')
+        });
+        (!clause.is_empty()).then_some(clause)
+    }
+
+    fn trim_addressee_slot(text: &str) -> &str {
+        text.trim_start_matches(|character: char| {
+            character.is_whitespace() || matches!(character, ',' | ':' | '?' | '!')
+        })
+    }
+
+    fn npc_name_prefix(text: &str, npc: &MobileNpcDefinition) -> Option<usize> {
+        let surname = npc
+            .display_name
+            .split_whitespace()
+            .last()
+            .unwrap_or_default();
+        std::iter::once(npc.display_name.as_str())
+            .chain(npc.aliases.iter().map(String::as_str))
+            .chain(std::iter::once(surname))
+            .filter(|name| !name.is_empty())
+            .filter_map(|name| {
+                let name = name.to_lowercase();
+                text.strip_prefix(&name).and_then(|remainder| {
+                    remainder
+                        .chars()
+                        .next()
+                        .is_none_or(|character| !character.is_alphanumeric())
+                        .then_some(name.len())
+                })
+            })
+            .max()
+    }
+
+    fn explicit_addressee_candidates<'a>(
+        text_lowercase: &str,
+        npcs: &'a [MobileNpcDefinition],
+    ) -> Vec<&'a MobileNpcDefinition> {
+        let text_lowercase = text_lowercase.trim();
+        let Some(clause) = Self::explicit_addressee_clause(text_lowercase) else {
+            // A leading name followed by punctuation is a natural vocative.
+            // A bare leading name may be a narrative subject ("Michael said").
+            return npcs
+                .iter()
+                .filter(|npc| {
+                    Self::npc_name_prefix(text_lowercase, npc).is_some_and(|length| {
+                        let remainder = text_lowercase[length..].trim_start();
+                        remainder.is_empty()
+                            || remainder
+                                .chars()
+                                .next()
+                                .is_some_and(|character| matches!(character, ',' | ':' | ';' | '!'))
+                    })
+                })
+                .collect();
+        };
+
+        let mut remaining = Self::trim_addressee_slot(clause);
+        let mut candidates: Vec<&MobileNpcDefinition> = Vec::new();
+        loop {
+            let slot_matches: Vec<_> = npcs
+                .iter()
+                .filter_map(|npc| Self::npc_name_prefix(remaining, npc).map(|length| (length, npc)))
+                .collect();
+            let Some(length) = slot_matches.iter().map(|(length, _)| *length).max() else {
+                break;
+            };
+            for (candidate_length, npc) in slot_matches {
+                if candidate_length == length
+                    && !candidates.iter().any(|candidate| candidate.id == npc.id)
+                {
+                    candidates.push(npc);
+                }
+            }
+            remaining = Self::trim_addressee_slot(&remaining[length..]);
+            let Some(after_and) = remaining.strip_prefix("and ") else {
+                break;
+            };
+            remaining = Self::trim_addressee_slot(after_and);
+        }
+        candidates
     }
 
     fn emit_clarification(
@@ -4528,6 +4639,93 @@ mod tests {
                 .as_deref()
                 .is_some_and(|text| text.contains("Peig Hannigan is not here"))
         }));
+    }
+
+    #[test]
+    fn dialogue_body_mention_does_not_address_absent_npc() {
+        let mut session = session();
+        let result = session
+            .submit(
+                None,
+                "Well I’m looking for work and a place to stay. Michael said maybe you could direct me.",
+                None,
+            )
+            .unwrap();
+        let invocation = result
+            .endpoint_invocation
+            .expect("ordinary dialogue should reach the person who is present");
+        assert_eq!(invocation.speaker.id, "npc-peig");
+    }
+
+    #[test]
+    fn dialogue_resolution_separates_body_mentions_from_explicit_addresses() {
+        let current = session();
+        for text in [
+            "Can you tell me about Michael?",
+            "Michael said he could help.",
+            "I spoke to Michael yesterday.",
+            "Tell me Michael’s story.",
+            "Tell me if Michael is hiring.",
+            "tell Peig about Michael",
+            "ask Peig about Michael",
+            "ask Peig whether Michael is hiring",
+        ] {
+            assert!(
+                matches!(
+                    current.resolve_dialogue_target(text),
+                    DialogueTarget::Selected(ref id) if id == "npc-peig"
+                ),
+                "unexpected target for {text:?}"
+            );
+        }
+        assert!(matches!(
+            current.resolve_dialogue_target("Michael, hello"),
+            DialogueTarget::Unavailable(message) if message.contains("Mícheál Connolly is not here")
+        ));
+        assert!(matches!(
+            current.resolve_dialogue_target("Michael"),
+            DialogueTarget::Unavailable(message) if message.contains("Mícheál Connolly is not here")
+        ));
+        assert!(matches!(
+            current.resolve_dialogue_target(
+                "Ask Peig whether Michael is hiring and Róisín is well"
+            ),
+            DialogueTarget::Selected(ref id) if id == "npc-peig"
+        ));
+
+        let mut cottage = session();
+        cottage.submit(None, "/go Connolly Cottage", None).unwrap();
+        assert!(matches!(
+            cottage.resolve_dialogue_target("Tell me a story and Michael can wait"),
+            DialogueTarget::Ambiguous(ids) if ids.len() == 2
+        ));
+    }
+
+    #[test]
+    fn explicit_absent_addressee_does_not_fall_back_to_present_npc() {
+        let mut session = session();
+        let result = session
+            .submit(None, "ask Michael about work", None)
+            .unwrap();
+        assert!(result.endpoint_invocation.is_none());
+        assert!(result.events.iter().any(|event| {
+            event
+                .content
+                .as_deref()
+                .is_some_and(|content| content.contains("Mícheál Connolly is not here"))
+        }));
+    }
+
+    #[test]
+    fn leading_vocative_still_selects_explicit_present_npc() {
+        let mut session = session();
+        let result = session
+            .submit(None, "Hello Peig, could you help?", None)
+            .unwrap();
+        let invocation = result
+            .endpoint_invocation
+            .expect("leading vocative should address Peig");
+        assert_eq!(invocation.speaker.id, "npc-peig");
     }
 
     #[test]

@@ -26,6 +26,10 @@ They do not establish live Firebase, App Attest, or cellular network behavior.
 | P4-08 | Earlier phase long-history, resize and anchor cases                        | Visible historical row keeps its offset during streaming and relaunch           |
 | P4-09 | Storage transaction failure, incompatible schema and interrupted bootstrap | Committed save remains intact; failure cannot masquerade as a successful action |
 | P4-10 | Replayed, late and duplicate events/candidates                             | Existing identity, sequence and commit guards reject duplication                |
+| P4-11 | At Peig's Letter Office, say Michael directed you there; try explicit absent addressing separately | Ordinary speech reaches Peig; only explicit unavailable targets fail presence checks |
+| P4-12 | Touch/bounce at the tail, append and grow rows, resize the keyboard         | Automatic following remains active; deliberate history reading remains anchored |
+| P4-13 | Tap People and Commands using the alphabetic keyboard, including large text | Browsing retains the draft; selection is editable before Send; controls remain accessible |
+| P4-14 | Start, stop and complete a response, including Reduce Motion              | Native Celtic knot indicates activity; stationary with Reduce Motion; no stale activity after termination |
 
 ## Physical sessions and phase-end demo
 
