@@ -16,10 +16,10 @@ import shlex
 import shutil
 import subprocess
 import sys
+from collections.abc import Callable, Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable, Sequence
 
 TEAM_ID = "MBPRPZ283R"
 SCHEME = "Rundale"
@@ -100,20 +100,27 @@ def increment_build_number(project_spec: Path, *, dry_run: bool = False) -> tupl
     new = old + 1
     if not dry_run:
         replacement = f"{match.group(1)}{new}{match.group(3)}"
-        project_spec.write_text(text[: match.start()] + replacement + text[match.end() :], encoding="utf-8")
+        project_spec.write_text(
+            text[: match.start()] + replacement + text[match.end() :], encoding="utf-8"
+        )
     return old, new
 
 
 def project_value(project_spec: Path, key: str) -> str:
-    match = re.search(rf"^\s*{re.escape(key)}:\s*[\"']?([^\"'\s]+)", project_spec.read_text(encoding="utf-8"), re.MULTILINE)
+    match = re.search(
+        rf"^\s*{re.escape(key)}:\s*[\"']?([^\"'\s]+)",
+        project_spec.read_text(encoding="utf-8"),
+        re.MULTILINE,
+    )
     if match is None:
         raise ValueError(f"project.yml is missing {key}")
     return match.group(1)
 
 
 class Release:
-    def __init__(self, paths: Paths, *, dry_run: bool = False,
-                 runner: Callable[..., None] | None = None) -> None:
+    def __init__(
+        self, paths: Paths, *, dry_run: bool = False, runner: Callable[..., None] | None = None
+    ) -> None:
         self.paths = paths
         self.dry_run = dry_run
         self._runner = runner
@@ -147,12 +154,14 @@ class Release:
         with lock_path.open("w", encoding="utf-8") as lock_file:
             try:
                 import fcntl
+
                 fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX)
             except ImportError:
                 pass
             yield
             try:
                 import fcntl
+
                 fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
             except ImportError:
                 pass
@@ -179,7 +188,9 @@ class Release:
     def common_prepare(self, *, build_rust: bool = True) -> None:
         if build_rust:
             self.run_command(["bash", str(self.paths.mobile / "scripts" / "build-rust-mobile.sh")])
-        self.run_command(["xcodegen", "generate", "--spec", str(self.paths.project_spec)], cwd=self.paths.root)
+        self.run_command(
+            ["xcodegen", "generate", "--spec", str(self.paths.project_spec)], cwd=self.paths.root
+        )
 
     def build(self) -> None:
         with self.locked():
@@ -188,42 +199,85 @@ class Release:
             self.common_prepare()
             self.run_command(
                 [
-                    "xcodebuild", "-project", str(self.paths.project), "-scheme", SCHEME,
-                    "-configuration", "Release", "-destination", "generic/platform=iOS",
-                    "-derivedDataPath", str(self.paths.output / "DerivedData"),
-                    "CODE_SIGNING_ALLOWED=NO", "build", *endpoint_args(),
+                    "xcodebuild",
+                    "-project",
+                    str(self.paths.project),
+                    "-scheme",
+                    SCHEME,
+                    "-configuration",
+                    "Release",
+                    "-destination",
+                    "generic/platform=iOS",
+                    "-derivedDataPath",
+                    str(self.paths.output / "DerivedData"),
+                    "CODE_SIGNING_ALLOWED=NO",
+                    "build",
+                    *endpoint_args(),
                 ],
                 cwd=self.paths.root,
             )
             self.validate_app(
-                self.paths.output / "DerivedData" / "Build" / "Products" / "Release-iphoneos" / "Rundale.app",
-                expected_build=int(project_value(self.paths.project_spec, "CURRENT_PROJECT_VERSION")),
+                self.paths.output
+                / "DerivedData"
+                / "Build"
+                / "Products"
+                / "Release-iphoneos"
+                / "Rundale.app",
+                expected_build=int(
+                    project_value(self.paths.project_spec, "CURRENT_PROJECT_VERSION")
+                ),
             )
             if not self.dry_run:
-                self.paths.receipt.write_text(json.dumps({
-                    "status": "built_unsigned",
-                    "version": project_value(self.paths.project_spec, "MARKETING_VERSION"),
-                    "build": int(project_value(self.paths.project_spec, "CURRENT_PROJECT_VERSION")),
-                }, indent=2) + "\n", encoding="utf-8")
-                print(f"Built unsigned iPhone app: {self.paths.output / 'DerivedData/Build/Products/Release-iphoneos/Rundale.app'}")
+                self.paths.receipt.write_text(
+                    json.dumps(
+                        {
+                            "status": "built_unsigned",
+                            "version": project_value(self.paths.project_spec, "MARKETING_VERSION"),
+                            "build": int(
+                                project_value(self.paths.project_spec, "CURRENT_PROJECT_VERSION")
+                            ),
+                        },
+                        indent=2,
+                    )
+                    + "\n",
+                    encoding="utf-8",
+                )
+                print(
+                    f"Built unsigned iPhone app: {self.paths.output / 'DerivedData/Build/Products/Release-iphoneos/Rundale.app'}"
+                )
                 print(f"Build log: {self.paths.log}")
 
     def testflight(self) -> None:
         with self.locked():
             self.firebase_preflight()
             self.clear_output()
-            self.run_command([str(self.paths.root / "verify"), "--phase", "all"], cwd=self.paths.root)
+            self.run_command(
+                [str(self.paths.root / "verify"), "--phase", "all"], cwd=self.paths.root
+            )
             old, new = increment_build_number(self.paths.project_spec, dry_run=self.dry_run)
             print(f"CURRENT_PROJECT_VERSION: {old} -> {new}")
             # verify already built the Rust framework for all implemented phases.
             self.common_prepare(build_rust=False)
             self.run_command(
                 [
-                    "xcodebuild", "-project", str(self.paths.project), "-scheme", SCHEME,
-                    "-configuration", "Release", "-destination", "generic/platform=iOS",
-                    "-derivedDataPath", str(self.paths.output / "DerivedData"),
-                    "-archivePath", str(self.paths.archive), "-allowProvisioningUpdates", "archive",
-                    f"DEVELOPMENT_TEAM={TEAM_ID}", "CODE_SIGN_STYLE=Automatic", *endpoint_args(),
+                    "xcodebuild",
+                    "-project",
+                    str(self.paths.project),
+                    "-scheme",
+                    SCHEME,
+                    "-configuration",
+                    "Release",
+                    "-destination",
+                    "generic/platform=iOS",
+                    "-derivedDataPath",
+                    str(self.paths.output / "DerivedData"),
+                    "-archivePath",
+                    str(self.paths.archive),
+                    "-allowProvisioningUpdates",
+                    "archive",
+                    f"DEVELOPMENT_TEAM={TEAM_ID}",
+                    "CODE_SIGN_STYLE=Automatic",
+                    *endpoint_args(),
                 ],
                 cwd=self.paths.root,
             )
@@ -231,26 +285,43 @@ class Release:
             options = self.write_export_options()
             self.run_command(
                 [
-                    "xcodebuild", "-exportArchive", "-archivePath", str(self.paths.archive),
-                    "-exportOptionsPlist", str(options), "-exportPath", str(self.paths.export),
+                    "xcodebuild",
+                    "-exportArchive",
+                    "-archivePath",
+                    str(self.paths.archive),
+                    "-exportOptionsPlist",
+                    str(options),
+                    "-exportPath",
+                    str(self.paths.export),
                     "-allowProvisioningUpdates",
                 ],
                 cwd=self.paths.root,
             )
             if not self.dry_run:
-                self.paths.receipt.write_text(json.dumps({
-                    "status": "upload_requested",
-                    "version": project_value(self.paths.project_spec, "MARKETING_VERSION"),
-                    "archiveBuild": new,
-                    "uploadedBuild": None,
-                    "appStoreConnectAppID": "6811694290",
-                    "testingStatus": "pending_apple_processing",
-                }, indent=2) + "\n", encoding="utf-8")
-                print("Upload succeeded; Apple processing/compliance and Testing status remain pending.")
+                self.paths.receipt.write_text(
+                    json.dumps(
+                        {
+                            "status": "upload_requested",
+                            "version": project_value(self.paths.project_spec, "MARKETING_VERSION"),
+                            "archiveBuild": new,
+                            "uploadedBuild": None,
+                            "appStoreConnectAppID": "6811694290",
+                            "testingStatus": "pending_apple_processing",
+                        },
+                        indent=2,
+                    )
+                    + "\n",
+                    encoding="utf-8",
+                )
+                print(
+                    "Upload succeeded; Apple processing/compliance and Testing status remain pending."
+                )
                 print("Xcode manages the uploaded build number; confirm it in App Store Connect.")
                 print(f"Upload log and receipt: {self.paths.output}")
 
-    def validate_app(self, app: Path, *, expected_build: int | None = None, verify_code_sign: bool = False) -> None:
+    def validate_app(
+        self, app: Path, *, expected_build: int | None = None, verify_code_sign: bool = False
+    ) -> None:
         if self.dry_run:
             print(f"validate app: {app}")
             return
@@ -260,7 +331,9 @@ class Release:
         info = plistlib.loads(info_path.read_bytes())
         expected = {
             "CFBundleIdentifier": BUNDLE_ID,
-            "CFBundleShortVersionString": project_value(self.paths.project_spec, "MARKETING_VERSION"),
+            "CFBundleShortVersionString": project_value(
+                self.paths.project_spec, "MARKETING_VERSION"
+            ),
             "RUNDALE_ENDPOINT_BASE_URL": ENDPOINT_SETTINGS["RUNDALE_ENDPOINT_BASE_URL"],
             "RUNDALE_ENDPOINT_ORGANIZATION": ENDPOINT_SETTINGS["RUNDALE_ENDPOINT_ORGANIZATION"],
             "RUNDALE_ENDPOINT_SLUG": ENDPOINT_SETTINGS["RUNDALE_ENDPOINT_SLUG"],
@@ -278,7 +351,9 @@ class Release:
         if not executable.is_file():
             raise RuntimeError("archive is missing the application executable")
         if verify_code_sign:
-            self.run_command(["codesign", "--verify", "--deep", "--strict", "--verbose=2", str(app)])
+            self.run_command(
+                ["codesign", "--verify", "--deep", "--strict", "--verbose=2", str(app)]
+            )
 
     def validate_archive(self, *, expected_build: int | None = None) -> None:
         self.validate_app(self.paths.app, expected_build=expected_build, verify_code_sign=True)
@@ -304,7 +379,11 @@ class Release:
 def parse_args(argv: Sequence[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("command", choices=("build", "testflight"))
-    parser.add_argument("--dry-run", action="store_true", help="print commands without prerequisites or side effects")
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="print commands without prerequisites or side effects",
+    )
     return parser.parse_args(argv)
 
 

@@ -3,13 +3,22 @@
 
 from __future__ import annotations
 
+import importlib
 import plistlib
 import tempfile
 import unittest
-from unittest.mock import patch
 from pathlib import Path
+from typing import TYPE_CHECKING
+from unittest.mock import patch
 
-import release
+if TYPE_CHECKING:
+    from . import release
+else:  # support both package-based pytest and direct unittest discovery
+    release = (
+        importlib.import_module(".release", __package__)
+        if __package__
+        else importlib.import_module("release")
+    )
 
 
 class ReleaseTests(unittest.TestCase):
@@ -21,7 +30,9 @@ class ReleaseTests(unittest.TestCase):
         (self.root / "mobile" / "project.yml").write_text(
             'MARKETING_VERSION: "0.1.0"\nCURRENT_PROJECT_VERSION: "8"\n', encoding="utf-8"
         )
-        (self.root / "mobile" / "Rundale" / "Resources" / "GoogleService-Info.plist").write_bytes(b"private")
+        (self.root / "mobile" / "Rundale" / "Resources" / "GoogleService-Info.plist").write_bytes(
+            b"private"
+        )
         self.paths = release.Paths(self.root)
         self.commands: list[list[str]] = []
 
