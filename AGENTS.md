@@ -102,6 +102,28 @@ commands and [harness.md](docs/agent/harness.md) to diagnose gate failures.
 
 ## Changes and delivery
 
+### Keep the iPhone beta current
+
+The user wants to try new features and fixes on their iPhone. Whenever a change
+provides something new to try in the iOS app, publish an updated internal
+TestFlight build after the applicable checks pass. This is standing authorization
+to build, sign, upload, and distribute to the existing Internal Beta group;
+do not ask for routine release confirmation. Documentation-only changes do not
+need a build. Preserve saves and verify compatibility when persistence changes.
+
+Use `just mobile-build` for a local Release iPhone build and
+`just testflight-update` to run mobile verification, increment the build number,
+archive, sign, and upload an internal beta. Xcode manages the uploaded build
+number; report the number App Store Connect actually receives. Follow
+[the TestFlight runbook](mobile/testflight.md) for prerequisites and recovery.
+Complete accurate export compliance information and verify the new build is
+**Testing** in **Internal Beta**; upload success alone is not delivery.
+Report the version/build, what to try, checks run, and any remaining device gates.
+If signing, Apple processing, or another concrete blocker prevents delivery,
+report it explicitly rather than silently leaving the phone on the old build.
+
+### Repository delivery
+
 Use conventional commits and one logical change per commit. PRs explain changed
 behavior, link requirements/issues, and list actual verification and remaining gates.
 For visible changes include appropriate visual and interaction evidence.

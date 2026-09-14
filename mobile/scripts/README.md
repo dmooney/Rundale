@@ -1,5 +1,15 @@
 # Mobile verification runner
 
+## Build and TestFlight commands
+
+`just mobile-build` and `just testflight-update` invoke `release.py` to build the
+Release iPhone app or verify, sign, and upload an internal beta. See the
+[TestFlight runbook](../testflight.md) for prerequisites, dry-run usage, and
+the remaining Apple processing/compliance step. Exercise the orchestration
+without uploading using `python3 -m unittest discover -s mobile/scripts -p test_release.py`.
+
+## Verification
+
 The repository entry point is `./verify`. It runs the native mobile checks
 sequentially and writes evidence under `mobile/.verification/`.
 

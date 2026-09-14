@@ -39,12 +39,14 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.rundale.mobile
+        MARKETING_VERSION: "0.1.0"
+        CURRENT_PROJECT_VERSION: "1"
         CODE_SIGN_ENTITLEMENTS: Rundale/Rundale.entitlements
         SWIFT_VERSION: "6.0"
         TARGETED_DEVICE_FAMILY: "1"
-        GENERATE_INFOPLIST_FILE: true
-        INFOPLIST_KEY_CFBundleDisplayName: Rundale
-        INFOPLIST_KEY_UILaunchScreen_Generation: true
+        GENERATE_INFOPLIST_FILE: false
+        INFOPLIST_FILE: Rundale/Info.plist
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         SUPPORTS_MACCATALYST: false
 
   RundaleUITests:
@@ -62,16 +64,34 @@ targets:
         TARGETED_DEVICE_FAMILY: "1"
         GENERATE_INFOPLIST_FILE: true
 
+  RundaleTests:
+    type: bundle.unit-test
+    platform: iOS
+    deploymentTarget: "17.0"
+    sources:
+      - path: RundaleTests
+    dependencies:
+      - target: Rundale
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.rundale.mobile.tests
+        SWIFT_VERSION: "6.0"
+        GENERATE_INFOPLIST_FILE: true
+
 schemes:
   Rundale:
     build:
       targets:
         Rundale: all
         RundaleUITests: [test]
+        RundaleTests: [test]
     test:
       gatherCoverageData: false
       targets:
         - name: RundaleUITests
+          parallelizable: false
+          randomExecutionOrder: false
+        - name: RundaleTests
           parallelizable: false
           randomExecutionOrder: false
     run:

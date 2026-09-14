@@ -4,6 +4,13 @@ import Foundation
 /// the app. They make UI automation deterministic without adding a product
 /// debug surface to the running experience.
 struct LaunchConfiguration: Sendable {
+    private enum BundleKey {
+        static let endpointBaseURL = "RUNDALE_ENDPOINT_BASE_URL"
+        static let endpointOrganization = "RUNDALE_ENDPOINT_ORGANIZATION"
+        static let endpointSlug = "RUNDALE_ENDPOINT_SLUG"
+        static let endpointVersion = "RUNDALE_ENDPOINT_VERSION"
+    }
+
     enum Fixture: String, Equatable, Sendable {
         case standard
         case manualStream = "manual-stream"
@@ -37,7 +44,8 @@ struct LaunchConfiguration: Sendable {
     let endpointVersion: Int
 
     init(arguments: [String] = ProcessInfo.processInfo.arguments,
-         environment: [String: String] = ProcessInfo.processInfo.environment) {
+         environment: [String: String] = ProcessInfo.processInfo.environment,
+         bundle: [String: Any] = Bundle.main.infoDictionary ?? [:]) {
         isUITesting = arguments.contains("--ui-tests")
         let hasExplicitFixture = arguments.contains { $0.hasPrefix("--fixture=") }
         phase2 = arguments.contains("--phase2")
@@ -59,10 +67,33 @@ struct LaunchConfiguration: Sendable {
         resetFixture = arguments.contains("--reset-fixture")
         forceDarkAppearance = isUITesting && arguments.contains("--force-dark-appearance")
 
-        endpointBaseURL = environment["RUNDALE_ENDPOINT_BASE_URL"].flatMap(URL.init(string:))
-        endpointOrganization = environment["RUNDALE_ENDPOINT_ORGANIZATION"] ?? "rundale"
-        endpointSlug = environment["RUNDALE_ENDPOINT_SLUG"] ?? "rundale-dialogue"
-        endpointVersion = max(1, Int(environment["RUNDALE_ENDPOINT_VERSION"] ?? "1") ?? 1)
+        let configuredBaseURL = Self.configuredValue(BundleKey.endpointBaseURL,
+                                                      environment: environment,
+                                                      bundle: bundle)
+        endpointBaseURL = configuredBaseURL.flatMap(URL.init(string:))
+        endpointOrganization = Self.configuredValue(BundleKey.endpointOrganization,
+                                                     environment: environment,
+                                                     bundle: bundle) ?? "rundale"
+        endpointSlug = Self.configuredValue(BundleKey.endpointSlug,
+                                             environment: environment,
+                                             bundle: bundle) ?? "rundale-dialogue"
+        endpointVersion = max(1, Int(Self.configuredValue(BundleKey.endpointVersion,
+                                                           environment: environment,
+                                                           bundle: bundle) ?? "1") ?? 1)
+    }
+
+    private static func configuredValue(_ key: String,
+                                       environment: [String: String],
+                                       bundle: [String: Any]) -> String? {
+        if let value = environment[key]?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !value.isEmpty {
+            return value
+        }
+        if let value = bundle[key] as? String {
+            let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+            return trimmed.isEmpty ? nil : trimmed
+        }
+        return nil
     }
 
     var endpointURL: URL? {

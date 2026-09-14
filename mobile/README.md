@@ -17,6 +17,14 @@ physical-device acceptance matrix establishes the supported baseline.
 From the repository root:
 
 ```sh
+just mobile-build       # Release iPhone app, including Rust; no upload
+just testflight-update  # Verify, sign, and upload an internal beta
+```
+
+See [the TestFlight runbook](testflight.md) for signing prerequisites and Apple's
+processing/compliance step. For simulator development and individual phase checks:
+
+```sh
 bash mobile/scripts/build-rust-mobile.sh
 xcodegen generate --spec mobile/project.yml
 open mobile/Rundale.xcodeproj
@@ -44,6 +52,9 @@ mobile request carries short-lived Firebase Auth and App Check credentials
 directly to Parish Endpoints; provider credentials and shared Endpoint keys
 never enter the app. See the [Endpoint handoff](endpoint/phase2-handoff.md) for
 the SSE contract, deployed revision, live evidence, and remaining device gate.
+For an internal TestFlight archive, use the Release procedure in
+[testflight.md](testflight.md). Release configuration is bundled at build time;
+test launch environment values continue to override it.
 
 Choose the Rundale scheme and an iPhone simulator in Xcode. For a physical
 iPhone, choose your development signing team in the generated project and run

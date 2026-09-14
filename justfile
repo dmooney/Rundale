@@ -36,6 +36,14 @@ build:
 build-release:
     cd parish && just build-release
 
+# Build the Release iPhone app, including the embedded Rust runtime
+mobile-build *ARGS:
+    python3 mobile/scripts/release.py build {{ARGS}}
+
+# Verify, sign, and upload an internal TestFlight update
+testflight-update *ARGS:
+    python3 mobile/scripts/release.py testflight {{ARGS}}
+
 # Run the game (Tauri desktop GUI)
 run:
     cd parish && just run
