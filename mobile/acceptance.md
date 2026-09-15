@@ -1,8 +1,8 @@
 # Mobile acceptance record
 
-Status: Phase 4 reliability implementation and automated verification are
-complete; physical acceptance remains open across the implemented phases. No physical-iPhone
-acceptance has been performed.
+Status: Phase 1–4 automated testing now includes a signed physical iPhone run.
+Human acceptance remains deferred by user instruction; automated device evidence
+does not complete that acceptance.
 This document records remaining evidence, not a waiver of the product checklist.
 
 Delivery includes the user's [Phase 1 demo](../docs/product-specs/phase-demo-plan.md).
@@ -13,6 +13,83 @@ Use the [full Phase 1 cases](../docs/test-plans/phase-1-test-cases.md) alongside
 the [milestone requirements](../docs/product-specs/product-technical-spec.md).
 Record build revision, device model, iOS version, text size, appearance, test
 date, tester, observed result, and defects for each session.
+
+## Automated device evidence — 2026-09-14
+
+Source: `ios-port` revision `b06eade45` plus the reviewed automated-acceptance
+working-tree changes. Verifier receipts retain source fingerprints, build
+identity, command logs and result bundles. Test build: **0.1.0 (6)**,
+Xcode 26.6 (17F113). Phone: **iPhone 16 Pro Max, iOS 26.6.1**.
+
+- **Passed:** 68 device-compatible Phase 1–4 native tests (21 Phase 1,
+  seven Phase 2, six Phase 3, eight Phase 4 UI, 26 controller/native).
+- **Passed:** the full deterministic phone soak: 1,207.71 seconds of workload,
+  53 travel cycles, 53 streamed dialogues, and 18 background recoveries.
+  The final three-test live/soak bundle had zero failures.
+- **Passed:** both live production Endpoint tests: validated streamed dialogue
+  and in-flight Stop without a committed late dialogue.
+- **Passed:** all 69 native tests on both the iPhone SE (3rd generation)
+  Release simulator and iPhone 17 Pro Debug simulator, both iOS 26.5, including
+  simulator-specific Return-key behavior. The primary run was the release gate.
+- **Passed:** 35 verifier/release regression tests; the small-screen full gate
+  also passed Rust mobile/persistence/FFI and Swift package checks.
+- **Skipped:** already-booted simulator setup. The simulator-only Return-key
+  test is excluded from the physical suite.
+- **Unavailable:** iOS 17 runtime/device. The full verifier also reports
+  unimplemented Phase 5/6 gates and its opt-in live gate separately; the latter
+  was exercised by the successful dedicated phone run above.
+- **Deferred:** human acceptance listed below, including a small-screen
+  physical phone and minimum-supported-iOS physical validation.
+
+A fresh-install defect was found and fixed: runtime startup now creates the
+save's parent directory before SQLite opens it. A native test starts from a
+nonexistent nested directory and verifies successful creation and startup.
+UI tests use isolated save/draft paths. Existing personal-save paths are unchanged.
+After testing, the production-configured app was reinstalled without uninstalling;
+all five files in the normal save directory matched byte-for-byte before and
+after that reinstall (`save-preservation.json`). No initial pre-test snapshot
+was taken, so this comparison specifically establishes reinstall preservation.
+
+Earlier failed runs remain in the evidence: Release simulator builds attempted
+an unsupported x86_64 Rust slice, physical empty composer values differed from
+simulator values, and the initial soak incorrectly expected identical repeated
+NPC prose. Corrected builds use the active architecture and device-compatible
+assertions; the soak follows the current response's stable identity and accepts
+canonical repeat normalization.
+
+### Internal beta delivery
+
+**0.1.0 (7)** was uploaded and verified as **Testing** in **Internal Beta**
+through the in-app App Store Connect browser on September 14. It includes the
+fresh-install save-directory fix. The archive uses the tested app source with
+the incremented build number and production Endpoint configuration. The phone
+was left running a development-signed build of the same fix with normal
+production settings; TestFlight offers build 7 through its usual Update flow.
+
+### Release performance baselines
+
+| Measurement                                  | Phone result       | Interpretation                                                |
+| -------------------------------------------- | ------------------ | ------------------------------------------------------------- |
+| Launch, five samples                         | Mean 0.283 s       | XCTest application-launch metric                              |
+| Local east/west round trip                   | Mean 5.600 s       | Two commands; includes typing, driver and rendering           |
+| Older/newest scroll pair, 180-row fixture    | Mean 19.578 s      | Includes queries, gestures and automation overhead            |
+| Peak physical memory during local round trip | Maximum 32.5 MB    | Sampled XCTest physical-memory metric                         |
+| Live Endpoint send to final UI               | 6.918 s            | One sample; includes tap, auth, network, model and UI polling |
+| Deterministic stream first chunk / final UI  | 4.700 s / 10.981 s | End-to-end mock sample, includes typing/driver                |
+
+These are baselines, not approved responsiveness budgets. They do not isolate
+engine work, measure frame hitches, or equate mock delay with live network
+latency. The live timing receipt separately labels authentication, network,
+model and UI overhead; it cannot isolate provider latency.
+
+Detailed receipts are local ignored artifacts in
+`mobile/.verification-device-acceptance/`,
+`mobile/.verification-small-screen/` and
+`mobile/.verification-automated-acceptance/`. The initial aggregate device
+report contains the historical failures above; individual successful device
+bundles and corrected reruns are the authoritative evidence, not an overall
+pass claim for that initial report. See the
+[repeatable procedure and requirement map](automated-acceptance.md).
 
 ## Automated evidence — 2026-09-07
 
@@ -44,7 +121,10 @@ These checks do not replace human accessibility judgment.
 The user viewed the running iPhone 17 Pro prototype during the
 [recorded implementation preview](demo.md#recorded-implementation-preview--2026-09-07).
 
-## Remaining physical acceptance
+## Historical physical acceptance checklist — 2026-09-07
+
+The statuses below describe the original record. The September 14 automated
+device evidence above supersedes automated coverage; human checks remain deferred.
 
 | Physical acceptance area                                                   | Evidence status            |
 | -------------------------------------------------------------------------- | -------------------------- |

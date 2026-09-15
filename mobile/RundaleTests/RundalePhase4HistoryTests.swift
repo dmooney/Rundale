@@ -7,6 +7,22 @@ import RundaleKit
 /// Standalone bridge tests use C doubles, so they cannot establish this wiring.
 @MainActor
 final class RundalePhase4HistoryTests: XCTestCase {
+    func testFirstLaunchCreatesMissingSaveDirectoryBeforeOpeningRuntime() async throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("phase4-first-launch-\(UUID().uuidString)/nested", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: directory.deletingLastPathComponent()) }
+        XCTAssertFalse(FileManager.default.fileExists(atPath: directory.path))
+        let controller = RundaleEngineController(configuration: LaunchConfiguration(
+            arguments: ["--ui-tests", "--phase3", "--phase3-mock",
+                        "--draft-file=\(directory.appendingPathComponent("projection.json").path)"],
+            environment: [:], bundle: [:]
+        ))
+        controller.start()
+        try await waitUntil { !controller.state.transcript.isEmpty || controller.persistenceError != nil }
+        XCTAssertNil(controller.persistenceError, controller.persistenceDiagnostic ?? "")
+        XCTAssertTrue(FileManager.default.fileExists(atPath: directory.appendingPathComponent("phase2.sqlite").path))
+    }
+
     func testClarificationSurvivesBeyondTheRetainedEventTail() async throws {
         let directory = FileManager.default.temporaryDirectory
             .appendingPathComponent("phase4-clarification-\(UUID().uuidString)", isDirectory: true)

@@ -15,12 +15,22 @@ final class RundaleLiveEndpointUITests: XCTestCase {
     func test01LiveEndpointStreamsAValidatedTerminalDialogue() throws {
         try launch(reset: true)
         waitForInitialScene()
-        submit("ask Peig what she can tell me about this crossroads")
+        let sentAt = submit("ask Peig what she can tell me about this crossroads")
 
         let completed = dialogueRow(inProgress: false)
         XCTAssertTrue(completed.waitForExistence(timeout: 30), "Expected validated live dialogue")
         XCTAssertTrue(app.buttons["composer.send"].waitForExistence(timeout: 8))
         XCTAssertFalse(completed.label.contains("In progress"))
+        let timing: [String: Any] = [
+            "transport": "live-endpoint",
+            "send_to_final_ui_seconds": Date().timeIntervalSince(sentAt),
+            "note": "Includes tap injection, authentication, network, model work, and UI polling; not isolated provider latency"
+        ]
+        let data = try JSONSerialization.data(withJSONObject: timing, options: [.prettyPrinted, .sortedKeys])
+        let attachment = XCTAttachment(data: data, uniformTypeIdentifier: "public.json")
+        attachment.name = "rundale-live-final-timing.json"
+        attachment.lifetime = .keepAlways
+        add(attachment)
     }
 
     func test02LiveEndpointStopCancelsWithoutCommittingLateDialogue() throws {
@@ -37,9 +47,7 @@ final class RundaleLiveEndpointUITests: XCTestCase {
         // The deployed Flash endpoint can finish in under a second. Query the
         // already-rendered control immediately so this test exercises the
         // in-flight cancellation path instead of racing the terminal frame.
-        XCTAssertTrue(stop.exists || stop.waitForExistence(timeout: 0.2))
-        Thread.sleep(forTimeInterval: 0.25)
-        guard stop.exists else {
+        guard stop.exists || stop.waitForExistence(timeout: 0.2) else {
             throw XCTSkip("The live response completed before Stop could exercise cancellation")
         }
         stop.tap()
@@ -69,17 +77,19 @@ final class RundaleLiveEndpointUITests: XCTestCase {
     }
 
     private func waitForInitialScene() {
-        XCTAssertTrue(waitForTranscriptText("Rain darkens the road", timeout: 8))
+        XCTAssertTrue(waitForTranscriptText("Morning gathers over Kilteevan", timeout: 8))
         XCTAssertTrue(app.otherElements["status.header"].waitForExistence(timeout: 3))
     }
 
-    private func submit(_ command: String) {
+    private func submit(_ command: String) -> Date {
         let input = commandInput
         XCTAssertTrue(input.waitForExistence(timeout: 5))
         input.tap()
         input.typeText(command)
+        let sentAt = Date()
         app.buttons["composer.send"].tap()
         XCTAssertTrue(waitForTranscriptText(command, timeout: 8))
+        return sentAt
     }
 
     private var commandInput: XCUIElement {

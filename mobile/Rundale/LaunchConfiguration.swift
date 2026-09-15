@@ -66,8 +66,17 @@ struct LaunchConfiguration: Sendable {
         manualStream = !phase2 && (isUITesting || arguments.contains("--manual-stream"))
         autoFocusComposer = !arguments.contains("--no-auto-focus")
         initialDraft = environment["RUNDALE_UI_TEST_DRAFT"]
+        // UI automation must never open the player's ordinary local save. The
+        // explicit override remains authoritative for isolated test fixtures
+        // and for the engine's sibling SQLite path.
         draftFileURL = arguments.first(where: { $0.hasPrefix("--draft-file=") })
             .map { URL(fileURLWithPath: String($0.dropFirst("--draft-file=".count))) }
+            ?? (isUITesting
+                ? FileManager.default
+                    .urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+                    .appendingPathComponent(phase2 ? "RundaleUITests/engine/phase2-projection.json"
+                        : "RundaleUITests/fixture/phase1-draft.json")
+                : nil)
         resetFixture = arguments.contains("--reset-fixture")
         forceDarkAppearance = isUITesting && arguments.contains("--force-dark-appearance")
 

@@ -159,7 +159,7 @@ final class RundalePhase3UITests: XCTestCase {
         input.typeText(command)
         app.buttons["composer.send"].tap()
         let cleared = XCTNSPredicateExpectation(
-            predicate: NSPredicate(format: "value == %@", ""),
+            predicate: NSPredicate(format: "value == '' OR value == nil"),
             object: input
         )
         XCTAssertEqual(XCTWaiter.wait(for: [cleared], timeout: 8), .completed)

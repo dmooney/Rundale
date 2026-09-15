@@ -107,6 +107,10 @@ for interruption policy, save compatibility, and the device sessions.
 
 ## Acceptance
 
+See [automated iPhone acceptance](automated-acceptance.md) for connected-device,
+soak, performance, and simulator-matrix execution. Hands-on acceptance remains
+separate from these automated checks.
+
 The [Phase 1 test plan](../docs/test-plans/phase-1-test-cases.md),
 [Phase 2 test plan](../docs/test-plans/phase-2-test-cases.md), Milestone 3
 acceptance criteria, and full product

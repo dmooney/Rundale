@@ -51,4 +51,32 @@ final class LaunchConfigurationTests: XCTestCase {
         XCTAssertNil(configuration.endpointBaseURL)
         XCTAssertNil(configuration.endpointURL)
     }
+
+    func testUITestingUsesAnIsolatedApplicationSupportDraftByDefault() {
+        let configuration = LaunchConfiguration(
+            arguments: ["--ui-tests"],
+            environment: [:],
+            bundle: [:]
+        )
+
+        XCTAssertEqual(configuration.draftFileURL?.lastPathComponent, "phase1-draft.json")
+        XCTAssertTrue(configuration.draftFileURL?.path.contains("RundaleUITests") == true)
+    }
+
+    func testOrdinaryLaunchLeavesDraftOverrideUnset() {
+        let configuration = LaunchConfiguration(arguments: [], environment: [:], bundle: [:])
+
+        XCTAssertNil(configuration.draftFileURL)
+    }
+
+    func testExplicitDraftOverrideWinsForUITesting() {
+        let override = "/tmp/rundale-test/projection.json"
+        let configuration = LaunchConfiguration(
+            arguments: ["--ui-tests", "--draft-file=\(override)"],
+            environment: [:],
+            bundle: [:]
+        )
+
+        XCTAssertEqual(configuration.draftFileURL?.path, override)
+    }
 }

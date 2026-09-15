@@ -31,7 +31,7 @@ final class RundaleUITests: XCTestCase {
 
         app.buttons["composer.send"].tap()
         XCTAssertTrue(waitForTranscriptText("look around\ncheck the road\nwait by the gate"))
-        XCTAssertEqual(input.value as? String, "")
+        XCTAssertEqual(input.value as? String ?? "", "")
     }
 
     func testSendButtonExposesDistinctDisabledAndEnabledStates() {
@@ -565,7 +565,9 @@ final class RundaleUITests: XCTestCase {
     private func waitForValue(_ value: String,
                               on element: XCUIElement,
                               timeout: TimeInterval = 3) -> Bool {
-        let predicate = NSPredicate(format: "value == %@", value)
+        let predicate = value.isEmpty
+            ? NSPredicate(format: "value == '' OR value == nil")
+            : NSPredicate(format: "value == %@", value)
         let expectation = XCTNSPredicateExpectation(predicate: predicate, object: element)
         return XCTWaiter.wait(for: [expectation], timeout: timeout) == .completed
     }
