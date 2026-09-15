@@ -26,8 +26,8 @@ pub use ids::{
     extract_dialogue_from_partial_json, floor_char_boundary,
 };
 pub use player_progress::{
-    MAX_PLAYER_TASKS, MAX_TASK_ACTION_CHARS, MAX_TASK_DESCRIPTION_CHARS, PlayerProgress,
-    PlayerProgressError, PlayerTask, PlayerTaskId, TaskStatus,
+    AuthoredTaskMetadata, MAX_PLAYER_TASKS, MAX_TASK_ACTION_CHARS, MAX_TASK_DESCRIPTION_CHARS,
+    PlayerProgress, PlayerProgressError, PlayerTask, PlayerTaskId, TaskStatus,
 };
 pub use theme::ThemePalette;
 pub use time::{

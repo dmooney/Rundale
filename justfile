@@ -66,11 +66,11 @@ web PORT="3001":
 
 # ─── Quality Gates ──────────────────────────────────────────────────────────
 
-# Run the imported Parish Endpoints format, lint, type, test, and build gates.
+# Run the imported Limerick Endpoints format, lint, type, test, and build gates.
 endpoints-check:
     cd endpoints && pnpm check
 
-# Run Parish Endpoints tests only.
+# Run Limerick Endpoints tests only.
 endpoints-test:
     cd endpoints && pnpm test
 

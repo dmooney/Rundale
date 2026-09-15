@@ -1,6 +1,6 @@
 import XCTest
 
-/// End-to-end checks for the embedded Parish runtime.  These tests deliberately
+/// End-to-end checks for the embedded Limerick runtime.  These tests deliberately
 /// launch the real application target and use only the deterministic Endpoint
 /// transport that is compiled behind the Phase 2 UI-test arguments.
 @MainActor

@@ -1,6 +1,6 @@
 import { and, eq } from "drizzle-orm";
-import { issueApiKey } from "@parish/auth";
-import { definitionContentHash, type EndpointDefinition } from "@parish/domain";
+import { issueApiKey } from "@limerick/auth";
+import { definitionContentHash, type EndpointDefinition } from "@limerick/domain";
 import {
   apiKeys,
   deploymentAliases,
@@ -15,8 +15,8 @@ import { createDatabase } from "./index.js";
 
 const databaseUrl = process.env.DATABASE_URL;
 if (databaseUrl === undefined) throw new Error("DATABASE_URL is required.");
-const externalAuthId = process.env.PARISH_OWNER_FIREBASE_UID ?? "user_synthetic_owner";
-const email = process.env.PARISH_OWNER_EMAIL ?? "owner@example.invalid";
+const externalAuthId = process.env.LIMERICK_OWNER_FIREBASE_UID ?? "user_synthetic_owner";
+const email = process.env.LIMERICK_OWNER_EMAIL ?? "owner@example.invalid";
 const definition: EndpointDefinition = {
   inputSchema: {
     type: "object",
@@ -46,7 +46,7 @@ try {
   await database.db.transaction(async (transaction) => {
     await transaction
       .insert(users)
-      .values({ externalAuthId, email, displayName: "Parish Owner" })
+      .values({ externalAuthId, email, displayName: "Limerick Owner" })
       .onConflictDoNothing({ target: users.externalAuthId });
     const [user] = await transaction
       .select()
@@ -56,12 +56,12 @@ try {
 
     await transaction
       .insert(organizations)
-      .values({ name: "Parish Demo", slug: "parish-demo" })
+      .values({ name: "Limerick Demo", slug: "limerick-demo" })
       .onConflictDoNothing({ target: organizations.slug });
     const [organization] = await transaction
       .select()
       .from(organizations)
-      .where(eq(organizations.slug, "parish-demo"));
+      .where(eq(organizations.slug, "limerick-demo"));
     if (organization === undefined) throw new Error("Could not resolve seeded organization.");
     await transaction
       .insert(organizationMembers)

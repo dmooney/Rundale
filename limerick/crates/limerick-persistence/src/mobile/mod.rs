@@ -1,4 +1,4 @@
-//! Transactional storage for the portable/mobile Parish runtime.
+//! Transactional storage for the portable/mobile Limerick runtime.
 //!
 //! Mobile saves deliberately use a small schema separate from the legacy
 //! branching desktop save schema.  The store owns one SQLite connection and a
@@ -364,7 +364,7 @@ fn sync_parent_directory(_path: &Path) -> Result<(), LimerickError> {
 
 #[cfg(test)]
 fn pause_for_bootstrap_interruption_test() {
-    if std::env::var_os("PARISH_MOBILE_BOOTSTRAP_PAUSE").is_some() {
+    if std::env::var_os("LIMERICK_MOBILE_BOOTSTRAP_PAUSE").is_some() {
         println!("MOBILE_BOOTSTRAP_READY");
         let _ = std::io::stdout().flush();
         std::thread::sleep(std::time::Duration::from_secs(60));
@@ -1939,7 +1939,7 @@ mod tests {
 
     #[test]
     fn kernel_lock_releases_after_process_death() {
-        if let Some(path) = std::env::var_os("PARISH_MOBILE_LOCK_CHILD") {
+        if let Some(path) = std::env::var_os("LIMERICK_MOBILE_LOCK_CHILD") {
             let _store = MobileStore::open(Path::new(&path), "phase2", "fingerprint-a").unwrap();
             println!("MOBILE_LOCK_CHILD_READY");
             std::io::stdout().flush().unwrap();
@@ -1955,7 +1955,7 @@ mod tests {
                 "mobile::tests::kernel_lock_releases_after_process_death",
                 "--nocapture",
             ])
-            .env("PARISH_MOBILE_LOCK_CHILD", &path)
+            .env("LIMERICK_MOBILE_LOCK_CHILD", &path)
             .stdout(Stdio::piped())
             .spawn()
             .unwrap();
@@ -1976,7 +1976,7 @@ mod tests {
     #[cfg(unix)]
     #[test]
     fn inode_lock_survives_existing_delete_to_wal_transition() {
-        if let Some(path) = std::env::var_os("PARISH_MOBILE_WAL_LOCK_CHILD") {
+        if let Some(path) = std::env::var_os("LIMERICK_MOBILE_WAL_LOCK_CHILD") {
             let _store = MobileStore::open(Path::new(&path), "phase2", "fingerprint-a").unwrap();
             println!("MOBILE_WAL_LOCK_CHILD_READY");
             std::io::stdout().flush().unwrap();
@@ -2000,7 +2000,7 @@ mod tests {
                 "mobile::tests::inode_lock_survives_existing_delete_to_wal_transition",
                 "--nocapture",
             ])
-            .env("PARISH_MOBILE_WAL_LOCK_CHILD", &path)
+            .env("LIMERICK_MOBILE_WAL_LOCK_CHILD", &path)
             .stdout(Stdio::piped())
             .spawn()
             .unwrap();
@@ -2018,7 +2018,7 @@ mod tests {
     #[cfg(unix)]
     #[test]
     fn inode_lock_survives_unrelated_sqlite_close() {
-        if let Some(path) = std::env::var_os("PARISH_MOBILE_UNRELATED_CLOSE_CHILD") {
+        if let Some(path) = std::env::var_os("LIMERICK_MOBILE_UNRELATED_CLOSE_CHILD") {
             let _store = MobileStore::open(Path::new(&path), "phase2", "fingerprint-a").unwrap();
 
             // POSIX record locks are process-scoped on Darwin: closing this
@@ -2049,7 +2049,7 @@ mod tests {
                 "mobile::tests::inode_lock_survives_unrelated_sqlite_close",
                 "--nocapture",
             ])
-            .env("PARISH_MOBILE_UNRELATED_CLOSE_CHILD", &path)
+            .env("LIMERICK_MOBILE_UNRELATED_CLOSE_CHILD", &path)
             .stdout(Stdio::piped())
             .spawn()
             .unwrap();
@@ -2066,7 +2066,7 @@ mod tests {
 
     #[test]
     fn interrupted_bootstrap_leaves_no_final_file_and_can_retry() {
-        if let Some(path) = std::env::var_os("PARISH_MOBILE_BOOTSTRAP_CHILD") {
+        if let Some(path) = std::env::var_os("LIMERICK_MOBILE_BOOTSTRAP_CHILD") {
             let _ = MobileStore::open(Path::new(&path), "phase2", "fingerprint-a");
             return;
         }
@@ -2079,8 +2079,8 @@ mod tests {
                 "mobile::tests::interrupted_bootstrap_leaves_no_final_file_and_can_retry",
                 "--nocapture",
             ])
-            .env("PARISH_MOBILE_BOOTSTRAP_CHILD", &path)
-            .env("PARISH_MOBILE_BOOTSTRAP_PAUSE", "1")
+            .env("LIMERICK_MOBILE_BOOTSTRAP_CHILD", &path)
+            .env("LIMERICK_MOBILE_BOOTSTRAP_PAUSE", "1")
             .stdout(Stdio::piped())
             .spawn()
             .unwrap();

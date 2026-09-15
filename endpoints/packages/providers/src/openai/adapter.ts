@@ -6,7 +6,7 @@ import {
   type ProviderErrorMetadata,
   type ProviderInvocation,
   type ProviderResult,
-} from "@parish/runtime";
+} from "@limerick/runtime";
 
 export class OpenAIProvider implements ModelProvider {
   readonly id = "openai" as const;

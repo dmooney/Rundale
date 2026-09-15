@@ -1,9 +1,9 @@
-# Parish mobile FFI
+# Limerick mobile FFI
 
 This crate owns the callback-free C boundary used by the native mobile client.
 Each call copies bounded UTF-8 JSON into Rust and returns one owned JSON buffer;
 the caller releases that buffer exactly once with
-`parish_mobile_owned_bytes_free`. Rust keeps only an opaque session handle in a
+`limerick_mobile_owned_bytes_free`. Rust keeps only an opaque session handle in a
 registry, and one mutex per session serializes access to the authoritative
 `limerick_core::mobile::MobileSession`.
 

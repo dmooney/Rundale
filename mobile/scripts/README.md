@@ -15,11 +15,11 @@ sequentially and writes evidence under `mobile/.verification/`.
 
 ## Phases
 
-- `./verify --phase 1`, `--phase 2`, `--phase 3`, or `--phase 4` runs that implemented gate.
-- `./verify` and `./verify --phase all` run Phases 1–4 and report Phases 5–6 as
+- `./verify --phase 1` through `--phase 5` runs the selected implemented gate.
+- `./verify` and `./verify --phase all` run Phases 1–5 and report Phase 6 as
   non-blocking future work.
-- `./verify --phase 5` and `./verify --phase 6` report the selected phase as
-  unavailable and exit nonzero until it is implemented.
+- `./verify --phase 6` reports the selected phase as unavailable and exits
+  nonzero until it is implemented.
 
 Phase 4 includes the earlier regression suites and native lifecycle/connectivity
 recovery tests. Its physical sessions, accessibility judgment, and performance

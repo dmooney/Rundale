@@ -1,5 +1,5 @@
 {
-  "name": "@parish/observability",
+  "name": "@limerick/observability",
   "version": "0.0.0",
   "private": true,
   "type": "module",

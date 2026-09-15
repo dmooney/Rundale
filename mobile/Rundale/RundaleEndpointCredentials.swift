@@ -6,7 +6,7 @@ import FirebaseAuth
 import FirebaseCore
 #endif
 
-/// The credentials sent to a Parish Endpoint request.
+/// The credentials sent to a Limerick Endpoint request.
 ///
 /// `authorizationBearer` is a Firebase Auth ID token for the configured
 /// Firebase project. It is not a model-provider token and is never persisted

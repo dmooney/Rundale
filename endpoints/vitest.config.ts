@@ -9,7 +9,7 @@ export default defineConfig({
     alias: Object.fromEntries(
       ["auth", "database", "domain", "observability", "providers", "runtime", "schemas"].map(
         (name) => [
-          `@parish/${name}`,
+          `@limerick/${name}`,
           fileURLToPath(new URL(`./packages/${name}/src/index.ts`, import.meta.url)),
         ],
       ),

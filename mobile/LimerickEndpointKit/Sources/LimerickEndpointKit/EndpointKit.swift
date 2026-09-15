@@ -8,7 +8,7 @@ import FoundationNetworking
 /// Errors raised by the mobile Endpoint transport or its protocol validator.
 /// These errors are deliberately small and stable: the player-facing layer can
 /// turn them into a useful message without exposing provider details.
-public enum ParishEndpointError: Error, Equatable, Sendable, LocalizedError {
+public enum LimerickEndpointError: Error, Equatable, Sendable, LocalizedError {
     case invalidURL
     case insecureURL
     case loopbackHTTPNotAllowed
@@ -39,33 +39,33 @@ public enum ParishEndpointError: Error, Equatable, Sendable, LocalizedError {
 
     public var errorDescription: String? {
         switch self {
-        case .invalidURL: return "The Parish Endpoint URL is invalid."
-        case .insecureURL: return "Parish Endpoint requests must use HTTPS."
+        case .invalidURL: return "The Limerick Endpoint URL is invalid."
+        case .insecureURL: return "Limerick Endpoint requests must use HTTPS."
         case .loopbackHTTPNotAllowed: return "HTTP is allowed only for the controlled loopback test transport."
-        case .invalidCredential: return "The Parish Endpoint credentials are invalid."
-        case let .responseStatus(status): return "The Parish Endpoint returned HTTP \(status)."
-        case let .responseFailure(status, _, _, _): return "The Parish Endpoint returned HTTP \(status) for this request."
-        case .responseNotSSE: return "The Parish Endpoint did not return a streaming response."
-        case .responseNotJSON: return "The Parish Endpoint did not return a JSON response."
-        case .responseBodyTooLarge: return "The Parish Endpoint response is too large."
-        case let .malformedResponse(message): return "The Parish Endpoint response is malformed: \(message)"
-        case let .malformedEvent(message): return "The Parish Endpoint stream is malformed: \(message)"
-        case .invalidUTF8: return "The Parish Endpoint stream contains invalid UTF-8."
-        case .lineTooLarge: return "The Parish Endpoint stream line is too large."
-        case .eventTooLarge: return "The Parish Endpoint stream event is too large."
-        case .streamTooLarge: return "The Parish Endpoint stream is too large."
-        case .requestTooLarge: return "The Parish Endpoint request is too large."
-        case let .unsupportedVersion(version): return "The Parish Endpoint stream version \(version) is unsupported."
-        case let .endpointVersionMismatch(expected, actual): return "The Parish Endpoint returned Endpoint version \(actual); expected pinned version \(expected)."
-        case .missingRequestID: return "The Parish Endpoint stream omitted its request identity."
-        case let .crossCorrelation(expected, actual): return "The Parish Endpoint returned request \(actual), expected \(expected)."
-        case .missingSequence: return "The Parish Endpoint stream omitted an event sequence."
-        case let .outOfOrderSequence(expected, actual): return "The Parish Endpoint stream sequence \(actual) arrived; expected \(expected)."
-        case let .duplicateEvent(id): return "The Parish Endpoint repeated event \(id)."
-        case .duplicateTerminal: return "The Parish Endpoint returned more than one terminal event."
-        case .terminalBeforeStream: return "The Parish Endpoint returned a terminal event before any response data."
-        case .missingTerminal: return "The Parish Endpoint stream ended without a terminal event."
-        case .truncatedEvent: return "The Parish Endpoint stream ended in the middle of an event."
+        case .invalidCredential: return "The Limerick Endpoint credentials are invalid."
+        case let .responseStatus(status): return "The Limerick Endpoint returned HTTP \(status)."
+        case let .responseFailure(status, _, _, _): return "The Limerick Endpoint returned HTTP \(status) for this request."
+        case .responseNotSSE: return "The Limerick Endpoint did not return a streaming response."
+        case .responseNotJSON: return "The Limerick Endpoint did not return a JSON response."
+        case .responseBodyTooLarge: return "The Limerick Endpoint response is too large."
+        case let .malformedResponse(message): return "The Limerick Endpoint response is malformed: \(message)"
+        case let .malformedEvent(message): return "The Limerick Endpoint stream is malformed: \(message)"
+        case .invalidUTF8: return "The Limerick Endpoint stream contains invalid UTF-8."
+        case .lineTooLarge: return "The Limerick Endpoint stream line is too large."
+        case .eventTooLarge: return "The Limerick Endpoint stream event is too large."
+        case .streamTooLarge: return "The Limerick Endpoint stream is too large."
+        case .requestTooLarge: return "The Limerick Endpoint request is too large."
+        case let .unsupportedVersion(version): return "The Limerick Endpoint stream version \(version) is unsupported."
+        case let .endpointVersionMismatch(expected, actual): return "The Limerick Endpoint returned Endpoint version \(actual); expected pinned version \(expected)."
+        case .missingRequestID: return "The Limerick Endpoint stream omitted its request identity."
+        case let .crossCorrelation(expected, actual): return "The Limerick Endpoint returned request \(actual), expected \(expected)."
+        case .missingSequence: return "The Limerick Endpoint stream omitted an event sequence."
+        case let .outOfOrderSequence(expected, actual): return "The Limerick Endpoint stream sequence \(actual) arrived; expected \(expected)."
+        case let .duplicateEvent(id): return "The Limerick Endpoint repeated event \(id)."
+        case .duplicateTerminal: return "The Limerick Endpoint returned more than one terminal event."
+        case .terminalBeforeStream: return "The Limerick Endpoint returned a terminal event before any response data."
+        case .missingTerminal: return "The Limerick Endpoint stream ended without a terminal event."
+        case .truncatedEvent: return "The Limerick Endpoint stream ended in the middle of an event."
         }
     }
 }
@@ -131,11 +131,11 @@ public struct EndpointRequest: Equatable, Sendable {
         policy: EndpointURLPolicy = EndpointURLPolicy(),
         body: Data
     ) throws {
-        guard !requestID.isEmpty else { throw ParishEndpointError.missingRequestID }
-        guard endpointVersion > 0 else { throw ParishEndpointError.invalidURL }
-        guard url.host?.isEmpty == false else { throw ParishEndpointError.invalidURL }
+        guard !requestID.isEmpty else { throw LimerickEndpointError.missingRequestID }
+        guard endpointVersion > 0 else { throw LimerickEndpointError.invalidURL }
+        guard url.host?.isEmpty == false else { throw LimerickEndpointError.invalidURL }
         guard body.count <= EndpointResourceLimits.maximumRequestBodyBytes else {
-            throw ParishEndpointError.requestTooLarge
+            throw LimerickEndpointError.requestTooLarge
         }
         try policy.validate(url)
         self.url = url
@@ -215,7 +215,7 @@ public struct BoundedSSEParser: Sendable {
                 events.append(contentsOf: try consume(line))
             }
             if buffer.count > limits.maximumLineBytes {
-                throw ParishEndpointError.lineTooLarge
+                throw LimerickEndpointError.lineTooLarge
             }
             offset = end
         }
@@ -226,7 +226,7 @@ public struct BoundedSSEParser: Sendable {
     /// event is treated as a protocol truncation rather than silently lost.
     public mutating func finish() throws -> [SSEEvent] {
         guard buffer.isEmpty, eventName == nil, eventID == nil, dataLines.isEmpty else {
-            throw ParishEndpointError.truncatedEvent
+            throw LimerickEndpointError.truncatedEvent
         }
         return []
     }
@@ -234,9 +234,9 @@ public struct BoundedSSEParser: Sendable {
     private mutating func consume(_ rawLine: Data) throws -> [SSEEvent] {
         var line = rawLine
         if line.last == 0x0D { line.removeLast() }
-        guard line.count <= limits.maximumLineBytes else { throw ParishEndpointError.lineTooLarge }
+        guard line.count <= limits.maximumLineBytes else { throw LimerickEndpointError.lineTooLarge }
         currentEventBytes += line.count + 1
-        guard currentEventBytes <= limits.maximumEventBytes else { throw ParishEndpointError.eventTooLarge }
+        guard currentEventBytes <= limits.maximumEventBytes else { throw LimerickEndpointError.eventTooLarge }
 
         if line.isEmpty {
             defer {
@@ -247,7 +247,7 @@ public struct BoundedSSEParser: Sendable {
             }
             guard !dataLines.isEmpty || eventName != nil || eventID != nil else { return [] }
             guard !dataLines.isEmpty else {
-                throw ParishEndpointError.malformedEvent("event has no data")
+                throw LimerickEndpointError.malformedEvent("event has no data")
             }
             let payload = dataLines.enumerated().reduce(into: Data()) { result, item in
                 result.append(item.element)
@@ -258,21 +258,21 @@ public struct BoundedSSEParser: Sendable {
 
         if line.first == 0x3A { return [] } // SSE comment/keepalive.
         guard let colon = line.firstIndex(of: 0x3A) else {
-            throw ParishEndpointError.malformedEvent("field has no colon")
+            throw LimerickEndpointError.malformedEvent("field has no colon")
         }
         let fieldData = Data(line[..<colon])
         var value = Data(line[line.index(after: colon)...])
         if value.first == 0x20 { value.removeFirst() }
         guard let field = String(data: fieldData, encoding: .utf8),
               let valueString = String(data: value, encoding: .utf8) else {
-            throw ParishEndpointError.invalidUTF8
+            throw LimerickEndpointError.invalidUTF8
         }
         switch field {
         case "event": eventName = valueString
         case "id": eventID = valueString
         case "data": dataLines.append(value)
         default:
-            throw ParishEndpointError.malformedEvent("unknown field \(field)")
+            throw LimerickEndpointError.malformedEvent("unknown field \(field)")
         }
         return []
     }
@@ -367,57 +367,57 @@ public struct EndpointStreamValidator: Sendable {
     }
 
     public mutating func accept(_ event: SSEEvent) throws -> EndpointStreamFrame {
-        let frame = try Self.decode(event)
-        guard frame.version == 1 else { throw ParishEndpointError.unsupportedVersion(frame.version) }
+        let frame = try Self.decode(event, expectedEndpointVersion: expectedEndpointVersion)
+        guard frame.version == 1 else { throw LimerickEndpointError.unsupportedVersion(frame.version) }
         guard frame.endpointVersion == expectedEndpointVersion else {
-            throw ParishEndpointError.endpointVersionMismatch(
+            throw LimerickEndpointError.endpointVersionMismatch(
                 expected: expectedEndpointVersion,
                 actual: frame.endpointVersion
             )
         }
         guard let invocationID = frame.invocationID, !invocationID.isEmpty else {
-            throw ParishEndpointError.malformedEvent("invocation_id is missing")
+            throw LimerickEndpointError.malformedEvent("invocation_id is missing")
         }
         if let expectedInvocationID {
             guard invocationID == expectedInvocationID else {
-                throw ParishEndpointError.crossCorrelation(expected: expectedInvocationID, actual: invocationID)
+                throw LimerickEndpointError.crossCorrelation(expected: expectedInvocationID, actual: invocationID)
             }
         }
         if let validatedInvocationID {
             guard invocationID == validatedInvocationID else {
-                throw ParishEndpointError.crossCorrelation(expected: validatedInvocationID, actual: invocationID)
+                throw LimerickEndpointError.crossCorrelation(expected: validatedInvocationID, actual: invocationID)
             }
         }
         guard let attemptID = frame.attemptID, !attemptID.isEmpty else {
-            throw ParishEndpointError.malformedEvent("attempt_id is missing")
+            throw LimerickEndpointError.malformedEvent("attempt_id is missing")
         }
         guard frame.requestID == expectedRequestID else {
-            throw ParishEndpointError.crossCorrelation(expected: expectedRequestID, actual: frame.requestID)
+            throw LimerickEndpointError.crossCorrelation(expected: expectedRequestID, actual: frame.requestID)
         }
         if let expectedAttemptID {
             guard attemptID == expectedAttemptID else {
-                throw ParishEndpointError.crossCorrelation(expected: expectedAttemptID, actual: attemptID)
+                throw LimerickEndpointError.crossCorrelation(expected: expectedAttemptID, actual: attemptID)
             }
         }
-        guard frameCount < maximumFrames else { throw ParishEndpointError.streamTooLarge }
+        guard frameCount < maximumFrames else { throw LimerickEndpointError.streamTooLarge }
         frameCount += 1
 
         guard let eventID = event.id ?? frame.eventID, !eventID.isEmpty else {
-            throw ParishEndpointError.malformedEvent("event_id is missing")
+            throw LimerickEndpointError.malformedEvent("event_id is missing")
         }
         guard eventID == "\(invocationID):\(frame.sequence)" else {
-            throw ParishEndpointError.malformedEvent("event_id does not match invocation_id and sequence")
+            throw LimerickEndpointError.malformedEvent("event_id does not match invocation_id and sequence")
         }
         guard seenEventIDs.insert(eventID).inserted else {
-            throw ParishEndpointError.duplicateEvent(eventID)
+            throw LimerickEndpointError.duplicateEvent(eventID)
         }
         if let previous = lastSequence {
             let expected = previous &+ 1
             guard frame.sequence == expected else {
-                throw ParishEndpointError.outOfOrderSequence(expected: expected, actual: frame.sequence)
+                throw LimerickEndpointError.outOfOrderSequence(expected: expected, actual: frame.sequence)
             }
         } else if frame.sequence != 1 {
-            throw ParishEndpointError.outOfOrderSequence(expected: 1, actual: frame.sequence)
+            throw LimerickEndpointError.outOfOrderSequence(expected: 1, actual: frame.sequence)
         }
         lastSequence = frame.sequence
 
@@ -428,11 +428,11 @@ public struct EndpointStreamValidator: Sendable {
             // An Endpoint may fail before it has emitted a text delta. That
             // is still a valid terminal response and lets Rust persist the
             // failure/retry state instead of misreporting truncation.
-            guard sawPayload || frame.kind == .error else { throw ParishEndpointError.terminalBeforeStream }
-            guard !terminalSeen else { throw ParishEndpointError.duplicateTerminal }
+            guard sawPayload || frame.kind == .error else { throw LimerickEndpointError.terminalBeforeStream }
+            guard !terminalSeen else { throw LimerickEndpointError.duplicateTerminal }
             terminalSeen = true
         } else if terminalSeen {
-            throw ParishEndpointError.malformedEvent("frame arrived after terminal")
+            throw LimerickEndpointError.malformedEvent("frame arrived after terminal")
         }
         // The Endpoint may assign its invocation identity after the request
         // is sent. When the caller has no expected value, pin the first
@@ -445,13 +445,16 @@ public struct EndpointStreamValidator: Sendable {
     }
 
     public mutating func finish() throws {
-        guard terminalSeen else { throw ParishEndpointError.missingTerminal }
+        guard terminalSeen else { throw LimerickEndpointError.missingTerminal }
     }
 
-    private static func decode(_ event: SSEEvent) throws -> EndpointStreamFrame {
+    private static func decode(
+        _ event: SSEEvent,
+        expectedEndpointVersion: Int
+    ) throws -> EndpointStreamFrame {
         guard let object = try? JSONSerialization.jsonObject(with: event.data),
               let values = object as? [String: Any] else {
-            throw ParishEndpointError.malformedEvent("data is not a JSON object")
+            throw LimerickEndpointError.malformedEvent("data is not a JSON object")
         }
         func string(_ names: [String]) -> String? {
             names.lazy.compactMap { values[$0] as? String }.first
@@ -480,28 +483,28 @@ public struct EndpointStreamValidator: Sendable {
             return nil
         }
         guard let rawContractVersion = integer(["contract_version"]), rawContractVersion <= UInt64(Int.max) else {
-            throw ParishEndpointError.malformedEvent("contract_version is missing")
+            throw LimerickEndpointError.malformedEvent("contract_version is missing")
         }
         let version = Int(rawContractVersion)
-        guard version == 1 else { throw ParishEndpointError.unsupportedVersion(version) }
+        guard version == 1 else { throw LimerickEndpointError.unsupportedVersion(version) }
         guard let endpointVersion = integer(["endpoint_version"]), endpointVersion > 0,
               endpointVersion <= UInt64(Int.max) else {
-            throw ParishEndpointError.malformedEvent("endpoint_version is missing")
+            throw LimerickEndpointError.malformedEvent("endpoint_version is missing")
         }
         guard let requestID = string(["request_id", "requestId"]) else {
-            throw ParishEndpointError.missingRequestID
+            throw LimerickEndpointError.missingRequestID
         }
         guard let sequence = integer(["sequence"]), sequence > 0 else {
-            throw ParishEndpointError.missingSequence
+            throw LimerickEndpointError.missingSequence
         }
         guard let rawKind = string(["type"]), !rawKind.isEmpty else {
-            throw ParishEndpointError.malformedEvent("unknown frame kind")
+            throw LimerickEndpointError.malformedEvent("unknown frame kind")
         }
         guard let eventName = event.event, !eventName.isEmpty else {
-            throw ParishEndpointError.malformedEvent("SSE event type is missing")
+            throw LimerickEndpointError.malformedEvent("SSE event type is missing")
         }
         if eventName != rawKind {
-            throw ParishEndpointError.malformedEvent("SSE event type does not match frame type")
+            throw LimerickEndpointError.malformedEvent("SSE event type does not match frame type")
         }
         let kind: EndpointStreamFrame.Kind
         switch rawKind {
@@ -510,7 +513,7 @@ public struct EndpointStreamValidator: Sendable {
         case "final": kind = .final
         case "error": kind = .error
         default:
-            throw ParishEndpointError.malformedEvent("unknown frame kind")
+            throw LimerickEndpointError.malformedEvent("unknown frame kind")
         }
         let text = string(["text"])
         var payload: Data?
@@ -523,31 +526,63 @@ public struct EndpointStreamValidator: Sendable {
         }
         if kind == .final {
             guard let output = values["output"] as? [String: Any],
-                  Set(output.keys) == ["dialogue"],
                   let dialogue = output["dialogue"] as? String,
                   !dialogue.isEmpty,
                   dialogue.unicodeScalars.count <= EndpointResourceLimits.maximumDialogueScalars else {
-                throw ParishEndpointError.malformedEvent("final output.dialogue is missing")
+                throw LimerickEndpointError.malformedEvent("final output.dialogue is missing")
+            }
+            let allowedKeys: Set<String>
+            switch expectedEndpointVersion {
+            case 1:
+                allowedKeys = ["dialogue"]
+            case 2:
+                allowedKeys = ["dialogue", "proposedPlayerMemory", "authoredTaskOfferID"]
+                if let memory = output["proposedPlayerMemory"], !(memory is NSNull) {
+                    guard let memory = memory as? [String: Any],
+                          Set(memory.keys) == ["claim", "evidence"],
+                          let claim = memory["claim"] as? String,
+                          !claim.isEmpty,
+                          claim.unicodeScalars.count <= 512,
+                          let evidence = memory["evidence"] as? String,
+                          !evidence.isEmpty,
+                          evidence.unicodeScalars.count <= 512 else {
+                        throw LimerickEndpointError.malformedEvent("final output proposedPlayerMemory is invalid")
+                    }
+                }
+                if let taskID = output["authoredTaskOfferID"], !(taskID is NSNull) {
+                    guard let taskID = taskID as? String,
+                          !taskID.isEmpty,
+                          taskID.unicodeScalars.count <= 200 else {
+                        throw LimerickEndpointError.malformedEvent("final output authoredTaskOfferID is invalid")
+                    }
+                }
+            default:
+                throw LimerickEndpointError.malformedEvent(
+                    "final output schema is unsupported for Endpoint version \(expectedEndpointVersion)"
+                )
+            }
+            guard Set(output.keys).isSubset(of: allowedKeys) else {
+                throw LimerickEndpointError.malformedEvent("final output contains unknown fields")
             }
         }
         if kind == .error, values["error"] == nil {
-            throw ParishEndpointError.malformedEvent("error payload is missing")
+            throw LimerickEndpointError.malformedEvent("error payload is missing")
         }
         if let rawTerminal = values["terminal"] {
             guard let number = rawTerminal as? NSNumber,
                   CFGetTypeID(number) == CFBooleanGetTypeID(),
                   let terminal = rawTerminal as? Bool else {
-                throw ParishEndpointError.malformedEvent("terminal flag must be boolean")
+                throw LimerickEndpointError.malformedEvent("terminal flag must be boolean")
             }
             if terminal != kind.isTerminal {
-                throw ParishEndpointError.malformedEvent("terminal flag does not match frame type")
+                throw LimerickEndpointError.malformedEvent("terminal flag does not match frame type")
             }
         }
         guard let eventID = string(["event_id", "eventId"]), !eventID.isEmpty else {
-            throw ParishEndpointError.malformedEvent("event_id is missing")
+            throw LimerickEndpointError.malformedEvent("event_id is missing")
         }
         if let sseEventID = event.id, sseEventID != eventID {
-            throw ParishEndpointError.malformedEvent("SSE id does not match event_id")
+            throw LimerickEndpointError.malformedEvent("SSE id does not match event_id")
         }
         return EndpointStreamFrame(
             version: version,
@@ -590,7 +625,7 @@ public struct EndpointByteStream: Sendable {
 }
 
 /// One completed (non-streaming) Endpoint response. The request identity is
-/// retained even though the Parish response body is the schema-defined output
+/// retained even though the Limerick response body is the schema-defined output
 /// object; callers can use it when correlating the result with the pending
 /// mobile attempt. No retry is performed by this boundary.
 public struct EndpointCompletedResponse: Equatable, Sendable {
@@ -610,7 +645,7 @@ public struct EndpointCompletedResponse: Equatable, Sendable {
     public func validatedJSON() throws -> [String: Any] {
         guard let object = try? JSONSerialization.jsonObject(with: body),
               let object = object as? [String: Any] else {
-            throw ParishEndpointError.malformedResponse("output is not a JSON object")
+            throw LimerickEndpointError.malformedResponse("output is not a JSON object")
         }
         return object
     }
@@ -623,7 +658,7 @@ public struct EndpointCompletedResponse: Equatable, Sendable {
               let dialogue = object["dialogue"] as? String,
               !dialogue.isEmpty,
               dialogue.unicodeScalars.count <= EndpointResourceLimits.maximumDialogueScalars else {
-            throw ParishEndpointError.malformedResponse("output does not match the dialogue schema")
+            throw LimerickEndpointError.malformedResponse("output does not match the dialogue schema")
         }
         return dialogue
     }
@@ -733,14 +768,14 @@ private final class URLSessionEndpointDelegate: NSObject, URLSessionDataDelegate
         case .enqueued:
             completionHandler(.allow)
         case .dropped:
-            continuation.finish(throwing: ParishEndpointError.streamTooLarge)
+            continuation.finish(throwing: LimerickEndpointError.streamTooLarge)
             completionHandler(.cancel)
             taskBox.cancel()
         case .terminated:
             completionHandler(.cancel)
             taskBox.cancel()
         @unknown default:
-            continuation.finish(throwing: ParishEndpointError.streamTooLarge)
+            continuation.finish(throwing: LimerickEndpointError.streamTooLarge)
             completionHandler(.cancel)
             taskBox.cancel()
         }
@@ -752,12 +787,12 @@ private final class URLSessionEndpointDelegate: NSObject, URLSessionDataDelegate
         case .enqueued:
             break
         case .dropped:
-            continuation.finish(throwing: ParishEndpointError.streamTooLarge)
+            continuation.finish(throwing: LimerickEndpointError.streamTooLarge)
             taskBox.cancel()
         case .terminated:
             taskBox.cancel()
         @unknown default:
-            continuation.finish(throwing: ParishEndpointError.streamTooLarge)
+            continuation.finish(throwing: LimerickEndpointError.streamTooLarge)
             taskBox.cancel()
         }
     }
@@ -789,10 +824,10 @@ public struct EndpointURLPolicy: Sendable, Equatable {
 
     public func validate(_ url: URL) throws {
         guard url.scheme?.lowercased() == "http" || url.scheme?.lowercased() == "https" else {
-            throw ParishEndpointError.invalidURL
+            throw LimerickEndpointError.invalidURL
         }
         if url.scheme?.lowercased() == "https" { return }
-        guard allowLoopbackHTTP, Self.isLoopback(url) else { throw ParishEndpointError.loopbackHTTPNotAllowed }
+        guard allowLoopbackHTTP, Self.isLoopback(url) else { throw LimerickEndpointError.loopbackHTTPNotAllowed }
     }
 
     fileprivate static func isLoopback(_ url: URL) -> Bool {
@@ -804,7 +839,7 @@ public struct EndpointURLPolicy: Sendable, Equatable {
 /// Mobile-safe Endpoint client. The Endpoint URL, headers, transport, and
 /// credentials are all injectable so deterministic protocol tests do not use
 /// the network and production never embeds a provider key.
-public final class ParishEndpointClient: @unchecked Sendable {
+public final class LimerickEndpointClient: @unchecked Sendable {
     private let credentials: any EndpointCredentialProvider
     private let transport: any EndpointTransport
     private let policy: EndpointURLPolicy
@@ -834,9 +869,9 @@ public final class ParishEndpointClient: @unchecked Sendable {
         )
     }
 
-    /// Sends the schema-defined request and waits for Parish's completed JSON
+    /// Sends the schema-defined request and waits for Limerick's completed JSON
     /// response. This is deliberately separate from `stream`: the deployed
-    /// Parish contract returns output directly, and this method never
+    /// Limerick contract returns output directly, and this method never
     /// interprets body bytes as token deltas or retries an ambiguous timeout.
     public func complete(_ endpointRequest: EndpointRequest) async throws -> EndpointCompletedResponse {
         try Task.checkCancellation()
@@ -844,7 +879,7 @@ public final class ParishEndpointClient: @unchecked Sendable {
         let auth = try await credentials.credentials()
         try Task.checkCancellation()
         guard !auth.authorizationToken.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-            throw ParishEndpointError.invalidCredential
+            throw LimerickEndpointError.invalidCredential
         }
 
         var request = URLRequest(url: endpointRequest.url)
@@ -877,18 +912,18 @@ public final class ParishEndpointClient: @unchecked Sendable {
                     continue
                 }
                 guard contentType?.contains("application/json") == true else {
-                    throw ParishEndpointError.responseNotJSON
+                    throw LimerickEndpointError.responseNotJSON
                 }
             case let .bytes(bytes):
                 guard body.count + bytes.count <= maximumCompletedResponseBytes else {
-                    throw ParishEndpointError.responseBodyTooLarge
+                    throw LimerickEndpointError.responseBodyTooLarge
                 }
                 body.append(bytes)
             }
         }
         try Task.checkCancellation()
-        guard let statusCode else { throw ParishEndpointError.malformedResponse("response metadata is missing") }
-        guard !body.isEmpty else { throw ParishEndpointError.malformedResponse("response body is empty") }
+        guard let statusCode else { throw LimerickEndpointError.malformedResponse("response metadata is missing") }
+        guard !body.isEmpty else { throw LimerickEndpointError.malformedResponse("response body is empty") }
         if statusCode != 200 {
             let errorObject = (try? JSONSerialization.jsonObject(with: body)) as? [String: Any]
             let nestedError = errorObject?["error"] as? [String: Any]
@@ -897,7 +932,7 @@ public final class ParishEndpointClient: @unchecked Sendable {
                 ?? endpointRequest.requestID
             let code = (nestedError?["code"] as? String) ?? (errorObject?["code"] as? String)
             let message = (nestedError?["message"] as? String) ?? (errorObject?["message"] as? String)
-            throw ParishEndpointError.responseFailure(
+            throw LimerickEndpointError.responseFailure(
                 status: statusCode,
                 requestID: requestID,
                 code: code,
@@ -917,12 +952,12 @@ public final class ParishEndpointClient: @unchecked Sendable {
         try Task.checkCancellation()
         try policy.validate(endpointRequest.url)
         guard let attemptID = endpointRequest.attemptID else {
-            throw ParishEndpointError.malformedResponse("cancellation attempt identity is missing")
+            throw LimerickEndpointError.malformedResponse("cancellation attempt identity is missing")
         }
         let auth = try await credentials.credentials()
         try Task.checkCancellation()
         guard !auth.authorizationToken.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-            throw ParishEndpointError.invalidCredential
+            throw LimerickEndpointError.invalidCredential
         }
 
         var request = URLRequest(url: endpointRequest.url)
@@ -947,16 +982,16 @@ public final class ParishEndpointClient: @unchecked Sendable {
             case let .bytes(bytes):
                 bodyBytes += bytes.count
                 guard bodyBytes <= maximumCompletedResponseBytes else {
-                    throw ParishEndpointError.responseBodyTooLarge
+                    throw LimerickEndpointError.responseBodyTooLarge
                 }
             }
         }
         try Task.checkCancellation()
         guard let statusCode else {
-            throw ParishEndpointError.malformedResponse("cancellation response metadata is missing")
+            throw LimerickEndpointError.malformedResponse("cancellation response metadata is missing")
         }
         guard (200..<300).contains(statusCode) else {
-            throw ParishEndpointError.responseStatus(statusCode)
+            throw LimerickEndpointError.responseStatus(statusCode)
         }
     }
 
@@ -969,7 +1004,7 @@ public final class ParishEndpointClient: @unchecked Sendable {
                     let auth = try await credentials.credentials()
                     try Task.checkCancellation()
                     guard !auth.authorizationToken.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-                        throw ParishEndpointError.invalidCredential
+                        throw LimerickEndpointError.invalidCredential
                     }
                     var request = URLRequest(url: endpointRequest.url)
                     request.httpMethod = "POST"
@@ -1000,9 +1035,9 @@ public final class ParishEndpointClient: @unchecked Sendable {
                         try Task.checkCancellation()
                         switch transportEvent {
                         case let .response(statusCode, headers):
-                            guard (200..<300).contains(statusCode) else { throw ParishEndpointError.responseStatus(statusCode) }
+                            guard (200..<300).contains(statusCode) else { throw LimerickEndpointError.responseStatus(statusCode) }
                             guard headers["content-type"]?.lowercased().contains("text/event-stream") == true else {
-                                throw ParishEndpointError.responseNotSSE
+                                throw LimerickEndpointError.responseNotSSE
                             }
                         case let .bytes(bytes):
                             for event in try parser.append(bytes) {
@@ -1011,11 +1046,11 @@ public final class ParishEndpointClient: @unchecked Sendable {
                                 case .enqueued:
                                     break
                                 case .dropped:
-                                    throw ParishEndpointError.streamTooLarge
+                                    throw LimerickEndpointError.streamTooLarge
                                 case .terminated:
                                     return
                                 @unknown default:
-                                    throw ParishEndpointError.streamTooLarge
+                                    throw LimerickEndpointError.streamTooLarge
                                 }
                             }
                         }

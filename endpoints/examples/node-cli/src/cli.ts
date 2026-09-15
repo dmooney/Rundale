@@ -2,8 +2,8 @@
 import { readFile } from "node:fs/promises";
 import { basename } from "node:path";
 import { pathToFileURL } from "node:url";
-import { compileSchema, formatValidationErrors } from "@parish/schemas";
-import type { JsonSchema } from "@parish/domain";
+import { compileSchema, formatValidationErrors } from "@limerick/schemas";
+import type { JsonSchema } from "@limerick/domain";
 
 interface CliOptions {
   endpointUrl: string;
@@ -24,16 +24,18 @@ export function parseOptions(
     const flag = argumentsWithoutSeparator[index];
     const value = argumentsWithoutSeparator[index + 1];
     if (flag === undefined || value === undefined || !flag.startsWith("--")) {
-      throw new CliError("Usage: parish-invoke-image --image PATH --endpoint URL [--schema PATH]");
+      throw new CliError(
+        "Usage: limerick-invoke-image --image PATH --endpoint URL [--schema PATH]",
+      );
     }
     values.set(flag, value);
   }
   const imagePath = values.get("--image");
-  const endpointUrl = values.get("--endpoint") ?? environment.PARISH_ENDPOINT_URL;
-  const apiKey = environment.PARISH_API_KEY;
+  const endpointUrl = values.get("--endpoint") ?? environment.LIMERICK_ENDPOINT_URL;
+  const apiKey = environment.LIMERICK_API_KEY;
   if (imagePath === undefined || endpointUrl === undefined || apiKey === undefined) {
     throw new CliError(
-      "Image and Endpoint URL are required; set PARISH_API_KEY in the environment (never pass it as an argument).",
+      "Image and Endpoint URL are required; set LIMERICK_API_KEY in the environment (never pass it as an argument).",
     );
   }
   let parsedUrl: URL;
@@ -104,7 +106,7 @@ export async function invokeImage(
   try {
     payload = await response.json();
   } catch {
-    throw new CliError(`Parish returned a non-JSON response (HTTP ${response.status}).`);
+    throw new CliError(`Limerick returned a non-JSON response (HTTP ${response.status}).`);
   }
   if (!response.ok) {
     const publicError =

@@ -10,6 +10,7 @@ repository review, with source provenance retained in each plan.
 | 2     | [Phase 2 test cases](phase-2-test-cases.md) | Embedded Rust, one location/one NPC, inference, cancellation/retry, and local recovery         |
 
 | 4 | [Phase 4 test cases](phase-4-test-cases.md) | Lifecycle, connectivity, retry, save safety, long history, accessibility, and physical sessions |
+| 5 | [Phase 5 test cases](phase-5-test-cases.md) | Typed memory, gossip, one task, weather behavior, schedules, resume, cancellation, and authoritative diagnostics |
 
 These are test instructions, not execution reports or evidence that a milestone
 has passed. Record actual results separately, including the build/device or fixture

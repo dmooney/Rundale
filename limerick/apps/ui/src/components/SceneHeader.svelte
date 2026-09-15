@@ -7,10 +7,10 @@
 		<picture>
 			<source
 				media="(max-width: 768px)"
-				srcset="/rundale/illustrated-notebook-v2/parish-crossroads-watercolor-mobile.png"
+				srcset="/rundale/illustrated-notebook-v2/limerick-crossroads-watercolor-mobile.png"
 			/>
 			<img
-				src="/rundale/illustrated-notebook-v2/parish-crossroads-watercolor.png"
+				src="/rundale/illustrated-notebook-v2/limerick-crossroads-watercolor.png"
 				alt=""
 				aria-hidden="true"
 			/>

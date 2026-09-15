@@ -1,7 +1,7 @@
 # Phase 1 demonstration
 
 This walkthrough demonstrates the native fixture prototype. It is not embedded
-Parish gameplay and does not use a model or a network connection. Follow the
+Limerick gameplay and does not use a model or a network connection. Follow the
 [phase demo plan](../docs/product-specs/phase-demo-plan.md) and report pending
 [acceptance gates](acceptance.md) alongside the demo.
 
@@ -66,7 +66,7 @@ control. The walkthrough above covers the remaining demo interactions.
 
 ## Phase 2 native implementation preview — 2026-09-07
 
-The iPhone SE (3rd generation) simulator recording runs the embedded Parish
+The iPhone SE (3rd generation) simulator recording runs the embedded Limerick
 Rust engine through the production Swift/C boundary, with SQLite persistence.
 Dialogue uses the explicitly selected deterministic Endpoint test transport;
 it does not establish live remote inference or physical-iPhone acceptance.
@@ -109,3 +109,28 @@ The automated simulator version uses `--phase3 --ui-tests --phase3-mock` and
 injects network faults only at the Endpoint transport. Its screenshots and
 xcresults prove that native path with deterministic responses. They do not
 establish cellular connectivity, App Attest, or the two physical 20-minute sessions.
+
+## Phase 5 living-world demonstration
+
+Use an internal build with diagnostics enabled. Diagnostic reads are typed,
+read-only Rust projections rendered as ephemeral transcript rows; they do not
+enter inference, persistence, or the semantic event journal. `/setup …` is a
+separately labelled internal mutation path. `/setup reset CONFIRM` is the only
+reset form and every setup change records `diagnostic_override` provenance.
+
+1. Ask Peig to remember “I grew up in Athleague.” Inspect `/debug memory Peig`,
+   then Mícheál and Róisín; relaunch and inspect again.
+2. Reset, inspect Róisín’s knowledge, run `/wait 1`, then inspect Róisín and
+   Peig to prove the one intended gossip propagation and negative case.
+3. At the Letter Office accept Peig’s sealed-letter task, explicitly take the
+   letter, relaunch, travel to Connolly Cottage, and give it to present Róisín.
+   Inspect `/debug tasks` after every transition and ask Peig about it later.
+4. Set 09:59/Clear, wait one minute, and inspect `/debug world`; repeat from
+   reset with Heavy Rain. Mícheál’s location decision must name `schedule` or
+   `weather_override`, respectively.
+5. From 08:58 run `/wait 2`, inspect `/people` and `/debug world`, relaunch at
+   the Letter Office, and speak to Peig there.
+
+Generated prose is supporting evidence only. Each proof requires the matching
+typed diagnostic state. The deferred Phase 4 device matrix remains open; Phase
+5 additionally requires these five cases on one physical iPhone.

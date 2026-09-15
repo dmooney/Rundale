@@ -1,6 +1,6 @@
-import { parseApiKey, permitsEndpoint, verifyApiKey } from "@parish/auth";
-import type { SemanticRuntime, InvocationInput } from "@parish/runtime";
-import { RuntimeError } from "@parish/runtime";
+import { parseApiKey, permitsEndpoint, verifyApiKey } from "@limerick/auth";
+import type { SemanticRuntime, InvocationInput } from "@limerick/runtime";
+import { RuntimeError } from "@limerick/runtime";
 import {
   InvocationQuotaExceededError,
   type InvocationRepository,

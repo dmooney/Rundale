@@ -69,7 +69,7 @@ operation targets are proposals, not measurements of this application.
 ## Phase 2 implementation evidence — 2026-09-07
 
 The embedded Rust runtime, Swift/C boundary, SQLite journal, one-location,
-one-NPC content slice, and deployed Parish Endpoint integration are implemented.
+one-NPC content slice, and deployed Limerick Endpoint integration are implemented.
 Phase 2 acceptance remains open for physical-iPhone validation. Deployment and
 live simulator evidence are in the [Endpoint handoff](endpoint/phase2-handoff.md).
 
@@ -104,8 +104,8 @@ also shows local `/look`, streamed dialogue, and actual process-relaunch recover
 
 ## Phase 2 deployed Endpoint evidence — 2026-09-09
 
-Cloud Run revision `parish-server-00006-kew` serves the pinned
-`parish-demo/rundale-dialogue@1` contract. After its forward-compatible migration
+Cloud Run revision `limerick-server-00006-kew` serves the pinned
+`limerick-demo/rundale-dialogue@1` contract. After its forward-compatible migration
 and no-traffic health/auth preflight, two opt-in native UI tests passed against
 the production path: a real Firebase/Auth App Check Vertex Google stream
 committed a validated final dialogue, and Stop produced `Interrupted; not
@@ -124,7 +124,7 @@ The final source tree also passed the normal deterministic Phase 2 gate:
 Result: 14 passed, no failures, one already-booted simulator skip, one opt-in
 live gate reported separately as unavailable to the deterministic runner, and
 two physical gates marked not automatable. Included results were 16
-ParishEndpointKit tests, two Rust production-wire fixture tests, and six Phase 2
+LimerickEndpointKit tests, two Rust production-wire fixture tests, and six Phase 2
 simulator tests. The opt-in live UI class was then run directly and passed both
 tests as recorded above.
 
@@ -142,7 +142,7 @@ relaunch. Its xcresult is
 ## Phase 3 implementation evidence — 2026-09-12
 
 The canonical three-location/three-NPC tiny world is implemented in the
-embedded Parish path. The authored bundle and independent
+embedded Limerick path. The authored bundle and independent
 [world sheet](content/canonical-world.md) define Kilteevan Village, the Letter
 Office, Connolly Cottage, Peig Hannigan, Mícheál Connolly, and Róisín Connolly.
 Rust owns graph travel, explicit game-time advancement, scheduled presence,
@@ -372,3 +372,16 @@ numeric ContentDelivery metadata confirms the received version/build. The signed
 archive retains Boolean `ITSAppUsesNonExemptEncryption=false`. **Testing in
 Internal Beta remains unverified** because App Store Connect website sign-in is
 unavailable. Upload success does not close that delivery or physical-device gate.
+
+## Phase 5 execution decision — September 14, 2026
+
+The product owner explicitly defers the outstanding Phase 4 physical-device
+matrix. Those requirements remain unpassed and visible above; they do not block
+implementation, automated proof, Endpoint v2 deployment, or Internal Beta
+delivery for Phase 5. This decision does not convert any simulator result into
+physical evidence and does not waive Phase 4 sign-off.
+
+Phase 5 has one separate physical sign-off gate: repeat the five living-world
+proofs on one signed internal-build iPhone, including force-quit/resume and a
+canceled conversation with no committed effect. Until that session is recorded,
+Phase 5 implementation may be delivered but the phase itself is not signed off.

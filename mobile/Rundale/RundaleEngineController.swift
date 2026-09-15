@@ -1,6 +1,6 @@
 import Combine
 import Foundation
-import ParishEndpointKit
+import LimerickEndpointKit
 import RundaleBridge
 import RundaleKit
 
@@ -17,10 +17,10 @@ final class RundaleEngineController: ObservableObject, RundaleSessionControlling
 
     private let configuration: LaunchConfiguration
     private let projectionStore: Phase2ProjectionStore
-    private let endpointClient: ParishEndpointClient
+    private let endpointClient: LimerickEndpointClient
     private var completionRegistry: FixtureCompletionRegistry
     private var presentation: PresentationSession
-    private var runtime: ParishRuntime?
+    private var runtime: LimerickRuntime?
     private var bootstrapTask: Task<Void, Never>?
     private var eventTask: Task<Void, Never>?
     private var endpointTask: Task<Void, Never>?
@@ -75,12 +75,12 @@ final class RundaleEngineController: ObservableObject, RundaleSessionControlling
 
         if configuration.phase2MockTransport {
             let credentials = StaticEndpointCredentialProvider(
-                ParishEndpointKit.EndpointCredentials(
+                LimerickEndpointKit.EndpointCredentials(
                     authorizationToken: "phase2-ui-test",
                     appCheckToken: "phase2-ui-test"
                 )
             )
-            endpointClient = ParishEndpointClient(
+            endpointClient = LimerickEndpointClient(
                 credentials: credentials,
                 transport: Phase2MockEndpointTransport(),
                 policy: EndpointURLPolicy(allowLoopbackHTTP: true)
@@ -89,7 +89,7 @@ final class RundaleEngineController: ObservableObject, RundaleSessionControlling
             let credentials = FirebaseEndpointCredentialAdapter(
                 provider: FirebaseEndpointCredentialProvider()
             )
-            endpointClient = ParishEndpointClient(credentials: credentials)
+            endpointClient = LimerickEndpointClient(credentials: credentials)
         }
 
         if !configuration.resetFixture, let error = projectionStore.restoreError {
@@ -110,7 +110,7 @@ final class RundaleEngineController: ObservableObject, RundaleSessionControlling
         bootstrapTask = Task { [weak self] in
             do {
                 let runtime = try await Task.detached(priority: nil) {
-                    try ParishRuntime.openResume(payload: openPayload)
+                    try LimerickRuntime.openResume(payload: openPayload)
                 }.value
                 guard let self else {
                     try? await runtime.close()
@@ -119,7 +119,7 @@ final class RundaleEngineController: ObservableObject, RundaleSessionControlling
                 self.runtime = runtime
                 let data = try await runtime.snapshotJSON()
                 let snapshot = try FixtureJSON.decode(EngineSnapshot.self, from: data)
-                var historyPage: ParishEventPage?
+                var historyPage: LimerickEventPage?
                 if !self.state.viewport.isFollowingNewest,
                    self.restoredSessionID == snapshot.sessionID,
                    let cursor = self.restoredHistoryCursor,
@@ -267,7 +267,36 @@ final class RundaleEngineController: ObservableObject, RundaleSessionControlling
     }
 
     func submit(_ text: String) async throws -> SubmissionReceipt {
-        guard let runtime else { throw ParishRuntimeError.closed }
+        guard let runtime else { throw LimerickRuntimeError.closed }
+        if configuration.internalDiagnosticsEnabled,
+           text.trimmingCharacters(in: .whitespacesAndNewlines).hasPrefix("/debug ") {
+            let data = try await runtime.diagnosticProjectionJSON(command: text)
+            presentation.appendEphemeralDiagnostic(Self.prettyDiagnostic(data))
+            state = presentation.state
+            return SubmissionReceipt(
+                logicalRequestID: LogicalRequestID(),
+                attemptID: ExecutionAttemptID(),
+                accepted: true,
+                cursor: state.eventCursor
+            )
+        }
+        if configuration.internalDiagnosticsEnabled,
+           let setup = Self.parseDiagnosticSetup(text) {
+            let data = try await runtime.diagnosticSetupJSON(
+                kind: setup.kind,
+                value: setup.value,
+                confirmed: setup.confirmed
+            )
+            try refreshFromSnapshot(try await runtime.snapshotJSON())
+            presentation.appendEphemeralDiagnostic("INTERNAL SETUP · \(Self.prettyDiagnostic(data))")
+            state = presentation.state
+            return SubmissionReceipt(
+                logicalRequestID: LogicalRequestID(),
+                attemptID: ExecutionAttemptID(),
+                accepted: true,
+                cursor: state.eventCursor
+            )
+        }
         let receipt = try await runtime.submit(
             text: text,
             draftID: state.draft.id,
@@ -279,6 +308,31 @@ final class RundaleEngineController: ObservableObject, RundaleSessionControlling
             startEndpoint(invocation, runtime: runtime)
         }
         return receipt
+    }
+
+    private static func prettyDiagnostic(_ data: Data) -> String {
+        guard let object = try? JSONSerialization.jsonObject(with: data),
+              let formatted = try? JSONSerialization.data(
+                withJSONObject: object,
+                options: [.prettyPrinted, .sortedKeys]
+              ),
+              let text = String(data: formatted, encoding: .utf8) else {
+            return String(decoding: data, as: UTF8.self)
+        }
+        return text
+    }
+
+    private static func parseDiagnosticSetup(
+        _ text: String
+    ) -> (kind: String, value: String, confirmed: Bool)? {
+        let parts = text.split(separator: " ", maxSplits: 3).map(String.init)
+        guard parts.count >= 2, parts[0] == "/setup" else { return nil }
+        let kind = parts[1]
+        if kind == "reset" {
+            return (kind, "canonical-phase5", parts.dropFirst(2).contains("CONFIRM"))
+        }
+        guard parts.count >= 3 else { return nil }
+        return (kind, parts.dropFirst(2).joined(separator: " "), true)
     }
 
     func stop() async throws -> StopReceipt {
@@ -298,7 +352,7 @@ final class RundaleEngineController: ObservableObject, RundaleSessionControlling
     }
 
     func retryLastFailed() async throws {
-        guard let runtime else { throw ParishRuntimeError.closed }
+        guard let runtime else { throw LimerickRuntimeError.closed }
         guard let request = state.requests.last(where: { $0.phase.canRetry }) else {
             throw FixtureAdapterError.requestNotRetryable
         }
@@ -315,7 +369,7 @@ final class RundaleEngineController: ObservableObject, RundaleSessionControlling
     }
 
     func answerClarification(choiceID: String) async throws {
-        guard let runtime else { throw ParishRuntimeError.closed }
+        guard let runtime else { throw LimerickRuntimeError.closed }
         guard let request = state.requests.last(where: { $0.phase == .awaitingClarification }) else {
             throw FixtureAdapterError.noClarificationPending
         }
@@ -338,7 +392,7 @@ final class RundaleEngineController: ObservableObject, RundaleSessionControlling
         completionRegistry.applying(item, to: text)
     }
 
-    private func startEventSubscription(runtime: ParishRuntime) {
+    private func startEventSubscription(runtime: LimerickRuntime) {
         eventTask?.cancel()
         let cursor = state.eventCursor
         eventTask = Task { [weak self, runtime] in
@@ -372,7 +426,7 @@ final class RundaleEngineController: ObservableObject, RundaleSessionControlling
         state = presentation.state
     }
 
-    private func refreshFromSnapshot(_ data: Data, restoredHistoryPage: ParishEventPage? = nil) throws {
+    private func refreshFromSnapshot(_ data: Data, restoredHistoryPage: LimerickEventPage? = nil) throws {
         let snapshot = try FixtureJSON.decode(EngineSnapshot.self, from: data)
         engineTimeOfDay = snapshot.readModel.timeOfDay
         engineWeather = snapshot.readModel.weather
@@ -437,7 +491,7 @@ final class RundaleEngineController: ObservableObject, RundaleSessionControlling
         state = reconciled
     }
 
-    private func hydrateFromSnapshot(_ snapshot: EngineSnapshot, restoredHistoryPage: ParishEventPage? = nil) {
+    private func hydrateFromSnapshot(_ snapshot: EngineSnapshot, restoredHistoryPage: LimerickEventPage? = nil) {
         historyExhausted = !snapshot.hasOlderEvents
         historyWindowShifted = false
         historyBeforeCursor = nil
@@ -532,7 +586,7 @@ final class RundaleEngineController: ObservableObject, RundaleSessionControlling
             }
     }
 
-    private func pendingInvocation(runtime: ParishRuntime) async throws -> InvocationIdentity? {
+    private func pendingInvocation(runtime: LimerickRuntime) async throws -> InvocationIdentity? {
         let data = try await runtime.pendingEndpointJSON()
         guard try JSONSerialization.jsonObject(with: data, options: [.fragmentsAllowed]) as? [String: Any] != nil else {
             return nil
@@ -542,7 +596,7 @@ final class RundaleEngineController: ObservableObject, RundaleSessionControlling
         return invocation
     }
 
-    private func startEndpoint(_ invocation: InvocationIdentity, runtime: ParishRuntime) {
+    private func startEndpoint(_ invocation: InvocationIdentity, runtime: LimerickRuntime) {
         endpointTask?.cancel()
         let configuration = self.configuration
         let endpointClient = self.endpointClient
@@ -556,7 +610,7 @@ final class RundaleEngineController: ObservableObject, RundaleSessionControlling
                 let body = try invocation.requestBody()
                 guard let endpointURL = configuration.endpointURL
                     ?? (configuration.phase2MockTransport ? URL(string: "http://127.0.0.1/mock") : nil) else {
-                    throw ParishEndpointError.invalidURL
+                    throw LimerickEndpointError.invalidURL
                 }
                 let request = try EndpointRequest(
                     url: endpointURL,
@@ -596,18 +650,20 @@ final class RundaleEngineController: ObservableObject, RundaleSessionControlling
                         self.consumeOperation(response)
                     case .final:
                         guard let payload = frame.payload else {
-                            throw ParishEndpointError.malformedEvent("final output is missing")
+                            throw LimerickEndpointError.malformedEvent("final output is missing")
                         }
                         let output = try FixtureJSON.decode(EndpointOutput.self, from: payload)
                         guard !output.dialogue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-                            throw ParishEndpointError.malformedEvent("final dialogue is empty")
+                            throw LimerickEndpointError.malformedEvent("final dialogue is empty")
                         }
                         let operation = try EndpointOperation.candidate(
                             attemptID: invocation.attemptID,
                             baseRevision: invocation.baseRevision,
                             dialogue: output.dialogue,
                             metadata: [:],
-                            structured: true
+                            structured: true,
+                            proposedPlayerMemory: output.proposedPlayerMemory,
+                            authoredTaskOfferID: output.authoredTaskOfferID
                         )
                         let response = try await runtime.dispatchJSON(operation)
                         guard !Task.isCancelled else { return }
@@ -642,7 +698,7 @@ final class RundaleEngineController: ObservableObject, RundaleSessionControlling
         if let reported = error as? EndpointReportedFailure {
             return playerFacingEndpointFailure(code: reported.code)
         }
-        guard let endpoint = error as? ParishEndpointError else {
+        guard let endpoint = error as? LimerickEndpointError else {
             return PlayerFacingFailure(
                 kind: .transport,
                 message: "The response service could not be reached. You can retry this request."
@@ -854,6 +910,13 @@ private struct MobileOperationResult: Decodable {
 
 private struct EndpointOutput: Decodable {
     let dialogue: String
+    let proposedPlayerMemory: ProposedPlayerMemory?
+    let authoredTaskOfferID: String?
+}
+
+private struct ProposedPlayerMemory: Codable {
+    let claim: String
+    let evidence: String
 }
 
 private struct InvocationIdentity: Codable, Sendable {
@@ -902,16 +965,28 @@ private enum EndpointOperation {
         baseRevision: StateRevision,
         dialogue: String,
         metadata: [String: String],
-        structured: Bool
+        structured: Bool,
+        proposedPlayerMemory: ProposedPlayerMemory? = nil,
+        authoredTaskOfferID: String? = nil
     ) throws -> Data {
-        try json([
+        var object: [String: Any] = [
             "op": "receive_candidate",
             "attempt_id": attemptID.rawValue,
             "base_revision": baseRevision.rawValue,
             "dialogue": dialogue,
             "metadata": metadata,
             "structured": structured
-        ])
+        ]
+        if let proposedPlayerMemory {
+            object["proposed_player_memory"] = [
+                "claim": proposedPlayerMemory.claim,
+                "evidence": proposedPlayerMemory.evidence
+            ]
+        }
+        if let authoredTaskOfferID {
+            object["authored_task_offer_id"] = authoredTaskOfferID
+        }
+        return try json(object)
     }
 
     private static func json(_ object: [String: Any]) throws -> Data {
@@ -927,7 +1002,7 @@ private struct Phase2Projection: Codable, Sendable {
 }
 
 private struct PlayerFacingFailure: Sendable {
-    let kind: ParishRuntimeFailureKind
+    let kind: LimerickRuntimeFailureKind
     let message: String
 }
 
@@ -1016,16 +1091,16 @@ private enum Phase2ProjectionStoreError: LocalizedError {
 }
 
 @MainActor
-private final class FirebaseEndpointCredentialAdapter: ParishEndpointKit.EndpointCredentialProvider, @unchecked Sendable {
+private final class FirebaseEndpointCredentialAdapter: LimerickEndpointKit.EndpointCredentialProvider, @unchecked Sendable {
     private let provider: FirebaseEndpointCredentialProvider
 
     init(provider: FirebaseEndpointCredentialProvider) {
         self.provider = provider
     }
 
-    nonisolated func credentials() async throws -> ParishEndpointKit.EndpointCredentials {
+    nonisolated func credentials() async throws -> LimerickEndpointKit.EndpointCredentials {
         let credentials = try await provider.credentials()
-        return ParishEndpointKit.EndpointCredentials(
+        return LimerickEndpointKit.EndpointCredentials(
             authorizationToken: credentials.authorizationBearer,
             appCheckToken: credentials.appCheckToken
         )
@@ -1062,7 +1137,7 @@ private final class Phase2MockEndpointTransport: EndpointTransport, @unchecked S
             let task = Task {
                 do {
                     guard let requestURL else {
-                        throw ParishEndpointError.invalidURL
+                        throw LimerickEndpointError.invalidURL
                     }
                     let identities = try Self.identities(from: request.httpBody, url: requestURL)
                     let input = identities.input.lowercased()
@@ -1082,7 +1157,18 @@ private final class Phase2MockEndpointTransport: EndpointTransport, @unchecked S
                     } else {
                         let dialogue: String
                         let chunks: [String]
-                        if identities.speakerName == "Róisín Connolly" {
+                        if identities.input.contains("I grew up in Athleague.") {
+                            dialogue = "I'll remember what you told me."
+                            chunks = ["I'll remember ", "what you told me."]
+                        } else if input.contains("was the letter delivered"),
+                                  identities.speakerName == "Peig Hannigan",
+                                  identities.letterTaskCompleted {
+                            dialogue = "You delivered the letter safely; Róisín has it now."
+                            chunks = ["You delivered the letter safely; ", "Róisín has it now."]
+                        } else if input.contains("work for me") && identities.speakerName == "Peig Hannigan" {
+                            dialogue = "I have a small delivery for you."
+                            chunks = ["I have a small ", "delivery for you."]
+                        } else if identities.speakerName == "Róisín Connolly" {
                             dialogue = "I trade spun yarn in the village when the household work allows."
                             chunks = ["I trade spun yarn ", "in the village when ", "the household work allows."]
                         } else if identities.speakerName == "Mícheál Connolly" {
@@ -1109,9 +1195,19 @@ private final class Phase2MockEndpointTransport: EndpointTransport, @unchecked S
                                 try await Self.pause(nanoseconds: input.contains("slow") ? 3_000_000_000 : 2_000_000_000)
                             }
                         }
+                        var output: [String: Any] = ["dialogue": dialogue]
+                        if identities.input.contains("I grew up in Athleague.") {
+                            output["proposedPlayerMemory"] = [
+                                "claim": "The player grew up in Athleague.",
+                                "evidence": "I grew up in Athleague."
+                            ]
+                        }
+                        if input.contains("work for me") && identities.speakerName == "Peig Hannigan" {
+                            output["authoredTaskOfferID"] = "task-deliver-peig-letter"
+                        }
                         continuation.yield(.bytes(try Self.frame(
                             type: "final", sequence: chunks.count + 1, identities: identities,
-                            output: ["dialogue": dialogue]
+                            output: output
                         )))
                     }
                     continuation.finish()
@@ -1131,6 +1227,7 @@ private final class Phase2MockEndpointTransport: EndpointTransport, @unchecked S
         let invocationID: String
         let input: String
         let speakerName: String
+        let letterTaskCompleted: Bool
         let endpointVersion: Int
     }
 
@@ -1144,15 +1241,23 @@ private final class Phase2MockEndpointTransport: EndpointTransport, @unchecked S
               let playerInput = input["playerInput"] as? String,
               let speaker = input["speaker"] as? [String: Any],
               let speakerName = speaker["displayName"] as? String else {
-            throw ParishEndpointError.malformedEvent("mock request input is invalid")
+            throw LimerickEndpointError.malformedEvent("mock request input is invalid")
         }
+        let tasks = input["relevantTaskState"] as? [[String: Any]] ?? []
+        let letterTaskCompleted = tasks.contains { task in
+            task["authoredTemplateID"] as? String == "task-deliver-peig-letter"
+                && task["status"] as? String == "completed"
+        }
+        let endpointVersion = input["endpointContractVersion"] as? Int
+            ?? Self.endpointVersion(from: url)
         return Identities(
             requestID: requestID,
             attemptID: attemptID,
             invocationID: invocationID,
             input: playerInput,
             speakerName: speakerName,
-            endpointVersion: Self.endpointVersion(from: url)
+            letterTaskCompleted: letterTaskCompleted,
+            endpointVersion: endpointVersion
         )
     }
 

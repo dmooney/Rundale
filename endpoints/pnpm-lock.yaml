@@ -43,25 +43,25 @@ importers:
       "@fastify/rate-limit":
         specifier: 11.2.0
         version: 11.2.0
-      "@parish/auth":
+      "@limerick/auth":
         specifier: workspace:*
         version: link:../../packages/auth
-      "@parish/database":
+      "@limerick/database":
         specifier: workspace:*
         version: link:../../packages/database
-      "@parish/domain":
+      "@limerick/domain":
         specifier: workspace:*
         version: link:../../packages/domain
-      "@parish/observability":
+      "@limerick/observability":
         specifier: workspace:*
         version: link:../../packages/observability
-      "@parish/providers":
+      "@limerick/providers":
         specifier: workspace:*
         version: link:../../packages/providers
-      "@parish/runtime":
+      "@limerick/runtime":
         specifier: workspace:*
         version: link:../../packages/runtime
-      "@parish/schemas":
+      "@limerick/schemas":
         specifier: workspace:*
         version: link:../../packages/schemas
       drizzle-orm:
@@ -108,10 +108,10 @@ importers:
 
   examples/node-cli:
     dependencies:
-      "@parish/domain":
+      "@limerick/domain":
         specifier: workspace:*
         version: link:../../packages/domain
-      "@parish/schemas":
+      "@limerick/schemas":
         specifier: workspace:*
         version: link:../../packages/schemas
     devDependencies:
@@ -126,10 +126,10 @@ importers:
       "@opentelemetry/api":
         specifier: 1.9.1
         version: 1.9.1
-      "@parish/auth":
+      "@limerick/auth":
         specifier: workspace:*
         version: link:../auth
-      "@parish/domain":
+      "@limerick/domain":
         specifier: workspace:*
         version: link:../domain
       drizzle-orm:
@@ -162,10 +162,10 @@ importers:
       "@google/genai":
         specifier: 2.18.0
         version: 2.18.0
-      "@parish/domain":
+      "@limerick/domain":
         specifier: workspace:*
         version: link:../domain
-      "@parish/runtime":
+      "@limerick/runtime":
         specifier: workspace:*
         version: link:../runtime
       openai:
@@ -174,16 +174,16 @@ importers:
 
   packages/runtime:
     dependencies:
-      "@parish/domain":
+      "@limerick/domain":
         specifier: workspace:*
         version: link:../domain
-      "@parish/schemas":
+      "@limerick/schemas":
         specifier: workspace:*
         version: link:../schemas
 
   packages/schemas:
     dependencies:
-      "@parish/domain":
+      "@limerick/domain":
         specifier: workspace:*
         version: link:../domain
       ajv:
@@ -195,13 +195,13 @@ importers:
 
   packages/test-support:
     dependencies:
-      "@parish/domain":
+      "@limerick/domain":
         specifier: workspace:*
         version: link:../domain
-      "@parish/providers":
+      "@limerick/providers":
         specifier: workspace:*
         version: link:../providers
-      "@parish/runtime":
+      "@limerick/runtime":
         specifier: workspace:*
         version: link:../runtime
 

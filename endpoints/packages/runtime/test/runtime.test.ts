@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { EndpointVersionSnapshot } from "@parish/domain";
+import type { EndpointVersionSnapshot } from "@limerick/domain";
 import {
   DeterministicRuntime,
   type CostCalculator,

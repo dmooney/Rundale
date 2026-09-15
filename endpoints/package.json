@@ -1,5 +1,5 @@
 {
-  "name": "parish-endpoints",
+  "name": "limerick-endpoints",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -9,17 +9,17 @@
   },
   "scripts": {
     "build": "pnpm -r build",
-    "dev": "pnpm --parallel --filter @parish/server --filter @parish/web dev",
+    "dev": "pnpm --parallel --filter @limerick/server --filter @limerick/web dev",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "lint": "eslint .",
     "typecheck": "pnpm -r typecheck",
     "test": "vitest run",
     "test:watch": "vitest",
-    "db:generate": "pnpm --filter @parish/database db:generate",
-    "db:migrate": "pnpm --filter @parish/database db:migrate",
-    "db:seed": "pnpm --filter @parish/database db:seed",
-    "operator": "pnpm --filter @parish/database operator",
+    "db:generate": "pnpm --filter @limerick/database db:generate",
+    "db:migrate": "pnpm --filter @limerick/database db:migrate",
+    "db:seed": "pnpm --filter @limerick/database db:seed",
+    "operator": "pnpm --filter @limerick/database operator",
     "check": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test && pnpm build"
   },
   "devDependencies": {

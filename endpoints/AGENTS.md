@@ -1,4 +1,4 @@
-# Parish Endpoints Repository Guide
+# Limerick Endpoints Repository Guide
 
 ## Current State
 
@@ -9,11 +9,11 @@
 
 ## Product Boundary
 
-- Parish Endpoints is a hosted runtime for versioned, typed AI API behavior. It is not a prompt marketplace, arbitrary-code FaaS, chatbot product, or workflow/agent platform.
-- Keep Parish Engine and Parish Endpoints as separate runtime boundaries and
+- Limerick Endpoints is a hosted runtime for versioned, typed AI API behavior. It is not a prompt marketplace, arbitrary-code FaaS, chatbot product, or workflow/agent platform.
+- Keep Limerick Engine and Limerick Endpoints as separate runtime boundaries and
   deployables. In Rundale, Endpoints is a self-contained `endpoints/` pnpm
   workspace; it must not enter the Rust or player-frontend dependency graphs.
-- Use **Endpoint** as the first-class product noun. Preserve the distinctions among Endpoint, mutable Endpoint Draft, immutable Endpoint Version, Deployment Alias, control-plane Parish API, and data-plane Invocation API.
+- Use **Endpoint** as the first-class product noun. Preserve the distinctions among Endpoint, mutable Endpoint Draft, immutable Endpoint Version, Deployment Alias, control-plane Limerick API, and data-plane Invocation API.
 - The first production dogfood target is `image -> Cottage SeedPacket JSON`, but the runtime must contain no Cottage- or seed-packet-specific behavior.
 
 ## MVP Architecture

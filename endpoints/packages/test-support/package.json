@@ -1,5 +1,5 @@
 {
-  "name": "@parish/test-support",
+  "name": "@limerick/test-support",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -15,8 +15,8 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@parish/domain": "workspace:*",
-    "@parish/providers": "workspace:*",
-    "@parish/runtime": "workspace:*"
+    "@limerick/domain": "workspace:*",
+    "@limerick/providers": "workspace:*",
+    "@limerick/runtime": "workspace:*"
   }
 }

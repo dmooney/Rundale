@@ -25,10 +25,10 @@ TEAM_ID = "MBPRPZ283R"
 SCHEME = "Rundale"
 BUNDLE_ID = "com.rundale.mobile"
 ENDPOINT_SETTINGS = {
-    "RUNDALE_ENDPOINT_BASE_URL": "https://parish-server-24861210203.us-east1.run.app",
-    "RUNDALE_ENDPOINT_ORGANIZATION": "parish-demo",
+    "RUNDALE_ENDPOINT_BASE_URL": "https://limerick-server-24861210203.us-east1.run.app",
+    "RUNDALE_ENDPOINT_ORGANIZATION": "limerick-demo",
     "RUNDALE_ENDPOINT_SLUG": "rundale-dialogue",
-    "RUNDALE_ENDPOINT_VERSION": "1",
+    "RUNDALE_ENDPOINT_VERSION": "2",
 }
 
 
@@ -87,6 +87,10 @@ def command_text(argv: Sequence[str]) -> str:
 
 def endpoint_args() -> list[str]:
     return [f"{key}={value}" for key, value in ENDPOINT_SETTINGS.items()]
+
+
+def internal_beta_args() -> list[str]:
+    return ["RUNDALE_INTERNAL_DIAGNOSTICS=YES"]
 
 
 def increment_build_number(project_spec: Path, *, dry_run: bool = False) -> tuple[int, int]:
@@ -278,6 +282,7 @@ class Release:
                     f"DEVELOPMENT_TEAM={TEAM_ID}",
                     "CODE_SIGN_STYLE=Automatic",
                     *endpoint_args(),
+                    *internal_beta_args(),
                 ],
                 cwd=self.paths.root,
             )
@@ -320,7 +325,12 @@ class Release:
                 print(f"Upload log and receipt: {self.paths.output}")
 
     def validate_app(
-        self, app: Path, *, expected_build: int | None = None, verify_code_sign: bool = False
+        self,
+        app: Path,
+        *,
+        expected_build: int | None = None,
+        verify_code_sign: bool = False,
+        expected_internal_diagnostics: bool | None = None,
     ) -> None:
         if self.dry_run:
             print(f"validate app: {app}")
@@ -347,6 +357,10 @@ class Release:
         for key, value in expected.items():
             if info.get(key) != value:
                 raise RuntimeError(f"archive metadata mismatch for {key}")
+        if expected_internal_diagnostics is not None:
+            expected_setting = "YES" if expected_internal_diagnostics else "NO"
+            if info.get("RUNDALE_INTERNAL_DIAGNOSTICS") != expected_setting:
+                raise RuntimeError("archive metadata mismatch for internal diagnostics")
         if expected_build is not None and str(info.get("CFBundleVersion")) != str(expected_build):
             raise RuntimeError("packaged app build number does not match project.yml")
         executable_name = info.get("CFBundleExecutable")
@@ -361,7 +375,12 @@ class Release:
             )
 
     def validate_archive(self, *, expected_build: int | None = None) -> None:
-        self.validate_app(self.paths.app, expected_build=expected_build, verify_code_sign=True)
+        self.validate_app(
+            self.paths.app,
+            expected_build=expected_build,
+            verify_code_sign=True,
+            expected_internal_diagnostics=True,
+        )
 
     def write_export_options(self) -> Path:
         options = {

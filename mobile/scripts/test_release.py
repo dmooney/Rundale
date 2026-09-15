@@ -76,6 +76,7 @@ class ReleaseTests(unittest.TestCase):
             "CFBundleVersion": "8",
             "CFBundleExecutable": "Rundale",
             "ITSAppUsesNonExemptEncryption": False,
+            "RUNDALE_INTERNAL_DIAGNOSTICS": "YES",
             **release.ENDPOINT_SETTINGS,
         }
         (app / "Info.plist").write_bytes(plistlib.dumps(info))
@@ -125,6 +126,7 @@ class ReleaseTests(unittest.TestCase):
         self.assertEqual(self.commands[0][1:], ["--phase", "all"])
         self.assertEqual(self.commands[1][0], "xcodegen")
         self.assertIn("archive", self.commands[2])
+        self.assertIn("RUNDALE_INTERNAL_DIAGNOSTICS=YES", self.commands[2])
         self.assertIn("-exportArchive", self.commands[3])
         self.assertFalse(any("build-rust-mobile.sh" in " ".join(c) for c in self.commands))
 

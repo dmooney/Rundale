@@ -21,7 +21,7 @@
 	"assets": [
 		{
 			"key": "sceneDesktop",
-			"file": "parish-crossroads-watercolor.png",
+			"file": "limerick-crossroads-watercolor.png",
 			"width": 1672,
 			"height": 941,
 			"alpha": "opaque",
@@ -30,7 +30,7 @@
 		},
 		{
 			"key": "sceneMobile",
-			"file": "parish-crossroads-watercolor-mobile.png",
+			"file": "limerick-crossroads-watercolor-mobile.png",
 			"width": 941,
 			"height": 1672,
 			"alpha": "opaque",

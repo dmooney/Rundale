@@ -5,7 +5,7 @@
 # (min of price_in + 3*price_out); perf benchmarking sweeps every provider.
 #
 # provider_id / base_url / api_key_env mirror the engine provider presets in
-# parish/crates/parish-config/providers/*.toml. Prices are USD per 1M tokens
+# limerick/crates/limerick-config/providers/*.toml. Prices are USD per 1M tokens
 # and are point-in-time estimates — verify against the provider before a
 # leaderboard freeze. Local (MLX) targets are $0.
 schema_version = 1

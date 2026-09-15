@@ -210,6 +210,7 @@ mod tests {
             started_at: None,
             completed_at: None,
             last_matching_action: None,
+            authored: None,
         };
         let assigned = GameEvent::PlayerTaskAssigned {
             task: task.clone(),

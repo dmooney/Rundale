@@ -1,4 +1,5 @@
 {
+  "endpointContractVersion": 2,
   "contractVersion": {
     "major": 1,
     "minor": 0
@@ -80,6 +81,9 @@
       "source": "authored"
     }
   ],
+  "acquiredKnowledge": [],
+  "rememberedPlayerClaims": [],
+  "relevantTaskState": [],
   "recentConversation": [],
   "maxOutputChars": 8192,
   "maxStreamBytes": 16384

@@ -9,6 +9,7 @@ struct LaunchConfiguration: Sendable {
         static let endpointOrganization = "RUNDALE_ENDPOINT_ORGANIZATION"
         static let endpointSlug = "RUNDALE_ENDPOINT_SLUG"
         static let endpointVersion = "RUNDALE_ENDPOINT_VERSION"
+        static let internalDiagnostics = "RUNDALE_INTERNAL_DIAGNOSTICS"
     }
 
     enum Fixture: String, Equatable, Sendable {
@@ -27,7 +28,7 @@ struct LaunchConfiguration: Sendable {
     /// UI tests normally exercise the iPhone multiline composer. The explicit
     /// simulator keyboard case retains coverage of Mac Return-to-send behavior.
     let usesMultilineSimulatorComposer: Bool
-    /// The embedded Parish runtime is the normal product launch. Fixture
+    /// The embedded Limerick runtime is the normal product launch. Fixture
     /// launches remain available for the deterministic Phase 1 UI suite and
     /// for explicit fixture invocations.
     let phase2: Bool
@@ -39,12 +40,13 @@ struct LaunchConfiguration: Sendable {
     let draftFileURL: URL?
     let resetFixture: Bool
     let forceDarkAppearance: Bool
-    /// A trusted Parish Endpoints base URL supplied by deployment
+    /// A trusted Limerick Endpoints base URL supplied by deployment
     /// configuration. There is intentionally no baked-in production default.
     let endpointBaseURL: URL?
     let endpointOrganization: String
     let endpointSlug: String
     let endpointVersion: Int
+    let internalDiagnosticsEnabled: Bool
 
     init(arguments: [String] = ProcessInfo.processInfo.arguments,
          environment: [String: String] = ProcessInfo.processInfo.environment,
@@ -83,7 +85,12 @@ struct LaunchConfiguration: Sendable {
                                              bundle: bundle) ?? "rundale-dialogue"
         endpointVersion = max(1, Int(Self.configuredValue(BundleKey.endpointVersion,
                                                            environment: environment,
-                                                           bundle: bundle) ?? "1") ?? 1)
+                                                           bundle: bundle) ?? "2") ?? 2)
+        internalDiagnosticsEnabled = Self.configuredValue(
+            BundleKey.internalDiagnostics,
+            environment: environment,
+            bundle: bundle
+        ).map { ["1", "true", "yes"].contains($0.lowercased()) } ?? false
     }
 
     private static func configuredValue(_ key: String,

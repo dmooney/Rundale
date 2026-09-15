@@ -1,6 +1,6 @@
 import type { Notification, Pool, PoolClient } from "pg";
 
-const cancellationChannel = "parish_stream_cancellation_v1";
+const cancellationChannel = "limerick_stream_cancellation_v1";
 const pendingCancellationTtlMs = 30_000;
 
 export type StreamCancellation = () => void;

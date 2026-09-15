@@ -1,10 +1,10 @@
 import { readFile } from "node:fs/promises";
 import { afterEach, describe, expect, it } from "vitest";
 import type { FastifyInstance } from "fastify";
-import type { EndpointVersionSnapshot } from "@parish/domain";
-import { FixedPriceCostCalculator, StaticProviderRegistry } from "@parish/providers";
-import { DeterministicRuntime, RuntimeError, type ModelProvider } from "@parish/runtime";
-import { compileSchema } from "@parish/schemas";
+import type { EndpointVersionSnapshot } from "@limerick/domain";
+import { FixedPriceCostCalculator, StaticProviderRegistry } from "@limerick/providers";
+import { DeterministicRuntime, RuntimeError, type ModelProvider } from "@limerick/runtime";
+import { compileSchema } from "@limerick/schemas";
 import { FirebaseMobileAuthenticator } from "../src/auth/mobile-auth.js";
 import { buildServer } from "../src/app.js";
 import { readServerConfig } from "../src/config.js";
@@ -364,7 +364,7 @@ describe("mobile invocation authentication", () => {
     expect(store.created).toBe(0);
   });
 
-  it("rejects extra envelope fields and enforces authored collection bounds", async () => {
+  it("validates the Endpoint v2 engine fixture and enforces grounding bounds", async () => {
     const store = repository();
     server = await createServer(store);
     const response = await server.inject({
@@ -379,7 +379,7 @@ describe("mobile invocation authentication", () => {
 
     const definition = JSON.parse(
       await readFile(
-        new URL("../../../../mobile/endpoint/rundale-dialogue-v1.json", import.meta.url),
+        new URL("../../../../mobile/endpoint/rundale-dialogue-v2.json", import.meta.url),
         "utf8",
       ),
     ) as { inputSchema: Record<string, unknown> };
@@ -391,6 +391,42 @@ describe("mobile invocation authentication", () => {
     ) as Record<string, unknown>;
     const validate = compileSchema(definition.inputSchema);
     expect(validate(input)).toBe(true);
+    const speaker = structuredClone(input.speaker);
+    input.acquiredKnowledge = [
+      {
+        id: "gossip:fact-micheal-stock:npc-roisin",
+        proposition: "Mícheál has stock to move.",
+        knowingNpcID: "npc-roisin",
+        classification: "heard_from_npc",
+      },
+    ];
+    input.rememberedPlayerClaims = [
+      {
+        id: "memory:request:npc-peig:0",
+        proposition: "The player grew up in Athleague.",
+        knowingNpcID: "npc-peig",
+        classification: "player_claim",
+      },
+    ];
+    input.relevantTaskState = [
+      {
+        id: "task:task-deliver-peig-letter:request",
+        authoredTemplateID: "task-deliver-peig-letter",
+        status: "completed",
+      },
+    ];
+    expect(validate(input)).toBe(true);
+    input.relevantTaskState = [
+      {
+        ...(input.relevantTaskState as Array<Record<string, unknown>>)[0],
+        unexpected: true,
+      },
+    ];
+    expect(validate(input)).toBe(false);
+    input.relevantTaskState = [];
+    input.speaker = { ...(input.speaker as Record<string, unknown>), unexpected: true };
+    expect(validate(input)).toBe(false);
+    input.speaker = speaker;
     input.knownPeople = Array.from({ length: 33 }, () => structuredClone(input.speaker));
     expect(validate(input)).toBe(false);
   });

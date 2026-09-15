@@ -40,7 +40,7 @@ export class DevelopmentCreatorAuthenticator implements CreatorAuthenticator {
   constructor(private readonly identities: CreatorIdentityRepository) {}
 
   async authenticate(request: FastifyRequest): Promise<CreatorPrincipal | null> {
-    const externalId = request.headers["x-parish-owner-id"];
+    const externalId = request.headers["x-limerick-owner-id"];
     if (typeof externalId !== "string" || externalId.length === 0) return null;
     return this.identities.findOwnerByExternalId(externalId);
   }

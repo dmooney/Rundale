@@ -3,7 +3,7 @@ import RundaleKit
 
 /// Presentation-facing session boundary used by the SwiftUI model.
 ///
-/// The fixture controller and the future embedded Parish controller both
+/// The fixture controller and the future embedded Limerick controller both
 /// expose the same state projection and command surface. Views therefore stay
 /// independent of the source of semantic events and of the engine that
 /// produces them.

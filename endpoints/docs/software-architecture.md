@@ -1,4 +1,4 @@
-Parish Endpoints: Software Architecture
+Limerick Endpoints: Software Architecture
 Status: Draft
 Companion document: product-vision.md
 Implementation approach: Goblin
@@ -28,18 +28,18 @@ The architecture must remain general enough to support later use cases such as R
 ________________
 
 
-1.1 Parish Product Boundary and Terminology
-Parish is the working umbrella name and parish.dev is the working domain.
-The Parish umbrella may include:
-Parish
-├── Parish Engine      # Rundale-derived game/simulation engine
-└── Parish Endpoints   # hosted AI API product in this document
+1.1 Limerick Product Boundary and Terminology
+Limerick is the working umbrella name and limerick.dev is the working domain.
+The Limerick umbrella may include:
+Limerick
+├── Limerick Engine      # Rundale-derived game/simulation engine
+└── Limerick Endpoints   # hosted AI API product in this document
 These are conceptually related systems with separate runtime boundaries and
 deployables. Rundale vendors Endpoints as a self-contained nested pnpm
 workspace without merging its dependencies into the Rust or player frontend
 workspaces.
 For this product, the first-class object is an Endpoint.
-An Endpoint is a hosted HTTP API interface whose implementation is managed by Parish. The creator does not deploy arbitrary code. Instead, an Endpoint definition contains:
+An Endpoint is a hosted HTTP API interface whose implementation is managed by Limerick. The creator does not deploy arbitrary code. Instead, an Endpoint definition contains:
 input schema
 + private/proprietary instructions
 + selected LLM/model
@@ -51,7 +51,7 @@ consumer application
     |
     | HTTP request
     v
-Parish Endpoint
+Limerick Endpoint
     |
     | managed inference using private Endpoint Definition
     v
@@ -60,7 +60,7 @@ LLM provider
     v
 validated API response
 This is deliberately different from AWS Lambda and conventional Function-as-a-Service:
-Parish Endpoint
+Limerick Endpoint
 	Lambda/serverless function
 	Primarily an HTTP API product
 	Primarily executable compute
@@ -79,9 +79,9 @@ Parish Endpoint
 * Endpoint Definition — mutable draft configuration describing model, private instructions, schemas, and settings.
 * Endpoint Version — immutable published snapshot.
 * Endpoint URL — consumer-facing invocation URL.
-* Parish API — creator-facing management/control API used to create, edit, publish, inspect, and administer Endpoints.
+* Limerick API — creator-facing management/control API used to create, edit, publish, inspect, and administer Endpoints.
 * Invocation API — the runtime surface that receives calls to published Endpoint URLs.
-* Parish Engine — separate Rundale-derived game/simulation technology under the Parish umbrella.
+* Limerick Engine — separate Rundale-derived game/simulation technology under the Limerick umbrella.
 ________________
 
 
@@ -713,7 +713,7 @@ ________________
 
 
 11. Control-Plane API
-The Parish API is the creator-facing management/control API. All creator-management routes should be under:
+The Limerick API is the creator-facing management/control API. All creator-management routes should be under:
 /api/control/v1
 Example routes:
 POST   /api/control/v1/endpoints
@@ -2479,9 +2479,9 @@ These decisions are authoritative for the initial Goblin implementation unless s
 Deployment and infrastructure
 
 
-- Hosting: Google Cloud Run in the existing Cottage Google Cloud project, using isolated Parish resources.
-- Runtime topology: separate Parish web and Fastify server Cloud Run services backed by a dedicated Cloud SQL PostgreSQL instance.
-- The MVP uses the generated Cloud Run web and server hostnames for verification. `app.parish.dev` and `api.parish.dev` remain intended custom domains, but custom DNS is optional follow-up work outside the MVP completion gate.
+- Hosting: Google Cloud Run in the existing Cottage Google Cloud project, using isolated Limerick resources.
+- Runtime topology: separate Limerick web and Fastify server Cloud Run services backed by a dedicated Cloud SQL PostgreSQL instance.
+- The MVP uses the generated Cloud Run web and server hostnames for verification. `app.limerick.dev` and `api.limerick.dev` remain intended custom domains, but custom DNS is optional follow-up work outside the MVP completion gate.
 - Object storage is not required for the first dogfood path. Images should be streamed/buffered through the request to the model provider and discarded. Add S3-compatible storage only when a concrete persistence requirement appears.
 - Initial release posture: closed dogfood deployment for the project owner, not public signup.
 
@@ -2491,8 +2491,8 @@ Creator authentication
 
 - Managed auth provider: Firebase Authentication.
 - Supported creator sign-in method: Google.
-- Firebase ID tokens authenticate the creator-facing Parish API/control plane.
-- Do not build password authentication or account recovery directly in Parish for the MVP.
+- Firebase ID tokens authenticate the creator-facing Limerick API/control plane.
+- Do not build password authentication or account recovery directly in Limerick for the MVP.
 
 
 Model providers
@@ -2526,7 +2526,7 @@ MVP Endpoint visibility and authorization
 
 
 - Endpoints are private in the initial dogfood MVP.
-- Server-to-server invocation uses Parish API keys scoped to an organization and, where useful, a specific Endpoint.
+- Server-to-server invocation uses Limerick API keys scoped to an organization and, where useful, a specific Endpoint.
 - API keys are high-entropy random secrets. Store only a cryptographic digest and non-secret prefix; never store or display the full key after creation.
 - Public marketplace access, cross-account subscriptions, and public anonymous Endpoints are post-MVP concerns.
 
@@ -2534,7 +2534,7 @@ MVP Endpoint visibility and authorization
 Client-safe end-user authentication direction
 
 
-A long-lived Parish API key must never be embedded in a browser, desktop client, or mobile application intended for distribution. Requiring every developer to build a wrapper backend solely to hide a Parish key would recreate the infrastructure problem Parish exists to remove.
+A long-lived Limerick API key must never be embedded in a browser, desktop client, or mobile application intended for distribution. Requiring every developer to build a wrapper backend solely to hide a Limerick key would recreate the infrastructure problem Limerick exists to remove.
 
 
 The planned client-safe invocation mode is OIDC/JWT authorization:
@@ -2542,15 +2542,15 @@ The planned client-safe invocation mode is OIDC/JWT authorization:
 
 1. The Endpoint creator configures one or more trusted OIDC issuers, expected audiences, and optional required scopes/claims for the Endpoint.
 2. The developer's browser or mobile application signs its end user in through the developer's existing identity provider using the appropriate OAuth/OIDC flow. Public clients use Authorization Code + PKCE rather than a client secret.
-3. The application sends the resulting short-lived bearer token directly to the Parish Endpoint.
-4. Parish validates the token signature against the issuer's JWKS, plus issuer, audience, expiry, and configured scopes/claims.
-5. If valid, Parish treats the authenticated subject as the end-user principal and invokes the Endpoint. No Parish secret is present in the application.
+3. The application sends the resulting short-lived bearer token directly to the Limerick Endpoint.
+4. Limerick validates the token signature against the issuer's JWKS, plus issuer, audience, expiry, and configured scopes/claims.
+5. If valid, Limerick treats the authenticated subject as the end-user principal and invokes the Endpoint. No Limerick secret is present in the application.
 
 
-This design lets developers bring an existing OIDC-compatible identity system rather than forcing all of their end users to create Parish accounts. Provider-specific adapters for common identity systems may be added later, but the contract should remain standard OIDC/JWT validation.
+This design lets developers bring an existing OIDC-compatible identity system rather than forcing all of their end users to create Limerick accounts. Provider-specific adapters for common identity systems may be added later, but the contract should remain standard OIDC/JWT validation.
 
 
-OIDC/JWT Endpoint authorization is not required to complete the owner-only dogfood MVP, but it is a required capability before Parish is presented as a general solution for directly calling private Endpoints from browser/mobile applications.
+OIDC/JWT Endpoint authorization is not required to complete the owner-only dogfood MVP, but it is a required capability before Limerick is presented as a general solution for directly calling private Endpoints from browser/mobile applications.
 
 
 Applications with no end-user identity cannot securely hide a reusable secret in distributed client code. A later product may support public/anonymous Endpoints with strict quotas, origin restrictions, device/app attestation, and abuse detection, but those are abuse-reduction mechanisms rather than equivalent secret protection.
@@ -2559,7 +2559,7 @@ Applications with no end-user identity cannot securely hide a reusable secret in
 Cottage contract policy
 
 
-Do not embed a guessed or copied Cottage SeedPacket schema in this architecture document. When Milestone 7 begins, Goblin must inspect the current Cottage repository on GitHub and derive the integration contract from the actual code at that time. If the code and these documents disagree, the current Cottage code is authoritative for the Cottage-specific adapter/integration, while the generic Parish runtime must remain application-independent.
+Do not embed a guessed or copied Cottage SeedPacket schema in this architecture document. When Milestone 7 begins, Goblin must inspect the current Cottage repository on GitHub and derive the integration contract from the actual code at that time. If the code and these documents disagree, the current Cottage code is authoritative for the Cottage-specific adapter/integration, while the generic Limerick runtime must remain application-independent.
 
 
 Dogfood rollout

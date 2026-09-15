@@ -156,8 +156,8 @@ index.lock
 !/mobile/Rundale.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved
 /mobile/RundaleBridge/.build/
 /mobile/RundaleBridge/.swiftpm/
-/mobile/ParishEndpointKit/.build/
-/mobile/ParishEndpointKit/.swiftpm/
+/mobile/LimerickEndpointKit/.build/
+/mobile/LimerickEndpointKit/.swiftpm/
 /mobile/binding-spike/target/
 /mobile/binding-spike/.build/
 /limerick/target-mobile-*/
@@ -170,9 +170,3 @@ index.lock
 
 # Firebase client configuration is supplied privately for local/CI builds.
 /mobile/Rundale/Resources/GoogleService-Info.plist
-
-# Generated leftovers from checkouts before the engine directory rename.
-/parish/target/
-/parish/target-mobile-*/
-/parish/apps/ui/.svelte-kit/
-/parish/crates/parish-tauri/gen/

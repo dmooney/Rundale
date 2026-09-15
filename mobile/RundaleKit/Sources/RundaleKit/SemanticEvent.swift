@@ -12,6 +12,11 @@ public enum SemanticEventKind: String, Codable, CaseIterable, Sendable {
     case progress
     case error
     case responseCompleted = "response_completed"
+    case memoryAcquired = "memory_acquired"
+    case gossipPropagated = "gossip_propagated"
+    case taskChanged = "task_changed"
+    case worldAdvanced = "world_advanced"
+    case locationDecided = "location_decided"
 }
 
 public enum ResponseTerminalOutcome: String, Codable, Sendable {

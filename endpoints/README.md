@@ -1,6 +1,6 @@
-# Parish Endpoints
+# Limerick Endpoints
 
-Parish Endpoints is an owner-operated runtime for versioned, typed AI API behavior. A creator defines a mutable Endpoint Draft, tests it, publishes immutable Endpoint Versions, and moves the `production` Deployment Alias to promote or roll back behavior. Consumers invoke a stable provider-neutral HTTP API.
+Limerick Endpoints is an owner-operated runtime for versioned, typed AI API behavior. A creator defines a mutable Endpoint Draft, tests it, publishes immutable Endpoint Versions, and moves the `production` Deployment Alias to promote or roll back behavior. Consumers invoke a stable provider-neutral HTTP API.
 
 ## Local development
 
@@ -34,10 +34,10 @@ From the Rundale repository root, the equivalent command is
 ## Node image client
 
 ```sh
-export PARISH_API_KEY='the-one-time-key'
-pnpm --filter @parish/node-cli invoke -- \
+export LIMERICK_API_KEY='the-one-time-key'
+pnpm --filter @limerick/node-cli invoke -- \
   --image ./packet.png \
-  --endpoint https://api.example/v1/endpoints/parish-demo/generic-image-extractor \
+  --endpoint https://api.example/v1/endpoints/limerick-demo/generic-image-extractor \
   --schema ./output-schema.json
 ```
 
@@ -60,14 +60,14 @@ The runtime also enforces organization and Endpoint switches, daily organization
 
 ## Google Cloud deployment
 
-The production topology uses isolated resources in the existing Cottage Google Cloud project: `parish-server` and `parish-web` Cloud Run services, a dedicated Cloud SQL PostgreSQL instance, Secret Manager, a least-privilege runtime identity, and Artifact Registry images built by Cloud Build.
+The production topology uses isolated resources in the existing Cottage Google Cloud project: `limerick-server` and `limerick-web` Cloud Run services, a dedicated Cloud SQL PostgreSQL instance, Secret Manager, a least-privilege runtime identity, and Artifact Registry images built by Cloud Build.
 
-1. Provision the Parish Cloud SQL database and runtime service account in `us-east1`.
+1. Provision the Limerick Cloud SQL database and runtime service account in `us-east1`.
 2. From the Rundale root, build the server with `endpoints/deploy/google/cloudbuild.server.yaml` and the web app with `endpoints/deploy/google/cloudbuild.web.yaml`; both Cloud Build steps use `endpoints/` as their build directory.
 3. Store the database URL and OpenAI credential in Secret Manager; configure the Firebase project and exact owner UID as non-secret environment values.
 4. Use Vertex AI Application Default Credentials for Google inference; no Google API key is required in Cloud Run.
-5. Run migrations through the explicit `parish-migrate` Cloud Run job before server rollout.
-6. Verify the generated `run.app` hostnames; custom domains such as `api.parish.dev` and `app.parish.dev` are optional follow-up work.
+5. Run migrations through the explicit `limerick-migrate` Cloud Run job before server rollout.
+6. Verify the generated `run.app` hostnames; custom domains such as `api.limerick.dev` and `app.limerick.dev` are optional follow-up work.
 
 See [the deployment runbook](docs/deployment.md) for configuration and release verification.
 

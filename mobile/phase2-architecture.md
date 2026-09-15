@@ -12,7 +12,7 @@ limerick-core. The existing default Rust feature set retains desktop behavior.
 The mobile dependency graph excludes local-model setup, editor, diagnostics,
 and desktop entry points.
 
-The runtime reuses Parish domain types and its NPC candidate validator. The
+The runtime reuses Limerick domain types and its NPC candidate validator. The
 Phase 2 world has one location and one NPC. A completed conversation records
 the accepted exchange locally; it does not enable the legacy task, travel, or
 background simulation systems.
@@ -51,7 +51,7 @@ provisional text before validation; this is not the legacy runtime policy of
 quarantining all candidate text. Rejected or interrupted output must remain
 visibly uncommitted and have no canonical effects.
 
-Production inference uses Parish Endpoints. A simulated transport is permitted
+Production inference uses Limerick Endpoints. A simulated transport is permitted
 only for deterministic verification and cannot count as evidence of real
 streaming. The integrated service accepts direct Firebase Auth plus mandatory
 App Check mobile principals, authorizes them through a strict app-to-tenant and

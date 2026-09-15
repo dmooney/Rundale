@@ -215,7 +215,7 @@ function ConsoleWithToken({
     async <T,>(path: string, init: RequestInit = {}): Promise<T> => {
       const token = await getToken();
       const headers = new Headers(init.headers);
-      if (token === null) headers.set("x-parish-owner-id", "user_synthetic_owner");
+      if (token === null) headers.set("x-limerick-owner-id", "user_synthetic_owner");
       else headers.set("authorization", `Bearer ${token}`);
       if (init.body !== undefined && !(init.body instanceof FormData)) {
         headers.set("content-type", "application/json");
@@ -513,7 +513,7 @@ function ConsoleWithToken({
     <main className="workspace">
       <header className="topbar">
         <div>
-          <span className="eyebrow">PARISH / ENDPOINTS</span>
+          <span className="eyebrow">LIMERICK / ENDPOINTS</span>
           <strong>Owner console</strong>
         </div>
         <span className="notice" role="status">
@@ -884,7 +884,7 @@ export function FirebaseCreatorConsole() {
   }
   return (
     <main className="signin">
-      <span className="eyebrow">PARISH / ENDPOINTS</span>
+      <span className="eyebrow">LIMERICK / ENDPOINTS</span>
       <h1>Owner access only.</h1>
       <p>Sign in with the configured owner identity to manage Endpoint behavior.</p>
       <button

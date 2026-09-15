@@ -1,5 +1,5 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
-import { RuntimeError, type InvocationAttachment, type InvocationInput } from "@parish/runtime";
+import { RuntimeError, type InvocationAttachment, type InvocationInput } from "@limerick/runtime";
 import { assertImageDimensions, detectImageMediaType, imageFields } from "./images.js";
 import type { InvocationService } from "./service.js";
 

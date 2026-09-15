@@ -1,24 +1,24 @@
 import XCTest
 @testable import RundaleBridge
 
-final class ParishRuntimeTests: XCTestCase {
+final class LimerickRuntimeTests: XCTestCase {
     func testBoundaryErrorsHaveStableDescriptions() {
         XCTAssertEqual(
-            ParishRuntimeError.closed.errorDescription,
-            "The Parish runtime session is closed."
+            LimerickRuntimeError.closed.errorDescription,
+            "The Limerick runtime session is closed."
         )
         XCTAssertEqual(
-            ParishRuntimeError.invalidHandle.errorDescription,
-            "The Parish runtime session is no longer valid."
+            LimerickRuntimeError.invalidHandle.errorDescription,
+            "The Limerick runtime session is no longer valid."
         )
         XCTAssertEqual(
-            ParishRuntimeError.eventBufferOverflow.errorDescription,
-            "The Parish event stream fell behind; the session was refreshed."
+            LimerickRuntimeError.eventBufferOverflow.errorDescription,
+            "The Limerick event stream fell behind; the session was refreshed."
         )
     }
 
     func testStopSurfacesBridgeDecodeFailure() async throws {
-        let runtime = try ParishRuntime.openNew()
+        let runtime = try LimerickRuntime.openNew()
         do {
             _ = try await runtime.stop()
             XCTFail("stop should surface an invalid operation result")

@@ -9,6 +9,6 @@ RUN mkdir -p "$PNPM_HOME" "$COREPACK_HOME" && chown -R node:node /app "$PNPM_HOM
 COPY --chown=node:node . .
 USER node
 RUN pnpm install --frozen-lockfile
-RUN pnpm --filter @parish/server... build
+RUN pnpm --filter @limerick/server... build
 ENV NODE_ENV=production
 CMD ["node", "apps/server/dist/main.js"]

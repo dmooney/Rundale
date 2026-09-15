@@ -228,6 +228,28 @@ final class RundaleKitTests: XCTestCase {
         )
     }
 
+    @MainActor
+    func testTypedDiagnosticProjectionRendersEphemerally() {
+        let initial = SessionState(
+            sessionID: SessionID("diagnostic-session"),
+            stateRevision: StateRevision(7),
+            eventCursor: EventCursor(11)
+        )
+        let presentation = PresentationSession(state: initial)
+        let projection = #"{"kind":"knowledge","stateRevision":{"rawValue":7},"npcID":"npc-peig","records":[]}"#
+
+        presentation.appendEphemeralDiagnostic(projection)
+
+        XCTAssertEqual(presentation.state.stateRevision, StateRevision(7))
+        XCTAssertEqual(presentation.state.eventCursor, EventCursor(11))
+        XCTAssertTrue(presentation.state.requests.isEmpty)
+        let row = presentation.state.transcript.last
+        XCTAssertEqual(row?.content, projection)
+        XCTAssertEqual(row?.lastEventSequence, EventSequence(11))
+        XCTAssertEqual(row?.metadata["ephemeral"], "true")
+        XCTAssertEqual(row?.metadata["source"], "rust_diagnostic_projection")
+    }
+
     func testRetryCreatesCurrentAttemptBeforeRejectingOldAttemptEvents() {
         let sessionID = SessionID("session-retry")
         let requestID = LogicalRequestID("request-1")

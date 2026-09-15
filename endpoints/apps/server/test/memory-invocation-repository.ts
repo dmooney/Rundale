@@ -1,5 +1,5 @@
-import type { EndpointVersionSnapshot } from "@parish/domain";
-import type { RuntimeAttempt } from "@parish/runtime";
+import type { EndpointVersionSnapshot } from "@limerick/domain";
+import type { RuntimeAttempt } from "@limerick/runtime";
 import type {
   InvocationApiKey,
   InvocationRepository,

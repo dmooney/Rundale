@@ -1,5 +1,5 @@
-import type { EndpointVersionSnapshot, JsonSchema, ProviderId } from "@parish/domain";
-import { compileSchema, formatValidationErrors, type SchemaIssue } from "@parish/schemas";
+import type { EndpointVersionSnapshot, JsonSchema, ProviderId } from "@limerick/domain";
+import { compileSchema, formatValidationErrors, type SchemaIssue } from "@limerick/schemas";
 
 export type NormalizedErrorCode =
   | "AUTHENTICATION_FAILED"

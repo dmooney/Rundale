@@ -1,9 +1,9 @@
 import Foundation
-import ParishMobileFFI
+import LimerickMobileFFI
 import RundaleKit
 
-/// Errors reported by the owned Parish mobile boundary.
-public enum ParishRuntimeError: Error, LocalizedError, Sendable, Equatable {
+/// Errors reported by the owned Limerick mobile boundary.
+public enum LimerickRuntimeError: Error, LocalizedError, Sendable, Equatable {
     case invalidArgument(String)
     case invalidUTF8
     case invalidHandle
@@ -17,14 +17,14 @@ public enum ParishRuntimeError: Error, LocalizedError, Sendable, Equatable {
     public var errorDescription: String? {
         switch self {
         case let .invalidArgument(message): return message
-        case .invalidUTF8: return "The Parish runtime returned invalid UTF-8."
-        case .invalidHandle: return "The Parish runtime session is no longer valid."
+        case .invalidUTF8: return "The Limerick runtime returned invalid UTF-8."
+        case .invalidHandle: return "The Limerick runtime session is no longer valid."
         case let .tooLarge(message): return message
         case let .protocolError(message): return message
-        case .closed: return "The Parish runtime session is closed."
+        case .closed: return "The Limerick runtime session is closed."
         case let .internalError(message): return message
         case let .operationFailed(_, message): return message
-        case .eventBufferOverflow: return "The Parish event stream fell behind; the session was refreshed."
+        case .eventBufferOverflow: return "The Limerick event stream fell behind; the session was refreshed."
         }
     }
 }
@@ -32,19 +32,19 @@ public enum ParishRuntimeError: Error, LocalizedError, Sendable, Equatable {
 /// Failure classes that may be reported by the platform Endpoint adapter.
 /// Cancellation uses `stop()` and therefore remains a separate terminal
 /// outcome in the Rust request state machine.
-public enum ParishRuntimeFailureKind: String, Sendable {
+public enum LimerickRuntimeFailureKind: String, Sendable {
     case transport
     case protocolViolation = "protocol"
     case missingTerminal = "missing_terminal"
     case interrupted
 }
 
-/// The actor-isolated Swift owner for one embedded Parish session.
+/// The actor-isolated Swift owner for one embedded Limerick session.
 ///
 /// Rust remains authoritative for request identity, validation, event order,
 /// and committed state. This actor serializes calls into the opaque C handle;
 /// it never retains Rust pointers or executes FFI work on `MainActor`.
-public actor ParishRuntime: SessionAdapter {
+public actor LimerickRuntime: SessionAdapter {
     /// A consumer that stops draining events must not retain an unbounded
     /// amount of presentation data. Overflow is explicit so the application
     /// controller can refresh the authoritative snapshot and resubscribe.
@@ -61,12 +61,12 @@ public actor ParishRuntime: SessionAdapter {
         let eventCursor: EventCursor
     }
 
-    private var handle: parish_mobile_handle_t?
+    private var handle: limerick_mobile_handle_t?
     private let openingResponse: Data
     private var currentCursor = EventCursor(0)
     private var subscribers: [UUID: AsyncThrowingStream<SemanticEvent, Error>.Continuation] = [:]
 
-    private init(handle: parish_mobile_handle_t, openingResponse: Data) {
+    private init(handle: limerick_mobile_handle_t, openingResponse: Data) {
         self.handle = handle
         self.openingResponse = openingResponse
     }
@@ -77,36 +77,36 @@ public actor ParishRuntime: SessionAdapter {
         // Rust registry must not retain a session merely because Swift lost
         // its last actor reference.
         if let handle {
-            _ = parish_mobile_close(handle)
+            _ = limerick_mobile_close(handle)
         }
     }
 
     /// Opens a new local session. The call should be started from a task that
     /// is not `MainActor` if opening can touch storage or content files.
-    public static func openNew(options: Data = Data("{}".utf8)) throws -> ParishRuntime {
-        try open(kind: PARISH_MOBILE_OPEN_NEW, request: options)
+    public static func openNew(options: Data = Data("{}".utf8)) throws -> LimerickRuntime {
+        try open(kind: LIMERICK_MOBILE_OPEN_NEW, request: options)
     }
 
     /// Resumes an existing local session from the engine-owned resume payload.
-    public static func openResume(payload: Data) throws -> ParishRuntime {
-        try open(kind: PARISH_MOBILE_OPEN_RESUME, request: payload)
+    public static func openResume(payload: Data) throws -> LimerickRuntime {
+        try open(kind: LIMERICK_MOBILE_OPEN_RESUME, request: payload)
     }
 
     private static func open(
-        kind: parish_mobile_open_kind_t,
+        kind: limerick_mobile_open_kind_t,
         request: Data
-    ) throws -> ParishRuntime {
-        var rawHandle: parish_mobile_handle_t = 0
-        var owned = parish_mobile_owned_bytes_t(ptr: nil, len: 0)
+    ) throws -> LimerickRuntime {
+        var rawHandle: limerick_mobile_handle_t = 0
+        var owned = limerick_mobile_owned_bytes_t(ptr: nil, len: 0)
         let status = withBorrowedBytes(request) { bytes in
-            parish_mobile_open(kind, bytes, &rawHandle, &owned)
+            limerick_mobile_open(kind, bytes, &rawHandle, &owned)
         }
         let response = try copyAndFree(owned)
         try throwIfNeeded(status, response: response)
         guard rawHandle != 0 else {
-            throw ParishRuntimeError.protocolError("Parish open returned a zero handle.")
+            throw LimerickRuntimeError.protocolError("Limerick open returned a zero handle.")
         }
-        return ParishRuntime(handle: rawHandle, openingResponse: response)
+        return LimerickRuntime(handle: rawHandle, openingResponse: response)
     }
 
     /// The open response is retained as opaque JSON so the app can decode the
@@ -120,7 +120,7 @@ public actor ParishRuntime: SessionAdapter {
     /// at the Swift layer and does not reuse the disposed token.
     public func close() throws {
         guard let handle else { return }
-        let status = parish_mobile_close(handle)
+        let status = limerick_mobile_close(handle)
         self.handle = nil
         finishSubscribers()
         try throwIfNeeded(status, response: Data())
@@ -240,6 +240,19 @@ public actor ParishRuntime: SessionAdapter {
         try dispatchJSON(Data(#"{"op":"snapshot"}"#.utf8))
     }
 
+    public func diagnosticProjectionJSON(command: String) throws -> Data {
+        try dispatch(["op": "diagnostic_projection", "command": command])
+    }
+
+    public func diagnosticSetupJSON(kind: String, value: String, confirmed: Bool) throws -> Data {
+        try dispatch([
+            "op": "diagnostic_setup",
+            "kind": kind,
+            "value": value,
+            "confirmed": confirmed
+        ])
+    }
+
     public func pendingEndpointJSON() throws -> Data {
         try dispatchJSON(Data(#"{"op":"pending_endpoint"}"#.utf8))
     }
@@ -250,13 +263,13 @@ public actor ParishRuntime: SessionAdapter {
     public func readEventPage(
         after cursor: EventCursor? = nil,
         limit: Int = 100
-    ) throws -> ParishEventPage {
+    ) throws -> LimerickEventPage {
         var operation: [String: Any] = [
             "op": "read_event_page",
             "limit": max(1, min(limit, 100))
         ]
         if let cursor { operation["after"] = cursor.rawValue }
-        return try decodeValue(ParishEventPage.self, from: dispatch(operation))
+        return try decodeValue(LimerickEventPage.self, from: dispatch(operation))
     }
 
     /// Reads the bounded durable page immediately before a retained event.
@@ -265,13 +278,13 @@ public actor ParishRuntime: SessionAdapter {
     public func readEventPageBefore(
         before cursor: EventCursor,
         limit: Int = 100
-    ) throws -> ParishEventPage {
+    ) throws -> LimerickEventPage {
         let operation: [String: Any] = [
             "op": "read_event_page_before",
             "before": cursor.rawValue,
             "limit": max(1, min(limit, 100))
         ]
-        return try decodeValue(ParishEventPage.self, from: dispatch(operation))
+        return try decodeValue(LimerickEventPage.self, from: dispatch(operation))
     }
 
     /// Records a bounded transport/authentication/protocol failure against the
@@ -280,7 +293,7 @@ public actor ParishRuntime: SessionAdapter {
     public func receiveFailure(
         attemptID: ExecutionAttemptID,
         baseRevision: StateRevision,
-        kind: ParishRuntimeFailureKind,
+        kind: LimerickRuntimeFailureKind,
         message: String
     ) throws -> Data {
         let operation: [String: Any] = [
@@ -301,10 +314,10 @@ public actor ParishRuntime: SessionAdapter {
 
     private func dispatch(_ operation: Data) throws -> Data {
         try ensureOpen()
-        guard let handle else { throw ParishRuntimeError.closed }
-        var owned = parish_mobile_owned_bytes_t(ptr: nil, len: 0)
+        guard let handle else { throw LimerickRuntimeError.closed }
+        var owned = limerick_mobile_owned_bytes_t(ptr: nil, len: 0)
         let status = withBorrowedBytes(operation) { bytes in
-            parish_mobile_dispatch(handle, bytes, &owned)
+            limerick_mobile_dispatch(handle, bytes, &owned)
         }
         let response = try copyAndFree(owned)
         try throwIfNeeded(status, response: response)
@@ -315,7 +328,7 @@ public actor ParishRuntime: SessionAdapter {
         var operation: [String: Any] = ["op": "read_events", "limit": max(1, min(limit, 100))]
         if let cursor { operation["after"] = cursor.rawValue }
         let response = try dispatch(operation)
-        let page = try decodeValue(ParishEventPage.self, from: response)
+        let page = try decodeValue(LimerickEventPage.self, from: response)
         if let pageCursor = page.nextCursor {
             currentCursor = max(currentCursor, pageCursor)
         }
@@ -329,8 +342,8 @@ public actor ParishRuntime: SessionAdapter {
         }
         if let ok = dictionary["ok"] as? Bool, !ok {
             let error = dictionary["error"] as? [String: Any]
-            let message = error?["message"] as? String ?? "Parish operation failed."
-            throw ParishRuntimeError.operationFailed(status: -1, message: message)
+            let message = error?["message"] as? String ?? "Limerick operation failed."
+            throw LimerickRuntimeError.operationFailed(status: -1, message: message)
         }
         let valueObject = dictionary["value"] ?? object
         return try JSONSerialization.data(withJSONObject: valueObject, options: [.sortedKeys, .fragmentsAllowed])
@@ -342,8 +355,8 @@ public actor ParishRuntime: SessionAdapter {
     ) throws -> SubmissionReceipt {
         guard let logicalRequestID = result.logicalRequestID,
               let attemptID = result.attemptID else {
-            throw ParishRuntimeError.protocolError(
-                result.error ?? "Parish did not return request identity for an accepted operation."
+            throw LimerickRuntimeError.protocolError(
+                result.error ?? "Limerick did not return request identity for an accepted operation."
             )
         }
         return SubmissionReceipt(
@@ -398,14 +411,14 @@ public actor ParishRuntime: SessionAdapter {
             return true
         case .dropped:
             subscribers.removeValue(forKey: subscriptionID)
-            continuation.finish(throwing: ParishRuntimeError.eventBufferOverflow)
+            continuation.finish(throwing: LimerickRuntimeError.eventBufferOverflow)
             return false
         case .terminated:
             subscribers.removeValue(forKey: subscriptionID)
             return false
         @unknown default:
             subscribers.removeValue(forKey: subscriptionID)
-            continuation.finish(throwing: ParishRuntimeError.eventBufferOverflow)
+            continuation.finish(throwing: LimerickRuntimeError.eventBufferOverflow)
             return false
         }
     }
@@ -421,48 +434,48 @@ public actor ParishRuntime: SessionAdapter {
     }
 
     private func ensureOpen() throws {
-        guard handle != nil else { throw ParishRuntimeError.closed }
+        guard handle != nil else { throw LimerickRuntimeError.closed }
     }
 
-    private static func statusCode(_ status: parish_mobile_status_t) -> Int32 {
+    private static func statusCode(_ status: limerick_mobile_status_t) -> Int32 {
         Int32(status.rawValue)
     }
 
-    private static func statusError(_ status: parish_mobile_status_t, response: Data) -> ParishRuntimeError {
+    private static func statusError(_ status: limerick_mobile_status_t, response: Data) -> LimerickRuntimeError {
         switch status {
-        case PARISH_MOBILE_INVALID_ARGUMENT:
-            return .invalidArgument("The Parish mobile operation was invalid.")
-        case PARISH_MOBILE_INVALID_UTF8:
+        case LIMERICK_MOBILE_INVALID_ARGUMENT:
+            return .invalidArgument("The Limerick mobile operation was invalid.")
+        case LIMERICK_MOBILE_INVALID_UTF8:
             return .invalidUTF8
-        case PARISH_MOBILE_INVALID_HANDLE:
+        case LIMERICK_MOBILE_INVALID_HANDLE:
             return .invalidHandle
-        case PARISH_MOBILE_TOO_LARGE:
-            return .tooLarge("The Parish mobile payload exceeded its bound.")
-        case PARISH_MOBILE_PROTOCOL_ERROR:
-            return .protocolError(String(data: response, encoding: .utf8) ?? "Invalid Parish response.")
-        case PARISH_MOBILE_CLOSED:
+        case LIMERICK_MOBILE_TOO_LARGE:
+            return .tooLarge("The Limerick mobile payload exceeded its bound.")
+        case LIMERICK_MOBILE_PROTOCOL_ERROR:
+            return .protocolError(String(data: response, encoding: .utf8) ?? "Invalid Limerick response.")
+        case LIMERICK_MOBILE_CLOSED:
             return .closed
-        case PARISH_MOBILE_INTERNAL_ERROR:
-            return .internalError(String(data: response, encoding: .utf8) ?? "Parish internal error.")
-        case PARISH_MOBILE_OK:
+        case LIMERICK_MOBILE_INTERNAL_ERROR:
+            return .internalError(String(data: response, encoding: .utf8) ?? "Limerick internal error.")
+        case LIMERICK_MOBILE_OK:
             return .operationFailed(status: statusCode(status), message: "Unexpected successful status.")
         default:
-            return .operationFailed(status: statusCode(status), message: "Unknown Parish status.")
+            return .operationFailed(status: statusCode(status), message: "Unknown Limerick status.")
         }
     }
 
-    private static func throwIfNeeded(_ status: parish_mobile_status_t, response: Data) throws {
-        guard status == PARISH_MOBILE_OK else {
+    private static func throwIfNeeded(_ status: limerick_mobile_status_t, response: Data) throws {
+        guard status == LIMERICK_MOBILE_OK else {
             throw statusError(status, response: response)
         }
     }
 
-    private func throwIfNeeded(_ status: parish_mobile_status_t, response: Data) throws {
+    private func throwIfNeeded(_ status: limerick_mobile_status_t, response: Data) throws {
         try Self.throwIfNeeded(status, response: response)
     }
 }
 
-public struct ParishEventPage: Decodable, Sendable {
+public struct LimerickEventPage: Decodable, Sendable {
     public let events: [SemanticEvent]
     public let nextCursor: EventCursor?
     public let hasMore: Bool
@@ -494,15 +507,15 @@ public struct ParishEventPage: Decodable, Sendable {
     }
 }
 
-private func withBorrowedBytes<T>(_ data: Data, _ body: (parish_mobile_bytes_t) throws -> T) rethrows -> T {
+private func withBorrowedBytes<T>(_ data: Data, _ body: (limerick_mobile_bytes_t) throws -> T) rethrows -> T {
     try data.withUnsafeBytes { rawBuffer in
         let pointer = rawBuffer.baseAddress?.assumingMemoryBound(to: UInt8.self)
-        return try body(parish_mobile_bytes_t(ptr: pointer, len: data.count))
+        return try body(limerick_mobile_bytes_t(ptr: pointer, len: data.count))
     }
 }
 
-private func copyAndFree(_ owned: parish_mobile_owned_bytes_t) throws -> Data {
-    defer { _ = parish_mobile_owned_bytes_free(owned) }
+private func copyAndFree(_ owned: limerick_mobile_owned_bytes_t) throws -> Data {
+    defer { _ = limerick_mobile_owned_bytes_free(owned) }
     guard let pointer = owned.ptr else { return Data() }
     return Data(bytes: pointer, count: owned.len)
 }

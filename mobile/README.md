@@ -2,7 +2,7 @@
 
 This checkout contains the first four phases of the
 [mobile reset](../docs/product-specs/product-technical-spec.md). Phase 2 added
-the embedded Parish runtime, local persistence, Swift FFI bridge, and deployed
+the embedded Limerick runtime, local persistence, Swift FFI bridge, and deployed
 Endpoint path. Phase 3 replaces the one-room slice with the canonical
 three-location, three-NPC Kilteevan world, authoritative travel and presence,
 explicit schedule movement, and resumable clarification. Phase 4 adds interruption and connectivity recovery checks and freezes gameplay
@@ -45,13 +45,13 @@ The build script requires Rust 1.98.0 and its `aarch64-apple-ios` and
 
 For remote authentication, supply the ignored Firebase configuration described
 in [phase2-auth.md](phase2-auth.md) before generating the Xcode project.
-Configure `RUNDALE_ENDPOINT_BASE_URL` with the verified Parish Endpoints service
+Configure `RUNDALE_ENDPOINT_BASE_URL` with the verified Limerick Endpoints service
 origin; no production origin is baked into the app. The client appends the
 pinned `/v1/endpoints/{organization}/{slug}/versions/{version}/stream` route.
 `RUNDALE_ENDPOINT_ORGANIZATION`, `RUNDALE_ENDPOINT_SLUG`, and
 `RUNDALE_ENDPOINT_VERSION` override the versioned deployment identity. The
 mobile request carries short-lived Firebase Auth and App Check credentials
-directly to Parish Endpoints; provider credentials and shared Endpoint keys
+directly to Limerick Endpoints; provider credentials and shared Endpoint keys
 never enter the app. See the [Endpoint handoff](endpoint/phase2-handoff.md) for
 the SSE contract, deployed revision, live evidence, and remaining device gate.
 For an internal TestFlight archive, use the Release procedure in
@@ -76,7 +76,7 @@ explicit `--fixture=...` argument, selects the deterministic Phase 1 adapter.
   presentation adapter, with independent unit tests.
 - `Rundale` owns SwiftUI rendering, native input, accessibility, and app lifecycle.
 - `RundaleUITests` exercises the application through native UI automation.
-- `RundaleBridge` owns the actor-isolated Swift boundary for the embedded Parish
+- `RundaleBridge` owns the actor-isolated Swift boundary for the embedded Limerick
   session and the C ABI module map.
 - `limerick-mobile-ffi` and the `mobile` feature of `limerick-core` own the portable
   runtime path; local persistence remains authoritative.
@@ -84,7 +84,7 @@ explicit `--fixture=...` argument, selects the deterministic Phase 1 adapter.
 
 The renderer consumes semantic presentation state. Game rules, request identity,
 validation, travel, presence, schedules, clarification, and committed state
-remain in the embedded Parish runtime rather than in SwiftUI views. The
+remain in the embedded Limerick runtime rather than in SwiftUI views. The
 [canonical world sheet](content/canonical-world.md) is the independent Phase 3
 acceptance oracle; `content/phase3-tiny-world.json` is the machine-readable
 authority.

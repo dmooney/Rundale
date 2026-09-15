@@ -3,8 +3,8 @@
 	"scenes": [
 		{
 			"location_ids": [1, 15],
-			"plate_asset": "/rundale/illustrated-notebook-v2/parish-crossroads-watercolor.png",
-			"mobile_plate_asset": "/rundale/illustrated-notebook-v2/parish-crossroads-watercolor-mobile.png",
+			"plate_asset": "/rundale/illustrated-notebook-v2/limerick-crossroads-watercolor.png",
+			"mobile_plate_asset": "/rundale/illustrated-notebook-v2/limerick-crossroads-watercolor-mobile.png",
 			"written_visual_summary": "Rural Ireland in 1820 after rain: a parish crossroads with whitewashed cottages, chapel and shop roads, a stone bridge, wet grass, hedgerows, muddy tracks, and quiet villagers.",
 			"camera_hint": "wide elevated oblique illustrated storybook game scene",
 			"background_generation_source": "Freshly generated from the written 1820 rural-Irish, fine-ink, muted-watercolor direction derived from docs/graphics-v2/illustrated-rundale-notebook-prompt.md; the canonical concept was a comparison target, not a runtime image source.",

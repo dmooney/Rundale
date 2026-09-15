@@ -76,8 +76,8 @@ not require coordinate edits.
 The clean runtime asset kit lives under
 `limerick/apps/ui/static/rundale/illustrated-notebook-v2/`. It contains:
 
-- `parish-crossroads-watercolor.png` and
-  `parish-crossroads-watercolor-mobile.png`: fresh desktop and vertical scene
+- `limerick-crossroads-watercolor.png` and
+  `limerick-crossroads-watercolor-mobile.png`: fresh desktop and vertical scene
   plates.
 - `parchment-*.png`: fresh transparent top-ribbon, Nearby-rail, action-strip,
   intent-strip, tab, label, and bottom-card cutouts generated from the canonical

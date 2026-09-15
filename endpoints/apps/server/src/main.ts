@@ -1,4 +1,4 @@
-import { createDatabase } from "@parish/database";
+import { createDatabase } from "@limerick/database";
 import { applicationDefault, initializeApp } from "firebase-admin/app";
 import { getAuth } from "firebase-admin/auth";
 import { getAppCheck } from "firebase-admin/app-check";
@@ -20,8 +20,8 @@ import {
   GoogleProvider,
   OpenAIProvider,
   StaticProviderRegistry,
-} from "@parish/providers";
-import { DeterministicRuntime, type ModelProvider } from "@parish/runtime";
+} from "@limerick/providers";
+import { DeterministicRuntime, type ModelProvider } from "@limerick/runtime";
 import { InvocationService } from "./invocation/service.js";
 import { PostgresInvocationCancellationCoordinator } from "./invocation/cancellation.js";
 

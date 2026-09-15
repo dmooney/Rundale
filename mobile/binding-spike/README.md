@@ -1,7 +1,7 @@
 # Swift/Rust binding spike
 
 This is a deliberately throwaway Phase 2 binding experiment. It contains no
-Parish gameplay code and is not a second engine. The purpose is to exercise the
+Limerick gameplay code and is not a second engine. The purpose is to exercise the
 foreign-function boundary demanded by [software-technical-vision §9.2](../../docs/product-specs/software-technical-vision.md#92-binding-strategy)
 before the real mobile runtime is wrapped.
 
@@ -99,7 +99,7 @@ choice.
 
 This fixture uses a bounded in-memory event queue and deterministic worker
 delays only to make callback races reproducible. It does not model persistence,
-Endpoint streaming, authentication, or the real Parish engine. It is evidence
+Endpoint streaming, authentication, or the real Limerick engine. It is evidence
 for the shape and ownership of the FFI boundary, not Phase 2 acceptance.
 
 ### Sources

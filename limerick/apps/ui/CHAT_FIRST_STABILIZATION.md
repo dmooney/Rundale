@@ -136,15 +136,15 @@ an updated per-assertion appendix.
 
 ## Asset disposition
 
-| Asset class                        | Current evidence                                                                     | Disposition                                                                                                          |
-| ---------------------------------- | ------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------- |
-| Scene plates                       | `illustrated-notebook-v2/parish-crossroads-watercolor*.png`, runtime scene manifests | Retain as candidates for the first post-stabilization responsive scene header                                        |
-| NPC portraits                      | `notebook-ui/people/portrait-*.png` with contact sheet and provenance                | Retain; promote only after scene-header checkpoint                                                                   |
-| NPC map markers                    | `notebook-ui/people/marker-*.png`                                                    | Preserve with provenance; use only if a DOM map/player task demonstrates value                                       |
-| Parchment frames and utility icons | 24 notebook-v2 UI PNGs plus manifests                                                | Preserve initially; promote selected assets only after portraits; delete unused runtime copies at experiment closure |
-| Notebook/Pixi-only layout assets   | Sewn page, index rail, tab/action-strip composition assets                           | Candidate deletion when renderer removal proves no remaining import                                                  |
-| Graphics research corpus           | `docs/graphics-v2` (1,356 files at baseline)                                         | Preserve as immutable provenance/source material; never ship solely because it exists                                |
-| Production art metadata            | runtime READMEs, manifests, contact sheet, provenance                                | Retain and update to record chat use or archival-only status                                                         |
+| Asset class                        | Current evidence                                                                       | Disposition                                                                                                          |
+| ---------------------------------- | -------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| Scene plates                       | `illustrated-notebook-v2/limerick-crossroads-watercolor*.png`, runtime scene manifests | Retain as candidates for the first post-stabilization responsive scene header                                        |
+| NPC portraits                      | `notebook-ui/people/portrait-*.png` with contact sheet and provenance                  | Retain; promote only after scene-header checkpoint                                                                   |
+| NPC map markers                    | `notebook-ui/people/marker-*.png`                                                      | Preserve with provenance; use only if a DOM map/player task demonstrates value                                       |
+| Parchment frames and utility icons | 24 notebook-v2 UI PNGs plus manifests                                                  | Preserve initially; promote selected assets only after portraits; delete unused runtime copies at experiment closure |
+| Notebook/Pixi-only layout assets   | Sewn page, index rail, tab/action-strip composition assets                             | Candidate deletion when renderer removal proves no remaining import                                                  |
+| Graphics research corpus           | `docs/graphics-v2` (1,356 files at baseline)                                           | Preserve as immutable provenance/source material; never ship solely because it exists                                |
+| Production art metadata            | runtime READMEs, manifests, contact sheet, provenance                                  | Retain and update to record chat use or archival-only status                                                         |
 
 ## Ordered verification checkpoints
 

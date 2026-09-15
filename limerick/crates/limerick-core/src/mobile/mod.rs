@@ -16,7 +16,7 @@
 use std::collections::{BTreeMap, VecDeque};
 use std::path::Path;
 
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, Timelike, Utc};
 use limerick_npc::{
     DialogueGroundingSnapshot, DialogueValidationPolicy, NpcResponseParseDisposition,
     NpcStreamResponse,
@@ -26,13 +26,21 @@ use limerick_persistence::mobile::{
     MobileEventInput as PersistentEventInput, MobileRequestUpsert as PersistentRequestUpsert,
     MobileStore as PersistentMobileStore,
 };
-use limerick_types::{ConversationExchange, Location, LocationId, NpcId, Weather};
+use limerick_types::{
+    AuthoredTaskMetadata, ConversationExchange, Location, LocationId, NpcId, TaskStatus, Weather,
+};
 use limerick_world::WorldState;
 use limerick_world::graph::WorldGraph;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use limerick_npc::manager::NpcManager;
+
+mod phase5;
+pub use phase5::{
+    DiagnosticOverrideRecord, EpistemicClassification, KnowledgeRecord, LocationDecision,
+    LocationDecisionCause, Phase5State,
+};
 
 /// Presentation contract shared with `mobile/RundaleKit`.
 pub const PRESENTATION_CONTRACT_VERSION: PresentationContractVersion =
@@ -59,6 +67,8 @@ pub const MAX_COMMAND_BYTES: usize = 4 * 1024;
 pub const MAX_FAILURE_MESSAGE_BYTES: usize = 4 * 1024;
 /// The maximum number of completion records returned to a host.
 pub const MAX_COMPLETIONS: usize = 32;
+/// Version of the immutable Endpoint dialogue contract used by Phase 5.
+pub const ENDPOINT_CONTRACT_VERSION: u16 = 2;
 
 /// Version of the Swift/Rust semantic presentation contract.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -177,6 +187,11 @@ pub enum SemanticEventKind {
     Progress,
     Error,
     ResponseCompleted,
+    MemoryAcquired,
+    GossipPropagated,
+    TaskChanged,
+    WorldAdvanced,
+    LocationDecided,
 }
 
 /// Whether a stream payload replaces or appends to the item text.
@@ -567,6 +582,15 @@ struct Phase2ContentBundle {
     locations: Vec<Phase2LocationContent>,
     npcs: Vec<Phase2NpcContent>,
     relationships: Vec<MobileRelationshipDefinition>,
+    proofs: Vec<Phase5ProofContent>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct Phase5ProofContent {
+    id: String,
+    kind: String,
+    description: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -662,11 +686,31 @@ impl Phase2ContentDefinition {
                 "unsupported Phase 3 content schema/version or start time".to_string(),
             ));
         }
-        if bundle.locations.len() != 3 || bundle.npcs.len() != 3 || bundle.relationships.len() != 3
+        if bundle.locations.len() != 3
+            || bundle.npcs.len() != 3
+            || bundle.relationships.len() != 3
+            || bundle.proofs.len() != 5
         {
             return Err(MobileError::Content(
                 "Phase 3 content must contain exactly three locations, NPCs, and relationships"
                     .to_string(),
+            ));
+        }
+        let expected_proofs = ["memory", "gossip", "task", "weather", "schedule"];
+        if expected_proofs.iter().any(|kind| {
+            bundle
+                .proofs
+                .iter()
+                .filter(|proof| proof.kind == *kind)
+                .count()
+                != 1
+        }) || bundle
+            .proofs
+            .iter()
+            .any(|proof| proof.id.is_empty() || proof.description.is_empty())
+        {
+            return Err(MobileError::Content(
+                "Phase 5 content must define exactly the five living-world proofs".into(),
             ));
         }
         let location_ids: std::collections::HashSet<&str> = bundle
@@ -959,7 +1003,7 @@ pub struct GroundedFact {
     pub source: String,
 }
 
-/// A bounded grounding person sent to Parish Endpoints.
+/// A bounded grounding person sent to Limerick Endpoints.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct GroundedPerson {
@@ -975,6 +1019,7 @@ pub struct GroundedPerson {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct EndpointInvocation {
+    pub endpoint_contract_version: u16,
     pub contract_version: PresentationContractVersion,
     #[serde(rename = "sessionID")]
     pub session_id: SessionId,
@@ -991,9 +1036,57 @@ pub struct EndpointInvocation {
     pub known_people: Vec<GroundedPerson>,
     pub known_places: Vec<GroundedPlace>,
     pub authored_facts: Vec<GroundedFact>,
+    pub acquired_knowledge: Vec<EndpointKnowledgeRecord>,
+    pub remembered_player_claims: Vec<EndpointKnowledgeRecord>,
+    pub relevant_task_state: Vec<RelevantTaskState>,
     pub recent_conversation: Vec<ConversationExchange>,
     pub max_output_chars: usize,
     pub max_stream_bytes: usize,
+}
+
+/// Bounded epistemic grounding for Endpoint input. Full acquisition
+/// provenance remains in the durable Rust ledger and diagnostics.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct EndpointKnowledgeRecord {
+    pub id: String,
+    pub proposition: String,
+    #[serde(rename = "knowingNpcID")]
+    pub knowing_npc_id: String,
+    pub classification: EpistemicClassification,
+}
+
+fn endpoint_knowledge_record(record: &KnowledgeRecord) -> EndpointKnowledgeRecord {
+    EndpointKnowledgeRecord {
+        id: record.id.clone(),
+        proposition: record.proposition.clone(),
+        knowing_npc_id: record.knowing_npc_id.clone(),
+        classification: record.classification,
+    }
+}
+
+/// Minimal task grounding sent across the Endpoint boundary. Internal
+/// conditions, timestamps, and persistence provenance remain Rust-owned.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct RelevantTaskState {
+    pub id: String,
+    #[serde(rename = "authoredTemplateID")]
+    pub authored_template_id: String,
+    pub status: TaskStatus,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct ProposedPlayerMemory {
+    pub claim: String,
+    pub evidence: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct ProposedEndpointEffects {
+    player_memory: Option<ProposedPlayerMemory>,
+    authored_task_offer_id: Option<String>,
 }
 
 /// Candidate response returned by the platform after Endpoint validation.
@@ -1010,9 +1103,13 @@ pub struct EndpointCandidate {
     /// NPC validator.
     #[serde(default)]
     pub structured: bool,
+    #[serde(default)]
+    pub proposed_player_memory: Option<ProposedPlayerMemory>,
+    #[serde(default, rename = "authoredTaskOfferID")]
+    pub authored_task_offer_id: Option<String>,
 }
 
-/// One bounded stream frame from Parish Endpoints.
+/// One bounded stream frame from Limerick Endpoints.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct EndpointFrame {
@@ -1109,6 +1206,8 @@ pub struct MobileSave {
     pub requests: Vec<RequestRecord>,
     pub events: Vec<SemanticEvent>,
     pub has_older_events: bool,
+    #[serde(default)]
+    pub phase5: Phase5State,
 }
 
 /// Optional persistence seam for hosts that have a durable SQLite adapter.
@@ -1261,6 +1360,8 @@ struct DurableMobileDomain {
     game: GameSnapshot,
     events: Vec<SemanticEvent>,
     has_older_events: bool,
+    #[serde(default)]
+    phase5: Phase5State,
 }
 
 /// Production mobile storage adapter over the transactional SQLite boundary
@@ -1437,6 +1538,7 @@ impl SqliteMobileStore {
             requests,
             events: domain.events,
             has_older_events: domain.has_older_events,
+            phase5: domain.phase5,
         })
     }
 }
@@ -1462,6 +1564,7 @@ impl MobileStore for SqliteMobileStore {
             game: save.game.clone(),
             events: save.events.clone(),
             has_older_events: save.has_older_events,
+            phase5: save.phase5.clone(),
         };
         let domain_json = serde_json::to_value(domain)
             .map_err(|error| MobileError::Storage(error.to_string()))?;
@@ -1522,6 +1625,7 @@ pub struct MobileSession {
     requests: Vec<RequestRecord>,
     active_request_id: Option<LogicalRequestId>,
     provisional_events: VecDeque<SemanticEvent>,
+    phase5: Phase5State,
     store: Option<Box<dyn MobileStore + Send>>,
 }
 
@@ -1577,6 +1681,8 @@ impl MobileSession {
         let content = Phase2ContentDefinition::try_canonical()?;
         let (world, npcs) = make_phase2_domain(&content)?;
         let session_id = SessionId::fresh();
+        let mut phase5 = Phase5State::default();
+        phase5.initialize_if_missing(world.clock.now(), StateRevision::new(0));
         let mut session = Self {
             session_id,
             content,
@@ -1589,6 +1695,7 @@ impl MobileSession {
             requests: Vec::new(),
             active_request_id: None,
             provisional_events: VecDeque::new(),
+            phase5,
             store,
         };
         let event = session.emit(
@@ -1642,6 +1749,8 @@ impl MobileSession {
         let content = Phase2ContentDefinition::try_canonical()?;
         let (mut world, mut npcs) = make_phase2_domain(&content)?;
         save.game.clone().restore(&mut world, &mut npcs);
+        let mut phase5 = save.phase5;
+        phase5.initialize_if_missing(world.clock.now(), save.state_revision);
         let mut session = Self {
             session_id: save.session_id,
             content,
@@ -1659,6 +1768,7 @@ impl MobileSession {
             requests: save.requests,
             active_request_id: None,
             provisional_events: VecDeque::new(),
+            phase5,
             store,
         };
         session.recover_interrupted_requests()?;
@@ -1712,6 +1822,167 @@ impl MobileSession {
 
     pub fn content(&self) -> &Phase2ContentDefinition {
         &self.content
+    }
+
+    pub fn phase5_state(&self) -> &Phase5State {
+        &self.phase5
+    }
+
+    /// Read-only typed diagnostics used by internal mobile builds. This does
+    /// not emit an event, persist, advance time, or change the revision.
+    pub fn diagnostic_projection(&self, command: &str) -> Result<serde_json::Value, MobileError> {
+        let trimmed = command.trim();
+        let revision = self.state_revision;
+        if trimmed == "/debug tasks" {
+            return Ok(serde_json::json!({
+                "kind": "tasks",
+                "stateRevision": revision,
+                "recordCount": self.world.player_progress.len(),
+                "tasks": self.world.player_progress.tasks(),
+            }));
+        }
+        if trimmed == "/debug world" {
+            return Ok(serde_json::json!({
+                "kind": "world",
+                "stateRevision": revision,
+                "time": self.world.clock.now(),
+                "weather": self.world.weather.to_string(),
+                "scene": self.read_model().scene,
+                "people": self.read_model().nearby_people,
+                "locationDecisions": self.phase5.last_location_decisions,
+                "diagnosticOverrides": self.phase5.diagnostic_overrides,
+            }));
+        }
+        for (prefix, player_claims_only) in [("/debug memory ", true), ("/debug knowledge ", false)]
+        {
+            if let Some(name) = trimmed.strip_prefix(prefix) {
+                let lower = name.trim().to_lowercase();
+                let npc = self
+                    .content
+                    .npcs
+                    .iter()
+                    .find(|npc| {
+                        npc.id.eq_ignore_ascii_case(&lower)
+                            || npc.display_name.to_lowercase() == lower
+                            || npc
+                                .aliases
+                                .iter()
+                                .any(|alias| alias.to_lowercase() == lower)
+                    })
+                    .ok_or_else(|| MobileError::Content("unknown diagnostic NPC".into()))?;
+                let records: Vec<KnowledgeRecord> = self
+                    .phase5
+                    .knowledge_for(&npc.id)
+                    .into_iter()
+                    .filter(|record| {
+                        !player_claims_only
+                            || record.classification == EpistemicClassification::PlayerClaim
+                    })
+                    .cloned()
+                    .collect();
+                return Ok(serde_json::json!({
+                    "kind": if player_claims_only { "memory" } else { "knowledge" },
+                    "stateRevision": revision,
+                    "npcID": npc.id,
+                    "npcName": npc.display_name,
+                    "recordCount": records.len(),
+                    "records": records,
+                }));
+            }
+        }
+        Err(MobileError::Content("unknown diagnostic command".into()))
+    }
+
+    /// Persist an explicitly confirmed internal setup override. These controls
+    /// are separate from ordinary play and leave an authoritative audit mark.
+    pub fn diagnostic_setup(
+        &mut self,
+        kind: &str,
+        value: &str,
+        confirmed: bool,
+    ) -> Result<serde_json::Value, MobileError> {
+        if !confirmed {
+            return Err(MobileError::Content(
+                "diagnostic setup requires explicit confirmation".into(),
+            ));
+        }
+        let mut next_world = self.world.clone();
+        let mut next_npcs = self.npcs.clone();
+        let mut next_phase5 = self.phase5.clone();
+        match kind {
+            "reset" => {
+                let (world, npcs) = make_phase2_domain(&self.content)?;
+                next_world = world;
+                next_npcs = npcs;
+                next_phase5 = Phase5State::default();
+            }
+            "time" => {
+                let (hour, minute) = value
+                    .split_once(':')
+                    .and_then(|(hour, minute)| {
+                        Some((hour.parse::<u32>().ok()?, minute.parse::<u32>().ok()?))
+                    })
+                    .filter(|(hour, minute)| *hour < 24 && *minute < 60)
+                    .ok_or_else(|| MobileError::Content("time must be HH:MM".into()))?;
+                let now = next_world.clock.now();
+                let current = i64::from(now.hour() * 60 + now.minute());
+                let desired = i64::from(hour * 60 + minute);
+                next_world.clock.advance(desired - current);
+            }
+            "location" => {
+                let location = self
+                    .content
+                    .locations
+                    .iter()
+                    .find(|location| {
+                        location.id.eq_ignore_ascii_case(value)
+                            || location.display_name.eq_ignore_ascii_case(value)
+                    })
+                    .ok_or_else(|| MobileError::Content("unknown diagnostic location".into()))?;
+                next_world.player_location = LocationId(location.engine_location_id);
+            }
+            "weather" => {
+                let weather = value
+                    .parse::<Weather>()
+                    .map_err(|_| MobileError::Content("unknown diagnostic weather".into()))?;
+                next_world.weather = weather;
+                next_world
+                    .weather_engine
+                    .force(weather, next_world.clock.now());
+            }
+            _ => return Err(MobileError::Content("unknown diagnostic setup kind".into())),
+        }
+        let revision = StateRevision::new(self.state_revision.raw_value + 1);
+        next_phase5.initialize_if_missing(next_world.clock.now(), revision);
+        next_phase5
+            .diagnostic_overrides
+            .push(DiagnosticOverrideRecord {
+                kind: kind.into(),
+                value: value.into(),
+                at: next_world.clock.now(),
+                committed_state_revision: revision,
+            });
+        let save = self.to_save_with(
+            next_world.clone(),
+            next_npcs.clone(),
+            next_phase5.clone(),
+            revision,
+            self.requests.clone(),
+            self.events.iter().cloned().collect(),
+            self.next_event_sequence,
+            self.has_older_events,
+        );
+        self.persist_candidate(&save)?;
+        self.world = next_world;
+        self.npcs = next_npcs;
+        self.phase5 = next_phase5;
+        self.state_revision = revision;
+        Ok(serde_json::json!({
+            "kind": "diagnostic_override",
+            "override": kind,
+            "value": value,
+            "stateRevision": revision,
+        }))
     }
 
     pub fn snapshot(&self) -> MobileSnapshot {
@@ -1948,6 +2219,12 @@ impl MobileSession {
         let accepted_next_sequence = self.next_event_sequence;
         let accepted_active = self.active_request_id.clone();
         let accepted_provisional = self.provisional_events.clone();
+
+        if let Some(action) = phase5_local_action(&text) {
+            let mut result = self.commit_phase5_action(&request_id, &attempt_id, action)?;
+            result.events.insert(0, command_event);
+            return Ok(result);
+        }
 
         if let Some(capability) = deterministic_capability(&text) {
             record.phase = RequestPhase::Completed;
@@ -2686,6 +2963,10 @@ impl MobileSession {
             candidate.dialogue,
             candidate.structured,
             candidate.metadata,
+            ProposedEndpointEffects {
+                player_memory: candidate.proposed_player_memory,
+                authored_task_offer_id: candidate.authored_task_offer_id,
+            },
         )
     }
 
@@ -2781,6 +3062,243 @@ impl MobileSession {
         // A consumer that observes the terminal cursor cannot replay an
         // omitted earlier result from a subsequent snapshot.
         Ok((event, terminal))
+    }
+
+    fn commit_phase5_action(
+        &mut self,
+        request_id: &LogicalRequestId,
+        attempt_id: &ExecutionAttemptId,
+        action: Phase5LocalAction,
+    ) -> Result<MobileOperationResult, MobileError> {
+        if matches!(action, Phase5LocalAction::InvalidWait) {
+            return self.complete_local_response(
+                request_id,
+                attempt_id,
+                "Use /wait with 1 to 1440 minutes.".into(),
+                "wait",
+            );
+        }
+
+        let mut next_world = self.world.clone();
+        let mut next_npcs = self.npcs.clone();
+        let mut next_phase5 = self.phase5.clone();
+        let revision = StateRevision::new(self.state_revision.raw_value + 1);
+        let mut effect_events: Vec<(SemanticEventKind, String, BTreeMap<String, String>)> =
+            Vec::new();
+        let action_text = match action {
+            Phase5LocalAction::Wait(minutes) => {
+                let advance = advance_mobile_world(
+                    &mut next_world,
+                    &mut next_npcs,
+                    &mut next_phase5,
+                    minutes,
+                    revision,
+                );
+                effect_events.extend(advance.phase5_events);
+                effect_events.push((
+                    SemanticEventKind::WorldAdvanced,
+                    format!("The world advances by {minutes} minutes."),
+                    metadata([("minutes", minutes.to_string())]),
+                ));
+                format!(
+                    "You wait for {minutes} {}.",
+                    if minutes == 1 { "minute" } else { "minutes" }
+                )
+            }
+            Phase5LocalAction::TakeLetter => {
+                let Some(task_id) = next_world
+                    .player_progress
+                    .task_by_template(phase5::LETTER_TASK_TEMPLATE_ID)
+                    .map(|task| task.id)
+                else {
+                    return self.complete_local_response(
+                        request_id,
+                        attempt_id,
+                        "There is no sealed letter for you to take.".into(),
+                        "task",
+                    );
+                };
+                if !next_world.player_progress.start_task_explicitly(
+                    task_id,
+                    "take the sealed letter",
+                    next_world.player_location,
+                    next_world.clock.now(),
+                ) {
+                    return self.complete_local_response(
+                        request_id,
+                        attempt_id,
+                        "You cannot take the sealed letter here.".into(),
+                        "task",
+                    );
+                }
+                effect_events.push((
+                    SemanticEventKind::TaskChanged,
+                    "You take Peig's sealed letter for Róisín.".into(),
+                    metadata([
+                        ("taskID", task_id.0.to_string()),
+                        ("status", "in_progress".into()),
+                    ]),
+                ));
+                "You take the sealed letter and keep it safe for Róisín.".into()
+            }
+            Phase5LocalAction::GiveLetter => {
+                let roisin_present = next_npcs
+                    .npcs_at(LocationId(13))
+                    .iter()
+                    .any(|npc| npc.id == NpcId(4));
+                let Some(task_id) = next_world
+                    .player_progress
+                    .task_by_template(phase5::LETTER_TASK_TEMPLATE_ID)
+                    .map(|task| task.id)
+                else {
+                    return self.complete_local_response(
+                        request_id,
+                        attempt_id,
+                        "You have no letter to give Róisín.".into(),
+                        "task",
+                    );
+                };
+                if !roisin_present
+                    || !next_world.player_progress.complete_task_explicitly(
+                        task_id,
+                        "give the letter to Róisín",
+                        next_world.player_location,
+                        next_world.clock.now(),
+                    )
+                {
+                    return self.complete_local_response(
+                        request_id,
+                        attempt_id,
+                        "Róisín must be present at Connolly Cottage before you can deliver it."
+                            .into(),
+                        "task",
+                    );
+                }
+                effect_events.push((
+                    SemanticEventKind::TaskChanged,
+                    "You give Peig's sealed letter to Róisín.".into(),
+                    metadata([
+                        ("taskID", task_id.0.to_string()),
+                        ("status", "completed".into()),
+                    ]),
+                ));
+                "Róisín accepts the sealed letter and thanks you for bringing it.".into()
+            }
+            Phase5LocalAction::InvalidWait => unreachable!("handled above"),
+        };
+
+        let mut next_sequence = self.next_event_sequence;
+        let mut emitted = Vec::new();
+        next_sequence += 1;
+        emitted.push(self.make_event_at(
+            EventSequence::new(next_sequence),
+            SemanticEventKind::ActionResult,
+            Some(action_text),
+            None,
+            Some(request_id),
+            Some(attempt_id),
+            Some(TranscriptItemId::new(format!(
+                "{}:action",
+                attempt_id.raw_value
+            ))),
+            false,
+            None,
+            None,
+            true,
+            None,
+            Some(revision),
+            metadata([("capability", "phase5_action".into())]),
+        ));
+        for (kind, content, event_metadata) in effect_events {
+            next_sequence += 1;
+            emitted.push(self.make_event_at(
+                EventSequence::new(next_sequence),
+                kind,
+                Some(content),
+                None,
+                Some(request_id),
+                Some(attempt_id),
+                None,
+                false,
+                None,
+                None,
+                true,
+                None,
+                Some(revision),
+                event_metadata,
+            ));
+        }
+        next_sequence += 1;
+        let terminal = self.make_event_at(
+            EventSequence::new(next_sequence),
+            SemanticEventKind::ResponseCompleted,
+            None,
+            None,
+            Some(request_id),
+            Some(attempt_id),
+            None,
+            false,
+            None,
+            None,
+            true,
+            None,
+            Some(revision),
+            terminal_metadata(ResponseTerminalOutcome::Succeeded),
+        );
+        emitted.push(terminal.clone());
+        for event in &mut emitted {
+            event.game_time = Some(next_world.clock.now());
+        }
+
+        let mut next_requests = self.requests.clone();
+        let request = next_requests
+            .iter_mut()
+            .find(|record| &record.id == request_id)
+            .expect("accepted request exists");
+        request.phase = RequestPhase::Completed;
+        request.terminal_outcome = Some(ResponseTerminalOutcome::Succeeded);
+        request.committed_state_revision = Some(revision);
+        let attempt = request
+            .current_attempt_mut()
+            .expect("accepted attempt exists");
+        attempt.phase = RequestPhase::Completed;
+        attempt.terminal_outcome = Some(ResponseTerminalOutcome::Succeeded);
+        attempt.terminal_event_id = Some(terminal.event_id.clone());
+        attempt.committed_state_revision = Some(revision);
+
+        let mut next_events = self.events.clone();
+        next_events.extend(emitted.iter().cloned());
+        let mut next_older = self.has_older_events;
+        trim_events(&mut next_events, &mut next_older);
+        let save = self.to_save_with(
+            next_world.clone(),
+            next_npcs.clone(),
+            next_phase5.clone(),
+            revision,
+            next_requests.clone(),
+            next_events.iter().cloned().collect(),
+            next_sequence,
+            next_older,
+        );
+        self.persist_candidate(&save)?;
+        self.world = next_world;
+        self.npcs = next_npcs;
+        self.phase5 = next_phase5;
+        self.state_revision = revision;
+        self.requests = next_requests;
+        self.events = next_events;
+        self.has_older_events = next_older;
+        self.next_event_sequence = next_sequence;
+        Ok(self.operation_result(
+            true,
+            Some(request_id.clone()),
+            Some(attempt_id.clone()),
+            emitted,
+            None,
+            Some(ResponseTerminalOutcome::Succeeded),
+            false,
+            None,
+        ))
     }
 
     fn resolve_dialogue_target(&self, text: &str) -> DialogueTarget {
@@ -3117,12 +3635,15 @@ impl MobileSession {
             &TransportMode::walking(),
         );
         let (mut next_world, mut next_npcs) = (self.world.clone(), self.npcs.clone());
+        let mut next_phase5 = self.phase5.clone();
+        let candidate_revision = StateRevision::new(self.state_revision.raw_value + 1);
         let mut changed = false;
         let action_text: String;
         let mut scene = None;
         let mut first_visit = false;
         let mut arrival_people = None;
         let mut schedule_lines = Vec::new();
+        let mut phase5_effect_events = Vec::new();
         match movement {
             MovementResult::Arrived {
                 destination,
@@ -3134,25 +3655,15 @@ impl MobileSession {
                 next_world.record_path_traversal(&path);
                 first_visit = !next_world.visited_locations.contains(&destination);
                 next_world.mark_visited(destination);
-                next_world.clock.advance(i64::from(minutes.max(1)));
-                let schedule_events = next_npcs.tick_schedules(
-                    &next_world.clock,
-                    &next_world.graph,
-                    next_world.weather,
-                    &next_world.event_bus,
+                let advance = advance_mobile_world(
+                    &mut next_world,
+                    &mut next_npcs,
+                    &mut next_phase5,
+                    minutes.max(1),
+                    candidate_revision,
                 );
-                for event in schedule_events {
-                    let line = match event.kind {
-                        limerick_npc::schedule::ScheduleEventKind::Departed { to_name, .. } => {
-                            format!("{} leaves for {}.", event.npc_name, to_name)
-                        }
-                        limerick_npc::schedule::ScheduleEventKind::Arrived {
-                            location_name,
-                            ..
-                        } => format!("{} arrives at {}.", event.npc_name, location_name),
-                    };
-                    schedule_lines.push(line);
-                }
+                schedule_lines = advance.schedule_lines;
+                phase5_effect_events = advance.phase5_events;
                 arrival_people = arrival_presence_text(&next_npcs, destination);
                 action_text = narration;
                 scene = self.content.location_by_engine_id(destination).cloned();
@@ -3165,7 +3676,7 @@ impl MobileSession {
             MovementResult::BlockedByWeather { reason, .. } => action_text = reason,
         }
         let revision = if changed {
-            StateRevision::new(self.state_revision.raw_value + 1)
+            candidate_revision
         } else {
             self.state_revision
         };
@@ -3227,6 +3738,25 @@ impl MobileSession {
                 None,
                 Some(revision),
                 metadata([("source", "schedule".to_string())]),
+            ));
+        }
+        for (kind, content, event_metadata) in phase5_effect_events {
+            next_sequence += 1;
+            emitted.push(self.make_event_at(
+                EventSequence::new(next_sequence),
+                kind,
+                Some(content),
+                None,
+                Some(request_id),
+                Some(attempt_id),
+                None,
+                false,
+                None,
+                None,
+                true,
+                None,
+                Some(revision),
+                event_metadata,
             ));
         }
         if let Some(scene) = scene {
@@ -3302,6 +3832,7 @@ impl MobileSession {
         let save = self.to_save_with(
             next_world.clone(),
             next_npcs.clone(),
+            next_phase5.clone(),
             revision,
             next_requests.clone(),
             next_events.iter().cloned().collect(),
@@ -3311,6 +3842,7 @@ impl MobileSession {
         self.persist_candidate(&save)?;
         self.world = next_world;
         self.npcs = next_npcs;
+        self.phase5 = next_phase5;
         self.state_revision = revision;
         self.requests = next_requests;
         self.events = next_events;
@@ -3351,7 +3883,12 @@ impl MobileSession {
         dialogue: String,
         structured: bool,
         candidate_metadata: BTreeMap<String, String>,
+        proposed_effects: ProposedEndpointEffects,
     ) -> Result<MobileOperationResult, MobileError> {
+        let ProposedEndpointEffects {
+            player_memory: proposed_player_memory,
+            authored_task_offer_id,
+        } = proposed_effects;
         if dialogue.trim().is_empty() {
             return Err(MobileError::CandidateEmpty);
         }
@@ -3454,9 +3991,41 @@ impl MobileSession {
             candidate_metadata.insert("guardReasons".to_string(), apply.guard_reasons.join(","));
         }
 
+        if let Some(memory) = proposed_player_memory.as_ref()
+            && (memory.claim.trim().is_empty()
+                || memory.claim.len() > 512
+                || memory.evidence.trim().is_empty()
+                || !player_input.contains(memory.evidence.trim()))
+        {
+            return self.finish_uncommitted(
+                request_id,
+                attempt_id,
+                ResponseTerminalOutcome::Failed,
+                Some("The proposed memory did not match the player's submitted words.".into()),
+                Some("memory_evidence_mismatch"),
+            );
+        }
+        if let Some(task_offer_id) = authored_task_offer_id.as_deref()
+            && (task_offer_id != phase5::LETTER_TASK_TEMPLATE_ID
+                || grounding.speaker_id != NpcId(22)
+                || self.world.player_location != LocationId(4)
+                || self
+                    .world
+                    .player_progress
+                    .task_by_template(phase5::LETTER_TASK_TEMPLATE_ID)
+                    .is_some())
+        {
+            return self.finish_uncommitted(
+                request_id,
+                attempt_id,
+                ResponseTerminalOutcome::Failed,
+                Some("That task offer is not currently authorized.".into()),
+                Some("unauthorized_task_offer"),
+            );
+        }
+
         let new_revision = StateRevision::new(self.state_revision.raw_value + 1);
         let response_sequence = self.next_event_sequence + 1;
-        let terminal_sequence = response_sequence + 1;
         let response_event = self.make_event_at(
             EventSequence::new(response_sequence),
             SemanticEventKind::NpcDialogue,
@@ -3476,6 +4045,94 @@ impl MobileSession {
             Some(new_revision),
             candidate_metadata,
         );
+        let mut next_phase5 = self.phase5.clone();
+        let mut committed_events = vec![response_event.clone()];
+        let mut next_sequence = response_sequence;
+        if let Some(memory) = proposed_player_memory {
+            let speaker_id = self
+                .content
+                .npc_by_engine_id(grounding.speaker_id)
+                .map(|npc| npc.id.clone())
+                .unwrap_or_default();
+            let location_id = self
+                .content
+                .location_by_engine_id(self.world.player_location)
+                .map(|location| location.id.clone())
+                .unwrap_or_default();
+            let record = KnowledgeRecord {
+                id: Phase5State::memory_id(request_id, &speaker_id, 0),
+                proposition: memory.claim,
+                knowing_npc_id: speaker_id.clone(),
+                classification: EpistemicClassification::PlayerClaim,
+                originating_fact_id: None,
+                originating_request_id: Some(request_id.raw_value.clone()),
+                originating_event_id: Some(response_event.event_id.raw_value.clone()),
+                source_npc_id: None,
+                acquired_at: game_time,
+                location_id,
+                committed_state_revision: new_revision,
+            };
+            if next_phase5.insert_knowledge(record.clone()) {
+                next_sequence += 1;
+                committed_events.push(self.make_event_at(
+                    EventSequence::new(next_sequence),
+                    SemanticEventKind::MemoryAcquired,
+                    Some(record.proposition),
+                    Some(grounding.speaker_name.clone()),
+                    Some(request_id),
+                    Some(attempt_id),
+                    None,
+                    false,
+                    None,
+                    None,
+                    true,
+                    None,
+                    Some(new_revision),
+                    metadata([("knowledgeID", record.id), ("npcID", speaker_id)]),
+                ));
+            }
+        }
+        if authored_task_offer_id.is_some() {
+            let task_id = next_world
+                .player_progress
+                .assign_authored_task(
+                    "Deliver Peig's sealed letter to Róisín Connolly.",
+                    NpcId(22),
+                    LocationId(4),
+                    game_time,
+                    AuthoredTaskMetadata {
+                        template_id: phase5::LETTER_TASK_TEMPLATE_ID.into(),
+                        target_npc: NpcId(4),
+                        progress_condition: "player explicitly takes the sealed letter".into(),
+                        completion_condition: "player gives the letter to a present Róisín".into(),
+                        completion_location: LocationId(13),
+                        originating_request_id: Some(request_id.raw_value.clone()),
+                    },
+                )
+                .map_err(|error| MobileError::Storage(error.to_string()))?;
+            next_sequence += 1;
+            committed_events.push(self.make_event_at(
+                EventSequence::new(next_sequence),
+                SemanticEventKind::TaskChanged,
+                Some("Deliver Peig's sealed letter to Róisín Connolly.".into()),
+                Some(grounding.speaker_name.clone()),
+                Some(request_id),
+                Some(attempt_id),
+                None,
+                false,
+                None,
+                None,
+                true,
+                None,
+                Some(new_revision),
+                metadata([
+                    ("taskID", task_id.0.to_string()),
+                    ("templateID", phase5::LETTER_TASK_TEMPLATE_ID.into()),
+                    ("status", "assigned".into()),
+                ]),
+            ));
+        }
+        let terminal_sequence = next_sequence + 1;
         let terminal_event = self.make_event_at(
             EventSequence::new(terminal_sequence),
             SemanticEventKind::ResponseCompleted,
@@ -3492,6 +4149,7 @@ impl MobileSession {
             Some(new_revision),
             terminal_metadata(ResponseTerminalOutcome::Succeeded),
         );
+        committed_events.push(terminal_event.clone());
 
         let mut next_requests = self.requests.clone();
         let request = next_requests
@@ -3514,13 +4172,13 @@ impl MobileSession {
 
         // Build a complete save candidate before replacing any live state.
         let mut next_events = self.events.clone();
-        next_events.push_back(response_event.clone());
-        next_events.push_back(terminal_event.clone());
+        next_events.extend(committed_events.iter().cloned());
         let mut next_has_older_events = self.has_older_events;
         trim_events(&mut next_events, &mut next_has_older_events);
         let candidate_save = self.to_save_with(
             next_world.clone(),
             next_npcs.clone(),
+            next_phase5.clone(),
             new_revision,
             next_requests.clone(),
             next_events.iter().cloned().collect(),
@@ -3531,6 +4189,7 @@ impl MobileSession {
 
         self.world = next_world;
         self.npcs = next_npcs;
+        self.phase5 = next_phase5;
         self.state_revision = new_revision;
         self.requests = next_requests;
         self.events = next_events;
@@ -3542,7 +4201,7 @@ impl MobileSession {
             true,
             Some(request_id.clone()),
             Some(attempt_id.clone()),
-            vec![response_event, terminal_event],
+            committed_events,
             None,
             Some(ResponseTerminalOutcome::Succeeded),
             false,
@@ -3660,6 +4319,7 @@ impl MobileSession {
         let candidate_save = self.to_save_with(
             self.world.clone(),
             self.npcs.clone(),
+            self.phase5.clone(),
             self.state_revision,
             next_requests.clone(),
             next_events.iter().cloned().collect(),
@@ -3909,7 +4569,9 @@ impl MobileSession {
             .into_iter()
             .cloned()
             .collect();
+        let speaker_stable_id = speaker.id.clone();
         EndpointInvocation {
+            endpoint_contract_version: ENDPOINT_CONTRACT_VERSION,
             contract_version: PRESENTATION_CONTRACT_VERSION,
             session_id: self.session_id.clone(),
             logical_request_id: request_id.clone(),
@@ -3954,6 +4616,42 @@ impl MobileSession {
                 .iter()
                 .take(MAX_GROUNDING_ENTRIES)
                 .cloned()
+                .collect(),
+            acquired_knowledge: self
+                .phase5
+                .knowledge_for(&speaker_stable_id)
+                .into_iter()
+                .filter(|record| record.classification == EpistemicClassification::HeardFromNpc)
+                .take(MAX_GROUNDING_ENTRIES)
+                .map(endpoint_knowledge_record)
+                .collect(),
+            remembered_player_claims: self
+                .phase5
+                .knowledge_for(&speaker_stable_id)
+                .into_iter()
+                .filter(|record| record.classification == EpistemicClassification::PlayerClaim)
+                .take(MAX_GROUNDING_ENTRIES)
+                .map(endpoint_knowledge_record)
+                .collect(),
+            relevant_task_state: self
+                .world
+                .player_progress
+                .tasks()
+                .iter()
+                .filter(|task| {
+                    let Some(authored) = task.authored.as_ref() else {
+                        return false;
+                    };
+                    task.assigned_by == grounding.speaker_id
+                        || authored.target_npc == grounding.speaker_id
+                })
+                .filter_map(|task| {
+                    task.authored.as_ref().map(|authored| RelevantTaskState {
+                        id: task.id.0.to_string(),
+                        authored_template_id: authored.template_id.clone(),
+                        status: task.status,
+                    })
+                })
                 .collect(),
             recent_conversation,
             max_output_chars: 8 * 1024,
@@ -4092,6 +4790,7 @@ impl MobileSession {
         self.to_save_with(
             self.world.clone(),
             self.npcs.clone(),
+            self.phase5.clone(),
             self.state_revision,
             self.requests.clone(),
             self.events.iter().cloned().collect(),
@@ -4105,6 +4804,7 @@ impl MobileSession {
         &self,
         world: WorldState,
         npcs: NpcManager,
+        phase5: Phase5State,
         state_revision: StateRevision,
         requests: Vec<RequestRecord>,
         events: Vec<SemanticEvent>,
@@ -4125,6 +4825,7 @@ impl MobileSession {
             requests,
             events,
             has_older_events,
+            phase5,
         }
     }
 
@@ -4184,6 +4885,213 @@ enum DeterministicCapability {
     People,
     Exits,
     Help,
+}
+
+#[derive(Debug, Clone, Copy)]
+enum Phase5LocalAction {
+    Wait(u16),
+    InvalidWait,
+    TakeLetter,
+    GiveLetter,
+}
+
+type Phase5EffectEvent = (SemanticEventKind, String, BTreeMap<String, String>);
+
+#[derive(Default)]
+struct MobileWorldAdvance {
+    schedule_lines: Vec<String>,
+    phase5_events: Vec<Phase5EffectEvent>,
+}
+
+/// Advance every mobile time-consuming action through one shared pump, then
+/// apply the five deliberately-authored Phase 5 proof rules. The caller owns
+/// the surrounding candidate-state transaction.
+fn advance_mobile_world(
+    world: &mut WorldState,
+    npcs: &mut NpcManager,
+    phase5: &mut Phase5State,
+    minutes: u16,
+    revision: StateRevision,
+) -> MobileWorldAdvance {
+    let mut outcome = MobileWorldAdvance::default();
+    for _ in 0..minutes.max(1) {
+        world.clock.advance(1);
+        let now = world.clock.now();
+        let hour = now.hour();
+        let schedule_events =
+            npcs.tick_schedules(&world.clock, &world.graph, world.weather, &world.event_bus);
+        outcome
+            .schedule_lines
+            .extend(schedule_events.into_iter().map(|event| match event.kind {
+                limerick_npc::schedule::ScheduleEventKind::Departed { to_name, .. } => {
+                    format!("{} leaves for {}.", event.npc_name, to_name)
+                }
+                limerick_npc::schedule::ScheduleEventKind::Arrived { location_name, .. } => {
+                    format!("{} arrives at {}.", event.npc_name, location_name)
+                }
+            }));
+
+        if hour >= 9
+            && npcs
+                .get(NpcId(22))
+                .is_some_and(|npc| npc.location() != LocationId(4))
+        {
+            if let Some(peig) = npcs.get_mut(NpcId(22)) {
+                peig.set_location_and_state(LocationId(4), limerick_npc::types::NpcState::Present);
+            }
+            phase5
+                .last_location_decisions
+                .retain(|decision| decision.npc_id != "npc-peig" || decision.at != now);
+            phase5.last_location_decisions.push(LocationDecision {
+                npc_id: "npc-peig".into(),
+                location_id: "letter-office".into(),
+                cause: LocationDecisionCause::Schedule,
+                at: now,
+                committed_state_revision: revision,
+            });
+            outcome.phase5_events.push((
+                SemanticEventKind::LocationDecided,
+                "Peig Hannigan goes to the Letter Office for the morning post.".into(),
+                metadata([
+                    ("npcID", "npc-peig".into()),
+                    ("locationID", "letter-office".into()),
+                    ("cause", "schedule".into()),
+                ]),
+            ));
+        }
+
+        if hour >= 10 {
+            let (location, location_id, cause) = if world.weather == Weather::HeavyRain {
+                (
+                    LocationId(13),
+                    "connolly-cottage",
+                    LocationDecisionCause::WeatherOverride,
+                )
+            } else {
+                (
+                    LocationId(1),
+                    "kilteevan-village",
+                    LocationDecisionCause::Schedule,
+                )
+            };
+            let changed = npcs
+                .get(NpcId(24))
+                .is_some_and(|npc| npc.location() != location);
+            let decision_changed = phase5
+                .last_location_decisions
+                .iter()
+                .rev()
+                .find(|decision| decision.npc_id == "npc-micheal")
+                .is_none_or(|decision| {
+                    decision.location_id != location_id || decision.cause != cause
+                });
+            if changed && let Some(micheal) = npcs.get_mut(NpcId(24)) {
+                micheal.set_location_and_state(location, limerick_npc::types::NpcState::Present);
+            }
+            if decision_changed {
+                phase5.last_location_decisions.push(LocationDecision {
+                    npc_id: "npc-micheal".into(),
+                    location_id: location_id.into(),
+                    cause: cause.clone(),
+                    at: now,
+                    committed_state_revision: revision,
+                });
+                outcome.phase5_events.push((
+                    SemanticEventKind::LocationDecided,
+                    if cause == LocationDecisionCause::WeatherOverride {
+                        "Heavy rain keeps Mícheál Connolly at the cottage.".into()
+                    } else {
+                        "Mícheál Connolly follows his schedule to Kilteevan Village.".into()
+                    },
+                    metadata([
+                        ("npcID", "npc-micheal".into()),
+                        ("locationID", location_id.into()),
+                        (
+                            "cause",
+                            if cause == LocationDecisionCause::WeatherOverride {
+                                "weather_override"
+                            } else {
+                                "schedule"
+                            }
+                            .into(),
+                        ),
+                    ]),
+                ));
+            }
+        }
+
+        let cottage_ids: Vec<NpcId> = npcs
+            .npcs_at(LocationId(13))
+            .into_iter()
+            .map(|npc| npc.id)
+            .collect();
+        if cottage_ids.contains(&NpcId(24)) && cottage_ids.contains(&NpcId(4)) {
+            let source = phase5
+                .knowledge
+                .iter()
+                .find(|record| {
+                    record.knowing_npc_id == "npc-micheal"
+                        && record.originating_fact_id.as_deref() == Some(phase5::GOSSIP_FACT_ID)
+                })
+                .cloned();
+            if let Some(source) = source {
+                let record = KnowledgeRecord {
+                    id: Phase5State::gossip_id(&source.id, "npc-roisin"),
+                    proposition: source.proposition,
+                    knowing_npc_id: "npc-roisin".into(),
+                    classification: EpistemicClassification::HeardFromNpc,
+                    originating_fact_id: source.originating_fact_id,
+                    originating_request_id: None,
+                    originating_event_id: None,
+                    source_npc_id: Some("npc-micheal".into()),
+                    acquired_at: now,
+                    location_id: "connolly-cottage".into(),
+                    committed_state_revision: revision,
+                };
+                if phase5.insert_knowledge(record.clone()) {
+                    outcome.phase5_events.push((
+                        SemanticEventKind::GossipPropagated,
+                        "Róisín hears Mícheál's concern about moving cattle.".into(),
+                        metadata([
+                            ("knowledgeID", record.id),
+                            ("sourceNpcID", "npc-micheal".into()),
+                            ("recipientNpcID", "npc-roisin".into()),
+                        ]),
+                    ));
+                }
+            }
+        }
+    }
+    outcome
+}
+
+fn phase5_local_action(text: &str) -> Option<Phase5LocalAction> {
+    let normalized = text.trim().trim_end_matches(['.', '!', '?']).to_lowercase();
+    if normalized == "/wait" || normalized.starts_with("/wait ") {
+        return normalized
+            .strip_prefix("/wait ")
+            .and_then(|value| value.trim().parse::<u16>().ok())
+            .filter(|minutes| (1..=1440).contains(minutes))
+            .map(Phase5LocalAction::Wait)
+            .or(Some(Phase5LocalAction::InvalidWait));
+    }
+    if [
+        "take the letter",
+        "take the sealed letter",
+        "accept the letter",
+        "pick up the letter",
+    ]
+    .contains(&normalized.as_str())
+    {
+        return Some(Phase5LocalAction::TakeLetter);
+    }
+    if normalized.contains("give")
+        && normalized.contains("letter")
+        && (normalized.contains("róisín") || normalized.contains("roisin"))
+    {
+        return Some(Phase5LocalAction::GiveLetter);
+    }
+    None
 }
 
 impl DeterministicCapability {
@@ -4962,6 +5870,8 @@ mod tests {
                 dialogue: "I keep the Letter Office and know who has received news from beyond the parish.".to_string(),
                 metadata: BTreeMap::new(),
                 structured: true,
+                proposed_player_memory: None,
+                authored_task_offer_id: None,
             })
             .unwrap();
         assert_eq!(
@@ -4990,6 +5900,8 @@ mod tests {
                 dialogue: "The old castle stands to the north beyond the river.".to_string(),
                 metadata: BTreeMap::new(),
                 structured: true,
+                proposed_player_memory: None,
+                authored_task_offer_id: None,
             })
             .unwrap();
         assert_eq!(
@@ -5057,6 +5969,7 @@ mod tests {
         let request = result.logical_request_id.unwrap();
         let attempt = result.attempt_id.unwrap();
         let base = result.endpoint_invocation.unwrap().base_revision;
+        let revision = session.state_revision();
         let stopped = session.stop(&attempt).unwrap();
         assert_eq!(
             stopped.terminal_outcome,
@@ -5069,9 +5982,21 @@ mod tests {
                 dialogue: "The wall is low.".to_string(),
                 metadata: BTreeMap::new(),
                 structured: true,
+                proposed_player_memory: Some(ProposedPlayerMemory {
+                    claim: "The player grew up in Athleague.".into(),
+                    evidence: "ask Peig".into(),
+                }),
+                authored_task_offer_id: Some(phase5::LETTER_TASK_TEMPLATE_ID.into()),
             })
             .unwrap();
         assert!(late.ignored);
+        assert_eq!(session.state_revision(), revision);
+        assert!(session.phase5_state().knowledge_for("npc-peig").is_empty());
+        assert!(session.world().player_progress.is_empty());
+        assert!(late.events.iter().all(|event| !matches!(
+            event.kind,
+            SemanticEventKind::MemoryAcquired | SemanticEventKind::TaskChanged
+        )));
         assert!(
             session
                 .world()
@@ -5124,6 +6049,8 @@ mod tests {
                 dialogue: "A low stone wall borders the road here.".to_string(),
                 metadata: BTreeMap::new(),
                 structured: true,
+                proposed_player_memory: None,
+                authored_task_offer_id: None,
             })
             .unwrap();
         assert_eq!(
@@ -5149,6 +6076,8 @@ mod tests {
                 dialogue: "A second line.".to_string(),
                 metadata: BTreeMap::new(),
                 structured: true,
+                proposed_player_memory: None,
+                authored_task_offer_id: None,
             })
             .unwrap();
         assert!(late.ignored);
@@ -5177,6 +6106,8 @@ mod tests {
                 dialogue: "not structured".to_string(),
                 metadata: BTreeMap::new(),
                 structured: false,
+                proposed_player_memory: None,
+                authored_task_offer_id: None,
             })
             .unwrap();
         assert_eq!(
@@ -5382,6 +6313,8 @@ mod tests {
                 dialogue: final_text.to_string(),
                 metadata: BTreeMap::new(),
                 structured: true,
+                proposed_player_memory: None,
+                authored_task_offer_id: None,
             })
             .unwrap();
         drop(resumed);
@@ -5450,6 +6383,8 @@ mod tests {
                 dialogue: "A low stone wall borders the road here.".to_string(),
                 metadata: BTreeMap::new(),
                 structured: true,
+                proposed_player_memory: None,
+                authored_task_offer_id: None,
             })
             .unwrap();
         drop(session);
@@ -5565,6 +6500,479 @@ mod tests {
             page.events
                 .iter()
                 .any(|event| event.kind == SemanticEventKind::ActionResult)
+        );
+    }
+
+    fn finish_candidate(
+        session: &mut MobileSession,
+        started: MobileOperationResult,
+        dialogue: &str,
+        memory: Option<ProposedPlayerMemory>,
+        task_offer: Option<&str>,
+    ) -> MobileOperationResult {
+        let attempt_id = started.attempt_id.expect("attempt");
+        let base_revision = started
+            .endpoint_invocation
+            .expect("invocation")
+            .base_revision;
+        session
+            .receive_candidate(EndpointCandidate {
+                attempt_id,
+                base_revision,
+                dialogue: dialogue.into(),
+                metadata: BTreeMap::new(),
+                structured: true,
+                proposed_player_memory: memory,
+                authored_task_offer_id: task_offer.map(str::to_string),
+            })
+            .expect("candidate result")
+    }
+
+    #[test]
+    fn phase5_memory_is_typed_private_idempotent_and_resumable() {
+        let mut session = session();
+        let started = session
+            .submit(None, "I grew up in Athleague.", None)
+            .unwrap();
+        let completed = finish_candidate(
+            &mut session,
+            started,
+            "I'll remember what you told me.",
+            Some(ProposedPlayerMemory {
+                claim: "The player grew up in Athleague.".into(),
+                evidence: "I grew up in Athleague.".into(),
+            }),
+            None,
+        );
+        assert!(
+            completed
+                .events
+                .iter()
+                .any(|event| { event.kind == SemanticEventKind::MemoryAcquired })
+        );
+        let record = session
+            .phase5_state()
+            .knowledge_for("npc-peig")
+            .into_iter()
+            .find(|record| record.classification == EpistemicClassification::PlayerClaim)
+            .unwrap();
+        assert!(record.id.starts_with("memory:"));
+        let memory_json = serde_json::to_value(endpoint_knowledge_record(record)).unwrap();
+        assert_eq!(
+            memory_json
+                .as_object()
+                .unwrap()
+                .keys()
+                .cloned()
+                .collect::<Vec<_>>(),
+            ["classification", "id", "knowingNpcID", "proposition"]
+        );
+        assert!(
+            record
+                .originating_request_id
+                .as_deref()
+                .is_some_and(|id| !id.is_empty())
+        );
+        assert!(
+            session
+                .phase5_state()
+                .knowledge_for("npc-micheal")
+                .iter()
+                .all(|record| { record.classification != EpistemicClassification::PlayerClaim })
+        );
+        assert!(
+            session
+                .phase5_state()
+                .knowledge_for("npc-roisin")
+                .iter()
+                .all(|record| { record.classification != EpistemicClassification::PlayerClaim })
+        );
+
+        let resumed = MobileSession::open_resume(session.save()).unwrap();
+        assert_eq!(
+            resumed
+                .phase5_state()
+                .knowledge_for("npc-peig")
+                .into_iter()
+                .filter(|record| record.classification == EpistemicClassification::PlayerClaim)
+                .count(),
+            1
+        );
+    }
+
+    #[test]
+    fn phase5_invalid_memory_evidence_has_zero_domain_side_effects() {
+        let mut session = session();
+        let started = session.submit(None, "Good morning, Peig.", None).unwrap();
+        let before_revision = session.state_revision();
+        let result = finish_candidate(
+            &mut session,
+            started,
+            "Good morning to you.",
+            Some(ProposedPlayerMemory {
+                claim: "The player grew up in Athleague.".into(),
+                evidence: "I grew up in Athleague.".into(),
+            }),
+            None,
+        );
+        assert_eq!(
+            result.terminal_outcome,
+            Some(ResponseTerminalOutcome::Failed)
+        );
+        assert_eq!(session.state_revision(), before_revision);
+        assert!(session.phase5_state().knowledge_for("npc-peig").is_empty());
+    }
+
+    #[test]
+    fn phase5_unauthorized_task_offer_has_zero_domain_side_effects() {
+        let mut session = session();
+        session.submit(None, "go to Letter Office", None).unwrap();
+        let started = session
+            .submit(None, "Peig, do you have work for me?", None)
+            .unwrap();
+        let before_revision = session.state_revision();
+        let result = finish_candidate(
+            &mut session,
+            started,
+            "I have a delivery for you.",
+            None,
+            Some("invented-task-template"),
+        );
+        assert_eq!(
+            result.terminal_outcome,
+            Some(ResponseTerminalOutcome::Failed)
+        );
+        assert_eq!(session.state_revision(), before_revision);
+        assert!(session.world().player_progress.is_empty());
+        assert!(result.events.iter().all(|event| {
+            !matches!(
+                event.kind,
+                SemanticEventKind::TaskChanged
+                    | SemanticEventKind::MemoryAcquired
+                    | SemanticEventKind::GossipPropagated
+                    | SemanticEventKind::WorldAdvanced
+                    | SemanticEventKind::LocationDecided
+            )
+        }));
+    }
+
+    #[test]
+    fn phase5_gossip_propagates_once_only_to_roisin() {
+        let mut session = session();
+        assert_eq!(session.phase5_state().knowledge_for("npc-roisin").len(), 0);
+        let first = session.submit(None, "/wait 1", None).unwrap();
+        assert!(
+            first
+                .events
+                .iter()
+                .any(|event| { event.kind == SemanticEventKind::GossipPropagated })
+        );
+        assert_eq!(session.phase5_state().knowledge_for("npc-roisin").len(), 1);
+        assert_eq!(session.phase5_state().knowledge_for("npc-peig").len(), 0);
+        session.submit(None, "/wait 1", None).unwrap();
+        assert_eq!(session.phase5_state().knowledge_for("npc-roisin").len(), 1);
+        let resumed = MobileSession::open_resume(session.save()).unwrap();
+        assert_eq!(resumed.phase5_state().knowledge_for("npc-roisin").len(), 1);
+    }
+
+    #[test]
+    fn phase5_letter_task_requires_all_three_authoritative_transitions() {
+        let mut session = session();
+        session.submit(None, "go to Letter Office", None).unwrap();
+        session.submit(None, "/wait 10", None).unwrap();
+        let started = session
+            .submit(None, "Peig, do you have work for me?", None)
+            .unwrap();
+        let assigned = finish_candidate(
+            &mut session,
+            started,
+            "I have a small delivery for you.",
+            None,
+            Some(phase5::LETTER_TASK_TEMPLATE_ID),
+        );
+        assert!(assigned.events.iter().any(|event| {
+            event.kind == SemanticEventKind::TaskChanged
+                && event.metadata.get("status").map(String::as_str) == Some("assigned")
+        }));
+        assert_eq!(
+            session
+                .world()
+                .player_progress
+                .task_by_template(phase5::LETTER_TASK_TEMPLATE_ID)
+                .unwrap()
+                .status,
+            TaskStatus::Assigned
+        );
+        session
+            .submit(None, "take the sealed letter", None)
+            .unwrap();
+        assert_eq!(
+            session
+                .world()
+                .player_progress
+                .task_by_template(phase5::LETTER_TASK_TEMPLATE_ID)
+                .unwrap()
+                .status,
+            TaskStatus::InProgress
+        );
+        let mut resumed = MobileSession::open_resume(session.save()).unwrap();
+        resumed
+            .submit(None, "go to Connolly Cottage", None)
+            .unwrap();
+        resumed
+            .submit(None, "give the letter to Róisín", None)
+            .unwrap();
+        assert_eq!(
+            resumed
+                .world()
+                .player_progress
+                .task_by_template(phase5::LETTER_TASK_TEMPLATE_ID)
+                .unwrap()
+                .status,
+            TaskStatus::Completed
+        );
+        resumed.submit(None, "go to Letter Office", None).unwrap();
+        let follow_up = resumed
+            .submit(None, "Peig, was the letter delivered?", None)
+            .unwrap();
+        let follow_up_invocation = follow_up.endpoint_invocation.unwrap();
+        assert_eq!(
+            follow_up_invocation
+                .relevant_task_state
+                .first()
+                .map(|task| task.status),
+            Some(TaskStatus::Completed)
+        );
+        let task_json = serde_json::to_value(&follow_up_invocation.relevant_task_state[0]).unwrap();
+        assert_eq!(
+            task_json
+                .as_object()
+                .unwrap()
+                .keys()
+                .cloned()
+                .collect::<Vec<_>>(),
+            ["authoredTemplateID", "id", "status"]
+        );
+        let save = resumed.save();
+        assert_eq!(
+            MobileSession::open_resume(save)
+                .unwrap()
+                .world()
+                .player_progress
+                .task_by_template(phase5::LETTER_TASK_TEMPLATE_ID)
+                .unwrap()
+                .status,
+            TaskStatus::Completed
+        );
+    }
+
+    #[test]
+    fn phase5_weather_override_and_schedule_causes_are_authoritative() {
+        let mut clear = session();
+        clear.diagnostic_setup("time", "09:59", true).unwrap();
+        clear.diagnostic_setup("weather", "Clear", true).unwrap();
+        clear.submit(None, "/wait 1", None).unwrap();
+        assert_eq!(
+            clear.npcs().get(NpcId(24)).unwrap().location(),
+            LocationId(1)
+        );
+        assert!(
+            clear
+                .phase5_state()
+                .last_location_decisions
+                .iter()
+                .any(|decision| {
+                    decision.npc_id == "npc-micheal"
+                        && decision.cause == LocationDecisionCause::Schedule
+                })
+        );
+
+        let mut rain = session();
+        rain.diagnostic_setup("time", "09:59", true).unwrap();
+        rain.diagnostic_setup("weather", "Heavy Rain", true)
+            .unwrap();
+        rain.submit(None, "/wait 1", None).unwrap();
+        assert_eq!(
+            rain.npcs().get(NpcId(24)).unwrap().location(),
+            LocationId(13)
+        );
+        assert!(
+            rain.phase5_state()
+                .last_location_decisions
+                .iter()
+                .any(|decision| {
+                    decision.npc_id == "npc-micheal"
+                        && decision.cause == LocationDecisionCause::WeatherOverride
+                })
+        );
+    }
+
+    #[test]
+    fn phase5_peig_schedule_presence_and_diagnostics_survive_resume() {
+        let mut session = session();
+        session.submit(None, "/wait 2", None).unwrap();
+        assert_eq!(
+            session.npcs().get(NpcId(22)).unwrap().location(),
+            LocationId(4)
+        );
+        let revision = session.state_revision();
+        let projection = session.diagnostic_projection("/debug world").unwrap();
+        assert_eq!(session.state_revision(), revision);
+        assert_eq!(projection["stateRevision"]["rawValue"], revision.raw_value);
+        let mut resumed = MobileSession::open_resume(session.save()).unwrap();
+        resumed.submit(None, "go to Letter Office", None).unwrap();
+        assert!(
+            resumed
+                .snapshot()
+                .read_model
+                .nearby_people
+                .iter()
+                .any(|person| person.id == "npc-peig")
+        );
+        assert!(
+            resumed
+                .submit(None, "Peig, are you open?", None)
+                .unwrap()
+                .endpoint_invocation
+                .is_some()
+        );
+    }
+
+    #[test]
+    fn phase5_state_lazily_initializes_from_an_older_save_shape() {
+        let original = session().save();
+        let mut value = serde_json::to_value(original).unwrap();
+        value.as_object_mut().unwrap().remove("phase5");
+        let old_save: MobileSave = serde_json::from_value(value).unwrap();
+        assert!(old_save.phase5.knowledge.is_empty());
+        let resumed = MobileSession::open_resume(old_save).unwrap();
+        assert_eq!(resumed.phase5_state().knowledge_for("npc-micheal").len(), 1);
+    }
+
+    #[test]
+    fn phase5_sqlite_reopen_preserves_all_five_proofs() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("phase5-all-proofs.sqlite");
+        let mut session = MobileSession::open_new_sqlite(&path).unwrap();
+
+        let memory = session
+            .submit(None, "I grew up in Athleague.", None)
+            .unwrap();
+        finish_candidate(
+            &mut session,
+            memory,
+            "I'll remember that.",
+            Some(ProposedPlayerMemory {
+                claim: "The player grew up in Athleague.".into(),
+                evidence: "I grew up in Athleague.".into(),
+            }),
+            None,
+        );
+        session.submit(None, "/wait 2", None).unwrap();
+        drop(session);
+
+        let mut session = MobileSession::open_resume_sqlite(&path).unwrap().unwrap();
+        assert_eq!(session.phase5_state().knowledge_for("npc-peig").len(), 1);
+        assert_eq!(session.phase5_state().knowledge_for("npc-roisin").len(), 1);
+        assert_eq!(
+            session.npcs().get(NpcId(22)).unwrap().location(),
+            LocationId(4)
+        );
+
+        session.submit(None, "go to Letter Office", None).unwrap();
+        let offer = session
+            .submit(None, "Peig, do you have work for me?", None)
+            .unwrap();
+        finish_candidate(
+            &mut session,
+            offer,
+            "Take this sealed letter to Róisín.",
+            None,
+            Some(phase5::LETTER_TASK_TEMPLATE_ID),
+        );
+        drop(session);
+
+        let mut session = MobileSession::open_resume_sqlite(&path).unwrap().unwrap();
+        assert_eq!(
+            session
+                .world()
+                .player_progress
+                .task_by_template(phase5::LETTER_TASK_TEMPLATE_ID)
+                .unwrap()
+                .status,
+            TaskStatus::Assigned
+        );
+        session
+            .submit(None, "take the sealed letter", None)
+            .unwrap();
+        drop(session);
+
+        let mut session = MobileSession::open_resume_sqlite(&path).unwrap().unwrap();
+        assert_eq!(
+            session
+                .world()
+                .player_progress
+                .task_by_template(phase5::LETTER_TASK_TEMPLATE_ID)
+                .unwrap()
+                .status,
+            TaskStatus::InProgress
+        );
+        session
+            .submit(None, "go to Connolly Cottage", None)
+            .unwrap();
+        session
+            .submit(None, "give the letter to Róisín", None)
+            .unwrap();
+        session.diagnostic_setup("time", "09:59", true).unwrap();
+        session
+            .diagnostic_setup("weather", "Heavy Rain", true)
+            .unwrap();
+        session.submit(None, "/wait 1", None).unwrap();
+        drop(session);
+
+        let session = MobileSession::open_resume_sqlite(&path).unwrap().unwrap();
+        assert_eq!(
+            session
+                .world()
+                .player_progress
+                .task_by_template(phase5::LETTER_TASK_TEMPLATE_ID)
+                .unwrap()
+                .status,
+            TaskStatus::Completed
+        );
+        assert_eq!(
+            session.npcs().get(NpcId(24)).unwrap().location(),
+            LocationId(13)
+        );
+        assert!(
+            session
+                .phase5_state()
+                .last_location_decisions
+                .iter()
+                .any(|decision| decision.npc_id == "npc-micheal"
+                    && decision.cause == LocationDecisionCause::WeatherOverride)
+        );
+
+        let clear_path = directory.path().join("phase5-clear-weather.sqlite");
+        let mut clear = MobileSession::open_new_sqlite(&clear_path).unwrap();
+        clear.diagnostic_setup("time", "09:59", true).unwrap();
+        clear.diagnostic_setup("weather", "Clear", true).unwrap();
+        clear.submit(None, "/wait 1", None).unwrap();
+        drop(clear);
+        let clear = MobileSession::open_resume_sqlite(&clear_path)
+            .unwrap()
+            .unwrap();
+        assert_eq!(
+            clear.npcs().get(NpcId(24)).unwrap().location(),
+            LocationId(1)
+        );
+        assert!(
+            clear
+                .phase5_state()
+                .last_location_decisions
+                .iter()
+                .any(|decision| decision.npc_id == "npc-micheal"
+                    && decision.cause == LocationDecisionCause::Schedule)
         );
     }
 }

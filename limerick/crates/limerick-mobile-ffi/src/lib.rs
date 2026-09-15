@@ -1,4 +1,4 @@
-//! Owned, callback-free Swift/Rust boundary for the portable Parish runtime.
+//! Owned, callback-free Swift/Rust boundary for the portable Limerick runtime.
 //!
 //! The ABI deliberately carries only borrowed UTF-8 request bytes, owned JSON
 //! response bytes, and an opaque session token. `Session` is a lifecycle
@@ -29,45 +29,45 @@ const MAX_FAILURE_MESSAGE_BYTES: usize = 4 * 1024;
 
 #[repr(C)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct parish_mobile_bytes_t {
+pub struct limerick_mobile_bytes_t {
     pub ptr: *const u8,
     pub len: usize,
 }
 
 #[repr(C)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct parish_mobile_owned_bytes_t {
+pub struct limerick_mobile_owned_bytes_t {
     pub ptr: *mut u8,
     pub len: usize,
 }
 
 #[repr(C)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum parish_mobile_status_t {
-    PARISH_MOBILE_OK = 0,
-    PARISH_MOBILE_INVALID_ARGUMENT = 1,
-    PARISH_MOBILE_INVALID_UTF8 = 2,
-    PARISH_MOBILE_INVALID_HANDLE = 3,
-    PARISH_MOBILE_TOO_LARGE = 4,
-    PARISH_MOBILE_PROTOCOL_ERROR = 5,
-    PARISH_MOBILE_CLOSED = 6,
-    PARISH_MOBILE_INTERNAL_ERROR = 7,
+pub enum limerick_mobile_status_t {
+    LIMERICK_MOBILE_OK = 0,
+    LIMERICK_MOBILE_INVALID_ARGUMENT = 1,
+    LIMERICK_MOBILE_INVALID_UTF8 = 2,
+    LIMERICK_MOBILE_INVALID_HANDLE = 3,
+    LIMERICK_MOBILE_TOO_LARGE = 4,
+    LIMERICK_MOBILE_PROTOCOL_ERROR = 5,
+    LIMERICK_MOBILE_CLOSED = 6,
+    LIMERICK_MOBILE_INTERNAL_ERROR = 7,
 }
 
 #[repr(C)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum parish_mobile_open_kind_t {
-    PARISH_MOBILE_OPEN_NEW = 1,
-    PARISH_MOBILE_OPEN_RESUME = 2,
+pub enum limerick_mobile_open_kind_t {
+    LIMERICK_MOBILE_OPEN_NEW = 1,
+    LIMERICK_MOBILE_OPEN_RESUME = 2,
 }
 
-pub type parish_mobile_handle_t = u64;
+pub type limerick_mobile_handle_t = u64;
 
 #[derive(Debug)]
 struct BackendError {
     code: &'static str,
     message: String,
-    status: parish_mobile_status_t,
+    status: limerick_mobile_status_t,
 }
 
 impl BackendError {
@@ -75,7 +75,7 @@ impl BackendError {
         Self {
             code: "protocol_error",
             message: message.into(),
-            status: parish_mobile_status_t::PARISH_MOBILE_PROTOCOL_ERROR,
+            status: limerick_mobile_status_t::LIMERICK_MOBILE_PROTOCOL_ERROR,
         }
     }
 
@@ -83,7 +83,7 @@ impl BackendError {
         Self {
             code: "internal_error",
             message: message.into(),
-            status: parish_mobile_status_t::PARISH_MOBILE_INTERNAL_ERROR,
+            status: limerick_mobile_status_t::LIMERICK_MOBILE_INTERNAL_ERROR,
         }
     }
 }
@@ -104,24 +104,24 @@ struct Session {
     poisoned: AtomicBool,
 }
 
-static SESSIONS: OnceLock<Mutex<HashMap<parish_mobile_handle_t, Arc<Session>>>> = OnceLock::new();
+static SESSIONS: OnceLock<Mutex<HashMap<limerick_mobile_handle_t, Arc<Session>>>> = OnceLock::new();
 static NEXT_HANDLE: AtomicU64 = AtomicU64::new(1);
 
-fn sessions() -> &'static Mutex<HashMap<parish_mobile_handle_t, Arc<Session>>> {
+fn sessions() -> &'static Mutex<HashMap<limerick_mobile_handle_t, Arc<Session>>> {
     SESSIONS.get_or_init(|| Mutex::new(HashMap::new()))
 }
 
-fn panic_contained<F>(function: F) -> parish_mobile_status_t
+fn panic_contained<F>(function: F) -> limerick_mobile_status_t
 where
-    F: FnOnce() -> parish_mobile_status_t,
+    F: FnOnce() -> limerick_mobile_status_t,
 {
     match catch_unwind(AssertUnwindSafe(function)) {
         Ok(status) => status,
-        Err(_) => parish_mobile_status_t::PARISH_MOBILE_INTERNAL_ERROR,
+        Err(_) => limerick_mobile_status_t::LIMERICK_MOBILE_INTERNAL_ERROR,
     }
 }
 
-fn clear_owned_output(out_response: *mut parish_mobile_owned_bytes_t) {
+fn clear_owned_output(out_response: *mut limerick_mobile_owned_bytes_t) {
     if !out_response.is_null() {
         // SAFETY: callers validate this output pointer before entering the
         // panic-contained boundary. Zeroing it first makes a caught panic
@@ -129,7 +129,7 @@ fn clear_owned_output(out_response: *mut parish_mobile_owned_bytes_t) {
         unsafe {
             ptr::write(
                 out_response,
-                parish_mobile_owned_bytes_t {
+                limerick_mobile_owned_bytes_t {
                     ptr: ptr::null_mut(),
                     len: 0,
                 },
@@ -138,12 +138,15 @@ fn clear_owned_output(out_response: *mut parish_mobile_owned_bytes_t) {
     }
 }
 
-fn read_utf8(bytes: parish_mobile_bytes_t, limit: usize) -> Result<String, parish_mobile_status_t> {
+fn read_utf8(
+    bytes: limerick_mobile_bytes_t,
+    limit: usize,
+) -> Result<String, limerick_mobile_status_t> {
     if bytes.len != 0 && bytes.ptr.is_null() {
-        return Err(parish_mobile_status_t::PARISH_MOBILE_INVALID_ARGUMENT);
+        return Err(limerick_mobile_status_t::LIMERICK_MOBILE_INVALID_ARGUMENT);
     }
     if bytes.len > limit {
-        return Err(parish_mobile_status_t::PARISH_MOBILE_TOO_LARGE);
+        return Err(limerick_mobile_status_t::LIMERICK_MOBILE_TOO_LARGE);
     }
     if bytes.len == 0 {
         return Ok(String::new());
@@ -153,19 +156,19 @@ fn read_utf8(bytes: parish_mobile_bytes_t, limit: usize) -> Result<String, paris
     let raw = unsafe { slice::from_raw_parts(bytes.ptr, bytes.len) };
     str::from_utf8(raw)
         .map(str::to_owned)
-        .map_err(|_| parish_mobile_status_t::PARISH_MOBILE_INVALID_UTF8)
+        .map_err(|_| limerick_mobile_status_t::LIMERICK_MOBILE_INVALID_UTF8)
 }
 
-fn owned_bytes(bytes: Vec<u8>) -> Result<parish_mobile_owned_bytes_t, BackendError> {
+fn owned_bytes(bytes: Vec<u8>) -> Result<limerick_mobile_owned_bytes_t, BackendError> {
     if bytes.len() > MAX_RESPONSE_BYTES {
         return Err(BackendError {
             code: "response_too_large",
             message: format!("response exceeds {} bytes", MAX_RESPONSE_BYTES),
-            status: parish_mobile_status_t::PARISH_MOBILE_TOO_LARGE,
+            status: limerick_mobile_status_t::LIMERICK_MOBILE_TOO_LARGE,
         });
     }
     if bytes.is_empty() {
-        return Ok(parish_mobile_owned_bytes_t {
+        return Ok(limerick_mobile_owned_bytes_t {
             ptr: ptr::null_mut(),
             len: 0,
         });
@@ -173,10 +176,10 @@ fn owned_bytes(bytes: Vec<u8>) -> Result<parish_mobile_owned_bytes_t, BackendErr
     let boxed = bytes.into_boxed_slice();
     let len = boxed.len();
     let ptr = Box::into_raw(boxed) as *mut u8;
-    Ok(parish_mobile_owned_bytes_t { ptr, len })
+    Ok(limerick_mobile_owned_bytes_t { ptr, len })
 }
 
-fn release_owned_bytes(bytes: parish_mobile_owned_bytes_t) {
+fn release_owned_bytes(bytes: limerick_mobile_owned_bytes_t) {
     if bytes.ptr.is_null() {
         return;
     }
@@ -206,18 +209,18 @@ fn error_envelope(error: &BackendError) -> Vec<u8> {
 }
 
 fn write_owned(
-    out_response: *mut parish_mobile_owned_bytes_t,
+    out_response: *mut limerick_mobile_owned_bytes_t,
     bytes: Vec<u8>,
-) -> parish_mobile_status_t {
+) -> limerick_mobile_status_t {
     if out_response.is_null() {
-        return parish_mobile_status_t::PARISH_MOBILE_INVALID_ARGUMENT;
+        return limerick_mobile_status_t::LIMERICK_MOBILE_INVALID_ARGUMENT;
     }
     match owned_bytes(bytes) {
         Ok(result) => {
             // SAFETY: the output pointer was checked for null and points to
             // caller-owned storage for this call.
             unsafe { ptr::write(out_response, result) };
-            parish_mobile_status_t::PARISH_MOBILE_OK
+            limerick_mobile_status_t::LIMERICK_MOBILE_OK
         }
         Err(error) => {
             let result = owned_bytes(error_envelope(&error));
@@ -231,25 +234,25 @@ fn write_owned(
 }
 
 fn write_error(
-    out_response: *mut parish_mobile_owned_bytes_t,
-    status: parish_mobile_status_t,
+    out_response: *mut limerick_mobile_owned_bytes_t,
+    status: limerick_mobile_status_t,
     message: impl Into<String>,
-) -> parish_mobile_status_t {
+) -> limerick_mobile_status_t {
     let error = BackendError {
         code: match status {
-            parish_mobile_status_t::PARISH_MOBILE_INVALID_ARGUMENT => "invalid_argument",
-            parish_mobile_status_t::PARISH_MOBILE_INVALID_UTF8 => "invalid_utf8",
-            parish_mobile_status_t::PARISH_MOBILE_INVALID_HANDLE => "invalid_handle",
-            parish_mobile_status_t::PARISH_MOBILE_TOO_LARGE => "too_large",
-            parish_mobile_status_t::PARISH_MOBILE_CLOSED => "closed",
-            parish_mobile_status_t::PARISH_MOBILE_INTERNAL_ERROR => "internal_error",
+            limerick_mobile_status_t::LIMERICK_MOBILE_INVALID_ARGUMENT => "invalid_argument",
+            limerick_mobile_status_t::LIMERICK_MOBILE_INVALID_UTF8 => "invalid_utf8",
+            limerick_mobile_status_t::LIMERICK_MOBILE_INVALID_HANDLE => "invalid_handle",
+            limerick_mobile_status_t::LIMERICK_MOBILE_TOO_LARGE => "too_large",
+            limerick_mobile_status_t::LIMERICK_MOBILE_CLOSED => "closed",
+            limerick_mobile_status_t::LIMERICK_MOBILE_INTERNAL_ERROR => "internal_error",
             _ => "protocol_error",
         },
         message: message.into(),
         status,
     };
     if out_response.is_null() {
-        return parish_mobile_status_t::PARISH_MOBILE_INVALID_ARGUMENT;
+        return limerick_mobile_status_t::LIMERICK_MOBILE_INVALID_ARGUMENT;
     }
     let bytes = error_envelope(&error);
     match owned_bytes(bytes) {
@@ -257,18 +260,18 @@ fn write_error(
             // SAFETY: the output pointer was checked for null above.
             unsafe { ptr::write(out_response, result) };
         }
-        Err(_) => return parish_mobile_status_t::PARISH_MOBILE_INTERNAL_ERROR,
+        Err(_) => return limerick_mobile_status_t::LIMERICK_MOBILE_INTERNAL_ERROR,
     }
     status
 }
 
-fn lookup(handle: parish_mobile_handle_t) -> Result<Arc<Session>, parish_mobile_status_t> {
+fn lookup(handle: limerick_mobile_handle_t) -> Result<Arc<Session>, limerick_mobile_status_t> {
     sessions()
         .lock()
-        .map_err(|_| parish_mobile_status_t::PARISH_MOBILE_INTERNAL_ERROR)?
+        .map_err(|_| limerick_mobile_status_t::LIMERICK_MOBILE_INTERNAL_ERROR)?
         .get(&handle)
         .cloned()
-        .ok_or(parish_mobile_status_t::PARISH_MOBILE_INVALID_HANDLE)
+        .ok_or(limerick_mobile_status_t::LIMERICK_MOBILE_INVALID_HANDLE)
 }
 
 fn validate_operation(operation: &str) -> Result<(), BackendError> {
@@ -295,6 +298,8 @@ fn validate_operation(operation: &str) -> Result<(), BackendError> {
         "read_event_page_before",
         "snapshot",
         "pending_endpoint",
+        "diagnostic_projection",
+        "diagnostic_setup",
     ];
     if !allowed.contains(&operation) {
         return Err(BackendError::protocol(format!(
@@ -317,7 +322,7 @@ fn validate_operation(operation: &str) -> Result<(), BackendError> {
 }
 
 fn open_backend(
-    kind: parish_mobile_open_kind_t,
+    kind: limerick_mobile_open_kind_t,
     request: &str,
 ) -> Result<(Box<dyn Backend>, String), BackendError> {
     #[cfg(feature = "engine-api")]
@@ -336,7 +341,8 @@ fn open_backend(
 #[cfg(feature = "engine-api")]
 mod core_backend {
     use super::{
-        Backend, BackendError, MAX_EVENT_PAGE, MAX_RESPONSE_BYTES, Value, parish_mobile_open_kind_t,
+        Backend, BackendError, MAX_EVENT_PAGE, MAX_RESPONSE_BYTES, Value,
+        limerick_mobile_open_kind_t,
     };
     use limerick_core::mobile::{
         DraftId, EndpointCandidate, EndpointFailureKind, EndpointFrame, EventCursor, EventPage,
@@ -516,7 +522,7 @@ mod core_backend {
                         "presentation event exceeds {} byte response bound",
                         MAX_RESPONSE_BYTES
                     ),
-                    status: super::parish_mobile_status_t::PARISH_MOBILE_TOO_LARGE,
+                    status: super::limerick_mobile_status_t::LIMERICK_MOBILE_TOO_LARGE,
                 });
             }
             if backwards {
@@ -647,7 +653,7 @@ mod core_backend {
                     "presentation snapshot exceeds {} byte response bound",
                     MAX_RESPONSE_BYTES
                 ),
-                status: super::parish_mobile_status_t::PARISH_MOBILE_TOO_LARGE,
+                status: super::limerick_mobile_status_t::LIMERICK_MOBILE_TOO_LARGE,
             });
         }
     }
@@ -795,6 +801,16 @@ mod core_backend {
                         .get("structured")
                         .and_then(Value::as_bool)
                         .unwrap_or(false);
+                    let proposed_player_memory = object
+                        .get("proposed_player_memory")
+                        .or_else(|| object.get("proposedPlayerMemory"))
+                        .map(|value| parse(value, "proposed_player_memory"))
+                        .transpose()?;
+                    let authored_task_offer_id = object
+                        .get("authored_task_offer_id")
+                        .or_else(|| object.get("authoredTaskOfferID"))
+                        .map(|value| parse(value, "authored_task_offer_id"))
+                        .transpose()?;
                     as_json(
                         self.session
                             .receive_candidate(EndpointCandidate {
@@ -803,6 +819,8 @@ mod core_backend {
                                 dialogue,
                                 metadata,
                                 structured,
+                                proposed_player_memory,
+                                authored_task_offer_id,
                             })
                             .map_err(|error| BackendError::protocol(error.to_string()))?,
                     )?
@@ -862,6 +880,23 @@ mod core_backend {
                 }
                 "snapshot" => bounded_snapshot_value(self.session.snapshot())?,
                 "pending_endpoint" => as_json(self.session.take_pending_invocation())?,
+                "diagnostic_projection" => {
+                    let command: String = parse(required(object, "command")?, "command")?;
+                    self.session
+                        .diagnostic_projection(&command)
+                        .map_err(|error| BackendError::protocol(error.to_string()))?
+                }
+                "diagnostic_setup" => {
+                    let kind: String = parse(required(object, "kind")?, "kind")?;
+                    let value: String = parse(required(object, "value")?, "value")?;
+                    let confirmed = object
+                        .get("confirmed")
+                        .and_then(Value::as_bool)
+                        .unwrap_or(false);
+                    self.session
+                        .diagnostic_setup(&kind, &value, confirmed)
+                        .map_err(|error| BackendError::protocol(error.to_string()))?
+                }
                 other => {
                     return Err(BackendError::protocol(format!(
                         "unknown mobile operation `{other}`"
@@ -876,7 +911,7 @@ mod core_backend {
     }
 
     pub(super) fn open(
-        kind: parish_mobile_open_kind_t,
+        kind: limerick_mobile_open_kind_t,
         request: &str,
     ) -> Result<(Box<dyn Backend>, String), BackendError> {
         let options: Value = serde_json::from_str(request).map_err(|error| {
@@ -888,13 +923,15 @@ mod core_backend {
             .and_then(Value::as_str)
             .filter(|path| !path.is_empty());
         let session = match kind {
-            parish_mobile_open_kind_t::PARISH_MOBILE_OPEN_NEW => if let Some(path) = save_path {
-                MobileSession::open_new_sqlite(Path::new(path))
-            } else {
-                MobileSession::open_new()
+            limerick_mobile_open_kind_t::LIMERICK_MOBILE_OPEN_NEW => {
+                if let Some(path) = save_path {
+                    MobileSession::open_new_sqlite(Path::new(path))
+                } else {
+                    MobileSession::open_new()
+                }
+                .map_err(|error| BackendError::internal(error.to_string()))?
             }
-            .map_err(|error| BackendError::internal(error.to_string()))?,
-            parish_mobile_open_kind_t::PARISH_MOBILE_OPEN_RESUME => {
+            limerick_mobile_open_kind_t::LIMERICK_MOBILE_OPEN_RESUME => {
                 if let Some(path) = save_path {
                     let path = Path::new(path);
                     let existed_before = path
@@ -930,15 +967,15 @@ mod core_backend {
 }
 
 #[unsafe(no_mangle)]
-pub extern "C" fn parish_mobile_open(
-    kind: parish_mobile_open_kind_t,
-    request_json: parish_mobile_bytes_t,
-    out_handle: *mut parish_mobile_handle_t,
-    out_response: *mut parish_mobile_owned_bytes_t,
-) -> parish_mobile_status_t {
+pub extern "C" fn limerick_mobile_open(
+    kind: limerick_mobile_open_kind_t,
+    request_json: limerick_mobile_bytes_t,
+    out_handle: *mut limerick_mobile_handle_t,
+    out_response: *mut limerick_mobile_owned_bytes_t,
+) -> limerick_mobile_status_t {
     panic_contained(|| {
         if out_handle.is_null() || out_response.is_null() {
-            return parish_mobile_status_t::PARISH_MOBILE_INVALID_ARGUMENT;
+            return limerick_mobile_status_t::LIMERICK_MOBILE_INVALID_ARGUMENT;
         }
         // Initialize both foreign-owned outputs before any fallible work. If
         // a panic is caught below, the caller can safely inspect/release the
@@ -980,7 +1017,7 @@ pub extern "C" fn parish_mobile_open(
             release_owned_bytes(opening);
             return write_error(
                 out_response,
-                parish_mobile_status_t::PARISH_MOBILE_INTERNAL_ERROR,
+                limerick_mobile_status_t::LIMERICK_MOBILE_INTERNAL_ERROR,
                 "session registry lock poisoned",
             );
         }
@@ -989,12 +1026,12 @@ pub extern "C" fn parish_mobile_open(
         // `opening` was allocated successfully before registry insertion, so
         // this write cannot fail and cannot leak a published handle.
         unsafe { ptr::write(out_response, opening) };
-        parish_mobile_status_t::PARISH_MOBILE_OK
+        limerick_mobile_status_t::LIMERICK_MOBILE_OK
     })
 }
 
 fn validate_open_request(
-    kind: parish_mobile_open_kind_t,
+    kind: limerick_mobile_open_kind_t,
     request: &str,
 ) -> Result<(), BackendError> {
     let value: Value = serde_json::from_str(request)
@@ -1002,8 +1039,10 @@ fn validate_open_request(
     if !value.is_object() {
         return Err(BackendError::protocol("open payload must be a JSON object"));
     }
-    if matches!(kind, parish_mobile_open_kind_t::PARISH_MOBILE_OPEN_RESUME)
-        && value.as_object().is_some_and(|object| object.is_empty())
+    if matches!(
+        kind,
+        limerick_mobile_open_kind_t::LIMERICK_MOBILE_OPEN_RESUME
+    ) && value.as_object().is_some_and(|object| object.is_empty())
     {
         return Err(BackendError::protocol("resume payload cannot be empty"));
     }
@@ -1011,14 +1050,14 @@ fn validate_open_request(
 }
 
 #[unsafe(no_mangle)]
-pub extern "C" fn parish_mobile_dispatch(
-    handle: parish_mobile_handle_t,
-    operation_json: parish_mobile_bytes_t,
-    out_response: *mut parish_mobile_owned_bytes_t,
-) -> parish_mobile_status_t {
+pub extern "C" fn limerick_mobile_dispatch(
+    handle: limerick_mobile_handle_t,
+    operation_json: limerick_mobile_bytes_t,
+    out_response: *mut limerick_mobile_owned_bytes_t,
+) -> limerick_mobile_status_t {
     panic_contained(|| {
         if out_response.is_null() {
-            return parish_mobile_status_t::PARISH_MOBILE_INVALID_ARGUMENT;
+            return limerick_mobile_status_t::LIMERICK_MOBILE_INVALID_ARGUMENT;
         }
         clear_owned_output(out_response);
         let operation = match read_utf8(operation_json, MAX_REQUEST_BYTES) {
@@ -1035,7 +1074,7 @@ pub extern "C" fn parish_mobile_dispatch(
         if session.closed.load(Ordering::Acquire) || session.poisoned.load(Ordering::Acquire) {
             return write_error(
                 out_response,
-                parish_mobile_status_t::PARISH_MOBILE_CLOSED,
+                limerick_mobile_status_t::LIMERICK_MOBILE_CLOSED,
                 "session is closed",
             );
         }
@@ -1052,7 +1091,7 @@ pub extern "C" fn parish_mobile_dispatch(
                 return Err(BackendError {
                     code: "closed",
                     message: "session is closed".to_owned(),
-                    status: parish_mobile_status_t::PARISH_MOBILE_CLOSED,
+                    status: limerick_mobile_status_t::LIMERICK_MOBILE_CLOSED,
                 });
             }
             backend.dispatch_json(&operation)
@@ -1064,7 +1103,7 @@ pub extern "C" fn parish_mobile_dispatch(
                 session.poisoned.store(true, Ordering::Release);
                 return write_error(
                     out_response,
-                    parish_mobile_status_t::PARISH_MOBILE_INTERNAL_ERROR,
+                    limerick_mobile_status_t::LIMERICK_MOBILE_INTERNAL_ERROR,
                     "session panicked and is closed for recovery",
                 );
             }
@@ -1077,16 +1116,18 @@ pub extern "C" fn parish_mobile_dispatch(
 }
 
 #[unsafe(no_mangle)]
-pub extern "C" fn parish_mobile_close(handle: parish_mobile_handle_t) -> parish_mobile_status_t {
+pub extern "C" fn limerick_mobile_close(
+    handle: limerick_mobile_handle_t,
+) -> limerick_mobile_status_t {
     panic_contained(|| {
         let session = match sessions().lock() {
             Ok(mut registry) => registry.remove(&handle),
             Err(_) => {
-                return parish_mobile_status_t::PARISH_MOBILE_INTERNAL_ERROR;
+                return limerick_mobile_status_t::LIMERICK_MOBILE_INTERNAL_ERROR;
             }
         };
         let Some(session) = session else {
-            return parish_mobile_status_t::PARISH_MOBILE_INVALID_HANDLE;
+            return limerick_mobile_status_t::LIMERICK_MOBILE_INVALID_HANDLE;
         };
         session.closed.store(true, Ordering::Release);
         let result = catch_unwind(AssertUnwindSafe(|| {
@@ -1097,26 +1138,26 @@ pub extern "C" fn parish_mobile_close(handle: parish_mobile_handle_t) -> parish_
             backend.close()
         }));
         match result {
-            Ok(Ok(())) => parish_mobile_status_t::PARISH_MOBILE_OK,
+            Ok(Ok(())) => limerick_mobile_status_t::LIMERICK_MOBILE_OK,
             Ok(Err(error)) => error.status,
-            Err(_) => parish_mobile_status_t::PARISH_MOBILE_INTERNAL_ERROR,
+            Err(_) => limerick_mobile_status_t::LIMERICK_MOBILE_INTERNAL_ERROR,
         }
     })
 }
 
 #[unsafe(no_mangle)]
-pub extern "C" fn parish_mobile_owned_bytes_free(
-    bytes: parish_mobile_owned_bytes_t,
-) -> parish_mobile_status_t {
+pub extern "C" fn limerick_mobile_owned_bytes_free(
+    bytes: limerick_mobile_owned_bytes_t,
+) -> limerick_mobile_status_t {
     panic_contained(|| {
         if bytes.len != 0 && bytes.ptr.is_null() {
-            return parish_mobile_status_t::PARISH_MOBILE_INVALID_ARGUMENT;
+            return limerick_mobile_status_t::LIMERICK_MOBILE_INVALID_ARGUMENT;
         }
         if bytes.ptr.is_null() {
-            return parish_mobile_status_t::PARISH_MOBILE_OK;
+            return limerick_mobile_status_t::LIMERICK_MOBILE_OK;
         }
         release_owned_bytes(bytes);
-        parish_mobile_status_t::PARISH_MOBILE_OK
+        limerick_mobile_status_t::LIMERICK_MOBILE_OK
     })
 }
 
@@ -1141,8 +1182,8 @@ mod tests {
         };
         assert_eq!(text, "céad 🌧️");
         assert_eq!(
-            parish_mobile_owned_bytes_free(value),
-            parish_mobile_status_t::PARISH_MOBILE_OK
+            limerick_mobile_owned_bytes_free(value),
+            limerick_mobile_status_t::LIMERICK_MOBILE_OK
         );
     }
 
@@ -1156,7 +1197,7 @@ mod tests {
 
     #[test]
     fn panic_safe_output_starts_empty() {
-        let mut output = parish_mobile_owned_bytes_t {
+        let mut output = limerick_mobile_owned_bytes_t {
             ptr: ptr::dangling_mut::<u8>(),
             len: 99,
         };
@@ -1168,70 +1209,70 @@ mod tests {
     #[cfg(feature = "engine-api")]
     #[test]
     fn engine_round_trip_uses_owned_json_and_disposes_handle() {
-        fn borrowed(value: &str) -> parish_mobile_bytes_t {
-            parish_mobile_bytes_t {
+        fn borrowed(value: &str) -> limerick_mobile_bytes_t {
+            limerick_mobile_bytes_t {
                 ptr: value.as_ptr(),
                 len: value.len(),
             }
         }
 
-        fn take(response: parish_mobile_owned_bytes_t) -> Value {
+        fn take(response: limerick_mobile_owned_bytes_t) -> Value {
             let value = unsafe {
                 serde_json::from_slice(slice::from_raw_parts(response.ptr, response.len)).unwrap()
             };
             assert_eq!(
-                parish_mobile_owned_bytes_free(response),
-                parish_mobile_status_t::PARISH_MOBILE_OK
+                limerick_mobile_owned_bytes_free(response),
+                limerick_mobile_status_t::LIMERICK_MOBILE_OK
             );
             value
         }
 
         let mut handle = 0;
-        let mut opening = parish_mobile_owned_bytes_t {
+        let mut opening = limerick_mobile_owned_bytes_t {
             ptr: ptr::null_mut(),
             len: 0,
         };
         assert_eq!(
-            parish_mobile_open(
-                parish_mobile_open_kind_t::PARISH_MOBILE_OPEN_NEW,
+            limerick_mobile_open(
+                limerick_mobile_open_kind_t::LIMERICK_MOBILE_OPEN_NEW,
                 borrowed("{}"),
                 &mut handle,
                 &mut opening,
             ),
-            parish_mobile_status_t::PARISH_MOBILE_OK
+            limerick_mobile_status_t::LIMERICK_MOBILE_OK
         );
         let opening = take(opening);
         assert_eq!(opening["ok"], true);
         assert!(opening["value"]["sessionID"].is_string());
 
-        let mut submitted = parish_mobile_owned_bytes_t {
+        let mut submitted = limerick_mobile_owned_bytes_t {
             ptr: ptr::null_mut(),
             len: 0,
         };
         assert_eq!(
-            parish_mobile_dispatch(
+            limerick_mobile_dispatch(
                 handle,
                 borrowed(r#"{"op":"submit","text":"/look"}"#),
                 &mut submitted,
             ),
-            parish_mobile_status_t::PARISH_MOBILE_OK
+            limerick_mobile_status_t::LIMERICK_MOBILE_OK
         );
         let submitted = take(submitted);
         assert_eq!(submitted["ok"], true);
         assert_eq!(submitted["value"]["accepted"], true);
         assert_eq!(submitted["value"]["events"].as_array().unwrap().len(), 3);
 
-        let mut pending = parish_mobile_owned_bytes_t {
+        let mut pending = limerick_mobile_owned_bytes_t {
             ptr: ptr::null_mut(),
             len: 0,
         };
         assert_eq!(
-            parish_mobile_dispatch(
+            limerick_mobile_dispatch(
                 handle,
                 borrowed(r#"{"op":"submit","text":"ask Peig about the wall"}"#),
                 &mut pending,
             ),
-            parish_mobile_status_t::PARISH_MOBILE_OK
+            limerick_mobile_status_t::LIMERICK_MOBILE_OK
         );
         let pending = take(pending);
         let invocation = &pending["value"]["endpointInvocation"];
@@ -1245,13 +1286,13 @@ mod tests {
             serde_json::to_string(&attempt_id).unwrap(),
             serde_json::to_string(&base_revision).unwrap(),
         );
-        let mut failed = parish_mobile_owned_bytes_t {
+        let mut failed = limerick_mobile_owned_bytes_t {
             ptr: ptr::null_mut(),
             len: 0,
         };
         assert_eq!(
-            parish_mobile_dispatch(handle, borrowed(&failure), &mut failed),
-            parish_mobile_status_t::PARISH_MOBILE_OK
+            limerick_mobile_dispatch(handle, borrowed(&failure), &mut failed),
+            limerick_mobile_status_t::LIMERICK_MOBILE_OK
         );
         let failed = take(failed);
         assert_eq!(failed["value"]["terminalOutcome"], "failed");
@@ -1264,13 +1305,13 @@ mod tests {
                 "{{\"op\":\"retry\",\"logicalRequestID\":{}}}",
                 serde_json::to_string(&logical_request_id).unwrap()
             );
-            let mut retry_response = parish_mobile_owned_bytes_t {
+            let mut retry_response = limerick_mobile_owned_bytes_t {
                 ptr: ptr::null_mut(),
                 len: 0,
             };
             assert_eq!(
-                parish_mobile_dispatch(handle, borrowed(&retry_operation), &mut retry_response),
-                parish_mobile_status_t::PARISH_MOBILE_OK
+                limerick_mobile_dispatch(handle, borrowed(&retry_operation), &mut retry_response),
+                limerick_mobile_status_t::LIMERICK_MOBILE_OK
             );
             let retry = take(retry_response);
             let retry_invocation = &retry["value"]["endpointInvocation"];
@@ -1279,33 +1320,33 @@ mod tests {
                 serde_json::to_string(&retry_invocation["attemptID"]).unwrap(),
                 serde_json::to_string(&retry_invocation["baseRevision"]).unwrap(),
             );
-            let mut retry_failure_response = parish_mobile_owned_bytes_t {
+            let mut retry_failure_response = limerick_mobile_owned_bytes_t {
                 ptr: ptr::null_mut(),
                 len: 0,
             };
             assert_eq!(
-                parish_mobile_dispatch(
+                limerick_mobile_dispatch(
                     handle,
                     borrowed(&retry_failure),
                     &mut retry_failure_response,
                 ),
-                parish_mobile_status_t::PARISH_MOBILE_OK
+                limerick_mobile_status_t::LIMERICK_MOBILE_OK
             );
             let retry_failure = take(retry_failure_response);
             assert_eq!(retry_failure["value"]["terminalOutcome"], "failed");
         }
 
-        let mut failed_snapshot = parish_mobile_owned_bytes_t {
+        let mut failed_snapshot = limerick_mobile_owned_bytes_t {
             ptr: ptr::null_mut(),
             len: 0,
         };
         assert_eq!(
-            parish_mobile_dispatch(
+            limerick_mobile_dispatch(
                 handle,
                 borrowed(r#"{"op":"snapshot"}"#),
                 &mut failed_snapshot,
             ),
-            parish_mobile_status_t::PARISH_MOBILE_OK
+            limerick_mobile_status_t::LIMERICK_MOBILE_OK
         );
         let failed_snapshot = take(failed_snapshot);
         let failed_record = failed_snapshot["value"]["requests"]
@@ -1317,17 +1358,34 @@ mod tests {
         assert_eq!(failed_record["phase"], "failed");
         assert!(failed_record["attempts"].as_array().unwrap().len() <= 2);
 
-        assert_eq!(
-            parish_mobile_close(handle),
-            parish_mobile_status_t::PARISH_MOBILE_OK
-        );
-        let mut after_close = parish_mobile_owned_bytes_t {
+        let revision_before = failed_snapshot["value"]["stateRevision"].clone();
+        let mut diagnostic = limerick_mobile_owned_bytes_t {
             ptr: ptr::null_mut(),
             len: 0,
         };
         assert_eq!(
-            parish_mobile_dispatch(handle, borrowed(r#"{"op":"snapshot"}"#), &mut after_close),
-            parish_mobile_status_t::PARISH_MOBILE_INVALID_HANDLE
+            limerick_mobile_dispatch(
+                handle,
+                borrowed(r#"{"op":"diagnostic_projection","command":"/debug knowledge Peig"}"#),
+                &mut diagnostic,
+            ),
+            limerick_mobile_status_t::LIMERICK_MOBILE_OK
+        );
+        let diagnostic = take(diagnostic);
+        assert_eq!(diagnostic["value"]["kind"], "knowledge");
+        assert_eq!(diagnostic["value"]["stateRevision"], revision_before);
+
+        assert_eq!(
+            limerick_mobile_close(handle),
+            limerick_mobile_status_t::LIMERICK_MOBILE_OK
+        );
+        let mut after_close = limerick_mobile_owned_bytes_t {
+            ptr: ptr::null_mut(),
+            len: 0,
+        };
+        assert_eq!(
+            limerick_mobile_dispatch(handle, borrowed(r#"{"op":"snapshot"}"#), &mut after_close),
+            limerick_mobile_status_t::LIMERICK_MOBILE_INVALID_HANDLE
         );
         let after_close = take(after_close);
         assert_eq!(after_close["ok"], false);
@@ -1336,8 +1394,8 @@ mod tests {
     #[cfg(feature = "engine-api")]
     #[test]
     fn resume_does_not_replace_an_existing_empty_save() {
-        fn borrowed(value: &str) -> parish_mobile_bytes_t {
-            parish_mobile_bytes_t {
+        fn borrowed(value: &str) -> limerick_mobile_bytes_t {
+            limerick_mobile_bytes_t {
                 ptr: value.as_ptr(),
                 len: value.len(),
             }
@@ -1356,17 +1414,20 @@ mod tests {
         assert!(path.exists());
         let request = format!(r#"{{"save_path":"{}"}}"#, path.display());
         let mut handle = 0;
-        let mut response = parish_mobile_owned_bytes_t {
+        let mut response = limerick_mobile_owned_bytes_t {
             ptr: ptr::null_mut(),
             len: 0,
         };
-        let status = parish_mobile_open(
-            parish_mobile_open_kind_t::PARISH_MOBILE_OPEN_RESUME,
+        let status = limerick_mobile_open(
+            limerick_mobile_open_kind_t::LIMERICK_MOBILE_OPEN_RESUME,
             borrowed(&request),
             &mut handle,
             &mut response,
         );
-        assert_eq!(status, parish_mobile_status_t::PARISH_MOBILE_INTERNAL_ERROR);
+        assert_eq!(
+            status,
+            limerick_mobile_status_t::LIMERICK_MOBILE_INTERNAL_ERROR
+        );
         assert_eq!(handle, 0);
         assert!(!response.ptr.is_null());
         release_owned_bytes(response);
@@ -1375,21 +1436,21 @@ mod tests {
     #[cfg(feature = "engine-api")]
     #[test]
     fn long_session_presentation_stays_bounded_across_restart() {
-        fn borrowed(value: &str) -> parish_mobile_bytes_t {
-            parish_mobile_bytes_t {
+        fn borrowed(value: &str) -> limerick_mobile_bytes_t {
+            limerick_mobile_bytes_t {
                 ptr: value.as_ptr(),
                 len: value.len(),
             }
         }
 
-        fn take(response: parish_mobile_owned_bytes_t) -> (Value, usize) {
+        fn take(response: limerick_mobile_owned_bytes_t) -> (Value, usize) {
             let length = response.len;
             let value = unsafe {
                 serde_json::from_slice(slice::from_raw_parts(response.ptr, response.len)).unwrap()
             };
             assert_eq!(
-                parish_mobile_owned_bytes_free(response),
-                parish_mobile_status_t::PARISH_MOBILE_OK
+                limerick_mobile_owned_bytes_free(response),
+                limerick_mobile_status_t::LIMERICK_MOBILE_OK
             );
             (value, length)
         }
@@ -1398,18 +1459,18 @@ mod tests {
         let path = directory.path().join("long-session.sqlite");
         let open_request = format!(r#"{{"save_path":"{}"}}"#, path.display());
         let mut handle = 0;
-        let mut opening = parish_mobile_owned_bytes_t {
+        let mut opening = limerick_mobile_owned_bytes_t {
             ptr: ptr::null_mut(),
             len: 0,
         };
         assert_eq!(
-            parish_mobile_open(
-                parish_mobile_open_kind_t::PARISH_MOBILE_OPEN_NEW,
+            limerick_mobile_open(
+                limerick_mobile_open_kind_t::LIMERICK_MOBILE_OPEN_NEW,
                 borrowed(&open_request),
                 &mut handle,
                 &mut opening,
             ),
-            parish_mobile_status_t::PARISH_MOBILE_OK
+            limerick_mobile_status_t::LIMERICK_MOBILE_OK
         );
         let (_, opening_bytes) = take(opening);
         assert!(opening_bytes <= MAX_RESPONSE_BYTES);
@@ -1419,27 +1480,27 @@ mod tests {
         // the complete ledger remains in SQLite for paging after restart.
         for _ in 0..400 {
             let command = r#"{"op":"submit","text":"/look"}"#;
-            let mut response = parish_mobile_owned_bytes_t {
+            let mut response = limerick_mobile_owned_bytes_t {
                 ptr: ptr::null_mut(),
                 len: 0,
             };
             assert_eq!(
-                parish_mobile_dispatch(handle, borrowed(command), &mut response),
-                parish_mobile_status_t::PARISH_MOBILE_OK
+                limerick_mobile_dispatch(handle, borrowed(command), &mut response),
+                limerick_mobile_status_t::LIMERICK_MOBILE_OK
             );
             let (value, bytes) = take(response);
             assert!(value["ok"].as_bool().unwrap());
             assert!(bytes <= MAX_RESPONSE_BYTES);
         }
 
-        fn dispatch(handle: parish_mobile_handle_t, operation: &str) -> (Value, usize) {
-            let mut response = parish_mobile_owned_bytes_t {
+        fn dispatch(handle: limerick_mobile_handle_t, operation: &str) -> (Value, usize) {
+            let mut response = limerick_mobile_owned_bytes_t {
                 ptr: ptr::null_mut(),
                 len: 0,
             };
             assert_eq!(
-                parish_mobile_dispatch(handle, borrowed(operation), &mut response),
-                parish_mobile_status_t::PARISH_MOBILE_OK
+                limerick_mobile_dispatch(handle, borrowed(operation), &mut response),
+                limerick_mobile_status_t::LIMERICK_MOBILE_OK
             );
             take(response)
         }
@@ -1473,25 +1534,25 @@ mod tests {
             backward_events.first().unwrap()["sequence"]
         );
         assert_eq!(
-            parish_mobile_close(handle),
-            parish_mobile_status_t::PARISH_MOBILE_OK
+            limerick_mobile_close(handle),
+            limerick_mobile_status_t::LIMERICK_MOBILE_OK
         );
 
         // Reopening must return the same bounded presentation contract while
         // retaining the full durable event/request ledger for the next page.
         let mut resumed_handle = 0;
-        let mut resumed = parish_mobile_owned_bytes_t {
+        let mut resumed = limerick_mobile_owned_bytes_t {
             ptr: ptr::null_mut(),
             len: 0,
         };
         assert_eq!(
-            parish_mobile_open(
-                parish_mobile_open_kind_t::PARISH_MOBILE_OPEN_RESUME,
+            limerick_mobile_open(
+                limerick_mobile_open_kind_t::LIMERICK_MOBILE_OPEN_RESUME,
                 borrowed(&open_request),
                 &mut resumed_handle,
                 &mut resumed,
             ),
-            parish_mobile_status_t::PARISH_MOBILE_OK
+            limerick_mobile_status_t::LIMERICK_MOBILE_OK
         );
         let (resumed_snapshot, resumed_bytes) = take(resumed);
         assert!(resumed_bytes <= MAX_RESPONSE_BYTES);
@@ -1503,39 +1564,39 @@ mod tests {
                 .is_empty()
         );
         assert_eq!(
-            parish_mobile_close(resumed_handle),
-            parish_mobile_status_t::PARISH_MOBILE_OK
+            limerick_mobile_close(resumed_handle),
+            limerick_mobile_status_t::LIMERICK_MOBILE_OK
         );
     }
 
     #[cfg(feature = "engine-api")]
     #[test]
     fn unresolved_clarification_survives_bounded_restart_projection() {
-        fn borrowed(value: &str) -> parish_mobile_bytes_t {
-            parish_mobile_bytes_t {
+        fn borrowed(value: &str) -> limerick_mobile_bytes_t {
+            limerick_mobile_bytes_t {
                 ptr: value.as_ptr(),
                 len: value.len(),
             }
         }
 
-        fn take(response: parish_mobile_owned_bytes_t) -> Value {
+        fn take(response: limerick_mobile_owned_bytes_t) -> Value {
             let value = unsafe {
                 serde_json::from_slice(slice::from_raw_parts(response.ptr, response.len)).unwrap()
             };
             assert_eq!(
-                parish_mobile_owned_bytes_free(response),
-                parish_mobile_status_t::PARISH_MOBILE_OK
+                limerick_mobile_owned_bytes_free(response),
+                limerick_mobile_status_t::LIMERICK_MOBILE_OK
             );
             value
         }
 
-        fn dispatch(handle: parish_mobile_handle_t, operation: &str) -> Value {
-            let mut response = parish_mobile_owned_bytes_t {
+        fn dispatch(handle: limerick_mobile_handle_t, operation: &str) -> Value {
+            let mut response = limerick_mobile_owned_bytes_t {
                 ptr: ptr::null_mut(),
                 len: 0,
             };
-            let status = parish_mobile_dispatch(handle, borrowed(operation), &mut response);
-            if status != parish_mobile_status_t::PARISH_MOBILE_OK {
+            let status = limerick_mobile_dispatch(handle, borrowed(operation), &mut response);
+            if status != limerick_mobile_status_t::LIMERICK_MOBILE_OK {
                 panic!(
                     "dispatch {operation} failed with {status:?}: {}",
                     take(response)
@@ -1548,18 +1609,18 @@ mod tests {
         let path = directory.path().join("clarification.sqlite");
         let open_request = format!(r#"{{"save_path":"{}"}}"#, path.display());
         let mut handle = 0;
-        let mut opening = parish_mobile_owned_bytes_t {
+        let mut opening = limerick_mobile_owned_bytes_t {
             ptr: ptr::null_mut(),
             len: 0,
         };
         assert_eq!(
-            parish_mobile_open(
-                parish_mobile_open_kind_t::PARISH_MOBILE_OPEN_NEW,
+            limerick_mobile_open(
+                limerick_mobile_open_kind_t::LIMERICK_MOBILE_OPEN_NEW,
                 borrowed(&open_request),
                 &mut handle,
                 &mut opening,
             ),
-            parish_mobile_status_t::PARISH_MOBILE_OK
+            limerick_mobile_status_t::LIMERICK_MOBILE_OK
         );
         let _ = take(opening);
 
@@ -1603,23 +1664,23 @@ mod tests {
         );
 
         assert_eq!(
-            parish_mobile_close(handle),
-            parish_mobile_status_t::PARISH_MOBILE_OK
+            limerick_mobile_close(handle),
+            limerick_mobile_status_t::LIMERICK_MOBILE_OK
         );
 
         let mut resumed_handle = 0;
-        let mut resumed = parish_mobile_owned_bytes_t {
+        let mut resumed = limerick_mobile_owned_bytes_t {
             ptr: ptr::null_mut(),
             len: 0,
         };
         assert_eq!(
-            parish_mobile_open(
-                parish_mobile_open_kind_t::PARISH_MOBILE_OPEN_RESUME,
+            limerick_mobile_open(
+                limerick_mobile_open_kind_t::LIMERICK_MOBILE_OPEN_RESUME,
                 borrowed(&open_request),
                 &mut resumed_handle,
                 &mut resumed,
             ),
-            parish_mobile_status_t::PARISH_MOBILE_OK
+            limerick_mobile_status_t::LIMERICK_MOBILE_OK
         );
         let resumed_snapshot = take(resumed);
         let resumed_record = resumed_snapshot["value"]["requests"]
@@ -1642,8 +1703,8 @@ mod tests {
         assert!(answered["value"]["accepted"].as_bool().unwrap());
         assert!(answered["value"]["endpointInvocation"].is_object());
         assert_eq!(
-            parish_mobile_close(resumed_handle),
-            parish_mobile_status_t::PARISH_MOBILE_OK
+            limerick_mobile_close(resumed_handle),
+            limerick_mobile_status_t::LIMERICK_MOBILE_OK
         );
     }
 }

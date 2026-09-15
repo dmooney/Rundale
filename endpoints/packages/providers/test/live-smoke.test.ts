@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { ModelProvider, ProviderInvocation } from "@parish/runtime";
+import type { ModelProvider, ProviderInvocation } from "@limerick/runtime";
 import { GoogleProvider, OpenAIProvider } from "../src/index.js";
 
 const enabled = process.env.LIVE_PROVIDER_TESTS === "true";

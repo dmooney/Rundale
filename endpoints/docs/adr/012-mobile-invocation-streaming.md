@@ -42,7 +42,7 @@ correlation headers do not promise replay.
 ## Consequences
 
 The native app can call the data plane directly without a shared consumer key
-or provider credential. Parish on device remains the authority: deltas are
+or provider credential. Limerick on device remains the authority: deltas are
 provisional, and only the engine's canonical validation of the terminal
 candidate can commit gameplay or durable transcript state.
 

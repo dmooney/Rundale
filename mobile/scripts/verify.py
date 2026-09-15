@@ -25,8 +25,8 @@ SKIPPED = "skipped"
 UNAVAILABLE = "unavailable"
 NOT_AUTOMATABLE = "not_automatable"
 STATUSES = {PASSED, FAILED, SKIPPED, UNAVAILABLE, NOT_AUTOMATABLE}
-IMPLEMENTED_PHASE = 4
-IMPLEMENTED_PHASES = (1, 2, 3, 4)
+IMPLEMENTED_PHASE = 5
+IMPLEMENTED_PHASES = (1, 2, 3, 4, 5)
 LAST_PHASE = 6
 RUST_TOOLCHAIN = "1.98.0"
 FORBIDDEN_MOBILE_DEPENDENCIES = (
@@ -1190,7 +1190,7 @@ class VerificationRun:
             (
                 "physical-iphone-phase2-streaming",
                 "Physical iPhone Phase 2 Endpoint streaming",
-                "requires a human session with the deployed Parish Endpoint on a connected iPhone",
+                "requires a human session with the deployed Limerick Endpoint on a connected iPhone",
             ),
         ):
             self._record(
@@ -1207,7 +1207,7 @@ class VerificationRun:
     def _phase2_live_endpoint(self) -> None:
         self._record(
             identifier="live-endpoint-integration",
-            name="Opt-in live Parish Endpoint integration",
+            name="Opt-in live Limerick Endpoint integration",
             phase=2,
             status=UNAVAILABLE,
             required=False,
@@ -1264,7 +1264,7 @@ class VerificationRun:
     ) -> None:
         self._cargo_test(
             identifier="limerick-core-mobile-tests",
-            name="Parish core portable mobile tests",
+            name="Limerick core portable mobile tests",
             package="limerick-core",
             cargo_args=("--no-default-features", "--features", "mobile", "--lib", "mobile::"),
         )
@@ -1282,13 +1282,13 @@ class VerificationRun:
         )
         self._cargo_test(
             identifier="limerick-persistence-mobile-tests",
-            name="Parish mobile persistence tests",
+            name="Limerick mobile persistence tests",
             package="limerick-persistence",
             cargo_args=("mobile::",),
         )
         self._cargo_test(
             identifier="limerick-mobile-ffi-tests",
-            name="Parish mobile FFI tests",
+            name="Limerick mobile FFI tests",
             package="limerick-mobile-ffi",
         )
         self._mobile_dependency_graph()
@@ -1331,11 +1331,11 @@ class VerificationRun:
             name="RundaleBridge Swift bridge tests",
             phase=2,
         )
-        endpoint_kit_path = self.root / "mobile" / "ParishEndpointKit"
+        endpoint_kit_path = self.root / "mobile" / "LimerickEndpointKit"
         self._swift_package_tests(
             package_path=endpoint_kit_path,
             identifier="swift-endpoint-kit-tests",
-            name="ParishEndpointKit Swift Endpoint tests",
+            name="LimerickEndpointKit Swift Endpoint tests",
             phase=2,
         )
         self._phase2_simulator_tests(xcodegen_ok, ready)
@@ -1345,7 +1345,7 @@ class VerificationRun:
     def _phase3(self, *, reuse_native_setup: bool) -> None:
         self._cargo_test(
             identifier="limerick-core-phase3-tests",
-            name="Parish canonical tiny-world tests",
+            name="Limerick canonical tiny-world tests",
             package="limerick-core",
             cargo_args=(
                 "--no-default-features",
@@ -1500,6 +1500,80 @@ class VerificationRun:
                 reason=reason,
             )
 
+    def _phase5(self) -> None:
+        """Living-world authority, bridge, native proof, and physical gate."""
+        self._cargo_test(
+            identifier="limerick-core-phase5-tests",
+            name="Phase 5 living-world Rust proofs",
+            package="limerick-core",
+            cargo_args=(
+                "--no-default-features",
+                "--features",
+                "mobile",
+                "--lib",
+                "phase5_",
+            ),
+        )
+        self._cargo_test(
+            identifier="limerick-mobile-ffi-phase5-tests",
+            name="Phase 5 typed diagnostic bridge tests",
+            package="limerick-mobile-ffi",
+        )
+        source = self.ui_tests_path / "RundalePhase5UITests.swift"
+        xcodegen_ok = any(
+            record["id"] == "xcodegen" and record["status"] == PASSED for record in self.records
+        )
+        ready = self.simulator is not None and any(
+            (
+                record["id"] == "simulator-bootstatus"
+                and record["status"] == PASSED
+            )
+            or (
+                record["id"] == "simulator-boot"
+                and record["status"] == SKIPPED
+                and record["kind"] == "infrastructure"
+            )
+            for record in self.records
+        )
+        if not source.exists():
+            self._missing(
+                "phase5-ios-simulator-tests",
+                "Phase 5 native living-world suite",
+                5,
+                f"required native test source is missing: {_relative(source, self.root)}",
+            )
+        elif not xcodegen_ok or not ready or self.simulator is None:
+            self._skip(
+                "phase5-ios-simulator-tests",
+                "Phase 5 native living-world suite",
+                5,
+                "blocked because the native project or simulator is not ready",
+                required=True,
+            )
+        else:
+            record = self._xcodebuild(
+                "phase5-simulator",
+                f"platform=iOS Simulator,id={self.simulator['udid']}",
+                phase=5,
+                identifier="phase5-ios-simulator-tests",
+                name="Phase 5 native living-world suite",
+                only_testing="RundaleUITests/RundalePhase5UITests",
+            )
+            if record["status"] == PASSED:
+                self._validate_result(
+                    record, phase=5, summary_identifier="phase5-ios-simulator-test-results"
+                )
+        self._record(
+            identifier="physical-iphone-phase5-living-world",
+            name="Physical iPhone Phase 5 living-world proof",
+            phase=5,
+            status=NOT_AUTOMATABLE,
+            required=True,
+            automatable=False,
+            kind="physical",
+            reason="requires the five authoritative proofs, force-quit/resume, and cancellation on one signed internal-build iPhone",
+        )
+
     def _phase1(self) -> None:
         self._swift_tests()
         xcodegen_ok = self._xcodegen()
@@ -1516,7 +1590,7 @@ class VerificationRun:
         return {**counts, "blocking": sum(record["blocking"] for record in self.records)}
 
     def run(self, phase: int | None = None) -> dict[str, Any]:
-        if phase is None or phase == 4:
+        if phase is None or phase in {4, 5}:
             # The generated iOS project consumes the Rust XCFramework. Build it
             # before Phase 1 generates/builds that project, then retain the
             # single packaging result when Phase 2 runs its remaining gates.
@@ -1525,6 +1599,8 @@ class VerificationRun:
             self._phase2(reuse_phase1_native_setup=True, rust_packaging_already_run=True)
             self._phase3(reuse_native_setup=True)
             self._phase4()
+            if phase is None or phase == 5:
+                self._phase5()
             if phase is None:
                 self._future()
         elif phase == 1:

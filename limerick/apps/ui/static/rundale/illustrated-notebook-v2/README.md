@@ -12,8 +12,8 @@ but no runtime file is cut from that concept image.
 
 ## Provenance
 
-- `parish-crossroads-watercolor.png` and
-  `parish-crossroads-watercolor-mobile.png` were generated as fresh desktop and
+- `limerick-crossroads-watercolor.png` and
+  `limerick-crossroads-watercolor-mobile.png` were generated as fresh desktop and
   vertical watercolor plates for this rebuild, using the canonical concept's
   1820 rural-Irish setting, low-oblique composition, fine ink, muted watercolor,
   and open center-scene direction.

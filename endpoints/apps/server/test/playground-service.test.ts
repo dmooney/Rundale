@@ -1,7 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { RuntimeError, type RuntimeAttempt, type SemanticRuntime } from "@parish/runtime";
-import { FakeProvider, FixedPriceCostCalculator, StaticProviderRegistry } from "@parish/providers";
-import { DeterministicRuntime } from "@parish/runtime";
+import { RuntimeError, type RuntimeAttempt, type SemanticRuntime } from "@limerick/runtime";
+import {
+  FakeProvider,
+  FixedPriceCostCalculator,
+  StaticProviderRegistry,
+} from "@limerick/providers";
+import { DeterministicRuntime } from "@limerick/runtime";
 import { PlaygroundService } from "../src/control/playground-service.js";
 import type { CreatorPrincipal } from "../src/control/contracts.js";
 import { MemoryControlRepository } from "./memory-control-repository.js";

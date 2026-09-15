@@ -9,8 +9,8 @@ import {
   operatorControls,
   organizations,
   type Database,
-} from "@parish/database";
-import type { EndpointVersionSnapshot } from "@parish/domain";
+} from "@limerick/database";
+import type { EndpointVersionSnapshot } from "@limerick/domain";
 import { InvocationQuotaExceededError } from "../invocation/contracts.js";
 import type {
   InvocationApiKey,

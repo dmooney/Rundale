@@ -1,5 +1,5 @@
 {
-  "name": "@parish/schemas",
+  "name": "@limerick/schemas",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -15,7 +15,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@parish/domain": "workspace:*",
+    "@limerick/domain": "workspace:*",
     "ajv": "^8.18.0",
     "ajv-formats": "^3.0.1"
   }

@@ -1,6 +1,6 @@
-Parish Endpoints: Product Vision
+Limerick Endpoints: Product Vision
 Status: Draft
-Working name / domain: Parish / parish.dev
+Working name / domain: Limerick / limerick.dev
 Initial implementation system: Goblin
 1. Vision
 Make proprietary AI behavior publishable as a hosted API endpoint without requiring the creator to build, host, scale, secure, or operate an API service.
@@ -19,7 +19,7 @@ ________________
 2. The Core Idea
 Traditional APIs expose deterministic software functions:
 input -> code -> output
-Parish Endpoints expose useful AI behavior:
+Limerick Endpoints expose useful AI behavior:
 typed input
    ->
 private AI implementation
@@ -48,11 +48,11 @@ The caller depends only on the API contract.
 ________________
 
 
-2.1 Parish Naming and Product Boundary
-Parish is the working umbrella name and parish.dev is the working domain.
-Parish may ultimately encompass multiple developer tools, including:
-* Parish Engine — the Rundale-derived game/simulation engine.
-* Parish Endpoints — the hosted AI API product described in this document.
+2.1 Limerick Naming and Product Boundary
+Limerick is the working umbrella name and limerick.dev is the working domain.
+Limerick may ultimately encompass multiple developer tools, including:
+* Limerick Engine — the Rundale-derived game/simulation engine.
+* Limerick Endpoints — the hosted AI API product described in this document.
 These remain separate runtime boundaries and deployables even when the
 Endpoints workspace is maintained inside the Rundale repository.
 Within this product, Endpoint is the working first-class noun.
@@ -63,7 +63,7 @@ An Endpoint is not a Lambda-style serverless function. A creator does not upload
 * inference settings,
 * an output contract,
 * versioned publication state.
-Parish hosts the HTTP interface and performs the managed LLM invocation behind it.
+Limerick hosts the HTTP interface and performs the managed LLM invocation behind it.
 Terminology:
 Term
 	Meaning
@@ -73,12 +73,12 @@ Term
 	An immutable published implementation/configuration
 	Endpoint Definition
 	Model, private instructions, schemas, and inference settings
-	Parish API
+	Limerick API
 	The management/control API creators use to create and manage Endpoints
 	Endpoint URL
 	The callable HTTP URL an application invokes
-	Parish Engine
-	Separate Rundale-derived game/simulation tooling under the Parish umbrella
+	Limerick Engine
+	Separate Rundale-derived game/simulation tooling under the Limerick umbrella
 	The implementation behind an Endpoint may become more sophisticated over time, but the consumer contract remains an API endpoint rather than executable user code.
 ________________
 
@@ -118,7 +118,7 @@ ________________
 4. Product Thesis
 AI capabilities should be deployable at a higher abstraction level than containers, serverless functions, or model endpoints.
 The unit of publication should be an Endpoint.
-A Parish Endpoint has:
+A Limerick Endpoint has:
 * a stable identifier,
 * an input contract,
 * an output contract,
@@ -152,7 +152,7 @@ Output
 
 [ Publish ]
 The platform returns:
-POST /v1/endpoints/parish-demo/seed-packet-parser
+POST /v1/endpoints/limerick-demo/seed-packet-parser
 Authorization: Bearer <caller-api-key>
 Content-Type: multipart/form-data
 The caller sends an image.
@@ -243,7 +243,7 @@ ________________
 MVP
 9. MVP Goal
 Prove that a developer can define an AI capability in a web interface and immediately consume it from a real application through a hosted API without writing or deploying backend inference code.
-The MVP succeeds when Cottage can replace its seed-packet AI integration with an Endpoint hosted entirely by Parish.
+The MVP succeeds when Cottage can replace its seed-packet AI integration with an Endpoint hosted entirely by Limerick.
 The marketplace is not required for the MVP.
 ________________
 
@@ -353,7 +353,7 @@ A minimal public API might expose:
 POST /v1/endpoints/{organizationSlug}/{endpointSlug}
 POST /v1/endpoints/{organizationSlug}/{endpointSlug}/versions/{version}
 Example:
-POST /v1/endpoints/parish-demo/seed-packet-parser
+POST /v1/endpoints/limerick-demo/seed-packet-parser
 Authorization: Bearer sfk_live_...
 The default endpoint invokes the currently promoted production version.
 Explicit version invocation allows callers to pin behavior.

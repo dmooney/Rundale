@@ -180,7 +180,7 @@ final class RundaleFixtureController: ObservableObject, RundaleSessionControllin
     func loadOlderTranscript() async {
         // The fixture adapter's authored histories are already delivered in
         // one deterministic bounded session. Production paging is owned by
-        // the SQLite-backed Parish controller below.
+        // the SQLite-backed Limerick controller below.
     }
 
     func restoredDraft() -> Draft? {

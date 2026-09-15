@@ -12,4 +12,4 @@ Firebase client configuration is public build-time configuration. No Firebase se
 
 ## Consequences
 
-The Parish runtime service identity needs read-only Firebase Authentication access for revocation checks. Each deployed web hostname must be registered as a Firebase authorized domain. The initial console offers Google sign-in only, while local development can continue using the explicit synthetic identity mode.
+The Limerick runtime service identity needs read-only Firebase Authentication access for revocation checks. Each deployed web hostname must be registered as a Firebase authorized domain. The initial console offers Google sign-in only, while local development can continue using the explicit synthetic identity mode.

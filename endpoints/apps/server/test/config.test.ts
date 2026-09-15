@@ -10,7 +10,7 @@ describe("server configuration", () => {
         FIREBASE_PROJECT_ID: "synthetic-project",
         DATABASE_URL: "postgres://synthetic",
         WEB_ORIGIN: "http://localhost:3000",
-        PARISH_OWNER_FIREBASE_UID: "synthetic-owner",
+        LIMERICK_OWNER_FIREBASE_UID: "synthetic-owner",
       }).authMode,
     ).toBe("firebase");
     expect(readServerConfig({ AUTH_MODE: "development" }).authMode).toBe("development");
@@ -19,7 +19,7 @@ describe("server configuration", () => {
   it("rejects development authentication on Cloud Run", () => {
     expect(() =>
       readServerConfig({
-        K_SERVICE: "parish-server",
+        K_SERVICE: "limerick-server",
         AUTH_MODE: "development",
       }),
     ).toThrow(/Cloud Run requires AUTH_MODE=firebase/);
@@ -93,7 +93,7 @@ describe("server configuration", () => {
         ...base,
         DATABASE_URL: "postgres://synthetic",
         WEB_ORIGIN: "https://app.example",
-        PARISH_OWNER_FIREBASE_UID: "synthetic-owner",
+        LIMERICK_OWNER_FIREBASE_UID: "synthetic-owner",
       }).databaseUrl,
     ).toBe("postgres://synthetic");
   });

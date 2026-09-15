@@ -30,6 +30,8 @@
 	<string>$(RUNDALE_ENDPOINT_SLUG)</string>
 	<key>RUNDALE_ENDPOINT_VERSION</key>
 	<string>$(RUNDALE_ENDPOINT_VERSION)</string>
+	<key>RUNDALE_INTERNAL_DIAGNOSTICS</key>
+	<string>$(RUNDALE_INTERNAL_DIAGNOSTICS)</string>
 	<key>UILaunchScreen</key>
 	<dict/>
 </dict>

@@ -184,7 +184,8 @@ public struct SessionReducer: Sendable {
                 state.updateScene(SceneSummary(id: event.metadata["scene"] ?? content, name: content))
             }
             upsertTranscript(for: event, state: &state, stateOverride: .committed)
-        case .narration, .npcDialogue, .actionResult:
+        case .narration, .npcDialogue, .actionResult, .memoryAcquired,
+             .gossipPropagated, .taskChanged, .worldAdvanced, .locationDecided:
             updateRequest(event, phase: event.provisional ? .executing : nil, in: &state)
             upsertTranscript(for: event, state: &state, stateOverride: event.provisional ? .provisional : .committed)
         case .error:
@@ -503,5 +504,18 @@ public final class PresentationSession {
 
     public func loadOlderTranscript(items: [TranscriptItem], hasOlderItems: Bool) {
         reducer.reduce(.loadOlderTranscript(items: items, hasOlderItems: hasOlderItems), in: &state)
+    }
+
+    /// Adds an internal diagnostic row without touching the authoritative
+    /// event cursor, request ledger, or persisted engine state.
+    public func appendEphemeralDiagnostic(_ content: String) {
+        state.upsertTranscriptItem(TranscriptItem(
+            id: TranscriptItemID("diagnostic-\(UUID().uuidString)"),
+            kind: .actionResult,
+            content: content,
+            state: .committed,
+            lastEventSequence: EventSequence(state.eventCursor.rawValue),
+            metadata: ["ephemeral": "true", "source": "rust_diagnostic_projection"]
+        ))
     }
 }

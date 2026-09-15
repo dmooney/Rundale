@@ -4,6 +4,33 @@
   "content_id": "rundale-phase3-kilteevan",
   "starting_location_id": "kilteevan-village",
   "starting_minute": 538,
+  "proofs": [
+    {
+      "id": "proof-memory-athleague",
+      "kind": "memory",
+      "description": "Peig alone remembers the player's typed claim that they grew up in Athleague."
+    },
+    {
+      "id": "proof-gossip-micheal-stock",
+      "kind": "gossip",
+      "description": "Mícheál's authored cattle fact propagates once to Róisín during morning contact at Connolly Cottage and never to Peig."
+    },
+    {
+      "id": "proof-task-sealed-letter",
+      "kind": "task",
+      "description": "Peig assigns one sealed-letter delivery that progresses on taking the letter and completes only when it is given to a present Róisín at Connolly Cottage."
+    },
+    {
+      "id": "proof-weather-micheal-rain",
+      "kind": "weather",
+      "description": "At 10:00 Mícheál follows his schedule to Kilteevan Village in clear weather and remains at Connolly Cottage in heavy rain."
+    },
+    {
+      "id": "proof-schedule-peig-office",
+      "kind": "schedule",
+      "description": "At 09:00 Peig moves from Kilteevan Village to the Letter Office and presence, conversation availability, and restored state agree."
+    }
+  ],
   "locations": [
     {
       "id": "kilteevan-village",

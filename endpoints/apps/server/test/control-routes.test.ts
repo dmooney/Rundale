@@ -5,8 +5,12 @@ import { buildServer } from "../src/app.js";
 import type { ServerConfig } from "../src/config.js";
 import { ControlService } from "../src/control/service.js";
 import { PlaygroundService } from "../src/control/playground-service.js";
-import { FakeProvider, FixedPriceCostCalculator, StaticProviderRegistry } from "@parish/providers";
-import { DeterministicRuntime } from "@parish/runtime";
+import {
+  FakeProvider,
+  FixedPriceCostCalculator,
+  StaticProviderRegistry,
+} from "@limerick/providers";
+import { DeterministicRuntime } from "@limerick/runtime";
 import { MemoryControlRepository } from "./memory-control-repository.js";
 import { MemoryInvocationRepository } from "./memory-invocation-repository.js";
 
@@ -105,12 +109,12 @@ describe("control-plane workflow", () => {
       headers: {
         origin: config.webOrigin,
         "access-control-request-method": "PUT",
-        "access-control-request-headers": "content-type,x-parish-owner-id",
+        "access-control-request-headers": "content-type,x-limerick-owner-id",
       },
     });
     expect(response.statusCode).toBe(204);
     expect(response.headers["access-control-allow-methods"]).toContain("PUT");
-    expect(response.headers["access-control-allow-headers"]).toContain("x-parish-owner-id");
+    expect(response.headers["access-control-allow-headers"]).toContain("x-limerick-owner-id");
   });
 
   it("requires creator authentication", async () => {

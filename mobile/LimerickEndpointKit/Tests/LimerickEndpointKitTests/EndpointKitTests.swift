@@ -1,6 +1,6 @@
 import Foundation
 import XCTest
-@testable import ParishEndpointKit
+@testable import LimerickEndpointKit
 
 final class EndpointKitTests: XCTestCase {
     private struct CompletedMockTransport: EndpointTransport {
@@ -112,7 +112,7 @@ final class EndpointKitTests: XCTestCase {
 
     func testCompletedResponseReturnsStrictJSONAndRequestIdentity() async throws {
         let body = Data(#"{"dialogue":"The rain has eased."}"#.utf8)
-        let client = ParishEndpointClient(
+        let client = LimerickEndpointClient(
             credentials: StaticEndpointCredentialProvider(.init(authorizationToken: "firebase-id-token")),
             transport: CompletedMockTransport(status: 200, contentType: "application/json; charset=utf-8", body: body, delay: 0)
         )
@@ -126,7 +126,7 @@ final class EndpointKitTests: XCTestCase {
 
     func testCompletedRequestUsesJSONHeadersAndCorrelation() async throws {
         let transport = RecordingCompletedTransport(response: Data(#"{"dialogue":"ok"}"#.utf8))
-        let client = ParishEndpointClient(
+        let client = LimerickEndpointClient(
             credentials: StaticEndpointCredentialProvider(.init(authorizationToken: "firebase-id-token", appCheckToken: "app-check")),
             transport: transport
         )
@@ -145,7 +145,7 @@ final class EndpointKitTests: XCTestCase {
 
     func testCancellationUsesAuthenticatedCorrelationWithoutRequestBody() async throws {
         let transport = RecordingCompletedTransport(response: Data(#"{"status":"cancellation_requested"}"#.utf8))
-        let client = ParishEndpointClient(
+        let client = LimerickEndpointClient(
             credentials: StaticEndpointCredentialProvider(.init(authorizationToken: "firebase-id-token", appCheckToken: "app-check")),
             transport: transport
         )
@@ -167,33 +167,33 @@ final class EndpointKitTests: XCTestCase {
         let request = try completedRequest()
 
         do {
-            _ = try await ParishEndpointClient(
+            _ = try await LimerickEndpointClient(
                 credentials: credentials,
                 transport: CompletedMockTransport(status: 502, contentType: "application/json", body: Data(#"{"error":{"code":"upstream_unavailable","message":"temporary","request_id":"server-r"}}"#.utf8), delay: 0)
             ).complete(request)
             XCTFail("HTTP errors must be surfaced without decoding output")
         } catch {
             XCTAssertEqual(
-                error as? ParishEndpointError,
+                error as? LimerickEndpointError,
                 .responseFailure(status: 502, requestID: "server-r", code: "upstream_unavailable", message: "temporary")
             )
         }
 
         do {
-            _ = try await ParishEndpointClient(
+            _ = try await LimerickEndpointClient(
                 credentials: credentials,
                 transport: CompletedMockTransport(status: 200, contentType: "text/plain", body: Data("ok".utf8), delay: 0)
             ).complete(request)
             XCTFail("non-JSON responses must be rejected")
-        } catch { XCTAssertEqual(error as? ParishEndpointError, .responseNotJSON) }
+        } catch { XCTAssertEqual(error as? LimerickEndpointError, .responseNotJSON) }
 
         do {
-            _ = try await ParishEndpointClient(
+            _ = try await LimerickEndpointClient(
                 credentials: credentials,
                 transport: CompletedMockTransport(status: 200, contentType: "application/json", body: Data("[]".utf8), delay: 0)
             ).complete(request)
             XCTFail("schema output must be a JSON object")
-        } catch { XCTAssertEqual(error as? ParishEndpointError, .malformedResponse("output is not a JSON object")) }
+        } catch { XCTAssertEqual(error as? LimerickEndpointError, .malformedResponse("output is not a JSON object")) }
     }
 
     func testCompletedDialogueRejectsMissingExtraAndOversizeFields() async throws {
@@ -206,19 +206,19 @@ final class EndpointKitTests: XCTestCase {
         ]
         for body in outputs {
             do {
-                _ = try await ParishEndpointClient(
+                _ = try await LimerickEndpointClient(
                     credentials: credentials,
                     transport: CompletedMockTransport(status: 200, contentType: "application/json", body: body, delay: 0)
                 ).complete(try completedRequest())
                 XCTFail("invalid dialogue output must be rejected")
             } catch {
-                XCTAssertEqual(error as? ParishEndpointError, .malformedResponse("output does not match the dialogue schema"))
+                XCTAssertEqual(error as? LimerickEndpointError, .malformedResponse("output does not match the dialogue schema"))
             }
         }
     }
 
     func testCompletedResponseCancellationDoesNotRetry() async throws {
-        let client = ParishEndpointClient(
+        let client = LimerickEndpointClient(
             credentials: StaticEndpointCredentialProvider(.init(authorizationToken: "firebase-id-token")),
             transport: CompletedMockTransport(status: 200, contentType: "application/json", body: Data(#"{"dialogue":"late"}"#.utf8), delay: 2_000_000_000)
         )
@@ -240,6 +240,7 @@ final class EndpointKitTests: XCTestCase {
         attemptID: String = "a",
         invocationID: String = "i",
         eventID: String? = nil,
+        endpointVersion: Int = 1,
         output: [String: Any]? = nil,
         error: [String: Any]? = nil,
         text: String? = nil
@@ -253,7 +254,7 @@ final class EndpointKitTests: XCTestCase {
             "event_id": resolvedEventID,
             "sequence": sequence,
             "type": type,
-            "endpoint_version": 1
+            "endpoint_version": endpointVersion
         ]
         if let output { object["output"] = output }
         if let error { object["error"] = error }
@@ -272,6 +273,51 @@ final class EndpointKitTests: XCTestCase {
         XCTAssertEqual(events.count, 1)
         XCTAssertEqual(events[0].event, "progress")
         XCTAssertTrue(try parser.finish().isEmpty)
+    }
+
+    func testVersionTwoFinalAllowsOnlyBoundedLivingWorldEffects() throws {
+        var validator = EndpointStreamValidator(
+            expectedRequestID: "r",
+            expectedAttemptID: "a",
+            expectedEndpointVersion: 2
+        )
+        let output: [String: Any] = [
+            "dialogue": "I'll remember that.",
+            "proposedPlayerMemory": [
+                "claim": "The player grew up in Athleague.",
+                "evidence": "I grew up in Athleague."
+            ],
+            "authoredTaskOfferID": "task-deliver-peig-letter"
+        ]
+        let frame = try validator.accept(try event(
+            type: "final",
+            sequence: 1,
+            endpointVersion: 2,
+            output: output
+        ))
+        XCTAssertEqual(
+            frame.payload.flatMap { try? JSONSerialization.jsonObject(with: $0) as? [String: Any] }?["authoredTaskOfferID"] as? String,
+            "task-deliver-peig-letter"
+        )
+        try validator.finish()
+
+        for invalidOutput: [String: Any] in [
+            ["dialogue": "No.", "unexpected": true],
+            ["dialogue": "No.", "proposedPlayerMemory": ["claim": "claim"]],
+            ["dialogue": "No.", "authoredTaskOfferID": ""]
+        ] {
+            var invalid = EndpointStreamValidator(
+                expectedRequestID: "r",
+                expectedAttemptID: "a",
+                expectedEndpointVersion: 2
+            )
+            XCTAssertThrowsError(try invalid.accept(try event(
+                type: "final",
+                sequence: 1,
+                endpointVersion: 2,
+                output: invalidOutput
+            )))
+        }
     }
 
     func testVersionedRepositoryFixtureParsesWithFragmentedUTF8Chunks() throws {
@@ -305,7 +351,7 @@ final class EndpointKitTests: XCTestCase {
 
     func testStreamCancellationCallsUnderlyingTransportCancel() async throws {
         let transport = CancellationRecordingTransport()
-        let client = ParishEndpointClient(
+        let client = LimerickEndpointClient(
             credentials: StaticEndpointCredentialProvider(.init(authorizationToken: "token")),
             transport: transport
         )
@@ -328,7 +374,7 @@ final class EndpointKitTests: XCTestCase {
     func testStreamCancelledDuringCredentialCallbackNeverStartsTransport() async throws {
         let credentials = DeferredCredentialProvider()
         let transport = CancellationRecordingTransport()
-        let client = ParishEndpointClient(credentials: credentials, transport: transport)
+        let client = LimerickEndpointClient(credentials: credentials, transport: transport)
         let request = try EndpointRequest(
             url: URL(string: "https://endpoint.example.test/v1/endpoints/rundale/rundale-dialogue/versions/1/stream")!,
             requestID: "r", attemptID: "a", invocationID: "i", body: Data("{}".utf8)
@@ -352,12 +398,12 @@ final class EndpointKitTests: XCTestCase {
         var validator = EndpointStreamValidator(expectedRequestID: "r", expectedAttemptID: "a")
         _ = try validator.accept(try event(type: "text_delta", sequence: 1, text: "a"))
         XCTAssertThrowsError(try validator.accept(try event(type: "final", sequence: 3, output: ["dialogue": "ab"]))) { error in
-            XCTAssertEqual(error as? ParishEndpointError, .outOfOrderSequence(expected: 2, actual: 3))
+            XCTAssertEqual(error as? LimerickEndpointError, .outOfOrderSequence(expected: 2, actual: 3))
         }
 
         var other = EndpointStreamValidator(expectedRequestID: "r", expectedAttemptID: "a")
         XCTAssertThrowsError(try other.accept(try event(type: "text_delta", sequence: 1, requestID: "other", text: "a"))) { error in
-            XCTAssertEqual(error as? ParishEndpointError, .crossCorrelation(expected: "r", actual: "other"))
+            XCTAssertEqual(error as? LimerickEndpointError, .crossCorrelation(expected: "r", actual: "other"))
         }
     }
 
@@ -370,7 +416,7 @@ final class EndpointKitTests: XCTestCase {
             invocationID: "other",
             output: ["dialogue": "ab"]
         ))) { error in
-            XCTAssertEqual(error as? ParishEndpointError, .crossCorrelation(expected: "i", actual: "other"))
+            XCTAssertEqual(error as? LimerickEndpointError, .crossCorrelation(expected: "i", actual: "other"))
         }
     }
 
@@ -378,19 +424,19 @@ final class EndpointKitTests: XCTestCase {
         var validator = EndpointStreamValidator(expectedRequestID: "r", expectedAttemptID: "a")
         _ = try validator.accept(try event(type: "text_delta", sequence: 1, text: "a"))
         XCTAssertThrowsError(try validator.finish()) { error in
-            XCTAssertEqual(error as? ParishEndpointError, .missingTerminal)
+            XCTAssertEqual(error as? LimerickEndpointError, .missingTerminal)
         }
 
         _ = try validator.accept(try event(type: "final", sequence: 2, output: ["dialogue": "ab"]))
         XCTAssertThrowsError(try validator.accept(try event(type: "final", sequence: 3, output: ["dialogue": "abc"]))) { error in
-            XCTAssertEqual(error as? ParishEndpointError, .duplicateTerminal)
+            XCTAssertEqual(error as? LimerickEndpointError, .duplicateTerminal)
         }
         try validator.finish()
 
         var parser = BoundedSSEParser()
         _ = try parser.append(Data("event: text_delta\ndata: {\"x\":1}".utf8))
         XCTAssertThrowsError(try parser.finish()) { error in
-            XCTAssertEqual(error as? ParishEndpointError, .truncatedEvent)
+            XCTAssertEqual(error as? LimerickEndpointError, .truncatedEvent)
         }
     }
 
@@ -473,11 +519,11 @@ final class EndpointKitTests: XCTestCase {
     func testOversizeAndURLPolicy() throws {
         var parser = BoundedSSEParser(limits: .init(maximumLineBytes: 4, maximumEventBytes: 8))
         XCTAssertThrowsError(try parser.append(Data("data: too-long\n".utf8))) { error in
-            XCTAssertEqual(error as? ParishEndpointError, .lineTooLarge)
+            XCTAssertEqual(error as? LimerickEndpointError, .lineTooLarge)
         }
         var chunkedParser = BoundedSSEParser(limits: .init(maximumLineBytes: 16, maximumEventBytes: 32))
         XCTAssertThrowsError(try chunkedParser.append(Data(repeating: 0x61, count: 2 * 1024 * 1024))) { error in
-            XCTAssertEqual(error as? ParishEndpointError, .lineTooLarge)
+            XCTAssertEqual(error as? LimerickEndpointError, .lineTooLarge)
         }
         XCTAssertEqual(
             EndpointStreamValidator(
@@ -492,7 +538,7 @@ final class EndpointKitTests: XCTestCase {
             requestID: "r",
             body: Data(repeating: 0, count: EndpointResourceLimits.maximumRequestBodyBytes + 1)
         )) { error in
-            XCTAssertEqual(error as? ParishEndpointError, .requestTooLarge)
+            XCTAssertEqual(error as? LimerickEndpointError, .requestTooLarge)
         }
         XCTAssertNoThrow(try EndpointRequest(
             url: URL(string: "http://127.0.0.1:1234")!,

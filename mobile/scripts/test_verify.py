@@ -125,12 +125,15 @@ def create_phase2_fixture(root: Path) -> None:
     (root / "mobile" / "RundaleUITests" / "RundalePhase4UITests.swift").write_text(
         "// fixture\n", encoding="utf-8"
     )
+    (root / "mobile" / "RundaleUITests" / "RundalePhase5UITests.swift").write_text(
+        "// fixture\n", encoding="utf-8"
+    )
     (root / "mobile" / "RundaleTests").mkdir()
     (root / "mobile" / "RundaleTests" / "RundalePhase4Tests.swift").write_text("// fixture\n")
-    endpoint_kit = root / "mobile" / "ParishEndpointKit"
-    (endpoint_kit / "Tests" / "ParishEndpointKitTests").mkdir(parents=True)
+    endpoint_kit = root / "mobile" / "LimerickEndpointKit"
+    (endpoint_kit / "Tests" / "LimerickEndpointKitTests").mkdir(parents=True)
     (endpoint_kit / "Package.swift").write_text("// fixture\n", encoding="utf-8")
-    (endpoint_kit / "Tests" / "ParishEndpointKitTests" / "FixtureTests.swift").write_text(
+    (endpoint_kit / "Tests" / "LimerickEndpointKitTests" / "FixtureTests.swift").write_text(
         "// fixture\n", encoding="utf-8"
     )
     packaging = root / "mobile" / "scripts" / "build-rust-mobile.sh"
@@ -255,10 +258,10 @@ class VerificationRunnerTests(unittest.TestCase):
             report = VerificationRun(root, command_runner=FakeRunner()).run()
 
             future = [suite for suite in report["suites"] if suite["kind"] == "future-phase"]
-            self.assertEqual([suite["phase"] for suite in future], [5, 6])
+            self.assertEqual([suite["phase"] for suite in future], [6])
             self.assertTrue(all(suite["status"] == "unavailable" for suite in future))
             self.assertTrue(all(not suite["blocking"] for suite in future))
-            self.assertEqual(report["implemented_phases"], [1, 2, 3, 4])
+            self.assertEqual(report["implemented_phases"], [1, 2, 3, 4, 5])
             self.assertEqual(
                 {suite["status"] for suite in report["suites"] if suite["phase"] == 2}
                 - {"passed", "not_automatable", "unavailable"},
@@ -296,16 +299,20 @@ class VerificationRunnerTests(unittest.TestCase):
             self.assertEqual(by_id["phase2-ios-simulator-tests"]["status"], "skipped")
             self.assertTrue(by_id["phase2-ios-simulator-tests"]["blocking"])
 
-    def test_explicit_unimplemented_phase_fails(self):
+    def test_explicit_phase5_runs_living_world_gate(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            (root / "mobile").mkdir()
+            create_phase2_fixture(root)
             report = VerificationRun(root, command_runner=FakeRunner()).run(5)
 
-            self.assertEqual(report["exit_code"], 1)
-            self.assertEqual(report["suites"][0]["id"], "phase-5-verification")
-            self.assertEqual(report["suites"][0]["status"], "unavailable")
-            self.assertTrue(report["suites"][0]["blocking"])
+            self.assertEqual(report["exit_code"], 0)
+            by_id = {suite["id"]: suite for suite in report["suites"]}
+            self.assertEqual(by_id["limerick-core-phase5-tests"]["status"], "passed")
+            self.assertEqual(by_id["phase5-ios-simulator-tests"]["status"], "passed")
+            self.assertEqual(
+                by_id["physical-iphone-phase5-living-world"]["status"],
+                "not_automatable",
+            )
 
     def test_phase4_runs_reliability_and_prior_regressions_once(self):
         with tempfile.TemporaryDirectory() as directory:

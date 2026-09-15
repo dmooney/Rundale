@@ -167,17 +167,17 @@ export function readServerConfig(environment: NodeJS.ProcessEnv = process.env): 
   }
   const databaseUrl = requiresDeploymentSettings
     ? requiredEnvironmentValue(environment, "DATABASE_URL", "for Firebase or production deployment")
-    : (environment.DATABASE_URL ?? "postgres://parish:parish@localhost:5432/parish");
+    : (environment.DATABASE_URL ?? "postgres://limerick:limerick@localhost:5432/limerick");
   const webOrigin = requiresDeploymentSettings
     ? requiredEnvironmentValue(environment, "WEB_ORIGIN", "for Firebase or production deployment")
     : (environment.WEB_ORIGIN ?? "http://localhost:3000");
   const ownerFirebaseUid = requiresDeploymentSettings
     ? requiredEnvironmentValue(
         environment,
-        "PARISH_OWNER_FIREBASE_UID",
+        "LIMERICK_OWNER_FIREBASE_UID",
         "for Firebase or production deployment",
       )
-    : (environment.PARISH_OWNER_FIREBASE_UID ?? "user_synthetic_owner");
+    : (environment.LIMERICK_OWNER_FIREBASE_UID ?? "user_synthetic_owner");
   const configuredLiveModels = [
     ...(environment.OPENAI_ALLOWED_MODELS ?? "")
       .split(",")

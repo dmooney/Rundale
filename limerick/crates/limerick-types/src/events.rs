@@ -557,6 +557,7 @@ mod tests {
             started_at: Some(ts),
             completed_at: None,
             last_matching_action: Some("I dig over the potato patch.".to_string()),
+            authored: None,
         };
         let event = GameEvent::PlayerTaskProgressed {
             task: task.clone(),

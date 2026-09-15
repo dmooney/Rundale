@@ -2,7 +2,7 @@
 
 Status: complete for the accepted Gemini-only MVP scope
 
-Scope: owner-operated Parish Endpoints MVP
+Scope: owner-operated Limerick Endpoints MVP
 
 Last reviewed: 2026-09-08
 
@@ -24,7 +24,7 @@ This audit distinguishes deterministic repository evidence from live owner-envir
 ## Live evidence accepted
 
 - The owner Firebase console reloaded to Ready for `dmooney@gmail.com`; Google is enabled and the Structured Image Extractor is available. Health and readiness returned HTTP 200. Public boundary checks passed: consumer-key management returned 401, another Endpoint returned 403, another organization returned 404, fake JSON/image input returned 400, and the required control/public authentication and CORS checks passed.
-- The real JPEG used throughout was 251,708 bytes at 750×1,023. The checked-in `@parish/node-cli-example` sent that same image and validated the response against the Cottage 22-required-field schema for every lifecycle stage:
+- The real JPEG used throughout was 251,708 bytes at 750×1,023. The checked-in `@limerick/node-cli-example` sent that same image and validated the response against the Cottage 22-required-field schema for every lifecycle stage:
 
   | Stage                        | Request                                    |  Latency | Result       |
   | ---------------------------- | ------------------------------------------ | -------: | ------------ |
@@ -44,7 +44,7 @@ This audit distinguishes deterministic repository evidence from live owner-envir
 
 | Area                                                                                       | Disposition                                                                                                                                               |
 | ------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Generic typed/versioned Endpoint scope and separation from Parish Engine                   | Verified by `docs/product-vision.md`, `docs/software-architecture.md`, `packages/domain`, `packages/runtime`, and two independent reviews                 |
+| Generic typed/versioned Endpoint scope and separation from Limerick Engine                   | Verified by `docs/product-vision.md`, `docs/software-architecture.md`, `packages/domain`, `packages/runtime`, and two independent reviews                 |
 | Owner Firebase authentication and control plane                                            | Live owner flow verified; `apps/server/src/auth/creator-auth.ts`, control routes, and deterministic negative auth tests retained                          |
 | Real Gemini/Vertex execution and 22-required-field Cottage schema                          | Verified with the same real JPEG through Draft, v1, v2, pinned v1, and rollback; `packages/providers/src/google/adapter.ts` and runtime schema validation |
 | Immutable versions, aliases, promotion, pinning, rollback                                  | Verified live by the four request records above; `packages/domain`, `apps/server/src/control/service.ts`, and lifecycle tests also passed                 |

@@ -367,6 +367,7 @@ fn test_task(id: u64, status: TaskStatus) -> PlayerTask {
             .then_some(Utc.with_ymd_and_hms(1820, 3, 20, 8, 10, 0).unwrap()),
         last_matching_action: (status != TaskStatus::Assigned)
             .then(|| "I dig over the potato patch.".to_string()),
+        authored: None,
     }
 }
 

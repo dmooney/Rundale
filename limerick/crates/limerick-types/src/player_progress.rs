@@ -67,6 +67,25 @@ pub struct PlayerTask {
     /// Most recent bounded action accepted as relevant to this task.
     #[serde(default)]
     pub last_matching_action: Option<String>,
+    /// Optional authored definition metadata. Legacy and emergent tasks omit
+    /// this field, preserving their existing serialized representation.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub authored: Option<AuthoredTaskMetadata>,
+}
+
+/// Content-owned conditions attached to a canonical player task.
+///
+/// These fields describe what deterministic engine code may accept; they are
+/// never interpreted as model-authorized effects.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct AuthoredTaskMetadata {
+    pub template_id: String,
+    pub target_npc: NpcId,
+    pub progress_condition: String,
+    pub completion_condition: String,
+    pub completion_location: LocationId,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub originating_request_id: Option<String>,
 }
 
 /// Errors returned when a task cannot safely be assigned.
@@ -175,8 +194,58 @@ impl PlayerProgress {
             started_at: None,
             completed_at: None,
             last_matching_action: None,
+            authored: None,
         });
         Ok(id)
+    }
+
+    /// Assigns an authored task through the same bounded canonical ledger as
+    /// every other task, then attaches content-owned deterministic metadata.
+    pub fn assign_authored_task(
+        &mut self,
+        description: &str,
+        assigned_by: NpcId,
+        assignment_location: LocationId,
+        assigned_at: DateTime<Utc>,
+        authored: AuthoredTaskMetadata,
+    ) -> Result<PlayerTaskId, PlayerProgressError> {
+        let id = self.assign_task(description, assigned_by, assignment_location, assigned_at)?;
+        if let Some(task) = self.tasks.iter_mut().find(|task| task.id == id) {
+            task.authored = Some(authored);
+        }
+        Ok(id)
+    }
+
+    /// Finds a task by its authored content template.
+    pub fn task_by_template(&self, template_id: &str) -> Option<&PlayerTask> {
+        self.tasks.iter().find(|task| {
+            task.authored
+                .as_ref()
+                .is_some_and(|authored| authored.template_id == template_id)
+        })
+    }
+
+    /// Starts one exact assigned task after deterministic engine validation.
+    pub fn start_task_explicitly(
+        &mut self,
+        id: PlayerTaskId,
+        action: &str,
+        location: LocationId,
+        started_at: DateTime<Utc>,
+    ) -> bool {
+        let Some(action) = bounded_nonblank(action, MAX_TASK_ACTION_CHARS) else {
+            return false;
+        };
+        let Some(task) = self.tasks.iter_mut().find(|task| task.id == id) else {
+            return false;
+        };
+        if task.status != TaskStatus::Assigned || task.location != location {
+            return false;
+        }
+        task.status = TaskStatus::InProgress;
+        task.started_at = Some(started_at);
+        task.last_matching_action = Some(action);
+        true
     }
 
     /// Returns every retained task in assignment order.
@@ -311,7 +380,12 @@ impl PlayerProgress {
         let Some(task) = self.tasks.iter_mut().find(|task| task.id == id) else {
             return false;
         };
-        if task.status != TaskStatus::InProgress || task.location != location {
+        let completion_location = task
+            .authored
+            .as_ref()
+            .map(|authored| authored.completion_location)
+            .unwrap_or(task.location);
+        if task.status != TaskStatus::InProgress || completion_location != location {
             return false;
         }
 
@@ -1160,6 +1234,7 @@ mod tests {
             started_at: None,
             completed_at: None,
             last_matching_action: None,
+            authored: None,
         };
 
         assert_eq!(progress.apply_replayed_task(assigned.clone()), Ok(true));
@@ -1224,6 +1299,7 @@ mod tests {
             started_at: Some(at(11)),
             completed_at: None,
             last_matching_action: Some("x".repeat(MAX_TASK_ACTION_CHARS + 20)),
+            authored: None,
         };
         assert_eq!(progress.apply_replayed_task(bounded), Ok(true));
         let hydrated = progress.task(PlayerTaskId(500)).unwrap();
@@ -1262,6 +1338,7 @@ mod tests {
             started_at: None,
             completed_at: None,
             last_matching_action: None,
+            authored: None,
         };
         assert_eq!(
             full_progress.apply_replayed_task(extra.clone()),
@@ -1286,8 +1363,59 @@ mod tests {
                 started_at: None,
                 completed_at: None,
                 last_matching_action: None,
+                authored: None,
             }),
             Err(PlayerProgressError::InvalidTaskId)
+        );
+    }
+
+    #[test]
+    fn authored_task_metadata_is_compatible_and_controls_completion_location() {
+        let mut progress = PlayerProgress::default();
+        let id = progress
+            .assign_authored_task(
+                "Deliver the sealed letter.",
+                NpcId(22),
+                LocationId(4),
+                at(9),
+                AuthoredTaskMetadata {
+                    template_id: "task-deliver-letter".into(),
+                    target_npc: NpcId(4),
+                    progress_condition: "take the letter".into(),
+                    completion_condition: "give it to the recipient".into(),
+                    completion_location: LocationId(13),
+                    originating_request_id: Some("request-1".into()),
+                },
+            )
+            .unwrap();
+
+        let task = progress.task_by_template("task-deliver-letter").unwrap();
+        assert_eq!(task.id, id);
+        assert_eq!(task.location, LocationId(4));
+        assert_eq!(task.authored.as_ref().unwrap().target_npc, NpcId(4));
+        assert!(progress.start_task_explicitly(id, "take the letter", LocationId(4), at(10)));
+        assert!(!progress.complete_task_explicitly(id, "give the letter", LocationId(4), at(11)));
+        assert!(progress.complete_task_explicitly(id, "give the letter", LocationId(13), at(11)));
+    }
+
+    #[test]
+    fn legacy_task_without_authored_metadata_deserializes_unchanged() {
+        let json = serde_json::json!({
+            "tasks": [{
+                "id": 1,
+                "description": "Dig over the potato patch.",
+                "assigned_by": 7,
+                "location": 9,
+                "assigned_at": "1820-03-20T08:00:00Z"
+            }],
+            "next_task_id": 2
+        });
+        let progress: PlayerProgress = serde_json::from_value(json).unwrap();
+        assert_eq!(progress.task(PlayerTaskId(1)).unwrap().authored, None);
+        assert!(
+            serde_json::to_value(progress).unwrap()["tasks"][0]
+                .get("authored")
+                .is_none()
         );
     }
 }

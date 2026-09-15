@@ -8,7 +8,7 @@ path from the still-open physical-iPhone gate.
 
 `FirebaseEndpointCredentialProvider` in
 [`RundaleEndpointCredentials.swift`](Rundale/RundaleEndpointCredentials.swift)
-is the only mobile-owned source of credentials for a Parish Endpoint request.
+is the only mobile-owned source of credentials for a Limerick Endpoint request.
 The `@MainActor` `EndpointCredentialProviding` protocol keeps the Firebase
 SDK objects on the main actor and lets transport tests inject
 `FakeEndpointCredentialProvider` without configuring Firebase.
@@ -18,7 +18,7 @@ SDK objects on the main actor and lets transport tests inject
 - `Authorization: Bearer <Firebase Auth ID token>` is the per-user Firebase
   ID token issued for the configured Firebase project. Its Firebase audience
   is the `cottage-d6dc9` project, and it authenticates the anonymous Firebase
-  user to Parish Endpoints; it is not an arbitrary model-provider ID token
+  user to Limerick Endpoints; it is not an arbitrary model-provider ID token
   and it is not a provider credential.
 - `X-Firebase-AppCheck: <App Check token>` proves that the request came from
   an accepted Rundale app instance. The provider never saves either value,
@@ -29,7 +29,7 @@ failures use safe, token-free errors. The transport owns request retry and may
 ask for a forced refresh after a server-authentication failure; this boundary
 does not silently turn an auth failure into an unauthenticated request.
 
-Parish Endpoints validates both mobile credentials before resolving a configured
+Limerick Endpoints validates both mobile credentials before resolving a configured
 app-to-organization/Endpoint binding or invoking a provider. Mobile identity is
 separate from creator Firebase authorization and existing consumer API-key
 invocation. See [the integration handoff](endpoint/phase2-handoff.md) for the
@@ -95,7 +95,7 @@ The following evidence remains separate from source-level implementation:
    token, real anonymous Auth, a completed stream, and an explicit Stop. No
    token is checked into the repository or recorded in evidence.
 3. Still required: exercise App Attest on a signed physical iPhone with the production
-   entitlement and verify that Parish Endpoints accepts both headers.
+   entitlement and verify that Limerick Endpoints accepts both headers.
 4. Deterministic server tests cover wrong App Check app ID, missing App Check,
    malformed/missing bearer credentials, strict bindings, tenant/version
    hiding, quotas, switches, and rate limits. Live missing-auth rejection is

@@ -7,7 +7,7 @@ import {
   type ProviderInvocation,
   type ProviderResult,
   type ProviderStreamEvent,
-} from "@parish/runtime";
+} from "@limerick/runtime";
 
 export class GoogleProvider implements ModelProvider {
   readonly id = "google" as const;
