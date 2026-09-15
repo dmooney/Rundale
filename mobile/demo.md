@@ -134,3 +134,31 @@ reset form and every setup change records `diagnostic_override` provenance.
 Generated prose is supporting evidence only. Each proof requires the matching
 typed diagnostic state. The deferred Phase 4 device matrix remains open; Phase
 5 additionally requires these five cases on one physical iPhone.
+
+## Phase 5 simulator video preview — 2026-09-15
+
+Eight short recordings were captured from the actual native app on the
+`Goblin2-QA-Expo-20260912-171339` iPhone 17 Pro simulator running iOS 26.5. The
+app used `--ui-tests --phase3 --phase3-mock --no-auto-focus` so Endpoint output
+was deterministic; Rust state, SQLite persistence, Swift/C integration, and the
+rendered SwiftUI path were production code. The gameplay implementation is
+commit `490795f8f`; build receipt commit `5a6caeaef` records TestFlight 0.1.0
+build 8.
+
+| Recording | Demonstration and authoritative evidence |
+| --- | --- |
+| `01-player-memory.mov` | Peig accepts the Athleague player claim; `/debug memory Peig` shows a typed `player_claim`, the claim survives relaunch, and Mícheál remains at `recordCount: 0`. |
+| `02-gossip-propagation.mov` | Róisín starts without the authored stock fact, `/wait 1` triggers her morning contact with Mícheál, and her knowledge projection gains the sourced `heard_from_npc` record while Peig remains uninformed. |
+| `03-sealed-letter-task.mov` | Peig's offer becomes `assigned`, taking the letter makes it `in_progress`, and after relaunch delivery to present Róisín makes it `completed`; Peig later acknowledges delivery. |
+| `04-weather-behavior.mov` | The same 09:59 transition places Mícheál in Kilteevan under Clear weather with cause `schedule`, then keeps him at Connolly Cottage under Heavy Rain with cause `weather_override`. |
+| `05-scheduled-movement.mov` | `/wait 2`, `/people`, and `/debug world` agree that Peig moved to the Letter Office; after relaunch she remains available for conversation there. |
+| `06-wait-command.mov` | `/wait 15` advances the world through the shared time path, while `/wait 0` is rejected with the supported 1–1440 minute range and does not advance it. |
+| `07-diagnostics-setup.mov` | The four `/debug` projections retain one state revision, setup changes are labelled `INTERNAL SETUP`, and reset is rejected until the retained draft is completed as `/setup reset CONFIRM`. |
+| `08-cancellation-atomicity.mov` | A deliberately slowed memory response is stopped before its final candidate; Peig's memory remains at `recordCount: 0` both immediately and after relaunch. |
+
+Final delivery copies are H.264 portrait `.mov` files attached inline to the
+Phase 5 pull request. Local source and compressed captures remain under the
+ignored `mobile/.build/phase5-demo/` directory rather than entering Git history.
+These videos are simulator implementation evidence, not live-provider or
+physical-iPhone acceptance. The five signed-device proofs, including force-quit
+and cancellation, remain open until a physical iPhone is available.

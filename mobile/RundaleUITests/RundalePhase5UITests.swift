@@ -113,6 +113,79 @@ final class RundalePhase5UITests: XCTestCase {
         XCTAssertTrue(waitForText("Peig Hannigan", timeout: 15))
     }
 
+    func testWaitAdvancesWorldAndRejectsOutOfRangeMinutes() {
+        launch(reset: true)
+        submit("/wait 15")
+        XCTAssertTrue(waitForText("The world advances by 15 minutes", timeout: 5))
+        XCTAssertTrue(waitForText("You wait for 15 minutes", timeout: 5))
+
+        submit("/wait 0")
+        XCTAssertTrue(waitForText("Use /wait with 1 to 1440 minutes", timeout: 5))
+    }
+
+    func testDiagnosticsStayReadOnlyAndSetupRecordsProvenance() {
+        launch(reset: true)
+        submit("/debug world")
+        let worldRevision = stateRevision(in: labelContaining(#""kind" : "world""#))
+
+        submit("/debug memory Peig")
+        XCTAssertEqual(
+            stateRevision(in: labelContaining(#""kind" : "memory""#)),
+            worldRevision
+        )
+        submit("/debug knowledge Róisín")
+        XCTAssertEqual(
+            stateRevision(in: labelContaining(#""kind" : "knowledge""#)),
+            worldRevision
+        )
+        submit("/debug tasks")
+        XCTAssertEqual(
+            stateRevision(in: labelContaining(#""kind" : "tasks""#)),
+            worldRevision
+        )
+
+        submit("/setup time 09:59")
+        XCTAssertTrue(waitForText("INTERNAL SETUP", timeout: 5))
+        XCTAssertTrue(waitForText(#""override" : "time""#, timeout: 5))
+        submit("/setup location Letter Office")
+        XCTAssertTrue(waitForText(#""override" : "location""#, timeout: 5))
+        submit("/setup weather Heavy Rain")
+        XCTAssertTrue(waitForText(#""override" : "weather""#, timeout: 5))
+        submit("/debug world")
+        XCTAssertTrue(waitForText("diagnosticOverrides", timeout: 5))
+
+        let resetInput = app.descendants(matching: .any)
+            .matching(identifier: "composer.input")
+            .firstMatch
+        resetInput.tap()
+        resetInput.typeText("/setup reset")
+        app.buttons["composer.send"].tap()
+        XCTAssertTrue(waitForText("requires explicit confirmation", timeout: 5))
+        XCTAssertEqual(resetInput.value as? String, "/setup reset")
+        resetInput.tap()
+        resetInput.typeText(" CONFIRM")
+        app.buttons["composer.send"].tap()
+        XCTAssertTrue(waitForText(#""override" : "reset""#, timeout: 5))
+    }
+
+    func testCancelledMemoryCandidateHasNoEffectAfterRelaunch() {
+        launch(reset: true)
+        submit("I grew up in Athleague. slow")
+        let stop = app.buttons["composer.stop"]
+        XCTAssertTrue(stop.waitForExistence(timeout: 5))
+        stop.tap()
+        XCTAssertTrue(stop.waitForNonExistence(timeout: 5))
+
+        submit("/debug memory Peig")
+        XCTAssertTrue(waitForText(#""recordCount" : 0"#, timeout: 5))
+
+        app.terminate()
+        app = XCUIApplication()
+        launch(reset: false)
+        submit("/debug memory Peig")
+        XCTAssertTrue(waitForText(#""recordCount" : 0"#, timeout: 5))
+    }
+
     private func launch(reset: Bool) {
         app.launchArguments = [
             "--ui-tests", "--phase3", "--phase3-mock", "--no-auto-focus"
@@ -141,6 +214,26 @@ final class RundalePhase5UITests: XCTestCase {
         app.descendants(matching: .any).matching(
             NSPredicate(format: "label CONTAINS %@", text)
         ).firstMatch.waitForExistence(timeout: timeout)
+    }
+
+    private func labelContaining(_ text: String) -> String {
+        let element = app.descendants(matching: .any).matching(
+            NSPredicate(format: "label CONTAINS %@", text)
+        ).firstMatch
+        XCTAssertTrue(element.waitForExistence(timeout: 5))
+        return element.label
+    }
+
+    private func stateRevision(in label: String) -> String? {
+        let expression = try? NSRegularExpression(
+            pattern: #""stateRevision"\s*:\s*(\d+)"#
+        )
+        let range = NSRange(label.startIndex..., in: label)
+        guard let match = expression?.firstMatch(in: label, range: range),
+              let revisionRange = Range(match.range(at: 1), in: label) else {
+            return nil
+        }
+        return String(label[revisionRange])
     }
 
     private func waitForEndpointCompletion(timeout: TimeInterval = 8) {

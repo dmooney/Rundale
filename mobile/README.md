@@ -1,13 +1,15 @@
 # Native Rundale client
 
-This checkout contains the first four phases of the
+This checkout contains the first five phases of the
 [mobile reset](../docs/product-specs/product-technical-spec.md). Phase 2 added
 the embedded Limerick runtime, local persistence, Swift FFI bridge, and deployed
 Endpoint path. Phase 3 replaces the one-room slice with the canonical
 three-location, three-NPC Kilteevan world, authoritative travel and presence,
 explicit schedule movement, and resumable clarification. Phase 4 adds interruption and connectivity recovery checks and freezes gameplay
 breadth while hardening the existing client. Physical-iPhone acceptance remains
-a separate gate.
+a separate gate. Phase 5 adds the bounded living-world proofs: player-claim
+memory, authored gossip propagation, one sealed-letter task, weather-dependent
+behavior, scheduled movement, explicit `/wait`, and internal typed diagnostics.
 
 ## Build and run
 
@@ -33,9 +35,10 @@ open mobile/Rundale.xcodeproj
 ./verify --phase 2
 ./verify --phase 3
 ./verify --phase 4
+./verify --phase 5
 ```
 
-Running `./verify` (or `./verify --phase all`) runs all four implemented phases and
+Running `./verify` (or `./verify --phase all`) runs all five implemented phases and
 records later phases as non-blocking unavailable work. The report is written to
 `mobile/.verification/`.
 
