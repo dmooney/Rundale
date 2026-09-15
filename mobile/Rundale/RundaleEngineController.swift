@@ -107,10 +107,14 @@ final class RundaleEngineController: ObservableObject, RundaleSessionControlling
         guard !didStart else { return }
         didStart = true
         let openPayload = projectionStore.engineOpenPayload
+        let saveDirectory = projectionStore.engineURL.deletingLastPathComponent()
         bootstrapTask = Task { [weak self] in
             do {
                 let runtime = try await Task.detached(priority: nil) {
-                    try ParishRuntime.openResume(payload: openPayload)
+                    // SQLite canonicalizes its parent before opening. Prepare
+                    // it before bootstrap, not as a side effect of typing a draft.
+                    try FileManager.default.createDirectory(at: saveDirectory, withIntermediateDirectories: true)
+                    return try ParishRuntime.openResume(payload: openPayload)
                 }.value
                 guard let self else {
                     try? await runtime.close()

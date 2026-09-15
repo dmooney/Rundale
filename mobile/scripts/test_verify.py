@@ -6,6 +6,7 @@ from __future__ import annotations
 import importlib
 import json
 import os
+import plistlib
 import tempfile
 import unittest
 import xml.etree.ElementTree as ET
@@ -69,10 +70,32 @@ class FakeRunner:
         self.cargo_tree_output = "limerick-mobile-ffi v0.1.0\n"
         self.simctl_output = SIMCTL_JSON
         self.xcresult_output = XCRESULT_JSON
+        self.device_output = json.dumps(
+            {
+                "devices": [
+                    {
+                        "identifier": "00008140-001E30603C10801C",
+                        "name": "iPhone 16 Pro Max",
+                        "deviceProperties": {
+                            "platformVersion": "26.6.1",
+                            "osVersionNumber": "26.6.1",
+                            "hardwareModel": "iPhone17,2",
+                            "developerModeStatus": "enabled",
+                        },
+                        "hardwareProperties": {
+                            "udid": "00008140-001E30603C10801C",
+                            "marketingName": "iPhone 16 Pro Max",
+                            "productType": "iPhone17,2",
+                        },
+                        "connectionProperties": {"pairingState": "paired"},
+                    }
+                ]
+            }
+        )
 
     def run(self, argv, *, cwd, env=None, timeout_seconds=None):
         command = tuple(str(part) for part in argv)
-        self.calls.append({"argv": command, "cwd": Path(cwd)})
+        self.calls.append({"argv": command, "cwd": Path(cwd), "env": dict(env or {})})
         result = self.results.get(command)
         if callable(result):
             return result(command)
@@ -82,6 +105,8 @@ class FakeRunner:
             return CommandResult(0, stdout=self.simctl_output)
         if command[:5] == ("xcrun", "xcresulttool", "get", "test-results", "summary"):
             return CommandResult(0, stdout=self.xcresult_output)
+        if command[:5] == ("xcrun", "devicectl", "list", "devices", "--json-output"):
+            return CommandResult(0, stdout=self.device_output)
         if command[:5] == ("rustup", "run", "1.98.0", "cargo", "test"):
             return CommandResult(0, stdout=self.rust_output)
         if command[:5] == ("rustup", "run", "1.98.0", "cargo", "tree"):
@@ -139,6 +164,23 @@ def create_phase2_fixture(root: Path) -> None:
 
 
 class VerificationRunnerTests(unittest.TestCase):
+    def test_build_identity_uses_app_not_runner_or_dependency_plist(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            derived = root / "DerivedData"
+            for app, version in (("Dependency.app", "999"), ("Rundale.app", "7")):
+                plist = derived / "Build" / "Products" / "Release-iphoneos" / app / "Info.plist"
+                plist.parent.mkdir(parents=True)
+                plist.write_bytes(
+                    plistlib.dumps(
+                        {"CFBundleVersion": version, "CFBundleShortVersionString": "0.1.0"}
+                    )
+                )
+            identity = VerificationRun(root, command_runner=FakeRunner())._built_app_identity(
+                derived
+            )
+            self.assertEqual(identity["app_identity"]["CFBundleVersion"], "7")
+
     def test_release_can_pin_simulator_without_changing_other_booted_devices(self):
         with patch.dict(os.environ, {"RUNDALE_IOS_SIMULATOR": "small-phone"}):
             parser = verify_module.build_parser()
@@ -225,6 +267,109 @@ class VerificationRunnerTests(unittest.TestCase):
             self.assertTrue(
                 (root / "mobile" / ".verification" / "logs" / "ios-simulator-tests.log").is_file()
             )
+
+    def test_explicit_device_runs_signed_phase1_suite_and_records_xcresult(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "mobile").mkdir()
+            create_phase1_fixture(root)
+            fake = FakeRunner()
+            report = VerificationRun(
+                root,
+                command_runner=fake,
+                device="00008140-001E30603C10801C",
+                development_team="TEAM123",
+            ).run(1)
+
+            by_id = {suite["id"]: suite for suite in report["suites"]}
+            self.assertEqual(by_id["physical-iphone-phase1-tests"]["status"], "passed")
+            device_call = next(
+                call
+                for call in fake.calls
+                if call["argv"][0:2] == ("xcodebuild", "-project")
+                and "platform=iOS,id=00008140-001E30603C10801C" in call["argv"]
+            )
+            self.assertIn("-allowProvisioningUpdates", device_call["argv"])
+            self.assertIn("ONLY_ACTIVE_ARCH=YES", device_call["argv"])
+            self.assertIn("DEVELOPMENT_TEAM=TEAM123", device_call["argv"])
+            self.assertIn("-resultBundlePath", device_call["argv"])
+            self.assertIn("physical-iphone-phase1-tests-results", by_id)
+            self.assertEqual(by_id["physical-iphone-phase1-tests"]["details"]["target"], "device")
+
+    def test_device_is_opt_in_and_simulator_remains_default(self):
+        with patch.dict(os.environ, {}, clear=True):
+            args = verify_module.build_parser().parse_args([])
+            self.assertIsNone(args.device)
+            args = verify_module.build_parser().parse_args(["--physical-device", "phone-udid"])
+            self.assertEqual(args.device, "phone-udid")
+
+    def test_missing_physical_device_is_unavailable_and_device_suites_skip(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "mobile").mkdir()
+            create_phase1_fixture(root)
+            fake = FakeRunner()
+            fake.device_output = json.dumps({"devices": []})
+            report = VerificationRun(root, command_runner=fake, device="missing").run(1)
+            by_id = {suite["id"]: suite for suite in report["suites"]}
+            self.assertEqual(by_id["physical-device-selection"]["status"], "unavailable")
+            self.assertEqual(by_id["physical-iphone-phase1-tests"]["status"], "skipped")
+            self.assertNotEqual(by_id["physical-iphone-phase1-tests"]["status"], "failed")
+
+    def test_performance_forces_release_and_opt_ins_require_device(self):
+        with self.assertRaises(ValueError):
+            VerificationRun(Path("/tmp/rundale-test"), soak=True)
+        run = VerificationRun(Path("/tmp/rundale-test"), device="device", performance=True)
+        self.assertEqual(run.configuration, "Release")
+        env = run._xcode_env()
+        self.assertEqual(env["RUNDALE_PERFORMANCE_UI_TESTS"], "1")
+        self.assertEqual(env["TEST_RUNNER_RUNDALE_PERFORMANCE_UI_TESTS"], "1")
+        soak = VerificationRun(Path("/tmp/rundale-test"), device="device", soak=True)
+        soak_env = soak._xcode_env()
+        self.assertEqual(soak_env["RUNDALE_SOAK_UI_TESTS"], "1")
+        self.assertEqual(soak_env["TEST_RUNNER_RUNDALE_SOAK_UI_TESTS"], "1")
+
+    def test_physical_phase2_excludes_simulator_only_return_key_test(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "mobile").mkdir()
+            create_phase2_fixture(root)
+            fake = FakeRunner()
+            report = VerificationRun(
+                root,
+                command_runner=fake,
+                device="00008140-001E30603C10801C",
+            ).run(2)
+            phase2 = next(
+                call for call in report["suites"] if call["id"] == "physical-iphone-phase2-tests"
+            )
+            self.assertEqual(phase2["status"], "passed")
+            physical_call = next(
+                call
+                for call in fake.calls
+                if "platform=iOS,id=00008140-001E30603C10801C" in call["argv"]
+            )
+            self.assertIn(
+                "-skip-testing:RundaleUITests/RundalePhase2UITests/testSimulatorReturnKeySubmitsDraft",
+                physical_call["argv"],
+            )
+
+    def test_optional_device_suite_preflight_failure_is_visible(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "mobile").mkdir()
+            create_phase2_fixture(root)
+            fake = FakeRunner()
+            fake.device_output = json.dumps({"devices": []})
+            report = VerificationRun(root, command_runner=fake, device="missing", soak=True).run(4)
+            suite = next(s for s in report["suites"] if s["id"] == "physical-iphone-soak")
+            self.assertEqual(suite["status"], "skipped")
+            self.assertTrue(suite["blocking"])
+
+    def test_opt_in_suites_reject_early_phases(self):
+        run = VerificationRun(Path("/tmp/rundale-test"), device="device", soak=True)
+        with self.assertRaises(ValueError):
+            run.run(1)
 
     def test_command_failure_propagates_and_keeps_other_results(self):
         with tempfile.TemporaryDirectory() as directory:

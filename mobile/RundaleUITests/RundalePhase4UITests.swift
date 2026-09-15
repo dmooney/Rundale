@@ -1,7 +1,7 @@
 import XCTest
 
 /// Production Rust/SQLite and SwiftUI recovery; only the remote transport is
-/// fault-injected. These are simulator checks, not physical-device acceptance.
+/// fault-injected. These run on simulator or device; human acceptance is separate.
 @MainActor
 final class RundalePhase4UITests: XCTestCase {
     private var app: XCUIApplication!
@@ -128,36 +128,42 @@ final class RundalePhase4UITests: XCTestCase {
         assertSingleCommand(command)
     }
 
-    func testNativeWorldCoreLoopAtAccessibilitySizeAndDarkAppearance() {
-        launch(reset: true, extra: ["--force-dark-appearance", "-UIPreferredContentSizeCategoryName",
-                                    "UICTContentSizeCategoryAccessibilityXXXL"])
-        XCTAssertTrue(input.label.contains("Command draft"))
-        XCTAssertTrue(app.buttons["composer.send"].label.contains("Send command"))
-        XCTAssertTrue(app.buttons["composer.send"].isHittable)
-        input.tap()
-        input.typeText("go east")
-        app.buttons["composer.send"].tap()
-        // At accessibility sizes the command may scroll out of the native
-        // collection view. The authoritative destination proves execution.
-        attach("Accessibility travel result")
-        XCTAssertTrue(header(containing: "Letter Office").waitForExistence(timeout: 8))
-        XCTAssertEqual(input.value as? String, "")
-        XCTAssertTrue(input.isHittable)
-        XCTAssertTrue(app.buttons["composer.send"].isHittable)
-        XCTAssertTrue(app.frame.contains(app.buttons["composer.send"].frame),
-                      "Send must remain fully inside the screen at accessibility sizes")
-        XCTAssertTrue(app.frame.contains(input.frame))
-        for identifier in ["composer.people", "composer.commands"] {
-            let button = app.buttons[identifier]
-            XCTAssertTrue(button.isHittable)
-            XCTAssertTrue(app.frame.contains(button.frame))
-            // Accessibility-frame subtraction can report 44 points as
-            // 43.99999999999994. Tolerate arithmetic noise, not subpixel undersizing.
-            let minimumHitDimension: CGFloat = 44 - 1e-9
-            XCTAssertGreaterThanOrEqual(button.frame.width, minimumHitDimension)
-            XCTAssertGreaterThanOrEqual(button.frame.height, minimumHitDimension)
+    func testNativeWorldCoreLoopAtEveryAccessibilitySizeAndDarkAppearance() {
+        let sizes = ["AccessibilityM", "AccessibilityL", "AccessibilityXL",
+                     "AccessibilityXXL", "AccessibilityXXXL"]
+        for size in sizes {
+            app.terminate()
+            app = XCUIApplication()
+            launch(reset: true, extra: ["--force-dark-appearance", "-UIPreferredContentSizeCategoryName",
+                                        "UICTContentSizeCategory\(size)"])
+            XCTAssertTrue(input.label.contains("Command draft"))
+            XCTAssertTrue(app.buttons["composer.send"].label.contains("Send command"))
+            XCTAssertTrue(app.buttons["composer.send"].isHittable)
+            input.tap()
+            input.typeText("go east")
+            app.buttons["composer.send"].tap()
+            // At accessibility sizes the command may scroll out of the native
+            // collection view. The authoritative destination proves execution.
+            attach("Accessibility travel result")
+            XCTAssertTrue(header(containing: "Letter Office").waitForExistence(timeout: 8))
+            XCTAssertEqual(input.value as? String ?? "", "")
+            XCTAssertTrue(input.isHittable)
+            XCTAssertTrue(app.buttons["composer.send"].isHittable)
+            XCTAssertTrue(app.frame.contains(app.buttons["composer.send"].frame),
+                          "Send must remain fully inside the screen at accessibility sizes")
+            XCTAssertTrue(app.frame.contains(input.frame))
+            for identifier in ["composer.people", "composer.commands"] {
+                let button = app.buttons[identifier]
+                XCTAssertTrue(button.isHittable)
+                XCTAssertTrue(app.frame.contains(button.frame))
+                // Accessibility-frame subtraction can report 44 points as
+                // 43.99999999999994. Tolerate arithmetic noise, not subpixel undersizing.
+                let minimumHitDimension: CGFloat = 44 - 1e-9
+                XCTAssertGreaterThanOrEqual(button.frame.width, minimumHitDimension)
+                XCTAssertGreaterThanOrEqual(button.frame.height, minimumHitDimension)
+            }
+            attach("Native world at accessibility size \(size)")
         }
-        attach("Native world at accessibility size")
     }
 
     private func assertNetworkRecovery(command: String, partialExpected: Bool) {
@@ -209,7 +215,7 @@ final class RundalePhase4UITests: XCTestCase {
         input.tap()
         input.typeText(command)
         app.buttons["composer.send"].tap()
-        let cleared = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value == ''"), object: input)
+        let cleared = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value == '' OR value == nil"), object: input)
         XCTAssertEqual(XCTWaiter.wait(for: [cleared], timeout: 8), .completed)
     }
 

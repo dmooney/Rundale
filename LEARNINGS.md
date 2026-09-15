@@ -337,3 +337,7 @@ bottom; don't lengthen items past 2-3 lines.
 - **Live game-clock equality is not an action-duration assertion.** `GameClock::now()` includes `Instant::elapsed()` at 36× speed: about 28 ms of test execution can add one game second. Pause the clock or compare its explicit anchor when asserting that an action does not advance time; the legacy empty-location harness assertion can otherwise fail under load.
 
 - **Transcript distance is geometry, not scroll intent.** Reply growth and keyboard resizing can move the tail while a finger is stationary. Classify a history gesture using finger translation (positive Y toward older content), and propagate accepted-message follow state through both the session and SwiftUI binding.
+- **Prepare the mobile save directory before opening Rust.** SQLite canonicalizes
+  the parent directory; relying on draft persistence to create it races first
+  launch. Exercise a genuinely nonexistent nested directory in native startup
+  tests, and keep automated device saves separate from the player's directory.

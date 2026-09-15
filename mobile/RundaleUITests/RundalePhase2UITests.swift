@@ -47,7 +47,10 @@ final class RundalePhase2UITests: XCTestCase {
         XCTAssertTrue(app.buttons["composer.send"].waitForExistence(timeout: 3))
     }
 
-    func testSimulatorReturnKeySubmitsDraft() {
+    func testSimulatorReturnKeySubmitsDraft() throws {
+#if !targetEnvironment(simulator)
+        throw XCTSkip("The simulator return-key contract does not apply to a physical iPhone")
+#else
         launch(reset: true, simulatorReturnKey: true)
         waitForInitialScene()
 
@@ -58,6 +61,7 @@ final class RundalePhase2UITests: XCTestCase {
         XCTAssertTrue(waitForTranscriptItem("/look", timeout: 8))
         XCTAssertTrue(waitForValue("", on: input, timeout: 8))
         XCTAssertTrue(app.buttons["composer.send"].waitForExistence(timeout: 3))
+#endif
     }
 
     func testPhase2CompletionsUseRustNearbyPeople() {
@@ -225,7 +229,9 @@ final class RundalePhase2UITests: XCTestCase {
     private func waitForValue(_ value: String,
                               on element: XCUIElement,
                               timeout: TimeInterval) -> Bool {
-        let predicate = NSPredicate(format: "value == %@", value)
+        let predicate = value.isEmpty
+            ? NSPredicate(format: "value == '' OR value == nil")
+            : NSPredicate(format: "value == %@", value)
         let expectation = XCTNSPredicateExpectation(predicate: predicate, object: element)
         return XCTWaiter.wait(for: [expectation], timeout: timeout) == .completed
     }

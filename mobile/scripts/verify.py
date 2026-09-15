@@ -5,8 +5,10 @@ from __future__ import annotations
 
 import argparse
 import datetime as dt
+import hashlib
 import json
 import os
+import plistlib
 import re
 import shlex
 import signal
@@ -261,6 +263,11 @@ class VerificationRun:
         package_path: Path | None = None,
         ui_tests_path: Path | None = None,
         simulator: str | None = None,
+        device: str | None = None,
+        live_endpoint: bool = False,
+        soak: bool = False,
+        performance: bool = False,
+        development_team: str | None = None,
         configuration: str = "Debug",
         command_timeout_seconds: float = 30 * 60,
     ) -> None:
@@ -273,12 +280,22 @@ class VerificationRun:
         self.ui_tests_path = _under_root(
             ui_tests_path, mobile / "RundaleUITests", self.root
         ).resolve()
-        self.scheme, self.configuration = scheme, configuration
-        self.simulator_override, self.timeout = simulator, command_timeout_seconds
+        if (live_endpoint or soak or performance) and not device:
+            raise ValueError("--live-endpoint, --soak, and --performance require --device")
+        self.scheme = scheme
+        self.configuration = "Release" if performance else configuration
+        self.simulator_override, self.device_override = simulator, device
+        self.live_endpoint, self.soak, self.performance = live_endpoint, soak, performance
+        self.development_team = development_team or os.environ.get("RUNDALE_IOS_DEVELOPMENT_TEAM")
+        self.timeout = command_timeout_seconds
         self.runner = command_runner or SubprocessCommandRunner()
         self.records: list[dict[str, Any]] = []
         self.results: dict[str, CommandResult] = {}
         self.simulator: dict[str, Any] | None = None
+        self.physical_device: dict[str, str] | None = (
+            {"identifier": device, "source": "override"} if device else None
+        )
+        self.physical_device_ready = device is None
         self.started_at = dt.datetime.now(dt.timezone.utc).isoformat()
         self.run_stamp = dt.datetime.now(dt.timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
 
@@ -307,6 +324,18 @@ class VerificationRun:
         swift.mkdir(parents=True, exist_ok=True)
         env = os.environ.copy()
         env.update({"CLANG_MODULE_CACHE_PATH": str(clang), "SWIFT_MODULECACHE_PATH": str(swift)})
+        if self.soak:
+            env["RUNDALE_SOAK_UI_TESTS"] = "1"
+            env["TEST_RUNNER_RUNDALE_SOAK_UI_TESTS"] = "1"
+            if "RUNDALE_SOAK_SMOKE" in os.environ:
+                env["TEST_RUNNER_RUNDALE_SOAK_SMOKE"] = os.environ["RUNDALE_SOAK_SMOKE"]
+            if "RUNDALE_SOAK_DURATION_SECONDS" in os.environ:
+                env["TEST_RUNNER_RUNDALE_SOAK_DURATION_SECONDS"] = os.environ[
+                    "RUNDALE_SOAK_DURATION_SECONDS"
+                ]
+        if self.performance:
+            env["RUNDALE_PERFORMANCE_UI_TESTS"] = "1"
+            env["TEST_RUNNER_RUNDALE_PERFORMANCE_UI_TESTS"] = "1"
         return env
 
     def _rust_env(self) -> dict[str, str]:
@@ -753,13 +782,16 @@ class VerificationRun:
         identifier: str | None = None,
         name: str | None = None,
         only_testing: str | None = None,
+        skip_testing: Sequence[str] = (),
     ) -> dict[str, Any]:
+        is_physical = destination is not None and destination.startswith("platform=iOS,id=")
+        target_kind = (
+            "iphoneos" if destination is None else ("device" if is_physical else "simulator")
+        )
         project, derived, bundle = (
             _relative(self.project, self.root),
             _relative(
-                self.report_dir
-                / "DerivedData"
-                / f"{'device' if destination is None else 'simulator'}-{self.run_stamp}",
+                self.report_dir / "DerivedData" / f"{target_kind}-{self.run_stamp}",
                 self.root,
             ),
             self._bundle(kind),
@@ -774,24 +806,36 @@ class VerificationRun:
             self.configuration,
         ]
         command += ["-sdk", "iphoneos"] if destination is None else ["-destination", destination]
+        if is_physical:
+            command.append("-allowProvisioningUpdates")
         if only_testing is not None:
             command.append(f"-only-testing:{only_testing}")
+        command.extend(f"-skip-testing:{target}" for target in skip_testing)
+        if self.soak and is_physical:
+            command.append("-test-timeouts-enabled")
+            command.append("NO")
         command += ["-derivedDataPath", derived, "-resultBundlePath", bundle]
         command += (
             ["CODE_SIGNING_ALLOWED=NO", "CODE_SIGNING_REQUIRED=NO", "build"]
             if destination is None
-            else ["test"]
+            else ["ENABLE_TESTABILITY=YES", "ONLY_ACTIVE_ARCH=YES", "test"]
         )
+        if is_physical and self.development_team:
+            command.insert(-1, f"DEVELOPMENT_TEAM={self.development_team}")
         identifier = identifier or (
             "ios-device-build" if destination is None else "ios-simulator-tests"
         )
-        return self._run(
+        record = self._run(
             identifier=identifier,
             name=name
             or (
                 "Unsigned iOS device build"
                 if destination is None
-                else "iOS simulator XCTest/XCUITest suite"
+                else (
+                    "Physical iPhone XCTest/XCUITest suite"
+                    if is_physical
+                    else "iOS simulator XCTest/XCUITest suite"
+                )
             ),
             phase=phase,
             command=command,
@@ -806,10 +850,270 @@ class VerificationRun:
             else {
                 "scheme": self.scheme,
                 "destination": destination,
+                "target": target_kind,
                 "derived_data": derived,
                 "result_bundle": bundle,
             },
         )
+        if record["status"] == PASSED:
+            app_identity = self._built_app_identity(self.root / derived)
+            if app_identity:
+                record.setdefault("details", {}).update(app_identity)
+        return record
+
+    def _built_app_identity(self, derived_path: Path) -> dict[str, Any]:
+        for plist_path in sorted(derived_path.glob("Build/Products/*/Rundale.app/Info.plist")):
+            if plist_path.parent.name != "Rundale.app":
+                continue
+            try:
+                with plist_path.open("rb") as handle:
+                    plist = plistlib.load(handle)
+            except (OSError, plistlib.InvalidFileException):
+                continue
+            if not isinstance(plist, Mapping):
+                continue
+            identity = {
+                key: str(plist[key])
+                for key in ("CFBundleShortVersionString", "CFBundleVersion")
+                if key in plist
+            }
+            if identity:
+                return {
+                    "app_identity": identity,
+                    "app_info_plist": _relative(plist_path, self.root),
+                }
+        return {}
+
+    def _physical_destination(self) -> str | None:
+        if self.physical_device is None or not self.physical_device_ready:
+            return None
+        return f"platform=iOS,id={self.physical_device['identifier']}"
+
+    def _device_preflight(self) -> None:
+        if not self.device_override:
+            return
+        inventory_path = self.report_dir / "device" / f"devices-{self.run_stamp}.json"
+        inventory_path.parent.mkdir(parents=True, exist_ok=True)
+        command = [
+            "xcrun",
+            "devicectl",
+            "list",
+            "devices",
+            "--json-output",
+            _relative(inventory_path, self.root),
+        ]
+        result = self._execute(command)
+        self.results["physical-device-selection"] = result
+        if result.unavailable or result.returncode != 0:
+            self.physical_device_ready = False
+            self._record(
+                identifier="physical-device-selection",
+                name="Physical iPhone device selection",
+                phase=1,
+                status=UNAVAILABLE,
+                required=True,
+                kind="infrastructure",
+                reason=_failure_reason(result, "devicectl is unavailable"),
+                command=command,
+                result=result,
+            )
+            return
+        try:
+            inventory = (
+                inventory_path.read_text(encoding="utf-8")
+                if inventory_path.is_file()
+                else result.stdout
+            )
+            payload = json.loads(inventory)
+        except json.JSONDecodeError as exc:
+            self.physical_device_ready = False
+            self._record(
+                identifier="physical-device-selection",
+                name="Physical iPhone device selection",
+                phase=1,
+                status=UNAVAILABLE,
+                required=True,
+                kind="infrastructure",
+                reason=f"devicectl returned invalid JSON: {exc}",
+                command=command,
+                result=result,
+            )
+            return
+        if isinstance(payload, Mapping) and isinstance(payload.get("result"), Mapping):
+            payload = payload["result"]
+        entries = payload.get("devices", []) if isinstance(payload, Mapping) else []
+        selected: Mapping[str, Any] | None = None
+        if isinstance(entries, list):
+            for entry in entries:
+                if not isinstance(entry, Mapping):
+                    continue
+                hardware = entry.get("hardwareProperties", {})
+                hardware = hardware if isinstance(hardware, Mapping) else {}
+                identifier = str(entry.get("identifier", ""))
+                udid = str(hardware.get("udid", entry.get("udid", "")))
+                props = entry.get("deviceProperties", {})
+                props = props if isinstance(props, Mapping) else {}
+                name = str(entry.get("name", props.get("name", "")))
+                if (
+                    self.device_override in {identifier, udid}
+                    or name.lower() == self.device_override.lower()
+                ):
+                    selected = entry
+                    break
+        if selected is None:
+            self.physical_device_ready = False
+            self._record(
+                identifier="physical-device-selection",
+                name="Physical iPhone device selection",
+                phase=1,
+                status=UNAVAILABLE,
+                required=True,
+                kind="infrastructure",
+                reason=f"requested physical device {self.device_override!r} is not paired and available",
+                command=command,
+                result=result,
+            )
+            return
+        props = selected.get("deviceProperties", {})
+        props = props if isinstance(props, Mapping) else {}
+        hardware = selected.get("hardwareProperties", {})
+        hardware = hardware if isinstance(hardware, Mapping) else {}
+        connection = selected.get("connectionProperties", {})
+        connection = connection if isinstance(connection, Mapping) else {}
+        identifier = str(hardware.get("udid", selected.get("identifier", self.device_override)))
+        developer_mode = str(props.get("developerModeStatus", "")).lower()
+        pairing = str(connection.get("pairingState", "")).lower()
+        available = str(selected.get("availability", selected.get("state", ""))).lower()
+        if (
+            developer_mode != "enabled"
+            or pairing != "paired"
+            or available
+            in {
+                "unavailable",
+                "disconnected",
+                "offline",
+            }
+        ):
+            self.physical_device_ready = False
+            reason = "physical device is not available with Developer Mode enabled"
+            self._record(
+                identifier="physical-device-selection",
+                name="Physical iPhone device selection",
+                phase=1,
+                status=UNAVAILABLE,
+                required=True,
+                kind="infrastructure",
+                reason=reason,
+                command=command,
+                result=result,
+            )
+            return
+        self.physical_device = {
+            "identifier": identifier,
+            "name": str(props.get("name", selected.get("name", "iPhone"))),
+            "os_version": str(props.get("osVersionNumber", "unknown")),
+            "model": str(hardware.get("marketingName", hardware.get("productType", "unknown"))),
+            "developer_mode": "enabled",
+            "paired": pairing,
+            "connection": str(
+                connection.get("transportType", connection.get("tunnelState", "unknown"))
+            ),
+            "source": "devicectl",
+        }
+        self.physical_device_ready = True
+        self._record(
+            identifier="physical-device-selection",
+            name="Physical iPhone device selection",
+            phase=1,
+            status=PASSED,
+            required=True,
+            kind="infrastructure",
+            command=command,
+            result=result,
+            details={k: v for k, v in self.physical_device.items() if k != "source"},
+        )
+
+    def _physical_suite(
+        self,
+        *,
+        identifier: str,
+        name: str,
+        phase: int,
+        source: Path,
+        target: str,
+        skip_testing: Sequence[str] = (),
+    ) -> None:
+        """Run one native suite on an explicitly selected, signed iPhone."""
+        destination = self._physical_destination()
+        if destination is None:
+            if self.device_override:
+                self._skip(
+                    identifier,
+                    name,
+                    phase,
+                    "blocked because physical device preflight was unavailable",
+                    required=True,
+                )
+            return
+        if not source.is_file():
+            self._missing(
+                identifier,
+                name,
+                phase,
+                f"required native test source is missing: {_relative(source, self.root)}",
+            )
+            return
+        record = self._xcodebuild(
+            identifier,
+            destination,
+            phase=phase,
+            identifier=identifier,
+            name=name,
+            only_testing=target,
+            skip_testing=skip_testing,
+        )
+        if record["status"] == PASSED:
+            self._validate_result(
+                record,
+                phase=phase,
+                summary_identifier=f"{identifier}-results",
+            )
+
+    def _optional_physical_suites(self) -> None:
+        """Run opt-in device-only suites when their sources are present."""
+        optional = (
+            (
+                self.live_endpoint,
+                "live-endpoint",
+                "Live Endpoint integration",
+                "RundaleLiveEndpointUITests.swift",
+                "RundaleUITests/RundaleLiveEndpointUITests",
+            ),
+            (
+                self.soak,
+                "soak",
+                "Soak reliability",
+                "RundaleSoakUITests.swift",
+                "RundaleUITests/RundaleSoakUITests",
+            ),
+            (
+                self.performance,
+                "performance",
+                "Performance budgets",
+                "RundalePerformanceUITests.swift",
+                "RundaleUITests/RundalePerformanceUITests",
+            ),
+        )
+        for enabled, suffix, label, source_name, target in optional:
+            if not enabled:
+                continue
+            self._physical_suite(
+                identifier=f"physical-iphone-{suffix}",
+                name=f"Physical iPhone {label}",
+                phase=4,
+                source=self.ui_tests_path / source_name,
+                target=target,
+            )
 
     def _device(self, xcodegen_ok: bool, *, phase: int = 1) -> None:
         if not xcodegen_ok:
@@ -1181,6 +1485,16 @@ class VerificationRun:
             )
 
     def _phase2_physical(self) -> None:
+        self._physical_suite(
+            identifier="physical-iphone-phase2-tests",
+            name="Physical iPhone Phase 2 XCTest/XCUITest suite",
+            phase=2,
+            source=self.ui_tests_path / "RundalePhase2UITests.swift",
+            target="RundaleUITests/RundalePhase2UITests",
+            skip_testing=(
+                "RundaleUITests/RundalePhase2UITests/testSimulatorReturnKeySubmitsDraft",
+            ),
+        )
         for identifier, name, reason in (
             (
                 "physical-iphone-phase2-runtime",
@@ -1390,6 +1704,13 @@ class VerificationRun:
             )
             ready = selected is not None and selection_passed and boot_ready
         self._phase3_simulator_tests(xcodegen_ok, ready)
+        self._physical_suite(
+            identifier="physical-iphone-phase3-tests",
+            name="Physical iPhone Phase 3 canonical-world suite",
+            phase=3,
+            source=self.ui_tests_path / "RundalePhase3UITests.swift",
+            target="RundaleUITests/RundalePhase3UITests",
+        )
         for identifier, name, reason in (
             (
                 "physical-iphone-phase3-world",
@@ -1472,6 +1793,20 @@ class VerificationRun:
             )
             if record["status"] == PASSED:
                 self._validate_result(record, phase=4, summary_identifier=f"{identifier}-results")
+        self._physical_suite(
+            identifier="physical-iphone-phase4-tests",
+            name="Physical iPhone Phase 4 native reliability suite",
+            phase=4,
+            source=self.ui_tests_path / "RundalePhase4UITests.swift",
+            target="RundaleUITests/RundalePhase4UITests",
+        )
+        self._physical_suite(
+            identifier="physical-iphone-phase4-controller-tests",
+            name="Physical iPhone Phase 4 controller suite",
+            phase=4,
+            source=self.root / "mobile" / "RundaleTests" / "RundalePhase4Tests.swift",
+            target="RundaleTests",
+        )
         for identifier, name, reason in (
             (
                 "physical-iphone-phase4-session",
@@ -1507,6 +1842,13 @@ class VerificationRun:
         selected, selection = self._select()
         ready = selection["status"] == PASSED and self._boot(selected)
         self._simulator_tests(xcodegen_ok, ready)
+        self._physical_suite(
+            identifier="physical-iphone-phase1-tests",
+            name="Physical iPhone Phase 1 interaction suite",
+            phase=1,
+            source=self.ui_tests_path / "RundaleUITests.swift",
+            target="RundaleUITests/RundaleUITests",
+        )
         self._physical()
 
     def _summary(self) -> dict[str, int]:
@@ -1515,7 +1857,38 @@ class VerificationRun:
             counts[record["status"]] += 1
         return {**counts, "blocking": sum(record["blocking"] for record in self.records)}
 
+    def _build_identity(self) -> dict[str, Any]:
+        head = self._execute(["git", "rev-parse", "HEAD"])
+        dirty = self._execute(["git", "status", "--porcelain"])
+        diff = self._execute(["git", "diff", "HEAD", "--binary"])
+        untracked = self._execute(["git", "ls-files", "--others", "--exclude-standard", "-z"])
+        digest = hashlib.sha256()
+        if diff.returncode == 0:
+            digest.update(diff.stdout.encode())
+        if untracked.returncode == 0:
+            for relative in untracked.stdout.split("\0"):
+                if not relative:
+                    continue
+                path = self.root / relative
+                if path.is_file():
+                    digest.update(relative.encode())
+                    with suppress(OSError):
+                        digest.update(path.read_bytes())
+        return {
+            "git_head": head.stdout.strip() if head.returncode == 0 else None,
+            "git_dirty": bool(dirty.stdout.strip()) if dirty.returncode == 0 else None,
+            "source_fingerprint": digest.hexdigest()
+            if diff.returncode == 0 and untracked.returncode == 0
+            else None,
+            "scheme": self.scheme,
+            "configuration": self.configuration,
+            "device": dict(self.physical_device) if self.physical_device else None,
+        }
+
     def run(self, phase: int | None = None) -> dict[str, Any]:
+        if phase in {1, 2, 3} and (self.live_endpoint or self.soak or self.performance):
+            raise ValueError("device opt-in suites require --phase 4 or all")
+        self._device_preflight()
         if phase is None or phase == 4:
             # The generated iOS project consumes the Rust XCFramework. Build it
             # before Phase 1 generates/builds that project, then retain the
@@ -1525,6 +1898,7 @@ class VerificationRun:
             self._phase2(reuse_phase1_native_setup=True, rust_packaging_already_run=True)
             self._phase3(reuse_native_setup=True)
             self._phase4()
+            self._optional_physical_suites()
             if phase is None:
                 self._future()
         elif phase == 1:
@@ -1550,6 +1924,7 @@ class VerificationRun:
             "implemented_phases": list(IMPLEMENTED_PHASES),
             "started_at": self.started_at,
             "finished_at": dt.datetime.now(dt.timezone.utc).isoformat(),
+            "build_identity": self._build_identity(),
             "status": FAILED if summary["blocking"] else PASSED,
             "exit_code": 1 if summary["blocking"] else 0,
             "summary": summary,
@@ -1644,13 +2019,43 @@ def build_parser() -> argparse.ArgumentParser:
         default=os.environ.get("RUNDALE_IOS_SIMULATOR"),
         help="specific available simulator UDID or name (or RUNDALE_IOS_SIMULATOR)",
     )
+    parser.add_argument(
+        "--device",
+        "--physical-device",
+        dest="device",
+        default=os.environ.get("RUNDALE_IOS_DEVICE"),
+        help="explicit physical iPhone UDID (or RUNDALE_IOS_DEVICE); simulator remains the default",
+    )
+    parser.add_argument(
+        "--live-endpoint",
+        action="store_true",
+        help="run the opt-in live Endpoint UI suite on the device",
+    )
+    parser.add_argument(
+        "--soak",
+        action="store_true",
+        help="run the opt-in long-session reliability suite on the device",
+    )
+    parser.add_argument(
+        "--performance", action="store_true", help="run the opt-in device performance suite"
+    )
+    parser.add_argument(
+        "--development-team",
+        default=os.environ.get("RUNDALE_IOS_DEVELOPMENT_TEAM"),
+        help="Apple development team for signed device tests (or RUNDALE_IOS_DEVELOPMENT_TEAM)",
+    )
     parser.add_argument("--configuration", default="Debug")
     parser.add_argument("--report-dir", type=Path)
     return parser
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    args = build_parser().parse_args(argv)
+    parser = build_parser()
+    args = parser.parse_args(argv)
+    if (args.live_endpoint or args.soak or args.performance) and not args.device:
+        parser.error("--live-endpoint, --soak, and --performance require --device")
+    if args.phase in {1, 2, 3} and (args.live_endpoint or args.soak or args.performance):
+        parser.error("device opt-in suites require --phase 4 or all")
     root = Path(__file__).resolve().parents[2]
     run = VerificationRun(
         root,
@@ -1661,6 +2066,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         package_path=args.package_path,
         ui_tests_path=args.ui_tests_path,
         simulator=args.simulator,
+        device=args.device,
+        live_endpoint=args.live_endpoint,
+        soak=args.soak,
+        performance=args.performance,
+        development_team=args.development_team,
         configuration=args.configuration,
     )
     report = run.run(args.phase)
