@@ -122,21 +122,24 @@ def boot_simulator(simulator: dict[str, Any], *, command_runner=_run) -> None:
 
 
 class VideoRecorder:
+    udid: str
+
     def __init__(self, output: Path, *, popen=subprocess.Popen):
         self.output = output
         self._popen = popen
-        self.process = None
+        self.process: subprocess.Popen[str] | None = None
         self.output_text = ""
-        self.reader = None
+        self.reader: threading.Thread | None = None
 
     def start(self) -> None:
-        self.process = self._popen(
+        process: subprocess.Popen[str] = self._popen(
             ["xcrun", "simctl", "io", self.udid, "recordVideo", "--codec=h264", str(self.output)],
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             text=True,
             bufsize=1,
         )
+        self.process = process
         lines: queue.Queue[str] = queue.Queue()
 
         def read_lines() -> None:
@@ -155,13 +158,13 @@ class VideoRecorder:
             try:
                 line = lines.get(timeout=max(0.001, min(0.2, deadline - time.monotonic())))
             except queue.Empty:
-                if self.process.poll() is not None:
+                if process.poll() is not None:
                     break
                 continue
             if line:
                 if "Recording started" in line:
                     return
-            elif self.process.poll() is not None:
+            elif process.poll() is not None:
                 break
         raise RecorderError("simctl recordVideo did not report 'Recording started'")
 
