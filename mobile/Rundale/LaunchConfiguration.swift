@@ -15,6 +15,9 @@ struct LaunchConfiguration: Sendable {
         case standard
         case manualStream = "manual-stream"
         case longHistory = "long-history"
+        /// A >500-row fixture used only to prove native transcript paging.
+        /// Keep `long-history` compact for the ordinary Phase 1 walkthrough.
+        case pagedHistory = "paged-history"
         case failed
         case rejected
         case interrupted
@@ -24,8 +27,9 @@ struct LaunchConfiguration: Sendable {
     }
 
     let isUITesting: Bool
-    /// UI tests normally exercise the iPhone multiline composer. The explicit
-    /// simulator keyboard case retains coverage of Mac Return-to-send behavior.
+    /// UI tests normally exercise the iPhone multiline composer. An explicit
+    /// fixture-demo argument can select it while retaining automatic stepping.
+    /// The simulator keyboard case retains coverage of Mac Return-to-send.
     let usesMultilineSimulatorComposer: Bool
     /// The embedded Parish runtime is the normal product launch. Fixture
     /// launches remain available for the deterministic Phase 1 UI suite and
@@ -50,7 +54,8 @@ struct LaunchConfiguration: Sendable {
          environment: [String: String] = ProcessInfo.processInfo.environment,
          bundle: [String: Any] = Bundle.main.infoDictionary ?? [:]) {
         isUITesting = arguments.contains("--ui-tests")
-        usesMultilineSimulatorComposer = isUITesting && !arguments.contains("--simulator-return-key")
+        usesMultilineSimulatorComposer = !arguments.contains("--simulator-return-key")
+            && (isUITesting || arguments.contains("--multiline-simulator-composer"))
         let hasExplicitFixture = arguments.contains { $0.hasPrefix("--fixture=") }
         phase2 = arguments.contains("--phase2")
             || arguments.contains("--phase3")

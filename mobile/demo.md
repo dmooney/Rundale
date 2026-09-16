@@ -13,6 +13,12 @@ argument `--fixture=standard`. That explicit fixture launch plays output
 incrementally. Normal launch now selects the Phase 2 Rust runtime. Manual
 fixture stepping is reserved for UI tests.
 
+For a simulator demonstration that combines the native multiline composer with
+automatic fixture timing, add `--multiline-simulator-composer`:
+`--fixture=standard --multiline-simulator-composer --no-auto-focus`. This is
+the same multiline control exercised by the native UI suite; do not add
+`--ui-tests`, which intentionally switches fixture delivery to manual Next.
+
 1. Show the compact location/time/weather header, transcript, and empty native
    composer. Open the keyboard and enter a multiline draft.
 2. Send `ask Peig about the old church`. Show the interpretation and incremental
@@ -29,8 +35,10 @@ fixture stepping is reserved for UI tests.
    recovered. Stop a normal response and retry it to demonstrate a successful
    new attempt.
 7. Leave an unsent draft, background/relaunch, and show the restored fixture
-   transcript and draft. Repeat with an accepted response interrupted before
-   completion; show its interrupted status and retry.
+   transcript and draft. Relaunch with the same explicit `--fixture=standard`
+   argument and without `--reset-fixture`; otherwise normal launch selects the
+   Phase 2 engine store instead of the fixture session. Repeat with an accepted
+   response interrupted before completion; show its interrupted status and retry.
 8. Show light/dark appearance and accessibility text sizes. Keep the separate
    physical VoiceOver and iPhone usability gates explicit.
 
@@ -42,8 +50,21 @@ remaining in history, and show that the visible passage stays in place. Use
 “New text” to return to the latest response. Demonstrate keyboard dismissal and
 multiline composer growth while following the newest text.
 
+The fixture keeps at most 500 rows in the displayed transcript, while its
+single session snapshot also retains a durable ordered archive for paging.
+Generate more than 500 rows, page backward, relaunch without reset while on an
+older page, then page to the earliest row and use “New text” to reattach the
+same bounded view to the live tail. Incoming fixture output must leave the
+historical anchor in place until that explicit return.
+
+Fixture saves written before this archive was added remain readable, but rows
+already discarded from those legacy 500-row windows cannot be recovered. A
+newer save preserves rows generated from that point onward.
+
 Do not use `--reset-fixture` against a fixture session that should be retained.
-Use the ordinary app launch for restoration demonstrations.
+For restoration demonstrations, retain the explicit `--fixture=...` argument
+and omit only `--reset-fixture`; the ordinary app launch uses the Phase 2 engine
+store rather than fixture persistence.
 
 Capture screenshots or a recording of the actual running build when sharing
 the demonstration. Identify whether the evidence came from a simulator or a

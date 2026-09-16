@@ -264,6 +264,16 @@ class VerificationRunnerTests(unittest.TestCase):
                 "platform=iOS Simulator,id=11111111-1111-1111-1111-111111111111",
                 simulator_call["argv"],
             )
+            self.assertEqual(
+                {arg for arg in simulator_call["argv"] if arg.startswith("-only-testing:")},
+                {
+                    "-only-testing:RundaleUITests/RundaleUITests",
+                    "-only-testing:RundaleUITests/RundalePhase1AuditUITests",
+                    "-only-testing:RundaleUITests/RundalePhase1TimerAuditUITests",
+                    "-only-testing:RundaleTests/Phase1AuditVolumeTests",
+                    "-only-testing:RundaleTests/LaunchConfigurationTests",
+                },
+            )
             self.assertTrue(
                 (root / "mobile" / ".verification" / "logs" / "ios-simulator-tests.log").is_file()
             )

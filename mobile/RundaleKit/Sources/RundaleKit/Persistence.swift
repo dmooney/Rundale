@@ -24,21 +24,29 @@ public struct SessionSnapshot: Codable, Equatable, Sendable {
     public let formatVersion: FixtureSaveFormatVersion
     public let savedAt: Date
     public let state: SessionState
+    /// Fixture-only durable transcript archive. `state.transcript` remains a
+    /// bounded rendering window; this optional field lets newer clients page
+    /// rows that have scrolled out of that window. Its absence represents a
+    /// legacy save whose discarded rows cannot be reconstructed.
+    public let transcriptHistory: [TranscriptItem]?
 
     public init(
         state: SessionState,
         savedAt: Date = Date(),
-        formatVersion: FixtureSaveFormatVersion = .current
+        formatVersion: FixtureSaveFormatVersion = .current,
+        transcriptHistory: [TranscriptItem]? = nil
     ) {
         self.formatVersion = formatVersion
         self.savedAt = savedAt
         self.state = state
+        self.transcriptHistory = transcriptHistory
     }
 
     private enum CodingKeys: String, CodingKey {
         case formatVersion
         case savedAt
         case state
+        case transcriptHistory
     }
 
     public init(from decoder: Decoder) throws {
@@ -54,6 +62,7 @@ public struct SessionSnapshot: Codable, Equatable, Sendable {
         self.formatVersion = formatVersion
         self.savedAt = try container.decode(Date.self, forKey: .savedAt)
         self.state = try container.decode(SessionState.self, forKey: .state)
+        self.transcriptHistory = try container.decodeIfPresent([TranscriptItem].self, forKey: .transcriptHistory)
         guard state.contractVersion.isSupportedByCurrentClient else {
             throw DecodingError.dataCorruptedError(
                 forKey: .state,
@@ -87,8 +96,12 @@ public struct FixtureSessionStore: Sendable {
         self.fileURL = fileURL
     }
 
-    public func save(_ state: SessionState, savedAt: Date = Date()) throws {
-        try save(SessionSnapshot(state: state, savedAt: savedAt))
+    public func save(
+        _ state: SessionState,
+        savedAt: Date = Date(),
+        transcriptHistory: [TranscriptItem]? = nil
+    ) throws {
+        try save(SessionSnapshot(state: state, savedAt: savedAt, transcriptHistory: transcriptHistory))
     }
 
     public func save(_ snapshot: SessionSnapshot) throws {
@@ -147,13 +160,17 @@ public actor FixtureSessionSnapshotWriter {
     /// when their event cursors happen to be equal. A nil result means either
     /// that the save succeeded or that it was safely superseded; failures are
     /// returned as user-presentable text to match the fixture host boundary.
-    public func save(state: SessionState, generation: UInt64) async -> String? {
+    public func save(
+        state: SessionState,
+        generation: UInt64,
+        transcriptHistory: [TranscriptItem]? = nil
+    ) async -> String? {
         if let lastWrittenGeneration, generation <= lastWrittenGeneration {
             return nil
         }
 
         do {
-            try store.save(state)
+            try store.save(state, transcriptHistory: transcriptHistory)
             lastWrittenGeneration = generation
             return nil
         } catch {

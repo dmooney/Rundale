@@ -26,6 +26,11 @@ recovery tests. Its physical sessions, accessibility judgment, and performance
 budgets remain separate recorded gates. Simulator suites share compiled products
 within each run while retaining separate result bundles.
 
+Phase 1 includes the original interaction suite, the focused accessibility and
+keyboard audit, automatic fixture streaming, and fixture history volume tests.
+Pin the small iPhone simulator for the accessibility regression; a large-screen
+pass alone does not cover the SE3 layout defect tracked in #1990.
+
 ## Options
 
 The runner accepts these options:
@@ -50,6 +55,28 @@ The path overrides are useful for fixtures and isolated test projects. The
 simulator override accepts an available simulator UDID or name; otherwise the
 runner chooses a booted, newest available iPhone simulator. The default report
 directory is `mobile/.verification/`.
+
+## Record one UI test
+
+`record-ui-test.py` records one named XCUITest method and keeps the video,
+Xcode result bundle, and combined log together:
+
+```sh
+python3 mobile/scripts/record-ui-test.py \
+  --target RundaleUITests --class RundaleUITests \
+  --method testReadingHistoryExposesNewTextAndReturnsToNewest \
+  --simulator "Rundale Phase 1 Small iPhone" \
+  --output mobile/.build/recordings/history-newest.mov
+```
+
+The simulator must match exactly one available iPhone UDID or name. The default
+run uses `build-for-testing` once and then `test-without-building`; pass
+`--reuse-build` to reuse derived data. The command returns the Xcode test status
+and writes `history-newest.log` and `history-newest.xcresult` beside the video.
+Use the same `--derived-data` directory for the first build and each reuse.
+Test identifiers must resolve to one method in the target’s local Swift source.
+Recording failures return nonzero; a failing test retains its own exit status.
+Videos, logs, and xcresults are retained on failure and never overwritten.
 
 ## Evidence and exit status
 

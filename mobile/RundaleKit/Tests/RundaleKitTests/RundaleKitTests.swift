@@ -738,7 +738,17 @@ final class RundaleKitTests: XCTestCase {
         try store.save(state, savedAt: Date(timeIntervalSince1970: 123))
         try draftStore.save(state.draft)
         XCTAssertEqual(try store.restore().draft, state.draft)
+        XCTAssertNil(try store.restoreSnapshot().transcriptHistory,
+                     "Snapshots written before durable fixture history remain readable")
         XCTAssertEqual(try draftStore.restore(), state.draft)
+
+        let archivedItem = TranscriptItem(
+            id: TranscriptItemID("persisted-history"), kind: .narration,
+            content: "An older retained row.", state: .committed,
+            lastEventSequence: EventSequence(1)
+        )
+        try store.save(state, transcriptHistory: [archivedItem])
+        XCTAssertEqual(try store.restoreSnapshot().transcriptHistory, [archivedItem])
 
         let original = try Data(contentsOf: sessionURL)
         var object = try XCTUnwrap(JSONSerialization.jsonObject(with: original) as? [String: Any])

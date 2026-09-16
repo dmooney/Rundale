@@ -781,7 +781,7 @@ class VerificationRun:
         phase: int = 1,
         identifier: str | None = None,
         name: str | None = None,
-        only_testing: str | None = None,
+        only_testing: str | Sequence[str] | None = None,
         skip_testing: Sequence[str] = (),
     ) -> dict[str, Any]:
         is_physical = destination is not None and destination.startswith("platform=iOS,id=")
@@ -809,7 +809,8 @@ class VerificationRun:
         if is_physical:
             command.append("-allowProvisioningUpdates")
         if only_testing is not None:
-            command.append(f"-only-testing:{only_testing}")
+            selectors = [only_testing] if isinstance(only_testing, str) else only_testing
+            command.extend(f"-only-testing:{selector}" for selector in selectors)
         command.extend(f"-skip-testing:{target}" for target in skip_testing)
         if self.soak and is_physical:
             command.append("-test-timeouts-enabled")
@@ -1373,7 +1374,15 @@ class VerificationRun:
             return
         destination = f"platform=iOS Simulator,id={self.simulator['udid']}"
         record = self._xcodebuild(
-            "simulator", destination, only_testing="RundaleUITests/RundaleUITests"
+            "simulator",
+            destination,
+            only_testing=[
+                "RundaleUITests/RundaleUITests",
+                "RundaleUITests/RundalePhase1AuditUITests",
+                "RundaleUITests/RundalePhase1TimerAuditUITests",
+                "RundaleTests/Phase1AuditVolumeTests",
+                "RundaleTests/LaunchConfigurationTests",
+            ],
         )
         if record["status"] == PASSED:
             self._validate_result(record, phase=1)

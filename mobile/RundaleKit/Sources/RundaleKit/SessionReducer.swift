@@ -8,6 +8,7 @@ public enum SessionAction: Sendable {
     case readHistory(anchor: TranscriptAnchor?)
     case recallCommand(LogicalRequestID)
     case loadOlderTranscript(items: [TranscriptItem], hasOlderItems: Bool)
+    case showNewestTranscript(items: [TranscriptItem], hasOlderItems: Bool)
     case restore(SessionState)
 }
 
@@ -75,6 +76,11 @@ public struct SessionReducer: Sendable {
             if !uniqueOlder.isEmpty { state.setHistoricalWindow(true) }
             let merged = uniqueOlder + state.transcript
             state.setTranscript(Array(merged.prefix(state.transcriptCapacity)), hasOlder: hasOlderItems)
+            return .applied
+
+        case let .showNewestTranscript(items, hasOlderItems):
+            state.setHistoricalWindow(false)
+            state.setTranscript(items, hasOlder: hasOlderItems)
             return .applied
 
         case let .restore(restoredState):
@@ -504,4 +510,11 @@ public final class PresentationSession {
     public func loadOlderTranscript(items: [TranscriptItem], hasOlderItems: Bool) {
         reducer.reduce(.loadOlderTranscript(items: items, hasOlderItems: hasOlderItems), in: &state)
     }
+
+    /// Reattaches the bounded presentation window to the durable live tail
+    /// after a reader explicitly returns from an older-history window.
+    public func showNewestTranscript(items: [TranscriptItem], hasOlderItems: Bool) {
+        reducer.reduce(.showNewestTranscript(items: items, hasOlderItems: hasOlderItems), in: &state)
+    }
+
 }
