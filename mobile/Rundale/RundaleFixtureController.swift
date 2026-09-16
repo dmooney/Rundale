@@ -33,6 +33,11 @@ final class RundaleFixtureController: ObservableObject, RundaleSessionControllin
     }
 
     private let presentation: PresentationSession
+    /// A durable fixture archive keeps the live tail independent from the
+    /// bounded rendering window. It receives the same reducer events as the
+    /// presentation state, so streamed updates remain valid while the player
+    /// reads an older page.
+    private let historyPresentation: PresentationSession
     private let canPersistSession: Bool
     private let persistenceWriter: FixtureSessionSnapshotWriter
     /// Monotonically identifies each snapshot submission from this main-actor
@@ -56,18 +61,20 @@ final class RundaleFixtureController: ObservableObject, RundaleSessionControllin
         let store = FixtureSessionStore(fileURL: sessionURL)
         persistenceWriter = FixtureSessionSnapshotWriter(store: store)
         var restoredState: SessionState?
+        var restoredTranscriptHistory: [TranscriptItem]?
         var restorationError: String?
         // A normal launch rehydrates the last local session. The restoration
         // fixtures only make this path deterministic for UI tests; they are
         // not a separate product mode.
         if !configuration.resetFixture {
             do {
-                let saved = try store.restore()
+                let saved = try store.restoreSnapshot()
                 // The adapter's restoring initializer rehydrates the request
                 // inputs and emits a single interrupted terminal event if a
                 // save captured an active attempt. Keep the persisted state
                 // intact so history, IDs, and the viewport survive relaunch.
-                restoredState = saved
+                restoredState = saved.state
+                restoredTranscriptHistory = saved.transcriptHistory
             } catch let error as FixturePersistenceError {
                 if case .missingFile = error {
                     restoredState = nil
@@ -86,6 +93,10 @@ final class RundaleFixtureController: ObservableObject, RundaleSessionControllin
             adapter = FixtureSessionAdapter(sessionID: sessionID, script: script)
         }
         presentation = PresentationSession(state: restoredState ?? SessionState(sessionID: sessionID))
+        historyPresentation = PresentationSession(state: Self.historyState(
+            from: restoredState ?? SessionState(sessionID: sessionID),
+            transcript: restoredTranscriptHistory ?? restoredState?.transcript ?? []
+        ))
         state = presentation.state
         completionRegistry = .phase1
         let draftURL = configuration.draftFileURL
@@ -166,6 +177,12 @@ final class RundaleFixtureController: ObservableObject, RundaleSessionControllin
     var initialUnreadCount: Int { state.viewport.unreadCount }
 
     func followNewest() {
+        let history = historyPresentation.state.transcript
+        let tail = Array(history.suffix(state.transcriptCapacity))
+        presentation.showNewestTranscript(
+            items: tail,
+            hasOlderItems: history.count > tail.count
+        )
         presentation.followNewest()
         state = presentation.state
         persistSessionState()
@@ -178,9 +195,22 @@ final class RundaleFixtureController: ObservableObject, RundaleSessionControllin
     }
 
     func loadOlderTranscript() async {
-        // The fixture adapter's authored histories are already delivered in
-        // one deterministic bounded session. Production paging is owned by
-        // the SQLite-backed Parish controller below.
+        guard state.hasOlderTranscript,
+              let oldestID = state.transcript.first?.id,
+              let oldestIndex = historyPresentation.state.transcript.firstIndex(where: { $0.id == oldestID }) else {
+            return
+        }
+        // Archive position is the transcript's stable display order. Event
+        // sequences are intentionally mutable for streamed row updates, so
+        // they are not a safe backward-paging cursor.
+        let older = Array(historyPresentation.state.transcript[..<oldestIndex])
+        let page = Array(older.suffix(100))
+        presentation.loadOlderTranscript(
+            items: page,
+            hasOlderItems: older.count > page.count
+        )
+        state = presentation.state
+        await persistSessionStateAndWait()
     }
 
     func restoredDraft() -> Draft? {
@@ -203,10 +233,15 @@ final class RundaleFixtureController: ObservableObject, RundaleSessionControllin
     func persistSessionState() -> String? {
         guard canPersistSession else { return persistenceError }
         let snapshot = state
+        let transcriptHistory = historyPresentation.state.transcript
         let generation = nextPersistenceGeneration()
         let writer = persistenceWriter
         Task { [weak self] in
-            let error = await writer.save(state: snapshot, generation: generation)
+            let error = await writer.save(
+                state: snapshot,
+                generation: generation,
+                transcriptHistory: transcriptHistory
+            )
             guard let self else { return }
             if let error {
                 persistenceError = error
@@ -228,7 +263,11 @@ final class RundaleFixtureController: ObservableObject, RundaleSessionControllin
         guard canPersistSession else { return }
         let snapshot = state
         let generation = nextPersistenceGeneration()
-        let error = await persistenceWriter.save(state: snapshot, generation: generation)
+        let error = await persistenceWriter.save(
+            state: snapshot,
+            generation: generation,
+            transcriptHistory: historyPresentation.state.transcript
+        )
         if let error {
             persistenceError = error
         }
@@ -321,6 +360,13 @@ final class RundaleFixtureController: ObservableObject, RundaleSessionControllin
         let result = presentation.apply(event)
         let applied = result == .applied
 
+        // Keep the live-tail archive in the same reducer lane as the
+        // displayed state. The archive's capacity is intentionally unbounded
+        // for fixture data; only `state.transcript` is rendered and capped.
+        if applied {
+            _ = historyPresentation.apply(event)
+        }
+
         if applied {
             lastEvent = event
         }
@@ -344,11 +390,37 @@ final class RundaleFixtureController: ObservableObject, RundaleSessionControllin
         switch fixture {
         case .longHistory:
             return .longHistory(count: 180)
+        case .pagedHistory:
+            return .longHistory(count: 540)
         case .restorationLongHistory:
             return .longHistory(count: 180)
         case .standard, .manualStream, .failed, .interrupted, .clarification, .restoration, .rejected:
             return .phase1
         }
+    }
+
+    private static func historyState(from state: SessionState,
+                                     transcript: [TranscriptItem]) -> SessionState {
+        SessionState(
+            sessionID: state.sessionID,
+            contractVersion: state.contractVersion,
+            stateRevision: state.stateRevision,
+            eventCursor: state.eventCursor,
+            transcript: transcript,
+            hasOlderTranscript: false,
+            draft: state.draft,
+            requests: state.requests,
+            commandHistory: state.commandHistory,
+            pendingClarification: state.pendingClarification,
+            scene: state.scene,
+            viewport: state.viewport,
+            activeRequestID: state.activeRequestID,
+            lastError: state.lastError,
+            transcriptCapacity: Int.max,
+            processedEventCapacity: state.processedEventCapacity,
+            processedEventIDs: state.processedEventIDs,
+            streamProgress: state.streamProgress
+        )
     }
 
 }

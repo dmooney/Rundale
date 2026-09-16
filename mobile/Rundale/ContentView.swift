@@ -10,6 +10,7 @@ struct ContentView: View {
     @State private var hasNewText: Bool
     @State private var hasAppeared = false
     @State private var lastStreamRevision = 0
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     init(model: RundalePresentationModel) {
         self.model = model
@@ -20,37 +21,58 @@ struct ContentView: View {
     }
 
     var body: some View {
-        VStack(spacing: 0) {
-            StatusHeader(model: model)
-                .padding(.horizontal, 20)
-                .padding(.top, 12)
-                .padding(.bottom, 10)
+        GeometryReader { geometry in
+            // The keyboard reduces this geometry. At an accessibility size on
+            // a small iPhone, reserve reading space by collapsing only the
+            // duplicate visual chrome; its complete summary remains the
+            // header's accessibility label.
+            let constrained = dynamicTypeSize.isAccessibilitySize
+                && (model.isStreaming || !model.draft.isEmpty || composerFocused)
+            let compactStripVisible = !model.completions.isEmpty || model.clarification != nil
 
-            Divider()
-                .overlay(RundaleTheme.rule)
-
-            TranscriptView(
-                model: model,
-                followsNewest: $followsNewest,
-                hasNewText: $hasNewText
-            )
-
-            if let message = model.submissionMessage {
-                Text(message)
-                    .font(.footnote)
-                    .foregroundStyle(RundaleTheme.error)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+            VStack(spacing: 0) {
+                StatusHeader(model: model, compact: constrained)
                     .padding(.horizontal, 20)
-                    .padding(.bottom, 6)
-                    .accessibilityIdentifier("composer.error")
-            }
+                    .padding(.top, 12)
+                    .padding(.bottom, constrained ? 6 : 10)
 
-            CompletionStrip(model: model)
-            ClarificationStrip(model: model)
-            Composer(
-                model: model,
-                focused: $composerFocused
-            )
+                Divider()
+                    .overlay(RundaleTheme.rule)
+
+                TranscriptView(
+                    model: model,
+                    followsNewest: $followsNewest,
+                    hasNewText: $hasNewText
+                )
+                // A hosted UIKit view has no intrinsic height. Give the transcript
+                // the remaining vertical space before Dynamic Type can let the
+                // header and growing composer consume the whole small screen.
+                .frame(
+                    maxWidth: .infinity,
+                    minHeight: constrained ? (compactStripVisible ? 88 : 132) : 44,
+                    maxHeight: .infinity
+                )
+                .layoutPriority(1)
+
+                if let message = model.submissionMessage {
+                    Text(message)
+                        .font(.footnote)
+                        .foregroundStyle(RundaleTheme.error)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal, 20)
+                        .padding(.bottom, 6)
+                        .accessibilityIdentifier("composer.error")
+                }
+
+                CompletionStrip(model: model, compactLayout: constrained)
+                ClarificationStrip(model: model, compactLayout: constrained)
+                Composer(
+                    model: model,
+                    focused: $composerFocused,
+                    compactLayout: constrained
+                )
+            }
+            .frame(width: geometry.size.width, height: geometry.size.height, alignment: .top)
         }
         .background(RundaleTheme.canvas)
         .foregroundStyle(RundaleTheme.ink)
@@ -97,6 +119,7 @@ struct ContentView: View {
 
 private struct StatusHeader: View {
     @ObservedObject var model: RundalePresentationModel
+    let compact: Bool
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(\.colorScheme) private var colorScheme
 
@@ -122,6 +145,19 @@ private struct StatusHeader: View {
     }
 
     private var headerContent: some View {
+        Group {
+            if compact {
+                Text(model.header.location)
+                    .font(.caption.weight(.semibold))
+                    .lineLimit(1)
+                    .accessibilityAddTraits(.isHeader)
+            } else {
+                fullHeaderContent
+            }
+        }
+    }
+
+    private var fullHeaderContent: some View {
         VStack(alignment: .leading, spacing: 5) {
             Text(model.header.location)
                 .font(.system(.headline, design: .serif, weight: .medium))
@@ -932,6 +968,7 @@ private struct TranscriptEntry: View {
 
 private struct CompletionStrip: View {
     @ObservedObject var model: RundalePresentationModel
+    let compactLayout: Bool
 
     var body: some View {
         if !model.completions.isEmpty {
@@ -944,14 +981,16 @@ private struct CompletionStrip: View {
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(completion.label)
                                     .font(.subheadline.weight(.medium))
-                                if let detail = completion.detail {
+                                    .lineLimit(compactLayout ? 1 : nil)
+                                if !compactLayout, let detail = completion.detail {
                                     Text(detail)
                                         .font(.caption)
                                         .foregroundStyle(RundaleTheme.secondaryInk)
                                 }
                             }
                             .padding(.horizontal, 11)
-                            .padding(.vertical, 8)
+                            .padding(.vertical, compactLayout ? 6 : 8)
+                            .frame(minHeight: compactLayout ? 44 : nil)
                             .background(RundaleTheme.canvas.opacity(0.92), in: RoundedRectangle(cornerRadius: 9))
                             .overlay(RoundedRectangle(cornerRadius: 9).stroke(RundaleTheme.rule, lineWidth: 0.8))
                         }
@@ -972,49 +1011,74 @@ private struct CompletionStrip: View {
 
 private struct ClarificationStrip: View {
     @ObservedObject var model: RundalePresentationModel
+    let compactLayout: Bool
 
     var body: some View {
         if let clarification = model.clarification {
-            VStack(alignment: .leading, spacing: 8) {
-                Text(clarification.prompt)
-                    .font(.system(.subheadline, design: .serif))
-                    .fixedSize(horizontal: false, vertical: true)
-                ForEach(clarification.options) { option in
-                    Button {
-                        model.selectClarification(option)
-                    } label: {
-                        HStack {
-                            Text(option.label)
-                                .font(.subheadline.weight(.medium))
-                            Spacer(minLength: 8)
-                            if let detail = option.detail {
-                                Text(detail)
-                                    .font(.caption)
-                                    .foregroundStyle(RundaleTheme.secondaryInk)
+            Group {
+                if compactLayout {
+                    ScrollView(.horizontal) {
+                        HStack(spacing: 8) {
+                            ForEach(clarification.options) { option in
+                                clarificationButton(option, compact: true)
                             }
                         }
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 9)
-                        .background(RundaleTheme.canvas, in: RoundedRectangle(cornerRadius: 9))
-                        .overlay(RoundedRectangle(cornerRadius: 9).stroke(RundaleTheme.rule, lineWidth: 0.8))
+                        .padding(.horizontal, 20)
+                        .padding(.vertical, 6)
                     }
-                    .buttonStyle(.plain)
-                    .accessibilityIdentifier("clarification.option.\(option.id)")
+                    .scrollIndicators(.hidden)
+                } else {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text(clarification.prompt)
+                            .font(.system(.subheadline, design: .serif))
+                            .fixedSize(horizontal: false, vertical: true)
+                        ForEach(clarification.options) { option in
+                            clarificationButton(option, compact: false)
+                        }
+                    }
+                    .padding(.horizontal, 20)
+                    .padding(.vertical, 8)
                 }
             }
-            .padding(.horizontal, 20)
-            .padding(.vertical, 8)
             .background(RundaleTheme.rule.opacity(0.12))
             .accessibilityElement(children: .contain)
-            .accessibilityLabel("Clarification")
+            .accessibilityLabel("Clarification. \(clarification.prompt)")
             .accessibilityIdentifier("clarification")
         }
+    }
+
+    private func clarificationButton(_ option: PresentedClarification.Option, compact: Bool) -> some View {
+        Button {
+            model.selectClarification(option)
+        } label: {
+            HStack {
+                Text(option.label)
+                    .lineLimit(compact ? 1 : nil)
+                    .font(.subheadline.weight(.medium))
+                if !compact {
+                    Spacer(minLength: 8)
+                }
+                if !compact, let detail = option.detail {
+                    Text(detail)
+                        .font(.caption)
+                        .foregroundStyle(RundaleTheme.secondaryInk)
+                }
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, compact ? 6 : 9)
+            .frame(minHeight: compact ? 44 : nil)
+            .background(RundaleTheme.canvas, in: RoundedRectangle(cornerRadius: 9))
+            .overlay(RoundedRectangle(cornerRadius: 9).stroke(RundaleTheme.rule, lineWidth: 0.8))
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier("clarification.option.\(option.id)")
     }
 }
 
 private struct Composer: View {
     @ObservedObject var model: RundalePresentationModel
     @FocusState.Binding var focused: Bool
+    let compactLayout: Bool
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     private var canSubmitDraft: Bool {
@@ -1023,7 +1087,7 @@ private struct Composer: View {
 
     var body: some View {
         VStack(spacing: 8) {
-            if model.isStreaming {
+            if model.isStreaming && !compactLayout {
                 WaitingAnimation()
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
@@ -1033,7 +1097,7 @@ private struct Composer: View {
                     .textFieldStyle(.plain)
                     .focused($focused)
                     .padding(.horizontal, 12)
-                    .padding(.vertical, 10)
+                    .padding(.vertical, compactLayout ? 6 : 10)
                     .background(RundaleTheme.canvas, in: RoundedRectangle(cornerRadius: 12))
                     .overlay(
                         RoundedRectangle(cornerRadius: 12)
@@ -1053,8 +1117,15 @@ private struct Composer: View {
                             model.stop()
                             focused = true
                         } label: {
-                            Image(systemName: "stop.fill")
-                                .frame(width: 42, height: 42)
+                            HStack(spacing: 5) {
+                                if compactLayout {
+                                    ProgressView()
+                                        .controlSize(.small)
+                                        .accessibilityHidden(true)
+                                }
+                                Image(systemName: "stop.fill")
+                                    .frame(width: 42, height: 42)
+                            }
                         }
                         .buttonStyle(.borderedProminent)
                         .tint(RundaleTheme.error)
@@ -1101,8 +1172,16 @@ private struct Composer: View {
                 .accessibilityIdentifier("composer.commands")
                 Spacer()
                 if model.launch.isUITesting && model.launch.manualStream && model.isStreaming {
-                    Button("Next") {
+                    Button {
                         model.advanceFixture()
+                    } label: {
+                        if compactLayout {
+                            Image(systemName: "chevron.right")
+                                .font(.system(size: 20, weight: .semibold))
+                                .frame(width: 44, height: 44)
+                        } else {
+                            Text("Next")
+                        }
                     }
                     .font(.caption.weight(.semibold))
                     .buttonStyle(.bordered)
@@ -1128,8 +1207,8 @@ private struct Composer: View {
             .padding(.horizontal, 4)
         }
         .padding(.horizontal, 16)
-        .padding(.top, 10)
-        .padding(.bottom, 10)
+        .padding(.top, compactLayout ? 4 : 10)
+        .padding(.bottom, compactLayout ? 4 : 10)
         .background(RundaleTheme.canvas)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("composer")
@@ -1137,15 +1216,21 @@ private struct Composer: View {
 
     @ViewBuilder
     private func shortcutLabel(_ title: String, systemImage: String) -> some View {
-        ViewThatFits(in: .horizontal) {
-            if !dynamicTypeSize.isAccessibilitySize {
-                Label(title, systemImage: systemImage)
-                    .fixedSize(horizontal: true, vertical: false)
+        if compactLayout {
+            Image(systemName: systemImage)
+                .font(.system(size: 20))
+                .accessibilityLabel(title)
+        } else {
+            ViewThatFits(in: .horizontal) {
+                if !dynamicTypeSize.isAccessibilitySize {
+                    Label(title, systemImage: systemImage)
+                        .fixedSize(horizontal: true, vertical: false)
+                }
+                Text(title).fixedSize(horizontal: true, vertical: false)
+                Image(systemName: systemImage).accessibilityLabel(title)
             }
-            Text(title).fixedSize(horizontal: true, vertical: false)
-            Image(systemName: systemImage).accessibilityLabel(title)
+            .accessibilityLabel(title)
         }
-        .accessibilityLabel(title)
     }
 
     @ViewBuilder
@@ -1174,8 +1259,11 @@ private struct Composer: View {
     }
 
     private var multilineCommandField: some View {
+        // Keep multiline editing possible while the native field scrolls
+        // within one visible line above a constrained keyboard. A single view
+        // identity avoids dropping first responder as the keyboard resizes.
         TextField("What do you do?", text: $model.draft, axis: .vertical)
-            .lineLimit(1...5)
+            .lineLimit(compactLayout ? 1...1 : 1...5)
     }
 
     private var commandFieldHint: String {

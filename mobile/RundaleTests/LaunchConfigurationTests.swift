@@ -79,4 +79,27 @@ final class LaunchConfigurationTests: XCTestCase {
 
         XCTAssertEqual(configuration.draftFileURL?.path, override)
     }
+
+    func testExplicitMultilineFixtureDemoKeepsAutomaticStreaming() {
+        let configuration = LaunchConfiguration(
+            arguments: ["--fixture=standard", "--multiline-simulator-composer"],
+            environment: [:],
+            bundle: [:]
+        )
+
+        XCTAssertFalse(configuration.isUITesting)
+        XCTAssertTrue(configuration.usesMultilineSimulatorComposer)
+        XCTAssertFalse(configuration.manualStream)
+    }
+
+    func testPagedHistoryFixtureIsAnExplicitDeterministicLaunchMode() {
+        let configuration = LaunchConfiguration(
+            arguments: ["--ui-tests", "--fixture=paged-history"],
+            environment: [:],
+            bundle: [:]
+        )
+
+        XCTAssertEqual(configuration.fixture, .pagedHistory)
+        XCTAssertTrue(configuration.isUITesting)
+    }
 }
