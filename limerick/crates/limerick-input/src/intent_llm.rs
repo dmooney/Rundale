@@ -12,21 +12,27 @@ use crate::intent_local::{
 };
 use crate::intent_types::{AtmosphericTopic, IntentKind, PlayerIntent};
 
-/// Raw JSON response from the LLM intent parser.
-#[derive(Deserialize)]
-pub(crate) struct IntentResponse {
+/// Raw JSON response from the LLM / Endpoint intent parser.
+///
+/// Shared by the desktop direct-provider path and the portable mobile
+/// Intent Endpoint seam so both runtimes validate the same wire shape.
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, serde::Serialize)]
+pub struct IntentResponse {
     #[serde(default)]
-    pub(crate) intent: Option<IntentKind>,
+    pub intent: Option<IntentKind>,
     #[serde(default)]
-    pub(crate) target: Option<String>,
+    pub target: Option<String>,
     #[serde(default)]
-    pub(crate) dialogue: Option<String>,
+    pub dialogue: Option<String>,
     #[serde(default)]
-    pub(crate) atmosphere: Option<String>,
+    pub atmosphere: Option<String>,
 }
 
 /// The system prompt used for intent parsing.
-const INTENT_SYSTEM_PROMPT: &str = "\
+///
+/// Also published into the mobile Intent Endpoint definition so provider
+/// instructions stay aligned with desktop `parse_intent_*`.
+pub const INTENT_SYSTEM_PROMPT: &str = "\
 You are a text adventure input parser. Given the player's natural language input, \
 determine their intent. Respond with valid JSON containing:\n\
 - \"intent\": one of \"move\", \"talk\", \"look\", \"interact\", \"examine\", \"unknown\"\n\
@@ -113,7 +119,7 @@ fn validated_atmospheric_topic(
 /// imperative verb.  When the LLM says `Look`/`Examine` but this check fails
 /// the intent is downgraded to `Unknown` so it falls through to NPC routing
 /// instead of printing the location description unexpectedly (#1276).
-fn is_genuine_look_input(raw_input: &str) -> bool {
+pub fn is_genuine_look_input(raw_input: &str) -> bool {
     let lower = raw_input.trim().to_lowercase();
     // Exact matches (fast path — same set as parse_intent_local).
     let exact = ["look", "look around", "l", "examine room", "where am i"];
@@ -231,28 +237,7 @@ pub async fn parse_intent_with_profile_and_audit(
     };
 
     match result {
-        Ok(resp) => {
-            let mut intent = resp.intent.unwrap_or(IntentKind::Unknown);
-            // Guard: downgrade spurious Look/Examine classifications (#1276).
-            // Small quantised models occasionally classify conversational input
-            // (e.g. "hey everybody", "no reason") as Look, which would cause the
-            // location description blurb to fire unexpectedly.  Accept Look/Examine
-            // only when the raw input actually resembles an observation command.
-            if matches!(intent, IntentKind::Look | IntentKind::Examine)
-                && !is_genuine_look_input(raw_input)
-            {
-                // Downgrade spurious Look/Examine — caller routes to NPC
-                // conversation instead of printing the location blurb (#1276).
-                intent = IntentKind::Unknown;
-            }
-            Ok(PlayerIntent {
-                intent,
-                target: resp.target,
-                dialogue: resp.dialogue,
-                atmosphere: validated_atmospheric_topic(resp.atmosphere.as_deref(), raw_input),
-                raw: raw_input.to_string(),
-            })
-        }
+        Ok(resp) => Ok(player_intent_from_response(raw_input, resp)),
         Err(_) => Ok(PlayerIntent {
             intent: IntentKind::Unknown,
             target: None,
@@ -260,6 +245,49 @@ pub async fn parse_intent_with_profile_and_audit(
             atmosphere: detect_atmospheric_topic(raw_input),
             raw: raw_input.to_string(),
         }),
+    }
+}
+
+/// Validates structured intent output into a [`PlayerIntent`].
+///
+/// Applies the Look/Examine guard (#1276) and atmospheric-topic grounding so
+/// desktop LLM parsing and the mobile Intent Endpoint share one semantic
+/// boundary. Callers must supply the original player text as `raw_input`.
+pub fn player_intent_from_response(raw_input: &str, resp: IntentResponse) -> PlayerIntent {
+    let mut intent = resp.intent.unwrap_or(IntentKind::Unknown);
+    // Guard: downgrade spurious Look/Examine classifications (#1276).
+    // Small quantised models occasionally classify conversational input
+    // (e.g. "hey everybody", "no reason") as Look, which would cause the
+    // location description blurb to fire unexpectedly.  Accept Look/Examine
+    // only when the raw input actually resembles an observation command.
+    if matches!(intent, IntentKind::Look | IntentKind::Examine) && !is_genuine_look_input(raw_input)
+    {
+        // Downgrade spurious Look/Examine — caller routes to NPC
+        // conversation instead of printing the location blurb (#1276).
+        intent = IntentKind::Unknown;
+    }
+    PlayerIntent {
+        intent,
+        target: resp.target,
+        dialogue: resp.dialogue,
+        atmosphere: validated_atmospheric_topic(resp.atmosphere.as_deref(), raw_input),
+        raw: raw_input.to_string(),
+    }
+}
+
+/// Parses a structured intent JSON candidate with the same validation as the
+/// desktop LLM path. Invalid JSON yields [`IntentKind::Unknown`] rather than
+/// inventing an action.
+pub fn player_intent_from_json(raw_input: &str, json: &str) -> PlayerIntent {
+    match serde_json::from_str::<IntentResponse>(json) {
+        Ok(resp) => player_intent_from_response(raw_input, resp),
+        Err(_) => PlayerIntent {
+            intent: IntentKind::Unknown,
+            target: None,
+            dialogue: None,
+            atmosphere: detect_atmospheric_topic(raw_input),
+            raw: raw_input.to_string(),
+        },
     }
 }
 #[cfg(test)]

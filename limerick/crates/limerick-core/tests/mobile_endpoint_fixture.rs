@@ -1,9 +1,13 @@
 #![cfg(feature = "mobile")]
 
-use limerick_core::mobile::{ExecutionAttemptId, LogicalRequestId, MobileSession, SessionId};
+use limerick_core::mobile::{
+    EndpointCandidate, ExecutionAttemptId, IntentEndpointOutput, LogicalRequestId, MobileSession,
+    SessionId,
+};
+use limerick_input::IntentKind;
 
 #[test]
-fn production_endpoint_invocation_matches_published_fixture() {
+fn production_dialogue_invocation_matches_published_fixture_after_intent() {
     let mut session = MobileSession::open_new().expect("phase2 session");
     let result = session
         .submit(
@@ -12,7 +16,29 @@ fn production_endpoint_invocation_matches_published_fixture() {
             None,
         )
         .expect("request accepted");
-    let result_json = serde_json::to_value(&result).expect("serialise operation result");
+    let intent_invocation = result
+        .endpoint_invocation
+        .expect("inference-requiring input starts with Intent Endpoint");
+    assert_eq!(intent_invocation.role, "intent");
+    assert!(intent_invocation.speaker.is_none());
+
+    let dialogue = session
+        .receive_candidate(EndpointCandidate {
+            attempt_id: intent_invocation.attempt_id,
+            base_revision: intent_invocation.base_revision,
+            dialogue: String::new(),
+            intent: Some(IntentEndpointOutput {
+                intent: Some(IntentKind::Talk),
+                target: Some("Peig".to_string()),
+                dialogue: Some("ask Peig about the old church".to_string()),
+                atmosphere: None,
+            }),
+            metadata: Default::default(),
+            structured: true,
+        })
+        .expect("intent Talk accepted");
+
+    let result_json = serde_json::to_value(&dialogue).expect("serialise operation result");
     assert!(result_json["logicalRequestID"].is_string());
     assert!(result_json["attemptID"].is_string());
     assert!(result_json["endpointInvocation"]["sessionID"].is_string());
@@ -21,7 +47,7 @@ fn production_endpoint_invocation_matches_published_fixture() {
     let snapshot_json = serde_json::to_value(session.snapshot()).expect("serialise snapshot");
     assert!(snapshot_json["sessionID"].is_string());
     assert!(snapshot_json["activeRequestID"].is_string());
-    let mut invocation = result.endpoint_invocation.expect("endpoint invocation");
+    let mut invocation = dialogue.endpoint_invocation.expect("dialogue invocation");
     invocation.session_id = SessionId::new("fixture-session");
     invocation.attempt_id = ExecutionAttemptId::new("fixture-attempt");
     invocation.idempotency_key = "fixture-logical-request:fixture-attempt".to_string();

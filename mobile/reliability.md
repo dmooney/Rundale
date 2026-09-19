@@ -75,8 +75,10 @@ for later world expansion:
   then resolves an explicit address or asks which nearby person to address.
   With one nearby person, ordinary speech goes to that person. Only then does
   the Endpoint receive the unchanged player message and grounded speaker/scene
-  context to generate dialogue. This remains bounded local interpretation,
-  not a general language-model intent classifier.
+  context to generate dialogue. Unfamiliar natural phrasing first reaches the
+  shared Intent Endpoint (`role: intent`); dialogue generation follows only when
+  the validated intent requires Talk. Deterministic commands and local parser
+  matches remain offline.
 - **People** opens nearby choices without editing the draft; selecting a person
   prefixes their explicit reference and retains the text. **Commands** opens the
   runtime's supported command registry; choosing a command places it in the

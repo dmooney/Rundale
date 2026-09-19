@@ -558,8 +558,9 @@ final class RundaleEngineController: ObservableObject, RundaleSessionControlling
                       self.inferenceGeneration == generation,
                       !Task.isCancelled else { return }
                 let body = try invocation.requestBody()
-                guard let endpointURL = configuration.endpointURL
-                    ?? (configuration.phase2MockTransport ? URL(string: "http://127.0.0.1/mock") : nil) else {
+                let configuredURL = configuration.endpointURL(forRole: invocation.role)
+                guard let endpointURL = configuredURL
+                    ?? (configuration.phase2MockTransport ? URL(string: "http://127.0.0.1/mock/\(invocation.role)") : nil) else {
                     throw ParishEndpointError.invalidURL
                 }
                 let request = try EndpointRequest(
@@ -602,20 +603,44 @@ final class RundaleEngineController: ObservableObject, RundaleSessionControlling
                         guard let payload = frame.payload else {
                             throw ParishEndpointError.malformedEvent("final output is missing")
                         }
-                        let output = try FixtureJSON.decode(EndpointOutput.self, from: payload)
-                        guard !output.dialogue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-                            throw ParishEndpointError.malformedEvent("final dialogue is empty")
+                        let operation: Data
+                        if invocation.role == "intent" {
+                            let output = try FixtureJSON.decode(IntentEndpointOutput.self, from: payload)
+                            operation = try EndpointOperation.intentCandidate(
+                                attemptID: invocation.attemptID,
+                                baseRevision: invocation.baseRevision,
+                                intent: output,
+                                metadata: [:],
+                                structured: true
+                            )
+                        } else {
+                            let output = try FixtureJSON.decode(EndpointOutput.self, from: payload)
+                            guard !output.dialogue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+                                throw ParishEndpointError.malformedEvent("final dialogue is empty")
+                            }
+                            operation = try EndpointOperation.candidate(
+                                attemptID: invocation.attemptID,
+                                baseRevision: invocation.baseRevision,
+                                dialogue: output.dialogue,
+                                metadata: [:],
+                                structured: true
+                            )
                         }
-                        let operation = try EndpointOperation.candidate(
-                            attemptID: invocation.attemptID,
-                            baseRevision: invocation.baseRevision,
-                            dialogue: output.dialogue,
-                            metadata: [:],
-                            structured: true
-                        )
                         let response = try await runtime.dispatchJSON(operation)
                         guard !Task.isCancelled else { return }
                         self.consumeOperation(response)
+                        if let followUp = try await self.pendingInvocation(runtime: runtime),
+                           self.allowsInference,
+                           self.inferenceGeneration == generation {
+                            // Schedule after this stream task finishes so
+                            // startEndpoint does not cancel the active Intent attempt.
+                            Task { @MainActor [weak self] in
+                                guard let self,
+                                      self.allowsInference,
+                                      self.inferenceGeneration == generation else { return }
+                                self.startEndpoint(followUp, runtime: runtime)
+                            }
+                        }
                     case .error:
                         throw EndpointReportedFailure(payload: frame.error)
                     }
@@ -860,6 +885,13 @@ private struct EndpointOutput: Decodable {
     let dialogue: String
 }
 
+private struct IntentEndpointOutput: Codable, Sendable {
+    let intent: String
+    let target: String?
+    let dialogue: String?
+    let atmosphere: String?
+}
+
 private struct InvocationIdentity: Codable, Sendable {
     let contractVersion: PresentationContractVersion
     let sessionID: SessionID
@@ -867,7 +899,41 @@ private struct InvocationIdentity: Codable, Sendable {
     let attemptID: ExecutionAttemptID
     let baseRevision: StateRevision
     let idempotencyKey: String
+    let role: String
     var payload: Data?
+
+    enum CodingKeys: String, CodingKey {
+        case contractVersion
+        case sessionID
+        case logicalRequestID
+        case attemptID
+        case baseRevision
+        case idempotencyKey
+        case role
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        contractVersion = try container.decode(PresentationContractVersion.self, forKey: .contractVersion)
+        sessionID = try container.decode(SessionID.self, forKey: .sessionID)
+        logicalRequestID = try container.decode(LogicalRequestID.self, forKey: .logicalRequestID)
+        attemptID = try container.decode(ExecutionAttemptID.self, forKey: .attemptID)
+        baseRevision = try container.decode(StateRevision.self, forKey: .baseRevision)
+        idempotencyKey = try container.decode(String.self, forKey: .idempotencyKey)
+        role = try container.decodeIfPresent(String.self, forKey: .role) ?? "npc_dialogue"
+        payload = nil
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(contractVersion, forKey: .contractVersion)
+        try container.encode(sessionID, forKey: .sessionID)
+        try container.encode(logicalRequestID, forKey: .logicalRequestID)
+        try container.encode(attemptID, forKey: .attemptID)
+        try container.encode(baseRevision, forKey: .baseRevision)
+        try container.encode(idempotencyKey, forKey: .idempotencyKey)
+        try container.encode(role, forKey: .role)
+    }
 
     func requestBody() throws -> Data {
         let input: Data
@@ -913,6 +979,28 @@ private enum EndpointOperation {
             "attempt_id": attemptID.rawValue,
             "base_revision": baseRevision.rawValue,
             "dialogue": dialogue,
+            "metadata": metadata,
+            "structured": structured
+        ])
+    }
+
+    static func intentCandidate(
+        attemptID: ExecutionAttemptID,
+        baseRevision: StateRevision,
+        intent: IntentEndpointOutput,
+        metadata: [String: String],
+        structured: Bool
+    ) throws -> Data {
+        var intentObject: [String: Any] = ["intent": intent.intent]
+        if let target = intent.target { intentObject["target"] = target }
+        if let dialogue = intent.dialogue { intentObject["dialogue"] = dialogue }
+        if let atmosphere = intent.atmosphere { intentObject["atmosphere"] = atmosphere }
+        return try json([
+            "op": "receive_candidate",
+            "attempt_id": attemptID.rawValue,
+            "base_revision": baseRevision.rawValue,
+            "dialogue": "",
+            "intent": intentObject,
             "metadata": metadata,
             "structured": structured
         ])
@@ -1083,6 +1171,12 @@ private final class Phase2MockEndpointTransport: EndpointTransport, @unchecked S
                                 "message": "The Endpoint test response failed."
                             ]
                         )))
+                    } else if identities.role == "intent" {
+                        let output = Self.intentOutput(for: identities.input)
+                        continuation.yield(.bytes(try Self.frame(
+                            type: "final", sequence: 1, identities: identities,
+                            output: output
+                        )))
                     } else {
                         let dialogue: String
                         let chunks: [String]
@@ -1135,6 +1229,7 @@ private final class Phase2MockEndpointTransport: EndpointTransport, @unchecked S
         let invocationID: String
         let input: String
         let speakerName: String
+        let role: String
         let endpointVersion: Int
     }
 
@@ -1145,10 +1240,16 @@ private final class Phase2MockEndpointTransport: EndpointTransport, @unchecked S
               let requestID = input["logicalRequestID"] as? String,
               let attemptID = input["attemptID"] as? String,
               let invocationID = input["idempotencyKey"] as? String,
-              let playerInput = input["playerInput"] as? String,
-              let speaker = input["speaker"] as? [String: Any],
-              let speakerName = speaker["displayName"] as? String else {
+              let playerInput = input["playerInput"] as? String else {
             throw ParishEndpointError.malformedEvent("mock request input is invalid")
+        }
+        let role = (input["role"] as? String) ?? "npc_dialogue"
+        let speakerName: String
+        if let speaker = input["speaker"] as? [String: Any],
+           let name = speaker["displayName"] as? String {
+            speakerName = name
+        } else {
+            speakerName = ""
         }
         return Identities(
             requestID: requestID,
@@ -1156,8 +1257,58 @@ private final class Phase2MockEndpointTransport: EndpointTransport, @unchecked S
             invocationID: invocationID,
             input: playerInput,
             speakerName: speakerName,
+            role: role,
             endpointVersion: Self.endpointVersion(from: url)
         )
+    }
+
+    private static func intentOutput(for playerInput: String) -> [String: Any] {
+        let lower = playerInput.lowercased()
+        if lower.contains("take me to") || lower.contains("bring me to") || lower.contains("make for") {
+            let target: String
+            if lower.contains("letter office") {
+                target = "Letter Office"
+            } else if lower.contains("connolly") {
+                target = "Connolly Cottage"
+            } else if lower.contains("kilteevan") {
+                target = "Kilteevan Village"
+            } else {
+                target = playerInput
+            }
+            return [
+                "intent": "move",
+                "target": target,
+                "dialogue": NSNull(),
+                "atmosphere": NSNull()
+            ]
+        }
+        if lower.hasPrefix("ask ") || lower.hasPrefix("tell ") || lower.hasPrefix("talk ")
+            || lower.contains("hello") || lower.contains("peig") || lower.contains("michael")
+            || lower.contains("mícheál") || lower.contains("róisín") || lower.contains("connolly") {
+            var target: String? = nil
+            if lower.contains("peig") { target = "Peig" }
+            else if lower.contains("róisín") || lower.contains("roisin") { target = "Róisín Connolly" }
+            else if lower.contains("michael") || lower.contains("mícheál") || lower.contains("micheal") {
+                target = "Mícheál Connolly"
+            } else if lower.contains("connolly") { target = "Connolly" }
+            var output: [String: Any] = [
+                "intent": "talk",
+                "dialogue": playerInput,
+                "atmosphere": NSNull()
+            ]
+            if let target {
+                output["target"] = target
+            } else {
+                output["target"] = NSNull()
+            }
+            return output
+        }
+        return [
+            "intent": "talk",
+            "target": NSNull(),
+            "dialogue": playerInput,
+            "atmosphere": NSNull()
+        ]
     }
 
     private static func endpointVersion(from url: URL) -> Int {

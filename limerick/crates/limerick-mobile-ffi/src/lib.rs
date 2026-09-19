@@ -340,8 +340,8 @@ mod core_backend {
     };
     use limerick_core::mobile::{
         DraftId, EndpointCandidate, EndpointFailureKind, EndpointFrame, EventCursor, EventPage,
-        ExecutionAttemptId, LogicalRequestId, MobileSave, MobileSession, MobileSnapshot,
-        RequestPhase, RequestRecord, SemanticEvent, StateRevision, StreamUpdate,
+        ExecutionAttemptId, IntentEndpointOutput, LogicalRequestId, MobileSave, MobileSession,
+        MobileSnapshot, RequestPhase, RequestRecord, SemanticEvent, StateRevision, StreamUpdate,
     };
     use serde::{Serialize, de::DeserializeOwned};
     use serde_json::{Map, json};
@@ -785,7 +785,15 @@ mod core_backend {
                             || BackendError::protocol("operation requires `base_revision`"),
                         )?;
                     let base_revision = parse_revision(base_revision_value, "base_revision")?;
-                    let dialogue: String = parse(required(object, "dialogue")?, "dialogue")?;
+                    let dialogue: String = object
+                        .get("dialogue")
+                        .map(|value| parse(value, "dialogue"))
+                        .transpose()?
+                        .unwrap_or_default();
+                    let intent: Option<IntentEndpointOutput> = object
+                        .get("intent")
+                        .map(|value| parse(value, "intent"))
+                        .transpose()?;
                     let metadata = object
                         .get("metadata")
                         .map(|value| parse(value, "metadata"))
@@ -801,6 +809,7 @@ mod core_backend {
                                 attempt_id,
                                 base_revision,
                                 dialogue,
+                                intent,
                                 metadata,
                                 structured,
                             })

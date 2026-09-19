@@ -13,7 +13,9 @@ mod parser;
 
 pub use commands::{Command, FlagSubcommand, InferenceLogSub, validate_branch_name};
 pub use intent_llm::{
-    parse_intent, parse_intent_with_profile, parse_intent_with_profile_and_audit,
+    INTENT_SYSTEM_PROMPT, IntentResponse, is_genuine_look_input, parse_intent,
+    parse_intent_with_profile, parse_intent_with_profile_and_audit, player_intent_from_json,
+    player_intent_from_response,
 };
 pub use intent_local::{
     detect_atmospheric_topic, is_directed_instruction_dialogue, is_physical_action_shaped,

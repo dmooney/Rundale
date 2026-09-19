@@ -144,6 +144,16 @@ final class RundalePhase3UITests: XCTestCase {
         XCTAssertTrue(waitForText("Róisín Connolly", timeout: 8))
     }
 
+    func testInferredTravelUsesIntentEndpointBeforeMoving() {
+        launch(reset: true)
+        XCTAssertTrue(headerLabel(contains: "Kilteevan Village").waitForExistence(timeout: 8))
+        submit("take me to the Letter Office")
+        XCTAssertTrue(headerLabel(contains: "Letter Office").waitForExistence(timeout: 12))
+        XCTAssertTrue(waitForText("Travel to Letter Office.", timeout: 8))
+        // A dialogue-only fallback would leave the player in the village.
+        XCTAssertFalse(headerLabel(contains: "Kilteevan Village").exists)
+    }
+
     private func launch(reset: Bool) {
         app.launchArguments = ["--ui-tests", "--phase3", "--phase3-mock", "--no-auto-focus"]
         if reset { app.launchArguments.append("--reset-fixture") }

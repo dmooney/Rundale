@@ -8,6 +8,7 @@ struct LaunchConfiguration: Sendable {
         static let endpointBaseURL = "RUNDALE_ENDPOINT_BASE_URL"
         static let endpointOrganization = "RUNDALE_ENDPOINT_ORGANIZATION"
         static let endpointSlug = "RUNDALE_ENDPOINT_SLUG"
+        static let endpointIntentSlug = "RUNDALE_ENDPOINT_INTENT_SLUG"
         static let endpointVersion = "RUNDALE_ENDPOINT_VERSION"
     }
 
@@ -48,6 +49,8 @@ struct LaunchConfiguration: Sendable {
     let endpointBaseURL: URL?
     let endpointOrganization: String
     let endpointSlug: String
+    /// Separate Intent Endpoint slug; defaults to `rundale-intent`.
+    let endpointIntentSlug: String
     let endpointVersion: Int
 
     init(arguments: [String] = ProcessInfo.processInfo.arguments,
@@ -95,6 +98,9 @@ struct LaunchConfiguration: Sendable {
         endpointSlug = Self.configuredValue(BundleKey.endpointSlug,
                                              environment: environment,
                                              bundle: bundle) ?? "rundale-dialogue"
+        endpointIntentSlug = Self.configuredValue(BundleKey.endpointIntentSlug,
+                                                   environment: environment,
+                                                   bundle: bundle) ?? "rundale-intent"
         endpointVersion = max(1, Int(Self.configuredValue(BundleKey.endpointVersion,
                                                            environment: environment,
                                                            bundle: bundle) ?? "1") ?? 1)
@@ -115,12 +121,27 @@ struct LaunchConfiguration: Sendable {
     }
 
     var endpointURL: URL? {
+        endpointURL(forSlug: endpointSlug)
+    }
+
+    var intentEndpointURL: URL? {
+        endpointURL(forSlug: endpointIntentSlug)
+    }
+
+    func endpointURL(forRole role: String) -> URL? {
+        if role == "intent" {
+            return intentEndpointURL
+        }
+        return endpointURL
+    }
+
+    private func endpointURL(forSlug slug: String) -> URL? {
         guard let endpointBaseURL else { return nil }
         return endpointBaseURL
             .appendingPathComponent("v1")
             .appendingPathComponent("endpoints")
             .appendingPathComponent(endpointOrganization)
-            .appendingPathComponent(endpointSlug)
+            .appendingPathComponent(slug)
             .appendingPathComponent("versions")
             .appendingPathComponent(String(endpointVersion))
             .appendingPathComponent("stream")

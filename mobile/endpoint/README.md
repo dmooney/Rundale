@@ -1,12 +1,15 @@
-# Rundale dialogue Endpoint definition
+# Rundale Endpoint definitions
+
+## Dialogue — `rundale-dialogue-v1.json`
 
 [`rundale-dialogue-v1.json`](rundale-dialogue-v1.json) is the version 1
 Endpoint definition for the Phase 2 NPC dialogue role. It is the
 `EndpointDefinition` body consumed by Parish Endpoints: `inputSchema`,
 `outputSchema`, `instructions`, `providerConfig`, and `inferenceConfig`.
 [`example-engine-invocation.json`](example-engine-invocation.json) is a
-secret-free serialization produced by the Rust `EndpointInvocation` DTO and
-checked against it in the `limerick-core` fixture test.
+secret-free serialization produced by the Rust `EndpointInvocation` DTO after
+Intent has selected a Talk action, and is checked against it in the
+`limerick-core` fixture test.
 
 The public identity is organization `parish-demo`, slug `rundale-dialogue`,
 version `1`. The exact artifact was published and promoted on 2026-09-09; its
@@ -16,6 +19,18 @@ The first provider target is `google/gemini-3.5-flash-lite`, with 1,024 output
 tokens, no retry, and the versioned streaming projection
 `inferenceConfig.streaming.textField = "dialogue"`.
 
+## Intent — `rundale-intent-v1.json`
+
+[`rundale-intent-v1.json`](rundale-intent-v1.json) is the version 1 Endpoint
+definition for shared player-intent inference (`role: "intent"`). It reuses the
+desktop `INTENT_SYSTEM_PROMPT` semantics and returns
+`{intent, target?, dialogue?, atmosphere?}`. Mobile calls this Endpoint when
+`parse_intent_local` cannot classify the input; dialogue generation follows only
+when the validated intent is Talk/Unknown. The intended public identity is
+organization `parish-demo`, slug `rundale-intent`, version `1`. Publish and bind
+it through the same Parish Endpoints path as dialogue; the iOS app selects the
+slug from `RUNDALE_ENDPOINT_INTENT_SLUG` (default `rundale-intent`).
+
 ## Engine wire agreement
 
 The input schema is the JSON serialization of
@@ -24,7 +39,7 @@ The input schema is the JSON serialization of
 The Rust DTO uses `serde(rename_all = "camelCase")`, so the request uses
 `sessionID`, `logicalRequestID`, `attemptID`, `playerInput`,
 `currentLocation`, `knownPeople`, `knownPlaces`, `authoredFacts`, and
-`recentConversation`. All fields are required and unknown fields are rejected.
+`recentConversation`. Dialogue invocations include a required `speaker`. Intent invocations omit `speaker`. Unknown fields are rejected by each role schema.
 
 Opaque mobile IDs serialize as strings. `baseRevision` is the explicit
 `{"rawValue": number}` `StateRevision` shape. Engine `u32` identifiers in

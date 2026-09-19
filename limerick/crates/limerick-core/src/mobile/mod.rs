@@ -331,6 +331,9 @@ pub struct RequestAttempt {
     pub base_revision: StateRevision,
     pub last_stream_sequence: u64,
     pub provisional_text: String,
+    /// Active Endpoint role for this attempt (`intent` or `npc_dialogue`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pending_endpoint_role: Option<String>,
     #[serde(skip)]
     grounding: Option<GroundingSnapshot>,
 }
@@ -353,6 +356,10 @@ pub struct RequestRecord {
     pub committed_state_revision: Option<StateRevision>,
     #[serde(default, rename = "selectedNpcID")]
     pub selected_npc_id: Option<String>,
+    /// Last Endpoint role issued for this logical request. Retries reuse it
+    /// so an interrupted Intent stage does not silently become dialogue.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pending_endpoint_role: Option<String>,
     #[serde(default)]
     pub pending_clarification: Option<PendingClarification>,
 }
@@ -986,7 +993,9 @@ pub struct EndpointInvocation {
     pub idempotency_key: String,
     pub role: String,
     pub player_input: String,
-    pub speaker: GroundedPerson,
+    /// Present for `npc_dialogue`. Omitted for the `intent` role.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub speaker: Option<GroundedPerson>,
     pub current_location: GroundedPlace,
     pub known_people: Vec<GroundedPerson>,
     pub known_places: Vec<GroundedPlace>,
@@ -996,13 +1005,32 @@ pub struct EndpointInvocation {
     pub max_stream_bytes: usize,
 }
 
+/// Structured Intent Endpoint output. Mirrors `limerick_input::IntentResponse`.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct IntentEndpointOutput {
+    #[serde(default)]
+    pub intent: Option<limerick_input::IntentKind>,
+    #[serde(default)]
+    pub target: Option<String>,
+    #[serde(default)]
+    pub dialogue: Option<String>,
+    #[serde(default)]
+    pub atmosphere: Option<String>,
+}
+
 /// Candidate response returned by the platform after Endpoint validation.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct EndpointCandidate {
     pub attempt_id: ExecutionAttemptId,
     pub base_revision: StateRevision,
+    /// NPC utterance when the active role is `npc_dialogue`.
+    #[serde(default)]
     pub dialogue: String,
+    /// Structured intent when the active role is `intent`.
+    #[serde(default)]
+    pub intent: Option<IntentEndpointOutput>,
     #[serde(default)]
     pub metadata: BTreeMap<String, String>,
     /// The platform must identify whether the response crossed the structured
@@ -1894,6 +1922,7 @@ impl MobileSession {
             base_revision,
             last_stream_sequence: 0,
             provisional_text: String::new(),
+            pending_endpoint_role: None,
             grounding: None,
         };
         let pre_acceptance_requests = self.requests.clone();
@@ -1927,6 +1956,7 @@ impl MobileSession {
             terminal_outcome: None,
             committed_state_revision: None,
             selected_npc_id: None,
+            pending_endpoint_role: None,
             pending_clarification: None,
         };
         // Acceptance is persisted before interpreting the command or handing
@@ -1989,79 +2019,33 @@ impl MobileSession {
             ));
         }
 
-        if let Some((target, interpreted)) = movement_target(&text) {
+        // Shared local interpretation (same leaf rules as desktop). Slash travel
+        // remains offline for `/go …` which the local parser does not cover.
+        if let Some(intent) = crate::portable_intent::interpret_local(&text) {
+            let mut result =
+                self.dispatch_interpreted_intent(&request_id, &attempt_id, intent, true)?;
+            result.events.insert(0, command_event);
+            return Ok(result);
+        }
+
+        if let Some((target, interpreted)) = slash_movement_target(&text) {
             let mut result = self.commit_travel(&request_id, &attempt_id, &target, interpreted)?;
             result.events.insert(0, command_event);
             return Ok(result);
         }
 
-        let selected_npc_id = match self.resolve_dialogue_target(&text) {
-            DialogueTarget::Selected(id) => id,
-            DialogueTarget::Unavailable(message) => {
-                let mut result = self.complete_local_response(
-                    &request_id,
-                    &attempt_id,
-                    message,
-                    "unavailable_npc",
-                )?;
-                result.events.insert(0, command_event);
-                return Ok(result);
-            }
-            DialogueTarget::Ambiguous(ids) => {
-                let choices: Vec<ClarificationChoice> = ids
-                    .iter()
-                    .filter_map(|id| self.content.npc_by_stable_id(id))
-                    .map(|npc| ClarificationChoice {
-                        id: format!("choose-{}", npc.id),
-                        label: npc.display_name.clone(),
-                        entity_id: Some(npc.id.clone()),
-                    })
-                    .collect();
-                let prompt = PendingClarification {
-                    question: "Which person do you mean?".to_string(),
-                    choices,
-                };
-                if let Some(stored) = self
-                    .requests
-                    .iter_mut()
-                    .find(|record| record.id == request_id)
-                {
-                    stored.phase = RequestPhase::AwaitingClarification;
-                    stored.pending_clarification = Some(prompt.clone());
-                    stored.current_attempt_mut().expect("current attempt").phase =
-                        RequestPhase::AwaitingClarification;
-                }
-                let clarification = self.emit_clarification(&request_id, &attempt_id, &prompt);
-                if let Err(error) = self.persist_current() {
-                    self.requests = accepted_requests;
-                    self.events = accepted_events;
-                    self.has_older_events = accepted_has_older_events;
-                    self.next_event_sequence = accepted_next_sequence;
-                    self.active_request_id = accepted_active;
-                    self.provisional_events = accepted_provisional;
-                    return Err(error);
-                }
-                return Ok(self.operation_result(
-                    true,
-                    Some(request_id),
-                    Some(attempt_id),
-                    vec![command_event, clarification],
-                    None,
-                    None,
-                    false,
-                    None,
-                ));
-            }
-        };
-        let selected_npc = self
-            .content
-            .npc_by_stable_id(&selected_npc_id)
-            .expect("resolved NPC exists");
-        let grounding = self.grounding_snapshot(NpcId(selected_npc.engine_npc_id));
+        // Inference-requiring input: Intent Endpoint before any dialogue.
+        let grounding = self.intent_grounding_snapshot();
         if let Some(stored) = self.requests.iter_mut().find(|r| r.id == request_id) {
             stored.phase = RequestPhase::Executing;
-            stored.selected_npc_id = Some(selected_npc_id);
+            stored.pending_endpoint_role =
+                Some(crate::portable_intent::INTENT_ENDPOINT_ROLE.to_string());
             stored.current_attempt_mut().expect("current attempt").phase = RequestPhase::Executing;
+            stored
+                .current_attempt_mut()
+                .expect("current attempt")
+                .pending_endpoint_role =
+                Some(crate::portable_intent::INTENT_ENDPOINT_ROLE.to_string());
             stored
                 .current_attempt_mut()
                 .expect("current attempt")
@@ -2154,10 +2138,14 @@ impl MobileSession {
             request.phase = RequestPhase::Executing;
             request.selected_npc_id = Some(stable_id.clone());
             request.pending_clarification = None;
+            request.pending_endpoint_role =
+                Some(crate::portable_intent::DIALOGUE_ENDPOINT_ROLE.to_string());
             let attempt = request
                 .current_attempt_mut()
                 .expect("clarification has attempt");
             attempt.phase = RequestPhase::Executing;
+            attempt.pending_endpoint_role =
+                Some(crate::portable_intent::DIALOGUE_ENDPOINT_ROLE.to_string());
             attempt.grounding = Some(grounding.clone());
         }
         self.active_request_id = Some(logical_request_id.clone());
@@ -2228,13 +2216,21 @@ impl MobileSession {
 
         let text = self.requests[request_index].original_text.clone();
         let attempt_id = ExecutionAttemptId::fresh();
-        let selected = self.requests[request_index]
-            .selected_npc_id
-            .as_deref()
-            .and_then(|id| self.content.npc_by_stable_id(id))
-            .map(|npc| NpcId(npc.engine_npc_id))
-            .unwrap_or(NpcId(self.content.engine_npc_id));
-        let grounding = self.grounding_snapshot(selected);
+        let pending_role = self.requests[request_index]
+            .pending_endpoint_role
+            .clone()
+            .unwrap_or_else(|| crate::portable_intent::INTENT_ENDPOINT_ROLE.to_string());
+        let grounding = if pending_role == crate::portable_intent::DIALOGUE_ENDPOINT_ROLE {
+            let selected = self.requests[request_index]
+                .selected_npc_id
+                .as_deref()
+                .and_then(|id| self.content.npc_by_stable_id(id))
+                .map(|npc| NpcId(npc.engine_npc_id))
+                .unwrap_or(NpcId(self.content.engine_npc_id));
+            self.grounding_snapshot(selected)
+        } else {
+            self.intent_grounding_snapshot()
+        };
         let attempt = RequestAttempt {
             id: attempt_id.clone(),
             original_text: text.clone(),
@@ -2247,6 +2243,7 @@ impl MobileSession {
             base_revision: self.state_revision,
             last_stream_sequence: 0,
             provisional_text: String::new(),
+            pending_endpoint_role: Some(pending_role.clone()),
             grounding: Some(grounding.clone()),
         };
         let prior_requests = self.requests.clone();
@@ -2260,6 +2257,7 @@ impl MobileSession {
         self.requests[request_index].phase = RequestPhase::Executing;
         self.requests[request_index].terminal_outcome = None;
         self.requests[request_index].committed_state_revision = None;
+        self.requests[request_index].pending_endpoint_role = Some(pending_role);
         self.active_request_id = Some(logical_request_id.clone());
         let progress = self.emit(
             SemanticEventKind::Progress,
@@ -2586,7 +2584,7 @@ impl MobileSession {
         let speaker_name = attempt
             .grounding
             .as_ref()
-            .map(|grounding| grounding.speaker_name.clone())
+            .and_then(|grounding| grounding.speaker_name.clone())
             .unwrap_or_else(|| self.content.npc_name.clone());
         let item_id = TranscriptItemId::new(format!("{}:response", frame.attempt_id.raw_value));
         let event = self.emit(
@@ -2679,6 +2677,32 @@ impl MobileSession {
                 None,
             ));
         }
+        let pending_role = attempt
+            .pending_endpoint_role
+            .clone()
+            .or_else(|| request.pending_endpoint_role.clone())
+            .unwrap_or_else(|| crate::portable_intent::DIALOGUE_ENDPOINT_ROLE.to_string());
+        if pending_role == crate::portable_intent::INTENT_ENDPOINT_ROLE {
+            let Some(intent_output) = candidate.intent.clone() else {
+                return Err(MobileError::Content(
+                    "intent Endpoint candidate missing structured intent".to_string(),
+                ));
+            };
+            let response = limerick_input::IntentResponse {
+                intent: intent_output.intent,
+                target: intent_output.target,
+                dialogue: intent_output.dialogue,
+                atmosphere: intent_output.atmosphere,
+            };
+            let intent =
+                crate::portable_intent::interpret_candidate(&request.original_text, response);
+            return self.dispatch_interpreted_intent(
+                &request_id,
+                &candidate.attempt_id,
+                intent,
+                true,
+            );
+        }
         validate_candidate_text(&candidate.dialogue)?;
         self.commit_dialogue(
             &request_id,
@@ -2703,6 +2727,234 @@ impl MobileSession {
         let attempt = request.current_attempt()?;
         let grounding = attempt.grounding.as_ref()?;
         Some(self.endpoint_invocation(&request_id, &attempt.id, &request.original_text, grounding))
+    }
+
+    /// Dispatch a validated [`PlayerIntent`] into travel, look, narration, or
+    /// dialogue. When `emit_receipt` is true and the action is not a pure
+    /// offline deterministic look, a `CommandInterpreted` receipt is emitted
+    /// for inferred / local natural-language actions.
+    fn dispatch_interpreted_intent(
+        &mut self,
+        request_id: &LogicalRequestId,
+        attempt_id: &ExecutionAttemptId,
+        intent: limerick_input::PlayerIntent,
+        emit_receipt: bool,
+    ) -> Result<MobileOperationResult, MobileError> {
+        use limerick_input::IntentKind;
+        match intent.intent {
+            IntentKind::Move => {
+                let target = intent
+                    .target
+                    .as_deref()
+                    .map(str::trim)
+                    .filter(|value| !value.is_empty())
+                    .unwrap_or("")
+                    .to_string();
+                if target.is_empty() {
+                    return self.complete_local_response(
+                        request_id,
+                        attempt_id,
+                        "Where do you want to go?".to_string(),
+                        "missing_travel_target",
+                    );
+                }
+                self.commit_travel(request_id, attempt_id, &target, emit_receipt)
+            }
+            IntentKind::Look | IntentKind::Examine => {
+                let look_text = crate::portable_look::render_look_text(
+                    &self.world,
+                    &self.npcs,
+                    1.25,
+                    "on foot",
+                    false,
+                );
+                let mut events = Vec::new();
+                if emit_receipt {
+                    let receipt = self.emit(
+                        SemanticEventKind::CommandInterpreted,
+                        Some(crate::portable_intent::interpretation_receipt(&intent)),
+                        None,
+                        Some(request_id),
+                        Some(attempt_id),
+                        None,
+                        false,
+                        None,
+                        None,
+                        true,
+                        None,
+                        Some(self.state_revision),
+                        metadata([("intent", "look".to_string())]),
+                    );
+                    events.push(receipt);
+                }
+                let mut result =
+                    self.complete_local_response(request_id, attempt_id, look_text, "look")?;
+                events.append(&mut result.events);
+                result.events = events;
+                Ok(result)
+            }
+            IntentKind::Interact => {
+                let narration = match intent.target.as_deref() {
+                    Some(target) if !target.trim().is_empty() => {
+                        format!("You try to interact with {}.", target.trim())
+                    }
+                    _ => format!("You try: {}.", intent.raw.trim()),
+                };
+                self.complete_local_response(
+                    request_id,
+                    attempt_id,
+                    narration,
+                    "interact_narration",
+                )
+            }
+            IntentKind::Talk | IntentKind::Unknown => {
+                let dialogue_text = intent
+                    .dialogue
+                    .clone()
+                    .filter(|value| !value.trim().is_empty())
+                    .unwrap_or_else(|| intent.raw.clone());
+                let address_text = match intent.target.as_deref() {
+                    Some(target) if !target.trim().is_empty() => {
+                        format!("talk to {}", target.trim())
+                    }
+                    _ => dialogue_text.clone(),
+                };
+                let receipt = if emit_receipt && matches!(intent.intent, IntentKind::Talk) {
+                    Some(crate::portable_intent::interpretation_receipt(&intent))
+                } else {
+                    None
+                };
+                self.begin_dialogue_endpoint(
+                    request_id,
+                    attempt_id,
+                    &address_text,
+                    &dialogue_text,
+                    receipt,
+                )
+            }
+        }
+    }
+
+    /// Resolve dialogue targeting and either clarify, reject, or open the
+    /// `npc_dialogue` Endpoint for the same logical request.
+    fn begin_dialogue_endpoint(
+        &mut self,
+        request_id: &LogicalRequestId,
+        attempt_id: &ExecutionAttemptId,
+        address_text: &str,
+        player_input: &str,
+        interpretation_receipt: Option<String>,
+    ) -> Result<MobileOperationResult, MobileError> {
+        let mut prefix_events = Vec::new();
+        if let Some(receipt_text) = interpretation_receipt {
+            prefix_events.push(self.emit(
+                SemanticEventKind::CommandInterpreted,
+                Some(receipt_text),
+                None,
+                Some(request_id),
+                Some(attempt_id),
+                None,
+                false,
+                None,
+                None,
+                true,
+                None,
+                Some(self.state_revision),
+                metadata([("intent", "talk".to_string())]),
+            ));
+        }
+        let selected_npc_id = match self.resolve_dialogue_target(address_text) {
+            DialogueTarget::Selected(id) => id,
+            DialogueTarget::Unavailable(message) => {
+                let mut result = self.complete_local_response(
+                    request_id,
+                    attempt_id,
+                    message,
+                    "unavailable_npc",
+                )?;
+                let mut events = prefix_events;
+                events.append(&mut result.events);
+                result.events = events;
+                return Ok(result);
+            }
+            DialogueTarget::Ambiguous(ids) => {
+                let choices: Vec<ClarificationChoice> = ids
+                    .iter()
+                    .filter_map(|id| self.content.npc_by_stable_id(id))
+                    .map(|npc| ClarificationChoice {
+                        id: format!("choose-{}", npc.id),
+                        label: npc.display_name.clone(),
+                        entity_id: Some(npc.id.clone()),
+                    })
+                    .collect();
+                let prompt = PendingClarification {
+                    question: "Which person do you mean?".to_string(),
+                    choices,
+                };
+                if let Some(stored) = self
+                    .requests
+                    .iter_mut()
+                    .find(|record| record.id == *request_id)
+                {
+                    stored.phase = RequestPhase::AwaitingClarification;
+                    stored.pending_clarification = Some(prompt.clone());
+                    stored.pending_endpoint_role = None;
+                    stored.current_attempt_mut().expect("current attempt").phase =
+                        RequestPhase::AwaitingClarification;
+                    stored
+                        .current_attempt_mut()
+                        .expect("current attempt")
+                        .pending_endpoint_role = None;
+                }
+                let clarification = self.emit_clarification(request_id, attempt_id, &prompt);
+                self.persist_current()?;
+                prefix_events.push(clarification);
+                return Ok(self.operation_result(
+                    true,
+                    Some(request_id.clone()),
+                    Some(attempt_id.clone()),
+                    prefix_events,
+                    None,
+                    None,
+                    false,
+                    None,
+                ));
+            }
+        };
+        let selected_npc = self
+            .content
+            .npc_by_stable_id(&selected_npc_id)
+            .expect("resolved NPC exists");
+        let grounding = self.grounding_snapshot(NpcId(selected_npc.engine_npc_id));
+        if let Some(stored) = self.requests.iter_mut().find(|r| r.id == *request_id) {
+            stored.phase = RequestPhase::Executing;
+            stored.selected_npc_id = Some(selected_npc_id);
+            stored.pending_endpoint_role =
+                Some(crate::portable_intent::DIALOGUE_ENDPOINT_ROLE.to_string());
+            stored.current_attempt_mut().expect("current attempt").phase = RequestPhase::Executing;
+            stored
+                .current_attempt_mut()
+                .expect("current attempt")
+                .pending_endpoint_role =
+                Some(crate::portable_intent::DIALOGUE_ENDPOINT_ROLE.to_string());
+            stored
+                .current_attempt_mut()
+                .expect("current attempt")
+                .grounding = Some(grounding.clone());
+        }
+        self.active_request_id = Some(request_id.clone());
+        let invocation = self.endpoint_invocation(request_id, attempt_id, player_input, &grounding);
+        self.persist_current()?;
+        Ok(self.operation_result(
+            true,
+            Some(request_id.clone()),
+            Some(attempt_id.clone()),
+            prefix_events,
+            Some(invocation),
+            None,
+            false,
+            None,
+        ))
     }
 
     fn commit_deterministic_command(
@@ -3380,17 +3632,30 @@ impl MobileSession {
             });
         let mut next_world = self.world.clone();
         let mut next_npcs = self.npcs.clone();
+        let speaker_id = grounding.speaker_id.unwrap_or_else(|| {
+            self.requests
+                .iter()
+                .find(|record| &record.id == request_id)
+                .and_then(|record| record.selected_npc_id.as_deref())
+                .and_then(|id| self.content.npc_by_stable_id(id))
+                .map(|npc| NpcId(npc.engine_npc_id))
+                .unwrap_or(NpcId(self.content.engine_npc_id))
+        });
+        let speaker_name = grounding
+            .speaker_name
+            .clone()
+            .unwrap_or_else(|| self.content.npc_name.clone());
         if !self
             .npcs
             .npcs_at(self.world.player_location)
             .iter()
-            .any(|npc| npc.id == grounding.speaker_id)
+            .any(|npc| npc.id == speaker_id)
         {
             return self.finish_uncommitted(
                 request_id,
                 attempt_id,
                 ResponseTerminalOutcome::Failed,
-                Some(format!("{} is no longer here.", grounding.speaker_name)),
+                Some(format!("{speaker_name} is no longer here.")),
                 Some("speaker_unavailable"),
             );
         }
@@ -3408,7 +3673,7 @@ impl MobileSession {
         let apply = crate::dialogue_apply::apply_npc_dialogue_turn_with_validation(
             &mut next_world,
             &mut next_npcs,
-            grounding.speaker_id,
+            speaker_id,
             &parsed,
             parse_disposition,
             &dialogue_grounding,
@@ -3417,8 +3682,8 @@ impl MobileSession {
             &player_input,
             game_time,
             self.world.player_location,
-            &grounding.speaker_name,
-            &grounding.speaker_name,
+            &speaker_name,
+            &speaker_name,
             None,
             &dialogue_grounding.known_person_names,
             &limerick_npc::LanguageSettings::english_only(),
@@ -3430,8 +3695,7 @@ impl MobileSession {
                 attempt_id,
                 ResponseTerminalOutcome::Failed,
                 Some(format!(
-                    "{} could not make sense of that request.",
-                    grounding.speaker_name
+                    "{speaker_name} could not make sense of that request."
                 )),
                 Some("semantic_validation"),
             );
@@ -3442,10 +3706,7 @@ impl MobileSession {
                 request_id,
                 attempt_id,
                 ResponseTerminalOutcome::Failed,
-                Some(format!(
-                    "{} did not return a usable response.",
-                    grounding.speaker_name
-                )),
+                Some(format!("{speaker_name} did not return a usable response.")),
                 Some("semantic_validation"),
             );
         }
@@ -3461,7 +3722,7 @@ impl MobileSession {
             EventSequence::new(response_sequence),
             SemanticEventKind::NpcDialogue,
             Some(dialogue),
-            Some(grounding.speaker_name.clone()),
+            Some(speaker_name),
             Some(request_id),
             Some(attempt_id),
             Some(TranscriptItemId::new(format!(
@@ -3856,8 +4117,8 @@ impl MobileSession {
                 .collect(),
             authored_facts: speaker.known_facts.clone(),
             current_location_name: current_name,
-            speaker_id,
-            speaker_name: speaker.display_name.clone(),
+            speaker_id: Some(speaker_id),
+            speaker_name: Some(speaker.display_name.clone()),
             canonical_mood: self
                 .npcs
                 .get(speaker_id)
@@ -3869,6 +4130,87 @@ impl MobileSession {
                 .conversation_log
                 .recent_at(location_id, 1)
                 .is_empty(),
+            role: crate::portable_intent::DIALOGUE_ENDPOINT_ROLE.to_string(),
+        }
+    }
+
+    /// World-scoped grounding for Intent Endpoint calls (no dialogue speaker).
+    fn intent_grounding_snapshot(&self) -> GroundingSnapshot {
+        let location_id = self.world.player_location;
+        let current_location = self
+            .content
+            .location_by_engine_id(location_id)
+            .expect("current location belongs to mobile content");
+        let current_name = current_location.display_name.clone();
+        let recent_player_inputs: Vec<String> = self
+            .world
+            .conversation_log
+            .recent_at(location_id, MAX_RECENT_CONVERSATION)
+            .into_iter()
+            .map(|exchange| exchange.player_input.clone())
+            .collect();
+        let known_people: Vec<GroundedPerson> = self
+            .content
+            .npcs
+            .iter()
+            .filter_map(|definition| {
+                let npc = self.npcs.get(NpcId(definition.engine_npc_id))?;
+                let location = self.content.location_by_engine_id(npc.location())?;
+                Some(GroundedPerson {
+                    id: definition.id.clone(),
+                    display_name: definition.display_name.clone(),
+                    role: definition.role.clone(),
+                    current_location_id: npc.location().0,
+                    current_location_name: location.display_name.clone(),
+                })
+            })
+            .collect();
+        let known_places: Vec<GroundedPlace> = self
+            .content
+            .locations
+            .iter()
+            .map(location_as_grounded)
+            .collect();
+        let authored_facts: Vec<GroundedFact> = self
+            .content
+            .npcs
+            .iter()
+            .flat_map(|npc| npc.known_facts.iter().cloned())
+            .take(MAX_GROUNDING_ENTRIES)
+            .collect();
+        let placeholder_speaker = self
+            .npcs
+            .npcs_at(location_id)
+            .into_iter()
+            .next()
+            .map(|npc| npc.id)
+            .unwrap_or(NpcId(self.content.engine_npc_id));
+        let mut dialogue = crate::dialogue_apply::dialogue_grounding_snapshot(
+            &self.world,
+            &self.npcs,
+            placeholder_speaker,
+        );
+        dialogue.current_location_name = current_name.clone();
+        dialogue.known_location_names = known_places
+            .iter()
+            .map(|place| place.display_name.clone())
+            .collect();
+        GroundingSnapshot {
+            dialogue,
+            known_people,
+            known_places,
+            authored_facts,
+            current_location_name: current_name,
+            speaker_id: None,
+            speaker_name: None,
+            canonical_mood: "neutral".to_string(),
+            recent_player_inputs,
+            had_prior_exchange: !self
+                .world
+                .conversation_log
+                .recent_at(location_id, 1)
+                .is_empty(),
+            role: crate::portable_intent::INTENT_ENDPOINT_ROLE.to_string(),
         }
     }
 
@@ -3879,29 +4221,33 @@ impl MobileSession {
         input: &str,
         grounding: &GroundingSnapshot,
     ) -> EndpointInvocation {
-        let speaker = grounding
-            .known_people
-            .iter()
-            .find(|person| {
-                person.id
-                    == self
-                        .content
-                        .npc_by_engine_id(grounding.speaker_id)
-                        .map(|npc| npc.id.as_str())
-                        .unwrap_or_default()
-            })
-            .cloned()
-            .unwrap_or_else(|| GroundedPerson {
-                id: self.content.npc_id.clone(),
-                display_name: grounding.speaker_name.clone(),
-                role: self
-                    .content
-                    .npc_by_engine_id(grounding.speaker_id)
-                    .map(|npc| npc.role.clone())
-                    .unwrap_or_default(),
-                current_location_id: self.world.player_location.0,
-                current_location_name: grounding.current_location_name.clone(),
-            });
+        let speaker = grounding.speaker_id.and_then(|speaker_id| {
+            grounding
+                .known_people
+                .iter()
+                .find(|person| {
+                    person.id
+                        == self
+                            .content
+                            .npc_by_engine_id(speaker_id)
+                            .map(|npc| npc.id.as_str())
+                            .unwrap_or_default()
+                })
+                .cloned()
+                .or_else(|| {
+                    Some(GroundedPerson {
+                        id: self.content.npc_id.clone(),
+                        display_name: grounding.speaker_name.clone().unwrap_or_default(),
+                        role: self
+                            .content
+                            .npc_by_engine_id(speaker_id)
+                            .map(|npc| npc.role.clone())
+                            .unwrap_or_default(),
+                        current_location_id: self.world.player_location.0,
+                        current_location_name: grounding.current_location_name.clone(),
+                    })
+                })
+        });
         let recent_conversation = self
             .world
             .conversation_log
@@ -3916,7 +4262,7 @@ impl MobileSession {
             attempt_id: attempt_id.clone(),
             base_revision: self.state_revision,
             idempotency_key: format!("{}:{}", request_id.raw_value, attempt_id.raw_value),
-            role: "npc_dialogue".to_string(),
+            role: grounding.role.clone(),
             player_input: input.to_string(),
             speaker,
             current_location: grounding
@@ -4151,11 +4497,12 @@ struct GroundingSnapshot {
     known_places: Vec<GroundedPlace>,
     authored_facts: Vec<GroundedFact>,
     current_location_name: String,
-    speaker_id: NpcId,
-    speaker_name: String,
+    speaker_id: Option<NpcId>,
+    speaker_name: Option<String>,
     canonical_mood: String,
     recent_player_inputs: Vec<String>,
     had_prior_exchange: bool,
+    role: String,
 }
 
 impl PartialEq for GroundingSnapshot {
@@ -4169,6 +4516,7 @@ impl PartialEq for GroundingSnapshot {
             && self.canonical_mood == other.canonical_mood
             && self.recent_player_inputs == other.recent_player_inputs
             && self.had_prior_exchange == other.had_prior_exchange
+            && self.role == other.role
     }
 }
 
@@ -4216,29 +4564,20 @@ fn deterministic_capability(text: &str) -> Option<DeterministicCapability> {
     }
 }
 
-fn movement_target(text: &str) -> Option<(String, bool)> {
+fn slash_movement_target(text: &str) -> Option<(String, bool)> {
     let trimmed = text.trim().trim_end_matches(['.', '!', '?']);
     let lower = trimmed.to_lowercase();
-    for (prefix, interpreted) in [
-        ("/go ", false),
-        ("go to ", true),
-        ("go ", true),
-        ("walk to ", true),
-        ("walk over to ", true),
-        ("head to ", true),
-        ("head over to ", true),
-        ("visit ", true),
-    ] {
-        if lower.starts_with(prefix) {
-            let byte_index = trimmed
-                .char_indices()
-                .nth(prefix.chars().count())
-                .map(|(index, _)| index)
-                .unwrap_or(trimmed.len());
-            let target = trimmed[byte_index..].trim();
-            if !target.is_empty() {
-                return Some((target.to_string(), interpreted));
-            }
+    // Only `/go` remains here; natural-language travel uses `parse_intent_local`.
+    let prefix = "/go ";
+    if lower.starts_with(prefix) {
+        let byte_index = trimmed
+            .char_indices()
+            .nth(prefix.chars().count())
+            .map(|(index, _)| index)
+            .unwrap_or(trimmed.len());
+        let target = trimmed[byte_index..].trim();
+        if !target.is_empty() {
+            return Some((target.to_string(), false));
         }
     }
     None
@@ -4483,6 +4822,67 @@ mod tests {
 
     fn session() -> MobileSession {
         MobileSession::open_new().expect("phase3 session")
+    }
+
+    /// Advance past the Intent Endpoint stage with a Talk classification so
+    /// existing dialogue-path tests can assert the subsequent npc_dialogue call.
+    fn advance_intent_talk(
+        session: &mut MobileSession,
+        submitted: MobileOperationResult,
+        target: Option<&str>,
+    ) -> MobileOperationResult {
+        let invocation = submitted
+            .endpoint_invocation
+            .expect("expected Intent Endpoint invocation");
+        assert_eq!(
+            invocation.role,
+            crate::portable_intent::INTENT_ENDPOINT_ROLE
+        );
+        let player_input = invocation.player_input.clone();
+        session
+            .receive_candidate(EndpointCandidate {
+                attempt_id: invocation.attempt_id,
+                base_revision: invocation.base_revision,
+                dialogue: String::new(),
+                intent: Some(IntentEndpointOutput {
+                    intent: Some(limerick_input::IntentKind::Talk),
+                    target: target.map(str::to_string),
+                    dialogue: Some(player_input),
+                    atmosphere: None,
+                }),
+                metadata: BTreeMap::new(),
+                structured: true,
+            })
+            .expect("intent Talk candidate accepted")
+    }
+
+    fn advance_intent_move(
+        session: &mut MobileSession,
+        submitted: MobileOperationResult,
+        target: &str,
+    ) -> MobileOperationResult {
+        let invocation = submitted
+            .endpoint_invocation
+            .expect("expected Intent Endpoint invocation");
+        assert_eq!(
+            invocation.role,
+            crate::portable_intent::INTENT_ENDPOINT_ROLE
+        );
+        session
+            .receive_candidate(EndpointCandidate {
+                attempt_id: invocation.attempt_id,
+                base_revision: invocation.base_revision,
+                dialogue: String::new(),
+                intent: Some(IntentEndpointOutput {
+                    intent: Some(limerick_input::IntentKind::Move),
+                    target: Some(target.to_string()),
+                    dialogue: None,
+                    atmosphere: None,
+                }),
+                metadata: BTreeMap::new(),
+                structured: true,
+            })
+            .expect("intent Move candidate accepted")
     }
 
     #[test]
@@ -4737,6 +5137,14 @@ mod tests {
         let unavailable = session
             .submit(None, "ask Peig about the post", None)
             .unwrap();
+        assert_eq!(
+            unavailable
+                .endpoint_invocation
+                .as_ref()
+                .map(|invocation| invocation.role.as_str()),
+            Some(crate::portable_intent::INTENT_ENDPOINT_ROLE)
+        );
+        let unavailable = advance_intent_talk(&mut session, unavailable, Some("Peig"));
         assert!(unavailable.endpoint_invocation.is_none());
         assert!(unavailable.events.iter().any(|event| {
             event
@@ -4756,10 +5164,15 @@ mod tests {
                 None,
             )
             .unwrap();
+        let result = advance_intent_talk(&mut session, result, None);
         let invocation = result
             .endpoint_invocation
             .expect("ordinary dialogue should reach the person who is present");
-        assert_eq!(invocation.speaker.id, "npc-peig");
+        assert_eq!(
+            invocation.role,
+            crate::portable_intent::DIALOGUE_ENDPOINT_ROLE
+        );
+        assert_eq!(invocation.speaker.as_ref().unwrap().id, "npc-peig");
     }
 
     #[test]
@@ -4812,6 +5225,7 @@ mod tests {
         let result = session
             .submit(None, "ask Michael about work", None)
             .unwrap();
+        let result = advance_intent_talk(&mut session, result, Some("Michael"));
         assert!(result.endpoint_invocation.is_none());
         assert!(result.events.iter().any(|event| {
             event
@@ -4827,10 +5241,15 @@ mod tests {
         let result = session
             .submit(None, "Hello Peig, could you help?", None)
             .unwrap();
+        let result = advance_intent_talk(&mut session, result, Some("Peig"));
         let invocation = result
             .endpoint_invocation
             .expect("leading vocative should address Peig");
-        assert_eq!(invocation.speaker.id, "npc-peig");
+        assert_eq!(
+            invocation.role,
+            crate::portable_intent::DIALOGUE_ENDPOINT_ROLE
+        );
+        assert_eq!(invocation.speaker.as_ref().unwrap().id, "npc-peig");
     }
 
     #[test]
@@ -4840,6 +5259,7 @@ mod tests {
         let ambiguous = session
             .submit(None, "ask Connolly about the household", None)
             .unwrap();
+        let ambiguous = advance_intent_talk(&mut session, ambiguous, Some("Connolly"));
         assert!(ambiguous.endpoint_invocation.is_none());
         let request_id = ambiguous.logical_request_id.unwrap();
         assert_eq!(
@@ -4866,8 +5286,11 @@ mod tests {
             .unwrap();
         let invocation = selected.endpoint_invocation.unwrap();
         assert_eq!(invocation.player_input, "ask Connolly about the household");
-        assert_eq!(invocation.speaker.id, "npc-roisin");
-        assert_eq!(invocation.speaker.display_name, "Róisín Connolly");
+        assert_eq!(invocation.speaker.as_ref().unwrap().id, "npc-roisin");
+        assert_eq!(
+            invocation.speaker.as_ref().unwrap().display_name,
+            "Róisín Connolly"
+        );
         assert!(
             selected
                 .events
@@ -4884,10 +5307,17 @@ mod tests {
         let tagged = session
             .submit(None, "Hello @Mícheál Connolly", None)
             .unwrap();
+        let tagged = advance_intent_talk(&mut session, tagged, Some("Mícheál Connolly"));
 
         assert!(tagged.endpoint_invocation.is_some());
         assert_eq!(
-            tagged.endpoint_invocation.unwrap().speaker.id,
+            tagged
+                .endpoint_invocation
+                .unwrap()
+                .speaker
+                .as_ref()
+                .unwrap()
+                .id,
             "npc-micheal"
         );
         assert!(
@@ -4928,11 +5358,15 @@ mod tests {
                 None,
             )
             .unwrap();
-        let invocation = result.endpoint_invocation.unwrap();
-        assert_eq!(invocation.base_revision, StateRevision::new(0));
-        assert_eq!(invocation.speaker.current_location_id, 1);
+        let intent_invocation = result.endpoint_invocation.as_ref().unwrap();
+        assert_eq!(
+            intent_invocation.role,
+            crate::portable_intent::INTENT_ENDPOINT_ROLE
+        );
+        assert_eq!(intent_invocation.base_revision, StateRevision::new(0));
+        assert!(intent_invocation.speaker.is_none());
         assert!(
-            invocation
+            intent_invocation
                 .known_places
                 .iter()
                 .any(|place| place.display_name == "Letter Office")
@@ -4945,6 +5379,13 @@ mod tests {
             session.snapshot().events[1].kind,
             SemanticEventKind::PlayerCommand
         );
+        let dialogue = advance_intent_talk(&mut session, result, Some("Peig"));
+        let invocation = dialogue.endpoint_invocation.unwrap();
+        assert_eq!(
+            invocation.role,
+            crate::portable_intent::DIALOGUE_ENDPOINT_ROLE
+        );
+        assert_eq!(invocation.speaker.as_ref().unwrap().current_location_id, 1);
     }
 
     #[test]
@@ -4953,6 +5394,7 @@ mod tests {
         let accepted = dialogue_session
             .submit(None, "ask Peig about the Letter Office", None)
             .unwrap();
+        let accepted = advance_intent_talk(&mut dialogue_session, accepted, Some("Peig"));
         let attempt = accepted.attempt_id.unwrap();
         let base = accepted.endpoint_invocation.unwrap().base_revision;
         let completed = dialogue_session
@@ -4962,6 +5404,7 @@ mod tests {
                 dialogue: "I keep the Letter Office and know who has received news from beyond the parish.".to_string(),
                 metadata: BTreeMap::new(),
                 structured: true,
+                intent: None,
             })
             .unwrap();
         assert_eq!(
@@ -4981,6 +5424,7 @@ mod tests {
         let rejected = invented
             .submit(None, "ask Peig about the old castle", None)
             .unwrap();
+        let rejected = advance_intent_talk(&mut invented, rejected, Some("Peig"));
         let attempt = rejected.attempt_id.unwrap();
         let base = rejected.endpoint_invocation.unwrap().base_revision;
         let failed = invented
@@ -4990,6 +5434,7 @@ mod tests {
                 dialogue: "The old castle stands to the north beyond the river.".to_string(),
                 metadata: BTreeMap::new(),
                 structured: true,
+                intent: None,
             })
             .unwrap();
         assert_eq!(
@@ -5069,6 +5514,7 @@ mod tests {
                 dialogue: "The wall is low.".to_string(),
                 metadata: BTreeMap::new(),
                 structured: true,
+                intent: None,
             })
             .unwrap();
         assert!(late.ignored);
@@ -5114,6 +5560,7 @@ mod tests {
         let result = session
             .submit(None, "ask Peig about the wall", None)
             .unwrap();
+        let result = advance_intent_talk(&mut session, result, Some("Peig"));
         let id = result.logical_request_id.unwrap();
         let attempt = result.attempt_id.unwrap();
         let base = result.endpoint_invocation.unwrap().base_revision;
@@ -5124,6 +5571,7 @@ mod tests {
                 dialogue: "A low stone wall borders the road here.".to_string(),
                 metadata: BTreeMap::new(),
                 structured: true,
+                intent: None,
             })
             .unwrap();
         assert_eq!(
@@ -5149,6 +5597,7 @@ mod tests {
                 dialogue: "A second line.".to_string(),
                 metadata: BTreeMap::new(),
                 structured: true,
+                intent: None,
             })
             .unwrap();
         assert!(late.ignored);
@@ -5168,6 +5617,7 @@ mod tests {
         let first = session
             .submit(None, "ask Peig about the wall", None)
             .unwrap();
+        let first = advance_intent_talk(&mut session, first, Some("Peig"));
         let id = first.logical_request_id.unwrap();
         let attempt = first.attempt_id.unwrap();
         let failed = session
@@ -5177,6 +5627,7 @@ mod tests {
                 dialogue: "not structured".to_string(),
                 metadata: BTreeMap::new(),
                 structured: false,
+                intent: None,
             })
             .unwrap();
         assert_eq!(
@@ -5372,6 +5823,7 @@ mod tests {
         );
 
         let retry = resumed.retry(&request_id).unwrap();
+        let retry = advance_intent_talk(&mut resumed, retry, Some("Peig"));
         let retry_attempt = retry.attempt_id.unwrap();
         let retry_base = retry.endpoint_invocation.unwrap().base_revision;
         let final_text = "A low stone wall borders the road here.";
@@ -5382,6 +5834,7 @@ mod tests {
                 dialogue: final_text.to_string(),
                 metadata: BTreeMap::new(),
                 structured: true,
+                intent: None,
             })
             .unwrap();
         drop(resumed);
@@ -5420,6 +5873,77 @@ mod tests {
         );
     }
 
+    #[test]
+    fn inferred_move_via_intent_endpoint_changes_location_once() {
+        let mut session = session();
+        assert_eq!(session.world().player_location, LocationId(1));
+        let submitted = session
+            .submit(None, "take me to the Letter Office", None)
+            .unwrap();
+        assert_eq!(
+            submitted
+                .endpoint_invocation
+                .as_ref()
+                .map(|invocation| invocation.role.as_str()),
+            Some(crate::portable_intent::INTENT_ENDPOINT_ROLE)
+        );
+        let completed = advance_intent_move(&mut session, submitted, "Letter Office");
+        assert!(completed.endpoint_invocation.is_none());
+        assert_eq!(session.world().player_location, LocationId(4));
+        assert_eq!(session.snapshot().read_model.scene.id, "letter-office");
+        assert_eq!(
+            completed
+                .events
+                .iter()
+                .filter(|event| event.kind == SemanticEventKind::SceneChanged)
+                .count(),
+            1
+        );
+        assert!(completed.events.iter().any(|event| {
+            event.kind == SemanticEventKind::CommandInterpreted
+                && event.content.as_deref() == Some("Travel to Letter Office.")
+        }));
+    }
+
+    #[test]
+    fn deterministic_look_makes_no_endpoint_request() {
+        let mut session = session();
+        let result = session.submit(None, "/look", None).unwrap();
+        assert!(result.endpoint_invocation.is_none());
+        assert_eq!(
+            result.terminal_outcome,
+            Some(ResponseTerminalOutcome::Succeeded)
+        );
+    }
+
+    #[test]
+    fn inferred_talk_invokes_dialogue_only_after_intent() {
+        let mut session = session();
+        let submitted = session
+            .submit(None, "ask Peig about the old church", None)
+            .unwrap();
+        assert_eq!(
+            submitted.endpoint_invocation.as_ref().unwrap().role,
+            crate::portable_intent::INTENT_ENDPOINT_ROLE
+        );
+        let dialogue = advance_intent_talk(&mut session, submitted, Some("Peig"));
+        assert_eq!(
+            dialogue.endpoint_invocation.as_ref().unwrap().role,
+            crate::portable_intent::DIALOGUE_ENDPOINT_ROLE
+        );
+        assert_eq!(
+            dialogue
+                .endpoint_invocation
+                .as_ref()
+                .unwrap()
+                .speaker
+                .as_ref()
+                .unwrap()
+                .id,
+            "npc-peig"
+        );
+    }
+
     fn assert_strictly_increasing_event_sequences(events: &[SemanticEvent]) {
         assert!(
             events
@@ -5441,6 +5965,7 @@ mod tests {
         let started = session
             .submit(None, "ask Peig about the wall", None)
             .unwrap();
+        let started = advance_intent_talk(&mut session, started, Some("Peig"));
         let attempt_id = started.attempt_id.unwrap();
         let base_revision = started.endpoint_invocation.unwrap().base_revision;
         session
@@ -5450,6 +5975,7 @@ mod tests {
                 dialogue: "A low stone wall borders the road here.".to_string(),
                 metadata: BTreeMap::new(),
                 structured: true,
+                intent: None,
             })
             .unwrap();
         drop(session);

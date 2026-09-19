@@ -62,6 +62,7 @@ pub mod loading;
 pub mod mobile;
 #[cfg(feature = "desktop")]
 pub mod mod_source;
+pub mod portable_intent;
 pub mod portable_look;
 #[cfg(feature = "desktop")]
 pub mod prompts;
