@@ -66,7 +66,11 @@
         "properties": {
           "id": { "type": "string", "minLength": 1, "maxLength": 200 },
           "displayName": { "type": "string", "minLength": 1, "maxLength": 200 },
-          "description": { "type": "string", "minLength": 1, "maxLength": 4096 },
+          "description": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4096
+          },
           "playable": { "type": "boolean" }
         },
         "required": ["id", "displayName", "description", "playable"]
@@ -79,7 +83,11 @@
           "additionalProperties": false,
           "properties": {
             "id": { "type": "string", "minLength": 1, "maxLength": 200 },
-            "displayName": { "type": "string", "minLength": 1, "maxLength": 200 },
+            "displayName": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
             "role": { "type": "string", "minLength": 1, "maxLength": 200 },
             "currentLocationId": {
               "type": "integer",
@@ -109,8 +117,16 @@
           "additionalProperties": false,
           "properties": {
             "id": { "type": "string", "minLength": 1, "maxLength": 200 },
-            "displayName": { "type": "string", "minLength": 1, "maxLength": 200 },
-            "description": { "type": "string", "minLength": 1, "maxLength": 4096 },
+            "displayName": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "description": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 4096
+            },
             "playable": { "type": "boolean" }
           },
           "required": ["id", "displayName", "description", "playable"]
@@ -124,7 +140,11 @@
           "additionalProperties": false,
           "properties": {
             "id": { "type": "string", "minLength": 1, "maxLength": 200 },
-            "statement": { "type": "string", "minLength": 1, "maxLength": 4096 },
+            "statement": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 4096
+            },
             "source": { "type": "string", "minLength": 1, "maxLength": 200 }
           },
           "required": ["id", "statement", "source"]
@@ -148,9 +168,21 @@
               "minimum": 0,
               "maximum": 4294967295
             },
-            "speaker_name": { "type": "string", "minLength": 1, "maxLength": 200 },
-            "player_input": { "type": "string", "minLength": 1, "maxLength": 4096 },
-            "npc_dialogue": { "type": "string", "minLength": 1, "maxLength": 8192 }
+            "speaker_name": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "player_input": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 4096
+            },
+            "npc_dialogue": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 8192
+            }
           },
           "required": [
             "timestamp",

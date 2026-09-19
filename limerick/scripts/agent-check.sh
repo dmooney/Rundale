@@ -223,8 +223,8 @@ scan_for_debt_markers() {
     grep -Iq . "$file" || return 1 # binary file — skip
 
     grep -En \
-        -e '//[[:space:]]*unchanged' \
-        -e '//[[:space:]]*existing' \
+        -e '(^|[^/])//[[:space:]]*unchanged' \
+        -e '(^|[^/])//[[:space:]]*existing' \
         -e '//[[:space:]]*[.][.][.]([[:space:]]*rest of the function)?' \
         -e '/[*][[:space:]]*[.][.][.][[:space:]]*[*]/' \
         -e 'pass[[:space:]]*#[[:space:]]*TODO' \

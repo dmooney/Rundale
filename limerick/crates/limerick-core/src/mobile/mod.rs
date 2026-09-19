@@ -4825,7 +4825,7 @@ mod tests {
     }
 
     /// Advance past the Intent Endpoint stage with a Talk classification so
-    /// existing dialogue-path tests can assert the subsequent npc_dialogue call.
+    /// dialogue-path tests already present can assert the subsequent npc_dialogue call.
     fn advance_intent_talk(
         session: &mut MobileSession,
         submitted: MobileOperationResult,
@@ -5871,6 +5871,61 @@ mod tests {
                 .iter()
                 .any(|event| event.content.as_deref() == Some(final_text))
         );
+    }
+
+    #[test]
+    fn stop_during_intent_does_not_commit_action() {
+        let mut session = session();
+        let submitted = session
+            .submit(None, "take me to the Letter Office", None)
+            .unwrap();
+        assert_eq!(
+            submitted.endpoint_invocation.as_ref().unwrap().role,
+            crate::portable_intent::INTENT_ENDPOINT_ROLE
+        );
+        let attempt = submitted.attempt_id.clone().unwrap();
+        let stopped = session.stop(&attempt).unwrap();
+        assert_eq!(
+            stopped.terminal_outcome,
+            Some(ResponseTerminalOutcome::Cancelled)
+        );
+        assert_eq!(session.world().player_location, LocationId(1));
+        let late = advance_intent_move(&mut session, submitted, "Letter Office");
+        assert!(late.ignored || late.terminal_outcome == Some(ResponseTerminalOutcome::Cancelled));
+        assert_eq!(session.world().player_location, LocationId(1));
+    }
+
+    #[test]
+    fn invalid_intent_candidate_does_not_invent_travel() {
+        let mut session = session();
+        let submitted = session
+            .submit(None, "take me to the Letter Office", None)
+            .unwrap();
+        let invocation = submitted.endpoint_invocation.unwrap();
+        let completed = session
+            .receive_candidate(EndpointCandidate {
+                attempt_id: invocation.attempt_id,
+                base_revision: invocation.base_revision,
+                dialogue: String::new(),
+                intent: Some(IntentEndpointOutput {
+                    intent: Some(limerick_input::IntentKind::Move),
+                    target: Some("the nonexistent castle beyond the mist".to_string()),
+                    dialogue: None,
+                    atmosphere: None,
+                }),
+                metadata: BTreeMap::new(),
+                structured: true,
+            })
+            .unwrap();
+        assert!(completed.endpoint_invocation.is_none());
+        assert_eq!(session.world().player_location, LocationId(1));
+        assert!(completed.events.iter().any(|event| {
+            event.kind == SemanticEventKind::ActionResult
+                && event
+                    .content
+                    .as_deref()
+                    .is_some_and(|text| text.contains("cannot find a route"))
+        }));
     }
 
     #[test]
