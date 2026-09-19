@@ -144,6 +144,11 @@ final class RundalePhase3UITests: XCTestCase {
         XCTAssertTrue(waitForText("Róisín Connolly", timeout: 8))
     }
 
+    /// #1993 regression: free-text outside the local parser must go through
+    /// Intent before travel commits. `--phase3-mock` is simulator-only control
+    /// (loopback Intent/Dialogue URLs + heuristic Intent JSON); production
+    /// builds use Parish Endpoints. Composer → FFI → Rust → mock transport →
+    /// validation/commit → header/receipt are exercised here.
     func testInferredTravelUsesIntentEndpointBeforeMoving() {
         launch(reset: true)
         XCTAssertTrue(headerLabel(contains: "Kilteevan Village").waitForExistence(timeout: 8))
@@ -154,6 +159,19 @@ final class RundalePhase3UITests: XCTestCase {
         XCTAssertFalse(headerLabel(contains: "Kilteevan Village").exists)
     }
 
+    /// Intent classification must precede Dialogue: talk phrases open Intent
+    /// first under `--phase3-mock`, then the mock chains to npc_dialogue.
+    func testInferredTalkUsesIntentBeforeDialogue() {
+        launch(reset: true)
+        XCTAssertTrue(headerLabel(contains: "Kilteevan Village").waitForExistence(timeout: 8))
+        submit("ask Peig about the old church")
+        XCTAssertTrue(waitForText("Speak with Peig.", timeout: 8))
+        XCTAssertTrue(headerLabel(contains: "Kilteevan Village").waitForExistence(timeout: 3))
+        // Dialogue reply arrives only after Intent; village location is unchanged.
+        XCTAssertTrue(waitForText("Peig", timeout: 12))
+    }
+
+    /// Simulator-only: `--phase3-mock` enables loopback Endpoint transport.
     private func launch(reset: Bool) {
         app.launchArguments = ["--ui-tests", "--phase3", "--phase3-mock", "--no-auto-focus"]
         if reset { app.launchArguments.append("--reset-fixture") }

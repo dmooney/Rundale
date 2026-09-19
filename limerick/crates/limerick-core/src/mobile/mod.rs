@@ -5929,6 +5929,157 @@ mod tests {
     }
 
     #[test]
+    fn missing_structured_intent_candidate_is_rejected() {
+        let mut session = session();
+        let submitted = session
+            .submit(None, "take me to the Letter Office", None)
+            .unwrap();
+        let invocation = submitted.endpoint_invocation.unwrap();
+        let err = session
+            .receive_candidate(EndpointCandidate {
+                attempt_id: invocation.attempt_id,
+                base_revision: invocation.base_revision,
+                dialogue: String::new(),
+                intent: None,
+                metadata: BTreeMap::new(),
+                structured: true,
+            })
+            .expect_err("Intent role requires structured intent");
+        assert!(matches!(err, MobileError::Content(_)));
+        assert_eq!(session.world().player_location, LocationId(1));
+    }
+
+    #[test]
+    fn unsupported_interact_intent_does_not_move_or_open_dialogue() {
+        let mut session = session();
+        let submitted = session
+            .submit(None, "take me to the Letter Office", None)
+            .unwrap();
+        let invocation = submitted.endpoint_invocation.unwrap();
+        let completed = session
+            .receive_candidate(EndpointCandidate {
+                attempt_id: invocation.attempt_id,
+                base_revision: invocation.base_revision,
+                dialogue: String::new(),
+                intent: Some(IntentEndpointOutput {
+                    intent: Some(limerick_input::IntentKind::Interact),
+                    target: Some("the well".to_string()),
+                    dialogue: None,
+                    atmosphere: None,
+                }),
+                metadata: BTreeMap::new(),
+                structured: true,
+            })
+            .unwrap();
+        assert!(completed.endpoint_invocation.is_none());
+        assert_eq!(session.world().player_location, LocationId(1));
+        assert!(
+            session
+                .world()
+                .conversation_log
+                .recent_at(LocationId(1), 5)
+                .is_empty()
+        );
+        assert!(completed.events.iter().any(|event| {
+            event.kind == SemanticEventKind::ActionResult
+                && event
+                    .content
+                    .as_deref()
+                    .is_some_and(|text| text.contains("interact with the well"))
+        }));
+        assert_eq!(
+            completed
+                .events
+                .iter()
+                .filter(|event| event.kind == SemanticEventKind::SceneChanged)
+                .count(),
+            0
+        );
+    }
+
+    #[test]
+    fn failed_intent_endpoint_leaves_location_unchanged_and_is_retryable() {
+        let mut session = session();
+        let submitted = session
+            .submit(None, "take me to the Letter Office", None)
+            .unwrap();
+        let request_id = submitted.logical_request_id.clone().unwrap();
+        let attempt_id = submitted.attempt_id.clone().unwrap();
+        let base_revision = submitted.endpoint_invocation.unwrap().base_revision;
+        let failed = session
+            .receive_failure(
+                &attempt_id,
+                base_revision,
+                EndpointFailureKind::Transport,
+                "Intent Endpoint unavailable".to_string(),
+            )
+            .unwrap();
+        assert_eq!(
+            failed.terminal_outcome,
+            Some(ResponseTerminalOutcome::Failed)
+        );
+        assert_eq!(session.world().player_location, LocationId(1));
+        assert_eq!(
+            failed
+                .events
+                .iter()
+                .filter(|event| event.kind == SemanticEventKind::SceneChanged)
+                .count(),
+            0
+        );
+        let retry = session.retry(&request_id).unwrap();
+        assert_eq!(
+            retry.endpoint_invocation.as_ref().unwrap().role,
+            crate::portable_intent::INTENT_ENDPOINT_ROLE
+        );
+        assert_eq!(session.world().player_location, LocationId(1));
+    }
+
+    #[test]
+    fn duplicate_inferred_move_candidate_does_not_travel_twice() {
+        let mut session = session();
+        let submitted = session
+            .submit(None, "take me to the Letter Office", None)
+            .unwrap();
+        let invocation = submitted.endpoint_invocation.clone().unwrap();
+        let first = advance_intent_move(&mut session, submitted, "Letter Office");
+        assert_eq!(session.world().player_location, LocationId(4));
+        assert_eq!(
+            first
+                .events
+                .iter()
+                .filter(|event| event.kind == SemanticEventKind::SceneChanged)
+                .count(),
+            1
+        );
+        let duplicate = session
+            .receive_candidate(EndpointCandidate {
+                attempt_id: invocation.attempt_id,
+                base_revision: invocation.base_revision,
+                dialogue: String::new(),
+                intent: Some(IntentEndpointOutput {
+                    intent: Some(limerick_input::IntentKind::Move),
+                    target: Some("Letter Office".to_string()),
+                    dialogue: None,
+                    atmosphere: None,
+                }),
+                metadata: BTreeMap::new(),
+                structured: true,
+            })
+            .unwrap();
+        assert!(duplicate.ignored);
+        assert_eq!(session.world().player_location, LocationId(4));
+        assert_eq!(
+            duplicate
+                .events
+                .iter()
+                .filter(|event| event.kind == SemanticEventKind::SceneChanged)
+                .count(),
+            0
+        );
+    }
+
+    #[test]
     fn inferred_move_via_intent_endpoint_changes_location_once() {
         let mut session = session();
         assert_eq!(session.world().player_location, LocationId(1));

@@ -99,4 +99,67 @@ mod tests {
             "Travel to the Letter Office."
         );
     }
+
+    /// Desktop adapters call `parse_intent_local` / `player_intent_from_*`
+    /// directly; mobile goes through this seam. Prove identical semantics for
+    /// the supported action set, including one inference-requiring phrase.
+    #[test]
+    fn desktop_and_mobile_adapters_share_intent_semantics() {
+        let cases: &[(&str, Option<&str>)] = &[
+            ("walk to the Letter Office", Some("move")),
+            ("look around", Some("look")),
+            ("examine the well", Some("examine")),
+            ("pick up the stone", Some("interact")),
+            ("take me to the Letter Office", None),
+            ("ask Peig about the old church", None),
+        ];
+        for &(input, local_kind) in cases {
+            let local = interpret_local(input);
+            let desktop_local = parse_intent_local(input);
+            assert_eq!(
+                local.as_ref().map(|intent| intent.intent.clone()),
+                desktop_local.as_ref().map(|intent| intent.intent.clone()),
+                "local seam diverged for {input}"
+            );
+            assert_eq!(
+                local.as_ref().and_then(|intent| intent.target.clone()),
+                desktop_local
+                    .as_ref()
+                    .and_then(|intent| intent.target.clone()),
+                "local target diverged for {input}"
+            );
+            match local_kind {
+                Some("move") => assert_eq!(local.unwrap().intent, IntentKind::Move),
+                Some("look") => assert_eq!(local.unwrap().intent, IntentKind::Look),
+                Some("examine") => assert_eq!(local.unwrap().intent, IntentKind::Examine),
+                Some("interact") => assert_eq!(local.unwrap().intent, IntentKind::Interact),
+                None => assert!(local.is_none(), "{input} must require Intent inference"),
+                Some(other) => panic!("unexpected kind fixture {other}"),
+            }
+        }
+
+        let inferred_json =
+            r#"{"intent":"move","target":"Letter Office","dialogue":null,"atmosphere":null}"#;
+        let mobile = interpret_candidate_json("take me to the Letter Office", inferred_json);
+        let desktop = player_intent_from_json("take me to the Letter Office", inferred_json);
+        assert_eq!(mobile.intent, desktop.intent);
+        assert_eq!(mobile.target, desktop.target);
+        assert_eq!(mobile.intent, IntentKind::Move);
+
+        let talk_json =
+            r#"{"intent":"talk","target":"Peig","dialogue":"ask Peig about the old church"}"#;
+        let mobile_talk = interpret_candidate_json("ask Peig about the old church", talk_json);
+        let desktop_talk = player_intent_from_json("ask Peig about the old church", talk_json);
+        assert_eq!(mobile_talk.intent, desktop_talk.intent);
+        assert_eq!(mobile_talk.target, desktop_talk.target);
+        assert_eq!(mobile_talk.intent, IntentKind::Talk);
+    }
+
+    #[test]
+    fn malformed_candidate_json_does_not_invent_move() {
+        let intent = interpret_candidate_json("take me to the Letter Office", "{not-json");
+        assert_eq!(intent.intent, IntentKind::Unknown);
+        let empty = interpret_candidate_json("take me to the Letter Office", "{}");
+        assert_eq!(empty.intent, IntentKind::Unknown);
+    }
 }

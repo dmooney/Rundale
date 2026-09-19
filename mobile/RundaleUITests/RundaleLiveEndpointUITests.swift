@@ -57,6 +57,23 @@ final class RundaleLiveEndpointUITests: XCTestCase {
         XCTAssertFalse(dialogueRow(inProgress: false).exists)
     }
 
+    /// Opt-in #1993 live Intent gate. Requires Firebase App Check + published
+    /// `rundale-intent` (or `RUNDALE_LIVE_ENDPOINT_INTENT_SLUG`). Skips when the
+    /// debug token is absent so standard CI does not claim a pass.
+    func test03LiveIntentEndpointMovesToAuthoredDestination() throws {
+        let environment = ProcessInfo.processInfo.environment
+        guard let debugToken = environment["AppCheckDebugToken"], !debugToken.isEmpty else {
+            throw XCTSkip("Live Intent Endpoint blocked: AppCheckDebugToken unavailable")
+        }
+        try launchIntent(reset: true, debugToken: debugToken)
+        waitForInitialScene()
+        XCTAssertTrue(headerLabel(contains: "Kilteevan Village").waitForExistence(timeout: 8))
+        _ = submit("take me to the Letter Office")
+        XCTAssertTrue(headerLabel(contains: "Letter Office").waitForExistence(timeout: 45))
+        XCTAssertTrue(waitForTranscriptText("Travel to Letter Office.", timeout: 15))
+        XCTAssertFalse(headerLabel(contains: "Kilteevan Village").exists)
+    }
+
     private func launch(reset: Bool) throws {
         let environment = ProcessInfo.processInfo.environment
         let baseURL = environment["RUNDALE_LIVE_ENDPOINT_BASE_URL"]
@@ -74,6 +91,32 @@ final class RundaleLiveEndpointUITests: XCTestCase {
             app.launchEnvironment["AppCheckDebugToken"] = debugToken
         }
         app.launch()
+    }
+
+    private func launchIntent(reset: Bool, debugToken: String) throws {
+        let environment = ProcessInfo.processInfo.environment
+        let baseURL = environment["RUNDALE_LIVE_ENDPOINT_BASE_URL"]
+            ?? "https://parish-server-24861210203.us-east1.run.app"
+        // Phase 3 world so Letter Office exists; live transport (no --phase3-mock).
+        app.launchArguments = ["--ui-tests", "--phase3", "--no-auto-focus"]
+        if reset { app.launchArguments.append("--reset-fixture") }
+        app.launchEnvironment["RUNDALE_ENDPOINT_BASE_URL"] = baseURL
+        app.launchEnvironment["RUNDALE_ENDPOINT_ORGANIZATION"] =
+            environment["RUNDALE_LIVE_ENDPOINT_ORGANIZATION"] ?? "parish-demo"
+        app.launchEnvironment["RUNDALE_ENDPOINT_SLUG"] =
+            environment["RUNDALE_LIVE_ENDPOINT_SLUG"] ?? "rundale-dialogue"
+        app.launchEnvironment["RUNDALE_ENDPOINT_INTENT_SLUG"] =
+            environment["RUNDALE_LIVE_ENDPOINT_INTENT_SLUG"] ?? "rundale-intent"
+        app.launchEnvironment["RUNDALE_ENDPOINT_VERSION"] =
+            environment["RUNDALE_LIVE_ENDPOINT_VERSION"] ?? "1"
+        app.launchEnvironment["AppCheckDebugToken"] = debugToken
+        app.launch()
+    }
+
+    private func headerLabel(contains text: String) -> XCUIElement {
+        app.otherElements.matching(
+            NSPredicate(format: "identifier == 'status.header' AND label CONTAINS[c] %@", text)
+        ).firstMatch
     }
 
     private func waitForInitialScene() {
