@@ -2906,6 +2906,9 @@ impl MobileSession {
                         .expect("current attempt")
                         .pending_endpoint_role = None;
                 }
+                // Clarification is offline: clear the active Intent/Dialogue hold so
+                // deterministic commands (e.g. /look) and answer_clarification can run.
+                self.active_request_id = None;
                 let clarification = self.emit_clarification(request_id, attempt_id, &prompt);
                 self.persist_current()?;
                 prefix_events.push(clarification);
@@ -3330,11 +3333,16 @@ impl MobileSession {
         attempt.terminal_outcome = Some(ResponseTerminalOutcome::Succeeded);
         attempt.terminal_event_id = Some(terminal.event_id.clone());
         attempt.committed_state_revision = Some(self.state_revision);
+        let prior_active = self.active_request_id.clone();
+        if self.active_request_id.as_ref() == Some(request_id) {
+            self.active_request_id = None;
+        }
         if let Err(error) = self.persist_current() {
             self.requests = prior_requests;
             self.events = prior_events;
             self.next_event_sequence = prior_sequence;
             self.has_older_events = prior_older;
+            self.active_request_id = prior_active;
             return Err(error);
         }
         Ok(self.operation_result(
@@ -5227,6 +5235,11 @@ mod tests {
             .unwrap();
         let result = advance_intent_talk(&mut session, result, Some("Michael"));
         assert!(result.endpoint_invocation.is_none());
+        assert_eq!(
+            session.snapshot().active_request_id,
+            None,
+            "unavailable NPC completion must release active_request_id"
+        );
         assert!(result.events.iter().any(|event| {
             event
                 .content
@@ -5265,6 +5278,11 @@ mod tests {
         assert_eq!(
             session.snapshot().requests.last().unwrap().phase,
             RequestPhase::AwaitingClarification
+        );
+        assert_eq!(
+            session.snapshot().active_request_id,
+            None,
+            "awaiting clarification must not hold active_request_id"
         );
         let prompt = ambiguous
             .events

@@ -348,3 +348,4 @@ bottom; don't lengthen items past 2-3 lines.
 
 - **Mobile free-text that is not in `parse_intent_local` must hit Intent Endpoint before dialogue.** Phrases like `take me to the Letter Office` previously fell through to Peig dialogue without moving; assert location/revision and `role == intent`, not reply text alone (#1993).
 - **`agent-check` debt scan `// existing` also matched `/// existing` doc-comment continuations** (regex can start at the second slash of `///`). Prefer prose that avoids the token, and keep the scanner anchored so `///` doc comments are not treated as stubs.
+- **Intent → Ambiguous clarification must clear `active_request_id`.** Opening Intent sets the hold; entering `AwaitingClarification` is offline and must release it so `/look` and `answer_clarification` can run. Pre-Intent Ambiguous never set the hold, so this only bites the Endpoints path (#1993).

@@ -1578,9 +1578,20 @@ mod tests {
         )["value"]["accepted"]
             .as_bool()
             .unwrap());
-        let ambiguous = dispatch(
+        let intent_submitted = dispatch(
             handle,
             r#"{"op":"submit","text":"ask Connolly about the household"}"#,
+        );
+        let invocation = &intent_submitted["value"]["endpointInvocation"];
+        assert_eq!(invocation["role"], "intent");
+        let attempt_id = invocation["attemptID"].as_str().unwrap();
+        let base_revision = invocation["baseRevision"]["rawValue"].as_u64().unwrap();
+        let player_input = invocation["playerInput"].as_str().unwrap();
+        let ambiguous = dispatch(
+            handle,
+            &format!(
+                r#"{{"op":"receive_candidate","attemptID":"{attempt_id}","baseRevision":{{"rawValue":{base_revision}}},"structured":true,"intent":{{"intent":"talk","target":"Connolly","dialogue":"{player_input}"}}}}"#
+            ),
         );
         let logical_request_id = ambiguous["value"]["logicalRequestID"].clone();
         assert!(
@@ -1588,7 +1599,8 @@ mod tests {
                 .as_array()
                 .unwrap()
                 .iter()
-                .any(|event| event["kind"] == "clarification_required")
+                .any(|event| event["kind"] == "clarification_required"),
+            "expected clarification after Intent Talk for Connolly; got {ambiguous}"
         );
 
         // Move the prompt beyond both the native request tail and the native
