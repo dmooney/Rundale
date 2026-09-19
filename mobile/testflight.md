@@ -55,8 +55,13 @@ xcodebuild -project mobile/Rundale.xcodeproj \
   RUNDALE_ENDPOINT_BASE_URL=https://parish-server-24861210203.us-east1.run.app \
   RUNDALE_ENDPOINT_ORGANIZATION=parish-demo \
   RUNDALE_ENDPOINT_SLUG=rundale-dialogue \
+  RUNDALE_ENDPOINT_INTENT_SLUG=rundale-intent \
   RUNDALE_ENDPOINT_VERSION=1
 ```
+
+Release packaging validates that the archived Info.plist carries both the
+dialogue slug and the Intent slug. Publish `rundale-intent` v1 on Parish
+Endpoints before expecting live free-text travel on device.
 
 Select the Apple Development team for local device checks. An App Store
 distribution certificate and provisioning profile are required to export this

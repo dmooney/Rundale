@@ -48,8 +48,9 @@ in [phase2-auth.md](phase2-auth.md) before generating the Xcode project.
 Configure `RUNDALE_ENDPOINT_BASE_URL` with the verified Parish Endpoints service
 origin; no production origin is baked into the app. The client appends the
 pinned `/v1/endpoints/{organization}/{slug}/versions/{version}/stream` route.
-`RUNDALE_ENDPOINT_ORGANIZATION`, `RUNDALE_ENDPOINT_SLUG`, and
-`RUNDALE_ENDPOINT_VERSION` override the versioned deployment identity. The
+`RUNDALE_ENDPOINT_ORGANIZATION`, `RUNDALE_ENDPOINT_SLUG`,
+`RUNDALE_ENDPOINT_INTENT_SLUG`, and `RUNDALE_ENDPOINT_VERSION` override the
+versioned deployment identity (dialogue and Intent Endpoint slugs). The
 mobile request carries short-lived Firebase Auth and App Check credentials
 directly to Parish Endpoints; provider credentials and shared Endpoint keys
 never enter the app. See the [Endpoint handoff](endpoint/phase2-handoff.md) for

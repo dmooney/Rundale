@@ -34,12 +34,14 @@ final class LaunchConfigurationTests: XCTestCase {
                 "RUNDALE_ENDPOINT_BASE_URL": "http://localhost:8000",
                 "RUNDALE_ENDPOINT_ORGANIZATION": "test-org",
                 "RUNDALE_ENDPOINT_SLUG": "fixture-dialogue",
+                "RUNDALE_ENDPOINT_INTENT_SLUG": "fixture-intent",
                 "RUNDALE_ENDPOINT_VERSION": "2"
             ],
             bundle: [
                 "RUNDALE_ENDPOINT_BASE_URL": "https://example.test",
                 "RUNDALE_ENDPOINT_ORGANIZATION": "parish-demo",
                 "RUNDALE_ENDPOINT_SLUG": "rundale-dialogue",
+                "RUNDALE_ENDPOINT_INTENT_SLUG": "rundale-intent",
                 "RUNDALE_ENDPOINT_VERSION": "7"
             ]
         )
@@ -47,7 +49,10 @@ final class LaunchConfigurationTests: XCTestCase {
         XCTAssertEqual(configuration.endpointBaseURL?.absoluteString, "http://localhost:8000")
         XCTAssertEqual(configuration.endpointOrganization, "test-org")
         XCTAssertEqual(configuration.endpointSlug, "fixture-dialogue")
+        XCTAssertEqual(configuration.endpointIntentSlug, "fixture-intent")
         XCTAssertEqual(configuration.endpointVersion, 2)
+        XCTAssertEqual(configuration.intentEndpointURL?.absoluteString,
+                       "http://localhost:8000/v1/endpoints/test-org/fixture-intent/versions/2/stream")
     }
 
     func testMissingBundledEndpointRemainsUnconfigured() {
