@@ -58,11 +58,22 @@ values are part of this v1 schema. The request's player and conversation text
 is untrusted content; the Endpoint instructions do not duplicate the world's
 facts and the engine remains authoritative for validation and state changes.
 
-The output contract is exactly `{ "dialogue": "..." }`. `additionalProperties`
-is false, and the dialogue is bounded at 8,192 characters. The engine receives
-the terminal structured candidate for its own NPC validation and gameplay
-commit. Streaming may expose only the top-level `dialogue` text projection;
-partial text is provisional and never changes game state.
+The output contract depends on role:
+
+- **Dialogue** (`npc_dialogue`): exactly `{ "dialogue": "..." }`. `additionalProperties`
+  is false, and the dialogue is bounded at 8,192 characters. Streaming may expose
+  only the top-level `dialogue` text projection; partial text is provisional and
+  never changes game state.
+- **Intent** (`intent`): exactly
+  `{ "intent": "...", "target"?: "...", "dialogue"?: "...", "atmosphere"?: "..." }`
+  per [`rundale-intent-v1.json`](rundale-intent-v1.json). The engine validates the
+  candidate with shared `limerick-input` rules before dispatching travel, look,
+  narration, or a follow-up Dialogue invocation. Malformed Intent payloads that
+  omit structured intent are rejected; validated `Unknown` follows the same
+  dialogue-continue semantics as desktop.
+
+The engine receives the terminal structured candidate for its own validation and
+gameplay commit.
 
 ## Publication and invocation notes
 
@@ -78,10 +89,11 @@ receives provider credentials, a shared consumer key, or creator instructions.
 The `/stream` route returns the version 1 SSE contract frozen in
 [`fixtures/dialogue-v1.sse`](fixtures/dialogue-v1.sse): ordered `progress` and
 `text_delta` frames followed by exactly one validated `final` or `error`
-terminal frame. Partial dialogue is provisional. The final output remains the
-exact `{ "dialogue": "..." }` object and is validated again by the embedded
-engine before commit. See [the current integration handoff](phase2-handoff.md)
-for deployment and live-proof status.
+terminal frame. Partial dialogue is provisional. Dialogue finals remain the
+exact `{ "dialogue": "..." }` object; Intent finals use the structured Intent
+object above. Both are validated again by the embedded engine before commit.
+See [the current integration handoff](phase2-handoff.md) for deployment and
+live-proof status.
 
 The definition intentionally contains no API keys, Firebase tokens, endpoint
 URLs, organization identifiers, or deployment alias. Fill those values in
@@ -102,3 +114,8 @@ between Swift, Rust, and TypeScript. The separate live evidence in
 [phase2-handoff.md](phase2-handoff.md) establishes publication, simulator
 Firebase/App Check, Google delivery, and Stop accounting; physical-iPhone App
 Attest remains unverified.
+
+Save compatibility: `pending_endpoint_role` on request/attempt records is
+optional (`serde(default)`). Saves written before the Intent path still load;
+interrupted work without a stored role defaults to dialogue only when a
+dialogue attempt was already open.
