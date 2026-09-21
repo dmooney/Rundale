@@ -1,9 +1,18 @@
 #![cfg(feature = "mobile")]
 
-use limerick_core::mobile::{ExecutionAttemptId, LogicalRequestId, MobileSession, SessionId};
+use std::collections::BTreeMap;
 
+use limerick_core::mobile::{
+    EndpointIntentCandidate, EndpointRole, ExecutionAttemptId, LogicalRequestId, MobileSession,
+    SessionId,
+};
+
+/// The Intent invocation the engine dispatches before any action is selected.
+///
+/// Published alongside the dialogue fixture so the two roles stay separately
+/// reviewable: the dialogue contract and its clients are unchanged by #1993.
 #[test]
-fn production_endpoint_invocation_matches_published_fixture() {
+fn production_intent_invocation_matches_published_fixture() {
     let mut session = MobileSession::open_new().expect("phase2 session");
     let result = session
         .submit(
@@ -12,6 +21,45 @@ fn production_endpoint_invocation_matches_published_fixture() {
             None,
         )
         .expect("request accepted");
+    let mut invocation = result.endpoint_invocation.expect("intent invocation");
+    assert_eq!(invocation.role, EndpointRole::Intent);
+    invocation.session_id = SessionId::new("fixture-session");
+    invocation.attempt_id = ExecutionAttemptId::new("fixture-attempt");
+    invocation.idempotency_key =
+        "fixture-logical-request:fixture-attempt:interpretation".to_string();
+    let actual = serde_json::to_value(invocation).expect("serialise invocation");
+    let expected: serde_json::Value = serde_json::from_str(include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../../mobile/endpoint/example-intent-invocation.json"
+    )))
+    .expect("published intent invocation fixture is valid JSON");
+    assert_eq!(actual, expected);
+}
+
+#[test]
+fn production_endpoint_invocation_matches_published_fixture() {
+    let mut session = MobileSession::open_new().expect("phase2 session");
+    let accepted = session
+        .submit(
+            Some(LogicalRequestId::new("fixture-logical-request")),
+            "ask Peig about the old church",
+            None,
+        )
+        .expect("request accepted");
+    // Interpretation selects the action first; the dialogue invocation below
+    // is the second stage of the same logical request.
+    let intent = accepted
+        .endpoint_invocation
+        .clone()
+        .expect("intent invocation");
+    let result = session
+        .receive_intent_candidate(EndpointIntentCandidate {
+            attempt_id: intent.attempt_id,
+            base_revision: intent.base_revision,
+            payload: serde_json::json!({"intent": "talk", "target": "Peig"}),
+            metadata: BTreeMap::new(),
+        })
+        .expect("interpretation dispatches dialogue");
     let result_json = serde_json::to_value(&result).expect("serialise operation result");
     assert!(result_json["logicalRequestID"].is_string());
     assert!(result_json["attemptID"].is_string());
@@ -24,7 +72,7 @@ fn production_endpoint_invocation_matches_published_fixture() {
     let mut invocation = result.endpoint_invocation.expect("endpoint invocation");
     invocation.session_id = SessionId::new("fixture-session");
     invocation.attempt_id = ExecutionAttemptId::new("fixture-attempt");
-    invocation.idempotency_key = "fixture-logical-request:fixture-attempt".to_string();
+    invocation.idempotency_key = "fixture-logical-request:fixture-attempt:dialogue".to_string();
     let actual = serde_json::to_value(invocation).expect("serialise invocation");
     let expected: serde_json::Value = serde_json::from_str(include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),

@@ -289,6 +289,7 @@ fn validate_operation(operation: &str) -> Result<(), BackendError> {
         "fail",
         "receive_failure",
         "receive_frame",
+        "receive_intent_candidate",
         "receive_candidate",
         "read_events",
         "read_event_page",
@@ -339,9 +340,9 @@ mod core_backend {
         Backend, BackendError, MAX_EVENT_PAGE, MAX_RESPONSE_BYTES, Value, parish_mobile_open_kind_t,
     };
     use limerick_core::mobile::{
-        DraftId, EndpointCandidate, EndpointFailureKind, EndpointFrame, EventCursor, EventPage,
-        ExecutionAttemptId, LogicalRequestId, MobileSave, MobileSession, MobileSnapshot,
-        RequestPhase, RequestRecord, SemanticEvent, StateRevision, StreamUpdate,
+        DraftId, EndpointCandidate, EndpointFailureKind, EndpointFrame, EndpointIntentCandidate,
+        EventCursor, EventPage, ExecutionAttemptId, LogicalRequestId, MobileSave, MobileSession,
+        MobileSnapshot, RequestPhase, RequestRecord, SemanticEvent, StateRevision, StreamUpdate,
     };
     use serde::{Serialize, de::DeserializeOwned};
     use serde_json::{Map, json};
@@ -777,6 +778,37 @@ mod core_backend {
                             .map_err(|error| BackendError::protocol(error.to_string()))?,
                     )?
                 }
+                "receive_intent_candidate" => {
+                    let attempt_id =
+                        parse_id::<ExecutionAttemptId>(object, "attempt_id", "attemptID")?;
+                    let base_revision_value =
+                        value_with_alias(object, "base_revision", "baseRevision").ok_or_else(
+                            || BackendError::protocol("operation requires `base_revision`"),
+                        )?;
+                    let base_revision = parse_revision(base_revision_value, "base_revision")?;
+                    // The payload crosses the boundary verbatim. Engine-side
+                    // validation turns an unusable interpretation into an
+                    // explicit, durable rejection rather than a protocol error
+                    // that would leave the request active.
+                    let payload = value_with_alias(object, "payload", "payload")
+                        .cloned()
+                        .ok_or_else(|| BackendError::protocol("operation requires `payload`"))?;
+                    let metadata = object
+                        .get("metadata")
+                        .map(|value| parse(value, "metadata"))
+                        .transpose()?
+                        .unwrap_or_default();
+                    as_json(
+                        self.session
+                            .receive_intent_candidate(EndpointIntentCandidate {
+                                attempt_id,
+                                base_revision,
+                                payload,
+                                metadata,
+                            })
+                            .map_err(|error| BackendError::protocol(error.to_string()))?,
+                    )?
+                }
                 "receive_candidate" => {
                     let attempt_id =
                         parse_id::<ExecutionAttemptId>(object, "attempt_id", "attemptID")?;
@@ -1165,6 +1197,117 @@ mod tests {
         assert_eq!(output.len, 0);
     }
 
+    /// The Swift-facing boundary must carry a full interpreted request: an
+    /// Intent invocation, a structured interpretation delivered back through
+    /// the ABI, and the resulting authoritative world change (#1993).
+    #[cfg(feature = "engine-api")]
+    #[test]
+    fn boundary_carries_interpretation_through_to_a_committed_action() {
+        fn borrowed(value: &str) -> parish_mobile_bytes_t {
+            parish_mobile_bytes_t {
+                ptr: value.as_ptr(),
+                len: value.len(),
+            }
+        }
+
+        fn take(response: parish_mobile_owned_bytes_t) -> Value {
+            let value = unsafe {
+                serde_json::from_slice(slice::from_raw_parts(response.ptr, response.len)).unwrap()
+            };
+            assert_eq!(
+                parish_mobile_owned_bytes_free(response),
+                parish_mobile_status_t::PARISH_MOBILE_OK
+            );
+            value
+        }
+
+        fn dispatch(handle: parish_mobile_handle_t, operation: &str) -> Value {
+            let mut response = parish_mobile_owned_bytes_t {
+                ptr: ptr::null_mut(),
+                len: 0,
+            };
+            assert_eq!(
+                parish_mobile_dispatch(handle, borrowed(operation), &mut response),
+                parish_mobile_status_t::PARISH_MOBILE_OK,
+                "dispatch {operation} failed"
+            );
+            take(response)
+        }
+
+        let mut handle = 0;
+        let mut opening = parish_mobile_owned_bytes_t {
+            ptr: ptr::null_mut(),
+            len: 0,
+        };
+        assert_eq!(
+            parish_mobile_open(
+                parish_mobile_open_kind_t::PARISH_MOBILE_OPEN_NEW,
+                borrowed("{}"),
+                &mut handle,
+                &mut opening,
+            ),
+            parish_mobile_status_t::PARISH_MOBILE_OK
+        );
+        let opening = take(opening);
+        assert_eq!(
+            opening["value"]["readModel"]["scene"]["name"],
+            "Kilteevan Village"
+        );
+
+        // A deterministic command must not reach either Endpoint.
+        let looked = dispatch(handle, r#"{"op":"submit","text":"/look"}"#);
+        assert!(looked["value"]["endpointInvocation"].is_null());
+        assert!(dispatch(handle, r#"{"op":"pending_endpoint"}"#)["value"].is_null());
+
+        // Free-form movement the local parser does not recognise goes to Intent.
+        let accepted = dispatch(
+            handle,
+            r#"{"op":"submit","text":"Off to the letter office"}"#,
+        );
+        let invocation = accepted["value"]["endpointInvocation"].clone();
+        assert_eq!(invocation["role"], "intent");
+        assert_eq!(invocation["playerInput"], "Off to the letter office");
+        // The pending accessor agrees with the returned invocation, so a host
+        // that polls after relaunch dispatches the same stage.
+        assert_eq!(
+            dispatch(handle, r#"{"op":"pending_endpoint"}"#)["value"]["role"],
+            "intent"
+        );
+
+        let interpreted = dispatch(
+            handle,
+            &format!(
+                "{{\"op\":\"receive_intent_candidate\",\"attemptID\":{},\"baseRevision\":{},\"payload\":{{\"intent\":\"move\",\"target\":\"Letter Office\"}}}}",
+                serde_json::to_string(&invocation["attemptID"]).unwrap(),
+                serde_json::to_string(&invocation["baseRevision"]).unwrap(),
+            ),
+        );
+        assert_eq!(interpreted["value"]["terminalOutcome"], "succeeded");
+        assert!(
+            interpreted["value"]["endpointInvocation"].is_null(),
+            "movement executes on device rather than becoming a conversation"
+        );
+        let receipt = interpreted["value"]["events"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|event| event["kind"] == "command_interpreted")
+            .expect("semantic receipt");
+        assert_eq!(receipt["content"], "Travel to Letter Office.");
+        assert_eq!(receipt["metadata"]["interpretation"], "endpoint");
+
+        let snapshot = dispatch(handle, r#"{"op":"snapshot"}"#);
+        assert_eq!(
+            snapshot["value"]["readModel"]["scene"]["name"],
+            "Letter Office"
+        );
+
+        assert_eq!(
+            parish_mobile_close(handle),
+            parish_mobile_status_t::PARISH_MOBILE_OK
+        );
+    }
+
     #[cfg(feature = "engine-api")]
     #[test]
     fn engine_round_trip_uses_owned_json_and_disposes_handle() {
@@ -1234,11 +1377,40 @@ mod tests {
             parish_mobile_status_t::PARISH_MOBILE_OK
         );
         let pending = take(pending);
-        let invocation = &pending["value"]["endpointInvocation"];
-        let logical_request_id = invocation["logicalRequestID"].clone();
-        let attempt_id = invocation["attemptID"].clone();
-        let base_revision = invocation["baseRevision"].clone();
+        let intent_invocation = &pending["value"]["endpointInvocation"];
+        assert_eq!(
+            intent_invocation["role"], "intent",
+            "free-form input must reach the Intent Endpoint first"
+        );
+        assert!(
+            intent_invocation.get("speaker").is_none(),
+            "interpretation selects no speaker"
+        );
+        let logical_request_id = intent_invocation["logicalRequestID"].clone();
+        let attempt_id = intent_invocation["attemptID"].clone();
+        let base_revision = intent_invocation["baseRevision"].clone();
+
+        // Interpretation resolves the addressee; only then does the boundary
+        // hand back a dialogue invocation for the same attempt.
+        let interpretation = format!(
+            "{{\"op\":\"receive_intent_candidate\",\"attemptID\":{},\"baseRevision\":{},\"payload\":{{\"intent\":\"talk\",\"target\":\"Peig\"}}}}",
+            serde_json::to_string(&attempt_id).unwrap(),
+            serde_json::to_string(&base_revision).unwrap(),
+        );
+        let mut interpreted = parish_mobile_owned_bytes_t {
+            ptr: ptr::null_mut(),
+            len: 0,
+        };
+        assert_eq!(
+            parish_mobile_dispatch(handle, borrowed(&interpretation), &mut interpreted),
+            parish_mobile_status_t::PARISH_MOBILE_OK
+        );
+        let interpreted = take(interpreted);
+        let invocation = &interpreted["value"]["endpointInvocation"];
         assert!(invocation.is_object());
+        assert_eq!(invocation["role"], "npc_dialogue");
+        assert_eq!(invocation["speaker"]["id"], "npc-peig");
+        assert_eq!(invocation["attemptID"], attempt_id);
 
         let failure = format!(
             "{{\"op\":\"receive_failure\",\"attemptID\":{},\"baseRevision\":{},\"errorKind\":\"transport\",\"message\":\"Endpoint unavailable\"}}",
@@ -1569,11 +1741,22 @@ mod tests {
         )["value"]["accepted"]
             .as_bool()
             .unwrap());
-        let ambiguous = dispatch(
+        let accepted = dispatch(
             handle,
             r#"{"op":"submit","text":"ask Connolly about the household"}"#,
         );
-        let logical_request_id = ambiguous["value"]["logicalRequestID"].clone();
+        let logical_request_id = accepted["value"]["logicalRequestID"].clone();
+        // Free-form input reaches Intent before any addressee is chosen.
+        let intent = &accepted["value"]["endpointInvocation"];
+        assert_eq!(intent["role"], "intent");
+        let ambiguous = dispatch(
+            handle,
+            &format!(
+                "{{\"op\":\"receive_intent_candidate\",\"attemptID\":{},\"baseRevision\":{},\"payload\":{{\"intent\":\"talk\",\"target\":\"Connolly\"}}}}",
+                serde_json::to_string(&intent["attemptID"]).unwrap(),
+                serde_json::to_string(&intent["baseRevision"]).unwrap(),
+            ),
+        );
         assert!(
             ambiguous["value"]["events"]
                 .as_array()

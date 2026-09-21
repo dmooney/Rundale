@@ -9,16 +9,9 @@
   "baseRevision": {
     "rawValue": 0
   },
-  "idempotencyKey": "fixture-logical-request:fixture-attempt:dialogue",
-  "role": "npc_dialogue",
+  "idempotencyKey": "fixture-logical-request:fixture-attempt:interpretation",
+  "role": "intent",
   "playerInput": "ask Peig about the old church",
-  "speaker": {
-    "id": "npc-peig",
-    "displayName": "Peig Hannigan",
-    "role": "letter-office keeper and village observer",
-    "currentLocationId": 1,
-    "currentLocationName": "Kilteevan Village"
-  },
   "currentLocation": {
     "id": "kilteevan-village",
     "displayName": "Kilteevan Village",
@@ -68,19 +61,8 @@
       "playable": true
     }
   ],
-  "authoredFacts": [
-    {
-      "id": "fact-peig-post",
-      "statement": "Peig keeps the Letter Office and knows who has received news from beyond the parish.",
-      "source": "authored"
-    },
-    {
-      "id": "fact-peig-connollys",
-      "statement": "Mícheál and Róisín Connolly share the cottage west of the village.",
-      "source": "authored"
-    }
-  ],
+  "authoredFacts": [],
   "recentConversation": [],
   "maxOutputChars": 8192,
-  "maxStreamBytes": 16384
+  "maxStreamBytes": 8192
 }

@@ -1,4 +1,42 @@
-# Rundale dialogue Endpoint definition
+# Rundale Endpoint definitions
+
+Two roles are published. The engine selects the role; the app only transports
+it.
+
+| Role | Definition | Output |
+| ---- | ---------- | ------ |
+| `intent` | [`rundale-intent-v1.json`](rundale-intent-v1.json) | The structured interpretation of free-form player input |
+| `npc_dialogue` | [`rundale-dialogue-v1.json`](rundale-dialogue-v1.json) | One grounded NPC utterance |
+
+## Intent role
+
+The Intent Endpoint restores the engine's existing local-parser →
+inferred-intent → validated-action flow on mobile (#1993). Its `instructions`
+are `limerick_input::INTENT_SYSTEM_PROMPT` verbatim, and
+`mobile_intent_contract::intent_endpoint_contract_matches_the_engine_prompt`
+fails if the published contract drifts from the Rust source, so the prompt
+stays owned by the engine rather than by the deployment.
+
+The input shape is the dialogue invocation's, minus a resolved `speaker`
+(interpretation has not selected one yet) and with an always-empty
+`authoredFacts` (interpretation classifies an action, it does not answer the
+player). `knownPeople` and `knownPlaces` carry authoritative current-world
+state so a destination or addressee resolves against what actually exists.
+[`example-intent-invocation.json`](example-intent-invocation.json) is the
+secret-free serialization produced by the Rust DTO and checked against it.
+
+The output is `{ "intent", "target"?, "dialogue"?, "atmosphere"? }`. The engine
+applies the shared `limerick-input` validation to it, selects and executes the
+action, and rejects a malformed or unsupported result explicitly. The Endpoint
+never performs an action, resolves a target, or changes state. This role is not
+streamed: the payload is a small structured object delivered in one `final`
+frame.
+
+Deploy it as its own immutable Endpoint version; the app reads its slug and
+version from `RUNDALE_INTENT_ENDPOINT_SLUG` (default `rundale-intent`) and
+`RUNDALE_INTENT_ENDPOINT_VERSION` (default `1`).
+
+## Dialogue role
 
 [`rundale-dialogue-v1.json`](rundale-dialogue-v1.json) is the version 1
 Endpoint definition for the Phase 2 NPC dialogue role. It is the
@@ -55,7 +93,11 @@ Publish this definition as an immutable Endpoint version and bind the Rundale
 Firebase App Check app ID to its organization and slug in the deployed Parish
 Endpoints configuration. The JSON request body is exactly
 `{ "input": <EndpointInvocation> }`. The mobile worker sends the engine's stable
-request and attempt identities as bounded correlation headers. The server
+request and attempt identities as bounded correlation headers. One attempt can
+issue an interpretation request and then a dialogue request, so the engine's
+`idempotencyKey` carries the stage (`<request>:<attempt>:interpretation` or
+`<request>:<attempt>:dialogue`) and the two never collide in an Endpoint
+idempotency cache. The server
 verifies both Firebase credentials, tenant and Endpoint bindings, quotas, kill
 switches, and the pinned version before provider dispatch. The client never
 receives provider credentials, a shared consumer key, or creator instructions.

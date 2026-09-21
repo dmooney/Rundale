@@ -17,6 +17,7 @@ use std::collections::{BTreeMap, VecDeque};
 use std::path::Path;
 
 use chrono::{DateTime, Utc};
+use limerick_input::{IntentKind, IntentPayload, PlayerIntent, interpret_intent_payload};
 use limerick_npc::{
     DialogueGroundingSnapshot, DialogueValidationPolicy, NpcResponseParseDisposition,
     NpcStreamResponse,
@@ -55,6 +56,9 @@ pub const MAX_RECENT_CONVERSATION: usize = 8;
 pub const MAX_GROUNDING_ENTRIES: usize = 32;
 /// The maximum accepted player command size.
 pub const MAX_COMMAND_BYTES: usize = 4 * 1024;
+/// The maximum accepted Intent Endpoint payload size. Interpretation results
+/// are small structured objects; anything larger is a protocol violation.
+pub const MAX_INTENT_PAYLOAD_BYTES: usize = 8 * 1024;
 /// The maximum native transport error text retained in a durable error event.
 pub const MAX_FAILURE_MESSAGE_BYTES: usize = 4 * 1024;
 /// The maximum number of completion records returned to a host.
@@ -296,6 +300,9 @@ pub struct ClarificationPrompt {
 #[serde(rename_all = "snake_case")]
 pub enum RequestPhase {
     Accepted,
+    /// The Intent Endpoint is interpreting the player's input. No game action
+    /// has been selected yet, so stopping here can never execute one later.
+    Interpreting,
     AwaitingClarification,
     Executing,
     Validating,
@@ -314,6 +321,85 @@ impl RequestPhase {
     }
 }
 
+/// Which stage of one logical player request an attempt is currently running.
+///
+/// A single attempt carries the whole request lifecycle: interpretation first,
+/// then — only when the resolved action calls for it — dialogue generation.
+/// Callbacks are correlated by attempt *and* stage, so an intent result can
+/// never be applied as dialogue and a dialogue result can never be applied as
+/// an interpretation.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum RequestStage {
+    /// Handled entirely on device: deterministic commands and every input the
+    /// local parser already recognises. No Endpoint request is made.
+    #[default]
+    Local,
+    /// Awaiting the Intent Endpoint's structured interpretation.
+    Interpretation,
+    /// Awaiting the Dialogue Endpoint's NPC utterance.
+    Dialogue,
+}
+
+impl RequestStage {
+    const fn metadata_value(self) -> &'static str {
+        match self {
+            Self::Local => "local",
+            Self::Interpretation => "interpretation",
+            Self::Dialogue => "dialogue",
+        }
+    }
+}
+
+/// The inference role an [`EndpointInvocation`] carries.
+///
+/// Each role is a separate published Limerick Endpoints contract with its own
+/// output schema. The engine selects the role; native code only transports it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum EndpointRole {
+    /// Structured interpretation of free-form player input.
+    Intent,
+    /// One grounded NPC utterance.
+    NpcDialogue,
+}
+
+impl EndpointRole {
+    /// The wire value carried in the invocation's `role` field.
+    pub const fn wire_value(self) -> &'static str {
+        match self {
+            Self::Intent => "intent",
+            Self::NpcDialogue => "npc_dialogue",
+        }
+    }
+
+    /// The published contract this role is dispatched against.
+    pub const fn contract_id(self) -> &'static str {
+        match self {
+            Self::Intent => "rundale-intent-v1",
+            Self::NpcDialogue => "rundale-dialogue-v1",
+        }
+    }
+}
+
+/// Where a dispatched action's interpretation came from.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum InterpretationSource {
+    /// The on-device parser recognised the input; no inference was required.
+    Local,
+    /// The Intent Endpoint interpreted the input.
+    Endpoint,
+}
+
+impl InterpretationSource {
+    const fn metadata_value(self) -> &'static str {
+        match self {
+            Self::Local => "local",
+            Self::Endpoint => "endpoint",
+        }
+    }
+}
+
 /// One execution attempt, including its bounded stream bookkeeping.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -321,6 +407,10 @@ pub struct RequestAttempt {
     pub id: ExecutionAttemptId,
     pub original_text: String,
     pub phase: RequestPhase,
+    /// The lifecycle stage this attempt is executing. Older saves predate the
+    /// field; they resume as `Local` and are recovered as interrupted anyway.
+    #[serde(default)]
+    pub stage: RequestStage,
     pub terminal_outcome: Option<ResponseTerminalOutcome>,
     #[serde(rename = "provisionalItemIDs")]
     pub provisional_item_ids: Vec<TranscriptItemId>,
@@ -984,9 +1074,15 @@ pub struct EndpointInvocation {
     pub attempt_id: ExecutionAttemptId,
     pub base_revision: StateRevision,
     pub idempotency_key: String,
-    pub role: String,
+    /// The Endpoint contract this invocation is dispatched against. Role
+    /// selection is an engine decision; native code only transports it.
+    pub role: EndpointRole,
     pub player_input: String,
-    pub speaker: GroundedPerson,
+    /// The grounded speaker. An Intent invocation has not selected one yet, so
+    /// the field is omitted for that role and the dialogue wire shape — where
+    /// a speaker is always resolved first — is unchanged.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub speaker: Option<GroundedPerson>,
     pub current_location: GroundedPlace,
     pub known_people: Vec<GroundedPerson>,
     pub known_places: Vec<GroundedPlace>,
@@ -994,6 +1090,22 @@ pub struct EndpointInvocation {
     pub recent_conversation: Vec<ConversationExchange>,
     pub max_output_chars: usize,
     pub max_stream_bytes: usize,
+}
+
+/// Structured interpretation returned by the Intent Endpoint.
+///
+/// `payload` is transported verbatim: the engine — not native code — applies
+/// the shared `limerick-input` validation, so a malformed or unsupported
+/// result becomes an explicit rejection at the canonical boundary instead of
+/// a protocol error that would leave the request active.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EndpointIntentCandidate {
+    pub attempt_id: ExecutionAttemptId,
+    pub base_revision: StateRevision,
+    pub payload: serde_json::Value,
+    #[serde(default)]
+    pub metadata: BTreeMap<String, String>,
 }
 
 /// Candidate response returned by the platform after Endpoint validation.
@@ -1084,6 +1196,8 @@ pub enum MobileError {
     AttemptNotCurrent(String),
     #[error("candidate is empty")]
     CandidateEmpty,
+    #[error("intent payload exceeds the {MAX_INTENT_PAYLOAD_BYTES}-byte limit")]
+    IntentPayloadTooLarge,
     #[error("candidate is too large")]
     CandidateTooLarge,
     #[error("failure message exceeds the {MAX_FAILURE_MESSAGE_BYTES}-byte limit")]
@@ -1886,6 +2000,7 @@ impl MobileSession {
             id: attempt_id.clone(),
             original_text: text.clone(),
             phase: RequestPhase::Accepted,
+            stage: RequestStage::Local,
             terminal_outcome: None,
             provisional_item_ids: Vec::new(),
             started_at: EventSequence::new(self.next_event_sequence + 1),
@@ -1989,23 +2104,166 @@ impl MobileSession {
             ));
         }
 
-        if let Some((target, interpreted)) = movement_target(&text) {
-            let mut result = self.commit_travel(&request_id, &attempt_id, &target, interpreted)?;
+        let accepted = SessionCheckpoint {
+            requests: accepted_requests,
+            events: accepted_events,
+            has_older_events: accepted_has_older_events,
+            next_event_sequence: accepted_next_sequence,
+            active_request_id: accepted_active,
+            provisional_events: accepted_provisional,
+        };
+
+        // `/go <destination>` stays an explicit offline command: it is already
+        // unambiguous, so it must not cost an inference round trip.
+        if let Some(target) = slash_travel_target(&text) {
+            let mut result = self.commit_travel(&request_id, &attempt_id, &target, None)?;
             result.events.insert(0, command_event);
             return Ok(result);
         }
 
-        let selected_npc_id = match self.resolve_dialogue_target(&text) {
+        // Shared interpretation, in the same order the desktop game loop uses:
+        // the on-device parser first, the Intent Endpoint only for input it
+        // does not recognise. Routing the resolved action — rather than
+        // falling through to dialogue — is what makes the player's intended
+        // action actually execute (#1993).
+        let mut result = match limerick_input::parse_intent_local(&text) {
+            Some(intent) => self.dispatch_intent(
+                &request_id,
+                &attempt_id,
+                intent,
+                InterpretationSource::Local,
+                draft_id,
+                &accepted,
+            )?,
+            None => self.begin_interpretation(&request_id, &attempt_id, &text, &accepted)?,
+        };
+        result.events.insert(0, command_event);
+        Ok(result)
+    }
+
+    /// Hand one logical request to the Intent Endpoint.
+    ///
+    /// No action is selected yet, so a stop, failure, or relaunch at this
+    /// point terminates the request without ever executing one.
+    fn begin_interpretation(
+        &mut self,
+        request_id: &LogicalRequestId,
+        attempt_id: &ExecutionAttemptId,
+        text: &str,
+        accepted: &SessionCheckpoint,
+    ) -> Result<MobileOperationResult, MobileError> {
+        if let Some(stored) = self.requests.iter_mut().find(|r| &r.id == request_id) {
+            stored.phase = RequestPhase::Interpreting;
+            let attempt = stored.current_attempt_mut().expect("current attempt");
+            attempt.phase = RequestPhase::Interpreting;
+            attempt.stage = RequestStage::Interpretation;
+            attempt.last_stream_sequence = 0;
+            attempt.provisional_text.clear();
+        }
+        self.active_request_id = Some(request_id.clone());
+        let invocation = self.intent_invocation(request_id, attempt_id, text);
+        if let Err(error) = self.persist_current() {
+            self.restore(accepted.clone());
+            return Err(error);
+        }
+        Ok(self.operation_result(
+            true,
+            Some(request_id.clone()),
+            Some(attempt_id.clone()),
+            Vec::new(),
+            Some(invocation),
+            None,
+            false,
+            None,
+        ))
+    }
+
+    /// Execute the interpreted action for one logical request.
+    ///
+    /// This is the single dispatch point shared by the local parser and the
+    /// Intent Endpoint, so both interpretations select the same action for the
+    /// same typed result. Dialogue generation is one branch among several, not
+    /// the fallback for everything that is not a deterministic command.
+    fn dispatch_intent(
+        &mut self,
+        request_id: &LogicalRequestId,
+        attempt_id: &ExecutionAttemptId,
+        intent: PlayerIntent,
+        source: InterpretationSource,
+        draft_id: Option<DraftId>,
+        accepted: &SessionCheckpoint,
+    ) -> Result<MobileOperationResult, MobileError> {
+        // Any Endpoint work for this request is finished; a branch that needs
+        // further inference re-arms the lane itself.
+        self.active_request_id = None;
+        self.provisional_events.clear();
+        let text = intent.raw.clone();
+        match intent.intent {
+            IntentKind::Move => match intent.target.as_deref().map(normalize_travel_target) {
+                Some(target) if !target.is_empty() => {
+                    self.commit_travel(request_id, attempt_id, &target, Some(source))
+                }
+                // A move with no destination is not an error: the shared game
+                // loop lets it reach a co-located person rather than answering
+                // with a system one-liner.
+                _ => self.dispatch_dialogue(request_id, attempt_id, &text, None, source, accepted),
+            },
+            IntentKind::Look => self.complete_deterministic(
+                request_id,
+                attempt_id,
+                draft_id,
+                DeterministicCapability::Look,
+                accepted,
+            ),
+            // Examining objects and physical interaction are desktop
+            // inference-backed capabilities with no portable executor. They are
+            // rejected explicitly rather than quietly answered as conversation.
+            IntentKind::Examine | IntentKind::Interact => self.reject_unsupported_action(
+                request_id,
+                attempt_id,
+                intent.intent.clone(),
+                intent.target.as_deref(),
+            ),
+            IntentKind::Talk => self.dispatch_dialogue(
+                request_id,
+                attempt_id,
+                &text,
+                intent.target.as_deref(),
+                source,
+                accepted,
+            ),
+            // `Unknown` is the shared loop's conversational fall-through, not
+            // an unsupported action.
+            IntentKind::Unknown => {
+                self.dispatch_dialogue(request_id, attempt_id, &text, None, source, accepted)
+            }
+        }
+    }
+
+    /// Resolve the addressee against authoritative current-world state and,
+    /// when one is available, hand the request to the Dialogue Endpoint.
+    fn dispatch_dialogue(
+        &mut self,
+        request_id: &LogicalRequestId,
+        attempt_id: &ExecutionAttemptId,
+        text: &str,
+        target_hint: Option<&str>,
+        source: InterpretationSource,
+        accepted: &SessionCheckpoint,
+    ) -> Result<MobileOperationResult, MobileError> {
+        let resolution = self
+            .explicit_dialogue_target(text)
+            .or_else(|| target_hint.and_then(|hint| self.resolve_named_dialogue_target(hint)))
+            .unwrap_or_else(|| self.resolve_dialogue_target(text));
+        let selected_npc_id = match resolution {
             DialogueTarget::Selected(id) => id,
             DialogueTarget::Unavailable(message) => {
-                let mut result = self.complete_local_response(
-                    &request_id,
-                    &attempt_id,
+                return self.complete_local_response(
+                    request_id,
+                    attempt_id,
                     message,
                     "unavailable_npc",
-                )?;
-                result.events.insert(0, command_event);
-                return Ok(result);
+                );
             }
             DialogueTarget::Ambiguous(ids) => {
                 let choices: Vec<ClarificationChoice> = ids
@@ -2024,28 +2282,24 @@ impl MobileSession {
                 if let Some(stored) = self
                     .requests
                     .iter_mut()
-                    .find(|record| record.id == request_id)
+                    .find(|record| &record.id == request_id)
                 {
                     stored.phase = RequestPhase::AwaitingClarification;
                     stored.pending_clarification = Some(prompt.clone());
-                    stored.current_attempt_mut().expect("current attempt").phase =
-                        RequestPhase::AwaitingClarification;
+                    let attempt = stored.current_attempt_mut().expect("current attempt");
+                    attempt.phase = RequestPhase::AwaitingClarification;
+                    attempt.stage = RequestStage::Local;
                 }
-                let clarification = self.emit_clarification(&request_id, &attempt_id, &prompt);
+                let clarification = self.emit_clarification(request_id, attempt_id, &prompt);
                 if let Err(error) = self.persist_current() {
-                    self.requests = accepted_requests;
-                    self.events = accepted_events;
-                    self.has_older_events = accepted_has_older_events;
-                    self.next_event_sequence = accepted_next_sequence;
-                    self.active_request_id = accepted_active;
-                    self.provisional_events = accepted_provisional;
+                    self.restore(accepted.clone());
                     return Err(error);
                 }
                 return Ok(self.operation_result(
                     true,
-                    Some(request_id),
-                    Some(attempt_id),
-                    vec![command_event, clarification],
+                    Some(request_id.clone()),
+                    Some(attempt_id.clone()),
+                    vec![clarification],
                     None,
                     None,
                     false,
@@ -2057,37 +2311,175 @@ impl MobileSession {
             .content
             .npc_by_stable_id(&selected_npc_id)
             .expect("resolved NPC exists");
+        let speaker_name = selected_npc.display_name.clone();
         let grounding = self.grounding_snapshot(NpcId(selected_npc.engine_npc_id));
-        if let Some(stored) = self.requests.iter_mut().find(|r| r.id == request_id) {
+        // A receipt is only useful where interpretation actually chose
+        // something the player did not spell out. Ordinary direct dialogue is
+        // left alone rather than gaining a confirmation line every turn.
+        let mut events = Vec::new();
+        if source == InterpretationSource::Endpoint {
+            events.push(self.emit(
+                SemanticEventKind::CommandInterpreted,
+                Some(format!("Speak with {speaker_name}.")),
+                None,
+                Some(request_id),
+                Some(attempt_id),
+                None,
+                false,
+                None,
+                None,
+                true,
+                None,
+                Some(self.state_revision),
+                metadata([
+                    ("intent", "talk".to_string()),
+                    ("target", selected_npc_id.clone()),
+                    ("interpretation", source.metadata_value().to_string()),
+                ]),
+            ));
+        }
+        if let Some(stored) = self.requests.iter_mut().find(|r| &r.id == request_id) {
             stored.phase = RequestPhase::Executing;
             stored.selected_npc_id = Some(selected_npc_id);
-            stored.current_attempt_mut().expect("current attempt").phase = RequestPhase::Executing;
-            stored
-                .current_attempt_mut()
-                .expect("current attempt")
-                .grounding = Some(grounding.clone());
+            let attempt = stored.current_attempt_mut().expect("current attempt");
+            attempt.phase = RequestPhase::Executing;
+            attempt.stage = RequestStage::Dialogue;
+            attempt.last_stream_sequence = 0;
+            attempt.provisional_text.clear();
+            attempt.grounding = Some(grounding.clone());
         }
         self.active_request_id = Some(request_id.clone());
-        let invocation = self.endpoint_invocation(&request_id, &attempt_id, &text, &grounding);
+        let invocation = self.endpoint_invocation(request_id, attempt_id, text, &grounding);
         if let Err(error) = self.persist_current() {
-            self.requests = accepted_requests;
-            self.events = accepted_events;
-            self.has_older_events = accepted_has_older_events;
-            self.next_event_sequence = accepted_next_sequence;
-            self.active_request_id = accepted_active;
-            self.provisional_events = accepted_provisional;
+            self.restore(accepted.clone());
             return Err(error);
         }
         Ok(self.operation_result(
             true,
-            Some(request_id),
-            Some(attempt_id),
-            vec![command_event],
+            Some(request_id.clone()),
+            Some(attempt_id.clone()),
+            events,
             Some(invocation),
             None,
             false,
             None,
         ))
+    }
+
+    /// Commit one deterministic capability result and settle the request.
+    fn complete_deterministic(
+        &mut self,
+        request_id: &LogicalRequestId,
+        attempt_id: &ExecutionAttemptId,
+        draft_id: Option<DraftId>,
+        capability: DeterministicCapability,
+        accepted: &SessionCheckpoint,
+    ) -> Result<MobileOperationResult, MobileError> {
+        let (action_event, terminal) =
+            self.commit_deterministic_command(request_id, attempt_id, draft_id, capability)?;
+        if let Some(stored) = self.requests.iter_mut().find(|r| &r.id == request_id) {
+            stored.phase = RequestPhase::Completed;
+            stored.terminal_outcome = Some(ResponseTerminalOutcome::Succeeded);
+            stored.committed_state_revision = Some(self.state_revision);
+            let revision = stored.committed_state_revision;
+            let attempt = stored.current_attempt_mut().expect("current attempt");
+            attempt.phase = RequestPhase::Completed;
+            attempt.stage = RequestStage::Local;
+            attempt.terminal_outcome = Some(ResponseTerminalOutcome::Succeeded);
+            attempt.terminal_event_id = Some(terminal.event_id.clone());
+            attempt.committed_state_revision = revision;
+        }
+        self.active_request_id = None;
+        if let Err(error) = self.persist_current() {
+            self.restore(accepted.clone());
+            return Err(error);
+        }
+        Ok(self.operation_result(
+            true,
+            Some(request_id.clone()),
+            Some(attempt_id.clone()),
+            vec![action_event, terminal],
+            None,
+            Some(ResponseTerminalOutcome::Succeeded),
+            false,
+            None,
+        ))
+    }
+
+    /// Reject an interpreted action this client cannot execute.
+    ///
+    /// The rejection is explicit and commits nothing: no invented target, no
+    /// guessed state change, and no substitute conversation.
+    fn reject_unsupported_action(
+        &mut self,
+        request_id: &LogicalRequestId,
+        attempt_id: &ExecutionAttemptId,
+        kind: IntentKind,
+        target: Option<&str>,
+    ) -> Result<MobileOperationResult, MobileError> {
+        let verb = match kind {
+            IntentKind::Examine => "examine",
+            _ => "use",
+        };
+        let message = match target.map(str::trim).filter(|value| !value.is_empty()) {
+            Some(target) => format!("You cannot {verb} {target} here."),
+            None => "You cannot do that here.".to_string(),
+        };
+        self.finish_uncommitted(
+            request_id,
+            attempt_id,
+            ResponseTerminalOutcome::Failed,
+            Some(message),
+            Some("unsupported_action"),
+        )
+    }
+
+    /// Resolve an interpreted addressee name against the authored cast and the
+    /// people actually present. Returns `None` when the name matches nobody in
+    /// the world, so ordinary conversation still resolves from context.
+    fn resolve_named_dialogue_target(&self, name: &str) -> Option<DialogueTarget> {
+        let name = name.trim().to_lowercase();
+        let name = name
+            .trim_start_matches("the ")
+            .trim_matches(|character: char| {
+                !character.is_alphanumeric() && character != ' ' && character != '\''
+            })
+            .trim();
+        if name.is_empty() {
+            return None;
+        }
+        let matches: Vec<&MobileNpcDefinition> = self
+            .content
+            .npcs
+            .iter()
+            .filter(|npc| {
+                let surname = npc
+                    .display_name
+                    .split_whitespace()
+                    .last()
+                    .unwrap_or_default();
+                std::iter::once(npc.display_name.as_str())
+                    .chain(npc.aliases.iter().map(String::as_str))
+                    .chain(std::iter::once(surname))
+                    .filter(|candidate| !candidate.is_empty())
+                    .any(|candidate| candidate.to_lowercase() == name)
+            })
+            .collect();
+        if matches.is_empty() {
+            return None;
+        }
+        let present: Vec<&MobileNpcDefinition> = self
+            .npcs
+            .npcs_at(self.world.player_location)
+            .into_iter()
+            .filter_map(|npc| self.content.npc_by_engine_id(npc.id))
+            .filter(|npc| matches.iter().any(|candidate| candidate.id == npc.id))
+            .collect();
+        Some(match present.len() {
+            1 => DialogueTarget::Selected(present[0].id.clone()),
+            0 => DialogueTarget::Unavailable(format!("{} is not here.", matches[0].display_name)),
+            _ => DialogueTarget::Ambiguous(present.iter().map(|npc| npc.id.clone()).collect()),
+        })
     }
 
     /// Continue an accepted request after the player selects one authored
@@ -2158,6 +2550,9 @@ impl MobileSession {
                 .current_attempt_mut()
                 .expect("clarification has attempt");
             attempt.phase = RequestPhase::Executing;
+            attempt.stage = RequestStage::Dialogue;
+            attempt.last_stream_sequence = 0;
+            attempt.provisional_text.clear();
             attempt.grounding = Some(grounding.clone());
         }
         self.active_request_id = Some(logical_request_id.clone());
@@ -2226,19 +2621,22 @@ impl MobileSession {
             ));
         }
 
+        // Retry preserves the original player input and re-runs the whole
+        // pipeline for it. A request that already resolved its addressee (via
+        // clarification, or an earlier interpretation) keeps that selection
+        // and resumes at the dialogue stage instead of re-interpreting.
         let text = self.requests[request_index].original_text.clone();
         let attempt_id = ExecutionAttemptId::fresh();
-        let selected = self.requests[request_index]
+        let resolved_speaker = self.requests[request_index]
             .selected_npc_id
             .as_deref()
             .and_then(|id| self.content.npc_by_stable_id(id))
-            .map(|npc| NpcId(npc.engine_npc_id))
-            .unwrap_or(NpcId(self.content.engine_npc_id));
-        let grounding = self.grounding_snapshot(selected);
+            .map(|npc| NpcId(npc.engine_npc_id));
         let attempt = RequestAttempt {
             id: attempt_id.clone(),
             original_text: text.clone(),
-            phase: RequestPhase::Executing,
+            phase: RequestPhase::Accepted,
+            stage: RequestStage::Local,
             terminal_outcome: None,
             provisional_item_ids: Vec::new(),
             started_at: EventSequence::new(self.next_event_sequence + 1),
@@ -2247,20 +2645,16 @@ impl MobileSession {
             base_revision: self.state_revision,
             last_stream_sequence: 0,
             provisional_text: String::new(),
-            grounding: Some(grounding.clone()),
+            grounding: None,
         };
-        let prior_requests = self.requests.clone();
-        let prior_events = self.events.clone();
-        let prior_has_older_events = self.has_older_events;
-        let prior_next_sequence = self.next_event_sequence;
-        let prior_active = self.active_request_id.clone();
-        let prior_provisional = self.provisional_events.clone();
+        let prior = self.checkpoint();
         self.requests[request_index].attempts.push(attempt);
         self.requests[request_index].current_attempt_id = Some(attempt_id.clone());
-        self.requests[request_index].phase = RequestPhase::Executing;
+        self.requests[request_index].phase = RequestPhase::Accepted;
         self.requests[request_index].terminal_outcome = None;
         self.requests[request_index].committed_state_revision = None;
-        self.active_request_id = Some(logical_request_id.clone());
+        self.active_request_id = None;
+        self.provisional_events.clear();
         let progress = self.emit(
             SemanticEventKind::Progress,
             Some("Retrying the request.".to_string()),
@@ -2276,27 +2670,60 @@ impl MobileSession {
             None,
             metadata([("retry", "true".to_string())]),
         );
-        let invocation =
-            self.endpoint_invocation(logical_request_id, &attempt_id, &text, &grounding);
-        if let Err(error) = self.persist_current() {
-            self.requests = prior_requests;
-            self.events = prior_events;
-            self.has_older_events = prior_has_older_events;
-            self.next_event_sequence = prior_next_sequence;
-            self.active_request_id = prior_active;
-            self.provisional_events = prior_provisional;
-            return Err(error);
-        }
-        Ok(self.operation_result(
-            true,
-            Some(logical_request_id.clone()),
-            Some(attempt_id),
-            vec![progress],
-            Some(invocation),
-            None,
-            false,
-            None,
-        ))
+        let retried = self.checkpoint();
+        let mut result = if let Some(speaker) = resolved_speaker {
+            let grounding = self.grounding_snapshot(speaker);
+            if let Some(stored) = self.requests.get_mut(request_index) {
+                stored.phase = RequestPhase::Executing;
+                let attempt = stored.current_attempt_mut().expect("retry attempt");
+                attempt.phase = RequestPhase::Executing;
+                attempt.stage = RequestStage::Dialogue;
+                attempt.grounding = Some(grounding.clone());
+            }
+            self.active_request_id = Some(logical_request_id.clone());
+            let invocation =
+                self.endpoint_invocation(logical_request_id, &attempt_id, &text, &grounding);
+            if let Err(error) = self.persist_current() {
+                self.restore(prior);
+                return Err(error);
+            }
+            self.operation_result(
+                true,
+                Some(logical_request_id.clone()),
+                Some(attempt_id.clone()),
+                Vec::new(),
+                Some(invocation),
+                None,
+                false,
+                None,
+            )
+        } else if let Some(target) = slash_travel_target(&text) {
+            self.commit_travel(logical_request_id, &attempt_id, &target, None)?
+        } else if let Some(capability) = deterministic_capability(&text) {
+            self.complete_deterministic(
+                logical_request_id,
+                &attempt_id,
+                None,
+                capability,
+                &retried,
+            )?
+        } else {
+            match limerick_input::parse_intent_local(&text) {
+                Some(intent) => self.dispatch_intent(
+                    logical_request_id,
+                    &attempt_id,
+                    intent,
+                    InterpretationSource::Local,
+                    None,
+                    &retried,
+                )?,
+                None => {
+                    self.begin_interpretation(logical_request_id, &attempt_id, &text, &retried)?
+                }
+            }
+        };
+        result.events.insert(0, progress);
+        Ok(result)
     }
 
     /// Cancel only the current attempt.  The cancellation terminal event is
@@ -2493,6 +2920,99 @@ impl MobileSession {
         )
     }
 
+    /// Re-enter the serial lane with the Intent Endpoint's interpretation and
+    /// execute the action it selected.
+    ///
+    /// The payload is validated here, at the canonical boundary, using the
+    /// shared `limerick-input` intent semantics. A stale, duplicate, or
+    /// out-of-stage delivery is ignored without effect, and a malformed or
+    /// unusable result explicitly terminates the request instead of committing
+    /// a guess or quietly becoming a conversation.
+    pub fn receive_intent_candidate(
+        &mut self,
+        candidate: EndpointIntentCandidate,
+    ) -> Result<MobileOperationResult, MobileError> {
+        let Some(request_id) = self.active_request_id.clone() else {
+            return Ok(self.operation_result(
+                false,
+                None,
+                Some(candidate.attempt_id),
+                Vec::new(),
+                None,
+                None,
+                true,
+                None,
+            ));
+        };
+        let Some(request) = self.requests.iter().find(|record| record.id == request_id) else {
+            return Ok(self.operation_result(
+                false,
+                Some(request_id),
+                Some(candidate.attempt_id),
+                Vec::new(),
+                None,
+                None,
+                true,
+                None,
+            ));
+        };
+        let Some(attempt) = request.current_attempt() else {
+            return Ok(self.operation_result(
+                false,
+                Some(request_id),
+                Some(candidate.attempt_id),
+                Vec::new(),
+                None,
+                None,
+                true,
+                None,
+            ));
+        };
+        if request.has_committed_gameplay()
+            || attempt.id != candidate.attempt_id
+            || attempt.stage != RequestStage::Interpretation
+            || attempt.phase.is_terminal()
+            || attempt.base_revision != candidate.base_revision
+            || self.state_revision != candidate.base_revision
+        {
+            return Ok(self.operation_result(
+                false,
+                Some(request_id),
+                Some(candidate.attempt_id),
+                Vec::new(),
+                None,
+                attempt.terminal_outcome,
+                true,
+                None,
+            ));
+        }
+        let text = request.original_text.clone();
+        let attempt_id = candidate.attempt_id.clone();
+        let encoded = serde_json::to_string(&candidate.payload).unwrap_or_default();
+        if encoded.len() > MAX_INTENT_PAYLOAD_BYTES {
+            return Err(MobileError::IntentPayloadTooLarge);
+        }
+        let Ok(payload) = serde_json::from_value::<IntentPayload>(candidate.payload) else {
+            return self.finish_uncommitted(
+                &request_id,
+                &attempt_id,
+                ResponseTerminalOutcome::Failed,
+                Some("That could not be interpreted. You can retry this request.".to_string()),
+                Some("intent_malformed"),
+            );
+        };
+        let intent = interpret_intent_payload(&text, payload);
+        let checkpoint = self.checkpoint();
+        self.dispatch_intent(
+            &request_id,
+            &attempt_id,
+            intent,
+            InterpretationSource::Endpoint,
+            None,
+            &checkpoint,
+        )
+    }
+
     /// Apply one provisional stream frame on the serial lane.  Provisional
     /// text is retained only in memory and is never added to `ConversationLog`
     /// or the durable `GameSnapshot`.
@@ -2546,7 +3066,12 @@ impl MobileSession {
             ));
         }
         let attempt = request.current_attempt_mut().expect("current attempt");
-        if attempt.phase.is_terminal() || attempt.base_revision != frame.base_revision {
+        // Only the dialogue stage produces transcript text. An interpretation
+        // stream is structured classification, never an NPC utterance.
+        if attempt.stage != RequestStage::Dialogue
+            || attempt.phase.is_terminal()
+            || attempt.base_revision != frame.base_revision
+        {
             return Ok(self.operation_result(
                 false,
                 Some(request_id),
@@ -2664,6 +3189,7 @@ impl MobileSession {
         };
         if request.has_committed_gameplay()
             || attempt.id != candidate.attempt_id
+            || attempt.stage != RequestStage::Dialogue
             || attempt.phase.is_terminal()
             || attempt.base_revision != candidate.base_revision
             || self.state_revision != candidate.base_revision
@@ -2701,8 +3227,21 @@ impl MobileSession {
             .iter()
             .find(|record| record.id == request_id)?;
         let attempt = request.current_attempt()?;
-        let grounding = attempt.grounding.as_ref()?;
-        Some(self.endpoint_invocation(&request_id, &attempt.id, &request.original_text, grounding))
+        match attempt.stage {
+            RequestStage::Interpretation => {
+                Some(self.intent_invocation(&request_id, &attempt.id, &request.original_text))
+            }
+            RequestStage::Dialogue => {
+                let grounding = attempt.grounding.as_ref()?;
+                Some(self.endpoint_invocation(
+                    &request_id,
+                    &attempt.id,
+                    &request.original_text,
+                    grounding,
+                ))
+            }
+            RequestStage::Local => None,
+        }
     }
 
     fn commit_deterministic_command(
@@ -2784,7 +3323,27 @@ impl MobileSession {
     }
 
     fn resolve_dialogue_target(&self, text: &str) -> DialogueTarget {
+        if let Some(explicit) = self.explicit_dialogue_target(text) {
+            return explicit;
+        }
+        let nearby: Vec<&MobileNpcDefinition> = self.people_present();
+        match nearby.len() {
+            1 => DialogueTarget::Selected(nearby[0].id.clone()),
+            0 => DialogueTarget::Unavailable("Nobody is here to answer.".to_string()),
+            _ => DialogueTarget::Ambiguous(nearby.iter().map(|npc| npc.id.clone()).collect()),
+        }
+    }
+
+    /// The addressee the player named in the raw text, if any.
+    ///
+    /// An `@tag` or an explicit address clause/leading vocative is the
+    /// player's own word on who they are speaking to, so it outranks an
+    /// interpreted target hint. A name that merely appears in the body of a
+    /// sentence is context, not an addressee, and returns `None` so ordinary
+    /// dialogue still resolves from who is present.
+    fn explicit_dialogue_target(&self, text: &str) -> Option<DialogueTarget> {
         let lower = text.to_lowercase();
+        let nearby = self.people_present();
         let explicitly_tagged: Vec<&MobileNpcDefinition> = self
             .content
             .npcs
@@ -2792,18 +3351,12 @@ impl MobileSession {
             .filter(|npc| Self::contains_explicit_npc_tag(&lower, &npc.display_name))
             .collect();
         if !explicitly_tagged.is_empty() {
-            let nearby: Vec<&MobileNpcDefinition> = self
-                .npcs
-                .npcs_at(self.world.player_location)
-                .into_iter()
-                .filter_map(|npc| self.content.npc_by_engine_id(npc.id))
-                .collect();
             let available: Vec<&MobileNpcDefinition> = explicitly_tagged
                 .iter()
                 .copied()
                 .filter(|candidate| nearby.iter().any(|npc| npc.id == candidate.id))
                 .collect();
-            return match (explicitly_tagged.len(), available.len()) {
+            return Some(match (explicitly_tagged.len(), available.len()) {
                 (_, 1) => DialogueTarget::Selected(available[0].id.clone()),
                 (_, count) if count > 1 => {
                     DialogueTarget::Ambiguous(available.iter().map(|npc| npc.id.clone()).collect())
@@ -2815,40 +3368,36 @@ impl MobileSession {
                 _ => DialogueTarget::Unavailable(
                     "None of the people you addressed are here.".to_string(),
                 ),
-            };
+            });
         }
-        // A name in the message body is context, not an addressee. Only
-        // names in an explicit address clause (or a leading vocative) pin the
-        // target; otherwise ordinary dialogue falls back to people present.
         let matched = Self::explicit_addressee_candidates(&lower, &self.content.npcs);
-        let nearby: Vec<&MobileNpcDefinition> = self
-            .npcs
-            .npcs_at(self.world.player_location)
-            .into_iter()
-            .filter_map(|npc| self.content.npc_by_engine_id(npc.id))
-            .collect();
         let available_matches: Vec<&MobileNpcDefinition> = matched
             .iter()
             .copied()
             .filter(|candidate| nearby.iter().any(|npc| npc.id == candidate.id))
             .collect();
-        match (matched.len(), available_matches.len(), nearby.len()) {
-            (_, 1, _) => DialogueTarget::Selected(available_matches[0].id.clone()),
-            (_, count, _) if count > 1 => DialogueTarget::Ambiguous(
+        match (matched.len(), available_matches.len()) {
+            (_, 1) => Some(DialogueTarget::Selected(available_matches[0].id.clone())),
+            (_, count) if count > 1 => Some(DialogueTarget::Ambiguous(
                 available_matches.iter().map(|npc| npc.id.clone()).collect(),
-            ),
-            (1, 0, _) => {
-                DialogueTarget::Unavailable(format!("{} is not here.", matched[0].display_name))
-            }
-            (count, 0, _) if count > 1 => {
-                DialogueTarget::Unavailable("Neither of the Connollys is here.".to_string())
-            }
-            (0, 0, 1) => DialogueTarget::Selected(nearby[0].id.clone()),
-            (0, 0, count) if count > 1 => {
-                DialogueTarget::Ambiguous(nearby.iter().map(|npc| npc.id.clone()).collect())
-            }
-            _ => DialogueTarget::Unavailable("Nobody is here to answer.".to_string()),
+            )),
+            (1, 0) => Some(DialogueTarget::Unavailable(format!(
+                "{} is not here.",
+                matched[0].display_name
+            ))),
+            (count, 0) if count > 1 => Some(DialogueTarget::Unavailable(
+                "Neither of the Connollys is here.".to_string(),
+            )),
+            _ => None,
         }
+    }
+
+    fn people_present(&self) -> Vec<&MobileNpcDefinition> {
+        self.npcs
+            .npcs_at(self.world.player_location)
+            .into_iter()
+            .filter_map(|npc| self.content.npc_by_engine_id(npc.id))
+            .collect()
     }
 
     fn contains_explicit_npc_tag(text_lowercase: &str, display_name: &str) -> bool {
@@ -3075,9 +3624,12 @@ impl MobileSession {
             .current_attempt_mut()
             .expect("accepted attempt exists");
         attempt.phase = RequestPhase::Completed;
+        attempt.stage = RequestStage::Local;
         attempt.terminal_outcome = Some(ResponseTerminalOutcome::Succeeded);
         attempt.terminal_event_id = Some(terminal.event_id.clone());
         attempt.committed_state_revision = Some(self.state_revision);
+        self.active_request_id = None;
+        self.provisional_events.clear();
         if let Err(error) = self.persist_current() {
             self.requests = prior_requests;
             self.events = prior_events;
@@ -3102,7 +3654,7 @@ impl MobileSession {
         request_id: &LogicalRequestId,
         attempt_id: &ExecutionAttemptId,
         target: &str,
-        interpreted: bool,
+        source: Option<InterpretationSource>,
     ) -> Result<MobileOperationResult, MobileError> {
         use limerick_world::movement::MovementResult;
         use limerick_world::transport::TransportMode;
@@ -3171,7 +3723,7 @@ impl MobileSession {
         };
         let mut next_sequence = self.next_event_sequence;
         let mut emitted = Vec::new();
-        if interpreted {
+        if let Some(source) = source {
             next_sequence += 1;
             emitted.push(self.make_event_at(
                 EventSequence::new(next_sequence),
@@ -3187,7 +3739,11 @@ impl MobileSession {
                 true,
                 None,
                 Some(revision),
-                metadata([("intent", "travel".to_string())]),
+                metadata([
+                    ("intent", "travel".to_string()),
+                    ("target", resolved_target.clone()),
+                    ("interpretation", source.metadata_value().to_string()),
+                ]),
             ));
         }
         next_sequence += 1;
@@ -3292,6 +3848,7 @@ impl MobileSession {
             .current_attempt_mut()
             .expect("accepted attempt exists");
         attempt.phase = RequestPhase::Completed;
+        attempt.stage = RequestStage::Local;
         attempt.terminal_outcome = Some(ResponseTerminalOutcome::Succeeded);
         attempt.terminal_event_id = Some(terminal.event_id.clone());
         attempt.committed_state_revision = Some(revision);
@@ -3316,6 +3873,8 @@ impl MobileSession {
         self.events = next_events;
         self.has_older_events = next_older;
         self.next_event_sequence = next_sequence;
+        self.active_request_id = None;
+        self.provisional_events.clear();
         Ok(self.operation_result(
             true,
             Some(request_id.clone()),
@@ -3915,10 +4474,14 @@ impl MobileSession {
             logical_request_id: request_id.clone(),
             attempt_id: attempt_id.clone(),
             base_revision: self.state_revision,
-            idempotency_key: format!("{}:{}", request_id.raw_value, attempt_id.raw_value),
-            role: "npc_dialogue".to_string(),
+            idempotency_key: invocation_idempotency_key(
+                request_id,
+                attempt_id,
+                RequestStage::Dialogue,
+            ),
+            role: EndpointRole::NpcDialogue,
             player_input: input.to_string(),
-            speaker,
+            speaker: Some(speaker),
             current_location: grounding
                 .known_places
                 .iter()
@@ -3958,6 +4521,82 @@ impl MobileSession {
             recent_conversation,
             max_output_chars: 8 * 1024,
             max_stream_bytes: MAX_PROVISIONAL_TEXT_BYTES,
+        }
+    }
+
+    /// Build the Intent Endpoint request for one attempt.
+    ///
+    /// It carries the same bounded grounding as a dialogue request — the
+    /// people and places that authoritatively exist right now — so the
+    /// interpreter resolves destinations and addressees against the live
+    /// world instead of guessing. No speaker is chosen yet, and no authored
+    /// character facts are sent: interpretation classifies an action, it does
+    /// not answer the player.
+    fn intent_invocation(
+        &self,
+        request_id: &LogicalRequestId,
+        attempt_id: &ExecutionAttemptId,
+        input: &str,
+    ) -> EndpointInvocation {
+        let read_model = self.read_model();
+        let current_location = GroundedPlace {
+            id: read_model.scene.id.clone(),
+            display_name: read_model.scene.name.clone(),
+            description: read_model.scene.detail.clone().unwrap_or_default(),
+            playable: true,
+        };
+        let known_people: Vec<GroundedPerson> = self
+            .content
+            .npcs
+            .iter()
+            .filter_map(|definition| {
+                let npc = self.npcs.get(NpcId(definition.engine_npc_id))?;
+                let location = self.content.location_by_engine_id(npc.location())?;
+                Some(GroundedPerson {
+                    id: definition.id.clone(),
+                    display_name: definition.display_name.clone(),
+                    role: definition.role.clone(),
+                    current_location_id: npc.location().0,
+                    current_location_name: location.display_name.clone(),
+                })
+            })
+            .take(MAX_GROUNDING_ENTRIES)
+            .collect();
+        let known_places: Vec<GroundedPlace> = self
+            .content
+            .locations
+            .iter()
+            .filter(|location| location.playable)
+            .map(location_as_grounded)
+            .take(MAX_GROUNDING_ENTRIES)
+            .collect();
+        EndpointInvocation {
+            contract_version: PRESENTATION_CONTRACT_VERSION,
+            session_id: self.session_id.clone(),
+            logical_request_id: request_id.clone(),
+            attempt_id: attempt_id.clone(),
+            base_revision: self.state_revision,
+            idempotency_key: invocation_idempotency_key(
+                request_id,
+                attempt_id,
+                RequestStage::Interpretation,
+            ),
+            role: EndpointRole::Intent,
+            player_input: input.to_string(),
+            speaker: None,
+            current_location,
+            known_people,
+            known_places,
+            authored_facts: Vec::new(),
+            recent_conversation: self
+                .world
+                .conversation_log
+                .recent_at(self.world.player_location, MAX_RECENT_CONVERSATION)
+                .into_iter()
+                .cloned()
+                .collect(),
+            max_output_chars: MAX_INTENT_PAYLOAD_BYTES,
+            max_stream_bytes: MAX_INTENT_PAYLOAD_BYTES,
         }
     }
 
@@ -4128,6 +4767,26 @@ impl MobileSession {
         }
     }
 
+    fn checkpoint(&self) -> SessionCheckpoint {
+        SessionCheckpoint {
+            requests: self.requests.clone(),
+            events: self.events.clone(),
+            has_older_events: self.has_older_events,
+            next_event_sequence: self.next_event_sequence,
+            active_request_id: self.active_request_id.clone(),
+            provisional_events: self.provisional_events.clone(),
+        }
+    }
+
+    fn restore(&mut self, checkpoint: SessionCheckpoint) {
+        self.requests = checkpoint.requests;
+        self.events = checkpoint.events;
+        self.has_older_events = checkpoint.has_older_events;
+        self.next_event_sequence = checkpoint.next_event_sequence;
+        self.active_request_id = checkpoint.active_request_id;
+        self.provisional_events = checkpoint.provisional_events;
+    }
+
     fn persist_current(&mut self) -> Result<(), MobileError> {
         let save = self.to_save();
         self.persist_candidate(&save)
@@ -4139,6 +4798,21 @@ impl MobileSession {
         }
         Ok(())
     }
+}
+
+/// A rollback point for the in-memory session.
+///
+/// Every publish boundary persists before it is observable, so a storage
+/// failure restores the exact prior value rather than leaving a half-applied
+/// request behind.
+#[derive(Debug, Clone)]
+struct SessionCheckpoint {
+    requests: Vec<RequestRecord>,
+    events: VecDeque<SemanticEvent>,
+    has_older_events: bool,
+    next_event_sequence: u64,
+    active_request_id: Option<LogicalRequestId>,
+    provisional_events: VecDeque<SemanticEvent>,
 }
 
 /// The compact grounding state retained by an attempt.  It is not serialized;
@@ -4216,38 +4890,67 @@ fn deterministic_capability(text: &str) -> Option<DeterministicCapability> {
     }
 }
 
-fn movement_target(text: &str) -> Option<(String, bool)> {
+/// The explicit `/go <destination>` command.
+///
+/// Natural-language movement is recognised by the shared
+/// [`limerick_input::parse_intent_local`] parser; this keeps the slash form,
+/// which is a deterministic command rather than an interpretation.
+fn slash_travel_target(text: &str) -> Option<String> {
     let trimmed = text.trim().trim_end_matches(['.', '!', '?']);
     let lower = trimmed.to_lowercase();
-    for (prefix, interpreted) in [
-        ("/go ", false),
-        ("go to ", true),
-        ("go ", true),
-        ("walk to ", true),
-        ("walk over to ", true),
-        ("head to ", true),
-        ("head over to ", true),
-        ("visit ", true),
-    ] {
-        if lower.starts_with(prefix) {
-            let byte_index = trimmed
-                .char_indices()
-                .nth(prefix.chars().count())
-                .map(|(index, _)| index)
-                .unwrap_or(trimmed.len());
-            let target = trimmed[byte_index..].trim();
-            if !target.is_empty() {
-                return Some((target.to_string(), interpreted));
-            }
+    let prefix = "/go ";
+    if !lower.starts_with(prefix) {
+        return None;
+    }
+    let byte_index = trimmed
+        .char_indices()
+        .nth(prefix.chars().count())
+        .map(|(index, _)| index)
+        .unwrap_or(trimmed.len());
+    let target = trimmed[byte_index..].trim();
+    (!target.is_empty()).then(|| target.to_string())
+}
+
+/// Strip the filler a parser or model may leave on a destination so it can be
+/// matched against authored place names. This never invents a destination: an
+/// unmatched name still fails movement resolution.
+fn normalize_travel_target(target: &str) -> String {
+    let mut value = target.trim().trim_end_matches(['.', '!', '?', ',']).trim();
+    loop {
+        let lower = value.to_lowercase();
+        let stripped = ["over to ", "towards ", "toward ", "over ", "to "]
+            .into_iter()
+            .find(|prefix| lower.starts_with(prefix))
+            .map(|prefix| value[prefix.len()..].trim());
+        match stripped {
+            Some(next) if next != value => value = next,
+            _ => break,
         }
     }
-    None
+    value.to_string()
 }
 
 enum DialogueTarget {
     Selected(String),
     Ambiguous(Vec<String>),
     Unavailable(String),
+}
+
+/// Endpoint idempotency identity.
+///
+/// The stage is part of the key so the interpretation and dialogue requests of
+/// one attempt can never collide in an Endpoint's own idempotency cache.
+fn invocation_idempotency_key(
+    request_id: &LogicalRequestId,
+    attempt_id: &ExecutionAttemptId,
+    stage: RequestStage,
+) -> String {
+    format!(
+        "{}:{}:{}",
+        request_id.raw_value,
+        attempt_id.raw_value,
+        stage.metadata_value()
+    )
 }
 
 fn validate_command_text(text: &str) -> Result<(), MobileError> {
@@ -4483,6 +5186,72 @@ mod tests {
 
     fn session() -> MobileSession {
         MobileSession::open_new().expect("phase3 session")
+    }
+
+    /// A `talk` interpretation payload, as the Intent Endpoint returns it.
+    fn talk_payload(target: Option<&str>) -> serde_json::Value {
+        serde_json::json!({
+            "intent": "talk",
+            "target": target,
+            "dialogue": serde_json::Value::Null,
+            "atmosphere": serde_json::Value::Null,
+        })
+    }
+
+    /// Complete the interpretation stage of an accepted request.
+    ///
+    /// Asserts the request actually reached Intent first, so a test cannot
+    /// accidentally prove the old dialogue-fallback behaviour.
+    fn interpret(
+        session: &mut MobileSession,
+        accepted: &MobileOperationResult,
+        payload: serde_json::Value,
+    ) -> MobileOperationResult {
+        let invocation = accepted
+            .endpoint_invocation
+            .as_ref()
+            .expect("input outside the local parser must reach the Intent Endpoint");
+        assert_eq!(invocation.role, EndpointRole::Intent);
+        assert!(
+            invocation.speaker.is_none(),
+            "interpretation has not selected a speaker yet"
+        );
+        session
+            .receive_intent_candidate(EndpointIntentCandidate {
+                attempt_id: invocation.attempt_id.clone(),
+                base_revision: invocation.base_revision,
+                payload,
+                metadata: BTreeMap::new(),
+            })
+            .expect("interpretation dispatches an action")
+    }
+
+    /// Submit free-form input and interpret it as conversation, returning the
+    /// dispatched result. The attempt identity is stable across both stages.
+    fn submit_talk(
+        session: &mut MobileSession,
+        request_id: Option<LogicalRequestId>,
+        text: &str,
+        target: Option<&str>,
+    ) -> MobileOperationResult {
+        let accepted = session
+            .submit(request_id, text, None)
+            .expect("submission accepted");
+        let mut dispatched = interpret(session, &accepted, talk_payload(target));
+        let mut events = accepted.events.clone();
+        events.append(&mut dispatched.events);
+        dispatched.events = events;
+        dispatched
+    }
+
+    /// A dialogue invocation always carries its resolved speaker; only the
+    /// Intent role omits one.
+    fn dialogue_speaker(invocation: &EndpointInvocation) -> &GroundedPerson {
+        assert_eq!(invocation.role, EndpointRole::NpcDialogue);
+        invocation
+            .speaker
+            .as_ref()
+            .expect("dialogue invocation carries a speaker")
     }
 
     #[test]
@@ -4734,9 +5503,7 @@ mod tests {
             .and_then(|event| event.content.as_deref())
             .unwrap();
         assert!(exits_text.contains("Kilteevan Village"));
-        let unavailable = session
-            .submit(None, "ask Peig about the post", None)
-            .unwrap();
+        let unavailable = submit_talk(&mut session, None, "ask Peig about the post", Some("Peig"));
         assert!(unavailable.endpoint_invocation.is_none());
         assert!(unavailable.events.iter().any(|event| {
             event
@@ -4749,17 +5516,16 @@ mod tests {
     #[test]
     fn dialogue_body_mention_does_not_address_absent_npc() {
         let mut session = session();
-        let result = session
-            .submit(
-                None,
-                "Well I’m looking for work and a place to stay. Michael said maybe you could direct me.",
-                None,
-            )
-            .unwrap();
+        let result = submit_talk(
+            &mut session,
+            None,
+            "Well I’m looking for work and a place to stay. Michael said maybe you could direct me.",
+            None,
+        );
         let invocation = result
             .endpoint_invocation
             .expect("ordinary dialogue should reach the person who is present");
-        assert_eq!(invocation.speaker.id, "npc-peig");
+        assert_eq!(dialogue_speaker(&invocation).id, "npc-peig");
     }
 
     #[test]
@@ -4809,9 +5575,12 @@ mod tests {
     #[test]
     fn explicit_absent_addressee_does_not_fall_back_to_present_npc() {
         let mut session = session();
-        let result = session
-            .submit(None, "ask Michael about work", None)
-            .unwrap();
+        let result = submit_talk(
+            &mut session,
+            None,
+            "ask Michael about work",
+            Some("Michael"),
+        );
         assert!(result.endpoint_invocation.is_none());
         assert!(result.events.iter().any(|event| {
             event
@@ -4824,22 +5593,28 @@ mod tests {
     #[test]
     fn leading_vocative_still_selects_explicit_present_npc() {
         let mut session = session();
-        let result = session
-            .submit(None, "Hello Peig, could you help?", None)
-            .unwrap();
+        let result = submit_talk(
+            &mut session,
+            None,
+            "Hello Peig, could you help?",
+            Some("Peig"),
+        );
         let invocation = result
             .endpoint_invocation
             .expect("leading vocative should address Peig");
-        assert_eq!(invocation.speaker.id, "npc-peig");
+        assert_eq!(dialogue_speaker(&invocation).id, "npc-peig");
     }
 
     #[test]
     fn phase3_ambiguity_survives_resume_and_selection_continues_original_request() {
         let mut session = session();
         session.submit(None, "/go Connolly Cottage", None).unwrap();
-        let ambiguous = session
-            .submit(None, "ask Connolly about the household", None)
-            .unwrap();
+        let ambiguous = submit_talk(
+            &mut session,
+            None,
+            "ask Connolly about the household",
+            Some("Connolly"),
+        );
         assert!(ambiguous.endpoint_invocation.is_none());
         let request_id = ambiguous.logical_request_id.unwrap();
         assert_eq!(
@@ -4866,8 +5641,11 @@ mod tests {
             .unwrap();
         let invocation = selected.endpoint_invocation.unwrap();
         assert_eq!(invocation.player_input, "ask Connolly about the household");
-        assert_eq!(invocation.speaker.id, "npc-roisin");
-        assert_eq!(invocation.speaker.display_name, "Róisín Connolly");
+        assert_eq!(dialogue_speaker(&invocation).id, "npc-roisin");
+        assert_eq!(
+            dialogue_speaker(&invocation).display_name,
+            "Róisín Connolly"
+        );
         assert!(
             selected
                 .events
@@ -4881,13 +5659,11 @@ mod tests {
         let mut session = session();
         session.submit(None, "/go Connolly Cottage", None).unwrap();
 
-        let tagged = session
-            .submit(None, "Hello @Mícheál Connolly", None)
-            .unwrap();
+        let tagged = submit_talk(&mut session, None, "Hello @Mícheál Connolly", None);
 
         assert!(tagged.endpoint_invocation.is_some());
         assert_eq!(
-            tagged.endpoint_invocation.unwrap().speaker.id,
+            dialogue_speaker(&tagged.endpoint_invocation.unwrap()).id,
             "npc-micheal"
         );
         assert!(
@@ -4921,16 +5697,15 @@ mod tests {
     #[test]
     fn acceptance_precedes_endpoint_and_has_grounding() {
         let mut session = session();
-        let result = session
-            .submit(
-                Some(LogicalRequestId::new("logical-1")),
-                "ask Peig about the Letter Office",
-                None,
-            )
-            .unwrap();
+        let result = submit_talk(
+            &mut session,
+            Some(LogicalRequestId::new("logical-1")),
+            "ask Peig about the Letter Office",
+            Some("Peig"),
+        );
         let invocation = result.endpoint_invocation.unwrap();
         assert_eq!(invocation.base_revision, StateRevision::new(0));
-        assert_eq!(invocation.speaker.current_location_id, 1);
+        assert_eq!(dialogue_speaker(&invocation).current_location_id, 1);
         assert!(
             invocation
                 .known_places
@@ -4950,9 +5725,12 @@ mod tests {
     #[test]
     fn authored_phase3_fact_is_grounded_but_invented_place_is_rejected() {
         let mut dialogue_session = session();
-        let accepted = dialogue_session
-            .submit(None, "ask Peig about the Letter Office", None)
-            .unwrap();
+        let accepted = submit_talk(
+            &mut dialogue_session,
+            None,
+            "ask Peig about the Letter Office",
+            Some("Peig"),
+        );
         let attempt = accepted.attempt_id.unwrap();
         let base = accepted.endpoint_invocation.unwrap().base_revision;
         let completed = dialogue_session
@@ -4978,9 +5756,12 @@ mod tests {
         );
 
         let mut invented = session();
-        let rejected = invented
-            .submit(None, "ask Peig about the old castle", None)
-            .unwrap();
+        let rejected = submit_talk(
+            &mut invented,
+            None,
+            "ask Peig about the old castle",
+            Some("Peig"),
+        );
         let attempt = rejected.attempt_id.unwrap();
         let base = rejected.endpoint_invocation.unwrap().base_revision;
         let failed = invented
@@ -5012,9 +5793,7 @@ mod tests {
     #[test]
     fn cumulative_frames_are_bounded_and_duplicate_frames_are_ignored() {
         let mut session = session();
-        let result = session
-            .submit(None, "ask Peig about the wall", None)
-            .unwrap();
+        let result = submit_talk(&mut session, None, "ask Peig about the wall", Some("Peig"));
         let attempt = result.attempt_id.unwrap();
         let base = result.endpoint_invocation.unwrap().base_revision;
         let first = session
@@ -5111,9 +5890,7 @@ mod tests {
     #[test]
     fn successful_candidate_commits_one_exchange_and_retry_is_rejected() {
         let mut session = session();
-        let result = session
-            .submit(None, "ask Peig about the wall", None)
-            .unwrap();
+        let result = submit_talk(&mut session, None, "ask Peig about the wall", Some("Peig"));
         let id = result.logical_request_id.unwrap();
         let attempt = result.attempt_id.unwrap();
         let base = result.endpoint_invocation.unwrap().base_revision;
@@ -5165,9 +5942,7 @@ mod tests {
     #[test]
     fn failed_attempt_can_retry_with_new_attempt_identity() {
         let mut session = session();
-        let first = session
-            .submit(None, "ask Peig about the wall", None)
-            .unwrap();
+        let first = submit_talk(&mut session, None, "ask Peig about the wall", Some("Peig"));
         let id = first.logical_request_id.unwrap();
         let attempt = first.attempt_id.unwrap();
         let failed = session
@@ -5192,9 +5967,7 @@ mod tests {
     #[test]
     fn correlated_endpoint_failure_is_terminal_and_retryable() {
         let mut session = session();
-        let started = session
-            .submit(None, "ask Peig about the wall", None)
-            .unwrap();
+        let started = submit_talk(&mut session, None, "ask Peig about the wall", Some("Peig"));
         let request_id = started.logical_request_id.clone().unwrap();
         let attempt_id = started.attempt_id.clone().unwrap();
         let base_revision = started.endpoint_invocation.unwrap().base_revision;
@@ -5264,9 +6037,7 @@ mod tests {
     #[test]
     fn endpoint_failure_requires_the_invocation_base_revision() {
         let mut session = session();
-        let started = session
-            .submit(None, "ask Peig about the wall", None)
-            .unwrap();
+        let started = submit_talk(&mut session, None, "ask Peig about the wall", Some("Peig"));
         let attempt_id = started.attempt_id.unwrap();
         let base_revision = started.endpoint_invocation.unwrap().base_revision;
         let too_large = "x".repeat(MAX_FAILURE_MESSAGE_BYTES + 1);
@@ -5313,9 +6084,7 @@ mod tests {
         let directory = tempfile::tempdir().unwrap();
         let path = directory.path().join("stream-recovery.sqlite");
         let mut session = MobileSession::open_new_sqlite(&path).unwrap();
-        let started = session
-            .submit(None, "ask Peig about the wall", None)
-            .unwrap();
+        let started = submit_talk(&mut session, None, "ask Peig about the wall", Some("Peig"));
         let request_id = started.logical_request_id.clone().unwrap();
         let attempt_id = started.attempt_id.clone().unwrap();
         let base_revision = started.endpoint_invocation.unwrap().base_revision;
