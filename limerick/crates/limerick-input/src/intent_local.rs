@@ -386,6 +386,8 @@ pub fn parse_intent_local(raw_input: &str) -> Option<PlayerIntent> {
         "make my way ",
         "head over to ",
         "head over ",
+        "walk over to ",
+        "walk over ",
         "pop over to ",
         "pop over ",
         "nip to ",

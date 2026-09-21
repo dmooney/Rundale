@@ -5,6 +5,7 @@
 //! intent parsing (move, talk, look, interact, examine).
 
 mod commands;
+mod intent_contract;
 mod intent_llm;
 mod intent_local;
 mod intent_types;
@@ -12,6 +13,10 @@ mod mention;
 mod parser;
 
 pub use commands::{Command, FlagSubcommand, InferenceLogSub, validate_branch_name};
+pub use intent_contract::{
+    INTENT_SYSTEM_PROMPT, IntentInterpretationError, IntentPayload, interpret_intent_json,
+    interpret_intent_payload, unresolved_intent,
+};
 pub use intent_llm::{
     parse_intent, parse_intent_with_profile, parse_intent_with_profile_and_audit,
 };
