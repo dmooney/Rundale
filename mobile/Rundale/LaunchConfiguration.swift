@@ -9,6 +9,8 @@ struct LaunchConfiguration: Sendable {
         static let endpointOrganization = "RUNDALE_ENDPOINT_ORGANIZATION"
         static let endpointSlug = "RUNDALE_ENDPOINT_SLUG"
         static let endpointVersion = "RUNDALE_ENDPOINT_VERSION"
+        static let intentEndpointSlug = "RUNDALE_INTENT_ENDPOINT_SLUG"
+        static let intentEndpointVersion = "RUNDALE_INTENT_ENDPOINT_VERSION"
     }
 
     enum Fixture: String, Equatable, Sendable {
@@ -49,6 +51,11 @@ struct LaunchConfiguration: Sendable {
     let endpointOrganization: String
     let endpointSlug: String
     let endpointVersion: Int
+    /// The Intent Endpoint is a separate published contract with its own
+    /// output schema, so it is deployed and versioned independently of the
+    /// dialogue Endpoint. Role selection stays in Rust; this is transport.
+    let intentEndpointSlug: String
+    let intentEndpointVersion: Int
 
     init(arguments: [String] = ProcessInfo.processInfo.arguments,
          environment: [String: String] = ProcessInfo.processInfo.environment,
@@ -98,6 +105,12 @@ struct LaunchConfiguration: Sendable {
         endpointVersion = max(1, Int(Self.configuredValue(BundleKey.endpointVersion,
                                                            environment: environment,
                                                            bundle: bundle) ?? "1") ?? 1)
+        intentEndpointSlug = Self.configuredValue(BundleKey.intentEndpointSlug,
+                                                   environment: environment,
+                                                   bundle: bundle) ?? "rundale-intent"
+        intentEndpointVersion = max(1, Int(Self.configuredValue(BundleKey.intentEndpointVersion,
+                                                                 environment: environment,
+                                                                 bundle: bundle) ?? "1") ?? 1)
     }
 
     private static func configuredValue(_ key: String,
@@ -115,14 +128,32 @@ struct LaunchConfiguration: Sendable {
     }
 
     var endpointURL: URL? {
+        endpointURL(slug: endpointSlug, version: endpointVersion)
+    }
+
+    /// The deployed Endpoint for one engine-selected role.
+    ///
+    /// The engine owns role selection; the app only knows which deployment
+    /// serves each published contract.
+    func endpointURL(role: String) -> URL? {
+        role == "intent"
+            ? endpointURL(slug: intentEndpointSlug, version: intentEndpointVersion)
+            : endpointURL(slug: endpointSlug, version: endpointVersion)
+    }
+
+    func endpointVersion(role: String) -> Int {
+        role == "intent" ? intentEndpointVersion : endpointVersion
+    }
+
+    private func endpointURL(slug: String, version: Int) -> URL? {
         guard let endpointBaseURL else { return nil }
         return endpointBaseURL
             .appendingPathComponent("v1")
             .appendingPathComponent("endpoints")
             .appendingPathComponent(endpointOrganization)
-            .appendingPathComponent(endpointSlug)
+            .appendingPathComponent(slug)
             .appendingPathComponent("versions")
-            .appendingPathComponent(String(endpointVersion))
+            .appendingPathComponent(String(version))
             .appendingPathComponent("stream")
     }
 }

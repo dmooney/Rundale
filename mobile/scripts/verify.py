@@ -1440,6 +1440,35 @@ class VerificationRun:
                 phase=2,
                 summary_identifier="phase2-ios-simulator-test-results",
             )
+        self._intent_simulator_tests(destination)
+
+    def _intent_simulator_tests(self, destination: str) -> None:
+        """Native acceptance for the interpreted-action path (#1993)."""
+        identifier = "phase2-ios-intent-simulator-tests"
+        name = "Interpreted-action iOS simulator suite"
+        source = self.ui_tests_path / "RundaleIntentUITests.swift"
+        if not source.exists():
+            self._missing(
+                identifier,
+                name,
+                2,
+                f"required native intent UI test source is missing: {_relative(source, self.root)}",
+            )
+            return
+        record = self._xcodebuild(
+            "phase2-intent-simulator",
+            destination,
+            phase=2,
+            identifier=identifier,
+            name=name,
+            only_testing="RundaleUITests/RundaleIntentUITests",
+        )
+        if record["status"] == PASSED:
+            self._validate_result(
+                record,
+                phase=2,
+                summary_identifier="phase2-ios-intent-test-results",
+            )
 
     def _phase3_simulator_tests(self, xcodegen_ok: bool, ready: bool) -> None:
         identifier = "phase3-ios-simulator-tests"
@@ -1538,6 +1567,21 @@ class VerificationRun:
             kind="live-integration",
             reason="opt-in live Endpoint verification is not configured in this checkout",
         )
+        self._record(
+            identifier="live-intent-endpoint-integration",
+            name="Opt-in live Intent Endpoint interpreted action",
+            phase=2,
+            status=UNAVAILABLE,
+            required=False,
+            automatable=True,
+            kind="live-integration",
+            reason=(
+                "opt-in live Intent Endpoint verification is not configured in this "
+                "checkout; run RundaleUITests/RundaleLiveEndpointUITests/"
+                "test03LiveIntentEndpointExecutesTheInterpretedAction with the private "
+                "live origin and App Check environment"
+            ),
+        )
 
     def _physical(self) -> None:
         for identifier, name, reason in (
@@ -1590,6 +1634,24 @@ class VerificationRun:
             name="Parish core portable mobile tests",
             package="limerick-core",
             cargo_args=("--no-default-features", "--features", "mobile", "--lib", "mobile::"),
+        )
+        self._cargo_test(
+            identifier="limerick-mobile-intent-contract",
+            name="Cross-runtime interpretation contract",
+            package="limerick-core",
+            cargo_args=(
+                "--no-default-features",
+                "--features",
+                "mobile",
+                "--test",
+                "mobile_intent_contract",
+            ),
+        )
+        self._cargo_test(
+            identifier="limerick-input-intent-semantics",
+            name="Shared intent interpretation semantics",
+            package="limerick-input",
+            cargo_args=("--lib", "intent_"),
         )
         self._cargo_test(
             identifier="limerick-mobile-endpoint-contract",

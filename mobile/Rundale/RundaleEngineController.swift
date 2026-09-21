@@ -552,13 +552,18 @@ final class RundaleEngineController: ObservableObject, RundaleSessionControlling
         let endpointClient = self.endpointClient
         let generation = inferenceGeneration
         endpointTask = Task { [weak self, runtime] in
+            // A resolved interpretation can require a second Endpoint request
+            // for the same logical request. It is started after this task's
+            // own bookkeeping unwinds so the two stages cannot race over the
+            // shared attempt identity.
+            var followOn: InvocationIdentity?
             do {
                 guard let self,
                       self.allowsInference,
                       self.inferenceGeneration == generation,
                       !Task.isCancelled else { return }
                 let body = try invocation.requestBody()
-                guard let endpointURL = configuration.endpointURL
+                guard let endpointURL = configuration.endpointURL(role: invocation.role)
                     ?? (configuration.phase2MockTransport ? URL(string: "http://127.0.0.1/mock") : nil) else {
                     throw ParishEndpointError.invalidURL
                 }
@@ -567,7 +572,7 @@ final class RundaleEngineController: ObservableObject, RundaleSessionControlling
                     requestID: invocation.logicalRequestID.rawValue,
                     attemptID: invocation.attemptID.rawValue,
                     idempotencyKey: invocation.idempotencyKey,
-                    endpointVersion: configuration.endpointVersion,
+                    endpointVersion: configuration.endpointVersion(role: invocation.role),
                     policy: configuration.phase2MockTransport ? EndpointURLPolicy(allowLoopbackHTTP: true) : EndpointURLPolicy(),
                     body: body
                 )
@@ -580,12 +585,16 @@ final class RundaleEngineController: ObservableObject, RundaleSessionControlling
                         self.activeEndpointRequest = nil
                     }
                 }
-                for try await frame in endpointClient.stream(request) {
+                frames: for try await frame in endpointClient.stream(request) {
                     try Task.checkCancellation()
                     switch frame.kind {
                     case .progress:
                         continue
                     case .textDelta:
+                        // An interpretation stream is structured classification,
+                        // never NPC speech, so no provisional transcript text is
+                        // produced from it.
+                        guard !invocation.isInterpretation else { continue }
                         guard let text = frame.text, !text.isEmpty else { continue }
                         let operation = try EndpointOperation.frame(
                             attemptID: invocation.attemptID,
@@ -601,6 +610,25 @@ final class RundaleEngineController: ObservableObject, RundaleSessionControlling
                     case .final:
                         guard let payload = frame.payload else {
                             throw ParishEndpointError.malformedEvent("final output is missing")
+                        }
+                        if invocation.isInterpretation {
+                            guard let object = try JSONSerialization.jsonObject(with: payload) as? [String: Any] else {
+                                throw ParishEndpointError.malformedEvent("interpretation output is not an object")
+                            }
+                            let operation = try EndpointOperation.intentCandidate(
+                                attemptID: invocation.attemptID,
+                                baseRevision: invocation.baseRevision,
+                                payload: object,
+                                metadata: [:]
+                            )
+                            let response = try await runtime.dispatchJSON(operation)
+                            guard !Task.isCancelled else { return }
+                            self.consumeOperation(response)
+                            // The engine decides what happens next. Dialogue
+                            // generation follows only when the action it
+                            // selected calls for it.
+                            followOn = try await self.pendingInvocation(runtime: runtime)
+                            break frames
                         }
                         let output = try FixtureJSON.decode(EndpointOutput.self, from: payload)
                         guard !output.dialogue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
@@ -639,6 +667,15 @@ final class RundaleEngineController: ObservableObject, RundaleSessionControlling
                     self?.persistenceError = Self.playerFacingPersistenceError(error)
                 }
             }
+            guard let followOn,
+                  let self,
+                  self.allowsInference,
+                  self.inferenceGeneration == generation,
+                  !Task.isCancelled else { return }
+            // This task is finishing; clear it first so starting the next
+            // stage does not cancel the closure that is starting it.
+            self.endpointTask = nil
+            self.startEndpoint(followOn, runtime: runtime)
         }
     }
 
@@ -867,7 +904,12 @@ private struct InvocationIdentity: Codable, Sendable {
     let attemptID: ExecutionAttemptID
     let baseRevision: StateRevision
     let idempotencyKey: String
+    /// The published contract the engine selected for this request. The app
+    /// transports it; it never chooses or rewrites a role.
+    let role: String
     var payload: Data?
+
+    var isInterpretation: Bool { role == "intent" }
 
     func requestBody() throws -> Data {
         let input: Data
@@ -915,6 +957,25 @@ private enum EndpointOperation {
             "dialogue": dialogue,
             "metadata": metadata,
             "structured": structured
+        ])
+    }
+
+    /// Hand the Intent Endpoint's structured result to the engine verbatim.
+    ///
+    /// Swift does not inspect, repair, or act on the interpretation: the
+    /// engine applies the shared validation and owns action selection.
+    static func intentCandidate(
+        attemptID: ExecutionAttemptID,
+        baseRevision: StateRevision,
+        payload: [String: Any],
+        metadata: [String: String]
+    ) throws -> Data {
+        try json([
+            "op": "receive_intent_candidate",
+            "attempt_id": attemptID.rawValue,
+            "base_revision": baseRevision.rawValue,
+            "payload": payload,
+            "metadata": metadata
         ])
     }
 
@@ -1083,6 +1144,17 @@ private final class Phase2MockEndpointTransport: EndpointTransport, @unchecked S
                                 "message": "The Endpoint test response failed."
                             ]
                         )))
+                    } else if identities.role == "intent" {
+                        // SIMULATOR-ONLY CONTROL BRANCH. The published Intent
+                        // contract is served by a real Endpoint in production;
+                        // this fixture returns the same structured payload so
+                        // a UI test can drive the production Swift → FFI →
+                        // Rust interpretation path deterministically. It never
+                        // selects the action: the engine does.
+                        continuation.yield(.bytes(try Self.frame(
+                            type: "final", sequence: 1, identities: identities,
+                            output: Self.mockInterpretation(for: identities.input)
+                        )))
                     } else {
                         let dialogue: String
                         let chunks: [String]
@@ -1134,6 +1206,9 @@ private final class Phase2MockEndpointTransport: EndpointTransport, @unchecked S
         let attemptID: String
         let invocationID: String
         let input: String
+        let role: String
+        /// The Intent role has no resolved speaker; the engine selects one
+        /// only after interpretation.
         let speakerName: String
         let endpointVersion: Int
     }
@@ -1146,18 +1221,44 @@ private final class Phase2MockEndpointTransport: EndpointTransport, @unchecked S
               let attemptID = input["attemptID"] as? String,
               let invocationID = input["idempotencyKey"] as? String,
               let playerInput = input["playerInput"] as? String,
-              let speaker = input["speaker"] as? [String: Any],
-              let speakerName = speaker["displayName"] as? String else {
+              let role = input["role"] as? String else {
             throw ParishEndpointError.malformedEvent("mock request input is invalid")
+        }
+        let speakerName = (input["speaker"] as? [String: Any])?["displayName"] as? String
+        guard role == "intent" || speakerName != nil else {
+            throw ParishEndpointError.malformedEvent("mock dialogue request has no speaker")
         }
         return Identities(
             requestID: requestID,
             attemptID: attemptID,
             invocationID: invocationID,
             input: playerInput,
-            speakerName: speakerName,
+            role: role,
+            speakerName: speakerName ?? "",
             endpointVersion: Self.endpointVersion(from: url)
         )
+    }
+
+    /// A deterministic stand-in for the Intent Endpoint's structured result.
+    ///
+    /// It classifies only; the engine resolves the target against the live
+    /// world, rejects what it cannot execute, and commits the action.
+    private static func mockInterpretation(for playerInput: String) -> [String: Any] {
+        let lowered = playerInput.lowercased()
+        let places = [
+            ("letter office", "Letter Office"),
+            ("connolly cottage", "Connolly Cottage"),
+            ("kilteevan village", "Kilteevan Village")
+        ]
+        let movementCues = ["off to", "away to", "make for", "call in at", "see about", "back to"]
+        if movementCues.contains(where: lowered.contains),
+           let place = places.first(where: { lowered.contains($0.0) }) {
+            return ["intent": "move", "target": place.1]
+        }
+        if lowered.contains("pick up") || lowered.contains("take up the") {
+            return ["intent": "interact", "target": "the stone"]
+        }
+        return ["intent": "talk", "target": NSNull()]
     }
 
     private static func endpointVersion(from url: URL) -> Int {

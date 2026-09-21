@@ -33,6 +33,25 @@ The Product & Technical Specification defines a native iPhone experience: SwiftU
 | Mobile services        | Swift-side lifecycle, credential access, native networking, and safe-area/accessibility integration                                 | Current Tauri/Svelte lifecycle and web/server transport surfaces                           | Keep platform glue behind narrow interfaces and preserve fixture/headless testability          |
 | Content and simulation | Versioned authored definitions separate from mutable instance state; tiny world first                                               | Existing limerick-world, limerick-npc, mods, and canonical world data                      | Reconcile the three-location/three-NPC fixture and retain it as a regression oracle            |
 
+## Interpretation on mobile
+
+Free-form player input reaches the shared interpretation flow the desktop
+client already uses: `limerick_input::parse_intent_local` first, then — only
+for input it does not recognise — an inferred intent, then the selected action.
+The prompt, payload shape, and post-response validation live once in
+`limerick_input::intent_contract`; the desktop provider client and the mobile
+Limerick Endpoints adapter are two transports over that one contract, not two
+sets of rules (#1993).
+
+On mobile the inferred step is the `intent` Endpoint role, published as
+[`rundale-intent-v1.json`](../../mobile/endpoint/rundale-intent-v1.json). One
+logical request carries both stages on one attempt: interpretation first, then
+dialogue generation only when the resolved action calls for it. Deterministic
+commands stay entirely offline. `limerick-core` selects the role and executes
+the action; Swift transports the request and never interprets, retargets, or
+acts on a payload. A dialogue reply is therefore not evidence that a player's
+action was interpreted or executed — the authoritative state change is.
+
 ## Phase 2 Endpoint capability
 
 The real Limerick Endpoint path for authenticated mobile-safe inference with

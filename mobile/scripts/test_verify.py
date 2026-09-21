@@ -144,6 +144,9 @@ def create_phase2_fixture(root: Path) -> None:
     (root / "mobile" / "RundaleUITests" / "RundalePhase2UITests.swift").write_text(
         "// fixture\n", encoding="utf-8"
     )
+    (root / "mobile" / "RundaleUITests" / "RundaleIntentUITests.swift").write_text(
+        "// fixture\n", encoding="utf-8"
+    )
     (root / "mobile" / "RundaleUITests" / "RundalePhase3UITests.swift").write_text(
         "// fixture\n", encoding="utf-8"
     )
@@ -489,7 +492,7 @@ class VerificationRunnerTests(unittest.TestCase):
             # All simulator phases share products within a run, not separate
             # dependency recompilations for every test class.
             self.assertEqual(len({b[b.index("-derivedDataPath") + 1] for b in builds}), 1)
-            self.assertEqual(len(builds), 5)
+            self.assertEqual(len(builds), 6)
 
     def test_phase4_missing_suite_is_blocking(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -531,12 +534,16 @@ class VerificationRunnerTests(unittest.TestCase):
                 "mobile-rust-packaging",
                 "swift-package-tests-phase2",
                 "limerick-mobile-endpoint-contract",
+                "limerick-mobile-intent-contract",
+                "limerick-input-intent-semantics",
                 "swift-bridge-tests",
                 "swift-endpoint-kit-tests",
                 "xcodegen",
                 "ios-device-build",
                 "phase2-ios-simulator-tests",
                 "phase2-ios-simulator-test-results",
+                "phase2-ios-intent-simulator-tests",
+                "phase2-ios-intent-test-results",
             ):
                 self.assertEqual(by_id[identifier]["status"], "passed", identifier)
                 self.assertEqual(by_id[identifier]["phase"], 2, identifier)
@@ -546,12 +553,16 @@ class VerificationRunnerTests(unittest.TestCase):
                 for call in fake.calls
                 if call["argv"][:5] == ("rustup", "run", "1.98.0", "cargo", "test")
             ]
-            self.assertEqual(len(rust_test_calls), 4)
+            self.assertEqual(len(rust_test_calls), 6)
             for call in rust_test_calls:
                 index = call["argv"].index("--manifest-path")
                 self.assertEqual(call["argv"][index + 1], "limerick/Cargo.toml")
             self.assertTrue(
                 any("mobile_endpoint_fixture" in call["argv"] for call in rust_test_calls)
+            )
+            self.assertTrue(
+                any("mobile_intent_contract" in call["argv"] for call in rust_test_calls),
+                "Phase 2 must run the cross-runtime interpretation contract",
             )
             packaging_call = next(
                 call

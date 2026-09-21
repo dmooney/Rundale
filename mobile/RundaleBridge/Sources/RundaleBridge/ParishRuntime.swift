@@ -369,6 +369,7 @@ public actor ParishRuntime: SessionAdapter {
             "fail",
             "receive_failure",
             "receive_frame",
+            "receive_intent_candidate",
             "receive_candidate"
         ].contains(name)
     }
