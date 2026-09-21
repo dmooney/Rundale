@@ -3,10 +3,10 @@
 Two roles are published. The engine selects the role; the app only transports
 it.
 
-| Role | Definition | Output |
-| ---- | ---------- | ------ |
-| `intent` | [`rundale-intent-v1.json`](rundale-intent-v1.json) | The structured interpretation of free-form player input |
-| `npc_dialogue` | [`rundale-dialogue-v1.json`](rundale-dialogue-v1.json) | One grounded NPC utterance |
+| Role           | Definition                                             | Output                                                  |
+| -------------- | ------------------------------------------------------ | ------------------------------------------------------- |
+| `intent`       | [`rundale-intent-v1.json`](rundale-intent-v1.json)     | The structured interpretation of free-form player input |
+| `npc_dialogue` | [`rundale-dialogue-v1.json`](rundale-dialogue-v1.json) | One grounded NPC utterance                              |
 
 ## Intent role
 
