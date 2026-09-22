@@ -72,6 +72,39 @@ The definition intentionally contains no API keys, Firebase tokens, endpoint
 URLs, organization identifiers, or deployment alias. Fill those values in
 the authorized service/configuration path when the Endpoint is provisioned.
 
+## Intent Endpoint (v1)
+
+[`rundale-intent-v1.json`](rundale-intent-v1.json) is the version 1 Endpoint
+definition for the player-input interpretation role (#1993). Its intended
+identity is slug `rundale-intent`, version `1`, under the same organization as
+dialogue. The app reads `RUNDALE_INTENT_ENDPOINT_SLUG` and
+`RUNDALE_INTENT_ENDPOINT_VERSION`. It is not yet published or bound; see
+[the handoff](phase2-handoff.md).
+
+The engine requests this role only for input that the shared
+`limerick_input::interpret_locally` step does not recognise. Deterministic
+commands, explicit addresses and locally parsed movement, look and
+first-person speech stay offline. The input is exactly
+`limerick_core::mobile::IntentInvocation`: the correlation fields plus
+`role: "intent"` and `playerInput`. It sends no world context, because the
+engine resolves destinations and people against its authoritative state. The
+idempotency key is `<request>:<attempt>:intent`, so it never collides with the
+same attempt's later dialogue key.
+
+The `instructions` are the Rust Intent prompt verbatim
+(`limerick_input::intent_system_prompt`), and a `limerick-core` fixture test
+fails if the two diverge. The output is
+`{ "intent", "target", "dialogue", "atmosphere" }` with the engine's
+intent labels. The streaming projection (`textField = "intent"`) exists only
+because the mobile route is `/stream`. The engine ignores intent text deltas
+and forwards the final `output` object unmodified through
+`receive_intent_candidate`. `limerick_input::intent_from_structured_output`
+then validates it and applies the desktop look/examine and atmosphere guards.
+Malformed, unstructured, or unsupported labels fail the attempt as retryable.
+Nothing is guessed, and none of them becomes a conversation.
+[`example-intent-invocation.json`](example-intent-invocation.json) is the
+secret-free fixture checked by Rust and TypeScript.
+
 ## Deterministic boundary checks
 
 Run the shared transport and schema checks from the repository root:

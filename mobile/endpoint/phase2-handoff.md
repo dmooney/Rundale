@@ -71,3 +71,14 @@ alone may accept and commit the final candidate.
 This evidence establishes the deployed simulator path; it does not establish
 App Attest, signing, networking, lifecycle behavior, or usability on a physical
 iPhone. No gateway or Endpoint consumer key is part of the mobile architecture.
+
+## Intent role (#1993)
+
+The repository now defines
+[`rundale-intent-v1.json`](rundale-intent-v1.json), and the app routes
+`role: "intent"` invocations to `parish-demo/rundale-intent@1`. That version
+has not been published, promoted, or bound to the Rundale App Check app ID.
+Until it is, input that needs interpretation fails as a retryable request in
+production builds. Publication, binding, and an authenticated live Intent run
+are the remaining deployment gates. Do not ship a TestFlight build that relies
+on this role before those gates pass.
