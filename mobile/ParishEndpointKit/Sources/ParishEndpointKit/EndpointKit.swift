@@ -100,6 +100,13 @@ public protocol EndpointCredentialProvider: Sendable {
     func credentials() async throws -> EndpointCredentials
 }
 
+/// The terminal wire shape expected from the selected Endpoint role. Swift
+/// validates the envelope; Rust remains authoritative for intent semantics.
+public enum EndpointOutputContract: Equatable, Sendable {
+    case dialogue
+    case intent
+}
+
 public struct StaticEndpointCredentialProvider: EndpointCredentialProvider {
     public let value: EndpointCredentials
 
@@ -119,6 +126,7 @@ public struct EndpointRequest: Equatable, Sendable {
     public let invocationID: String?
     public let idempotencyKey: String
     public let endpointVersion: Int
+    public let outputContract: EndpointOutputContract
     public let body: Data
 
     public init(
@@ -128,6 +136,7 @@ public struct EndpointRequest: Equatable, Sendable {
         invocationID: String? = nil,
         idempotencyKey: String? = nil,
         endpointVersion: Int = 1,
+        outputContract: EndpointOutputContract = .dialogue,
         policy: EndpointURLPolicy = EndpointURLPolicy(),
         body: Data
     ) throws {
@@ -144,6 +153,7 @@ public struct EndpointRequest: Equatable, Sendable {
         self.invocationID = invocationID
         self.idempotencyKey = idempotencyKey ?? requestID
         self.endpointVersion = endpointVersion
+        self.outputContract = outputContract
         self.body = body
     }
 }
@@ -343,6 +353,7 @@ public struct EndpointStreamValidator: Sendable {
     public let expectedAttemptID: String?
     public let expectedInvocationID: String?
     public let expectedEndpointVersion: Int
+    public let outputContract: EndpointOutputContract
     public let maximumFrames: Int
 
     private var lastSequence: UInt64?
@@ -357,17 +368,19 @@ public struct EndpointStreamValidator: Sendable {
         expectedAttemptID: String? = nil,
         expectedInvocationID: String? = nil,
         expectedEndpointVersion: Int = 1,
+        outputContract: EndpointOutputContract = .dialogue,
         maximumFrames: Int = 512
     ) {
         self.expectedRequestID = expectedRequestID
         self.expectedAttemptID = expectedAttemptID
         self.expectedInvocationID = expectedInvocationID
         self.expectedEndpointVersion = max(1, expectedEndpointVersion)
+        self.outputContract = outputContract
         self.maximumFrames = min(max(1, maximumFrames), EndpointResourceLimits.maximumFrames)
     }
 
     public mutating func accept(_ event: SSEEvent) throws -> EndpointStreamFrame {
-        let frame = try Self.decode(event)
+        let frame = try Self.decode(event, outputContract: outputContract)
         guard frame.version == 1 else { throw ParishEndpointError.unsupportedVersion(frame.version) }
         guard frame.endpointVersion == expectedEndpointVersion else {
             throw ParishEndpointError.endpointVersionMismatch(
@@ -448,7 +461,10 @@ public struct EndpointStreamValidator: Sendable {
         guard terminalSeen else { throw ParishEndpointError.missingTerminal }
     }
 
-    private static func decode(_ event: SSEEvent) throws -> EndpointStreamFrame {
+    private static func decode(
+        _ event: SSEEvent,
+        outputContract: EndpointOutputContract
+    ) throws -> EndpointStreamFrame {
         guard let object = try? JSONSerialization.jsonObject(with: event.data),
               let values = object as? [String: Any] else {
             throw ParishEndpointError.malformedEvent("data is not a JSON object")
@@ -522,12 +538,31 @@ public struct EndpointStreamValidator: Sendable {
             error = try? JSONSerialization.data(withJSONObject: value, options: [.sortedKeys, .fragmentsAllowed])
         }
         if kind == .final {
-            guard let output = values["output"] as? [String: Any],
-                  Set(output.keys) == ["dialogue"],
-                  let dialogue = output["dialogue"] as? String,
-                  !dialogue.isEmpty,
-                  dialogue.unicodeScalars.count <= EndpointResourceLimits.maximumDialogueScalars else {
-                throw ParishEndpointError.malformedEvent("final output.dialogue is missing")
+            guard let output = values["output"] as? [String: Any] else {
+                throw ParishEndpointError.malformedEvent("final output is missing")
+            }
+            switch outputContract {
+            case .dialogue:
+                guard Set(output.keys) == ["dialogue"],
+                      let dialogue = output["dialogue"] as? String,
+                      !dialogue.isEmpty,
+                      dialogue.unicodeScalars.count <= EndpointResourceLimits.maximumDialogueScalars else {
+                    throw ParishEndpointError.malformedEvent("final output.dialogue is missing")
+                }
+            case .intent:
+                let keys: Set<String> = ["intent", "target", "dialogue", "atmosphere"]
+                guard Set(output.keys) == keys,
+                      let intent = output["intent"] as? String,
+                      !intent.isEmpty,
+                      intent.unicodeScalars.count <= EndpointResourceLimits.maximumDialogueScalars,
+                      ["target", "dialogue", "atmosphere"].allSatisfy({ key in
+                          let value = output[key]
+                          if value is NSNull { return true }
+                          guard let text = value as? String else { return false }
+                          return text.unicodeScalars.count <= EndpointResourceLimits.maximumDialogueScalars
+                      }) else {
+                    throw ParishEndpointError.malformedEvent("final intent output is malformed")
+                }
             }
         }
         if kind == .error, values["error"] == nil {
@@ -994,6 +1029,7 @@ public final class ParishEndpointClient: @unchecked Sendable {
                         expectedAttemptID: endpointRequest.attemptID,
                         expectedInvocationID: endpointRequest.invocationID,
                         expectedEndpointVersion: endpointRequest.endpointVersion,
+                        outputContract: endpointRequest.outputContract,
                         maximumFrames: maximumFrames
                     )
                     for try await transportEvent in byteStream.events {

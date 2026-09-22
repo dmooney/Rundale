@@ -57,6 +57,50 @@ final class RundaleLiveEndpointUITests: XCTestCase {
         XCTAssertFalse(dialogueRow(inProgress: false).exists)
     }
 
+    /// Proves real Intent Endpoint execution by the native action it produces,
+    /// not by a plausible NPC reply. The phrase is outside the local parser's
+    /// recognised cases, so a location commit requires the Intent role.
+    func test03LiveIntentEndpointExecutesTheInterpretedAction() throws {
+        try launch(reset: true)
+        waitForInitialScene()
+
+        let header = app.otherElements["status.header"]
+        XCTAssertTrue(header.label.localizedCaseInsensitiveContains("Kilteevan Village"))
+        let sentAt = submit("Let's make for the Letter Office")
+
+        XCTAssertTrue(
+            waitForTranscriptText("Travel to Letter Office.", timeout: 30),
+            "Expected the live interpretation to select travel"
+        )
+        let moved = NSPredicate(format: "label CONTAINS[c] 'Letter Office'")
+        XCTAssertEqual(
+            XCTWaiter.wait(
+                for: [XCTNSPredicateExpectation(predicate: moved, object: header)],
+                timeout: 30
+            ),
+            .completed,
+            "Expected the interpreted action to change the authoritative location"
+        )
+
+        let correlation: [String: Any] = [
+            "transport": "live-endpoint",
+            "role": "intent",
+            "player_input": "Let's make for the Letter Office",
+            "selected_action": "travel",
+            "resolved_target": "Letter Office",
+            "send_to_committed_action_seconds": Date().timeIntervalSince(sentAt),
+            "note": "Action correlation only; credentials and provider payloads are not recorded."
+        ]
+        let data = try JSONSerialization.data(
+            withJSONObject: correlation,
+            options: [.prettyPrinted, .sortedKeys]
+        )
+        let attachment = XCTAttachment(data: data, uniformTypeIdentifier: "public.json")
+        attachment.name = "rundale-live-intent-correlation.json"
+        attachment.lifetime = .keepAlways
+        add(attachment)
+    }
+
     private func launch(reset: Bool) throws {
         let environment = ProcessInfo.processInfo.environment
         let baseURL = environment["RUNDALE_LIVE_ENDPOINT_BASE_URL"]
@@ -70,6 +114,10 @@ final class RundaleLiveEndpointUITests: XCTestCase {
             environment["RUNDALE_LIVE_ENDPOINT_SLUG"] ?? "rundale-dialogue"
         app.launchEnvironment["RUNDALE_ENDPOINT_VERSION"] =
             environment["RUNDALE_LIVE_ENDPOINT_VERSION"] ?? "1"
+        app.launchEnvironment["RUNDALE_INTENT_ENDPOINT_SLUG"] =
+            environment["RUNDALE_LIVE_INTENT_ENDPOINT_SLUG"] ?? "rundale-intent"
+        app.launchEnvironment["RUNDALE_INTENT_ENDPOINT_VERSION"] =
+            environment["RUNDALE_LIVE_INTENT_ENDPOINT_VERSION"] ?? "1"
         if let debugToken = environment["AppCheckDebugToken"], !debugToken.isEmpty {
             app.launchEnvironment["AppCheckDebugToken"] = debugToken
         }

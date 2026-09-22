@@ -571,6 +571,7 @@ final class RundaleEngineController: ObservableObject, RundaleSessionControlling
                     attemptID: invocation.attemptID.rawValue,
                     idempotencyKey: invocation.idempotencyKey,
                     endpointVersion: configuration.endpointVersion(forRole: invocation.role),
+                    outputContract: isIntent ? .intent : .dialogue,
                     policy: configuration.phase2MockTransport ? EndpointURLPolicy(allowLoopbackHTTP: true) : EndpointURLPolicy(),
                     body: body
                 )
