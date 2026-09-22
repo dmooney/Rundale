@@ -558,7 +558,7 @@ final class RundaleEngineController: ObservableObject, RundaleSessionControlling
                       self.inferenceGeneration == generation,
                       !Task.isCancelled else { return }
                 let body = try invocation.requestBody()
-                guard let endpointURL = configuration.endpointURL
+                guard let endpointURL = configuration.endpointURL(for: invocation.role)
                     ?? (configuration.phase2MockTransport ? URL(string: "http://127.0.0.1/mock") : nil) else {
                     throw ParishEndpointError.invalidURL
                 }
@@ -568,6 +568,7 @@ final class RundaleEngineController: ObservableObject, RundaleSessionControlling
                     attemptID: invocation.attemptID.rawValue,
                     idempotencyKey: invocation.idempotencyKey,
                     endpointVersion: configuration.endpointVersion,
+                    outputKind: invocation.role == "intent" ? .intent : .dialogue,
                     policy: configuration.phase2MockTransport ? EndpointURLPolicy(allowLoopbackHTTP: true) : EndpointURLPolicy(),
                     body: body
                 )
@@ -586,6 +587,7 @@ final class RundaleEngineController: ObservableObject, RundaleSessionControlling
                     case .progress:
                         continue
                     case .textDelta:
+                        if invocation.role == "intent" { continue }
                         guard let text = frame.text, !text.isEmpty else { continue }
                         let operation = try EndpointOperation.frame(
                             attemptID: invocation.attemptID,
@@ -603,19 +605,29 @@ final class RundaleEngineController: ObservableObject, RundaleSessionControlling
                             throw ParishEndpointError.malformedEvent("final output is missing")
                         }
                         let output = try FixtureJSON.decode(EndpointOutput.self, from: payload)
-                        guard !output.dialogue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+                        if invocation.role == "npc_dialogue" &&
+                            (output.dialogue?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true) {
                             throw ParishEndpointError.malformedEvent("final dialogue is empty")
                         }
                         let operation = try EndpointOperation.candidate(
                             attemptID: invocation.attemptID,
                             baseRevision: invocation.baseRevision,
-                            dialogue: output.dialogue,
+                            role: invocation.role,
+                            dialogue: output.dialogue ?? "",
+                            intentOutput: invocation.role == "intent" ? output.intentPayload : nil,
                             metadata: [:],
                             structured: true
                         )
                         let response = try await runtime.dispatchJSON(operation)
                         guard !Task.isCancelled else { return }
                         self.consumeOperation(response)
+                        if invocation.role == "intent",
+                           let next = try await self.pendingInvocation(runtime: runtime),
+                           next.role == "npc_dialogue" {
+                            self.endpointTask = nil
+                            self.startEndpoint(next, runtime: runtime)
+                        }
+                        return
                     case .error:
                         throw EndpointReportedFailure(payload: frame.error)
                     }
@@ -631,6 +643,7 @@ final class RundaleEngineController: ObservableObject, RundaleSessionControlling
                     let response = try await runtime.receiveFailure(
                         attemptID: invocation.attemptID,
                         baseRevision: invocation.baseRevision,
+                        role: invocation.role,
                         kind: failure.kind,
                         message: failure.message
                     )
@@ -857,7 +870,21 @@ private struct MobileOperationResult: Decodable {
 }
 
 private struct EndpointOutput: Decodable {
-    let dialogue: String
+    let dialogue: String?
+    let intent: String?
+    let target: String?
+    let atmosphere: String?
+
+    var intentPayload: [String: Any]? {
+        guard let intent else { return nil }
+        var result: [String: Any] = [
+            "intent": intent,
+            "target": target as Any? ?? NSNull(),
+            "dialogue": dialogue as Any? ?? NSNull()
+        ]
+        if let atmosphere { result["atmosphere"] = atmosphere }
+        return result
+    }
 }
 
 private struct InvocationIdentity: Codable, Sendable {
@@ -867,6 +894,7 @@ private struct InvocationIdentity: Codable, Sendable {
     let attemptID: ExecutionAttemptID
     let baseRevision: StateRevision
     let idempotencyKey: String
+    let role: String
     var payload: Data?
 
     func requestBody() throws -> Data {
@@ -904,18 +932,23 @@ private enum EndpointOperation {
     static func candidate(
         attemptID: ExecutionAttemptID,
         baseRevision: StateRevision,
+        role: String,
         dialogue: String,
+        intentOutput: [String: Any]?,
         metadata: [String: String],
         structured: Bool
     ) throws -> Data {
-        try json([
+        var value: [String: Any] = [
             "op": "receive_candidate",
             "attempt_id": attemptID.rawValue,
             "base_revision": baseRevision.rawValue,
+            "role": role,
             "dialogue": dialogue,
             "metadata": metadata,
             "structured": structured
-        ])
+        ]
+        if let intentOutput { value["intent_output"] = intentOutput }
+        return try json(value)
     }
 
     private static func json(_ object: [String: Any]) throws -> Data {
@@ -1083,6 +1116,19 @@ private final class Phase2MockEndpointTransport: EndpointTransport, @unchecked S
                                 "message": "The Endpoint test response failed."
                             ]
                         )))
+                    } else if identities.role == "intent" {
+                        let target = input.contains("crossroads") ? "The Crossroads" :
+                            (input.contains("letters") ? "The Letter Office" :
+                             (input.contains("church") ? "St. Brigid's Church" : nil))
+                        let intent = target == nil ? "talk" : "move"
+                        continuation.yield(.bytes(try Self.frame(
+                            type: "final", sequence: 1, identities: identities,
+                            output: [
+                                "intent": intent,
+                                "target": target as Any? ?? NSNull(),
+                                "dialogue": NSNull()
+                            ]
+                        )))
                     } else {
                         let dialogue: String
                         let chunks: [String]
@@ -1135,6 +1181,7 @@ private final class Phase2MockEndpointTransport: EndpointTransport, @unchecked S
         let invocationID: String
         let input: String
         let speakerName: String
+        let role: String
         let endpointVersion: Int
     }
 
@@ -1146,6 +1193,7 @@ private final class Phase2MockEndpointTransport: EndpointTransport, @unchecked S
               let attemptID = input["attemptID"] as? String,
               let invocationID = input["idempotencyKey"] as? String,
               let playerInput = input["playerInput"] as? String,
+              let role = input["role"] as? String,
               let speaker = input["speaker"] as? [String: Any],
               let speakerName = speaker["displayName"] as? String else {
             throw ParishEndpointError.malformedEvent("mock request input is invalid")
@@ -1156,6 +1204,7 @@ private final class Phase2MockEndpointTransport: EndpointTransport, @unchecked S
             invocationID: invocationID,
             input: playerInput,
             speakerName: speakerName,
+            role: role,
             endpointVersion: Self.endpointVersion(from: url)
         )
     }

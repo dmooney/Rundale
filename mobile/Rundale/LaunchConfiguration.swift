@@ -115,12 +115,17 @@ struct LaunchConfiguration: Sendable {
     }
 
     var endpointURL: URL? {
+        endpointURL(for: "npc_dialogue")
+    }
+
+    func endpointURL(for role: String) -> URL? {
         guard let endpointBaseURL else { return nil }
+        guard role == "npc_dialogue" || role == "intent" else { return nil }
         return endpointBaseURL
             .appendingPathComponent("v1")
             .appendingPathComponent("endpoints")
             .appendingPathComponent(endpointOrganization)
-            .appendingPathComponent(endpointSlug)
+            .appendingPathComponent(role == "intent" ? "rundale-intent" : endpointSlug)
             .appendingPathComponent("versions")
             .appendingPathComponent(String(endpointVersion))
             .appendingPathComponent("stream")

@@ -280,16 +280,18 @@ public actor ParishRuntime: SessionAdapter {
     public func receiveFailure(
         attemptID: ExecutionAttemptID,
         baseRevision: StateRevision,
+        role: String? = nil,
         kind: ParishRuntimeFailureKind,
         message: String
     ) throws -> Data {
-        let operation: [String: Any] = [
+        var operation: [String: Any] = [
             "op": "receive_failure",
             "attemptID": attemptID.rawValue,
             "baseRevision": ["rawValue": baseRevision.rawValue],
             "errorKind": kind.rawValue,
             "message": message
         ]
+        if let role { operation["role"] = role }
         let data = try JSONSerialization.data(withJSONObject: operation, options: [.sortedKeys])
         return try dispatchJSON(data)
     }

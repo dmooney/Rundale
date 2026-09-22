@@ -742,9 +742,16 @@ mod core_backend {
                 "receive_failure" => {
                     let (attempt_id, base_revision, failure_kind, message) =
                         failure_request(object)?;
+                    let role = object.get("role").and_then(Value::as_str);
                     as_json(
                         self.session
-                            .receive_failure(&attempt_id, base_revision, failure_kind, message)
+                            .receive_failure_for_role(
+                                &attempt_id,
+                                base_revision,
+                                role,
+                                failure_kind,
+                                message,
+                            )
                             .map_err(|error| BackendError::protocol(error.to_string()))?,
                     )?
                 }
@@ -778,6 +785,7 @@ mod core_backend {
                     )?
                 }
                 "receive_candidate" => {
+                    let role = object.get("role").and_then(Value::as_str);
                     let attempt_id =
                         parse_id::<ExecutionAttemptId>(object, "attempt_id", "attemptID")?;
                     let base_revision_value =
@@ -785,7 +793,12 @@ mod core_backend {
                             || BackendError::protocol("operation requires `base_revision`"),
                         )?;
                     let base_revision = parse_revision(base_revision_value, "base_revision")?;
-                    let dialogue: String = parse(required(object, "dialogue")?, "dialogue")?;
+                    let dialogue: String = object
+                        .get("dialogue")
+                        .map(|value| parse(value, "dialogue"))
+                        .transpose()?
+                        .unwrap_or_default();
+                    let intent_output = object.get("intent_output").cloned();
                     let metadata = object
                         .get("metadata")
                         .map(|value| parse(value, "metadata"))
@@ -797,13 +810,17 @@ mod core_backend {
                         .unwrap_or(false);
                     as_json(
                         self.session
-                            .receive_candidate(EndpointCandidate {
-                                attempt_id,
-                                base_revision,
-                                dialogue,
-                                metadata,
-                                structured,
-                            })
+                            .receive_candidate_for_role(
+                                role,
+                                EndpointCandidate {
+                                    attempt_id,
+                                    base_revision,
+                                    dialogue,
+                                    intent_output,
+                                    metadata,
+                                    structured,
+                                },
+                            )
                             .map_err(|error| BackendError::protocol(error.to_string()))?,
                     )?
                 }
@@ -873,6 +890,37 @@ mod core_backend {
                 BackendError::internal(format!("encode operation result: {error}"))
             })
         }
+    }
+
+    #[cfg(test)]
+    #[test]
+    fn ffi_dispatch_infers_and_commits_the_selected_mobile_action() {
+        let mut backend = CoreBackend {
+            session: MobileSession::open_new().unwrap(),
+        };
+        let accepted: Value = serde_json::from_str(
+            &backend
+                .dispatch_json(
+                    r#"{"op":"submit","text":"Could you take me where letters arrive?"}"#,
+                )
+                .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(accepted["endpointInvocation"]["role"], "intent");
+        assert_eq!(accepted["stateRevision"]["rawValue"], 0);
+        let attempt = accepted["attemptID"].as_str().unwrap();
+        let candidate = json!({
+            "op":"receive_candidate", "role":"intent", "attempt_id":attempt,
+            "base_revision":0, "structured":true,
+            "intent_output":{"intent":"move","target":"The Letter Office","dialogue":null}
+        });
+        let result: Value =
+            serde_json::from_str(&backend.dispatch_json(&candidate.to_string()).unwrap()).unwrap();
+        assert_eq!(result["terminalOutcome"], "succeeded");
+        let snapshot: Value =
+            serde_json::from_str(&backend.dispatch_json(r#"{"op":"snapshot"}"#).unwrap()).unwrap();
+        assert_eq!(snapshot["readModel"]["scene"]["id"], "letter-office");
+        assert_eq!(snapshot["stateRevision"]["rawValue"], 1);
     }
 
     pub(super) fn open(

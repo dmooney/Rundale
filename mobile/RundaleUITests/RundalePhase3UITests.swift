@@ -89,6 +89,16 @@ final class RundalePhase3UITests: XCTestCase {
         XCTAssertFalse(app.buttons["composer.stop"].exists)
     }
 
+    func testInferredTravelRunsIntentBeforeChangingNativeHeader() {
+        launch(reset: true)
+        XCTAssertTrue(headerLabel(contains: "Kilteevan Village").waitForExistence(timeout: 8))
+        submit("Could you take me where letters arrive?")
+        XCTAssertTrue(headerLabel(contains: "Letter Office").waitForExistence(timeout: 15))
+        XCTAssertTrue(waitForText("Travel to The Letter Office", timeout: 8))
+        XCTAssertFalse(app.buttons["composer.stop"].exists)
+        attach("Inferred Intent changed the authoritative location")
+    }
+
     func testAmbiguousConnollyRequiresSelectionBeforeEndpointWork() {
         launch(reset: true)
         submit("/go Connolly Cottage")

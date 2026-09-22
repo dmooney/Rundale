@@ -26,7 +26,7 @@ pub(crate) struct IntentResponse {
 }
 
 /// The system prompt used for intent parsing.
-const INTENT_SYSTEM_PROMPT: &str = "\
+pub const INTENT_SYSTEM_PROMPT: &str = "\
 You are a text adventure input parser. Given the player's natural language input, \
 determine their intent. Respond with valid JSON containing:\n\
 - \"intent\": one of \"move\", \"talk\", \"look\", \"interact\", \"examine\", \"unknown\"\n\
@@ -231,28 +231,7 @@ pub async fn parse_intent_with_profile_and_audit(
     };
 
     match result {
-        Ok(resp) => {
-            let mut intent = resp.intent.unwrap_or(IntentKind::Unknown);
-            // Guard: downgrade spurious Look/Examine classifications (#1276).
-            // Small quantised models occasionally classify conversational input
-            // (e.g. "hey everybody", "no reason") as Look, which would cause the
-            // location description blurb to fire unexpectedly.  Accept Look/Examine
-            // only when the raw input actually resembles an observation command.
-            if matches!(intent, IntentKind::Look | IntentKind::Examine)
-                && !is_genuine_look_input(raw_input)
-            {
-                // Downgrade spurious Look/Examine — caller routes to NPC
-                // conversation instead of printing the location blurb (#1276).
-                intent = IntentKind::Unknown;
-            }
-            Ok(PlayerIntent {
-                intent,
-                target: resp.target,
-                dialogue: resp.dialogue,
-                atmosphere: validated_atmospheric_topic(resp.atmosphere.as_deref(), raw_input),
-                raw: raw_input.to_string(),
-            })
-        }
+        Ok(resp) => Ok(interpret_intent_response(raw_input, resp)),
         Err(_) => Ok(PlayerIntent {
             intent: IntentKind::Unknown,
             target: None,
@@ -260,6 +239,68 @@ pub async fn parse_intent_with_profile_and_audit(
             atmosphere: detect_atmospheric_topic(raw_input),
             raw: raw_input.to_string(),
         }),
+    }
+}
+
+/// Apply the same post-model guards used by desktop inference to a portable
+/// Endpoint result. Malformed and unsupported classifications are rejected.
+pub fn parse_endpoint_intent(
+    raw_input: &str,
+    output: serde_json::Value,
+) -> Result<PlayerIntent, String> {
+    let object = output.as_object().ok_or("intent result is not an object")?;
+    if !["intent", "target", "dialogue"]
+        .iter()
+        .all(|field| object.contains_key(*field))
+        || object
+            .keys()
+            .any(|field| !["intent", "target", "dialogue", "atmosphere"].contains(&field.as_str()))
+    {
+        return Err("intent result fields do not match the contract".to_string());
+    }
+    for (field, max_chars) in [("target", 200), ("dialogue", 4096)] {
+        if !object[field].is_null()
+            && !object[field]
+                .as_str()
+                .is_some_and(|value| value.chars().count() <= max_chars)
+        {
+            return Err(format!("intent result {field} is invalid"));
+        }
+    }
+    if let Some(atmosphere) = object.get("atmosphere")
+        && !atmosphere.is_null()
+        && !atmosphere
+            .as_str()
+            .is_some_and(|value| ["listen", "omen", "folklore"].contains(&value))
+    {
+        return Err("intent result atmosphere is invalid".to_string());
+    }
+    let resp: IntentResponse = serde_json::from_value(output).map_err(|error| error.to_string())?;
+    if resp.intent.is_none() {
+        return Err("intent result has no classification".to_string());
+    }
+    Ok(interpret_intent_response(raw_input, resp))
+}
+
+fn interpret_intent_response(raw_input: &str, resp: IntentResponse) -> PlayerIntent {
+    let mut intent = resp.intent.unwrap_or(IntentKind::Unknown);
+    // Guard: downgrade spurious Look/Examine classifications (#1276).
+    // Small quantised models occasionally classify conversational input
+    // (e.g. "hey everybody", "no reason") as Look, which would cause the
+    // location description blurb to fire unexpectedly.  Accept Look/Examine
+    // only when the raw input actually resembles an observation command.
+    if matches!(intent, IntentKind::Look | IntentKind::Examine) && !is_genuine_look_input(raw_input)
+    {
+        // Downgrade spurious Look/Examine — caller routes to NPC
+        // conversation instead of printing the location blurb (#1276).
+        intent = IntentKind::Unknown;
+    }
+    PlayerIntent {
+        intent,
+        target: resp.target,
+        dialogue: resp.dialogue,
+        atmosphere: validated_atmospheric_topic(resp.atmosphere.as_deref(), raw_input),
+        raw: raw_input.to_string(),
     }
 }
 #[cfg(test)]
@@ -284,6 +325,20 @@ mod tests {
         assert!(resp.target.is_none());
         assert!(resp.dialogue.is_none());
         assert!(resp.atmosphere.is_none());
+    }
+
+    #[test]
+    fn endpoint_intent_rejects_outputs_outside_wire_contract() {
+        let invalid = [
+            serde_json::json!({"intent":"move","target":"road"}),
+            serde_json::json!({"intent":"move","target":"road","dialogue":null,"extra":1}),
+            serde_json::json!({"intent":"move","target":42,"dialogue":null}),
+            serde_json::json!({"intent":"move","target":"x".repeat(201),"dialogue":null}),
+            serde_json::json!({"intent":"move","target":"road","dialogue":null,"atmosphere":"mystery"}),
+        ];
+        for output in invalid {
+            assert!(parse_endpoint_intent("Go to the road", output).is_err());
+        }
     }
 
     #[test]

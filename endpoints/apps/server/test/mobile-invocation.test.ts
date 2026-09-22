@@ -395,6 +395,34 @@ describe("mobile invocation authentication", () => {
     expect(validate(input)).toBe(false);
   });
 
+  it("keeps the Intent Endpoint role and typed output separate from dialogue", async () => {
+    const definition = JSON.parse(
+      await readFile(
+        new URL("../../../../mobile/endpoint/rundale-intent-v1.json", import.meta.url),
+        "utf8",
+      ),
+    ) as { inputSchema: Record<string, unknown>; outputSchema: Record<string, unknown> };
+    const input = JSON.parse(
+      await readFile(
+        new URL("../../../../mobile/endpoint/example-engine-invocation.json", import.meta.url),
+        "utf8",
+      ),
+    ) as Record<string, unknown>;
+    input.role = "intent";
+    input.authoredFacts = [];
+    input.recentConversation = [];
+    expect(compileSchema(definition.inputSchema)(input)).toBe(true);
+    input.authoredFacts = [{ id: "f", statement: "private", source: "test" }];
+    expect(compileSchema(definition.inputSchema)(input)).toBe(false);
+    input.authoredFacts = [];
+    input.role = "npc_dialogue";
+    expect(compileSchema(definition.inputSchema)(input)).toBe(false);
+    const validate = compileSchema(definition.outputSchema);
+    expect(validate({ intent: "move", target: "The Letter Office", dialogue: null })).toBe(true);
+    expect(validate({ dialogue: "A fine day." })).toBe(false);
+    expect(validate({ intent: "teleport", target: "The Letter Office", dialogue: null })).toBe(false);
+  });
+
   it("emits exactly one terminal error and records provider failure", async () => {
     const store = repository();
     server = await createServer(store, {

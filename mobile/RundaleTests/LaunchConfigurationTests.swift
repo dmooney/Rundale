@@ -20,6 +20,9 @@ final class LaunchConfigurationTests: XCTestCase {
         XCTAssertEqual(configuration.endpointVersion, 7)
         XCTAssertEqual(configuration.endpointURL?.absoluteString,
                        "https://example.test/v1/endpoints/parish-demo/rundale-dialogue/versions/7/stream")
+        XCTAssertEqual(configuration.endpointURL(for: "intent")?.absoluteString,
+                       "https://example.test/v1/endpoints/parish-demo/rundale-intent/versions/7/stream")
+        XCTAssertNil(configuration.endpointURL(for: "unsupported"))
     }
 
     func testEnvironmentOverridesBundledEndpointConfiguration() {

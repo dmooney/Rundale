@@ -17,6 +17,7 @@ use std::collections::{BTreeMap, VecDeque};
 use std::path::Path;
 
 use chrono::{DateTime, Utc};
+use limerick_input::{IntentKind, PlayerIntent, parse_endpoint_intent, parse_intent_local};
 use limerick_npc::{
     DialogueGroundingSnapshot, DialogueValidationPolicy, NpcResponseParseDisposition,
     NpcStreamResponse,
@@ -331,6 +332,8 @@ pub struct RequestAttempt {
     pub base_revision: StateRevision,
     pub last_stream_sequence: u64,
     pub provisional_text: String,
+    #[serde(default = "dialogue_role")]
+    pub inference_role: String,
     #[serde(skip)]
     grounding: Option<GroundingSnapshot>,
 }
@@ -1002,7 +1005,10 @@ pub struct EndpointInvocation {
 pub struct EndpointCandidate {
     pub attempt_id: ExecutionAttemptId,
     pub base_revision: StateRevision,
+    #[serde(default)]
     pub dialogue: String,
+    #[serde(default)]
+    pub intent_output: Option<serde_json::Value>,
     #[serde(default)]
     pub metadata: BTreeMap<String, String>,
     /// The platform must identify whether the response crossed the structured
@@ -1031,6 +1037,10 @@ pub struct EndpointFrame {
 
 fn default_stream_update() -> StreamUpdate {
     StreamUpdate::Replace
+}
+
+fn dialogue_role() -> String {
+    "npc_dialogue".to_string()
 }
 
 /// Return from a submission, retry, frame, candidate, or stop call.
@@ -1894,6 +1904,7 @@ impl MobileSession {
             base_revision,
             last_stream_sequence: 0,
             provisional_text: String::new(),
+            inference_role: dialogue_role(),
             grounding: None,
         };
         let pre_acceptance_requests = self.requests.clone();
@@ -1989,10 +2000,69 @@ impl MobileSession {
             ));
         }
 
-        if let Some((target, interpreted)) = movement_target(&text) {
-            let mut result = self.commit_travel(&request_id, &attempt_id, &target, interpreted)?;
+        if text.trim().to_ascii_lowercase().starts_with("/go ") {
+            let target = text.trim()[4..].trim().trim_end_matches(['.', '!', '?']);
+            let mut result = self.commit_travel(&request_id, &attempt_id, target, false)?;
             result.events.insert(0, command_event);
             return Ok(result);
+        }
+
+        if let Some(intent) = parse_intent_local(&text) {
+            match intent.intent {
+                IntentKind::Move => {
+                    let mut result = self.commit_travel(
+                        &request_id,
+                        &attempt_id,
+                        intent.target.as_deref().unwrap_or(""),
+                        true,
+                    )?;
+                    result.events.insert(0, command_event);
+                    return Ok(result);
+                }
+                IntentKind::Look | IntentKind::Examine | IntentKind::Interact => {
+                    let (response, capability) = if intent.intent == IntentKind::Look {
+                        (self.content.look_text.clone(), "look")
+                    } else {
+                        (
+                            format!("That action is not available here: {}.", text.trim()),
+                            "unsupported_action",
+                        )
+                    };
+                    let mut result = self.complete_local_response(
+                        &request_id,
+                        &attempt_id,
+                        response,
+                        capability,
+                    )?;
+                    result.events.insert(0, command_event);
+                    return Ok(result);
+                }
+                IntentKind::Talk | IntentKind::Unknown => {}
+            }
+        } else if !text.contains('@')
+            && Self::explicit_addressee_clause(&text.to_lowercase()).is_none()
+        {
+            let grounding = self.grounding_snapshot(NpcId(self.content.engine_npc_id));
+            if let Some(stored) = self.requests.iter_mut().find(|r| r.id == request_id) {
+                stored.phase = RequestPhase::Executing;
+                let attempt = stored.current_attempt_mut().expect("current attempt");
+                attempt.phase = RequestPhase::Executing;
+                attempt.inference_role = "intent".to_string();
+                attempt.grounding = Some(grounding.clone());
+            }
+            self.active_request_id = Some(request_id.clone());
+            let invocation = self.endpoint_invocation(&request_id, &attempt_id, &text, &grounding);
+            self.persist_current()?;
+            return Ok(self.operation_result(
+                true,
+                Some(request_id),
+                Some(attempt_id),
+                vec![command_event],
+                Some(invocation),
+                None,
+                false,
+                None,
+            ));
         }
 
         let selected_npc_id = match self.resolve_dialogue_target(&text) {
@@ -2158,6 +2228,7 @@ impl MobileSession {
                 .current_attempt_mut()
                 .expect("clarification has attempt");
             attempt.phase = RequestPhase::Executing;
+            attempt.inference_role = dialogue_role();
             attempt.grounding = Some(grounding.clone());
         }
         self.active_request_id = Some(logical_request_id.clone());
@@ -2228,12 +2299,19 @@ impl MobileSession {
 
         let text = self.requests[request_index].original_text.clone();
         let attempt_id = ExecutionAttemptId::fresh();
-        let selected = self.requests[request_index]
-            .selected_npc_id
-            .as_deref()
-            .and_then(|id| self.content.npc_by_stable_id(id))
-            .map(|npc| NpcId(npc.engine_npc_id))
-            .unwrap_or(NpcId(self.content.engine_npc_id));
+        let needs_intent = parse_intent_local(&text).is_none()
+            && !text.contains('@')
+            && Self::explicit_addressee_clause(&text.to_lowercase()).is_none();
+        let selected = if needs_intent {
+            NpcId(self.content.engine_npc_id)
+        } else {
+            self.requests[request_index]
+                .selected_npc_id
+                .as_deref()
+                .and_then(|id| self.content.npc_by_stable_id(id))
+                .map(|npc| NpcId(npc.engine_npc_id))
+                .unwrap_or(NpcId(self.content.engine_npc_id))
+        };
         let grounding = self.grounding_snapshot(selected);
         let attempt = RequestAttempt {
             id: attempt_id.clone(),
@@ -2247,6 +2325,11 @@ impl MobileSession {
             base_revision: self.state_revision,
             last_stream_sequence: 0,
             provisional_text: String::new(),
+            inference_role: if needs_intent {
+                "intent".to_string()
+            } else {
+                dialogue_role()
+            },
             grounding: Some(grounding.clone()),
         };
         let prior_requests = self.requests.clone();
@@ -2493,6 +2576,39 @@ impl MobileSession {
         )
     }
 
+    /// Reject a callback from an earlier Endpoint role within the same attempt.
+    pub fn receive_failure_for_role(
+        &mut self,
+        attempt_id: &ExecutionAttemptId,
+        base_revision: StateRevision,
+        role: Option<&str>,
+        failure_kind: EndpointFailureKind,
+        message: String,
+    ) -> Result<MobileOperationResult, MobileError> {
+        if self.callback_role_is_stale(attempt_id, role) {
+            return Ok(self.operation_result(
+                false,
+                self.active_request_id.clone(),
+                Some(attempt_id.clone()),
+                Vec::new(),
+                None,
+                None,
+                true,
+                None,
+            ));
+        }
+        self.receive_failure(attempt_id, base_revision, failure_kind, message)
+    }
+
+    fn callback_role_is_stale(&self, attempt_id: &ExecutionAttemptId, role: Option<&str>) -> bool {
+        let Some(role) = role else { return false };
+        self.active_request_id
+            .as_ref()
+            .and_then(|id| self.requests.iter().find(|request| &request.id == id))
+            .and_then(RequestRecord::current_attempt)
+            .is_none_or(|attempt| &attempt.id != attempt_id || attempt.inference_role != role)
+    }
+
     /// Apply one provisional stream frame on the serial lane.  Provisional
     /// text is retained only in memory and is never added to `ConversationLog`
     /// or the durable `GameSnapshot`.
@@ -2546,7 +2662,10 @@ impl MobileSession {
             ));
         }
         let attempt = request.current_attempt_mut().expect("current attempt");
-        if attempt.phase.is_terminal() || attempt.base_revision != frame.base_revision {
+        if attempt.phase.is_terminal()
+            || attempt.base_revision != frame.base_revision
+            || attempt.inference_role != "npc_dialogue"
+        {
             return Ok(self.operation_result(
                 false,
                 Some(request_id),
@@ -2679,6 +2798,21 @@ impl MobileSession {
                 None,
             ));
         }
+        if attempt.inference_role == "intent" {
+            return self.receive_intent_candidate(&request_id, candidate);
+        }
+        if candidate.intent_output.is_some() {
+            return Ok(self.operation_result(
+                false,
+                Some(request_id),
+                Some(candidate.attempt_id),
+                Vec::new(),
+                None,
+                None,
+                true,
+                None,
+            ));
+        }
         validate_candidate_text(&candidate.dialogue)?;
         self.commit_dialogue(
             &request_id,
@@ -2687,6 +2821,203 @@ impl MobileSession {
             candidate.structured,
             candidate.metadata,
         )
+    }
+
+    /// Correlate an Endpoint candidate with its role as well as its attempt.
+    pub fn receive_candidate_for_role(
+        &mut self,
+        role: Option<&str>,
+        candidate: EndpointCandidate,
+    ) -> Result<MobileOperationResult, MobileError> {
+        if self.callback_role_is_stale(&candidate.attempt_id, role) {
+            return Ok(self.operation_result(
+                false,
+                self.active_request_id.clone(),
+                Some(candidate.attempt_id),
+                Vec::new(),
+                None,
+                None,
+                true,
+                None,
+            ));
+        }
+        self.receive_candidate(candidate)
+    }
+
+    fn receive_intent_candidate(
+        &mut self,
+        request_id: &LogicalRequestId,
+        candidate: EndpointCandidate,
+    ) -> Result<MobileOperationResult, MobileError> {
+        let attempt_id = &candidate.attempt_id;
+        let raw_input = self
+            .requests
+            .iter()
+            .find(|request| &request.id == request_id)
+            .expect("active request exists")
+            .original_text
+            .clone();
+        let parsed = candidate
+            .intent_output
+            .filter(|_| candidate.structured)
+            .ok_or_else(|| "intent result is not structured".to_string())
+            .and_then(|output| parse_endpoint_intent(&raw_input, output));
+        let intent = match parsed {
+            Ok(intent) => intent,
+            Err(_) => {
+                return self.finish_uncommitted(
+                    request_id,
+                    attempt_id,
+                    ResponseTerminalOutcome::Failed,
+                    Some("The action could not be interpreted. You can retry.".to_string()),
+                    Some("semantic_validation"),
+                );
+            }
+        };
+        match intent.intent {
+            IntentKind::Move => {
+                let Some(target) = intent
+                    .target
+                    .as_deref()
+                    .filter(|target| !target.trim().is_empty())
+                else {
+                    return self.finish_uncommitted(
+                        request_id,
+                        attempt_id,
+                        ResponseTerminalOutcome::Failed,
+                        Some("The destination was unclear. You can retry.".to_string()),
+                        Some("semantic_validation"),
+                    );
+                };
+                self.commit_travel(request_id, attempt_id, target, true)
+            }
+            IntentKind::Talk => self.begin_inferred_dialogue(request_id, attempt_id, &intent),
+            IntentKind::Look => {
+                let result = self.complete_local_response(
+                    request_id,
+                    attempt_id,
+                    self.content.look_text.clone(),
+                    "look",
+                )?;
+                self.active_request_id = None;
+                Ok(result)
+            }
+            _ => self.finish_uncommitted(
+                request_id,
+                attempt_id,
+                ResponseTerminalOutcome::Failed,
+                Some("That interpreted action is not supported here.".to_string()),
+                Some("unsupported_intent"),
+            ),
+        }
+    }
+
+    fn begin_inferred_dialogue(
+        &mut self,
+        request_id: &LogicalRequestId,
+        attempt_id: &ExecutionAttemptId,
+        intent: &PlayerIntent,
+    ) -> Result<MobileOperationResult, MobileError> {
+        let target_text = intent
+            .target
+            .as_deref()
+            .map(|target| format!("talk to {target}"))
+            .unwrap_or_else(|| intent.raw.clone());
+        let npc_id = match self.resolve_dialogue_target(&target_text) {
+            DialogueTarget::Selected(id) => id,
+            DialogueTarget::Unavailable(message) => {
+                let result = self.complete_local_response(
+                    request_id,
+                    attempt_id,
+                    message,
+                    "unavailable_npc",
+                )?;
+                self.active_request_id = None;
+                return Ok(result);
+            }
+            DialogueTarget::Ambiguous(ids) => {
+                let choices = ids
+                    .iter()
+                    .filter_map(|id| self.content.npc_by_stable_id(id))
+                    .map(|npc| ClarificationChoice {
+                        id: format!("choose-{}", npc.id),
+                        label: npc.display_name.clone(),
+                        entity_id: Some(npc.id.clone()),
+                    })
+                    .collect();
+                let prompt = PendingClarification {
+                    question: "Which person do you mean?".to_string(),
+                    choices,
+                };
+                if let Some(request) = self.requests.iter_mut().find(|r| &r.id == request_id) {
+                    request.phase = RequestPhase::AwaitingClarification;
+                    request.pending_clarification = Some(prompt.clone());
+                    request
+                        .current_attempt_mut()
+                        .expect("current attempt")
+                        .phase = RequestPhase::AwaitingClarification;
+                }
+                self.active_request_id = None;
+                let event = self.emit_clarification(request_id, attempt_id, &prompt);
+                self.persist_current()?;
+                return Ok(self.operation_result(
+                    true,
+                    Some(request_id.clone()),
+                    Some(attempt_id.clone()),
+                    vec![event],
+                    None,
+                    None,
+                    false,
+                    None,
+                ));
+            }
+        };
+        let npc = self
+            .content
+            .npc_by_stable_id(&npc_id)
+            .expect("resolved NPC exists");
+        let npc_name = npc.display_name.clone();
+        let grounding = self.grounding_snapshot(NpcId(npc.engine_npc_id));
+        if let Some(request) = self.requests.iter_mut().find(|r| &r.id == request_id) {
+            request.selected_npc_id = Some(npc_id.clone());
+            let attempt = request.current_attempt_mut().expect("current attempt");
+            attempt.inference_role = dialogue_role();
+            attempt.grounding = Some(grounding.clone());
+            attempt.last_stream_sequence = 0;
+            attempt.provisional_text.clear();
+        }
+        let receipt = self.emit(
+            SemanticEventKind::CommandInterpreted,
+            Some(format!("Speak with {npc_name}.")),
+            None,
+            Some(request_id),
+            Some(attempt_id),
+            None,
+            false,
+            None,
+            None,
+            true,
+            None,
+            Some(self.state_revision),
+            metadata([("intent", "talk".to_string()), ("targetID", npc_id)]),
+        );
+        let spoken_input = intent
+            .dialogue
+            .as_deref()
+            .filter(|dialogue| !dialogue.trim().is_empty())
+            .unwrap_or(&intent.raw);
+        let invocation = self.endpoint_invocation(request_id, attempt_id, spoken_input, &grounding);
+        self.persist_current()?;
+        Ok(self.operation_result(
+            true,
+            Some(request_id.clone()),
+            Some(attempt_id.clone()),
+            vec![receipt],
+            Some(invocation),
+            None,
+            false,
+            None,
+        ))
     }
 
     /// Take and clear the next pending invocation.  `submit`/`retry` also
@@ -3171,7 +3502,7 @@ impl MobileSession {
         };
         let mut next_sequence = self.next_event_sequence;
         let mut emitted = Vec::new();
-        if interpreted {
+        if interpreted && changed {
             next_sequence += 1;
             emitted.push(self.make_event_at(
                 EventSequence::new(next_sequence),
@@ -3316,6 +3647,7 @@ impl MobileSession {
         self.events = next_events;
         self.has_older_events = next_older;
         self.next_event_sequence = next_sequence;
+        self.active_request_id = None;
         Ok(self.operation_result(
             true,
             Some(request_id.clone()),
@@ -3902,6 +4234,14 @@ impl MobileSession {
                 current_location_id: self.world.player_location.0,
                 current_location_name: grounding.current_location_name.clone(),
             });
+        let role = self
+            .requests
+            .iter()
+            .find(|request| &request.id == request_id)
+            .and_then(RequestRecord::current_attempt)
+            .map(|attempt| attempt.inference_role.clone())
+            .unwrap_or_else(dialogue_role);
+        let is_intent = role == "intent";
         let recent_conversation = self
             .world
             .conversation_log
@@ -3915,8 +4255,13 @@ impl MobileSession {
             logical_request_id: request_id.clone(),
             attempt_id: attempt_id.clone(),
             base_revision: self.state_revision,
-            idempotency_key: format!("{}:{}", request_id.raw_value, attempt_id.raw_value),
-            role: "npc_dialogue".to_string(),
+            idempotency_key: format!(
+                "{}:{}{}",
+                request_id.raw_value,
+                attempt_id.raw_value,
+                if is_intent { ":intent" } else { "" }
+            ),
+            role,
             player_input: input.to_string(),
             speaker,
             current_location: grounding
@@ -3949,13 +4294,21 @@ impl MobileSession {
                 .take(MAX_GROUNDING_ENTRIES)
                 .cloned()
                 .collect(),
-            authored_facts: grounding
-                .authored_facts
-                .iter()
-                .take(MAX_GROUNDING_ENTRIES)
-                .cloned()
-                .collect(),
-            recent_conversation,
+            authored_facts: if is_intent {
+                Vec::new()
+            } else {
+                grounding
+                    .authored_facts
+                    .iter()
+                    .take(MAX_GROUNDING_ENTRIES)
+                    .cloned()
+                    .collect()
+            },
+            recent_conversation: if is_intent {
+                Vec::new()
+            } else {
+                recent_conversation
+            },
             max_output_chars: 8 * 1024,
             max_stream_bytes: MAX_PROVISIONAL_TEXT_BYTES,
         }
@@ -4214,34 +4567,6 @@ fn deterministic_capability(text: &str) -> Option<DeterministicCapability> {
         "/help" | "help" => Some(DeterministicCapability::Help),
         _ => None,
     }
-}
-
-fn movement_target(text: &str) -> Option<(String, bool)> {
-    let trimmed = text.trim().trim_end_matches(['.', '!', '?']);
-    let lower = trimmed.to_lowercase();
-    for (prefix, interpreted) in [
-        ("/go ", false),
-        ("go to ", true),
-        ("go ", true),
-        ("walk to ", true),
-        ("walk over to ", true),
-        ("head to ", true),
-        ("head over to ", true),
-        ("visit ", true),
-    ] {
-        if lower.starts_with(prefix) {
-            let byte_index = trimmed
-                .char_indices()
-                .nth(prefix.chars().count())
-                .map(|(index, _)| index)
-                .unwrap_or(trimmed.len());
-            let target = trimmed[byte_index..].trim();
-            if !target.is_empty() {
-                return Some((target.to_string(), interpreted));
-            }
-        }
-    }
-    None
 }
 
 enum DialogueTarget {
@@ -4960,6 +5285,7 @@ mod tests {
                 attempt_id: attempt,
                 base_revision: base,
                 dialogue: "I keep the Letter Office and know who has received news from beyond the parish.".to_string(),
+                intent_output: None,
                 metadata: BTreeMap::new(),
                 structured: true,
             })
@@ -4988,6 +5314,7 @@ mod tests {
                 attempt_id: attempt,
                 base_revision: base,
                 dialogue: "The old castle stands to the north beyond the river.".to_string(),
+                intent_output: None,
                 metadata: BTreeMap::new(),
                 structured: true,
             })
@@ -5067,6 +5394,7 @@ mod tests {
                 attempt_id: attempt,
                 base_revision: base,
                 dialogue: "The wall is low.".to_string(),
+                intent_output: None,
                 metadata: BTreeMap::new(),
                 structured: true,
             })
@@ -5122,6 +5450,7 @@ mod tests {
                 attempt_id: attempt,
                 base_revision: base,
                 dialogue: "A low stone wall borders the road here.".to_string(),
+                intent_output: None,
                 metadata: BTreeMap::new(),
                 structured: true,
             })
@@ -5147,6 +5476,7 @@ mod tests {
                 attempt_id: ExecutionAttemptId::new("late"),
                 base_revision: StateRevision::new(0),
                 dialogue: "A second line.".to_string(),
+                intent_output: None,
                 metadata: BTreeMap::new(),
                 structured: true,
             })
@@ -5175,6 +5505,7 @@ mod tests {
                 attempt_id: attempt.clone(),
                 base_revision: StateRevision::new(0),
                 dialogue: "not structured".to_string(),
+                intent_output: None,
                 metadata: BTreeMap::new(),
                 structured: false,
             })
@@ -5380,6 +5711,7 @@ mod tests {
                 attempt_id: retry_attempt,
                 base_revision: retry_base,
                 dialogue: final_text.to_string(),
+                intent_output: None,
                 metadata: BTreeMap::new(),
                 structured: true,
             })
@@ -5448,6 +5780,7 @@ mod tests {
                 attempt_id,
                 base_revision,
                 dialogue: "A low stone wall borders the road here.".to_string(),
+                intent_output: None,
                 metadata: BTreeMap::new(),
                 structured: true,
             })

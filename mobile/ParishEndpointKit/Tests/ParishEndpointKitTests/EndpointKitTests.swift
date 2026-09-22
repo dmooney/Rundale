@@ -265,6 +265,20 @@ final class EndpointKitTests: XCTestCase {
         )
     }
 
+    func testIntentRoleAcceptsTypedFinalWithoutDialogue() throws {
+        var intent = EndpointStreamValidator(
+            expectedRequestID: "r", expectedAttemptID: "a", outputKind: .intent
+        )
+        let final = try event(type: "final", sequence: 1, output: [
+            "intent": "move", "target": "The Letter Office", "dialogue": NSNull()
+        ])
+        XCTAssertEqual(try intent.accept(final).kind, .final)
+        XCTAssertNoThrow(try intent.finish())
+
+        var dialogue = EndpointStreamValidator(expectedRequestID: "r", expectedAttemptID: "a")
+        XCTAssertThrowsError(try dialogue.accept(final))
+    }
+
     func testParserHandlesChunkBoundariesAndCRLF() throws {
         var parser = BoundedSSEParser()
         XCTAssertTrue(try parser.append(Data("event: progress\r\nda".utf8)).isEmpty)

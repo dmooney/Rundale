@@ -1,4 +1,16 @@
-# Rundale dialogue Endpoint definition
+# Rundale Endpoint definitions
+
+[`rundale-intent-v1.json`](rundale-intent-v1.json) defines the portable
+Intent role. It uses the existing `limerick-input` intent prompt and the same
+bounded engine invocation context, with empty authored facts and conversation
+history, a separate `rundale-intent` slug, and a
+typed `{intent,target,dialogue,atmosphere}` output. Rust applies the shared
+post-model guards and resolves proposed targets against the current world.
+The Intent result is provisional until Rust commits the selected action.
+An inferred Talk result starts a distinct `npc_dialogue` Endpoint stage under
+the same logical request and attempt, with a distinct idempotency key.
+The Intent definition is checked in but must be published and added to the
+mobile App Check allowlist before a live build can use it.
 
 [`rundale-dialogue-v1.json`](rundale-dialogue-v1.json) is the version 1
 Endpoint definition for the Phase 2 NPC dialogue role. It is the
@@ -8,7 +20,7 @@ Endpoint definition for the Phase 2 NPC dialogue role. It is the
 secret-free serialization produced by the Rust `EndpointInvocation` DTO and
 checked against it in the `limerick-core` fixture test.
 
-The public identity is organization `parish-demo`, slug `rundale-dialogue`,
+The deployed dialogue identity is organization `parish-demo`, slug `rundale-dialogue`,
 version `1`. The exact artifact was published and promoted on 2026-09-09; its
 deployed content hash is
 `sha256:d2a58dc263543789c19a3bc5d3d934db7fee7e8fba81d5d01716bcf03315cae1`.
