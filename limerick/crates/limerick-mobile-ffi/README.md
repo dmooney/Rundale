@@ -16,9 +16,13 @@ rustup run 1.98.0 cargo build \
 ```
 
 The JSON operations are `submit`, `retry`, `stop`, `fail`, `receive_failure`,
-`receive_frame`, `receive_candidate`, `read_events`, `read_event_page`,
-`read_event_page_before`, `snapshot`, and
-`pending_endpoint`. The `receive_failure` operation accepts the native
+`receive_frame`, `receive_candidate`, `receive_intent_candidate`,
+`read_events`, `read_event_page`, `read_event_page_before`, `snapshot`, and
+`pending_endpoint`. `pending_endpoint` returns the invocation for the active
+request's current stage: an `intent` role invocation while its input is being
+interpreted, then an `npc_dialogue` invocation when the interpreted action is
+conversation. `receive_intent_candidate` takes `attemptID`, `baseRevision`,
+the Endpoint's final `output` object, and `structured`. The `receive_failure` operation accepts the native
 camel-case fields `attemptID`, `baseRevision`, `errorKind`, and `message`;
 the bridge also accepts snake-case aliases for compatibility.
 Successful responses use `{ "ok": true, "value": ... }`; failures use a

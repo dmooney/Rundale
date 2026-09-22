@@ -2,9 +2,16 @@
 //!
 //! This module is deliberately synchronous.  A host (Swift, a C ABI, or a
 //! deterministic test) calls one method at a time on [`MobileSession`].
-//! Inference is represented by an [`EndpointInvocation`] value and its
-//! callbacks re-enter the same session through [`MobileSession::receive_frame`],
-//! [`MobileSession::receive_candidate`], or [`MobileSession::receive_failure`].
+//! Inference is represented by an [`EndpointInvocation`] (NPC dialogue) or an
+//! [`IntentInvocation`] (player-input interpretation) value, and callbacks
+//! re-enter the same session through [`MobileSession::receive_intent_candidate`],
+//! [`MobileSession::receive_frame`], [`MobileSession::receive_candidate`], or
+//! [`MobileSession::receive_failure`].
+//!
+//! Free-form input follows the shared `limerick-input` interpretation flow:
+//! deterministic local parsing first, then the Intent role for input the local
+//! parser does not recognise, then the resolved action. Dialogue generation
+//! follows only when the interpreted action is conversation.
 //! No provider client, task runtime, or UI type belongs in this module.
 //!
 //! The session owns the one authoritative `WorldState` and `NpcManager`. A
@@ -17,6 +24,7 @@ use std::collections::{BTreeMap, VecDeque};
 use std::path::Path;
 
 use chrono::{DateTime, Utc};
+use limerick_input::{IntentKind, LocalInterpretation, PlayerIntent};
 use limerick_npc::{
     DialogueGroundingSnapshot, DialogueValidationPolicy, NpcResponseParseDisposition,
     NpcStreamResponse,
@@ -40,8 +48,11 @@ pub const PRESENTATION_CONTRACT_VERSION: PresentationContractVersion =
 
 /// Version of the durable mobile save envelope.  This evolves independently
 /// from the semantic event payload consumed by RundaleKit.
+///
+/// 1.1 adds the optional request `interpretation` and attempt `stage` fields;
+/// both default when absent, so 1.0 saves resume unchanged.
 pub const MOBILE_SAVE_FORMAT_VERSION: MobileSaveFormatVersion =
-    MobileSaveFormatVersion { major: 1, minor: 0 };
+    MobileSaveFormatVersion { major: 1, minor: 1 };
 
 /// The maximum bytes retained for a single provisional stream item.
 pub const MAX_PROVISIONAL_TEXT_BYTES: usize = 16 * 1024;
@@ -59,6 +70,10 @@ pub const MAX_COMMAND_BYTES: usize = 4 * 1024;
 pub const MAX_FAILURE_MESSAGE_BYTES: usize = 4 * 1024;
 /// The maximum number of completion records returned to a host.
 pub const MAX_COMPLETIONS: usize = 32;
+/// Endpoint role for NPC dialogue generation (`rundale-dialogue` v1).
+pub const DIALOGUE_ROLE: &str = "npc_dialogue";
+/// Endpoint role for player-input interpretation (`rundale-intent` v1).
+pub const INTENT_ROLE: &str = "intent";
 
 /// Version of the Swift/Rust semantic presentation contract.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -331,8 +346,51 @@ pub struct RequestAttempt {
     pub base_revision: StateRevision,
     pub last_stream_sequence: u64,
     pub provisional_text: String,
+    /// Which Endpoint role this attempt is currently waiting on. Saves from
+    /// before interpretation existed only ever waited on dialogue.
+    #[serde(default)]
+    pub stage: AttemptStage,
     #[serde(skip)]
     grounding: Option<GroundingSnapshot>,
+}
+
+/// The inference stage of one attempt. Callbacks for any other stage are
+/// stale and ignored, so an interpretation result cannot apply twice and a
+/// dialogue frame cannot arrive during interpretation.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum AttemptStage {
+    /// Waiting for the Intent role; no action has been selected.
+    Interpretation,
+    /// Waiting for NPC dialogue generation for the selected speaker.
+    #[default]
+    Dialogue,
+}
+
+/// Where a request's interpreted action came from.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum InterpretationSource {
+    /// The Intent role through a Limerick Endpoint.
+    Inferred,
+}
+
+/// Durable interpretation state for a request that needed the Intent role.
+/// Interpretation is not a game fact; it records which action the request
+/// selected so retry and recovery resume the right stage.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RequestInterpretation {
+    pub source: InterpretationSource,
+    /// `None` until an Intent result has been accepted.
+    pub intent: Option<String>,
+    pub target: Option<String>,
+}
+
+impl RequestInterpretation {
+    pub fn is_pending(&self) -> bool {
+        self.intent.is_none()
+    }
 }
 
 /// Durable logical request record.  The logical request remains retryable
@@ -355,6 +413,8 @@ pub struct RequestRecord {
     pub selected_npc_id: Option<String>,
     #[serde(default)]
     pub pending_clarification: Option<PendingClarification>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub interpretation: Option<RequestInterpretation>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -1012,6 +1072,45 @@ pub struct EndpointCandidate {
     pub structured: bool,
 }
 
+/// Intent Endpoint request DTO (`rundale-intent` v1). It carries only the
+/// player's text and correlation; the prompt, validation and action dispatch
+/// stay in the engine.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct IntentInvocation {
+    pub contract_version: PresentationContractVersion,
+    #[serde(rename = "sessionID")]
+    pub session_id: SessionId,
+    #[serde(rename = "logicalRequestID")]
+    pub logical_request_id: LogicalRequestId,
+    #[serde(rename = "attemptID")]
+    pub attempt_id: ExecutionAttemptId,
+    pub base_revision: StateRevision,
+    pub idempotency_key: String,
+    pub role: String,
+    pub player_input: String,
+}
+
+/// The structured Intent Endpoint output returned by the platform.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct IntentCandidate {
+    pub attempt_id: ExecutionAttemptId,
+    pub base_revision: StateRevision,
+    /// The Endpoint's final `output` object, unmodified.
+    pub output: serde_json::Value,
+    #[serde(default)]
+    pub structured: bool,
+}
+
+/// The next Endpoint call a host should make for the active request.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum PendingEndpointInvocation {
+    Intent(IntentInvocation),
+    Dialogue(Box<EndpointInvocation>),
+}
+
 /// One bounded stream frame from Parish Endpoints.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -1044,6 +1143,9 @@ pub struct MobileOperationResult {
     pub attempt_id: Option<ExecutionAttemptId>,
     pub events: Vec<SemanticEvent>,
     pub endpoint_invocation: Option<EndpointInvocation>,
+    /// Set when the request needs the Intent role before any action runs.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub intent_invocation: Option<IntentInvocation>,
     pub terminal_outcome: Option<ResponseTerminalOutcome>,
     pub ignored: bool,
     pub error: Option<String>,
@@ -1894,6 +1996,7 @@ impl MobileSession {
             base_revision,
             last_stream_sequence: 0,
             provisional_text: String::new(),
+            stage: AttemptStage::Dialogue,
             grounding: None,
         };
         let pre_acceptance_requests = self.requests.clone();
@@ -1928,6 +2031,7 @@ impl MobileSession {
             committed_state_revision: None,
             selected_npc_id: None,
             pending_clarification: None,
+            interpretation: None,
         };
         // Acceptance is persisted before interpreting the command or handing
         // work to the platform.  If storage fails, no request is published.
@@ -1989,23 +2093,202 @@ impl MobileSession {
             ));
         }
 
-        if let Some((target, interpreted)) = movement_target(&text) {
-            let mut result = self.commit_travel(&request_id, &attempt_id, &target, interpreted)?;
-            result.events.insert(0, command_event);
-            return Ok(result);
-        }
+        let route = self.route_free_text(&text);
+        let mut result = match route {
+            FreeTextRoute::Interpret => self.begin_interpretation(&request_id, &attempt_id),
+            other => self.execute_route(&request_id, &attempt_id, other, None),
+        }?;
+        result.events.insert(0, command_event);
+        Ok(result)
+    }
 
-        let selected_npc_id = match self.resolve_dialogue_target(&text) {
+    /// Selects the action for accepted free-form text using the shared
+    /// `limerick-input` interpretation flow. Only input the local parser does
+    /// not recognise needs the Intent role.
+    fn route_free_text(&self, text: &str) -> FreeTextRoute {
+        if let Some(target) = slash_travel_target(text) {
+            return FreeTextRoute::Travel {
+                target,
+                interpreted: false,
+            };
+        }
+        // An explicit addressee is the mobile form of the desktop addressee
+        // chip (#1450): the text is speech to that person, so neither movement
+        // nor the Intent role may take it over.
+        if self.has_explicit_addressee(text) {
+            return FreeTextRoute::Dialogue(self.resolve_dialogue_target(text));
+        }
+        match limerick_input::interpret_locally(text) {
+            LocalInterpretation::Resolved(intent) => self.route_intent(&intent, text),
+            LocalInterpretation::RequiresInference => FreeTextRoute::Interpret,
+        }
+    }
+
+    /// Maps one validated intent to the action this runtime can execute.
+    /// Unsupported actions are reported explicitly and never become dialogue.
+    fn route_intent(&self, intent: &PlayerIntent, raw: &str) -> FreeTextRoute {
+        match intent.intent {
+            IntentKind::Move => match intent.target.as_deref().map(str::trim) {
+                Some(target) if !target.is_empty() => FreeTextRoute::Travel {
+                    target: target.to_string(),
+                    interpreted: true,
+                },
+                _ => FreeTextRoute::ChooseDestination,
+            },
+            IntentKind::Look => FreeTextRoute::Look,
+            IntentKind::Examine | IntentKind::Interact => FreeTextRoute::Unsupported,
+            IntentKind::Talk => FreeTextRoute::Dialogue(
+                intent
+                    .target
+                    .as_deref()
+                    .and_then(|target| self.resolve_named_npc(target))
+                    .unwrap_or_else(|| self.resolve_dialogue_target(raw)),
+            ),
+            // `Unknown` is the engine's conversational fallback, as on desktop,
+            // except for action-shaped text, which must not vanish into a
+            // conversation (#1461).
+            IntentKind::Unknown if limerick_input::is_physical_action_shaped(raw) => {
+                FreeTextRoute::Unsupported
+            }
+            IntentKind::Unknown => FreeTextRoute::Dialogue(self.resolve_dialogue_target(raw)),
+        }
+    }
+
+    /// Executes a selected route for the current attempt. `source` is set when
+    /// the route came from the Intent role, so the receipt names it.
+    fn execute_route(
+        &mut self,
+        request_id: &LogicalRequestId,
+        attempt_id: &ExecutionAttemptId,
+        route: FreeTextRoute,
+        source: Option<InterpretationSource>,
+    ) -> Result<MobileOperationResult, MobileError> {
+        match route {
+            FreeTextRoute::Travel {
+                target,
+                interpreted,
+            } => self.commit_travel(request_id, attempt_id, &target, interpreted, source),
+            FreeTextRoute::ChooseDestination => {
+                let choices: Vec<ClarificationChoice> = self
+                    .read_model()
+                    .exits
+                    .into_iter()
+                    .filter(|exit| exit.playable)
+                    .filter_map(|exit| {
+                        let destination = exit.destination_id?;
+                        Some(ClarificationChoice {
+                            id: format!("choose-{destination}"),
+                            label: exit.display_name,
+                            entity_id: Some(destination),
+                        })
+                    })
+                    .collect();
+                if choices.is_empty() {
+                    return self.complete_local_response(
+                        request_id,
+                        attempt_id,
+                        "There is nowhere to go from here.".to_string(),
+                        "travel",
+                    );
+                }
+                self.request_clarification(
+                    request_id,
+                    attempt_id,
+                    PendingClarification {
+                        question: "Where do you want to go?".to_string(),
+                        choices,
+                    },
+                )
+            }
+            FreeTextRoute::Look => {
+                let text = self.look_text();
+                self.complete_local_response(request_id, attempt_id, text, "look")
+            }
+            FreeTextRoute::Unsupported => self.complete_local_response(
+                request_id,
+                attempt_id,
+                UNSUPPORTED_ACTION_TEXT.to_string(),
+                "unsupported_action",
+            ),
+            FreeTextRoute::Dialogue(target) => {
+                self.begin_dialogue(request_id, attempt_id, target, source)
+            }
+            // Interpretation is a stage, not an action; an already
+            // interpreted request never asks for it again.
+            FreeTextRoute::Interpret => self.complete_local_response(
+                request_id,
+                attempt_id,
+                UNSUPPORTED_ACTION_TEXT.to_string(),
+                "unsupported_action",
+            ),
+        }
+    }
+
+    /// Moves the current attempt to the Intent stage and returns the Intent
+    /// Endpoint invocation. No action executes until a validated result
+    /// arrives through [`Self::receive_intent_candidate`].
+    fn begin_interpretation(
+        &mut self,
+        request_id: &LogicalRequestId,
+        attempt_id: &ExecutionAttemptId,
+    ) -> Result<MobileOperationResult, MobileError> {
+        let checkpoint = self.checkpoint();
+        let text = {
+            let request = self
+                .requests
+                .iter_mut()
+                .find(|record| &record.id == request_id)
+                .expect("accepted request exists");
+            request.phase = RequestPhase::Executing;
+            request.interpretation = Some(RequestInterpretation {
+                source: InterpretationSource::Inferred,
+                intent: None,
+                target: None,
+            });
+            let attempt = request.current_attempt_mut().expect("current attempt");
+            attempt.phase = RequestPhase::Executing;
+            attempt.stage = AttemptStage::Interpretation;
+            attempt.grounding = None;
+            request.original_text.clone()
+        };
+        self.active_request_id = Some(request_id.clone());
+        let invocation = self.intent_invocation(request_id, attempt_id, &text);
+        if let Err(error) = self.persist_current() {
+            self.restore(checkpoint);
+            return Err(error);
+        }
+        let mut result = self.operation_result(
+            true,
+            Some(request_id.clone()),
+            Some(attempt_id.clone()),
+            Vec::new(),
+            None,
+            None,
+            false,
+            None,
+        );
+        result.intent_invocation = Some(invocation);
+        Ok(result)
+    }
+
+    /// Starts NPC dialogue for a resolved target, or completes/clarifies the
+    /// request when the target is unavailable or ambiguous.
+    fn begin_dialogue(
+        &mut self,
+        request_id: &LogicalRequestId,
+        attempt_id: &ExecutionAttemptId,
+        target: DialogueTarget,
+        source: Option<InterpretationSource>,
+    ) -> Result<MobileOperationResult, MobileError> {
+        let selected_npc_id = match target {
             DialogueTarget::Selected(id) => id,
             DialogueTarget::Unavailable(message) => {
-                let mut result = self.complete_local_response(
-                    &request_id,
-                    &attempt_id,
+                return self.complete_local_response(
+                    request_id,
+                    attempt_id,
                     message,
                     "unavailable_npc",
-                )?;
-                result.events.insert(0, command_event);
-                return Ok(result);
+                );
             }
             DialogueTarget::Ambiguous(ids) => {
                 let choices: Vec<ClarificationChoice> = ids
@@ -2017,77 +2300,133 @@ impl MobileSession {
                         entity_id: Some(npc.id.clone()),
                     })
                     .collect();
-                let prompt = PendingClarification {
-                    question: "Which person do you mean?".to_string(),
-                    choices,
-                };
-                if let Some(stored) = self
-                    .requests
-                    .iter_mut()
-                    .find(|record| record.id == request_id)
-                {
-                    stored.phase = RequestPhase::AwaitingClarification;
-                    stored.pending_clarification = Some(prompt.clone());
-                    stored.current_attempt_mut().expect("current attempt").phase =
-                        RequestPhase::AwaitingClarification;
-                }
-                let clarification = self.emit_clarification(&request_id, &attempt_id, &prompt);
-                if let Err(error) = self.persist_current() {
-                    self.requests = accepted_requests;
-                    self.events = accepted_events;
-                    self.has_older_events = accepted_has_older_events;
-                    self.next_event_sequence = accepted_next_sequence;
-                    self.active_request_id = accepted_active;
-                    self.provisional_events = accepted_provisional;
-                    return Err(error);
-                }
-                return Ok(self.operation_result(
-                    true,
-                    Some(request_id),
-                    Some(attempt_id),
-                    vec![command_event, clarification],
-                    None,
-                    None,
-                    false,
-                    None,
-                ));
+                return self.request_clarification(
+                    request_id,
+                    attempt_id,
+                    PendingClarification {
+                        question: "Which person do you mean?".to_string(),
+                        choices,
+                    },
+                );
             }
         };
+        let checkpoint = self.checkpoint();
         let selected_npc = self
             .content
             .npc_by_stable_id(&selected_npc_id)
             .expect("resolved NPC exists");
+        let speaker_name = selected_npc.display_name.clone();
         let grounding = self.grounding_snapshot(NpcId(selected_npc.engine_npc_id));
-        if let Some(stored) = self.requests.iter_mut().find(|r| r.id == request_id) {
+        let text = {
+            let stored = self
+                .requests
+                .iter_mut()
+                .find(|record| &record.id == request_id)
+                .expect("accepted request exists");
             stored.phase = RequestPhase::Executing;
-            stored.selected_npc_id = Some(selected_npc_id);
-            stored.current_attempt_mut().expect("current attempt").phase = RequestPhase::Executing;
-            stored
-                .current_attempt_mut()
-                .expect("current attempt")
-                .grounding = Some(grounding.clone());
-        }
+            stored.selected_npc_id = Some(selected_npc_id.clone());
+            let attempt = stored.current_attempt_mut().expect("current attempt");
+            attempt.phase = RequestPhase::Executing;
+            attempt.stage = AttemptStage::Dialogue;
+            attempt.grounding = Some(grounding.clone());
+            stored.original_text.clone()
+        };
         self.active_request_id = Some(request_id.clone());
-        let invocation = self.endpoint_invocation(&request_id, &attempt_id, &text, &grounding);
+        let mut events = Vec::new();
+        if let Some(source) = source {
+            events.push(self.emit(
+                SemanticEventKind::CommandInterpreted,
+                Some(format!("Speak with {speaker_name}.")),
+                None,
+                Some(request_id),
+                Some(attempt_id),
+                None,
+                false,
+                None,
+                None,
+                true,
+                None,
+                Some(self.state_revision),
+                interpretation_metadata("talk", source, Some(selected_npc_id)),
+            ));
+        }
+        let invocation = self.endpoint_invocation(request_id, attempt_id, &text, &grounding);
         if let Err(error) = self.persist_current() {
-            self.requests = accepted_requests;
-            self.events = accepted_events;
-            self.has_older_events = accepted_has_older_events;
-            self.next_event_sequence = accepted_next_sequence;
-            self.active_request_id = accepted_active;
-            self.provisional_events = accepted_provisional;
+            self.restore(checkpoint);
             return Err(error);
         }
         Ok(self.operation_result(
             true,
-            Some(request_id),
-            Some(attempt_id),
-            vec![command_event],
+            Some(request_id.clone()),
+            Some(attempt_id.clone()),
+            events,
             Some(invocation),
             None,
             false,
             None,
         ))
+    }
+
+    /// Parks the request on a finite authored choice set. The original
+    /// logical request resumes through [`Self::answer_clarification`].
+    fn request_clarification(
+        &mut self,
+        request_id: &LogicalRequestId,
+        attempt_id: &ExecutionAttemptId,
+        prompt: PendingClarification,
+    ) -> Result<MobileOperationResult, MobileError> {
+        let checkpoint = self.checkpoint();
+        if let Some(stored) = self
+            .requests
+            .iter_mut()
+            .find(|record| &record.id == request_id)
+        {
+            stored.phase = RequestPhase::AwaitingClarification;
+            stored.pending_clarification = Some(prompt.clone());
+            let attempt = stored.current_attempt_mut().expect("current attempt");
+            attempt.phase = RequestPhase::AwaitingClarification;
+            attempt.grounding = None;
+        }
+        self.active_request_id = None;
+        let clarification = self.emit_clarification(request_id, attempt_id, &prompt);
+        if let Err(error) = self.persist_current() {
+            self.restore(checkpoint);
+            return Err(error);
+        }
+        Ok(self.operation_result(
+            true,
+            Some(request_id.clone()),
+            Some(attempt_id.clone()),
+            vec![clarification],
+            None,
+            None,
+            false,
+            None,
+        ))
+    }
+
+    fn look_text(&self) -> String {
+        crate::portable_look::render_look_text(&self.world, &self.npcs, 1.25, "on foot", false)
+    }
+
+    fn checkpoint(&self) -> SessionCheckpoint {
+        SessionCheckpoint {
+            requests: self.requests.clone(),
+            events: self.events.clone(),
+            has_older_events: self.has_older_events,
+            next_event_sequence: self.next_event_sequence,
+            active_request_id: self.active_request_id.clone(),
+            provisional_events: self.provisional_events.clone(),
+        }
+    }
+
+    fn restore(&mut self, checkpoint: SessionCheckpoint) {
+        self.requests = checkpoint.requests;
+        self.events = checkpoint.events;
+        self.has_older_events = checkpoint.has_older_events;
+        self.next_event_sequence = checkpoint.next_event_sequence;
+        self.active_request_id = checkpoint.active_request_id;
+        self.provisional_events = checkpoint.provisional_events;
     }
 
     /// Continue an accepted request after the player selects one authored
@@ -2117,6 +2456,24 @@ impl MobileSession {
             .and_then(|prompt| prompt.choices.iter().find(|choice| choice.id == choice_id))
             .cloned()
             .ok_or_else(|| MobileError::Content("unknown clarification choice".to_string()))?;
+        let attempt_id = request
+            .current_attempt_id
+            .clone()
+            .expect("clarification has attempt");
+        if let Some(destination) = choice
+            .entity_id
+            .as_deref()
+            .and_then(|id| self.content.locations.iter().find(|place| place.id == id))
+            .filter(|place| place.playable)
+            .map(|place| place.display_name.clone())
+        {
+            return self.answer_destination_clarification(
+                request_index,
+                &attempt_id,
+                &choice,
+                destination,
+            );
+        }
         let npc_id = choice
             .entity_id
             .as_deref()
@@ -2127,10 +2484,6 @@ impl MobileSession {
         let engine_npc_id = NpcId(npc_id.engine_npc_id);
         let display_name = npc_id.display_name.clone();
         let stable_id = npc_id.id.clone();
-        let attempt_id = request
-            .current_attempt_id
-            .clone()
-            .expect("clarification has attempt");
         if !self
             .npcs
             .npcs_at(self.world.player_location)
@@ -2158,6 +2511,7 @@ impl MobileSession {
                 .current_attempt_mut()
                 .expect("clarification has attempt");
             attempt.phase = RequestPhase::Executing;
+            attempt.stage = AttemptStage::Dialogue;
             attempt.grounding = Some(grounding.clone());
         }
         self.active_request_id = Some(logical_request_id.clone());
@@ -2202,6 +2556,63 @@ impl MobileSession {
         ))
     }
 
+    /// Resume a request that asked where to travel. The selected authored
+    /// destination is resolved against the current world before commit.
+    fn answer_destination_clarification(
+        &mut self,
+        request_index: usize,
+        attempt_id: &ExecutionAttemptId,
+        choice: &ClarificationChoice,
+        destination: String,
+    ) -> Result<MobileOperationResult, MobileError> {
+        let checkpoint = self.checkpoint();
+        let request_id = self.requests[request_index].id.clone();
+        let source = self.requests[request_index]
+            .interpretation
+            .as_ref()
+            .map(|interpretation| interpretation.source);
+        {
+            let request = &mut self.requests[request_index];
+            request.phase = RequestPhase::Executing;
+            request.pending_clarification = None;
+            request
+                .current_attempt_mut()
+                .expect("clarification has attempt")
+                .phase = RequestPhase::Executing;
+        }
+        let selected = self.emit(
+            SemanticEventKind::ClarificationSelected,
+            Some(destination.clone()),
+            None,
+            Some(&request_id),
+            Some(attempt_id),
+            Some(TranscriptItemId::new(format!(
+                "{}:clarification",
+                attempt_id.raw_value
+            ))),
+            false,
+            None,
+            None,
+            true,
+            None,
+            Some(self.state_revision),
+            metadata([
+                ("choiceID", choice.id.clone()),
+                ("entityID", choice.entity_id.clone().unwrap_or_default()),
+            ]),
+        );
+        match self.commit_travel(&request_id, attempt_id, &destination, true, source) {
+            Ok(mut result) => {
+                result.events.insert(0, selected);
+                Ok(result)
+            }
+            Err(error) => {
+                self.restore(checkpoint);
+                Err(error)
+            }
+        }
+    }
+
     /// Retry an uncommitted logical request with a new attempt identity.
     pub fn retry(
         &mut self,
@@ -2228,6 +2639,17 @@ impl MobileSession {
 
         let text = self.requests[request_index].original_text.clone();
         let attempt_id = ExecutionAttemptId::fresh();
+        // A request stopped or failed before its interpretation was accepted
+        // selected no action; its retry interprets the original input again.
+        let interpret = self.requests[request_index]
+            .interpretation
+            .as_ref()
+            .is_some_and(RequestInterpretation::is_pending);
+        let stage = if interpret {
+            AttemptStage::Interpretation
+        } else {
+            AttemptStage::Dialogue
+        };
         let selected = self.requests[request_index]
             .selected_npc_id
             .as_deref()
@@ -2247,7 +2669,8 @@ impl MobileSession {
             base_revision: self.state_revision,
             last_stream_sequence: 0,
             provisional_text: String::new(),
-            grounding: Some(grounding.clone()),
+            stage,
+            grounding: (!interpret).then(|| grounding.clone()),
         };
         let prior_requests = self.requests.clone();
         let prior_events = self.events.clone();
@@ -2276,8 +2699,17 @@ impl MobileSession {
             None,
             metadata([("retry", "true".to_string())]),
         );
-        let invocation =
-            self.endpoint_invocation(logical_request_id, &attempt_id, &text, &grounding);
+        let (invocation, intent_invocation) = if interpret {
+            (
+                None,
+                Some(self.intent_invocation(logical_request_id, &attempt_id, &text)),
+            )
+        } else {
+            (
+                Some(self.endpoint_invocation(logical_request_id, &attempt_id, &text, &grounding)),
+                None,
+            )
+        };
         if let Err(error) = self.persist_current() {
             self.requests = prior_requests;
             self.events = prior_events;
@@ -2287,16 +2719,18 @@ impl MobileSession {
             self.provisional_events = prior_provisional;
             return Err(error);
         }
-        Ok(self.operation_result(
+        let mut result = self.operation_result(
             true,
             Some(logical_request_id.clone()),
             Some(attempt_id),
             vec![progress],
-            Some(invocation),
+            invocation,
             None,
             false,
             None,
-        ))
+        );
+        result.intent_invocation = intent_invocation;
+        Ok(result)
     }
 
     /// Cancel only the current attempt.  The cancellation terminal event is
@@ -2546,7 +2980,10 @@ impl MobileSession {
             ));
         }
         let attempt = request.current_attempt_mut().expect("current attempt");
-        if attempt.phase.is_terminal() || attempt.base_revision != frame.base_revision {
+        if attempt.phase.is_terminal()
+            || attempt.stage != AttemptStage::Dialogue
+            || attempt.base_revision != frame.base_revision
+        {
             return Ok(self.operation_result(
                 false,
                 Some(request_id),
@@ -2665,6 +3102,7 @@ impl MobileSession {
         if request.has_committed_gameplay()
             || attempt.id != candidate.attempt_id
             || attempt.phase.is_terminal()
+            || attempt.stage != AttemptStage::Dialogue
             || attempt.base_revision != candidate.base_revision
             || self.state_revision != candidate.base_revision
         {
@@ -2687,6 +3125,121 @@ impl MobileSession {
             candidate.structured,
             candidate.metadata,
         )
+    }
+
+    /// Re-enter the serial lane with the Intent Endpoint's structured result.
+    ///
+    /// The result is validated with the shared `limerick-input` semantics and
+    /// resolved against the authoritative world before the selected action
+    /// runs. Stale, duplicate, or late results (another attempt, a stopped
+    /// attempt, an attempt already past interpretation, or a changed revision)
+    /// are ignored without effect. Malformed or unstructured results fail the
+    /// attempt explicitly; the request stays retryable and nothing is guessed.
+    pub fn receive_intent_candidate(
+        &mut self,
+        candidate: IntentCandidate,
+    ) -> Result<MobileOperationResult, MobileError> {
+        let ignored = |session: &Self, request_id: Option<LogicalRequestId>| {
+            Ok(session.operation_result(
+                false,
+                request_id,
+                Some(candidate.attempt_id.clone()),
+                Vec::new(),
+                None,
+                None,
+                true,
+                None,
+            ))
+        };
+        let Some(request_id) = self.active_request_id.clone() else {
+            return ignored(self, None);
+        };
+        let Some(request) = self.requests.iter().find(|record| record.id == request_id) else {
+            return ignored(self, Some(request_id));
+        };
+        let Some(attempt) = request.current_attempt() else {
+            return ignored(self, Some(request_id));
+        };
+        if request.has_committed_gameplay()
+            || attempt.id != candidate.attempt_id
+            || attempt.phase.is_terminal()
+            || attempt.stage != AttemptStage::Interpretation
+            || attempt.base_revision != candidate.base_revision
+            || self.state_revision != candidate.base_revision
+        {
+            return ignored(self, Some(request_id));
+        }
+        let raw = request.original_text.clone();
+        let attempt_id = candidate.attempt_id.clone();
+        if !candidate.structured {
+            return self.finish_uncommitted(
+                &request_id,
+                &attempt_id,
+                ResponseTerminalOutcome::Failed,
+                Some(INTERPRETATION_FAILED_TEXT.to_string()),
+                Some("protocol"),
+            );
+        }
+        let intent = match limerick_input::intent_from_structured_output(&candidate.output, &raw) {
+            Ok(intent) => intent,
+            Err(error) => {
+                tracing::warn!(%error, "rejected mobile Intent result");
+                return self.finish_uncommitted(
+                    &request_id,
+                    &attempt_id,
+                    ResponseTerminalOutcome::Failed,
+                    Some(INTERPRETATION_FAILED_TEXT.to_string()),
+                    Some("invalid_interpretation"),
+                );
+            }
+        };
+        let checkpoint = self.checkpoint();
+        if let Some(stored) = self
+            .requests
+            .iter_mut()
+            .find(|record| record.id == request_id)
+        {
+            stored.interpretation = Some(RequestInterpretation {
+                source: InterpretationSource::Inferred,
+                intent: Some(intent_name(&intent.intent).to_string()),
+                target: intent.target.clone(),
+            });
+        }
+        let route = self.route_intent(&intent, &raw);
+        match self.execute_route(
+            &request_id,
+            &attempt_id,
+            route,
+            Some(InterpretationSource::Inferred),
+        ) {
+            Ok(result) => Ok(result),
+            Err(error) => {
+                self.restore(checkpoint);
+                Err(error)
+            }
+        }
+    }
+
+    /// The Endpoint call the host should (re)start for the active request:
+    /// the Intent role while interpreting, NPC dialogue afterwards.
+    pub fn take_pending_endpoint(&mut self) -> Option<PendingEndpointInvocation> {
+        let request_id = self.active_request_id.clone()?;
+        let request = self
+            .requests
+            .iter()
+            .find(|record| record.id == request_id)?;
+        let attempt = request.current_attempt()?;
+        if attempt.phase.is_terminal() {
+            return None;
+        }
+        match attempt.stage {
+            AttemptStage::Interpretation => Some(PendingEndpointInvocation::Intent(
+                self.intent_invocation(&request_id, &attempt.id, &request.original_text),
+            )),
+            AttemptStage::Dialogue => self
+                .take_pending_invocation()
+                .map(|invocation| PendingEndpointInvocation::Dialogue(Box::new(invocation))),
+        }
     }
 
     /// Take and clear the next pending invocation.  `submit`/`retry` also
@@ -2781,6 +3334,60 @@ impl MobileSession {
         // A consumer that observes the terminal cursor cannot replay an
         // omitted earlier result from a subsequent snapshot.
         Ok((event, terminal))
+    }
+
+    /// Whether the text names its addressee explicitly (an `@` tag, an
+    /// address clause such as "ask Peig", or a leading vocative).
+    fn has_explicit_addressee(&self, text: &str) -> bool {
+        let lower = text.to_lowercase();
+        self.content
+            .npcs
+            .iter()
+            .any(|npc| Self::contains_explicit_npc_tag(&lower, &npc.display_name))
+            || !Self::explicit_addressee_candidates(&lower, &self.content.npcs).is_empty()
+    }
+
+    /// Resolves an interpreted talk target against authored people and their
+    /// current presence. `None` means the target names no authored person
+    /// (e.g. "the post"), so the caller falls back to the people present.
+    fn resolve_named_npc(&self, target: &str) -> Option<DialogueTarget> {
+        let target = target.trim().trim_start_matches('@').to_lowercase();
+        let named: Vec<&MobileNpcDefinition> = self
+            .content
+            .npcs
+            .iter()
+            .filter(|npc| {
+                let surname = npc.display_name.split_whitespace().last();
+                std::iter::once(npc.display_name.as_str())
+                    .chain(npc.aliases.iter().map(String::as_str))
+                    .chain(surname)
+                    .any(|name| name.to_lowercase() == target)
+            })
+            .collect();
+        if named.is_empty() {
+            return None;
+        }
+        let nearby: Vec<&MobileNpcDefinition> = self
+            .npcs
+            .npcs_at(self.world.player_location)
+            .into_iter()
+            .filter_map(|npc| self.content.npc_by_engine_id(npc.id))
+            .collect();
+        let available: Vec<&MobileNpcDefinition> = named
+            .iter()
+            .copied()
+            .filter(|candidate| nearby.iter().any(|npc| npc.id == candidate.id))
+            .collect();
+        Some(match (named.len(), available.len()) {
+            (_, 1) => DialogueTarget::Selected(available[0].id.clone()),
+            (_, count) if count > 1 => {
+                DialogueTarget::Ambiguous(available.iter().map(|npc| npc.id.clone()).collect())
+            }
+            (1, 0) => {
+                DialogueTarget::Unavailable(format!("{} is not here.", named[0].display_name))
+            }
+            _ => DialogueTarget::Unavailable("None of the people you mean are here.".to_string()),
+        })
     }
 
     fn resolve_dialogue_target(&self, text: &str) -> DialogueTarget {
@@ -3078,13 +3685,17 @@ impl MobileSession {
         attempt.terminal_outcome = Some(ResponseTerminalOutcome::Succeeded);
         attempt.terminal_event_id = Some(terminal.event_id.clone());
         attempt.committed_state_revision = Some(self.state_revision);
+        attempt.grounding = None;
+        let prior_active = self.active_request_id.take();
         if let Err(error) = self.persist_current() {
             self.requests = prior_requests;
             self.events = prior_events;
             self.next_event_sequence = prior_sequence;
             self.has_older_events = prior_older;
+            self.active_request_id = prior_active;
             return Err(error);
         }
+        self.provisional_events.clear();
         Ok(self.operation_result(
             true,
             Some(request_id.clone()),
@@ -3103,6 +3714,7 @@ impl MobileSession {
         attempt_id: &ExecutionAttemptId,
         target: &str,
         interpreted: bool,
+        source: Option<InterpretationSource>,
     ) -> Result<MobileOperationResult, MobileError> {
         use limerick_world::movement::MovementResult;
         use limerick_world::transport::TransportMode;
@@ -3171,12 +3783,24 @@ impl MobileSession {
         };
         let mut next_sequence = self.next_event_sequence;
         let mut emitted = Vec::new();
-        if interpreted {
+        // The receipt names the authored destination that is actually being
+        // entered. A move that cannot execute gets no travel receipt; its
+        // action result explains why.
+        if let (true, Some(scene)) = (interpreted, scene.as_ref()) {
+            let mut receipt_metadata = metadata([("intent", "travel".to_string())]);
+            if let Some(source) = source {
+                receipt_metadata.extend(interpretation_metadata(
+                    "move",
+                    source,
+                    Some(scene.id.clone()),
+                ));
+                receipt_metadata.insert("intent".to_string(), "travel".to_string());
+            }
             next_sequence += 1;
             emitted.push(self.make_event_at(
                 EventSequence::new(next_sequence),
                 SemanticEventKind::CommandInterpreted,
-                Some(format!("Travel to {resolved_target}.")),
+                Some(format!("Travel to {}.", scene.display_name)),
                 None,
                 Some(request_id),
                 Some(attempt_id),
@@ -3187,7 +3811,7 @@ impl MobileSession {
                 true,
                 None,
                 Some(revision),
-                metadata([("intent", "travel".to_string())]),
+                receipt_metadata,
             ));
         }
         next_sequence += 1;
@@ -3316,6 +3940,8 @@ impl MobileSession {
         self.events = next_events;
         self.has_older_events = next_older;
         self.next_event_sequence = next_sequence;
+        self.active_request_id = None;
+        self.provisional_events.clear();
         Ok(self.operation_result(
             true,
             Some(request_id.clone()),
@@ -3729,6 +4355,7 @@ impl MobileSession {
             attempt_id,
             events,
             endpoint_invocation,
+            intent_invocation: None,
             terminal_outcome,
             ignored,
             error,
@@ -3872,6 +4499,29 @@ impl MobileSession {
         }
     }
 
+    fn intent_invocation(
+        &self,
+        request_id: &LogicalRequestId,
+        attempt_id: &ExecutionAttemptId,
+        input: &str,
+    ) -> IntentInvocation {
+        IntentInvocation {
+            contract_version: PRESENTATION_CONTRACT_VERSION,
+            session_id: self.session_id.clone(),
+            logical_request_id: request_id.clone(),
+            attempt_id: attempt_id.clone(),
+            base_revision: self.state_revision,
+            // Distinct from the dialogue key of the same attempt so the two
+            // stages are never deduplicated against each other.
+            idempotency_key: format!(
+                "{}:{}:{INTENT_ROLE}",
+                request_id.raw_value, attempt_id.raw_value
+            ),
+            role: INTENT_ROLE.to_string(),
+            player_input: input.to_string(),
+        }
+    }
+
     fn endpoint_invocation(
         &self,
         request_id: &LogicalRequestId,
@@ -3916,7 +4566,7 @@ impl MobileSession {
             attempt_id: attempt_id.clone(),
             base_revision: self.state_revision,
             idempotency_key: format!("{}:{}", request_id.raw_value, attempt_id.raw_value),
-            role: "npc_dialogue".to_string(),
+            role: DIALOGUE_ROLE.to_string(),
             player_input: input.to_string(),
             speaker,
             current_location: grounding
@@ -4216,32 +4866,75 @@ fn deterministic_capability(text: &str) -> Option<DeterministicCapability> {
     }
 }
 
-fn movement_target(text: &str) -> Option<(String, bool)> {
+/// The deterministic `/go <place>` command. Natural-language movement uses
+/// the shared `limerick-input` parser instead of a mobile-only prefix list.
+fn slash_travel_target(text: &str) -> Option<String> {
     let trimmed = text.trim().trim_end_matches(['.', '!', '?']);
-    let lower = trimmed.to_lowercase();
-    for (prefix, interpreted) in [
-        ("/go ", false),
-        ("go to ", true),
-        ("go ", true),
-        ("walk to ", true),
-        ("walk over to ", true),
-        ("head to ", true),
-        ("head over to ", true),
-        ("visit ", true),
-    ] {
-        if lower.starts_with(prefix) {
-            let byte_index = trimmed
-                .char_indices()
-                .nth(prefix.chars().count())
-                .map(|(index, _)| index)
-                .unwrap_or(trimmed.len());
-            let target = trimmed[byte_index..].trim();
-            if !target.is_empty() {
-                return Some((target.to_string(), interpreted));
-            }
-        }
+    let prefix = trimmed.get(..4)?;
+    if !prefix.eq_ignore_ascii_case("/go ") {
+        return None;
     }
-    None
+    let target = trimmed[4..].trim();
+    (!target.is_empty()).then(|| target.to_string())
+}
+
+/// Player-facing text for an interpreted action this runtime cannot perform.
+const UNSUPPORTED_ACTION_TEXT: &str = "That isn't something you can do here yet. Try going somewhere, looking around, or speaking with someone nearby.";
+
+/// Player-facing text for a rejected Intent result.
+const INTERPRETATION_FAILED_TEXT: &str = "That couldn't be understood just now; you can retry it.";
+
+/// The action selected for accepted free-form text.
+enum FreeTextRoute {
+    Travel { target: String, interpreted: bool },
+    ChooseDestination,
+    Look,
+    Unsupported,
+    Dialogue(DialogueTarget),
+    Interpret,
+}
+
+/// In-memory rollback point for a storage failure at a commit boundary.
+struct SessionCheckpoint {
+    requests: Vec<RequestRecord>,
+    events: VecDeque<SemanticEvent>,
+    has_older_events: bool,
+    next_event_sequence: u64,
+    active_request_id: Option<LogicalRequestId>,
+    provisional_events: VecDeque<SemanticEvent>,
+}
+
+fn intent_name(kind: &IntentKind) -> &'static str {
+    match kind {
+        IntentKind::Move => "move",
+        IntentKind::Talk => "talk",
+        IntentKind::Look => "look",
+        IntentKind::Interact => "interact",
+        IntentKind::Examine => "examine",
+        IntentKind::Unknown => "unknown",
+    }
+}
+
+/// Correlation carried by an interpretation receipt.
+fn interpretation_metadata(
+    intent: &str,
+    source: InterpretationSource,
+    entity_id: Option<String>,
+) -> BTreeMap<String, String> {
+    let mut values = metadata([
+        ("intent", intent.to_string()),
+        (
+            "interpretationSource",
+            match source {
+                InterpretationSource::Inferred => "inferred".to_string(),
+            },
+        ),
+        ("role", INTENT_ROLE.to_string()),
+    ]);
+    if let Some(entity_id) = entity_id {
+        values.insert("entityID".to_string(), entity_id);
+    }
+    values
 }
 
 enum DialogueTarget {
@@ -4476,6 +5169,9 @@ fn parse_outcome(value: &str) -> Option<ResponseTerminalOutcome> {
         _ => None,
     }
 }
+
+#[cfg(test)]
+mod interpretation_tests;
 
 #[cfg(test)]
 mod tests {
@@ -4744,22 +5440,6 @@ mod tests {
                 .as_deref()
                 .is_some_and(|text| text.contains("Peig Hannigan is not here"))
         }));
-    }
-
-    #[test]
-    fn dialogue_body_mention_does_not_address_absent_npc() {
-        let mut session = session();
-        let result = session
-            .submit(
-                None,
-                "Well I’m looking for work and a place to stay. Michael said maybe you could direct me.",
-                None,
-            )
-            .unwrap();
-        let invocation = result
-            .endpoint_invocation
-            .expect("ordinary dialogue should reach the person who is present");
-        assert_eq!(invocation.speaker.id, "npc-peig");
     }
 
     #[test]

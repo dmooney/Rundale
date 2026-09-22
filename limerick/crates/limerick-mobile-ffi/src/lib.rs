@@ -290,6 +290,7 @@ fn validate_operation(operation: &str) -> Result<(), BackendError> {
         "receive_failure",
         "receive_frame",
         "receive_candidate",
+        "receive_intent_candidate",
         "read_events",
         "read_event_page",
         "read_event_page_before",
@@ -340,8 +341,8 @@ mod core_backend {
     };
     use limerick_core::mobile::{
         DraftId, EndpointCandidate, EndpointFailureKind, EndpointFrame, EventCursor, EventPage,
-        ExecutionAttemptId, LogicalRequestId, MobileSave, MobileSession, MobileSnapshot,
-        RequestPhase, RequestRecord, SemanticEvent, StateRevision, StreamUpdate,
+        ExecutionAttemptId, IntentCandidate, LogicalRequestId, MobileSave, MobileSession,
+        MobileSnapshot, RequestPhase, RequestRecord, SemanticEvent, StateRevision, StreamUpdate,
     };
     use serde::{Serialize, de::DeserializeOwned};
     use serde_json::{Map, json};
@@ -807,6 +808,32 @@ mod core_backend {
                             .map_err(|error| BackendError::protocol(error.to_string()))?,
                     )?
                 }
+                "receive_intent_candidate" => {
+                    let attempt_id =
+                        parse_id::<ExecutionAttemptId>(object, "attempt_id", "attemptID")?;
+                    let base_revision_value =
+                        value_with_alias(object, "base_revision", "baseRevision").ok_or_else(
+                            || BackendError::protocol("operation requires `base_revision`"),
+                        )?;
+                    let base_revision = parse_revision(base_revision_value, "base_revision")?;
+                    // The Endpoint's final output object is forwarded
+                    // unmodified; the engine owns its validation.
+                    let output = required(object, "output")?.clone();
+                    let structured = object
+                        .get("structured")
+                        .and_then(Value::as_bool)
+                        .unwrap_or(false);
+                    as_json(
+                        self.session
+                            .receive_intent_candidate(IntentCandidate {
+                                attempt_id,
+                                base_revision,
+                                output,
+                                structured,
+                            })
+                            .map_err(|error| BackendError::protocol(error.to_string()))?,
+                    )?
+                }
                 "read_events" => {
                     let after = object
                         .get("after")
@@ -861,7 +888,9 @@ mod core_backend {
                     )?
                 }
                 "snapshot" => bounded_snapshot_value(self.session.snapshot())?,
-                "pending_endpoint" => as_json(self.session.take_pending_invocation())?,
+                // The Intent invocation while interpreting, otherwise the
+                // dialogue invocation. Both carry `role` for host routing.
+                "pending_endpoint" => as_json(self.session.take_pending_endpoint())?,
                 other => {
                     return Err(BackendError::protocol(format!(
                         "unknown mobile operation `{other}`"
@@ -1331,6 +1360,122 @@ mod tests {
         );
         let after_close = take(after_close);
         assert_eq!(after_close["ok"], false);
+    }
+
+    #[cfg(feature = "engine-api")]
+    #[test]
+    fn inferred_input_round_trips_intent_then_action_through_json_operations() {
+        fn borrowed(value: &str) -> parish_mobile_bytes_t {
+            parish_mobile_bytes_t {
+                ptr: value.as_ptr(),
+                len: value.len(),
+            }
+        }
+        fn take(response: parish_mobile_owned_bytes_t) -> Value {
+            let value = unsafe {
+                serde_json::from_slice(slice::from_raw_parts(response.ptr, response.len)).unwrap()
+            };
+            assert_eq!(
+                parish_mobile_owned_bytes_free(response),
+                parish_mobile_status_t::PARISH_MOBILE_OK
+            );
+            value
+        }
+        fn dispatch(handle: parish_mobile_handle_t, operation: &str) -> Value {
+            let mut response = parish_mobile_owned_bytes_t {
+                ptr: ptr::null_mut(),
+                len: 0,
+            };
+            assert_eq!(
+                parish_mobile_dispatch(handle, borrowed(operation), &mut response),
+                parish_mobile_status_t::PARISH_MOBILE_OK
+            );
+            let value = take(response);
+            assert_eq!(value["ok"], true, "{operation}: {value}");
+            value["value"].clone()
+        }
+
+        let mut handle = 0;
+        let mut opening = parish_mobile_owned_bytes_t {
+            ptr: ptr::null_mut(),
+            len: 0,
+        };
+        assert_eq!(
+            parish_mobile_open(
+                parish_mobile_open_kind_t::PARISH_MOBILE_OPEN_NEW,
+                borrowed("{}"),
+                &mut handle,
+                &mut opening,
+            ),
+            parish_mobile_status_t::PARISH_MOBILE_OK
+        );
+        take(opening);
+
+        let talk = dispatch(
+            handle,
+            r#"{"op":"submit","text":"Would Peig know anything of the post today?"}"#,
+        );
+        let intent = talk["intentInvocation"].clone();
+        let dialogue = dispatch(
+            handle,
+            &json!({
+                "op": "receive_intent_candidate",
+                "attemptID": intent["attemptID"],
+                "baseRevision": intent["baseRevision"],
+                "output": {"intent": "talk", "target": "Peig", "dialogue": null, "atmosphere": null},
+                "structured": true
+            })
+            .to_string(),
+        );
+        assert_eq!(dialogue["endpointInvocation"]["role"], "npc_dialogue");
+        assert_eq!(dialogue["endpointInvocation"]["speaker"]["id"], "npc-peig");
+        assert_eq!(
+            dispatch(handle, r#"{"op":"pending_endpoint"}"#),
+            dialogue["endpointInvocation"]
+        );
+        let stopped = dispatch(handle, r#"{"op":"stop"}"#);
+        assert_eq!(stopped["terminalOutcome"], "cancelled");
+
+        let submitted = dispatch(
+            handle,
+            r#"{"op":"submit","text":"Let's make for the Letter Office"}"#,
+        );
+        assert!(submitted["endpointInvocation"].is_null());
+        let intent = submitted["intentInvocation"].clone();
+        assert_eq!(intent["role"], "intent");
+        let pending = dispatch(handle, r#"{"op":"pending_endpoint"}"#);
+        assert_eq!(pending, intent, "the host resumes the Intent stage");
+
+        let candidate = json!({
+            "op": "receive_intent_candidate",
+            "attemptID": intent["attemptID"],
+            "baseRevision": intent["baseRevision"],
+            "output": {"intent": "move", "target": "the Letter Office", "dialogue": null, "atmosphere": null},
+            "structured": true
+        })
+        .to_string();
+        let travelled = dispatch(handle, &candidate);
+        assert_eq!(travelled["terminalOutcome"], "succeeded");
+        assert_eq!(travelled["stateRevision"]["rawValue"], 1);
+        assert!(
+            travelled["events"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|event| event["kind"] == "command_interpreted"
+                    && event["metadata"]["interpretationSource"] == "inferred")
+        );
+        let duplicate = dispatch(handle, &candidate);
+        assert_eq!(duplicate["ignored"], true);
+        let snapshot = dispatch(handle, r#"{"op":"snapshot"}"#);
+        assert_eq!(snapshot["readModel"]["scene"]["id"], "letter-office");
+        assert_eq!(snapshot["stateRevision"]["rawValue"], 1);
+        assert!(dispatch(handle, r#"{"op":"pending_endpoint"}"#).is_null());
+
+        assert_eq!(
+            parish_mobile_close(handle),
+            parish_mobile_status_t::PARISH_MOBILE_OK
+        );
     }
 
     #[cfg(feature = "engine-api")]

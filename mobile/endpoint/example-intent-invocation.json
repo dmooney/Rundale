@@ -1,0 +1,15 @@
+{
+  "contractVersion": {
+    "major": 1,
+    "minor": 0
+  },
+  "sessionID": "fixture-session",
+  "logicalRequestID": "fixture-logical-request",
+  "attemptID": "fixture-attempt",
+  "baseRevision": {
+    "rawValue": 0
+  },
+  "idempotencyKey": "fixture-logical-request:fixture-attempt:intent",
+  "role": "intent",
+  "playerInput": "Let's make for the Letter Office"
+}
