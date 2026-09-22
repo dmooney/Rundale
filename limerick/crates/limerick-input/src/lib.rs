@@ -8,6 +8,7 @@ mod commands;
 mod intent_llm;
 mod intent_local;
 mod intent_types;
+mod interpretation;
 mod mention;
 mod parser;
 
@@ -20,6 +21,10 @@ pub use intent_local::{
     is_player_dialogue, is_player_dialogue_with_addressees, parse_intent_local,
 };
 pub use intent_types::{AtmosphericTopic, InputResult, IntentKind, PlayerIntent};
+pub use interpretation::{
+    IntentOutputError, LocalInterpretation, MAX_INTENT_FIELD_CHARS, intent_from_structured_output,
+    intent_system_prompt, interpret_locally,
+};
 pub use mention::{MentionExtraction, extract_mention};
 pub use parser::{
     classify_input, classify_input_with_addressees, classify_input_with_context,
