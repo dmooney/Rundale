@@ -89,6 +89,29 @@ final class RundalePhase3UITests: XCTestCase {
         XCTAssertFalse(app.buttons["composer.stop"].exists)
     }
 
+    /// #1993: input outside the shared local parser reaches the Intent role
+    /// before any action runs. The `--phase3-mock` Endpoint transport is the
+    /// simulator-only control branch; submission, FFI, engine interpretation,
+    /// validation, commit, and semantic events are the production path.
+    func testInferredMovementRequestsIntentBeforeTravel() {
+        launch(reset: true)
+        XCTAssertTrue(headerLabel(contains: "Kilteevan Village").waitForExistence(timeout: 8))
+
+        submit("Let's make for the Letter Office")
+        XCTAssertTrue(headerLabel(contains: "Letter Office").waitForExistence(timeout: 8))
+        XCTAssertTrue(waitForText("Travel to Letter Office.", timeout: 8))
+        XCTAssertTrue(app.buttons["composer.stop"].waitForNonExistence(timeout: 5))
+        attach("Inferred movement shows its receipt and the authoritative header")
+    }
+
+    func testInferredConversationReachesDialogueAfterInterpretation() {
+        launch(reset: true)
+        submit("Would Peig know anything of the post today?")
+        XCTAssertTrue(waitForText("Speak with Peig Hannigan.", timeout: 8))
+        XCTAssertTrue(waitForText("old road quiet", timeout: 15))
+        XCTAssertTrue(headerLabel(contains: "Kilteevan Village").exists)
+    }
+
     func testAmbiguousConnollyRequiresSelectionBeforeEndpointWork() {
         launch(reset: true)
         submit("/go Connolly Cottage")

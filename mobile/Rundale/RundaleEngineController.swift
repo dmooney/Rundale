@@ -558,7 +558,10 @@ final class RundaleEngineController: ObservableObject, RundaleSessionControlling
                       self.inferenceGeneration == generation,
                       !Task.isCancelled else { return }
                 let body = try invocation.requestBody()
-                guard let endpointURL = configuration.endpointURL
+                // Rust selects the role (Intent before an action, dialogue
+                // after a talk interpretation); Swift only routes it.
+                let isIntent = invocation.role == LaunchConfiguration.EndpointRole.intent
+                guard let endpointURL = configuration.endpointURL(forRole: invocation.role)
                     ?? (configuration.phase2MockTransport ? URL(string: "http://127.0.0.1/mock") : nil) else {
                     throw ParishEndpointError.invalidURL
                 }
@@ -567,7 +570,7 @@ final class RundaleEngineController: ObservableObject, RundaleSessionControlling
                     requestID: invocation.logicalRequestID.rawValue,
                     attemptID: invocation.attemptID.rawValue,
                     idempotencyKey: invocation.idempotencyKey,
-                    endpointVersion: configuration.endpointVersion,
+                    endpointVersion: configuration.endpointVersion(forRole: invocation.role),
                     policy: configuration.phase2MockTransport ? EndpointURLPolicy(allowLoopbackHTTP: true) : EndpointURLPolicy(),
                     body: body
                 )
@@ -576,16 +579,22 @@ final class RundaleEngineController: ObservableObject, RundaleSessionControlling
                       !Task.isCancelled else { return }
                 self.activeEndpointRequest = request
                 defer {
-                    if self.activeEndpointRequest?.attemptID == request.attemptID {
+                    // Both stages of one attempt share its attempt ID; the
+                    // stage-specific idempotency key identifies this stream.
+                    if self.activeEndpointRequest?.idempotencyKey == request.idempotencyKey {
                         self.activeEndpointRequest = nil
                     }
                 }
+                var interpreted = false
                 for try await frame in endpointClient.stream(request) {
                     try Task.checkCancellation()
                     switch frame.kind {
                     case .progress:
                         continue
                     case .textDelta:
+                        // Intent text is never presented; only its validated
+                        // final result reaches the engine.
+                        guard !isIntent else { continue }
                         guard let text = frame.text, !text.isEmpty else { continue }
                         let operation = try EndpointOperation.frame(
                             attemptID: invocation.attemptID,
@@ -601,6 +610,22 @@ final class RundaleEngineController: ObservableObject, RundaleSessionControlling
                     case .final:
                         guard let payload = frame.payload else {
                             throw ParishEndpointError.malformedEvent("final output is missing")
+                        }
+                        if isIntent {
+                            // Forward the structured result unmodified. Rust
+                            // validates it and selects the action; a
+                            // malformed result is rejected there, not here.
+                            let output = try JSONSerialization.jsonObject(with: payload, options: [.fragmentsAllowed])
+                            let operation = try EndpointOperation.intentCandidate(
+                                attemptID: invocation.attemptID,
+                                baseRevision: invocation.baseRevision,
+                                output: output
+                            )
+                            let response = try await runtime.dispatchJSON(operation)
+                            guard !Task.isCancelled else { return }
+                            self.consumeOperation(response)
+                            interpreted = true
+                            continue
                         }
                         let output = try FixtureJSON.decode(EndpointOutput.self, from: payload)
                         guard !output.dialogue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
@@ -620,6 +645,9 @@ final class RundaleEngineController: ObservableObject, RundaleSessionControlling
                         throw EndpointReportedFailure(payload: frame.error)
                     }
                 }
+                if interpreted, !Task.isCancelled {
+                    self.continueAfterInterpretation(runtime: runtime, generation: generation)
+                }
             } catch is CancellationError {
                 return
             } catch {
@@ -638,6 +666,26 @@ final class RundaleEngineController: ObservableObject, RundaleSessionControlling
                 } catch {
                     self?.persistenceError = Self.playerFacingPersistenceError(error)
                 }
+            }
+        }
+    }
+
+    /// An accepted interpretation either finished the request (travel, look,
+    /// an explicit rejection, a clarification) or selected dialogue. Only the
+    /// engine's pending invocation decides whether another Endpoint call runs.
+    private func continueAfterInterpretation(runtime: ParishRuntime, generation: UInt64) {
+        Task { [weak self, runtime] in
+            guard let self, self.allowsInference, self.inferenceGeneration == generation else { return }
+            do {
+                try self.refreshFromSnapshot(try await runtime.snapshotJSON())
+                _ = self.persistSessionState()
+                if let next = try await self.pendingInvocation(runtime: runtime),
+                   self.allowsInference,
+                   self.inferenceGeneration == generation {
+                    self.startEndpoint(next, runtime: runtime)
+                }
+            } catch {
+                self.persistenceError = Self.playerFacingPersistenceError(error)
             }
         }
     }
@@ -867,6 +915,8 @@ private struct InvocationIdentity: Codable, Sendable {
     let attemptID: ExecutionAttemptID
     let baseRevision: StateRevision
     let idempotencyKey: String
+    /// `intent` or `npc_dialogue`; absent only in pre-interpretation payloads.
+    let role: String?
     var payload: Data?
 
     func requestBody() throws -> Data {
@@ -915,6 +965,20 @@ private enum EndpointOperation {
             "dialogue": dialogue,
             "metadata": metadata,
             "structured": structured
+        ])
+    }
+
+    static func intentCandidate(
+        attemptID: ExecutionAttemptID,
+        baseRevision: StateRevision,
+        output: Any
+    ) throws -> Data {
+        try json([
+            "op": "receive_intent_candidate",
+            "attempt_id": attemptID.rawValue,
+            "base_revision": baseRevision.rawValue,
+            "output": output,
+            "structured": true
         ])
     }
 
@@ -1071,6 +1135,18 @@ private final class Phase2MockEndpointTransport: EndpointTransport, @unchecked S
                     let identities = try Self.identities(from: request.httpBody, url: requestURL)
                     let input = identities.input.lowercased()
                     continuation.yield(.response(statusCode: 200, headers: ["content-type": "text/event-stream; charset=utf-8"]))
+                    if identities.role == LaunchConfiguration.EndpointRole.intent {
+                        // Deterministic Intent role: movement toward an
+                        // authored place, otherwise ordinary conversation.
+                        // Fault injection stays on the dialogue stage.
+                        try await Self.pause(nanoseconds: 50_000_000)
+                        continuation.yield(.bytes(try Self.frame(
+                            type: "final", sequence: 1, identities: identities,
+                            output: Self.mockIntent(for: identities.input)
+                        )))
+                        continuation.finish()
+                        return
+                    }
                     if input.contains("offline once"),
                        self.claimInjectedFailure(mode: "offline", requestID: identities.requestID) {
                         throw URLError(.notConnectedToInternet)
@@ -1134,8 +1210,18 @@ private final class Phase2MockEndpointTransport: EndpointTransport, @unchecked S
         let attemptID: String
         let invocationID: String
         let input: String
-        let speakerName: String
+        let role: String?
+        let speakerName: String?
         let endpointVersion: Int
+    }
+
+    private static func mockIntent(for input: String) -> [String: Any] {
+        let lower = input.lowercased()
+        for place in ["Letter Office", "Connolly Cottage", "Kilteevan Village"]
+        where lower.contains(place.lowercased()) {
+            return ["intent": "move", "target": place, "dialogue": NSNull(), "atmosphere": NSNull()]
+        }
+        return ["intent": "talk", "target": NSNull(), "dialogue": input, "atmosphere": NSNull()]
     }
 
     private static func identities(from body: Data?, url: URL) throws -> Identities {
@@ -1145,16 +1231,20 @@ private final class Phase2MockEndpointTransport: EndpointTransport, @unchecked S
               let requestID = input["logicalRequestID"] as? String,
               let attemptID = input["attemptID"] as? String,
               let invocationID = input["idempotencyKey"] as? String,
-              let playerInput = input["playerInput"] as? String,
-              let speaker = input["speaker"] as? [String: Any],
-              let speakerName = speaker["displayName"] as? String else {
+              let playerInput = input["playerInput"] as? String else {
             throw ParishEndpointError.malformedEvent("mock request input is invalid")
+        }
+        let role = input["role"] as? String
+        let speakerName = (input["speaker"] as? [String: Any])?["displayName"] as? String
+        guard role == LaunchConfiguration.EndpointRole.intent || speakerName != nil else {
+            throw ParishEndpointError.malformedEvent("mock dialogue input has no speaker")
         }
         return Identities(
             requestID: requestID,
             attemptID: attemptID,
             invocationID: invocationID,
             input: playerInput,
+            role: role,
             speakerName: speakerName,
             endpointVersion: Self.endpointVersion(from: url)
         )

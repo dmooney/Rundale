@@ -9,6 +9,14 @@ struct LaunchConfiguration: Sendable {
         static let endpointOrganization = "RUNDALE_ENDPOINT_ORGANIZATION"
         static let endpointSlug = "RUNDALE_ENDPOINT_SLUG"
         static let endpointVersion = "RUNDALE_ENDPOINT_VERSION"
+        static let intentEndpointSlug = "RUNDALE_INTENT_ENDPOINT_SLUG"
+        static let intentEndpointVersion = "RUNDALE_INTENT_ENDPOINT_VERSION"
+    }
+
+    /// The engine's Endpoint role names. Rust selects the role; Swift only
+    /// routes it to the matching published Endpoint.
+    enum EndpointRole {
+        static let intent = "intent"
     }
 
     enum Fixture: String, Equatable, Sendable {
@@ -49,6 +57,10 @@ struct LaunchConfiguration: Sendable {
     let endpointOrganization: String
     let endpointSlug: String
     let endpointVersion: Int
+    /// The Intent role's Endpoint (`mobile/endpoint/rundale-intent-v1.json`)
+    /// under the same organization and base URL as dialogue.
+    let intentEndpointSlug: String
+    let intentEndpointVersion: Int
 
     init(arguments: [String] = ProcessInfo.processInfo.arguments,
          environment: [String: String] = ProcessInfo.processInfo.environment,
@@ -98,6 +110,12 @@ struct LaunchConfiguration: Sendable {
         endpointVersion = max(1, Int(Self.configuredValue(BundleKey.endpointVersion,
                                                            environment: environment,
                                                            bundle: bundle) ?? "1") ?? 1)
+        intentEndpointSlug = Self.configuredValue(BundleKey.intentEndpointSlug,
+                                                   environment: environment,
+                                                   bundle: bundle) ?? "rundale-intent"
+        intentEndpointVersion = max(1, Int(Self.configuredValue(BundleKey.intentEndpointVersion,
+                                                                 environment: environment,
+                                                                 bundle: bundle) ?? "1") ?? 1)
     }
 
     private static func configuredValue(_ key: String,
@@ -115,14 +133,25 @@ struct LaunchConfiguration: Sendable {
     }
 
     var endpointURL: URL? {
+        endpointURL(forRole: nil)
+    }
+
+    /// The published Endpoint version for an engine role. Dialogue remains
+    /// the default for invocations that predate the role field.
+    func endpointVersion(forRole role: String?) -> Int {
+        role == EndpointRole.intent ? intentEndpointVersion : endpointVersion
+    }
+
+    func endpointURL(forRole role: String?) -> URL? {
         guard let endpointBaseURL else { return nil }
+        let isIntent = role == EndpointRole.intent
         return endpointBaseURL
             .appendingPathComponent("v1")
             .appendingPathComponent("endpoints")
             .appendingPathComponent(endpointOrganization)
-            .appendingPathComponent(endpointSlug)
+            .appendingPathComponent(isIntent ? intentEndpointSlug : endpointSlug)
             .appendingPathComponent("versions")
-            .appendingPathComponent(String(endpointVersion))
+            .appendingPathComponent(String(endpointVersion(forRole: role)))
             .appendingPathComponent("stream")
     }
 }
