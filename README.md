@@ -13,7 +13,7 @@ in a tiny world.
 These requirements are not a claim that the mobile client is complete.
 
 Native development lives in [mobile/](mobile/README.md). Milestones 1–3 now
-cover the SwiftUI interaction shell, embedded Parish and Endpoint vertical
+cover the SwiftUI interaction shell, embedded Limerick and Endpoint vertical
 slice, and canonical three-location/three-NPC tiny world. Run
 `./verify --phase 3` for the current feature gate; physical-device acceptance
 remains separate.
@@ -390,6 +390,73 @@ flowchart TB
     style external fill:#f6f6f6,stroke:#bbbbbb,color:#1f2328
 ```
 
+### Mobile app and Limerick Endpoints
+
+The iPhone app embeds the same Limerick engine instead of talking to
+`limerick-server`. Gameplay, validation, and saves run on the phone. The only
+network dependency is **Limerick Endpoints** (`endpoints/`), a separate web API
+that wraps LLM calls behind versioned, schema-validated Endpoint definitions.
+Limerick Endpoints began as the standalone
+[parish-endpoints](https://github.com/dmooney/parish-endpoints) project and was
+folded into this repository. It is unrelated to the `limerick-server` Rust crate
+above.
+
+```mermaid
+flowchart TB
+    subgraph phone["iPhone app (mobile/)"]
+        SWIFTUI["Rundale SwiftUI app<br/>header · transcript · composer"]
+        KIT["RundaleKit<br/>semantic-event reducer"]
+        BRIDGE["RundaleBridge<br/>Swift wrapper over C ABI"]
+        EPKIT["ParishEndpointKit<br/>HTTPS/SSE transport"]
+        FB["Firebase Auth + App Check"]
+        FFI["limerick-mobile-ffi<br/>C ABI (JSON operations)"]
+        MCORE["limerick-core (mobile feature)<br/>MobileSession: interpret → validate → commit"]
+        LEAVES["leaf crates<br/>limerick-input · world · npc · persistence"]
+        SAVE[("on-device SQLite save")]
+    end
+
+    subgraph endpoints["Limerick Endpoints (endpoints/)"]
+        API["apps/server<br/>Fastify API: auth, quotas,<br/>schema validation, SSE streaming"]
+        WEB["apps/web<br/>Next.js console: publish<br/>and inspect Endpoints"]
+        PKGS["packages: runtime · providers ·<br/>schemas · auth · database · domain"]
+        PG[("Postgres<br/>Endpoint versions, invocations")]
+    end
+
+    LLM2["LLM providers<br/>Google Gemini / OpenAI"]
+
+    SWIFTUI --> KIT
+    SWIFTUI --> BRIDGE --> FFI --> MCORE --> LEAVES --> SAVE
+    MCORE -- "Endpoint invocation<br/>(role: intent | npc_dialogue)" --> BRIDGE
+    SWIFTUI --> EPKIT
+    FB -. "ID + App Check tokens" .-> EPKIT
+    EPKIT -- "POST …/versions/N/stream" --> API
+    API --> PKGS --> PG
+    WEB --> PKGS
+    PKGS -- "provider call" --> LLM2
+    EPKIT -- "candidate / frames / failure" --> BRIDGE
+
+    classDef phoneNode fill:#d7e7f7,stroke:#4a7aab,color:#1f2328
+    classDef epNode fill:#fae3bd,stroke:#c08a2e,color:#1f2328
+    classDef extNode fill:#ffffff,stroke:#777777,color:#1f2328
+    class SWIFTUI,KIT,BRIDGE,EPKIT,FB,FFI,MCORE,LEAVES phoneNode
+    class API,WEB,PKGS epNode
+    class SAVE,PG,LLM2 extNode
+    style phone fill:#eef4fb,stroke:#9db8d4,color:#1f2328
+    style endpoints fill:#fdf3e3,stroke:#d8b873,color:#1f2328
+```
+
+The engine decides whether a request needs inference and which role to use:
+`intent` interprets free-form input the local parser does not recognise, and
+`npc_dialogue` generates speech after a conversational interpretation. Swift only
+moves bytes and credentials; model output is validated in Rust before anything
+is committed. Wire contracts live in [mobile/endpoint/](mobile/endpoint/README.md).
+
+Deployment naming is mid-transition. The Endpoints API and console currently run
+on Cloud Run as `limerick-server` and `limerick-web` in the shared `cottage-d6dc9`
+Google Cloud project. Despite the name, that service is Limerick Endpoints, not
+the `limerick-server` crate. The TypeScript packages still use the `@parish/*`
+scope, and Swift modules keep their `Parish*` names.
+
 ## Repository Layout
 
 ```text
@@ -399,6 +466,8 @@ limerick/
   testing/fixtures/    scripted gameplay fixtures
   scripts/             Maintenance and quality gate scripts
 mods/rundale/          Rundale game content (world, NPCs, prompts, lore)
+mobile/                iPhone app (SwiftUI), Swift packages, Endpoint contracts
+endpoints/             Limerick Endpoints web API that wraps LLM calls (TypeScript)
 deploy/                Dockerfile
 docs/                  design, ADRs, plans, research, agent guides
 justfile               Top-level proxies for common tasks
