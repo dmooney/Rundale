@@ -56,6 +56,33 @@ describe("server configuration", () => {
     ).toThrow(/price every allowed live model/);
   });
 
+  it("requires an OpenAI key only when OpenAI models are allowed", () => {
+    const googleOnly = {
+      AUTH_MODE: "development",
+      PROVIDER_MODE: "live",
+      GOOGLE_PROVIDER_AUTH: "vertex-ai",
+      GOOGLE_CLOUD_PROJECT: "synthetic-project",
+      GOOGLE_ALLOWED_MODELS: "model-b",
+      MODEL_PRICES_JSON: JSON.stringify({
+        "google/model-b": { inputPerMillionUsd: 1, outputPerMillionUsd: 2 },
+      }),
+    };
+    const config = readServerConfig(googleOnly);
+    expect(config.openaiApiKey).toBeUndefined();
+    expect([...config.allowedModels]).toEqual(["google/model-b"]);
+    expect(() => readServerConfig({ ...googleOnly, OPENAI_ALLOWED_MODELS: " , " })).not.toThrow();
+    expect(() =>
+      readServerConfig({
+        ...googleOnly,
+        OPENAI_ALLOWED_MODELS: "model-a",
+        MODEL_PRICES_JSON: JSON.stringify({
+          "openai/model-a": { inputPerMillionUsd: 1, outputPerMillionUsd: 2 },
+          "google/model-b": { inputPerMillionUsd: 1, outputPerMillionUsd: 2 },
+        }),
+      }),
+    ).toThrow(/OPENAI_API_KEY is required when OPENAI_ALLOWED_MODELS is set/);
+  });
+
   it("accepts non-negative versioned price configuration", () => {
     const config = readServerConfig({
       AUTH_MODE: "development",

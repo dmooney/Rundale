@@ -6,14 +6,14 @@
 >
 > Note: This test plan is source-derived planning material and is not execution evidence.
 
-These cases validate Phase 2: the embedded Rust vertical slice. They focus on proving that Limerick runs locally on iPhone, that the SwiftUI client communicates through a narrow presentation-oriented boundary, that one real NPC conversation works through remote inference, and that state, errors, cancellation, retry, and local persistence behave correctly.
+These cases validate Phase 2: the embedded Rust vertical slice. They focus on proving that Limerick runs locally on iPhone, that the SwiftUI client communicates through a narrow presentation-oriented boundary, that real NPC conversations work through remote inference, and that state, errors, cancellation, retry, and local persistence behave correctly. Per the 2026-09-16 scope amendment in issue #1992, the canonical three-location/three-NPC world is permitted in Phase 2; these cases do not require a smaller world.
 
 ## 1. Create a new local game
 
 - Launch the Phase 2 build with no existing save.
 - Start a new game.
 - Verify the game initializes locally on the device.
-- Verify the player enters the single Phase 2 location with the single Phase 2 NPC available.
+- Verify the player enters the configured local world and can inspect its location and available NPCs.
 
 ## 2. Resume an existing local game
 
@@ -144,6 +144,6 @@ These cases validate Phase 2: the embedded Rust vertical slice. They focus on pr
 ## 20. Phase 2 scope regression
 
 - Play through the entire Phase 2 vertical slice.
-- Verify the experience remains limited to one location and one NPC.
+- Verify the canonical three-location/three-NPC world is playable when included; do not treat its presence as a Phase 2 scope regression.
 - Verify no map, portrait system, provider-configuration screen, debug surface, save DAG, legacy sidebar, or other nonessential player UI has been introduced.
 - Verify the result already feels like a small playable text game rather than a technology demo.

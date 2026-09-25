@@ -7,6 +7,7 @@ import importlib
 import json
 import os
 import plistlib
+import subprocess
 import tempfile
 import unittest
 import xml.etree.ElementTree as ET
@@ -713,6 +714,178 @@ class VerificationRunnerTests(unittest.TestCase):
             self.assertIn(
                 "did not report executed XCTest counts", by_id["swift-package-tests"]["reason"]
             )
+
+
+class GitBackedRunner(FakeRunner):
+    """Fake every tool except git, which runs for real in the fixture repository."""
+
+    def run(self, argv, *, cwd, env=None, timeout_seconds=None):
+        if argv and argv[0] == "git":
+            self.calls.append({"argv": tuple(argv), "cwd": Path(cwd), "env": dict(env or {})})
+            completed = subprocess.run(
+                list(argv), cwd=cwd, env=env, capture_output=True, text=True, check=False
+            )
+            return CommandResult(
+                completed.returncode, stdout=completed.stdout, stderr=completed.stderr
+            )
+        return super().run(argv, cwd=cwd, env=env, timeout_seconds=timeout_seconds)
+
+
+def create_cached_repository(root: Path) -> None:
+    (root / "mobile").mkdir()
+    create_phase2_fixture(root)
+    (root / ".gitignore").write_text(
+        "/mobile/.verification/\n/mobile/Rundale.xcodeproj/\n"
+        "/mobile/Rundale/Resources/GoogleService-Info.plist\n",
+        encoding="utf-8",
+    )
+    (root / "docs").mkdir()
+    (root / "docs" / "notes.md").write_text("first\n", encoding="utf-8")
+    git = ["git", "-c", "user.name=Test", "-c", "user.email=test@example.invalid"]
+    subprocess.run(["git", "init", "-q"], cwd=root, check=True)
+    subprocess.run(["git", "add", "-A"], cwd=root, check=True)
+    subprocess.run([*git, "commit", "-q", "-m", "fixture"], cwd=root, check=True)
+
+
+def executed_suites(fake: FakeRunner) -> list[tuple[str, ...]]:
+    return [
+        call["argv"]
+        for call in fake.calls
+        if call["argv"][:5] == ("rustup", "run", "1.98.0", "cargo", "test")
+        or call["argv"][:2] == ("swift", "test")
+        or (call["argv"][0] == "xcodebuild" and call["argv"][-1] in {"test", "build"})
+    ]
+
+
+class VerificationCacheTests(unittest.TestCase):
+    def run_phase(self, root: Path, phase: int = 2, **options):
+        fake = GitBackedRunner()
+        report = VerificationRun(root, command_runner=fake, **options).run(phase)
+        return fake, report
+
+    def test_identical_inputs_reuse_every_passing_suite(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            create_cached_repository(root)
+            first, first_report = self.run_phase(root)
+            self.assertEqual(first_report["exit_code"], 0)
+            self.assertEqual(first_report["summary"]["reused"], 0)
+            self.assertEqual(len(executed_suites(first)), 9)
+
+            second, report = self.run_phase(root)
+            self.assertEqual(report["exit_code"], 0)
+            self.assertEqual(executed_suites(second), [])
+            self.assertEqual(report["summary"]["reused"], 10)
+            by_id = {suite["id"]: suite for suite in report["suites"]}
+            reused = by_id["phase2-ios-simulator-tests"]["details"]["cache"]
+            self.assertTrue(reused["reused"])
+            self.assertEqual(reused["started_at"], first_report["started_at"])
+            self.assertEqual(by_id["phase2-ios-simulator-test-results"]["status"], "passed")
+            self.assertEqual(by_id["phase2-ios-simulator-tests"]["details"]["passedTests"], 8)
+            summary = (root / "mobile" / ".verification" / "summary.txt").read_text()
+            self.assertIn("10 passed suite(s) reused", summary)
+
+    def test_cumulative_phase_reuses_prior_phase_passes(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            create_cached_repository(root)
+            self.run_phase(root, 2)
+            self.run_phase(root, 3)
+            fake, report = self.run_phase(root, 4)
+            self.assertEqual(report["exit_code"], 0)
+            ran = executed_suites(fake)
+            # Phase 1's simulator suite and Phase 4's own suites are new.
+            self.assertTrue(any("RundalePhase4UITests" in " ".join(argv) for argv in ran))
+            self.assertFalse(any("RundalePhase2UITests" in " ".join(argv) for argv in ran))
+            self.assertFalse(any("RundalePhase3UITests" in " ".join(argv) for argv in ran))
+
+    def test_source_changes_invalidate_but_documentation_and_commits_do_not(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            create_cached_repository(root)
+            self.run_phase(root)
+
+            (root / "docs" / "notes.md").write_text("edited\n", encoding="utf-8")
+            (root / "mobile" / "README.md").write_text("new\n", encoding="utf-8")
+            fake, _ = self.run_phase(root)
+            self.assertEqual(executed_suites(fake), [], "documentation-only edits keep passes")
+
+            git = ["git", "-c", "user.name=Test", "-c", "user.email=test@example.invalid"]
+            subprocess.run(["git", "add", "-A"], cwd=root, check=True)
+            subprocess.run([*git, "commit", "-q", "-m", "docs"], cwd=root, check=True)
+            fake, _ = self.run_phase(root)
+            self.assertEqual(executed_suites(fake), [], "committing identical content keeps passes")
+
+            tracked = root / "mobile" / "RundaleUITests" / "RundalePhase2UITests.swift"
+            tracked.write_text("// changed\n", encoding="utf-8")
+            fake, _ = self.run_phase(root)
+            self.assertEqual(len(executed_suites(fake)), 9, "tracked edit reruns every suite")
+
+            (root / "mobile" / "Untracked.swift").write_text("// new\n", encoding="utf-8")
+            fake, _ = self.run_phase(root)
+            self.assertEqual(len(executed_suites(fake)), 9, "untracked source reruns every suite")
+
+    def test_private_firebase_configuration_and_toolchain_are_inputs(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            create_cached_repository(root)
+            self.run_phase(root)
+            plist = root / "mobile" / "Rundale" / "Resources" / "GoogleService-Info.plist"
+            plist.parent.mkdir(parents=True)
+            plist.write_bytes(b"private")
+            fake, _ = self.run_phase(root)
+            self.assertEqual(len(executed_suites(fake)), 9)
+
+            fake = GitBackedRunner()
+            fake.results[("xcodebuild", "-version")] = CommandResult(0, stdout="Xcode 99.0\n")
+            VerificationRun(root, command_runner=fake).run(2)
+            self.assertEqual(len(executed_suites(fake)), 9)
+
+    def test_failures_are_never_reused(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            create_cached_repository(root)
+            fake = GitBackedRunner()
+            fake.fail_swift = True
+            report = VerificationRun(root, command_runner=fake).run(2)
+            self.assertEqual(report["exit_code"], 1)
+            fake, _ = self.run_phase(root)
+            self.assertEqual(
+                sum(argv[:2] == ("swift", "test") for argv in executed_suites(fake)), 3
+            )
+
+    def test_no_cache_reruns_everything(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            create_cached_repository(root)
+            self.run_phase(root)
+            fake, report = self.run_phase(root, use_cache=False)
+            self.assertEqual(len(executed_suites(fake)), 9)
+            self.assertEqual(report["summary"]["reused"], 0)
+            self.assertFalse(report["cache"]["enabled"])
+
+    def test_physical_device_suites_always_run(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            create_cached_repository(root)
+            device = "00008140-001E30603C10801C"
+            self.run_phase(root, 1, device=device)
+            fake, _ = self.run_phase(root, 1, device=device)
+            physical = [
+                argv for argv in executed_suites(fake) if f"platform=iOS,id={device}" in argv
+            ]
+            self.assertEqual(len(physical), 1)
+
+    def test_reuse_is_disabled_outside_a_git_worktree(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "mobile").mkdir()
+            create_phase2_fixture(root)
+            GitBackedRunner().run(["git", "--version"], cwd=root)
+            _, report = self.run_phase(root)
+            _, report = self.run_phase(root)
+            self.assertEqual(report["summary"]["reused"], 0)
+            self.assertIn("disabled_reason", report["cache"])
 
 
 if __name__ == "__main__":

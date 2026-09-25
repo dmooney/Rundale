@@ -430,6 +430,37 @@ final class EndpointKitTests: XCTestCase {
         XCTAssertThrowsError(try emptyOutputValidator.accept(emptyOutput))
     }
 
+    func testIntentOutputContractAcceptsOnlyTheTypedIntentShape() throws {
+        var validator = EndpointStreamValidator(
+            expectedRequestID: "r",
+            expectedAttemptID: "a",
+            outputContract: .intent
+        )
+        let frame = try validator.accept(try event(
+            type: "final",
+            sequence: 1,
+            output: [
+                "intent": "move",
+                "target": "Letter Office",
+                "dialogue": NSNull(),
+                "atmosphere": NSNull()
+            ]
+        ))
+        try validator.finish()
+        XCTAssertEqual(frame.kind, .final)
+
+        var malformed = EndpointStreamValidator(
+            expectedRequestID: "r",
+            expectedAttemptID: "a",
+            outputContract: .intent
+        )
+        XCTAssertThrowsError(try malformed.accept(try event(
+            type: "final",
+            sequence: 1,
+            output: ["intent": "move", "target": "Letter Office"]
+        )))
+    }
+
     func testValidatorRejectsBooleanFractionalAndWrongTerminalTypes() throws {
         func rawEvent(
             type: String = "text_delta",

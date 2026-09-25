@@ -30,6 +30,10 @@
 	<string>$(RUNDALE_ENDPOINT_SLUG)</string>
 	<key>RUNDALE_ENDPOINT_VERSION</key>
 	<string>$(RUNDALE_ENDPOINT_VERSION)</string>
+	<key>RUNDALE_INTENT_ENDPOINT_SLUG</key>
+	<string>$(RUNDALE_INTENT_ENDPOINT_SLUG)</string>
+	<key>RUNDALE_INTENT_ENDPOINT_VERSION</key>
+	<string>$(RUNDALE_INTENT_ENDPOINT_VERSION)</string>
 	<key>UILaunchScreen</key>
 	<dict/>
 </dict>

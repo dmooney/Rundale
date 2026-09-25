@@ -45,6 +45,35 @@ final class LaunchConfigurationTests: XCTestCase {
         XCTAssertEqual(configuration.endpointVersion, 2)
     }
 
+    func testIntentRoleRoutesToTheVersionedIntentEndpoint() {
+        let defaults = LaunchConfiguration(
+            arguments: [],
+            environment: [:],
+            bundle: [
+                "RUNDALE_ENDPOINT_BASE_URL": "https://example.test",
+                "RUNDALE_ENDPOINT_ORGANIZATION": "parish-demo"
+            ]
+        )
+        XCTAssertEqual(defaults.endpointURL(forRole: "intent")?.absoluteString,
+                       "https://example.test/v1/endpoints/parish-demo/rundale-intent/versions/1/stream")
+        XCTAssertEqual(defaults.endpointURL(forRole: "npc_dialogue")?.absoluteString,
+                       "https://example.test/v1/endpoints/parish-demo/rundale-dialogue/versions/1/stream")
+        XCTAssertEqual(defaults.endpointURL(forRole: nil), defaults.endpointURL)
+
+        let configured = LaunchConfiguration(
+            arguments: [],
+            environment: ["RUNDALE_INTENT_ENDPOINT_VERSION": "3"],
+            bundle: [
+                "RUNDALE_ENDPOINT_BASE_URL": "https://example.test",
+                "RUNDALE_ENDPOINT_ORGANIZATION": "parish-demo",
+                "RUNDALE_INTENT_ENDPOINT_SLUG": "fixture-intent"
+            ]
+        )
+        XCTAssertEqual(configured.endpointVersion(forRole: "intent"), 3)
+        XCTAssertEqual(configured.endpointURL(forRole: "intent")?.absoluteString,
+                       "https://example.test/v1/endpoints/parish-demo/fixture-intent/versions/3/stream")
+    }
+
     func testMissingBundledEndpointRemainsUnconfigured() {
         let configuration = LaunchConfiguration(arguments: [], environment: [:], bundle: [:])
 

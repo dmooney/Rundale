@@ -2,19 +2,19 @@
 
 ## External prerequisites
 
-- Owner access to Google Cloud project `cottage-d6dc9` with billing enabled
-- Firebase Authentication enabled in `cottage-d6dc9`, with Google sign-in enabled
+- Owner access to Google Cloud project `limerick-prod` (display name Limerick) with billing enabled
+- Firebase Authentication enabled in `limerick-prod`, with Google sign-in (console owner) and Anonymous sign-in (Rundale mobile) enabled, and App Check App Attest configured for the Rundale iOS app
 - the exact Firebase UID authorized as the Parish owner: `JvyQWyqV5MelZdF5RIPE8dPPYbm1` for `dmooney@gmail.com`
-- a server-side OpenAI credential for the current live runtime configuration; OpenAI live verification is deferred by owner decision and is not required for the Gemini-only acceptance gate
+- a server-side OpenAI credential only if `OPENAI_ALLOWED_MODELS` is set; the `limerick-prod` deployment is Gemini-only through Vertex AI and carries no OpenAI credential
 - DNS access is optional and outside MVP completion; use the generated Cloud Run hostnames for initial verification
 
 ## Topology
 
-Create Parish-only resources in `us-east1`: `parish-server` and `parish-web` Cloud Run services, `parish-postgres` Cloud SQL PostgreSQL, `parish-runtime` service identity, and `parish-migrate` Cloud Run job. Cottage services, identities, secrets, and data are not modified. The generated Cloud Run server and web hostnames are the MVP URLs; custom domains remain optional follow-up work.
+Create resources in `us-east1` of `limerick-prod`: `limerick-endpoints` and `limerick-endpoints-web` Cloud Run services, `limerick-endpoints-db` Cloud SQL PostgreSQL (database `limerick`), `limerick-endpoints-runtime` service identity, `limerick-build` Cloud Build identity, and the `limerick-endpoints-migrate` Cloud Run job. On 2026-09-25 the service moved out of the shared `cottage-d6dc9` project into this dedicated project with a clean database; Endpoint definitions were republished and the owner Firebase user was imported with its UID preserved. Sections below that name `parish-*` or `cottage-d6dc9` are historical receipts. The generated Cloud Run server and web hostnames are the MVP URLs; custom domains remain optional follow-up work.
 
 Cloud Run connects to Cloud SQL through its managed Unix socket. Store the complete socket-based `DATABASE_URL` and any configured provider credential in Secret Manager. The Gemini-only verification path uses Vertex AI Application Default Credentials; it does not make an OpenAI request. Configure the non-secret Firebase project ID and owner UID as server environment variables. Grant the runtime identity only Cloud SQL Client, Vertex AI User, Firebase Authentication Viewer, and access to the exact secrets it consumes. Do not grant `roles/iam.serviceAccountTokenCreator`; the server uses Application Default Credentials for Firebase verification and Vertex AI calls without signing tokens.
 
-Use `AUTH_MODE=firebase`, `FIREBASE_PROJECT_ID=cottage-d6dc9`, `PROVIDER_MODE=live`, and `GOOGLE_PROVIDER_AUTH=vertex-ai`. Set `GOOGLE_CLOUD_PROJECT=cottage-d6dc9` and `GOOGLE_CLOUD_LOCATION=global`. Keep the Google model allowlist narrow for the Gemini-only live gate. The OpenAI adapter remains available and its allowlist/configuration may remain present for the current runtime, but its live smoke is deferred by owner decision. `MODEL_PRICES_JSON` must contain non-negative per-million input and output token prices for every allowed model; configuration fails closed when a price is missing.
+Use `AUTH_MODE=firebase`, `FIREBASE_PROJECT_ID=limerick-prod`, `PROVIDER_MODE=live`, and `GOOGLE_PROVIDER_AUTH=vertex-ai`. Set `GOOGLE_CLOUD_PROJECT=limerick-prod` and `GOOGLE_CLOUD_LOCATION=global`. Keep the Google model allowlist narrow for the Gemini-only live gate. The OpenAI adapter remains available and its allowlist/configuration may remain present for the current runtime, but its live smoke is deferred by owner decision. `MODEL_PRICES_JSON` must contain non-negative per-million input and output token prices for every allowed model; configuration fails closed when a price is missing.
 
 Set `MOBILE_APP_BINDINGS_JSON` to a strict JSON array only after resolving the
 actual organization UUID and published versions. Each item contains `appId`,

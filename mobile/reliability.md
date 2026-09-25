@@ -71,12 +71,16 @@ for later world expansion:
   content size. An accepted new message returns to the newest exchange; an
   ignored or rejected submission leaves the reading position alone.
 - A person's name in dialogue is context, not automatically its addressee.
-  The local Rust mobile resolver first handles deterministic commands/travel,
-  then resolves an explicit address or asks which nearby person to address.
-  With one nearby person, ordinary speech goes to that person. Only then does
-  the Endpoint receive the unchanged player message and grounded speaker/scene
-  context to generate dialogue. This remains bounded local interpretation,
-  not a general language-model intent classifier.
+  The Rust mobile runtime first handles deterministic commands and explicit
+  addresses, then applies the shared `limerick-input` local parser. Input
+  that parser does not recognise goes to the Intent role
+  ([`rundale-intent-v1.json`](endpoint/rundale-intent-v1.json)) before any
+  action runs (#1993). Travel, look, clarification, or an explicit
+  unsupported-action reply follow from the validated interpretation. Only a
+  conversational interpretation sends the unchanged player message and grounded
+  speaker/scene context to the dialogue Endpoint. With one nearby person,
+  ordinary speech goes to that person. A plausible NPC reply is therefore not
+  evidence that an action was interpreted or executed.
 - **People** opens nearby choices without editing the draft; selecting a person
   prefixes their explicit reference and retains the text. **Commands** opens the
   runtime's supported command registry; choosing a command places it in the

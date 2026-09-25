@@ -1,13 +1,26 @@
 # Phase 2 Endpoint integration handoff
 
-## Current agreement (2026-09-09)
+## Current agreement (migrated 2026-09-25)
 
 The repository contract is [rundale-dialogue-v1.json](rundale-dialogue-v1.json).
 The embedded `endpoints/` service implements its pinned streaming route and the
-shared Swift/Rust/TypeScript fixture freezes the public wire shape. The deployed
-origin is `https://parish-server-24861210203.us-east1.run.app`; organization
-`parish-demo`, Endpoint `rundale-dialogue`, immutable version `1` is pinned by
-the app. No production origin is compiled into normal app configuration.
+shared Swift/Rust/TypeScript fixture freezes the public wire shape. Limerick
+Endpoints now runs in the dedicated `limerick-prod` project as Cloud Run service
+`limerick-endpoints`, origin `https://limerick-endpoints-877612517009.us-east1.run.app`.
+Organization `limerick-demo`, Endpoint `rundale-dialogue`, immutable version `1`
+is pinned by the app, as is `rundale-intent` version `1`. No production origin is
+compiled into normal app configuration.
+
+The migration used a clean database. `rundale-dialogue` versions 1 and 2 and
+`rundale-intent` version 1 were republished from the previous deployment's exact
+definitions; their content hashes are unchanged (`sha256:d2a58dc2...`,
+`sha256:4749a9a9...`, `sha256:8705607e...`). The repository copy of dialogue v1
+differs from the published v1 only in an input-schema description string renamed
+from `parish_core` to `limerick_core`; the wire contract is identical. The mobile
+allowlist binds Firebase app `1:877612517009:ios:586f98a2cc3e7d0c676130` to
+`rundale-dialogue` versions 1 and 2 and `rundale-intent` version 1. The previous
+`cottage-d6dc9` deployment is retired and its receipts below are historical.
+Private Firebase configuration remains worktree-local and ignored.
 
 ## Trusted boundary
 
@@ -71,3 +84,14 @@ alone may accept and commit the final candidate.
 This evidence establishes the deployed simulator path; it does not establish
 App Attest, signing, networking, lifecycle behavior, or usability on a physical
 iPhone. No gateway or Endpoint consumer key is part of the mobile architecture.
+
+## Intent role (#1993)
+
+The repository now defines
+[`rundale-intent-v1.json`](rundale-intent-v1.json), and the app routes
+`role: "intent"` invocations to `limerick-demo/rundale-intent@1`. The deployed
+mobile allowlist includes that version, but configuration inspection alone does
+not prove that its immutable definition and provider route execute successfully.
+An authenticated live Intent run through the native composer remains the
+closure gate. Do not treat the allowlist entry or a dialogue response as proof
+of the selected intent action.

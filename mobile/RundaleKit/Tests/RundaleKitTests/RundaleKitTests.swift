@@ -37,6 +37,51 @@ final class RundaleKitTests: XCTestCase {
         XCTAssertEqual(event.metadata["sceneID"], "crossroads")
     }
 
+    func testRustLifecycleFixtureDecodesProjectsAndRestoresExactlyOnce() throws {
+        let url = try XCTUnwrap(
+            Bundle.module.url(forResource: "request-lifecycle-v1", withExtension: "json")
+        )
+        let events = try FixtureJSON.decoder().decode(
+            [SemanticEvent].self,
+            from: Data(contentsOf: url)
+        )
+        XCTAssertEqual(events.map(\.kind), [
+            .playerCommand, .commandInterpreted, .npcDialogue, .responseCompleted,
+            .playerCommand, .clarificationRequired, .clarificationSelected,
+            .playerCommand, .error, .responseCompleted
+        ])
+
+        var state = SessionState(sessionID: SessionID("fixture-session-lifecycle"))
+        var reducer = SessionReducer()
+        for event in events {
+            XCTAssertEqual(reducer.reduce(.apply(event), in: &state), .applied)
+            if event.sequence == EventSequence(6) {
+                XCTAssertEqual(state.pendingClarification?.requestID, LogicalRequestID("fixture-request-2"))
+            }
+        }
+        XCTAssertEqual(state.request(for: LogicalRequestID("fixture-request-1"))?.phase, .interrupted)
+        XCTAssertEqual(state.request(for: LogicalRequestID("fixture-request-2"))?.phase, .executing)
+        XCTAssertNil(state.pendingClarification)
+        XCTAssertEqual(state.request(for: LogicalRequestID("fixture-request-3"))?.phase, .failed)
+        XCTAssertEqual(state.transcript.filter { $0.id == TranscriptItemID("fixture-command-1") }.count, 1)
+        XCTAssertEqual(state.transcript.first { $0.id == TranscriptItemID("fixture-response-1") }?.state, .interrupted)
+
+        let restored = try FixtureJSON.decode(
+            SessionState.self,
+            from: FixtureJSON.encode(state)
+        )
+        var replayed = restored
+        for event in events {
+            XCTAssertEqual(reducer.reduce(.apply(event), in: &replayed), .ignoredDuplicate)
+        }
+        XCTAssertEqual(replayed, restored)
+        XCTAssertEqual(
+            replayed.transcript.count,
+            Set(replayed.transcript.map(\.id)).count,
+            "Restoration and replay must retain every transcript identity exactly once"
+        )
+    }
+
     func testAcceptanceClearsOnlyMatchingDraftAndKeepsNewEdits() {
         let sessionID = SessionID("session-acceptance")
         var state = SessionState(sessionID: sessionID, draft: Draft(id: DraftID("draft-1"), text: "look around"))

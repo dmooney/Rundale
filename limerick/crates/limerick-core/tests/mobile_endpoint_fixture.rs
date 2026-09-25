@@ -92,3 +92,67 @@ fn shared_stream_fixture_has_v1_wire_shape_and_order() {
     }
     assert_eq!(dialogue, "The rain keeps the old road quiet. ");
 }
+
+/// The Intent Endpoint definition must stay bound to the engine: its
+/// instructions are the shared `limerick-input` Intent prompt, its input is
+/// exactly the engine's `IntentInvocation`, and every output it permits is
+/// accepted by the shared validator (#1993).
+#[test]
+fn intent_endpoint_definition_is_bound_to_the_engine_contract() {
+    let definition: serde_json::Value = serde_json::from_str(include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../../mobile/endpoint/rundale-intent-v1.json"
+    )))
+    .expect("intent definition is valid JSON");
+    assert_eq!(
+        definition["instructions"].as_str(),
+        Some(limerick_core::input::intent_system_prompt()),
+        "regenerate rundale-intent-v1.json instructions from the Rust Intent prompt"
+    );
+
+    let fixture: serde_json::Value = serde_json::from_str(include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../../mobile/endpoint/example-intent-invocation.json"
+    )))
+    .expect("intent fixture is valid JSON");
+    let mut fixture_keys: Vec<&str> = fixture
+        .as_object()
+        .unwrap()
+        .keys()
+        .map(String::as_str)
+        .collect();
+    fixture_keys.sort_unstable();
+    let mut required: Vec<&str> = definition["inputSchema"]["required"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|value| value.as_str().unwrap())
+        .collect();
+    required.sort_unstable();
+    assert_eq!(fixture_keys, required);
+    assert_eq!(
+        definition["inputSchema"]["properties"]["role"]["enum"],
+        serde_json::json!([limerick_core::mobile::INTENT_ROLE])
+    );
+
+    let output = &definition["outputSchema"];
+    assert_eq!(output["additionalProperties"], false);
+    for intent in output["properties"]["intent"]["enum"].as_array().unwrap() {
+        let value = serde_json::json!({
+            "intent": intent,
+            "target": null,
+            "dialogue": null,
+            "atmosphere": null
+        });
+        limerick_core::input::intent_from_structured_output(&value, "look")
+            .unwrap_or_else(|error| panic!("{intent} rejected: {error}"));
+    }
+    assert_eq!(
+        output["properties"]["target"]["maxLength"],
+        limerick_core::input::MAX_INTENT_FIELD_CHARS
+    );
+    assert!(
+        definition["inferenceConfig"]["streaming"]["textField"].is_string(),
+        "the mobile /stream route requires a text projection"
+    );
+}

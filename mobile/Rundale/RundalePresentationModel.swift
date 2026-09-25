@@ -52,12 +52,21 @@ final class RundalePresentationModel: ObservableObject {
     @Published private(set) var submissionMessage: String?
     @Published private(set) var accessibilityNotice: String? = nil
     @Published private(set) var uiTestCheckpoint = ""
+    /// UI-test-only JSON log of every transcript-row state published to the
+    /// view. A provisional row can last well under an XCUITest poll interval,
+    /// and virtualized rows leave the accessibility tree once scrolled away on
+    /// a small screen, so tests read this record instead of racing the poll or
+    /// depending on the viewport.
+    @Published private(set) var uiTestTranscriptTrace = "[]"
     @Published var draft: String
 
     let launch: LaunchConfiguration
     private let session: any RundaleSessionControlling
     private var eventTask: Task<Void, Never>?
     private var draftRevision: UInt64 = 0
+    private var transcriptTraceEntries: [UITestTranscriptTraceEntry] = []
+    private var transcriptTraceLastState: [String: UITestTranscriptTraceEntry] = [:]
+    private let transcriptTraceOrigin = Date()
     private var completionBrowser: String?
     private var activeSourceDraftID: DraftID?
     private var lifecycleGeneration: UInt64 = 0
@@ -466,6 +475,39 @@ final class RundalePresentationModel: ObservableObject {
     }
 
     private func updateTranscript(from incoming: [TranscriptItem]) {
+        publishTranscript(from: incoming)
+        if launch.isUITesting { recordTranscriptTrace() }
+    }
+
+    private func recordTranscriptTrace() {
+        var changed = false
+        let elapsed = Int(Date().timeIntervalSince(transcriptTraceOrigin) * 1000)
+        for item in transcript {
+            let entry = UITestTranscriptTraceEntry(
+                row: item.id,
+                kind: item.kind.rawValue,
+                state: item.state.rawValue,
+                text: item.text,
+                milliseconds: elapsed
+            )
+            if let previous = transcriptTraceLastState[item.id],
+               previous.state == entry.state, previous.text == entry.text {
+                continue
+            }
+            transcriptTraceLastState[item.id] = entry
+            transcriptTraceEntries.append(entry)
+            changed = true
+        }
+        guard changed else { return }
+        if transcriptTraceEntries.count > 400 {
+            transcriptTraceEntries.removeFirst(transcriptTraceEntries.count - 400)
+        }
+        if let data = try? JSONEncoder().encode(transcriptTraceEntries) {
+            uiTestTranscriptTrace = String(decoding: data, as: UTF8.self)
+        }
+    }
+
+    private func publishTranscript(from incoming: [TranscriptItem]) {
         guard !incoming.isEmpty else {
             if !transcript.isEmpty {
                 transcript = []
@@ -529,4 +571,13 @@ final class RundalePresentationModel: ObservableObject {
             }
         )
     }
+}
+
+/// One published transcript-row state in the UI-test trace.
+struct UITestTranscriptTraceEntry: Codable, Equatable {
+    let row: String
+    let kind: String
+    let state: String
+    let text: String
+    let milliseconds: Int
 }

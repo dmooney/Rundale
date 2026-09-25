@@ -9,8 +9,9 @@ just testflight-update
 
 `mobile-build` builds the embedded Rust framework, generates the Xcode project,
 and builds an unsigned Release iPhone app. `testflight-update` first runs
-`./verify --phase all`, increments the local build number, then builds, signs,
-inspects, and uploads an internal-only archive. Xcode manages the uploaded build
+`./verify --phase all`, which reuses suites already passed with identical
+inputs, then increments the local build number, builds, signs, inspects, and
+uploads an internal-only archive. Xcode manages the uploaded build
 number to accommodate App Store Connect's existing builds. Check the actual
 uploaded number before reporting it to the user. Applicable feature-specific
 checks and save compatibility checks still apply.
@@ -52,10 +53,12 @@ xcodebuild -project mobile/Rundale.xcodeproj \
   -scheme Rundale -configuration Release -destination 'generic/platform=iOS' \
   -archivePath mobile/.build/Rundale.xcarchive -allowProvisioningUpdates archive \
   DEVELOPMENT_TEAM=MBPRPZ283R CODE_SIGN_STYLE=Automatic \
-  RUNDALE_ENDPOINT_BASE_URL=https://parish-server-24861210203.us-east1.run.app \
-  RUNDALE_ENDPOINT_ORGANIZATION=parish-demo \
+  RUNDALE_ENDPOINT_BASE_URL=https://limerick-endpoints-877612517009.us-east1.run.app \
+  RUNDALE_ENDPOINT_ORGANIZATION=limerick-demo \
   RUNDALE_ENDPOINT_SLUG=rundale-dialogue \
-  RUNDALE_ENDPOINT_VERSION=1
+  RUNDALE_ENDPOINT_VERSION=1 \
+  RUNDALE_INTENT_ENDPOINT_SLUG=rundale-intent \
+  RUNDALE_INTENT_ENDPOINT_VERSION=1
 ```
 
 Select the Apple Development team for local device checks. An App Store

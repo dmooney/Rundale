@@ -14,6 +14,111 @@ the [milestone requirements](../docs/product-specs/product-technical-spec.md).
 Record build revision, device model, iOS version, text size, appearance, test
 date, tester, observed result, and defects for each session.
 
+## Evidence provenance (audit #1992, P2-F12)
+
+Dated sections below are historical records. Their verifier report
+directories (for example `mobile/.verification-phase2-final/`,
+`mobile/.verification-phase2-confirmed/`,
+`mobile/.verification-endpoint-integration/` and
+`mobile/.verification-small/`) are ignored local output and were not retained.
+Their totals are claims tied to the named revision and date. They cannot be
+re-verified from this repository, and they do not show which assertions ran.
+Do not cite them as current proof.
+
+Current Phase 2 evidence is the reproducible record in
+[Phase 2 audit resolution evidence](#phase-2-audit-resolution-evidence--2026-09-25).
+The `--phase2` launch argument now opens the canonical three-location world
+under the 2026-09-16 scope amendment, so older instructions that expected a
+one-location world describe a retired configuration.
+
+## Phase 2 audit resolution evidence — 2026-09-25
+
+Source: branch `claude/issue-1993-hofh7p` (PR #2005) at `61854817e`, based on
+`ios-port` `1ed492355`. The only uncommitted change during the runs was this
+document. Simulator: iOS 26.5, an already-booted simulator. All Endpoint
+traffic in these runs uses the in-app mock transport, and none of this is
+physical-device evidence.
+
+```sh
+./verify --phase 2 --report-dir mobile/.verification-1993-final-p2
+./verify --phase 3 --report-dir mobile/.verification-1993-final-p3
+```
+
+- Phase 2: 14 automated gates passed, 0 failed. One simulator-boot skip
+  (already booted). The opt-in live Endpoint gate is unavailable because it was
+  not configured. Two physical gates are not automatable. The Phase 2
+  simulator suite ran 16 tests and all 16 passed: 12
+  `RundalePhase2UITests` and 4 app-hosted `RundaleSemanticBridgeTests`.
+- Phase 3: 10 automated gates passed, 0 failed. One simulator-boot skip. Three
+  physical gates are not automatable. All 8 Phase 3 UI tests passed,
+  including inferred movement and inferred conversation through the composer.
+- Signed Release archive (`python3 mobile/scripts/release.py archive`,
+  development-signed, not uploaded): the code signature verified, the bundled
+  Firebase project, app, and bundle IDs matched, and the credential scan found
+  no Endpoint consumer key, provider API key, private key, or provider secret
+  variable in any bundle file. The exact TestFlight `.ipa` was not inspected;
+  `release.py testflight` runs the same scan on its archive before export.
+
+What these runs assert, by finding:
+
+| Finding | Assertion                                                                                                                                                                                                                              |
+| ------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| P2-F02  | Inferred input requests the Intent role before any action; the receipt names the executed action; travel changes the header exactly once.                                                                                              |
+| P2-F04  | A provisional frame is replaced in the same row by a differing validated final, both natively and through the real FFI and reducer.                                                                                                    |
+| P2-F05  | Stop, a late candidate, a transport failure, retry, and process loss keep one logical request, a new attempt each time, and no committed dialogue. A delayed mock completion is not committed after Stop, even after reopening SQLite. |
+| P2-F06  | Repeated relaunch restores the same command and dialogue rows with exact counts; termination mid-stream restores an interrupted request with no late commit.                                                                           |
+| P2-F07  | With every Endpoint request failing, `/look`, `look`, `where am i`, `/people`, `/exits`, `/help`, and exit travel each produce a new local result without Endpoint work.                                                               |
+| P2-F09  | Every Phase 2 test except the return-key test drives the device multiline composer, proven by Return inserting a line break.                                                                                                           |
+| P2-F10  | Production Rust events for success, intent receipt, stream replacement, clarification, cancellation, failure, and interruption decode through the Swift decoder into the reducer, and replay identically after reopening.              |
+
+Remaining, not claimed here: the authenticated live Intent run, live
+incremental delivery, and server-side cancellation (P2-F02/F03/F04/F05), and
+all manual and physical-iPhone gates (P2-F11).
+
+### Live Endpoint gate after the `limerick-prod` migration — 2026-09-25
+
+Service: Cloud Run `limerick-endpoints` revision `limerick-endpoints-00001-lc8`
+in `limerick-prod`, image built from `f1b2b7cef`; Gemini-only via Vertex AI.
+Client: branch `claude/issue-1993-hofh7p` at `f1b2b7cef`, iOS 26.5 simulator,
+App Check debug provider (token supplied privately to the test runner, not recorded).
+Command: `xcodebuild test ... -only-testing:RundaleUITests/RundaleLiveEndpointUITests`.
+
+| Test                                                         | Result                                                   | What it shows                                                                                                                                                                     |
+| ------------------------------------------------------------ | -------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `test03LiveIntentEndpointExecutesTheInterpretedAction`       | Passed                                                   | "Let's make for the Letter Office" went to live `rundale-intent@1`, which resolved `travel` to `Letter Office`; the action committed after 3.7 s                                  |
+| `test02LiveEndpointStopCancelsWithoutCommittingLateDialogue` | Passed                                                   | Stop left no committed dialogue, including after relaunch; the server logged an authenticated `DELETE` cancellation (202). The durable cancelled invocation row was not inspected |
+| `test01LiveEndpointStreamsAValidatedTerminalDialogue`        | Failed twice, then passed after the stream trace (below) | Live `rundale-dialogue@1` dialogue was validated and committed; the XCUITest poll never observed the brief in-progress row                                                        |
+
+A direct authenticated SSE probe of `rundale-dialogue@1` showed ordered
+`progress` (0.26 s), `text_delta` (0.99 s) and `final` (1.10 s) frames. A short
+live reply stays provisional for a few hundred milliseconds, below what the
+XCUITest poll reliably catches.
+
+`test01` now reads the UI-test-only stream trace (since generalized to
+`uitest.transcriptTrace`) record of every
+dialogue-row state the presentation model published, and the run was screen
+recorded with `record-ui-test.py` and analyzed with `stream-frames.swift`.
+The two independent observations agree:
+
+| Observation             | App trace (ms since launch) | Recording (s into video) |
+| ----------------------- | --------------------------- | ------------------------ |
+| First provisional text  | 139 characters at 7,869     | 141 characters at 11.482 |
+| Second provisional text | 159 characters at 8,073     | 161 characters at 11.680 |
+| Final committed row     | 159 characters at 8,093     | 161 characters at 11.715 |
+
+Recognized character counts differ from the trace by two because the rendered
+row adds quotation marks. The first provisional frame shows a partial sentence
+with the Stop button and "Having a think…" still visible. Provisional text was on screen for
+233 ms. Simulator rendering cadence: 41.3 frames/s while waiting (median gap
+30 ms) and 38.6 frames/s while streaming (median gap 35 ms, max 65 ms). These are
+simulator compositor and recorder figures, not a physical-display measurement.
+Send to final UI: 4.96 s, including tap injection, Firebase and App Check
+credentials, network, and model work.
+
+After this change the full live suite passed (tests 01, 02 and 03), and
+`./verify --phase 2` (14 passed, 0 failed) and `./verify --phase 3` (10 passed,
+0 failed) were rerun on the same simulator.
+
 ## Automated device evidence — 2026-09-14
 
 Source: `ios-port` revision `b06eade45` plus the reviewed automated-acceptance
@@ -148,8 +253,12 @@ operation targets are proposals, not measurements of this application.
 
 ## Phase 2 implementation evidence — 2026-09-07
 
-The embedded Rust runtime, Swift/C boundary, SQLite journal, one-location,
-one-NPC content slice, and deployed Parish Endpoint integration are implemented.
+This dated implementation record describes the then-current embedded Rust
+runtime, Swift/C boundary, SQLite journal, one-location/one-NPC content slice,
+and deployed Parish Endpoint integration. The owner amended scope on
+2026-09-16 (issue #1992): the canonical three-location/three-NPC world is
+permitted in Phase 2, and world size is not an acceptance blocker. Historical
+evidence below remains scoped to the runs and build described at the time.
 Phase 2 acceptance remains open for physical-iPhone validation. Deployment and
 live simulator evidence are in the [Endpoint handoff](endpoint/phase2-handoff.md).
 
@@ -183,6 +292,12 @@ The [recorded native preview](demo.md#phase-2-native-implementation-preview--202
 also shows local `/look`, streamed dialogue, and actual process-relaunch recovery.
 
 ## Phase 2 deployed Endpoint evidence — 2026-09-09
+
+This section is a historical receipt for the named 2026-09-09 deployment. The
+current release configuration (migrated to the dedicated `limerick-prod` project on 2026-09-25) is
+`https://limerick-endpoints-877612517009.us-east1.run.app`, organization
+`limerick-demo`; see the [Endpoint handoff](endpoint/phase2-handoff.md). Do not
+reuse the historical `parish-*` identity as current release configuration.
 
 Cloud Run revision `parish-server-00006-kew` serves the pinned
 `parish-demo/rundale-dialogue@1` contract. After its forward-compatible migration

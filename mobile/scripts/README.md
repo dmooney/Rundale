@@ -45,6 +45,7 @@ The runner accepts these options:
 --simulator UDID_OR_NAME
 --configuration NAME
 --report-dir PATH
+--no-cache
 ```
 
 Set `RUNDALE_IOS_SIMULATOR` to pin the simulator used by release verification;
@@ -55,6 +56,33 @@ The path overrides are useful for fixtures and isolated test projects. The
 simulator override accepts an available simulator UDID or name; otherwise the
 runner chooses a booted, newest available iPhone simulator. The default report
 directory is `mobile/.verification/`.
+
+## Reusing passes
+
+A suite is not rerun when an earlier run passed it with identical inputs. The
+cargo, Swift package, unsigned device build, and simulator xcodebuild suites
+each have a key built from:
+
+- the working tree, hashed as a git tree in a temporary index (tracked edits
+  and untracked, non-ignored files count; committing identical content keeps
+  the key; the real index is untouched);
+- the ignored private Firebase configuration's digest;
+- `xcodebuild -version`, `swift --version`, and the pinned Rust toolchain;
+- the suite's own selection: command, test targets, configuration, and the
+  simulator's runtime and device type.
+
+Documentation that no gate reads is left out of the tree hash: `docs/`,
+Markdown under `mobile/` and `endpoints/`, and the root `README.md`,
+`LEARNINGS.md`, and agent guides. Rust crate Markdown stays in because some of
+it is compiled with `include_str!`.
+
+Only passes are stored, under `mobile/.verification/cache/`. Failures, skips,
+physical-device, soak, and performance suites always run. A reused suite is
+reported as passed with `details.cache` naming the run, report, and log that
+produced it, and the summary line counts reused suites. Because Phase 4 (and
+`--phase all`) includes the earlier phases, it reruns only the suites whose
+inputs changed. `--no-cache` reruns everything; if git or a toolchain probe is
+unavailable, reuse is disabled for that run and the JSON report says why.
 
 ## Record one UI test
 
@@ -77,6 +105,39 @@ Use the same `--derived-data` directory for the first build and each reuse.
 Test identifiers must resolve to one method in the target’s local Swift source.
 Recording failures return nonzero; a failing test retains its own exit status.
 Videos, logs, and xcresults are retained on failure and never overwritten.
+
+## Inspect a streamed reply frame by frame
+
+`stream-frames.swift` reads a recording from `record-ui-test.py` and checks
+that streamed text rendered before the final frame. simctl writes a frame only
+when the screen changes, so frame timestamps give the rendering cadence. Vision
+text recognition reads each changed frame. A frame is provisional while the
+speaker's row and the busy indicator are both on screen, and final once the
+indicator is gone:
+
+```sh
+swift mobile/scripts/stream-frames.swift \
+  mobile/.build/recordings/live-stream.mov mobile/.build/recordings/live-stream-frames \
+  --speaker "Peig Hannigan" --busy "Having a think"
+```
+
+It writes `stream-frames.json` with the provisional text states (time and
+character count), how long provisional text was visible, frames per second
+while waiting and while streaming, and PNGs of each provisional state and the
+first final frame. It exits nonzero unless provisional text preceded the final
+frame. Reply text is not stored in the JSON. Simulator cadence reflects the
+simulator's compositor and recorder, not a physical display.
+
+UI tests can also read `uitest.transcriptTrace`, a UI-test-only element whose
+value is a JSON array of every transcript-row state the presentation model
+published (`row`, `kind`, `state`, `text`, `milliseconds`); the helpers are in
+`mobile/RundaleUITests/TranscriptTrace.swift`. Use it for rows that change faster
+than an XCUITest poll (a live reply provisional for a few hundred milliseconds, a
+fixture chunk shown for 500 ms) and for rows a small screen scrolls out of the
+virtualized transcript. It is stricter than on-screen counting, which misses
+rows that have scrolled away, and it works on a physical device, where simctl
+recording is not available. Keep on-screen queries for the newest row, the
+header, and controls.
 
 ## Evidence and exit status
 
