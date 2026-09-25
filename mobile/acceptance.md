@@ -75,6 +75,28 @@ Remaining, not claimed here: the authenticated live Intent run, live
 incremental delivery, and server-side cancellation (P2-F02/F03/F04/F05), and
 all manual and physical-iPhone gates (P2-F11).
 
+### Live Endpoint gate after the `limerick-prod` migration — 2026-09-25
+
+Service: Cloud Run `limerick-endpoints` revision `limerick-endpoints-00001-lc8`
+in `limerick-prod`, image built from `f1b2b7cef`; Gemini-only via Vertex AI.
+Client: branch `claude/issue-1993-hofh7p` at `f1b2b7cef`, iOS 26.5 simulator,
+App Check debug provider (token supplied privately to the test runner, not recorded).
+Command: `xcodebuild test ... -only-testing:RundaleUITests/RundaleLiveEndpointUITests`.
+
+| Test | Result | What it shows |
+| --- | --- | --- |
+| `test03LiveIntentEndpointExecutesTheInterpretedAction` | Passed | "Let's make for the Letter Office" went to live `rundale-intent@1`, which resolved `travel` to `Letter Office`; the action committed after 3.7 s |
+| `test02LiveEndpointStopCancelsWithoutCommittingLateDialogue` | Passed | Stop left no committed dialogue, including after relaunch; the server logged an authenticated `DELETE` cancellation (202). The durable cancelled invocation row was not inspected |
+| `test01LiveEndpointStreamsAValidatedTerminalDialogue` | Failed (twice) | Live `rundale-dialogue@1` dialogue was validated and committed, but the UI poll never observed the in-progress row |
+
+A direct authenticated SSE probe of `rundale-dialogue@1` showed ordered
+`progress` (0.26 s), one `text_delta` (0.99 s) and `final` (1.10 s) frames. The
+model returns the short line as one chunk, so the provisional row exists for
+roughly 110 ms, below what the XCUITest poll reliably catches. The live
+partial-before-final UI assertion therefore remains unproven; the wire ordering
+is observed, and provisional-then-final rendering is proven only against the
+mock transport.
+
 ## Automated device evidence — 2026-09-14
 
 Source: `ios-port` revision `b06eade45` plus the reviewed automated-acceptance
