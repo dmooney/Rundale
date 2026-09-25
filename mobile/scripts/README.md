@@ -45,6 +45,7 @@ The runner accepts these options:
 --simulator UDID_OR_NAME
 --configuration NAME
 --report-dir PATH
+--no-cache
 ```
 
 Set `RUNDALE_IOS_SIMULATOR` to pin the simulator used by release verification;
@@ -55,6 +56,33 @@ The path overrides are useful for fixtures and isolated test projects. The
 simulator override accepts an available simulator UDID or name; otherwise the
 runner chooses a booted, newest available iPhone simulator. The default report
 directory is `mobile/.verification/`.
+
+## Reusing passes
+
+A suite is not rerun when an earlier run passed it with identical inputs. The
+cargo, Swift package, unsigned device build, and simulator xcodebuild suites
+each have a key built from:
+
+- the working tree, hashed as a git tree in a temporary index (tracked edits
+  and untracked, non-ignored files count; committing identical content keeps
+  the key; the real index is untouched);
+- the ignored private Firebase configuration's digest;
+- `xcodebuild -version`, `swift --version`, and the pinned Rust toolchain;
+- the suite's own selection: command, test targets, configuration, and the
+  simulator's runtime and device type.
+
+Documentation that no gate reads is left out of the tree hash: `docs/`,
+Markdown under `mobile/` and `endpoints/`, and the root `README.md`,
+`LEARNINGS.md`, and agent guides. Rust crate Markdown stays in because some of
+it is compiled with `include_str!`.
+
+Only passes are stored, under `mobile/.verification/cache/`. Failures, skips,
+physical-device, soak, and performance suites always run. A reused suite is
+reported as passed with `details.cache` naming the run, report, and log that
+produced it, and the summary line counts reused suites. Because Phase 4 (and
+`--phase all`) includes the earlier phases, it reruns only the suites whose
+inputs changed. `--no-cache` reruns everything; if git or a toolchain probe is
+unavailable, reuse is disabled for that run and the JSON report says why.
 
 ## Record one UI test
 

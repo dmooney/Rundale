@@ -9,8 +9,9 @@ just testflight-update
 
 `mobile-build` builds the embedded Rust framework, generates the Xcode project,
 and builds an unsigned Release iPhone app. `testflight-update` first runs
-`./verify --phase all`, increments the local build number, then builds, signs,
-inspects, and uploads an internal-only archive. Xcode manages the uploaded build
+`./verify --phase all`, which reuses suites already passed with identical
+inputs, then increments the local build number, builds, signs, inspects, and
+uploads an internal-only archive. Xcode manages the uploaded build
 number to accommodate App Store Connect's existing builds. Check the actual
 uploaded number before reporting it to the user. Applicable feature-specific
 checks and save compatibility checks still apply.

@@ -11,8 +11,10 @@ import os
 import plistlib
 import re
 import shlex
+import shutil
 import signal
 import subprocess
+import tempfile
 import time
 import xml.etree.ElementTree as ET
 from collections.abc import Mapping, Sequence
@@ -31,6 +33,21 @@ IMPLEMENTED_PHASE = 4
 IMPLEMENTED_PHASES = (1, 2, 3, 4)
 LAST_PHASE = 6
 RUST_TOOLCHAIN = "1.98.0"
+CACHE_SCHEMA = 1
+# Documentation that no gate compiles or reads. Edits here leave cached passes
+# valid; everything else in the working tree (tracked or untracked, excluding
+# ignored files) is part of the content key.
+CACHE_IGNORED_PATHSPECS = (
+    "docs",
+    ":(glob)mobile/**/*.md",
+    ":(glob)endpoints/**/*.md",
+    "README.md",
+    "LEARNINGS.md",
+    "AGENTS.md",
+    "CLAUDE.md",
+    "GEMINI.md",
+)
+PRIVATE_FIREBASE_CONFIG = Path("mobile/Rundale/Resources/GoogleService-Info.plist")
 FORBIDDEN_MOBILE_DEPENDENCIES = (
     "limerick-engine",
     "limerick-server",
@@ -216,6 +233,7 @@ def _simulator_candidates(payload: Mapping[str, Any]) -> list[dict[str, Any]]:
                     "name": name,
                     "udid": udid,
                     "state": str(entry.get("state", "Unknown")),
+                    "device_type": str(entry.get("deviceTypeIdentifier") or name),
                     "runtime": runtime,
                     "runtime_key": tuple(int(n) for n in re.findall(r"\d+", runtime)),
                 }
@@ -270,6 +288,7 @@ class VerificationRun:
         development_team: str | None = None,
         configuration: str = "Debug",
         command_timeout_seconds: float = 30 * 60,
+        use_cache: bool = True,
     ) -> None:
         self.root = repo_root.resolve()
         mobile = self.root / "mobile"
@@ -298,6 +317,13 @@ class VerificationRun:
         self.physical_device_ready = device is None
         self.started_at = dt.datetime.now(dt.timezone.utc).isoformat()
         self.run_stamp = dt.datetime.now(dt.timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
+        self.use_cache = use_cache
+        # Shared by every report directory so a custom --report-dir still
+        # reuses and contributes passes.
+        self.cache_dir = self.root / "mobile" / ".verification" / "cache"
+        self._content_key_value: str | None = None
+        self._content_key_reason: str | None = None
+        self._content_key_computed = False
 
     def _env(self) -> dict[str, str]:
         cache = self.report_dir / "tool-cache"
@@ -528,6 +554,149 @@ class VerificationRun:
             reason=reason,
         )
 
+    def _content_key(self) -> str | None:
+        """Hash every input that can change a suite's result, or None.
+
+        The working tree is hashed as a git tree built in a temporary index, so
+        uncommitted and untracked (non-ignored) files count and committing the
+        same content keeps the same key. The ignored private Firebase file and
+        the Xcode, Swift, and Rust toolchains are included. Any failure disables
+        reuse for the run instead of guessing.
+        """
+
+        if self._content_key_computed:
+            return self._content_key_value
+        self._content_key_computed = True
+        index_path = self._execute(["git", "rev-parse", "--git-path", "index"])
+        if index_path.returncode != 0 or not index_path.stdout.strip():
+            self._content_key_reason = "git index is unavailable"
+            return None
+        source_index = self.root / index_path.stdout.strip()
+        with tempfile.TemporaryDirectory(prefix="rundale-verify-index-") as scratch:
+            temporary_index = Path(scratch) / "index"
+            if source_index.is_file():
+                shutil.copyfile(source_index, temporary_index)
+            env = {**os.environ, "GIT_INDEX_FILE": str(temporary_index)}
+            for step in (
+                ["git", "add", "-A", "--", "."],
+                [
+                    "git",
+                    "rm",
+                    "-r",
+                    "-q",
+                    "--cached",
+                    "--ignore-unmatch",
+                    "--",
+                    *CACHE_IGNORED_PATHSPECS,
+                ],
+            ):
+                if self._execute(step, env=env).returncode != 0:
+                    self._content_key_reason = f"could not stage the working tree ({step[1]})"
+                    return None
+            tree = self._execute(["git", "write-tree"], env=env)
+        tree_id = tree.stdout.strip()
+        if tree.returncode != 0 or not re.fullmatch(r"[0-9a-f]{40}|[0-9a-f]{64}", tree_id):
+            self._content_key_reason = "git write-tree did not return a tree id"
+            return None
+        toolchain = {}
+        for label, command in (
+            ("xcode", ["xcodebuild", "-version"]),
+            ("swift", ["swift", "--version"]),
+            ("rust", ["rustup", "run", RUST_TOOLCHAIN, "rustc", "--version"]),
+        ):
+            result = self._execute(command)
+            if result.returncode != 0:
+                self._content_key_reason = f"could not identify the {label} toolchain"
+                return None
+            toolchain[label] = result.output.strip()
+        firebase = self.root / PRIVATE_FIREBASE_CONFIG
+        try:
+            firebase_digest = hashlib.sha256(firebase.read_bytes()).hexdigest()
+        except FileNotFoundError:
+            firebase_digest = "absent"
+        except OSError:
+            self._content_key_reason = "private Firebase configuration is unreadable"
+            return None
+        payload = {
+            "schema": CACHE_SCHEMA,
+            "tree": tree_id,
+            "ignored_pathspecs": list(CACHE_IGNORED_PATHSPECS),
+            "firebase": firebase_digest,
+            "toolchain": toolchain,
+        }
+        self._content_key_value = hashlib.sha256(
+            json.dumps(payload, sort_keys=True).encode()
+        ).hexdigest()
+        return self._content_key_value
+
+    def _reuse(
+        self, *, identifier: str, name: str, phase: int, inputs: Mapping[str, Any]
+    ) -> tuple[dict[str, Any] | None, str | None]:
+        """Return a reused passing record for identical inputs, and the suite key."""
+
+        content = self._content_key()
+        if content is None:
+            return None, None
+        key = hashlib.sha256(
+            json.dumps({"content": content, "suite": inputs}, sort_keys=True).encode()
+        ).hexdigest()
+        if not self.use_cache:
+            return None, key
+        try:
+            entry = json.loads((self.cache_dir / f"{key}.json").read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            return None, key
+        if (
+            not isinstance(entry, Mapping)
+            or entry.get("status") != PASSED
+            or entry.get("key") != key
+        ):
+            return None, key
+        source = entry.get("source")
+        details = dict(entry.get("details") or {})
+        details["cache"] = {
+            "reused": True,
+            "key": key,
+            **(dict(source) if isinstance(source, Mapping) else {}),
+        }
+        record = self._record(
+            identifier=identifier,
+            name=name,
+            phase=phase,
+            status=PASSED,
+            required=True,
+            details=details,
+        )
+        return record, key
+
+    def _store_cached_passes(self, report_path: Path) -> None:
+        """Record each freshly passed, cacheable suite for later identical runs."""
+
+        for record in self.records:
+            details = record.get("details", {})
+            key = details.get("cache_key")
+            if not key or record["status"] != PASSED or details.get("cache", {}).get("reused"):
+                continue
+            entry = {
+                "schema": CACHE_SCHEMA,
+                "key": key,
+                "status": PASSED,
+                "name": record["name"],
+                "details": {
+                    name: value for name, value in details.items() if name not in {"cache_key"}
+                },
+                "source": {
+                    "suite": record["id"],
+                    "started_at": self.started_at,
+                    "report": _relative(report_path, self.root),
+                    "log": record.get("log"),
+                },
+            }
+            self.cache_dir.mkdir(parents=True, exist_ok=True)
+            (self.cache_dir / f"{key}.json").write_text(
+                json.dumps(entry, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+            )
+
     def _swift_package_tests(
         self,
         *,
@@ -557,6 +726,14 @@ class VerificationRun:
             )
             return
         package = _relative(package_path, self.root)
+        reused, key = self._reuse(
+            identifier=identifier,
+            name=name,
+            phase=phase,
+            inputs={"tool": "swift-test", "package": package},
+        )
+        if reused is not None:
+            return
         record = self._run(
             identifier=identifier,
             name=name,
@@ -577,7 +754,7 @@ class VerificationRun:
                 "--no-parallel",
             ],
             env=self._env(),
-            details={"package_path": package},
+            details={"package_path": package, **({"cache_key": key} if key else {})},
         )
         if record["status"] == PASSED:
             self._validate_swift_result(record)
@@ -676,13 +853,25 @@ class VerificationRun:
             package,
             *cargo_args,
         ]
+        reused, key = self._reuse(
+            identifier=identifier,
+            name=name,
+            phase=phase,
+            inputs={"tool": "cargo-test", "command": command},
+        )
+        if reused is not None:
+            return
         record = self._run(
             identifier=identifier,
             name=name,
             phase=phase,
             command=command,
             env=self._rust_env(),
-            details={"package": package, "toolchain": RUST_TOOLCHAIN},
+            details={
+                "package": package,
+                "toolchain": RUST_TOOLCHAIN,
+                **({"cache_key": key} if key else {}),
+            },
         )
         if record["status"] == PASSED:
             self._validate_rust_result(record)
@@ -826,18 +1015,46 @@ class VerificationRun:
         identifier = identifier or (
             "ios-device-build" if destination is None else "ios-simulator-tests"
         )
+        name = name or (
+            "Unsigned iOS device build"
+            if destination is None
+            else (
+                "Physical iPhone XCTest/XCUITest suite"
+                if is_physical
+                else "iOS simulator XCTest/XCUITest suite"
+            )
+        )
+        key = None
+        # Physical devices, soak, and performance depend on hardware and
+        # sessions outside the repository, so they always run.
+        if not is_physical and not self.soak and not self.performance:
+            simulator = self.simulator if destination is not None else None
+            reused, key = self._reuse(
+                identifier=identifier,
+                name=name,
+                phase=phase,
+                inputs={
+                    "tool": "xcodebuild",
+                    "target": target_kind,
+                    "scheme": self.scheme,
+                    "configuration": self.configuration,
+                    "only_testing": [only_testing]
+                    if isinstance(only_testing, str)
+                    else list(only_testing or []),
+                    "skip_testing": list(skip_testing),
+                    "simulator": None
+                    if simulator is None
+                    else {
+                        "runtime": simulator.get("runtime"),
+                        "device_type": simulator.get("device_type"),
+                    },
+                },
+            )
+            if reused is not None:
+                return reused
         record = self._run(
             identifier=identifier,
-            name=name
-            or (
-                "Unsigned iOS device build"
-                if destination is None
-                else (
-                    "Physical iPhone XCTest/XCUITest suite"
-                    if is_physical
-                    else "iOS simulator XCTest/XCUITest suite"
-                )
-            ),
+            name=name,
             phase=phase,
             command=command,
             env=self._xcode_env(),
@@ -846,6 +1063,7 @@ class VerificationRun:
                 "derived_data": derived,
                 "result_bundle": bundle,
                 "sdk": "iphoneos",
+                **({"cache_key": key} if key else {}),
             }
             if destination is None
             else {
@@ -854,6 +1072,7 @@ class VerificationRun:
                 "target": target_kind,
                 "derived_data": derived,
                 "result_bundle": bundle,
+                **({"cache_key": key} if key else {}),
             },
         )
         if record["status"] == PASSED:
@@ -1259,8 +1478,24 @@ class VerificationRun:
         phase: int | None = None,
         summary_identifier: str = "ios-simulator-test-results",
     ) -> None:
-        bundle = str(test_record["details"]["result_bundle"])
         result_phase = phase if phase is not None else int(test_record["phase"])
+        if test_record.get("details", {}).get("cache", {}).get("reused"):
+            # The run that produced this pass validated its xcresult first.
+            self._record(
+                identifier=summary_identifier,
+                name="iOS simulator test-result validation",
+                phase=result_phase,
+                status=PASSED,
+                required=True,
+                details={
+                    key: value
+                    for key, value in test_record["details"].items()
+                    if key
+                    in {"totalTestCount", "passedTests", "failedTests", "skippedTests", "cache"}
+                },
+            )
+            return
+        bundle = str(test_record["details"]["result_bundle"])
         summary_record = self._run(
             identifier=summary_identifier,
             name="iOS simulator test-result validation",
@@ -1867,7 +2102,15 @@ class VerificationRun:
         counts = {status: 0 for status in (PASSED, FAILED, SKIPPED, UNAVAILABLE, NOT_AUTOMATABLE)}
         for record in self.records:
             counts[record["status"]] += 1
-        return {**counts, "blocking": sum(record["blocking"] for record in self.records)}
+        reused = sum(
+            bool(record.get("details", {}).get("cache", {}).get("reused"))
+            for record in self.records
+        )
+        return {
+            **counts,
+            "reused": reused,
+            "blocking": sum(record["blocking"] for record in self.records),
+        }
 
     def _build_identity(self) -> dict[str, Any]:
         head = self._execute(["git", "rev-parse", "HEAD"])
@@ -1948,9 +2191,19 @@ class VerificationRun:
                     ("summary", "summary.txt"),
                 )
             },
+            "cache": {
+                "enabled": self.use_cache,
+                "content_key": self._content_key_value,
+                **(
+                    {"disabled_reason": self._content_key_reason}
+                    if self._content_key_reason
+                    else {}
+                ),
+            },
             "suites": self.records,
         }
         self._write_reports(report)
+        self._store_cached_passes(self.report_dir / "verify.json")
         return report
 
     def _write_reports(self, report: Mapping[str, Any]) -> None:
@@ -2000,6 +2253,11 @@ class VerificationRun:
             f"Rundale mobile verification (phase {report['phase']})",
             f"{'PASS' if report['exit_code'] == 0 else 'FAIL'} automated gate: {summary['passed']} passed, {summary['failed']} failed, {summary['skipped']} skipped, {summary['unavailable']} unavailable, {summary['not_automatable']} not automatable",
         ]
+        if summary["reused"]:
+            lines.append(
+                f"{summary['reused']} passed suite(s) reused from earlier runs with identical inputs "
+                "(details.cache in the JSON report; --no-cache reruns them)"
+            )
         lines += [
             f"- {r['status'].upper()}: {r['name']}"
             + (f" — {r['reason']}" if r.get("reason") else "")
@@ -2058,6 +2316,12 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--configuration", default="Debug")
     parser.add_argument("--report-dir", type=Path)
+    parser.add_argument(
+        "--no-cache",
+        dest="use_cache",
+        action="store_false",
+        help="rerun every suite instead of reusing passes recorded for identical inputs",
+    )
     return parser
 
 
@@ -2084,6 +2348,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         performance=args.performance,
         development_team=args.development_team,
         configuration=args.configuration,
+        use_cache=args.use_cache,
     )
     report = run.run(args.phase)
     print((run.report_dir / "summary.txt").read_text(encoding="utf-8"), end="")
