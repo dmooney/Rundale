@@ -1374,26 +1374,9 @@ pub fn prepare_npc_conversation(
     )
 }
 
-/// Detects if the player is introducing themselves and records the name.
-///
-/// Call this before `prepare_npc_conversation_turn` so the NPC prompt can
-/// use the player's name. If detected, sets `world.player_name` (if not
-/// already set) and teaches the speaking NPC the player's name.
-pub fn detect_and_record_player_name(
-    world: &mut WorldState,
-    npc_manager: &mut NpcManager,
-    player_input: &str,
-    speaker_id: NpcId,
-) {
-    if let Some(name) = crate::npc::detect_player_name(player_input) {
-        // Don't overwrite a previously set player name
-        if world.player_name.is_none() {
-            tracing::info!("Player introduced themselves as: {}", name);
-            world.player_name = Some(name);
-        }
-        npc_manager.teach_player_name(speaker_id);
-    }
-}
+// Name detection is part of the portable dialogue apply seam; keep the
+// historical `crate::ipc::detect_and_record_player_name` path for callers.
+pub use crate::dialogue_apply::detect_and_record_player_name;
 
 /// Checks an NPC response for hallucinated names and returns a corrective
 /// system prompt addendum if any are found.

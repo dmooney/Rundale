@@ -11,6 +11,10 @@ by CLI, web server, and Tauri backends.
 ## Key modules
 
 - `game_session` — runtime session state and orchestration.
+- `dialogue_apply` — portable NPC dialogue grounding and the canonical
+  validated apply boundary (re-exported from `game_session`).
+- `portable_look` — portable `/look` rendering (re-exported from
+  `ipc::commands::look`).
 - `loading` / `game_mod` — mod and data loading.
 - `ipc` — shared request/response/event types used by frontends.
 - `editor` — Limerick Designer mod-editing support.
