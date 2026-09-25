@@ -8,7 +8,7 @@ Endpoint definition for the Phase 2 NPC dialogue role. It is the
 secret-free serialization produced by the Rust `EndpointInvocation` DTO and
 checked against it in the `limerick-core` fixture test.
 
-The public identity is organization `parish-demo`, slug `rundale-dialogue`,
+The current Rundale identity is organization `limerick-demo`, slug `rundale-dialogue`,
 version `1`. The exact artifact was published and promoted on 2026-09-09; its
 deployed content hash is
 `sha256:d2a58dc263543789c19a3bc5d3d934db7fee7e8fba81d5d01716bcf03315cae1`.
@@ -75,10 +75,11 @@ the authorized service/configuration path when the Endpoint is provisioned.
 ## Intent Endpoint (v1)
 
 [`rundale-intent-v1.json`](rundale-intent-v1.json) is the version 1 Endpoint
-definition for the player-input interpretation role (#1993). Its intended
-identity is slug `rundale-intent`, version `1`, under the same organization as
-dialogue. The app reads `RUNDALE_INTENT_ENDPOINT_SLUG` and
-`RUNDALE_INTENT_ENDPOINT_VERSION`. It is not yet published or bound; see
+definition for the player-input interpretation role (#1993). Its identity is
+slug `rundale-intent`, version `1`, under the same organization as dialogue.
+The app reads `RUNDALE_INTENT_ENDPOINT_SLUG` and
+`RUNDALE_INTENT_ENDPOINT_VERSION`. The deployed allowlist includes this role;
+authenticated execution remains a separate evidence gate. See
 [the handoff](phase2-handoff.md).
 
 The engine requests this role only for input that the shared

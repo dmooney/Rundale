@@ -184,6 +184,12 @@ also shows local `/look`, streamed dialogue, and actual process-relaunch recover
 
 ## Phase 2 deployed Endpoint evidence — 2026-09-09
 
+This section is a historical receipt for the named 2026-09-09 deployment. The
+current 2026-09-24 release configuration is
+`https://limerick-server-24861210203.us-east1.run.app`, organization
+`limerick-demo`; see the [Endpoint handoff](endpoint/phase2-handoff.md). Do not
+reuse the historical `parish-*` identity as current release configuration.
+
 Cloud Run revision `parish-server-00006-kew` serves the pinned
 `parish-demo/rundale-dialogue@1` contract. After its forward-compatible migration
 and no-traffic health/auth preflight, two opt-in native UI tests passed against

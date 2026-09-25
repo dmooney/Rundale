@@ -52,10 +52,12 @@ xcodebuild -project mobile/Rundale.xcodeproj \
   -scheme Rundale -configuration Release -destination 'generic/platform=iOS' \
   -archivePath mobile/.build/Rundale.xcarchive -allowProvisioningUpdates archive \
   DEVELOPMENT_TEAM=MBPRPZ283R CODE_SIGN_STYLE=Automatic \
-  RUNDALE_ENDPOINT_BASE_URL=https://parish-server-24861210203.us-east1.run.app \
-  RUNDALE_ENDPOINT_ORGANIZATION=parish-demo \
+  RUNDALE_ENDPOINT_BASE_URL=https://limerick-server-24861210203.us-east1.run.app \
+  RUNDALE_ENDPOINT_ORGANIZATION=limerick-demo \
   RUNDALE_ENDPOINT_SLUG=rundale-dialogue \
-  RUNDALE_ENDPOINT_VERSION=1
+  RUNDALE_ENDPOINT_VERSION=1 \
+  RUNDALE_INTENT_ENDPOINT_SLUG=rundale-intent \
+  RUNDALE_INTENT_ENDPOINT_VERSION=1
 ```
 
 Select the Apple Development team for local device checks. An App Store

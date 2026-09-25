@@ -1,13 +1,21 @@
 # Phase 2 Endpoint integration handoff
 
-## Current agreement (2026-09-09)
+## Current agreement (verified 2026-09-24)
 
 The repository contract is [rundale-dialogue-v1.json](rundale-dialogue-v1.json).
 The embedded `endpoints/` service implements its pinned streaming route and the
 shared Swift/Rust/TypeScript fixture freezes the public wire shape. The deployed
-origin is `https://parish-server-24861210203.us-east1.run.app`; organization
-`parish-demo`, Endpoint `rundale-dialogue`, immutable version `1` is pinned by
+origin is `https://limerick-server-24861210203.us-east1.run.app`; organization
+`limerick-demo`, Endpoint `rundale-dialogue`, immutable version `1` is pinned by
 the app. No production origin is compiled into normal app configuration.
+
+Read-only Cloud Run inspection on 2026-09-24 found revision
+`limerick-server-00003-g6f` serving 100% of traffic. Both the configured origin
+and Cloud Run service URL returned 200 from `/health/ready`. The non-secret
+mobile allowlist retained `rundale-dialogue` versions 1 and 2 and added
+`rundale-intent` version 1 for `limerick-demo`. This configuration evidence does
+not replace an authenticated invocation; private Firebase configuration remains
+worktree-local and ignored.
 
 ## Trusted boundary
 
@@ -76,9 +84,9 @@ iPhone. No gateway or Endpoint consumer key is part of the mobile architecture.
 
 The repository now defines
 [`rundale-intent-v1.json`](rundale-intent-v1.json), and the app routes
-`role: "intent"` invocations to `parish-demo/rundale-intent@1`. That version
-has not been published, promoted, or bound to the Rundale App Check app ID.
-Until it is, input that needs interpretation fails as a retryable request in
-production builds. Publication, binding, and an authenticated live Intent run
-are the remaining deployment gates. Do not ship a TestFlight build that relies
-on this role before those gates pass.
+`role: "intent"` invocations to `limerick-demo/rundale-intent@1`. The deployed
+mobile allowlist includes that version, but configuration inspection alone does
+not prove that its immutable definition and provider route execute successfully.
+An authenticated live Intent run through the native composer remains the
+closure gate. Do not treat the allowlist entry or a dialogue response as proof
+of the selected intent action.
