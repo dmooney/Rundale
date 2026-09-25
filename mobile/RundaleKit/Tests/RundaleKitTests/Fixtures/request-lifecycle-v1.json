@@ -31,7 +31,11 @@
     "gameTime": null,
     "kind": "command_interpreted",
     "logicalRequestID": "fixture-request-1",
-    "metadata": { "intent": "move", "interpretation": "endpoint", "target": "Letter Office" },
+    "metadata": {
+      "intent": "move",
+      "interpretation": "endpoint",
+      "target": "Letter Office"
+    },
     "provisional": false,
     "sequence": { "rawValue": 2 },
     "sessionID": "fixture-session-lifecycle",
@@ -114,8 +118,16 @@
     "attemptID": "fixture-attempt-2",
     "clarification": {
       "choices": [
-        { "entityID": "npc-micheal", "id": "choose-micheal", "label": "Mícheál Connolly" },
-        { "entityID": "npc-roisin", "id": "choose-roisin", "label": "Róisín Connolly" }
+        {
+          "entityID": "npc-micheal",
+          "id": "choose-micheal",
+          "label": "Mícheál Connolly"
+        },
+        {
+          "entityID": "npc-roisin",
+          "id": "choose-roisin",
+          "label": "Róisín Connolly"
+        }
       ],
       "question": "Which person do you mean?"
     },
