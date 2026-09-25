@@ -5,7 +5,7 @@
 - Owner access to Google Cloud project `limerick-prod` (display name Limerick) with billing enabled
 - Firebase Authentication enabled in `limerick-prod`, with Google sign-in (console owner) and Anonymous sign-in (Rundale mobile) enabled, and App Check App Attest configured for the Rundale iOS app
 - the exact Firebase UID authorized as the Parish owner: `JvyQWyqV5MelZdF5RIPE8dPPYbm1` for `dmooney@gmail.com`
-- a server-side OpenAI credential for the current live runtime configuration; OpenAI live verification is deferred by owner decision and is not required for the Gemini-only acceptance gate
+- a server-side OpenAI credential only if `OPENAI_ALLOWED_MODELS` is set; the `limerick-prod` deployment is Gemini-only through Vertex AI and carries no OpenAI credential
 - DNS access is optional and outside MVP completion; use the generated Cloud Run hostnames for initial verification
 
 ## Topology

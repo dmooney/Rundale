@@ -61,7 +61,9 @@ const controlService = new ControlService(new PostgresControlRepository(database
 const providers: ModelProvider[] =
   config.providerMode === "live"
     ? [
-        OpenAIProvider.fromApiKey(config.openaiApiKey!),
+        ...(config.openaiApiKey === undefined
+          ? []
+          : [OpenAIProvider.fromApiKey(config.openaiApiKey)]),
         config.googleProviderAuth === "vertex-ai"
           ? GoogleProvider.fromVertexAI(config.googleCloudProject!, config.googleCloudLocation!)
           : GoogleProvider.fromApiKey(config.googleApiKey!),
