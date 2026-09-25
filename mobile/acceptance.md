@@ -148,8 +148,12 @@ operation targets are proposals, not measurements of this application.
 
 ## Phase 2 implementation evidence — 2026-09-07
 
-The embedded Rust runtime, Swift/C boundary, SQLite journal, one-location,
-one-NPC content slice, and deployed Parish Endpoint integration are implemented.
+This dated implementation record describes the then-current embedded Rust
+runtime, Swift/C boundary, SQLite journal, one-location/one-NPC content slice,
+and deployed Parish Endpoint integration. The owner amended scope on
+2026-09-16 (issue #1992): the canonical three-location/three-NPC world is
+permitted in Phase 2, and world size is not an acceptance blocker. Historical
+evidence below remains scoped to the runs and build described at the time.
 Phase 2 acceptance remains open for physical-iPhone validation. Deployment and
 live simulator evidence are in the [Endpoint handoff](endpoint/phase2-handoff.md).
 
