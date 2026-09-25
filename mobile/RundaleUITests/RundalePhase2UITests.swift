@@ -6,6 +6,10 @@ import XCTest
 @MainActor
 final class RundalePhase2UITests: XCTestCase {
     private var app: XCUIApplication!
+    /// P2-F09: which composer branch this launch drives. `--ui-tests` selects
+    /// the device's multiline SwiftUI field (a text view) on the Simulator;
+    /// `--simulator-return-key` selects the Simulator-only UIKit text field.
+    private var expectedComposerType: XCUIElement.ElementType = .textView
 
     override func setUp() {
         super.setUp()
@@ -60,6 +64,9 @@ final class RundalePhase2UITests: XCTestCase {
         waitForInitialScene()
 
         let input = commandInput
+        XCTAssertTrue(input.waitForExistence(timeout: 5))
+        XCTAssertEqual(input.elementType, .textField,
+                       "This test covers the Simulator-only UIKit field, not the device control")
         input.tap()
         input.typeText("/look\n")
 
@@ -297,6 +304,7 @@ final class RundalePhase2UITests: XCTestCase {
     }
 
     private func launch(reset: Bool, simulatorReturnKey: Bool = false, offline: Bool = false) {
+        expectedComposerType = simulatorReturnKey ? .textField : .textView
         app.launchArguments = [
             "--ui-tests",
             "--phase2",
@@ -329,6 +337,8 @@ final class RundalePhase2UITests: XCTestCase {
     private func submit(_ command: String) {
         let input = commandInput
         XCTAssertTrue(input.waitForExistence(timeout: 5))
+        XCTAssertEqual(input.elementType, expectedComposerType,
+                       "The test must drive the composer branch it claims to cover")
         input.tap()
         input.typeText(command)
         app.buttons["composer.send"].tap()
