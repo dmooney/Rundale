@@ -83,11 +83,11 @@ Client: branch `claude/issue-1993-hofh7p` at `f1b2b7cef`, iOS 26.5 simulator,
 App Check debug provider (token supplied privately to the test runner, not recorded).
 Command: `xcodebuild test ... -only-testing:RundaleUITests/RundaleLiveEndpointUITests`.
 
-| Test | Result | What it shows |
-| --- | --- | --- |
-| `test03LiveIntentEndpointExecutesTheInterpretedAction` | Passed | "Let's make for the Letter Office" went to live `rundale-intent@1`, which resolved `travel` to `Letter Office`; the action committed after 3.7 s |
-| `test02LiveEndpointStopCancelsWithoutCommittingLateDialogue` | Passed | Stop left no committed dialogue, including after relaunch; the server logged an authenticated `DELETE` cancellation (202). The durable cancelled invocation row was not inspected |
-| `test01LiveEndpointStreamsAValidatedTerminalDialogue` | Failed twice, then passed after the stream trace (below) | Live `rundale-dialogue@1` dialogue was validated and committed; the XCUITest poll never observed the brief in-progress row |
+| Test                                                         | Result                                                   | What it shows                                                                                                                                                                     |
+| ------------------------------------------------------------ | -------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `test03LiveIntentEndpointExecutesTheInterpretedAction`       | Passed                                                   | "Let's make for the Letter Office" went to live `rundale-intent@1`, which resolved `travel` to `Letter Office`; the action committed after 3.7 s                                  |
+| `test02LiveEndpointStopCancelsWithoutCommittingLateDialogue` | Passed                                                   | Stop left no committed dialogue, including after relaunch; the server logged an authenticated `DELETE` cancellation (202). The durable cancelled invocation row was not inspected |
+| `test01LiveEndpointStreamsAValidatedTerminalDialogue`        | Failed twice, then passed after the stream trace (below) | Live `rundale-dialogue@1` dialogue was validated and committed; the XCUITest poll never observed the brief in-progress row                                                        |
 
 A direct authenticated SSE probe of `rundale-dialogue@1` showed ordered
 `progress` (0.26 s), `text_delta` (0.99 s) and `final` (1.10 s) frames. A short
@@ -99,11 +99,11 @@ dialogue-row state the presentation model published, and the run was screen
 recorded with `record-ui-test.py` and analyzed with `stream-frames.swift`.
 The two independent observations agree:
 
-| Observation | App trace (ms since launch) | Recording (s into video) |
-| --- | --- | --- |
-| First provisional text | 139 characters at 7,869 | 141 characters at 11.482 |
-| Second provisional text | 159 characters at 8,073 | 161 characters at 11.680 |
-| Final committed row | 159 characters at 8,093 | 161 characters at 11.715 |
+| Observation             | App trace (ms since launch) | Recording (s into video) |
+| ----------------------- | --------------------------- | ------------------------ |
+| First provisional text  | 139 characters at 7,869     | 141 characters at 11.482 |
+| Second provisional text | 159 characters at 8,073     | 161 characters at 11.680 |
+| Final committed row     | 159 characters at 8,093     | 161 characters at 11.715 |
 
 Recognized character counts differ from the trace by two because the rendered
 row adds quotation marks. The first provisional frame shows a partial sentence
