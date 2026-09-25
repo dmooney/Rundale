@@ -19,4 +19,4 @@ cargo test -p limerick-input --test '*'            # integration (llm fallback)
 
 ## Module map
 
-`parser/` token classification + system commands, `commands.rs` command defs + handlers, `intent_types.rs` intent enums, `intent_local.rs` rule-based intent, `intent_llm.rs` LLM fallback, `mention.rs` @name dialogue scoping.
+`parser/` token classification + system commands, `commands.rs` command defs + handlers, `intent_types.rs` intent enums, `intent_local.rs` rule-based intent, `intent_llm.rs` LLM fallback, `interpretation.rs` transport-free local-then-Intent seam + strict structured-output validation for host-supplied inference (#1993), `mention.rs` @name dialogue scoping.
