@@ -129,7 +129,7 @@ final class RundaleLiveEndpointUITests: XCTestCase {
     private func launch(reset: Bool) throws {
         let environment = ProcessInfo.processInfo.environment
         let baseURL = environment["RUNDALE_LIVE_ENDPOINT_BASE_URL"]
-            ?? "https://limerick-server-24861210203.us-east1.run.app"
+            ?? "https://limerick-endpoints-877612517009.us-east1.run.app"
         app.launchArguments = ["--ui-tests", "--phase2", "--no-auto-focus"]
         if reset { app.launchArguments.append("--reset-fixture") }
         app.launchEnvironment["RUNDALE_ENDPOINT_BASE_URL"] = baseURL

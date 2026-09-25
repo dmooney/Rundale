@@ -25,7 +25,7 @@ TEAM_ID = "MBPRPZ283R"
 SCHEME = "Rundale"
 BUNDLE_ID = "com.rundale.mobile"
 ENDPOINT_SETTINGS = {
-    "RUNDALE_ENDPOINT_BASE_URL": "https://limerick-server-24861210203.us-east1.run.app",
+    "RUNDALE_ENDPOINT_BASE_URL": "https://limerick-endpoints-877612517009.us-east1.run.app",
     "RUNDALE_ENDPOINT_ORGANIZATION": "limerick-demo",
     "RUNDALE_ENDPOINT_SLUG": "rundale-dialogue",
     "RUNDALE_ENDPOINT_VERSION": "1",
@@ -87,9 +87,9 @@ class Paths:
 # inside GoogleService-Info.plist is a public, App-Check-restricted identifier,
 # not a provider or Endpoint credential; it is the one key-shaped value allowed.
 EXPECTED_FIREBASE = {
-    "PROJECT_ID": "cottage-d6dc9",
+    "PROJECT_ID": "limerick-prod",
     "BUNDLE_ID": BUNDLE_ID,
-    "GOOGLE_APP_ID": "1:24861210203:ios:2df6bf4ed8c4828253b17e",
+    "GOOGLE_APP_ID": "1:877612517009:ios:586f98a2cc3e7d0c676130",
 }
 
 # Credentials that must never ship in the app bundle (P2-F08). Findings report

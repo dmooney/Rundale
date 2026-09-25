@@ -52,7 +52,7 @@ xcodebuild -project mobile/Rundale.xcodeproj \
   -scheme Rundale -configuration Release -destination 'generic/platform=iOS' \
   -archivePath mobile/.build/Rundale.xcarchive -allowProvisioningUpdates archive \
   DEVELOPMENT_TEAM=MBPRPZ283R CODE_SIGN_STYLE=Automatic \
-  RUNDALE_ENDPOINT_BASE_URL=https://limerick-server-24861210203.us-east1.run.app \
+  RUNDALE_ENDPOINT_BASE_URL=https://limerick-endpoints-877612517009.us-east1.run.app \
   RUNDALE_ENDPOINT_ORGANIZATION=limerick-demo \
   RUNDALE_ENDPOINT_SLUG=rundale-dialogue \
   RUNDALE_ENDPOINT_VERSION=1 \

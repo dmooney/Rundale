@@ -46,7 +46,7 @@ class ReleaseTests(unittest.TestCase):
         self.assertEqual(
             release.ENDPOINT_SETTINGS,
             {
-                "RUNDALE_ENDPOINT_BASE_URL": "https://limerick-server-24861210203.us-east1.run.app",
+                "RUNDALE_ENDPOINT_BASE_URL": "https://limerick-endpoints-877612517009.us-east1.run.app",
                 "RUNDALE_ENDPOINT_ORGANIZATION": "limerick-demo",
                 "RUNDALE_ENDPOINT_SLUG": "rundale-dialogue",
                 "RUNDALE_ENDPOINT_VERSION": "1",

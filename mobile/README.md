@@ -47,7 +47,7 @@ For remote authentication, supply the ignored Firebase configuration described
 in [phase2-auth.md](phase2-auth.md) before generating the Xcode project.
 Configure `RUNDALE_ENDPOINT_BASE_URL` with the verified Limerick Endpoints service
 origin; no production origin is baked into ordinary source configuration. The
-release tool currently supplies `https://limerick-server-24861210203.us-east1.run.app`
+release tool currently supplies `https://limerick-endpoints-877612517009.us-east1.run.app`
 and organization `limerick-demo`. The client appends the
 pinned `/v1/endpoints/{organization}/{slug}/versions/{version}/stream` route.
 `RUNDALE_ENDPOINT_ORGANIZATION`, `RUNDALE_ENDPOINT_SLUG`, and

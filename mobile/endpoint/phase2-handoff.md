@@ -1,21 +1,26 @@
 # Phase 2 Endpoint integration handoff
 
-## Current agreement (verified 2026-09-24)
+## Current agreement (migrated 2026-09-25)
 
 The repository contract is [rundale-dialogue-v1.json](rundale-dialogue-v1.json).
 The embedded `endpoints/` service implements its pinned streaming route and the
-shared Swift/Rust/TypeScript fixture freezes the public wire shape. The deployed
-origin is `https://limerick-server-24861210203.us-east1.run.app`; organization
-`limerick-demo`, Endpoint `rundale-dialogue`, immutable version `1` is pinned by
-the app. No production origin is compiled into normal app configuration.
+shared Swift/Rust/TypeScript fixture freezes the public wire shape. Limerick
+Endpoints now runs in the dedicated `limerick-prod` project as Cloud Run service
+`limerick-endpoints`, origin `https://limerick-endpoints-877612517009.us-east1.run.app`.
+Organization `limerick-demo`, Endpoint `rundale-dialogue`, immutable version `1`
+is pinned by the app, as is `rundale-intent` version `1`. No production origin is
+compiled into normal app configuration.
 
-Read-only Cloud Run inspection on 2026-09-24 found revision
-`limerick-server-00003-g6f` serving 100% of traffic. Both the configured origin
-and Cloud Run service URL returned 200 from `/health/ready`. The non-secret
-mobile allowlist retained `rundale-dialogue` versions 1 and 2 and added
-`rundale-intent` version 1 for `limerick-demo`. This configuration evidence does
-not replace an authenticated invocation; private Firebase configuration remains
-worktree-local and ignored.
+The migration used a clean database. `rundale-dialogue` versions 1 and 2 and
+`rundale-intent` version 1 were republished from the previous deployment's exact
+definitions; their content hashes are unchanged (`sha256:d2a58dc2...`,
+`sha256:4749a9a9...`, `sha256:8705607e...`). The repository copy of dialogue v1
+differs from the published v1 only in an input-schema description string renamed
+from `parish_core` to `limerick_core`; the wire contract is identical. The mobile
+allowlist binds Firebase app `1:877612517009:ios:586f98a2cc3e7d0c676130` to
+`rundale-dialogue` versions 1 and 2 and `rundale-intent` version 1. The previous
+`cottage-d6dc9` deployment is retired and its receipts below are historical.
+Private Firebase configuration remains worktree-local and ignored.
 
 ## Trusted boundary
 

@@ -17,7 +17,7 @@ SDK objects on the main actor and lets transport tests inject
 
 - `Authorization: Bearer <Firebase Auth ID token>` is the per-user Firebase
   ID token issued for the configured Firebase project. Its Firebase audience
-  is the `cottage-d6dc9` project, and it authenticates the anonymous Firebase
+  is the dedicated `limerick-prod` project, and it authenticates the anonymous Firebase
   user to Parish Endpoints; it is not an arbitrary model-provider ID token
   and it is not a provider credential.
 - `X-Firebase-AppCheck: <App Check token>` proves that the request came from
@@ -52,8 +52,8 @@ running XcodeGen. This path is ignored by Git; CI must supply it privately.
 A checkout without the file supports local gameplay but cannot authenticate
 remote requests. The expected configuration is:
 
-- Firebase project: `cottage-d6dc9`
-- Google app ID: `1:24861210203:ios:2df6bf4ed8c4828253b17e`
+- Firebase project: `limerick-prod`
+- Google app ID: `1:877612517009:ios:586f98a2cc3e7d0c676130`
 - Bundle ID: `com.rundale.mobile`
 
 The client validates these values before configuring Firebase. The backend

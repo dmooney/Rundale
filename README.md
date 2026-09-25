@@ -451,11 +451,11 @@ The engine decides whether a request needs inference and which role to use:
 moves bytes and credentials; model output is validated in Rust before anything
 is committed. Wire contracts live in [mobile/endpoint/](mobile/endpoint/README.md).
 
-Deployment naming is mid-transition. The Endpoints API and console currently run
-on Cloud Run as `limerick-server` and `limerick-web` in the shared `cottage-d6dc9`
-Google Cloud project. Despite the name, that service is Limerick Endpoints, not
-the `limerick-server` crate. The TypeScript packages still use the `@parish/*`
-scope, and Swift modules keep their `Parish*` names.
+The Endpoints API and console run on Cloud Run as `limerick-endpoints` and
+`limerick-endpoints-web` in the dedicated `limerick-prod` Google Cloud and Firebase
+project. They are unrelated to the `limerick-server` crate, which serves the browser
+UI. The TypeScript packages still use the `@parish/*` scope, and Swift modules keep
+their `Parish*` names.
 
 ## Repository Layout
 
