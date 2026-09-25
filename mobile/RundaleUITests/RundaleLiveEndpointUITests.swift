@@ -172,7 +172,9 @@ final class RundaleLiveEndpointUITests: XCTestCase {
     }
 
     private func dialogueRow(inProgress: Bool) -> XCUIElement {
-        let progressClause = inProgress ? "AND label CONTAINS 'In progress'" : "AND NOT label CONTAINS 'In progress'"
+        let progressClause = inProgress
+            ? "AND label CONTAINS 'In progress'"
+            : "AND NOT label CONTAINS 'In progress' AND NOT label CONTAINS 'Interrupted; not applied'"
         return app.descendants(matching: .any).matching(
             NSPredicate(
                 format: "identifier BEGINSWITH 'transcript.item.' AND label CONTAINS 'Dialogue' \(progressClause)"

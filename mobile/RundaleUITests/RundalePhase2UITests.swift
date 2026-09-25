@@ -163,6 +163,63 @@ final class RundalePhase2UITests: XCTestCase {
         XCTAssertEqual(completedDialogue.count, 1)
     }
 
+    func testPhase2OfflineFailureCanRetryOnceAndKeepLookLocal() {
+        launch(reset: true)
+        waitForInitialScene()
+
+        let command = "ask Peig about offline once"
+        submit(command)
+        XCTAssertTrue(waitForTranscriptText("The response service could not be reached", timeout: 8))
+        XCTAssertTrue(app.buttons["composer.retry"].waitForExistence(timeout: 8))
+        XCTAssertEqual(completedDialogueRows().count, 0)
+
+        submit("/look")
+        let localLook = app.descendants(matching: .any).matching(
+            NSPredicate(
+                format: "identifier BEGINSWITH 'transcript.item.' AND label BEGINSWITH 'Result' AND label CONTAINS 'Kilteevan Village'"
+            )
+        ).firstMatch
+        XCTAssertTrue(localLook.waitForExistence(timeout: 8))
+        XCTAssertEqual(completedDialogueRows().count, 0)
+
+        app.buttons["composer.retry"].tap()
+        XCTAssertTrue(waitForDialogue(containing: "stands beyond the alder trees", timeout: 15))
+        XCTAssertTrue(app.buttons["composer.send"].waitForExistence(timeout: 8))
+        XCTAssertEqual(completedDialogueRows().count, 1)
+        XCTAssertEqual(playerCommandRows(containing: command).count, 1)
+        XCTAssertFalse(app.buttons["composer.retry"].exists)
+    }
+
+    func testPhase2TerminationDuringProvisionalStreamRestoresInterruptedRequest() {
+        launch(reset: true)
+        waitForInitialScene()
+
+        let command = "ask Peig about the church slowly"
+        submit(command)
+        let provisional = dialogueRow(containing: "The rain keeps")
+        XCTAssertTrue(provisional.waitForExistence(timeout: 8))
+        XCTAssertTrue(provisional.label.contains("In progress"))
+        app.terminate()
+
+        app = XCUIApplication()
+        launch(reset: false)
+        XCTAssertTrue(waitForTranscriptText("Interrupted; not applied", timeout: 8))
+        XCTAssertTrue(app.buttons["composer.retry"].waitForExistence(timeout: 8))
+        XCTAssertEqual(playerCommandRows(containing: command).count, 1)
+        XCTAssertEqual(completedDialogueRows().count, 0)
+        XCTAssertFalse(completedDialogueRows().firstMatch.waitForExistence(timeout: 7),
+                       "The pre-termination stream must not commit a delayed final frame")
+
+        submit("/look")
+        let localLook = app.descendants(matching: .any).matching(
+            NSPredicate(
+                format: "identifier BEGINSWITH 'transcript.item.' AND label BEGINSWITH 'Result' AND label CONTAINS 'Kilteevan Village'"
+            )
+        ).firstMatch
+        XCTAssertTrue(localLook.waitForExistence(timeout: 8))
+        XCTAssertEqual(completedDialogueRows().count, 0)
+    }
+
     func testPhase2SQLiteRestoresCommittedDialogueAfterRelaunch() {
         launch(reset: true)
         waitForInitialScene()
@@ -249,6 +306,23 @@ final class RundalePhase2UITests: XCTestCase {
                 text
             )
         ).firstMatch
+    }
+
+    private func completedDialogueRows() -> XCUIElementQuery {
+        app.descendants(matching: .any).matching(
+            NSPredicate(
+                format: "identifier BEGINSWITH 'transcript.item.' AND label BEGINSWITH 'Dialogue' AND NOT label CONTAINS 'In progress' AND NOT label CONTAINS 'Interrupted; not applied'"
+            )
+        )
+    }
+
+    private func playerCommandRows(containing text: String) -> XCUIElementQuery {
+        app.descendants(matching: .any).matching(
+            NSPredicate(
+                format: "identifier BEGINSWITH 'transcript.item.' AND label BEGINSWITH 'Player command' AND label CONTAINS %@",
+                text
+            )
+        )
     }
 
     private func waitForDialogue(containing text: String, timeout: TimeInterval) -> Bool {

@@ -1432,7 +1432,10 @@ class VerificationRun:
             phase=2,
             identifier=identifier,
             name=name,
-            only_testing="RundaleUITests/RundalePhase2UITests",
+            only_testing=[
+                "RundaleUITests/RundalePhase2UITests",
+                "RundaleTests/RundaleSemanticBridgeTests",
+            ],
         )
         if record["status"] == PASSED:
             self._validate_result(
