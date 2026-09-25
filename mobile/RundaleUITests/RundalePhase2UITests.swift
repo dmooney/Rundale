@@ -6,10 +6,6 @@ import XCTest
 @MainActor
 final class RundalePhase2UITests: XCTestCase {
     private var app: XCUIApplication!
-    /// P2-F09: which composer branch this launch drives. `--ui-tests` selects
-    /// the device's multiline SwiftUI field (a text view) on the Simulator;
-    /// `--simulator-return-key` selects the Simulator-only UIKit text field.
-    private var expectedComposerType: XCUIElement.ElementType = .textView
 
     override func setUp() {
         super.setUp()
@@ -56,6 +52,27 @@ final class RundalePhase2UITests: XCTestCase {
         XCTAssertTrue(app.buttons["composer.send"].waitForExistence(timeout: 3))
     }
 
+    /// P2-F09: both composer branches expose the same accessibility metadata,
+    /// so branch identity is proven by behavior. Every Phase 2 test except
+    /// `testSimulatorReturnKeySubmitsDraft` launches without
+    /// `--simulator-return-key` and therefore drives the device's multiline
+    /// SwiftUI field, where Return inserts a line break instead of submitting.
+    func testPhase2DefaultLaunchDrivesTheDeviceMultilineComposer() {
+        launch(reset: true)
+        waitForInitialScene()
+        let input = commandInput
+        XCTAssertTrue(input.waitForExistence(timeout: 5))
+        input.tap()
+        input.typeText("first line\nsecond line")
+        XCTAssertEqual(input.value as? String, "first line\nsecond line",
+                       "The device multiline composer must keep Return as a line break")
+        XCTAssertFalse(waitForTranscriptItem("first line", timeout: 2),
+                       "Return must not submit from the device multiline composer")
+    }
+
+    /// P2-F09: the Simulator-only UIKit field, selected by
+    /// `--simulator-return-key`, submits on Return. Device evidence cannot
+    /// come from this branch.
     func testSimulatorReturnKeySubmitsDraft() throws {
 #if !targetEnvironment(simulator)
         throw XCTSkip("The simulator return-key contract does not apply to a physical iPhone")
@@ -65,8 +82,6 @@ final class RundalePhase2UITests: XCTestCase {
 
         let input = commandInput
         XCTAssertTrue(input.waitForExistence(timeout: 5))
-        XCTAssertEqual(input.elementType, .textField,
-                       "This test covers the Simulator-only UIKit field, not the device control")
         input.tap()
         input.typeText("/look\n")
 
@@ -304,7 +319,6 @@ final class RundalePhase2UITests: XCTestCase {
     }
 
     private func launch(reset: Bool, simulatorReturnKey: Bool = false, offline: Bool = false) {
-        expectedComposerType = simulatorReturnKey ? .textField : .textView
         app.launchArguments = [
             "--ui-tests",
             "--phase2",
@@ -337,8 +351,6 @@ final class RundalePhase2UITests: XCTestCase {
     private func submit(_ command: String) {
         let input = commandInput
         XCTAssertTrue(input.waitForExistence(timeout: 5))
-        XCTAssertEqual(input.elementType, expectedComposerType,
-                       "The test must drive the composer branch it claims to cover")
         input.tap()
         input.typeText(command)
         app.buttons["composer.send"].tap()
