@@ -44,6 +44,9 @@ struct LaunchConfiguration: Sendable {
     /// for explicit fixture invocations.
     let phase2: Bool
     let phase2MockTransport: Bool
+    /// UI-test-only: the mock Endpoint transport fails every request as if the
+    /// network were unavailable, so local commands can be proven offline.
+    let phase2MockOffline: Bool
     let fixture: Fixture
     let manualStream: Bool
     let autoFocusComposer: Bool
@@ -75,6 +78,7 @@ struct LaunchConfiguration: Sendable {
         phase2MockTransport = phase2
             && isUITesting
             && (arguments.contains("--phase2-mock") || arguments.contains("--phase3-mock"))
+        phase2MockOffline = phase2MockTransport && arguments.contains("--phase2-mock-offline")
         let requestedFixture = arguments.first(where: { $0.hasPrefix("--fixture=") })
             .flatMap { Fixture(rawValue: String($0.dropFirst("--fixture=".count))) }
             ?? .standard

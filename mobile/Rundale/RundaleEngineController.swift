@@ -82,7 +82,7 @@ final class RundaleEngineController: ObservableObject, RundaleSessionControlling
             )
             endpointClient = ParishEndpointClient(
                 credentials: credentials,
-                transport: Phase2MockEndpointTransport(),
+                transport: Phase2MockEndpointTransport(alwaysOffline: configuration.phase2MockOffline),
                 policy: EndpointURLPolicy(allowLoopbackHTTP: true)
             )
         } else {
@@ -1108,6 +1108,11 @@ private final class Phase2MockEndpointTransport: EndpointTransport, @unchecked S
     /// receives the normal successful stream.
     private let injectedFailureLock = NSLock()
     private var consumedInjectedFailures = Set<String>()
+    private let alwaysOffline: Bool
+
+    init(alwaysOffline: Bool = false) {
+        self.alwaysOffline = alwaysOffline
+    }
 
     private final class TaskBox: @unchecked Sendable {
         var task: Task<Void, Never>?
@@ -1134,6 +1139,9 @@ private final class Phase2MockEndpointTransport: EndpointTransport, @unchecked S
                         throw ParishEndpointError.invalidURL
                     }
                     let identities = try Self.identities(from: request.httpBody, url: requestURL)
+                    if self.alwaysOffline {
+                        throw URLError(.notConnectedToInternet)
+                    }
                     let input = identities.input.lowercased()
                     continuation.yield(.response(statusCode: 200, headers: ["content-type": "text/event-stream; charset=utf-8"]))
                     if identities.role == LaunchConfiguration.EndpointRole.intent {

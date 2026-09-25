@@ -190,6 +190,45 @@ final class RundalePhase2UITests: XCTestCase {
         XCTAssertFalse(app.buttons["composer.retry"].exists)
     }
 
+    /// P2-F07: with every Endpoint request failing as if offline, a failed
+    /// inference does not block, and each deterministic Phase 2 action adds
+    /// exactly one new, correlated local result without opening Endpoint work.
+    func testPhase2EveryDeterministicActionStaysLocalWhileTransportIsUnavailable() {
+        launch(reset: true, offline: true)
+        waitForInitialScene()
+
+        submit("ask Peig about the church")
+        XCTAssertTrue(waitForTranscriptText("The response service could not be reached", timeout: 8))
+        XCTAssertTrue(app.buttons["composer.retry"].waitForExistence(timeout: 8))
+        XCTAssertEqual(completedDialogueRows().count, 0)
+
+        // Transcript rows virtualize, so each check targets the newest row,
+        // which stays materialized while the viewport follows new output.
+        let actions: [(command: String, expected: String)] = [
+            ("/look", "Kilteevan Village"),
+            ("look", "Kilteevan Village"),
+            ("where am i", "Kilteevan Village"),
+            ("/people", "Peig Hannigan"),
+            ("/exits", "Letter Office"),
+            ("/help", "/people")
+        ]
+        for action in actions {
+            submit(action.command)
+            XCTAssertTrue(waitForNewestRow(beginningWith: "Result", containing: action.expected, timeout: 8),
+                          "\(action.command) must add a local result containing \(action.expected)")
+            XCTAssertFalse(app.buttons["composer.stop"].exists,
+                           "\(action.command) must not open Endpoint work")
+            XCTAssertEqual(completedDialogueRows().count, 0)
+        }
+
+        submit("go east")
+        XCTAssertTrue(app.otherElements.matching(
+            NSPredicate(format: "identifier == 'status.header' AND label CONTAINS %@", "Letter Office")
+        ).firstMatch.waitForExistence(timeout: 8), "Offline travel must update the authoritative header")
+        XCTAssertFalse(app.buttons["composer.stop"].exists, "Offline travel must not open Endpoint work")
+        XCTAssertEqual(completedDialogueRows().count, 0)
+    }
+
     func testPhase2TerminationDuringProvisionalStreamRestoresInterruptedRequest() {
         launch(reset: true)
         waitForInitialScene()
@@ -257,13 +296,16 @@ final class RundalePhase2UITests: XCTestCase {
         XCTAssertEqual(completedDialogue.firstMatch.identifier, dialogueID)
     }
 
-    private func launch(reset: Bool, simulatorReturnKey: Bool = false) {
+    private func launch(reset: Bool, simulatorReturnKey: Bool = false, offline: Bool = false) {
         app.launchArguments = [
             "--ui-tests",
             "--phase2",
             "--phase2-mock",
             "--no-auto-focus"
         ]
+        if offline {
+            app.launchArguments.append("--phase2-mock-offline")
+        }
         if reset {
             app.launchArguments.append("--reset-fixture")
         }
@@ -314,6 +356,22 @@ final class RundalePhase2UITests: XCTestCase {
                 format: "identifier BEGINSWITH 'transcript.item.' AND label BEGINSWITH 'Dialogue' AND NOT label CONTAINS 'In progress' AND NOT label CONTAINS 'Interrupted; not applied'"
             )
         )
+    }
+
+    private func waitForNewestRow(beginningWith prefix: String,
+                                  containing text: String,
+                                  timeout: TimeInterval) -> Bool {
+        let deadline = Date().addingTimeInterval(timeout)
+        repeat {
+            let rows = app.descendants(matching: .any)
+                .matching(NSPredicate(format: "identifier BEGINSWITH 'transcript.item.'"))
+                .allElementsBoundByIndex
+            if let newest = rows.last, newest.label.hasPrefix(prefix), newest.label.contains(text) {
+                return true
+            }
+            RunLoop.current.run(until: Date().addingTimeInterval(0.25))
+        } while Date() < deadline
+        return false
     }
 
     private func playerCommandRows(containing text: String) -> XCUIElementQuery {
