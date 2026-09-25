@@ -117,17 +117,29 @@ final class RundalePhase2UITests: XCTestCase {
         XCTAssertFalse(rowID.isEmpty)
         XCTAssertTrue(provisional.label.contains("In progress"))
 
-        XCTAssertTrue(waitForDialogue(containing: "the old road quiet", timeout: 12))
-        XCTAssertTrue(waitForDialogue(containing: "A worn sign leans by the gate", timeout: 12))
-        XCTAssertTrue(provisional.label.contains("In progress"))
-        XCTAssertTrue(waitForDialogue(containing: "stands beyond the alder trees", timeout: 12))
         let completed = app.descendants(matching: .any)
             .matching(identifier: rowID)
             .firstMatch
+        XCTAssertTrue(waitForDialogue(containing: "stands beyond the alder trees", timeout: 20))
         XCTAssertTrue(completed.waitForExistence(timeout: 5))
         XCTAssertFalse(completed.label.contains("In progress"))
         XCTAssertFalse(completed.label.contains("A worn sign leans by the gate"))
         XCTAssertTrue(completed.label.contains("stands beyond the alder trees"))
+
+        // Intermediate chunks can be on screen for under a second, shorter
+        // than an XCUITest poll on a slow simulator; assert them from the
+        // app's record of every state published to this row.
+        let states = app.transcriptTrace().filter { rowID.contains($0.row) && $0.kind == "npc_dialogue" }
+        let provisionalTexts = states.filter { $0.state == "provisional" }.map(\.text)
+        let chunkOrder = ["The rain keeps", "the old road quiet", "A worn sign leans by the gate"].map { chunk in
+            provisionalTexts.firstIndex { $0.contains(chunk) }
+        }
+        XCTAssertFalse(chunkOrder.contains(nil), "Every chunk must be published provisionally: \(states)")
+        XCTAssertEqual(chunkOrder.compactMap { $0 }, chunkOrder.compactMap { $0 }.sorted(),
+                       "Chunks must arrive in order: \(states)")
+        XCTAssertEqual(states.last?.state, "committed", "The row must end committed: \(states)")
+        XCTAssertEqual(states.filter { $0.state == "committed" }.count, 1, "One row is finalized in place")
+        XCTAssertEqual(Set(states.map(\.row)).count, 1, "Provisional and final states share one row")
     }
 
     func testPhase2EndpointErrorNamesTheFailureCategory() {
@@ -156,7 +168,7 @@ final class RundalePhase2UITests: XCTestCase {
 
         XCTAssertTrue(app.buttons["composer.send"].waitForExistence(timeout: 8))
         XCTAssertTrue(waitForTranscriptText("Interrupted; not applied", timeout: 8))
-        XCTAssertEqual(completedDialogue.count, 0)
+        XCTAssertEqual(app.committedDialogueRows().count, 0)
 
         // The slow fixture would finish after six seconds if cancellation or
         // attempt terminality were ineffective. Wait beyond that boundary and
@@ -165,11 +177,11 @@ final class RundalePhase2UITests: XCTestCase {
             XCTWaiter.wait(for: [XCTestExpectation(description: "late completion window")], timeout: 7),
             .timedOut
         )
-        XCTAssertEqual(completedDialogue.count, 0, "A stopped attempt must not commit after its delayed completion")
+        XCTAssertEqual(app.committedDialogueRows().count, 0, "A stopped attempt must not commit after its delayed completion")
         app.terminate()
         app = XCUIApplication()
         launch(reset: false)
-        XCTAssertEqual(completedDialogue.count, 0, "A stopped attempt must remain uncommitted after SQLite reopen")
+        XCTAssertEqual(app.committedDialogueRows().count, 0, "A stopped attempt must remain uncommitted after SQLite reopen")
         XCTAssertEqual(rows(containing: "Interrupted; not applied").count, 1)
         assertSingleTranscriptItem(containing: "ask Peig about the church slowly")
 
@@ -182,7 +194,7 @@ final class RundalePhase2UITests: XCTestCase {
         XCTAssertTrue(waitForTranscriptText("Interrupted; not applied", timeout: 8))
         XCTAssertTrue(app.buttons["composer.send"].waitForExistence(timeout: 8))
         XCTAssertFalse(app.buttons["composer.retry"].exists)
-        XCTAssertEqual(completedDialogue.count, 1)
+        XCTAssertEqual(app.committedDialogueRows().count, 1)
     }
 
     func testPhase2OfflineFailureCanRetryOnceAndKeepLookLocal() {
@@ -193,7 +205,7 @@ final class RundalePhase2UITests: XCTestCase {
         submit(command)
         XCTAssertTrue(waitForTranscriptText("The response service could not be reached", timeout: 8))
         XCTAssertTrue(app.buttons["composer.retry"].waitForExistence(timeout: 8))
-        XCTAssertEqual(completedDialogueRows().count, 0)
+        XCTAssertEqual(app.committedDialogueRows().count, 0)
 
         submit("/look")
         let localLook = app.descendants(matching: .any).matching(
@@ -202,13 +214,13 @@ final class RundalePhase2UITests: XCTestCase {
             )
         ).firstMatch
         XCTAssertTrue(localLook.waitForExistence(timeout: 8))
-        XCTAssertEqual(completedDialogueRows().count, 0)
+        XCTAssertEqual(app.committedDialogueRows().count, 0)
 
         app.buttons["composer.retry"].tap()
         XCTAssertTrue(waitForDialogue(containing: "stands beyond the alder trees", timeout: 15))
         XCTAssertTrue(app.buttons["composer.send"].waitForExistence(timeout: 8))
-        XCTAssertEqual(completedDialogueRows().count, 1)
-        XCTAssertEqual(playerCommandRows(containing: command).count, 1)
+        XCTAssertEqual(app.committedDialogueRows().count, 1)
+        XCTAssertEqual(app.playerCommandRows(containing: command).count, 1)
         XCTAssertFalse(app.buttons["composer.retry"].exists)
     }
 
@@ -222,7 +234,7 @@ final class RundalePhase2UITests: XCTestCase {
         submit("ask Peig about the church")
         XCTAssertTrue(waitForTranscriptText("The response service could not be reached", timeout: 8))
         XCTAssertTrue(app.buttons["composer.retry"].waitForExistence(timeout: 8))
-        XCTAssertEqual(completedDialogueRows().count, 0)
+        XCTAssertEqual(app.committedDialogueRows().count, 0)
 
         // Transcript rows virtualize, so each check targets the newest row,
         // which stays materialized while the viewport follows new output.
@@ -240,7 +252,7 @@ final class RundalePhase2UITests: XCTestCase {
                           "\(action.command) must add a local result containing \(action.expected)")
             XCTAssertFalse(app.buttons["composer.stop"].exists,
                            "\(action.command) must not open Endpoint work")
-            XCTAssertEqual(completedDialogueRows().count, 0)
+            XCTAssertEqual(app.committedDialogueRows().count, 0)
         }
 
         submit("go east")
@@ -248,7 +260,7 @@ final class RundalePhase2UITests: XCTestCase {
             NSPredicate(format: "identifier == 'status.header' AND label CONTAINS %@", "Letter Office")
         ).firstMatch.waitForExistence(timeout: 8), "Offline travel must update the authoritative header")
         XCTAssertFalse(app.buttons["composer.stop"].exists, "Offline travel must not open Endpoint work")
-        XCTAssertEqual(completedDialogueRows().count, 0)
+        XCTAssertEqual(app.committedDialogueRows().count, 0)
     }
 
     func testPhase2TerminationDuringProvisionalStreamRestoresInterruptedRequest() {
@@ -266,10 +278,12 @@ final class RundalePhase2UITests: XCTestCase {
         launch(reset: false)
         XCTAssertTrue(waitForTranscriptText("Interrupted; not applied", timeout: 8))
         XCTAssertTrue(app.buttons["composer.retry"].waitForExistence(timeout: 8))
-        XCTAssertEqual(playerCommandRows(containing: command).count, 1)
-        XCTAssertEqual(completedDialogueRows().count, 0)
-        XCTAssertFalse(completedDialogueRows().firstMatch.waitForExistence(timeout: 7),
-                       "The pre-termination stream must not commit a delayed final frame")
+        XCTAssertEqual(app.playerCommandRows(containing: command).count, 1)
+        XCTAssertEqual(app.committedDialogueRows().count, 0)
+        XCTAssertFalse(
+            app.waitForTranscriptRow(timeout: 7) { $0.kind == "npc_dialogue" && $0.state == "committed" },
+            "The pre-termination stream must not commit a delayed final frame"
+        )
 
         submit("/look")
         let localLook = app.descendants(matching: .any).matching(
@@ -278,7 +292,7 @@ final class RundalePhase2UITests: XCTestCase {
             )
         ).firstMatch
         XCTAssertTrue(localLook.waitForExistence(timeout: 8))
-        XCTAssertEqual(completedDialogueRows().count, 0)
+        XCTAssertEqual(app.committedDialogueRows().count, 0)
     }
 
     func testPhase2SQLiteRestoresCommittedDialogueAfterRelaunch() {
@@ -305,7 +319,7 @@ final class RundalePhase2UITests: XCTestCase {
         XCTAssertTrue(waitForDialogue(containing: "stands beyond the alder trees", timeout: 12))
         XCTAssertTrue(app.buttons["composer.send"].waitForExistence(timeout: 8))
         XCTAssertEqual(rows(containing: command).count, 1)
-        XCTAssertEqual(completedDialogue.count, 1)
+        XCTAssertEqual(app.committedDialogueRows().count, 1)
         XCTAssertEqual(rows(containing: command).firstMatch.identifier, commandID)
         XCTAssertEqual(completedDialogue.firstMatch.identifier, dialogueID)
 
@@ -313,7 +327,7 @@ final class RundalePhase2UITests: XCTestCase {
         app = XCUIApplication()
         launch(reset: false)
         XCTAssertEqual(rows(containing: command).count, 1, "Repeated restoration must not duplicate the command")
-        XCTAssertEqual(completedDialogue.count, 1, "Repeated restoration must not duplicate the committed response")
+        XCTAssertEqual(app.committedDialogueRows().count, 1, "Repeated restoration must not duplicate the committed response")
         XCTAssertEqual(rows(containing: command).firstMatch.identifier, commandID)
         XCTAssertEqual(completedDialogue.firstMatch.identifier, dialogueID)
     }
@@ -354,7 +368,12 @@ final class RundalePhase2UITests: XCTestCase {
         input.tap()
         input.typeText(command)
         app.buttons["composer.send"].tap()
-        XCTAssertTrue(waitForTranscriptText(command, timeout: 8))
+        // The command row can scroll out of a small screen's viewport as
+        // results arrive, so confirm acceptance from the published transcript.
+        XCTAssertTrue(
+            app.waitForTranscriptRow(timeout: 8) { $0.text.contains(command) },
+            "\(command) must be accepted into the transcript"
+        )
     }
 
     private var commandInput: XCUIElement {
@@ -372,14 +391,6 @@ final class RundalePhase2UITests: XCTestCase {
         ).firstMatch
     }
 
-    private func completedDialogueRows() -> XCUIElementQuery {
-        app.descendants(matching: .any).matching(
-            NSPredicate(
-                format: "identifier BEGINSWITH 'transcript.item.' AND label BEGINSWITH 'Dialogue' AND NOT label CONTAINS 'In progress' AND NOT label CONTAINS 'Interrupted; not applied'"
-            )
-        )
-    }
-
     private func waitForNewestRow(beginningWith prefix: String,
                                   containing text: String,
                                   timeout: TimeInterval) -> Bool {
@@ -394,15 +405,6 @@ final class RundalePhase2UITests: XCTestCase {
             RunLoop.current.run(until: Date().addingTimeInterval(0.25))
         } while Date() < deadline
         return false
-    }
-
-    private func playerCommandRows(containing text: String) -> XCUIElementQuery {
-        app.descendants(matching: .any).matching(
-            NSPredicate(
-                format: "identifier BEGINSWITH 'transcript.item.' AND label BEGINSWITH 'Player command' AND label CONTAINS %@",
-                text
-            )
-        )
     }
 
     private func waitForDialogue(containing text: String, timeout: TimeInterval) -> Bool {

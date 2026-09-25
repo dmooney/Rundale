@@ -94,7 +94,8 @@ A direct authenticated SSE probe of `rundale-dialogue@1` showed ordered
 live reply stays provisional for a few hundred milliseconds, below what the
 XCUITest poll reliably catches.
 
-`test01` now reads the UI-test-only `uitest.streamTrace` record of every
+`test01` now reads the UI-test-only stream trace (since generalized to
+`uitest.transcriptTrace`) record of every
 dialogue-row state the presentation model published, and the run was screen
 recorded with `record-ui-test.py` and analyzed with `stream-frames.swift`.
 The two independent observations agree:

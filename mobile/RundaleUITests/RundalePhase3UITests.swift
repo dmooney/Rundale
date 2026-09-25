@@ -99,7 +99,12 @@ final class RundalePhase3UITests: XCTestCase {
 
         submit("Let's make for the Letter Office")
         XCTAssertTrue(headerLabel(contains: "Letter Office").waitForExistence(timeout: 8))
-        XCTAssertTrue(waitForText("Travel to Letter Office.", timeout: 8))
+        // Arrival rows follow the receipt and can scroll it out of a small
+        // screen's viewport, so read the receipt from the published transcript.
+        XCTAssertTrue(
+            app.waitForTranscriptRow(timeout: 8) { $0.text.contains("Travel to Letter Office.") },
+            "Inferred movement must publish its interpreted-action receipt"
+        )
         XCTAssertTrue(app.buttons["composer.stop"].waitForNonExistence(timeout: 5))
         attach("Inferred movement shows its receipt and the authoritative header")
     }

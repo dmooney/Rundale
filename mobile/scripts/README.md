@@ -128,12 +128,16 @@ first final frame. It exits nonzero unless provisional text preceded the final
 frame. Reply text is not stored in the JSON. Simulator cadence reflects the
 simulator's compositor and recorder, not a physical display.
 
-The live UI tests also read `uitest.streamTrace`, a UI-test-only element whose
-value lists every dialogue-row state the presentation model published
-(`row|state|characters|milliseconds`). It lets `test01` assert
-provisional-before-committed for a reply that is provisional for only a few
-hundred milliseconds, and it is available on a physical device, where simctl
-recording is not.
+UI tests can also read `uitest.transcriptTrace`, a UI-test-only element whose
+value is a JSON array of every transcript-row state the presentation model
+published (`row`, `kind`, `state`, `text`, `milliseconds`); the helpers are in
+`mobile/RundaleUITests/TranscriptTrace.swift`. Use it for rows that change faster
+than an XCUITest poll (a live reply provisional for a few hundred milliseconds, a
+fixture chunk shown for 500 ms) and for rows a small screen scrolls out of the
+virtualized transcript. It is stricter than on-screen counting, which misses
+rows that have scrolled away, and it works on a physical device, where simctl
+recording is not available. Keep on-screen queries for the newest row, the
+header, and controls.
 
 ## Evidence and exit status
 

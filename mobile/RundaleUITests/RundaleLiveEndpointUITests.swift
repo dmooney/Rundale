@@ -25,14 +25,14 @@ final class RundaleLiveEndpointUITests: XCTestCase {
         // A short live reply can stay provisional for ~100 ms, below the
         // accessibility poll interval, so read the app's record of every
         // dialogue-row state it published to the view.
-        let entries = streamTrace()
+        let entries = app.transcriptTrace().filter { $0.kind == "npc_dialogue" }
         let rowID = try XCTUnwrap(
             entries.map(\.row).last { completed.identifier.contains($0) },
-            "The completed row must appear in the stream trace: \(entries)"
+            "The completed row must appear in the transcript trace: \(entries)"
         )
         let rowEntries = entries.filter { $0.row == rowID }
         let provisionalIndex = try XCTUnwrap(
-            rowEntries.firstIndex { $0.state == "provisional" && $0.characters > 0 },
+            rowEntries.firstIndex { $0.state == "provisional" && !$0.text.isEmpty },
             "Expected live Endpoint text in a provisional row before the terminal frame: \(rowEntries)"
         )
         let committedIndex = try XCTUnwrap(
@@ -42,7 +42,7 @@ final class RundaleLiveEndpointUITests: XCTestCase {
         XCTAssertLessThan(provisionalIndex, committedIndex)
         let trace = try JSONSerialization.data(
             withJSONObject: rowEntries.map {
-                ["state": $0.state, "characters": $0.characters, "milliseconds": $0.milliseconds]
+                ["state": $0.state, "characters": $0.text.count, "milliseconds": $0.milliseconds]
             },
             options: [.prettyPrinted]
         )
@@ -83,19 +83,19 @@ final class RundaleLiveEndpointUITests: XCTestCase {
 
         XCTAssertTrue(app.buttons["composer.send"].waitForExistence(timeout: 8))
         XCTAssertTrue(waitForTranscriptText("Interrupted; not applied", timeout: 8))
-        XCTAssertFalse(dialogueRow(inProgress: false).exists)
+        XCTAssertTrue(app.committedDialogueRows().isEmpty)
         XCTAssertEqual(
             XCTWaiter.wait(for: [XCTestExpectation(description: "late live completion window")], timeout: 8),
             .timedOut
         )
-        XCTAssertFalse(dialogueRow(inProgress: false).exists, "A delayed live completion must not commit after Stop")
+        XCTAssertTrue(app.committedDialogueRows().isEmpty, "A delayed live completion must not commit after Stop")
 
         app.terminate()
         app = XCUIApplication()
         try launch(reset: false)
         waitForInitialScene()
         XCTAssertTrue(waitForTranscriptText("Interrupted; not applied", timeout: 8))
-        XCTAssertFalse(dialogueRow(inProgress: false).exists, "Stopped state must remain uncommitted after relaunch")
+        XCTAssertTrue(app.committedDialogueRows().isEmpty, "Stopped state must remain uncommitted after relaunch")
     }
 
     /// Proves real Intent Endpoint execution by the native action it produces,
@@ -110,7 +110,7 @@ final class RundaleLiveEndpointUITests: XCTestCase {
         let sentAt = submit("Let's make for the Letter Office")
 
         XCTAssertTrue(
-            waitForTranscriptText("Travel to Letter Office.", timeout: 30),
+            app.waitForTranscriptRow(timeout: 30) { $0.text.contains("Travel to Letter Office.") },
             "Expected the live interpretation to select travel"
         )
         let moved = NSPredicate(format: "label CONTAINS[c] 'Letter Office'")
@@ -177,7 +177,12 @@ final class RundaleLiveEndpointUITests: XCTestCase {
         input.typeText(command)
         let sentAt = Date()
         app.buttons["composer.send"].tap()
-        XCTAssertTrue(waitForTranscriptText(command, timeout: 8))
+        // The command row can scroll out of a small screen's viewport as
+        // results arrive, so confirm acceptance from the published transcript.
+        XCTAssertTrue(
+            app.waitForTranscriptRow(timeout: 8) { $0.text.contains(command) },
+            "\(command) must be accepted into the transcript"
+        )
         return sentAt
     }
 
@@ -185,32 +190,6 @@ final class RundaleLiveEndpointUITests: XCTestCase {
         app.descendants(matching: .any)
             .matching(identifier: "composer.input")
             .firstMatch
-    }
-
-    private struct StreamTraceEntry: CustomStringConvertible {
-        let row: String
-        let state: String
-        let characters: Int
-        let milliseconds: Int
-        var description: String { "\(state)/\(characters)@\(milliseconds)ms" }
-    }
-
-    private func streamTrace() -> [StreamTraceEntry] {
-        let element = app.descendants(matching: .any)["uitest.streamTrace"]
-        guard element.waitForExistence(timeout: 3) else { return [] }
-        let value = element.value as? String ?? ""
-        return value.split(separator: ";").compactMap { entry in
-            let fields = entry.split(separator: "|", omittingEmptySubsequences: false)
-            guard fields.count == 4,
-                  let characters = Int(fields[2]),
-                  let milliseconds = Int(fields[3]) else { return nil }
-            return StreamTraceEntry(
-                row: String(fields[0]),
-                state: String(fields[1]),
-                characters: characters,
-                milliseconds: milliseconds
-            )
-        }
     }
 
     private func dialogueRow(inProgress: Bool) -> XCUIElement {

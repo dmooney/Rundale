@@ -78,9 +78,9 @@ struct ContentView: View {
                     Color.clear
                         .frame(width: 1, height: 1)
                         .accessibilityElement()
-                        .accessibilityLabel("Stream trace")
-                        .accessibilityValue(model.uiTestStreamTrace)
-                        .accessibilityIdentifier("uitest.streamTrace")
+                        .accessibilityLabel("Transcript trace")
+                        .accessibilityValue(model.uiTestTranscriptTrace)
+                        .accessibilityIdentifier("uitest.transcriptTrace")
                 }
             }
         }
