@@ -25,8 +25,8 @@ TEAM_ID = "MBPRPZ283R"
 SCHEME = "Rundale"
 BUNDLE_ID = "com.rundale.mobile"
 ENDPOINT_SETTINGS = {
-    "RUNDALE_ENDPOINT_BASE_URL": "https://parish-server-24861210203.us-east1.run.app",
-    "RUNDALE_ENDPOINT_ORGANIZATION": "parish-demo",
+    "RUNDALE_ENDPOINT_BASE_URL": "https://limerick-server-24861210203.us-east1.run.app",
+    "RUNDALE_ENDPOINT_ORGANIZATION": "limerick-demo",
     "RUNDALE_ENDPOINT_SLUG": "rundale-dialogue",
     "RUNDALE_ENDPOINT_VERSION": "1",
     "RUNDALE_INTENT_ENDPOINT_SLUG": "rundale-intent",

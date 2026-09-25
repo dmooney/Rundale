@@ -42,6 +42,19 @@ class ReleaseTests(unittest.TestCase):
     def runner(self, argv, *, cwd, log):
         self.commands.append(argv)
 
+    def test_release_identity_matches_verified_limerick_service(self):
+        self.assertEqual(
+            release.ENDPOINT_SETTINGS,
+            {
+                "RUNDALE_ENDPOINT_BASE_URL": "https://limerick-server-24861210203.us-east1.run.app",
+                "RUNDALE_ENDPOINT_ORGANIZATION": "limerick-demo",
+                "RUNDALE_ENDPOINT_SLUG": "rundale-dialogue",
+                "RUNDALE_ENDPOINT_VERSION": "1",
+                "RUNDALE_INTENT_ENDPOINT_SLUG": "rundale-intent",
+                "RUNDALE_INTENT_ENDPOINT_VERSION": "1",
+            },
+        )
+
     def test_build_number_mutation_is_numeric_and_dry_run_is_side_effect_free(self):
         old, new = release.increment_build_number(self.paths.project_spec, dry_run=True)
         self.assertEqual((old, new), (8, 9))
