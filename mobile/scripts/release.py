@@ -83,6 +83,43 @@ class Paths:
         return self.output / "release.log"
 
 
+# The only Firebase identity the shipped client may carry. The Firebase API key
+# inside GoogleService-Info.plist is a public, App-Check-restricted identifier,
+# not a provider or Endpoint credential; it is the one key-shaped value allowed.
+EXPECTED_FIREBASE = {
+    "PROJECT_ID": "cottage-d6dc9",
+    "BUNDLE_ID": BUNDLE_ID,
+    "GOOGLE_APP_ID": "1:24861210203:ios:2df6bf4ed8c4828253b17e",
+}
+
+# Credentials that must never ship in the app bundle (P2-F08). Findings report
+# only the file and pattern name, never the matched value.
+FORBIDDEN_CREDENTIALS: tuple[tuple[str, re.Pattern[bytes]], ...] = (
+    ("Limerick Endpoints consumer key", re.compile(rb"sfk_live_[0-9a-f]{12}_[A-Za-z0-9_-]{20,}")),
+    ("Anthropic API key", re.compile(rb"sk-ant-[A-Za-z0-9_-]{20,}")),
+    ("OpenAI-style API key", re.compile(rb"sk-(?:proj-)?[A-Za-z0-9_-]{32,}")),
+    ("Google API key", re.compile(rb"AIza[0-9A-Za-z_-]{35}")),
+    ("private key block", re.compile(rb"-----BEGIN (?:RSA |EC )?PRIVATE KEY-----")),
+    (
+        "provider secret variable",
+        re.compile(rb"(?:OPENAI|ANTHROPIC|GEMINI|GOOGLE_GENAI|OPENROUTER)_API_KEY\s*[=:]\s*\S"),
+    ),
+)
+
+
+def scan_bundle_credentials(app: Path, allowed: set[bytes]) -> list[str]:
+    """Return redacted findings for forbidden credentials anywhere in the bundle."""
+    findings: list[str] = []
+    for path in sorted(app.rglob("*")):
+        if not path.is_file() or path.is_symlink():
+            continue
+        data = path.read_bytes()
+        for label, pattern in FORBIDDEN_CREDENTIALS:
+            if any(match.group(0) not in allowed for match in pattern.finditer(data)):
+                findings.append(f"{path.relative_to(app)}: {label}")
+    return findings
+
+
 def command_text(argv: Sequence[str]) -> str:
     return " ".join(shlex.quote(str(part)) for part in argv)
 
@@ -249,6 +286,45 @@ class Release:
                 )
                 print(f"Build log: {self.paths.log}")
 
+    def archive(self) -> None:
+        """Create and inspect a signed Release archive without uploading it."""
+        with self.locked():
+            self.firebase_preflight()
+            self.clear_output()
+            self.common_prepare()
+            self.run_command(
+                [
+                    "xcodebuild",
+                    "-project",
+                    str(self.paths.project),
+                    "-scheme",
+                    SCHEME,
+                    "-configuration",
+                    "Release",
+                    "-destination",
+                    "generic/platform=iOS",
+                    "-derivedDataPath",
+                    str(self.paths.output / "DerivedData"),
+                    "-archivePath",
+                    str(self.paths.archive),
+                    "-allowProvisioningUpdates",
+                    "archive",
+                    f"DEVELOPMENT_TEAM={TEAM_ID}",
+                    "CODE_SIGN_STYLE=Automatic",
+                    *endpoint_args(),
+                ],
+                cwd=self.paths.root,
+            )
+            build = int(project_value(self.paths.project_spec, "CURRENT_PROJECT_VERSION"))
+            self.validate_archive(expected_build=build)
+            if not self.dry_run:
+                self.paths.receipt.write_text(
+                    json.dumps({"status": "archived_signed_not_uploaded", "build": build}, indent=2)
+                    + "\n",
+                    encoding="utf-8",
+                )
+                print(f"Signed archive validated, not uploaded: {self.paths.archive}")
+
     def testflight(self) -> None:
         with self.locked():
             self.firebase_preflight()
@@ -331,6 +407,23 @@ class Release:
         if not info_path.is_file() or not (app / "GoogleService-Info.plist").is_file():
             raise RuntimeError("packaged app is missing Info.plist or GoogleService-Info.plist")
         info = plistlib.loads(info_path.read_bytes())
+        try:
+            firebase = plistlib.loads((app / "GoogleService-Info.plist").read_bytes())
+        except (plistlib.InvalidFileException, ValueError) as error:
+            raise RuntimeError(
+                "packaged GoogleService-Info.plist is not a property list"
+            ) from error
+        for key, value in EXPECTED_FIREBASE.items():
+            if firebase.get(key) != value:
+                raise RuntimeError(f"packaged Firebase configuration mismatch for {key}")
+        allowed = (
+            {firebase["API_KEY"].encode()} if isinstance(firebase.get("API_KEY"), str) else set()
+        )
+        findings = scan_bundle_credentials(app, allowed)
+        if findings:
+            raise RuntimeError(
+                "packaged app contains forbidden credentials: " + "; ".join(findings)
+            )
         # Reassess the declaration when crypto or distribution changes; see testflight.md.
         if info.get("ITSAppUsesNonExemptEncryption") is not False:
             raise RuntimeError(
@@ -387,7 +480,7 @@ class Release:
 
 def parse_args(argv: Sequence[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("command", choices=("build", "testflight"))
+    parser.add_argument("command", choices=("build", "archive", "testflight"))
     parser.add_argument(
         "--dry-run",
         action="store_true",

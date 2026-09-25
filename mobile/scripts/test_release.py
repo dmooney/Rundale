@@ -92,8 +92,11 @@ class ReleaseTests(unittest.TestCase):
             **release.ENDPOINT_SETTINGS,
         }
         (app / "Info.plist").write_bytes(plistlib.dumps(info))
-        (app / "GoogleService-Info.plist").write_bytes(b"private")
-        (app / "Rundale").write_bytes(b"binary")
+        firebase_key = "AIza" + "F" * 35
+        firebase = {**release.EXPECTED_FIREBASE, "API_KEY": firebase_key}
+        (app / "GoogleService-Info.plist").write_bytes(plistlib.dumps(firebase))
+        # The public Firebase key may also appear in the compiled binary.
+        (app / "Rundale").write_bytes(b"binary " + firebase_key.encode())
         runner = release.Release(self.paths, runner=self.runner)
         runner.validate_archive(expected_build=8)
         options_path = runner.write_export_options()
@@ -118,6 +121,57 @@ class ReleaseTests(unittest.TestCase):
         (app / "Info.plist").write_bytes(plistlib.dumps(info))
         with self.assertRaisesRegex(RuntimeError, "CFBundleExecutable"):
             runner.validate_archive(expected_build=8)
+
+    def test_bundle_rejects_shipped_credentials_and_foreign_firebase(self):
+        app = self.paths.app
+        app.mkdir(parents=True)
+        info = {
+            "CFBundleIdentifier": release.BUNDLE_ID,
+            "CFBundleShortVersionString": "0.1.0",
+            "CFBundleVersion": "8",
+            "CFBundleExecutable": "Rundale",
+            "ITSAppUsesNonExemptEncryption": False,
+            **release.ENDPOINT_SETTINGS,
+        }
+        (app / "Info.plist").write_bytes(plistlib.dumps(info))
+        firebase = {**release.EXPECTED_FIREBASE, "API_KEY": "AIza" + "F" * 35}
+        (app / "GoogleService-Info.plist").write_bytes(plistlib.dumps(firebase))
+        runner = release.Release(self.paths, runner=self.runner)
+        leaks = {
+            "Limerick Endpoints consumer key": b"sfk_live_0123456789ab_" + b"x" * 43,
+            "Anthropic API key": b"sk-ant-" + b"a" * 40,
+            "OpenAI-style API key": b"sk-proj-" + b"b" * 40,
+            "Google API key": b"AIza" + b"G" * 35,
+            "provider secret variable": b"OPENAI_API_KEY=abc",
+        }
+        for label, secret in leaks.items():
+            with self.subTest(label=label):
+                (app / "Rundale").write_bytes(b"binary " + secret)
+                with self.assertRaises(RuntimeError) as raised:
+                    runner.validate_archive(expected_build=8)
+                self.assertIn(label, str(raised.exception))
+                self.assertNotIn(
+                    secret.decode(), str(raised.exception), "findings must be redacted"
+                )
+
+        (app / "Rundale").write_bytes(b"binary")
+        foreign = {**firebase, "PROJECT_ID": "someone-else"}
+        (app / "GoogleService-Info.plist").write_bytes(plistlib.dumps(foreign))
+        with self.assertRaisesRegex(RuntimeError, "Firebase configuration mismatch for PROJECT_ID"):
+            runner.validate_archive(expected_build=8)
+
+    def test_archive_signs_and_validates_without_upload(self):
+        import contextlib
+        import io
+
+        output = io.StringIO()
+        runner = release.Release(self.paths, runner=self.runner, dry_run=True)
+        with contextlib.redirect_stdout(output):
+            runner.archive()
+        commands = [line for line in output.getvalue().splitlines() if line.startswith("$ ")]
+        self.assertTrue(any(" -allowProvisioningUpdates archive " in line for line in commands))
+        self.assertFalse(any("-exportArchive" in line for line in commands))
+        self.assertTrue(any("validate app:" in line for line in output.getvalue().splitlines()))
 
     def test_full_dry_run_needs_no_firebase_and_changes_no_files(self):
         self.paths.firebase.unlink()
