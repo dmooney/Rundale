@@ -28,9 +28,14 @@ final class RundalePhase2UITests: XCTestCase {
         XCTAssertTrue(waitForTranscriptText("Morning gathers over Kilteevan", timeout: 8))
 
         submit("/look")
-        XCTAssertTrue(waitForTranscriptText("Kilteevan Village", timeout: 8))
+        XCTAssertTrue(
+            waitForTranscriptItem("a muddy road, low stone walls, and smoke lifting", timeout: 8),
+            "The assertion must observe the newly correlated /look result, not the pre-existing header"
+        )
+        XCTAssertFalse(app.buttons["composer.stop"].exists, "A local action must not open Endpoint work")
         submit("/people")
         XCTAssertTrue(waitForTranscriptText("Peig", timeout: 8))
+        XCTAssertFalse(app.buttons["composer.stop"].exists, "Every deterministic Phase 2 action stays offline")
     }
 
     func testPhase2LookBatchClearsComposerAfterRustAcceptance() {
@@ -91,12 +96,16 @@ final class RundalePhase2UITests: XCTestCase {
         XCTAssertTrue(provisional.label.contains("In progress"))
 
         XCTAssertTrue(waitForDialogue(containing: "the old road quiet", timeout: 12))
+        XCTAssertTrue(waitForDialogue(containing: "A worn sign leans by the gate", timeout: 12))
+        XCTAssertTrue(provisional.label.contains("In progress"))
         XCTAssertTrue(waitForDialogue(containing: "stands beyond the alder trees", timeout: 12))
         let completed = app.descendants(matching: .any)
             .matching(identifier: rowID)
             .firstMatch
         XCTAssertTrue(completed.waitForExistence(timeout: 5))
         XCTAssertFalse(completed.label.contains("In progress"))
+        XCTAssertFalse(completed.label.contains("A worn sign leans by the gate"))
+        XCTAssertTrue(completed.label.contains("stands beyond the alder trees"))
     }
 
     func testPhase2EndpointErrorNamesTheFailureCategory() {
@@ -125,6 +134,23 @@ final class RundalePhase2UITests: XCTestCase {
 
         XCTAssertTrue(app.buttons["composer.send"].waitForExistence(timeout: 8))
         XCTAssertTrue(waitForTranscriptText("Interrupted; not applied", timeout: 8))
+        XCTAssertEqual(completedDialogue.count, 0)
+
+        // The slow fixture would finish after six seconds if cancellation or
+        // attempt terminality were ineffective. Wait beyond that boundary and
+        // then reopen SQLite before allowing a retry.
+        XCTAssertEqual(
+            XCTWaiter.wait(for: [XCTestExpectation(description: "late completion window")], timeout: 7),
+            .timedOut
+        )
+        XCTAssertEqual(completedDialogue.count, 0, "A stopped attempt must not commit after its delayed completion")
+        app.terminate()
+        app = XCUIApplication()
+        launch(reset: false)
+        XCTAssertEqual(completedDialogue.count, 0, "A stopped attempt must remain uncommitted after SQLite reopen")
+        XCTAssertEqual(rows(containing: "Interrupted; not applied").count, 1)
+        assertSingleTranscriptItem(containing: "ask Peig about the church slowly")
+
         let retry = app.buttons["composer.retry"]
         XCTAssertTrue(retry.waitForExistence(timeout: 8))
         retry.tap()
@@ -134,6 +160,7 @@ final class RundalePhase2UITests: XCTestCase {
         XCTAssertTrue(waitForTranscriptText("Interrupted; not applied", timeout: 8))
         XCTAssertTrue(app.buttons["composer.send"].waitForExistence(timeout: 8))
         XCTAssertFalse(app.buttons["composer.retry"].exists)
+        XCTAssertEqual(completedDialogue.count, 1)
     }
 
     func testPhase2SQLiteRestoresCommittedDialogueAfterRelaunch() {
@@ -145,6 +172,11 @@ final class RundalePhase2UITests: XCTestCase {
         XCTAssertTrue(waitForDialogue(containing: "stands beyond the alder trees", timeout: 12))
         XCTAssertTrue(app.buttons["composer.send"].waitForExistence(timeout: 8))
 
+        let commandID = rows(containing: command).firstMatch.identifier
+        let dialogueID = completedDialogue.firstMatch.identifier
+        XCTAssertFalse(commandID.isEmpty)
+        XCTAssertFalse(dialogueID.isEmpty)
+
         app.terminate()
         app = XCUIApplication()
         launch(reset: false)
@@ -154,6 +186,18 @@ final class RundalePhase2UITests: XCTestCase {
         XCTAssertTrue(waitForDialogue(containing: "The rain keeps the old road quiet", timeout: 12))
         XCTAssertTrue(waitForDialogue(containing: "stands beyond the alder trees", timeout: 12))
         XCTAssertTrue(app.buttons["composer.send"].waitForExistence(timeout: 8))
+        XCTAssertEqual(rows(containing: command).count, 1)
+        XCTAssertEqual(completedDialogue.count, 1)
+        XCTAssertEqual(rows(containing: command).firstMatch.identifier, commandID)
+        XCTAssertEqual(completedDialogue.firstMatch.identifier, dialogueID)
+
+        app.terminate()
+        app = XCUIApplication()
+        launch(reset: false)
+        XCTAssertEqual(rows(containing: command).count, 1, "Repeated restoration must not duplicate the command")
+        XCTAssertEqual(completedDialogue.count, 1, "Repeated restoration must not duplicate the committed response")
+        XCTAssertEqual(rows(containing: command).firstMatch.identifier, commandID)
+        XCTAssertEqual(completedDialogue.firstMatch.identifier, dialogueID)
     }
 
     private func launch(reset: Bool, simulatorReturnKey: Bool = false) {
@@ -224,6 +268,24 @@ final class RundalePhase2UITests: XCTestCase {
                 text
             )
         ).firstMatch.waitForExistence(timeout: timeout)
+    }
+
+    private var completedDialogue: XCUIElementQuery {
+        app.descendants(matching: .any).matching(NSPredicate(
+            format: "identifier BEGINSWITH 'transcript.item.' AND label CONTAINS 'Dialogue' AND label CONTAINS 'stands beyond the alder trees' AND NOT label CONTAINS 'In progress' AND NOT label CONTAINS 'Interrupted'"
+        ))
+    }
+
+    private func rows(containing text: String) -> XCUIElementQuery {
+        app.descendants(matching: .any).matching(NSPredicate(
+            format: "identifier BEGINSWITH 'transcript.item.' AND label CONTAINS %@", text
+        ))
+    }
+
+    private func assertSingleTranscriptItem(containing text: String,
+                                            file: StaticString = #filePath,
+                                            line: UInt = #line) {
+        XCTAssertEqual(rows(containing: text).count, 1, file: file, line: line)
     }
 
     private func waitForValue(_ value: String,

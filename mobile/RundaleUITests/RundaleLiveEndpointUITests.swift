@@ -17,10 +17,23 @@ final class RundaleLiveEndpointUITests: XCTestCase {
         waitForInitialScene()
         let sentAt = submit("ask Peig what she can tell me about this crossroads")
 
+        let provisional = dialogueRow(inProgress: true)
+        XCTAssertTrue(
+            provisional.waitForExistence(timeout: 30),
+            "Expected live Endpoint bytes to render before the terminal frame"
+        )
+        let stableRowID = provisional.identifier
+        let partialLabel = provisional.label
+        XCTAssertFalse(stableRowID.isEmpty)
+        XCTAssertTrue(partialLabel.contains("In progress"))
+
         let completed = dialogueRow(inProgress: false)
         XCTAssertTrue(completed.waitForExistence(timeout: 30), "Expected validated live dialogue")
+        let sameRow = app.descendants(matching: .any).matching(identifier: stableRowID).firstMatch
+        XCTAssertTrue(sameRow.waitForExistence(timeout: 8), "The terminal event must finalize the streamed row")
         XCTAssertTrue(app.buttons["composer.send"].waitForExistence(timeout: 8))
-        XCTAssertFalse(completed.label.contains("In progress"))
+        XCTAssertFalse(sameRow.label.contains("In progress"))
+        XCTAssertNotEqual(sameRow.label, partialLabel, "The row must change after the observed intermediate state")
         let timing: [String: Any] = [
             "transport": "live-endpoint",
             "send_to_final_ui_seconds": Date().timeIntervalSince(sentAt),
@@ -55,6 +68,18 @@ final class RundaleLiveEndpointUITests: XCTestCase {
         XCTAssertTrue(app.buttons["composer.send"].waitForExistence(timeout: 8))
         XCTAssertTrue(waitForTranscriptText("Interrupted; not applied", timeout: 8))
         XCTAssertFalse(dialogueRow(inProgress: false).exists)
+        XCTAssertEqual(
+            XCTWaiter.wait(for: [XCTestExpectation(description: "late live completion window")], timeout: 8),
+            .timedOut
+        )
+        XCTAssertFalse(dialogueRow(inProgress: false).exists, "A delayed live completion must not commit after Stop")
+
+        app.terminate()
+        app = XCUIApplication()
+        try launch(reset: false)
+        waitForInitialScene()
+        XCTAssertTrue(waitForTranscriptText("Interrupted; not applied", timeout: 8))
+        XCTAssertFalse(dialogueRow(inProgress: false).exists, "Stopped state must remain uncommitted after relaunch")
     }
 
     /// Proves real Intent Endpoint execution by the native action it produces,
@@ -104,12 +129,12 @@ final class RundaleLiveEndpointUITests: XCTestCase {
     private func launch(reset: Bool) throws {
         let environment = ProcessInfo.processInfo.environment
         let baseURL = environment["RUNDALE_LIVE_ENDPOINT_BASE_URL"]
-            ?? "https://parish-server-24861210203.us-east1.run.app"
+            ?? "https://limerick-server-24861210203.us-east1.run.app"
         app.launchArguments = ["--ui-tests", "--phase2", "--no-auto-focus"]
         if reset { app.launchArguments.append("--reset-fixture") }
         app.launchEnvironment["RUNDALE_ENDPOINT_BASE_URL"] = baseURL
         app.launchEnvironment["RUNDALE_ENDPOINT_ORGANIZATION"] =
-            environment["RUNDALE_LIVE_ENDPOINT_ORGANIZATION"] ?? "parish-demo"
+            environment["RUNDALE_LIVE_ENDPOINT_ORGANIZATION"] ?? "limerick-demo"
         app.launchEnvironment["RUNDALE_ENDPOINT_SLUG"] =
             environment["RUNDALE_LIVE_ENDPOINT_SLUG"] ?? "rundale-dialogue"
         app.launchEnvironment["RUNDALE_ENDPOINT_VERSION"] =

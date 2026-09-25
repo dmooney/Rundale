@@ -1171,7 +1171,11 @@ private final class Phase2MockEndpointTransport: EndpointTransport, @unchecked S
                             chunks = ["The wet ground ", "has made moving cattle ", "difficult this week."]
                         } else {
                             dialogue = "The rain keeps the old road quiet. The old church stands beyond the alder trees."
-                            chunks = ["The rain keeps ", "the old road quiet. ", "The old church stands beyond the alder trees."]
+                            // Deliberately differ from the validated terminal
+                            // candidate. This makes the native regression prove
+                            // final replacement at a stable transcript identity,
+                            // rather than only proving chunk concatenation.
+                            chunks = ["The rain keeps ", "the old road quiet. ", "A worn sign leans by the gate."]
                         }
                         // Keep the fixture observably incremental so UI tests
                         // can assert the provisional Rust presentation before
@@ -1188,6 +1192,11 @@ private final class Phase2MockEndpointTransport: EndpointTransport, @unchecked S
                             }
                             if index + 1 < chunks.count {
                                 try await Self.pause(nanoseconds: input.contains("slow") ? 3_000_000_000 : 2_000_000_000)
+                            } else {
+                                // Leave the complete provisional candidate on
+                                // screen long enough for XCTest to observe it
+                                // before the terminal output replaces it.
+                                try await Self.pause(nanoseconds: 500_000_000)
                             }
                         }
                         continuation.yield(.bytes(try Self.frame(
