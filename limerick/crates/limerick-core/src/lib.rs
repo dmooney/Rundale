@@ -32,6 +32,11 @@ pub use limerick_diagnostics::debug_snapshot;
 // `limerick-server`, `crate::ipc::editor`) so the extraction stays
 // behaviour-preserving with zero import changes.
 pub use limerick_editor as editor;
+// Portable state seams: canonical dialogue grounding/application and `/look`
+// rendering. They avoid the IPC and inference orchestration tree so embedded
+// runtimes can share them; `game_session` and `ipc::commands::look` re-export
+// them at their historical paths.
+pub mod dialogue_apply;
 pub mod event_bus;
 pub mod game_loop;
 pub mod game_session;
@@ -41,6 +46,7 @@ pub mod inference_runtime_v2;
 pub mod ipc;
 pub mod loading;
 pub mod mod_source;
+pub mod portable_look;
 pub mod prompts;
 pub mod secret_store;
 pub mod session_store;
