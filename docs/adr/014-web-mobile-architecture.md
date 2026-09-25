@@ -4,7 +4,7 @@
 
 ## Status
 
-Accepted (2026-03-23)
+Accepted (2026-03-23). The native iPhone client is superseded by [ADR-025](025-mobile-runtime-on-shared-engine.md): the engine is embedded on-device, not served to a thin client.
 
 ## Context
 

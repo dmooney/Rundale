@@ -113,6 +113,7 @@ Speculative and forward-looking — not (yet) committed work.
 
 | Plan                                                                                                        | Status      |
 | ----------------------------------------------------------------------------------------------------------- | ----------- |
+| [Mobile Engine Convergence](plans/mobile-engine-convergence.md)                                             | Accepted    |
 | [Interactive Limerick Diorama — Runtime Compositor Implementation](plans/rundale-diorama-implementation.md) | Proposed    |
 | [Illustrated Notebook Real Play Screen](plans/illustrated-notebook-real.md)                                 | Retired     |
 | [Illustrated Notebook UI Roadmap](plans/illustrated-notebook-roadmap.md)                                    | Closed      |
@@ -168,32 +169,33 @@ not the top-level product roadmap.
 
 See the [ADR Index](adr/README.md) for the full table and template.
 
-| ADR                                                       | Decision                                 | Status                    |
-| --------------------------------------------------------- | ---------------------------------------- | ------------------------- |
-| [001](adr/001-graph-based-world.md)                       | Graph-based world                        | Accepted                  |
-| [002](adr/002-cognitive-lod-tiers.md)                     | 4-tier cognitive level-of-detail         | Accepted                  |
-| [003](adr/003-sqlite-wal-persistence.md)                  | SQLite WAL persistence                   | Accepted                  |
-| [004](adr/004-git-like-branching-saves.md)                | Git-like branching saves                 | Accepted                  |
-| [005](adr/005-ollama-local-inference.md)                  | Ollama local inference                   | Accepted                  |
-| [006](adr/006-natural-language-input.md)                  | Natural-language input                   | Accepted                  |
-| [007](adr/007-time-scale-20min-day.md)                    | 20 real minutes = 1 game day             | Accepted                  |
-| [008](adr/008-structured-json-llm-output.md)              | Structured JSON LLM output               | Accepted                  |
-| [009](adr/009-real-geography-fictional-people.md)         | Real geography, fictional people         | Accepted                  |
-| [010](adr/010-prompt-injection-defenses.md)               | Prompt-injection defenses                | Accepted                  |
-| [011](adr/011-geo-tool-osm-pipeline.md)                   | limerick-geo-tool OSM pipeline           | Accepted                  |
-| [012](adr/012-documentation-hierarchy.md)                 | Hierarchical documentation organization  | Accepted (amended by 024) |
-| [013](adr/013-cloud-llm-dialogue.md)                      | Cloud LLM for player dialogue            | Accepted                  |
-| [014](adr/014-web-mobile-architecture.md)                 | Web & mobile thin-client architecture    | Accepted                  |
-| [015](adr/015-ambient-sound-system.md)                    | Ambient sound system (rodio, GUI-only)   | Accepted                  |
-| [016](adr/016-tauri-svelte-gui.md)                        | Replace egui with Tauri 2 + Svelte GUI   | Accepted                  |
-| [017](adr/017-per-category-inference-providers.md)        | Per-category inference providers         | Accepted                  |
-| [018](adr/018-npc-intelligence-dimensions.md)             | NPC multidimensional intelligence        | Accepted                  |
-| [019](adr/019-json-structured-output-for-npc-dialogue.md) | JSON structured output for NPC dialogue  | Accepted                  |
-| [020](adr/020-npc-tool-use.md)                            | NPC function-calling / tool-use output   | Proposed                  |
-| [021](adr/021-npc-memory-retrieval.md)                    | Embedding-based NPC memory retrieval     | Proposed                  |
-| [022](adr/022-engine-config-extraction.md)                | Extract engine tuning into configuration | Accepted                  |
-| [023](adr/023-web-testing-server.md)                      | Web server mode for Chrome GUI testing   | Accepted                  |
-| [024](adr/024-documentation-reorg-v2.md)                  | Documentation reorganization v2          | Accepted                  |
+| ADR                                                       | Decision                                     | Status                                   |
+| --------------------------------------------------------- | -------------------------------------------- | ---------------------------------------- |
+| [001](adr/001-graph-based-world.md)                       | Graph-based world                            | Accepted                                 |
+| [002](adr/002-cognitive-lod-tiers.md)                     | 4-tier cognitive level-of-detail             | Accepted                                 |
+| [003](adr/003-sqlite-wal-persistence.md)                  | SQLite WAL persistence                       | Accepted                                 |
+| [004](adr/004-git-like-branching-saves.md)                | Git-like branching saves                     | Accepted                                 |
+| [005](adr/005-ollama-local-inference.md)                  | Ollama local inference                       | Accepted                                 |
+| [006](adr/006-natural-language-input.md)                  | Natural-language input                       | Accepted                                 |
+| [007](adr/007-time-scale-20min-day.md)                    | 20 real minutes = 1 game day                 | Accepted                                 |
+| [008](adr/008-structured-json-llm-output.md)              | Structured JSON LLM output                   | Accepted                                 |
+| [009](adr/009-real-geography-fictional-people.md)         | Real geography, fictional people             | Accepted                                 |
+| [010](adr/010-prompt-injection-defenses.md)               | Prompt-injection defenses                    | Accepted                                 |
+| [011](adr/011-geo-tool-osm-pipeline.md)                   | limerick-geo-tool OSM pipeline               | Accepted                                 |
+| [012](adr/012-documentation-hierarchy.md)                 | Hierarchical documentation organization      | Accepted (amended by 024)                |
+| [013](adr/013-cloud-llm-dialogue.md)                      | Cloud LLM for player dialogue                | Accepted                                 |
+| [014](adr/014-web-mobile-architecture.md)                 | Web & mobile thin-client architecture        | Accepted (mobile part superseded by 025) |
+| [015](adr/015-ambient-sound-system.md)                    | Ambient sound system (rodio, GUI-only)       | Accepted                                 |
+| [016](adr/016-tauri-svelte-gui.md)                        | Replace egui with Tauri 2 + Svelte GUI       | Accepted                                 |
+| [017](adr/017-per-category-inference-providers.md)        | Per-category inference providers             | Accepted                                 |
+| [018](adr/018-npc-intelligence-dimensions.md)             | NPC multidimensional intelligence            | Accepted                                 |
+| [019](adr/019-json-structured-output-for-npc-dialogue.md) | JSON structured output for NPC dialogue      | Accepted                                 |
+| [020](adr/020-npc-tool-use.md)                            | NPC function-calling / tool-use output       | Proposed                                 |
+| [021](adr/021-npc-memory-retrieval.md)                    | Embedding-based NPC memory retrieval         | Proposed                                 |
+| [022](adr/022-engine-config-extraction.md)                | Extract engine tuning into configuration     | Accepted                                 |
+| [023](adr/023-web-testing-server.md)                      | Web server mode for Chrome GUI testing       | Accepted                                 |
+| [024](adr/024-documentation-reorg-v2.md)                  | Documentation reorganization v2              | Accepted                                 |
+| [025](adr/025-mobile-runtime-on-shared-engine.md)         | Mobile runtime on the shared Limerick engine | Accepted                                 |
 
 ## Requirements & status
 
