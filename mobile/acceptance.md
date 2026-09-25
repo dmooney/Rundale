@@ -87,15 +87,36 @@ Command: `xcodebuild test ... -only-testing:RundaleUITests/RundaleLiveEndpointUI
 | --- | --- | --- |
 | `test03LiveIntentEndpointExecutesTheInterpretedAction` | Passed | "Let's make for the Letter Office" went to live `rundale-intent@1`, which resolved `travel` to `Letter Office`; the action committed after 3.7 s |
 | `test02LiveEndpointStopCancelsWithoutCommittingLateDialogue` | Passed | Stop left no committed dialogue, including after relaunch; the server logged an authenticated `DELETE` cancellation (202). The durable cancelled invocation row was not inspected |
-| `test01LiveEndpointStreamsAValidatedTerminalDialogue` | Failed (twice) | Live `rundale-dialogue@1` dialogue was validated and committed, but the UI poll never observed the in-progress row |
+| `test01LiveEndpointStreamsAValidatedTerminalDialogue` | Failed twice, then passed after the stream trace (below) | Live `rundale-dialogue@1` dialogue was validated and committed; the XCUITest poll never observed the brief in-progress row |
 
 A direct authenticated SSE probe of `rundale-dialogue@1` showed ordered
-`progress` (0.26 s), one `text_delta` (0.99 s) and `final` (1.10 s) frames. The
-model returns the short line as one chunk, so the provisional row exists for
-roughly 110 ms, below what the XCUITest poll reliably catches. The live
-partial-before-final UI assertion therefore remains unproven; the wire ordering
-is observed, and provisional-then-final rendering is proven only against the
-mock transport.
+`progress` (0.26 s), `text_delta` (0.99 s) and `final` (1.10 s) frames. A short
+live reply stays provisional for a few hundred milliseconds, below what the
+XCUITest poll reliably catches.
+
+`test01` now reads the UI-test-only `uitest.streamTrace` record of every
+dialogue-row state the presentation model published, and the run was screen
+recorded with `record-ui-test.py` and analyzed with `stream-frames.swift`.
+The two independent observations agree:
+
+| Observation | App trace (ms since launch) | Recording (s into video) |
+| --- | --- | --- |
+| First provisional text | 139 characters at 7,869 | 141 characters at 11.482 |
+| Second provisional text | 159 characters at 8,073 | 161 characters at 11.680 |
+| Final committed row | 159 characters at 8,093 | 161 characters at 11.715 |
+
+Recognized character counts differ from the trace by two because the rendered
+row adds quotation marks. The first provisional frame shows a partial sentence
+with the Stop button and "Having a think…" still visible. Provisional text was on screen for
+233 ms. Simulator rendering cadence: 41.3 frames/s while waiting (median gap
+30 ms) and 38.6 frames/s while streaming (median gap 35 ms, max 65 ms). These are
+simulator compositor and recorder figures, not a physical-display measurement.
+Send to final UI: 4.96 s, including tap injection, Firebase and App Check
+credentials, network, and model work.
+
+After this change the full live suite passed (tests 01, 02 and 03), and
+`./verify --phase 2` (14 passed, 0 failed) and `./verify --phase 3` (10 passed,
+0 failed) were rerun on the same simulator.
 
 ## Automated device evidence — 2026-09-14
 

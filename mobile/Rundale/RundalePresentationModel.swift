@@ -52,12 +52,20 @@ final class RundalePresentationModel: ObservableObject {
     @Published private(set) var submissionMessage: String?
     @Published private(set) var accessibilityNotice: String? = nil
     @Published private(set) var uiTestCheckpoint = ""
+    /// UI-test-only log of every dialogue-row state published to the view, as
+    /// `row|state|characters|milliseconds` entries joined by `;`. A live
+    /// provisional row can last well under an XCUITest poll interval, so tests
+    /// read this record after the terminal event instead of racing the poll.
+    @Published private(set) var uiTestStreamTrace = ""
     @Published var draft: String
 
     let launch: LaunchConfiguration
     private let session: any RundaleSessionControlling
     private var eventTask: Task<Void, Never>?
     private var draftRevision: UInt64 = 0
+    private var streamTraceEntries: [String] = []
+    private var streamTraceLastState: [String: String] = [:]
+    private let streamTraceOrigin = Date()
     private var completionBrowser: String?
     private var activeSourceDraftID: DraftID?
     private var lifecycleGeneration: UInt64 = 0
@@ -466,6 +474,28 @@ final class RundalePresentationModel: ObservableObject {
     }
 
     private func updateTranscript(from incoming: [TranscriptItem]) {
+        publishTranscript(from: incoming)
+        if launch.isUITesting { recordStreamTrace() }
+    }
+
+    private func recordStreamTrace() {
+        var changed = false
+        for item in transcript where item.kind == .npcDialogue {
+            let state = "\(item.state.rawValue)|\(item.text.count)"
+            guard streamTraceLastState[item.id] != state else { continue }
+            streamTraceLastState[item.id] = state
+            let elapsed = Int(Date().timeIntervalSince(streamTraceOrigin) * 1000)
+            streamTraceEntries.append("\(item.id)|\(state)|\(elapsed)")
+            changed = true
+        }
+        guard changed else { return }
+        if streamTraceEntries.count > 64 {
+            streamTraceEntries.removeFirst(streamTraceEntries.count - 64)
+        }
+        uiTestStreamTrace = streamTraceEntries.joined(separator: ";")
+    }
+
+    private func publishTranscript(from incoming: [TranscriptItem]) {
         guard !incoming.isEmpty else {
             if !transcript.isEmpty {
                 transcript = []

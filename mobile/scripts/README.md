@@ -78,6 +78,35 @@ Test identifiers must resolve to one method in the target’s local Swift source
 Recording failures return nonzero; a failing test retains its own exit status.
 Videos, logs, and xcresults are retained on failure and never overwritten.
 
+## Inspect a streamed reply frame by frame
+
+`stream-frames.swift` reads a recording from `record-ui-test.py` and checks
+that streamed text rendered before the final frame. simctl writes a frame only
+when the screen changes, so frame timestamps give the rendering cadence. Vision
+text recognition reads each changed frame. A frame is provisional while the
+speaker's row and the busy indicator are both on screen, and final once the
+indicator is gone:
+
+```sh
+swift mobile/scripts/stream-frames.swift \
+  mobile/.build/recordings/live-stream.mov mobile/.build/recordings/live-stream-frames \
+  --speaker "Peig Hannigan" --busy "Having a think"
+```
+
+It writes `stream-frames.json` with the provisional text states (time and
+character count), how long provisional text was visible, frames per second
+while waiting and while streaming, and PNGs of each provisional state and the
+first final frame. It exits nonzero unless provisional text preceded the final
+frame. Reply text is not stored in the JSON. Simulator cadence reflects the
+simulator's compositor and recorder, not a physical display.
+
+The live UI tests also read `uitest.streamTrace`, a UI-test-only element whose
+value lists every dialogue-row state the presentation model published
+(`row|state|characters|milliseconds`). It lets `test01` assert
+provisional-before-committed for a reply that is provisional for only a few
+hundred milliseconds, and it is available on a physical device, where simctl
+recording is not.
+
 ## Evidence and exit status
 
 Each run emits:

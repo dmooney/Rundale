@@ -17,23 +17,39 @@ final class RundaleLiveEndpointUITests: XCTestCase {
         waitForInitialScene()
         let sentAt = submit("ask Peig what she can tell me about this crossroads")
 
-        let provisional = dialogueRow(inProgress: true)
-        XCTAssertTrue(
-            provisional.waitForExistence(timeout: 30),
-            "Expected live Endpoint bytes to render before the terminal frame"
-        )
-        let stableRowID = provisional.identifier
-        let partialLabel = provisional.label
-        XCTAssertFalse(stableRowID.isEmpty)
-        XCTAssertTrue(partialLabel.contains("In progress"))
-
         let completed = dialogueRow(inProgress: false)
-        XCTAssertTrue(completed.waitForExistence(timeout: 30), "Expected validated live dialogue")
-        let sameRow = app.descendants(matching: .any).matching(identifier: stableRowID).firstMatch
-        XCTAssertTrue(sameRow.waitForExistence(timeout: 8), "The terminal event must finalize the streamed row")
+        XCTAssertTrue(completed.waitForExistence(timeout: 45), "Expected validated live dialogue")
         XCTAssertTrue(app.buttons["composer.send"].waitForExistence(timeout: 8))
-        XCTAssertFalse(sameRow.label.contains("In progress"))
-        XCTAssertNotEqual(sameRow.label, partialLabel, "The row must change after the observed intermediate state")
+        XCTAssertFalse(completed.label.contains("In progress"))
+
+        // A short live reply can stay provisional for ~100 ms, below the
+        // accessibility poll interval, so read the app's record of every
+        // dialogue-row state it published to the view.
+        let entries = streamTrace()
+        let rowID = try XCTUnwrap(
+            entries.map(\.row).last { completed.identifier.contains($0) },
+            "The completed row must appear in the stream trace: \(entries)"
+        )
+        let rowEntries = entries.filter { $0.row == rowID }
+        let provisionalIndex = try XCTUnwrap(
+            rowEntries.firstIndex { $0.state == "provisional" && $0.characters > 0 },
+            "Expected live Endpoint text in a provisional row before the terminal frame: \(rowEntries)"
+        )
+        let committedIndex = try XCTUnwrap(
+            rowEntries.firstIndex { $0.state == "committed" },
+            "The terminal event must finalize the same streamed row: \(rowEntries)"
+        )
+        XCTAssertLessThan(provisionalIndex, committedIndex)
+        let trace = try JSONSerialization.data(
+            withJSONObject: rowEntries.map {
+                ["state": $0.state, "characters": $0.characters, "milliseconds": $0.milliseconds]
+            },
+            options: [.prettyPrinted]
+        )
+        let traceAttachment = XCTAttachment(data: trace, uniformTypeIdentifier: "public.json")
+        traceAttachment.name = "rundale-live-stream-trace.json"
+        traceAttachment.lifetime = .keepAlways
+        add(traceAttachment)
         let timing: [String: Any] = [
             "transport": "live-endpoint",
             "send_to_final_ui_seconds": Date().timeIntervalSince(sentAt),
@@ -169,6 +185,32 @@ final class RundaleLiveEndpointUITests: XCTestCase {
         app.descendants(matching: .any)
             .matching(identifier: "composer.input")
             .firstMatch
+    }
+
+    private struct StreamTraceEntry: CustomStringConvertible {
+        let row: String
+        let state: String
+        let characters: Int
+        let milliseconds: Int
+        var description: String { "\(state)/\(characters)@\(milliseconds)ms" }
+    }
+
+    private func streamTrace() -> [StreamTraceEntry] {
+        let element = app.descendants(matching: .any)["uitest.streamTrace"]
+        guard element.waitForExistence(timeout: 3) else { return [] }
+        let value = element.value as? String ?? ""
+        return value.split(separator: ";").compactMap { entry in
+            let fields = entry.split(separator: "|", omittingEmptySubsequences: false)
+            guard fields.count == 4,
+                  let characters = Int(fields[2]),
+                  let milliseconds = Int(fields[3]) else { return nil }
+            return StreamTraceEntry(
+                row: String(fields[0]),
+                state: String(fields[1]),
+                characters: characters,
+                milliseconds: milliseconds
+            )
+        }
     }
 
     private func dialogueRow(inProgress: Bool) -> XCUIElement {

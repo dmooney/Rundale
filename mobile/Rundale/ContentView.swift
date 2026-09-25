@@ -73,6 +73,16 @@ struct ContentView: View {
                 )
             }
             .frame(width: geometry.size.width, height: geometry.size.height, alignment: .top)
+            .overlay(alignment: .topLeading) {
+                if model.launch.isUITesting {
+                    Color.clear
+                        .frame(width: 1, height: 1)
+                        .accessibilityElement()
+                        .accessibilityLabel("Stream trace")
+                        .accessibilityValue(model.uiTestStreamTrace)
+                        .accessibilityIdentifier("uitest.streamTrace")
+                }
+            }
         }
         .background(RundaleTheme.canvas)
         .foregroundStyle(RundaleTheme.ink)
