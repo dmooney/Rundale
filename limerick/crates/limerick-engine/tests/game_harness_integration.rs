@@ -420,6 +420,9 @@ fn test_npc_not_present_at_empty_location() {
     // Navigate to hurling green — no NPCs start there
     h.execute("go to crossroads");
     h.execute("go to hurling green");
+    // Freeze real-time drift so only time the command itself advances is
+    // measured; a paused clock still records `advance`.
+    h.app.world.clock.pause();
     let before = h.app.world.clock.now();
     let r = h.execute("hello");
     let after = h.app.world.clock.now();

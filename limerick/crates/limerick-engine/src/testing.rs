@@ -2830,6 +2830,9 @@ mod tests {
         // Navigate to a location with no NPCs (e.g., the hurling green)
         h.execute("go to crossroads");
         h.execute("go to hurling green");
+        // Freeze real-time drift so only time the command itself advances is
+        // measured; a paused clock still records `advance`.
+        h.app.world.clock.pause();
         let before = h.app.world.clock.now();
         let result = h.execute("hello there");
         let after = h.app.world.clock.now();
