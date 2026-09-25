@@ -21,6 +21,16 @@ by CLI, web server, and Tauri backends.
 - `prompts` — prompt templates/assembly helpers.
 - `debug_snapshot` — debug data structures for inspection tooling.
 
+## Features
+
+- `desktop` (default): the full desktop composition, including the
+  local-inference bootstrap, the Designer backend, chronicle writers, and
+  diagnostics.
+- `mobile`: the portable configuration
+  (`cargo check -p limerick-core --no-default-features --features mobile`).
+  It excludes those desktop-only dependencies and the `ipc`, `game_loop`, and
+  `game_session` modules that use them.
+
 ## Re-exports
 
 Re-exports sub-crates (`config`, `inference`, `input`, `npc`, `persistence`,

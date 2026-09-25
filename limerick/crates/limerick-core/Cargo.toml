@@ -6,6 +6,22 @@ license = "GPL-3.0-only"
 publish = false
 description = "Orchestration layer for the Limerick engine: game session, IPC, mod loading, prompts"
 
+[features]
+# `desktop` (default) is the full desktop composition: local-inference
+# bootstrap, the Limerick Designer backend, on-disk chronicle writers, and
+# debug diagnostics. `mobile` is the portable configuration built with
+# `--no-default-features --features mobile`; it keeps the leaf crates (world,
+# NPC, input, persistence, mod loading, palette) and excludes every
+# desktop-only dependency. CI checks the mobile configuration.
+default = ["desktop"]
+desktop = [
+    "dep:limerick-editor",
+    "dep:limerick-chronicle",
+    "dep:limerick-diagnostics",
+    "limerick-inference/desktop",
+]
+mobile = ["limerick-inference/mobile"]
+
 [dependencies]
 limerick-types = { workspace = true }
 limerick-config = { workspace = true }
@@ -14,9 +30,9 @@ limerick-world = { workspace = true }
 limerick-palette = { workspace = true }
 limerick-npc = { workspace = true }
 limerick-mod = { workspace = true }
-limerick-editor = { workspace = true }
-limerick-chronicle = { workspace = true }
-limerick-diagnostics = { workspace = true }
+limerick-editor = { workspace = true, optional = true }
+limerick-chronicle = { workspace = true, optional = true }
+limerick-diagnostics = { workspace = true, optional = true }
 limerick-persistence = { workspace = true }
 limerick-input = { workspace = true }
 tokio = { workspace = true }
@@ -39,3 +55,34 @@ tempfile = { workspace = true }
 wiremock = { workspace = true }
 regex = { workspace = true }
 serial_test = { workspace = true }
+
+# Integration tests that drive the desktop-only modules (ipc, game_loop,
+# game_session, editor, diagnostics). The remaining tests also build and run
+# under the mobile configuration.
+[[test]]
+name = "async_llm_integration"
+required-features = ["desktop"]
+
+[[test]]
+name = "demo_context_integration"
+required-features = ["desktop"]
+
+[[test]]
+name = "dialogue_prompt_anchor"
+required-features = ["desktop"]
+
+[[test]]
+name = "ipc_field_parity"
+required-features = ["desktop"]
+
+[[test]]
+name = "normalize_mod"
+required-features = ["desktop"]
+
+[[test]]
+name = "player_gossip_seeding"
+required-features = ["desktop"]
+
+[[test]]
+name = "save_integration"
+required-features = ["desktop"]

@@ -39,6 +39,8 @@ Most engine commands should be run from the `limerick/` directory:
 - Test one: `cargo test <test_name>`
 - Format check: `cargo fmt --check` (apply: `cargo fmt`)
 - Lint: `cargo clippy --workspace -- -D warnings`
+- Portable (mobile) configuration: `cargo check -p limerick-core --no-default-features --features mobile`
+  (CI job `rust-mobile-build`; see the `limerick-core` README for what it excludes)
 
 Alternatively, use the top-level `justfile` proxies from the repository root.
 

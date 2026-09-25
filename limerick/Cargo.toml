@@ -48,7 +48,10 @@ limerick-types = { path = "crates/limerick-types" }
 limerick-config = { path = "crates/limerick-config" }
 limerick-providers = { path = "crates/limerick-providers" }
 limerick-setup = { path = "crates/limerick-setup" }
-limerick-inference = { path = "crates/limerick-inference" }
+# Default features are opted into per member so portable (`mobile`) builds of
+# limerick-core, limerick-npc and limerick-input do not pull in the desktop
+# local-inference bootstrap. See limerick-inference's `[features]`.
+limerick-inference = { path = "crates/limerick-inference", default-features = false }
 limerick-world = { path = "crates/limerick-world" }
 limerick-palette = { path = "crates/limerick-palette" }
 limerick-npc = { path = "crates/limerick-npc" }
