@@ -14,6 +14,67 @@ the [milestone requirements](../docs/product-specs/product-technical-spec.md).
 Record build revision, device model, iOS version, text size, appearance, test
 date, tester, observed result, and defects for each session.
 
+## Evidence provenance (audit #1992, P2-F12)
+
+Dated sections below are historical records. Their verifier report
+directories (for example `mobile/.verification-phase2-final/`,
+`mobile/.verification-phase2-confirmed/`,
+`mobile/.verification-endpoint-integration/` and
+`mobile/.verification-small/`) are ignored local output and were not retained.
+Their totals are claims tied to the named revision and date. They cannot be
+re-verified from this repository, and they do not show which assertions ran.
+Do not cite them as current proof.
+
+Current Phase 2 evidence is the reproducible record in
+[Phase 2 audit resolution evidence](#phase-2-audit-resolution-evidence--2026-09-25).
+The `--phase2` launch argument now opens the canonical three-location world
+under the 2026-09-16 scope amendment, so older instructions that expected a
+one-location world describe a retired configuration.
+
+## Phase 2 audit resolution evidence — 2026-09-25
+
+Source: branch `claude/issue-1993-hofh7p` (PR #2005) at `61854817e`, based on
+`ios-port` `1ed492355`. The only uncommitted change during the runs was this
+document. Simulator: iOS 26.5, an already-booted simulator. All Endpoint
+traffic in these runs uses the in-app mock transport, and none of this is
+physical-device evidence.
+
+```sh
+./verify --phase 2 --report-dir mobile/.verification-1993-final-p2
+./verify --phase 3 --report-dir mobile/.verification-1993-final-p3
+```
+
+- Phase 2: 14 automated gates passed, 0 failed. One simulator-boot skip
+  (already booted). The opt-in live Endpoint gate is unavailable because it was
+  not configured. Two physical gates are not automatable. The Phase 2
+  simulator suite ran 16 tests and all 16 passed: 12
+  `RundalePhase2UITests` and 4 app-hosted `RundaleSemanticBridgeTests`.
+- Phase 3: 10 automated gates passed, 0 failed. One simulator-boot skip. Three
+  physical gates are not automatable. All 8 Phase 3 UI tests passed,
+  including inferred movement and inferred conversation through the composer.
+- Signed Release archive (`python3 mobile/scripts/release.py archive`,
+  development-signed, not uploaded): the code signature verified, the bundled
+  Firebase project, app, and bundle IDs matched, and the credential scan found
+  no Endpoint consumer key, provider API key, private key, or provider secret
+  variable in any bundle file. The exact TestFlight `.ipa` was not inspected;
+  `release.py testflight` runs the same scan on its archive before export.
+
+What these runs assert, by finding:
+
+| Finding | Assertion                                                                                                                                                                                                                              |
+| ------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| P2-F02  | Inferred input requests the Intent role before any action; the receipt names the executed action; travel changes the header exactly once.                                                                                              |
+| P2-F04  | A provisional frame is replaced in the same row by a differing validated final, both natively and through the real FFI and reducer.                                                                                                    |
+| P2-F05  | Stop, a late candidate, a transport failure, retry, and process loss keep one logical request, a new attempt each time, and no committed dialogue. A delayed mock completion is not committed after Stop, even after reopening SQLite. |
+| P2-F06  | Repeated relaunch restores the same command and dialogue rows with exact counts; termination mid-stream restores an interrupted request with no late commit.                                                                           |
+| P2-F07  | With every Endpoint request failing, `/look`, `look`, `where am i`, `/people`, `/exits`, `/help`, and exit travel each produce a new local result without Endpoint work.                                                               |
+| P2-F09  | Every Phase 2 test except the return-key test drives the device multiline composer, proven by Return inserting a line break.                                                                                                           |
+| P2-F10  | Production Rust events for success, intent receipt, stream replacement, clarification, cancellation, failure, and interruption decode through the Swift decoder into the reducer, and replay identically after reopening.              |
+
+Remaining, not claimed here: the authenticated live Intent run, live
+incremental delivery, and server-side cancellation (P2-F02/F03/F04/F05), and
+all manual and physical-iPhone gates (P2-F11).
+
 ## Automated device evidence — 2026-09-14
 
 Source: `ios-port` revision `b06eade45` plus the reviewed automated-acceptance
