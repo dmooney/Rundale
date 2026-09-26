@@ -1,14 +1,22 @@
-//! Atomic staging for player turns that may mutate durable task progress.
+//! Atomic staging for player turns.
+//!
+//! [`TurnCandidate`] is the isolated copy of live state a turn runs against;
+//! the turn engine (`crate::turn::TurnEngine`) runs every attempt on one.
+//! [`handle_staged_game_input`] is the staged entry point the runtimes use
+//! today for turns that may mutate durable task progress.
 
 use std::future::Future;
 use std::sync::Arc;
 
-use tokio::sync::Mutex;
+use limerick_types::GameEvent;
+use tokio::sync::{Mutex, broadcast};
 
 use super::{GameLoopContext, handle_game_input};
-use crate::ipc::{CapturingEmitter, EventEmitter};
+use crate::ipc::{CapturingEmitter, ConversationRuntimeState, EventEmitter};
+use crate::npc::manager::NpcManager;
 use crate::npc::reactions::ReactionTemplates;
 use crate::session_store::{SessionStore, TaskJournalTarget, append_task_mutations};
+use crate::world::WorldState;
 use crate::world::transport::TransportMode;
 
 /// Successfully committed staged turn.
@@ -92,24 +100,7 @@ where
     F: FnOnce(Vec<limerick_types::PlayerTask>) -> Fut,
     Fut: Future<Output = Result<(), crate::error::LimerickError>>,
 {
-    // Clone one coherent canonical cut while holding the same lock order used
-    // by installation below. The runtime persistence gate should already
-    // exclude mutators; retaining all three guards here also prevents a
-    // partially old/partially new candidate if a non-participating reader or
-    // legacy adapter is still present.
-    let (candidate_world, candidate_npcs, candidate_conversation) = {
-        let live_world = live_ctx.world.lock().await;
-        let live_npcs = live_ctx.npc_manager.lock().await;
-        let live_conversation = live_ctx.conversation.lock().await;
-        (
-            live_world.clone_for_staged_turn(),
-            live_npcs.clone(),
-            live_conversation.clone(),
-        )
-    };
-    let staged_world = Mutex::new(candidate_world);
-    let staged_npcs = Mutex::new(candidate_npcs);
-    let staged_conversation = Mutex::new(candidate_conversation);
+    let candidate = TurnCandidate::capture(live_ctx, prelude_emissions).await;
     let deferred_audit = crate::inference::DeferredInferenceAudit::default();
     let staged_inference_queue = {
         let live_queue = live_ctx.inference_queue.lock().await;
@@ -119,25 +110,13 @@ where
                 .map(|queue| queue.with_deferred_audit(deferred_audit.clone())),
         )
     };
-    {
-        let mut conversation = staged_conversation.lock().await;
-        let now = std::time::Instant::now();
-        conversation.last_player_activity = now;
-        conversation.last_spoken_at = now;
-    }
-    let mut semantic_rx = staged_world.lock().await.event_bus.subscribe();
-    let capturing = Arc::new(CapturingEmitter::new());
-    for (name, payload) in prelude_emissions {
-        capturing.emit_event(&name, payload);
-    }
-    let staged_emitter: Arc<dyn EventEmitter> = capturing.clone();
     let staged_ctx = GameLoopContext {
-        world: &staged_world,
-        npc_manager: &staged_npcs,
+        world: &candidate.world,
+        npc_manager: &candidate.npc_manager,
         config: live_ctx.config,
-        conversation: &staged_conversation,
+        conversation: &candidate.conversation,
         inference_queue: &staged_inference_queue,
-        emitter: staged_emitter,
+        emitter: candidate.emitter(),
         inference_config: live_ctx.inference_config,
         pronunciations: live_ctx.pronunciations,
         client: live_ctx.client,
@@ -145,6 +124,7 @@ where
         language: live_ctx.language.clone(),
         inference_failure_messages: live_ctx.inference_failure_messages,
         idle_messages: live_ctx.idle_messages,
+        inference_override: live_ctx.inference_override.clone(),
     };
 
     // Loading indicators are outward effects too, so pending turns do not
@@ -158,21 +138,15 @@ where
         || None,
     )
     .await;
+    drop(staged_ctx);
 
-    let mut semantic_events = Vec::new();
-    loop {
-        match semantic_rx.try_recv() {
-            Ok(event) => semantic_events.push(event),
-            Err(tokio::sync::broadcast::error::TryRecvError::Lagged(dropped)) => {
-                return Err(crate::error::LimerickError::Database(format!(
-                    "pending turn semantic event buffer overflowed and dropped {dropped} event(s)"
-                )));
-            }
-            Err(tokio::sync::broadcast::error::TryRecvError::Empty)
-            | Err(tokio::sync::broadcast::error::TryRecvError::Closed) => break,
+    let finished = match candidate.finish() {
+        Ok(finished) => finished,
+        Err(error) => {
+            deferred_audit.discard().await;
+            return Err(error);
         }
-    }
-    let emissions = capturing.drain();
+    };
 
     // This is the only fallible step after the candidate turn finishes. The
     // caller's store appends the complete batch atomically.
@@ -181,43 +155,174 @@ where
         return Err(error);
     }
 
-    // Install the candidate under canonical lock order, transplanting the
-    // process-lifetime bus so subscribers and the context epoch survive.
-    let mut candidate_world = staged_world.into_inner();
-    let candidate_npcs = staged_npcs.into_inner();
-    let candidate_conversation = staged_conversation.into_inner();
-    {
-        let mut live_world = live_ctx.world.lock().await;
-        let mut live_npcs = live_ctx.npc_manager.lock().await;
-        let mut live_conversation = live_ctx.conversation.lock().await;
-        candidate_world.event_bus = std::mem::take(&mut live_world.event_bus);
-        *live_world = candidate_world;
-        *live_npcs = candidate_npcs;
-        *live_conversation = candidate_conversation;
-    }
+    let installed = finished.install(live_ctx).await;
 
     // The provider call completed while the candidate was pending. Reveal its
     // debug-ring/JSONL audit record only after both the journal and canonical
     // install succeeded.
     deferred_audit.commit().await;
 
-    // Publish semantic events only after canonical state is installed and the
-    // durable task batch has committed.
-    let live_world = live_ctx.world.lock().await;
-    for event in semantic_events {
-        live_world.event_bus.publish(event);
-    }
-    drop(live_world);
-
-    // Transport events are buffered alongside the candidate and become
-    // visible only after both durable commit and canonical state install.
-    flush_staged_emissions(live_ctx.emitter.as_ref(), emissions.clone());
+    let emissions = installed.release(live_ctx).await;
 
     Ok(StagedGameInputCommit {
         emissions,
         task_mutations: outcome.task_mutations,
         dialogue_failure: outcome.dialogue_failure,
     })
+}
+
+/// An isolated copy of the live world, NPCs, and conversation that one turn
+/// runs against, with its transport output captured instead of emitted.
+///
+/// Nothing a turn does to a candidate is visible until it is installed:
+/// state, semantic events, and wire emissions all stay pending, so a turn
+/// that is stopped, fails, or cannot be journaled has no authoritative
+/// effect.
+pub struct TurnCandidate {
+    /// Candidate world (fresh event bus; the live bus is transplanted back
+    /// on install).
+    pub world: Mutex<WorldState>,
+    /// Candidate NPC manager.
+    pub npc_manager: Mutex<NpcManager>,
+    /// Candidate conversation state.
+    pub conversation: Mutex<ConversationRuntimeState>,
+    emitter: Arc<CapturingEmitter>,
+    semantic_rx: broadcast::Receiver<GameEvent>,
+}
+
+impl TurnCandidate {
+    /// Clones one coherent cut of `live` and records the turn as player
+    /// activity. `prelude` emissions are captured first, ahead of anything
+    /// the turn emits.
+    pub async fn capture(
+        live: &GameLoopContext<'_>,
+        prelude: Vec<(String, serde_json::Value)>,
+    ) -> Self {
+        // Clone one coherent canonical cut while holding the same lock order
+        // used by installation. The runtime persistence gate should already
+        // exclude mutators; retaining all three guards here also prevents a
+        // partially old/partially new candidate if a non-participating reader
+        // or legacy adapter is still present.
+        let (world, npc_manager, mut conversation) = {
+            let live_world = live.world.lock().await;
+            let live_npcs = live.npc_manager.lock().await;
+            let live_conversation = live.conversation.lock().await;
+            (
+                live_world.clone_for_staged_turn(),
+                live_npcs.clone(),
+                live_conversation.clone(),
+            )
+        };
+        let now = std::time::Instant::now();
+        conversation.last_player_activity = now;
+        conversation.last_spoken_at = now;
+        let semantic_rx = world.event_bus.subscribe();
+        let emitter = Arc::new(CapturingEmitter::new());
+        for (name, payload) in prelude {
+            emitter.emit_event(&name, payload);
+        }
+        Self {
+            world: Mutex::new(world),
+            npc_manager: Mutex::new(npc_manager),
+            conversation: Mutex::new(conversation),
+            emitter,
+            semantic_rx,
+        }
+    }
+
+    /// The emitter a candidate context must use.
+    pub fn emitter(&self) -> Arc<dyn EventEmitter> {
+        self.emitter.clone()
+    }
+
+    /// Wire emissions captured so far, in order (the turn keeps running).
+    pub fn emissions(&self) -> Vec<(String, serde_json::Value)> {
+        self.emitter.events()
+    }
+
+    /// Ends the turn: collects its semantic events and wire emissions.
+    /// Fails when the semantic event buffer overflowed, because a partial
+    /// event stream cannot be published.
+    pub fn finish(mut self) -> Result<FinishedCandidate, crate::error::LimerickError> {
+        let mut semantic_events = Vec::new();
+        loop {
+            match self.semantic_rx.try_recv() {
+                Ok(event) => semantic_events.push(event),
+                Err(broadcast::error::TryRecvError::Lagged(dropped)) => {
+                    return Err(crate::error::LimerickError::Database(format!(
+                        "pending turn semantic event buffer overflowed and dropped {dropped} event(s)"
+                    )));
+                }
+                Err(broadcast::error::TryRecvError::Empty)
+                | Err(broadcast::error::TryRecvError::Closed) => break,
+            }
+        }
+        Ok(FinishedCandidate {
+            world: self.world.into_inner(),
+            npc_manager: self.npc_manager.into_inner(),
+            conversation: self.conversation.into_inner(),
+            semantic_events,
+            emissions: self.emitter.drain(),
+        })
+    }
+}
+
+/// A candidate whose turn has ended, ready to install.
+pub struct FinishedCandidate {
+    world: WorldState,
+    npc_manager: NpcManager,
+    conversation: ConversationRuntimeState,
+    semantic_events: Vec<GameEvent>,
+    emissions: Vec<(String, serde_json::Value)>,
+}
+
+impl FinishedCandidate {
+    /// The wire emissions the turn produced, in order.
+    pub fn emissions(&self) -> &[(String, serde_json::Value)] {
+        &self.emissions
+    }
+
+    /// Replaces live state with the candidate under canonical lock order,
+    /// transplanting the process-lifetime event bus so subscribers and the
+    /// context epoch survive. Call only after the turn is durably journaled.
+    pub async fn install(self, live: &GameLoopContext<'_>) -> InstalledCandidate {
+        let mut world = self.world;
+        {
+            let mut live_world = live.world.lock().await;
+            let mut live_npcs = live.npc_manager.lock().await;
+            let mut live_conversation = live.conversation.lock().await;
+            world.event_bus = std::mem::take(&mut live_world.event_bus);
+            *live_world = world;
+            *live_npcs = self.npc_manager;
+            *live_conversation = self.conversation;
+        }
+        InstalledCandidate {
+            semantic_events: self.semantic_events,
+            emissions: self.emissions,
+        }
+    }
+}
+
+/// An installed candidate whose outward effects are still held back.
+#[must_use = "an installed turn's events and emissions must be released"]
+pub struct InstalledCandidate {
+    semantic_events: Vec<GameEvent>,
+    emissions: Vec<(String, serde_json::Value)>,
+}
+
+impl InstalledCandidate {
+    /// Publishes the turn's semantic events on the live bus, then flushes its
+    /// wire emissions to the live emitter. Returns the emissions.
+    pub async fn release(self, live: &GameLoopContext<'_>) -> Vec<(String, serde_json::Value)> {
+        {
+            let live_world = live.world.lock().await;
+            for event in self.semantic_events {
+                live_world.event_bus.publish(event);
+            }
+        }
+        flush_staged_emissions(live.emitter.as_ref(), self.emissions.clone());
+        self.emissions
+    }
 }
 
 /// Flushes a committed pending turn to its runtime transport.
@@ -378,6 +483,7 @@ mod tests {
             language: crate::npc::LanguageSettings::english_only(),
             inference_failure_messages: &[],
             idle_messages: &[],
+            inference_override: None,
         };
         let transport = make_transport();
         let reaction_templates = ReactionTemplates::default();

@@ -101,8 +101,9 @@ pub use save::{
     render_branch_log_text, render_branches_text, resolve_named_branch,
 };
 pub use staged_turn::{
-    StagedGameInputCommit, flush_staged_emissions, handle_staged_game_input,
-    handle_staged_game_input_with_journal, input_may_mutate_tasks,
+    FinishedCandidate, InstalledCandidate, StagedGameInputCommit, TurnCandidate,
+    flush_staged_emissions, handle_staged_game_input, handle_staged_game_input_with_journal,
+    input_may_mutate_tasks,
 };
 pub use system_command::{BoxFuture, SystemCommandHost, handle_system_command};
 pub use world_pump::{

@@ -208,7 +208,7 @@ pub struct TurnStep {
     pub request_id: LogicalRequestId,
     pub attempt_id: Option<ExecutionAttemptId>,
     pub events: Vec<TranscriptEvent>,           // durable, committed or terminal
-    pub emissions: Vec<(String, serde_json::Value)>, // existing wire events, released now
+    pub emissions: Vec<(String, serde_json::Value)>, // wire events (current names), released now
     pub status: TurnStatus,
 }
 
@@ -381,6 +381,15 @@ second entry point. Consequences:
   tier-2/3 result application takes the gate too.
 - Cost: one world and NPC clone per turn. Task-bearing turns already pay it. PR 5
   measures the clone for `mods/rundale` and records the number in the PR.
+
+PR 5 findings. Candidate capture on `mods/rundale` (22 locations, 23 NPCs,
+release build) takes a median of about 15 µs, both fresh and with a full
+500-line text log (`turn_lifecycle::measure_candidate_capture_cost_on_rundale`).
+Tier-2 and tier-3 result application takes `persistence_gate` on both the
+server (`session/ticks.rs`) and Tauri (`setup.rs`), as do the world tick,
+tier dispatch, inactivity tick, reactions, saves, and editor reloads. Two Tauri
+clock mutators did not, and now do: the native screenshot pause restore and
+the auto-player inference pause.
 
 ### 5.3 Presentation timing
 

@@ -192,11 +192,13 @@ pub async fn rebuild_inference_worker_with_clients(
 /// timeout behind the `inference-response-timeout` kill switch), and intent,
 /// travel encounters, and arrival reactions call their category client
 /// directly with an audit record.
+#[derive(Clone)]
 pub struct InProcessInference<'a> {
     config: &'a Mutex<crate::ipc::GameConfig>,
     client: &'a Mutex<Option<AnyClient>>,
     inference_queue: &'a Mutex<Option<InferenceQueue>>,
     inference_config: &'a InferenceConfig,
+    deferred_audit: Option<crate::inference::DeferredInferenceAudit>,
 }
 
 impl<'a> InProcessInference<'a> {
@@ -207,7 +209,27 @@ impl<'a> InProcessInference<'a> {
             client: ctx.client,
             inference_queue: ctx.inference_queue,
             inference_config: ctx.inference_config,
+            deferred_audit: None,
         }
+    }
+
+    /// Buffers every audit record in `audit` until the caller commits or
+    /// discards it, so a staged turn reveals its provider calls only when it
+    /// commits.
+    pub fn with_deferred_audit(&self, audit: crate::inference::DeferredInferenceAudit) -> Self {
+        Self {
+            deferred_audit: Some(audit),
+            ..self.clone()
+        }
+    }
+
+    /// The live queue, scoped to this adapter's deferred audit when set.
+    async fn queue(&self) -> Option<InferenceQueue> {
+        let queue = self.inference_queue.lock().await.clone()?;
+        Some(match &self.deferred_audit {
+            Some(audit) => queue.with_deferred_audit(audit.clone()),
+            None => queue,
+        })
     }
 
     /// Resolves the direct client route for a non-dialogue workload.
@@ -223,8 +245,7 @@ impl<'a> InProcessInference<'a> {
             (client, model, config.inference_profile(subrole))
         };
         let audit_sink = self
-            .inference_queue
-            .lock()
+            .queue()
             .await
             .as_ref()
             .and_then(InferenceQueue::audit_sink);
@@ -257,7 +278,7 @@ impl<'a> InProcessInference<'a> {
         };
 
         let (queue, model, profile, timeout_secs) = {
-            let queue = self.inference_queue.lock().await.clone();
+            let queue = self.queue().await;
             let config = self.config.lock().await;
             let timeout_secs = if config.flags.is_disabled("inference-response-timeout") {
                 None

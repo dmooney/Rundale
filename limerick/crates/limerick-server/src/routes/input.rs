@@ -371,6 +371,7 @@ pub(crate) fn make_game_loop_ctx<'a>(
         language: state.language_settings.clone(),
         inference_failure_messages: &state.inference_failure_messages,
         idle_messages: &state.idle_messages,
+        inference_override: None,
     }
 }
 

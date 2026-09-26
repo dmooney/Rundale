@@ -173,6 +173,20 @@ pub trait TurnInference: Send + Sync {
     }
 }
 
+impl<T: TurnInference + ?Sized> TurnInference for std::sync::Arc<T> {
+    fn route(&self, subrole: InferenceSubrole) -> BoxFuture<'_, RouteStatus> {
+        (**self).route(subrole)
+    }
+
+    fn complete_streaming(
+        &self,
+        call: InferenceCall,
+        tokens: Option<mpsc::Sender<String>>,
+    ) -> BoxFuture<'_, InferenceOutcome> {
+        (**self).complete_streaming(call, tokens)
+    }
+}
+
 /// Fulfils calls with one directly held provider client.
 ///
 /// This is the in-process path for intent, travel encounters, and arrival
