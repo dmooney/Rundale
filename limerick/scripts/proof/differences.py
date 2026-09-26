@@ -36,8 +36,8 @@ else:  # pragma: no cover - CI and the dev venv run 3.11+
 
 INTENDED_FENCE = "```toml intended-diffs"
 
-# A unit is one comparable step (a command, a request, a turn): a short label
-# and the normalised lines that describe it.
+# A unit is one comparable step (a command, a request, a turn): a unique stable
+# label within each run and the normalised lines that describe it.
 Unit = tuple[str, list[str]]
 
 
@@ -127,50 +127,41 @@ def diff_units(
     base_runs: Sequence[Sequence[Unit]],
     head_runs: Sequence[Sequence[Unit]],
 ) -> list[Item]:
-    """Line-level differences between the base runs and the head runs.
+    """Line-level differences across base and head runs, keyed by unit label.
 
-    Units are paired by label (command index, turn, request slot), first run
-    to first run, so repetitive fixtures cannot mis-pair. A pair is unchanged
-    when some base run and some head run agree on it. Where every run of
-    both sides agrees, the pair is compared line by line, order included.
-    Where a side's runs disagree (nondeterminism), each side is a range: a
-    line is added only if every head run has it and no base run does, and
-    removed only if every base run has it and no head run does.
+    Labels identify comparable steps (for example, a script command or a
+    request at a canonical location), and therefore must be unique within a
+    run. A label missing from some runs is represented as an empty unit. This
+    matters for live background requests, where one location may be absent in
+    one run and must not shift every later request onto the wrong unit.
+
+    For each identity, a line is added only if every head run has it and no
+    base run does, and removed only if every base run has it and no head run
+    does. Stable units are still compared line by line, with order preserved.
     """
-    base_options = _options(base_runs)
-    head_options = _options(head_runs)
-    base_ref = list(base_runs[0]) if base_runs else []
-    head_ref = list(head_runs[0]) if head_runs else []
+    base_maps = [_by_label(run) for run in base_runs]
+    head_maps = [_by_label(run) for run in head_runs]
+
+    labels = list(dict.fromkeys(unit[0] for run in (*base_runs, *head_runs) for unit in run))
 
     items: list[Item] = []
-    matcher = difflib.SequenceMatcher(
-        a=[unit[0] for unit in base_ref], b=[unit[0] for unit in head_ref], autojunk=False
-    )
-    for _tag, a0, a1, b0, b1 in matcher.get_opcodes():
-        pairs = list(zip(range(a0, a1), range(b0, b1), strict=False))
-        for a, b in pairs:
-            old_keys = {_key(unit) for unit in base_options[a]}
-            if old_keys & {_key(unit) for unit in head_options[b]}:
-                continue
-            old = [unit[1] for unit in base_options[a]]
-            new = [unit[1] for unit in head_options[b]]
-            items += _range_items(surface, name, head_ref[b][0], old, new)
-        for a in range(a0 + len(pairs), a1):
-            items += _line_items(surface, name, base_ref[a][0], base_ref[a][1], [])
-        for b in range(b0 + len(pairs), b1):
-            items += _line_items(surface, name, head_ref[b][0], [], head_ref[b][1])
+    for label in labels:
+        old = [run[label][1] if label in run else [] for run in base_maps]
+        new = [run[label][1] if label in run else [] for run in head_maps]
+        items += _range_items(surface, name, label, old, new)
     return items
 
 
 def unstable_units(base_runs: Sequence[Sequence[Unit]]) -> int:
-    """Counts unit positions where the base runs disagree with each other."""
+    """Counts unit identities where the base runs disagree with each other."""
     if len(base_runs) < 2:
         return 0
-    longest = max(len(run) for run in base_runs)
+    maps = [_by_label(run) for run in base_runs]
+    labels = set().union(*(run.keys() for run in maps))
     return sum(
         1
-        for index in range(longest)
-        if len({_key(run[index]) if index < len(run) else None for run in base_runs}) > 1
+        for label in labels
+        if len({_key(run[label]) if label in run else None for run in maps}) > 1
     )
 
 
@@ -178,10 +169,12 @@ def _key(unit: Unit) -> str:
     return "\n".join(unit[1])
 
 
-def _options(runs: Sequence[Sequence[Unit]]) -> list[list[Unit]]:
-    """Per position, the unit each run has there (runs may differ in length)."""
-    longest = max((len(run) for run in runs), default=0)
-    return [[run[index] for run in runs if index < len(run)] for index in range(longest)]
+def _by_label(run: Sequence[Unit]) -> dict[str, Unit]:
+    """Map unique unit identities to their observations in one run."""
+    result = {label: (label, lines) for label, lines in run}
+    if len(result) != len(run):
+        raise ValueError("proof unit labels must be unique within each run")
+    return result
 
 
 def _range_items(
