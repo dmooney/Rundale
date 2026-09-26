@@ -4,7 +4,7 @@
 //! persistence schema. Conversion to/from live types lives in
 //! [`super::convert`]; restore logic lives in [`super::restore`].
 
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet};
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -105,7 +105,7 @@ pub struct NpcSnapshot {
     /// Season-aware schedule.
     pub schedule: Option<SeasonalSchedule>,
     /// Relationships to other NPCs.
-    pub relationships: HashMap<NpcId, Relationship>,
+    pub relationships: BTreeMap<NpcId, Relationship>,
     /// Short-term memory ring buffer.
     pub memory: ShortTermMemory,
     /// Persistent long-term memory with keyword-based retrieval.

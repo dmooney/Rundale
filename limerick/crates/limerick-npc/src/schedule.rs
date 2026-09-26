@@ -3,7 +3,7 @@
 //! Extracted from `NpcManager` so schedule logic and its tests live in one place.
 //! `NpcManager::tick_schedules` is a thin wrapper around [`tick_schedules`].
 
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 
 use chrono::{DateTime, Datelike, Duration, Timelike, Utc};
 
@@ -68,7 +68,7 @@ fn resolve_cuaird_location(
     current_hour: u8,
     season: Season,
     day_type: DayType,
-    npcs: &HashMap<NpcId, Npc>,
+    npcs: &BTreeMap<NpcId, Npc>,
     now: DateTime<Utc>,
 ) -> Option<LocationId> {
     let entry = npc.schedule_entry(current_hour, season, day_type)?;
@@ -124,7 +124,7 @@ fn needs_weather_shelter(
 ///
 /// Returns a list of structured schedule events describing what happened.
 pub fn tick_schedules(
-    npcs: &mut HashMap<NpcId, Npc>,
+    npcs: &mut BTreeMap<NpcId, Npc>,
     clock: &GameClock,
     graph: &WorldGraph,
     weather: Weather,
@@ -292,7 +292,7 @@ mod tests {
             None => return,
         };
 
-        let mut npcs = HashMap::new();
+        let mut npcs = BTreeMap::new();
         // NPC lives at crossroads (1), works at pub (2).
         npcs.insert(NpcId(1), make_scheduled_npc(1, 1, 2));
 
@@ -323,7 +323,7 @@ mod tests {
             None => return,
         };
 
-        let mut npcs = HashMap::new();
+        let mut npcs = BTreeMap::new();
         npcs.insert(NpcId(1), make_scheduled_npc(1, 1, 2));
 
         let start = Utc.with_ymd_and_hms(1820, 3, 20, 10, 0, 0).unwrap();
@@ -362,7 +362,7 @@ mod tests {
             None => return,
         };
 
-        let mut npcs = HashMap::new();
+        let mut npcs = BTreeMap::new();
         let mut npc = make_scheduled_npc(1, 1, 2);
         npc.set_location(LocationId(2)); // Already at work.
         npcs.insert(NpcId(1), npc);
@@ -413,7 +413,7 @@ mod tests {
                 ],
             }],
         }));
-        let mut npcs = HashMap::from([(npc.id, npc)]);
+        let mut npcs = BTreeMap::from([(npc.id, npc)]);
         let graph = WorldGraph::new();
         let event_bus = EventBus::new();
         let mut clock = GameClock::new(Utc.with_ymd_and_hms(1820, 3, 20, 10, 0, 0).unwrap());
@@ -472,7 +472,7 @@ mod tests {
                 }],
             }],
         }));
-        let mut npcs = HashMap::from([(npc.id, npc)]);
+        let mut npcs = BTreeMap::from([(npc.id, npc)]);
         let graph = WorldGraph::new();
         let event_bus = EventBus::new();
         let mut clock = GameClock::new(Utc.with_ymd_and_hms(1820, 3, 20, 10, 0, 0).unwrap());
@@ -518,7 +518,7 @@ mod tests {
         npc.home = Some(LocationId(2));
         npc.occupation = "Shopkeeper".to_string();
 
-        let mut npcs = HashMap::new();
+        let mut npcs = BTreeMap::new();
         npcs.insert(NpcId(1), npc);
 
         let start = Utc.with_ymd_and_hms(1820, 3, 20, 10, 0, 0).unwrap();
@@ -557,7 +557,7 @@ mod tests {
         npc.home = Some(LocationId(2));
         npc.occupation = "Farmer".to_string();
 
-        let mut npcs = HashMap::new();
+        let mut npcs = BTreeMap::new();
         npcs.insert(NpcId(1), npc);
 
         let start = Utc.with_ymd_and_hms(1820, 3, 20, 10, 0, 0).unwrap();
@@ -616,7 +616,7 @@ mod tests {
             None => return,
         };
 
-        let mut npcs = HashMap::new();
+        let mut npcs = BTreeMap::new();
         npcs.insert(NpcId(1), make_test_npc(1, 1));
 
         let start = Utc.with_ymd_and_hms(1820, 3, 20, 10, 0, 0).unwrap();

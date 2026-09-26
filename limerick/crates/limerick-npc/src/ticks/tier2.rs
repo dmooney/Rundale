@@ -5,7 +5,7 @@
 //! background task so it does not block player turns.
 
 use chrono::{DateTime, Timelike, Utc};
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet};
 
 use crate::memory::{MemoryEntry, try_promote};
 use crate::types::{NpcState, Tier2Event, Tier2ParticipantGrounding, Tier2Response};
@@ -518,14 +518,14 @@ fn is_tier2_grounding_failure(msg: &str) -> bool {
 /// e.g. skipping `create_gossip_from_tier2_event` so a hallucinated name can't
 /// spread through the gossip network (#1027), mirroring the in-function guard
 /// that suppresses the `NpcInteraction` publish and the memory write.
-fn tier2_summary_mentions_absent_npc(event: &Tier2Event, npcs: &HashMap<NpcId, Npc>) -> bool {
+fn tier2_summary_mentions_absent_npc(event: &Tier2Event, npcs: &BTreeMap<NpcId, Npc>) -> bool {
     summary_mentions_absent_npc(&event.summary, &event.participants, npcs).is_some()
 }
 
 fn summary_mentions_absent_npc(
     summary: &str,
     participants: &[NpcId],
-    npcs: &HashMap<NpcId, Npc>,
+    npcs: &BTreeMap<NpcId, Npc>,
 ) -> Option<String> {
     let haystack = summary.to_lowercase();
     let mut absent: Vec<String> = npcs
@@ -554,7 +554,7 @@ fn summary_mentions_absent_npc(
 /// apply after asynchronous inference.
 fn tier2_event_grounding_conflict(
     event: &Tier2Event,
-    npcs: &HashMap<NpcId, Npc>,
+    npcs: &BTreeMap<NpcId, Npc>,
     game_time: DateTime<Utc>,
 ) -> Option<String> {
     if event.participants.is_empty() {
@@ -855,7 +855,7 @@ pub enum GroundedTier2ApplyOutcome {
 /// relationship, or gossip state can change.
 pub fn apply_grounded_tier2_event_with_config(
     event: &Tier2Event,
-    npcs: &mut HashMap<NpcId, Npc>,
+    npcs: &mut BTreeMap<NpcId, Npc>,
     game_time: DateTime<Utc>,
     config: &NpcConfig,
     event_bus: &EventBus,
@@ -890,7 +890,7 @@ pub fn apply_grounded_tier2_event_with_config(
 /// Returns debug event strings describing what happened.
 fn apply_tier2_event_with_config(
     event: &Tier2Event,
-    npcs: &mut HashMap<NpcId, Npc>,
+    npcs: &mut BTreeMap<NpcId, Npc>,
     game_time: DateTime<Utc>,
     config: &NpcConfig,
     event_bus: &limerick_types::events::EventBus,
@@ -1027,7 +1027,7 @@ fn apply_tier2_event_with_config(
 #[cfg(test)]
 pub(crate) fn apply_tier2_event(
     event: &Tier2Event,
-    npcs: &mut HashMap<NpcId, Npc>,
+    npcs: &mut BTreeMap<NpcId, Npc>,
     game_time: DateTime<Utc>,
 ) -> Vec<String> {
     apply_tier2_event_with_config(
@@ -1237,7 +1237,7 @@ mod tests {
 
     #[test]
     fn test_apply_tier2_event() {
-        let mut npcs: HashMap<NpcId, Npc> = HashMap::new();
+        let mut npcs: BTreeMap<NpcId, Npc> = BTreeMap::new();
         let mut npc1 = named_npc(1, "Padraig", 2);
         npc1.relationships
             .insert(NpcId(5), Relationship::new(RelationshipKind::Friend, 0.5));
@@ -1295,7 +1295,7 @@ mod tests {
             n
         }
 
-        let mut npcs: HashMap<NpcId, Npc> = HashMap::new();
+        let mut npcs: BTreeMap<NpcId, Npc> = BTreeMap::new();
         npcs.insert(NpcId(1), named_npc(1, "Padraig Darcy", 2));
         npcs.insert(NpcId(5), named_npc(5, "Tommy O'Brien", 2));
         // Aoife is authored elsewhere — not part of this scene.
@@ -1369,7 +1369,7 @@ mod tests {
 
     #[test]
     fn test_apply_tier2_event_with_config_truncation() {
-        let mut npcs: HashMap<NpcId, Npc> = HashMap::new();
+        let mut npcs: BTreeMap<NpcId, Npc> = BTreeMap::new();
         npcs.insert(NpcId(1), named_npc(1, "Padraig", 2));
 
         let long_summary = "a".repeat(200);
@@ -1401,7 +1401,7 @@ mod tests {
 
     #[test]
     fn test_apply_tier2_event_missing_npc_in_map() {
-        let mut npcs: HashMap<NpcId, Npc> = HashMap::new();
+        let mut npcs: BTreeMap<NpcId, Npc> = BTreeMap::new();
         npcs.insert(NpcId(1), named_npc(1, "Padraig", 2));
         // NpcId(99) is NOT in the map
 
@@ -1432,7 +1432,7 @@ mod tests {
 
     #[test]
     fn test_apply_tier2_event_empty_participants() {
-        let mut npcs: HashMap<NpcId, Npc> = HashMap::new();
+        let mut npcs: BTreeMap<NpcId, Npc> = BTreeMap::new();
         npcs.insert(NpcId(1), named_npc(1, "Padraig", 2));
 
         let event = Tier2Event {
@@ -1453,7 +1453,7 @@ mod tests {
 
     #[test]
     fn test_apply_tier2_event_same_mood_no_debug_event() {
-        let mut npcs: HashMap<NpcId, Npc> = HashMap::new();
+        let mut npcs: BTreeMap<NpcId, Npc> = BTreeMap::new();
         let mut npc = named_npc(1, "Padraig", 2);
         npc.mood = "calm".to_string();
         npcs.insert(NpcId(1), npc);
@@ -1480,7 +1480,7 @@ mod tests {
 
     #[test]
     fn test_apply_tier2_event_relationship_not_found() {
-        let mut npcs: HashMap<NpcId, Npc> = HashMap::new();
+        let mut npcs: BTreeMap<NpcId, Npc> = BTreeMap::new();
         // Padraig has no relationship with Tommy
         npcs.insert(NpcId(1), named_npc(1, "Padraig", 2));
         npcs.insert(NpcId(5), named_npc(5, "Tommy", 2));
@@ -1686,7 +1686,7 @@ mod tests {
         const TOMMY: NpcId = NpcId(5);
         const LOCATION: LocationId = LocationId(2);
 
-        let mut npcs: HashMap<NpcId, Npc> = HashMap::new();
+        let mut npcs: BTreeMap<NpcId, Npc> = BTreeMap::new();
         npcs.insert(PADRAIG, named_npc(1, "Padraig", 2));
         npcs.insert(TOMMY, named_npc(5, "Tommy", 2));
 

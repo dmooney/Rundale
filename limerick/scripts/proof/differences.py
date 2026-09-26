@@ -100,38 +100,36 @@ def diff_units(
 ) -> list[Item]:
     """Line-level differences between the base runs and the head runs.
 
-    Units are aligned first-run to first-run; a position is unchanged when
-    some base run and some head run agree on it. Where every run of both
-    sides agrees on a unit, the unit is compared line by line, order
-    included. Where a side's runs disagree (nondeterminism), each side is a
-    range: a line is added only if every head run has it and no base run
-    does, and removed only if every base run has it and no head run does.
+    Units are paired by label (command index, turn, request slot), first run
+    to first run, so repetitive fixtures cannot mis-pair. A pair is unchanged
+    when some base run and some head run agree on it. Where every run of
+    both sides agrees, the pair is compared line by line, order included.
+    Where a side's runs disagree (nondeterminism), each side is a range: a
+    line is added only if every head run has it and no base run does, and
+    removed only if every base run has it and no head run does.
     """
     base_options = _options(base_runs)
     head_options = _options(head_runs)
-    base_keys = [_key(unit) for unit in base_runs[0]]
-    head_keys = []
-    for index, unit in enumerate(head_runs[0]):
-        same = index < len(base_options) and {_key(u) for u in head_options[index]} & {
-            _key(u) for u in base_options[index]
-        }
-        head_keys.append(base_keys[index] if same else _key(unit))
+    base_ref = list(base_runs[0]) if base_runs else []
+    head_ref = list(head_runs[0]) if head_runs else []
 
     items: list[Item] = []
-    matcher = difflib.SequenceMatcher(a=base_keys, b=head_keys, autojunk=False)
-    for tag, a0, a1, b0, b1 in matcher.get_opcodes():
-        if tag == "equal":
-            continue
+    matcher = difflib.SequenceMatcher(
+        a=[unit[0] for unit in base_ref], b=[unit[0] for unit in head_ref], autojunk=False
+    )
+    for _tag, a0, a1, b0, b1 in matcher.get_opcodes():
         pairs = list(zip(range(a0, a1), range(b0, b1), strict=False))
         for a, b in pairs:
-            label = head_runs[0][b][0]
+            old_keys = {_key(unit) for unit in base_options[a]}
+            if old_keys & {_key(unit) for unit in head_options[b]}:
+                continue
             old = [unit[1] for unit in base_options[a]]
             new = [unit[1] for unit in head_options[b]]
-            items += _range_items(surface, name, label, old, new)
+            items += _range_items(surface, name, head_ref[b][0], old, new)
         for a in range(a0 + len(pairs), a1):
-            items += _line_items(surface, name, base_runs[0][a][0], base_runs[0][a][1], [])
+            items += _line_items(surface, name, base_ref[a][0], base_ref[a][1], [])
         for b in range(b0 + len(pairs), b1):
-            items += _line_items(surface, name, head_runs[0][b][0], [], head_runs[0][b][1])
+            items += _line_items(surface, name, head_ref[b][0], [], head_ref[b][1])
     return items
 
 

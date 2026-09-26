@@ -40,10 +40,10 @@ pub(super) fn save_snapshot(
     conn: &Connection,
     branch_id: i64,
     snapshot: &GameSnapshot,
+    real_time: &str,
 ) -> Result<i64, LimerickError> {
     let world_state = serde_json::to_string(snapshot)?;
     let game_time = snapshot.clock.game_time.to_rfc3339();
-    let real_time = chrono::Utc::now().to_rfc3339();
 
     conn.execute(
         "INSERT INTO snapshots (branch_id, game_time, real_time, world_state)

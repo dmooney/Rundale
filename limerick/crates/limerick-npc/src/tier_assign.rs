@@ -3,7 +3,7 @@
 //! Extracted from `NpcManager` so tier-assignment logic and its tests live in
 //! one place. `NpcManager::assign_tiers` is a thin wrapper around [`assign_tiers`].
 
-use std::collections::{HashMap, VecDeque};
+use std::collections::{BTreeMap, HashMap, VecDeque};
 
 use crate::transitions::{deflate_npc_state, inflate_npc_context};
 use crate::types::CogTier;
@@ -46,8 +46,8 @@ pub struct TierTransition {
 /// session). Set it to `None` to force a recompute — e.g. after a graph
 /// hot-reload.
 pub fn assign_tiers(
-    npcs: &mut HashMap<NpcId, Npc>,
-    tier_assignments: &mut HashMap<NpcId, CogTier>,
+    npcs: &mut BTreeMap<NpcId, Npc>,
+    tier_assignments: &mut BTreeMap<NpcId, CogTier>,
     bfs_cache: &mut Option<(LocationId, HashMap<LocationId, u32>)>,
     world: &WorldState,
     recent_events: &[GameEvent],
@@ -175,8 +175,8 @@ pub fn assign_tiers(
 /// same way `assign_tiers` uses it, so a follow-up live
 /// `assign_tiers` call hits the cache.
 pub fn seed_tier_state(
-    npcs: &HashMap<NpcId, Npc>,
-    tier_assignments: &mut HashMap<NpcId, CogTier>,
+    npcs: &BTreeMap<NpcId, Npc>,
+    tier_assignments: &mut BTreeMap<NpcId, CogTier>,
     bfs_cache: &mut Option<(LocationId, HashMap<LocationId, u32>)>,
     world: &WorldState,
 ) {
@@ -255,10 +255,10 @@ mod tests {
     use limerick_world::events::GameEvent;
 
     fn run_assign(
-        npcs: &mut HashMap<NpcId, Npc>,
+        npcs: &mut BTreeMap<NpcId, Npc>,
         world: &WorldState,
-    ) -> (HashMap<NpcId, CogTier>, Vec<TierTransition>) {
-        let mut ta = HashMap::new();
+    ) -> (BTreeMap<NpcId, CogTier>, Vec<TierTransition>) {
+        let mut ta = BTreeMap::new();
         let mut cache = None;
         let transitions = assign_tiers(npcs, &mut ta, &mut cache, world, &[]);
         (ta, transitions)
@@ -270,7 +270,7 @@ mod tests {
             Some(g) => g,
             None => return,
         };
-        let mut npcs = HashMap::new();
+        let mut npcs = BTreeMap::new();
         npcs.insert(NpcId(1), make_test_npc(1, 2)); // 1 edge from crossroads
         npcs.insert(NpcId(2), make_test_npc(2, 1)); // at crossroads (player here)
         npcs.insert(NpcId(3), make_test_npc(3, 11)); // far away
@@ -293,7 +293,7 @@ mod tests {
             Some(g) => g,
             None => return,
         };
-        let mut npcs = HashMap::new();
+        let mut npcs = BTreeMap::new();
         npcs.insert(NpcId(1), make_test_npc(1, 1)); // at crossroads with player
         npcs.insert(NpcId(2), make_test_npc(2, 2)); // pub, 1 edge away
 
@@ -318,7 +318,7 @@ mod tests {
     #[test]
     fn test_tier_assignment_3_vs_4() {
         let graph = make_chain_graph(6);
-        let mut npcs = HashMap::new();
+        let mut npcs = BTreeMap::new();
         for i in 0..=6 {
             npcs.insert(NpcId(i + 10), make_test_npc(i + 10, i));
         }
@@ -337,7 +337,7 @@ mod tests {
     #[test]
     fn test_tier3_npcs() {
         let graph = make_chain_graph(5);
-        let mut npcs = HashMap::new();
+        let mut npcs = BTreeMap::new();
         npcs.insert(NpcId(1), make_test_npc(1, 3)); // distance 3 → Tier3
         npcs.insert(NpcId(2), make_test_npc(2, 4)); // distance 4 → Tier3
         npcs.insert(NpcId(3), make_test_npc(3, 1)); // distance 1 → Tier2
@@ -361,7 +361,7 @@ mod tests {
             Some(g) => g,
             None => return,
         };
-        let mut npcs = HashMap::new();
+        let mut npcs = BTreeMap::new();
         npcs.insert(NpcId(1), make_test_npc(1, 11)); // far — starts Tier3+
 
         let world = make_test_world(graph.clone(), 1);
@@ -394,7 +394,7 @@ mod tests {
             Some(g) => g,
             None => return,
         };
-        let mut npcs = HashMap::new();
+        let mut npcs = BTreeMap::new();
         npcs.insert(NpcId(1), make_test_npc(1, 1)); // same as player → Tier1
 
         let world = make_test_world(graph.clone(), 1);
@@ -419,13 +419,13 @@ mod tests {
     #[test]
     fn bfs_cache_same_distances_on_cache_hit() {
         let graph = make_chain_graph(4);
-        let mut npcs = HashMap::new();
+        let mut npcs = BTreeMap::new();
         for i in 0..=4 {
             npcs.insert(NpcId(i + 10), make_test_npc(i + 10, i));
         }
         let world = make_test_world(graph, 0);
 
-        let mut ta = HashMap::new();
+        let mut ta = BTreeMap::new();
         let mut cache = None;
         assign_tiers(&mut npcs, &mut ta, &mut cache, &world, &[]);
         let first: Vec<_> = (0..=4u32).map(|i| ta[&NpcId(i + 10)]).collect();
@@ -439,13 +439,13 @@ mod tests {
     #[test]
     fn bfs_cache_invalidation_preserves_correctness() {
         let graph = make_chain_graph(4);
-        let mut npcs = HashMap::new();
+        let mut npcs = BTreeMap::new();
         for i in 0..=4 {
             npcs.insert(NpcId(i + 10), make_test_npc(i + 10, i));
         }
         let world = make_test_world(graph, 0);
 
-        let mut ta = HashMap::new();
+        let mut ta = BTreeMap::new();
         let mut cache = None;
         assign_tiers(&mut npcs, &mut ta, &mut cache, &world, &[]);
         let before: Vec<_> = (0..=4u32).map(|i| ta[&NpcId(i + 10)]).collect();
@@ -463,7 +463,7 @@ mod tests {
     #[test]
     fn bfs_cache_invalidated_on_player_move() {
         let graph = make_chain_graph(6);
-        let mut npcs = HashMap::new();
+        let mut npcs = BTreeMap::new();
         npcs.insert(NpcId(10), make_test_npc(10, 0));
         npcs.insert(NpcId(16), make_test_npc(16, 6));
 
@@ -471,7 +471,7 @@ mod tests {
         world.player_location = LocationId(0);
         world.graph = graph;
 
-        let mut ta = HashMap::new();
+        let mut ta = BTreeMap::new();
         let mut cache = None;
         assign_tiers(&mut npcs, &mut ta, &mut cache, &world, &[]);
         assert_eq!(ta[&NpcId(10)], CogTier::Tier1);

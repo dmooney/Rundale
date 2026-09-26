@@ -3,7 +3,7 @@
 //! Part of the `NpcManager` impl, split out of the former monolithic
 //! `manager.rs` (#1200 TD-030). Public method paths are unchanged.
 
-use std::collections::{HashMap, VecDeque};
+use std::collections::{BTreeMap, VecDeque};
 
 use chrono::{DateTime, Utc};
 
@@ -47,8 +47,8 @@ impl NpcManager {
     /// assignment (it is not reassigned to Tier 3/4) and is picked up by
     /// Tier 2 again as soon as it shares a location with another Tier 2
     /// NPC, or by Tier 3/4 once the player moves and its distance grows.
-    pub fn tier2_groups(&self) -> HashMap<LocationId, Vec<NpcId>> {
-        let mut groups: HashMap<LocationId, Vec<NpcId>> = HashMap::new();
+    pub fn tier2_groups(&self) -> BTreeMap<LocationId, Vec<NpcId>> {
+        let mut groups: BTreeMap<LocationId, Vec<NpcId>> = BTreeMap::new();
         for (id, tier) in &self.tier_assignments {
             if *tier == CogTier::Tier2
                 && let Some(npc) = self.npcs.get(id)

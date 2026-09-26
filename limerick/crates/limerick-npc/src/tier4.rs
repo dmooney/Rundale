@@ -347,7 +347,7 @@ pub(crate) const RING_BUFFER_CAPACITY: usize = 5;
 /// `banshee_enabled` gates whether a `Death` event schedules a doom timestamp
 /// (banshee path) or removes the NPC immediately (pre-banshee behaviour).
 fn apply_illness(
-    npcs: &mut std::collections::HashMap<NpcId, Npc>,
+    npcs: &mut std::collections::BTreeMap<NpcId, Npc>,
     npc_id: &NpcId,
     timestamp: DateTime<Utc>,
     life_descs: &mut Vec<String>,
@@ -376,7 +376,7 @@ fn apply_illness(
 }
 
 fn apply_recovery(
-    npcs: &mut std::collections::HashMap<NpcId, Npc>,
+    npcs: &mut std::collections::BTreeMap<NpcId, Npc>,
     npc_id: &NpcId,
     timestamp: DateTime<Utc>,
     life_descs: &mut Vec<String>,
@@ -405,7 +405,7 @@ fn apply_recovery(
 }
 
 fn apply_death(
-    npcs: &mut std::collections::HashMap<NpcId, Npc>,
+    npcs: &mut std::collections::BTreeMap<NpcId, Npc>,
     npc_id: &NpcId,
     timestamp: DateTime<Utc>,
     banshee_enabled: bool,
@@ -441,7 +441,7 @@ fn apply_death(
 }
 
 fn apply_birth(
-    npcs: &std::collections::HashMap<NpcId, Npc>,
+    npcs: &std::collections::BTreeMap<NpcId, Npc>,
     parent_ids: &(NpcId, NpcId),
     timestamp: DateTime<Utc>,
     life_descs: &mut Vec<String>,
@@ -469,7 +469,7 @@ fn apply_birth(
 }
 
 fn apply_seasonal_shift(
-    npcs: &std::collections::HashMap<NpcId, Npc>,
+    npcs: &std::collections::BTreeMap<NpcId, Npc>,
     npc_id: &NpcId,
     new_schedule_desc: &str,
     timestamp: DateTime<Utc>,
@@ -491,7 +491,7 @@ fn apply_seasonal_shift(
 }
 
 fn apply_trade(
-    npcs: &mut std::collections::HashMap<NpcId, Npc>,
+    npcs: &mut std::collections::BTreeMap<NpcId, Npc>,
     buyer: &NpcId,
     seller: &NpcId,
     timestamp: DateTime<Utc>,
@@ -541,7 +541,7 @@ fn apply_festival_detected(festival: &Festival, timestamp: DateTime<Utc>) -> Vec
 }
 
 fn apply_festival_bond(
-    npcs: &mut std::collections::HashMap<NpcId, Npc>,
+    npcs: &mut std::collections::BTreeMap<NpcId, Npc>,
     npc_a: &NpcId,
     npc_b: &NpcId,
     timestamp: DateTime<Utc>,
@@ -565,7 +565,7 @@ fn apply_festival_bond(
 }
 
 pub fn apply_events(
-    npcs: &mut std::collections::HashMap<NpcId, Npc>,
+    npcs: &mut std::collections::BTreeMap<NpcId, Npc>,
     recent_events_ring: &mut VecDeque<String>,
     events: &[Tier4Event],
     timestamp: DateTime<Utc>,
@@ -860,7 +860,7 @@ mod tests {
 
     #[test]
     fn tier4_death_with_banshee_enabled_schedules_doom() {
-        let mut npcs = std::collections::HashMap::new();
+        let mut npcs = std::collections::BTreeMap::new();
         npcs.insert(NpcId(42), make_test_npc(42, 2));
 
         let now = chrono::Utc.with_ymd_and_hms(1820, 6, 15, 14, 0, 0).unwrap();
@@ -883,7 +883,7 @@ mod tests {
 
     #[test]
     fn tier4_death_with_banshee_disabled_removes_npc_immediately() {
-        let mut npcs = std::collections::HashMap::new();
+        let mut npcs = std::collections::BTreeMap::new();
         npcs.insert(NpcId(42), make_test_npc(42, 2));
 
         let now = chrono::Utc.with_ymd_and_hms(1820, 6, 15, 14, 0, 0).unwrap();

@@ -301,8 +301,15 @@ pub fn apply_movement(
             }
 
             // Check for a travel encounter now that the clock has advanced.
-            let encounter_msg =
-                check_encounter(world.clock.time_of_day(), dice::DiceRoll::roll().value());
+            let encounter_roll = dice::DiceRoll::seeded(dice::seed(
+                "travel-encounter",
+                &[
+                    world.clock.game_minutes(),
+                    u64::from(origin.0),
+                    u64::from(destination.0),
+                ],
+            ));
+            let encounter_msg = check_encounter(world.clock.time_of_day(), encounter_roll.value());
 
             // Reassign NPC cognitive tiers
             let tier_transitions = npc_manager.assign_tiers(world, &[]);
@@ -628,7 +635,16 @@ pub fn apply_arrival_reactions(
     let tod = world.clock.time_of_day();
     let weather = world.weather.to_string();
     let introduced = npc_manager.introduced_set();
-    let roll_dice = dice::roll_n(npcs.len() * 2);
+    let roll_dice = dice::seeded_n(
+        dice::seed(
+            "arrival-reactions",
+            &[
+                world.clock.game_minutes(),
+                u64::from(world.player_location.0),
+            ],
+        ),
+        npcs.len() * 2,
+    );
 
     let arrival_ctx = ArrivalContext {
         location: &loc_data,

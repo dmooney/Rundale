@@ -20,7 +20,6 @@ from pathlib import Path
 from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-import noise  # noqa: E402
 from differences import Item, Unit, diff_units  # noqa: E402
 
 BACKGROUND = {"simulation", "other"}
@@ -32,7 +31,7 @@ def request_unit(label: str, entry: dict[str, Any]) -> Unit:
     lines = [f"params {json.dumps(params, sort_keys=True)}"]
     for message in body.get("messages", []):
         role = message.get("role", "?")
-        content = noise.prompt_text(str(message.get("content", "")))
+        content = str(message.get("content", ""))
         lines += [f"{role}| {line}" for line in content.split("\n")]
     return f"{label} ({entry.get('workload', '?')})", lines
 

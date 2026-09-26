@@ -977,9 +977,9 @@ mod tests {
     /// a `Friend` relationship (strength 0.5) with NPC id=2.
     fn make_test_npc_with_relationship() -> limerick_npc::manager::NpcManager {
         use limerick_npc::types::{Relationship, RelationshipKind};
-        use std::collections::HashMap;
+        use std::collections::BTreeMap;
 
-        let mut rels = HashMap::new();
+        let mut rels = BTreeMap::new();
         rels.insert(NpcId(2), Relationship::new(RelationshipKind::Friend, 0.5));
         let mut npcs = limerick_npc::manager::NpcManager::new();
         let mut npc = npc_fixture(1, 1);

@@ -141,7 +141,7 @@ pub fn emit_npc_reactions(
     tokio::spawn(async move {
         // Pre-capture the NPC list at the given location (the player may have
         // moved by the time the background task runs).
-        let (npcs_here, context_bus, context_epoch) = {
+        let (npcs_here, game_minutes, context_bus, context_epoch) = {
             let world = state_clone.world.lock().await;
             let npc_manager = state_clone.npc_manager.lock().await;
             (
@@ -150,6 +150,7 @@ pub fn emit_npc_reactions(
                     .iter()
                     .map(|npc| (*npc).clone())
                     .collect::<Vec<_>>(),
+                world.clock.game_minutes(),
                 world.event_bus.clone(),
                 world.event_bus.context_epoch(),
             )
@@ -226,6 +227,7 @@ pub fn emit_npc_reactions(
         limerick_core::game_loop::emit_npc_reactions(
             player_msg_id,
             player_input,
+            game_minutes,
             npcs_here,
             reaction_client,
             reaction_model,

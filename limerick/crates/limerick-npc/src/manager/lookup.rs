@@ -3,7 +3,7 @@
 //! Part of the `NpcManager` impl, split out of the former monolithic
 //! `manager.rs` (#1200 TD-030). Public method paths are unchanged.
 
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeMap, HashSet};
 use std::path::Path;
 
 use crate::data::load_npcs_from_file;
@@ -250,12 +250,12 @@ impl NpcManager {
     }
 
     /// Returns a shared reference to the internal NPC map.
-    pub fn npcs(&self) -> &HashMap<NpcId, Npc> {
+    pub fn npcs(&self) -> &BTreeMap<NpcId, Npc> {
         &self.npcs
     }
 
     /// Returns a mutable reference to the internal NPC map.
-    pub fn npcs_mut(&mut self) -> &mut HashMap<NpcId, Npc> {
+    pub fn npcs_mut(&mut self) -> &mut BTreeMap<NpcId, Npc> {
         &mut self.npcs
     }
 

@@ -91,7 +91,7 @@ What it does (`limerick/scripts/proof/prove_diff.py`):
    uncommitted changes included. Changed files are touched before each build so
    the shared cargo target cannot reuse the other tree's fingerprint, and each
    side's binaries are copied out before the next build.
-2. On each side, several times (`--runs`, default 3):
+2. On each side, twice (`--runs`, default 2):
    - drives the live scenario (`limerick/scripts/proof/scenarios/<name>.txt`,
      one player line per line) through `limerick-server` over
      `POST /api/submit-input`, against the scripted model server. The server
@@ -124,13 +124,14 @@ reason = "tier-1 prompt names the county"
 With no file, the run passes only if nothing differs, which is the proof for a
 refactor.
 
-Nondeterminism: runs on `main` still vary (unseeded dice, HashMap-ordered NPC
-lists, wall-clock clocks and save times). `limerick/scripts/proof/noise.py`
-masks each known source, and where a side's runs still disagree the report
-lists it under "Nondeterminism" and compares that unit as a range: a line
-differs only if every run of one side has it and no run of the other does.
-Item 2 of #2033 removes these sources; delete a normaliser when its source is
-fixed.
+Nondeterminism: runs are deterministic at the source (#2033): NPC lists come
+out in id order, rolls are seeded from game state, the script clock and save
+stamps ignore wall time, and background simulation requests are grouped per
+turn. Head runs that disagree with each other fail the check, because the
+change made a run nondeterministic; a base side that disagrees (an older
+`main`) is compared as a range and listed under "Nondeterminism". The one
+remaining normaliser (`limerick/scripts/proof/noise.py`) masks the seconds the
+live server's real-time clock adds before the scenario's `/pause`.
 
 Writing a scenario: start with `/pause`, since the live clock otherwise runs in
 wall-clock time. Lines starting with a movement verb go to the local parser;

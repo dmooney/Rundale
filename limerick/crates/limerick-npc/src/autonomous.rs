@@ -96,13 +96,13 @@ fn is_high_energy_mood(mood: &str) -> bool {
 mod tests {
     use super::*;
     use crate::types::{Relationship, RelationshipKind};
-    use std::collections::HashMap;
+    use std::collections::BTreeMap;
 
     fn make_npc(id: u32, name: &str, mood: &str) -> Npc {
         let mut npc = crate::test_helpers::make_test_npc(id, 1);
         npc.name = name.to_string();
         npc.mood = mood.to_string();
-        npc.relationships = HashMap::new();
+        npc.relationships = BTreeMap::new();
         npc
     }
 

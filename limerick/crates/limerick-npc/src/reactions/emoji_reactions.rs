@@ -10,6 +10,44 @@
 use crate::reactions::reaction_description;
 use crate::{LanguageSettings, Npc};
 use limerick_inference::{AnyClient, GenerateParams};
+use limerick_types::NpcId;
+use limerick_types::dice::{self, DiceRoll};
+
+/// Chance that an NPC shows a reaction it has (inferred or keyword-matched).
+/// Not every NPC reacts every time.
+const REACTION_CHANCE: f64 = 0.6;
+
+/// The rolls for one NPC's reaction to one player message.
+///
+/// Seeded from the game minute, the NPC, and the message, so a replayed
+/// session reacts the same way; each gate keeps its [`REACTION_CHANCE`] odds.
+#[derive(Debug, Clone, Copy)]
+pub struct MessageReactionDice {
+    /// Gate for an emoji the reaction model chose.
+    pub inferred: DiceRoll,
+    /// Seed for the keyword-rule gates, one roll per matching keyword group.
+    pub rule_seed: u64,
+}
+
+impl MessageReactionDice {
+    /// Keeps an inferred emoji only if its [`REACTION_CHANCE`] roll passes.
+    pub fn gate_inferred(&self, emoji: Option<String>) -> Option<String> {
+        emoji.filter(|_| self.inferred.check(REACTION_CHANCE))
+    }
+
+    /// Rolls for `npc_id` reacting to `player_input` at `game_minutes`.
+    pub fn new(game_minutes: u64, npc_id: NpcId, player_input: &str) -> Self {
+        let parts = [
+            game_minutes,
+            u64::from(npc_id.0),
+            dice::seed(player_input, &[]),
+        ];
+        Self {
+            inferred: DiceRoll::seeded(dice::seed("message-reaction-inferred", &parts)),
+            rule_seed: dice::seed("message-reaction-rule", &parts),
+        }
+    }
+}
 
 /// Sampling temperature for the player-message reaction inference call.
 ///
@@ -128,20 +166,20 @@ fn input_contains_keyword(normalised: &str, kw: &str) -> bool {
 
 /// Generates a rule-based NPC reaction to player input.
 ///
-/// Returns `Some(emoji)` if a keyword match triggers a reaction (60% chance),
-/// or `None` if no reaction is generated.
-pub fn generate_rule_reaction(player_input: &str) -> Option<String> {
+/// Each matching keyword group gets its own [`REACTION_CHANCE`] roll, drawn
+/// in order from `rule_seed` ([`MessageReactionDice::rule_seed`]). Returns
+/// the first group's emoji whose roll passes, or `None`.
+pub fn generate_rule_reaction(player_input: &str, rule_seed: u64) -> Option<String> {
     let normalised = normalise_for_keyword_match(player_input);
+    let mut rolls = dice::seeded_n(rule_seed, KEYWORD_REACTIONS.len()).into_iter();
 
     for (keywords, emoji) in KEYWORD_REACTIONS {
         if keywords
             .iter()
             .any(|kw| input_contains_keyword(&normalised, kw))
+            && rolls.next().is_some_and(|roll| roll.check(REACTION_CHANCE))
         {
-            // 60% chance to react — not every NPC reacts every time
-            if rand::random::<f64>() < 0.6 {
-                return Some((*emoji).to_string());
-            }
+            return Some((*emoji).to_string());
         }
     }
 
@@ -326,12 +364,12 @@ pub fn build_player_message_reaction_prompt(
 /// Uses the LLM to infer an NPC emoji reaction for a player message.
 ///
 /// Returns `Some(emoji)` only when:
-/// - inference succeeds within `timeout`,
-/// - the output emoji is in [`REACTION_PALETTE`], and
-/// - the 60% probabilistic gate fires (same rate as rule-based reactions).
+/// - inference succeeds within `timeout`, and
+/// - the output emoji is in [`REACTION_PALETTE`].
 ///
-/// Returns `None` for all errors, unknown emoji, explicit null output, or when
-/// the probabilistic gate does not fire. This function never panics.
+/// Returns `None` for all errors, unknown emoji, or explicit null output. This
+/// function never panics. Callers apply the reaction chance with
+/// [`MessageReactionDice::gate_inferred`].
 pub async fn infer_player_message_reaction(
     client: &AnyClient,
     model: &str,
@@ -464,9 +502,6 @@ pub async fn infer_player_message_reaction_with_profile_and_audit(
     };
     let emoji = response.emoji?;
     reaction_description(&emoji)?;
-    if rand::random::<f64>() >= 0.6 {
-        return None;
-    }
     Some(emoji)
 }
 
@@ -669,6 +704,47 @@ mod tests {
         .await;
 
         assert!(result.is_none());
+    }
+
+    #[test]
+    fn reaction_dice_replay_and_keep_their_odds() {
+        let dice = MessageReactionDice::new(600, NpcId(3), "the rent is due");
+        let again = MessageReactionDice::new(600, NpcId(3), "the rent is due");
+        assert_eq!(dice.inferred.value(), again.inferred.value());
+        assert_eq!(dice.rule_seed, again.rule_seed);
+        assert_eq!(
+            generate_rule_reaction("the rent is due", dice.rule_seed),
+            generate_rule_reaction("the rent is due", again.rule_seed)
+        );
+        assert_ne!(
+            dice.rule_seed,
+            MessageReactionDice::new(600, NpcId(4), "the rent is due").rule_seed
+        );
+
+        // Over consecutive game minutes: one matching group reacts 60% of the
+        // time, two matching groups (independent rolls) 1 - 0.4² = 84%, and
+        // the inferred gate 60%.
+        let n = 20_000;
+        let share = |input: &str| {
+            (0..n)
+                .filter(|&minute| {
+                    let dice = MessageReactionDice::new(minute, NpcId(3), input);
+                    generate_rule_reaction(input, dice.rule_seed).is_some()
+                })
+                .count() as f64
+                / n as f64
+        };
+        assert!((share("the rent is due") - 0.6).abs() < 0.015);
+        assert!((share("the rent is due, and a ghost too") - 0.84).abs() < 0.015);
+        let inferred = (0..n)
+            .filter(|&minute| {
+                MessageReactionDice::new(minute, NpcId(3), "hi")
+                    .gate_inferred(Some("😊".to_string()))
+                    .is_some()
+            })
+            .count() as f64
+            / n as f64;
+        assert!((inferred - 0.6).abs() < 0.015);
     }
 
     #[test]
