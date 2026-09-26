@@ -51,6 +51,9 @@ from script_compare import script_units  # noqa: E402
 BINARIES = ("limerick-server", "limerick-engine")
 FIXTURE_DIR = "limerick/testing/fixtures"
 SCRIPT_TIMEOUT = 600
+# The server's Tier-2 background worker polls every five seconds. Wait past one
+# poll interval so detached simulation requests reach the scripted-model log.
+SCENARIO_QUIET_SECONDS = 6.0
 
 
 @dataclass
@@ -158,6 +161,8 @@ def run_scenario(side: Side, run_dir: Path, scenario: Path) -> None:
             str(side.bin_dir / "limerick-server"),
             "--mod-dir",
             str(side.tree / "mods/rundale"),
+            "--quiet",
+            str(SCENARIO_QUIET_SECONDS),
         ],
         stderr=subprocess.PIPE,
         text=True,
