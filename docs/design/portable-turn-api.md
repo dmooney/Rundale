@@ -1,11 +1,11 @@
 # Design: portable turn API (convergence Stage 2)
 
-> Status: Proposed · Plan: [mobile engine convergence](../plans/mobile-engine-convergence.md) Stage 2 ·
+> Status: Accepted · Plan: [mobile engine convergence](../plans/mobile-engine-convergence.md) Stage 2 ·
 > Decision: [ADR-025](../adr/025-mobile-runtime-on-shared-engine.md) §1, §2
 
-This document is the inventory and design gate for Stage 2. It proposes the API
-types, the request lifecycle, and the PR sequence. No code lands until it is
-approved.
+This document is the inventory and design gate for Stage 2: the API types, the
+request lifecycle, and the PR sequence. It was approved in review; decisions are
+recorded in §9.
 
 ## 1. Goal and exit criteria
 
@@ -511,7 +511,7 @@ canned replies, disclosed in the evidence).
 PRs 2 and 4 are independent of each other and of 3; 5 needs 3 and 4; 6 needs 2
 and 5; 7 needs 5 and 6; 8 needs 7.
 
-## 9. Decisions and open questions
+## 9. Decisions
 
 Decided in review:
 
@@ -521,18 +521,10 @@ Decided in review:
 - §7 consequences are accepted; desktop gets no UI work (mobile-first reset).
 - The script harness stays on its legacy router (required for unchanged
   `--script` output).
-
-Open:
-
-1. **Slash commands.** Proposed: `/`-commands stay on the shared
-   `handle_system_command` path and are not lifecycle requests in Stage 2 (most
-   are session or admin commands). Mobile's observation commands (`/look`,
-   `/time`, `/weather`, `/map`) can join the lifecycle in Stage 5 if the product
-   needs them in the durable transcript.
-2. **Inference outside the turn.** Post-turn reactions, idle banter, and
-   tier-2/3/4 simulation call inference in-process. Under the mobile feature they
-   have no host seam, so mobile runs without them until a background-inference
-   seam exists. Proposed as a new plan item, not Stage 2 scope.
-3. **iOS build in CI.** `rust-mobile-build` checks only the host target. Proposed:
-   PR 1 adds an `aarch64-apple-ios` check and fixes the pinned toolchain's
-   missing iOS standard library.
+- `/`-commands stay on the shared `handle_system_command` path and are not
+  lifecycle requests in Stage 2. Mobile observation commands (`/look`, `/time`,
+  `/weather`, `/map`) may join the lifecycle in Stage 5.
+- Post-turn reactions, idle banter, and tier-2/3/4 simulation keep in-process
+  inference; mobile runs without them until the background inference seam
+  (plan item, #2025) lands.
+- No iOS target build in CI; `rust-mobile-build` stays a host-target check.
