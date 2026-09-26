@@ -14,7 +14,7 @@
   },
   "dependencies": {
     "@astrojs/svelte": "^9.0.1",
-    "astro": "^7.2.4",
+    "astro": "^7.2.8",
     "cookie": "^2.0.1",
     "simple-icons": "^16.28.0",
     "svelte": "^5.56.10"
