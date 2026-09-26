@@ -39,6 +39,12 @@ just attach-proof <task-id>                                # post proof bundle a
 
 - Reads evidence, judge verdict, and acceptance-criteria from a task bundle; produces the structured comment body for `gh`.
 
+### `proof/` — Differential proof tools
+
+- `prove_diff.py` (`just prove-diff`) builds the merge-base with `origin/main` in a detached worktree and this working tree, copies each side's binaries, runs a live scenario and every `--script` fixture on both, and fails on differences not listed in an intended-differences TOML.
+- `scripted_openai.py` is the scripted model server (real HTTP, canned replies per workload, request-body log); `drive_session.py` drives `limerick-server` or an attached bridge over `POST /api/submit-input`; `body_diff.py` and `script_compare.py` are the comparators; `noise.py` masks `main`'s known nondeterminism until #2033 item 2 removes it at the source.
+- Documented in [`docs/agent/agent-check.md`](../../docs/agent/agent-check.md#differential-proof).
+
 ### `limerick-mcp-backend.sh` — Start/stop/status/log helper
 
 - Subcommands: `start`, `stop`, `status`, `logs`. Spawns `limerick-server --port 3030` in background.

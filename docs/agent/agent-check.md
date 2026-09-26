@@ -75,6 +75,75 @@ Accepted live signals: `mcp__limerick__*`, `mcp__claude-in-chrome__*`, the `/lim
 
 The Stop hook (`.claude/hooks/Stop--proof-required.sh`) blocks session-end with the same matrix.
 
+## Differential Proof
+
+`just prove-diff [SCENARIO] [--intended FILE]` runs the same scenarios on
+`main` and on your change and reports every difference. Use it for any change
+that could alter runtime behaviour, and paste its report into `evidence.md`.
+It proves two things a transcript alone does not: the change did what you
+declared, and nothing else changed.
+
+What it does (`limerick/scripts/proof/prove_diff.py`):
+
+1. Builds `limerick-server` and `limerick-engine` from the merge-base with
+   `origin/main` (a detached worktree under
+   `~/.cache/limerick/prove-diff/<repo>/base-tree`) and from your working tree,
+   uncommitted changes included. Changed files are touched before each build so
+   the shared cargo target cannot reuse the other tree's fingerprint, and each
+   side's binaries are copied out before the next build.
+2. On each side, several times (`--runs`, default 3):
+   - drives the live scenario (`limerick/scripts/proof/scenarios/<name>.txt`,
+     one player line per line) through `limerick-server` over
+     `POST /api/submit-input`, against the scripted model server. The server
+     runs with `LIMERICK_PROVIDER=lmstudio`, `LIMERICK_MODEL=scripted`, the
+     tree's own `mods/rundale`, isolated user data and config, no cloud keys,
+     and a working directory without `.env`;
+   - runs every `limerick/testing/fixtures/test_*.txt` through
+     `limerick-engine --script ... --game-mod <tree>/mods/rundale`
+     (`--fixtures ''` skips them).
+3. Compares four surfaces: `responses` (each turn's submit-input reply),
+   `state` (`/api/engine-state` after the last turn), `requests` (every provider
+   request body, grouped by turn), and `script` (each fixture command's fields
+   and log lines). Each difference is one line, for example
+   `requests/talk-and-task turn 4 request (dialogue) + system| WORLD FACTS ...`.
+4. Checks the differences against your intended-differences file and writes
+   `report.md` in the output directory. Any undeclared difference fails; so does
+   a declaration that matches nothing.
+
+Intended-differences file (TOML; keep it in the bundle, e.g.
+`.proofs/<id>/intended-diffs.toml`):
+
+```toml
+[[intended]]
+surface = "requests"          # optional: responses | state | requests | script
+name = "talk-and-task"        # optional: fnmatch on the scenario or fixture name
+match = 'WORLD FACTS .* County Roscommon'  # regex searched in the difference line
+reason = "tier-1 prompt names the county"
+```
+
+With no file, the run passes only if nothing differs, which is the proof for a
+refactor.
+
+Nondeterminism: runs on `main` still vary (unseeded dice, HashMap-ordered NPC
+lists, wall-clock clocks and save times). `limerick/scripts/proof/noise.py`
+masks each known source, and where a side's runs still disagree the report
+lists it under "Nondeterminism" and compares that unit as a range: a line
+differs only if every run of one side has it and no run of the other does.
+Item 2 of #2033 removes these sources; delete a normaliser when its source is
+fixed.
+
+Writing a scenario: start with `/pause`, since the live clock otherwise runs in
+wall-clock time. Lines starting with a movement verb go to the local parser;
+`Let us be off, walking on toward <Place>` reaches the intent model, which the
+scripted server answers with a move. The scripted NPC offers a task when the
+player mentions work. `scripted_openai.py` lists the canned reply per workload.
+
+Pieces usable alone: `scripted_openai.py --port P --log F` (point a Tauri app
+at it with `LIMERICK_BASE_URL=http://127.0.0.1:P/v1`), `drive_session.py`
+(launch `limerick-server`, or `--attach URL` to drive a running server or the
+Tauri bridge), `body_diff.py` (request logs), and `script_compare.py`
+(`--script` output directories).
+
 ## Belt-and-suspenders Lints
 
 - Any `.proofs/<...>` path appearing in the git diff is rejected — bundles are gitignored and are carried in the PR body (or a comment), never committed.
