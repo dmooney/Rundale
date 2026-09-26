@@ -4,6 +4,9 @@
 	"version": "0.0.1",
 	"type": "module",
 	"license": "GPL-3.0-only",
+	"engines": {
+		"node": "^24.0.0"
+	},
 	"scripts": {
 		"dev": "vite dev",
 		"build": "node scripts/verify-notebook-person-art-freshness.mjs && vite build && node scripts/verify-map-glyph-assets.mjs dist/map-glyphs",
@@ -40,7 +43,7 @@
 		"@sveltejs/vite-plugin-svelte": "^7.3.1",
 		"@testing-library/jest-dom": "^6.9.1",
 		"@testing-library/svelte": "^5.4.2",
-		"@types/node": "^26.2.0",
+		"@types/node": "^24.19.0",
 		"eslint": "^10.11.0",
 		"eslint-config-prettier": "^10.1.8",
 		"eslint-plugin-svelte": "^3.23.0",

@@ -11,7 +11,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import noise  # noqa: E402
-from body_diff import load_requests  # noqa: E402
+from body_diff import load_requests, request_items  # noqa: E402
 from differences import (  # noqa: E402
     Intended,
     Item,
@@ -223,6 +223,8 @@ def test_server_logs_bodies_and_streams(tmp_path: Path) -> None:
 
 def test_requests_group_by_turn_with_background_sorted(tmp_path: Path) -> None:
     def entry(workload: str, text: str) -> str:
+        if workload == "simulation":
+            text = f"Location: The Mill\nCanonical location [location_id=18]\n{text}"
         body = {"model": "scripted", "messages": [{"role": "user", "content": text}]}
         return json.dumps({"workload": workload, "body": body})
 
@@ -240,12 +242,62 @@ def test_requests_group_by_turn_with_background_sorted(tmp_path: Path) -> None:
     )
     loaded = load_requests(log)
     assert [label for label, _ in loaded] == [
-        "turn 1 request (intent)",
-        "turn 1 request (dialogue)",
-        "turn 1 background (simulation)",
-        "turn 1 background (simulation)",
+        "turn 1 request #1 (intent)",
+        "turn 1 request #2 (dialogue)",
+        "turn 1 background [location_id=18] (simulation) #1",
+        "turn 1 background [location_id=18] (simulation) #2",
     ]
     assert loaded[2][1][-1] == "user| a"
+
+
+def test_variable_background_location_does_not_shift_request_comparison(tmp_path: Path) -> None:
+    def entry(location_id: int, location: str) -> str:
+        prompt = (
+            f"Location: {location}\n"
+            f"Canonical location [location_id={location_id}]\n"
+            f"Dramatis personae at {location}."
+        )
+        body = {"model": "scripted", "messages": [{"role": "user", "content": prompt}]}
+        return json.dumps({"workload": "simulation", "body": body})
+
+    def write_run(path: Path, locations: list[tuple[int, str]]) -> Path:
+        path.write_text(
+            "\n".join(
+                [json.dumps({"turn": 3, "input": "/pause"})]
+                + [entry(location_id, location) for location_id, location in locations]
+            )
+        )
+        return path
+
+    farm = (9, "Murphy's Farm")
+    common = [(2, "Darcy's Pub"), (18, "The Mill")]
+    base = [
+        write_run(tmp_path / "base-1.jsonl", [common[0], farm, common[1]]),
+        write_run(tmp_path / "base-2.jsonl", common),
+    ]
+    head = [
+        write_run(tmp_path / "head-1.jsonl", common),
+        write_run(tmp_path / "head-2.jsonl", common),
+    ]
+    assert request_items("scenario", base, head) == []
+
+    new_location = (21, "The Chapel")
+    head_with_new = [
+        write_run(tmp_path / "head-new-1.jsonl", [*common, new_location]),
+        write_run(tmp_path / "head-new-2.jsonl", [*common, new_location]),
+    ]
+    added = request_items("scenario", base, head_with_new)
+    assert added
+    assert {item.unit for item in added} == {"turn 3 background [location_id=21] (simulation) #1"}
+
+    base_with_farm = [
+        write_run(tmp_path / "base-farm-1.jsonl", [common[0], farm, common[1]]),
+        write_run(tmp_path / "base-farm-2.jsonl", [common[0], farm, common[1]]),
+    ]
+    removed = request_items("scenario", base_with_farm, head)
+    assert removed
+    assert {item.unit for item in removed} == {"turn 3 background [location_id=9] (simulation) #1"}
+    assert all(item.sign == "-" for item in removed)
 
 
 # drive_session

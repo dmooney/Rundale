@@ -5,8 +5,8 @@ Each request becomes one unit: its workload, its parameters (every body key
 except `messages`) and each message's lines prefixed by role. The driver
 writes a turn marker before each scenario line; within a turn, foreground
 requests (intent, dialogue, reaction) keep their order and background
-simulation requests, which race each other, are sorted. Several logs per
-side form a range (see `differences.diff_units`).
+simulation requests, which race each other, are sorted and keyed by location
+identity. Several logs per side form a range (see `differences.diff_units`).
 
     body_diff.py --base main.jsonl [--base ...] --head branch.jsonl [--head ...]
 """
@@ -14,7 +14,9 @@ side form a range (see `differences.diff_units`).
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
+import re
 import sys
 from pathlib import Path
 from typing import Any
@@ -23,6 +25,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from differences import Item, Unit, diff_units  # noqa: E402
 
 BACKGROUND = {"simulation", "other"}
+CANONICAL_LOCATION_ID = re.compile(r"Canonical location \[location_id=(\d+)\]")
+LOCATION_NAME = re.compile(r"^Location: (.+)$", re.MULTILINE)
 
 
 def request_unit(label: str, entry: dict[str, Any]) -> Unit:
@@ -34,6 +38,22 @@ def request_unit(label: str, entry: dict[str, Any]) -> Unit:
         content = str(message.get("content", ""))
         lines += [f"{role}| {line}" for line in content.split("\n")]
     return f"{label} ({entry.get('workload', '?')})", lines
+
+
+def _background_identity(entry: dict[str, Any]) -> str:
+    """Return a stable identity for a location's race-prone background request."""
+    messages = entry.get("body", {}).get("messages", [])
+    prompt = "\n".join(
+        str(message.get("content", "")) for message in messages if message.get("role") == "user"
+    )
+    match = CANONICAL_LOCATION_ID.search(prompt)
+    if match:
+        return f"location_id={match.group(1)}"
+    match = LOCATION_NAME.search(prompt)
+    if match:
+        return f"location={match.group(1).strip()}"
+    digest = hashlib.sha256(prompt.encode("utf-8")).hexdigest()[:12]
+    return f"prompt={digest}"
 
 
 def load_requests(path: Path) -> list[Unit]:
@@ -52,8 +72,18 @@ def load_requests(path: Path) -> list[Unit]:
     for turn, entries in turns:
         foreground = [e for e in entries if e.get("workload") not in BACKGROUND]
         background = [e for e in entries if e.get("workload") in BACKGROUND]
-        ordered = [request_unit(f"{turn} request", e) for e in foreground]
-        ordered += sorted(request_unit(f"{turn} background", e) for e in background)
+        ordered = [
+            request_unit(f"{turn} request #{index}", entry)
+            for index, entry in enumerate(foreground, start=1)
+        ]
+        identified_background = sorted(
+            request_unit(f"{turn} background [{_background_identity(entry)}]", entry)
+            for entry in background
+        )
+        occurrence: dict[str, int] = {}
+        for label, lines in identified_background:
+            occurrence[label] = occurrence.get(label, 0) + 1
+            ordered.append((f"{label} #{occurrence[label]}", lines))
         units += ordered
     return units
 
