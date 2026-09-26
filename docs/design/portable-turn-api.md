@@ -208,7 +208,7 @@ pub struct TurnStep {
     pub request_id: LogicalRequestId,
     pub attempt_id: Option<ExecutionAttemptId>,
     pub events: Vec<TranscriptEvent>,           // durable, committed or terminal
-    pub emissions: Vec<(String, serde_json::Value)>, // existing wire events, released now
+    pub emissions: Vec<(String, serde_json::Value)>, // wire events (current names), released now
     pub status: TurnStatus,
 }
 
