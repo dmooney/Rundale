@@ -1,9 +1,9 @@
-# Design: portable turn API (convergence Stage 2)
+# Design: portable turn API (Mobile Phase 1)
 
-> Status: Accepted · Plan: [mobile engine convergence](../plans/mobile-engine-convergence.md) Stage 2 ·
+> Status: Accepted · Plan: [mobile engine convergence](../plans/mobile-engine-convergence.md), Mobile Phase 1 ·
 > Decision: [ADR-025](../adr/025-mobile-runtime-on-shared-engine.md) §1, §2
 
-This document is the inventory and design gate for Stage 2: the API types, the
+This document is the inventory and design gate for Mobile Phase 1: the API types, the
 request lifecycle, and the PR sequence. It was approved in review; decisions are
 recorded in §9.
 
@@ -15,7 +15,7 @@ request with a result, a failure, or Stop. Desktop drives the same API and
 fulfils inference requests in-process. The API and its lifecycle build under the
 `mobile` feature.
 
-Exit (plan Stage 2):
+Exit (plan, Mobile Phase 1):
 
 - New request-lifecycle tests pass headless with a scripted inference host.
 - Desktop tests and the harness walkthrough are unchanged.
@@ -23,8 +23,8 @@ Exit (plan Stage 2):
   (compared against a `main` build, excluding wall-clock-seeded ambient lines).
 - CI job `rust-mobile-build` stays green, and covers the new API.
 
-Out of scope: the save system (request and transcript tables are Stage 3),
-prompts as mod files (Stage 4), `mobile/`, `endpoints/`, the FFI, and `ios-port`.
+Out of scope: the save system (request and transcript tables are Mobile Phase 2),
+prompts as mod files (Mobile Phase 3), `mobile/`, `endpoints/`, the FFI, and `ios-port`.
 
 ## 2. Inventory
 
@@ -62,8 +62,8 @@ for an ambiguous match, so an ambiguous explicit addressee is reported as
 | `limerick-client`, `limerick-mcp`   | HTTP clients of the server or Tauri bridge; no pipeline of their own                                                                                                                                                                                                           | n/a                                                                                                 |
 
 The headless REPL is the only `deterministic_capability`-style duplicate on
-`main` (tracked in #2023, fixed by PR 8). The script harness's router is also a duplicate, but its output is a
-Stage 2 invariant; see §7.
+`main` (tracked in #2023, fixed by #2023). The script harness's router is also a duplicate, but its output is a
+Mobile Phase 1 invariant; see §7.
 
 ### 2.3 Mobile build blockers (measured)
 
@@ -86,7 +86,7 @@ crate.
 Decisions (review of this document):
 
 - `ipc::editor` stays desktop-only; the Designer does not ship on mobile.
-- `ipc::bug_report` stays desktop-only in Stage 2. Mobile bug reporting (shared
+- `ipc::bug_report` stays desktop-only in Mobile Phase 1. Mobile bug reporting (shared
   report composition, a delivery sink that keeps the GitHub token off the
   device) is tracked in #2022.
 - The vLLM slot helpers and the diagnostics trait impl are desktop-only by
@@ -112,8 +112,8 @@ Behaviour to port as tests (not code):
   `phase3_natural_travel_commits_once_and_updates_scene_and_schedule`,
   `sqlite_success_events_have_distinct_durable_sequences`,
   `sqlite_failure_and_retry_events_remain_durable_and_monotonic`.
-- `limerick-persistence/src/mobile/mod.rs` journal contract (against the Stage 2
-  in-memory journal; the SQLite versions are Stage 3):
+- `limerick-persistence/src/mobile/mod.rs` journal contract (against the Mobile Phase 1
+  in-memory journal; the SQLite versions are Mobile Phase 2):
   `duplicate_events_are_idempotent_but_conflicting_payload_is_rejected`,
   `stale_generation_has_no_side_effects`,
   `sqlite_failure_rolls_back_generation_state_request_and_event_together`.
@@ -151,7 +151,7 @@ host resumes it with an outcome. When the attempt finishes, the engine commits
 the candidate atomically or discards it.
 
 Desktop calls the same `submit` / `resume` API and fulfils each request with an
-in-process adapter that reproduces today's provider calls. Mobile (Stage 5)
+in-process adapter that reproduces today's provider calls. Mobile (Mobile Phase 4)
 fulfils requests through Limerick Endpoints. One pipeline, one lifecycle; only
 the fulfiller differs.
 
@@ -282,9 +282,9 @@ implementations:
   `drive_in_process(engine, live, input, &InProcessInference)`, that loops
   `AwaitingInference` → `resume`.
 
-Stage 4 adds an Endpoint reference (role name and version) and structured inputs
+Mobile Phase 3 adds an Endpoint reference (#2041) (role name and version) and structured inputs
 to `InferenceCall`, so an Endpoint host can execute the published definition.
-Stage 2 carries the rendered prompt, which is what desktop needs.
+Mobile Phase 1 carries the rendered prompt, which is what desktop needs.
 
 Per-role failure policy is unchanged from desktop and shared by all hosts:
 
@@ -377,12 +377,12 @@ second entry point. Consequences:
   record revealed, and emissions released.
 - Concurrency is unchanged: server and Tauri already hold `persistence_gate`
   across the whole turn, and every other live-state mutator takes the same
-  gate; the headless REPL is serialized by `&mut App`. PR 5 confirms that
+  gate; the headless REPL is serialized by `&mut App`. #2032 confirms that
   tier-2/3 result application takes the gate too.
-- Cost: one world and NPC clone per turn. Task-bearing turns already pay it. PR 5
+- Cost: one world and NPC clone per turn. Task-bearing turns already pay it. #2032
   measures the clone for `mods/rundale` and records the number in the PR.
 
-PR 5 findings. Candidate capture on `mods/rundale` (22 locations, 23 NPCs,
+Findings from #2032. Candidate capture on `mods/rundale` (22 locations, 23 NPCs,
 release build) takes a median of about 15 µs, both fresh and with a full
 500-line text log (`turn_lifecycle::measure_candidate_capture_cost_on_rundale`).
 Tier-2 and tier-3 result application takes `persistence_gate` on both the
@@ -426,17 +426,17 @@ already present with an identical payload is a no-op, with a different payload
 is an error; a failed call leaves no partial write; sequences are strictly
 increasing.
 
-Stage 2 implementations:
+Mobile Phase 1 implementations:
 
 - `MemoryTurnJournal`: complete contract in memory, with fault injection for
   tests.
 - `SessionStoreTurnJournal` (desktop): `commit` appends the task batch through
   the existing `append_task_mutations` in the same way the staged path does
   today; request records and transcript events are held in memory. Desktop
-  acceptance is therefore **not** durable across a crash in Stage 2, which is
+  acceptance is therefore **not** durable across a crash in Mobile Phase 1, which is
   no worse than today (desktop has no request records at all).
 
-What Stage 3 must supply:
+What Mobile Phase 2 must supply (#2037, #2038):
 
 1. `requests` and `transcript_events` tables in the existing
    `limerick-persistence` database (with a migration), keyed by the ids above,
@@ -448,8 +448,8 @@ What Stage 3 must supply:
 3. Durable `accept` and `update`, so `recover` sees open requests after a
    crash.
 4. Forward compatibility per ADR-025 §4: unknown `TranscriptEventKind` values
-   are preserved verbatim and rendered as a fallback line (the Stage 2 enum
-   gets an `Unknown { raw }` arm and a round-trip test so Stage 3 does not have
+   are preserved verbatim and rendered as a fallback line (the Mobile Phase 1 enum
+   gets an `Unknown { raw }` arm and a round-trip test so Mobile Phase 2 does not have
    to change the type).
 5. The save format version bump and prior-format fixtures.
 
@@ -458,10 +458,10 @@ What Stage 3 must supply:
 Unchanged by design:
 
 - The dialogue validation guards. Their fragility is tracked separately in
-  #2024 and is out of Stage 2 scope.
+  #2024 and is out of Mobile Phase 1 scope.
 
 - Prompts, generation parameters, audit records, timeouts, guards, and apply
-  logic (the in-process adapter makes the same calls; PR 3 proves request
+  logic (the in-process adapter makes the same calls; #2028 proves request
   equality with a recording client).
 - The wire emission names and payloads, and the ordering within a turn.
 - `limerick-engine --script` output: `GameTestHarness::execute` stays on its
@@ -505,21 +505,28 @@ fixture, and a proof bundle per [agent-check](../agent/agent-check.md). Live run
 on the inference path use a local scripted OpenAI-compatible server (real HTTP,
 canned replies, disclosed in the evidence).
 
-| #   | Title                                                                | Content                                                                                                                                                                                                                                                                                                            | Proof                                                                                                    |
-| --- | -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------- |
-| 0   | `docs(design): portable turn API inventory and design`               | This document.                                                                                                                                                                                                                                                                                                     | docs checks only                                                                                         |
-| 1   | `build(core): compile the game loop under the mobile feature`        | The five gates in §2.3; `game_loop`, `game_session`, `ipc` no longer desktop-only; CI mobile job adds `clippy -D warnings` and `cargo test -p limerick-core --lib` for the mobile configuration. No behaviour change.                                                                                              | headless live run with scripted server; `--script` diff                                                  |
-| 2   | `refactor(npc): one addressee resolver with an ambiguity result`     | `NpcManager::resolve_reference` returns `Unique`, `Ambiguous(ids)`, or `NotFound` (names first, role vocative fallback kept); `find_by_name` / `find_by_role_at` and the `ipc` resolvers become wrappers. Ambiguous still maps to today's handling.                                                                | resolver unit tests; real-loop test                                                                      |
-| 3   | `refactor(core): route turn inference through a TurnInference seam`  | `InferenceCall` / `InferenceOutcome`, `ctx.inference`, `InProcessInference`; intent, dialogue, encounter, and arrival-reaction calls use it. Behaviour-preserving, including reaction streaming.                                                                                                                   | recording-client equality tests (prompt, system, params, audit per subrole); scripted-server live run    |
-| 4   | `feat(core): request lifecycle types and journal contract`           | `turn::{ids, RequestRecord, phases, TranscriptEvent, TurnJournal, MemoryTurnJournal, project_emissions}`; pure state-machine functions; journal contract tests; emission-coverage test. Not wired to runtimes.                                                                                                     | unit and contract tests (ported persistence oracle); mobile check                                        |
-| 5   | `feat(core): TurnEngine with host-yield inference and staged commit` | `TurnEngine`, `HostYield`, `drive_in_process`; universal candidate staging; gate-participation audit; clone cost measured. Lifecycle integration tests with a scripted host, ported from §2.4, including full travel with encounter and arrival reactions, Stop, late callbacks, retry, failure, restart recovery. | `turn_lifecycle` tests headless with scripted host; mobile `cargo test`                                  |
-| 6   | `feat(core): clarify ambiguous addressees`                           | `Ambiguous` becomes `AwaitingClarification`; `answer_clarification`; clarification survives `recover`; flag `addressee-clarification`. A leading name or role vocative in free text ("Widow, any news?") is passed to the resolver (today it is answered by whoever is first).                                     | ported clarification tests; real-loop test                                                               |
-| 7   | `refactor(server,tauri): submit input through the TurnEngine`        | Server and Tauri (including the MCP bridge) call `drive_in_process`; the staged/live fork is removed; `execute_via_real_loop` drives the engine. Intentional changes 1-3 land here.                                                                                                                                | server and Tauri bridge live runs against the scripted server, before/after transcripts; real-loop tests |
-| 8   | `refactor(engine): headless REPL on the TurnEngine`                  | Delete `handle_headless_game_input`, `stream_headless_npc_dialogue`, `apply_npc_response`, `handle_headless_movement`, `print_arrival_reactions`, and the local `@mention` path. Intentional change 5.                                                                                                             | headless live run with scripted server, before/after                                                     |
-| 9   | `docs: record the portable turn API`                                 | This document to Implemented; architecture, codebase map, plan status, LEARNINGS.                                                                                                                                                                                                                                  | docs checks                                                                                              |
+| PR / issue | Title                                                                | Content                                                                                                                                                                                                                                                                                                            | Proof                                                                                                    |
+| ---------- | -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------- |
+| #2021      | `docs(design): portable turn API inventory and design`               | This document.                                                                                                                                                                                                                                                                                                     | docs checks only                                                                                         |
+| #2026      | `build(core): compile the game loop under the mobile feature`        | The five gates in §2.3; `game_loop`, `game_session`, `ipc` no longer desktop-only; CI mobile job adds `clippy -D warnings` and `cargo test -p limerick-core --lib` for the mobile configuration. No behaviour change.                                                                                              | headless live run with scripted server; `--script` diff                                                  |
+| #2027      | `refactor(npc): one addressee resolver with an ambiguity result`     | `NpcManager::resolve_reference` returns `Unique`, `Ambiguous(ids)`, or `NotFound` (names first, role vocative fallback kept); `find_by_name` / `find_by_role_at` and the `ipc` resolvers become wrappers. Ambiguous still maps to today's handling.                                                                | resolver unit tests; real-loop test                                                                      |
+| #2028      | `refactor(core): route turn inference through a TurnInference seam`  | `InferenceCall` / `InferenceOutcome`, `ctx.inference`, `InProcessInference`; intent, dialogue, encounter, and arrival-reaction calls use it. Behaviour-preserving, including reaction streaming.                                                                                                                   | recording-client equality tests (prompt, system, params, audit per subrole); scripted-server live run    |
+| #2029      | `feat(core): request lifecycle types and journal contract`           | `turn::{ids, RequestRecord, phases, TranscriptEvent, TurnJournal, MemoryTurnJournal, project_emissions}`; pure state-machine functions; journal contract tests; emission-coverage test. Not wired to runtimes.                                                                                                     | unit and contract tests (ported persistence oracle); mobile check                                        |
+| #2032      | `feat(core): TurnEngine with host-yield inference and staged commit` | `TurnEngine`, `HostYield`, `drive_in_process`; universal candidate staging; gate-participation audit; clone cost measured. Lifecycle integration tests with a scripted host, ported from §2.4, including full travel with encounter and arrival reactions, Stop, late callbacks, retry, failure, restart recovery. | `turn_lifecycle` tests headless with scripted host; mobile `cargo test`                                  |
+| #2034      | `feat(core): clarify ambiguous addressees`                           | `Ambiguous` becomes `AwaitingClarification`; `answer_clarification`; clarification survives `recover`; flag `addressee-clarification`. A leading name or role vocative in free text ("Widow, any news?") is passed to the resolver (today it is answered by whoever is first).                                     | ported clarification tests; real-loop test                                                               |
+| #2035      | `refactor(server,tauri): submit input through the TurnEngine`        | Server and Tauri (including the MCP bridge) call `drive_in_process`; the staged/live fork is removed; `execute_via_real_loop` drives the engine. Intentional changes 1-3 land here.                                                                                                                                | server and Tauri bridge live runs against the scripted server, before/after transcripts; real-loop tests |
+| #2023      | `refactor(engine): headless REPL on the TurnEngine`                  | Delete `handle_headless_game_input`, `stream_headless_npc_dialogue`, `apply_npc_response`, `handle_headless_movement`, `print_arrival_reactions`, and the local `@mention` path. Intentional change 5.                                                                                                             | headless live run with scripted server, before/after                                                     |
+| #2036      | `docs: record the portable turn API`                                 | This document to Implemented; architecture, codebase map, plan status, LEARNINGS.                                                                                                                                                                                                                                  | docs checks                                                                                              |
 
-PRs 2 and 4 are independent of each other and of 3; 5 needs 3 and 4; 6 needs 2
-and 5; 7 needs 5 and 6; 8 needs 7.
+Order. The remaining order is also recorded as "blocked by" links on the
+issues.
+
+- Merged: #2027 and #2029 were independent of each other and of #2028; the
+  TurnEngine (#2032) needed #2028 and #2029.
+- Clarification (#2034) needs #2027 and #2032.
+- The runtime switch (#2035) needs #2034.
+- The headless REPL (#2023) needs #2035.
+- The docs update (#2036) closes the phase.
 
 ## 9. Decisions
 
@@ -532,8 +539,8 @@ Decided in review:
 - The script harness stays on its legacy router (required for unchanged
   `--script` output).
 - `/`-commands stay on the shared `handle_system_command` path and are not
-  lifecycle requests in Stage 2. Mobile observation commands (`/look`, `/time`,
-  `/weather`, `/map`) may join the lifecycle in Stage 5.
+  lifecycle requests in Mobile Phase 1. Mobile observation commands (`/look`, `/time`,
+  `/weather`, `/map`) may join the lifecycle in Mobile Phase 4.
 - Post-turn reactions, idle banter, and tier-2/3/4 simulation keep in-process
   inference; mobile runs without them until the background inference seam
   (plan item, #2025) lands.
