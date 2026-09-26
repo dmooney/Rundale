@@ -1119,6 +1119,7 @@ pub mod tests {
                 language: crate::npc::LanguageSettings::english_only(),
                 inference_failure_messages: &[],
                 idle_messages: &[],
+                inference_override: None,
             }
         };
     }
@@ -1295,6 +1296,7 @@ pub mod tests {
             language: crate::npc::LanguageSettings::english_only(),
             inference_failure_messages: &[],
             idle_messages: &[],
+            inference_override: None,
         };
 
         super::handle_npc_conversation(
@@ -1391,6 +1393,7 @@ pub mod tests {
             language: crate::npc::LanguageSettings::english_only(),
             inference_failure_messages: &[],
             idle_messages: &[],
+            inference_override: None,
         };
 
         super::handle_npc_conversation(
@@ -1466,6 +1469,7 @@ pub mod tests {
             language: crate::npc::LanguageSettings::english_only(),
             inference_failure_messages: &[],
             idle_messages: &[],
+            inference_override: None,
         };
 
         super::handle_npc_conversation(
@@ -1519,6 +1523,7 @@ pub mod tests {
                 language: crate::npc::LanguageSettings::english_only(),
                 inference_failure_messages: &[],
                 idle_messages: &[],
+                inference_override: None,
             };
 
             super::handle_npc_conversation(&ctx, "hello".to_string(), vec![], || None).await;

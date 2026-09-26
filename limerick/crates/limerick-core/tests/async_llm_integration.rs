@@ -389,6 +389,7 @@ async fn in_process_seam_streams_arrival_reaction_from_the_context_client() {
         language: LanguageSettings::english_only(),
         inference_failure_messages: &[],
         idle_messages: &[],
+        inference_override: None,
     };
 
     let npc = test_npc();

@@ -351,6 +351,7 @@ mod tests {
             language: crate::npc::LanguageSettings::english_only(),
             inference_failure_messages: &[],
             idle_messages: &[],
+            inference_override: None,
         };
 
         let transport = make_transport();
@@ -397,6 +398,7 @@ mod tests {
             language: crate::npc::LanguageSettings::english_only(),
             inference_failure_messages: &[],
             idle_messages: &[],
+            inference_override: None,
         };
 
         let effects = super::handle_movement(

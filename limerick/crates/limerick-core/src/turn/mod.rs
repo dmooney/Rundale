@@ -9,12 +9,14 @@
 //! This module holds the pure pieces: identities ([`ids`]), the state
 //! machine ([`lifecycle`]), transcript events ([`transcript`]), the
 //! durability seam ([`journal`]), and the projection of committed wire
-//! emissions onto transcript events ([`projection`]). The turn engine that
-//! drives them is built on top. Design: `docs/design/portable-turn-api.md`.
+//! emissions onto transcript events ([`projection`]). The turn engine
+//! ([`engine`]) drives them over the shared game-loop pipeline. Design:
+//! `docs/design/portable-turn-api.md`.
 
 use std::future::Future;
 use std::pin::Pin;
 
+pub mod engine;
 pub mod ids;
 pub mod journal;
 pub mod lifecycle;
@@ -24,6 +26,10 @@ pub mod transcript;
 /// Boxed future returned by lifecycle traits.
 pub type BoxFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
 
+pub use engine::{
+    HostYield, INTERRUPTED_MESSAGE, InferenceResolution, InferenceRoutes, PendingInference,
+    TurnEngine, TurnError, TurnInput, TurnRules, TurnStatus, TurnStep, drive_in_process,
+};
 pub use ids::{
     EventSequence, ExecutionAttemptId, InferenceCallId, LogicalRequestId, StateRevision,
     TranscriptEventId, TranscriptItemId,

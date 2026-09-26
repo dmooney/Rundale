@@ -257,6 +257,7 @@ impl GameTestHarness {
                     language,
                     inference_failure_messages: &failure_messages,
                     idle_messages: &idle_messages,
+                    inference_override: None,
                 };
                 let must_stage = {
                     let world = world.lock().await;

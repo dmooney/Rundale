@@ -64,6 +64,12 @@ pub struct GameLoopContext<'a> {
     /// current location. Empty when the mod ships none — engine falls
     /// back to a blank line.
     pub idle_messages: &'a [String],
+    /// Fulfils this context's turn inference instead of the in-process
+    /// provider slots. `None` (every desktop entry point) calls the
+    /// configured providers directly; the [`crate::turn::TurnEngine`] sets
+    /// its host-yield seam here so each model call suspends the attempt and
+    /// is returned to the host.
+    pub inference_override: Option<Arc<dyn crate::turn_inference::TurnInference>>,
 }
 
 impl<'a> GameLoopContext<'a> {
@@ -71,11 +77,15 @@ impl<'a> GameLoopContext<'a> {
     ///
     /// Every intent, dialogue, travel-encounter, and arrival-reaction call in
     /// the game loop goes through this seam (see
-    /// [`crate::turn_inference::TurnInference`]). This context fulfils it
-    /// in-process from its own provider slots.
+    /// [`crate::turn_inference::TurnInference`]). The context's
+    /// [`Self::inference_override`] fulfils it when set; otherwise it is
+    /// fulfilled in-process from the context's own provider slots.
     pub fn inference(&self) -> Box<dyn crate::turn_inference::TurnInference + 'a> {
-        Box::new(crate::game_loop::inference::InProcessInference::from_ctx(
-            self,
-        ))
+        match &self.inference_override {
+            Some(inference) => Box::new(Arc::clone(inference)),
+            None => Box::new(crate::game_loop::inference::InProcessInference::from_ctx(
+                self,
+            )),
+        }
     }
 }

@@ -236,6 +236,7 @@ pub(crate) async fn handle_game_input(
         language: state.language_settings.clone(),
         inference_failure_messages: &state.inference_failure_messages,
         idle_messages: &state.idle_messages,
+        inference_override: None,
     };
     let transport = state.transport.default_mode().clone();
     let reaction_templates = state.reaction_templates.clone();
@@ -382,6 +383,7 @@ pub(super) async fn run_idle_banter_locked(state: &Arc<AppState>, app: &tauri::A
         language: state.language_settings.clone(),
         inference_failure_messages: &state.inference_failure_messages,
         idle_messages: &state.idle_messages,
+        inference_override: None,
     };
 
     super::snapshot::emit_world_update(state, app).await;
@@ -680,6 +682,7 @@ mod tests {
             language: limerick_core::npc::LanguageSettings::english_only(),
             inference_failure_messages: &[],
             idle_messages: &[],
+            inference_override: None,
         };
         let transport = make_transport_1467();
         let reaction_templates = limerick_core::npc::reactions::ReactionTemplates::default();

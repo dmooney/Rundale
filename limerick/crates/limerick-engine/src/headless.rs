@@ -1424,6 +1424,7 @@ async fn handle_headless_staged_game_input(
             language,
             inference_failure_messages: &inference_failure_messages,
             idle_messages: &idle_messages,
+            inference_override: None,
         };
         handle_staged_game_input(
             &ctx,
