@@ -147,6 +147,46 @@ ui-format-check:
 ui-e2e:
     cd limerick && just ui-e2e
 
+# Run GitHub Actions workflows locally through the engine's act recipes.
+act-list:
+    cd limerick && just act-list
+
+act-ci:
+    cd limerick && just act-ci
+
+act-full-ci:
+    cd limerick && just act-full-ci
+
+act-fmt:
+    cd limerick && just act-fmt
+
+act-harness:
+    cd limerick && just act-harness
+
+act-ui:
+    cd limerick && just act-ui
+
+act-e2e:
+    cd limerick && just act-e2e
+
+act-audit:
+    cd limerick && just act-audit
+
+act-job JOB:
+    cd limerick && just act-job {{JOB}}
+
+act-pr:
+    cd limerick && just act-pr
+
+act-merge-group:
+    cd limerick && just act-merge-group
+
+act-refresh:
+    cd limerick && just act-refresh
+
+act-clean:
+    cd limerick && just act-clean
+
 # Regenerate GUI screenshots via Playwright
 screenshots:
     cd limerick && just screenshots

@@ -57,6 +57,7 @@ All of these are defined in `justfile`:
 | `just act-e2e`          | `full-ci.yml` Playwright e2e                      |
 | `just act-job JOB=<id>` | Run a specific job by id from `act-list`          |
 | `just act-pr`           | Simulate the `pull_request` fast lane             |
+| `just act-merge-group`  | Simulate the required merge-queue gate            |
 | `just act-refresh`      | Re-fetch third-party actions after a version bump |
 | `just act-clean`        | Tear down cached containers + artifact output     |
 
@@ -89,12 +90,14 @@ to `~/.cache` inside the container, and `--reuse` keeps that around,
 but the very first `cargo build` in the `ui-e2e` job will take several
 minutes. Budget 30–60 minutes for the first full-suite job run.
 
-**Fast lane vs. full suite.** `ci.yml` is the sub-minute workflow for
-pull requests and main/develop pushes. `full-ci.yml` preserves the expensive
-Rust, coverage, harness, and UI runtime jobs on `merge_group`, pushes to
-`main`/`develop`, the nightly schedule, and manual dispatch. Use
-`just act-pr` when reproducing PR timing, `just act-ci` for the default fast
-lane, and `just act-full-ci` or `just act-job JOB=<id>` for full-suite jobs.
+**Fast lane vs. full suite.** `ci.yml` is the sub-minute workflow for ordinary
+pull requests and main/develop pushes. On `merge_group`, the same required
+workflow calls `full-ci.yml` and fails closed unless the expensive Rust,
+coverage, harness, and UI runtime jobs succeed. `full-ci.yml` also runs on
+pushes to `main`/`develop`, the nightly schedule, and manual dispatch. Use
+`just act-pr` when reproducing PR timing, `just act-merge-group` for the queue
+contract, `just act-ci` for the default fast lane, and `just act-full-ci` or
+`just act-job JOB=<id>` for full-suite jobs.
 
 **Runs at native arm64 speed.** With CI moved to a self-hosted arm64
 runner, act pulls the arm64 catthehacker variant and runs without
