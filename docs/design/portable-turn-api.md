@@ -62,7 +62,7 @@ for an ambiguous match, so an ambiguous explicit addressee is reported as
 | `limerick-client`, `limerick-mcp`   | HTTP clients of the server or Tauri bridge; no pipeline of their own                                                                                                                                                                                                           | n/a                                                                                                 |
 
 The headless REPL is the only `deterministic_capability`-style duplicate on
-`main`. The script harness's router is also a duplicate, but its output is a
+`main` (tracked in #2023, fixed by PR 8). The script harness's router is also a duplicate, but its output is a
 Stage 2 invariant; see §7.
 
 ### 2.3 Mobile build blockers (measured)
@@ -82,6 +82,16 @@ running `cargo check`/`clippy -D warnings` with `--no-default-features
 Gating those five items (and the matching re-exports) is enough for a clean
 mobile `check` and `clippy`. Nothing needs to be duplicated or moved to a new
 crate.
+
+Decisions (review of this document):
+
+- `ipc::editor` stays desktop-only; the Designer does not ship on mobile.
+- `ipc::bug_report` stays desktop-only in Stage 2. Mobile bug reporting (shared
+  report composition, a delivery sink that keeps the GitHub token off the
+  device) is tracked in #2022.
+- The vLLM slot helpers and the diagnostics trait impl are desktop-only by
+  nature (local model processes, debug panel). The `InferenceLogEntry` import is
+  corrected to `limerick_inference`, not gated.
 
 ### 2.4 Oracle on `origin/ios-port`
 
@@ -365,13 +375,10 @@ second entry point. Consequences:
   to the journal in one call; only after it succeeds is the candidate installed
   (transplanting the live event bus), semantic events published, the audit
   record revealed, and emissions released.
-- Concurrency is unchanged in kind: server and Tauri already hold
-  `persistence_gate` across the whole turn, and the world tick, inactivity tick,
-  reaction apply, save, and editor reload paths take the same gate. The
-  headless REPL is serialized by `&mut App`. PR 5 audits every live-state
-  mutator (including tier-2/3 result application) for gate participation before
-  staging becomes universal, because installing a candidate overwrites any
-  mutation that bypassed the gate.
+- Concurrency is unchanged: server and Tauri already hold `persistence_gate`
+  across the whole turn, and every other live-state mutator takes the same
+  gate; the headless REPL is serialized by `&mut App`. PR 5 confirms that
+  tier-2/3 result application takes the gate too.
 - Cost: one world and NPC clone per turn. Task-bearing turns already pay it. PR 5
   measures the clone for `mods/rundale` and records the number in the PR.
 
@@ -439,6 +446,9 @@ What Stage 3 must supply:
 ## 7. Desktop invariance
 
 Unchanged by design:
+
+- The dialogue validation guards. Their fragility is tracked separately in
+  #2024 and is out of Stage 2 scope.
 
 - Prompts, generation parameters, audit records, timeouts, guards, and apply
   logic (the in-process adapter makes the same calls; PR 3 proves request
