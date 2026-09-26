@@ -65,3 +65,17 @@ pub struct GameLoopContext<'a> {
     /// back to a blank line.
     pub idle_messages: &'a [String],
 }
+
+impl<'a> GameLoopContext<'a> {
+    /// The inference seam for model calls made during a turn.
+    ///
+    /// Every intent, dialogue, travel-encounter, and arrival-reaction call in
+    /// the game loop goes through this seam (see
+    /// [`crate::turn_inference::TurnInference`]). This context fulfils it
+    /// in-process from its own provider slots.
+    pub fn inference(&self) -> Box<dyn crate::turn_inference::TurnInference + 'a> {
+        Box::new(crate::game_loop::inference::InProcessInference::from_ctx(
+            self,
+        ))
+    }
+}
