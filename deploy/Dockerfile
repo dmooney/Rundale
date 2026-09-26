@@ -10,7 +10,7 @@ COPY limerick/apps/ui/ ./
 RUN npm run build
 
 # ── Stage 2: build Rust binary ────────────────────────────────────────────────
-FROM rust:1.98.0-slim-bookworm AS builder
+FROM rust:1.98.1-slim-bookworm AS builder
 RUN apt-get update && apt-get install -y --no-install-recommends \
     pkg-config \
     && rm -rf /var/lib/apt/lists/*
