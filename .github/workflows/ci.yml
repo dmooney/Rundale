@@ -9,6 +9,7 @@ name: Rundale CI
 
 on:
   pull_request:
+  merge_group:
   push:
     branches:
       - main
@@ -32,7 +33,8 @@ permissions:
 
 jobs:
   # Detect whether a pull request can affect the shipped runtime or its
-  # acceptance sensors. Runtime changes opt into the complete reusable suite.
+  # acceptance sensors. Merge-group entries deliberately default both outputs
+  # to true because dorny/paths-filter has no pull-request diff for that event.
   changes:
     name: Detect changed areas
     runs-on: ubuntu-latest
@@ -76,10 +78,10 @@ jobs:
   agent-check:
     name: Agent proof gate
     # Proof bundles live in the PR body by default; structured comments remain
-    # a legacy fallback. Push events to main/develop are post-merge, so the gate
-    # already ran on the PR that produced the commit. Dependabot-authored bumps
-    # have no useful gameplay-proof signal, even when a coordinator refreshes
-    # their branch and becomes the synchronize-event actor.
+    # a legacy fallback. Merge-group and push payloads have no authoritative PR
+    # body, so proof is checked on the PR before it can enter the queue.
+    # Dependabot-authored bumps have no useful gameplay-proof signal, even when
+    # a coordinator refreshes their branch and becomes the event actor.
     if: github.event_name == 'pull_request' && github.event.pull_request.user.login != 'dependabot[bot]'
     runs-on: ubuntu-latest
     permissions:
@@ -280,7 +282,7 @@ jobs:
   runtime-suite:
     name: Runtime correctness suite
     needs: changes
-    if: github.event_name == 'pull_request' && needs.changes.outputs.runtime == 'true'
+    if: github.event_name == 'merge_group' || (github.event_name == 'pull_request' && needs.changes.outputs.runtime == 'true')
     uses: ./.github/workflows/full-ci.yml
     secrets: inherit
 
@@ -335,6 +337,6 @@ jobs:
         env:
           GATED_RESULTS: ${{ join(needs.*.result, ' ') }}
           PLAYWRIGHT_WINDOWS_RESULT: ${{ needs.playwright-launcher-windows.result }}
-          RUNTIME_SUITE_REQUIRED: ${{ github.event_name == 'pull_request' && needs.changes.outputs.runtime == 'true' }}
+          RUNTIME_SUITE_REQUIRED: ${{ github.event_name == 'merge_group' || (github.event_name == 'pull_request' && needs.changes.outputs.runtime == 'true') }}
           RUNTIME_SUITE_RESULT: ${{ needs.runtime-suite.result }}
         run: bash .github/scripts/ci-gate.sh
